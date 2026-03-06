@@ -2,7 +2,7 @@ local _, Portrait = ...
 
 function Portrait:Init()
     self.frames = self.frames or {}
-    self:Info("Addon loaded.")
+    self:Info("Portrait loaded.")
 end
 
 function Portrait:CreatePositionController()

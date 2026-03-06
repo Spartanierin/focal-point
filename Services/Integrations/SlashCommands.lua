@@ -1,7 +1,7 @@
 local _, Portrait = ...
 
 function Portrait:OpenConfig()
-    self:Info("GUI is not connected yet.")
+    self:CreateGUI()
 end
 
 function Portrait:SetupSlashCommands()
@@ -15,12 +15,12 @@ function Portrait:SetupSlashCommands()
     SlashCmdList["PORTRAIT"] = function(msg)
         msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 
-        if msg == "config" or msg == "" then
+        if msg == "" or msg == "config" then
             Portrait:OpenConfig()
         elseif msg == "test" then
             Portrait:SpawnUnitFrame("player")
         else
-            Portrait:Info("/portrait or /port")
+            Portrait:Info("/port, /port test")
         end
     end
 
