@@ -33,7 +33,7 @@ function Portrait:InitMinimapIcon()
         self.launcher = LDB:NewDataObject("Portrait", {
             type = "launcher",
             text = "Portrait",
-            icon = "Interface\\AddOns\\Portrait\\Media\\icon",
+            icon = "Interface\\AddOns\\Portrait\\Media\\Icon.tga",
             OnClick = function(_, button)
                 if button == "LeftButton" then
                     Portrait:OpenConfig()

@@ -33,19 +33,31 @@ end
 local function BuildFontFlags(config)
     local flags = {}
 
-    if config.nameOutline then
+    if config.outline then
         flags[#flags + 1] = "OUTLINE"
     end
 
-    if config.nameThickOutline then
+    if config.thickOutline then
         flags[#flags + 1] = "THICKOUTLINE"
     end
 
-    if config.nameMonochrome then
+    if config.monochrome then
         flags[#flags + 1] = "MONOCHROME"
     end
 
     return table.concat(flags, ",")
+end
+
+function UF:GetAnchorTarget(frame, anchorTo)
+    if anchorTo == "HealthBar" then
+        return frame.Elements.HealthBar or frame
+    elseif anchorTo == "PowerBar" then
+        return frame.Elements.PowerBar or frame
+    elseif anchorTo == "Frame" then
+        return frame
+    end
+
+    return frame
 end
 
 function UF:CreateBaseFrame(unit, config)
@@ -84,19 +96,76 @@ function UF:CreatePowerBar(frame)
     frame.power = power
 end
 
-function UF:CreateNameText(frame)
-    local parent = frame.Elements.HealthBar or frame
+function UF:CreateTextElement(frame, key, textConfig)
+    if not textConfig or textConfig.enabled == false then
+        return
+    end
 
-    local name = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    name:SetDrawLayer("OVERLAY", 7)
-    name:SetJustifyV("MIDDLE")
-    name:SetWordWrap(false)
+    local parent = self:GetAnchorTarget(frame, textConfig.anchorTo)
+    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    text:SetDrawLayer("OVERLAY", 7)
+    text:SetWordWrap(false)
+    text:SetJustifyV("MIDDLE")
 
-    frame.Texts.Name = name
-    frame.name = name
+    frame.Texts[key] = text
+    frame.Tags[key] = textConfig.tag or ""
+end
 
-    -- Vorbereitung fürs spätere Tag-System
-    frame.Tags.Name = frame.config.nameTag or "[name]"
+function UF:CreateTextElements(frame)
+    local texts = frame.config.Texts
+    if not texts then
+        return
+    end
+
+    for key, textConfig in pairs(texts) do
+        self:CreateTextElement(frame, key, textConfig)
+    end
+end
+
+function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
+    if not textObject or not textConfig then
+        return
+    end
+
+    if textConfig.enabled == false then
+        textObject:Hide()
+        return
+    end
+
+    local anchorParent = self:GetAnchorTarget(frame, textConfig.anchorTo)
+    local fontPath = GetFontPath(textConfig.font)
+    local fontSize = textConfig.fontSize or 12
+    local fontFlags = BuildFontFlags(textConfig)
+    local justifyH = textConfig.justifyH or "CENTER"
+
+    local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
+
+    textObject:ClearAllPoints()
+    textObject:SetPoint(
+        textConfig.point or "CENTER",
+        anchorParent,
+        textConfig.relativePoint or "CENTER",
+        textConfig.offsetX or 0,
+        textConfig.offsetY or 0
+    )
+
+    textObject:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
+    textObject:SetTextColor(r, g, b, a)
+    textObject:SetJustifyH(justifyH)
+
+    if textConfig.shadowEnabled then
+        local sx = textConfig.shadowOffsetX or 1
+        local sy = textConfig.shadowOffsetY or -1
+        local sr, sg, sb, sa = UnpackColor(textConfig.shadowColor, { 0, 0, 0, 1 })
+
+        textObject:SetShadowOffset(sx, sy)
+        textObject:SetShadowColor(sr, sg, sb, sa)
+    else
+        textObject:SetShadowOffset(0, 0)
+        textObject:SetShadowColor(0, 0, 0, 0)
+    end
+
+    textObject:Show()
 end
 
 function UF:ApplyConfig(frame)
@@ -115,7 +184,6 @@ function UF:ApplyConfig(frame)
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0.2, 0.2, 0.2, 1 })
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
-    local nameR, nameG, nameB, nameA = UnpackColor(config.nameColor, { 1, 1, 1, 1 })
 
     local texture = GetStatusBarTexture(config.statusBarTexture)
 
@@ -170,31 +238,9 @@ function UF:ApplyConfig(frame)
         end
     end
 
-    if frame.Texts.Name then
-        local name = frame.Texts.Name
-        local anchorParent = frame.Elements.HealthBar or frame
-        local fontPath = GetFontPath(config.nameFont)
-        local fontSize = config.nameFontSize or 12
-        local fontFlags = BuildFontFlags(config)
-        local justifyH = config.nameJustifyH or "CENTER"
-
-        name:ClearAllPoints()
-        name:SetPoint("CENTER", anchorParent, "CENTER", config.nameOffsetX or 0, config.nameOffsetY or 0)
-        name:SetTextColor(nameR, nameG, nameB, nameA)
-        name:SetJustifyH(justifyH)
-
-        name:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
-
-        if config.nameShadowEnabled then
-            local sx = config.nameShadowOffsetX or 1
-            local sy = config.nameShadowOffsetY or -1
-            local sr, sg, sb, sa = UnpackColor(config.nameShadowColor, { 0, 0, 0, 1 })
-
-            name:SetShadowOffset(sx, sy)
-            name:SetShadowColor(sr, sg, sb, sa)
-        else
-            name:SetShadowOffset(0, 0)
-            name:SetShadowColor(0, 0, 0, 0)
+    if config.Texts then
+        for key, textConfig in pairs(config.Texts) do
+            self:ApplyTextElementConfig(frame, key, frame.Texts[key], textConfig)
         end
     end
 end
@@ -209,7 +255,13 @@ function UF:ApplyTestValues(frame)
     end
 
     if frame.Texts.Name then
-        frame.Texts.Name:SetText("PORTRAIT TEST")
+        local cfg = frame.config and frame.config.Texts and frame.config.Texts.Name
+        frame.Texts.Name:SetText((cfg and cfg.tag) or "[name]")
+    end
+
+    if frame.Texts.Health then
+        local cfg = frame.config and frame.config.Texts and frame.config.Texts.Health
+        frame.Texts.Health:SetText((cfg and cfg.tag) or "[hp:cur]")
     end
 end
 
@@ -222,7 +274,7 @@ function UF:Build(unit)
     local frame = self:CreateBaseFrame(unit, config)
     self:CreateHealthBar(frame)
     self:CreatePowerBar(frame)
-    self:CreateNameText(frame)
+    self:CreateTextElements(frame)
 
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)

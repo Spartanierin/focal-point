@@ -18,7 +18,7 @@
 ## Category-zhCN: 用户界面
 ## Category-zhTW: 使用者介面 
 
-## IconTexture: Interface\AddOns\Portrait\Media\Textures\Logo.tga 
+## IconTexture: Interface\AddOns\Portrait\Media\Icon.tga 
 
 ## X-oUF: Portrait
 ## X-Curse-Project-ID: 

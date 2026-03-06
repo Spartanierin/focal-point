@@ -1,9 +1,5 @@
 local _, Portrait = ...
 
-function Portrait:OpenConfig()
-    self:CreateGUI()
-end
-
 function Portrait:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
@@ -20,7 +16,9 @@ function Portrait:SetupSlashCommands()
         elseif msg == "test" then
             Portrait:SpawnUnitFrame("player")
         else
-            Portrait:Info("/port, /port test")
+            if Portrait.Info then
+                Portrait:Info("/port, /port config, /port test")
+            end
         end
     end
 

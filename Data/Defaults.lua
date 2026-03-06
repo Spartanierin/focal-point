@@ -28,29 +28,66 @@ function Portrait:GetDefaultDB()
                     showPowerBar = true,
                     powerBarHeight = 8,
 
-                    nameTag = "[name]",
-                    nameOffsetX = 0,
-                    nameOffsetY = 0,
-                    nameJustifyH = "CENTER",
-
-                    nameFont = STANDARD_TEXT_FONT,
-                    nameFontSize = 12,
-                    nameOutline = false,
-                    nameThickOutline = false,
-                    nameMonochrome = false,
-
-                    nameShadowEnabled = true,
-                    nameShadowOffsetX = 1,
-                    nameShadowOffsetY = -1,
-                    nameShadowColor = { 0, 0, 0, 1 },
-
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
 
                     backgroundColor = { 0.08, 0.08, 0.08, 0.90 },
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
                     healthColor = { 0.10, 0.80, 0.10, 1.00 },
                     powerColor = { 0.20, 0.40, 0.90, 1.00 },
-                    nameColor = { 1.00, 1.00, 1.00, 1.00 },
+
+                    Texts = {
+                        Name = {
+                            enabled = true,
+                            tag = "[name]",
+
+                            anchorTo = "HealthBar",
+                            point = "CENTER",
+                            relativePoint = "CENTER",
+                            offsetX = 0,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 12,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Health = {
+                            enabled = true,
+                            tag = "[hp:cur]",
+
+                            anchorTo = "HealthBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -6,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "RIGHT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                    },
                 },
 
                 target = {
