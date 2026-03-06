@@ -9,9 +9,18 @@
     <Script file="Services/Integrations/SlashCommands.lua"/>
     <Script file="Services/Integrations/MinimapButton.lua"/>
 
+    <Script file="Engine/Constants.lua"/>
+
+    <Script file="Locales/enUS.lua"/>
+    <Script file="Locales/deDE.lua"/>
+
+    <Script file="Engine/KeyMap.lua"/>
+    <Script file="Engine/Localization.lua"/>
+
     <Script file="Engine/Core.lua"/>
     <Script file="Engine/UnitFrame.lua"/>
 
     <Script file="GUI/GUIWidgets.lua"/>
+    <Script file="GUI/GUIBuilders.lua"/>
     <Script file="GUI/GUI.lua"/>
 </Ui>

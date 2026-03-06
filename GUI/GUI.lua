@@ -5,45 +5,7 @@ local AceGUI = LibStub("AceGUI-3.0")
 Portrait.GUI = Portrait.GUI or {}
 Portrait.GUI.selectedPath = Portrait.GUI.selectedPath or "general"
 
-local NAV_TREE = {
-    {
-        value = "general",
-        text = "General",
-    },
-    {
-        value = "frames",
-        text = "Frames",
-        children = {
-            {
-                value = "frames.player",
-                text = "Player",
-                children = {
-                    { value = "frames.player.healthbar", text = "Health Bar" },
-                    { value = "frames.player.powerbar", text = "Power Bar" },
-                    { value = "frames.player.name", text = "Name" },
-                    { value = "frames.player.healthtext", text = "Health Text" },
-                },
-            },
-            {
-                value = "frames.target",
-                text = "Target",
-                children = {
-                    { value = "frames.target.healthbar", text = "Health Bar" },
-                    { value = "frames.target.powerbar", text = "Power Bar" },
-                    { value = "frames.target.name", text = "Name" },
-                },
-            },
-        },
-    },
-    {
-        value = "test",
-        text = "Test Mode",
-    },
-    {
-        value = "profiles",
-        text = "Profiles",
-    },
-}
+local NAV_TREE = Portrait.GUIBuilders.CreateNavTree()
 
 local POINTS = {
     CENTER = "CENTER",
@@ -752,58 +714,51 @@ local function NormalizeGroupValue(group)
     return group
 end
 
+local C = Portrait.Constants
+
+local function ParseUnitPath(path)
+    local unitKey = string.match(path or "", "^units%.([^.]+)$")
+    return unitKey
+end
+
+local function BuildPlaceholderPage(container, title)
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+
+    local label = AceGUI:Create("Label")
+    label:SetText(title .. " (TODO)")
+    label:SetFullWidth(true)
+    container:AddChild(label)
+end
+
 local function RenderPage(container, path)
     if path == "general" then
         BuildGeneralPage(container)
         return
     end
 
-    if path == "frames.player.healthbar" then
-        BuildPlayerHealthBarPage(container)
-        return
-    end
-
-    if path == "frames.player.name" then
-        BuildTextPage(container, "player", "Name", "Player - Name")
-        return
-    end
-
-    if path == "frames.player.healthtext" then
-        BuildTextPage(container, "player", "Health", "Player - Health Text")
-        return
-    end
-
-    if path == "frames.player.powerbar" then
-        RenderPlaceholderPage(container, "Player - Power Bar", "This page comes next.")
-        return
-    end
-
-    if path == "frames.target.healthbar" then
-        RenderPlaceholderPage(container, "Target - Health Bar", "This page comes later.")
-        return
-    end
-
-    if path == "frames.target.powerbar" then
-        RenderPlaceholderPage(container, "Target - Power Bar", "This page comes later.")
-        return
-    end
-
-    if path == "frames.target.name" then
-        RenderPlaceholderPage(container, "Target - Name", "This page comes later.")
-        return
-    end
-
-    if path == "test" then
-        RenderPlaceholderPage(container, "Test Mode", "Test mode settings will live here.")
-        return
-    end
-
     if path == "profiles" then
-        RenderPlaceholderPage(container, "Profiles", "Profiles page comes later.")
+        Portrait.GUIBuilders.BuildPlaceholderPage(container, "Profiles")
         return
     end
 
-    RenderPlaceholderPage(container, "Unknown Page", tostring(path))
+    if path == "test_mode" then
+        Portrait.GUIBuilders.BuildPlaceholderPage(container, "Test Mode")
+        return
+    end
+
+    if path == "units" then
+        Portrait.GUIBuilders.BuildPlaceholderPage(container, "Units")
+        return
+    end
+
+    local unitKey = ParseUnitPath(path)
+    if unitKey then
+        Portrait.GUIBuilders.BuildUnitPage(container, unitKey)
+        return
+    end
+
+    Portrait.GUIBuilders.BuildPlaceholderPage(container, path or "Unknown")
 end
 
 function Portrait:CreateGUI()
