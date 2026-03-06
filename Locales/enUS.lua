@@ -1,0 +1,105 @@
+local AceLocale = LibStub("AceLocale-3.0")
+local L = AceLocale:NewLocale("Portrait", "enUS", true)
+if not L then return end
+
+-- Tabs
+L["TAB_GENERAL"]            = "General"
+L["TAB_GLOBAL"]             = "Global"
+L["TAB_PLAYER"]             = "Player"
+L["TAB_TARGET"]             = "Target"
+L["TAB_TARGET_OF_TARGET"]   = "Target of Target"
+L["TAB_PET"]                = "Pet"
+L["TAB_FOCUS"]              = "Focus"
+L["TAB_FOCUS_TARGET"]       = "Focus Taget"
+L["TAB_BOSS"]               = "Boss"
+L["TAB_TAGS"]               = "Tags"
+L["TAB_PROFILES"]           = "Profiles"
+
+L["IG_UI_SCALE"]                    = "UI Scale"
+L["IG_FONTS"]                       = "Fonts"
+L["IG_TEXTURES"]                    = "Textures"
+L["IG_CAST_BAR"]                    = "Cast Bar"
+L["IG_RANGE"]                       = "Range"
+L["IG_COLOURS"]                     = "Colours"
+L["IG_LAYOUT_POSITIONING"]          = "Layout & Positioning"
+L["IG_COLOURS_TOGGLES"]             = "Colours & Toggles"
+L["IG_DISPEL_HIGHLIGHTING"]         = "Dispel Highlighting"
+L["IG_ABSORB_SETTINGS"]             = "Absorb Settings"
+L["IG_HEAL_ABSORB_SETTINGS"]        = "Heal Absorb Settings"
+L["IG_CAST_BAR_SETTINGS"]           = "Cast Bar Settings"
+L["IG_ICON_SETTINGS"]               = "Icon Settings"
+L["IG_SPELL_NAME_SETTINGS"]         = "Spell Name Settings"
+L["IG_LAYOUT"]                      = "Layout"
+L["IG_DURATION_SETTINGS"]           = "Duration Settings"
+L["IG_POWER_BAR_SETTINGS"]          = "Power Bar Settings"
+L["IG_ALT_POWER_BAR_SETTINGS"]      = "Alternative Power Bar Settings"
+L["IG_PORTRAIT_SETTINGS"]           = "Portrait Settings"
+L["IG_RTM_SETTINGS"]                = "Raid Target Marker Settings"
+L["IG_LEADER_ASSIST_SETTINGS"]      = "Leader & Assistant Settings"
+L["IG_MOUSEOVER_SETTINGS"]          = "Mouseover Settings"
+L["IG_TARGET_INDICATOR_SETTINGS"]   = "Target Indicator Settings"
+L["IG_AURA_DURATION_SETTINGS"]      = "Aura Duration Settings"
+L["IG_TOTEMS_SETTINGS"]             = "Totems Settings"
+L["IG_TAG_SETTINGS"]                = "Tag Settings"
+L["IG_TAG_SELECTION"]               = "Tag Selection"
+L["IG_COUNT_SETTINGS"]              = "Count Settings"
+L["IG_GLOBAL_SETTINGS"]             = "Global Settings"
+L["IG_TOGGLES"]                     = "Toggles"
+L["IG_PROFILE_MANAGEMENT"]          = "Profile Management"
+L["IG_SPEC_PROFILES"]               = "Specialization Profiles"
+L["IG_PROFILE_SHARING"]             = "Profile Sharing"
+L["IG_SETTINGS_FORMAT"]             = " Settings"
+
+L["LABEL_WIDTH"]                = "Width"
+L["LABEL_HEIGHT"]               = "Height"
+L["LABEL_SIZE"]                 = "Size"
+L["LABEL_SCALE"]                = "Scale"
+
+L["LABEL_OFFSET_X"]             = "X Offset"
+L["LABEL_OFFSET_Y"]             = "Y Offset"
+L["LABEL_POSITION_X"]           = "X Position"
+L["LABEL_POSITION_Y"]           = "Y Position"
+
+L["LABEL_ANCHOR"]               = "Anchor"
+L["LABEL_ANCHOR_FROM"]          = "Anchor From"
+L["LABEL_ANCHOR_TO"]            = "Anchor To"
+L["LABEL_PARENT"]               = "Parent"
+
+L["LABEL_FONT"]                 = "Font"
+L["LABEL_FONT_SIZE"]            = "Font Size"
+L["LABEL_FONT_FLAG"]            = "Font Flag"
+L["LABEL_FONT_OUTLINE"]         = "Font Outline"
+
+L["LABEL_TEXTURE"]              = "Texture"
+L["LABEL_BACKGROUND_TEXTURE"]   = "Background Texture"
+L["LABEL_FOREGROUND_TEXTURE"]   = "Foreground Texture"
+
+L["LABEL_COLOUR"]               = "Colour"
+L["LABEL_BACKGROUND_COLOUR"]    = "Background Colour"
+L["LABEL_FOREGROUND_COLOUR"]    = "Foreground Colour"
+L["LABEL_BORDER_COLOUR"]        = "Border Colour"
+
+L["LABEL_OPACITY"]              = "Opacity"
+L["LABEL_ALPHA"]                = "Alpha"
+
+L["LABEL_SPACING"]              = "Spacing"
+L["LABEL_PADDING"]              = "Padding"
+
+L["LABEL_ICON_SIZE"]            = "Icon Size"
+L["LABEL_FRAME_STRATA"]         = "Frame Strata"
+L["LABEL_FRAME_LEVEL"]          = "Frame Level"
+
+L["LABEL_GROWTH_DIRECTION"]     = "Growth Direction"
+L["LABEL_DIRECTION"]            = "Direction"
+
+L["LABEL_MAX_CHARACTERS"]       = "Max Characters"
+
+L["LABEL_IN_RANGE_ALPHA"]       = "In Range Alpha"
+L["LABEL_OUT_OF_RANGE_ALPHA"]   = "Out of Range Alpha"
+
+L["LABEL_SHOW_ABSORBS"]         = "Show Absorbs"
+L["LABEL_SHOW_HEAL_ABSORBS"]    = "Show Heal Absorbs"
+
+L["LABEL_ENABLE"]               = "Enable"
+L["LABEL_DISABLE"]              = "Disable"
+L["LABEL_TOGGLE"]               = "Toggle"
