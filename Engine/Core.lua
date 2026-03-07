@@ -42,3 +42,15 @@ end
 function Portrait:UpdateAllTags()
     -- Platzhalter für spätere Tag-Engine
 end
+
+function Portrait:RefreshAllFrames()
+    if not self.frames then
+        return
+    end
+
+    for unit, frame in pairs(self.frames) do
+        if frame then
+            self:RefreshUnitFrame(unit)
+        end
+    end
+end

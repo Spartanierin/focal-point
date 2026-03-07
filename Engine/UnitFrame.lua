@@ -176,6 +176,10 @@ function UF:ApplyConfig(frame)
 
     local width = config.width or 220
     local height = config.height or 40
+    local alpha = config.alpha or 1
+    local scale = config.scale or 1
+    local frameLevel = config.frameLevel or 1
+    local frameStrata = config.frameStrata or "MEDIUM"
     local showPowerBar = config.showPowerBar and true or false
     local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
     local borderInset = 1
@@ -189,14 +193,33 @@ function UF:ApplyConfig(frame)
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
+    frame:SetAlpha(alpha)
+    frame:SetScale(scale)
+    frame:SetFrameLevel(frameLevel)
+    frame:SetFrameStrata(frameStrata)
 
     local relativeTo = _G[config.relativeTo or "UIParent"] or UIParent
+    local point = config.point or "CENTER"
+    local relativePoint = config.relativePoint or "CENTER"
+    local x = config.x or 0
+    local y = config.y or 0
+
+    local relativeScale = 1
+    if relativeTo.GetEffectiveScale then
+        relativeScale = relativeTo:GetEffectiveScale()
+    end
+
+    local frameScale = frame:GetEffectiveScale() or 1
+
+    local adjustedX = x * (relativeScale / frameScale)
+    local adjustedY = y * (relativeScale / frameScale)
+
     frame:SetPoint(
-        config.point or "CENTER",
+        point,
         relativeTo,
-        config.relativePoint or "CENTER",
-        config.x or 0,
-        config.y or 0
+        relativePoint,
+        adjustedX,
+        adjustedY
     )
 
     frame:SetBackdropColor(bgR, bgG, bgB, bgA)

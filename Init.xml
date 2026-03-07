@@ -20,6 +20,12 @@
     <Script file="Engine/Core.lua"/>
     <Script file="Engine/UnitFrame.lua"/>
 
+    <Script file="GUI/Helpers/OptionPaths.lua"/>
+    <Script file="GUI/Helpers/OptionValues.lua"/>
+    <Script file="GUI/Helpers/OptionRefresh.lua"/>
+    <Script file="GUI/Widgets/ColorPicker.lua"/>
+    <Script file="GUI/Widgets/Sliders.lua"/>
+    <Script file="GUI/Widgets/Dropdown.lua"/>
     <Script file="GUI/GUIWidgets.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>
     <Script file="GUI/GUI.lua"/>

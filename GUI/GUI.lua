@@ -2,6 +2,8 @@ local _, Portrait = ...
 
 local AceGUI = LibStub("AceGUI-3.0")
 
+local ColorPicker = Portrait.GUI.Widgets.ColorPicker
+
 Portrait.GUI = Portrait.GUI or {}
 Portrait.GUI.selectedPath = Portrait.GUI.selectedPath or "general"
 
@@ -494,9 +496,20 @@ local function BuildPlayerHealthBarTabColors(container)
 
     AddSpacer(container, 4)
 
-    AddColorPickerRow(container, "Health", unitConfig.healthColor, function()
-        SafeRefreshUnit("player")
-    end, { 0.10, 0.80, 0.10, 1.00 })
+    AddSpacer(container, 4)
+
+    ColorPicker.Create(container, {
+        path = { "Units", "player", "healthColor" },
+        label = "Health",
+        description = "Sets the health bar color.",
+        hasAlpha = true,
+        resetText = "Reset",
+        onChanged = function()
+            SafeRefreshUnit("player")
+        end,
+    })
+
+AddSpacer(container, 4)
 
     AddSpacer(container, 4)
 

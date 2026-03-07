@@ -7,6 +7,9 @@ local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
+local ColorPicker = ns.GUI.Widgets.ColorPicker
+local Slider = ns.GUI.Widgets.Slider
+local Dropdown = ns.GUI.Widgets.Dropdown
 
 local function MakeNode(value, text, children)
     local node = {
@@ -121,60 +124,193 @@ function B.BuildUnitFramePage(container, unitKey)
     -- General
     AddSectionHeading(container, L["SECTION_GENERAL"])
     AddCheckbox(container, L["OPTION_ENABLED"], true)
-    AddSlider(container, L["OPTION_WIDTH"], 50, 600, 1, 220)
-    AddSlider(container, L["OPTION_HEIGHT"], 10, 200, 1, 45)
-    AddSlider(container, L["OPTION_SCALE"], 0.5, 2.0, 0.01, 1.0)
-    AddSlider(container, L["OPTION_ALPHA"], 0.0, 1.0, 0.01, 1.0)
+    
+    Slider.Create(container, {
+        path = { "Units", unitKey, "width" },
+        label = L["OPTION_WIDTH"],
+        description = L["OPTION_WIDTH_DESC"],
+        min = 50,
+        max = 600,
+        step = 1,
+        fallback = 220,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+    })
+    
+    Slider.Create(container, {
+        path = { "Units", unitKey, "height" },
+        label = L["OPTION_HEIGHT"],
+        description = L["OPTION_HEIGHT_DESC"],
+        min = 10,
+        max = 200,
+        step = 1,
+        fallback = 45,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+    })
+    
+    Slider.Create(container, {
+        path = { "Units", unitKey, "scale" },
+        label = L["OPTION_SCALE"],
+        description = L["OPTION_SCALE_DESC"],
+        min = 0.5,
+        max = 2.0,
+        step = 0.01,
+        fallback = 1.0,
+        format = "%.2f",
+        resetText = L["OPTION_RESET"],
+    })
+    
+    Slider.Create(container, {
+        path = { "Units", unitKey, "alpha" },
+        label = L["OPTION_ALPHA"],
+        description = L["OPTION_ALPHA_DESC"],
+        min = 0.0,
+        max = 1.0,
+        step = 0.01,
+        fallback = 1.0,
+        format = "%.2f",
+        resetText = L["OPTION_RESET"],
+    })
 
     -- Position
     AddSectionHeading(container, L["SECTION_POSITION"])
-    AddDropdown(container, L["OPTION_ANCHOR_FROM"], {
-        TOPLEFT = "TOPLEFT",
-        TOP = "TOP",
-        TOPRIGHT = "TOPRIGHT",
-        LEFT = "LEFT",
-        CENTER = "CENTER",
-        RIGHT = "RIGHT",
-        BOTTOMLEFT = "BOTTOMLEFT",
-        BOTTOM = "BOTTOM",
-        BOTTOMRIGHT = "BOTTOMRIGHT",
-    }, "CENTER")
+    
+    Dropdown.Create(container, {
+        path = { "Units", unitKey, "point" },
+        label = L["OPTION_ANCHOR_FROM"],
+        description = L["OPTION_ANCHOR_FROM_DESC"],
+        list = {
+            TOPLEFT = "TOPLEFT",
+            TOP = "TOP",
+            TOPRIGHT = "TOPRIGHT",
+            LEFT = "LEFT",
+            CENTER = "CENTER",
+            RIGHT = "RIGHT",
+            BOTTOMLEFT = "BOTTOMLEFT",
+            BOTTOM = "BOTTOM",
+            BOTTOMRIGHT = "BOTTOMRIGHT",
+        },
+        fallback = "CENTER",
+        resetText = L["OPTION_RESET"],
+    })
 
-    AddDropdown(container, L["OPTION_ANCHOR_TO"], {
-        TOPLEFT = "TOPLEFT",
-        TOP = "TOP",
-        TOPRIGHT = "TOPRIGHT",
-        LEFT = "LEFT",
-        CENTER = "CENTER",
-        RIGHT = "RIGHT",
-        BOTTOMLEFT = "BOTTOMLEFT",
-        BOTTOM = "BOTTOM",
-        BOTTOMRIGHT = "BOTTOMRIGHT",
-    }, "CENTER")
+    Dropdown.Create(container, {
+        path = { "Units", unitKey, "relativePoint" },
+        label = L["OPTION_ANCHOR_TO"],
+        description = L["OPTION_ANCHOR_TO_DESC"],
+        list = {
+            TOPLEFT = "TOPLEFT",
+            TOP = "TOP",
+            TOPRIGHT = "TOPRIGHT",
+            LEFT = "LEFT",
+            CENTER = "CENTER",
+            RIGHT = "RIGHT",
+            BOTTOMLEFT = "BOTTOMLEFT",
+            BOTTOM = "BOTTOM",
+            BOTTOMRIGHT = "BOTTOMRIGHT",
+        },
+        fallback = "CENTER",
+        resetText = L["OPTION_RESET"],
+    })
 
-    AddSlider(container, L["OPTION_X_OFFSET"], -1000, 1000, 1, 0)
-    AddSlider(container, L["OPTION_Y_OFFSET"], -1000, 1000, 1, 0)
+    Slider.Create(container, {
+        path = { "Units", unitKey, "x" },
+        label = L["OPTION_X_OFFSET"],
+        description = L["OPTION_X_OFFSET_DESC"],
+        min = -1000,
+        max = 1000,
+        step = 1,
+        fallback = 0,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+    })
+
+    Slider.Create(container, {
+        path = { "Units", unitKey, "y" },
+        label = L["OPTION_Y_OFFSET"],
+        description = L["OPTION_Y_OFFSET_DESC"],
+        min = -1000,
+        max = 1000,
+        step = 1,
+        fallback = 0,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+    })
 
     -- Layering
     AddSectionHeading(container, L["SECTION_LAYERING"])
-    AddDropdown(container, L["OPTION_FRAME_STRATA"], {
-        BACKGROUND = "BACKGROUND",
-        LOW = "LOW",
-        MEDIUM = "MEDIUM",
-        HIGH = "HIGH",
-        DIALOG = "DIALOG",
-        FULLSCREEN = "FULLSCREEN",
-        FULLSCREEN_DIALOG = "FULLSCREEN_DIALOG",
-        TOOLTIP = "TOOLTIP",
-    }, "MEDIUM")
+    
+    Dropdown.Create(container, {
+        path = { "Units", unitKey, "frameStrata" },
+        label = L["OPTION_FRAME_STRATA"],
+        description = L["OPTION_FRAME_STRATA_DESC"],
+        list = {
+            BACKGROUND = "BACKGROUND",
+            LOW = "LOW",
+            MEDIUM = "MEDIUM",
+            HIGH = "HIGH",
+            DIALOG = "DIALOG",
+            FULLSCREEN = "FULLSCREEN",
+            FULLSCREEN_DIALOG = "FULLSCREEN_DIALOG",
+            TOOLTIP = "TOOLTIP",
+        },
+        fallback = "MEDIUM",
+        resetText = L["OPTION_RESET"],
+    })
 
-    AddSlider(container, L["OPTION_FRAME_LEVEL"], 0, 50, 1, 1)
+    Slider.Create(container, {
+        path = { "Units", unitKey, "frameLevel" },
+        label = L["OPTION_FRAME_LEVEL"],
+        description = L["OPTION_FRAME_LEVEL_DESC"],
+        min = 0,
+        max = 50,
+        step = 1,
+        fallback = 1,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+    })
 
-    -- Behavior
+        -- Behavior
     AddSectionHeading(container, L["SECTION_BEHAVIOR"])
     AddCheckbox(container, "Mouse Enabled", true)
     AddCheckbox(container, "Click Through", false)
     AddCheckbox(container, "Clamp to Screen", false)
+
+    -- Colors (test)
+    AddSectionHeading(container, L["SECTION_COLOR"])
+
+    ColorPicker.Create(container, {
+        path = { "Units", unitKey, "backgroundColor" },
+        label = L["OPTION_BACKGROUND_COLOR"],
+        description = L["OPTION_BACKGROUND_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+    })
+
+    ColorPicker.Create(container, {
+        path = { "Units", unitKey, "borderColor" },
+        label = L["OPTION_BORDER_COLOR"],
+        description = L["OPTION_BORDER_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+    })
+
+    ColorPicker.Create(container, {
+        path = { "Units", unitKey, "healthColor" },
+        label = L["OPTION_HEALTH_COLOR"],
+        description = L["OPTION_HEALTH_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+    })
+
+    ColorPicker.Create(container, {
+        path = { "Units", unitKey, "powerColor" },
+        label = L["OPTION_POWER_COLOR"],
+        description = L["OPTION_POWER_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+    })
 end
 
 local function GetUnitTabValues()
