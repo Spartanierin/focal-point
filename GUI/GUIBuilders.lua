@@ -10,6 +10,7 @@ local L = ns.L
 local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Slider = ns.GUI.Widgets.Slider
 local Dropdown = ns.GUI.Widgets.Dropdown
+local Checkbox = ns.GUI.Widgets.Checkbox
 
 local function MakeNode(value, text, children)
     local node = {
@@ -71,35 +72,6 @@ local function AddSectionHeading(container, text)
     container:AddChild(heading)
 end
 
-local function AddCheckbox(container, label, value)
-    local cb = AceGUI:Create("CheckBox")
-    cb:SetLabel(label)
-    cb:SetValue(value and true or false)
-    cb:SetFullWidth(true)
-    container:AddChild(cb)
-    return cb
-end
-
-local function AddSlider(container, label, minVal, maxVal, step, value)
-    local slider = AceGUI:Create("Slider")
-    slider:SetLabel(label)
-    slider:SetSliderValues(minVal, maxVal, step)
-    slider:SetValue(value or minVal)
-    slider:SetFullWidth(true)
-    container:AddChild(slider)
-    return slider
-end
-
-local function AddDropdown(container, label, items, value)
-    local dd = AceGUI:Create("Dropdown")
-    dd:SetLabel(label)
-    dd:SetList(items)
-    dd:SetValue(value)
-    dd:SetFullWidth(true)
-    container:AddChild(dd)
-    return dd
-end
-
 function B.BuildPlaceholderPage(container, title)
     container:ReleaseChildren()
     container:SetLayout("Fill")
@@ -123,7 +95,14 @@ function B.BuildUnitFramePage(container, unitKey)
 
     -- General
     AddSectionHeading(container, L["SECTION_GENERAL"])
-    AddCheckbox(container, L["OPTION_ENABLED"], true)
+    
+    Checkbox.Create(container, {
+        path = { "Units", unitKey, "enabled" },
+        label = L["OPTION_ENABLED"],
+        description = L["OPTION_ENABLED_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+    })
     
     Slider.Create(container, {
         path = { "Units", unitKey, "width" },
@@ -271,13 +250,34 @@ function B.BuildUnitFramePage(container, unitKey)
         resetText = L["OPTION_RESET"],
     })
 
-        -- Behavior
+    -- Behavior
     AddSectionHeading(container, L["SECTION_BEHAVIOR"])
-    AddCheckbox(container, "Mouse Enabled", true)
-    AddCheckbox(container, "Click Through", false)
-    AddCheckbox(container, "Clamp to Screen", false)
+    
+    Checkbox.Create(container, {
+        path = { "Units", unitKey, "mouseEnabled" },
+        label = L["OPTION_MOUSE_ENABLED"],
+        description = L["OPTION_MOUSE_ENABLED_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+    })
 
-    -- Colors (test)
+    Checkbox.Create(container, {
+        path = { "Units", unitKey, "clickThrough" },
+        label = L["OPTION_CLICK_THROUGH"],
+        description = L["OPTION_CLICK_THROUGH_DESC"],
+        fallback = false,
+        resetText = L["OPTION_RESET"],
+    })
+    
+    Checkbox.Create(container, {
+        path = { "Units", unitKey, "clampToScreen" },
+        label = L["OPTION_CLAMP_TO_SCREEN"],
+        description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
+        fallback = false,
+        resetText = L["OPTION_RESET"],
+    })
+
+    -- Colors
     AddSectionHeading(container, L["SECTION_COLOR"])
 
     ColorPicker.Create(container, {
@@ -338,15 +338,22 @@ function B.BuildUnitPage(container, unitKey)
 
     tabGroup:SetCallback("OnGroupSelected", function(widget, _, tabKey)
         widget:ReleaseChildren()
+        widget:SetLayout("Fill")
+
+        local scroll = AceGUI:Create("ScrollFrame")
+        scroll:SetFullWidth(true)
+        scroll:SetFullHeight(true)
+        scroll:SetLayout("Flow")
+        widget:AddChild(scroll)
 
         if tabKey == C.Tabs.FRAME then
-            B.BuildUnitFramePage(widget, unitKey)
+            B.BuildUnitFramePage(scroll, unitKey)
             return
         end
 
         local unitLabel = ns.GetLabel(KM.Units, unitKey)
         local tabLabel = ns.GetLabel(KM.Tabs, tabKey)
-        B.BuildPlaceholderPage(widget, unitLabel .. " - " .. tabLabel)
+        B.BuildPlaceholderPage(scroll, unitLabel .. " - " .. tabLabel)
     end)
 
     container:AddChild(tabGroup)

@@ -2,8 +2,6 @@ local _, Portrait = ...
 
 local AceGUI = LibStub("AceGUI-3.0")
 
-local ColorPicker = Portrait.GUI.Widgets.ColorPicker
-
 Portrait.GUI = Portrait.GUI or {}
 Portrait.GUI.selectedPath = Portrait.GUI.selectedPath or "general"
 

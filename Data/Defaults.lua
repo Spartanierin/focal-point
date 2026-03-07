@@ -17,6 +17,10 @@ function Portrait:GetDefaultDB()
             Units = {
                 player = {
                     enabled = true,
+                    mouseEnabled = true,
+                    clickThrough = false,
+                    clampToScreen = false,
+
                     width = 220,
                     height = 40,
                     alpha = 1,
@@ -96,6 +100,10 @@ function Portrait:GetDefaultDB()
 
                 target = {
                     enabled = false,
+                    mouseEnabled = true,
+                    clickThrough = false,
+                    clampToScreen = false,
+                    
                     width = 220,
                     height = 40,
                     alpha = 1,

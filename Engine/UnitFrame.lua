@@ -197,6 +197,10 @@ function UF:ApplyConfig(frame)
     frame:SetScale(scale)
     frame:SetFrameLevel(frameLevel)
     frame:SetFrameStrata(frameStrata)
+    frame:SetShown(config.enabled ~= false)
+    frame:EnableMouse(config.mouseEnabled ~= false)
+    frame:SetMouseClickEnabled(not config.clickThrough)
+    frame:SetClampedToScreen(config.clampToScreen == true)
 
     local relativeTo = _G[config.relativeTo or "UIParent"] or UIParent
     local point = config.point or "CENTER"

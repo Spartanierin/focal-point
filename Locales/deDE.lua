@@ -76,6 +76,13 @@ L["SECTION_OPACITY_RULES"] = "Transparenzregeln"
 
 -- Common Options
 L["OPTION_ENABLED"] = "Aktiviert"
+L["OPTION_ENABLED_DESC"] = "Legt fest, ob dieser Frame aktiviert ist."
+L["OPTION_MOUSE_ENABLED"] = "Maus aktiviert"
+L["OPTION_MOUSE_ENABLED_DESC"] = "Legt fest, ob der Frame auf Mausinteraktionen reagiert."
+L["OPTION_CLICK_THROUGH"] = "Klickdurchlässig"
+L["OPTION_CLICK_THROUGH_DESC"] = "Legt fest, ob Mausklicks durch den Frame hindurchgehen."
+L["OPTION_CLAMP_TO_SCREEN"] = "Am Bildschirm halten"
+L["OPTION_CLAMP_TO_SCREEN_DESC"] = "Verhindert, dass der Frame außerhalb des Bildschirms verschoben wird."
 L["OPTION_WIDTH"] = "Breite"
 L["OPTION_WIDTH_DESC"] = "Legt die Breite des Frames fest."
 L["OPTION_HEIGHT"] = "Höhe"

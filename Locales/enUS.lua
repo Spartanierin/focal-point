@@ -76,6 +76,13 @@ L["SECTION_OPACITY_RULES"] = "Opacity Rules"
 
 -- Common Options
 L["OPTION_ENABLED"] = "Enabled"
+L["OPTION_ENABLED_DESC"] = "Sets whether this frame is enabled."
+L["OPTION_MOUSE_ENABLED"] = "Mouse Enabled"
+L["OPTION_MOUSE_ENABLED_DESC"] = "Sets whether the frame reacts to mouse interaction."
+L["OPTION_CLICK_THROUGH"] = "Click Through"
+L["OPTION_CLICK_THROUGH_DESC"] = "Sets whether mouse clicks pass through the frame."
+L["OPTION_CLAMP_TO_SCREEN"] = "Clamp to Screen"
+L["OPTION_CLAMP_TO_SCREEN_DESC"] = "Prevents the frame from being moved outside the screen."
 L["OPTION_WIDTH"] = "Width"
 L["OPTION_WIDTH_DESC"] = "Sets the width of the frame."
 L["OPTION_HEIGHT"] = "Height"

@@ -26,6 +26,7 @@
     <Script file="GUI/Widgets/ColorPicker.lua"/>
     <Script file="GUI/Widgets/Sliders.lua"/>
     <Script file="GUI/Widgets/Dropdown.lua"/>
+    <Script file="GUI/Widgets/Checkbox.lua"/>
     <Script file="GUI/GUIWidgets.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>
     <Script file="GUI/GUI.lua"/>
