@@ -42,6 +42,8 @@ function Portrait:GetDefaultDB()
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
                     healthColor = { 0.10, 0.80, 0.10, 1.00 },
                     powerColor = { 0.20, 0.40, 0.90, 1.00 },
+                    useClassColorHealth = false,
+                    useClassColorPower = false,
 
                     Portrait = {
                         enabled = true,

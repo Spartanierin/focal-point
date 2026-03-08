@@ -14,20 +14,11 @@ PORTRAIT.GUI.Widgets.ColorPicker = ColorPicker
 local function CopyColor(color, fallback)
     local source = type(color) == "table" and color or fallback or {}
 
-    local r = tonumber(source.r) or tonumber(source[1]) or 1
-    local g = tonumber(source.g) or tonumber(source[2]) or 1
-    local b = tonumber(source.b) or tonumber(source[3]) or 1
-    local a = tonumber(source.a) or tonumber(source[4]) or 1
-
     return {
-        r = r,
-        g = g,
-        b = b,
-        a = a,
-        [1] = r,
-        [2] = g,
-        [3] = b,
-        [4] = a,
+        r = tonumber(source.r) or 1,
+        g = tonumber(source.g) or 1,
+        b = tonumber(source.b) or 1,
+        a = tonumber(source.a) or 1,
     }
 end
 
@@ -124,7 +115,7 @@ function ColorPicker.Create(config)
     local currentValue = CopyColor(OptionValues.Get(config.path, fallbackValue), fallbackValue)
     UpdateUI(currentValue)
 
-    local function HandleColorChanged(_, _, r, g, b, a)
+    colorPicker:SetCallback("OnValueConfirmed", function(_, _, r, g, b, a)
         if isUpdating then
             return
         end
@@ -135,10 +126,7 @@ function ColorPicker.Create(config)
             b = b,
             a = a,
         })
-    end
-
-    colorPicker:SetCallback("OnValueChanged", HandleColorChanged)
-    colorPicker:SetCallback("OnValueConfirmed", HandleColorChanged)
+    end)
 
     if resetButton then
         resetButton:SetCallback("OnClick", function()

@@ -13,62 +13,7 @@ end
 
 local function UnpackColor(color, fallback)
     color = color or fallback or { 1, 1, 1, 1 }
-
-    local r = color[1] or color.r or 1
-    local g = color[2] or color.g or 1
-    local b = color[3] or color.b or 1
-    local a = color[4]
-    if a == nil then
-        a = color.a
-    end
-    if a == nil then
-        a = 1
-    end
-
-    return r, g, b, a
-end
-
-local function GetClassColorForUnit(unit)
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
-        return nil
-    end
-
-    local _, classToken = UnitClass(unit)
-    if not classToken then
-        return nil
-    end
-
-    local color = nil
-
-    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-        color = CUSTOM_CLASS_COLORS[classToken]
-    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-        color = RAID_CLASS_COLORS[classToken]
-    end
-
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
-end
-
-local function GetPowerColorForUnit(unit)
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitPowerType then
-        return nil
-    end
-
-    local powerType = UnitPowerType(unit)
-    if powerType == nil then
-        return nil
-    end
-
-    local color = PowerBarColor and PowerBarColor[powerType]
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
+    return color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1
 end
 
 local function GetStatusBarTexture(path)
@@ -357,20 +302,6 @@ function UF:ApplyConfig(frame)
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0.2, 0.2, 0.2, 1 })
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
-
-    if config.useClassColorHealth then
-        local classR, classG, classB, classA = GetClassColorForUnit(frame.unit)
-        if classR and classG and classB then
-            healthR, healthG, healthB, healthA = classR, classG, classB, classA or 1
-        end
-    end
-
-    if config.useClassColorPower then
-        local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame.unit)
-        if resourceR and resourceG and resourceB then
-            powerR, powerG, powerB, powerA = resourceR, resourceG, resourceB, resourceA or 1
-        end
-    end
 
     local texture = GetStatusBarTexture(config.statusBarTexture)
 

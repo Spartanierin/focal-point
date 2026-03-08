@@ -126,7 +126,14 @@ L["OPTION_POWER_COLOR"] = "Power Color"
 L["OPTION_POWER_COLOR_DESC"] = "Sets the color of the frame's power bar."
 L["OPTION_HEALTH_COLOR"] = "Health Color"
 L["OPTION_HEALTH_COLOR_DESC"] = "Sets the color of the health bar."
+L["OPTION_USE_CLASS_COLORS"] = "Use Class Colors"
+L["OPTION_USE_CLASS_COLORS_HEALTH_DESC"] = "Uses the unit's Blizzard class color for the health bar and disables manual color selection."
+L["OPTION_USE_CLASS_COLORS_POWER_DESC"] = "Uses the unit's Blizzard resource color for the power bar and disables manual color selection."
 L["OPTION_RESET"] = "Reset"
+L["OPTION_SHOW_POWER_BAR"] = "Show Power Bar"
+L["OPTION_SHOW_POWER_BAR_DESC"] = "Shows or hides the power bar for this frame."
+L["OPTION_POWER_BAR_HEIGHT"] = "Power Bar Height"
+L["OPTION_POWER_BAR_HEIGHT_DESC"] = "Sets the height of the power bar."
 
 
 -- Visibility / Logic
