@@ -654,6 +654,58 @@ function B.BuildUnitPowerBarPage(container, unitKey)
         disabled = IsPowerBarDisabled,
         refreshGUI = true,
     }))
+end
+
+function B.BuildUnitPowerBarPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function IsPowerBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
+    end
+
+    local title = AceGUI:Create("Heading")
+    title:SetFullWidth(true)
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
+    container:AddChild(title)
+
+    AddSectionHeading(container, L["SECTION_GENERAL"])
+
+    local layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "showPowerBar" },
+        label = L["OPTION_SHOW_POWER_BAR"],
+        description = L["OPTION_SHOW_POWER_BAR_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+        refreshGUI = true,
+    }))
+
+    layout:Add(Slider.Create({
+        path = { "Units", unitKey, "powerBarHeight" },
+        label = L["OPTION_POWER_BAR_HEIGHT"],
+        description = L["OPTION_POWER_BAR_HEIGHT_DESC"],
+        min = 4,
+        max = 30,
+        step = 1,
+        fallback = 8,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+        disabled = IsPowerBarDisabled,
+    }))
+
+    AddSectionHeading(container, L["SECTION_COLOR"])
+
+    layout = CreateSection(container)
 
     layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "powerColor" },
