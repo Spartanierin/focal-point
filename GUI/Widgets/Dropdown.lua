@@ -11,8 +11,8 @@ local OptionRefresh = PORTRAIT.GUI.Helpers.OptionRefresh
 local Dropdown = {}
 PORTRAIT.GUI.Widgets.Dropdown = Dropdown
 
-function Dropdown.Create(container, config)
-    if not container or type(config) ~= "table" then
+function Dropdown.Create(config)
+    if type(config) ~= "table" then
         return nil
     end
 
@@ -28,7 +28,6 @@ function Dropdown.Create(container, config)
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
-    container:AddChild(group)
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)

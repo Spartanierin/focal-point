@@ -23,8 +23,8 @@ local function NormalizeNumber(value, fallback)
     return 0
 end
 
-function Sliders.Create(container, config)
-    if not container or type(config) ~= "table" then
+function Sliders.Create(config)
+    if type(config) ~= "table" then
         return nil
     end
 
@@ -43,7 +43,6 @@ function Sliders.Create(container, config)
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
-    container:AddChild(group)
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)

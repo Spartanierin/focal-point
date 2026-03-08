@@ -23,6 +23,7 @@
     <Script file="GUI/Helpers/OptionPaths.lua"/>
     <Script file="GUI/Helpers/OptionValues.lua"/>
     <Script file="GUI/Helpers/OptionRefresh.lua"/>
+    <Script file="GUI/Layouts/SectionLayout.lua"/>
     <Script file="GUI/Widgets/ColorPicker.lua"/>
     <Script file="GUI/Widgets/Sliders.lua"/>
     <Script file="GUI/Widgets/Dropdown.lua"/>

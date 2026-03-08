@@ -11,6 +11,7 @@ local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Slider = ns.GUI.Widgets.Sliders
 local Dropdown = ns.GUI.Widgets.Dropdown
 local Checkbox = ns.GUI.Widgets.Checkbox
+local SectionLayout = ns.GUI.Layouts.SectionLayout
 
 local function GetGUIState()
     ns.GUI._state = ns.GUI._state or {
@@ -81,6 +82,14 @@ local function AddSectionHeading(container, text)
     container:AddChild(heading)
 end
 
+local function CreateSection(container)
+    return SectionLayout.CreateTwoColumn(container, {
+        gutter = 16,
+        minColumnWidth = 300,
+    })
+end
+
+
 function B.BuildPlaceholderPage(container, title)
     container:ReleaseChildren()
     container:SetLayout("Fill")
@@ -123,17 +132,19 @@ function B.BuildUnitFramePage(container, unitKey)
 
     -- General
     AddSectionHeading(container, L["SECTION_GENERAL"])
-    
-    Checkbox.Create(container, {
+
+    local layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "enabled" },
         label = L["OPTION_ENABLED"],
         description = L["OPTION_ENABLED_DESC"],
         fallback = true,
         resetText = L["OPTION_RESET"],
         refreshGUI = true,
-    })
-    
-    Slider.Create(container, {
+    }))
+
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "width" },
         label = L["OPTION_WIDTH"],
         description = L["OPTION_WIDTH_DESC"],
@@ -144,9 +155,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
-    
-    Slider.Create(container, {
+    }))
+
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "height" },
         label = L["OPTION_HEIGHT"],
         description = L["OPTION_HEIGHT_DESC"],
@@ -157,9 +168,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
-    
-    Slider.Create(container, {
+    }))
+
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "scale" },
         label = L["OPTION_SCALE"],
         description = L["OPTION_SCALE_DESC"],
@@ -170,9 +181,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%.2f",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
-    
-    Slider.Create(container, {
+    }))
+
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "alpha" },
         label = L["OPTION_ALPHA"],
         description = L["OPTION_ALPHA_DESC"],
@@ -183,12 +194,14 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%.2f",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
     -- Portrait
     AddSectionHeading(container, "Portrait")
 
-    Checkbox.Create(container, {
+    layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "Portrait", "enabled" },
         label = "Portrait aktivieren",
         description = "Blendet das Portrait für diese Unit ein oder aus.",
@@ -196,9 +209,9 @@ function B.BuildUnitFramePage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
         refreshGUI = true,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "Portrait", "placement" },
         label = "Portrait-Platzierung",
         description = "Bestimmt, ob das Portrait im Frame sitzt oder außen am Frame verankert wird.",
@@ -210,9 +223,9 @@ function B.BuildUnitFramePage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitDisabled,
         refreshGUI = true,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "Portrait", "mode" },
         label = "Portrait-Modus",
         description = "Wählt zwischen 2D- und 3D-Portrait.",
@@ -224,9 +237,9 @@ function B.BuildUnitFramePage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitDisabled,
         refreshGUI = true,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "Portrait", "size" },
         label = "Portrait-Größe",
         description = "Legt die Grundgröße des Portraits fest.",
@@ -237,9 +250,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "Portrait", "scale" },
         label = "Portrait-Skalierung",
         description = "Skaliert das Portrait proportional, ohne es zu verzerren.",
@@ -250,9 +263,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%.2f",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "Portrait", "padding" },
         label = "Innenabstand",
         description = "Abstand zwischen Portrait und restlichem Frame-Inhalt.",
@@ -263,9 +276,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitInsideDisabled,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "Portrait", "insideSide" },
         label = "Innenseite",
         description = "Auf welcher Seite das Portrait innerhalb des Frames sitzt.",
@@ -276,9 +289,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "LEFT",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitInsideDisabled,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "Portrait", "anchorTo" },
         label = "Anchor To",
         description = "An welches Zielelement das Portrait außen angehängt wird.",
@@ -290,9 +303,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "Frame",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitAttachedDisabled,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "Portrait", "point" },
         label = "Anchor From",
         description = "Punkt des Portraits, der verankert wird.",
@@ -310,9 +323,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "LEFT",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitAttachedDisabled,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "Portrait", "relativePoint" },
         label = "Anchor To",
         description = "Punkt des Zielelements, an den das Portrait angeheftet wird.",
@@ -330,9 +343,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "RIGHT",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitAttachedDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "Portrait", "offsetX" },
         label = "Offset X",
         description = "Horizontaler Versatz des Portraits.",
@@ -343,9 +356,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitAttachedDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "Portrait", "offsetY" },
         label = "Offset Y",
         description = "Vertikaler Versatz des Portraits.",
@@ -356,12 +369,14 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitAttachedDisabled,
-    })
+    }))
 
     -- Position
     AddSectionHeading(container, L["SECTION_POSITION"])
-    
-    Dropdown.Create(container, {
+
+    layout = CreateSection(container)
+
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "point" },
         label = L["OPTION_ANCHOR_FROM"],
         description = L["OPTION_ANCHOR_FROM_DESC"],
@@ -379,9 +394,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "CENTER",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    Dropdown.Create(container, {
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "relativePoint" },
         label = L["OPTION_ANCHOR_TO"],
         description = L["OPTION_ANCHOR_TO_DESC"],
@@ -399,9 +414,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "CENTER",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "x" },
         label = L["OPTION_X_OFFSET"],
         description = L["OPTION_X_OFFSET_DESC"],
@@ -412,9 +427,9 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "y" },
         label = L["OPTION_Y_OFFSET"],
         description = L["OPTION_Y_OFFSET_DESC"],
@@ -425,12 +440,14 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
     -- Layering
     AddSectionHeading(container, L["SECTION_LAYERING"])
-    
-    Dropdown.Create(container, {
+
+    layout = CreateSection(container)
+
+    layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "frameStrata" },
         label = L["OPTION_FRAME_STRATA"],
         description = L["OPTION_FRAME_STRATA_DESC"],
@@ -447,9 +464,9 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "MEDIUM",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    Slider.Create(container, {
+    layout:Add(Slider.Create({
         path = { "Units", unitKey, "frameLevel" },
         label = L["OPTION_FRAME_LEVEL"],
         description = L["OPTION_FRAME_LEVEL_DESC"],
@@ -460,76 +477,80 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
     -- Behavior
     AddSectionHeading(container, L["SECTION_BEHAVIOR"])
-    
-    Checkbox.Create(container, {
+
+    layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "mouseEnabled" },
         label = L["OPTION_MOUSE_ENABLED"],
         description = L["OPTION_MOUSE_ENABLED_DESC"],
         fallback = true,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    Checkbox.Create(container, {
+    layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "clickThrough" },
         label = L["OPTION_CLICK_THROUGH"],
         description = L["OPTION_CLICK_THROUGH_DESC"],
         fallback = false,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
-    
-    Checkbox.Create(container, {
+    }))
+
+    layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "clampToScreen" },
         label = L["OPTION_CLAMP_TO_SCREEN"],
         description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
         fallback = false,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
     -- Colors
     AddSectionHeading(container, L["SECTION_COLOR"])
 
-    ColorPicker.Create(container, {
+    layout = CreateSection(container)
+
+    layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "backgroundColor" },
         label = L["OPTION_BACKGROUND_COLOR"],
         description = L["OPTION_BACKGROUND_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    ColorPicker.Create(container, {
+    layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "borderColor" },
         label = L["OPTION_BORDER_COLOR"],
         description = L["OPTION_BORDER_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    ColorPicker.Create(container, {
+    layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "healthColor" },
         label = L["OPTION_HEALTH_COLOR"],
         description = L["OPTION_HEALTH_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 
-    ColorPicker.Create(container, {
+    layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "powerColor" },
         label = L["OPTION_POWER_COLOR"],
         description = L["OPTION_POWER_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    })
+    }))
 end
 
 local function GetUnitTabValues()

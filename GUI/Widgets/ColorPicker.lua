@@ -22,8 +22,8 @@ local function CopyColor(color, fallback)
     }
 end
 
-function ColorPicker.Create(container, config)
-    if not container or type(config) ~= "table" then
+function ColorPicker.Create(config)
+    if type(config) ~= "table" then
         return nil
     end
 
@@ -38,7 +38,6 @@ function ColorPicker.Create(container, config)
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
-    container:AddChild(group)
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)
@@ -47,14 +46,15 @@ function ColorPicker.Create(container, config)
 
     local colorPicker = AceGUI:Create("ColorPicker")
     colorPicker:SetLabel(labelText)
-    colorPicker:SetWidth(config.width or 220)
+    colorPicker:SetHasAlpha(config.hasAlpha and true or false)
+    colorPicker:SetWidth(config.width or 180)
     row:AddChild(colorPicker)
 
     local resetButton = nil
     if config.showReset ~= false then
         resetButton = AceGUI:Create("Button")
         resetButton:SetText(config.resetText or "Reset")
-        resetButton:SetWidth(100)
+        resetButton:SetWidth(config.resetWidth or 80)
         row:AddChild(resetButton)
     end
 

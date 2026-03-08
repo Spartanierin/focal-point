@@ -23,8 +23,8 @@ local function NormalizeBoolean(value, fallback)
     return fallback and true or false
 end
 
-function Checkbox.Create(container, config)
-    if not container or type(config) ~= "table" then
+function Checkbox.Create(config)
+    if type(config) ~= "table" then
         return nil
     end
 
@@ -39,7 +39,6 @@ function Checkbox.Create(container, config)
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
-    container:AddChild(group)
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)
