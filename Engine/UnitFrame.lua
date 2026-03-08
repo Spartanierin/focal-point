@@ -60,6 +60,8 @@ function UF:GetAnchorTarget(frame, anchorTo)
     return frame
 end
 
+
+-- Frame
 function UF:CreateBaseFrame(unit, config)
     local frameName = "Portrait_" .. unit:gsub("^%l", string.upper)
     local frame = CreateFrame("Button", frameName, UIParent, "BackdropTemplate")
@@ -80,6 +82,7 @@ function UF:CreateBaseFrame(unit, config)
     return frame
 end
 
+-- HealthBar
 function UF:CreateHealthBar(frame)
     local health = CreateFrame("StatusBar", nil, frame)
     health:SetMinMaxValues(0, 100)
@@ -88,6 +91,7 @@ function UF:CreateHealthBar(frame)
     frame.health = health
 end
 
+-- PowerBar
 function UF:CreatePowerBar(frame)
     local power = CreateFrame("StatusBar", nil, frame)
     power:SetMinMaxValues(0, 100)
@@ -96,6 +100,96 @@ function UF:CreatePowerBar(frame)
     frame.power = power
 end
 
+-- Portrait
+function UF:CreatePortrait(frame)
+    local portraitHolder = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    portraitHolder:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 },
+    })
+
+    local portraitTexture = portraitHolder:CreateTexture(nil, "ARTWORK")
+    portraitTexture:SetAllPoints()
+    portraitTexture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    portraitHolder.Texture = portraitTexture
+
+    frame.Elements.Portrait = portraitHolder
+    frame.Portrait = portraitHolder
+end
+
+function UF:UpdatePortraitTexture(frame)
+    if not frame or not frame.Elements or not frame.Elements.Portrait then
+        return
+    end
+
+    local portrait = frame.Elements.Portrait
+    local texture = portrait.Texture
+    local config = frame.config
+    local portraitConfig = config and config.Portrait or nil
+
+    if not texture then
+        return
+    end
+
+    if not portraitConfig or portraitConfig.enabled == false then
+        texture:SetTexture(nil)
+        return
+    end
+
+    texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    if frame.unit and UnitExists(frame.unit) then
+        SetPortraitTexture(texture, frame.unit)
+    else
+        texture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    end
+
+    texture:Show()
+end
+
+function UF:RegisterPortraitEvents(frame)
+    if not frame or frame.PortraitEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PORTRAITS_UPDATED")
+    eventFrame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+    eventFrame:RegisterEvent("UNIT_MODEL_CHANGED")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        if event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
+            if unit ~= owner.unit then
+                return
+            end
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdatePortraitTexture(owner)
+            end
+        end)
+    end)
+
+    frame.PortraitEventFrame = eventFrame
+end
+
+-- Texts
 function UF:CreateTextElement(frame, key, textConfig)
     if not textConfig or textConfig.enabled == false then
         return
@@ -184,6 +278,26 @@ function UF:ApplyConfig(frame)
     local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
     local borderInset = 1
 
+    local portraitConfig = config.Portrait or {}
+    local portraitEnabled = portraitConfig.enabled and true or false
+    local portraitPlacement = portraitConfig.placement or "INSIDE"
+    local portraitMode = portraitConfig.mode or "2D"
+    local portraitSize = tonumber(portraitConfig.size) or 40
+    local portraitScale = tonumber(portraitConfig.scale) or 1
+    local portraitPadding = tonumber(portraitConfig.padding) or 4
+    local portraitInsideSide = portraitConfig.insideSide or "LEFT"
+
+    local portraitPoint = portraitConfig.point or "RIGHT"
+    local portraitRelativePoint = portraitConfig.relativePoint or "LEFT"
+    local portraitOffsetX = tonumber(portraitConfig.offsetX) or -4
+    local portraitOffsetY = tonumber(portraitConfig.offsetY) or 0
+    local portraitAnchorTo = portraitConfig.anchorTo or "Frame"
+
+    local portraitEffectiveSize = portraitEnabled and (portraitSize * portraitScale) or 0
+    local portraitInside = portraitEnabled and portraitPlacement == "INSIDE"
+    local portraitAttached = portraitEnabled and portraitPlacement == "ATTACHED"
+    local portraitReservedSpace = portraitInside and (portraitEffectiveSize + portraitPadding) or 0
+
     local bgR, bgG, bgB, bgA = UnpackColor(config.backgroundColor, { 0.08, 0.08, 0.08, 0.9 })
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0.2, 0.2, 0.2, 1 })
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
@@ -229,26 +343,34 @@ function UF:ApplyConfig(frame)
     frame:SetBackdropColor(bgR, bgG, bgB, bgA)
     frame:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
 
+     -- HealthBar
     if frame.Elements.HealthBar then
         local health = frame.Elements.HealthBar
         health:ClearAllPoints()
         health:SetStatusBarTexture(texture)
         health:SetStatusBarColor(healthR, healthG, healthB, healthA)
 
-        health:SetPoint("TOPLEFT", frame, "TOPLEFT", borderInset, -borderInset)
-        health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -borderInset, -borderInset)
+        local healthLeftOffset = borderInset
+        local healthRightOffset = -borderInset
+        local healthBottomY = showPowerBar and (borderInset + powerBarHeight) or borderInset
 
-        if showPowerBar then
-            health:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", borderInset, borderInset + powerBarHeight)
-            health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -borderInset, borderInset + powerBarHeight)
-        else
-            health:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", borderInset, borderInset)
-            health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -borderInset, borderInset)
+        if portraitInside then
+            if portraitInsideSide == "LEFT" then
+                healthLeftOffset = borderInset + portraitReservedSpace
+            elseif portraitInsideSide == "RIGHT" then
+                healthRightOffset = -(borderInset + portraitReservedSpace)
+            end
         end
+
+        health:SetPoint("TOPLEFT", frame, "TOPLEFT", healthLeftOffset, -borderInset)
+        health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", healthRightOffset, -borderInset)
+        health:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", healthLeftOffset, healthBottomY)
+        health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", healthRightOffset, healthBottomY)
 
         health:Show()
     end
 
+    -- PowerBar
     if frame.Elements.PowerBar then
         local power = frame.Elements.PowerBar
         power:ClearAllPoints()
@@ -256,8 +378,19 @@ function UF:ApplyConfig(frame)
         power:SetStatusBarColor(powerR, powerG, powerB, powerA)
 
         if showPowerBar then
-            power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", borderInset, borderInset)
-            power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -borderInset, borderInset)
+            local powerLeftOffset = borderInset
+            local powerRightOffset = -borderInset
+
+            if portraitInside then
+                if portraitInsideSide == "LEFT" then
+                    powerLeftOffset = borderInset + portraitReservedSpace
+                elseif portraitInsideSide == "RIGHT" then
+                    powerRightOffset = -(borderInset + portraitReservedSpace)
+                end
+            end
+
+            power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, borderInset)
+            power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, borderInset)
             power:SetHeight(powerBarHeight)
             power:Show()
         else
@@ -265,6 +398,46 @@ function UF:ApplyConfig(frame)
         end
     end
 
+    -- Portrait
+    if frame.Elements.Portrait then
+        local portrait = frame.Elements.Portrait
+        portrait:ClearAllPoints()
+        portrait:SetScale(1)
+
+        if portraitEnabled then
+            portrait:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
+            portrait:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
+            portrait:SetSize(portraitEffectiveSize, portraitEffectiveSize)
+
+            if portraitInside then
+                if portraitInsideSide == "RIGHT" then
+                    portrait:SetPoint("RIGHT", frame, "RIGHT", -borderInset, 0)
+                else
+                    portrait:SetPoint("LEFT", frame, "LEFT", borderInset, 0)
+                end
+            else
+                local portraitAnchorParent = self:GetAnchorTarget(frame, portraitAnchorTo) or frame
+                portrait:SetPoint(
+                    portraitPoint,
+                    portraitAnchorParent,
+                    portraitRelativePoint,
+                    portraitOffsetX,
+                    portraitOffsetY
+                )
+            end
+
+            self:UpdatePortraitTexture(frame)
+
+            portrait:Show()
+        else
+            if portrait.Texture then
+                portrait.Texture:SetTexture(nil)
+            end
+            portrait:Hide()
+        end
+    end
+
+    -- Texts
     if config.Texts then
         for key, textConfig in pairs(config.Texts) do
             self:ApplyTextElementConfig(frame, key, frame.Texts[key], textConfig)
@@ -301,12 +474,16 @@ function UF:Build(unit)
     local frame = self:CreateBaseFrame(unit, config)
     self:CreateHealthBar(frame)
     self:CreatePowerBar(frame)
+    self:CreatePortrait(frame)
+    self:RegisterPortraitEvents(frame)
     self:CreateTextElements(frame)
 
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
 
     frame:Show()
+    self:ApplyConfig(frame)
+
     return frame
 end
 

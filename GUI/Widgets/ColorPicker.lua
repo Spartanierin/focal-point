@@ -11,92 +11,14 @@ local OptionRefresh = PORTRAIT.GUI.Helpers.OptionRefresh
 local ColorPicker = {}
 PORTRAIT.GUI.Widgets.ColorPicker = ColorPicker
 
-local function Clamp(value, minValue, maxValue)
-    if type(value) ~= "number" then
-        return minValue
-    end
-
-    if value < minValue then
-        return minValue
-    end
-
-    if value > maxValue then
-        return maxValue
-    end
-
-    return value
-end
-
-local function NormalizeColor(color, fallback)
-    fallback = fallback or { 1, 1, 1, 1 }
-
-    if type(color) ~= "table" then
-        return {
-            fallback[1] or 1,
-            fallback[2] or 1,
-            fallback[3] or 1,
-            fallback[4] or 1,
-        }
-    end
+local function CopyColor(color, fallback)
+    local source = type(color) == "table" and color or fallback or {}
 
     return {
-        Clamp(color[1] or fallback[1] or 1, 0, 1),
-        Clamp(color[2] or fallback[2] or 1, 0, 1),
-        Clamp(color[3] or fallback[3] or 1, 0, 1),
-        Clamp(color[4] or fallback[4] or 1, 0, 1),
-    }
-end
-
-local function FloatToByte(value)
-    return math.floor(Clamp(value or 0, 0, 1) * 255 + 0.5)
-end
-
-local function ByteToFloat(value)
-    return Clamp((value or 0) / 255, 0, 1)
-end
-
-local function ColorToHex(color)
-    local r = FloatToByte(color[1])
-    local g = FloatToByte(color[2])
-    local b = FloatToByte(color[3])
-
-    return string.format("%02X%02X%02X", r, g, b)
-end
-
-local function HexToColor(hex, alpha)
-    if type(hex) ~= "string" then
-        return nil
-    end
-
-    local cleaned = hex:gsub("#", ""):gsub("%s+", ""):upper()
-
-    if cleaned:match("^[0-9A-F]+$") == nil then
-        return nil
-    end
-
-    if #cleaned == 3 then
-        cleaned = cleaned:sub(1, 1) .. cleaned:sub(1, 1)
-            .. cleaned:sub(2, 2) .. cleaned:sub(2, 2)
-            .. cleaned:sub(3, 3) .. cleaned:sub(3, 3)
-    end
-
-    if #cleaned ~= 6 then
-        return nil
-    end
-
-    local r = tonumber(cleaned:sub(1, 2), 16)
-    local g = tonumber(cleaned:sub(3, 4), 16)
-    local b = tonumber(cleaned:sub(5, 6), 16)
-
-    if not r or not g or not b then
-        return nil
-    end
-
-    return {
-        ByteToFloat(r),
-        ByteToFloat(g),
-        ByteToFloat(b),
-        Clamp(alpha or 1, 0, 1),
+        r = tonumber(source.r) or 1,
+        g = tonumber(source.g) or 1,
+        b = tonumber(source.b) or 1,
+        a = tonumber(source.a) or 1,
     }
 end
 
@@ -111,41 +33,22 @@ function ColorPicker.Create(container, config)
 
     local labelText = config.label or "[Missing Label]"
     local descriptionText = config.description
-    local hasAlpha = config.hasAlpha and true or false
-    local fallbackColor = NormalizeColor(config.fallback, { 1, 1, 1, 1 })
+    local fallbackValue = CopyColor(config.fallback, { r = 1, g = 1, b = 1, a = 1 })
 
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
     container:AddChild(group)
 
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(labelText)
-    group:AddChild(label)
-
-    if descriptionText and descriptionText ~= "" then
-        local description = AceGUI:Create("Label")
-        description:SetFullWidth(true)
-        description:SetText(descriptionText)
-        group:AddChild(description)
-    end
-
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)
     row:SetLayout("Flow")
     group:AddChild(row)
 
-    local button = AceGUI:Create("ColorPicker")
-    button:SetLabel("")
-    button:SetHasAlpha(hasAlpha)
-    button:SetWidth(80)
-    row:AddChild(button)
-
-    local hexInput = AceGUI:Create("EditBox")
-    hexInput:SetLabel("")
-    hexInput:SetWidth(120)
-    row:AddChild(hexInput)
+    local colorPicker = AceGUI:Create("ColorPicker")
+    colorPicker:SetLabel(labelText)
+    colorPicker:SetWidth(config.width or 220)
+    row:AddChild(colorPicker)
 
     local resetButton = nil
     if config.showReset ~= false then
@@ -155,21 +58,50 @@ function ColorPicker.Create(container, config)
         row:AddChild(resetButton)
     end
 
+    if descriptionText and descriptionText ~= "" then
+        local description = AceGUI:Create("Label")
+        description:SetFullWidth(true)
+        description:SetText(descriptionText)
+        group:AddChild(description)
+    end
+
     local isUpdating = false
 
+    local function IsDisabled()
+        return OptionValues.ResolveState(config.disabled, config)
+    end
+
+    local function IsLocked()
+        return OptionValues.ResolveState(config.locked, config)
+    end
+
+    local function ApplyState()
+        local disabled = IsDisabled()
+        local locked = IsLocked()
+        local interactive = not disabled and not locked
+
+        colorPicker:SetDisabled(not interactive)
+
+        if resetButton then
+            resetButton:SetDisabled(not interactive)
+        end
+    end
+
     local function UpdateUI(color)
+        local value = CopyColor(color, fallbackValue)
+
         isUpdating = true
-        button:SetColor(color[1], color[2], color[3], color[4])
-        hexInput:SetText(ColorToHex(color))
+        colorPicker:SetColor(value.r, value.g, value.b, value.a)
+        ApplyState()
         isUpdating = false
     end
 
-    local function SaveColor(color)
-        local normalized = NormalizeColor(color, fallbackColor)
-
-        if not hasAlpha then
-            normalized[4] = 1
+    local function SaveValue(color)
+        if IsDisabled() or IsLocked() then
+            return
         end
+
+        local normalized = CopyColor(color, fallbackValue)
 
         OptionValues.Set(config.path, normalized)
         UpdateUI(normalized)
@@ -180,74 +112,52 @@ function ColorPicker.Create(container, config)
         end
     end
 
-    local currentColor = NormalizeColor(OptionValues.Get(config.path), fallbackColor)
-    UpdateUI(currentColor)
+    local currentValue = CopyColor(OptionValues.Get(config.path, fallbackValue), fallbackValue)
+    UpdateUI(currentValue)
 
-    button:SetCallback("OnValueChanged", function(_, _, r, g, b, a)
+    colorPicker:SetCallback("OnValueConfirmed", function(_, _, r, g, b, a)
         if isUpdating then
             return
         end
 
-        SaveColor({
-            r or 1,
-            g or 1,
-            b or 1,
-            a or 1,
+        SaveValue({
+            r = r,
+            g = g,
+            b = b,
+            a = a,
         })
-    end)
-
-    button:SetCallback("OnValueConfirmed", function(_, _, r, g, b, a)
-        if isUpdating then
-            return
-        end
-
-        SaveColor({
-            r or 1,
-            g or 1,
-            b or 1,
-            a or 1,
-        })
-    end)
-
-    hexInput:SetCallback("OnEnterPressed", function(_, _, value)
-        if isUpdating then
-            return
-        end
-
-        local current = NormalizeColor(OptionValues.Get(config.path), fallbackColor)
-        local parsed = HexToColor(value, current[4])
-
-        if parsed then
-            SaveColor(parsed)
-        else
-            UpdateUI(current)
-        end
-    end)
-
-    hexInput:SetCallback("OnTextChanged", function()
-        -- bewusst leer; Commit nur bei Enter/OK
     end)
 
     if resetButton then
         resetButton:SetCallback("OnClick", function()
+            if IsDisabled() or IsLocked() then
+                return
+            end
+
             if OptionValues.Reset(config.path) then
-                local resetColor = NormalizeColor(OptionValues.Get(config.path), fallbackColor)
-                UpdateUI(resetColor)
+                local resetValue = CopyColor(OptionValues.Get(config.path, fallbackValue), fallbackValue)
+                UpdateUI(resetValue)
                 OptionRefresh.All()
 
                 if config.onChanged then
-                    config.onChanged(resetColor)
+                    config.onChanged(resetValue)
                 end
+            else
+                SaveValue(fallbackValue)
             end
         end)
     end
 
-    return {
+    local handle = {
         group = group,
-        button = button,
-        hexInput = hexInput,
+        colorPicker = colorPicker,
         resetButton = resetButton,
+        RefreshState = ApplyState,
     }
+
+    OptionRefresh.RegisterStateWidget(handle)
+
+    return handle
 end
 
 return ColorPicker

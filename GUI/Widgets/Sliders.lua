@@ -8,66 +8,22 @@ local AceGUI = LibStub("AceGUI-3.0")
 local OptionValues = PORTRAIT.GUI.Helpers.OptionValues
 local OptionRefresh = PORTRAIT.GUI.Helpers.OptionRefresh
 
-local Slider = {}
-PORTRAIT.GUI.Widgets.Slider = Slider
+local Sliders = {}
+PORTRAIT.GUI.Widgets.Sliders = Sliders
 
-local function Clamp(value, minValue, maxValue)
-    if type(value) ~= "number" then
-        return minValue
-    end
-
-    if value < minValue then
-        return minValue
-    end
-
-    if value > maxValue then
-        return maxValue
-    end
-
-    return value
-end
-
-local function RoundToStep(value, minValue, step)
-    if type(value) ~= "number" then
-        return minValue
-    end
-
-    if not step or step <= 0 then
+local function NormalizeNumber(value, fallback)
+    if type(value) == "number" then
         return value
     end
 
-    local steps = math.floor(((value - minValue) / step) + 0.5)
-    return minValue + (steps * step)
+    if type(fallback) == "number" then
+        return fallback
+    end
+
+    return 0
 end
 
-local function FormatValue(value, formatString)
-    if type(value) ~= "number" then
-        return ""
-    end
-
-    if type(formatString) == "string" and formatString ~= "" then
-        return string.format(formatString, value)
-    end
-
-    if math.abs(value - math.floor(value)) < 0.0001 then
-        return tostring(math.floor(value))
-    end
-
-    return string.format("%.2f", value)
-end
-
-local function ParseNumber(text)
-    if type(text) ~= "string" then
-        return nil
-    end
-
-    local cleaned = text:gsub(",", "."):gsub("%s+", "")
-    local value = tonumber(cleaned)
-
-    return value
-end
-
-function Slider.Create(container, config)
+function Sliders.Create(container, config)
     if not container or type(config) ~= "table" then
         return nil
     end
@@ -78,40 +34,16 @@ function Slider.Create(container, config)
 
     local labelText = config.label or "[Missing Label]"
     local descriptionText = config.description
+    local fallbackValue = NormalizeNumber(config.fallback, 0)
+
     local minValue = tonumber(config.min) or 0
     local maxValue = tonumber(config.max) or 100
     local stepValue = tonumber(config.step) or 1
-    local formatString = config.format
-
-    if maxValue < minValue then
-        minValue, maxValue = maxValue, minValue
-    end
-
-    if stepValue <= 0 then
-        stepValue = 1
-    end
-
-    local fallbackValue = tonumber(config.fallback)
-    if fallbackValue == nil then
-        fallbackValue = minValue
-    end
 
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
     container:AddChild(group)
-
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(labelText)
-    group:AddChild(label)
-
-    if descriptionText and descriptionText ~= "" then
-        local description = AceGUI:Create("Label")
-        description:SetFullWidth(true)
-        description:SetText(descriptionText)
-        group:AddChild(description)
-    end
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)
@@ -119,15 +51,10 @@ function Slider.Create(container, config)
     group:AddChild(row)
 
     local slider = AceGUI:Create("Slider")
-    slider:SetLabel("")
+    slider:SetLabel(labelText)
     slider:SetSliderValues(minValue, maxValue, stepValue)
-    slider:SetWidth(220)
+    slider:SetWidth(config.width or 320)
     row:AddChild(slider)
-
-    local valueInput = AceGUI:Create("EditBox")
-    valueInput:SetLabel("")
-    valueInput:SetWidth(90)
-    row:AddChild(valueInput)
 
     local resetButton = nil
     if config.showReset ~= false then
@@ -137,43 +64,59 @@ function Slider.Create(container, config)
         row:AddChild(resetButton)
     end
 
+    if descriptionText and descriptionText ~= "" then
+        local description = AceGUI:Create("Label")
+        description:SetFullWidth(true)
+        description:SetText(descriptionText)
+        group:AddChild(description)
+    end
+
     local isUpdating = false
 
-    local function NormalizeValue(value)
-        local numeric = tonumber(value)
+    local function IsDisabled()
+        return OptionValues.ResolveState(config.disabled, config)
+    end
 
-        if numeric == nil then
-            numeric = fallbackValue
+    local function IsLocked()
+        return OptionValues.ResolveState(config.locked, config)
+    end
+
+    local function ApplyState()
+        local disabled = IsDisabled()
+        local locked = IsLocked()
+        local interactive = not disabled and not locked
+
+        slider:SetDisabled(not interactive)
+
+        if resetButton then
+            resetButton:SetDisabled(not interactive)
         end
-
-        numeric = Clamp(numeric, minValue, maxValue)
-        numeric = RoundToStep(numeric, minValue, stepValue)
-        numeric = Clamp(numeric, minValue, maxValue)
-
-        return numeric
     end
 
     local function UpdateUI(value)
         isUpdating = true
         slider:SetValue(value)
-        valueInput:SetText(FormatValue(value, formatString))
+        ApplyState()
         isUpdating = false
     end
 
     local function SaveValue(value)
-        local normalized = NormalizeValue(value)
+        if IsDisabled() or IsLocked() then
+            return
+        end
+
+        local normalized = NormalizeNumber(value, fallbackValue)
 
         OptionValues.Set(config.path, normalized)
         UpdateUI(normalized)
-        OptionRefresh.All()
+        OptionRefresh.Live()
 
         if config.onChanged then
             config.onChanged(normalized)
         end
     end
 
-    local currentValue = OptionValues.Get(config.path, fallbackValue)
-    currentValue = NormalizeValue(currentValue)
+    local currentValue = NormalizeNumber(OptionValues.Get(config.path, fallbackValue), fallbackValue)
     UpdateUI(currentValue)
 
     slider:SetCallback("OnValueChanged", function(_, _, value)
@@ -184,55 +127,36 @@ function Slider.Create(container, config)
         SaveValue(value)
     end)
 
-    slider:SetCallback("OnMouseUp", function()
-        if isUpdating then
-            return
-        end
-
-        local liveValue = OptionValues.Get(config.path, fallbackValue)
-        UpdateUI(NormalizeValue(liveValue))
-    end)
-
-    valueInput:SetCallback("OnEnterPressed", function(_, _, text)
-        if isUpdating then
-            return
-        end
-
-        local parsed = ParseNumber(text)
-
-        if parsed ~= nil then
-            SaveValue(parsed)
-        else
-            local current = OptionValues.Get(config.path, fallbackValue)
-            UpdateUI(NormalizeValue(current))
-        end
-    end)
-
-    valueInput:SetCallback("OnTextChanged", function()
-        -- bewusst leer; Commit nur bei Enter/OK
-    end)
-
     if resetButton then
         resetButton:SetCallback("OnClick", function()
+            if IsDisabled() or IsLocked() then
+                return
+            end
+
             if OptionValues.Reset(config.path) then
-                local resetValue = OptionValues.Get(config.path, fallbackValue)
-                resetValue = NormalizeValue(resetValue)
+                local resetValue = NormalizeNumber(OptionValues.Get(config.path, fallbackValue), fallbackValue)
                 UpdateUI(resetValue)
-                OptionRefresh.All()
+                OptionRefresh.Live()
 
                 if config.onChanged then
                     config.onChanged(resetValue)
                 end
+            else
+                SaveValue(fallbackValue)
             end
         end)
     end
 
-    return {
+    local handle = {
         group = group,
         slider = slider,
-        valueInput = valueInput,
         resetButton = resetButton,
+        RefreshState = ApplyState,
     }
+
+    OptionRefresh.RegisterStateWidget(handle)
+
+    return handle
 end
 
-return Slider
+return Sliders

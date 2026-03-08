@@ -94,4 +94,18 @@ function OptionValues.IsDefault(path)
     return currentValue == defaultValue
 end
 
+function OptionValues.ResolveState(state, context)
+    if type(state) == "function" then
+        local ok, result = pcall(state, context)
+
+        if not ok then
+            return false
+        end
+
+        return result and true or false
+    end
+
+    return state and true or false
+end
+
 return OptionValues

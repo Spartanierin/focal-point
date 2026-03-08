@@ -743,6 +743,10 @@ local function BuildPlaceholderPage(container, title)
 end
 
 local function RenderPage(container, path)
+    local OptionRefresh = Portrait.GUI.Helpers.OptionRefresh
+    if OptionRefresh and OptionRefresh.ClearStateWidgets then
+        OptionRefresh.ClearStateWidgets()
+    end
     if path == "general" then
         BuildGeneralPage(container)
         return
@@ -772,6 +776,17 @@ local function RenderPage(container, path)
     Portrait.GUIBuilders.BuildPlaceholderPage(container, path or "Unknown")
 end
 
+function Portrait.GUI:RefreshOptions()
+    local addon = Portrait
+
+    if not addon.guiTreeGroup then
+        return
+    end
+
+    local selectedPath = self.selectedPath or "general"
+    RenderPage(addon.guiTreeGroup, selectedPath)
+end
+
 function Portrait:CreateGUI()
     if self.guiFrame then
         self.guiFrame:Show()
@@ -789,20 +804,33 @@ function Portrait:CreateGUI()
         widget:Hide()
     end)
 
+    self.guiTreeStatus = self.guiTreeStatus or {
+        groups = {
+            [Portrait.Constants.Nav.UNITS] = true,
+        },
+        selected = self.GUI.selectedPath or "general",
+    }
+
     local treeGroup = AceGUI:Create("TreeGroup")
     treeGroup:SetFullWidth(true)
     treeGroup:SetFullHeight(true)
     treeGroup:SetLayout("Fill")
+    treeGroup:SetStatusTable(self.guiTreeStatus)
     treeGroup:SetTree(NAV_TREE)
+
+    treeGroup.localstatus.groups = treeGroup.localstatus.groups or {}
+    treeGroup.localstatus.groups[Portrait.Constants.Nav.UNITS] = true
 
     treeGroup:SetCallback("OnGroupSelected", function(widget, _, group)
         local normalizedGroup = NormalizeGroupValue(group)
         Portrait.GUI.selectedPath = normalizedGroup
+        Portrait.guiTreeStatus.selected = normalizedGroup
         RenderPage(widget, normalizedGroup)
     end)
 
     frame:AddChild(treeGroup)
     self.guiFrame = frame
+    self.guiTreeGroup = treeGroup
 
     local initialPath = self.GUI.selectedPath or "general"
     treeGroup:SelectByValue(initialPath)

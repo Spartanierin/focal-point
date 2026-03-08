@@ -11,26 +11,6 @@ local OptionRefresh = PORTRAIT.GUI.Helpers.OptionRefresh
 local Dropdown = {}
 PORTRAIT.GUI.Widgets.Dropdown = Dropdown
 
-local function NormalizeList(list)
-    if type(list) ~= "table" then
-        return {}
-    end
-
-    return list
-end
-
-local function GetFallbackValue(list, fallback)
-    if fallback ~= nil and list[fallback] ~= nil then
-        return fallback
-    end
-
-    for key in pairs(list) do
-        return key
-    end
-
-    return nil
-end
-
 function Dropdown.Create(container, config)
     if not container or type(config) ~= "table" then
         return nil
@@ -42,25 +22,13 @@ function Dropdown.Create(container, config)
 
     local labelText = config.label or "[Missing Label]"
     local descriptionText = config.description
-    local list = NormalizeList(config.list)
-    local fallbackValue = GetFallbackValue(list, config.fallback)
+    local fallbackValue = config.fallback
+    local listValues = config.list or config.values or {}
 
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
     container:AddChild(group)
-
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(labelText)
-    group:AddChild(label)
-
-    if descriptionText and descriptionText ~= "" then
-        local description = AceGUI:Create("Label")
-        description:SetFullWidth(true)
-        description:SetText(descriptionText)
-        group:AddChild(description)
-    end
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetFullWidth(true)
@@ -68,9 +36,9 @@ function Dropdown.Create(container, config)
     group:AddChild(row)
 
     local dropdown = AceGUI:Create("Dropdown")
-    dropdown:SetLabel("")
-    dropdown:SetList(list)
-    dropdown:SetWidth(220)
+    dropdown:SetLabel(labelText)
+    dropdown:SetList(listValues)
+    dropdown:SetWidth(config.width or 220)
     row:AddChild(dropdown)
 
     local resetButton = nil
@@ -81,40 +49,57 @@ function Dropdown.Create(container, config)
         row:AddChild(resetButton)
     end
 
+    if descriptionText and descriptionText ~= "" then
+        local description = AceGUI:Create("Label")
+        description:SetFullWidth(true)
+        description:SetText(descriptionText)
+        group:AddChild(description)
+    end
+
     local isUpdating = false
 
-    local function NormalizeValue(value)
-        if value ~= nil and list[value] ~= nil then
-            return value
-        end
+    local function IsDisabled()
+        return OptionValues.ResolveState(config.disabled, config)
+    end
 
-        return fallbackValue
+    local function IsLocked()
+        return OptionValues.ResolveState(config.locked, config)
+    end
+
+    local function ApplyState()
+        local disabled = IsDisabled()
+        local locked = IsLocked()
+        local interactive = not disabled and not locked
+
+        dropdown:SetDisabled(not interactive)
+
+        if resetButton then
+            resetButton:SetDisabled(not interactive)
+        end
     end
 
     local function UpdateUI(value)
         isUpdating = true
         dropdown:SetValue(value)
+        ApplyState()
         isUpdating = false
     end
 
     local function SaveValue(value)
-        local normalized = NormalizeValue(value)
-
-        if normalized == nil then
+        if IsDisabled() or IsLocked() then
             return
         end
 
-        OptionValues.Set(config.path, normalized)
-        UpdateUI(normalized)
+        OptionValues.Set(config.path, value)
+        UpdateUI(value)
         OptionRefresh.All()
 
         if config.onChanged then
-            config.onChanged(normalized)
+            config.onChanged(value)
         end
     end
 
     local currentValue = OptionValues.Get(config.path, fallbackValue)
-    currentValue = NormalizeValue(currentValue)
     UpdateUI(currentValue)
 
     dropdown:SetCallback("OnValueChanged", function(_, _, value)
@@ -127,9 +112,12 @@ function Dropdown.Create(container, config)
 
     if resetButton then
         resetButton:SetCallback("OnClick", function()
+            if IsDisabled() or IsLocked() then
+                return
+            end
+
             if OptionValues.Reset(config.path) then
                 local resetValue = OptionValues.Get(config.path, fallbackValue)
-                resetValue = NormalizeValue(resetValue)
                 UpdateUI(resetValue)
                 OptionRefresh.All()
 
@@ -137,19 +125,21 @@ function Dropdown.Create(container, config)
                     config.onChanged(resetValue)
                 end
             else
-                local normalized = NormalizeValue(fallbackValue)
-                if normalized ~= nil then
-                    SaveValue(normalized)
-                end
+                SaveValue(fallbackValue)
             end
         end)
     end
 
-    return {
+    local handle = {
         group = group,
         dropdown = dropdown,
         resetButton = resetButton,
+        RefreshState = ApplyState,
     }
+
+    OptionRefresh.RegisterStateWidget(handle)
+
+    return handle
 end
 
 return Dropdown

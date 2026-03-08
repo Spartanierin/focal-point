@@ -19,7 +19,7 @@ function Portrait:GetDefaultDB()
                     enabled = true,
                     mouseEnabled = true,
                     clickThrough = false,
-                    clampToScreen = false,
+                    clampToScreen = true,
 
                     width = 220,
                     height = 40,
@@ -42,6 +42,21 @@ function Portrait:GetDefaultDB()
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
                     healthColor = { 0.10, 0.80, 0.10, 1.00 },
                     powerColor = { 0.20, 0.40, 0.90, 1.00 },
+
+                    Portrait = {
+                        enabled = true,
+                        placement = "INSIDE",   -- INSIDE / ATTACHED
+                        mode = "2D",            -- 2D / 3D
+                        size = 40,
+                        scale = 1,
+                        padding = 4,            -- nur relevant für INSIDE
+                        insideSide = "LEFT",    -- LEFT / RIGHT
+                        anchorTo = "Frame",     -- für ATTACHED
+                        point = "RIGHT",
+                        relativePoint = "LEFT",
+                        offsetX = -4,
+                        offsetY = 0,
+                    },
 
                     Texts = {
                         Name = {
@@ -102,7 +117,7 @@ function Portrait:GetDefaultDB()
                     enabled = false,
                     mouseEnabled = true,
                     clickThrough = false,
-                    clampToScreen = false,
+                    clampToScreen = true,
                     
                     width = 220,
                     height = 40,
@@ -116,6 +131,21 @@ function Portrait:GetDefaultDB()
                     x = 250,
                     y = -180,
                     showPowerBar = false,
+
+                    Portrait = {
+                        enabled = false,
+                        placement = "INSIDE",   -- INSIDE / ATTACHED
+                        mode = "2D",            -- 2D / 3D
+                        size = 40,
+                        scale = 1,
+                        padding = 4,            -- nur relevant für INSIDE
+                        insideSide = "LEFT",    -- LEFT / RIGHT
+                        anchorTo = "Frame",     -- für ATTACHED
+                        point = "RIGHT",
+                        relativePoint = "LEFT",
+                        offsetX = -4,
+                        offsetY = 0,
+                    },
                 },
 
                 targettarget = { enabled = false },

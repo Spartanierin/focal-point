@@ -68,18 +68,47 @@ function Checkbox.Create(container, config)
 
     local isUpdating = false
 
+    local function IsDisabled()
+        return OptionValues.ResolveState(config.disabled, config)
+    end
+
+    local function IsLocked()
+        return OptionValues.ResolveState(config.locked, config)
+    end
+
+    local function ApplyState()
+        local disabled = IsDisabled()
+        local locked = IsLocked()
+        local interactive = not disabled and not locked
+
+        checkbox:SetDisabled(not interactive)
+
+        if resetButton then
+            resetButton:SetDisabled(not interactive)
+        end
+    end
+
     local function UpdateUI(value)
         isUpdating = true
         checkbox:SetValue(value)
+        ApplyState()
         isUpdating = false
     end
 
     local function SaveValue(value)
+        if IsDisabled() or IsLocked() then
+            return
+        end
+
         local normalized = NormalizeBoolean(value, fallbackValue)
 
         OptionValues.Set(config.path, normalized)
         UpdateUI(normalized)
-        OptionRefresh.All()
+        if config.refreshGUI then
+            OptionRefresh.All()
+        else
+            OptionRefresh.Live()
+        end
 
         if config.onChanged then
             config.onChanged(normalized)
@@ -99,6 +128,10 @@ function Checkbox.Create(container, config)
 
     if resetButton then
         resetButton:SetCallback("OnClick", function()
+            if IsDisabled() or IsLocked() then
+                return
+            end
+
             if OptionValues.Reset(config.path) then
                 local resetValue = NormalizeBoolean(OptionValues.Get(config.path, fallbackValue), fallbackValue)
                 UpdateUI(resetValue)
@@ -113,11 +146,16 @@ function Checkbox.Create(container, config)
         end)
     end
 
-    return {
+    local handle = {
         group = group,
         checkbox = checkbox,
         resetButton = resetButton,
+        RefreshState = ApplyState,
     }
+
+    OptionRefresh.RegisterStateWidget(handle)
+
+    return handle
 end
 
 return Checkbox
