@@ -24,16 +24,16 @@ L["UNIT_BOSS"] = "Boss"
 
 -- Main Tabs
 L["TAB_FRAME"] = "Rahmen"
-L["TAB_BARS"] = "Leisten"
+L["TAB_BARS"] = "Balken"
 L["TAB_TEXTS"] = "Texte"
 L["TAB_ELEMENTS"] = "Elemente"
 L["TAB_VISIBILITY"] = "Sichtbarkeit"
 
 -- Bars
 L["BAR_HEALTH"] = "Gesundheit"
-L["BAR_POWER"] = "Ressource"
-L["BAR_ALT_POWER"] = "Alternative Ressource"
-L["BAR_CAST"] = "Zauber"
+L["BAR_POWER"] = "Ressourcen-Balken"
+L["BAR_ALT_POWER"] = "Alternativer Ressourcen-Balken"
+L["BAR_CAST"] = "Zauberbalken"
 
 -- Text Objects
 L["TEXT_NAME"] = "Name"
@@ -122,11 +122,15 @@ L["OPTION_BACKGROUND_COLOR"] = "Hintergrundfarbe"
 L["OPTION_BACKGROUND_COLOR_DESC"] = "Legt die Hintergrundfarbe des Frames fest."
 L["OPTION_BORDER_COLOR"] = "Rahmenfarbe"
 L["OPTION_BORDER_COLOR_DESC"] = "Legt die Rahmenfarbe des Frames fest."
-L["OPTION_POWER_COLOR"] = "Farbe Energieleiste"
-L["OPTION_POWER_COLOR_DESC"] = "Legt die Farbe der Energieleiste des Frames fest."
+L["OPTION_POWER_COLOR"] = "Farbe Ressourcen-Balken"
+L["OPTION_POWER_COLOR_DESC"] = "Legt die Farbe des Ressourcen-Balken des Frames fest."
 L["OPTION_HEALTH_COLOR"] = "Gesundheitsfarbe"
-L["OPTION_HEALTH_COLOR_DESC"] = "Legt die Farbe der Gesundheitsleiste fest."
+L["OPTION_HEALTH_COLOR_DESC"] = "Legt die Farbe der Gesundheitsbalken fest."
 L["OPTION_RESET"] = "Zurücksetzen"
+L["OPTION_SHOW_POWER_BAR"] = "Ressourcen-Balken anzeigen"
+L["OPTION_SHOW_POWER_BAR_DESC"] = "Blendet die Ressourcen-Balken für diesen Frame ein oder aus."
+L["OPTION_POWER_BAR_HEIGHT"] = "Höhe Ressourcen-Balken"
+L["OPTION_POWER_BAR_HEIGHT_DESC"] = "Legt die Höhe der Ressourcen-Balken fest."
 
 -- Visibility / Logic
 L["OPTION_SHOW_IN_SOLO"] = "Allein anzeigen"

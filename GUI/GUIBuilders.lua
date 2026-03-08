@@ -17,6 +17,8 @@ local function GetGUIState()
     ns.GUI._state = ns.GUI._state or {
         unitTabs = {},
         unitScroll = {},
+        unitBarTabs = {},
+        unitBarScroll = {},
     }
 
     return ns.GUI._state
@@ -87,6 +89,13 @@ local function CreateSection(container)
         gutter = 16,
         minColumnWidth = 300,
     })
+end
+
+local function GetBarTabValues()
+    return {
+        { text = ns.GetLabel(KM.Bars, C.Bars.HEALTH), value = C.Bars.HEALTH },
+        { text = ns.GetLabel(KM.Bars, C.Bars.POWER), value = C.Bars.POWER },
+    }
 end
 
 
@@ -534,6 +543,27 @@ function B.BuildUnitFramePage(container, unitKey)
         disabled = IsUnitDisabled,
     }))
 
+end
+
+function B.BuildUnitHealthBarPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local title = AceGUI:Create("Heading")
+    title:SetFullWidth(true)
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
+    container:AddChild(title)
+
+    AddSectionHeading(container, L["SECTION_COLOR"])
+
+    local layout = CreateSection(container)
+
     layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "healthColor" },
         label = L["OPTION_HEALTH_COLOR"],
@@ -542,6 +572,58 @@ function B.BuildUnitFramePage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
     }))
+end
+
+function B.BuildUnitPowerBarPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function IsPowerBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
+    end
+
+    local title = AceGUI:Create("Heading")
+    title:SetFullWidth(true)
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
+    container:AddChild(title)
+
+    AddSectionHeading(container, L["SECTION_GENERAL"])
+
+    local layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "showPowerBar" },
+        label = L["OPTION_SHOW_POWER_BAR"],
+        description = L["OPTION_SHOW_POWER_BAR_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+        refreshGUI = true,
+    }))
+
+    layout:Add(Slider.Create({
+        path = { "Units", unitKey, "powerBarHeight" },
+        label = L["OPTION_POWER_BAR_HEIGHT"],
+        description = L["OPTION_POWER_BAR_HEIGHT_DESC"],
+        min = 4,
+        max = 30,
+        step = 1,
+        fallback = 8,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+        disabled = IsPowerBarDisabled,
+    }))
+
+    AddSectionHeading(container, L["SECTION_COLOR"])
+
+    layout = CreateSection(container)
 
     layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "powerColor" },
@@ -549,8 +631,53 @@ function B.BuildUnitFramePage(container, unitKey)
         description = L["OPTION_POWER_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
+        disabled = IsPowerBarDisabled,
     }))
+end
+
+function B.BuildUnitBarsPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+
+    local state = GetGUIState()
+    state.unitBarTabs[unitKey] = state.unitBarTabs[unitKey] or C.Bars.HEALTH
+    state.unitBarScroll[unitKey] = state.unitBarScroll[unitKey] or {}
+
+    local tabGroup = AceGUI:Create("TabGroup")
+    tabGroup:SetFullWidth(true)
+    tabGroup:SetFullHeight(true)
+    tabGroup:SetLayout("Fill")
+    tabGroup:SetTabs(GetBarTabValues())
+
+    tabGroup:SetCallback("OnGroupSelected", function(widget, _, barKey)
+        state.unitBarTabs[unitKey] = barKey
+        state.unitBarScroll[unitKey][barKey] = state.unitBarScroll[unitKey][barKey] or { scrollvalue = 0 }
+
+        widget:ReleaseChildren()
+        widget:SetLayout("Fill")
+
+        local scroll = AceGUI:Create("ScrollFrame")
+        scroll:SetFullWidth(true)
+        scroll:SetFullHeight(true)
+        scroll:SetLayout("Flow")
+        scroll:SetStatusTable(state.unitBarScroll[unitKey][barKey])
+        widget:AddChild(scroll)
+
+        if barKey == C.Bars.HEALTH then
+            B.BuildUnitHealthBarPage(scroll, unitKey)
+            return
+        end
+
+        if barKey == C.Bars.POWER then
+            B.BuildUnitPowerBarPage(scroll, unitKey)
+            return
+        end
+
+        B.BuildPlaceholderPage(scroll, ns.GetLabel(KM.Bars, barKey))
+    end)
+
+    container:AddChild(tabGroup)
+    tabGroup:SelectTab(state.unitBarTabs[unitKey] or C.Bars.HEALTH)
 end
 
 local function GetUnitTabValues()
@@ -582,10 +709,16 @@ function B.BuildUnitPage(container, unitKey)
 
     tabGroup:SetCallback("OnGroupSelected", function(widget, _, tabKey)
         state.unitTabs[unitKey] = tabKey
-        state.unitScroll[unitKey][tabKey] = state.unitScroll[unitKey][tabKey] or { scrollvalue = 0 }
 
         widget:ReleaseChildren()
         widget:SetLayout("Fill")
+
+        if tabKey == C.Tabs.BARS then
+            B.BuildUnitBarsPage(widget, unitKey)
+            return
+        end
+
+        state.unitScroll[unitKey][tabKey] = state.unitScroll[unitKey][tabKey] or { scrollvalue = 0 }
 
         local scroll = AceGUI:Create("ScrollFrame")
         scroll:SetFullWidth(true)
