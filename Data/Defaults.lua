@@ -20,6 +20,11 @@ function Portrait:GetDefaultDB()
                     mouseEnabled = true,
                     clickThrough = false,
                     clampToScreen = true,
+                    showInSolo = true,
+                    showInParty = true,
+                    showInRaid = true,
+                    showInArena = true,
+                    showInPvp = true,
 
                     width = 220,
                     height = 40,
@@ -126,6 +131,11 @@ function Portrait:GetDefaultDB()
                     mouseEnabled = true,
                     clickThrough = false,
                     clampToScreen = true,
+                    showInSolo = true,
+                    showInParty = true,
+                    showInRaid = true,
+                    showInArena = true,
+                    showInPvp = true,
                     
                     width = 220,
                     height = 40,

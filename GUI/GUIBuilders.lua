@@ -19,6 +19,8 @@ local function GetGUIState()
         unitScroll = {},
         unitBarTabs = {},
         unitBarScroll = {},
+        unitElementTabs = {},
+        unitElementScroll = {},
     }
 
     return ns.GUI._state
@@ -62,12 +64,6 @@ function B.CreateNavTree()
         unitChildren
     ))
 
-    -- Test Mode
-    table.insert(tree, MakeNode(
-        C.Nav.TEST_MODE,
-        ns.GetLabel(KM.Nav, C.Nav.TEST_MODE)
-    ))
-
     -- Profiles
     table.insert(tree, MakeNode(
         C.Nav.PROFILES,
@@ -99,17 +95,13 @@ local function GetBarTabValues()
 end
 
 
-function B.BuildPlaceholderPage(container, title)
-    container:ReleaseChildren()
-    container:SetLayout("Fill")
-
-    local label = AceGUI:Create("Label")
-    label:SetText((title or "TODO") .. " (TODO)")
-    label:SetFullWidth(true)
-    container:AddChild(label)
+local function GetElementTabValues()
+    return {
+        { text = ns.GetLabel(KM.Elements, C.Elements.PORTRAIT), value = C.Elements.PORTRAIT },
+    }
 end
 
-function B.BuildUnitFramePage(container, unitKey)
+local function BuildUnitPortraitElementPage(container, unitKey)
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -136,86 +128,19 @@ function B.BuildUnitFramePage(container, unitKey)
 
     local title = AceGUI:Create("Heading")
     title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.FRAME))
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.ELEMENTS) .. " - " .. ns.GetLabel(KM.Elements, C.Elements.PORTRAIT))
     container:AddChild(title)
 
-    -- General
-    AddSectionHeading(container, L["SECTION_GENERAL"])
+    AddSectionHeading(container, ns.GetLabel(KM.Elements, C.Elements.PORTRAIT))
 
     local layout = CreateSection(container)
-
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "enabled" },
-        label = L["OPTION_ENABLED"],
-        description = L["OPTION_ENABLED_DESC"],
-        fallback = true,
-        resetText = L["OPTION_RESET"],
-        refreshGUI = true,
-    }))
-
-    layout:Add(Slider.Create({
-        path = { "Units", unitKey, "width" },
-        label = L["OPTION_WIDTH"],
-        description = L["OPTION_WIDTH_DESC"],
-        min = 50,
-        max = 600,
-        step = 1,
-        fallback = 220,
-        format = "%d",
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
-
-    layout:Add(Slider.Create({
-        path = { "Units", unitKey, "height" },
-        label = L["OPTION_HEIGHT"],
-        description = L["OPTION_HEIGHT_DESC"],
-        min = 10,
-        max = 200,
-        step = 1,
-        fallback = 45,
-        format = "%d",
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
-
-    layout:Add(Slider.Create({
-        path = { "Units", unitKey, "scale" },
-        label = L["OPTION_SCALE"],
-        description = L["OPTION_SCALE_DESC"],
-        min = 0.5,
-        max = 2.0,
-        step = 0.01,
-        fallback = 1.0,
-        format = "%.2f",
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
-
-    layout:Add(Slider.Create({
-        path = { "Units", unitKey, "alpha" },
-        label = L["OPTION_ALPHA"],
-        description = L["OPTION_ALPHA_DESC"],
-        min = 0.0,
-        max = 1.0,
-        step = 0.01,
-        fallback = 1.0,
-        format = "%.2f",
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
-
-    -- Portrait
-    AddSectionHeading(container, "Portrait")
-
-    layout = CreateSection(container)
 
     layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "Portrait", "enabled" },
         label = "Portrait aktivieren",
         description = "Blendet das Portrait für diese Unit ein oder aus.",
         fallback = true,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
     }))
@@ -379,11 +304,155 @@ function B.BuildUnitFramePage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsPortraitAttachedDisabled,
     }))
+end
 
-    -- Position
-    AddSectionHeading(container, L["SECTION_POSITION"])
+function B.BuildPlaceholderPage(container, title)
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+
+    local label = AceGUI:Create("Label")
+    label:SetText((title or "TODO") .. " (TODO)")
+    label:SetFullWidth(true)
+    container:AddChild(label)
+end
+
+function B.BuildUnitFramePage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local title = AceGUI:Create("Heading")
+    title:SetFullWidth(true)
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.FRAME))
+    container:AddChild(title)
+
+    local function AddDirectBehaviorCheckbox(path, labelText, descriptionText, fallbackValue)
+        local checkbox = AceGUI:Create("CheckBox")
+        checkbox:SetLabel(labelText)
+        checkbox:SetValue(ns.GUI.Helpers.OptionValues.Get(path, fallbackValue) and true or false)
+        checkbox:SetFullWidth(true)
+        checkbox:SetDisabled(IsUnitDisabled())
+        checkbox:SetCallback("OnValueChanged", function(_, _, newValue)
+            if IsUnitDisabled() then
+                return
+            end
+
+            ns.GUI.Helpers.OptionValues.Set(path, newValue and true or false)
+            ns.GUI.Helpers.OptionRefresh.Live()
+        end)
+        container:AddChild(checkbox)
+
+        if descriptionText and descriptionText ~= "" then
+            local description = AceGUI:Create("Label")
+            description:SetFullWidth(true)
+            description:SetText(descriptionText)
+            container:AddChild(description)
+        end
+    end
+
+    -- General
+    AddSectionHeading(container, L["SECTION_GENERAL"])
+
+    local layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "enabled" },
+        label = L["OPTION_ENABLED"],
+        description = L["OPTION_ENABLED_DESC"],
+        fallback = true,
+        resetText = false,
+        refreshGUI = true,
+    }))
+
+    -- IMPORTANT:
+    -- These behavior checkboxes are intentionally created directly on the page container.
+    -- Several wrapper/group/layout variants caused the checkboxes in this specific section
+    -- to become invisible even though the surrounding section rendered correctly.
+    -- Keep this block simple: AceGUI CheckBox + container:AddChild(...).
+    -- Do not "clean this up" back into SectionLayout/wrapper groups unless the rendering
+    -- issue is reproduced, understood, and tested in-game.
+    AddDirectBehaviorCheckbox(
+        { "Units", unitKey, "mouseEnabled" },
+        L["OPTION_MOUSE_ENABLED"],
+        L["OPTION_MOUSE_ENABLED_DESC"],
+        true
+    )
+
+    AddDirectBehaviorCheckbox(
+        { "Units", unitKey, "clickThrough" },
+        L["OPTION_CLICK_THROUGH"],
+        L["OPTION_CLICK_THROUGH_DESC"],
+        false
+    )
+
+    AddDirectBehaviorCheckbox(
+        { "Units", unitKey, "clampToScreen" },
+        L["OPTION_CLAMP_TO_SCREEN"],
+        L["OPTION_CLAMP_TO_SCREEN_DESC"],
+        true
+    )
+
+    -- Size & Position
+    AddSectionHeading(container, L["SECTION_SIZE_POSITION"])
 
     layout = CreateSection(container)
+
+    layout:Add(Slider.Create({
+        path = { "Units", unitKey, "width" },
+        label = L["OPTION_WIDTH"],
+        description = L["OPTION_WIDTH_DESC"],
+        min = 50,
+        max = 600,
+        step = 1,
+        fallback = 220,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+    }))
+
+    layout:Add(Slider.Create({
+        path = { "Units", unitKey, "height" },
+        label = L["OPTION_HEIGHT"],
+        description = L["OPTION_HEIGHT_DESC"],
+        min = 10,
+        max = 200,
+        step = 1,
+        fallback = 45,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+    }))
+
+    layout:Add(Slider.Create({
+        path = { "Units", unitKey, "x" },
+        label = L["OPTION_X_OFFSET"],
+        description = L["OPTION_X_OFFSET_DESC"],
+        min = -1000,
+        max = 1000,
+        step = 1,
+        fallback = 0,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+    }))
+
+    layout:Add(Slider.Create({
+        path = { "Units", unitKey, "y" },
+        label = L["OPTION_Y_OFFSET"],
+        description = L["OPTION_Y_OFFSET_DESC"],
+        min = -1000,
+        max = 1000,
+        step = 1,
+        fallback = 0,
+        format = "%d",
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+    }))
 
     layout:Add(Dropdown.Create({
         path = { "Units", unitKey, "point" },
@@ -425,28 +494,33 @@ function B.BuildUnitFramePage(container, unitKey)
         disabled = IsUnitDisabled,
     }))
 
+    -- Transparency & Scaling
+    AddSectionHeading(container, L["SECTION_TRANSPARENCY_SCALING"])
+
+    layout = CreateSection(container)
+
     layout:Add(Slider.Create({
-        path = { "Units", unitKey, "x" },
-        label = L["OPTION_X_OFFSET"],
-        description = L["OPTION_X_OFFSET_DESC"],
-        min = -1000,
-        max = 1000,
-        step = 1,
-        fallback = 0,
-        format = "%d",
+        path = { "Units", unitKey, "alpha" },
+        label = L["OPTION_ALPHA"],
+        description = L["OPTION_ALPHA_DESC"],
+        min = 0.0,
+        max = 1.0,
+        step = 0.01,
+        fallback = 1.0,
+        format = "%.2f",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
     }))
 
     layout:Add(Slider.Create({
-        path = { "Units", unitKey, "y" },
-        label = L["OPTION_Y_OFFSET"],
-        description = L["OPTION_Y_OFFSET_DESC"],
-        min = -1000,
-        max = 1000,
-        step = 1,
-        fallback = 0,
-        format = "%d",
+        path = { "Units", unitKey, "scale" },
+        label = L["OPTION_SCALE"],
+        description = L["OPTION_SCALE_DESC"],
+        min = 0.5,
+        max = 2.0,
+        step = 0.01,
+        fallback = 1.0,
+        format = "%.2f",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
     }))
@@ -454,9 +528,11 @@ function B.BuildUnitFramePage(container, unitKey)
     -- Layering
     AddSectionHeading(container, L["SECTION_LAYERING"])
 
-    layout = CreateSection(container)
-
-    layout:Add(Dropdown.Create({
+    -- Keep this block simple and direct.
+    -- After the frame-tab reordering, the Ebenen controls could disappear when they
+    -- were funneled through the generic two-column section helper in this exact spot.
+    -- Adding the widget groups directly to the page container is stable in-game.
+    local frameStrataDropdown = Dropdown.Create({
         path = { "Units", unitKey, "frameStrata" },
         label = L["OPTION_FRAME_STRATA"],
         description = L["OPTION_FRAME_STRATA_DESC"],
@@ -473,9 +549,12 @@ function B.BuildUnitFramePage(container, unitKey)
         fallback = "MEDIUM",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    }))
+    })
+    if frameStrataDropdown and frameStrataDropdown.group then
+        container:AddChild(frameStrataDropdown.group)
+    end
 
-    layout:Add(Slider.Create({
+    local frameLevelSlider = Slider.Create({
         path = { "Units", unitKey, "frameLevel" },
         label = L["OPTION_FRAME_LEVEL"],
         description = L["OPTION_FRAME_LEVEL_DESC"],
@@ -486,44 +565,75 @@ function B.BuildUnitFramePage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
-    }))
+    })
+    if frameLevelSlider and frameLevelSlider.group then
+        container:AddChild(frameLevelSlider.group)
+    end
+end
 
-    -- Behavior
-    AddSectionHeading(container, L["SECTION_BEHAVIOR"])
+function B.BuildUnitElementsPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
 
-    layout = CreateSection(container)
+    local state = GetGUIState()
+    state.unitElementTabs[unitKey] = state.unitElementTabs[unitKey] or C.Elements.PORTRAIT
+    state.unitElementScroll[unitKey] = state.unitElementScroll[unitKey] or {}
 
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "mouseEnabled" },
-        label = L["OPTION_MOUSE_ENABLED"],
-        description = L["OPTION_MOUSE_ENABLED_DESC"],
-        fallback = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
+    local tabGroup = AceGUI:Create("TabGroup")
+    tabGroup:SetFullWidth(true)
+    tabGroup:SetFullHeight(true)
+    tabGroup:SetLayout("Fill")
+    tabGroup:SetTabs(GetElementTabValues())
 
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "clickThrough" },
-        label = L["OPTION_CLICK_THROUGH"],
-        description = L["OPTION_CLICK_THROUGH_DESC"],
-        fallback = false,
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
+    tabGroup:SetCallback("OnGroupSelected", function(widget, _, elementKey)
+        state.unitElementTabs[unitKey] = elementKey
+        state.unitElementScroll[unitKey][elementKey] = state.unitElementScroll[unitKey][elementKey] or { scrollvalue = 0 }
 
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "clampToScreen" },
-        label = L["OPTION_CLAMP_TO_SCREEN"],
-        description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
-        fallback = false,
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-    }))
+        widget:ReleaseChildren()
+        widget:SetLayout("Fill")
 
-    -- Colors
-    AddSectionHeading(container, L["SECTION_COLOR"])
+        local scroll = AceGUI:Create("ScrollFrame")
+        scroll:SetFullWidth(true)
+        scroll:SetFullHeight(true)
+        scroll:SetLayout("Flow")
+        scroll:SetStatusTable(state.unitElementScroll[unitKey][elementKey])
+        widget:AddChild(scroll)
 
-    layout = CreateSection(container)
+        if elementKey == C.Elements.PORTRAIT then
+            BuildUnitPortraitElementPage(scroll, unitKey)
+            return
+        end
+
+        B.BuildPlaceholderPage(scroll, ns.GetLabel(KM.Elements, elementKey))
+    end)
+
+    container:AddChild(tabGroup)
+    tabGroup:SelectTab(state.unitElementTabs[unitKey] or C.Elements.PORTRAIT)
+end
+
+function B.BuildUnitColorsPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function IsPowerBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
+    end
+
+    local title = AceGUI:Create("Heading")
+    title:SetFullWidth(true)
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.COLORS))
+    container:AddChild(title)
+
+    AddSectionHeading(container, "Frame")
+
+    local layout = CreateSection(container)
 
     layout:Add(ColorPicker.Create({
         path = { "Units", unitKey, "backgroundColor" },
@@ -543,7 +653,12 @@ function B.BuildUnitFramePage(container, unitKey)
         disabled = IsUnitDisabled,
     }))
 
-    AddSectionHeading(container, L["SECTION_BACKGROUND"])
+    AddSectionHeading(container, ns.GetLabel(KM.Bars, C.Bars.HEALTH))
+
+    local function IsHealthColorPickerDisabled()
+        return IsUnitDisabled()
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorHealth" }, false)
+    end
 
     local function IsHealthBackgroundPickerDisabled()
         return IsUnitDisabled()
@@ -551,52 +666,6 @@ function B.BuildUnitFramePage(container, unitKey)
     end
 
     layout = CreateSection(container)
-
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "healthBackground" },
-        label = L["OPTION_SHOW_BACKGROUND"],
-        description = L["OPTION_HEALTH_BACKGROUND_DESC"],
-        fallback = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-        refreshGUI = true,
-    }))
-
-    layout:Add(ColorPicker.Create({
-        path = { "Units", unitKey, "healthBackgroundColor" },
-        label = L["OPTION_BACKGROUND_COLOR"],
-        description = L["OPTION_HEALTH_BACKGROUND_COLOR_DESC"],
-        hasAlpha = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsHealthBackgroundPickerDisabled,
-    }))
-
-end
-
-function B.BuildUnitHealthBarPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
-
-    local function IsUnitDisabled()
-        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
-    end
-
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
-    container:AddChild(title)
-
-    -- Color Healthbar
-    AddSectionHeading(container, L["SECTION_COLOR"])
-
-    local function IsHealthColorPickerDisabled()
-        return IsUnitDisabled()
-            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorHealth" }, false)
-    end
-
-    local layout = CreateSection(container)
 
     local healthColorPickerHandle = ColorPicker.Create({
         path = { "Units", unitKey, "healthColor" },
@@ -612,7 +681,7 @@ function B.BuildUnitHealthBarPage(container, unitKey)
         label = L["OPTION_USE_CLASS_COLORS"],
         description = L["OPTION_USE_CLASS_COLORS_HEALTH_DESC"],
         fallback = false,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
         onChanged = function()
@@ -622,24 +691,14 @@ function B.BuildUnitHealthBarPage(container, unitKey)
         end,
     }))
 
-layout:Add(healthColorPickerHandle)
-
-    -- Background
-    AddSectionHeading(container, L["SECTION_BACKGROUND"])
-
-    local function IsHealthBackgroundPickerDisabled()
-        return IsUnitDisabled()
-            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "healthBackground" }, true)
-    end
-
-    layout = CreateSection(container)
+    layout:Add(healthColorPickerHandle)
 
     layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "healthBackground" },
         label = L["OPTION_SHOW_BACKGROUND"],
         description = L["OPTION_HEALTH_BACKGROUND_DESC"],
         fallback = true,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
     }))
@@ -652,6 +711,82 @@ layout:Add(healthColorPickerHandle)
         resetText = L["OPTION_RESET"],
         disabled = IsHealthBackgroundPickerDisabled,
     }))
+
+    AddSectionHeading(container, ns.GetLabel(KM.Bars, C.Bars.POWER))
+
+    local function IsPowerColorPickerDisabled()
+        return IsPowerBarDisabled()
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorPower" }, false)
+    end
+
+    local function IsPowerBackgroundPickerDisabled()
+        return IsPowerBarDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
+    end
+
+    layout = CreateSection(container)
+
+    local powerColorPickerHandle = ColorPicker.Create({
+        path = { "Units", unitKey, "powerColor" },
+        label = L["OPTION_POWER_COLOR"],
+        description = L["OPTION_POWER_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsPowerColorPickerDisabled,
+    })
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "useClassColorPower" },
+        label = L["OPTION_USE_CLASS_COLORS"],
+        description = L["OPTION_USE_CLASS_COLORS_POWER_DESC"],
+        fallback = false,
+        resetText = false,
+        disabled = IsPowerBarDisabled,
+        refreshGUI = true,
+        onChanged = function()
+            if powerColorPickerHandle and powerColorPickerHandle.RefreshState then
+                powerColorPickerHandle.RefreshState()
+            end
+        end,
+    }))
+
+    layout:Add(powerColorPickerHandle)
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "powerBackground" },
+        label = L["OPTION_SHOW_BACKGROUND"],
+        description = L["OPTION_POWER_BACKGROUND_DESC"],
+        fallback = true,
+        resetText = false,
+        disabled = IsPowerBarDisabled,
+        refreshGUI = true,
+    }))
+
+    layout:Add(ColorPicker.Create({
+        path = { "Units", unitKey, "powerBackgroundColor" },
+        label = L["OPTION_BACKGROUND_COLOR"],
+        description = L["OPTION_POWER_BACKGROUND_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsPowerBackgroundPickerDisabled,
+    }))
+end
+
+function B.BuildUnitHealthBarPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+
+    local title = AceGUI:Create("Heading")
+    title:SetFullWidth(true)
+    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
+    container:AddChild(title)
+
+    local label = AceGUI:Create("Label")
+    label:SetFullWidth(true)
+    label:SetText([[Farboptionen für den Gesundheitsbalken findest du jetzt im Tab "Farben".]])
+    container:AddChild(label)
 end
 
 function B.BuildUnitPowerBarPage(container, unitKey)
@@ -684,7 +819,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
         label = L["OPTION_SHOW_POWER_BAR"],
         description = L["OPTION_SHOW_POWER_BAR_DESC"],
         fallback = true,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
     }))
@@ -700,71 +835,6 @@ function B.BuildUnitPowerBarPage(container, unitKey)
         format = "%d",
         resetText = L["OPTION_RESET"],
         disabled = IsPowerBarDisabled,
-    }))
-
-    -- Color PowerBar
-    AddSectionHeading(container, L["SECTION_COLOR"])
-
-    local function IsPowerColorPickerDisabled()
-        return IsPowerBarDisabled()
-            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorPower" }, false)
-    end
-
-    layout = CreateSection(container)
-
-    local powerColorPickerHandle = ColorPicker.Create({
-        path = { "Units", unitKey, "powerColor" },
-        label = L["OPTION_POWER_COLOR"],
-        description = L["OPTION_POWER_COLOR_DESC"],
-        hasAlpha = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsPowerColorPickerDisabled,
-    })
-
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "useClassColorPower" },
-        label = L["OPTION_USE_CLASS_COLORS"],
-        description = L["OPTION_USE_CLASS_COLORS_POWER_DESC"],
-        fallback = false,
-        resetText = L["OPTION_RESET"],
-        disabled = IsPowerBarDisabled,
-        refreshGUI = true,
-        onChanged = function()
-            if powerColorPickerHandle and powerColorPickerHandle.RefreshState then
-                powerColorPickerHandle.RefreshState()
-            end
-        end,
-    }))
-
-layout:Add(powerColorPickerHandle)
-
-    -- Background
-    AddSectionHeading(container, L["SECTION_BACKGROUND"])
-
-    local function IsPowerBackgroundPickerDisabled()
-        return IsPowerBarDisabled()
-            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
-    end
-
-    layout = CreateSection(container)
-
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "powerBackground" },
-        label = L["OPTION_SHOW_BACKGROUND"],
-        description = L["OPTION_POWER_BACKGROUND_DESC"],
-        fallback = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsPowerBarDisabled,
-        refreshGUI = true,
-    }))
-
-    layout:Add(ColorPicker.Create({
-        path = { "Units", unitKey, "powerBackgroundColor" },
-        label = L["OPTION_BACKGROUND_COLOR"],
-        description = L["OPTION_POWER_BACKGROUND_COLOR_DESC"],
-        hasAlpha = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsPowerBackgroundPickerDisabled,
     }))
 end
 
@@ -851,6 +921,11 @@ function B.BuildUnitPage(container, unitKey)
             return
         end
 
+        if tabKey == C.Tabs.ELEMENTS then
+            B.BuildUnitElementsPage(widget, unitKey)
+            return
+        end
+
         state.unitScroll[unitKey][tabKey] = state.unitScroll[unitKey][tabKey] or { scrollvalue = 0 }
 
         local scroll = AceGUI:Create("ScrollFrame")
@@ -862,6 +937,11 @@ function B.BuildUnitPage(container, unitKey)
 
         if tabKey == C.Tabs.FRAME then
             B.BuildUnitFramePage(scroll, unitKey)
+            return
+        end
+
+        if tabKey == C.Tabs.COLORS then
+            B.BuildUnitColorsPage(scroll, unitKey)
             return
         end
 

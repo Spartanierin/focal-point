@@ -28,6 +28,7 @@ KM.Tabs = {
     [C.Tabs.BARS] = "TAB_BARS",
     [C.Tabs.TEXTS] = "TAB_TEXTS",
     [C.Tabs.ELEMENTS] = "TAB_ELEMENTS",
+    [C.Tabs.COLORS] = "TAB_COLORS",
     [C.Tabs.VISIBILITY] = "TAB_VISIBILITY",
 }
 
