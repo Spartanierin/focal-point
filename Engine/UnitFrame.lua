@@ -142,6 +142,11 @@ function UF:CreateHealthBar(frame)
     local health = CreateFrame("StatusBar", nil, frame)
     health:SetMinMaxValues(0, 100)
 
+    local bg = health:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    health.bg = bg
+
     frame.Elements.HealthBar = health
     frame.health = health
 end
@@ -150,6 +155,11 @@ end
 function UF:CreatePowerBar(frame)
     local power = CreateFrame("StatusBar", nil, frame)
     power:SetMinMaxValues(0, 100)
+
+    local bg = power:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    power.bg = bg
 
     frame.Elements.PowerBar = power
     frame.power = power
@@ -358,6 +368,14 @@ function UF:ApplyConfig(frame)
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
 
+    local healthBackgroundEnabled = config.healthBackground ~= false
+    local healthBgR, healthBgG, healthBgB, healthBgA = UnpackColor(config.healthBackgroundColor, { 0, 0, 0, 0.35 })
+    local healthBackgroundShown = healthBackgroundEnabled and (healthBgA or 0) > 0.001
+
+    local powerBackgroundEnabled = config.powerBackground ~= false
+    local powerBgR, powerBgG, powerBgB, powerBgA = UnpackColor(config.powerBackgroundColor, { 0, 0, 0, 0.35 })
+    local powerBackgroundShown = powerBackgroundEnabled and (powerBgA or 0) > 0.001
+
     if config.useClassColorHealth then
         local classR, classG, classB, classA = GetClassColorForUnit(frame.unit)
         if classR and classG and classB then
@@ -419,6 +437,12 @@ function UF:ApplyConfig(frame)
         health:SetStatusBarTexture(texture)
         health:SetStatusBarColor(healthR, healthG, healthB, healthA)
 
+        if health.bg then
+            health.bg:SetTexture(texture)
+            health.bg:SetVertexColor(healthBgR, healthBgG, healthBgB, healthBgA)
+            health.bg:SetShown(healthBackgroundShown)
+        end
+
         local healthLeftOffset = borderInset
         local healthRightOffset = -borderInset
         local healthBottomY = showPowerBar and (borderInset + powerBarHeight) or borderInset
@@ -446,6 +470,12 @@ function UF:ApplyConfig(frame)
         power:SetStatusBarTexture(texture)
         power:SetStatusBarColor(powerR, powerG, powerB, powerA)
 
+        if power.bg then
+            power.bg:SetTexture(texture)
+            power.bg:SetVertexColor(powerBgR, powerBgG, powerBgB, powerBgA)
+            power.bg:SetShown(powerBackgroundShown and showPowerBar)
+        end
+
         if showPowerBar then
             local powerLeftOffset = borderInset
             local powerRightOffset = -borderInset
@@ -463,6 +493,9 @@ function UF:ApplyConfig(frame)
             power:SetHeight(powerBarHeight)
             power:Show()
         else
+            if power.bg then
+                power.bg:Hide()
+            end
             power:Hide()
         end
     end

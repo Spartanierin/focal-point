@@ -543,6 +543,34 @@ function B.BuildUnitFramePage(container, unitKey)
         disabled = IsUnitDisabled,
     }))
 
+    AddSectionHeading(container, L["SECTION_BACKGROUND"])
+
+    local function IsHealthBackgroundPickerDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "healthBackground" }, true)
+    end
+
+    layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "healthBackground" },
+        label = L["OPTION_SHOW_BACKGROUND"],
+        description = L["OPTION_HEALTH_BACKGROUND_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+        refreshGUI = true,
+    }))
+
+    layout:Add(ColorPicker.Create({
+        path = { "Units", unitKey, "healthBackgroundColor" },
+        label = L["OPTION_BACKGROUND_COLOR"],
+        description = L["OPTION_HEALTH_BACKGROUND_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsHealthBackgroundPickerDisabled,
+    }))
+
 end
 
 function B.BuildUnitHealthBarPage(container, unitKey)
@@ -560,6 +588,7 @@ function B.BuildUnitHealthBarPage(container, unitKey)
     title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
     container:AddChild(title)
 
+    -- Color Healthbar
     AddSectionHeading(container, L["SECTION_COLOR"])
 
     local function IsHealthColorPickerDisabled()
@@ -569,6 +598,15 @@ function B.BuildUnitHealthBarPage(container, unitKey)
 
     local layout = CreateSection(container)
 
+    local healthColorPickerHandle = ColorPicker.Create({
+        path = { "Units", unitKey, "healthColor" },
+        label = L["OPTION_HEALTH_COLOR"],
+        description = L["OPTION_HEALTH_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsHealthColorPickerDisabled,
+    })
+
     layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "useClassColorHealth" },
         label = L["OPTION_USE_CLASS_COLORS"],
@@ -577,15 +615,42 @@ function B.BuildUnitHealthBarPage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsUnitDisabled,
         refreshGUI = true,
+        onChanged = function()
+            if healthColorPickerHandle and healthColorPickerHandle.RefreshState then
+                healthColorPickerHandle.RefreshState()
+            end
+        end,
+    }))
+
+layout:Add(healthColorPickerHandle)
+
+    -- Background
+    AddSectionHeading(container, L["SECTION_BACKGROUND"])
+
+    local function IsHealthBackgroundPickerDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "healthBackground" }, true)
+    end
+
+    layout = CreateSection(container)
+
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "healthBackground" },
+        label = L["OPTION_SHOW_BACKGROUND"],
+        description = L["OPTION_HEALTH_BACKGROUND_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+        refreshGUI = true,
     }))
 
     layout:Add(ColorPicker.Create({
-        path = { "Units", unitKey, "healthColor" },
-        label = L["OPTION_HEALTH_COLOR"],
-        description = L["OPTION_HEALTH_COLOR_DESC"],
+        path = { "Units", unitKey, "healthBackgroundColor" },
+        label = L["OPTION_BACKGROUND_COLOR"],
+        description = L["OPTION_HEALTH_BACKGROUND_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
-        disabled = IsHealthColorPickerDisabled,
+        disabled = IsHealthBackgroundPickerDisabled,
     }))
 end
 
@@ -609,6 +674,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
     title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
     container:AddChild(title)
 
+    -- General
     AddSectionHeading(container, L["SECTION_GENERAL"])
 
     local layout = CreateSection(container)
@@ -636,6 +702,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
         disabled = IsPowerBarDisabled,
     }))
 
+    -- Color PowerBar
     AddSectionHeading(container, L["SECTION_COLOR"])
 
     local function IsPowerColorPickerDisabled()
@@ -645,6 +712,15 @@ function B.BuildUnitPowerBarPage(container, unitKey)
 
     layout = CreateSection(container)
 
+    local powerColorPickerHandle = ColorPicker.Create({
+        path = { "Units", unitKey, "powerColor" },
+        label = L["OPTION_POWER_COLOR"],
+        description = L["OPTION_POWER_COLOR_DESC"],
+        hasAlpha = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsPowerColorPickerDisabled,
+    })
+
     layout:Add(Checkbox.Create({
         path = { "Units", unitKey, "useClassColorPower" },
         label = L["OPTION_USE_CLASS_COLORS"],
@@ -653,67 +729,42 @@ function B.BuildUnitPowerBarPage(container, unitKey)
         resetText = L["OPTION_RESET"],
         disabled = IsPowerBarDisabled,
         refreshGUI = true,
+        onChanged = function()
+            if powerColorPickerHandle and powerColorPickerHandle.RefreshState then
+                powerColorPickerHandle.RefreshState()
+            end
+        end,
     }))
-end
 
-function B.BuildUnitPowerBarPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
+layout:Add(powerColorPickerHandle)
 
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    -- Background
+    AddSectionHeading(container, L["SECTION_BACKGROUND"])
 
-    local function IsUnitDisabled()
-        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    local function IsPowerBackgroundPickerDisabled()
+        return IsPowerBarDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
     end
-
-    local function IsPowerBarDisabled()
-        return IsUnitDisabled()
-            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
-    end
-
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
-    container:AddChild(title)
-
-    AddSectionHeading(container, L["SECTION_GENERAL"])
-
-    local layout = CreateSection(container)
-
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "showPowerBar" },
-        label = L["OPTION_SHOW_POWER_BAR"],
-        description = L["OPTION_SHOW_POWER_BAR_DESC"],
-        fallback = true,
-        resetText = L["OPTION_RESET"],
-        disabled = IsUnitDisabled,
-        refreshGUI = true,
-    }))
-
-    layout:Add(Slider.Create({
-        path = { "Units", unitKey, "powerBarHeight" },
-        label = L["OPTION_POWER_BAR_HEIGHT"],
-        description = L["OPTION_POWER_BAR_HEIGHT_DESC"],
-        min = 4,
-        max = 30,
-        step = 1,
-        fallback = 8,
-        format = "%d",
-        resetText = L["OPTION_RESET"],
-        disabled = IsPowerBarDisabled,
-    }))
-
-    AddSectionHeading(container, L["SECTION_COLOR"])
 
     layout = CreateSection(container)
 
+    layout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "powerBackground" },
+        label = L["OPTION_SHOW_BACKGROUND"],
+        description = L["OPTION_POWER_BACKGROUND_DESC"],
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsPowerBarDisabled,
+        refreshGUI = true,
+    }))
+
     layout:Add(ColorPicker.Create({
-        path = { "Units", unitKey, "powerColor" },
-        label = L["OPTION_POWER_COLOR"],
-        description = L["OPTION_POWER_COLOR_DESC"],
+        path = { "Units", unitKey, "powerBackgroundColor" },
+        label = L["OPTION_BACKGROUND_COLOR"],
+        description = L["OPTION_POWER_BACKGROUND_COLOR_DESC"],
         hasAlpha = true,
         resetText = L["OPTION_RESET"],
-        disabled = IsPowerColorPickerDisabled,
+        disabled = IsPowerBackgroundPickerDisabled,
     }))
 end
 

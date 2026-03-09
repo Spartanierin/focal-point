@@ -40,9 +40,15 @@ function Portrait:GetDefaultDB()
 
                     backgroundColor = { 0.08, 0.08, 0.08, 0.90 },
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
+
                     healthColor = { 0.10, 0.80, 0.10, 1.00 },
-                    powerColor = { 0.20, 0.40, 0.90, 1.00 },
+                    healthBackground = true,
+                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.35 },
                     useClassColorHealth = false,
+
+                    powerColor = { 0.20, 0.40, 0.90, 1.00 },
+                    powerBackground = true,
+                    powerBackgroundColor = { 0.00, 0.00, 0.00, 0.35 },
                     useClassColorPower = false,
 
                     Portrait = {
