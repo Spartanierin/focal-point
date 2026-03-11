@@ -10,7 +10,6 @@ PORTRAIT.GUI.Layouts.SectionLayout = SectionLayout
 
 local function CreateColumn(relativeWidth)
     local column = AceGUI:Create("SimpleGroup")
-    column:SetFullWidth(true)
     column:SetRelativeWidth(relativeWidth or 0.5)
     column:SetLayout("List")
     return column

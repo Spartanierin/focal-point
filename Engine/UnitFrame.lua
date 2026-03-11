@@ -185,6 +185,85 @@ function UF:CreateRaidTargetIcon(frame)
     frame.RaidTargetIcon = holder
 end
 
+local function CreateOverlayIndicatorHolder(frame, elementKey)
+    local holder = CreateFrame("Frame", nil, frame)
+    holder:SetAllPoints(frame)
+    holder:SetFrameStrata(frame:GetFrameStrata())
+    holder:SetFrameLevel(frame:GetFrameLevel() + 20)
+    holder:Hide()
+
+    local texture = holder:CreateTexture(nil, "OVERLAY", nil, 7)
+    texture:Hide()
+
+    holder.Texture = texture
+    frame.Elements[elementKey] = holder
+    frame[elementKey] = holder
+end
+
+local function ApplyOverlayIndicatorConfig(owner, frame, holder, options)
+    if not holder then
+        return
+    end
+
+    local icon = holder.Texture or holder
+
+    holder:ClearAllPoints()
+    holder:SetScale(1)
+    holder:SetFrameStrata(frame:GetFrameStrata())
+    holder:SetFrameLevel(math.max(frame:GetFrameLevel() + 20, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 10) or (frame:GetFrameLevel() + 20)))
+    icon:ClearAllPoints()
+    icon:SetScale(1)
+
+    if options.enabled then
+        local effectiveSize = options.size * options.scale
+        holder:SetSize(effectiveSize, effectiveSize)
+        icon:SetAllPoints(holder)
+
+        if options.placement == "INSIDE" then
+            if options.insideSide == "LEFT" then
+                holder:SetPoint("TOPLEFT", frame, "TOPLEFT", options.borderInset + options.padding, -(options.borderInset + options.padding))
+            else
+                holder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(options.borderInset + options.padding), -(options.borderInset + options.padding))
+            end
+        else
+            local anchorParent = owner:GetAnchorTarget(frame, options.anchorTo) or frame
+            holder:SetPoint(
+                options.point,
+                anchorParent,
+                options.relativePoint,
+                options.offsetX,
+                options.offsetY
+            )
+        end
+
+        options.updateFunc(frame)
+    else
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+    end
+end
+
+function UF:CreateLeaderIcon(frame)
+    CreateOverlayIndicatorHolder(frame, "LeaderIcon")
+end
+
+function UF:CreateRoleIcon(frame)
+    CreateOverlayIndicatorHolder(frame, "RoleIcon")
+end
+
+function UF:CreateCombatIndicator(frame)
+    CreateOverlayIndicatorHolder(frame, "CombatIndicator")
+end
+
+function UF:CreateRestingIndicator(frame)
+    CreateOverlayIndicatorHolder(frame, "RestingIndicator")
+end
+
+function UF:CreateReadyCheckIndicator(frame)
+    CreateOverlayIndicatorHolder(frame, "ReadyCheckIndicator")
+end
+
 
 function UF:UpdateRaidTargetIcon(frame)
     if not frame or not frame.Elements or not frame.Elements.RaidTargetIcon then
@@ -262,6 +341,374 @@ function UF:RegisterRaidTargetEvents(frame)
     end)
 
     frame.RaidTargetEventFrame = eventFrame
+end
+
+function UF:UpdateLeaderIcon(frame)
+    if not frame or not frame.Elements or not frame.Elements.LeaderIcon then
+        return
+    end
+
+    local holder = frame.Elements.LeaderIcon
+    local icon = holder.Texture or holder
+    local config = frame.config
+    local leaderConfig = config and config.LeaderIcon or nil
+
+    if not leaderConfig or leaderConfig.enabled == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    local isLeader = false
+
+    if frame.unit and UnitExists and UnitExists(frame.unit) then
+        if UnitLeadsAnyGroup then
+            isLeader = UnitLeadsAnyGroup(frame.unit) and true or false
+        elseif UnitIsGroupLeader then
+            isLeader = UnitIsGroupLeader(frame.unit) and true or false
+        end
+    end
+
+    if not isLeader then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    icon:SetAtlas("UI-HUD-UnitFrame-Player-Group-LeaderIcon", true)
+    holder:Show()
+    icon:Show()
+end
+
+function UF:RegisterLeaderIconEvents(frame)
+    if not frame or frame.LeaderIconEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    eventFrame:RegisterEvent("PARTY_LEADER_CHANGED")
+    eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        if event == "UNIT_PET" and unit ~= "player" then
+            return
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdateLeaderIcon(owner)
+            end
+        end)
+    end)
+
+    frame.LeaderIconEventFrame = eventFrame
+end
+
+function UF:UpdateRoleIcon(frame)
+    if not frame or not frame.Elements or not frame.Elements.RoleIcon then
+        return
+    end
+
+    local holder = frame.Elements.RoleIcon
+    local icon = holder.Texture or holder
+    local config = frame.config
+    local roleConfig = config and config.RoleIcon or nil
+
+    if not roleConfig or roleConfig.enabled == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    local role = frame.unit and UnitGroupRolesAssigned and UnitGroupRolesAssigned(frame.unit) or nil
+
+    if role == "TANK" then
+        icon:SetAtlas("UI-LFG-RoleIcon-Tank-Micro-Raid", true)
+    elseif role == "HEALER" then
+        icon:SetAtlas("UI-LFG-RoleIcon-Healer-Micro-Raid", true)
+    elseif role == "DAMAGER" then
+        icon:SetAtlas("UI-LFG-RoleIcon-DPS-Micro-Raid", true)
+    else
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    holder:Show()
+    icon:Show()
+end
+
+function UF:RegisterRoleIconEvents(frame)
+    if not frame or frame.RoleIconEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        if event == "UNIT_PET" and unit ~= "player" then
+            return
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdateRoleIcon(owner)
+            end
+        end)
+    end)
+
+    frame.RoleIconEventFrame = eventFrame
+end
+
+function UF:UpdateCombatIndicator(frame)
+    if not frame or not frame.Elements or not frame.Elements.CombatIndicator then
+        return
+    end
+
+    local holder = frame.Elements.CombatIndicator
+    local icon = holder.Texture or holder
+    local config = frame.config
+    local combatConfig = config and config.CombatIndicator or nil
+
+    if not combatConfig or combatConfig.enabled == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    local inCombat = frame.unit and UnitAffectingCombat and UnitAffectingCombat(frame.unit) or false
+
+    if not inCombat then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    icon:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon", true)
+    holder:Show()
+    icon:Show()
+end
+
+function UF:RegisterCombatIndicatorEvents(frame)
+    if not frame or frame.CombatIndicatorEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("UNIT_FLAGS")
+    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        if event == "UNIT_FLAGS" and unit ~= owner.unit then
+            return
+        end
+
+        if event == "UNIT_PET" and unit ~= "player" then
+            return
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdateCombatIndicator(owner)
+            end
+        end)
+    end)
+
+    frame.CombatIndicatorEventFrame = eventFrame
+end
+
+function UF:UpdateRestingIndicator(frame)
+    if not frame or not frame.Elements or not frame.Elements.RestingIndicator then
+        return
+    end
+
+    local holder = frame.Elements.RestingIndicator
+    local icon = holder.Texture or holder
+    local config = frame.config
+    local restingConfig = config and config.RestingIndicator or nil
+
+    if not restingConfig or restingConfig.enabled == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    if frame.unit ~= "player" or not IsResting or not IsResting() then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    icon:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
+    icon:SetTexCoord(0, 0.5, 0, 0.421875)
+    holder:Show()
+    icon:Show()
+end
+
+function UF:RegisterRestingIndicatorEvents(frame)
+    if not frame or frame.RestingIndicatorEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
+
+    eventFrame:SetScript("OnEvent", function()
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdateRestingIndicator(owner)
+            end
+        end)
+    end)
+
+    frame.RestingIndicatorEventFrame = eventFrame
+end
+
+function UF:UpdateReadyCheckIndicator(frame)
+    if not frame or not frame.Elements or not frame.Elements.ReadyCheckIndicator then
+        return
+    end
+
+    local holder = frame.Elements.ReadyCheckIndicator
+    local icon = holder.Texture or holder
+    local config = frame.config
+    local readyCheckConfig = config and config.ReadyCheckIndicator or nil
+
+    if not readyCheckConfig or readyCheckConfig.enabled == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    local status = frame.unit and GetReadyCheckStatus and GetReadyCheckStatus(frame.unit) or nil
+
+    if status == "ready" then
+        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+    elseif status == "notready" then
+        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+    elseif status == "waiting" then
+        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
+    else
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    icon:SetTexCoord(0, 1, 0, 1)
+    holder:Show()
+    icon:Show()
+end
+
+function UF:RegisterReadyCheckIndicatorEvents(frame)
+    if not frame or frame.ReadyCheckIndicatorEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("READY_CHECK")
+    eventFrame:RegisterEvent("READY_CHECK_CONFIRM")
+    eventFrame:RegisterEvent("READY_CHECK_FINISHED")
+    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        if event == "UNIT_PET" and unit ~= "player" then
+            return
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdateReadyCheckIndicator(owner)
+            end
+        end)
+    end)
+
+    frame.ReadyCheckIndicatorEventFrame = eventFrame
 end
 
 -- Portrait
@@ -444,6 +891,11 @@ function UF:ApplyConfig(frame)
 
     local portraitConfig = config.Portrait or {}
     local raidTargetConfig = config.RaidTargetIcon or {}
+    local leaderConfig = config.LeaderIcon or {}
+    local roleConfig = config.RoleIcon or {}
+    local combatConfig = config.CombatIndicator or {}
+    local restingConfig = config.RestingIndicator or {}
+    local readyCheckConfig = config.ReadyCheckIndicator or {}
     local portraitEnabled = portraitConfig.enabled and true or false
     local portraitPlacement = portraitConfig.placement or "INSIDE"
     local portraitMode = portraitConfig.mode or "2D"
@@ -474,6 +926,66 @@ function UF:ApplyConfig(frame)
     local raidTargetOffsetX = tonumber(raidTargetConfig.offsetX) or 0
     local raidTargetOffsetY = tonumber(raidTargetConfig.offsetY) or 8
     local raidTargetAnchorTo = raidTargetConfig.anchorTo or "Frame"
+
+    local leaderEnabled = leaderConfig.enabled ~= false
+    local leaderPlacement = leaderConfig.placement or "ATTACHED"
+    local leaderSize = tonumber(leaderConfig.size) or 16
+    local leaderScale = tonumber(leaderConfig.scale) or 1
+    local leaderPadding = tonumber(leaderConfig.padding) or 2
+    local leaderInsideSide = leaderConfig.insideSide or "LEFT"
+    local leaderPoint = leaderConfig.point or "TOPLEFT"
+    local leaderRelativePoint = leaderConfig.relativePoint or "TOP"
+    local leaderOffsetX = tonumber(leaderConfig.offsetX) or 0
+    local leaderOffsetY = tonumber(leaderConfig.offsetY) or 0
+    local leaderAnchorTo = leaderConfig.anchorTo or "Frame"
+
+    local roleEnabled = roleConfig.enabled ~= false
+    local rolePlacement = roleConfig.placement or "ATTACHED"
+    local roleSize = tonumber(roleConfig.size) or 16
+    local roleScale = tonumber(roleConfig.scale) or 1
+    local rolePadding = tonumber(roleConfig.padding) or 2
+    local roleInsideSide = roleConfig.insideSide or "RIGHT"
+    local rolePoint = roleConfig.point or "TOPRIGHT"
+    local roleRelativePoint = roleConfig.relativePoint or "TOP"
+    local roleOffsetX = tonumber(roleConfig.offsetX) or 0
+    local roleOffsetY = tonumber(roleConfig.offsetY) or 0
+    local roleAnchorTo = roleConfig.anchorTo or "Frame"
+
+    local combatEnabled = combatConfig.enabled ~= false
+    local combatPlacement = combatConfig.placement or "ATTACHED"
+    local combatSize = tonumber(combatConfig.size) or 16
+    local combatScale = tonumber(combatConfig.scale) or 1
+    local combatPadding = tonumber(combatConfig.padding) or 2
+    local combatInsideSide = combatConfig.insideSide or "RIGHT"
+    local combatPoint = combatConfig.point or "TOP"
+    local combatRelativePoint = combatConfig.relativePoint or "TOP"
+    local combatOffsetX = tonumber(combatConfig.offsetX) or 0
+    local combatOffsetY = tonumber(combatConfig.offsetY) or 0
+    local combatAnchorTo = combatConfig.anchorTo or "Frame"
+
+    local restingEnabled = restingConfig.enabled ~= false
+    local restingPlacement = restingConfig.placement or "ATTACHED"
+    local restingSize = tonumber(restingConfig.size) or 16
+    local restingScale = tonumber(restingConfig.scale) or 1
+    local restingPadding = tonumber(restingConfig.padding) or 2
+    local restingInsideSide = restingConfig.insideSide or "LEFT"
+    local restingPoint = restingConfig.point or "TOPLEFT"
+    local restingRelativePoint = restingConfig.relativePoint or "TOP"
+    local restingOffsetX = tonumber(restingConfig.offsetX) or 0
+    local restingOffsetY = tonumber(restingConfig.offsetY) or 0
+    local restingAnchorTo = restingConfig.anchorTo or "Frame"
+
+    local readyCheckEnabled = readyCheckConfig.enabled ~= false
+    local readyCheckPlacement = readyCheckConfig.placement or "ATTACHED"
+    local readyCheckSize = tonumber(readyCheckConfig.size) or 16
+    local readyCheckScale = tonumber(readyCheckConfig.scale) or 1
+    local readyCheckPadding = tonumber(readyCheckConfig.padding) or 2
+    local readyCheckInsideSide = readyCheckConfig.insideSide or "RIGHT"
+    local readyCheckPoint = readyCheckConfig.point or "TOPRIGHT"
+    local readyCheckRelativePoint = readyCheckConfig.relativePoint or "TOP"
+    local readyCheckOffsetX = tonumber(readyCheckConfig.offsetX) or 0
+    local readyCheckOffsetY = tonumber(readyCheckConfig.offsetY) or 0
+    local readyCheckAnchorTo = readyCheckConfig.anchorTo or "Frame"
 
     local bgR, bgG, bgB, bgA = UnpackColor(config.backgroundColor, { 0.08, 0.08, 0.08, 0.9 })
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0.2, 0.2, 0.2, 1 })
@@ -696,6 +1208,96 @@ function UF:ApplyConfig(frame)
         end
     end
 
+    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.LeaderIcon, {
+        enabled = leaderEnabled,
+        placement = leaderPlacement,
+        size = leaderSize,
+        scale = leaderScale,
+        padding = leaderPadding,
+        insideSide = leaderInsideSide,
+        anchorTo = leaderAnchorTo,
+        point = leaderPoint,
+        relativePoint = leaderRelativePoint,
+        offsetX = leaderOffsetX,
+        offsetY = leaderOffsetY,
+        borderInset = borderInset,
+        updateFunc = function(targetFrame)
+            self:UpdateLeaderIcon(targetFrame)
+        end,
+    })
+
+    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.RoleIcon, {
+        enabled = roleEnabled,
+        placement = rolePlacement,
+        size = roleSize,
+        scale = roleScale,
+        padding = rolePadding,
+        insideSide = roleInsideSide,
+        anchorTo = roleAnchorTo,
+        point = rolePoint,
+        relativePoint = roleRelativePoint,
+        offsetX = roleOffsetX,
+        offsetY = roleOffsetY,
+        borderInset = borderInset,
+        updateFunc = function(targetFrame)
+            self:UpdateRoleIcon(targetFrame)
+        end,
+    })
+
+    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.CombatIndicator, {
+        enabled = combatEnabled,
+        placement = combatPlacement,
+        size = combatSize,
+        scale = combatScale,
+        padding = combatPadding,
+        insideSide = combatInsideSide,
+        anchorTo = combatAnchorTo,
+        point = combatPoint,
+        relativePoint = combatRelativePoint,
+        offsetX = combatOffsetX,
+        offsetY = combatOffsetY,
+        borderInset = borderInset,
+        updateFunc = function(targetFrame)
+            self:UpdateCombatIndicator(targetFrame)
+        end,
+    })
+
+    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.RestingIndicator, {
+        enabled = restingEnabled,
+        placement = restingPlacement,
+        size = restingSize,
+        scale = restingScale,
+        padding = restingPadding,
+        insideSide = restingInsideSide,
+        anchorTo = restingAnchorTo,
+        point = restingPoint,
+        relativePoint = restingRelativePoint,
+        offsetX = restingOffsetX,
+        offsetY = restingOffsetY,
+        borderInset = borderInset,
+        updateFunc = function(targetFrame)
+            self:UpdateRestingIndicator(targetFrame)
+        end,
+    })
+
+    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.ReadyCheckIndicator, {
+        enabled = readyCheckEnabled,
+        placement = readyCheckPlacement,
+        size = readyCheckSize,
+        scale = readyCheckScale,
+        padding = readyCheckPadding,
+        insideSide = readyCheckInsideSide,
+        anchorTo = readyCheckAnchorTo,
+        point = readyCheckPoint,
+        relativePoint = readyCheckRelativePoint,
+        offsetX = readyCheckOffsetX,
+        offsetY = readyCheckOffsetY,
+        borderInset = borderInset,
+        updateFunc = function(targetFrame)
+            self:UpdateReadyCheckIndicator(targetFrame)
+        end,
+    })
+
     -- Texts
     if config.Texts then
         for key, textConfig in pairs(config.Texts) do
@@ -737,6 +1339,16 @@ function UF:Build(unit)
     self:RegisterPortraitEvents(frame)
     self:CreateRaidTargetIcon(frame)
     self:RegisterRaidTargetEvents(frame)
+    self:CreateLeaderIcon(frame)
+    self:RegisterLeaderIconEvents(frame)
+    self:CreateRoleIcon(frame)
+    self:RegisterRoleIconEvents(frame)
+    self:CreateCombatIndicator(frame)
+    self:RegisterCombatIndicatorEvents(frame)
+    self:CreateRestingIndicator(frame)
+    self:RegisterRestingIndicatorEvents(frame)
+    self:CreateReadyCheckIndicator(frame)
+    self:RegisterReadyCheckIndicatorEvents(frame)
     self:CreateTextElements(frame)
 
     self:ApplyConfig(frame)
