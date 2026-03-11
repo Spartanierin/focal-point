@@ -51,7 +51,10 @@ function Checkbox.Create(config)
     row:AddChild(checkbox)
 
     local resetButton = nil
-    if config.showReset ~= false then
+    -- Checkboxes do not show a reset button by default.
+    -- This keeps the UI quieter and avoids redundant reset controls for boolean toggles.
+    -- Set showReset = true explicitly if a future checkbox really needs one.
+    if config.showReset == true then
         resetButton = AceGUI:Create("Button")
         resetButton:SetText(config.resetText or "Reset")
         resetButton:SetWidth(100)

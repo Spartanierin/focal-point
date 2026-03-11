@@ -105,7 +105,6 @@ end
 local function GetElementTabValues()
     return {
         { text = ns.GetLabel(KM.Elements, C.Elements.PORTRAIT), value = C.Elements.PORTRAIT },
-        { text = ns.GetLabel(KM.Elements, C.Elements.RAID_TARGET_ICON), value = C.Elements.RAID_TARGET_ICON },
     }
 end
 
@@ -758,7 +757,7 @@ function B.BuildUnitColorsPage(container, unitKey)
         label = L["OPTION_USE_CLASS_COLORS"],
         description = L["OPTION_USE_CLASS_COLORS_HEALTH_DESC"],
         fallback = false,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
         onChanged = function()
@@ -775,7 +774,7 @@ function B.BuildUnitColorsPage(container, unitKey)
         label = L["OPTION_SHOW_BACKGROUND"],
         description = L["OPTION_HEALTH_BACKGROUND_DESC"],
         fallback = true,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
     }))
@@ -896,7 +895,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
         label = L["OPTION_SHOW_POWER_BAR"],
         description = L["OPTION_SHOW_POWER_BAR_DESC"],
         fallback = true,
-        resetText = L["OPTION_RESET"],
+        resetText = false,
         disabled = IsUnitDisabled,
         refreshGUI = true,
     }))
