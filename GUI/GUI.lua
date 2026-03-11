@@ -1,6 +1,7 @@
 local _, Portrait = ...
 
 local AceGUI = LibStub("AceGUI-3.0")
+local L = Portrait.L
 
 Portrait.GUI = Portrait.GUI or {}
 Portrait.GUI.selectedPath = Portrait.GUI.selectedPath or "general"
@@ -757,10 +758,6 @@ local function RenderPage(container, path)
         return
     end
 
-    if path == "test_mode" then
-        Portrait.GUIBuilders.BuildPlaceholderPage(container, "Test Mode")
-        return
-    end
 
     if path == "units" then
         Portrait.GUIBuilders.BuildPlaceholderPage(container, "Units")
@@ -795,12 +792,54 @@ function Portrait:CreateGUI()
 
     local frame = AceGUI:Create("Frame")
     frame:SetTitle("Portrait")
-    frame:SetStatusText("Prototype")
+    frame:SetStatusText((L and L["GUI_STATUS_READY"]) or "Ready")
     frame:SetLayout("Fill")
     frame:SetWidth(980)
     frame:SetHeight(640)
     frame:EnableResize(true)
+
+    function self:SetTestModeEnabled(enabled)
+        self.guiTestModeEnabled = enabled and true or false
+
+        if self.guiTestButton then
+            self.guiTestButton:SetText(self.guiTestModeEnabled and ((L and L["GUI_TEST_STOP"]) or "Stop Test") or ((L and L["GUI_TEST_START"]) or "Test"))
+        end
+
+        if self.guiFrame then
+            self.guiFrame:SetStatusText(self.guiTestModeEnabled and ((L and L["GUI_TEST_ACTIVE"]) or "Test mode active") or ((L and L["GUI_STATUS_READY"]) or "Ready"))
+        end
+    end
+
+    function self:ToggleTestMode()
+        local enabled = not self.guiTestModeEnabled
+        self:SetTestModeEnabled(enabled)
+
+        if self.TestEnvironment then
+            if enabled and self.TestEnvironment.Enable then
+                self.TestEnvironment:Enable()
+            elseif (not enabled) and self.TestEnvironment.Disable then
+                self.TestEnvironment:Disable()
+            elseif self.TestEnvironment.SetEnabled then
+                self.TestEnvironment:SetEnabled(enabled)
+            elseif self.TestEnvironment.Toggle then
+                self.TestEnvironment:Toggle(enabled)
+            elseif self.TestEnvironment.Refresh then
+                self.TestEnvironment:Refresh()
+            end
+        end
+    end
+
     frame:SetCallback("OnClose", function(widget)
+        if Portrait.guiTestModeEnabled then
+            Portrait:SetTestModeEnabled(false)
+            if Portrait.TestEnvironment then
+                if Portrait.TestEnvironment.Disable then
+                    Portrait.TestEnvironment:Disable()
+                elseif Portrait.TestEnvironment.SetEnabled then
+                    Portrait.TestEnvironment:SetEnabled(false)
+                end
+            end
+        end
         widget:Hide()
     end)
 
@@ -831,6 +870,22 @@ function Portrait:CreateGUI()
     frame:AddChild(treeGroup)
     self.guiFrame = frame
     self.guiTreeGroup = treeGroup
+
+    local statusBg = frame.statustext and frame.statustext:GetParent()
+    if statusBg and not self.guiTestButton then
+        local button = CreateFrame("Button", nil, statusBg, "UIPanelButtonTemplate")
+        button:SetSize(110, 20)
+        button:SetPoint("LEFT", statusBg, "LEFT", 6, 0)
+        button:SetText(self.guiTestModeEnabled and ((L and L["GUI_TEST_STOP"]) or "Stop Test") or ((L and L["GUI_TEST_START"]) or "Test"))
+        button:SetScript("OnClick", function()
+            Portrait:ToggleTestMode()
+        end)
+        self.guiTestButton = button
+
+        frame.statustext:ClearAllPoints()
+        frame.statustext:SetPoint("TOPLEFT", button, "TOPRIGHT", 8, -1)
+        frame.statustext:SetPoint("BOTTOMRIGHT", statusBg, "BOTTOMRIGHT", -7, 2)
+    end
 
     local initialPath = self.GUI.selectedPath or "general"
     treeGroup:SelectByValue(initialPath)

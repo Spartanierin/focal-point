@@ -384,3 +384,16 @@ Future image-based elements should reuse the same conceptual model where appropr
 - state-driven GUI visibility and enable/disable logic
 
 The goal is to avoid one-off implementations for each indicator or symbol and instead grow a reusable image-element architecture.
+
+## GUI note: Frame > Behavior checkboxes
+
+The checkboxes in **Units > Frame > Behavior** are intentionally rendered directly with raw AceGUI `CheckBox` widgets and added straight to the container.
+
+Why this exists: multiple refactors using wrapper widgets, intermediate groups, and section-style layouts caused a weird rendering failure where the section heading and other widgets were visible, but the real behavior checkboxes disappeared in-game.
+
+Current rule for this block:
+- build the checkboxes directly
+- add them directly to the page container
+- avoid extra wrapper/group abstractions here unless they are re-tested in-game
+
+This is a deliberate stability exception, not unfinished cleanup.

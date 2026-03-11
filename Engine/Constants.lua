@@ -44,6 +44,7 @@ C.Tabs = {
     TEXTS = "texts",
     ELEMENTS = "elements",
     VISIBILITY = "visibility",
+    COLORS = "colors",
 }
 
 C.TabOrder = {
@@ -51,6 +52,7 @@ C.TabOrder = {
     C.Tabs.BARS,
     C.Tabs.TEXTS,
     C.Tabs.ELEMENTS,
+    C.Tabs.COLORS,
     C.Tabs.VISIBILITY,
 }
 

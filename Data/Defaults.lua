@@ -20,6 +20,11 @@ function Portrait:GetDefaultDB()
                     mouseEnabled = true,
                     clickThrough = false,
                     clampToScreen = true,
+                    showInSolo = true,
+                    showInParty = true,
+                    showInRaid = true,
+                    showInArena = true,
+                    showInPvp = true,
 
                     width = 220,
                     height = 40,
@@ -64,6 +69,20 @@ function Portrait:GetDefaultDB()
                         relativePoint = "LEFT",
                         offsetX = -4,
                         offsetY = 0,
+                    },
+
+                    RaidTargetIcon = {
+                        enabled = true,
+                        placement = "ATTACHED", -- INSIDE / ATTACHED
+                        size = 18,
+                        scale = 1,
+                        padding = 2,             -- only relevant for INSIDE
+                        insideSide = "RIGHT",   -- LEFT / RIGHT
+                        anchorTo = "Frame",
+                        point = "TOP",
+                        relativePoint = "TOP",
+                        offsetX = 0,
+                        offsetY = 8,
                     },
 
                     Texts = {
@@ -126,6 +145,11 @@ function Portrait:GetDefaultDB()
                     mouseEnabled = true,
                     clickThrough = false,
                     clampToScreen = true,
+                    showInSolo = true,
+                    showInParty = true,
+                    showInRaid = true,
+                    showInArena = true,
+                    showInPvp = true,
                     
                     width = 220,
                     height = 40,
@@ -153,6 +177,20 @@ function Portrait:GetDefaultDB()
                         relativePoint = "LEFT",
                         offsetX = -4,
                         offsetY = 0,
+                    },
+
+                    RaidTargetIcon = {
+                        enabled = true,
+                        placement = "ATTACHED", -- INSIDE / ATTACHED
+                        size = 18,
+                        scale = 1,
+                        padding = 2,             -- only relevant for INSIDE
+                        insideSide = "RIGHT",   -- LEFT / RIGHT
+                        anchorTo = "Frame",
+                        point = "TOP",
+                        relativePoint = "TOP",
+                        offsetX = 0,
+                        offsetY = 8,
                     },
                 },
 

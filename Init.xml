@@ -29,6 +29,8 @@
     <Script file="GUI/Widgets/Dropdown.lua"/>
     <Script file="GUI/Widgets/Checkbox.lua"/>
     <Script file="GUI/GUIWidgets.lua"/>
+    <Script file="GUI/Layouts/UnitFrameLayouts.lua"/>
+    <Script file="GUI/Layouts/UnitPortraitLayouts.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>
     <Script file="GUI/GUI.lua"/>
 </Ui>

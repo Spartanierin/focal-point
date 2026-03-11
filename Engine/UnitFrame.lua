@@ -165,6 +165,105 @@ function UF:CreatePowerBar(frame)
     frame.power = power
 end
 
+-- Raid Target Icon
+function UF:CreateRaidTargetIcon(frame)
+    -- Use a dedicated overlay frame so the RTM can reliably sit above bars.
+    -- A plain texture on the base frame can end up visually behind child
+    -- frames like HealthBar/PowerBar when frame levels differ.
+    local holder = CreateFrame("Frame", nil, frame)
+    holder:SetAllPoints(frame)
+    holder:SetFrameStrata(frame:GetFrameStrata())
+    holder:SetFrameLevel(frame:GetFrameLevel() + 20)
+    holder:Hide()
+
+    local texture = holder:CreateTexture(nil, "OVERLAY", nil, 7)
+    texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    texture:Hide()
+
+    holder.Texture = texture
+    frame.Elements.RaidTargetIcon = holder
+    frame.RaidTargetIcon = holder
+end
+
+
+function UF:UpdateRaidTargetIcon(frame)
+    if not frame or not frame.Elements or not frame.Elements.RaidTargetIcon then
+        return
+    end
+
+    local holder = frame.Elements.RaidTargetIcon
+    local icon = holder.Texture or holder
+    local config = frame.config
+    local rtmConfig = config and config.RaidTargetIcon or nil
+
+    if not rtmConfig or rtmConfig.enabled == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
+    -- Diagnostic fallback:
+    -- If the live raid target lookup does not currently yield a usable index,
+    -- show a fixed star icon so we can verify that the element itself is
+    -- created, positioned, and visible on the frame.
+    local index = frame.unit and GetRaidTargetIndex and GetRaidTargetIndex(frame.unit) or nil
+    icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    SetRaidTargetIconTexture(icon, index or 1)
+    holder:Show()
+    icon:Show()
+end
+
+function UF:RegisterRaidTargetEvents(frame)
+    if not frame or frame.RaidTargetEventFrame then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("RAID_TARGET_UPDATE")
+    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    eventFrame:RegisterEvent("UNIT_TARGET")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner or not owner:IsShown() then
+            return
+        end
+
+        if event == "UNIT_TARGET" then
+            if owner.unit ~= "targettarget" and owner.unit ~= "focustarget" then
+                return
+            end
+
+            local expectedUnit = owner.unit == "targettarget" and "target" or "focus"
+            if unit ~= expectedUnit then
+                return
+            end
+        elseif event == "UNIT_PET" and unit ~= "player" then
+            return
+        end
+
+        C_Timer.After(0, function()
+            if owner and owner:IsShown() then
+                UF:UpdateRaidTargetIcon(owner)
+            end
+        end)
+    end)
+
+    frame.RaidTargetEventFrame = eventFrame
+end
+
 -- Portrait
 function UF:CreatePortrait(frame)
     local portraitHolder = CreateFrame("Frame", nil, frame, "BackdropTemplate")
@@ -344,6 +443,7 @@ function UF:ApplyConfig(frame)
     local borderInset = 1
 
     local portraitConfig = config.Portrait or {}
+    local raidTargetConfig = config.RaidTargetIcon or {}
     local portraitEnabled = portraitConfig.enabled and true or false
     local portraitPlacement = portraitConfig.placement or "INSIDE"
     local portraitMode = portraitConfig.mode or "2D"
@@ -362,6 +462,18 @@ function UF:ApplyConfig(frame)
     local portraitInside = portraitEnabled and portraitPlacement == "INSIDE"
     local portraitAttached = portraitEnabled and portraitPlacement == "ATTACHED"
     local portraitReservedSpace = portraitInside and (portraitEffectiveSize + portraitPadding) or 0
+
+    -- Important: GUI uses fallback=true for new RTM configs. Treat a missing
+    -- enabled flag as active as well, otherwise the UI can look enabled while
+    -- the engine silently considers the element disabled on older profiles.
+    local raidTargetEnabled = raidTargetConfig.enabled ~= false
+    local raidTargetSize = tonumber(raidTargetConfig.size) or 18
+    local raidTargetScale = tonumber(raidTargetConfig.scale) or 1
+    local raidTargetPoint = raidTargetConfig.point or "TOP"
+    local raidTargetRelativePoint = raidTargetConfig.relativePoint or "TOP"
+    local raidTargetOffsetX = tonumber(raidTargetConfig.offsetX) or 0
+    local raidTargetOffsetY = tonumber(raidTargetConfig.offsetY) or 8
+    local raidTargetAnchorTo = raidTargetConfig.anchorTo or "Frame"
 
     local bgR, bgG, bgB, bgA = UnpackColor(config.backgroundColor, { 0.08, 0.08, 0.08, 0.9 })
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0.2, 0.2, 0.2, 1 })
@@ -539,6 +651,51 @@ function UF:ApplyConfig(frame)
         end
     end
 
+    -- Raid Target Icon
+    if frame.Elements.RaidTargetIcon then
+        local holder = frame.Elements.RaidTargetIcon
+        local icon = holder.Texture or holder
+        local raidTargetPlacement = raidTargetConfig.placement or "ATTACHED"
+        local raidTargetPadding = tonumber(raidTargetConfig.padding) or 2
+        local raidTargetInsideSide = raidTargetConfig.insideSide or "RIGHT"
+
+        holder:ClearAllPoints()
+        holder:SetScale(1)
+        holder:SetFrameStrata(frame:GetFrameStrata())
+        holder:SetFrameLevel(math.max(frame:GetFrameLevel() + 20, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 10) or (frame:GetFrameLevel() + 20)))
+        icon:ClearAllPoints()
+        icon:SetScale(1)
+
+        if raidTargetEnabled then
+            local effectiveSize = raidTargetSize * raidTargetScale
+            holder:SetSize(effectiveSize, effectiveSize)
+            icon:SetAllPoints(holder)
+
+            if raidTargetPlacement == "INSIDE" then
+                if raidTargetInsideSide == "LEFT" then
+                    holder:SetPoint("TOPLEFT", frame, "TOPLEFT", borderInset + raidTargetPadding, -(borderInset + raidTargetPadding))
+                else
+                    holder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(borderInset + raidTargetPadding), -(borderInset + raidTargetPadding))
+                end
+            else
+                local anchorParent = self:GetAnchorTarget(frame, raidTargetAnchorTo) or frame
+                holder:SetPoint(
+                    raidTargetPoint,
+                    anchorParent,
+                    raidTargetRelativePoint,
+                    raidTargetOffsetX,
+                    raidTargetOffsetY
+                )
+            end
+
+            self:UpdateRaidTargetIcon(frame)
+        else
+            icon:SetTexture(nil)
+            icon:Hide()
+            holder:Hide()
+        end
+    end
+
     -- Texts
     if config.Texts then
         for key, textConfig in pairs(config.Texts) do
@@ -578,6 +735,8 @@ function UF:Build(unit)
     self:CreatePowerBar(frame)
     self:CreatePortrait(frame)
     self:RegisterPortraitEvents(frame)
+    self:CreateRaidTargetIcon(frame)
+    self:RegisterRaidTargetEvents(frame)
     self:CreateTextElements(frame)
 
     self:ApplyConfig(frame)
