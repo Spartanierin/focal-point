@@ -175,6 +175,8 @@ L["GUI_TEST_START"] = "Testen"
 L["GUI_TEST_STOP"] = "Test beenden"
 L["GUI_TEST_ACTIVE"] = "Testmodus aktiv"
 L["GUI_STATUS_READY"] = "Bereit"
+L["INFO_HEALTH_BAR_COLORS_MOVED"] = "Farboptionen fuer den Gesundheitsbalken findest du jetzt im Tab \"Farben\"."
+L["INFO_NOT_IMPLEMENTED_YET"] = "Noch nicht implementiert."
 
 L["SECTION_INSIDE"] = "Innen"
 L["SECTION_ATTACHED"] = "Angeheftet"

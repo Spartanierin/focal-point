@@ -282,13 +282,17 @@ function UF:UpdateRaidTargetIcon(frame)
         return
     end
 
-    -- Diagnostic fallback:
-    -- If the live raid target lookup does not currently yield a usable index,
-    -- show a fixed star icon so we can verify that the element itself is
-    -- created, positioned, and visible on the frame.
     local index = frame.unit and GetRaidTargetIndex and GetRaidTargetIndex(frame.unit) or nil
+
+    if not index then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        return
+    end
+
     icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
-    SetRaidTargetIconTexture(icon, index or 1)
+    SetRaidTargetIconTexture(icon, index)
     holder:Show()
     icon:Show()
 end

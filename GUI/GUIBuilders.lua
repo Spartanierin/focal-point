@@ -87,6 +87,18 @@ local function AddSectionHeading(container, text, topSpacing)
     container:AddChild(heading)
 end
 
+local function AddPageHeading(container, text)
+    local heading = AceGUI:Create("Heading")
+    heading:SetFullWidth(true)
+    heading:SetText(text)
+    container:AddChild(heading)
+end
+
+local function ResetFlowContainer(container)
+    container:ReleaseChildren()
+    container:SetLayout("Flow")
+end
+
 local function CreateSection(container)
     return SectionLayout.CreateTwoColumn(container, {
         gutter = 16,
@@ -229,8 +241,7 @@ local function CanBuildLayoutWidget(def, resolvedList)
 end
 
 local function BuildStandardElementLayoutPage(container, unitKey, config)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
+    ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
 
@@ -327,10 +338,7 @@ local function BuildStandardElementLayoutPage(container, unitKey, config)
         end
     end
 
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.ELEMENTS) .. " - " .. ns.GetLabel(KM.Elements, config.elementKey))
-    container:AddChild(title)
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.ELEMENTS) .. " - " .. ns.GetLabel(KM.Elements, config.elementKey))
 
     for _, sectionDef in ipairs(config.layout) do
         AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
@@ -345,234 +353,23 @@ local function BuildStandardElementLayoutPage(container, unitKey, config)
 end
 
 local function BuildUnitPortraitElementPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
-
-    local function IsUnitDisabled()
-        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
-    end
-
-    local function IsPortraitDisabled()
-        return IsUnitDisabled()
-            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Portrait", "enabled" }, true)
-    end
-
-    local function IsPortraitInsideDisabled()
-        return IsPortraitDisabled()
-            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Portrait", "placement" }, "INSIDE") ~= "INSIDE"
-    end
-
-    local function IsPortraitAttachedDisabled()
-        return IsPortraitDisabled()
-            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Portrait", "placement" }, "INSIDE") ~= "ATTACHED"
-    end
-
-    local PORTRAIT_TAB_LISTS = ns.GUI.Layouts.UnitPortrait.Lists
-    local PORTRAIT_TAB_LAYOUT = ns.GUI.Layouts.UnitPortrait.PortraitTab
-
-    local function ResolveDisabled(def)
-        if def.disabled == "unit" then
-            return IsUnitDisabled
-        end
-
-        if def.disabled == "portrait" then
-            return IsPortraitDisabled
-        end
-
-        if def.disabled == "inside" then
-            return IsPortraitInsideDisabled
-        end
-
-        if def.disabled == "attached" then
-            return IsPortraitAttachedDisabled
-        end
-
-        return nil
-    end
-
-    local function AddSectionWidget(layout, def)
-        local resolvedList = def.list and ResolveLayoutList(PORTRAIT_TAB_LISTS[def.list]) or nil
-
-        if not CanBuildLayoutWidget(def, resolvedList) then
-            return
-        end
-
-        if def.widget == "checkbox" then
-            layout:Add(Checkbox.Create({
-                path = ResolveLayoutPath(def.path, unitKey),
-                label = ResolveLayoutText(def.label),
-                description = ResolveLayoutText(def.description),
-                fallback = def.fallback,
-                resetText = L["OPTION_RESET"],
-                disabled = ResolveDisabled(def),
-                refreshGUI = def.refreshGUI,
-            }))
-            return
-        end
-
-        if def.widget == "dropdown" then
-            layout:Add(Dropdown.Create({
-                path = ResolveLayoutPath(def.path, unitKey),
-                label = ResolveLayoutText(def.label),
-                description = ResolveLayoutText(def.description),
-                list = resolvedList,
-                fallback = def.fallback,
-                resetText = L["OPTION_RESET"],
-                disabled = ResolveDisabled(def),
-                refreshGUI = def.refreshGUI,
-            }))
-            return
-        end
-
-        if def.widget == "slider" then
-            layout:Add(Slider.Create({
-                path = ResolveLayoutPath(def.path, unitKey),
-                label = ResolveLayoutText(def.label),
-                description = ResolveLayoutText(def.description),
-                min = def.min,
-                max = def.max,
-                step = def.step,
-                fallback = def.fallback,
-                format = def.format,
-                resetText = L["OPTION_RESET"],
-                disabled = ResolveDisabled(def),
-            }))
-        end
-    end
-
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.ELEMENTS) .. " - " .. ns.GetLabel(KM.Elements, C.Elements.PORTRAIT))
-    container:AddChild(title)
-
-    for _, sectionDef in ipairs(PORTRAIT_TAB_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
-
-        if sectionDef.mode == "section" then
-            local layout = CreateSection(container)
-            for _, item in ipairs(sectionDef.items) do
-                AddSectionWidget(layout, item)
-            end
-        end
-    end
+    BuildStandardElementLayoutPage(container, unitKey, {
+        optionKey = "Portrait",
+        disabledKey = "portrait",
+        elementKey = C.Elements.PORTRAIT,
+        lists = ns.GUI.Layouts.UnitPortrait.Lists,
+        layout = ns.GUI.Layouts.UnitPortrait.PortraitTab,
+    })
 end
 
 local function BuildUnitRaidTargetElementPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
-
-    local function IsUnitDisabled()
-        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
-    end
-
-    local function IsRTMDisabled()
-        return IsUnitDisabled()
-            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "RaidTargetIcon", "enabled" }, true)
-    end
-
-    local function IsRTMInsideDisabled()
-        return IsRTMDisabled()
-            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "RaidTargetIcon", "placement" }, "ATTACHED") ~= "INSIDE"
-    end
-
-    local function IsRTMAttachedDisabled()
-        return IsRTMDisabled()
-            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "RaidTargetIcon", "placement" }, "ATTACHED") ~= "ATTACHED"
-    end
-
-    local RTM_TAB_LISTS = ns.GUI.Layouts.UnitRaidTarget.Lists
-    local RTM_TAB_LAYOUT = ns.GUI.Layouts.UnitRaidTarget.RaidTargetTab
-
-    local function ResolveDisabled(def)
-        if def.disabled == "unit" then
-            return IsUnitDisabled
-        end
-
-        if def.disabled == "rtm" then
-            return IsRTMDisabled
-        end
-
-        if def.disabled == "inside" then
-            return IsRTMInsideDisabled
-        end
-
-        if def.disabled == "attached" then
-            return IsRTMAttachedDisabled
-        end
-
-        return nil
-    end
-
-    local function AddSectionWidget(layout, def)
-        local resolvedList = def.list and ResolveLayoutList(RTM_TAB_LISTS[def.list]) or nil
-
-        if not CanBuildLayoutWidget(def, resolvedList) then
-            return
-        end
-
-        if def.widget == "checkbox" then
-            layout:Add(Checkbox.Create({
-                path = ResolveLayoutPath(def.path, unitKey),
-                label = ResolveLayoutText(def.label),
-                description = ResolveLayoutText(def.description),
-                fallback = def.fallback,
-                resetText = L["OPTION_RESET"],
-                disabled = ResolveDisabled(def),
-                refreshGUI = def.refreshGUI,
-            }))
-            return
-        end
-
-        if def.widget == "dropdown" then
-            layout:Add(Dropdown.Create({
-                path = ResolveLayoutPath(def.path, unitKey),
-                label = ResolveLayoutText(def.label),
-                description = ResolveLayoutText(def.description),
-                list = resolvedList,
-                fallback = def.fallback,
-                resetText = L["OPTION_RESET"],
-                disabled = ResolveDisabled(def),
-                refreshGUI = def.refreshGUI,
-            }))
-            return
-        end
-
-        if def.widget == "slider" then
-            layout:Add(Slider.Create({
-                path = ResolveLayoutPath(def.path, unitKey),
-                label = ResolveLayoutText(def.label),
-                description = ResolveLayoutText(def.description),
-                min = def.min,
-                max = def.max,
-                step = def.step,
-                fallback = def.fallback,
-                format = def.format,
-                resetText = L["OPTION_RESET"],
-                disabled = ResolveDisabled(def),
-            }))
-        end
-    end
-
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.ELEMENTS) .. " - " .. ns.GetLabel(KM.Elements, C.Elements.RAID_TARGET_ICON))
-    container:AddChild(title)
-
-    for _, sectionDef in ipairs(RTM_TAB_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
-
-        if sectionDef.mode == "section" then
-            local layout = CreateSection(container)
-            for _, item in ipairs(sectionDef.items) do
-                AddSectionWidget(layout, item)
-            end
-        end
-    end
-
+    BuildStandardElementLayoutPage(container, unitKey, {
+        optionKey = "RaidTargetIcon",
+        disabledKey = "rtm",
+        elementKey = C.Elements.RAID_TARGET_ICON,
+        lists = ns.GUI.Layouts.UnitRaidTarget.Lists,
+        layout = ns.GUI.Layouts.UnitRaidTarget.RaidTargetTab,
+    })
 end
 
 local function BuildUnitLeaderIconElementPage(container, unitKey)
@@ -635,14 +432,17 @@ function B.BuildPlaceholderPage(container, title)
     container:SetLayout("Fill")
 
     local label = AceGUI:Create("Label")
-    label:SetText((title or "TODO") .. " (TODO)")
+    if title and title ~= "" then
+        label:SetText(title .. " - " .. L["INFO_NOT_IMPLEMENTED_YET"])
+    else
+        label:SetText(L["INFO_NOT_IMPLEMENTED_YET"])
+    end
     label:SetFullWidth(true)
     container:AddChild(label)
 end
 
 function B.BuildUnitFramePage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
+    ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
 
@@ -653,10 +453,7 @@ function B.BuildUnitFramePage(container, unitKey)
     local FRAME_TAB_LISTS = ns.GUI.Layouts.UnitFrame.Lists
     local FRAME_TAB_LAYOUT = ns.GUI.Layouts.UnitFrame.FrameTab
 
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.FRAME))
-    container:AddChild(title)
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.FRAME))
 
     local function AddDirectCheckbox(def)
         if not CanBuildLayoutWidget(def) then
@@ -864,8 +661,7 @@ function B.BuildUnitElementsPage(container, unitKey)
 end
 
 function B.BuildUnitColorsPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
+    ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
     local COLORS_TAB_LAYOUT = ns.GUI.Layouts.UnitColors.ColorTab
@@ -899,10 +695,7 @@ function B.BuildUnitColorsPage(container, unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
     end
 
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.COLORS))
-    container:AddChild(title)
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.COLORS))
 
     local function ResolveColorSectionHeading(sectionKey)
         if sectionKey == "$healthBar" then
@@ -1015,25 +808,20 @@ function B.BuildUnitColorsPage(container, unitKey)
 end
 
 function B.BuildUnitHealthBarPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
+    ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
 
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
-    container:AddChild(title)
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
 
     local label = AceGUI:Create("Label")
     label:SetFullWidth(true)
-    label:SetText([[Farboptionen fÃ¼r den Gesundheitsbalken findest du jetzt im Tab "Farben".]])
+    label:SetText(L["INFO_HEALTH_BAR_COLORS_MOVED"])
     container:AddChild(label)
 end
 
 function B.BuildUnitPowerBarPage(container, unitKey)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
+    ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
 
@@ -1046,10 +834,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
     end
 
-    local title = AceGUI:Create("Heading")
-    title:SetFullWidth(true)
-    title:SetText(unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
-    container:AddChild(title)
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
 
     -- General
     AddSectionHeading(container, L["SECTION_GENERAL"])
