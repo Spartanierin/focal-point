@@ -189,6 +189,8 @@ local TEXT_TAB_DEFS = {
     { value = C.Texts.CLASS, configKey = "Class" },
     { value = C.Texts.RACE, configKey = "Race" },
     { value = C.Texts.STATUS, configKey = "Status" },
+    { value = C.Texts.CAST_NAME, configKey = "CastName" },
+    { value = C.Texts.CAST_TIME, configKey = "CastTime" },
 }
 
 local function GetTextTabValues(unitKey)
@@ -531,6 +533,45 @@ function B.BuildGeneralPage(container)
     end
     hint:SetText(L["INFO_GENERAL_HINT"] or "Use the navigation on the left to configure units, bars, texts, colors, and elements.")
     aboutGroup:AddChild(hint)
+
+    local settingsGroup = AceGUI:Create("InlineGroup")
+    settingsGroup:SetFullWidth(true)
+    settingsGroup:SetLayout("Flow")
+    settingsGroup:SetTitle(L["INFO_GENERAL_SETTINGS"] or "General Settings")
+    container:AddChild(settingsGroup)
+
+    settingsGroup:AddChild(Checkbox.Create({
+        path = { "General", "HideBlizzardFrames" },
+        label = L["OPTION_HIDE_BLIZZARD_FRAMES"],
+        description = L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"],
+        fallback = false,
+        onChanged = function()
+            if ns.ApplyGeneralSettings then
+                ns:ApplyGeneralSettings()
+            end
+
+            local hideBlizzardFrames = ns.db
+                and ns.db.profile
+                and ns.db.profile.General
+                and ns.db.profile.General.HideBlizzardFrames == true
+
+            if not hideBlizzardFrames and ns.Info then
+                ns:Info(L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"])
+            end
+        end,
+    }).group)
+
+    settingsGroup:AddChild(Checkbox.Create({
+        path = { "General", "GlobalClickThrough" },
+        label = L["OPTION_GLOBAL_CLICKTHROUGH"],
+        description = L["OPTION_GLOBAL_CLICKTHROUGH_DESC"],
+        fallback = false,
+        onChanged = function()
+            if ns.RefreshAllUnitFrames then
+                ns:RefreshAllUnitFrames()
+            end
+        end,
+    }).group)
 end
 
 function B.BuildUnitFramePage(container, unitKey)

@@ -182,7 +182,7 @@ end
 -- Frame
 function UF:CreateBaseFrame(unit, config)
     local frameName = "Portrait_" .. unit:gsub("^%l", string.upper)
-    local frame = CreateFrame("Button", frameName, UIParent, "BackdropTemplate")
+    local frame = CreateFrame("Button", frameName, UIParent, "SecureUnitButtonTemplate, BackdropTemplate")
 
     frame.unit = unit
     frame.config = config
@@ -190,6 +190,12 @@ function UF:CreateBaseFrame(unit, config)
     frame.Texts = {}
     frame.Tags = {}
     frame.LiveValues = {}
+
+    frame:RegisterForClicks("AnyUp")
+    frame:SetAttribute("unit", unit)
+    frame:SetAttribute("*type1", "target")
+    frame:SetAttribute("*type2", "togglemenu")
+    frame:SetAttribute("toggleForVehicle", true)
 
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -1055,9 +1061,12 @@ function UF:ApplyConfig(frame)
         end
     end
 
-    local sharedTexture = config.statusBarTexture
-    local healthTexture = GetStatusBarTexture(config.healthBarTexture or sharedTexture)
-    local powerTexture = GetStatusBarTexture(config.powerBarTexture or sharedTexture)
+    local healthTexture = GetStatusBarTexture(config.healthBarTexture)
+    local powerTexture = GetStatusBarTexture(config.powerBarTexture)
+    local globalClickThrough = Portrait.db
+        and Portrait.db.profile
+        and Portrait.db.profile.General
+        and Portrait.db.profile.General.GlobalClickThrough == true
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
@@ -1067,7 +1076,7 @@ function UF:ApplyConfig(frame)
     frame:SetFrameStrata(frameStrata)
     frame:SetShown(config.enabled ~= false)
     frame:EnableMouse(config.mouseEnabled ~= false)
-    frame:SetMouseClickEnabled(not config.clickThrough)
+    frame:SetMouseClickEnabled(not (config.clickThrough or globalClickThrough))
     frame:SetClampedToScreen(config.clampToScreen == true)
 
     local relativeTo = _G[config.relativeTo or "UIParent"] or UIParent

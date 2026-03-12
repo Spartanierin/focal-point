@@ -129,6 +129,18 @@ local function FormatTextValue(value)
     return FormatInteger(value)
 end
 
+local function FormatTimeValue(value)
+    if type(value) ~= "number" then
+        return ""
+    end
+
+    if value < 0 then
+        value = 0
+    end
+
+    return string.format("%.1f", value)
+end
+
 local ABBREV_DATA = {
     breakpointData = {
         { breakpoint = 1e12, abbreviation = "B", significandDivisor = 1e10, fractionDivisor = 100, abbreviationIsGlobal = false },
@@ -473,7 +485,94 @@ local function ResolveBasicTag(frame, unit, token)
         return ""
     end
 
+    if token == "cast:name" then
+        if not unit then
+            return ""
+        end
+
+        if UnitExists and not UnitExists(unit) then
+            return ""
+        end
+
+        if UnitCastingInfo then
+            local castName = UnitCastingInfo(unit)
+            if type(castName) == "string" and castName ~= "" then
+                return castName
+            end
+        end
+
+        if UnitChannelInfo then
+            local channelName = UnitChannelInfo(unit)
+            if type(channelName) == "string" and channelName ~= "" then
+                return channelName
+            end
+        end
+
+        return ""
+    end
+
+    if token == "cast:time" then
+        if not unit then
+            return ""
+        end
+
+        if UnitExists and not UnitExists(unit) then
+            return ""
+        end
+
+        local now = GetTime and GetTime() or 0
+
+        if UnitCastingInfo then
+            local _, _, _, startTimeMS, endTimeMS = UnitCastingInfo(unit)
+            if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
+                local endTime = endTimeMS / 1000
+                return FormatTimeValue(endTime - now)
+            end
+        end
+
+        if UnitChannelInfo then
+            local _, _, _, startTimeMS, endTimeMS = UnitChannelInfo(unit)
+            if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
+                local remaining = (endTimeMS / 1000) - now
+                return FormatTimeValue(remaining)
+            end
+        end
+
+        return ""
+    end
+
     return ResolveToken(frame, unit, token)
+end
+
+local function HasActiveCast(unit)
+    if not unit then
+        return false
+    end
+
+    if UnitCastingInfo then
+        local castName = UnitCastingInfo(unit)
+        if type(castName) == "string" and castName ~= "" then
+            return true
+        end
+    end
+
+    if UnitChannelInfo then
+        local channelName = UnitChannelInfo(unit)
+        if type(channelName) == "string" and channelName ~= "" then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function FrameUsesCastTime(frame)
+    if not frame or not frame.config or not frame.config.Texts then
+        return false
+    end
+
+    local textConfig = frame.config.Texts.CastTime
+    return type(textConfig) == "table" and textConfig.enabled ~= false
 end
 
 local function ResolveTextTemplate(frame, unit, template)
@@ -652,6 +751,15 @@ function UF:RegisterTextEvents(frame)
     eventFrame:RegisterEvent("UNIT_POWER_UPDATE")
     eventFrame:RegisterEvent("UNIT_MAXPOWER")
     eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
+    eventFrame.elapsed = 0
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
@@ -660,6 +768,22 @@ function UF:RegisterTextEvents(frame)
     elseif frame.unit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
+
+    eventFrame:SetScript("OnUpdate", function(self, elapsed)
+        local owner = self.owner
+        if not owner or not FrameUsesCastTime(owner) or not HasActiveCast(owner.unit) then
+            self.elapsed = 0
+            return
+        end
+
+        self.elapsed = (self.elapsed or 0) + elapsed
+        if self.elapsed < 0.05 then
+            return
+        end
+
+        self.elapsed = 0
+        UF:UpdateTextElement(owner, "CastTime")
+    end)
 
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         local owner = eventFrame.owner
