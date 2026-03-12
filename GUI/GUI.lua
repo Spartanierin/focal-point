@@ -392,14 +392,7 @@ local function RenderPlaceholderPage(container, title, text)
 end
 
 local function BuildGeneralPage(container)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
-
-    AddHeading(container, "General")
-    AddSpacer(container, 10)
-    AddLabel(container, "This is the new GUI shell for Portrait.")
-    AddLabel(container, "Left side = navigation. Right side = page content.")
-    AddLabel(container, "Tabs on the right are only used to structure a single detail page.")
+    Portrait.GUIBuilders.BuildGeneralPage(container)
 end
 
 local function BuildPlayerHealthBarTabGeneral(container)

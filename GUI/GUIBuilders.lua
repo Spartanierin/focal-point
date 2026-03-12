@@ -101,6 +101,17 @@ local function ResetFlowContainer(container)
     container:SetLayout("Flow")
 end
 
+local function GetAddonVersionText()
+    if GetAddOnMetadata then
+        local version = GetAddOnMetadata(C.ADDON_NAME, "Version")
+        if type(version) == "string" and version ~= "" then
+            return version
+        end
+    end
+
+    return "dev"
+end
+
 local function CreateSection(container)
     return SectionLayout.CreateTwoColumn(container, {
         gutter = 16,
@@ -175,6 +186,8 @@ local TEXT_TAB_DEFS = {
     { value = C.Texts.HEALTH_VALUE, configKey = "Health" },
     { value = C.Texts.POWER_VALUE, configKey = "Power" },
     { value = C.Texts.LEVEL, configKey = "Level" },
+    { value = C.Texts.CLASS, configKey = "Class" },
+    { value = C.Texts.RACE, configKey = "Race" },
     { value = C.Texts.STATUS, configKey = "Status" },
 }
 
@@ -472,6 +485,52 @@ function B.BuildPlaceholderPage(container, title)
     end
     label:SetFullWidth(true)
     container:AddChild(label)
+end
+
+function B.BuildGeneralPage(container)
+    ResetFlowContainer(container)
+
+    local version = GetAddonVersionText()
+    local logoPath = "Interface\\AddOns\\Portrait\\Media\\Icon.tga"
+
+    local aboutGroup = AceGUI:Create("InlineGroup")
+    aboutGroup:SetFullWidth(true)
+    aboutGroup:SetLayout("Flow")
+    aboutGroup:SetTitle(string.format(
+        "|T%s:22:22:0:0|t  |cff6fd2ff%s|r  |cffffd35a%s %s|r",
+        logoPath,
+        L["ADDON_NAME"] or C.ADDON_NAME,
+        L["INFO_VERSION"] or "Version",
+        version
+    ))
+    if aboutGroup.titletext and aboutGroup.titletext.SetFontObject then
+        aboutGroup.titletext:SetFontObject(GameFontHighlightLarge)
+    end
+    container:AddChild(aboutGroup)
+
+    local welcome = AceGUI:Create("Label")
+    welcome:SetFullWidth(true)
+    if welcome.SetFont then
+        welcome:SetFont(STANDARD_TEXT_FONT, 14, "")
+    end
+    welcome:SetText(L["INFO_GENERAL_WELCOME"] or "Welcome to Portrait.")
+    aboutGroup:AddChild(welcome)
+
+    local description = AceGUI:Create("Label")
+    description:SetFullWidth(true)
+    if description.SetFont then
+        description:SetFont(STANDARD_TEXT_FONT, 13, "")
+    end
+    description:SetText(L["INFO_GENERAL_DESCRIPTION"] or "Portrait is a modular unit frame addon with configurable frames, bars, texts, and elements.")
+    aboutGroup:AddChild(description)
+
+    local hint = AceGUI:Create("Label")
+    hint:SetFullWidth(true)
+    if hint.SetFont then
+        hint:SetFont(STANDARD_TEXT_FONT, 13, "")
+    end
+    hint:SetText(L["INFO_GENERAL_HINT"] or "Use the navigation on the left to configure units, bars, texts, colors, and elements.")
+    aboutGroup:AddChild(hint)
 end
 
 function B.BuildUnitFramePage(container, unitKey)
@@ -844,8 +903,45 @@ function B.BuildUnitHealthBarPage(container, unitKey)
     ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    local HEALTH_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.HealthBarTab
+    local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
 
     AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function AddSectionWidget(layout, def)
+        local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        if not CanBuildLayoutWidget(def, resolvedList) then
+            return
+        end
+
+        if def.widget == "dropdown" then
+            layout:Add(Dropdown.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                list = resolvedList,
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = def.disabled == "unit" and IsUnitDisabled or nil,
+                refreshGUI = def.refreshGUI,
+            }))
+        end
+    end
+
+    for _, sectionDef in ipairs(HEALTH_BAR_LAYOUT) do
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+
+        if sectionDef.mode == "section" then
+            local layout = CreateSection(container)
+            for _, item in ipairs(sectionDef.items) do
+                AddSectionWidget(layout, item)
+            end
+        end
+    end
 
     local label = AceGUI:Create("Label")
     label:SetFullWidth(true)
@@ -858,6 +954,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
     local POWER_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.PowerBarTab
+    local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
 
     local function IsUnitDisabled()
         return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
@@ -883,7 +980,22 @@ function B.BuildUnitPowerBarPage(container, unitKey)
     end
 
     local function AddSectionWidget(layout, def)
-        if not CanBuildLayoutWidget(def) then
+        local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        if not CanBuildLayoutWidget(def, resolvedList) then
+            return
+        end
+
+        if def.widget == "dropdown" then
+            layout:Add(Dropdown.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                list = resolvedList,
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+                refreshGUI = def.refreshGUI,
+            }))
             return
         end
 

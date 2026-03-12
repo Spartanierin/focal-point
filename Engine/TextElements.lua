@@ -27,6 +27,31 @@ local function GetFontPath(path)
     return STANDARD_TEXT_FONT
 end
 
+local function GetClassTextColor(unit)
+    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
+        return nil
+    end
+
+    local _, classToken = UnitClass(unit)
+    if not classToken then
+        return nil
+    end
+
+    local color = nil
+
+    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
+        color = CUSTOM_CLASS_COLORS[classToken]
+    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
+        color = RAID_CLASS_COLORS[classToken]
+    end
+
+    if not color then
+        return nil
+    end
+
+    return color.r or color[1], color.g or color[2], color.b or color[3], 1
+end
+
 local function GetTextLayerParent(frame)
     if not frame then
         return nil
@@ -398,6 +423,24 @@ local function ResolveBasicTag(frame, unit, token)
         return ""
     end
 
+    if token == "class" then
+        if unit and UnitClass then
+            local className = UnitClass(unit)
+            return className or ""
+        end
+
+        return ""
+    end
+
+    if token == "race" then
+        if unit and UnitRace then
+            local raceName = UnitRace(unit)
+            return raceName or ""
+        end
+
+        return ""
+    end
+
     if token == "status" then
         if not unit then
             return ""
@@ -523,6 +566,14 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
 
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
+    if key == "Class" then
+        local classR, classG, classB, classA = GetClassTextColor(frame.unit)
+        if classR and classG and classB then
+            r, g, b, a = classR, classG, classB, classA or 1
+        end
+    elseif key == "Level" then
+        r, g, b, a = 1.00, 0.82, 0.00, 1.00
+    end
 
     textObject:ClearAllPoints()
     textObject:SetPoint(

@@ -4,6 +4,10 @@ ns.L = ns.L or {}
 local L = ns.L
 
 L["ADDON_NAME"] = "Portrait"
+L["INFO_VERSION"] = "Version"
+L["INFO_GENERAL_WELCOME"] = "Welcome to Portrait."
+L["INFO_GENERAL_DESCRIPTION"] = "Portrait is a modular unit frame addon with configurable frames, bars, texts, and elements."
+L["INFO_GENERAL_HINT"] = "Use the navigation on the left to configure units, bars, texts, colors, and elements."
 
 -- Navigation
 L["NAV_GENERAL"] = "General"
@@ -37,11 +41,13 @@ L["BAR_ALT_POWER"] = "Alt Power"
 L["BAR_CAST"] = "Cast"
 
 -- Text Objects
-L["TEXT_NAME"] = "Name"
-L["TEXT_HEALTH_VALUE"] = "Health Value"
-L["TEXT_POWER_VALUE"] = "Power Value"
-L["TEXT_LEVEL"] = "Level"
-L["TEXT_STATUS"] = "Status"
+L["TEXT_NAME"] = "Name Text"
+L["TEXT_HEALTH_VALUE"] = "Health Text"
+L["TEXT_POWER_VALUE"] = "Power Text"
+L["TEXT_LEVEL"] = "Level Text"
+L["TEXT_CLASS"] = "Class Text"
+L["TEXT_RACE"] = "Race Text"
+L["TEXT_STATUS"] = "Status Text"
 L["TEXT_CAST_NAME"] = "Cast Name"
 L["TEXT_CAST_TIME"] = "Cast Time"
 L["TEXT_CUSTOM_1"] = "Custom Text 1"
@@ -149,6 +155,8 @@ L["OPTION_POWER_BACKGROUND_DESC"] = "Shows or hides the background of the power 
 L["OPTION_POWER_BACKGROUND_COLOR_DESC"] = "Sets the background color of the power bar."
 L["OPTION_POWER_BAR_HEIGHT"] = "Power Bar Height"
 L["OPTION_POWER_BAR_HEIGHT_DESC"] = "Sets the height of the power bar."
+L["OPTION_BAR_TEXTURE"] = "Bar Texture"
+L["OPTION_BAR_TEXTURE_DESC"] = "Sets the status bar texture used for health and power bars."
 
 
 -- Visibility / Logic
@@ -338,3 +346,6 @@ L["VALUE_FONT_STYLE_THICK_OUTLINE"] = "Thick Outline"
 L["VALUE_FONT_STYLE_MONOCHROME"] = "Monochrome"
 L["VALUE_FONT_STYLE_OUTLINE_MONOCHROME"] = "Outline + Monochrome"
 L["VALUE_FONT_STYLE_THICK_OUTLINE_MONOCHROME"] = "Thick Outline + Monochrome"
+L["VALUE_TEXTURE_BLIZZARD"] = "Blizzard"
+L["VALUE_TEXTURE_BETTER_BLIZZARD"] = "Better Blizzard"
+L["VALUE_TEXTURE_GRADIENT"] = "Gradient"

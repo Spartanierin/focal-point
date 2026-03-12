@@ -42,6 +42,8 @@ function Portrait:GetDefaultDB()
                     powerBarHeight = 8,
 
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
 
                     backgroundColor = { 0.08, 0.08, 0.08, 0.90 },
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
@@ -242,6 +244,58 @@ function Portrait:GetDefaultDB()
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 6,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "LEFT",
+
+                            color = { 1.00, 0.82, 0.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Class = {
+                            enabled = true,
+                            tag = "[class]",
+
+                            anchorTo = "Frame",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 28,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "LEFT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Race = {
+                            enabled = true,
+                            tag = "[race]",
+
+                            anchorTo = "Frame",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 70,
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,

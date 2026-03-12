@@ -1055,7 +1055,9 @@ function UF:ApplyConfig(frame)
         end
     end
 
-    local texture = GetStatusBarTexture(config.statusBarTexture)
+    local sharedTexture = config.statusBarTexture
+    local healthTexture = GetStatusBarTexture(config.healthBarTexture or sharedTexture)
+    local powerTexture = GetStatusBarTexture(config.powerBarTexture or sharedTexture)
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
@@ -1099,11 +1101,11 @@ function UF:ApplyConfig(frame)
     if frame.Elements.HealthBar then
         local health = frame.Elements.HealthBar
         health:ClearAllPoints()
-        health:SetStatusBarTexture(texture)
+        health:SetStatusBarTexture(healthTexture)
         health:SetStatusBarColor(healthR, healthG, healthB, healthA)
 
         if health.bg then
-            health.bg:SetTexture(texture)
+            health.bg:SetTexture(healthTexture)
             health.bg:SetVertexColor(healthBgR, healthBgG, healthBgB, healthBgA)
             health.bg:SetShown(healthBackgroundShown)
         end
@@ -1132,11 +1134,11 @@ function UF:ApplyConfig(frame)
     if frame.Elements.PowerBar then
         local power = frame.Elements.PowerBar
         power:ClearAllPoints()
-        power:SetStatusBarTexture(texture)
+        power:SetStatusBarTexture(powerTexture)
         power:SetStatusBarColor(powerR, powerG, powerB, powerA)
 
         if power.bg then
-            power.bg:SetTexture(texture)
+            power.bg:SetTexture(powerTexture)
             power.bg:SetVertexColor(powerBgR, powerBgG, powerBgB, powerBgA)
             power.bg:SetShown(powerBackgroundShown and showPowerBar)
         end
