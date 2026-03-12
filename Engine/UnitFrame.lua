@@ -134,6 +134,9 @@ local function SafeAbbreviateNumber(value)
     if AbbreviateLargeNumbers then
         local ok, result = pcall(AbbreviateLargeNumbers, value)
         if ok and type(result) == "string" then
+            if not (issecretvalue and issecretvalue(result)) then
+                return result:gsub("%s+([KMB])$", "%1")
+            end
             return result
         end
     end

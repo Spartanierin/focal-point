@@ -321,6 +321,18 @@ local TOKEN_DEFS = {
         direct = true,
         passRaw = true,
     },
+    ["power:perc"] = {
+        value = function(unit, frame)
+            local percent = UnitPowerDisplayMod and UnitPowerDisplayMod(unit)
+            if type(percent) == "number" and percent > 0 then
+                return FormatInteger(percent)
+            end
+
+            return "0"
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
     ["power:cur:abbr"] = {
         value = function(unit, frame)
             return GetLiveValue(frame, "powerCurrentAbbr", "")
@@ -370,6 +382,49 @@ local function ResolveBasicTag(frame, unit, token)
     if token == "name" then
         if unit and UnitName then
             return UnitName(unit) or ""
+        end
+
+        return ""
+    end
+
+    if token == "level" then
+        if unit and UnitLevel then
+            local level = UnitLevel(unit)
+            if type(level) == "number" and level > 0 then
+                return tostring(level)
+            end
+        end
+
+        return ""
+    end
+
+    if token == "status" then
+        if not unit then
+            return ""
+        end
+
+        if UnitExists and not UnitExists(unit) then
+            return ""
+        end
+
+        if UnitIsConnected and not UnitIsConnected(unit) then
+            return PLAYER_OFFLINE or "Offline"
+        end
+
+        if UnitIsDeadOrGhost and UnitIsDeadOrGhost(unit) then
+            if UnitIsGhost and UnitIsGhost(unit) then
+                return DEAD or "Dead"
+            end
+
+            return DEAD or "Dead"
+        end
+
+        if UnitIsAFK and UnitIsAFK(unit) then
+            return AFK or "AFK"
+        end
+
+        if UnitIsDND and UnitIsDND(unit) then
+            return DND or "DND"
         end
 
         return ""
@@ -536,8 +591,13 @@ function UF:RegisterTextEvents(frame)
     local eventFrame = CreateFrame("Frame", nil, frame)
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
+    eventFrame:RegisterEvent("PLAYER_FLAGS_CHANGED")
     eventFrame:RegisterEvent("UNIT_HEALTH")
     eventFrame:RegisterEvent("UNIT_MAXHEALTH")
+    eventFrame:RegisterEvent("UNIT_LEVEL")
+    eventFrame:RegisterEvent("UNIT_FLAGS")
+    eventFrame:RegisterEvent("UNIT_CONNECTION")
     eventFrame:RegisterEvent("UNIT_POWER_UPDATE")
     eventFrame:RegisterEvent("UNIT_MAXPOWER")
     eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")

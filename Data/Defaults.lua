@@ -233,6 +233,58 @@ function Portrait:GetDefaultDB()
                             thickOutline = false,
                             monochrome = false,
                         },
+
+                        Level = {
+                            enabled = true,
+                            tag = "[level]",
+
+                            anchorTo = "Frame",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 6,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "LEFT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Status = {
+                            enabled = true,
+                            tag = "[status]",
+
+                            anchorTo = "HealthBar",
+                            point = "CENTER",
+                            relativePoint = "CENTER",
+                            offsetX = 0,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 12,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 0.82, 0.20, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
                     },
                 },
 

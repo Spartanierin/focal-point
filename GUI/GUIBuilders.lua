@@ -174,6 +174,8 @@ local TEXT_TAB_DEFS = {
     { value = C.Texts.NAME, configKey = "Name" },
     { value = C.Texts.HEALTH_VALUE, configKey = "Health" },
     { value = C.Texts.POWER_VALUE, configKey = "Power" },
+    { value = C.Texts.LEVEL, configKey = "Level" },
+    { value = C.Texts.STATUS, configKey = "Status" },
 }
 
 local function GetTextTabValues(unitKey)
