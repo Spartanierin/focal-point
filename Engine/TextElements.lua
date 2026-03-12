@@ -96,45 +96,278 @@ local function FormatInteger(value)
     return "0"
 end
 
+local function FormatTextValue(value)
+    if type(value) == "string" then
+        return value
+    end
+
+    return FormatInteger(value)
+end
+
+local ABBREV_DATA = {
+    breakpointData = {
+        { breakpoint = 1e12, abbreviation = "B", significandDivisor = 1e10, fractionDivisor = 100, abbreviationIsGlobal = false },
+        { breakpoint = 1e11, abbreviation = "B", significandDivisor = 1e9, fractionDivisor = 1, abbreviationIsGlobal = false },
+        { breakpoint = 1e10, abbreviation = "B", significandDivisor = 1e8, fractionDivisor = 10, abbreviationIsGlobal = false },
+        { breakpoint = 1e9, abbreviation = "B", significandDivisor = 1e7, fractionDivisor = 100, abbreviationIsGlobal = false },
+        { breakpoint = 1e8, abbreviation = "M", significandDivisor = 1e6, fractionDivisor = 1, abbreviationIsGlobal = false },
+        { breakpoint = 1e7, abbreviation = "M", significandDivisor = 1e5, fractionDivisor = 10, abbreviationIsGlobal = false },
+        { breakpoint = 1e6, abbreviation = "M", significandDivisor = 1e4, fractionDivisor = 100, abbreviationIsGlobal = false },
+        { breakpoint = 1e5, abbreviation = "K", significandDivisor = 1000, fractionDivisor = 1, abbreviationIsGlobal = false },
+        { breakpoint = 1e4, abbreviation = "K", significandDivisor = 100, fractionDivisor = 10, abbreviationIsGlobal = false },
+    },
+}
+
+local function ToSafeNumber(value)
+    if value == nil then
+        return 0
+    end
+
+    if type(value) == "number" and not (issecretvalue and issecretvalue(value)) then
+        return value
+    end
+
+    local directOk, directValue = pcall(tonumber, value)
+    if directOk and type(directValue) == "number" and not (issecretvalue and issecretvalue(directValue)) then
+        return directValue
+    end
+
+    local textOk, textValue = pcall(tostring, value)
+    if textOk and type(textValue) == "string" then
+        local parsedOk, parsedValue = pcall(tonumber, textValue)
+        if parsedOk and type(parsedValue) == "number" and not (issecretvalue and issecretvalue(parsedValue)) then
+            return parsedValue
+        end
+    end
+
+    local ok, formatted = pcall(string.format, "%.0f", value)
+    if ok and type(formatted) == "string" and not (issecretvalue and issecretvalue(formatted)) then
+        return tonumber(formatted) or 0
+    end
+
+    return 0
+end
+
+local function TrimFormattedDecimal(value)
+    if type(value) ~= "string" then
+        return "0"
+    end
+
+    value = value:gsub("(%..-)0+$", "%1")
+    value = value:gsub("%.$", "")
+    return value
+end
+
+local function FormatAbbreviatedNumber(value)
+    local safeValue = ToSafeNumber(value)
+
+    for _, data in ipairs(ABBREV_DATA.breakpointData) do
+        if safeValue >= data.breakpoint then
+            local scaled = math.floor(safeValue / data.significandDivisor) / data.fractionDivisor
+            local decimals = 0
+
+            if data.fractionDivisor == 10 then
+                decimals = 1
+            elseif data.fractionDivisor == 100 then
+                decimals = 2
+            end
+
+            local formatString = "%." .. decimals .. "f"
+            return TrimFormattedDecimal(string.format(formatString, scaled)) .. data.abbreviation
+        end
+    end
+
+    return FormatNumber(value)
+end
+
+local function FormatAbbreviatedDisplay(value)
+    local safeValue = ToSafeNumber(value)
+    if safeValue > 0 then
+        return FormatAbbreviatedNumber(safeValue)
+    end
+
+    if AbbreviateLargeNumbers then
+        local ok, result = pcall(AbbreviateLargeNumbers, value)
+        if ok and type(result) == "string" then
+            return result
+        end
+    end
+
+    return FormatAbbreviatedNumber(value)
+end
+
+local function GetLiveValue(frame, key, fallback)
+    if frame and frame.LiveValues and frame.LiveValues[key] ~= nil then
+        return frame.LiveValues[key]
+    end
+
+    return fallback
+end
+
+function UF:RefreshLiveValues(frame)
+    if not frame or not frame.unit then
+        return
+    end
+
+    frame.LiveValues = frame.LiveValues or {}
+
+    local unit = frame.unit
+    local healthCurrent = UnitHealth and UnitHealth(unit) or 0
+    local healthMax = UnitHealthMax and UnitHealthMax(unit) or 0
+    local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
+    local powerCurrent = UnitPower and UnitPower(unit) or 0
+    local powerMax = UnitPowerMax and UnitPowerMax(unit) or 0
+    local healthBar = frame.Elements and frame.Elements.HealthBar
+    local powerBar = frame.Elements and frame.Elements.PowerBar
+    local healthBarCurrent = healthBar and healthBar.GetValue and healthBar:GetValue() or nil
+    local powerBarCurrent = powerBar and powerBar.GetValue and powerBar:GetValue() or nil
+    local healthBarMax = nil
+    local powerBarMax = nil
+
+    if healthBar and healthBar.GetMinMaxValues then
+        local _, maxValue = healthBar:GetMinMaxValues()
+        healthBarMax = maxValue
+    end
+
+    if powerBar and powerBar.GetMinMaxValues then
+        local _, maxValue = powerBar:GetMinMaxValues()
+        powerBarMax = maxValue
+    end
+
+    frame.LiveValues.healthCurrent = healthCurrent
+    frame.LiveValues.healthMax = healthMax
+    frame.LiveValues.healthCurrentText = FormatNumber(healthCurrent)
+    frame.LiveValues.healthMaxText = FormatNumber(healthMax)
+    frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthBarCurrent)
+    if frame.LiveValues.healthCurrentSafe <= 0 then
+        frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
+    end
+    frame.LiveValues.healthMaxSafe = ToSafeNumber(healthBarMax)
+    if frame.LiveValues.healthMaxSafe <= 0 then
+        frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
+    end
+    frame.LiveValues.healthPercentText = FormatInteger(healthPercent)
+    frame.LiveValues.healthPercentValue = 0
+    if frame.LiveValues.healthMaxSafe > 0 and frame.LiveValues.healthCurrentSafe >= 0 then
+        frame.LiveValues.healthPercentValue = math.floor((frame.LiveValues.healthCurrentSafe / frame.LiveValues.healthMaxSafe) * 100)
+    end
+    if frame.LiveValues.healthPercentValue <= 0 then
+        frame.LiveValues.healthPercentValue = ToSafeNumber(healthPercent)
+    end
+
+    frame.LiveValues.powerCurrent = powerCurrent
+    frame.LiveValues.powerMax = powerMax
+    frame.LiveValues.powerCurrentText = FormatNumber(powerCurrent)
+    frame.LiveValues.powerMaxText = FormatNumber(powerMax)
+    frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerBarCurrent)
+    if frame.LiveValues.powerCurrentSafe <= 0 then
+        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
+    end
+    frame.LiveValues.powerMaxSafe = ToSafeNumber(powerBarMax)
+    if frame.LiveValues.powerMaxSafe <= 0 then
+        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
+    end
+end
+
 local TOKEN_DEFS = {
     ["hp:cur"] = {
-        value = function(unit)
-            return UnitHealth and UnitHealth(unit) or 0
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0)
         end,
         format = FormatNumber,
         direct = true,
+        passRaw = true,
     },
     ["hp:max"] = {
-        value = function(unit)
-            return UnitHealthMax and UnitHealthMax(unit) or 0
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0)
         end,
         format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["hp:cur:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
+        direct = true,
+    },
+    ["hp:cur:short"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
+        direct = true,
+    },
+    ["hp:max:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
+        direct = true,
+    },
+    ["hp:max:short"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
         direct = true,
     },
     ["hp:perc"] = {
-        value = function(unit)
-            return UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthPercentText", FormatInteger(UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0))
         end,
-        format = FormatInteger,
+        format = FormatTextValue,
         direct = true,
     },
     ["power:cur"] = {
-        value = function(unit)
-            return UnitPower and UnitPower(unit) or 0
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0)
         end,
         format = FormatNumber,
         direct = true,
+        passRaw = true,
     },
     ["power:max"] = {
-        value = function(unit)
-            return UnitPowerMax and UnitPowerMax(unit) or 0
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0)
         end,
         format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["power:cur:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
+        direct = true,
+    },
+    ["power:cur:short"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
+        direct = true,
+    },
+    ["power:max:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
+        direct = true,
+    },
+    ["power:max:short"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0)
+        end,
+        format = FormatAbbreviatedDisplay,
         direct = true,
     },
 }
 
-local function ResolveToken(unit, token)
+local function ResolveToken(frame, unit, token)
     if not unit or not UnitExists or not UnitExists(unit) then
         return ""
     end
@@ -144,7 +377,7 @@ local function ResolveToken(unit, token)
         return nil
     end
 
-    local value = def.value and def.value(unit) or nil
+    local value = def.value and def.value(unit, frame) or nil
     local formatter = def.format or FormatNumber
     return formatter(value)
 end
@@ -158,7 +391,7 @@ local function ResolveBasicTag(frame, unit, token)
         return ""
     end
 
-    return ResolveToken(unit, token)
+    return ResolveToken(frame, unit, token)
 end
 
 local function ResolveTextTemplate(frame, unit, template)
@@ -176,8 +409,8 @@ local function ResolveTextTemplate(frame, unit, template)
     end))
 end
 
-local function ApplyDirectTemplate(textObject, unit, template)
-    if not textObject or not unit or not UnitExists or not UnitExists(unit) then
+local function ApplyDirectTemplate(frame, textObject, unit, template)
+    if not frame or not textObject or not unit or not UnitExists or not UnitExists(unit) then
         return false
     end
 
@@ -191,9 +424,9 @@ local function ApplyDirectTemplate(textObject, unit, template)
             return false
         end
 
-        local value = def.value and def.value(unit) or nil
+        local value = def.value and def.value(unit, frame) or nil
         local formatter = def.format or FormatNumber
-        local directValue = def.format == FormatInteger and formatter(value) or value
+        local directValue = def.passRaw and value or formatter(value)
 
         formatArgs[#formatArgs + 1] = directValue
         hasDirectToken = true
@@ -294,7 +527,7 @@ function UF:UpdateTextElement(frame, key)
     end
 
     local template = textConfig.tag or ""
-    if ApplyDirectTemplate(textObject, frame.unit, template) then
+    if ApplyDirectTemplate(frame, textObject, frame.unit, template) then
         return
     end
 
@@ -340,12 +573,20 @@ function UF:RegisterTextEvents(frame)
         end
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+            if UF.RefreshUnitBarValues then
+                UF:RefreshUnitBarValues(owner)
+            end
+            UF:RefreshLiveValues(owner)
             UF:UpdateTextElements(owner)
             return
         end
 
         if event == "UNIT_PET" then
             if owner.unit == "pet" and unit == "player" then
+                if UF.RefreshUnitBarValues then
+                    UF:RefreshUnitBarValues(owner)
+                end
+                UF:RefreshLiveValues(owner)
                 UF:UpdateTextElements(owner)
             end
             return
@@ -355,6 +596,10 @@ function UF:RegisterTextEvents(frame)
             return
         end
 
+        if UF.RefreshUnitBarValues then
+            UF:RefreshUnitBarValues(owner)
+        end
+        UF:RefreshLiveValues(owner)
         UF:UpdateTextElements(owner)
     end)
 
@@ -362,5 +607,9 @@ function UF:RegisterTextEvents(frame)
 end
 
 function UF:ApplyTestTextValues(frame)
+    if self.RefreshUnitBarValues then
+        self:RefreshUnitBarValues(frame)
+    end
+    self:RefreshLiveValues(frame)
     self:UpdateTextElements(frame)
 end

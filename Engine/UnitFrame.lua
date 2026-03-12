@@ -126,6 +126,7 @@ function UF:CreateBaseFrame(unit, config)
     frame.Elements = {}
     frame.Texts = {}
     frame.Tags = {}
+    frame.LiveValues = {}
 
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -163,6 +164,41 @@ function UF:CreatePowerBar(frame)
 
     frame.Elements.PowerBar = power
     frame.power = power
+end
+
+function UF:RefreshUnitBarValues(frame)
+    if not frame or not frame.unit then
+        return
+    end
+
+    local unit = frame.unit
+    local unitExists = UnitExists and UnitExists(unit)
+
+    if frame.Elements.HealthBar then
+        local currentHealth = 100
+        local maxHealth = 100
+
+        if unitExists and UnitHealth and UnitHealthMax then
+            currentHealth = UnitHealth(unit) or 0
+            maxHealth = UnitHealthMax(unit) or 1
+        end
+
+        frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
+        frame.Elements.HealthBar:SetValue(currentHealth)
+    end
+
+    if frame.Elements.PowerBar then
+        local currentPower = 65
+        local maxPower = 100
+
+        if unitExists and UnitPower and UnitPowerMax then
+            currentPower = UnitPower(unit) or 0
+            maxPower = UnitPowerMax(unit) or 1
+        end
+
+        frame.Elements.PowerBar:SetMinMaxValues(0, maxPower)
+        frame.Elements.PowerBar:SetValue(currentPower)
+    end
 end
 
 -- Raid Target Icon
@@ -1238,13 +1274,7 @@ function UF:ApplyConfig(frame)
 end
 
 function UF:ApplyTestValues(frame)
-    if frame.Elements.HealthBar then
-        frame.Elements.HealthBar:SetValue(100)
-    end
-
-    if frame.Elements.PowerBar then
-        frame.Elements.PowerBar:SetValue(65)
-    end
+    self:RefreshUnitBarValues(frame)
 
     if self.ApplyTestTextValues then
         self:ApplyTestTextValues(frame)
