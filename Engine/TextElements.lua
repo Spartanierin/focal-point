@@ -180,22 +180,6 @@ local function FormatAbbreviatedNumber(value)
     return FormatNumber(value)
 end
 
-local function FormatAbbreviatedDisplay(value)
-    local safeValue = ToSafeNumber(value)
-    if safeValue > 0 then
-        return FormatAbbreviatedNumber(safeValue)
-    end
-
-    if AbbreviateLargeNumbers then
-        local ok, result = pcall(AbbreviateLargeNumbers, value)
-        if ok and type(result) == "string" then
-            return result
-        end
-    end
-
-    return FormatAbbreviatedNumber(value)
-end
-
 local function GetLiveValue(frame, key, fallback)
     if frame and frame.LiveValues and frame.LiveValues[key] ~= nil then
         return frame.LiveValues[key]
@@ -272,7 +256,7 @@ end
 local TOKEN_DEFS = {
     ["hp:cur"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0)
+            return GetLiveValue(frame, "healthCurrentRaw", GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0))
         end,
         format = FormatNumber,
         direct = true,
@@ -280,7 +264,7 @@ local TOKEN_DEFS = {
     },
     ["hp:max"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0)
+            return GetLiveValue(frame, "healthMaxRaw", GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0))
         end,
         format = FormatNumber,
         direct = true,
@@ -288,30 +272,30 @@ local TOKEN_DEFS = {
     },
     ["hp:cur:abbr"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0)
+            return GetLiveValue(frame, "healthCurrentAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["hp:cur:short"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0)
+            return GetLiveValue(frame, "healthCurrentAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["hp:max:abbr"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0)
+            return GetLiveValue(frame, "healthMaxAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["hp:max:short"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0)
+            return GetLiveValue(frame, "healthMaxAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["hp:perc"] = {
@@ -323,7 +307,7 @@ local TOKEN_DEFS = {
     },
     ["power:cur"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0)
+            return GetLiveValue(frame, "powerCurrentRaw", GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0))
         end,
         format = FormatNumber,
         direct = true,
@@ -331,7 +315,7 @@ local TOKEN_DEFS = {
     },
     ["power:max"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0)
+            return GetLiveValue(frame, "powerMaxRaw", GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0))
         end,
         format = FormatNumber,
         direct = true,
@@ -339,30 +323,30 @@ local TOKEN_DEFS = {
     },
     ["power:cur:abbr"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0)
+            return GetLiveValue(frame, "powerCurrentAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["power:cur:short"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0)
+            return GetLiveValue(frame, "powerCurrentAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["power:max:abbr"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0)
+            return GetLiveValue(frame, "powerMaxAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
     ["power:max:short"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0)
+            return GetLiveValue(frame, "powerMaxAbbr", "")
         end,
-        format = FormatAbbreviatedDisplay,
+        format = FormatTextValue,
         direct = true,
     },
 }

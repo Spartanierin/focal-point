@@ -85,6 +85,66 @@ local function GetFontPath(path)
     return STANDARD_TEXT_FONT
 end
 
+local function TrimFormattedDecimal(value)
+    if type(value) ~= "string" then
+        return "0"
+    end
+
+    value = value:gsub("(%..-)0+$", "%1")
+    value = value:gsub("%.$", "")
+    return value
+end
+
+local function FormatFallbackAbbreviation(value)
+    if type(value) ~= "number" then
+        return "0"
+    end
+
+    local breakpoints = {
+        { breakpoint = 1e12, abbreviation = "B", significandDivisor = 1e10, fractionDivisor = 100 },
+        { breakpoint = 1e11, abbreviation = "B", significandDivisor = 1e9, fractionDivisor = 1 },
+        { breakpoint = 1e10, abbreviation = "B", significandDivisor = 1e8, fractionDivisor = 10 },
+        { breakpoint = 1e9, abbreviation = "B", significandDivisor = 1e7, fractionDivisor = 100 },
+        { breakpoint = 1e8, abbreviation = "M", significandDivisor = 1e6, fractionDivisor = 1 },
+        { breakpoint = 1e7, abbreviation = "M", significandDivisor = 1e5, fractionDivisor = 10 },
+        { breakpoint = 1e6, abbreviation = "M", significandDivisor = 1e4, fractionDivisor = 100 },
+        { breakpoint = 1e5, abbreviation = "K", significandDivisor = 1000, fractionDivisor = 1 },
+        { breakpoint = 1e4, abbreviation = "K", significandDivisor = 100, fractionDivisor = 10 },
+    }
+
+    for _, data in ipairs(breakpoints) do
+        if value >= data.breakpoint then
+            local scaled = math.floor(value / data.significandDivisor) / data.fractionDivisor
+            local decimals = 0
+
+            if data.fractionDivisor == 10 then
+                decimals = 1
+            elseif data.fractionDivisor == 100 then
+                decimals = 2
+            end
+
+            return TrimFormattedDecimal(string.format("%." .. decimals .. "f", scaled)) .. data.abbreviation
+        end
+    end
+
+    return tostring(value)
+end
+
+local function SafeAbbreviateNumber(value)
+    if AbbreviateLargeNumbers then
+        local ok, result = pcall(AbbreviateLargeNumbers, value)
+        if ok and type(result) == "string" then
+            return result
+        end
+    end
+
+    if type(value) == "number" then
+        return FormatFallbackAbbreviation(value)
+    end
+
+    return "0"
+end
+
 local function BuildFontFlags(config)
     local flags = {}
 
@@ -173,6 +233,7 @@ function UF:RefreshUnitBarValues(frame)
 
     local unit = frame.unit
     local unitExists = UnitExists and UnitExists(unit)
+    frame.LiveValues = frame.LiveValues or {}
 
     if frame.Elements.HealthBar then
         local currentHealth = 100
@@ -185,6 +246,11 @@ function UF:RefreshUnitBarValues(frame)
 
         frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
         frame.Elements.HealthBar:SetValue(currentHealth)
+
+        frame.LiveValues.healthCurrentRaw = currentHealth
+        frame.LiveValues.healthMaxRaw = maxHealth
+        frame.LiveValues.healthCurrentAbbr = SafeAbbreviateNumber(currentHealth)
+        frame.LiveValues.healthMaxAbbr = SafeAbbreviateNumber(maxHealth)
     end
 
     if frame.Elements.PowerBar then
@@ -198,6 +264,11 @@ function UF:RefreshUnitBarValues(frame)
 
         frame.Elements.PowerBar:SetMinMaxValues(0, maxPower)
         frame.Elements.PowerBar:SetValue(currentPower)
+
+        frame.LiveValues.powerCurrentRaw = currentPower
+        frame.LiveValues.powerMaxRaw = maxPower
+        frame.LiveValues.powerCurrentAbbr = SafeAbbreviateNumber(currentPower)
+        frame.LiveValues.powerMaxAbbr = SafeAbbreviateNumber(maxPower)
     end
 end
 
