@@ -184,7 +184,7 @@ function Portrait:GetDefaultDB()
 
                         Health = {
                             enabled = true,
-                            tag = "[hp:cur]",
+                            tag = "[hp:cur] / [hp:max]",
 
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -194,6 +194,32 @@ function Portrait:GetDefaultDB()
 
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
+                            justifyH = "RIGHT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Power = {
+                            enabled = true,
+                            tag = "[power:cur] / [power:max]",
+
+                            anchorTo = "PowerBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -6,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 10,
                             justifyH = "RIGHT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },

@@ -19,6 +19,8 @@ local function GetGUIState()
         unitScroll = {},
         unitBarTabs = {},
         unitBarScroll = {},
+        unitTextTabs = {},
+        unitTextScroll = {},
         unitElementTabs = {},
         unitElementScroll = {},
     }
@@ -168,6 +170,33 @@ local function GetElementTabValues()
     }
 end
 
+local TEXT_TAB_DEFS = {
+    { value = C.Texts.NAME, configKey = "Name" },
+    { value = C.Texts.HEALTH_VALUE, configKey = "Health" },
+    { value = C.Texts.POWER_VALUE, configKey = "Power" },
+}
+
+local function GetTextTabValues(unitKey)
+    local tabs = {}
+
+    for _, def in ipairs(TEXT_TAB_DEFS) do
+        local configPath = { "Units", unitKey, "Texts", def.configKey }
+        local configValue = ns.GUI.Helpers.OptionValues.Get(configPath, nil)
+        if configValue == nil then
+            configValue = ns.GUI.Helpers.OptionValues.GetDefault(configPath, nil)
+        end
+
+        if type(configValue) == "table" then
+            table.insert(tabs, {
+                text = ns.GetLabel(KM.Texts, def.value),
+                value = def.configKey,
+            })
+        end
+    end
+
+    return tabs
+end
+
 local function ResolveLayoutText(value)
     if type(value) ~= "string" then
         return value
@@ -176,7 +205,7 @@ local function ResolveLayoutText(value)
     return L[value] or value
 end
 
-local function ResolveLayoutPath(path, unitKey)
+local function ResolveLayoutPath(path, unitKey, replacements)
     if type(path) ~= "table" then
         return path
     end
@@ -186,6 +215,8 @@ local function ResolveLayoutPath(path, unitKey)
     for i, part in ipairs(path) do
         if part == "$unitKey" then
             resolved[i] = unitKey
+        elseif replacements and replacements[part] ~= nil then
+            resolved[i] = replacements[part]
         else
             resolved[i] = part
         end
@@ -824,6 +855,7 @@ function B.BuildUnitPowerBarPage(container, unitKey)
     ResetFlowContainer(container)
 
     local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    local POWER_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.PowerBarTab
 
     local function IsUnitDisabled()
         return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
@@ -836,33 +868,327 @@ function B.BuildUnitPowerBarPage(container, unitKey)
 
     AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
 
-    -- General
-    AddSectionHeading(container, L["SECTION_GENERAL"])
+    local function ResolveDisabled(def)
+        if def.disabled == "unit" then
+            return IsUnitDisabled
+        end
 
-    local layout = CreateSection(container)
+        if def.disabled == "power" then
+            return IsPowerBarDisabled
+        end
 
-    layout:Add(Checkbox.Create({
-        path = { "Units", unitKey, "showPowerBar" },
-        label = L["OPTION_SHOW_POWER_BAR"],
-        description = L["OPTION_SHOW_POWER_BAR_DESC"],
-        fallback = true,
-        resetText = false,
-        disabled = IsUnitDisabled,
-        refreshGUI = true,
-    }))
+        return nil
+    end
 
-    layout:Add(Slider.Create({
-        path = { "Units", unitKey, "powerBarHeight" },
-        label = L["OPTION_POWER_BAR_HEIGHT"],
-        description = L["OPTION_POWER_BAR_HEIGHT_DESC"],
-        min = 4,
-        max = 30,
-        step = 1,
-        fallback = 8,
-        format = "%d",
-        resetText = L["OPTION_RESET"],
-        disabled = IsPowerBarDisabled,
-    }))
+    local function AddSectionWidget(layout, def)
+        if not CanBuildLayoutWidget(def) then
+            return
+        end
+
+        if def.widget == "checkbox" then
+            layout:Add(Checkbox.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+                refreshGUI = def.refreshGUI,
+            }))
+            return
+        end
+
+        if def.widget == "slider" then
+            layout:Add(Slider.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                min = def.min,
+                max = def.max,
+                step = def.step,
+                fallback = def.fallback,
+                format = def.format,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }))
+        end
+    end
+
+    for _, sectionDef in ipairs(POWER_BAR_LAYOUT) do
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+
+        if sectionDef.mode == "section" then
+            local layout = CreateSection(container)
+            for _, item in ipairs(sectionDef.items) do
+                AddSectionWidget(layout, item)
+            end
+        end
+    end
+end
+
+local function BuildUnitTextPage(container, unitKey, textConfigKey, textLabel)
+    ResetFlowContainer(container)
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    local TEXT_TAB_LAYOUT = ns.GUI.Layouts.UnitTexts.TextTab
+    local TEXT_TAB_LISTS = ns.GUI.Layouts.UnitTexts.Lists
+    local tokenReplacements = {
+        ["$textKey"] = textConfigKey,
+    }
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function IsTextDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts", textConfigKey, "enabled" }, true)
+    end
+
+    local function IsShadowDisabled()
+        return IsTextDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts", textConfigKey, "shadowEnabled" }, true)
+    end
+
+    local function ResolveDisabled(def)
+        if def.disabled == "unit" then
+            return IsUnitDisabled
+        end
+
+        if def.disabled == "text" then
+            return IsTextDisabled
+        end
+
+        if def.disabled == "shadow" then
+            return IsShadowDisabled
+        end
+
+        return nil
+    end
+
+    local function AddEditBoxWidget(layout, def)
+        local path = ResolveLayoutPath(def.path, unitKey, tokenReplacements)
+        local disabled = ResolveDisabled(def)
+        local group = AceGUI:Create("SimpleGroup")
+        group:SetFullWidth(true)
+        group:SetLayout("Flow")
+
+        local editBox = AceGUI:Create("EditBox")
+        editBox:SetLabel(ResolveLayoutText(def.label))
+        editBox:SetWidth(def.width or 320)
+        editBox:DisableButton(true)
+        editBox:SetText(ns.GUI.Helpers.OptionValues.Get(path, def.fallback or ""))
+        editBox:SetDisabled(ns.GUI.Helpers.OptionValues.ResolveState(disabled, def))
+        editBox:SetCallback("OnEnterPressed", function(widget, _, newValue)
+            if ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) then
+                return
+            end
+
+            ns.GUI.Helpers.OptionValues.Set(path, newValue or "")
+            ns.GUI.Helpers.OptionRefresh.Live()
+
+            if def.refreshGUI then
+                ns.GUI:RefreshConfig()
+            end
+
+            widget:ClearFocus()
+        end)
+        editBox:SetCallback("OnFocusLost", function(widget)
+            if ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) then
+                return
+            end
+
+            ns.GUI.Helpers.OptionValues.Set(path, widget:GetText() or "")
+            ns.GUI.Helpers.OptionRefresh.Live()
+
+            if def.refreshGUI then
+                ns.GUI:RefreshConfig()
+            end
+        end)
+        group:AddChild(editBox)
+
+        if def.description and def.description ~= "" then
+            local description = AceGUI:Create("Label")
+            description:SetFullWidth(true)
+            description:SetText(ResolveLayoutText(def.description))
+            group:AddChild(description)
+        end
+
+        layout:Add({ group = group })
+    end
+
+    local function AddSectionWidget(layout, def)
+        local resolvedList = def.list and ResolveLayoutList(TEXT_TAB_LISTS[def.list]) or nil
+
+        if def.widget == "editbox" then
+            AddEditBoxWidget(layout, def)
+            return
+        end
+
+        if def.widget == "fontstyle" then
+            local path = ResolveLayoutPath(def.path, unitKey, tokenReplacements)
+            local disabled = ResolveDisabled(def)
+            local group = AceGUI:Create("SimpleGroup")
+            group:SetFullWidth(true)
+            group:SetLayout("Flow")
+            local dropdown = AceGUI:Create("Dropdown")
+            local textConfig = ns.GUI.Helpers.OptionValues.Get(path, {}) or {}
+            local currentStyle = "NONE"
+
+            if textConfig.thickOutline and textConfig.monochrome then
+                currentStyle = "THICKOUTLINE_MONOCHROME"
+            elseif textConfig.outline and textConfig.monochrome then
+                currentStyle = "OUTLINE_MONOCHROME"
+            elseif textConfig.thickOutline then
+                currentStyle = "THICKOUTLINE"
+            elseif textConfig.outline then
+                currentStyle = "OUTLINE"
+            elseif textConfig.monochrome then
+                currentStyle = "MONOCHROME"
+            end
+
+            dropdown:SetLabel(ResolveLayoutText(def.label))
+            dropdown:SetList(resolvedList)
+            dropdown:SetWidth(220)
+            dropdown:SetValue(currentStyle)
+            dropdown:SetDisabled(ns.GUI.Helpers.OptionValues.ResolveState(disabled, def))
+            dropdown:SetCallback("OnValueChanged", function(_, _, newValue)
+                if ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) then
+                    return
+                end
+
+                local stylePath = path
+                local isOutline = newValue == "OUTLINE" or newValue == "OUTLINE_MONOCHROME"
+                local isThickOutline = newValue == "THICKOUTLINE" or newValue == "THICKOUTLINE_MONOCHROME"
+                local isMonochrome = newValue == "MONOCHROME" or newValue == "OUTLINE_MONOCHROME" or newValue == "THICKOUTLINE_MONOCHROME"
+
+                ns.GUI.Helpers.OptionValues.Set({ stylePath[1], stylePath[2], stylePath[3], stylePath[4], "outline" }, isOutline)
+                ns.GUI.Helpers.OptionValues.Set({ stylePath[1], stylePath[2], stylePath[3], stylePath[4], "thickOutline" }, isThickOutline)
+                ns.GUI.Helpers.OptionValues.Set({ stylePath[1], stylePath[2], stylePath[3], stylePath[4], "monochrome" }, isMonochrome)
+                ns.GUI.Helpers.OptionRefresh.Live()
+            end)
+            group:AddChild(dropdown)
+            layout:Add({
+                group = group,
+            })
+            return
+        end
+
+        if def.widget == "colorpicker" then
+            layout:Add(ColorPicker.Create({
+                path = ResolveLayoutPath(def.path, unitKey, tokenReplacements),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                hasAlpha = def.hasAlpha == true,
+                fallback = def.fallback,
+                resetText = L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }))
+            return
+        end
+
+        if not CanBuildLayoutWidget(def, resolvedList) then
+            return
+        end
+
+        if def.widget == "checkbox" then
+            layout:Add(Checkbox.Create({
+                path = ResolveLayoutPath(def.path, unitKey, tokenReplacements),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+                refreshGUI = def.refreshGUI,
+            }))
+            return
+        end
+
+        if def.widget == "dropdown" then
+            layout:Add(Dropdown.Create({
+                path = ResolveLayoutPath(def.path, unitKey, tokenReplacements),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                list = resolvedList,
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+                refreshGUI = def.refreshGUI,
+            }))
+            return
+        end
+
+        if def.widget == "slider" then
+            layout:Add(Slider.Create({
+                path = ResolveLayoutPath(def.path, unitKey, tokenReplacements),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                min = def.min,
+                max = def.max,
+                step = def.step,
+                fallback = def.fallback,
+                format = def.format,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }))
+        end
+    end
+
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.TEXTS) .. " - " .. textLabel)
+
+    for _, sectionDef in ipairs(TEXT_TAB_LAYOUT) do
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+
+        if sectionDef.mode == "section" then
+            local layout = CreateSection(container)
+            for _, item in ipairs(sectionDef.items) do
+                AddSectionWidget(layout, item)
+            end
+        end
+    end
+end
+
+function B.BuildUnitTextsPage(container, unitKey)
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+
+    local state = GetGUIState()
+    local tabs = GetTextTabValues(unitKey)
+    local firstTab = tabs[1] and tabs[1].value or nil
+
+    if not firstTab then
+        B.BuildPlaceholderPage(container, ns.GetLabel(KM.Tabs, C.Tabs.TEXTS))
+        return
+    end
+
+    state.unitTextTabs[unitKey] = state.unitTextTabs[unitKey] or firstTab
+    state.unitTextScroll[unitKey] = state.unitTextScroll[unitKey] or {}
+
+    local tabGroup = AceGUI:Create("TabGroup")
+    tabGroup:SetFullWidth(true)
+    tabGroup:SetFullHeight(true)
+    tabGroup:SetLayout("Fill")
+    tabGroup:SetTabs(tabs)
+
+    tabGroup:SetCallback("OnGroupSelected", function(widget, _, textConfigKey)
+        state.unitTextTabs[unitKey] = textConfigKey
+        state.unitTextScroll[unitKey][textConfigKey] = state.unitTextScroll[unitKey][textConfigKey] or { scrollvalue = 0 }
+
+        BuildScrollableTabContent(widget, state.unitTextScroll[unitKey][textConfigKey], function(content)
+            local textLabel = textConfigKey
+            for _, def in ipairs(TEXT_TAB_DEFS) do
+                if def.configKey == textConfigKey then
+                    textLabel = ns.GetLabel(KM.Texts, def.value)
+                    break
+                end
+            end
+
+            BuildUnitTextPage(content, unitKey, textConfigKey, textLabel)
+        end)
+    end)
+
+    container:AddChild(tabGroup)
+    tabGroup:SelectTab(state.unitTextTabs[unitKey] or firstTab)
 end
 
 function B.BuildUnitBarsPage(container, unitKey)
@@ -937,6 +1263,11 @@ function B.BuildUnitPage(container, unitKey)
 
         if tabKey == C.Tabs.BARS then
             B.BuildUnitBarsPage(widget, unitKey)
+            return
+        end
+
+        if tabKey == C.Tabs.TEXTS then
+            B.BuildUnitTextsPage(widget, unitKey)
             return
         end
 

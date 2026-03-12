@@ -3,6 +3,26 @@ local addonName, ns = ...
 ns.L = ns.L or {}
 local L = ns.L
 
+L["SECTION_EFFECTS"] = "Effekte"
+L["OPTION_THICK_OUTLINE"] = "Dicke Kontur"
+L["OPTION_FONT_STYLE"] = "Schriftstil"
+L["OPTION_SHADOW_COLOR"] = "Schattenfarbe"
+L["OPTION_SHADOW_OFFSET_X"] = "Schattenversatz X"
+L["OPTION_SHADOW_OFFSET_Y"] = "Schattenversatz Y"
+L["VALUE_JUSTIFY_LEFT"] = "Links"
+L["VALUE_JUSTIFY_CENTER"] = "Zentriert"
+L["VALUE_JUSTIFY_RIGHT"] = "Rechts"
+L["VALUE_FONT_STANDARD"] = "Standard"
+L["VALUE_FONT_ARIAL_NARROW"] = "Arial Narrow"
+L["VALUE_FONT_MORPHEUS"] = "Morpheus"
+L["VALUE_FONT_SKURRI"] = "Skurri"
+L["VALUE_FONT_STYLE_NONE"] = "Keine"
+L["VALUE_FONT_STYLE_OUTLINE"] = "Kontur"
+L["VALUE_FONT_STYLE_THICK_OUTLINE"] = "Dicke Kontur"
+L["VALUE_FONT_STYLE_MONOCHROME"] = "Monochrom"
+L["VALUE_FONT_STYLE_OUTLINE_MONOCHROME"] = "Kontur + Monochrom"
+L["VALUE_FONT_STYLE_THICK_OUTLINE_MONOCHROME"] = "Dicke Kontur + Monochrom"
+
 L["ADDON_NAME"] = "Portrait"
 
 -- Navigation

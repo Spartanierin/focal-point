@@ -804,79 +804,6 @@ function UF:RegisterPortraitEvents(frame)
     frame.PortraitEventFrame = eventFrame
 end
 
--- Texts
-function UF:CreateTextElement(frame, key, textConfig)
-    if not textConfig or textConfig.enabled == false then
-        return
-    end
-
-    local parent = self:GetAnchorTarget(frame, textConfig.anchorTo)
-    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetDrawLayer("OVERLAY", 7)
-    text:SetWordWrap(false)
-    text:SetJustifyV("MIDDLE")
-
-    frame.Texts[key] = text
-    frame.Tags[key] = textConfig.tag or ""
-end
-
-function UF:CreateTextElements(frame)
-    local texts = frame.config.Texts
-    if not texts then
-        return
-    end
-
-    for key, textConfig in pairs(texts) do
-        self:CreateTextElement(frame, key, textConfig)
-    end
-end
-
-function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
-    if not textObject or not textConfig then
-        return
-    end
-
-    if textConfig.enabled == false then
-        textObject:Hide()
-        return
-    end
-
-    local anchorParent = self:GetAnchorTarget(frame, textConfig.anchorTo)
-    local fontPath = GetFontPath(textConfig.font)
-    local fontSize = textConfig.fontSize or 12
-    local fontFlags = BuildFontFlags(textConfig)
-    local justifyH = textConfig.justifyH or "CENTER"
-
-    local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
-
-    textObject:ClearAllPoints()
-    textObject:SetPoint(
-        textConfig.point or "CENTER",
-        anchorParent,
-        textConfig.relativePoint or "CENTER",
-        textConfig.offsetX or 0,
-        textConfig.offsetY or 0
-    )
-
-    textObject:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
-    textObject:SetTextColor(r, g, b, a)
-    textObject:SetJustifyH(justifyH)
-
-    if textConfig.shadowEnabled then
-        local sx = textConfig.shadowOffsetX or 1
-        local sy = textConfig.shadowOffsetY or -1
-        local sr, sg, sb, sa = UnpackColor(textConfig.shadowColor, { 0, 0, 0, 1 })
-
-        textObject:SetShadowOffset(sx, sy)
-        textObject:SetShadowColor(sr, sg, sb, sa)
-    else
-        textObject:SetShadowOffset(0, 0)
-        textObject:SetShadowColor(0, 0, 0, 0)
-    end
-
-    textObject:Show()
-end
-
 function UF:ApplyConfig(frame)
     local config = frame.config
     if not config then
@@ -1319,14 +1246,8 @@ function UF:ApplyTestValues(frame)
         frame.Elements.PowerBar:SetValue(65)
     end
 
-    if frame.Texts.Name then
-        local cfg = frame.config and frame.config.Texts and frame.config.Texts.Name
-        frame.Texts.Name:SetText((cfg and cfg.tag) or "[name]")
-    end
-
-    if frame.Texts.Health then
-        local cfg = frame.config and frame.config.Texts and frame.config.Texts.Health
-        frame.Texts.Health:SetText((cfg and cfg.tag) or "[hp:cur]")
+    if self.ApplyTestTextValues then
+        self:ApplyTestTextValues(frame)
     end
 end
 
@@ -1354,6 +1275,7 @@ function UF:Build(unit)
     self:CreateReadyCheckIndicator(frame)
     self:RegisterReadyCheckIndicatorEvents(frame)
     self:CreateTextElements(frame)
+    self:RegisterTextEvents(frame)
 
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
