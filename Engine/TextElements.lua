@@ -400,6 +400,40 @@ local TOKEN_DEFS = {
     },
 }
 
+local TAG_DATABASE = {
+    { token = "[hp:cur]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR", example = "154320" },
+    { token = "[hp:max]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX", example = "154320" },
+    { token = "[hp:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR_ABBR", example = "154K" },
+    { token = "[hp:max:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX_ABBR", example = "154K" },
+    { token = "[hp:perc]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_PERC", example = "100" },
+    { token = "[power:cur]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR", example = "100" },
+    { token = "[power:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "100" },
+    { token = "[power:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "100" },
+    { token = "[power:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "100" },
+    { token = "[power:perc]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_PERC", example = "100" },
+    { token = "[cast:name]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_NAME", example = "Frostbolt" },
+    { token = "[cast:time]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_TIME", example = "1.8" },
+    { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "Portrait" },
+    { token = "[level]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_LEVEL", example = "80" },
+    { token = "[class]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CLASS", example = "Warrior" },
+    { token = "[race]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_RACE", example = "Human" },
+    { token = "[status]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_STATUS", example = "AFK" },
+}
+
+function UF:GetTagDatabase()
+    return TAG_DATABASE
+end
+
+local function GetTagPreviewFallback(token)
+    for _, def in ipairs(TAG_DATABASE) do
+        if def.token == "[" .. token .. "]" then
+            return def.example or "[" .. token .. "]"
+        end
+    end
+
+    return "[" .. token .. "]"
+end
+
 local function ResolveToken(frame, unit, token)
     if not unit or not UnitExists or not UnitExists(unit) then
         return ""
@@ -575,6 +609,10 @@ local function FrameUsesCastTime(frame)
     return type(textConfig) == "table" and textConfig.enabled ~= false
 end
 
+local function IsDeferredCustomTextKey(key)
+    return key == "Custom1" or key == "Custom2" or key == "Custom3"
+end
+
 local function ResolveTextTemplate(frame, unit, template)
     if type(template) ~= "string" or template == "" then
         return ""
@@ -588,6 +626,33 @@ local function ResolveTextTemplate(frame, unit, template)
 
         return "[" .. token .. "]"
     end))
+end
+
+function UF:BuildTemplatePreview(template, unit)
+    if type(template) ~= "string" or template == "" then
+        return ""
+    end
+
+    local parts = {}
+    local searchStart = 1
+
+    while true do
+        local tokenStart, tokenEnd, token = template:find("%[([^%]]+)%]", searchStart)
+        if not tokenStart then
+            parts[#parts + 1] = template:sub(searchStart)
+            break
+        end
+
+        if tokenStart > searchStart then
+            parts[#parts + 1] = template:sub(searchStart, tokenStart - 1)
+        end
+
+        parts[#parts + 1] = GetTagPreviewFallback(token)
+
+        searchStart = tokenEnd + 1
+    end
+
+    return table.concat(parts)
 end
 
 local function ApplyDirectTemplate(frame, textObject, unit, template)
@@ -627,6 +692,10 @@ function UF:CreateTextElement(frame, key, textConfig)
         return
     end
 
+    if IsDeferredCustomTextKey(key) then
+        return
+    end
+
     local parent = GetTextLayerParent(frame)
     local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     text:SetDrawLayer("OVERLAY", 7)
@@ -650,6 +719,11 @@ end
 
 function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     if not textObject or not textConfig then
+        return
+    end
+
+    if IsDeferredCustomTextKey(key) then
+        textObject:Hide()
         return
     end
 
@@ -716,6 +790,14 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
 end
 
 function UF:UpdateTextElement(frame, key)
+    if IsDeferredCustomTextKey(key) then
+        if frame and frame.Texts and frame.Texts[key] then
+            frame.Texts[key]:SetText("")
+            frame.Texts[key]:Hide()
+        end
+        return
+    end
+
     if not frame or not frame.Texts or not frame.Texts[key] then
         return
     end

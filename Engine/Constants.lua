@@ -9,6 +9,8 @@ C.ADDON_NAME = "Portrait"
 -- Navigation
 C.Nav = {
     GENERAL = "general",
+    TAG_DATABASE = "tag_database",
+    TEXT_BUILDER = "text_builder",
     PROFILES = "profiles",
     THEMES = "themes",
     GLOBAL_DEFAULTS = "global_defaults",

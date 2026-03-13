@@ -52,7 +52,7 @@ function Sliders.Create(config)
     local slider = AceGUI:Create("Slider")
     slider:SetLabel(labelText)
     slider:SetSliderValues(minValue, maxValue, stepValue)
-    slider:SetWidth(config.width or 320)
+    slider:SetWidth(config.width or 220)
     row:AddChild(slider)
 
     local resetButton = nil

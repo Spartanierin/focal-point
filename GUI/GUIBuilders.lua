@@ -23,6 +23,10 @@ local function GetGUIState()
         unitTextScroll = {},
         unitElementTabs = {},
         unitElementScroll = {},
+        textBuilder = {
+            template = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+            unit = C.Units.PLAYER,
+        },
     }
 
     return ns.GUI._state
@@ -72,6 +76,16 @@ function B.CreateNavTree()
         ns.GetLabel(KM.Nav, C.Nav.PROFILES)
     ))
 
+    table.insert(tree, MakeNode(
+        C.Nav.TEXT_BUILDER,
+        ns.GetLabel(KM.Nav, C.Nav.TEXT_BUILDER)
+    ))
+
+    table.insert(tree, MakeNode(
+        C.Nav.TAG_DATABASE,
+        ns.GetLabel(KM.Nav, C.Nav.TAG_DATABASE)
+    ))
+
     return tree
 end
 
@@ -102,9 +116,40 @@ local function ResetFlowContainer(container)
 end
 
 local function GetAddonVersionText()
-    if GetAddOnMetadata then
-        local version = GetAddOnMetadata(C.ADDON_NAME, "Version")
-        if type(version) == "string" and version ~= "" then
+    local tried = {}
+    local addonKeys = {
+        addonName,
+        C.ADDON_NAME,
+        "Portrait",
+    }
+
+    local function TryMetadata(addonKey)
+        if type(addonKey) ~= "string" or addonKey == "" or tried[addonKey] then
+            return nil
+        end
+
+        tried[addonKey] = true
+
+        if C_AddOns and C_AddOns.GetAddOnMetadata then
+            local version = C_AddOns.GetAddOnMetadata(addonKey, "Version")
+            if type(version) == "string" and version ~= "" then
+                return version
+            end
+        end
+
+        if GetAddOnMetadata then
+            local version = GetAddOnMetadata(addonKey, "Version")
+            if type(version) == "string" and version ~= "" then
+                return version
+            end
+        end
+
+        return nil
+    end
+
+    for _, addonKey in ipairs(addonKeys) do
+        local version = TryMetadata(addonKey)
+        if version then
             return version
         end
     end
@@ -500,7 +545,7 @@ function B.BuildGeneralPage(container)
     aboutGroup:SetFullWidth(true)
     aboutGroup:SetLayout("Flow")
     aboutGroup:SetTitle(string.format(
-        "|T%s:22:22:0:0|t  |cff6fd2ff%s|r  |cffffd35a%s %s|r",
+        "|T%s:22:22:0:0|t  |cff6fd2ff%s|r  |cffffd35a%s|r  |cff4cff88%s|r",
         logoPath,
         L["ADDON_NAME"] or C.ADDON_NAME,
         L["INFO_VERSION"] or "Version",
@@ -541,7 +586,9 @@ function B.BuildGeneralPage(container)
     settingsGroup:SetTitle(L["INFO_GENERAL_SETTINGS"] or "General Settings")
     container:AddChild(settingsGroup)
 
-    settingsGroup:AddChild(Checkbox.Create({
+    local settingsLayout = CreateSection(settingsGroup)
+
+    settingsLayout:Add(Checkbox.Create({
         path = { "General", "HideBlizzardFrames" },
         label = L["OPTION_HIDE_BLIZZARD_FRAMES"],
         description = L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"],
@@ -560,9 +607,9 @@ function B.BuildGeneralPage(container)
                 ns:Info(L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"])
             end
         end,
-    }).group)
+    }))
 
-    settingsGroup:AddChild(Checkbox.Create({
+    settingsLayout:Add(Checkbox.Create({
         path = { "General", "GlobalClickThrough" },
         label = L["OPTION_GLOBAL_CLICKTHROUGH"],
         description = L["OPTION_GLOBAL_CLICKTHROUGH_DESC"],
@@ -572,7 +619,325 @@ function B.BuildGeneralPage(container)
                 ns:RefreshAllUnitFrames()
             end
         end,
-    }).group)
+    }))
+
+    settingsLayout:Add(Checkbox.Create({
+        path = { "General", "MouseEnabled" },
+        label = L["OPTION_MOUSE_ENABLED"],
+        description = L["OPTION_MOUSE_ENABLED_DESC"],
+        fallback = true,
+        onChanged = function()
+            if ns.RefreshAllUnitFrames then
+                ns:RefreshAllUnitFrames()
+            end
+        end,
+    }))
+
+    settingsLayout:Add(Checkbox.Create({
+        path = { "General", "ClampToScreen" },
+        label = L["OPTION_CLAMP_TO_SCREEN"],
+        description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
+        fallback = true,
+        onChanged = function()
+            if ns.RefreshAllUnitFrames then
+                ns:RefreshAllUnitFrames()
+            end
+        end,
+    }))
+end
+
+function B.BuildTagDatabasePage(container)
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+
+    local state = GetGUIState()
+    local tagDatabase = ns.UnitFrame and ns.UnitFrame.GetTagDatabase and ns.UnitFrame:GetTagDatabase() or {}
+    local grouped = {}
+    local categoryOrder = {
+        "INFO_TAG_CATEGORY_HEALTH",
+        "INFO_TAG_CATEGORY_POWER",
+        "INFO_TAG_CATEGORY_CAST",
+        "INFO_TAG_CATEGORY_UNIT",
+        "INFO_TAG_CATEGORY_STATUS",
+    }
+
+    for _, def in ipairs(tagDatabase) do
+        grouped[def.category] = grouped[def.category] or {}
+        table.insert(grouped[def.category], def)
+    end
+
+    local tabs = {}
+    for _, categoryKey in ipairs(categoryOrder) do
+        if grouped[categoryKey] and #grouped[categoryKey] > 0 then
+            table.insert(tabs, {
+                text = L[categoryKey] or categoryKey,
+                value = categoryKey,
+            })
+        end
+    end
+
+    local firstTab = tabs[1] and tabs[1].value or nil
+    if not firstTab then
+        B.BuildPlaceholderPage(container, L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
+        return
+    end
+
+    state.tagDatabaseTab = state.tagDatabaseTab or firstTab
+    state.tagDatabaseScroll = state.tagDatabaseScroll or {}
+
+    local tabGroup = AceGUI:Create("TabGroup")
+    tabGroup:SetFullWidth(true)
+    tabGroup:SetFullHeight(true)
+    tabGroup:SetLayout("Fill")
+    tabGroup:SetTabs(tabs)
+
+    tabGroup:SetCallback("OnGroupSelected", function(widget, _, categoryKey)
+        state.tagDatabaseTab = categoryKey
+        state.tagDatabaseScroll[categoryKey] = state.tagDatabaseScroll[categoryKey] or { scrollvalue = 0 }
+
+        BuildScrollableTabContent(widget, state.tagDatabaseScroll[categoryKey], function(content)
+            AddPageHeading(content, L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
+
+            local description = AceGUI:Create("Label")
+            description:SetFullWidth(true)
+            description:SetText(L["INFO_TAG_DATABASE_DESCRIPTION"] or "")
+            content:AddChild(description)
+
+            local hint = AceGUI:Create("Label")
+            hint:SetFullWidth(true)
+            hint:SetText(L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or "")
+            content:AddChild(hint)
+
+            AddSectionHeading(content, L[categoryKey] or categoryKey, 8)
+
+            for _, def in ipairs(grouped[categoryKey] or {}) do
+                local row = AceGUI:Create("Label")
+                row:SetFullWidth(true)
+                row:SetText(string.format(
+                    "|cff6fd2ff%s|r  -  %s  |cff999999(%s)|r",
+                    def.token,
+                    L[def.description] or def.description,
+                    def.example or ""
+                ))
+                content:AddChild(row)
+            end
+        end)
+    end)
+
+    container:AddChild(tabGroup)
+    tabGroup:SelectTab(state.tagDatabaseTab or firstTab)
+end
+
+function B.BuildTextBuilderPage(container)
+    ResetFlowContainer(container)
+
+    local state = GetGUIState()
+    state.textBuilder = state.textBuilder or {
+        template = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+        templateName = "",
+        selectedTemplate = "",
+    }
+
+    AddPageHeading(container, L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
+
+    local description = AceGUI:Create("Label")
+    description:SetFullWidth(true)
+    description:SetText(L["INFO_TEXT_BUILDER_DESCRIPTION"] or "")
+    container:AddChild(description)
+
+    local builderGroup = AceGUI:Create("InlineGroup")
+    builderGroup:SetFullWidth(true)
+    builderGroup:SetLayout("Flow")
+    builderGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
+    container:AddChild(builderGroup)
+
+    local templateEdit = AceGUI:Create("EditBox")
+    templateEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
+    templateEdit:SetWidth(420)
+    templateEdit:DisableButton(true)
+    templateEdit:SetText(state.textBuilder.template or "")
+    builderGroup:AddChild(templateEdit)
+
+    local updateButton = AceGUI:Create("Button")
+    updateButton:SetText(L["INFO_TEXT_BUILDER_APPLY"] or "Update Preview")
+    updateButton:SetWidth(140)
+    builderGroup:AddChild(updateButton)
+
+    local templatesGroup = AceGUI:Create("InlineGroup")
+    templatesGroup:SetFullWidth(true)
+    templatesGroup:SetLayout("Flow")
+    templatesGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
+    container:AddChild(templatesGroup)
+
+    local templates = (ns.db and ns.db.profile and ns.db.profile.TextTemplates) or {}
+
+    local templateSelect = AceGUI:Create("Dropdown")
+    templateSelect:SetLabel(L["INFO_TEXT_BUILDER_SAVED_TEMPLATES"] or "Saved Templates")
+    templateSelect:SetWidth(220)
+    templatesGroup:AddChild(templateSelect)
+
+    local templateNameEdit = AceGUI:Create("EditBox")
+    templateNameEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE_NAME"] or "Template Name")
+    templateNameEdit:SetWidth(260)
+    templateNameEdit:DisableButton(true)
+    templateNameEdit:SetText(state.textBuilder.templateName or "")
+    templatesGroup:AddChild(templateNameEdit)
+
+    local saveButton = AceGUI:Create("Button")
+    saveButton:SetText(L["INFO_TEXT_BUILDER_SAVE"] or "Save")
+    saveButton:SetWidth(110)
+    templatesGroup:AddChild(saveButton)
+
+    local updateTemplateButton = AceGUI:Create("Button")
+    updateTemplateButton:SetText(L["INFO_TEXT_BUILDER_UPDATE"] or "Update")
+    updateTemplateButton:SetWidth(110)
+    templatesGroup:AddChild(updateTemplateButton)
+
+    local deleteTemplateButton = AceGUI:Create("Button")
+    deleteTemplateButton:SetText(L["INFO_TEXT_BUILDER_DELETE"] or "Delete")
+    deleteTemplateButton:SetWidth(110)
+    templatesGroup:AddChild(deleteTemplateButton)
+
+    local previewGroup = AceGUI:Create("InlineGroup")
+    previewGroup:SetFullWidth(true)
+    previewGroup:SetLayout("Flow")
+    previewGroup:SetTitle(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
+    container:AddChild(previewGroup)
+
+    local previewHint = AceGUI:Create("Label")
+    previewHint:SetFullWidth(true)
+    previewHint:SetText(L["INFO_TEXT_BUILDER_PREVIEW_DESC"] or "")
+    previewGroup:AddChild(previewHint)
+
+    local previewLabel = AceGUI:Create("Label")
+    previewLabel:SetFullWidth(true)
+    if previewLabel.SetFont then
+        previewLabel:SetFont(STANDARD_TEXT_FONT, 14, "")
+    end
+    previewGroup:AddChild(previewLabel)
+
+    local function RefreshPreview()
+        local template = state.textBuilder.template or ""
+        local previewText = ""
+
+        if ns.UnitFrame and ns.UnitFrame.BuildTemplatePreview then
+            previewText = ns.UnitFrame:BuildTemplatePreview(template)
+        end
+
+        if previewText == "" then
+            previewText = template
+        end
+
+        previewLabel:SetText(previewText)
+    end
+
+    local function RefreshTemplateDropdown()
+        local list = {}
+
+        for name in pairs(templates) do
+            list[name] = name
+        end
+
+        templateSelect:SetList(list)
+        templateSelect:SetValue(state.textBuilder.selectedTemplate or nil)
+    end
+
+    local function SetStatus(message)
+        if ns.guiFrame and ns.guiFrame.SetStatusText then
+            ns.guiFrame:SetStatusText(message)
+        end
+    end
+
+    templateEdit:SetCallback("OnEnterPressed", function(widget, _, value)
+        state.textBuilder.template = value or ""
+        RefreshPreview()
+        widget:ClearFocus()
+    end)
+
+    templateEdit:SetCallback("OnFocusLost", function(widget)
+        state.textBuilder.template = widget:GetText() or ""
+        RefreshPreview()
+    end)
+
+    updateButton:SetCallback("OnClick", function()
+        state.textBuilder.template = templateEdit:GetText() or ""
+        RefreshPreview()
+    end)
+
+    templateNameEdit:SetCallback("OnEnterPressed", function(widget, _, value)
+        state.textBuilder.templateName = value or ""
+        widget:ClearFocus()
+    end)
+
+    templateNameEdit:SetCallback("OnFocusLost", function(widget)
+        state.textBuilder.templateName = widget:GetText() or ""
+    end)
+
+    templateSelect:SetCallback("OnValueChanged", function(_, _, value)
+        local selectedName = value or ""
+        local selectedTemplate = templates[selectedName]
+
+        state.textBuilder.selectedTemplate = selectedName
+        state.textBuilder.templateName = selectedName
+        templateNameEdit:SetText(selectedName)
+
+        if type(selectedTemplate) == "string" then
+            state.textBuilder.template = selectedTemplate
+            templateEdit:SetText(selectedTemplate)
+            RefreshPreview()
+        end
+    end)
+
+    saveButton:SetCallback("OnClick", function()
+        local name = (templateNameEdit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        local template = templateEdit:GetText() or ""
+
+        if name == "" then
+            SetStatus(L["INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"] or "Please enter a template name.")
+            return
+        end
+
+        templates[name] = template
+        state.textBuilder.selectedTemplate = name
+        state.textBuilder.templateName = name
+        state.textBuilder.template = template
+        RefreshTemplateDropdown()
+        SetStatus((L["INFO_TEXT_BUILDER_STATUS_SAVED"] or "Template saved:") .. " " .. name)
+    end)
+
+    updateTemplateButton:SetCallback("OnClick", function()
+        local selectedName = state.textBuilder.selectedTemplate or ""
+        local template = templateEdit:GetText() or ""
+
+        if selectedName == "" or type(templates[selectedName]) ~= "string" then
+            SetStatus(L["INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"] or "Select a saved template first.")
+            return
+        end
+
+        templates[selectedName] = template
+        state.textBuilder.template = template
+        RefreshTemplateDropdown()
+        SetStatus((L["INFO_TEXT_BUILDER_STATUS_UPDATED"] or "Template updated:") .. " " .. selectedName)
+    end)
+
+    deleteTemplateButton:SetCallback("OnClick", function()
+        local selectedName = state.textBuilder.selectedTemplate or ""
+
+        if selectedName == "" or type(templates[selectedName]) ~= "string" then
+            SetStatus(L["INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"] or "Select a saved template first.")
+            return
+        end
+
+        templates[selectedName] = nil
+        state.textBuilder.selectedTemplate = ""
+        state.textBuilder.templateName = ""
+        templateNameEdit:SetText("")
+        RefreshTemplateDropdown()
+        SetStatus((L["INFO_TEXT_BUILDER_STATUS_DELETED"] or "Template deleted:") .. " " .. selectedName)
+    end)
+
+    RefreshTemplateDropdown()
+    RefreshPreview()
 end
 
 function B.BuildUnitFramePage(container, unitKey)
@@ -609,7 +974,7 @@ function B.BuildUnitFramePage(container, unitKey)
             ns.GUI.Helpers.OptionRefresh.Live()
 
             if def.refreshGUI then
-                ns.GUI:RefreshConfig()
+                ns.GUI:RefreshOptions()
             end
         end)
         container:AddChild(checkbox)
@@ -663,7 +1028,7 @@ function B.BuildUnitFramePage(container, unitKey)
         local path = ResolveLayoutPath(def.path, unitKey)
         slider:SetLabel(ResolveLayoutText(def.label))
         slider:SetSliderValues(def.min, def.max, def.step)
-        slider:SetWidth(320)
+        slider:SetWidth(220)
         slider:SetValue(tonumber(ns.GUI.Helpers.OptionValues.Get(path, def.fallback)) or def.fallback)
         slider:SetDisabled(IsUnitDisabled())
         slider:SetCallback("OnValueChanged", function(_, _, newValue)
@@ -1274,7 +1639,7 @@ local function BuildUnitTextPage(container, unitKey, textConfigKey, textLabel)
             ns.GUI.Helpers.OptionRefresh.Live()
 
             if def.refreshGUI then
-                ns.GUI:RefreshConfig()
+                ns.GUI:RefreshOptions()
             end
 
             widget:ClearFocus()
@@ -1288,7 +1653,7 @@ local function BuildUnitTextPage(container, unitKey, textConfigKey, textLabel)
             ns.GUI.Helpers.OptionRefresh.Live()
 
             if def.refreshGUI then
-                ns.GUI:RefreshConfig()
+                ns.GUI:RefreshOptions()
             end
         end)
         group:AddChild(editBox)

@@ -1415,6 +1415,24 @@ function UF:ApplyConfig(frame)
         and Portrait.db.profile
         and Portrait.db.profile.General
         and Portrait.db.profile.General.GlobalClickThrough == true
+    local globalMouseEnabled = Portrait.db
+        and Portrait.db.profile
+        and Portrait.db.profile.General
+        and Portrait.db.profile.General.MouseEnabled
+    local globalClampToScreen = Portrait.db
+        and Portrait.db.profile
+        and Portrait.db.profile.General
+        and Portrait.db.profile.General.ClampToScreen
+    local mouseEnabled = globalMouseEnabled
+    local clampToScreen = globalClampToScreen
+
+    if mouseEnabled == nil then
+        mouseEnabled = config.mouseEnabled ~= false
+    end
+
+    if clampToScreen == nil then
+        clampToScreen = config.clampToScreen == true
+    end
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
@@ -1423,9 +1441,9 @@ function UF:ApplyConfig(frame)
     frame:SetFrameLevel(frameLevel)
     frame:SetFrameStrata(frameStrata)
     frame:SetShown(config.enabled ~= false)
-    frame:EnableMouse(config.mouseEnabled ~= false)
+    frame:EnableMouse(mouseEnabled ~= false)
     frame:SetMouseClickEnabled(not (config.clickThrough or globalClickThrough))
-    frame:SetClampedToScreen(config.clampToScreen == true)
+    frame:SetClampedToScreen(clampToScreen == true)
 
     local relativeTo = _G[config.relativeTo or "UIParent"] or UIParent
     local point = config.point or "CENTER"

@@ -382,6 +382,103 @@ local function AddColorPickerRow(container, labelText, colorTable, onChanged, de
     RefreshRow()
 end
 
+local function ArrangeFrameFooter(frame, testButton)
+    if not frame or not frame.statustext then
+        return
+    end
+
+    local statusText = frame.statustext
+    local statusBg = statusText:GetParent()
+    local closeButton = frame.closebutton
+    local footerParent = statusBg and statusBg:GetParent()
+
+    if not statusBg or not footerParent then
+        return
+    end
+
+    if testButton then
+        testButton:SetParent(footerParent)
+        testButton:ClearAllPoints()
+        testButton:SetSize(110, 20)
+        testButton:SetPoint("BOTTOMLEFT", footerParent, "BOTTOMLEFT", 15, 17)
+    end
+
+    if closeButton then
+        closeButton:ClearAllPoints()
+        closeButton:SetPoint("BOTTOMRIGHT", footerParent, "BOTTOMRIGHT", -27, 17)
+    end
+
+    statusBg:ClearAllPoints()
+
+    if testButton and closeButton then
+        statusBg:SetPoint("BOTTOMLEFT", testButton, "BOTTOMRIGHT", 10, -2)
+        statusBg:SetPoint("BOTTOMRIGHT", closeButton, "BOTTOMLEFT", -10, -2)
+    elseif testButton then
+        statusBg:SetPoint("BOTTOMLEFT", testButton, "BOTTOMRIGHT", 10, -2)
+        statusBg:SetPoint("BOTTOMRIGHT", footerParent, "BOTTOMRIGHT", -132, 15)
+    elseif closeButton then
+        statusBg:SetPoint("BOTTOMLEFT", footerParent, "BOTTOMLEFT", 15, 15)
+        statusBg:SetPoint("BOTTOMRIGHT", closeButton, "BOTTOMLEFT", -10, -2)
+    else
+        statusBg:SetPoint("BOTTOMLEFT", footerParent, "BOTTOMLEFT", 15, 15)
+        statusBg:SetPoint("BOTTOMRIGHT", footerParent, "BOTTOMRIGHT", -132, 15)
+    end
+
+    statusBg:SetHeight(24)
+
+    statusText:ClearAllPoints()
+    statusText:SetPoint("TOPLEFT", statusBg, "TOPLEFT", 10, -2)
+    statusText:SetPoint("BOTTOMRIGHT", statusBg, "BOTTOMRIGHT", -10, 2)
+    statusText:SetJustifyH("LEFT")
+    statusText:SetJustifyV("MIDDLE")
+end
+
+local function SnapToWholePixel(value)
+    if type(value) ~= "number" then
+        return value
+    end
+
+    return math.floor(value + 0.5)
+end
+
+local function ApplyPortraitTreePixelSnap(treeGroup)
+    if not treeGroup or treeGroup._portraitTreeDebugDone then
+        return
+    end
+
+    local originalRefreshTree = treeGroup.RefreshTree
+    if type(originalRefreshTree) ~= "function" then
+        return
+    end
+
+    treeGroup.RefreshTree = function(self, ...)
+        originalRefreshTree(self, ...)
+
+        for _, button in ipairs(self.buttons or {}) do
+            if button and button:IsShown() then
+                local left = button.GetLeft and button:GetLeft() or nil
+                local top = button.GetTop and button:GetTop() or nil
+
+                if left and top then
+                    button:ClearAllPoints()
+                    button:SetPoint("TOPLEFT", self.treeframe, "BOTTOMLEFT", SnapToWholePixel(left - (self.treeframe:GetLeft() or 0)), SnapToWholePixel(top - (self.treeframe:GetBottom() or 0)))
+                end
+
+                if button.text and button.text.GetPoint and button.level == 1 then
+                    local point, relativeTo, relativePoint, xOfs, yOfs = button.text:GetPoint(1)
+                    if point then
+                        button.text:ClearAllPoints()
+                        button.text:SetPoint(point, relativeTo, relativePoint, SnapToWholePixel(xOfs), SnapToWholePixel(yOfs))
+                    end
+                end
+            end
+        end
+    end
+
+    treeGroup._portraitTreeDebugDone = true
+end
+
+
 local function RenderPlaceholderPage(container, title, text)
     container:ReleaseChildren()
     container:SetLayout("Flow")
@@ -746,6 +843,16 @@ local function RenderPage(container, path)
         return
     end
 
+    if path == C.Nav.TAG_DATABASE then
+        Portrait.GUIBuilders.BuildTagDatabasePage(container)
+        return
+    end
+
+    if path == C.Nav.TEXT_BUILDER then
+        Portrait.GUIBuilders.BuildTextBuilderPage(container)
+        return
+    end
+
     if path == "profiles" then
         Portrait.GUIBuilders.BuildPlaceholderPage(container, "Profiles")
         return
@@ -871,21 +978,18 @@ function Portrait:CreateGUI()
     local statusBg = frame.statustext and frame.statustext:GetParent()
     if statusBg and not self.guiTestButton then
         local button = CreateFrame("Button", nil, statusBg, "UIPanelButtonTemplate")
-        button:SetSize(110, 20)
-        button:SetPoint("LEFT", statusBg, "LEFT", 6, 0)
         button:SetText(self.guiTestModeEnabled and ((L and L["GUI_TEST_STOP"]) or "Stop Test") or ((L and L["GUI_TEST_START"]) or "Test"))
         button:SetScript("OnClick", function()
             Portrait:ToggleTestMode()
         end)
         self.guiTestButton = button
-
-        frame.statustext:ClearAllPoints()
-        frame.statustext:SetPoint("TOPLEFT", button, "TOPRIGHT", 8, -1)
-        frame.statustext:SetPoint("BOTTOMRIGHT", statusBg, "BOTTOMRIGHT", -7, 2)
     end
+
+    ArrangeFrameFooter(frame, self.guiTestButton)
 
     local initialPath = self.GUI.selectedPath or "general"
     treeGroup:SelectByValue(initialPath)
+    ApplyPortraitTreePixelSnap(treeGroup)
 end
 
 function Portrait:OpenConfig()

@@ -10,11 +10,15 @@ function Portrait:GetDefaultDB()
                 UIScale = 1,
                 HideBlizzardFrames = false,
                 GlobalClickThrough = false,
+                MouseEnabled = true,
+                ClampToScreen = true,
             },
 
             Minimap = {
                 hide = false,
             },
+
+            TextTemplates = {},
 
             Units = {
                 player = {
@@ -402,6 +406,84 @@ function Portrait:GetDefaultDB()
                             thickOutline = false,
                             monochrome = false,
                         },
+
+                        Custom1 = {
+                            enabled = false,
+                            tag = "",
+
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -8,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Custom2 = {
+                            enabled = false,
+                            tag = "",
+
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -22,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Custom3 = {
+                            enabled = false,
+                            tag = "",
+
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -36,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
                     },
                 },
 
@@ -577,6 +659,84 @@ function Portrait:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "RIGHT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Custom1 = {
+                            enabled = false,
+                            tag = "",
+
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -8,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Custom2 = {
+                            enabled = false,
+                            tag = "",
+
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -22,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        Custom3 = {
+                            enabled = false,
+                            tag = "",
+
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -36,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
 

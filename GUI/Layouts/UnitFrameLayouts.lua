@@ -11,9 +11,6 @@ ns.GUI.Layouts.UnitFrame.FrameTab = {
         mode = "direct_checkboxes",
         items = {
             { widget = "checkbox", path = { "Units", "$unitKey", "enabled" },       label = "OPTION_ENABLED",         description = "OPTION_ENABLED_DESC",         fallback = true,  refreshGUI = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "mouseEnabled" },  label = "OPTION_MOUSE_ENABLED",   description = "OPTION_MOUSE_ENABLED_DESC",   fallback = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "clickThrough" },  label = "OPTION_CLICK_THROUGH",   description = "OPTION_CLICK_THROUGH_DESC",   fallback = false },
-            { widget = "checkbox", path = { "Units", "$unitKey", "clampToScreen" }, label = "OPTION_CLAMP_TO_SCREEN", description = "OPTION_CLAMP_TO_SCREEN_DESC", fallback = true },
         },
     },
     {
