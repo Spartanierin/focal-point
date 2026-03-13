@@ -264,12 +264,6 @@ local function GetTextTabValues(unitKey)
     end
 
     for _, def in ipairs(CUSTOM_TEXT_TAB_DEFS) do
-        local enabledPath = { "Units", unitKey, "Texts", def.configKey, "enabled" }
-        local enabledValue = ns.GUI.Helpers.OptionValues.Get(enabledPath, nil)
-        if enabledValue == nil then
-            enabledValue = ns.GUI.Helpers.OptionValues.GetDefault(enabledPath, false)
-        end
-
         local configPath = { "Units", unitKey, "Texts", def.configKey }
         local configValue = ns.GUI.Helpers.OptionValues.Get(configPath, nil)
         if configValue == nil then
@@ -280,7 +274,7 @@ local function GetTextTabValues(unitKey)
             and type(configValue.tag) == "string"
             and configValue.tag ~= ""
 
-        if type(configValue) == "table" and (enabledValue == true or hasTemplate) then
+        if type(configValue) == "table" and hasTemplate then
             table.insert(tabs, {
                 text = ns.GetLabel(KM.Texts, def.value),
                 value = def.configKey,
