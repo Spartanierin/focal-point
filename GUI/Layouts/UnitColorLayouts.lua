@@ -37,4 +37,12 @@ ns.GUI.Layouts.UnitColors.ColorTab = {
             { widget = "colorpicker", path = { "Units", "$unitKey", "powerBackgroundColor" }, label = "OPTION_BACKGROUND_COLOR", description = "OPTION_POWER_BACKGROUND_COLOR_DESC", hasAlpha = true, disabled = "powerBackground" },
         },
     },
+    {
+        section = "$castBar",
+        mode = "section",
+        layout = "list",
+        items = {
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarColor" }, label = "OPTION_CAST_BAR_COLOR", description = "OPTION_CAST_BAR_COLOR_DESC", hasAlpha = true, disabled = "cast" },
+        },
+    },
 }

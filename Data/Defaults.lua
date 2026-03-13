@@ -54,6 +54,7 @@ function Portrait:GetDefaultDB()
                     healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
 
                     backgroundColor = { 0.08, 0.08, 0.08, 0.90 },
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
@@ -435,6 +436,7 @@ function Portrait:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = 4,
                     castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
 
                     Portrait = {
                         enabled = false,

@@ -148,7 +148,7 @@ local function SafeAbbreviateNumber(value)
     return "0"
 end
 
-local function ApplyCastBarStateColor(castBar, isInterruptible)
+local function ApplyCastBarStateColor(castBar, isInterruptible, baseColor)
     if not castBar then
         return
     end
@@ -156,7 +156,8 @@ local function ApplyCastBarStateColor(castBar, isInterruptible)
     if isInterruptible == false then
         castBar:SetStatusBarColor(0.60, 0.60, 0.60, 1.00)
     else
-        castBar:SetStatusBarColor(1.00, 0.72, 0.18, 1.00)
+        local r, g, b, a = UnpackColor(baseColor, { 1.00, 0.72, 0.18, 1.00 })
+        castBar:SetStatusBarColor(r, g, b, a)
     end
 end
 
@@ -372,7 +373,7 @@ local function StartCastBar(frame)
     castBar.isInterruptible = isInterruptible ~= false
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
-    ApplyCastBarStateColor(castBar, castBar.isInterruptible)
+    ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
 
     if castBar.icon then
         if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
@@ -404,7 +405,7 @@ local function StartCastBarPreview(frame)
     castBar.isInterruptible = true
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(now + 1.25)
-    ApplyCastBarStateColor(castBar, true)
+    ApplyCastBarStateColor(castBar, true, frame.config and frame.config.castBarColor)
 
     if castBar.icon then
         if frame.config and frame.config.showCastBarIcon ~= false then
@@ -501,7 +502,7 @@ function UF:RefreshCastBar(frame)
             castBar:SetValue(math.max(now - startTime, 0))
         end
 
-        ApplyCastBarStateColor(castBar, castBar.isInterruptible)
+        ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
 
         if castBar.icon then
             if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
@@ -1539,7 +1540,7 @@ function UF:ApplyConfig(frame)
         castBar:SetFrameStrata(frame:GetFrameStrata())
         castBar:SetFrameLevel(math.max(frame:GetFrameLevel() + 5, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 1) or (frame:GetFrameLevel() + 5)))
         castBar:SetStatusBarTexture(castTexture)
-        ApplyCastBarStateColor(castBar, castBar.isInterruptible)
+        ApplyCastBarStateColor(castBar, castBar.isInterruptible, config.castBarColor)
 
         if castBar.bg then
             castBar.bg:SetTexture(castTexture)

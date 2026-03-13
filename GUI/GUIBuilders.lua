@@ -809,6 +809,11 @@ function B.BuildUnitColorsPage(container, unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
     end
 
+    local function IsCastBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showCastBar" }, true)
+    end
+
     local function IsHealthColorPickerDisabled()
         return IsUnitDisabled()
             or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorHealth" }, false)
@@ -840,6 +845,10 @@ function B.BuildUnitColorsPage(container, unitKey)
             return ns.GetLabel(KM.Bars, C.Bars.POWER)
         end
 
+        if sectionKey == "$castBar" then
+            return ns.GetLabel(KM.Bars, C.Bars.CAST)
+        end
+
         return ResolveLayoutText(sectionKey)
     end
 
@@ -850,6 +859,10 @@ function B.BuildUnitColorsPage(container, unitKey)
 
         if def.disabled == "power" then
             return IsPowerBarDisabled
+        end
+
+        if def.disabled == "cast" then
+            return IsCastBarDisabled
         end
 
         if def.disabled == "healthColor" then
@@ -956,6 +969,19 @@ function B.BuildUnitHealthBarPage(container, unitKey)
 
     local function AddSectionWidget(layout, def)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        if def.widget == "colorpicker" then
+            layout:Add(ColorPicker.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                hasAlpha = def.hasAlpha == true,
+                fallback = def.fallback,
+                resetText = L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }))
+            return
+        end
+
         if not CanBuildLayoutWidget(def, resolvedList) then
             return
         end
@@ -1023,6 +1049,19 @@ function B.BuildUnitPowerBarPage(container, unitKey)
 
     local function AddSectionWidget(layout, def)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        if def.widget == "colorpicker" then
+            layout:Add(ColorPicker.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                hasAlpha = def.hasAlpha == true,
+                fallback = def.fallback,
+                resetText = L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }))
+            return
+        end
+
         if not CanBuildLayoutWidget(def, resolvedList) then
             return
         end
