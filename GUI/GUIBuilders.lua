@@ -239,6 +239,12 @@ local TEXT_TAB_DEFS = {
     { value = C.Texts.CAST_TIME, configKey = "CastTime" },
 }
 
+local CUSTOM_TEXT_TAB_DEFS = {
+    { value = C.Texts.CUSTOM_1, configKey = "Custom1" },
+    { value = C.Texts.CUSTOM_2, configKey = "Custom2" },
+    { value = C.Texts.CUSTOM_3, configKey = "Custom3" },
+}
+
 local function GetTextTabValues(unitKey)
     local tabs = {}
 
@@ -250,6 +256,31 @@ local function GetTextTabValues(unitKey)
         end
 
         if type(configValue) == "table" then
+            table.insert(tabs, {
+                text = ns.GetLabel(KM.Texts, def.value),
+                value = def.configKey,
+            })
+        end
+    end
+
+    for _, def in ipairs(CUSTOM_TEXT_TAB_DEFS) do
+        local enabledPath = { "Units", unitKey, "Texts", def.configKey, "enabled" }
+        local enabledValue = ns.GUI.Helpers.OptionValues.Get(enabledPath, nil)
+        if enabledValue == nil then
+            enabledValue = ns.GUI.Helpers.OptionValues.GetDefault(enabledPath, false)
+        end
+
+        local configPath = { "Units", unitKey, "Texts", def.configKey }
+        local configValue = ns.GUI.Helpers.OptionValues.Get(configPath, nil)
+        if configValue == nil then
+            configValue = ns.GUI.Helpers.OptionValues.GetDefault(configPath, nil)
+        end
+
+        local hasTemplate = type(configValue) == "table"
+            and type(configValue.tag) == "string"
+            and configValue.tag ~= ""
+
+        if type(configValue) == "table" and (enabledValue == true or hasTemplate) then
             table.insert(tabs, {
                 text = ns.GetLabel(KM.Texts, def.value),
                 value = def.configKey,
@@ -736,6 +767,7 @@ function B.BuildTextBuilderPage(container)
         template = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
         templateName = "",
         selectedTemplate = "",
+        applySlot = "Custom1",
     }
 
     AddPageHeading(container, L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
@@ -798,6 +830,40 @@ function B.BuildTextBuilderPage(container)
     deleteTemplateButton:SetWidth(110)
     templatesGroup:AddChild(deleteTemplateButton)
 
+    local applyGroup = AceGUI:Create("InlineGroup")
+    applyGroup:SetFullWidth(true)
+    applyGroup:SetLayout("Flow")
+    applyGroup:SetTitle(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
+    container:AddChild(applyGroup)
+
+    local applySlotDropdown = AceGUI:Create("Dropdown")
+    applySlotDropdown:SetLabel(L["INFO_TEXT_BUILDER_TARGET_TEXT"] or "Target Text")
+    applySlotDropdown:SetWidth(220)
+    applySlotDropdown:SetList({
+        Custom1 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_1),
+        Custom2 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_2),
+        Custom3 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_3),
+    })
+    applySlotDropdown:SetValue(state.textBuilder.applySlot or "Custom1")
+    applyGroup:AddChild(applySlotDropdown)
+
+    local applyUnitDropdown = AceGUI:Create("Dropdown")
+    applyUnitDropdown:SetLabel(L["INFO_TEXT_BUILDER_UNIT"] or "Unit")
+    applyUnitDropdown:SetWidth(220)
+    applyUnitDropdown:SetList({
+        [C.Units.PLAYER] = ns.GetLabel(KM.Units, C.Units.PLAYER),
+        [C.Units.TARGET] = ns.GetLabel(KM.Units, C.Units.TARGET),
+        [C.Units.FOCUS] = ns.GetLabel(KM.Units, C.Units.FOCUS),
+        [C.Units.PET] = ns.GetLabel(KM.Units, C.Units.PET),
+    })
+    applyUnitDropdown:SetValue(C.Units.PLAYER)
+    applyGroup:AddChild(applyUnitDropdown)
+
+    local applyTemplateButton = AceGUI:Create("Button")
+    applyTemplateButton:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
+    applyTemplateButton:SetWidth(160)
+    applyGroup:AddChild(applyTemplateButton)
+
     local previewGroup = AceGUI:Create("InlineGroup")
     previewGroup:SetFullWidth(true)
     previewGroup:SetLayout("Flow")
@@ -848,6 +914,26 @@ function B.BuildTextBuilderPage(container)
         end
     end
 
+    local function ApplyTemplateToTextSlot()
+        local slotKey = state.textBuilder.applySlot or "Custom1"
+        local unitKey = applyUnitDropdown:GetValue() or C.Units.PLAYER
+        local template = templateEdit:GetText() or ""
+
+        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "tag" }, template)
+        ns.GUI.Helpers.OptionRefresh.Live()
+
+        if ns.GUI and ns.GUI.RefreshOptions then
+            ns.GUI:RefreshOptions()
+        end
+
+        SetStatus(string.format(
+            "%s: %s -> %s",
+            L["INFO_TEXT_BUILDER_STATUS_APPLIED_TO"] or "Applied to",
+            ns.GetLabel(KM.Texts, slotKey == "Custom1" and C.Texts.CUSTOM_1 or slotKey == "Custom2" and C.Texts.CUSTOM_2 or C.Texts.CUSTOM_3),
+            ns.GetLabel(KM.Units, unitKey)
+        ))
+    end
+
     templateEdit:SetCallback("OnEnterPressed", function(widget, _, value)
         state.textBuilder.template = value or ""
         RefreshPreview()
@@ -862,6 +948,14 @@ function B.BuildTextBuilderPage(container)
     updateButton:SetCallback("OnClick", function()
         state.textBuilder.template = templateEdit:GetText() or ""
         RefreshPreview()
+    end)
+
+    applySlotDropdown:SetCallback("OnValueChanged", function(_, _, value)
+        state.textBuilder.applySlot = value or "Custom1"
+    end)
+
+    applyTemplateButton:SetCallback("OnClick", function()
+        ApplyTemplateToTextSlot()
     end)
 
     templateNameEdit:SetCallback("OnEnterPressed", function(widget, _, value)

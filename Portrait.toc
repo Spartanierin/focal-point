@@ -1,6 +1,6 @@
 ## Title: Portrait
 ## Interface: 120000, 120001
-## Version: 0.8.16
+## Version: 0.8.17
 ## Author: Spartanierin
 ## Notes: Clean, modular and beautiful unit frames
 

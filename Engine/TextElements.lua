@@ -609,10 +609,6 @@ local function FrameUsesCastTime(frame)
     return type(textConfig) == "table" and textConfig.enabled ~= false
 end
 
-local function IsDeferredCustomTextKey(key)
-    return key == "Custom1" or key == "Custom2" or key == "Custom3"
-end
-
 local function ResolveTextTemplate(frame, unit, template)
     if type(template) ~= "string" or template == "" then
         return ""
@@ -692,10 +688,6 @@ function UF:CreateTextElement(frame, key, textConfig)
         return
     end
 
-    if IsDeferredCustomTextKey(key) then
-        return
-    end
-
     local parent = GetTextLayerParent(frame)
     local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     text:SetDrawLayer("OVERLAY", 7)
@@ -719,11 +711,6 @@ end
 
 function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     if not textObject or not textConfig then
-        return
-    end
-
-    if IsDeferredCustomTextKey(key) then
-        textObject:Hide()
         return
     end
 
@@ -790,14 +777,6 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
 end
 
 function UF:UpdateTextElement(frame, key)
-    if IsDeferredCustomTextKey(key) then
-        if frame and frame.Texts and frame.Texts[key] then
-            frame.Texts[key]:SetText("")
-            frame.Texts[key]:Hide()
-        end
-        return
-    end
-
     if not frame or not frame.Texts or not frame.Texts[key] then
         return
     end
