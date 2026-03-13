@@ -42,10 +42,18 @@ function Portrait:GetDefaultDB()
 
                     showPowerBar = true,
                     powerBarHeight = 8,
+                    showCastBar = true,
+                    showCastBarIcon = true,
+                    castBarHeight = 10,
+                    castBarPoint = "BOTTOMLEFT",
+                    castBarRelativePoint = "TOPLEFT",
+                    castBarOffsetX = 0,
+                    castBarOffsetY = 4,
 
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
 
                     backgroundColor = { 0.08, 0.08, 0.08, 0.90 },
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
@@ -346,15 +354,15 @@ function Portrait:GetDefaultDB()
                             enabled = true,
                             tag = "[cast:name]",
 
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -6,
+                            anchorTo = "CastBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 4,
+                            offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
-                            justifyH = "CENTER",
+                            justifyH = "LEFT",
 
                             color = { 1.00, 0.82, 0.20, 1.00 },
 
@@ -372,15 +380,15 @@ function Portrait:GetDefaultDB()
                             enabled = true,
                             tag = "[cast:time]",
 
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -20,
+                            anchorTo = "CastBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -4,
+                            offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
-                            justifyH = "CENTER",
+                            justifyH = "RIGHT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
 
@@ -419,6 +427,14 @@ function Portrait:GetDefaultDB()
                     x = 250,
                     y = -180,
                     showPowerBar = false,
+                    showCastBar = true,
+                    showCastBarIcon = true,
+                    castBarHeight = 10,
+                    castBarPoint = "BOTTOMLEFT",
+                    castBarRelativePoint = "TOPLEFT",
+                    castBarOffsetX = 0,
+                    castBarOffsetY = 4,
+                    castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
 
                     Portrait = {
                         enabled = false,
@@ -524,15 +540,15 @@ function Portrait:GetDefaultDB()
                             enabled = true,
                             tag = "[cast:name]",
 
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -6,
+                            anchorTo = "CastBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 4,
+                            offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
-                            justifyH = "CENTER",
+                            justifyH = "LEFT",
 
                             color = { 1.00, 0.82, 0.20, 1.00 },
 
@@ -550,15 +566,15 @@ function Portrait:GetDefaultDB()
                             enabled = true,
                             tag = "[cast:time]",
 
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -20,
+                            anchorTo = "CastBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -4,
+                            offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
-                            justifyH = "CENTER",
+                            justifyH = "RIGHT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
 

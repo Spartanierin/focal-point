@@ -112,10 +112,67 @@ local function EnsureBarTextureDefaults()
     end
 end
 
+local function ApplyCastTextLayoutDefaults(textConfig, isName)
+    if type(textConfig) ~= "table" then
+        return
+    end
+
+    if isName then
+        textConfig.anchorTo = "CastBar"
+        textConfig.point = "LEFT"
+        textConfig.relativePoint = "LEFT"
+        textConfig.offsetX = 4
+        textConfig.offsetY = 0
+        textConfig.justifyH = "LEFT"
+    else
+        textConfig.anchorTo = "CastBar"
+        textConfig.point = "RIGHT"
+        textConfig.relativePoint = "RIGHT"
+        textConfig.offsetX = -4
+        textConfig.offsetY = 0
+        textConfig.justifyH = "RIGHT"
+    end
+end
+
+local function EnsureCastTextDefaults()
+    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.db.profile.Units then
+        return
+    end
+
+    for _, unitKey in ipairs({ "player", "target" }) do
+        local unitDB = PORTRAIT.db.profile.Units[unitKey]
+        local texts = unitDB and unitDB.Texts
+        if type(texts) == "table" then
+            local castName = texts.CastName
+            if type(castName) == "table"
+                and castName.anchorTo == "Frame"
+                and castName.point == "TOP"
+                and castName.relativePoint == "BOTTOM"
+                and (castName.offsetX or 0) == 0
+                and (castName.offsetY or 0) == -6
+            then
+                ApplyCastTextLayoutDefaults(castName, true)
+            end
+
+            local castTime = texts.CastTime
+            if type(castTime) == "table"
+                and castTime.anchorTo == "Frame"
+                and castTime.point == "TOP"
+                and castTime.relativePoint == "BOTTOM"
+                and (castTime.offsetX or 0) == 0
+                and (castTime.offsetY or 0) == -20
+            then
+                ApplyCastTextLayoutDefaults(castTime, false)
+            end
+        end
+    end
+end
+
 function PortraitAddon:OnInitialize()
     PORTRAIT.db = LibStub("AceDB-3.0"):New("PortraitDB", PORTRAIT:GetDefaultDB(), true)
     EnsureImageElementDefaults()
     EnsureBarTextureDefaults()
+    EnsureCastTextDefaults()
 
     PORTRAIT.LDS = PORTRAIT.LDS or LibStub("LibDualSpec-1.0", true)
     if PORTRAIT.LDS then

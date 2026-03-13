@@ -820,6 +820,10 @@ function Portrait:CreateGUI()
                 self.TestEnvironment:Refresh()
             end
         end
+
+        if Portrait.RefreshAllUnitFrames then
+            Portrait:RefreshAllUnitFrames()
+        end
     end
 
     frame:SetCallback("OnClose", function(widget)

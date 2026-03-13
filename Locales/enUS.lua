@@ -157,12 +157,18 @@ L["OPTION_USE_CLASS_COLORS_POWER_DESC"] = "Uses the unit's Blizzard resource col
 L["OPTION_RESET"] = "Reset"
 L["OPTION_SHOW_POWER_BAR"] = "Show Power Bar"
 L["OPTION_SHOW_POWER_BAR_DESC"] = "Shows or hides the power bar for this frame."
+L["OPTION_SHOW_CAST_BAR"] = "Show Cast Bar"
+L["OPTION_SHOW_CAST_BAR_DESC"] = "Shows or hides the cast bar for this frame."
+L["OPTION_SHOW_CAST_BAR_ICON"] = "Show Cast Icon"
+L["OPTION_SHOW_CAST_BAR_ICON_DESC"] = "Shows or hides the spell icon next to the cast bar."
 L["OPTION_POWER_BACKGROUND_DESC"] = "Shows or hides the background of the power bar."
 L["OPTION_POWER_BACKGROUND_COLOR_DESC"] = "Sets the background color of the power bar."
 L["OPTION_POWER_BAR_HEIGHT"] = "Power Bar Height"
 L["OPTION_POWER_BAR_HEIGHT_DESC"] = "Sets the height of the power bar."
+L["OPTION_CAST_BAR_HEIGHT"] = "Cast Bar Height"
+L["OPTION_CAST_BAR_HEIGHT_DESC"] = "Sets the height of the cast bar."
 L["OPTION_BAR_TEXTURE"] = "Bar Texture"
-L["OPTION_BAR_TEXTURE_DESC"] = "Sets the status bar texture used for health and power bars."
+L["OPTION_BAR_TEXTURE_DESC"] = "Sets the status bar texture used for the selected bar."
 
 
 -- Visibility / Logic

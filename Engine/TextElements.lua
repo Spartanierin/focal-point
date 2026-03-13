@@ -683,6 +683,19 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
         textConfig.offsetY or 0
     )
 
+    if textConfig.anchorTo == "CastBar" and anchorParent and anchorParent.GetWidth then
+        local castBarWidth = anchorParent:GetWidth() or 0
+        if key == "CastTime" then
+            textObject:SetWidth(48)
+        elseif key == "CastName" then
+            textObject:SetWidth(math.max(castBarWidth - 56, 20))
+        else
+            textObject:SetWidth(0)
+        end
+    else
+        textObject:SetWidth(0)
+    end
+
     textObject:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
     textObject:SetTextColor(r, g, b, a)
     textObject:SetJustifyH(justifyH)
@@ -782,6 +795,9 @@ function UF:RegisterTextEvents(frame)
         end
 
         self.elapsed = 0
+        if UF.RefreshCastBar then
+            UF:RefreshCastBar(owner)
+        end
         UF:UpdateTextElement(owner, "CastTime")
     end)
 
@@ -795,8 +811,14 @@ function UF:RegisterTextEvents(frame)
             if UF.RefreshUnitBarValues then
                 UF:RefreshUnitBarValues(owner)
             end
+            if UF.RefreshCastBar then
+                UF:RefreshCastBar(owner)
+            end
             UF:RefreshLiveValues(owner)
             UF:UpdateTextElements(owner)
+            if UF.RefreshCastBar then
+                UF:RefreshCastBar(owner)
+            end
             return
         end
 
@@ -805,8 +827,14 @@ function UF:RegisterTextEvents(frame)
                 if UF.RefreshUnitBarValues then
                     UF:RefreshUnitBarValues(owner)
                 end
+                if UF.RefreshCastBar then
+                    UF:RefreshCastBar(owner)
+                end
                 UF:RefreshLiveValues(owner)
                 UF:UpdateTextElements(owner)
+                if UF.RefreshCastBar then
+                    UF:RefreshCastBar(owner)
+                end
             end
             return
         end
@@ -818,8 +846,14 @@ function UF:RegisterTextEvents(frame)
         if UF.RefreshUnitBarValues then
             UF:RefreshUnitBarValues(owner)
         end
+        if UF.RefreshCastBar then
+            UF:RefreshCastBar(owner)
+        end
         UF:RefreshLiveValues(owner)
         UF:UpdateTextElements(owner)
+        if UF.RefreshCastBar then
+            UF:RefreshCastBar(owner)
+        end
     end)
 
     frame.TextEventFrame = eventFrame

@@ -165,6 +165,7 @@ local function GetBarTabValues()
     return {
         { text = ns.GetLabel(KM.Bars, C.Bars.HEALTH), value = C.Bars.HEALTH },
         { text = ns.GetLabel(KM.Bars, C.Bars.POWER), value = C.Bars.POWER },
+        { text = ns.GetLabel(KM.Bars, C.Bars.CAST), value = C.Bars.CAST },
     }
 end
 
@@ -1081,6 +1082,97 @@ function B.BuildUnitPowerBarPage(container, unitKey)
     end
 end
 
+function B.BuildUnitCastBarPage(container, unitKey)
+    ResetFlowContainer(container)
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    local CAST_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.CastBarTab
+    local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function IsCastBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showCastBar" }, true)
+    end
+
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.CAST))
+
+    local function ResolveDisabled(def)
+        if def.disabled == "unit" then
+            return IsUnitDisabled
+        end
+
+        if def.disabled == "cast" then
+            return IsCastBarDisabled
+        end
+
+        return nil
+    end
+
+    local function AddSectionWidget(layout, def)
+        local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        if not CanBuildLayoutWidget(def, resolvedList) then
+            return
+        end
+
+        if def.widget == "dropdown" then
+            layout:Add(Dropdown.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                list = resolvedList,
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+                refreshGUI = def.refreshGUI,
+            }))
+            return
+        end
+
+        if def.widget == "checkbox" then
+            layout:Add(Checkbox.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+                refreshGUI = def.refreshGUI,
+            }))
+            return
+        end
+
+        if def.widget == "slider" then
+            layout:Add(Slider.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                min = def.min,
+                max = def.max,
+                step = def.step,
+                fallback = def.fallback,
+                format = def.format,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }))
+        end
+    end
+
+    for _, sectionDef in ipairs(CAST_BAR_LAYOUT) do
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+
+        if sectionDef.mode == "section" then
+            local layout = CreateSection(container)
+            for _, item in ipairs(sectionDef.items) do
+                AddSectionWidget(layout, item)
+            end
+        end
+    end
+end
+
 local function BuildUnitTextPage(container, unitKey, textConfigKey, textLabel)
     ResetFlowContainer(container)
 
@@ -1372,6 +1464,11 @@ function B.BuildUnitBarsPage(container, unitKey)
 
             if barKey == C.Bars.POWER then
                 B.BuildUnitPowerBarPage(content, unitKey)
+                return
+            end
+
+            if barKey == C.Bars.CAST then
+                B.BuildUnitCastBarPage(content, unitKey)
                 return
             end
 

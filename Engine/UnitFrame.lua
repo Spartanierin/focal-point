@@ -148,6 +148,18 @@ local function SafeAbbreviateNumber(value)
     return "0"
 end
 
+local function ApplyCastBarStateColor(castBar, isInterruptible)
+    if not castBar then
+        return
+    end
+
+    if isInterruptible == false then
+        castBar:SetStatusBarColor(0.60, 0.60, 0.60, 1.00)
+    else
+        castBar:SetStatusBarColor(1.00, 0.72, 0.18, 1.00)
+    end
+end
+
 local function BuildFontFlags(config)
     local flags = {}
 
@@ -171,6 +183,8 @@ function UF:GetAnchorTarget(frame, anchorTo)
         return frame.Elements.HealthBar or frame
     elseif anchorTo == "PowerBar" then
         return frame.Elements.PowerBar or frame
+    elseif anchorTo == "CastBar" then
+        return frame.Elements.CastBar or frame
     elseif anchorTo == "Frame" then
         return frame
     end
@@ -235,6 +249,31 @@ function UF:CreatePowerBar(frame)
     frame.power = power
 end
 
+function UF:CreateCastBar(frame)
+    local cast = CreateFrame("StatusBar", nil, frame)
+    cast:SetMinMaxValues(0, 1)
+    cast:SetFrameStrata(frame:GetFrameStrata())
+    cast:SetFrameLevel(frame:GetFrameLevel() + 5)
+    cast:Hide()
+
+    local bg = cast:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    cast.bg = bg
+
+    local icon = cast:CreateTexture(nil, "ARTWORK")
+    icon:Hide()
+    cast.icon = icon
+
+    cast.isCasting = false
+    cast.isChannel = false
+    cast.startTime = 0
+    cast.endTime = 0
+
+    frame.Elements.CastBar = cast
+    frame.castBar = cast
+end
+
 function UF:RefreshUnitBarValues(frame)
     if not frame or not frame.unit then
         return
@@ -279,6 +318,313 @@ function UF:RefreshUnitBarValues(frame)
         frame.LiveValues.powerCurrentAbbr = SafeAbbreviateNumber(currentPower)
         frame.LiveValues.powerMaxAbbr = SafeAbbreviateNumber(maxPower)
     end
+end
+
+local function GetActiveCastTiming(unit)
+    if not unit then
+        return nil, nil, nil, nil, nil
+    end
+
+    if UnitCastingInfo then
+        local castName, _, castIcon, startTimeMS, endTimeMS, _, _, notInterruptible = UnitCastingInfo(unit)
+        if type(castName) == "string" and castName ~= ""
+            and type(startTimeMS) == "number"
+            and type(endTimeMS) == "number"
+        then
+            return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, not notInterruptible
+        end
+    end
+
+    if UnitChannelInfo then
+        local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible = UnitChannelInfo(unit)
+        if type(channelName) == "string" and channelName ~= ""
+            and type(startTimeMS) == "number"
+            and type(endTimeMS) == "number"
+        then
+            return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, not notInterruptible
+        end
+    end
+
+    return nil, nil, nil, nil, nil
+end
+
+local function StartCastBar(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    local unit = frame and frame.unit
+    if not castBar or not unit then
+        return
+    end
+
+    local isChannel, startTime, endTime, spellIcon, isInterruptible = GetActiveCastTiming(unit)
+
+    if type(startTime) ~= "number" or type(endTime) ~= "number" then
+        castBar.isCasting = false
+        castBar.isPreview = false
+        castBar:Hide()
+        return
+    end
+
+    castBar.startTime = startTime
+    castBar.endTime = endTime
+    castBar.isCasting = true
+    castBar.isChannel = isChannel and true or false
+    castBar.isPreview = false
+    castBar.isInterruptible = isInterruptible ~= false
+    castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
+    castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
+    ApplyCastBarStateColor(castBar, castBar.isInterruptible)
+
+    if castBar.icon then
+        if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
+            castBar.icon:SetTexture(spellIcon)
+            castBar.icon:Show()
+        else
+            castBar.icon:SetTexture(nil)
+            castBar.icon:Hide()
+        end
+    end
+
+    if frame.config and frame.config.showCastBar ~= false then
+        castBar:Show()
+    end
+end
+
+local function StartCastBarPreview(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    if not castBar then
+        return
+    end
+
+    local now = GetTime and GetTime() or 0
+    castBar.startTime = now
+    castBar.endTime = now + 2.5
+    castBar.isCasting = true
+    castBar.isChannel = false
+    castBar.isPreview = true
+    castBar.isInterruptible = true
+    castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
+    castBar:SetValue(now + 1.25)
+    ApplyCastBarStateColor(castBar, true)
+
+    if castBar.icon then
+        if frame.config and frame.config.showCastBarIcon ~= false then
+            castBar.icon:SetTexture(136048)
+            castBar.icon:Show()
+        else
+            castBar.icon:SetTexture(nil)
+            castBar.icon:Hide()
+        end
+    end
+
+    if frame.config and frame.config.showCastBar ~= false then
+        castBar:Show()
+    end
+end
+
+local function StopCastBar(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    if not castBar then
+        return
+    end
+
+    castBar.isCasting = false
+    castBar.isChannel = false
+    castBar.isPreview = false
+    castBar.isInterruptible = true
+    castBar.startTime = 0
+    castBar.endTime = 0
+    if castBar.icon then
+        castBar.icon:SetTexture(nil)
+        castBar.icon:Hide()
+    end
+    castBar:Hide()
+end
+
+local function QueueCastBarRefresh(frame)
+    if not frame or not C_Timer or not C_Timer.After then
+        return
+    end
+
+    if frame.castBarRefreshQueued then
+        return
+    end
+
+    frame.castBarRefreshQueued = true
+    C_Timer.After(0, function()
+        if not frame then
+            return
+        end
+
+        frame.castBarRefreshQueued = false
+
+        if UF.RefreshCastBar then
+            UF:RefreshCastBar(frame)
+        end
+    end)
+end
+
+function UF:RefreshCastBar(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    if not castBar then
+        return
+    end
+
+    if frame.config and frame.config.showCastBar == false then
+        StopCastBar(frame)
+        return
+    end
+
+    local unit = frame.unit
+    if not unit then
+        StopCastBar(frame)
+        return
+    end
+
+    local now = GetTime and GetTime() or 0
+    local isChannel, startTime, endTime, spellIcon, isInterruptible = GetActiveCastTiming(unit)
+    local hasCast = type(startTime) == "number" and type(endTime) == "number"
+
+    if hasCast then
+        local duration = math.max(endTime - startTime, 0.001)
+
+        castBar.isCasting = true
+        castBar.isChannel = isChannel
+        castBar.isPreview = false
+        castBar.isInterruptible = isInterruptible ~= false
+        castBar.startTime = startTime
+        castBar.endTime = endTime
+        castBar:SetMinMaxValues(0, duration)
+
+        if isChannel then
+            castBar:SetValue(math.max(endTime - now, 0))
+        else
+            castBar:SetValue(math.max(now - startTime, 0))
+        end
+
+        ApplyCastBarStateColor(castBar, castBar.isInterruptible)
+
+        if castBar.icon then
+            if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
+                castBar.icon:SetTexture(spellIcon)
+                castBar.icon:Show()
+            else
+                castBar.icon:SetTexture(nil)
+                castBar.icon:Hide()
+            end
+        end
+
+        castBar:Show()
+    elseif not castBar.isPreview then
+        StopCastBar(frame)
+    end
+end
+
+function UF:RegisterCastBarEvents(frame)
+    if not frame or frame.CastBarEventFrame or not frame.Elements or not frame.Elements.CastBar then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+    eventFrame.elapsed = 0
+
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
+    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnUpdate", function(self, elapsed)
+        local owner = self.owner
+        local castBar = owner and owner.Elements and owner.Elements.CastBar
+        if not owner or not castBar or not castBar.isCasting then
+            self.elapsed = 0
+            return
+        end
+
+        self.elapsed = (self.elapsed or 0) + elapsed
+        if self.elapsed < 0.02 then
+            return
+        end
+
+        self.elapsed = 0
+
+        local now = GetTime and GetTime() or 0
+        if castBar.isPreview then
+            if not Portrait.guiTestModeEnabled then
+                StopCastBar(owner)
+                return
+            end
+
+            if now >= castBar.endTime then
+                castBar.startTime = now
+                castBar.endTime = now + 2.5
+                castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
+            end
+
+            castBar:SetValue(now)
+            return
+        end
+
+        UF:RefreshCastBar(owner)
+    end)
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner then
+            return
+        end
+
+        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+            UF:RefreshCastBar(owner)
+            QueueCastBarRefresh(owner)
+            return
+        end
+
+        if event == "UNIT_PET" then
+            if owner.unit == "pet" and unit == "player" then
+                UF:RefreshCastBar(owner)
+                QueueCastBarRefresh(owner)
+            end
+            return
+        end
+
+        if event == "PLAYER_ENTERING_WORLD" then
+            UF:RefreshCastBar(owner)
+            QueueCastBarRefresh(owner)
+            return
+        end
+
+        if unit and unit ~= owner.unit then
+            return
+        end
+
+        if event == "UNIT_SPELLCAST_STOP"
+            or event == "UNIT_SPELLCAST_FAILED"
+            or event == "UNIT_SPELLCAST_INTERRUPTED"
+            or event == "UNIT_SPELLCAST_CHANNEL_STOP"
+        then
+            StopCastBar(owner)
+            return
+        end
+
+        UF:RefreshCastBar(owner)
+        QueueCastBarRefresh(owner)
+    end)
+
+    frame.CastBarEventFrame = eventFrame
 end
 
 -- Raid Target Icon
@@ -1063,6 +1409,7 @@ function UF:ApplyConfig(frame)
 
     local healthTexture = GetStatusBarTexture(config.healthBarTexture)
     local powerTexture = GetStatusBarTexture(config.powerBarTexture)
+    local castTexture = GetStatusBarTexture(config.castBarTexture)
     local globalClickThrough = Portrait.db
         and Portrait.db.profile
         and Portrait.db.profile.General
@@ -1173,6 +1520,54 @@ function UF:ApplyConfig(frame)
                 power.bg:Hide()
             end
             power:Hide()
+        end
+    end
+
+    if frame.Elements.CastBar then
+        local castBar = frame.Elements.CastBar
+        local showCastBar = config.showCastBar ~= false
+        local showCastBarIcon = config.showCastBarIcon ~= false
+        local castBarHeight = tonumber(config.castBarHeight) or 10
+        local castBarIconSize = showCastBarIcon and castBarHeight or 0
+        local castBarIconGap = showCastBarIcon and 4 or 0
+        local castBarPoint = config.castBarPoint or "BOTTOMLEFT"
+        local castBarRelativePoint = config.castBarRelativePoint or "TOPLEFT"
+        local castBarOffsetX = tonumber(config.castBarOffsetX) or 0
+        local castBarOffsetY = tonumber(config.castBarOffsetY) or 4
+
+        castBar:ClearAllPoints()
+        castBar:SetFrameStrata(frame:GetFrameStrata())
+        castBar:SetFrameLevel(math.max(frame:GetFrameLevel() + 5, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 1) or (frame:GetFrameLevel() + 5)))
+        castBar:SetStatusBarTexture(castTexture)
+        ApplyCastBarStateColor(castBar, castBar.isInterruptible)
+
+        if castBar.bg then
+            castBar.bg:SetTexture(castTexture)
+            castBar.bg:SetVertexColor(0, 0, 0, 0.35)
+        end
+
+        castBar:SetPoint(
+            castBarPoint,
+            frame,
+            castBarRelativePoint,
+            castBarOffsetX + borderInset + castBarIconSize + castBarIconGap,
+            castBarOffsetY
+        )
+        castBar:SetWidth(math.max(width - (borderInset * 2) - castBarIconSize - castBarIconGap, 20))
+        castBar:SetHeight(castBarHeight)
+
+        if castBar.icon then
+            castBar.icon:ClearAllPoints()
+            castBar.icon:SetSize(castBarHeight, castBarHeight)
+            castBar.icon:SetPoint("CENTER", castBar, "LEFT", -((castBarHeight / 2) + castBarIconGap), 0)
+            if not showCastBarIcon or not castBar.isCasting then
+                castBar.icon:SetTexture(nil)
+                castBar.icon:Hide()
+            end
+        end
+
+        if not showCastBar or not castBar.isCasting then
+            castBar:Hide()
         end
     end
 
@@ -1360,6 +1755,11 @@ end
 
 function UF:ApplyTestValues(frame)
     self:RefreshUnitBarValues(frame)
+    StartCastBar(frame)
+
+    if Portrait.guiTestModeEnabled and frame.Elements and frame.Elements.CastBar and not frame.Elements.CastBar.isCasting then
+        StartCastBarPreview(frame)
+    end
 
     if self.ApplyTestTextValues then
         self:ApplyTestTextValues(frame)
@@ -1375,6 +1775,7 @@ function UF:Build(unit)
     local frame = self:CreateBaseFrame(unit, config)
     self:CreateHealthBar(frame)
     self:CreatePowerBar(frame)
+    self:CreateCastBar(frame)
     self:CreatePortrait(frame)
     self:RegisterPortraitEvents(frame)
     self:CreateRaidTargetIcon(frame)
@@ -1389,6 +1790,7 @@ function UF:Build(unit)
     self:RegisterRestingIndicatorEvents(frame)
     self:CreateReadyCheckIndicator(frame)
     self:RegisterReadyCheckIndicatorEvents(frame)
+    self:RegisterCastBarEvents(frame)
     self:CreateTextElements(frame)
     self:RegisterTextEvents(frame)
 
