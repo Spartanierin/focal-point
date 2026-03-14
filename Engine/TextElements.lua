@@ -32,13 +32,13 @@ local function GetClassTextColor(unit)
         return nil
     end
 
-    if UnitIsPlayer and not UnitIsPlayer(unit) then
-        return nil
-    end
-
     local _, classToken = UnitClass(unit)
     if not classToken then
         return nil
+    end
+
+    if type(classToken) == "string" then
+        classToken = classToken:upper()
     end
 
     local color = nil
@@ -47,6 +47,11 @@ local function GetClassTextColor(unit)
         color = CUSTOM_CLASS_COLORS[classToken]
     elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
         color = RAID_CLASS_COLORS[classToken]
+    elseif C_ClassColor and C_ClassColor.GetClassColor then
+        local classColor = C_ClassColor.GetClassColor(classToken)
+        if classColor then
+            return classColor.r or 1, classColor.g or 1, classColor.b or 1, classColor.a or 1
+        end
     end
 
     if not color then
@@ -143,6 +148,14 @@ local function FormatTimeValue(value)
     end
 
     return string.format("%.1f", value)
+end
+
+local function IsSafeTrue(value)
+    if type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) then
+        return value
+    end
+
+    return false
 end
 
 local ABBREV_DATA = {
@@ -502,7 +515,7 @@ local function ResolveBasicTag(frame, unit, token)
     if token == "race" then
         if unit and UnitIsPlayer and UnitIsPlayer(unit) and UnitRace then
             local raceName = UnitRace(unit)
-            if type(raceName) == "string" and raceName ~= "" then
+            if type(raceName) == "string" then
                 return raceName
             end
         end
@@ -513,14 +526,14 @@ local function ResolveBasicTag(frame, unit, token)
     if token == "creature" then
         if unit and UnitCreatureFamily then
             local creatureFamily = UnitCreatureFamily(unit)
-            if type(creatureFamily) == "string" and creatureFamily ~= "" then
+            if type(creatureFamily) == "string" then
                 return creatureFamily
             end
         end
 
         if unit and UnitCreatureType then
             local creatureType = UnitCreatureType(unit)
-            if type(creatureType) == "string" and creatureType ~= "" then
+            if type(creatureType) == "string" then
                 return creatureType
             end
         end
@@ -533,27 +546,27 @@ local function ResolveBasicTag(frame, unit, token)
             return ""
         end
 
-        if UnitExists and not UnitExists(unit) then
+        if UnitExists and not IsSafeTrue(UnitExists(unit)) then
             return ""
         end
 
-        if UnitIsConnected and not UnitIsConnected(unit) then
+        if UnitIsConnected and not IsSafeTrue(UnitIsConnected(unit)) then
             return PLAYER_OFFLINE or "Offline"
         end
 
-        if UnitIsDeadOrGhost and UnitIsDeadOrGhost(unit) then
-            if UnitIsGhost and UnitIsGhost(unit) then
+        if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
+            if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
                 return DEAD or "Dead"
             end
 
             return DEAD or "Dead"
         end
 
-        if UnitIsAFK and UnitIsAFK(unit) then
+        if UnitIsAFK and IsSafeTrue(UnitIsAFK(unit)) then
             return AFK or "AFK"
         end
 
-        if UnitIsDND and UnitIsDND(unit) then
+        if UnitIsDND and IsSafeTrue(UnitIsDND(unit)) then
             return DND or "DND"
         end
 
@@ -687,6 +700,14 @@ local function ResolveTextTemplate(frame, unit, template)
     return table.concat(result)
 end
 
+local function TemplateContainsToken(template, token)
+    if type(template) ~= "string" or template == "" then
+        return false
+    end
+
+    return template:find("%[" .. token:gsub("([^%w:])", "%%%1") .. "%]") ~= nil
+end
+
 function UF:BuildTemplatePreview(template, unit)
     if type(template) ~= "string" or template == "" then
         return ""
@@ -721,23 +742,21 @@ local function ApplyDirectTemplate(frame, textObject, unit, template)
 
     local formatString = template and template:gsub("%%", "%%%%") or ""
     local formatArgs = {}
-    local hasDirectToken = false
+    local hasToken = false
 
     for token in template:gmatch("%[([^%]]+)%]") do
-        local def = TOKEN_DEFS[token]
-        if not def or not def.direct then
-            return false
+        local resolved = ResolveBasicTag(frame, unit, token)
+        if resolved == nil then
+            resolved = "[" .. token .. "]"
+        elseif type(resolved) ~= "string" then
+            resolved = FormatNumber(resolved)
         end
 
-        local value = def.value and def.value(unit, frame) or nil
-        local formatter = def.format or FormatNumber
-        local directValue = def.passRaw and value or formatter(value)
-
-        formatArgs[#formatArgs + 1] = directValue
-        hasDirectToken = true
+        formatArgs[#formatArgs + 1] = resolved
+        hasToken = true
     end
 
-    if not hasDirectToken then
+    if not hasToken then
         return false
     end
 
@@ -789,7 +808,9 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
 
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
-    if key == "Class" then
+    local template = textConfig.tag or ""
+
+    if key == "Class" or TemplateContainsToken(template, "class") then
         local classR, classG, classB, classA = GetClassTextColor(frame.unit)
         if classR and classG and classB then
             r, g, b, a = classR, classG, classB, classA or 1
@@ -853,6 +874,17 @@ function UF:UpdateTextElement(frame, key)
     end
 
     local template = textConfig.tag or ""
+    local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
+    if key == "Class" or TemplateContainsToken(template, "class") then
+        local classR, classG, classB, classA = GetClassTextColor(frame.unit)
+        if classR and classG and classB then
+            r, g, b, a = classR, classG, classB, classA or 1
+        end
+    elseif key == "Level" then
+        r, g, b, a = 1.00, 0.82, 0.00, 1.00
+    end
+    textObject:SetTextColor(r, g, b, a)
+
     if ApplyDirectTemplate(frame, textObject, frame.unit, template) then
         return
     end

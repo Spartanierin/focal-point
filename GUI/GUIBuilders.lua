@@ -565,45 +565,117 @@ function B.BuildGeneralPage(container)
 
     local version = GetAddonVersionText()
     local logoPath = "Interface\\AddOns\\Portrait\\Media\\Icon.tga"
+    local function CreateSpacer(height)
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText(" ")
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(height or 1)
+        return spacer
+    end
+
+    local function CreateStyledGeneralOption(config)
+        local handle = Checkbox.Create(config)
+        if not handle or not handle.group then
+            return handle
+        end
+
+        if handle.checkbox then
+            handle.checkbox:SetWidth(240)
+            if handle.checkbox.text and handle.checkbox.text.SetFontObject then
+                handle.checkbox.text:SetFontObject(GameFontHighlight)
+            end
+        end
+
+        local children = handle.group.children or {}
+        local row = children[1]
+        local description = children[2]
+        if row and row.SetFullWidth then
+            row:SetFullWidth(true)
+        end
+
+        if description and description.SetText then
+            if description.SetFont then
+                description:SetFont(STANDARD_TEXT_FONT, 10, "")
+            end
+            description:SetText(string.format("|cff8f98a3    %s|r", config.description or ""))
+        end
+
+        handle.group:AddChild(CreateSpacer(6))
+        return handle
+    end
 
     local aboutGroup = AceGUI:Create("InlineGroup")
     aboutGroup:SetFullWidth(true)
     aboutGroup:SetLayout("Flow")
-    aboutGroup:SetTitle(string.format(
-        "|T%s:22:22:0:0|t  |cff6fd2ff%s|r  |cffffd35a%s|r  |cff4cff88%s|r",
+    aboutGroup:SetTitle(" ")
+    if aboutGroup.titletext and aboutGroup.titletext.SetText then
+        aboutGroup.titletext:SetText(" ")
+    end
+    container:AddChild(aboutGroup)
+
+    aboutGroup:AddChild(CreateSpacer(6))
+
+    local brandLine = AceGUI:Create("Label")
+    brandLine:SetFullWidth(true)
+    if brandLine.SetFont then
+        brandLine:SetFont(STANDARD_TEXT_FONT, 16, "")
+    end
+    brandLine:SetText(string.format(
+        "|T%s:24:24:0:0|t  |cff6fd2ff%s|r",
         logoPath,
-        L["ADDON_NAME"] or C.ADDON_NAME,
+        L["ADDON_NAME"] or C.ADDON_NAME
+    ))
+    aboutGroup:AddChild(brandLine)
+
+    local versionLine = AceGUI:Create("Label")
+    versionLine:SetFullWidth(true)
+    if versionLine.SetFont then
+        versionLine:SetFont(STANDARD_TEXT_FONT, 12, "")
+    end
+    versionLine:SetText(string.format(
+        "|cffd8c27a%s|r  |cff4cff88%s|r",
         L["INFO_VERSION"] or "Version",
         version
     ))
-    if aboutGroup.titletext and aboutGroup.titletext.SetFontObject then
-        aboutGroup.titletext:SetFontObject(GameFontHighlightLarge)
-    end
-    container:AddChild(aboutGroup)
+    aboutGroup:AddChild(versionLine)
+
+    aboutGroup:AddChild(CreateSpacer(6))
 
     local welcome = AceGUI:Create("Label")
     welcome:SetFullWidth(true)
     if welcome.SetFont then
-        welcome:SetFont(STANDARD_TEXT_FONT, 14, "")
+        welcome:SetFont(STANDARD_TEXT_FONT, 13, "")
     end
-    welcome:SetText(L["INFO_GENERAL_WELCOME"] or "Welcome to Portrait.")
+    welcome:SetText(string.format("|cfff2e4b8%s|r", L["INFO_GENERAL_WELCOME"] or "Welcome to Portrait."))
     aboutGroup:AddChild(welcome)
+
+    aboutGroup:AddChild(CreateSpacer(3))
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
     if description.SetFont then
-        description:SetFont(STANDARD_TEXT_FONT, 13, "")
+        description:SetFont(STANDARD_TEXT_FONT, 12, "")
     end
-    description:SetText(L["INFO_GENERAL_DESCRIPTION"] or "Portrait is a modular unit frame addon with configurable frames, bars, texts, and elements.")
+    description:SetText(string.format(
+        "|cffd7dbe0%s|r",
+        L["INFO_GENERAL_DESCRIPTION"] or "Portrait is a modular unit frame addon with configurable frames, bars, texts, and elements."
+    ))
     aboutGroup:AddChild(description)
+
+    aboutGroup:AddChild(CreateSpacer(5))
 
     local hint = AceGUI:Create("Label")
     hint:SetFullWidth(true)
     if hint.SetFont then
-        hint:SetFont(STANDARD_TEXT_FONT, 13, "")
+        hint:SetFont(STANDARD_TEXT_FONT, 11, "")
     end
-    hint:SetText(L["INFO_GENERAL_HINT"] or "Use the navigation on the left to configure units, bars, texts, colors, and elements.")
+    hint:SetText(string.format(
+        "|cff9ea8b3%s|r",
+        L["INFO_GENERAL_HINT"] or "Use the navigation on the left to configure units, bars, texts, colors, and elements."
+    ))
     aboutGroup:AddChild(hint)
+
+    aboutGroup:AddChild(CreateSpacer(8))
 
     local settingsGroup = AceGUI:Create("InlineGroup")
     settingsGroup:SetFullWidth(true)
@@ -611,9 +683,11 @@ function B.BuildGeneralPage(container)
     settingsGroup:SetTitle(L["INFO_GENERAL_SETTINGS"] or "General Settings")
     container:AddChild(settingsGroup)
 
+    settingsGroup:AddChild(CreateSpacer(8))
+
     local settingsLayout = CreateSection(settingsGroup)
 
-    settingsLayout:Add(Checkbox.Create({
+    settingsLayout:Add(CreateStyledGeneralOption({
         path = { "General", "HideBlizzardFrames" },
         label = L["OPTION_HIDE_BLIZZARD_FRAMES"],
         description = L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"],
@@ -634,7 +708,7 @@ function B.BuildGeneralPage(container)
         end,
     }))
 
-    settingsLayout:Add(Checkbox.Create({
+    settingsLayout:Add(CreateStyledGeneralOption({
         path = { "General", "GlobalClickThrough" },
         label = L["OPTION_GLOBAL_CLICKTHROUGH"],
         description = L["OPTION_GLOBAL_CLICKTHROUGH_DESC"],
@@ -646,7 +720,7 @@ function B.BuildGeneralPage(container)
         end,
     }))
 
-    settingsLayout:Add(Checkbox.Create({
+    settingsLayout:Add(CreateStyledGeneralOption({
         path = { "General", "MouseEnabled" },
         label = L["OPTION_MOUSE_ENABLED"],
         description = L["OPTION_MOUSE_ENABLED_DESC"],
@@ -658,7 +732,7 @@ function B.BuildGeneralPage(container)
         end,
     }))
 
-    settingsLayout:Add(Checkbox.Create({
+    settingsLayout:Add(CreateStyledGeneralOption({
         path = { "General", "ClampToScreen" },
         label = L["OPTION_CLAMP_TO_SCREEN"],
         description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
@@ -764,12 +838,27 @@ function B.BuildTextBuilderPage(container)
         applySlot = "Custom1",
     }
 
+    local function CreateSpacer(height)
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText(" ")
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(height or 1)
+        return spacer
+    end
+
     AddPageHeading(container, L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
+
+    container:AddChild(CreateSpacer(1))
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
-    description:SetText(L["INFO_TEXT_BUILDER_DESCRIPTION"] or "")
+    if description.SetFont then
+        description:SetFont(STANDARD_TEXT_FONT, 12, "")
+    end
+    description:SetText(string.format("|cffcfd5dd%s|r", L["INFO_TEXT_BUILDER_DESCRIPTION"] or ""))
     container:AddChild(description)
+
+    container:AddChild(CreateSpacer(1))
 
     local builderGroup = AceGUI:Create("InlineGroup")
     builderGroup:SetFullWidth(true)
@@ -777,9 +866,11 @@ function B.BuildTextBuilderPage(container)
     builderGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
     container:AddChild(builderGroup)
 
+    builderGroup:AddChild(CreateSpacer(1))
+
     local templateEdit = AceGUI:Create("EditBox")
     templateEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
-    templateEdit:SetWidth(420)
+    templateEdit:SetWidth(470)
     templateEdit:DisableButton(true)
     templateEdit:SetText(state.textBuilder.template or "")
     builderGroup:AddChild(templateEdit)
@@ -789,25 +880,50 @@ function B.BuildTextBuilderPage(container)
     updateButton:SetWidth(140)
     builderGroup:AddChild(updateButton)
 
+    builderGroup:AddChild(CreateSpacer(2))
+
+    local previewGroup = AceGUI:Create("InlineGroup")
+    previewGroup:SetFullWidth(true)
+    previewGroup:SetLayout("Flow")
+    previewGroup:SetTitle(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
+    container:AddChild(previewGroup)
+
+    previewGroup:AddChild(CreateSpacer(0))
+
+    local previewLabel = AceGUI:Create("Label")
+    previewLabel:SetFullWidth(true)
+    if previewLabel.SetFont then
+        previewLabel:SetFont(STANDARD_TEXT_FONT, 14, "")
+    end
+    if previewLabel.label and previewLabel.label.SetJustifyH then
+        previewLabel.label:SetJustifyH("CENTER")
+    end
+    previewLabel:SetText(" ")
+    previewGroup:AddChild(previewLabel)
+
     local templatesGroup = AceGUI:Create("InlineGroup")
     templatesGroup:SetFullWidth(true)
     templatesGroup:SetLayout("Flow")
     templatesGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
     container:AddChild(templatesGroup)
 
+    templatesGroup:AddChild(CreateSpacer(0))
+
     local templates = (ns.db and ns.db.profile and ns.db.profile.TextTemplates) or {}
 
     local templateSelect = AceGUI:Create("Dropdown")
     templateSelect:SetLabel(L["INFO_TEXT_BUILDER_SAVED_TEMPLATES"] or "Saved Templates")
-    templateSelect:SetWidth(220)
+    templateSelect:SetWidth(240)
     templatesGroup:AddChild(templateSelect)
 
     local templateNameEdit = AceGUI:Create("EditBox")
     templateNameEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE_NAME"] or "Template Name")
-    templateNameEdit:SetWidth(260)
+    templateNameEdit:SetWidth(280)
     templateNameEdit:DisableButton(true)
     templateNameEdit:SetText(state.textBuilder.templateName or "")
     templatesGroup:AddChild(templateNameEdit)
+
+    templatesGroup:AddChild(CreateSpacer(0))
 
     local saveButton = AceGUI:Create("Button")
     saveButton:SetText(L["INFO_TEXT_BUILDER_SAVE"] or "Save")
@@ -824,15 +940,19 @@ function B.BuildTextBuilderPage(container)
     deleteTemplateButton:SetWidth(110)
     templatesGroup:AddChild(deleteTemplateButton)
 
+    templatesGroup:AddChild(CreateSpacer(0))
+
     local applyGroup = AceGUI:Create("InlineGroup")
     applyGroup:SetFullWidth(true)
     applyGroup:SetLayout("Flow")
     applyGroup:SetTitle(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
     container:AddChild(applyGroup)
 
+    applyGroup:AddChild(CreateSpacer(0))
+
     local applySlotDropdown = AceGUI:Create("Dropdown")
     applySlotDropdown:SetLabel(L["INFO_TEXT_BUILDER_TARGET_TEXT"] or "Target Text")
-    applySlotDropdown:SetWidth(220)
+    applySlotDropdown:SetWidth(240)
     applySlotDropdown:SetList({
         Custom1 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_1),
         Custom2 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_2),
@@ -843,7 +963,7 @@ function B.BuildTextBuilderPage(container)
 
     local applyUnitDropdown = AceGUI:Create("Dropdown")
     applyUnitDropdown:SetLabel(L["INFO_TEXT_BUILDER_UNIT"] or "Unit")
-    applyUnitDropdown:SetWidth(220)
+    applyUnitDropdown:SetWidth(240)
     applyUnitDropdown:SetList({
         [C.Units.PLAYER] = ns.GetLabel(KM.Units, C.Units.PLAYER),
         [C.Units.TARGET] = ns.GetLabel(KM.Units, C.Units.TARGET),
@@ -853,28 +973,14 @@ function B.BuildTextBuilderPage(container)
     applyUnitDropdown:SetValue(C.Units.PLAYER)
     applyGroup:AddChild(applyUnitDropdown)
 
+    applyGroup:AddChild(CreateSpacer(0))
+
     local applyTemplateButton = AceGUI:Create("Button")
     applyTemplateButton:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
     applyTemplateButton:SetWidth(160)
     applyGroup:AddChild(applyTemplateButton)
 
-    local previewGroup = AceGUI:Create("InlineGroup")
-    previewGroup:SetFullWidth(true)
-    previewGroup:SetLayout("Flow")
-    previewGroup:SetTitle(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
-    container:AddChild(previewGroup)
-
-    local previewHint = AceGUI:Create("Label")
-    previewHint:SetFullWidth(true)
-    previewHint:SetText(L["INFO_TEXT_BUILDER_PREVIEW_DESC"] or "")
-    previewGroup:AddChild(previewHint)
-
-    local previewLabel = AceGUI:Create("Label")
-    previewLabel:SetFullWidth(true)
-    if previewLabel.SetFont then
-        previewLabel:SetFont(STANDARD_TEXT_FONT, 14, "")
-    end
-    previewGroup:AddChild(previewLabel)
+    applyGroup:AddChild(CreateSpacer(0))
 
     local function RefreshPreview()
         local template = state.textBuilder.template or ""

@@ -28,6 +28,27 @@ local function UnpackColor(color, fallback)
     return r, g, b, a
 end
 
+local function IsSafeTrue(value)
+    return type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) and value
+end
+
+local function IsUnitDeadByHealth(unit)
+    if not unit or not UnitHealth or not UnitHealthMax then
+        return false
+    end
+
+    local ok, result = pcall(function()
+        local currentHealth = UnitHealth(unit)
+        local maxHealth = UnitHealthMax(unit)
+        return type(currentHealth) == "number"
+            and type(maxHealth) == "number"
+            and maxHealth > 0
+            and currentHealth <= 0
+    end)
+
+    return ok and result == true
+end
+
 local function GetClassColorForUnit(unit, useReactionForNpc)
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
         return nil
@@ -1858,6 +1879,11 @@ function UF:RegisterVisibilityEvents(frame)
     local eventFrame = CreateFrame("Frame", nil, frame)
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("UNIT_HEALTH")
+    eventFrame:RegisterEvent("UNIT_MAXHEALTH")
+    eventFrame:RegisterEvent("UNIT_FLAGS")
+    eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
+    eventFrame:RegisterEvent("UNIT_TARGETABLE_CHANGED")
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
@@ -1870,6 +1896,10 @@ function UF:RegisterVisibilityEvents(frame)
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         local owner = eventFrame.owner
         if not owner then
+            return
+        end
+
+        if unit and unit ~= owner.unit and not (owner.unit == "pet" and event == "UNIT_PET" and unit == "player") then
             return
         end
 
@@ -1929,12 +1959,47 @@ function UF:Refresh(frame)
         return
     end
 
+    local hasRenderableName = true
+    local isDeadUnit = false
+
+    if not Portrait.guiTestModeEnabled and frame.unit ~= "player" and UnitName then
+        local unitName = UnitName(frame.unit)
+        hasRenderableName = type(unitName) == "string"
+    end
+
+    if not Portrait.guiTestModeEnabled and frame.unit ~= "player" and UnitIsDeadOrGhost then
+        isDeadUnit = IsSafeTrue(UnitIsDeadOrGhost(frame.unit))
+    end
+
+    if not isDeadUnit and not Portrait.guiTestModeEnabled and frame.unit ~= "player" then
+        isDeadUnit = IsUnitDeadByHealth(frame.unit)
+    end
+
     local shouldHideForMissingUnit = not Portrait.guiTestModeEnabled
         and frame.unit ~= "player"
-        and UnitExists
-        and not UnitExists(frame.unit)
+        and (
+            (UnitExists and not UnitExists(frame.unit))
+            or isDeadUnit
+            or not hasRenderableName
+        )
 
     if shouldHideForMissingUnit then
+        if frame.Texts then
+            for _, textObject in pairs(frame.Texts) do
+                if textObject and textObject.SetText then
+                    textObject:SetText("")
+                end
+            end
+        end
+
+        if frame.Elements and frame.Elements.CastBar then
+            StopCastBar(frame)
+        end
+
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+
         frame:Hide()
         return
     end
@@ -1942,6 +2007,9 @@ function UF:Refresh(frame)
     frame.config = config
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
+    if frame.SetAlpha then
+        frame:SetAlpha(1)
+    end
     frame:Show()
 end
 
