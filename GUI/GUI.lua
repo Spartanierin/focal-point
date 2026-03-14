@@ -844,7 +844,7 @@ local function RenderPage(container, path)
     end
 
     if path == "profiles" then
-        Portrait.GUIBuilders.BuildPlaceholderPage(container, "Profiles")
+        Portrait.GUIBuilders.BuildProfilesPage(container)
         return
     end
 
@@ -900,6 +900,30 @@ function Portrait:CreateGUI()
         end
     end
 
+    function self:DisableTestMode()
+        if not self.guiTestModeEnabled then
+            return
+        end
+
+        self:SetTestModeEnabled(false)
+
+        if self.TestEnvironment then
+            if self.TestEnvironment.Disable then
+                self.TestEnvironment:Disable()
+            elseif self.TestEnvironment.SetEnabled then
+                self.TestEnvironment:SetEnabled(false)
+            elseif self.TestEnvironment.Toggle then
+                self.TestEnvironment:Toggle(false)
+            elseif self.TestEnvironment.Refresh then
+                self.TestEnvironment:Refresh()
+            end
+        end
+
+        if Portrait.RefreshAllUnitFrames then
+            Portrait:RefreshAllUnitFrames()
+        end
+    end
+
     function self:ToggleTestMode()
         local enabled = not self.guiTestModeEnabled
         self:SetTestModeEnabled(enabled)
@@ -924,18 +948,15 @@ function Portrait:CreateGUI()
     end
 
     frame:SetCallback("OnClose", function(widget)
-        if Portrait.guiTestModeEnabled then
-            Portrait:SetTestModeEnabled(false)
-            if Portrait.TestEnvironment then
-                if Portrait.TestEnvironment.Disable then
-                    Portrait.TestEnvironment:Disable()
-                elseif Portrait.TestEnvironment.SetEnabled then
-                    Portrait.TestEnvironment:SetEnabled(false)
-                end
-            end
-        end
+        Portrait:DisableTestMode()
         widget:Hide()
     end)
+
+    if frame.frame then
+        frame.frame:HookScript("OnHide", function()
+            Portrait:DisableTestMode()
+        end)
+    end
 
     self.guiTreeStatus = self.guiTreeStatus or {
         groups = {

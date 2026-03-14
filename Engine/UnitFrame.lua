@@ -128,6 +128,62 @@ local function TrimFormattedDecimal(value)
     return value
 end
 
+local TEST_PREVIEW_VALUES = {
+    player = {
+        healthCurrent = 146000,
+        healthMax = 146000,
+        powerCurrent = 84,
+        powerMax = 100,
+        name = "Spartanierin",
+        level = 84,
+        classToken = "WARRIOR",
+        race = "Mensch",
+        castName = "Schildschlag",
+        castDuration = 2.5,
+    },
+    target = {
+        healthCurrent = 108000,
+        healthMax = 146000,
+        powerCurrent = 42,
+        powerMax = 100,
+        name = "Zielattrappe",
+        level = 83,
+        classToken = "PALADIN",
+        creature = "Humanoid",
+        castName = "Frostblitz",
+        castDuration = 2.5,
+    },
+    focus = {
+        healthCurrent = 92000,
+        healthMax = 120000,
+        powerCurrent = 55,
+        powerMax = 100,
+        name = "Fokusziel",
+        level = 83,
+        classToken = "PRIEST",
+        creature = "Humanoid",
+        castName = "Heilung",
+        castDuration = 2.5,
+    },
+    pet = {
+        healthCurrent = 72000,
+        healthMax = 90000,
+        powerCurrent = 70,
+        powerMax = 100,
+        name = "Begleiter",
+        level = 83,
+        creature = "Wildtier",
+    },
+}
+
+function UF:GetTestPreviewValues(frame)
+    if not frame or not frame.unit then
+        return nil
+    end
+
+    return TEST_PREVIEW_VALUES[frame.unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+end
+
 local function FormatFallbackAbbreviation(value)
     if type(value) ~= "number" then
         return "0"
@@ -316,18 +372,20 @@ function UF:RefreshUnitBarValues(frame)
 
     local unit = frame.unit
     local unitExists = UnitExists and UnitExists(unit)
+    local previewValues = Portrait.guiTestModeEnabled and self:GetTestPreviewValues(frame) or nil
     frame.LiveValues = frame.LiveValues or {}
+    frame.TestValues = previewValues
 
     if frame.Elements.HealthBar then
         local currentHealth = 0
         local maxHealth = 1
 
-        if unitExists and UnitHealth and UnitHealthMax then
+        if previewValues then
+            currentHealth = previewValues.healthCurrent or 100
+            maxHealth = previewValues.healthMax or 100
+        elseif unitExists and UnitHealth and UnitHealthMax then
             currentHealth = UnitHealth(unit) or 0
             maxHealth = UnitHealthMax(unit) or 1
-        elseif Portrait.guiTestModeEnabled then
-            currentHealth = 100
-            maxHealth = 100
         end
 
         frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
@@ -343,12 +401,12 @@ function UF:RefreshUnitBarValues(frame)
         local currentPower = 0
         local maxPower = 1
 
-        if unitExists and UnitPower and UnitPowerMax then
+        if previewValues then
+            currentPower = previewValues.powerCurrent or 65
+            maxPower = previewValues.powerMax or 100
+        elseif unitExists and UnitPower and UnitPowerMax then
             currentPower = UnitPower(unit) or 0
             maxPower = UnitPowerMax(unit) or 1
-        elseif Portrait.guiTestModeEnabled then
-            currentPower = 65
-            maxPower = 100
         end
 
         frame.Elements.PowerBar:SetMinMaxValues(0, maxPower)
@@ -1860,10 +1918,11 @@ end
 
 function UF:ApplyTestValues(frame)
     self:RefreshUnitBarValues(frame)
-    StartCastBar(frame)
 
-    if Portrait.guiTestModeEnabled and frame.Elements and frame.Elements.CastBar and not frame.Elements.CastBar.isCasting then
+    if Portrait.guiTestModeEnabled then
         StartCastBarPreview(frame)
+    else
+        StartCastBar(frame)
     end
 
     if self.ApplyTestTextValues then

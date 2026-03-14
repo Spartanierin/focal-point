@@ -27,7 +27,37 @@ local function GetFontPath(path)
     return STANDARD_TEXT_FONT
 end
 
-local function GetClassTextColor(unit)
+local function GetLocalizedClassName(classToken)
+    if type(classToken) ~= "string" or classToken == "" then
+        return nil
+    end
+
+    classToken = classToken:upper()
+
+    return
+        (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classToken]) or
+        (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[classToken]) or
+        classToken
+end
+
+local function GetClassTextColor(unit, frame)
+    if Portrait.guiTestModeEnabled and frame and frame.TestValues and frame.TestValues.classToken then
+        local classToken = frame.TestValues.classToken:upper()
+        local classColor = nil
+
+        if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
+            classColor = CUSTOM_CLASS_COLORS[classToken]
+        elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
+            classColor = RAID_CLASS_COLORS[classToken]
+        elseif C_ClassColor and C_ClassColor.GetClassColor then
+            classColor = C_ClassColor.GetClassColor(classToken)
+        end
+
+        if classColor then
+            return classColor.r or classColor[1], classColor.g or classColor[2], classColor.b or classColor[3], classColor.a or 1
+        end
+    end
+
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
         return nil
     end
@@ -249,6 +279,39 @@ function UF:RefreshLiveValues(frame)
 
     frame.LiveValues = frame.LiveValues or {}
 
+    if Portrait.guiTestModeEnabled and frame.TestValues then
+        local preview = frame.TestValues
+        local healthCurrent = preview.healthCurrent or 100
+        local healthMax = preview.healthMax or 100
+        local powerCurrent = preview.powerCurrent or 65
+        local powerMax = preview.powerMax or 100
+
+        frame.LiveValues.healthCurrent = healthCurrent
+        frame.LiveValues.healthMax = healthMax
+        frame.LiveValues.healthCurrentText = FormatNumber(healthCurrent)
+        frame.LiveValues.healthMaxText = FormatNumber(healthMax)
+        frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
+        frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
+        frame.LiveValues.healthPercentValue = healthMax > 0 and math.floor((healthCurrent / healthMax) * 100) or 0
+        frame.LiveValues.healthPercentText = FormatInteger(frame.LiveValues.healthPercentValue)
+        frame.LiveValues.healthCurrentAbbr = FormatAbbreviatedNumber(healthCurrent)
+        frame.LiveValues.healthMaxAbbr = FormatAbbreviatedNumber(healthMax)
+        frame.LiveValues.healthCurrentRaw = healthCurrent
+        frame.LiveValues.healthMaxRaw = healthMax
+
+        frame.LiveValues.powerCurrent = powerCurrent
+        frame.LiveValues.powerMax = powerMax
+        frame.LiveValues.powerCurrentText = FormatNumber(powerCurrent)
+        frame.LiveValues.powerMaxText = FormatNumber(powerMax)
+        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
+        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
+        frame.LiveValues.powerCurrentAbbr = FormatAbbreviatedNumber(powerCurrent)
+        frame.LiveValues.powerMaxAbbr = FormatAbbreviatedNumber(powerMax)
+        frame.LiveValues.powerCurrentRaw = powerCurrent
+        frame.LiveValues.powerMaxRaw = powerMax
+        return
+    end
+
     local unit = frame.unit
     local healthCurrent = UnitHealth and UnitHealth(unit) or 0
     local healthMax = UnitHealthMax and UnitHealthMax(unit) or 0
@@ -415,6 +478,73 @@ local TOKEN_DEFS = {
         format = FormatTextValue,
         direct = true,
     },
+    ["curhp"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthCurrentRaw", GetLiveValue(frame, "healthCurrent", 0))
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["maxhp"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthMaxRaw", GetLiveValue(frame, "healthMax", 0))
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["curhp:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthCurrentAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["maxhp:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthMaxAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["perhp"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healthPercentText", "0")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["curpp"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerCurrentRaw", GetLiveValue(frame, "powerCurrent", 0))
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["maxpp"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerMaxRaw", GetLiveValue(frame, "powerMax", 0))
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["curpp:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerCurrentAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["maxpp:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerMaxAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
 }
 
 local TAG_DATABASE = {
@@ -453,7 +583,7 @@ local function GetTagPreviewFallback(token)
 end
 
 local function ResolveToken(frame, unit, token)
-    if not unit or not UnitExists or not UnitExists(unit) then
+    if not Portrait.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
         return ""
     end
 
@@ -468,6 +598,56 @@ local function ResolveToken(frame, unit, token)
 end
 
 local function ResolveBasicTag(frame, unit, token)
+    if Portrait.guiTestModeEnabled and frame and frame.TestValues then
+        local preview = frame.TestValues
+
+        if token == "name" then
+            return preview.name or ""
+        end
+
+        if token == "level" then
+            return preview.level and tostring(preview.level) or ""
+        end
+
+        if token == "class" then
+            return preview.className or GetLocalizedClassName(preview.classToken) or ""
+        end
+
+        if token == "race" then
+            return preview.race or ""
+        end
+
+        if token == "creature" then
+            return preview.creature or preview.race or ""
+        end
+
+        if token == "status" then
+            return preview.status or ""
+        end
+
+        if token == "cast:name" then
+            return preview.castName or ""
+        end
+
+        if token == "cast:time" then
+            local castBar = frame.Elements and frame.Elements.CastBar
+            local now = GetTime and GetTime() or 0
+            if castBar and castBar.isCasting and type(castBar.endTime) == "number" then
+                return FormatTimeValue(math.max(castBar.endTime - now, 0))
+            end
+
+            return type(preview.castDuration) == "number" and FormatTimeValue(preview.castDuration) or ""
+        end
+
+        if token == "powercolor" or token == "raidcolor" or token == "resetcolor" then
+            return ""
+        end
+
+        if token == "lasthit" then
+            return preview.lastHit or ""
+        end
+    end
+
     if token == "name" then
         if unit and UnitName then
             return UnitName(unit) or ""
@@ -495,9 +675,7 @@ local function ResolveBasicTag(frame, unit, token)
             end
 
             if not UnitIsPlayer or not UnitIsPlayer(unit) then
-                local localized =
-                    (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classToken]) or
-                    (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[classToken])
+                local localized = GetLocalizedClassName(classToken)
 
                 if type(localized) == "string" and localized ~= "" then
                     return localized
@@ -634,10 +812,22 @@ local function ResolveBasicTag(frame, unit, token)
         return ""
     end
 
+    if token == "powercolor" or token == "raidcolor" or token == "resetcolor" then
+        return ""
+    end
+
+    if token == "lasthit" then
+        return ""
+    end
+
     return ResolveToken(frame, unit, token)
 end
 
 local function HasActiveCast(unit)
+    if Portrait.guiTestModeEnabled then
+        return true
+    end
+
     if not unit then
         return false
     end
@@ -736,7 +926,11 @@ function UF:BuildTemplatePreview(template, unit)
 end
 
 local function ApplyDirectTemplate(frame, textObject, unit, template)
-    if not frame or not textObject or not unit or not UnitExists or not UnitExists(unit) then
+    if not frame or not textObject then
+        return false
+    end
+
+    if not Portrait.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
         return false
     end
 
@@ -811,7 +1005,7 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     local template = textConfig.tag or ""
 
     if key == "Class" or TemplateContainsToken(template, "class") then
-        local classR, classG, classB, classA = GetClassTextColor(frame.unit)
+        local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
         if classR and classG and classB then
             r, g, b, a = classR, classG, classB, classA or 1
         end
@@ -876,7 +1070,7 @@ function UF:UpdateTextElement(frame, key)
     local template = textConfig.tag or ""
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
     if key == "Class" or TemplateContainsToken(template, "class") then
-        local classR, classG, classB, classA = GetClassTextColor(frame.unit)
+        local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
         if classR and classG and classB then
             r, g, b, a = classR, classG, classB, classA or 1
         end
@@ -940,7 +1134,9 @@ function UF:RegisterTextEvents(frame)
 
     eventFrame:SetScript("OnUpdate", function(self, elapsed)
         local owner = self.owner
-        if not owner or not FrameUsesCastTime(owner) or not HasActiveCast(owner.unit) then
+        local castBar = owner and owner.Elements and owner.Elements.CastBar
+        local hasPreviewCast = Portrait.guiTestModeEnabled and castBar and castBar.isPreview
+        if not owner or not FrameUsesCastTime(owner) or (not hasPreviewCast and not HasActiveCast(owner.unit)) then
             self.elapsed = 0
             return
         end
@@ -1016,9 +1212,6 @@ function UF:RegisterTextEvents(frame)
 end
 
 function UF:ApplyTestTextValues(frame)
-    if self.RefreshUnitBarValues then
-        self:RefreshUnitBarValues(frame)
-    end
     self:RefreshLiveValues(frame)
     self:UpdateTextElements(frame)
 end
