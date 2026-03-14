@@ -823,16 +823,6 @@ local function ParseUnitPath(path)
     return unitKey
 end
 
-local function BuildPlaceholderPage(container, title)
-    container:ReleaseChildren()
-    container:SetLayout("Fill")
-
-    local label = AceGUI:Create("Label")
-    label:SetText(title .. " (TODO)")
-    label:SetFullWidth(true)
-    container:AddChild(label)
-end
-
 local function RenderPage(container, path)
     local OptionRefresh = Portrait.GUI.Helpers.OptionRefresh
     if OptionRefresh and OptionRefresh.ClearStateWidgets then

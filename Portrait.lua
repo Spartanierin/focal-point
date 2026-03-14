@@ -207,6 +207,7 @@ function PortraitAddon:OnEnable()
 
     if PORTRAIT.SpawnUnitFrame then
         PORTRAIT:SpawnUnitFrame("player")
+        PORTRAIT:SpawnUnitFrame("target")
     end
 
     if PORTRAIT.ApplyGeneralSettings then

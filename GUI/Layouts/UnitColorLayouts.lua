@@ -21,6 +21,7 @@ ns.GUI.Layouts.UnitColors.ColorTab = {
         layout = "list",
         items = {
             { widget = "checkbox", path = { "Units", "$unitKey", "useClassColorHealth" }, label = "OPTION_USE_CLASS_COLORS", description = "OPTION_USE_CLASS_COLORS_HEALTH_DESC", fallback = false, resetText = false, disabled = "unit", refreshGUI = true, onChanged = "refresh_health_color" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "useReactionColorNpcHealth" }, label = "OPTION_USE_REACTION_COLORS_NPC_HEALTH", description = "OPTION_USE_REACTION_COLORS_NPC_HEALTH_DESC", fallback = false, resetText = false, disabled = "unit", refreshGUI = true, onChanged = "refresh_health_color" },
             { widget = "colorpicker", path = { "Units", "$unitKey", "healthColor" }, label = "OPTION_HEALTH_COLOR", description = "OPTION_HEALTH_COLOR_DESC", hasAlpha = true, disabled = "healthColor" },
             { widget = "checkbox", path = { "Units", "$unitKey", "healthBackground" }, label = "OPTION_SHOW_BACKGROUND", description = "OPTION_HEALTH_BACKGROUND_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true },
             { widget = "colorpicker", path = { "Units", "$unitKey", "healthBackgroundColor" }, label = "OPTION_BACKGROUND_COLOR", description = "OPTION_HEALTH_BACKGROUND_COLOR_DESC", hasAlpha = true, disabled = "healthBackground" },

@@ -28,8 +28,20 @@ local function UnpackColor(color, fallback)
     return r, g, b, a
 end
 
-local function GetClassColorForUnit(unit)
+local function GetClassColorForUnit(unit, useReactionForNpc)
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
+        return nil
+    end
+
+    if UnitIsPlayer and not UnitIsPlayer(unit) then
+        if useReactionForNpc and UnitReaction and FACTION_BAR_COLORS then
+            local reaction = UnitReaction("player", unit)
+            local color = reaction and FACTION_BAR_COLORS[reaction] or nil
+            if color then
+                return color.r or color[1], color.g or color[2], color.b or color[3], 1
+            end
+        end
+
         return nil
     end
 
@@ -211,6 +223,7 @@ function UF:CreateBaseFrame(unit, config)
     frame:SetAttribute("*type1", "target")
     frame:SetAttribute("*type2", "togglemenu")
     frame:SetAttribute("toggleForVehicle", true)
+    frame:Hide()
 
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -285,12 +298,15 @@ function UF:RefreshUnitBarValues(frame)
     frame.LiveValues = frame.LiveValues or {}
 
     if frame.Elements.HealthBar then
-        local currentHealth = 100
-        local maxHealth = 100
+        local currentHealth = 0
+        local maxHealth = 1
 
         if unitExists and UnitHealth and UnitHealthMax then
             currentHealth = UnitHealth(unit) or 0
             maxHealth = UnitHealthMax(unit) or 1
+        elseif Portrait.guiTestModeEnabled then
+            currentHealth = 100
+            maxHealth = 100
         end
 
         frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
@@ -303,12 +319,15 @@ function UF:RefreshUnitBarValues(frame)
     end
 
     if frame.Elements.PowerBar then
-        local currentPower = 65
-        local maxPower = 100
+        local currentPower = 0
+        local maxPower = 1
 
         if unitExists and UnitPower and UnitPowerMax then
             currentPower = UnitPower(unit) or 0
             maxPower = UnitPowerMax(unit) or 1
+        elseif Portrait.guiTestModeEnabled then
+            currentPower = 65
+            maxPower = 100
         end
 
         frame.Elements.PowerBar:SetMinMaxValues(0, maxPower)
@@ -321,32 +340,74 @@ function UF:RefreshUnitBarValues(frame)
     end
 end
 
-local function GetActiveCastTiming(unit)
+local function GetActiveCastTiming(unit, castBar)
     if not unit then
-        return nil, nil, nil, nil, nil
+        return nil, nil, nil, nil, nil, nil
     end
 
     if UnitCastingInfo then
-        local castName, _, castIcon, startTimeMS, endTimeMS, _, _, notInterruptible = UnitCastingInfo(unit)
-        if type(castName) == "string" and castName ~= ""
-            and type(startTimeMS) == "number"
-            and type(endTimeMS) == "number"
-        then
-            return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, not notInterruptible
+        local castName, _, castIcon, startTimeMS, endTimeMS, _, _, notInterruptible, _, castID = UnitCastingInfo(unit)
+        if type(castName) == "string" then
+            if unit == "player"
+                and type(startTimeMS) == "number"
+                and type(endTimeMS) == "number"
+            then
+                return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, not notInterruptible, castID
+            end
+
+            if UnitCastingDuration then
+                local durationMS = UnitCastingDuration(unit)
+                if type(durationMS) == "number" then
+                    local duration = durationMS > 100 and (durationMS / 1000) or durationMS
+                    if castBar
+                        and castBar.isCasting
+                        and not castBar.isChannel
+                        and castBar.castID == castID
+                        and type(castBar.startTime) == "number"
+                        and type(castBar.endTime) == "number"
+                    then
+                        return false, castBar.startTime, castBar.endTime, castIcon, not notInterruptible, castID
+                    end
+
+                    local now = GetTime and GetTime() or 0
+                    return false, now, now + duration, castIcon, not notInterruptible, castID
+                end
+            end
         end
     end
 
     if UnitChannelInfo then
-        local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible = UnitChannelInfo(unit)
-        if type(channelName) == "string" and channelName ~= ""
-            and type(startTimeMS) == "number"
-            and type(endTimeMS) == "number"
-        then
-            return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, not notInterruptible
+        local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible, _, _, castID = UnitChannelInfo(unit)
+        if type(channelName) == "string" then
+            if unit == "player"
+                and type(startTimeMS) == "number"
+                and type(endTimeMS) == "number"
+            then
+                return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, not notInterruptible, castID
+            end
+
+            if UnitChannelDuration then
+                local durationMS = UnitChannelDuration(unit)
+                if type(durationMS) == "number" then
+                    local duration = durationMS > 100 and (durationMS / 1000) or durationMS
+                    if castBar
+                        and castBar.isCasting
+                        and castBar.isChannel
+                        and castBar.castID == castID
+                        and type(castBar.startTime) == "number"
+                        and type(castBar.endTime) == "number"
+                    then
+                        return true, castBar.startTime, castBar.endTime, channelIcon, not notInterruptible, castID
+                    end
+
+                    local now = GetTime and GetTime() or 0
+                    return true, now, now + duration, channelIcon, not notInterruptible, castID
+                end
+            end
         end
     end
 
-    return nil, nil, nil, nil, nil
+    return nil, nil, nil, nil, nil, nil
 end
 
 local function StartCastBar(frame)
@@ -356,7 +417,7 @@ local function StartCastBar(frame)
         return
     end
 
-    local isChannel, startTime, endTime, spellIcon, isInterruptible = GetActiveCastTiming(unit)
+    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID = GetActiveCastTiming(unit, castBar)
 
     if type(startTime) ~= "number" or type(endTime) ~= "number" then
         castBar.isCasting = false
@@ -371,6 +432,7 @@ local function StartCastBar(frame)
     castBar.isChannel = isChannel and true or false
     castBar.isPreview = false
     castBar.isInterruptible = isInterruptible ~= false
+    castBar.castID = castID
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
     ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
@@ -403,6 +465,7 @@ local function StartCastBarPreview(frame)
     castBar.isChannel = false
     castBar.isPreview = true
     castBar.isInterruptible = true
+    castBar.castID = nil
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(now + 1.25)
     ApplyCastBarStateColor(castBar, true, frame.config and frame.config.castBarColor)
@@ -434,6 +497,7 @@ local function StopCastBar(frame)
     castBar.isInterruptible = true
     castBar.startTime = 0
     castBar.endTime = 0
+    castBar.castID = nil
     if castBar.icon then
         castBar.icon:SetTexture(nil)
         castBar.icon:Hide()
@@ -482,7 +546,7 @@ function UF:RefreshCastBar(frame)
     end
 
     local now = GetTime and GetTime() or 0
-    local isChannel, startTime, endTime, spellIcon, isInterruptible = GetActiveCastTiming(unit)
+    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID = GetActiveCastTiming(unit, castBar)
     local hasCast = type(startTime) == "number" and type(endTime) == "number"
 
     if hasCast then
@@ -492,6 +556,7 @@ function UF:RefreshCastBar(frame)
         castBar.isChannel = isChannel
         castBar.isPreview = false
         castBar.isInterruptible = isInterruptible ~= false
+        castBar.castID = castID
         castBar.startTime = startTime
         castBar.endTime = endTime
         castBar:SetMinMaxValues(0, duration)
@@ -1395,7 +1460,7 @@ function UF:ApplyConfig(frame)
     local powerBackgroundShown = powerBackgroundEnabled and (powerBgA or 0) > 0.001
 
     if config.useClassColorHealth then
-        local classR, classG, classB, classA = GetClassColorForUnit(frame.unit)
+        local classR, classG, classB, classA = GetClassColorForUnit(frame.unit, config.useReactionColorNpcHealth)
         if classR and classG and classB then
             healthR, healthG, healthB, healthA = classR, classG, classB, classA or 1
         end
@@ -1785,6 +1850,39 @@ function UF:ApplyTestValues(frame)
     end
 end
 
+function UF:RegisterVisibilityEvents(frame)
+    if not frame or frame.VisibilityEventFrame or frame.unit == "player" then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner then
+            return
+        end
+
+        if event == "UNIT_PET" and unit ~= "player" then
+            return
+        end
+
+        UF:Refresh(owner)
+    end)
+
+    frame.VisibilityEventFrame = eventFrame
+end
+
 function UF:Build(unit)
     local config = GetUnitDB(unit)
     if not config or config.enabled == false then
@@ -1812,12 +1910,11 @@ function UF:Build(unit)
     self:RegisterCastBarEvents(frame)
     self:CreateTextElements(frame)
     self:RegisterTextEvents(frame)
+    self:RegisterVisibilityEvents(frame)
 
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
-
-    frame:Show()
-    self:ApplyConfig(frame)
+    self:Refresh(frame)
 
     return frame
 end
@@ -1832,9 +1929,20 @@ function UF:Refresh(frame)
         return
     end
 
+    local shouldHideForMissingUnit = not Portrait.guiTestModeEnabled
+        and frame.unit ~= "player"
+        and UnitExists
+        and not UnitExists(frame.unit)
+
+    if shouldHideForMissingUnit then
+        frame:Hide()
+        return
+    end
+
     frame.config = config
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
+    frame:Show()
 end
 
 function Portrait:SpawnUnitFrame(unit)

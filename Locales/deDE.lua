@@ -74,6 +74,8 @@ L["INFO_TAG_DESC_NAME"] = "Name der Einheit."
 L["INFO_TAG_DESC_LEVEL"] = "Stufe der Einheit."
 L["INFO_TAG_DESC_CLASS"] = "Klasse der Einheit."
 L["INFO_TAG_DESC_RACE"] = "Rasse der Einheit."
+L["INFO_TAG_DESC_CREATURE"] = "Kreaturentyp oder Kreaturenfamilie fuer NPCs und Bestien."
+L["INFO_TAG_DESC_CLASSIFICATION"] = "NPC-Klassifikation wie Elite, Selten oder Boss."
 L["INFO_TAG_DESC_STATUS"] = "Aktueller Status wie Offline, Tot, AFK oder DND."
 
 -- Navigation
@@ -412,3 +414,5 @@ L["OPTION_BAR_TEXTURE_DESC"] = "Legt die Statusbar-Textur fuer den ausgewaehlten
 L["VALUE_TEXTURE_BLIZZARD"] = "Blizzard"
 L["VALUE_TEXTURE_BETTER_BLIZZARD"] = "Better Blizzard"
 L["VALUE_TEXTURE_GRADIENT"] = "Verlauf"
+L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] = "Reaktionsfarben fuer NPC-Gesundheit verwenden"
+L["OPTION_USE_REACTION_COLORS_NPC_HEALTH_DESC"] = "Wenn Klassenfarben fuer Gesundheit aktiv sind, werden bei NPCs stattdessen Blizzard-Reaktionsfarben verwendet."

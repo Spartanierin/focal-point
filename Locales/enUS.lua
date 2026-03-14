@@ -54,6 +54,8 @@ L["INFO_TAG_DESC_NAME"] = "Unit name."
 L["INFO_TAG_DESC_LEVEL"] = "Unit level."
 L["INFO_TAG_DESC_CLASS"] = "Unit class."
 L["INFO_TAG_DESC_RACE"] = "Unit race."
+L["INFO_TAG_DESC_CREATURE"] = "Creature type or creature family for NPCs and beasts."
+L["INFO_TAG_DESC_CLASSIFICATION"] = "NPC classification such as Elite, Rare, or Boss."
 L["INFO_TAG_DESC_STATUS"] = "Current status such as Offline, Dead, AFK, or DND."
 
 -- Navigation
@@ -202,6 +204,8 @@ L["OPTION_HEALTH_BACKGROUND_COLOR_DESC"] = "Sets the background color of the hea
 L["OPTION_USE_CLASS_COLORS"] = "Use Class Colors"
 L["OPTION_USE_CLASS_COLORS_HEALTH_DESC"] = "Uses the unit's Blizzard class color for the health bar and disables manual color selection."
 L["OPTION_USE_CLASS_COLORS_POWER_DESC"] = "Uses the unit's Blizzard resource color for the power bar and disables manual color selection."
+L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] = "Use Reaction Colors for NPC Health"
+L["OPTION_USE_REACTION_COLORS_NPC_HEALTH_DESC"] = "When class colors are enabled for health, use Blizzard reaction colors for NPCs instead."
 L["OPTION_RESET"] = "Reset"
 L["OPTION_SHOW_POWER_BAR"] = "Show Power Bar"
 L["OPTION_SHOW_POWER_BAR_DESC"] = "Shows or hides the power bar for this frame."

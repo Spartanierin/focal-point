@@ -1302,6 +1302,10 @@ function B.BuildUnitColorsPage(container, unitKey)
             return ns.GetLabel(KM.Bars, C.Bars.CAST)
         end
 
+        if sectionKey == "$texts" then
+            return ns.GetLabel(KM.Tabs, C.Tabs.TEXTS)
+        end
+
         return ResolveLayoutText(sectionKey)
     end
 

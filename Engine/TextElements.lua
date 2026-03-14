@@ -32,6 +32,10 @@ local function GetClassTextColor(unit)
         return nil
     end
 
+    if UnitIsPlayer and not UnitIsPlayer(unit) then
+        return nil
+    end
+
     local _, classToken = UnitClass(unit)
     if not classToken then
         return nil
@@ -417,6 +421,7 @@ local TAG_DATABASE = {
     { token = "[level]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_LEVEL", example = "80" },
     { token = "[class]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CLASS", example = "Warrior" },
     { token = "[race]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_RACE", example = "Human" },
+    { token = "[creature]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CREATURE", example = "Humanoid" },
     { token = "[status]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_STATUS", example = "AFK" },
 }
 
@@ -471,17 +476,53 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "class" then
         if unit and UnitClass then
-            local className = UnitClass(unit)
-            return className or ""
+            local className, classToken = UnitClass(unit)
+            if UnitIsPlayer and UnitIsPlayer(unit) and type(className) == "string" and className ~= "" then
+                return className
+            end
+
+            if not UnitIsPlayer or not UnitIsPlayer(unit) then
+                local localized =
+                    (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classToken]) or
+                    (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[classToken])
+
+                if type(localized) == "string" and localized ~= "" then
+                    return localized
+                end
+
+                if type(classToken) == "string" and classToken ~= "" then
+                    return classToken
+                end
+            end
         end
 
         return ""
     end
 
     if token == "race" then
-        if unit and UnitRace then
+        if unit and UnitIsPlayer and UnitIsPlayer(unit) and UnitRace then
             local raceName = UnitRace(unit)
-            return raceName or ""
+            if type(raceName) == "string" and raceName ~= "" then
+                return raceName
+            end
+        end
+
+        return ""
+    end
+
+    if token == "creature" then
+        if unit and UnitCreatureFamily then
+            local creatureFamily = UnitCreatureFamily(unit)
+            if type(creatureFamily) == "string" and creatureFamily ~= "" then
+                return creatureFamily
+            end
+        end
+
+        if unit and UnitCreatureType then
+            local creatureType = UnitCreatureType(unit)
+            if type(creatureType) == "string" and creatureType ~= "" then
+                return creatureType
+            end
         end
 
         return ""
@@ -530,14 +571,14 @@ local function ResolveBasicTag(frame, unit, token)
 
         if UnitCastingInfo then
             local castName = UnitCastingInfo(unit)
-            if type(castName) == "string" and castName ~= "" then
+            if type(castName) == "string" then
                 return castName
             end
         end
 
         if UnitChannelInfo then
             local channelName = UnitChannelInfo(unit)
-            if type(channelName) == "string" and channelName ~= "" then
+            if type(channelName) == "string" then
                 return channelName
             end
         end
@@ -555,8 +596,13 @@ local function ResolveBasicTag(frame, unit, token)
         end
 
         local now = GetTime and GetTime() or 0
+        local castBar = frame and frame.Elements and frame.Elements.CastBar
 
-        if UnitCastingInfo then
+        if castBar and castBar.isCasting and type(castBar.endTime) == "number" then
+            return FormatTimeValue(math.max(castBar.endTime - now, 0))
+        end
+
+        if unit == "player" and UnitCastingInfo then
             local _, _, _, startTimeMS, endTimeMS = UnitCastingInfo(unit)
             if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
                 local endTime = endTimeMS / 1000
@@ -564,7 +610,7 @@ local function ResolveBasicTag(frame, unit, token)
             end
         end
 
-        if UnitChannelInfo then
+        if unit == "player" and UnitChannelInfo then
             local _, _, _, startTimeMS, endTimeMS = UnitChannelInfo(unit)
             if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
                 local remaining = (endTimeMS / 1000) - now
@@ -585,14 +631,14 @@ local function HasActiveCast(unit)
 
     if UnitCastingInfo then
         local castName = UnitCastingInfo(unit)
-        if type(castName) == "string" and castName ~= "" then
+        if type(castName) == "string" then
             return true
         end
     end
 
     if UnitChannelInfo then
         local channelName = UnitChannelInfo(unit)
-        if type(channelName) == "string" and channelName ~= "" then
+        if type(channelName) == "string" then
             return true
         end
     end
@@ -614,14 +660,31 @@ local function ResolveTextTemplate(frame, unit, template)
         return ""
     end
 
-    return (template:gsub("%[([^%]]+)%]", function(token)
-        local resolved = ResolveBasicTag(frame, unit, token)
-        if resolved ~= nil then
-            return type(resolved) == "string" and resolved or FormatNumber(resolved)
+    local result = {}
+    local cursor = 1
+
+    while true do
+        local startPos, endPos, token = template:find("%[([^%]]+)%]", cursor)
+        if not startPos then
+            result[#result + 1] = template:sub(cursor)
+            break
         end
 
-        return "[" .. token .. "]"
-    end))
+        if startPos > cursor then
+            result[#result + 1] = template:sub(cursor, startPos - 1)
+        end
+
+        local resolved = ResolveBasicTag(frame, unit, token)
+        if resolved ~= nil then
+            result[#result + 1] = type(resolved) == "string" and resolved or FormatNumber(resolved)
+        else
+            result[#result + 1] = "[" .. token .. "]"
+        end
+
+        cursor = endPos + 1
+    end
+
+    return table.concat(result)
 end
 
 function UF:BuildTemplatePreview(template, unit)
