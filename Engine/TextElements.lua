@@ -197,8 +197,8 @@ local ABBREV_DATA = {
         { breakpoint = 1e8, abbreviation = "M", significandDivisor = 1e6, fractionDivisor = 1, abbreviationIsGlobal = false },
         { breakpoint = 1e7, abbreviation = "M", significandDivisor = 1e5, fractionDivisor = 10, abbreviationIsGlobal = false },
         { breakpoint = 1e6, abbreviation = "M", significandDivisor = 1e4, fractionDivisor = 100, abbreviationIsGlobal = false },
-        { breakpoint = 1e5, abbreviation = "K", significandDivisor = 1000, fractionDivisor = 1, abbreviationIsGlobal = false },
-        { breakpoint = 1e4, abbreviation = "K", significandDivisor = 100, fractionDivisor = 10, abbreviationIsGlobal = false },
+        { breakpoint = 1e5, abbreviation = "k", significandDivisor = 1000, fractionDivisor = 1, abbreviationIsGlobal = false },
+        { breakpoint = 1e4, abbreviation = "k", significandDivisor = 100, fractionDivisor = 10, abbreviationIsGlobal = false },
     },
 }
 
@@ -243,6 +243,14 @@ local function TrimFormattedDecimal(value)
 end
 
 local function FormatAbbreviatedNumber(value)
+    local sharedAbbreviator = Portrait.UnitFrame and Portrait.UnitFrame.SafeAbbreviateNumber or nil
+    if type(sharedAbbreviator) == "function" then
+        local ok, result = pcall(sharedAbbreviator, value)
+        if ok and type(result) == "string" and result ~= "" then
+            return result
+        end
+    end
+
     local safeValue = ToSafeNumber(value)
 
     for _, data in ipairs(ABBREV_DATA.breakpointData) do
@@ -381,6 +389,8 @@ function UF:RefreshLiveValues(frame)
         frame.LiveValues.powerMaxAbbr = FormatAbbreviatedNumber(powerMax)
         frame.LiveValues.powerCurrentRaw = powerCurrent
         frame.LiveValues.powerMaxRaw = powerMax
+        frame.LiveValues.powerPercentValue = powerMax > 0 and math.floor((powerCurrent / powerMax) * 100) or 0
+        frame.LiveValues.powerPercentText = FormatInteger(frame.LiveValues.powerPercentValue)
 
         frame.LiveValues.altPowerCurrent = altPowerCurrent
         frame.LiveValues.altPowerMax = altPowerMax
@@ -467,6 +477,11 @@ function UF:RefreshLiveValues(frame)
     if frame.LiveValues.powerMaxSafe <= 0 then
         frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
     end
+    frame.LiveValues.powerPercentValue = 0
+    if frame.LiveValues.powerMaxSafe > 0 and frame.LiveValues.powerCurrentSafe >= 0 then
+        frame.LiveValues.powerPercentValue = math.floor((frame.LiveValues.powerCurrentSafe / frame.LiveValues.powerMaxSafe) * 100)
+    end
+    frame.LiveValues.powerPercentText = FormatInteger(frame.LiveValues.powerPercentValue)
 
     local altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
     local altPowerMaxSafe = ToSafeNumber(altPowerMax)
@@ -497,19 +512,17 @@ end
 local TOKEN_DEFS = {
     ["hp:cur"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthCurrentRaw", GetLiveValue(frame, "healthCurrent", UnitHealth and UnitHealth(unit) or 0))
+            return GetLiveValue(frame, "healthCurrentText", GetLiveValue(frame, "healthCurrentRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["hp:max"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthMaxRaw", GetLiveValue(frame, "healthMax", UnitHealthMax and UnitHealthMax(unit) or 0))
+            return GetLiveValue(frame, "healthMaxText", GetLiveValue(frame, "healthMaxRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["hp:cur:abbr"] = {
         value = function(unit, frame)
@@ -541,35 +554,28 @@ local TOKEN_DEFS = {
     },
     ["hp:perc"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthPercentText", FormatInteger(UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0))
+            return GetLiveValue(frame, "healthPercentText", "0")
         end,
         format = FormatTextValue,
         direct = true,
     },
     ["power:cur"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerCurrentRaw", GetLiveValue(frame, "powerCurrent", UnitPower and UnitPower(unit) or 0))
+            return GetLiveValue(frame, "powerCurrentText", GetLiveValue(frame, "powerCurrentRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["power:max"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerMaxRaw", GetLiveValue(frame, "powerMax", UnitPowerMax and UnitPowerMax(unit) or 0))
+            return GetLiveValue(frame, "powerMaxText", GetLiveValue(frame, "powerMaxRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["power:perc"] = {
         value = function(unit, frame)
-            local percent = UnitPowerDisplayMod and UnitPowerDisplayMod(unit)
-            if type(percent) == "number" and percent > 0 then
-                return FormatInteger(percent)
-            end
-
-            return "0"
+            return GetLiveValue(frame, "powerPercentText", "0")
         end,
         format = FormatTextValue,
         direct = true,
@@ -604,35 +610,31 @@ local TOKEN_DEFS = {
     },
     ["altpower:cur"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "altPowerCurrentRaw", 0)
+            return GetLiveValue(frame, "altPowerCurrentText", GetLiveValue(frame, "altPowerCurrentRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["altPower:cur"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "altPowerCurrentRaw", 0)
+            return GetLiveValue(frame, "altPowerCurrentText", GetLiveValue(frame, "altPowerCurrentRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["altpower:max"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "altPowerMaxRaw", 0)
+            return GetLiveValue(frame, "altPowerMaxText", GetLiveValue(frame, "altPowerMaxRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["altPower:max"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "altPowerMaxRaw", 0)
+            return GetLiveValue(frame, "altPowerMaxText", GetLiveValue(frame, "altPowerMaxRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["altpower:cur:abbr"] = {
         value = function(unit, frame)
@@ -650,19 +652,17 @@ local TOKEN_DEFS = {
     },
     ["curhp"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthCurrentRaw", GetLiveValue(frame, "healthCurrent", 0))
+            return GetLiveValue(frame, "healthCurrentText", GetLiveValue(frame, "healthCurrentRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["maxhp"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "healthMaxRaw", GetLiveValue(frame, "healthMax", 0))
+            return GetLiveValue(frame, "healthMaxText", GetLiveValue(frame, "healthMaxRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["curhp:abbr"] = {
         value = function(unit, frame)
@@ -687,19 +687,17 @@ local TOKEN_DEFS = {
     },
     ["curpp"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerCurrentRaw", GetLiveValue(frame, "powerCurrent", 0))
+            return GetLiveValue(frame, "powerCurrentText", GetLiveValue(frame, "powerCurrentRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["maxpp"] = {
         value = function(unit, frame)
-            return GetLiveValue(frame, "powerMaxRaw", GetLiveValue(frame, "powerMax", 0))
+            return GetLiveValue(frame, "powerMaxText", GetLiveValue(frame, "powerMaxRaw", "0"))
         end,
-        format = FormatNumber,
+        format = FormatTextValue,
         direct = true,
-        passRaw = true,
     },
     ["curpp:abbr"] = {
         value = function(unit, frame)
@@ -720,8 +718,8 @@ local TOKEN_DEFS = {
 local TAG_DATABASE = {
     { token = "[hp:cur]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR", example = "154320" },
     { token = "[hp:max]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX", example = "154320" },
-    { token = "[hp:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR_ABBR", example = "154K" },
-    { token = "[hp:max:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX_ABBR", example = "154K" },
+    { token = "[hp:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR_ABBR", example = "154k" },
+    { token = "[hp:max:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX_ABBR", example = "154k" },
     { token = "[hp:perc]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_PERC", example = "100" },
     { token = "[power:cur]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR", example = "100" },
     { token = "[power:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "100" },
@@ -1356,39 +1354,24 @@ function UF:RegisterTextEvents(frame)
         end
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            if UF.RefreshUnitBarValues then
-                UF:RefreshUnitBarValues(owner)
-            end
-            if UF.ApplyConfig then
-                UF:ApplyConfig(owner)
-            end
-            if UF.RefreshCastBar then
-                UF:RefreshCastBar(owner)
-            end
-            UF:RefreshLiveValues(owner)
-            UF:UpdateTextElements(owner)
-            if UF.RefreshCastBar then
-                UF:RefreshCastBar(owner)
+            if UF.Refresh then
+                UF:Refresh(owner)
             end
             return
         end
 
         if event == "UNIT_PET" then
             if owner.unit == "pet" and unit == "player" then
-                if UF.RefreshUnitBarValues then
-                    UF:RefreshUnitBarValues(owner)
+                if UF.Refresh then
+                    UF:Refresh(owner)
                 end
-                if UF.ApplyConfig then
-                    UF:ApplyConfig(owner)
-                end
-                if UF.RefreshCastBar then
-                    UF:RefreshCastBar(owner)
-                end
-                UF:RefreshLiveValues(owner)
-                UF:UpdateTextElements(owner)
-                if UF.RefreshCastBar then
-                    UF:RefreshCastBar(owner)
-                end
+            end
+            return
+        end
+
+        if event == "PLAYER_ENTERING_WORLD" and owner.unit ~= "player" then
+            if UF.Refresh then
+                UF:Refresh(owner)
             end
             return
         end
