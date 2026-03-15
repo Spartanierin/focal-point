@@ -246,8 +246,49 @@ local CUSTOM_TEXT_TAB_DEFS = {
     { value = C.Texts.CUSTOM_3, configKey = "Custom3" },
 }
 
+local function GetTextElementLabel(elementIndex)
+    local base = L["INFO_UNIT_TEXT_ELEMENT"] or "Text"
+    return string.format("%s %d", base, elementIndex or 1)
+end
+
 local function GetTextTabValues(unitKey)
     local tabs = {}
+    local visibleIndex = 1
+    local templates = ns.db and ns.db.profile and ns.db.profile.TextTemplates or {}
+
+    local function HasTextContent(configValue)
+        if type(configValue) ~= "table" then
+            return false
+        end
+
+        local tag = configValue.tag
+        local templateName = configValue.templateName
+
+        return (type(tag) == "string" and tag ~= "")
+            or (type(templateName) == "string" and templateName ~= "")
+    end
+
+    local function ResolveTemplateTabLabel(configValue, fallbackIndex)
+        if type(configValue) ~= "table" then
+            return GetTextElementLabel(fallbackIndex)
+        end
+
+        local templateName = configValue.templateName
+        if type(templateName) == "string" and templateName ~= "" and type(templates[templateName]) == "string" then
+            return templateName
+        end
+
+        local tag = configValue.tag
+        if type(tag) == "string" and tag ~= "" then
+            for currentTemplateName, templateValue in pairs(templates) do
+                if templateValue == tag then
+                    return currentTemplateName
+                end
+            end
+        end
+
+        return GetTextElementLabel(fallbackIndex)
+    end
 
     for _, def in ipairs(TEXT_TAB_DEFS) do
         local configPath = { "Units", unitKey, "Texts", def.configKey }
@@ -256,11 +297,12 @@ local function GetTextTabValues(unitKey)
             configValue = ns.GUI.Helpers.OptionValues.GetDefault(configPath, nil)
         end
 
-        if type(configValue) == "table" then
+        if HasTextContent(configValue) then
             table.insert(tabs, {
-                text = ns.GetLabel(KM.Texts, def.value),
+                text = ResolveTemplateTabLabel(configValue, visibleIndex),
                 value = def.configKey,
             })
+            visibleIndex = visibleIndex + 1
         end
     end
 
@@ -271,15 +313,12 @@ local function GetTextTabValues(unitKey)
             configValue = ns.GUI.Helpers.OptionValues.GetDefault(configPath, nil)
         end
 
-        local hasTemplate = type(configValue) == "table"
-            and type(configValue.tag) == "string"
-            and configValue.tag ~= ""
-
-        if type(configValue) == "table" and hasTemplate then
+        if HasTextContent(configValue) then
             table.insert(tabs, {
-                text = ns.GetLabel(KM.Texts, def.value),
+                text = ResolveTemplateTabLabel(configValue, visibleIndex),
                 value = def.configKey,
             })
+            visibleIndex = visibleIndex + 1
         end
     end
 
@@ -1055,6 +1094,10 @@ function B.BuildTagDatabasePage(container)
             return L["INFO_TAG_DATABASE_APPLIES_CAST"] or "Casting Units"
         end
 
+        if token == "[resting]" or token == "[combat]" or token == "[pvp]" or token == "[afk]" or token == "[dnd]" or token == "[dead]" or token == "[offline]" or token == "[leader]" or token == "[role]" then
+            return L["INFO_TAG_DATABASE_APPLIES_STATUS"] or "Units with State"
+        end
+
         if token == "[altpower:cur]" or token == "[altpower:max]" or token == "[altpower:cur:abbr]" or token == "[altpower:max:abbr]" then
             return L["INFO_TAG_DATABASE_APPLIES_PLAYER_ALT"] or "Player (AltPower)"
         end
@@ -1197,7 +1240,12 @@ function B.BuildTextBuilderPage(container)
         template = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
         templateName = "",
         selectedTemplate = "",
-        applySlot = "Custom1",
+        applyUnits = {
+            [C.Units.PLAYER] = true,
+            [C.Units.TARGET] = false,
+            [C.Units.FOCUS] = false,
+            [C.Units.PET] = false,
+        },
     }
 
     local function CreateSpacer(height)
@@ -1314,34 +1362,31 @@ function B.BuildTextBuilderPage(container)
 
     container:AddChild(CreateSpacer(2))
 
+    local usageGroup = AceGUI:Create("InlineGroup")
+    usageGroup:SetFullWidth(true)
+    usageGroup:SetLayout("Flow")
+    usageGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE"] or "Template Usage")
+    container:AddChild(usageGroup)
+
+    local usageHint = AceGUI:Create("Label")
+    usageHint:SetFullWidth(true)
+    usageHint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT"] or "Checked units already use the selected template. Uncheck to remove the template link from that unit.")
+    usageGroup:AddChild(usageHint)
+
+    local usageRow = AceGUI:Create("SimpleGroup")
+    usageRow:SetFullWidth(true)
+    usageRow:SetLayout("Flow")
+    usageGroup:AddChild(usageRow)
+
+    local usageCheckboxes = {}
+
+    container:AddChild(CreateSpacer(2))
+
     local applyGroup = AceGUI:Create("InlineGroup")
     applyGroup:SetFullWidth(true)
     applyGroup:SetLayout("Flow")
     applyGroup:SetTitle(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
     container:AddChild(applyGroup)
-
-    local applySlotDropdown = AceGUI:Create("Dropdown")
-    applySlotDropdown:SetLabel(L["INFO_TEXT_BUILDER_TARGET_TEXT"] or "Target Text")
-    applySlotDropdown:SetWidth(250)
-    applySlotDropdown:SetList({
-        Custom1 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_1),
-        Custom2 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_2),
-        Custom3 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_3),
-    })
-    applySlotDropdown:SetValue(state.textBuilder.applySlot or "Custom1")
-    applyGroup:AddChild(applySlotDropdown)
-
-    local applyUnitDropdown = AceGUI:Create("Dropdown")
-    applyUnitDropdown:SetLabel(L["INFO_TEXT_BUILDER_UNIT"] or "Unit")
-    applyUnitDropdown:SetWidth(250)
-    applyUnitDropdown:SetList({
-        [C.Units.PLAYER] = ns.GetLabel(KM.Units, C.Units.PLAYER),
-        [C.Units.TARGET] = ns.GetLabel(KM.Units, C.Units.TARGET),
-        [C.Units.FOCUS] = ns.GetLabel(KM.Units, C.Units.FOCUS),
-        [C.Units.PET] = ns.GetLabel(KM.Units, C.Units.PET),
-    })
-    applyUnitDropdown:SetValue(C.Units.PLAYER)
-    applyGroup:AddChild(applyUnitDropdown)
 
     local applyTemplateButton = AceGUI:Create("Button")
     applyTemplateButton:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
@@ -1363,6 +1408,137 @@ function B.BuildTextBuilderPage(container)
         previewLabel:SetText(previewText)
     end
 
+    local function SetStatus(message)
+        if ns.guiFrame and ns.guiFrame.SetStatusText then
+            ns.guiFrame:SetStatusText(message)
+        end
+    end
+
+    local function TextConfigUsesTemplate(textConfig, templateName, templateValue)
+        if type(textConfig) ~= "table" then
+            return false
+        end
+
+        if type(templateName) == "string" and templateName ~= "" and textConfig.templateName == templateName then
+            return true
+        end
+
+        if type(templateValue) == "string" and templateValue ~= "" and textConfig.tag == templateValue then
+            return true
+        end
+
+        return false
+    end
+
+    local function GetTemplateUsageCounts(templateName)
+        local usage = {
+            [C.Units.PLAYER] = 0,
+            [C.Units.TARGET] = 0,
+            [C.Units.FOCUS] = 0,
+            [C.Units.PET] = 0,
+        }
+        local templateValue = templates[templateName]
+
+        if type(templateName) ~= "string" or templateName == "" then
+            return usage
+        end
+
+        local units = ns.db and ns.db.profile and ns.db.profile.Units or {}
+        for unitKey, unitConfig in pairs(units) do
+            local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+            if type(texts) == "table" and usage[unitKey] ~= nil then
+                for _, textConfig in pairs(texts) do
+                    if TextConfigUsesTemplate(textConfig, templateName, templateValue) then
+                        usage[unitKey] = usage[unitKey] + 1
+                    end
+                end
+            end
+        end
+
+        return usage
+    end
+
+    local function SyncDesiredTemplateUsage()
+        local selectedTemplateName = state.textBuilder.selectedTemplate or ""
+        local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
+
+        state.textBuilder.applyUnits = state.textBuilder.applyUnits or {}
+        for _, unitKey in ipairs({ C.Units.PLAYER, C.Units.TARGET, C.Units.FOCUS, C.Units.PET }) do
+            state.textBuilder.applyUnits[unitKey] = (usageCounts[unitKey] or 0) > 0
+        end
+    end
+
+    local function UnlinkTemplateFromUnit(unitKey, templateName)
+        local unitConfig = ns.db and ns.db.profile and ns.db.profile.Units and ns.db.profile.Units[unitKey]
+        local texts = unitConfig and unitConfig.Texts
+        local changed = false
+        local templateValue = templates[templateName]
+
+        if type(texts) ~= "table" then
+            return false
+        end
+
+        for _, textConfig in pairs(texts) do
+            if TextConfigUsesTemplate(textConfig, templateName, templateValue) then
+                textConfig.templateName = ""
+                if type(templateValue) == "string" and templateValue ~= "" and textConfig.tag == templateValue then
+                    textConfig.tag = ""
+                end
+                if (textConfig.templateName == nil or textConfig.templateName == "")
+                    and (textConfig.tag == nil or textConfig.tag == "")
+                then
+                    textConfig.enabled = false
+                end
+                changed = true
+            end
+        end
+
+        return changed
+    end
+
+    local function RefreshTemplateUsageState()
+        local selectedTemplateName = state.textBuilder.selectedTemplate or ""
+        local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
+
+        for unitKey, checkbox in pairs(usageCheckboxes) do
+            local count = usageCounts[unitKey] or 0
+            local label = ns.GetLabel(KM.Units, unitKey)
+            if count > 0 then
+                label = string.format("%s (%d)", label, count)
+            end
+            checkbox:SetLabel(label)
+            checkbox:SetValue(state.textBuilder.applyUnits and state.textBuilder.applyUnits[unitKey] == true)
+            checkbox:SetDisabled(selectedTemplateName == "")
+        end
+    end
+
+    local function CreateTemplateUsageCheckbox(unitKey)
+        local checkbox = AceGUI:Create("CheckBox")
+        checkbox:SetWidth(140)
+        checkbox:SetLabel(ns.GetLabel(KM.Units, unitKey))
+        checkbox:SetValue(false)
+        checkbox:SetDisabled(true)
+        checkbox:SetCallback("OnValueChanged", function(widget, _, value)
+            local selectedTemplateName = state.textBuilder.selectedTemplate or ""
+
+            if selectedTemplateName == "" then
+                widget:SetValue(false)
+                return
+            end
+
+            state.textBuilder.applyUnits = state.textBuilder.applyUnits or {}
+            state.textBuilder.applyUnits[unitKey] = value and true or false
+            RefreshTemplateUsageState()
+        end)
+        usageRow:AddChild(checkbox)
+        usageCheckboxes[unitKey] = checkbox
+    end
+
+    CreateTemplateUsageCheckbox(C.Units.PLAYER)
+    CreateTemplateUsageCheckbox(C.Units.TARGET)
+    CreateTemplateUsageCheckbox(C.Units.FOCUS)
+    CreateTemplateUsageCheckbox(C.Units.PET)
+
     local function RefreshTemplateDropdown()
         local list = {}
 
@@ -1372,32 +1548,111 @@ function B.BuildTextBuilderPage(container)
 
         templateSelect:SetList(list)
         templateSelect:SetValue(state.textBuilder.selectedTemplate or nil)
+        SyncDesiredTemplateUsage()
+        RefreshTemplateUsageState()
     end
 
-    local function SetStatus(message)
-        if ns.guiFrame and ns.guiFrame.SetStatusText then
-            ns.guiFrame:SetStatusText(message)
+    local function GetNextTextElementSlot(unitKey)
+        local candidateSlots = { "Custom1", "Custom2", "Custom3" }
+
+        for _, slotKey in ipairs(candidateSlots) do
+            local textConfig = ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts", slotKey }, {}) or {}
+            local hasTemplateName = type(textConfig.templateName) == "string" and textConfig.templateName ~= ""
+            local hasTag = type(textConfig.tag) == "string" and textConfig.tag ~= ""
+            local isEnabled = textConfig.enabled == true
+
+            if (not isEnabled) or (not hasTemplateName and not hasTag) then
+                return slotKey
+            end
         end
+
+        return nil
     end
 
     local function ApplyTemplateToTextSlot()
-        local slotKey = state.textBuilder.applySlot or "Custom1"
-        local unitKey = applyUnitDropdown:GetValue() or C.Units.PLAYER
         local template = templateEdit:GetText() or ""
+        local selectedTemplateName = state.textBuilder.selectedTemplate or ""
+        local linkedTemplateName = ""
+        local unitsToAdd = {}
+        local unitsToRemove = {}
+        local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
 
-        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "tag" }, template)
+        if type(templates[selectedTemplateName]) == "string" and templates[selectedTemplateName] == template then
+            linkedTemplateName = selectedTemplateName
+        else
+            local currentName = state.textBuilder.templateName or ""
+            if type(templates[currentName]) == "string" and templates[currentName] == template then
+                linkedTemplateName = currentName
+            end
+        end
+
+        for _, unitKey in ipairs({ C.Units.PLAYER, C.Units.TARGET, C.Units.FOCUS, C.Units.PET }) do
+            local wantsLinked = state.textBuilder.applyUnits and state.textBuilder.applyUnits[unitKey] == true
+            local isLinked = (usageCounts[unitKey] or 0) > 0
+
+            if wantsLinked and not isLinked then
+                unitsToAdd[#unitsToAdd + 1] = unitKey
+            elseif (not wantsLinked) and isLinked then
+                unitsToRemove[#unitsToRemove + 1] = unitKey
+            end
+        end
+
+        if #unitsToAdd == 0 and #unitsToRemove == 0 then
+            SetStatus(L["INFO_TEXT_BUILDER_STATUS_SELECT_UNIT"] or "Select at least one unit.")
+            return
+        end
+
+        local appliedEntries = {}
+        local removedEntries = {}
+        local skippedUnits = {}
+
+        for _, unitKey in ipairs(unitsToAdd) do
+            local slotKey = GetNextTextElementSlot(unitKey)
+            if not slotKey then
+                skippedUnits[#skippedUnits + 1] = ns.GetLabel(KM.Units, unitKey)
+            else
+                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "enabled" }, true)
+                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "tag" }, template)
+                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "templateName" }, linkedTemplateName)
+                appliedEntries[#appliedEntries + 1] = string.format("%s -> %s", ns.GetLabel(KM.Units, unitKey), slotKey)
+            end
+        end
+
+        for _, unitKey in ipairs(unitsToRemove) do
+            if UnlinkTemplateFromUnit(unitKey, selectedTemplateName) then
+                removedEntries[#removedEntries + 1] = ns.GetLabel(KM.Units, unitKey)
+            end
+        end
+
         ns.GUI.Helpers.OptionRefresh.Live()
 
         if ns.GUI and ns.GUI.RefreshOptions then
             ns.GUI:RefreshOptions()
         end
 
-        SetStatus(string.format(
-            "%s: %s -> %s",
-            L["INFO_TEXT_BUILDER_STATUS_APPLIED_TO"] or "Applied to",
-            ns.GetLabel(KM.Texts, slotKey == "Custom1" and C.Texts.CUSTOM_1 or slotKey == "Custom2" and C.Texts.CUSTOM_2 or C.Texts.CUSTOM_3),
-            ns.GetLabel(KM.Units, unitKey)
-        ))
+        local statusParts = {}
+
+        if #appliedEntries > 0 then
+            statusParts[#statusParts + 1] = (L["INFO_TEXT_BUILDER_STATUS_APPLIED_TO"] or "Applied to") .. ": " .. table.concat(appliedEntries, ", ")
+        end
+
+        if #removedEntries > 0 then
+            statusParts[#statusParts + 1] = (L["INFO_TEXT_BUILDER_TEMPLATE_USAGE_UNLINKED"] or "Template unlinked from") .. ": " .. table.concat(removedEntries, ", ")
+        end
+
+        local statusText = table.concat(statusParts, " | ")
+        if linkedTemplateName ~= "" and statusText ~= "" then
+            statusText = statusText .. " (" .. linkedTemplateName .. ")"
+        end
+        if #appliedEntries == 0 and #removedEntries == 0 then
+            statusText = L["INFO_TEXT_BUILDER_STATUS_NO_FREE_SLOT"] or "No free text element available for the selected units."
+        elseif #skippedUnits > 0 then
+            statusText = statusText .. " | " .. (L["INFO_TEXT_BUILDER_STATUS_SKIPPED_UNITS"] or "Skipped") .. ": " .. table.concat(skippedUnits, ", ")
+        end
+
+        SetStatus(statusText)
+        SyncDesiredTemplateUsage()
+        RefreshTemplateUsageState()
     end
 
     templateEdit:SetCallback("OnEnterPressed", function(widget, _, value)
@@ -1414,10 +1669,6 @@ function B.BuildTextBuilderPage(container)
     updateButton:SetCallback("OnClick", function()
         state.textBuilder.template = templateEdit:GetText() or ""
         RefreshPreview()
-    end)
-
-    applySlotDropdown:SetCallback("OnValueChanged", function(_, _, value)
-        state.textBuilder.applySlot = value or "Custom1"
     end)
 
     applyTemplateButton:SetCallback("OnClick", function()
@@ -1446,6 +1697,9 @@ function B.BuildTextBuilderPage(container)
             templateEdit:SetText(selectedTemplate)
             RefreshPreview()
         end
+
+        SyncDesiredTemplateUsage()
+        RefreshTemplateUsageState()
     end)
 
     saveButton:SetCallback("OnClick", function()
@@ -1498,6 +1752,8 @@ function B.BuildTextBuilderPage(container)
 
     RefreshTemplateDropdown()
     RefreshPreview()
+    SyncDesiredTemplateUsage()
+    RefreshTemplateUsageState()
 end
 
 function B.BuildUnitFramePage(container, unitKey)
@@ -2261,6 +2517,63 @@ local function BuildUnitTextPage(container, unitKey, textConfigKey, textLabel)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts", textConfigKey, "shadowEnabled" }, true)
     end
 
+    local function IsExpertModeEnabled()
+        return ns.GUI.Helpers.OptionValues.Get({ "General", "ExpertMode" }, true) == true
+    end
+
+    local function GetTextConfig()
+        return ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts", textConfigKey }, {}) or {}
+    end
+
+    local function GetTemplateList()
+        local list = {}
+        local templates = ns.db and ns.db.profile and ns.db.profile.TextTemplates or {}
+
+        for templateName in pairs(templates) do
+            list[templateName] = templateName
+        end
+
+        return list, templates
+    end
+
+    local function SetStatus(message)
+        if ns.guiFrame and ns.guiFrame.SetStatusText then
+            ns.guiFrame:SetStatusText(message)
+        end
+    end
+
+    local function ResolveCurrentTemplateName(textConfig, templates)
+        if type(textConfig) ~= "table" then
+            return ""
+        end
+
+        if type(textConfig.templateName) == "string" and textConfig.templateName ~= "" and type(templates[textConfig.templateName]) == "string" then
+            return textConfig.templateName
+        end
+
+        local currentTag = textConfig.tag or ""
+        if currentTag == "" then
+            return ""
+        end
+
+        for templateName, templateValue in pairs(templates) do
+            if templateValue == currentTag then
+                return templateName
+            end
+        end
+
+        return ""
+    end
+
+    local function ResolveCurrentTemplateText(textConfig, templates)
+        local currentTemplateName = ResolveCurrentTemplateName(textConfig, templates)
+        if currentTemplateName ~= "" then
+            return templates[currentTemplateName] or ""
+        end
+
+        return textConfig.tag or ""
+    end
+
     local function ResolveDisabled(def)
         if def.disabled == "unit" then
             return IsUnitDisabled
@@ -2447,13 +2760,202 @@ local function BuildUnitTextPage(container, unitKey, textConfigKey, textLabel)
 
     AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.TEXTS) .. " - " .. textLabel)
 
-    for _, sectionDef in ipairs(TEXT_TAB_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+    local templatesList, templates = GetTemplateList()
+    local textConfig = GetTextConfig()
+    local currentTemplateName = ResolveCurrentTemplateName(textConfig, templates)
+    local currentTemplateText = ResolveCurrentTemplateText(textConfig, templates)
 
-        if sectionDef.mode == "section" then
-            local layout = CreateSection(container)
+    local templateGroup = AceGUI:Create("InlineGroup")
+    templateGroup:SetFullWidth(true)
+    templateGroup:SetLayout("Flow")
+    templateGroup:SetTitle(L["INFO_UNIT_TEXT_TEMPLATE_GROUP"] or "Template")
+    container:AddChild(templateGroup)
+
+    local templateHint = AceGUI:Create("Label")
+    templateHint:SetFullWidth(true)
+    if templateHint.SetFont then
+        templateHint:SetFont(STANDARD_TEXT_FONT, 11, "")
+    end
+    templateHint:SetText(string.format("|cff9ea8b3%s|r", L["INFO_UNIT_TEXT_TEMPLATE_HINT"] or "Choose a template for this text element. Layout, font, and effects stay on this page."))
+    templateGroup:AddChild(templateHint)
+
+    local templateDropdown = AceGUI:Create("Dropdown")
+    templateDropdown:SetLabel(L["INFO_UNIT_TEXT_TEMPLATE_SELECT"] or "Template")
+    templateDropdown:SetWidth(320)
+    templateDropdown:SetList(templatesList)
+    templateDropdown:SetValue(currentTemplateName ~= "" and currentTemplateName or nil)
+    templateDropdown:SetDisabled(IsUnitDisabled())
+    templateGroup:AddChild(templateDropdown)
+
+    if IsExpertModeEnabled() then
+        local rawTemplateEdit = AceGUI:Create("EditBox")
+        rawTemplateEdit:SetLabel(L["OPTION_TAG"] or "Tag")
+        rawTemplateEdit:SetWidth(320)
+        rawTemplateEdit:DisableButton(true)
+        rawTemplateEdit:SetText(textConfig.tag or "")
+        rawTemplateEdit:SetDisabled(IsUnitDisabled())
+        rawTemplateEdit:SetCallback("OnEnterPressed", function(widget, _, newValue)
+            if IsUnitDisabled() then
+                return
+            end
+
+            ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, newValue or "")
+            ns.GUI.Helpers.OptionRefresh.Live()
+            widget:ClearFocus()
+        end)
+        rawTemplateEdit:SetCallback("OnFocusLost", function(widget)
+            if IsUnitDisabled() then
+                return
+            end
+
+            ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, widget:GetText() or "")
+            ns.GUI.Helpers.OptionRefresh.Live()
+        end)
+        templateGroup:AddChild(rawTemplateEdit)
+
+        local expertInfo = AceGUI:Create("Label")
+        expertInfo:SetFullWidth(true)
+        if expertInfo.SetFont then
+            expertInfo:SetFont(STANDARD_TEXT_FONT, 10, "")
+        end
+        expertInfo:SetText(string.format("|cff8f98a3%s|r", L["INFO_UNIT_TEXT_TEMPLATE_EXPERT_HINT"] or "Expert Mode: you can still edit the raw template string below."))
+        templateGroup:AddChild(expertInfo)
+    end
+
+    local previewHeader = AceGUI:Create("Label")
+    previewHeader:SetFullWidth(true)
+    previewHeader:SetText(string.format("|cffe6d6a8%s|r", L["INFO_UNIT_TEXT_TEMPLATE_PREVIEW"] or "Preview"))
+    templateGroup:AddChild(previewHeader)
+
+    local previewBox = AceGUI:Create("Label")
+    previewBox:SetFullWidth(true)
+    previewBox:SetText((ns.UnitFrame and ns.UnitFrame.BuildTemplatePreview and ns.UnitFrame:BuildTemplatePreview(currentTemplateText)) or currentTemplateText or " ")
+    templateGroup:AddChild(previewBox)
+
+    local actionGroup = AceGUI:Create("SimpleGroup")
+    actionGroup:SetFullWidth(true)
+    actionGroup:SetLayout("Flow")
+    templateGroup:AddChild(actionGroup)
+
+    local deleteTextButton = AceGUI:Create("Button")
+    deleteTextButton:SetText(L["INFO_UNIT_TEXT_TEMPLATE_DELETE"] or "Delete Text")
+    deleteTextButton:SetWidth(150)
+    deleteTextButton:SetDisabled(IsUnitDisabled())
+    actionGroup:AddChild(deleteTextButton)
+
+    local openBuilderButton = AceGUI:Create("Button")
+    openBuilderButton:SetText(L["INFO_UNIT_TEXT_TEMPLATE_OPEN_BUILDER"] or "Open in Text Builder")
+    openBuilderButton:SetWidth(170)
+    openBuilderButton:SetDisabled(IsUnitDisabled())
+    actionGroup:AddChild(openBuilderButton)
+
+    templateDropdown:SetCallback("OnValueChanged", function(_, _, value)
+        if IsUnitDisabled() then
+            return
+        end
+
+        local selectedName = value or ""
+        local selectedTemplate = templates[selectedName]
+        if type(selectedTemplate) ~= "string" then
+            return
+        end
+
+        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "templateName" }, selectedName)
+        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, selectedTemplate)
+        ns.GUI.Helpers.OptionRefresh.Live()
+        ns.GUI:RefreshOptions()
+    end)
+
+    deleteTextButton:SetCallback("OnClick", function()
+        if IsUnitDisabled() then
+            return
+        end
+
+        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "templateName" }, "")
+        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, "")
+        ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "enabled" }, false)
+        ns.GUI.Helpers.OptionRefresh.Live()
+        ns.GUI:RefreshOptions()
+        SetStatus((L["INFO_UNIT_TEXT_TEMPLATE_STATUS_DELETED"] or "Text deleted:") .. " " .. textLabel)
+    end)
+
+    openBuilderButton:SetCallback("OnClick", function()
+        if IsUnitDisabled() then
+            return
+        end
+
+        local state = GetGUIState()
+        state.textBuilder = state.textBuilder or {}
+        state.textBuilder.template = currentTemplateText or ""
+        state.textBuilder.templateName = currentTemplateName or ""
+        state.textBuilder.selectedTemplate = currentTemplateName or ""
+
+        if ns.GUI then
+            ns.GUI.selectedPath = C.Nav.TEXT_BUILDER
+        end
+
+        if ns.guiTreeGroup and ns.guiTreeGroup.SelectByValue then
+            ns.guiTreeGroup:SelectByValue(C.Nav.TEXT_BUILDER)
+        elseif ns.GUI and ns.GUI.RefreshOptions then
+            ns.GUI:RefreshOptions()
+        end
+    end)
+
+    local basicsGroup = AceGUI:Create("InlineGroup")
+    basicsGroup:SetFullWidth(true)
+    basicsGroup:SetLayout("Flow")
+    basicsGroup:SetTitle(ResolveLayoutText("SECTION_GENERAL"))
+    container:AddChild(basicsGroup)
+
+    local basicsLayout = CreateSection(basicsGroup)
+    basicsLayout:Add(Checkbox.Create({
+        path = { "Units", unitKey, "Texts", textConfigKey, "enabled" },
+        label = ResolveLayoutText("OPTION_ENABLED"),
+        fallback = true,
+        resetText = L["OPTION_RESET"],
+        disabled = IsUnitDisabled,
+        refreshGUI = true,
+    }))
+    basicsLayout:Add(ColorPicker.Create({
+        path = { "Units", unitKey, "Texts", textConfigKey, "color" },
+        label = ResolveLayoutText("OPTION_COLOR"),
+        hasAlpha = true,
+        fallback = { 1, 1, 1, 1 },
+        resetText = L["OPTION_RESET"],
+        disabled = IsTextDisabled,
+    }))
+
+    local sectionOrder = {
+        "SECTION_POSITION",
+        "SECTION_FONT",
+        "SECTION_EFFECTS",
+    }
+
+    local sectionDefsByKey = {}
+    for _, sectionDef in ipairs(TEXT_TAB_LAYOUT) do
+        sectionDefsByKey[sectionDef.section] = sectionDefsByKey[sectionDef.section] or sectionDef
+    end
+
+    for _, sectionKey in ipairs(sectionOrder) do
+        local sectionDef = sectionDefsByKey[sectionKey]
+        if sectionDef and sectionDef.mode == "section" then
+            local sectionGroup = AceGUI:Create("InlineGroup")
+            sectionGroup:SetFullWidth(true)
+            sectionGroup:SetLayout("Flow")
+            sectionGroup:SetTitle(ResolveLayoutText(sectionDef.section))
+            container:AddChild(sectionGroup)
+
+            local layout = CreateSection(sectionGroup)
             for _, item in ipairs(sectionDef.items) do
+                if sectionKey == "SECTION_EFFECTS"
+                    and item.widget == "colorpicker"
+                    and type(item.path) == "table"
+                    and item.path[#item.path] == "color"
+                then
+                    -- Base text color is grouped with the basic text state above.
+                else
                 AddSectionWidget(layout, item)
+                end
             end
         end
     end
@@ -2487,9 +2989,9 @@ function B.BuildUnitTextsPage(container, unitKey)
 
         BuildScrollableTabContent(widget, state.unitTextScroll[unitKey][textConfigKey], function(content)
             local textLabel = textConfigKey
-            for _, def in ipairs(TEXT_TAB_DEFS) do
-                if def.configKey == textConfigKey then
-                    textLabel = ns.GetLabel(KM.Texts, def.value)
+            for index, tab in ipairs(tabs) do
+                if tab.value == textConfigKey then
+                    textLabel = GetTextElementLabel(index)
                     break
                 end
             end

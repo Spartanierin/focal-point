@@ -213,12 +213,152 @@ local function EnsureAlternativePowerDefaults()
     end
 end
 
+local function EnsureTextTemplateDefaults()
+    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.GetDefaultDB then
+        return
+    end
+
+    local profile = PORTRAIT.db.profile
+    local defaults = PORTRAIT:GetDefaultDB()
+    local defaultTemplates = defaults and defaults.profile and defaults.profile.TextTemplates
+    if type(defaultTemplates) ~= "table" then
+        return
+    end
+
+    profile.TextTemplates = profile.TextTemplates or {}
+
+    for templateName, templateValue in pairs(defaultTemplates) do
+        if profile.TextTemplates[templateName] == nil then
+            profile.TextTemplates[templateName] = templateValue
+        end
+    end
+end
+
+local function EnsureTextTemplateLinks()
+    if not PORTRAIT.db or not PORTRAIT.db.profile then
+        return
+    end
+
+    local profile = PORTRAIT.db.profile
+    local templates = profile.TextTemplates
+    local units = profile.Units
+    local defaults = PORTRAIT.GetDefaultDB and PORTRAIT:GetDefaultDB()
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if type(templates) ~= "table" or type(units) ~= "table" then
+        return
+    end
+
+    local function ResolveDefaultTemplateName(unitKey, textKey)
+        if textKey == "Name" then
+            return "Sparta's Unit Frame - Name"
+        end
+
+        if textKey == "Health" then
+            return "Sparta's Unit Frame - Health"
+        end
+
+        if textKey == "Power" then
+            if unitKey == "player" then
+                return "Sparta's Unit Frame - Player Power"
+            end
+
+            return "Sparta's Unit Frame - Target Power"
+        end
+
+        if textKey == "AltPower" then
+            return "Sparta's Unit Frame - Alt Power"
+        end
+
+        if textKey == "Status" then
+            return "Sparta's Unit Frame - Status"
+        end
+
+        if textKey == "CastName" then
+            return "Sparta's Unit Frame - Cast Name"
+        end
+
+        if textKey == "CastTime" then
+            return "Sparta's Unit Frame - Cast Time"
+        end
+
+        if textKey == "Race" and unitKey ~= "player" then
+            return "Sparta's Unit Frame - Creature"
+        end
+
+        return nil
+    end
+
+    for unitKey, unitConfig in pairs(units) do
+        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+        local defaultTexts = defaultUnits and defaultUnits[unitKey] and defaultUnits[unitKey].Texts
+        if type(texts) == "table" then
+            for textKey, textConfig in pairs(texts) do
+                if type(textConfig) == "table" then
+                    local currentTemplateName = textConfig.templateName
+                    local currentTag = textConfig.tag
+
+                    if (type(currentTemplateName) ~= "string" or currentTemplateName == "")
+                        and type(currentTag) == "string"
+                        and currentTag ~= ""
+                    then
+                        for templateName, templateValue in pairs(templates) do
+                            if templateValue == currentTag then
+                                textConfig.templateName = templateName
+                                break
+                            end
+                        end
+
+                        if (type(textConfig.templateName) ~= "string" or textConfig.templateName == "")
+                            and type(defaultTexts) == "table"
+                            and type(defaultTexts[textKey]) == "table"
+                            and defaultTexts[textKey].tag == currentTag
+                        then
+                            local mappedTemplateName = ResolveDefaultTemplateName(unitKey, textKey)
+                            if type(mappedTemplateName) == "string" and type(templates[mappedTemplateName]) == "string" then
+                                textConfig.templateName = mappedTemplateName
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function EnsureNoEmptyTextElements()
+    if not PORTRAIT.db or not PORTRAIT.db.profile or type(PORTRAIT.db.profile.Units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(PORTRAIT.db.profile.Units) do
+        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+        if type(texts) == "table" then
+            for _, textConfig in pairs(texts) do
+                if type(textConfig) == "table" then
+                    local templateName = textConfig.templateName
+                    local tag = textConfig.tag
+                    local hasTemplate = type(templateName) == "string" and templateName ~= ""
+                    local hasTag = type(tag) == "string" and tag ~= ""
+
+                    if not hasTemplate and not hasTag then
+                        textConfig.enabled = false
+                    end
+                end
+            end
+        end
+    end
+end
+
 function PortraitAddon:OnInitialize()
     PORTRAIT.db = LibStub("AceDB-3.0"):New("PortraitDB", PORTRAIT:GetDefaultDB(), true)
     EnsureImageElementDefaults()
     EnsureBarTextureDefaults()
     EnsureCastTextDefaults()
     EnsureAlternativePowerDefaults()
+    EnsureTextTemplateDefaults()
+    EnsureTextTemplateLinks()
+    EnsureNoEmptyTextElements()
 
     PORTRAIT.LDS = PORTRAIT.LDS or LibStub("LibDualSpec-1.0", true)
     if PORTRAIT.LDS then

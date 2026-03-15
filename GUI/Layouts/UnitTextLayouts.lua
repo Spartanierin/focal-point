@@ -7,15 +7,6 @@ ns.GUI.Layouts.UnitTexts = ns.GUI.Layouts.UnitTexts or {}
 
 ns.GUI.Layouts.UnitTexts.TextTab = {
     {
-        section = "SECTION_GENERAL",
-        mode = "section",
-        layout = "list",
-        items = {
-            { widget = "checkbox", path = { "Units", "$unitKey", "Texts", "$textKey", "enabled" }, label = "OPTION_ENABLED", fallback = true, refreshGUI = true, disabled = "unit" },
-            { widget = "editbox", path = { "Units", "$unitKey", "Texts", "$textKey", "tag" }, label = "OPTION_TAG", fallback = "" },
-        },
-    },
-    {
         section = "SECTION_FONT",
         mode = "section",
         layout = "list",

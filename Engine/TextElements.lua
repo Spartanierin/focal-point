@@ -119,6 +119,27 @@ local function GetClassificationText(unit)
     return classification
 end
 
+local function GetRoleText(unit)
+    if not unit or not UnitGroupRolesAssigned then
+        return ""
+    end
+
+    local role = UnitGroupRolesAssigned(unit)
+    if type(role) ~= "string" or role == "" or role == "NONE" then
+        return ""
+    end
+
+    if role == "TANK" then
+        return TANK or "Tank"
+    elseif role == "HEALER" then
+        return HEALER or "Healer"
+    elseif role == "DAMAGER" then
+        return DAMAGER or "Damager"
+    end
+
+    return role
+end
+
 local function ClampColorComponent(value)
     if type(value) ~= "number" then
         return 255
@@ -236,8 +257,12 @@ local function GetExplicitColorCode(value)
     return nil
 end
 
-local function ResolveColorTag(frame, unit, token)
+local function ResolveColorTag(frame, unit, token, fallbackColor)
     if token == "rc" or token == "resetcolor" then
+        if type(fallbackColor) == "table" then
+            local r, g, b, a = UnpackColor(fallbackColor, { 1, 1, 1, 1 })
+            return BuildColorCode(r, g, b, a)
+        end
         return "|r"
     end
 
@@ -908,6 +933,15 @@ local TAG_DATABASE = {
     { token = "[type]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_TYPE", example = "Humanoid" },
     { token = "[creature]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CREATURE", example = "Humanoid" },
     { token = "[status]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_STATUS", example = "AFK" },
+    { token = "[afk]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_AFK", example = "AFK" },
+    { token = "[dnd]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_DND", example = "DND" },
+    { token = "[dead]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_DEAD", example = "Dead" },
+    { token = "[offline]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_OFFLINE", example = "Offline" },
+    { token = "[pvp]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_PVP", example = "PvP" },
+    { token = "[combat]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_COMBAT", example = "Combat" },
+    { token = "[resting]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_RESTING", example = "Resting" },
+    { token = "[leader]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_LEADER", example = "Leader" },
+    { token = "[role]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_ROLE", example = "Tank" },
 }
 
 function UF:GetTagDatabase()
@@ -1008,6 +1042,42 @@ local function ResolveBasicTag(frame, unit, token)
 
         if token == "status" then
             return preview.status or ""
+        end
+
+        if token == "afk" then
+            return preview.afk or ""
+        end
+
+        if token == "dnd" then
+            return preview.dnd or ""
+        end
+
+        if token == "dead" then
+            return preview.dead or ""
+        end
+
+        if token == "offline" then
+            return preview.offline or ""
+        end
+
+        if token == "pvp" then
+            return preview.pvp or ""
+        end
+
+        if token == "combat" then
+            return preview.combat or ""
+        end
+
+        if token == "resting" then
+            return preview.resting or ""
+        end
+
+        if token == "leader" then
+            return preview.leader or ""
+        end
+
+        if token == "role" then
+            return preview.role or ""
         end
 
         if token == "cast:name" then
@@ -1192,6 +1262,74 @@ local function ResolveBasicTag(frame, unit, token)
         return ""
     end
 
+    if token == "afk" then
+        if UnitIsAFK and unit and IsSafeTrue(UnitIsAFK(unit)) then
+            return AFK or "AFK"
+        end
+
+        return ""
+    end
+
+    if token == "dnd" then
+        if UnitIsDND and unit and IsSafeTrue(UnitIsDND(unit)) then
+            return DND or "DND"
+        end
+
+        return ""
+    end
+
+    if token == "dead" then
+        if UnitIsDeadOrGhost and unit and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
+            return DEAD or "Dead"
+        end
+
+        return ""
+    end
+
+    if token == "offline" then
+        if UnitIsConnected and unit and not IsSafeTrue(UnitIsConnected(unit)) then
+            return PLAYER_OFFLINE or "Offline"
+        end
+
+        return ""
+    end
+
+    if token == "pvp" then
+        if UnitIsPVP and unit and IsSafeTrue(UnitIsPVP(unit)) then
+            return PVP or "PvP"
+        end
+
+        return ""
+    end
+
+    if token == "combat" then
+        if UnitAffectingCombat and unit and IsSafeTrue(UnitAffectingCombat(unit)) then
+            return COMBAT or "Combat"
+        end
+
+        return ""
+    end
+
+    if token == "resting" then
+        if unit == "player" and IsResting and IsSafeTrue(IsResting()) then
+            return PLAYER_STATUS_RESTING or "Resting"
+        end
+
+        return ""
+    end
+
+    if token == "leader" then
+        if UnitIsGroupLeader and unit and IsSafeTrue(UnitIsGroupLeader(unit)) then
+            return LEADER or "Leader"
+        end
+
+        return ""
+    end
+
+    if token == "role" then
+        return GetRoleText(unit)
+    end
+
     if token == "cast:name" then
         if not unit then
             return ""
@@ -1343,6 +1481,23 @@ local function TemplateContainsToken(template, token)
     return template:find("%[" .. token:gsub("([^%w:])", "%%%1") .. "%]") ~= nil
 end
 
+local function ResolveConfiguredTemplate(textConfig)
+    if type(textConfig) ~= "table" then
+        return ""
+    end
+
+    local templateName = textConfig.templateName
+    local templates = Portrait.db and Portrait.db.profile and Portrait.db.profile.TextTemplates
+    if type(templateName) == "string" and templateName ~= "" and type(templates) == "table" then
+        local linkedTemplate = templates[templateName]
+        if type(linkedTemplate) == "string" and linkedTemplate ~= "" then
+            return linkedTemplate
+        end
+    end
+
+    return textConfig.tag or ""
+end
+
 function UF:BuildTemplatePreview(template, unit)
     if type(template) ~= "string" or template == "" then
         return ""
@@ -1370,7 +1525,7 @@ function UF:BuildTemplatePreview(template, unit)
     return table.concat(parts)
 end
 
-local function ApplyDirectTemplate(frame, textObject, unit, template)
+local function ApplyDirectTemplate(frame, textObject, unit, template, fallbackColor)
     if not frame or not textObject then
         return false
     end
@@ -1384,7 +1539,10 @@ local function ApplyDirectTemplate(frame, textObject, unit, template)
     local hasToken = false
 
     for token in template:gmatch("%[([^%]]+)%]") do
-        local resolved = ResolveBasicTag(frame, unit, token)
+        local resolved = ResolveColorTag(frame, unit, token, fallbackColor)
+        if resolved == nil then
+            resolved = ResolveBasicTag(frame, unit, token)
+        end
         if resolved == nil then
             resolved = "[" .. token .. "]"
         elseif type(resolved) ~= "string" then
@@ -1447,7 +1605,7 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
 
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
-    local template = textConfig.tag or ""
+    local template = ResolveConfiguredTemplate(textConfig)
 
     if key == "Class" or TemplateContainsToken(template, "class") then
         local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
@@ -1512,7 +1670,7 @@ function UF:UpdateTextElement(frame, key)
         return
     end
 
-    local template = textConfig.tag or ""
+    local template = ResolveConfiguredTemplate(textConfig)
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
     local altPowerType = GetLiveValue(frame, "altPowerType", nil)
     local altPowerMaxRaw = ToSafeNumber(GetLiveValue(frame, "altPowerMaxRaw", 0))
@@ -1544,7 +1702,7 @@ function UF:UpdateTextElement(frame, key)
     end
     textObject:SetTextColor(r, g, b, a)
 
-    if ApplyDirectTemplate(frame, textObject, frame.unit, template) then
+    if ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
         return
     end
 

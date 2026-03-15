@@ -2171,6 +2171,15 @@ function UF:ApplyConfig(frame)
     -- Texts
     if config.Texts then
         for key, textConfig in pairs(config.Texts) do
+            if textConfig
+                and textConfig.enabled ~= false
+                and (not frame.Texts or not frame.Texts[key])
+                and self.CreateTextElement
+            then
+                frame.Texts = frame.Texts or {}
+                frame.Tags = frame.Tags or {}
+                self:CreateTextElement(frame, key, textConfig)
+            end
             self:ApplyTextElementConfig(frame, key, frame.Texts[key], textConfig)
         end
     end
