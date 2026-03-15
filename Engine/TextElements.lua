@@ -188,20 +188,6 @@ local function IsSafeTrue(value)
     return false
 end
 
-local ABBREV_DATA = {
-    breakpointData = {
-        { breakpoint = 1e12, abbreviation = "B", significandDivisor = 1e10, fractionDivisor = 100, abbreviationIsGlobal = false },
-        { breakpoint = 1e11, abbreviation = "B", significandDivisor = 1e9, fractionDivisor = 1, abbreviationIsGlobal = false },
-        { breakpoint = 1e10, abbreviation = "B", significandDivisor = 1e8, fractionDivisor = 10, abbreviationIsGlobal = false },
-        { breakpoint = 1e9, abbreviation = "B", significandDivisor = 1e7, fractionDivisor = 100, abbreviationIsGlobal = false },
-        { breakpoint = 1e8, abbreviation = "M", significandDivisor = 1e6, fractionDivisor = 1, abbreviationIsGlobal = false },
-        { breakpoint = 1e7, abbreviation = "M", significandDivisor = 1e5, fractionDivisor = 10, abbreviationIsGlobal = false },
-        { breakpoint = 1e6, abbreviation = "M", significandDivisor = 1e4, fractionDivisor = 100, abbreviationIsGlobal = false },
-        { breakpoint = 1e5, abbreviation = "k", significandDivisor = 1000, fractionDivisor = 1, abbreviationIsGlobal = false },
-        { breakpoint = 1e4, abbreviation = "k", significandDivisor = 100, fractionDivisor = 10, abbreviationIsGlobal = false },
-    },
-}
-
 local function ToSafeNumber(value)
     if value == nil then
         return 0
@@ -230,46 +216,6 @@ local function ToSafeNumber(value)
     end
 
     return 0
-end
-
-local function TrimFormattedDecimal(value)
-    if type(value) ~= "string" then
-        return "0"
-    end
-
-    value = value:gsub("(%..-)0+$", "%1")
-    value = value:gsub("%.$", "")
-    return value
-end
-
-local function FormatAbbreviatedNumber(value)
-    local sharedAbbreviator = Portrait.UnitFrame and Portrait.UnitFrame.SafeAbbreviateNumber or nil
-    if type(sharedAbbreviator) == "function" then
-        local ok, result = pcall(sharedAbbreviator, value)
-        if ok and type(result) == "string" and result ~= "" then
-            return result
-        end
-    end
-
-    local safeValue = ToSafeNumber(value)
-
-    for _, data in ipairs(ABBREV_DATA.breakpointData) do
-        if safeValue >= data.breakpoint then
-            local scaled = math.floor(safeValue / data.significandDivisor) / data.fractionDivisor
-            local decimals = 0
-
-            if data.fractionDivisor == 10 then
-                decimals = 1
-            elseif data.fractionDivisor == 100 then
-                decimals = 2
-            end
-
-            local formatString = "%." .. decimals .. "f"
-            return TrimFormattedDecimal(string.format(formatString, scaled)) .. data.abbreviation
-        end
-    end
-
-    return FormatNumber(value)
 end
 
 local function GetLiveValue(frame, key, fallback)
@@ -374,8 +320,6 @@ function UF:RefreshLiveValues(frame)
         frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
         frame.LiveValues.healthPercentValue = healthMax > 0 and math.floor((healthCurrent / healthMax) * 100) or 0
         frame.LiveValues.healthPercentText = FormatInteger(frame.LiveValues.healthPercentValue)
-        frame.LiveValues.healthCurrentAbbr = FormatAbbreviatedNumber(healthCurrent)
-        frame.LiveValues.healthMaxAbbr = FormatAbbreviatedNumber(healthMax)
         frame.LiveValues.healthCurrentRaw = healthCurrent
         frame.LiveValues.healthMaxRaw = healthMax
 
@@ -385,8 +329,6 @@ function UF:RefreshLiveValues(frame)
         frame.LiveValues.powerMaxText = FormatNumber(powerMax)
         frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
         frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
-        frame.LiveValues.powerCurrentAbbr = FormatAbbreviatedNumber(powerCurrent)
-        frame.LiveValues.powerMaxAbbr = FormatAbbreviatedNumber(powerMax)
         frame.LiveValues.powerCurrentRaw = powerCurrent
         frame.LiveValues.powerMaxRaw = powerMax
         frame.LiveValues.powerPercentValue = powerMax > 0 and math.floor((powerCurrent / powerMax) * 100) or 0
@@ -398,8 +340,6 @@ function UF:RefreshLiveValues(frame)
         frame.LiveValues.altPowerMaxText = FormatNumber(altPowerMax)
         frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
         frame.LiveValues.altPowerMaxSafe = ToSafeNumber(altPowerMax)
-        frame.LiveValues.altPowerCurrentAbbr = FormatAbbreviatedNumber(altPowerCurrent)
-        frame.LiveValues.altPowerMaxAbbr = FormatAbbreviatedNumber(altPowerMax)
         frame.LiveValues.altPowerCurrentRaw = altPowerCurrent
         frame.LiveValues.altPowerMaxRaw = altPowerMax
         return
@@ -501,8 +441,6 @@ function UF:RefreshLiveValues(frame)
     frame.LiveValues.altPowerMaxText = FormatNumber(frame.LiveValues.altPowerMax)
     frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(frame.LiveValues.altPowerCurrent)
     frame.LiveValues.altPowerMaxSafe = ToSafeNumber(frame.LiveValues.altPowerMax)
-    frame.LiveValues.altPowerCurrentAbbr = FormatAbbreviatedNumber(frame.LiveValues.altPowerCurrent)
-    frame.LiveValues.altPowerMaxAbbr = FormatAbbreviatedNumber(frame.LiveValues.altPowerMax)
     frame.LiveValues.altPowerCurrentRaw = frame.LiveValues.altPowerCurrent
     frame.LiveValues.altPowerMaxRaw = frame.LiveValues.altPowerMax
     frame.LiveValues.altPowerType = secondaryPowerType

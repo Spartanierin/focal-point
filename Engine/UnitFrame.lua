@@ -3,8 +3,6 @@ local _, Portrait = ...
 Portrait.UnitFrame = Portrait.UnitFrame or {}
 local UF = Portrait.UnitFrame
 
-local SafeAbbreviateNumber
-
 local function GetUnitDB(unit)
     local db = Portrait.db
     if not db or not db.profile or not db.profile.Units then
@@ -60,6 +58,41 @@ local function ToSafeNumberValue(value)
     end
 
     return 0
+end
+
+local function FormatDisplayNumber(value)
+    if value == nil then
+        return "0"
+    end
+
+    if BreakUpLargeNumbers then
+        local ok, result = pcall(BreakUpLargeNumbers, value)
+        if ok and type(result) == "string" then
+            return result
+        end
+    end
+
+    local ok, result = pcall(string.format, "%s", value)
+    if ok and type(result) == "string" then
+        return result
+    end
+
+    return "0"
+end
+
+local function ResolveBlizzardAbbreviation(rawValue, displayText)
+    if type(AbbreviateLargeNumbers) == "function" then
+        local ok, abbreviation = pcall(AbbreviateLargeNumbers, rawValue)
+        if ok and type(abbreviation) == "string" then
+            return abbreviation
+        end
+    end
+
+    if type(displayText) == "string" then
+        return displayText
+    end
+
+    return ""
 end
 
 local function IsUnitDeadByHealth(unit)
@@ -182,8 +215,10 @@ function UF:UpdateHealthBarValue(frame)
     frame.LiveValues.healthMaxRaw = maxHealth
     frame.LiveValues.healthCurrentSafe = ToSafeNumberValue(currentHealth)
     frame.LiveValues.healthMaxSafe = ToSafeNumberValue(maxHealth)
-    frame.LiveValues.healthCurrentAbbr = SafeAbbreviateNumber(currentHealth)
-    frame.LiveValues.healthMaxAbbr = SafeAbbreviateNumber(maxHealth)
+    frame.LiveValues.healthCurrentText = FormatDisplayNumber(currentHealth)
+    frame.LiveValues.healthMaxText = FormatDisplayNumber(maxHealth)
+    frame.LiveValues.healthCurrentAbbr = ResolveBlizzardAbbreviation(currentHealth, frame.LiveValues.healthCurrentText)
+    frame.LiveValues.healthMaxAbbr = ResolveBlizzardAbbreviation(maxHealth, frame.LiveValues.healthMaxText)
 end
 
 function UF:UpdateHealthBarColor(frame)
@@ -249,16 +284,6 @@ local function GetFontPath(path)
         return path
     end
     return STANDARD_TEXT_FONT
-end
-
-local function TrimFormattedDecimal(value)
-    if type(value) ~= "string" then
-        return "0"
-    end
-
-    value = value:gsub("(%..-)0+$", "%1")
-    value = value:gsub("%.$", "")
-    return value
 end
 
 local TEST_PREVIEW_VALUES = {
@@ -369,51 +394,6 @@ local function GetSecondaryPowerValues(unit)
 
     return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
 end
-
-local function FormatFallbackAbbreviation(value)
-    if type(value) ~= "number" then
-        return "0"
-    end
-
-    local breakpoints = {
-        { breakpoint = 1e12, abbreviation = "B", significandDivisor = 1e10, fractionDivisor = 100 },
-        { breakpoint = 1e11, abbreviation = "B", significandDivisor = 1e9, fractionDivisor = 1 },
-        { breakpoint = 1e10, abbreviation = "B", significandDivisor = 1e8, fractionDivisor = 10 },
-        { breakpoint = 1e9, abbreviation = "B", significandDivisor = 1e7, fractionDivisor = 100 },
-        { breakpoint = 1e8, abbreviation = "M", significandDivisor = 1e6, fractionDivisor = 1 },
-        { breakpoint = 1e7, abbreviation = "M", significandDivisor = 1e5, fractionDivisor = 10 },
-        { breakpoint = 1e6, abbreviation = "M", significandDivisor = 1e4, fractionDivisor = 100 },
-        { breakpoint = 1e5, abbreviation = "k", significandDivisor = 1000, fractionDivisor = 1 },
-        { breakpoint = 1e4, abbreviation = "k", significandDivisor = 100, fractionDivisor = 10 },
-    }
-
-    for _, data in ipairs(breakpoints) do
-        if value >= data.breakpoint then
-            local scaled = math.floor(value / data.significandDivisor) / data.fractionDivisor
-            local decimals = 0
-
-            if data.fractionDivisor == 10 then
-                decimals = 1
-            elseif data.fractionDivisor == 100 then
-                decimals = 2
-            end
-
-            return TrimFormattedDecimal(string.format("%." .. decimals .. "f", scaled)) .. data.abbreviation
-        end
-    end
-
-    return tostring(value)
-end
-
-SafeAbbreviateNumber = function(value)
-    if type(value) == "number" then
-        return FormatFallbackAbbreviation(value)
-    end
-
-    return "0"
-end
-
-UF.SafeAbbreviateNumber = SafeAbbreviateNumber
 
 local function ApplyCastBarStateColor(castBar, isInterruptible, baseColor)
     if not castBar then
@@ -593,8 +573,12 @@ function UF:RefreshUnitBarValues(frame)
 
         frame.LiveValues.powerCurrentRaw = currentPower
         frame.LiveValues.powerMaxRaw = maxPower
-        frame.LiveValues.powerCurrentAbbr = SafeAbbreviateNumber(currentPower)
-        frame.LiveValues.powerMaxAbbr = SafeAbbreviateNumber(maxPower)
+        frame.LiveValues.powerCurrentText = FormatDisplayNumber(currentPower)
+        frame.LiveValues.powerMaxText = FormatDisplayNumber(maxPower)
+        frame.LiveValues.powerCurrentSafe = ToSafeNumberValue(currentPower)
+        frame.LiveValues.powerMaxSafe = ToSafeNumberValue(maxPower)
+        frame.LiveValues.powerCurrentAbbr = ResolveBlizzardAbbreviation(currentPower, frame.LiveValues.powerCurrentText)
+        frame.LiveValues.powerMaxAbbr = ResolveBlizzardAbbreviation(maxPower, frame.LiveValues.powerMaxText)
     end
 
     if frame.Elements.AlternativePowerBar then
@@ -618,10 +602,14 @@ function UF:RefreshUnitBarValues(frame)
 
         frame.LiveValues.altPowerCurrentRaw = currentAltPower
         frame.LiveValues.altPowerMaxRaw = maxAltPower
+        frame.LiveValues.altPowerCurrentText = FormatDisplayNumber(currentAltPower)
+        frame.LiveValues.altPowerMaxText = FormatDisplayNumber(maxAltPower)
         frame.LiveValues.altPowerVisible = showAltPower
         frame.LiveValues.altPowerType = secondaryPowerType
-        frame.LiveValues.altPowerCurrentAbbr = SafeAbbreviateNumber(currentAltPower)
-        frame.LiveValues.altPowerMaxAbbr = SafeAbbreviateNumber(maxAltPower)
+        frame.LiveValues.altPowerCurrentSafe = ToSafeNumberValue(currentAltPower)
+        frame.LiveValues.altPowerMaxSafe = ToSafeNumberValue(maxAltPower)
+        frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
+        frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
 
         if previousAltPowerVisible ~= nil
             and previousAltPowerVisible ~= showAltPower
@@ -2209,8 +2197,12 @@ function UF:ApplyTestValues(frame)
         frame.LiveValues.altPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
         frame.LiveValues.altPowerCurrentRaw = currentAltPower
         frame.LiveValues.altPowerMaxRaw = maxAltPower
-        frame.LiveValues.altPowerCurrentAbbr = SafeAbbreviateNumber(currentAltPower)
-        frame.LiveValues.altPowerMaxAbbr = SafeAbbreviateNumber(maxAltPower)
+        frame.LiveValues.altPowerCurrentText = FormatDisplayNumber(currentAltPower)
+        frame.LiveValues.altPowerMaxText = FormatDisplayNumber(maxAltPower)
+        frame.LiveValues.altPowerCurrentSafe = ToSafeNumberValue(currentAltPower)
+        frame.LiveValues.altPowerMaxSafe = ToSafeNumberValue(maxAltPower)
+        frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
+        frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
 
         frame.Elements.AlternativePowerBar:SetMinMaxValues(0, math.max(maxAltPower, 1))
         frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
