@@ -141,28 +141,67 @@ Examples:
 
 ## Abbreviation Style
 
-Portrait uses its own fixed abbreviation style and does not rely on Blizzard number abbreviation output.
+Portrait currently uses Blizzard number abbreviation output for `:abbr` tags.
 
-### Rules
+### Current Rule
 
-- below `10,000`: no abbreviation
-- `10,000` to `99,999`: one decimal
-  - example: `15.4k`
-- `100,000` to `999,999`: no decimal
-  - example: `154k`
-- `1,000,000` to `9,999,999`: two decimals
-  - example: `1.54M`
-- `10,000,000` to `99,999,999`: one decimal
-  - example: `15.4M`
-- `100,000,000` and above: no decimal
-  - example: `154M`
+- `:abbr` values are prepared before tag rendering
+- Portrait calls Blizzard's `AbbreviateLargeNumbers(...)`
+- the returned string is used directly
+- Portrait does not normalize casing, spacing, suffixes, or separators afterward
+- if Blizzard abbreviation does not return a usable string, Portrait falls back to the prepared display text
 
 ### Why
 
-- consistent across locales and client behavior
-- no hidden dependency on Blizzard formatting changes
-- easier to test and reason about
-- matches the display-first tag model
+- this is currently the most stable path under Retail secret value behavior
+- it avoids further parsing or manipulation of potentially protected values
+- it keeps the tag system simple: prepared display values in, rendered text out
+
+### Consequence
+
+- output may differ from earlier Portrait-specific styling
+- examples:
+  - uppercase `K`
+  - spaces before suffixes
+  - locale-specific separators
+- this is acceptable by design as long as the output is stable and direct from Blizzard
+
+## Color Tags
+
+Portrait supports inline color tags as lightweight formatting prefixes inside templates.
+
+### Current Rule
+
+- color formatting is applied inline through `[color:...]`
+- color reset uses `[rc]`
+- the returned color escape codes are used directly
+- templates may combine multiple color prefixes with normal data tags
+- legacy color tags may remain parser-compatible, but the documented syntax is the unified `[color:...]` form
+
+### Supported Forms
+
+- `[color:class]`
+- `[color:blizz_pwr]`
+- `[color:reaction]`
+- `[color:blizz_yellow]`
+- `[color:blizz_red]`
+- `[color:blizz_green]`
+- `[color:blizz_highlight]`
+- `[color:ffcc00]`
+- `[color:#ffcc00]`
+- `[color:aarrggbb]`
+- `[rc]`
+
+### Guidance
+
+- use color tags as prefixes around existing data tags
+- prefer short, explicit sequences over long nested constructions
+- keep color tags declarative; they should resolve to a color code, not perform additional formatting work
+
+Examples:
+- `[color:class][name][rc]`
+- `[color:blizz_pwr][power:cur][rc]`
+- `[color:blizz_yellow][level] [classification][rc]`
 
 ## Current Findings In `TextElements.lua`
 
@@ -177,6 +216,7 @@ Portrait uses its own fixed abbreviation style and does not rely on Blizzard num
 - `perhp`
 
 These already prefer prepared display values.
+For `:abbr`, that prepared value is now the direct Blizzard abbreviation string or a plain display-text fallback.
 
 ### Needs Cleanup
 
@@ -195,6 +235,7 @@ These still keep a narrow fallback path and should eventually move to prepared t
 
 - no longer the primary percent path for `hp:perc` and `power:perc`
 - remaining risk is mostly in the broader runtime value preparation, not in the token definitions themselves
+- `:abbr` is intentionally delegated to Blizzard formatting instead of Portrait-side math
 
 ## Recommended Next Adjustments
 
@@ -205,6 +246,7 @@ These still keep a narrow fallback path and should eventually move to prepared t
   - `powerPercentText`
   - `altPowerPercentText` if needed later
 - reduce the remaining direct unit API fallbacks in token resolvers
+- keep abbreviation policy conservative: prefer direct Blizzard output over Portrait-side rewriting
 
 ### Medium Term
 

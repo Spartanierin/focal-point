@@ -41,7 +41,7 @@ local function GetLocalizedClassName(classToken)
 end
 
 local function GetClassTextColor(unit, frame)
-    if Portrait.guiTestModeEnabled and frame and frame.TestValues and frame.TestValues.classToken then
+    if frame and frame.TestValues and frame.TestValues.classToken and (Portrait.guiTestModeEnabled or frame.IsTemplatePreview) then
         local classToken = frame.TestValues.classToken:upper()
         local classColor = nil
 
@@ -89,6 +89,224 @@ local function GetClassTextColor(unit, frame)
     end
 
     return color.r or color[1], color.g or color[2], color.b or color[3], 1
+end
+
+local function GetClassificationText(unit)
+    if not unit or not UnitClassification then
+        return ""
+    end
+
+    local classification = UnitClassification(unit)
+    if type(classification) ~= "string" or classification == "" or classification == "normal" then
+        return ""
+    end
+
+    if classification == "worldboss" then
+        return BOSS or "Boss"
+    elseif classification == "elite" then
+        return ELITE or "Elite"
+    elseif classification == "rareelite" then
+        if ITEM_QUALITY3_DESC and ELITE then
+            return ITEM_QUALITY3_DESC .. " " .. ELITE
+        end
+        return "Rare Elite"
+    elseif classification == "rare" then
+        return ITEM_QUALITY3_DESC or "Rare"
+    elseif classification == "trivial" then
+        return MINIMAP_TRACKING_TRIVIAL_QUESTS or "Trivial"
+    end
+
+    return classification
+end
+
+local function ClampColorComponent(value)
+    if type(value) ~= "number" then
+        return 255
+    end
+
+    if value < 0 then
+        value = 0
+    elseif value > 1 then
+        value = 1
+    end
+
+    return math.floor((value * 255) + 0.5)
+end
+
+local function BuildColorCode(r, g, b, a)
+    return string.format(
+        "|c%02x%02x%02x%02x",
+        ClampColorComponent(a == nil and 1 or a),
+        ClampColorComponent(r),
+        ClampColorComponent(g),
+        ClampColorComponent(b)
+    )
+end
+
+local function GetPowerTextColor(unit, frame)
+    if frame and frame.TestValues and frame.TestValues.powerToken and (Portrait.guiTestModeEnabled or frame.IsTemplatePreview) then
+        local previewToken = frame.TestValues.powerToken
+        local previewColor = PowerBarColor and (PowerBarColor[previewToken] or PowerBarColor[0])
+        if previewColor then
+            return previewColor.r or previewColor[1], previewColor.g or previewColor[2], previewColor.b or previewColor[3], 1
+        end
+    end
+
+    if not unit or not UnitPowerType then
+        return nil
+    end
+
+    local powerType, powerToken, altR, altG, altB = UnitPowerType(unit)
+    if type(altR) == "number" and type(altG) == "number" and type(altB) == "number" then
+        return altR, altG, altB, 1
+    end
+
+    local powerColor = nil
+    if PowerBarColor then
+        powerColor = (powerToken and PowerBarColor[powerToken]) or PowerBarColor[powerType]
+    end
+
+    if not powerColor then
+        return nil
+    end
+
+    return powerColor.r or powerColor[1], powerColor.g or powerColor[2], powerColor.b or powerColor[3], 1
+end
+
+local function GetReactionTextColor(unit, frame)
+    if frame and frame.TestValues and (Portrait.guiTestModeEnabled or frame.IsTemplatePreview) then
+        local reaction = frame.TestValues.reaction or 5
+        local previewColor = FACTION_BAR_COLORS and FACTION_BAR_COLORS[reaction]
+        if previewColor then
+            return previewColor.r or previewColor[1], previewColor.g or previewColor[2], previewColor.b or previewColor[3], 1
+        end
+    end
+
+    if not unit or not UnitReaction or not FACTION_BAR_COLORS then
+        return nil
+    end
+
+    local reaction = UnitReaction("player", unit)
+    local color = reaction and FACTION_BAR_COLORS[reaction] or nil
+    if not color then
+        return nil
+    end
+
+    return color.r or color[1], color.g or color[2], color.b or color[3], 1
+end
+
+local function GetBlizzardNamedColor(colorName)
+    if type(colorName) ~= "string" or colorName == "" then
+        return nil
+    end
+
+    colorName = colorName:lower()
+    local colorMap = {
+        normal = NORMAL_FONT_COLOR,
+        highlight = HIGHLIGHT_FONT_COLOR,
+        disabled = DISABLED_FONT_COLOR,
+        red = RED_FONT_COLOR,
+        green = GREEN_FONT_COLOR,
+        yellow = YELLOW_FONT_COLOR,
+    }
+
+    local color = colorMap[colorName]
+    if not color then
+        return nil
+    end
+
+    return BuildColorCode(color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1)
+end
+
+local function GetExplicitColorCode(value)
+    local hex = type(value) == "string" and value:match("^#?([0-9A-Fa-f]+)$") or nil
+    if not hex then
+        return nil
+    end
+
+    hex = hex:lower()
+    if #hex == 6 then
+        return "|cff" .. hex
+    end
+
+    if #hex == 8 then
+        return "|c" .. hex
+    end
+
+    return nil
+end
+
+local function ResolveColorTag(frame, unit, token)
+    if token == "rc" or token == "resetcolor" then
+        return "|r"
+    end
+
+    if token == "classcolor" or token == "raidcolor" then
+        local r, g, b, a = GetClassTextColor(unit, frame)
+        if r and g and b then
+            return BuildColorCode(r, g, b, a)
+        end
+        return nil
+    end
+
+    if token == "powercolor" then
+        local r, g, b, a = GetPowerTextColor(unit, frame)
+        if r and g and b then
+            return BuildColorCode(r, g, b, a)
+        end
+        return nil
+    end
+
+    local colorValue = type(token) == "string" and token:match("^color:(.+)$") or nil
+    if colorValue then
+        colorValue = colorValue:lower()
+
+        if colorValue == "class" or colorValue == "raid" then
+            local r, g, b, a = GetClassTextColor(unit, frame)
+            if r and g and b then
+                return BuildColorCode(r, g, b, a)
+            end
+            return nil
+        end
+
+        if colorValue == "blizz_pwr" then
+            local r, g, b, a = GetPowerTextColor(unit, frame)
+            if r and g and b then
+                return BuildColorCode(r, g, b, a)
+            end
+            return nil
+        end
+
+        if colorValue == "reaction" then
+            local r, g, b, a = GetReactionTextColor(unit, frame)
+            if r and g and b then
+                return BuildColorCode(r, g, b, a)
+            end
+            return nil
+        end
+
+        local blizzardKey = colorValue:match("^blizz_(.+)$")
+        if blizzardKey then
+            return GetBlizzardNamedColor(blizzardKey)
+        end
+
+        local explicitColor = GetExplicitColorCode(colorValue)
+        if explicitColor then
+            return explicitColor
+        end
+    end
+
+    local explicitColor = GetExplicitColorCode(token)
+    if explicitColor then
+        return explicitColor
+    end
+
+    local blizzardColor = type(token) == "string" and token:match("^blizz:([%w_]+)$") or nil
+    if blizzardColor then
+        return GetBlizzardNamedColor(blizzardColor)
+    end
+
+    return nil
 end
 
 local function GetTextLayerParent(frame)
@@ -654,6 +872,15 @@ local TOKEN_DEFS = {
 }
 
 local TAG_DATABASE = {
+    { token = "[color:class]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_CLASS", example = "[color:class][name][rc]" },
+    { token = "[color:blizz_pwr]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_BLIZZ_PWR", example = "[color:blizz_pwr][power:cur][rc]" },
+    { token = "[color:reaction]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_REACTION", example = "[color:reaction][name][rc]" },
+    { token = "[color:blizz_yellow]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_BLIZZ", example = "[color:blizz_yellow]Text[rc]" },
+    { token = "[color:blizz_red]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_BLIZZ", example = "[color:blizz_red]Text[rc]" },
+    { token = "[color:blizz_green]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_BLIZZ", example = "[color:blizz_green]Text[rc]" },
+    { token = "[color:blizz_highlight]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_BLIZZ", example = "[color:blizz_highlight]Text[rc]" },
+    { token = "[color:ffcc00]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_EXPLICIT", example = "[color:ffcc00]Text[rc]" },
+    { token = "[rc]", category = "INFO_TAG_CATEGORY_FORMAT", description = "INFO_TAG_DESC_COLOR_RESET", example = "[rc]" },
     { token = "[hp:cur]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR", example = "154320" },
     { token = "[hp:max]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX", example = "154320" },
     { token = "[hp:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR_ABBR", example = "154k" },
@@ -671,9 +898,14 @@ local TAG_DATABASE = {
     { token = "[cast:name]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_NAME", example = "Frostbolt" },
     { token = "[cast:time]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_TIME", example = "1.8" },
     { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "Portrait" },
+    { token = "[guild]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_GUILD", example = "Guild Name" },
+    { token = "[realm]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_REALM", example = "Lordaeron" },
     { token = "[level]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_LEVEL", example = "80" },
     { token = "[class]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CLASS", example = "Warrior" },
     { token = "[race]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_RACE", example = "Human" },
+    { token = "[classification]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CLASSIFICATION", example = "Elite" },
+    { token = "[family]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_FAMILY", example = "Wolf" },
+    { token = "[type]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_TYPE", example = "Humanoid" },
     { token = "[creature]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CREATURE", example = "Humanoid" },
     { token = "[status]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_STATUS", example = "AFK" },
 }
@@ -683,6 +915,20 @@ function UF:GetTagDatabase()
 end
 
 local function GetTagPreviewFallback(token)
+    local previewFrame = {
+        IsTemplatePreview = true,
+        TestValues = {
+            classToken = "WARRIOR",
+            powerToken = "RAGE",
+            reaction = 5,
+        },
+    }
+
+    local colorToken = ResolveColorTag(previewFrame, "player", token)
+    if type(colorToken) == "string" then
+        return colorToken
+    end
+
     for _, def in ipairs(TAG_DATABASE) do
         if def.token == "[" .. token .. "]" then
             return def.example or "[" .. token .. "]"
@@ -694,7 +940,16 @@ end
 
 local function ResolveToken(frame, unit, token)
     if not Portrait.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
+        local colorToken = ResolveColorTag(frame, unit, token)
+        if colorToken ~= nil then
+            return colorToken
+        end
         return ""
+    end
+
+    local colorToken = ResolveColorTag(frame, unit, token)
+    if colorToken ~= nil then
+        return colorToken
     end
 
     local def = TOKEN_DEFS[token]
@@ -727,6 +982,26 @@ local function ResolveBasicTag(frame, unit, token)
             return preview.race or ""
         end
 
+        if token == "classification" then
+            return preview.classification or ""
+        end
+
+        if token == "guild" then
+            return preview.guild or ""
+        end
+
+        if token == "realm" then
+            return preview.realm or ""
+        end
+
+        if token == "family" then
+            return preview.family or preview.creature or ""
+        end
+
+        if token == "type" then
+            return preview.type or preview.creature or ""
+        end
+
         if token == "creature" then
             return preview.creature or preview.race or ""
         end
@@ -749,7 +1024,11 @@ local function ResolveBasicTag(frame, unit, token)
             return type(preview.castDuration) == "number" and FormatTimeValue(preview.castDuration) or ""
         end
 
-        if token == "powercolor" or token == "raidcolor" or token == "resetcolor" then
+        if token == "powercolor" or token == "raidcolor" or token == "resetcolor" or token == "classcolor" or token == "rc" then
+            local colorToken = ResolveColorTag(frame, unit, token)
+            if colorToken ~= nil then
+                return colorToken
+            end
             return ""
         end
 
@@ -809,6 +1088,54 @@ local function ResolveBasicTag(frame, unit, token)
             local raceName = UnitRace(unit)
             if type(raceName) == "string" then
                 return raceName
+            end
+        end
+
+        return ""
+    end
+
+    if token == "classification" then
+        return GetClassificationText(unit)
+    end
+
+    if token == "guild" then
+        if unit and GetGuildInfo then
+            local guildName = GetGuildInfo(unit)
+            if type(guildName) == "string" then
+                return guildName
+            end
+        end
+
+        return ""
+    end
+
+    if token == "realm" then
+        if unit and UnitFullName then
+            local _, realmName = UnitFullName(unit)
+            if type(realmName) == "string" then
+                return realmName
+            end
+        end
+
+        return ""
+    end
+
+    if token == "family" then
+        if unit and UnitCreatureFamily then
+            local creatureFamily = UnitCreatureFamily(unit)
+            if type(creatureFamily) == "string" then
+                return creatureFamily
+            end
+        end
+
+        return ""
+    end
+
+    if token == "type" then
+        if unit and UnitCreatureType then
+            local creatureType = UnitCreatureType(unit)
+            if type(creatureType) == "string" then
+                return creatureType
             end
         end
 
@@ -926,7 +1253,11 @@ local function ResolveBasicTag(frame, unit, token)
         return ""
     end
 
-    if token == "powercolor" or token == "raidcolor" or token == "resetcolor" then
+    if token == "powercolor" or token == "raidcolor" or token == "resetcolor" or token == "classcolor" or token == "rc" then
+        local colorToken = ResolveColorTag(frame, unit, token)
+        if colorToken ~= nil then
+            return colorToken
+        end
         return ""
     end
 

@@ -678,6 +678,23 @@ function B.BuildGeneralPage(container)
 
     aboutGroup:AddChild(CreateSpacer(8))
 
+    local modeGroup = AceGUI:Create("InlineGroup")
+    modeGroup:SetFullWidth(true)
+    modeGroup:SetLayout("Flow")
+    modeGroup:SetTitle(L["INFO_GENERAL_MODE"] or "Workflow Mode")
+    container:AddChild(modeGroup)
+
+    modeGroup:AddChild(CreateSpacer(6))
+
+    local modeLayout = CreateSection(modeGroup)
+    modeLayout:Add(CreateStyledGeneralOption({
+        path = { "General", "ExpertMode" },
+        label = L["OPTION_EXPERT_MODE"] or "Expert Mode",
+        description = L["OPTION_EXPERT_MODE_DESC"] or "Enabled: maximum configurability. Disabled = Quick Mode for a faster path to a good result through a template or theme.",
+        fallback = true,
+        refreshGUI = true,
+    }))
+
     local settingsGroup = AceGUI:Create("InlineGroup")
     settingsGroup:SetFullWidth(true)
     settingsGroup:SetLayout("Flow")
@@ -975,6 +992,7 @@ function B.BuildTagDatabasePage(container)
     local tagDatabase = ns.UnitFrame and ns.UnitFrame.GetTagDatabase and ns.UnitFrame:GetTagDatabase() or {}
     local grouped = {}
     local categoryOrder = {
+        "INFO_TAG_CATEGORY_FORMAT",
         "INFO_TAG_CATEGORY_HEALTH",
         "INFO_TAG_CATEGORY_POWER",
         "INFO_TAG_CATEGORY_CAST",
@@ -1006,6 +1024,83 @@ function B.BuildTagDatabasePage(container)
     state.tagDatabaseTab = state.tagDatabaseTab or firstTab
     state.tagDatabaseScroll = state.tagDatabaseScroll or {}
 
+    local function CreateLocalSpacer(height)
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText(" ")
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(height or 1)
+        return spacer
+    end
+
+    local function ResolveTagAppliesTo(def)
+        local token = type(def.token) == "string" and def.token or ""
+
+        if token == "[guild]" or token == "[realm]" or token == "[race]" then
+            return L["INFO_TAG_DATABASE_APPLIES_PLAYERS"] or "Players"
+        end
+
+        if token == "[color:class]" or token == "[color:blizz_pwr]" or token == "[color:blizz_yellow]" or token == "[color:blizz_red]" or token == "[color:blizz_green]" or token == "[color:blizz_highlight]" or token == "[color:ffcc00]" or token == "[rc]" then
+            return L["INFO_TAG_DATABASE_APPLIES_TEMPLATES"] or "Templates"
+        end
+
+        if token == "[color:reaction]" then
+            return L["INFO_TAG_DATABASE_APPLIES_REACTION"] or "Units with Reaction"
+        end
+
+        if token == "[classification]" or token == "[family]" or token == "[type]" or token == "[creature]" then
+            return L["INFO_TAG_DATABASE_APPLIES_NPCS"] or "NPCs / Pets"
+        end
+
+        if token == "[cast:name]" or token == "[cast:time]" then
+            return L["INFO_TAG_DATABASE_APPLIES_CAST"] or "Casting Units"
+        end
+
+        if token == "[altpower:cur]" or token == "[altpower:max]" or token == "[altpower:cur:abbr]" or token == "[altpower:max:abbr]" then
+            return L["INFO_TAG_DATABASE_APPLIES_PLAYER_ALT"] or "Player (AltPower)"
+        end
+
+        return L["INFO_TAG_DATABASE_APPLIES_ALL"] or "All"
+    end
+
+    local root = AceGUI:Create("SimpleGroup")
+    root:SetFullWidth(true)
+    root:SetFullHeight(true)
+    root:SetLayout("Flow")
+    container:AddChild(root)
+
+    local introGroup = AceGUI:Create("InlineGroup")
+    introGroup:SetFullWidth(true)
+    introGroup:SetLayout("Flow")
+    introGroup:SetTitle(L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
+    root:AddChild(introGroup)
+
+    local description = AceGUI:Create("Label")
+    description:SetFullWidth(true)
+    if description.SetFont then
+        description:SetFont(STANDARD_TEXT_FONT, 12, "")
+    end
+    description:SetText(string.format("|cffcfd5dd%s|r", L["INFO_TAG_DATABASE_DESCRIPTION"] or ""))
+    introGroup:AddChild(description)
+
+    introGroup:AddChild(CreateLocalSpacer(2))
+
+    local hint = AceGUI:Create("Label")
+    hint:SetFullWidth(true)
+    if hint.SetFont then
+        hint:SetFont(STANDARD_TEXT_FONT, 12, "")
+    end
+    hint:SetText(string.format("|cff6fd2ff%s|r", L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or ""))
+    introGroup:AddChild(hint)
+
+    root:AddChild(CreateLocalSpacer(2))
+
+    local referenceGroup = AceGUI:Create("InlineGroup")
+    referenceGroup:SetFullWidth(true)
+    referenceGroup:SetFullHeight(true)
+    referenceGroup:SetLayout("Fill")
+    referenceGroup:SetTitle(L["INFO_TAG_DATABASE_REFERENCE"] or "Reference")
+    root:AddChild(referenceGroup)
+
     local tabGroup = AceGUI:Create("TabGroup")
     tabGroup:SetFullWidth(true)
     tabGroup:SetFullHeight(true)
@@ -1017,35 +1112,80 @@ function B.BuildTagDatabasePage(container)
         state.tagDatabaseScroll[categoryKey] = state.tagDatabaseScroll[categoryKey] or { scrollvalue = 0 }
 
         BuildScrollableTabContent(widget, state.tagDatabaseScroll[categoryKey], function(content)
-            AddPageHeading(content, L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
+            local categoryLabel = AceGUI:Create("Label")
+            categoryLabel:SetFullWidth(true)
+            if categoryLabel.SetFont then
+                categoryLabel:SetFont(STANDARD_TEXT_FONT, 13, "")
+            end
+            categoryLabel:SetText(string.format("|cffe6d6a8%s|r", L[categoryKey] or categoryKey))
+            content:AddChild(categoryLabel)
 
-            local description = AceGUI:Create("Label")
-            description:SetFullWidth(true)
-            description:SetText(L["INFO_TAG_DATABASE_DESCRIPTION"] or "")
-            content:AddChild(description)
+            content:AddChild(CreateLocalSpacer(2))
 
-            local hint = AceGUI:Create("Label")
-            hint:SetFullWidth(true)
-            hint:SetText(L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or "")
-            content:AddChild(hint)
+            local headerRow = AceGUI:Create("SimpleGroup")
+            headerRow:SetFullWidth(true)
+            headerRow:SetLayout("Flow")
+            content:AddChild(headerRow)
 
-            AddSectionHeading(content, L[categoryKey] or categoryKey, 8)
+            local function AddHeaderCell(text, width)
+                local label = AceGUI:Create("Label")
+                label:SetWidth(width)
+                if label.SetFont then
+                    label:SetFont(STANDARD_TEXT_FONT, 11, "")
+                end
+                label:SetText(string.format("|cff9a9a9a%s|r", text))
+                headerRow:AddChild(label)
+            end
+
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_TAG"] or "Tag", 170)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_DESC"] or "Description", 320)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_EXAMPLE"] or "Example", 120)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_APPLIES"] or "Applies To", 160)
+
+            content:AddChild(CreateLocalSpacer(1))
 
             for _, def in ipairs(grouped[categoryKey] or {}) do
-                local row = AceGUI:Create("Label")
+                local row = AceGUI:Create("SimpleGroup")
                 row:SetFullWidth(true)
-                row:SetText(string.format(
-                    "|cff6fd2ff%s|r  -  %s  |cff999999(%s)|r",
-                    def.token,
-                    L[def.description] or def.description,
-                    def.example or ""
-                ))
+                row:SetLayout("Flow")
                 content:AddChild(row)
+
+                local tokenLabel = AceGUI:Create("Label")
+                tokenLabel:SetWidth(170)
+                if tokenLabel.SetFont then
+                    tokenLabel:SetFont(STANDARD_TEXT_FONT, 12, "")
+                end
+                tokenLabel:SetText(string.format("|cff6fd2ff%s|r", def.token))
+                row:AddChild(tokenLabel)
+
+                local descriptionLabel = AceGUI:Create("Label")
+                descriptionLabel:SetWidth(320)
+                if descriptionLabel.SetFont then
+                    descriptionLabel:SetFont(STANDARD_TEXT_FONT, 11, "")
+                end
+                descriptionLabel:SetText(string.format("|cffd7d2c8%s|r", L[def.description] or def.description))
+                row:AddChild(descriptionLabel)
+
+                local exampleLabel = AceGUI:Create("Label")
+                exampleLabel:SetWidth(120)
+                if exampleLabel.SetFont then
+                    exampleLabel:SetFont(STANDARD_TEXT_FONT, 11, "")
+                end
+                exampleLabel:SetText(string.format("|cffe6d6a8%s|r", def.example or ""))
+                row:AddChild(exampleLabel)
+
+                local appliesLabel = AceGUI:Create("Label")
+                appliesLabel:SetWidth(160)
+                if appliesLabel.SetFont then
+                    appliesLabel:SetFont(STANDARD_TEXT_FONT, 11, "")
+                end
+                appliesLabel:SetText(string.format("|cff9a9a9a%s|r", ResolveTagAppliesTo(def)))
+                row:AddChild(appliesLabel)
             end
         end)
     end)
 
-    container:AddChild(tabGroup)
+    referenceGroup:AddChild(tabGroup)
     tabGroup:SelectTab(state.tagDatabaseTab or firstTab)
 end
 
@@ -1068,9 +1208,11 @@ function B.BuildTextBuilderPage(container)
         return spacer
     end
 
-    AddPageHeading(container, L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
-
-    container:AddChild(CreateSpacer(1))
+    local introGroup = AceGUI:Create("InlineGroup")
+    introGroup:SetFullWidth(true)
+    introGroup:SetLayout("Flow")
+    introGroup:SetTitle(L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
+    container:AddChild(introGroup)
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
@@ -1078,9 +1220,19 @@ function B.BuildTextBuilderPage(container)
         description:SetFont(STANDARD_TEXT_FONT, 12, "")
     end
     description:SetText(string.format("|cffcfd5dd%s|r", L["INFO_TEXT_BUILDER_DESCRIPTION"] or ""))
-    container:AddChild(description)
+    introGroup:AddChild(description)
 
-    container:AddChild(CreateSpacer(1))
+    introGroup:AddChild(CreateSpacer(2))
+
+    local hint = AceGUI:Create("Label")
+    hint:SetFullWidth(true)
+    if hint.SetFont then
+        hint:SetFont(STANDARD_TEXT_FONT, 12, "")
+    end
+    hint:SetText(string.format("|cff6fd2ff%s|r", L["INFO_TEXT_BUILDER_TEMPLATE_HINT"] or ""))
+    introGroup:AddChild(hint)
+
+    container:AddChild(CreateSpacer(3))
 
     local builderGroup = AceGUI:Create("InlineGroup")
     builderGroup:SetFullWidth(true)
@@ -1088,21 +1240,19 @@ function B.BuildTextBuilderPage(container)
     builderGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
     container:AddChild(builderGroup)
 
-    builderGroup:AddChild(CreateSpacer(1))
-
     local templateEdit = AceGUI:Create("EditBox")
     templateEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
-    templateEdit:SetWidth(470)
+    templateEdit:SetWidth(520)
     templateEdit:DisableButton(true)
     templateEdit:SetText(state.textBuilder.template or "")
     builderGroup:AddChild(templateEdit)
 
     local updateButton = AceGUI:Create("Button")
     updateButton:SetText(L["INFO_TEXT_BUILDER_APPLY"] or "Update Preview")
-    updateButton:SetWidth(140)
+    updateButton:SetWidth(150)
     builderGroup:AddChild(updateButton)
 
-    builderGroup:AddChild(CreateSpacer(2))
+    container:AddChild(CreateSpacer(2))
 
     local previewGroup = AceGUI:Create("InlineGroup")
     previewGroup:SetFullWidth(true)
@@ -1110,18 +1260,22 @@ function B.BuildTextBuilderPage(container)
     previewGroup:SetTitle(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
     container:AddChild(previewGroup)
 
-    previewGroup:AddChild(CreateSpacer(0))
-
     local previewLabel = AceGUI:Create("Label")
     previewLabel:SetFullWidth(true)
     if previewLabel.SetFont then
         previewLabel:SetFont(STANDARD_TEXT_FONT, 14, "")
     end
     if previewLabel.label and previewLabel.label.SetJustifyH then
-        previewLabel.label:SetJustifyH("CENTER")
+        previewLabel.label:SetJustifyH("LEFT")
     end
+    if previewLabel.label and previewLabel.label.SetJustifyV then
+        previewLabel.label:SetJustifyV("MIDDLE")
+    end
+    previewLabel:SetHeight(28)
     previewLabel:SetText(" ")
     previewGroup:AddChild(previewLabel)
+
+    container:AddChild(CreateSpacer(2))
 
     local templatesGroup = AceGUI:Create("InlineGroup")
     templatesGroup:SetFullWidth(true)
@@ -1129,23 +1283,19 @@ function B.BuildTextBuilderPage(container)
     templatesGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
     container:AddChild(templatesGroup)
 
-    templatesGroup:AddChild(CreateSpacer(0))
-
     local templates = (ns.db and ns.db.profile and ns.db.profile.TextTemplates) or {}
 
     local templateSelect = AceGUI:Create("Dropdown")
     templateSelect:SetLabel(L["INFO_TEXT_BUILDER_SAVED_TEMPLATES"] or "Saved Templates")
-    templateSelect:SetWidth(240)
+    templateSelect:SetWidth(260)
     templatesGroup:AddChild(templateSelect)
 
     local templateNameEdit = AceGUI:Create("EditBox")
     templateNameEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE_NAME"] or "Template Name")
-    templateNameEdit:SetWidth(280)
+    templateNameEdit:SetWidth(300)
     templateNameEdit:DisableButton(true)
     templateNameEdit:SetText(state.textBuilder.templateName or "")
     templatesGroup:AddChild(templateNameEdit)
-
-    templatesGroup:AddChild(CreateSpacer(0))
 
     local saveButton = AceGUI:Create("Button")
     saveButton:SetText(L["INFO_TEXT_BUILDER_SAVE"] or "Save")
@@ -1162,7 +1312,7 @@ function B.BuildTextBuilderPage(container)
     deleteTemplateButton:SetWidth(110)
     templatesGroup:AddChild(deleteTemplateButton)
 
-    templatesGroup:AddChild(CreateSpacer(0))
+    container:AddChild(CreateSpacer(2))
 
     local applyGroup = AceGUI:Create("InlineGroup")
     applyGroup:SetFullWidth(true)
@@ -1170,11 +1320,9 @@ function B.BuildTextBuilderPage(container)
     applyGroup:SetTitle(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
     container:AddChild(applyGroup)
 
-    applyGroup:AddChild(CreateSpacer(0))
-
     local applySlotDropdown = AceGUI:Create("Dropdown")
     applySlotDropdown:SetLabel(L["INFO_TEXT_BUILDER_TARGET_TEXT"] or "Target Text")
-    applySlotDropdown:SetWidth(240)
+    applySlotDropdown:SetWidth(250)
     applySlotDropdown:SetList({
         Custom1 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_1),
         Custom2 = ns.GetLabel(KM.Texts, C.Texts.CUSTOM_2),
@@ -1185,7 +1333,7 @@ function B.BuildTextBuilderPage(container)
 
     local applyUnitDropdown = AceGUI:Create("Dropdown")
     applyUnitDropdown:SetLabel(L["INFO_TEXT_BUILDER_UNIT"] or "Unit")
-    applyUnitDropdown:SetWidth(240)
+    applyUnitDropdown:SetWidth(250)
     applyUnitDropdown:SetList({
         [C.Units.PLAYER] = ns.GetLabel(KM.Units, C.Units.PLAYER),
         [C.Units.TARGET] = ns.GetLabel(KM.Units, C.Units.TARGET),
@@ -1195,14 +1343,10 @@ function B.BuildTextBuilderPage(container)
     applyUnitDropdown:SetValue(C.Units.PLAYER)
     applyGroup:AddChild(applyUnitDropdown)
 
-    applyGroup:AddChild(CreateSpacer(0))
-
     local applyTemplateButton = AceGUI:Create("Button")
     applyTemplateButton:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
     applyTemplateButton:SetWidth(160)
     applyGroup:AddChild(applyTemplateButton)
-
-    applyGroup:AddChild(CreateSpacer(0))
 
     local function RefreshPreview()
         local template = state.textBuilder.template or ""

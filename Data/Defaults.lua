@@ -8,6 +8,7 @@ function Portrait:GetDefaultDB()
                 Separator = "||",
                 ToTSeparator = "»",
                 UIScale = 0.7551622418879056,
+                ExpertMode = true,
                 HideBlizzardFrames = true,
                 GlobalClickThrough = false,
                 MouseEnabled = true,
@@ -19,7 +20,16 @@ function Portrait:GetDefaultDB()
             },
 
             TextTemplates = {
-                ["Health Sparta"] = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+                ["Sparta's Unit Frame - Name"] = "[name]",
+                ["Sparta's Unit Frame - Health"] = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+                ["Sparta's Unit Frame - Player Power"] = "[power:cur]/[power:max]",
+                ["Sparta's Unit Frame - Target Power"] = "[power:cur:abbr]/[power:max:abbr]",
+                ["Sparta's Unit Frame - Alt Power"] = "[altpower:cur] / [altpower:max]",
+                ["Sparta's Unit Frame - Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
+                ["Sparta's Unit Frame - Creature"] = "[creature]",
+                ["Sparta's Unit Frame - Status"] = "[status]",
+                ["Sparta's Unit Frame - Cast Name"] = "[cast:name]",
+                ["Sparta's Unit Frame - Cast Time"] = "[cast:time]",
             },
 
             Units = {
