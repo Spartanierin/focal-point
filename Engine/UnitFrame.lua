@@ -32,6 +32,26 @@ local function IsSafeTrue(value)
     return type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) and value
 end
 
+local function ToSafeNumberValue(value)
+    if value == nil then
+        return 0
+    end
+
+    if type(value) == "number" and not (issecretvalue and issecretvalue(value)) then
+        return value
+    end
+
+    local textOk, textValue = pcall(tostring, value)
+    if textOk and type(textValue) == "string" then
+        local numberOk, numberValue = pcall(tonumber, textValue)
+        if numberOk and type(numberValue) == "number" and not (issecretvalue and issecretvalue(numberValue)) then
+            return numberValue
+        end
+    end
+
+    return 0
+end
+
 local function IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false
@@ -134,6 +154,8 @@ local TEST_PREVIEW_VALUES = {
         healthMax = 146000,
         powerCurrent = 84,
         powerMax = 100,
+        altPowerCurrent = 72,
+        altPowerMax = 100,
         name = "Spartanierin",
         level = 84,
         classToken = "WARRIOR",
@@ -146,6 +168,8 @@ local TEST_PREVIEW_VALUES = {
         healthMax = 146000,
         powerCurrent = 42,
         powerMax = 100,
+        altPowerCurrent = 0,
+        altPowerMax = 0,
         name = "Zielattrappe",
         level = 83,
         classToken = "PALADIN",
@@ -158,6 +182,8 @@ local TEST_PREVIEW_VALUES = {
         healthMax = 120000,
         powerCurrent = 55,
         powerMax = 100,
+        altPowerCurrent = 0,
+        altPowerMax = 0,
         name = "Fokusziel",
         level = 83,
         classToken = "PRIEST",
@@ -170,6 +196,8 @@ local TEST_PREVIEW_VALUES = {
         healthMax = 90000,
         powerCurrent = 70,
         powerMax = 100,
+        altPowerCurrent = 0,
+        altPowerMax = 0,
         name = "Begleiter",
         level = 83,
         creature = "Wildtier",
@@ -182,6 +210,51 @@ function UF:GetTestPreviewValues(frame)
     end
 
     return TEST_PREVIEW_VALUES[frame.unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+end
+
+local SECONDARY_POWER_BAR_SPECS = {
+    [258] = 0, -- Shadow Priest -> Mana
+    [262] = 0, -- Elemental Shaman -> Mana
+}
+
+local function GetPlayerSpecializationID()
+    if not GetSpecialization or not GetSpecializationInfo then
+        return nil
+    end
+
+    local specializationIndex = GetSpecialization()
+    if not specializationIndex then
+        return nil
+    end
+
+    local specializationID = GetSpecializationInfo(specializationIndex)
+    if type(specializationID) ~= "number" then
+        return nil
+    end
+
+    return specializationID
+end
+
+local function GetSecondaryPowerTypeForUnit(unit)
+    if unit ~= "player" then
+        return nil
+    end
+
+    local specializationID = GetPlayerSpecializationID()
+    if not specializationID then
+        return nil
+    end
+
+    return SECONDARY_POWER_BAR_SPECS[specializationID]
+end
+
+local function GetSecondaryPowerValues(unit)
+    local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
+    if secondaryPowerType == nil or not UnitPower or not UnitPowerMax then
+        return nil, 0, 0
+    end
+
+    return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
 end
 
 local function FormatFallbackAbbreviation(value)
@@ -273,6 +346,8 @@ function UF:GetAnchorTarget(frame, anchorTo)
         return frame.Elements.HealthBar or frame
     elseif anchorTo == "PowerBar" then
         return frame.Elements.PowerBar or frame
+    elseif anchorTo == "AlternativePowerBar" then
+        return frame.Elements.AlternativePowerBar or frame
     elseif anchorTo == "CastBar" then
         return frame.Elements.CastBar or frame
     elseif anchorTo == "Frame" then
@@ -340,6 +415,21 @@ function UF:CreatePowerBar(frame)
     frame.power = power
 end
 
+function UF:CreateAlternativePowerBar(frame)
+    local power = CreateFrame("StatusBar", nil, frame)
+    power:SetMinMaxValues(0, 100)
+    power:SetFrameStrata(frame:GetFrameStrata())
+    power:SetFrameLevel(frame:GetFrameLevel() + 3)
+
+    local bg = power:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    power.bg = bg
+
+    frame.Elements.AlternativePowerBar = power
+    frame.alternativePower = power
+end
+
 function UF:CreateCastBar(frame)
     local cast = CreateFrame("StatusBar", nil, frame)
     cast:SetMinMaxValues(0, 1)
@@ -375,6 +465,7 @@ function UF:RefreshUnitBarValues(frame)
     local previewValues = Portrait.guiTestModeEnabled and self:GetTestPreviewValues(frame) or nil
     frame.LiveValues = frame.LiveValues or {}
     frame.TestValues = previewValues
+    local previousAltPowerVisible = frame.LiveValues.altPowerVisible
 
     if frame.Elements.HealthBar then
         local currentHealth = 0
@@ -416,6 +507,42 @@ function UF:RefreshUnitBarValues(frame)
         frame.LiveValues.powerMaxRaw = maxPower
         frame.LiveValues.powerCurrentAbbr = SafeAbbreviateNumber(currentPower)
         frame.LiveValues.powerMaxAbbr = SafeAbbreviateNumber(maxPower)
+    end
+
+    if frame.Elements.AlternativePowerBar then
+        local currentAltPower = 0
+        local maxAltPower = 0
+        local showAltPower = false
+
+        local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
+
+        if previewValues then
+            currentAltPower = previewValues.altPowerCurrent or 0
+            maxAltPower = previewValues.altPowerMax or 0
+            showAltPower = secondaryPowerType ~= nil and maxAltPower > 0
+        elseif secondaryPowerType ~= nil and unitExists then
+            _, currentAltPower, maxAltPower = GetSecondaryPowerValues(unit)
+            showAltPower = maxAltPower > 0
+        end
+
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(0, math.max(maxAltPower, 1))
+        frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
+
+        frame.LiveValues.altPowerCurrentRaw = currentAltPower
+        frame.LiveValues.altPowerMaxRaw = maxAltPower
+        frame.LiveValues.altPowerVisible = showAltPower
+        frame.LiveValues.altPowerType = secondaryPowerType
+        frame.LiveValues.altPowerCurrentAbbr = SafeAbbreviateNumber(currentAltPower)
+        frame.LiveValues.altPowerMaxAbbr = SafeAbbreviateNumber(maxAltPower)
+
+        if previousAltPowerVisible ~= nil
+            and previousAltPowerVisible ~= showAltPower
+            and not frame.isApplyingAltPowerLayout
+        then
+            frame.isApplyingAltPowerLayout = true
+            self:ApplyConfig(frame)
+            frame.isApplyingAltPowerLayout = false
+        end
     end
 end
 
@@ -1425,6 +1552,10 @@ function UF:ApplyConfig(frame)
     local frameStrata = config.frameStrata or "MEDIUM"
     local showPowerBar = config.showPowerBar and true or false
     local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
+    local showAlternativePowerBar = config.showAlternativePowerBar and true or false
+    local alternativePowerBarHeight = showAlternativePowerBar and (config.alternativePowerBarHeight or 5) or 0
+    local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax = GetSecondaryPowerValues(frame.unit)
+    local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil and liveAltPowerMax > 0
     local borderInset = 1
 
     local portraitConfig = config.Portrait or {}
@@ -1555,6 +1686,7 @@ function UF:ApplyConfig(frame)
     local healthTexture = GetStatusBarTexture(config.healthBarTexture)
     local powerTexture = GetStatusBarTexture(config.powerBarTexture)
     local castTexture = GetStatusBarTexture(config.castBarTexture)
+    local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
     local globalClickThrough = Portrait.db
         and Portrait.db.profile
         and Portrait.db.profile.General
@@ -1631,7 +1763,13 @@ function UF:ApplyConfig(frame)
 
         local healthLeftOffset = borderInset
         local healthRightOffset = -borderInset
-        local healthBottomY = showPowerBar and (borderInset + powerBarHeight) or borderInset
+        local healthBottomY = borderInset
+        if alternativePowerBarVisible then
+            healthBottomY = healthBottomY + alternativePowerBarHeight
+        end
+        if showPowerBar then
+            healthBottomY = healthBottomY + powerBarHeight
+        end
 
         if portraitInside then
             if portraitInsideSide == "LEFT" then
@@ -1665,6 +1803,7 @@ function UF:ApplyConfig(frame)
         if showPowerBar then
             local powerLeftOffset = borderInset
             local powerRightOffset = -borderInset
+            local powerBottomOffset = borderInset + (alternativePowerBarVisible and alternativePowerBarHeight or 0)
 
             if portraitInside then
                 if portraitInsideSide == "LEFT" then
@@ -1674,8 +1813,8 @@ function UF:ApplyConfig(frame)
                 end
             end
 
-            power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, borderInset)
-            power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, borderInset)
+            power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
+            power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
             power:SetHeight(powerBarHeight)
             power:Show()
         else
@@ -1683,6 +1822,58 @@ function UF:ApplyConfig(frame)
                 power.bg:Hide()
             end
             power:Hide()
+        end
+    end
+
+    if frame.Elements.AlternativePowerBar then
+        local altPower = frame.Elements.AlternativePowerBar
+        local altPowerType = liveAltPowerType or (frame.LiveValues and frame.LiveValues.altPowerType) or 0
+        local altPowerTypeColor = PowerBarColor and PowerBarColor[altPowerType]
+        local altPowerR, altPowerG, altPowerB, altPowerA = powerR, powerG, powerB, powerA
+        if altPowerTypeColor then
+            altPowerR = altPowerTypeColor.r or altPowerTypeColor[1] or altPowerR
+            altPowerG = altPowerTypeColor.g or altPowerTypeColor[2] or altPowerG
+            altPowerB = altPowerTypeColor.b or altPowerTypeColor[3] or altPowerB
+            altPowerA = 1
+        end
+
+        altPower:ClearAllPoints()
+        altPower:SetStatusBarTexture(altPowerTexture)
+        altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, altPowerA or 1)
+
+        if altPower.bg then
+            altPower.bg:SetTexture(altPowerTexture)
+            altPower.bg:SetVertexColor(powerBgR, powerBgG, powerBgB, powerBgA)
+            altPower.bg:SetShown(alternativePowerBarVisible and powerBackgroundShown)
+        end
+
+        if alternativePowerBarVisible then
+            local currentAltPower = liveAltPowerCurrent or (frame.LiveValues and frame.LiveValues.altPowerCurrentRaw) or 0
+            local maxAltPower = liveAltPowerMax or (frame.LiveValues and frame.LiveValues.altPowerMaxRaw) or 0
+
+            altPower:SetMinMaxValues(0, math.max(maxAltPower, 1))
+            altPower:SetValue(currentAltPower)
+
+            local altPowerLeftOffset = borderInset
+            local altPowerRightOffset = -borderInset
+
+            if portraitInside then
+                if portraitInsideSide == "LEFT" then
+                    altPowerLeftOffset = borderInset + portraitReservedSpace
+                elseif portraitInsideSide == "RIGHT" then
+                    altPowerRightOffset = -(borderInset + portraitReservedSpace)
+                end
+            end
+
+            altPower:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", altPowerLeftOffset, borderInset)
+            altPower:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", altPowerRightOffset, borderInset)
+            altPower:SetHeight(alternativePowerBarHeight)
+            altPower:Show()
+        else
+            if altPower.bg then
+                altPower.bg:Hide()
+            end
+            altPower:Hide()
         end
     end
 
@@ -1919,6 +2110,32 @@ end
 function UF:ApplyTestValues(frame)
     self:RefreshUnitBarValues(frame)
 
+    if Portrait.guiTestModeEnabled
+        and frame
+        and frame.unit == "player"
+        and frame.config
+        and frame.config.showAlternativePowerBar
+        and frame.Elements
+        and frame.Elements.AlternativePowerBar
+        and GetSecondaryPowerTypeForUnit(frame.unit) ~= nil
+    then
+        local previewValues = self:GetTestPreviewValues(frame) or {}
+        local currentAltPower = previewValues.altPowerCurrent or 72
+        local maxAltPower = previewValues.altPowerMax or 100
+
+        frame.LiveValues = frame.LiveValues or {}
+        frame.LiveValues.altPowerVisible = maxAltPower > 0
+        frame.LiveValues.altPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
+        frame.LiveValues.altPowerCurrentRaw = currentAltPower
+        frame.LiveValues.altPowerMaxRaw = maxAltPower
+        frame.LiveValues.altPowerCurrentAbbr = SafeAbbreviateNumber(currentAltPower)
+        frame.LiveValues.altPowerMaxAbbr = SafeAbbreviateNumber(maxAltPower)
+
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(0, math.max(maxAltPower, 1))
+        frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
+        self:ApplyConfig(frame)
+    end
+
     if Portrait.guiTestModeEnabled then
         StartCastBarPreview(frame)
     else
@@ -1972,15 +2189,69 @@ function UF:RegisterVisibilityEvents(frame)
     frame.VisibilityEventFrame = eventFrame
 end
 
+function UF:RegisterAlternativePowerEvents(frame)
+    if not frame or frame.AlternativePowerEventFrame or frame.unit ~= "player" then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    eventFrame:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
+    eventFrame:RegisterUnitEvent("UNIT_MAXPOWER", "player")
+    eventFrame:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner then
+            return
+        end
+
+        if unit and unit ~= owner.unit then
+            return
+        end
+
+        UF:RefreshUnitBarValues(owner)
+        UF:ApplyConfig(owner)
+        if UF.RefreshLiveValues then
+            UF:RefreshLiveValues(owner)
+        end
+        if UF.UpdateTextElements then
+            UF:UpdateTextElements(owner)
+        end
+    end)
+
+    frame.AlternativePowerEventFrame = eventFrame
+end
+
 function UF:Build(unit)
     local config = GetUnitDB(unit)
     if not config or config.enabled == false then
         return nil
     end
 
+    if unit == "player" and config.showAlternativePowerBar then
+        config.Texts = config.Texts or {}
+        if config.Texts.AltPower == nil and Portrait.GetDefaultDB then
+            local defaults = Portrait:GetDefaultDB()
+            local defaultAltPowerText = defaults
+                and defaults.profile
+                and defaults.profile.Units
+                and defaults.profile.Units.player
+                and defaults.profile.Units.player.Texts
+                and defaults.profile.Units.player.Texts.AltPower
+
+            if defaultAltPowerText ~= nil then
+                config.Texts.AltPower = CopyTable(defaultAltPowerText)
+            end
+        end
+    end
+
     local frame = self:CreateBaseFrame(unit, config)
     self:CreateHealthBar(frame)
     self:CreatePowerBar(frame)
+    self:CreateAlternativePowerBar(frame)
     self:CreateCastBar(frame)
     self:CreatePortrait(frame)
     self:RegisterPortraitEvents(frame)
@@ -2000,6 +2271,7 @@ function UF:Build(unit)
     self:CreateTextElements(frame)
     self:RegisterTextEvents(frame)
     self:RegisterVisibilityEvents(frame)
+    self:RegisterAlternativePowerEvents(frame)
 
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
@@ -2018,13 +2290,7 @@ function UF:Refresh(frame)
         return
     end
 
-    local hasRenderableName = true
     local isDeadUnit = false
-
-    if not Portrait.guiTestModeEnabled and frame.unit ~= "player" and UnitName then
-        local unitName = UnitName(frame.unit)
-        hasRenderableName = type(unitName) == "string"
-    end
 
     if not Portrait.guiTestModeEnabled and frame.unit ~= "player" and UnitIsDeadOrGhost then
         isDeadUnit = IsSafeTrue(UnitIsDeadOrGhost(frame.unit))
@@ -2039,7 +2305,6 @@ function UF:Refresh(frame)
         and (
             (UnitExists and not UnitExists(frame.unit))
             or isDeadUnit
-            or not hasRenderableName
         )
 
     if shouldHideForMissingUnit then
@@ -2064,8 +2329,15 @@ function UF:Refresh(frame)
     end
 
     frame.config = config
+    self:RefreshUnitBarValues(frame)
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
+    if self.RefreshLiveValues then
+        self:RefreshLiveValues(frame)
+    end
+    if self.UpdateTextElements then
+        self:UpdateTextElements(frame)
+    end
     if frame.SetAlpha then
         frame:SetAlpha(1)
     end

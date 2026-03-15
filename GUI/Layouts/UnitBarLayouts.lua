@@ -29,6 +29,18 @@ ns.GUI.Layouts.UnitBars.PowerBarTab = {
     },
 }
 
+ns.GUI.Layouts.UnitBars.AlternativePowerBarTab = {
+    {
+        section = "SECTION_ALTERNATIVE_POWER",
+        mode = "section",
+        layout = "list",
+        items = {
+            { widget = "checkbox", path = { "Units", "$unitKey", "showAlternativePowerBar" }, label = "OPTION_SHOW_ALTERNATIVE_POWER_BAR", description = "OPTION_SHOW_ALTERNATIVE_POWER_BAR_DESC", fallback = false, resetText = false, disabled = "unit", refreshGUI = true },
+            { widget = "slider", path = { "Units", "$unitKey", "alternativePowerBarHeight" }, label = "OPTION_ALTERNATIVE_POWER_BAR_HEIGHT", description = "OPTION_ALTERNATIVE_POWER_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 5, format = "%d", disabled = "alternativePower" },
+        },
+    },
+}
+
 ns.GUI.Layouts.UnitBars.CastBarTab = {
     {
         section = "SECTION_GENERAL",

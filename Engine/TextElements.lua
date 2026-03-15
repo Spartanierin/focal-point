@@ -272,6 +272,76 @@ local function GetLiveValue(frame, key, fallback)
     return fallback
 end
 
+local SECONDARY_POWER_BAR_SPECS = {
+    [258] = 0, -- Shadow Priest -> Mana
+    [262] = 0, -- Elemental Shaman -> Mana
+}
+
+local function GetPlayerSpecializationID()
+    if not GetSpecialization or not GetSpecializationInfo then
+        return nil
+    end
+
+    local specializationIndex = GetSpecialization()
+    if not specializationIndex then
+        return nil
+    end
+
+    local specializationID = GetSpecializationInfo(specializationIndex)
+    if type(specializationID) ~= "number" then
+        return nil
+    end
+
+    return specializationID
+end
+
+local function GetSecondaryPowerTypeForUnit(unit)
+    if unit ~= "player" then
+        return nil
+    end
+
+    local specializationID = GetPlayerSpecializationID()
+    if not specializationID then
+        return nil
+    end
+
+    return SECONDARY_POWER_BAR_SPECS[specializationID]
+end
+
+local function GetSecondaryPowerValues(unit)
+    local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
+    if secondaryPowerType == nil or not UnitPower or not UnitPowerMax then
+        return nil, 0, 0
+    end
+
+    return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
+end
+
+local function GetSecondaryPowerDisplayValues(unit)
+    local secondaryPowerType, currentValue, maxValue = GetSecondaryPowerValues(unit)
+    if secondaryPowerType == nil then
+        return nil, "0", "0", 0
+    end
+
+    local currentTextOk, currentText = pcall(tostring, currentValue)
+    local maxTextOk, maxText = pcall(tostring, maxValue)
+
+    if not currentTextOk or type(currentText) ~= "string" then
+        currentText = "0"
+    end
+
+    if not maxTextOk or type(maxText) ~= "string" then
+        maxText = "0"
+    end
+
+    local maxNumberOk, maxNumber = pcall(tonumber, maxText)
+    if not maxNumberOk or type(maxNumber) ~= "number" then
+        maxNumber = 0
+    end
+
+    return secondaryPowerType, currentText, maxText, maxNumber
+end
+
 function UF:RefreshLiveValues(frame)
     if not frame or not frame.unit then
         return
@@ -285,6 +355,8 @@ function UF:RefreshLiveValues(frame)
         local healthMax = preview.healthMax or 100
         local powerCurrent = preview.powerCurrent or 65
         local powerMax = preview.powerMax or 100
+        local altPowerCurrent = preview.altPowerCurrent or 0
+        local altPowerMax = preview.altPowerMax or 0
 
         frame.LiveValues.healthCurrent = healthCurrent
         frame.LiveValues.healthMax = healthMax
@@ -309,6 +381,17 @@ function UF:RefreshLiveValues(frame)
         frame.LiveValues.powerMaxAbbr = FormatAbbreviatedNumber(powerMax)
         frame.LiveValues.powerCurrentRaw = powerCurrent
         frame.LiveValues.powerMaxRaw = powerMax
+
+        frame.LiveValues.altPowerCurrent = altPowerCurrent
+        frame.LiveValues.altPowerMax = altPowerMax
+        frame.LiveValues.altPowerCurrentText = FormatNumber(altPowerCurrent)
+        frame.LiveValues.altPowerMaxText = FormatNumber(altPowerMax)
+        frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
+        frame.LiveValues.altPowerMaxSafe = ToSafeNumber(altPowerMax)
+        frame.LiveValues.altPowerCurrentAbbr = FormatAbbreviatedNumber(altPowerCurrent)
+        frame.LiveValues.altPowerMaxAbbr = FormatAbbreviatedNumber(altPowerMax)
+        frame.LiveValues.altPowerCurrentRaw = altPowerCurrent
+        frame.LiveValues.altPowerMaxRaw = altPowerMax
         return
     end
 
@@ -318,12 +401,17 @@ function UF:RefreshLiveValues(frame)
     local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
     local powerCurrent = UnitPower and UnitPower(unit) or 0
     local powerMax = UnitPowerMax and UnitPowerMax(unit) or 0
+    local altPowerCurrent = 0
+    local altPowerMax = 0
     local healthBar = frame.Elements and frame.Elements.HealthBar
     local powerBar = frame.Elements and frame.Elements.PowerBar
+    local alternativePowerBar = frame.Elements and frame.Elements.AlternativePowerBar
     local healthBarCurrent = healthBar and healthBar.GetValue and healthBar:GetValue() or nil
     local powerBarCurrent = powerBar and powerBar.GetValue and powerBar:GetValue() or nil
+    local alternativePowerBarCurrent = alternativePowerBar and alternativePowerBar.GetValue and alternativePowerBar:GetValue() or nil
     local healthBarMax = nil
     local powerBarMax = nil
+    local alternativePowerBarMax = nil
 
     if healthBar and healthBar.GetMinMaxValues then
         local _, maxValue = healthBar:GetMinMaxValues()
@@ -333,6 +421,17 @@ function UF:RefreshLiveValues(frame)
     if powerBar and powerBar.GetMinMaxValues then
         local _, maxValue = powerBar:GetMinMaxValues()
         powerBarMax = maxValue
+    end
+
+    if alternativePowerBar and alternativePowerBar.GetMinMaxValues then
+        local _, maxValue = alternativePowerBar:GetMinMaxValues()
+        alternativePowerBarMax = maxValue
+    end
+
+    local secondaryPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
+
+    if secondaryPowerType ~= nil then
+        secondaryPowerType, altPowerCurrent, altPowerMax = GetSecondaryPowerValues(unit)
     end
 
     frame.LiveValues.healthCurrent = healthCurrent
@@ -368,6 +467,31 @@ function UF:RefreshLiveValues(frame)
     if frame.LiveValues.powerMaxSafe <= 0 then
         frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
     end
+
+    local altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
+    local altPowerMaxSafe = ToSafeNumber(altPowerMax)
+    local alternativePowerBarCurrentSafe = ToSafeNumber(alternativePowerBarCurrent)
+    local alternativePowerBarMaxSafe = ToSafeNumber(alternativePowerBarMax)
+
+    frame.LiveValues.altPowerCurrent = altPowerCurrentSafe
+    if frame.LiveValues.altPowerCurrent <= 0 and alternativePowerBarCurrentSafe > 0 then
+        frame.LiveValues.altPowerCurrent = alternativePowerBarCurrentSafe
+    end
+
+    frame.LiveValues.altPowerMax = altPowerMaxSafe
+    if frame.LiveValues.altPowerMax <= 0 and alternativePowerBarMaxSafe > 0 then
+        frame.LiveValues.altPowerMax = alternativePowerBarMaxSafe
+    end
+    frame.LiveValues.altPowerCurrentText = FormatNumber(frame.LiveValues.altPowerCurrent)
+    frame.LiveValues.altPowerMaxText = FormatNumber(frame.LiveValues.altPowerMax)
+    frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(frame.LiveValues.altPowerCurrent)
+    frame.LiveValues.altPowerMaxSafe = ToSafeNumber(frame.LiveValues.altPowerMax)
+    frame.LiveValues.altPowerCurrentAbbr = FormatAbbreviatedNumber(frame.LiveValues.altPowerCurrent)
+    frame.LiveValues.altPowerMaxAbbr = FormatAbbreviatedNumber(frame.LiveValues.altPowerMax)
+    frame.LiveValues.altPowerCurrentRaw = frame.LiveValues.altPowerCurrent
+    frame.LiveValues.altPowerMaxRaw = frame.LiveValues.altPowerMax
+    frame.LiveValues.altPowerType = secondaryPowerType
+    frame.LiveValues.altPowerVisible = secondaryPowerType ~= nil and frame.LiveValues.altPowerMaxSafe > 0
 end
 
 local TOKEN_DEFS = {
@@ -478,6 +602,52 @@ local TOKEN_DEFS = {
         format = FormatTextValue,
         direct = true,
     },
+    ["altpower:cur"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "altPowerCurrentRaw", 0)
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["altPower:cur"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "altPowerCurrentRaw", 0)
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["altpower:max"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "altPowerMaxRaw", 0)
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["altPower:max"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "altPowerMaxRaw", 0)
+        end,
+        format = FormatNumber,
+        direct = true,
+        passRaw = true,
+    },
+    ["altpower:cur:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "altPowerCurrentAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["altpower:max:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "altPowerMaxAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
     ["curhp"] = {
         value = function(unit, frame)
             return GetLiveValue(frame, "healthCurrentRaw", GetLiveValue(frame, "healthCurrent", 0))
@@ -558,6 +728,10 @@ local TAG_DATABASE = {
     { token = "[power:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "100" },
     { token = "[power:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "100" },
     { token = "[power:perc]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_PERC", example = "100" },
+    { token = "[altpower:cur]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR", example = "72" },
+    { token = "[altpower:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "100" },
+    { token = "[altpower:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "72" },
+    { token = "[altpower:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "100" },
     { token = "[cast:name]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_NAME", example = "Frostbolt" },
     { token = "[cast:time]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_TIME", example = "1.8" },
     { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "Portrait" },
@@ -661,6 +835,10 @@ local function ResolveBasicTag(frame, unit, token)
             local level = UnitLevel(unit)
             if type(level) == "number" and level > 0 then
                 return tostring(level)
+            end
+
+             if type(level) == "number" and level == -1 then
+                return "??"
             end
         end
 
@@ -1069,6 +1247,26 @@ function UF:UpdateTextElement(frame, key)
 
     local template = textConfig.tag or ""
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
+    local altPowerType = GetLiveValue(frame, "altPowerType", nil)
+    local altPowerMaxRaw = ToSafeNumber(GetLiveValue(frame, "altPowerMaxRaw", 0))
+    local altPowerCurrentRaw = ToSafeNumber(GetLiveValue(frame, "altPowerCurrentRaw", 0))
+    local altPowerAvailable = altPowerType ~= nil and altPowerMaxRaw > 0
+
+    if key == "AltPower" then
+        textObject:SetTextColor(r, g, b, a)
+        local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues(frame.unit)
+        if livePowerType ~= nil and liveMaxNumber > 0 then
+            textObject:SetText(liveCurrentText .. " / " .. liveMaxText)
+            textObject:Show()
+        elseif altPowerAvailable then
+            textObject:SetText(FormatNumber(altPowerCurrentRaw) .. " / " .. FormatNumber(altPowerMaxRaw))
+            textObject:Show()
+        else
+            textObject:SetText("")
+        end
+        return
+    end
+
     if key == "Class" or TemplateContainsToken(template, "class") then
         local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
         if classR and classG and classB then

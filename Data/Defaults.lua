@@ -48,6 +48,14 @@ function Portrait:GetDefaultDB()
 
                     showPowerBar = true,
                     powerBarHeight = 20,
+                    showAlternativePowerBar = true,
+                    alternativePowerBarHeight = 20,
+                    alternativePowerBarWidth = 100,
+                    alternativePowerBarAnchorTo = "HealthBar",
+                    alternativePowerBarPoint = "BOTTOMLEFT",
+                    alternativePowerBarRelativePoint = "BOTTOMLEFT",
+                    alternativePowerBarOffsetX = 5,
+                    alternativePowerBarOffsetY = 5,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -59,6 +67,7 @@ function Portrait:GetDefaultDB()
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarColor = { 0.7686275243759155, 0.7411764860153198, 0.2156862914562225, 1.00 },
 
@@ -233,6 +242,32 @@ function Portrait:GetDefaultDB()
                             tag = "[power:cur]/[power:max]",
 
                             anchorTo = "PowerBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 2,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 13,
+                            justifyH = "LEFT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        AltPower = {
+                            enabled = true,
+                            tag = "[altpower:cur] / [altpower:max]",
+
+                            anchorTo = "AlternativePowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 2,
@@ -515,6 +550,14 @@ function Portrait:GetDefaultDB()
                     y = -290,
                     showPowerBar = true,
                     powerBarHeight = 20,
+                    showAlternativePowerBar = false,
+                    alternativePowerBarHeight = 5,
+                    alternativePowerBarWidth = 100,
+                    alternativePowerBarAnchorTo = "HealthBar",
+                    alternativePowerBarPoint = "BOTTOMLEFT",
+                    alternativePowerBarRelativePoint = "BOTTOMLEFT",
+                    alternativePowerBarOffsetX = 5,
+                    alternativePowerBarOffsetY = 5,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -525,6 +568,7 @@ function Portrait:GetDefaultDB()
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
 
@@ -702,6 +746,32 @@ function Portrait:GetDefaultDB()
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -6,
+                            offsetY = 0,
+
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 13,
+                            justifyH = "RIGHT",
+
+                            color = { 1.00, 1.00, 1.00, 1.00 },
+
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = { 0, 0, 0, 1 },
+
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+
+                        AltPower = {
+                            enabled = true,
+                            tag = "[altpower:cur] / [altpower:max]",
+
+                            anchorTo = "AlternativePowerBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -2,
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
@@ -980,6 +1050,14 @@ function Portrait:GetDefaultDB()
 
                     showPowerBar = true,
                     powerBarHeight = 15,
+                    showAlternativePowerBar = false,
+                    alternativePowerBarHeight = 5,
+                    alternativePowerBarWidth = 75,
+                    alternativePowerBarAnchorTo = "HealthBar",
+                    alternativePowerBarPoint = "BOTTOMLEFT",
+                    alternativePowerBarRelativePoint = "BOTTOMLEFT",
+                    alternativePowerBarOffsetX = 5,
+                    alternativePowerBarOffsetY = 5,
                     showCastBar = false,
                     showCastBarIcon = false,
                     castBarHeight = 10,
@@ -990,6 +1068,7 @@ function Portrait:GetDefaultDB()
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
 

@@ -6,7 +6,7 @@ PORTRAIT.frames = PORTRAIT.frames or {}
 local AceLocale = LibStub("AceLocale-3.0")
 PORTRAIT.L = AceLocale:GetLocale("Portrait", true) or {}
 
-local PortraitAddon = LibStub("AceAddon-3.0"):NewAddon("Portrait", "AceConsole-3.0")
+local PortraitAddon = LibStub("AceAddon-3.0"):NewAddon("Portrait")
 PORTRAIT.Ace = PortraitAddon
 
 local BLIZZARD_UNIT_FRAMES = {
@@ -168,11 +168,57 @@ local function EnsureCastTextDefaults()
     end
 end
 
+local function EnsureAlternativePowerDefaults()
+    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.GetDefaultDB then
+        return
+    end
+
+    local profile = PORTRAIT.db.profile
+    local defaults = PORTRAIT:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if not units or not defaultUnits then
+        return
+    end
+
+    local keysToCopy = {
+        "showAlternativePowerBar",
+        "alternativePowerBarHeight",
+        "alternativePowerBarWidth",
+        "alternativePowerBarAnchorTo",
+        "alternativePowerBarPoint",
+        "alternativePowerBarRelativePoint",
+        "alternativePowerBarOffsetX",
+        "alternativePowerBarOffsetY",
+        "alternativePowerBarTexture",
+    }
+
+    for unitKey, unitDefaults in pairs(defaultUnits) do
+        local unitDB = units[unitKey]
+        if type(unitDB) == "table" and type(unitDefaults) == "table" then
+            for _, key in ipairs(keysToCopy) do
+                if unitDB[key] == nil and unitDefaults[key] ~= nil then
+                    unitDB[key] = unitDefaults[key]
+                end
+            end
+
+            if type(unitDefaults.Texts) == "table" then
+                unitDB.Texts = unitDB.Texts or {}
+                if unitDB.Texts.AltPower == nil and unitDefaults.Texts.AltPower ~= nil then
+                    unitDB.Texts.AltPower = CopyTable(unitDefaults.Texts.AltPower)
+                end
+            end
+        end
+    end
+end
+
 function PortraitAddon:OnInitialize()
     PORTRAIT.db = LibStub("AceDB-3.0"):New("PortraitDB", PORTRAIT:GetDefaultDB(), true)
     EnsureImageElementDefaults()
     EnsureBarTextureDefaults()
     EnsureCastTextDefaults()
+    EnsureAlternativePowerDefaults()
 
     PORTRAIT.LDS = PORTRAIT.LDS or LibStub("LibDualSpec-1.0", true)
     if PORTRAIT.LDS then
