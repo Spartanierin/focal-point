@@ -1304,8 +1304,6 @@ function UF:RegisterTextEvents(frame)
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
     eventFrame:RegisterEvent("PLAYER_FLAGS_CHANGED")
-    eventFrame:RegisterEvent("UNIT_HEALTH")
-    eventFrame:RegisterEvent("UNIT_MAXHEALTH")
     eventFrame:RegisterEvent("UNIT_LEVEL")
     eventFrame:RegisterEvent("UNIT_FLAGS")
     eventFrame:RegisterEvent("UNIT_CONNECTION")
@@ -1361,6 +1359,9 @@ function UF:RegisterTextEvents(frame)
             if UF.RefreshUnitBarValues then
                 UF:RefreshUnitBarValues(owner)
             end
+            if UF.ApplyConfig then
+                UF:ApplyConfig(owner)
+            end
             if UF.RefreshCastBar then
                 UF:RefreshCastBar(owner)
             end
@@ -1376,6 +1377,9 @@ function UF:RegisterTextEvents(frame)
             if owner.unit == "pet" and unit == "player" then
                 if UF.RefreshUnitBarValues then
                     UF:RefreshUnitBarValues(owner)
+                end
+                if UF.ApplyConfig then
+                    UF:ApplyConfig(owner)
                 end
                 if UF.RefreshCastBar then
                     UF:RefreshCastBar(owner)
@@ -1393,8 +1397,15 @@ function UF:RegisterTextEvents(frame)
             return
         end
 
+        if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
+            return
+        end
+
         if UF.RefreshUnitBarValues then
             UF:RefreshUnitBarValues(owner)
+        end
+        if UF.ApplyConfig then
+            UF:ApplyConfig(owner)
         end
         if UF.RefreshCastBar then
             UF:RefreshCastBar(owner)

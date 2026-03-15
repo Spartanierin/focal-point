@@ -3,6 +3,8 @@ local _, Portrait = ...
 Portrait.UnitFrame = Portrait.UnitFrame or {}
 local UF = Portrait.UnitFrame
 
+local SafeAbbreviateNumber
+
 local function GetUnitDB(unit)
     local db = Portrait.db
     if not db or not db.profile or not db.profile.Units then
@@ -50,6 +52,26 @@ local function ToSafeNumberValue(value)
     end
 
     return 0
+end
+
+local function Clamp01(value)
+    value = tonumber(value) or 0
+    if value < 0 then
+        return 0
+    end
+    if value > 1 then
+        return 1
+    end
+    return value
+end
+
+local function LerpColor(fromR, fromG, fromB, fromA, toR, toG, toB, toA, t)
+    t = Clamp01(t)
+    return
+        fromR + (toR - fromR) * t,
+        fromG + (toG - fromG) * t,
+        fromB + (toB - fromB) * t,
+        fromA + (toA - fromA) * t
 end
 
 local function IsUnitDeadByHealth(unit)
@@ -122,6 +144,145 @@ local function GetPowerColorForUnit(unit)
     end
 
     return color.r or color[1], color.g or color[2], color.b or color[3], 1
+end
+
+local function GetResolvedHealthBarColor(frame, config)
+    local healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
+
+    if config and config.useClassColorHealth then
+        local classR, classG, classB, classA = GetClassColorForUnit(frame and frame.unit, config.useReactionColorNpcHealth)
+        if classR and classG and classB then
+            healthR, healthG, healthB, healthA = classR, classG, classB, classA or 1
+        end
+    end
+
+    if config and config.enableHealthColorFade then
+        local fadeTargetR, fadeTargetG, fadeTargetB, fadeTargetA = UnpackColor(config.healthFadeTargetColor, { 1, 0, 0, 1 })
+        local healthCurrent = 0
+        local healthMax = 0
+        local healthPercent = 1
+        local unitIsDead = false
+
+        if frame and frame.Elements and frame.Elements.HealthBar then
+            local healthBar = frame.Elements.HealthBar
+            if healthBar.GetValue then
+                healthCurrent = ToSafeNumberValue(healthBar:GetValue())
+            end
+            if healthBar.GetMinMaxValues then
+                local _, maxValue = healthBar:GetMinMaxValues()
+                healthMax = ToSafeNumberValue(maxValue)
+            end
+        end
+
+        if healthMax <= 0 and frame and frame.LiveValues then
+            healthCurrent = ToSafeNumberValue(frame.LiveValues.healthCurrentSafe or frame.LiveValues.healthCurrentRaw)
+            healthMax = ToSafeNumberValue(frame.LiveValues.healthMaxSafe or frame.LiveValues.healthMaxRaw)
+        end
+
+        if not Portrait.guiTestModeEnabled and frame and frame.unit and UnitIsDeadOrGhost then
+            unitIsDead = IsSafeTrue(UnitIsDeadOrGhost(frame.unit))
+        end
+
+        if healthMax > 0 and healthCurrent <= 0 and not unitIsDead then
+            healthCurrent = healthMax
+        end
+
+        if healthMax > 0 then
+            healthPercent = Clamp01(healthCurrent / healthMax)
+        end
+
+        local fadeFactor = 1 - healthPercent
+        healthR, healthG, healthB, healthA = LerpColor(
+            healthR, healthG, healthB, healthA,
+            fadeTargetR, fadeTargetG, fadeTargetB, fadeTargetA,
+            fadeFactor
+        )
+    end
+
+    return healthR, healthG, healthB, healthA
+end
+
+local function GetCurrentHealthValues(frame)
+    if not frame or not frame.unit then
+        return 0, 1
+    end
+
+    local unit = frame.unit
+    local unitExists = UnitExists and UnitExists(unit)
+    local previewValues = Portrait.guiTestModeEnabled and UF:GetTestPreviewValues(frame) or nil
+
+    if previewValues then
+        return previewValues.healthCurrent or 100, previewValues.healthMax or 100
+    end
+
+    if unitExists and UnitHealth and UnitHealthMax then
+        return UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
+    end
+
+    return 0, 1
+end
+
+function UF:UpdateHealthBarValue(frame)
+    if not frame or not frame.Elements or not frame.Elements.HealthBar then
+        return
+    end
+
+    frame.LiveValues = frame.LiveValues or {}
+
+    local currentHealth, maxHealth = GetCurrentHealthValues(frame)
+    frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
+    frame.Elements.HealthBar:SetValue(currentHealth)
+
+    frame.LiveValues.healthCurrentRaw = currentHealth
+    frame.LiveValues.healthMaxRaw = maxHealth
+    frame.LiveValues.healthCurrentAbbr = SafeAbbreviateNumber(currentHealth)
+    frame.LiveValues.healthMaxAbbr = SafeAbbreviateNumber(maxHealth)
+end
+
+function UF:UpdateHealthBarColor(frame)
+    if not frame or not frame.Elements or not frame.Elements.HealthBar then
+        return
+    end
+
+    local config = GetUnitDB(frame.unit)
+    if not config then
+        return
+    end
+
+    local healthR, healthG, healthB, healthA = GetResolvedHealthBarColor(frame, config)
+    frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, healthA)
+end
+
+function UF:RefreshHealthBar(frame)
+    if not frame or not frame.Elements or not frame.Elements.HealthBar then
+        return
+    end
+
+    self:UpdateHealthBarValue(frame)
+    self:UpdateHealthBarColor(frame)
+end
+
+function UF:RefreshHealthText(frame)
+    if not frame then
+        return
+    end
+
+    if self.RefreshLiveValues then
+        self:RefreshLiveValues(frame)
+    end
+
+    if self.UpdateTextElement then
+        self:UpdateTextElement(frame, "Health")
+    end
+end
+
+function UF:RefreshHealth(frame)
+    if not frame then
+        return
+    end
+
+    self:RefreshHealthBar(frame)
+    self:RefreshHealthText(frame)
 end
 
 local function GetStatusBarTexture(path)
@@ -292,7 +453,7 @@ local function FormatFallbackAbbreviation(value)
     return tostring(value)
 end
 
-local function SafeAbbreviateNumber(value)
+SafeAbbreviateNumber = function(value)
     if AbbreviateLargeNumbers then
         local ok, result = pcall(AbbreviateLargeNumbers, value)
         if ok and type(result) == "string" then
@@ -468,24 +629,7 @@ function UF:RefreshUnitBarValues(frame)
     local previousAltPowerVisible = frame.LiveValues.altPowerVisible
 
     if frame.Elements.HealthBar then
-        local currentHealth = 0
-        local maxHealth = 1
-
-        if previewValues then
-            currentHealth = previewValues.healthCurrent or 100
-            maxHealth = previewValues.healthMax or 100
-        elseif unitExists and UnitHealth and UnitHealthMax then
-            currentHealth = UnitHealth(unit) or 0
-            maxHealth = UnitHealthMax(unit) or 1
-        end
-
-        frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
-        frame.Elements.HealthBar:SetValue(currentHealth)
-
-        frame.LiveValues.healthCurrentRaw = currentHealth
-        frame.LiveValues.healthMaxRaw = maxHealth
-        frame.LiveValues.healthCurrentAbbr = SafeAbbreviateNumber(currentHealth)
-        frame.LiveValues.healthMaxAbbr = SafeAbbreviateNumber(maxHealth)
+        self:RefreshHealthBar(frame)
     end
 
     if frame.Elements.PowerBar then
@@ -1669,12 +1813,7 @@ function UF:ApplyConfig(frame)
     local powerBgR, powerBgG, powerBgB, powerBgA = UnpackColor(config.powerBackgroundColor, { 0, 0, 0, 0.35 })
     local powerBackgroundShown = powerBackgroundEnabled and (powerBgA or 0) > 0.001
 
-    if config.useClassColorHealth then
-        local classR, classG, classB, classA = GetClassColorForUnit(frame.unit, config.useReactionColorNpcHealth)
-        if classR and classG and classB then
-            healthR, healthG, healthB, healthA = classR, classG, classB, classA or 1
-        end
-    end
+    healthR, healthG, healthB, healthA = GetResolvedHealthBarColor(frame, config)
 
     if config.useClassColorPower then
         local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame.unit)
@@ -2189,6 +2328,45 @@ function UF:RegisterVisibilityEvents(frame)
     frame.VisibilityEventFrame = eventFrame
 end
 
+function UF:RegisterHealthBarEvents(frame)
+    if not frame or frame.HealthBarEventFrame or not frame.Elements or not frame.Elements.HealthBar then
+        return
+    end
+
+    local eventFrame = CreateFrame("Frame", nil, frame)
+    eventFrame.owner = frame
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("UNIT_HEALTH")
+    eventFrame:RegisterEvent("UNIT_MAXHEALTH")
+
+    if frame.unit == "target" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "focus" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+    elseif frame.unit == "pet" then
+        eventFrame:RegisterEvent("UNIT_PET")
+    end
+
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        local owner = eventFrame.owner
+        if not owner then
+            return
+        end
+
+        if event == "UNIT_PET" then
+            if owner.unit ~= "pet" or unit ~= "player" then
+                return
+            end
+        elseif unit and unit ~= owner.unit then
+            return
+        end
+
+        UF:RefreshHealth(owner)
+    end)
+
+    frame.HealthBarEventFrame = eventFrame
+end
+
 function UF:RegisterAlternativePowerEvents(frame)
     if not frame or frame.AlternativePowerEventFrame or frame.unit ~= "player" then
         return
@@ -2271,6 +2449,7 @@ function UF:Build(unit)
     self:CreateTextElements(frame)
     self:RegisterTextEvents(frame)
     self:RegisterVisibilityEvents(frame)
+    self:RegisterHealthBarEvents(frame)
     self:RegisterAlternativePowerEvents(frame)
 
     self:ApplyConfig(frame)

@@ -1610,6 +1610,11 @@ function B.BuildUnitColorsPage(container, unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "healthBackground" }, true)
     end
 
+    local function IsHealthFadeTargetPickerDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enableHealthColorFade" }, false)
+    end
+
     local function IsPowerColorPickerDisabled()
         return IsPowerBarDisabled()
             or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorPower" }, false)
@@ -1663,6 +1668,10 @@ function B.BuildUnitColorsPage(container, unitKey)
             return IsHealthBackgroundPickerDisabled
         end
 
+        if def.disabled == "healthFadeTarget" then
+            return IsHealthFadeTargetPickerDisabled
+        end
+
         if def.disabled == "powerColor" then
             return IsPowerColorPickerDisabled
         end
@@ -1695,6 +1704,10 @@ function B.BuildUnitColorsPage(container, unitKey)
                 state.healthColorPickerHandle = picker
             end
 
+            if def.path[#def.path] == "healthFadeTargetColor" then
+                state.healthFadeTargetPickerHandle = picker
+            end
+
             if def.path[#def.path] == "powerColor" then
                 state.powerColorPickerHandle = picker
             end
@@ -1717,6 +1730,13 @@ function B.BuildUnitColorsPage(container, unitKey)
                         and state.healthColorPickerHandle.RefreshState
                     then
                         state.healthColorPickerHandle.RefreshState()
+                    end
+
+                    if def.onChanged == "refresh_health_fade"
+                        and state.healthFadeTargetPickerHandle
+                        and state.healthFadeTargetPickerHandle.RefreshState
+                    then
+                        state.healthFadeTargetPickerHandle.RefreshState()
                     end
 
                     if def.onChanged == "refresh_power_color"

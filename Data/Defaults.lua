@@ -75,6 +75,8 @@ function Portrait:GetDefaultDB()
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
                     healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 1.00 },
+                    enableHealthColorFade = false,
+                    healthFadeTargetColor = { 1.00, 0.00, 0.00, 1.00 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
@@ -576,6 +578,8 @@ function Portrait:GetDefaultDB()
                     borderColor = { 0.20, 0.20, 0.20, 1.00 },
 
                     healthColor = { 0.10, 0.80, 0.10, 1.00 },
+                    enableHealthColorFade = false,
+                    healthFadeTargetColor = { 1.00, 0.00, 0.00, 1.00 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.35 },
                     useClassColorHealth = true,
@@ -1076,6 +1080,8 @@ function Portrait:GetDefaultDB()
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
                     healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 1.00 },
+                    enableHealthColorFade = false,
+                    healthFadeTargetColor = { 1.00, 0.00, 0.00, 1.00 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
