@@ -95,6 +95,10 @@ local function ResolveBlizzardAbbreviation(rawValue, displayText)
     return ""
 end
 
+local function IsPreviewModeEnabled()
+    return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
+end
+
 local function IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false
@@ -164,7 +168,7 @@ local function GetPowerColorForUnit(unit)
         return nil
     end
 
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
+    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4]
 end
 
 local function GetResolvedHealthBarColor(frame, config, currentHealth, maxHealth)
@@ -187,7 +191,7 @@ local function GetCurrentHealthValues(frame)
 
     local unit = frame.unit
     local unitExists = UnitExists and UnitExists(unit)
-    local previewValues = FocalPoint.guiTestModeEnabled and UF:GetTestPreviewValues(frame) or nil
+    local previewValues = IsPreviewModeEnabled() and UF:GetTestPreviewValues(frame) or nil
 
     if previewValues then
         return previewValues.healthCurrent or 100, previewValues.healthMax or 100
@@ -237,7 +241,8 @@ function UF:UpdateHealthBarColor(frame)
         frame.LiveValues and frame.LiveValues.healthCurrentRaw,
         frame.LiveValues and frame.LiveValues.healthMaxRaw
     )
-    frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, healthA)
+    frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, 1)
+    frame.Elements.HealthBar:SetAlpha(healthA or 1)
 end
 
 function UF:RefreshHealthBar(frame)
@@ -297,6 +302,7 @@ local TEST_PREVIEW_VALUES = {
         name = "Spartanierin",
         level = 84,
         classToken = "WARRIOR",
+        role = "DAMAGER",
         race = "Mensch",
         castName = "Schildschlag",
         castDuration = 2.5,
@@ -311,6 +317,7 @@ local TEST_PREVIEW_VALUES = {
         name = "Zielattrappe",
         level = 83,
         classToken = "PALADIN",
+        role = "TANK",
         creature = "Humanoid",
         castName = "Frostblitz",
         castDuration = 2.5,
@@ -325,6 +332,7 @@ local TEST_PREVIEW_VALUES = {
         name = "Fokusziel",
         level = 83,
         classToken = "PRIEST",
+        role = "HEALER",
         creature = "Humanoid",
         castName = "Heilung",
         castDuration = 2.5,
@@ -338,6 +346,7 @@ local TEST_PREVIEW_VALUES = {
         altPowerMax = 0,
         name = "Begleiter",
         level = 83,
+        role = "DAMAGER",
         creature = "Wildtier",
     },
 }
@@ -348,6 +357,20 @@ function UF:GetTestPreviewValues(frame)
     end
 
     return TEST_PREVIEW_VALUES[frame.unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+end
+
+local function GetPreviewRaidTargetIndex(frame)
+    local previewMap = {
+        player = 1,
+        target = 8,
+        focus = 3,
+        pet = 2,
+        targettarget = 7,
+        focustarget = 4,
+        boss = 6,
+    }
+
+    return previewMap[frame and frame.unit or ""] or 1
 end
 
 local SECONDARY_POWER_BAR_SPECS = {
@@ -402,9 +425,11 @@ local function ApplyCastBarStateColor(castBar, isInterruptible, baseColor)
 
     if isInterruptible == false then
         castBar:SetStatusBarColor(0.60, 0.60, 0.60, 1.00)
+        castBar:SetAlpha(1.00)
     else
         local r, g, b, a = UnpackColor(baseColor, { 1.00, 0.72, 0.18, 1.00 })
-        castBar:SetStatusBarColor(r, g, b, a)
+        castBar:SetStatusBarColor(r, g, b, 1.00)
+        castBar:SetAlpha(a or 1.00)
     end
 end
 
@@ -468,6 +493,10 @@ function UF:CreateBaseFrame(unit, config)
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 },
     })
+
+    if FocalPoint.UpdateFrameDragState then
+        FocalPoint:UpdateFrameDragState(frame)
+    end
 
     return frame
 end
@@ -547,7 +576,7 @@ function UF:RefreshUnitBarValues(frame)
 
     local unit = frame.unit
     local unitExists = UnitExists and UnitExists(unit)
-    local previewValues = FocalPoint.guiTestModeEnabled and self:GetTestPreviewValues(frame) or nil
+    local previewValues = IsPreviewModeEnabled() and self:GetTestPreviewValues(frame) or nil
     frame.LiveValues = frame.LiveValues or {}
     frame.TestValues = previewValues
     local previousAltPowerVisible = frame.LiveValues.altPowerVisible
@@ -911,7 +940,7 @@ function UF:RegisterCastBarEvents(frame)
 
         local now = GetTime and GetTime() or 0
         if castBar.isPreview then
-            if not FocalPoint.guiTestModeEnabled then
+            if not IsPreviewModeEnabled() then
                 StopCastBar(owner)
                 return
             end
@@ -1094,6 +1123,10 @@ function UF:UpdateRaidTargetIcon(frame)
 
     local index = frame.unit and GetRaidTargetIndex and GetRaidTargetIndex(frame.unit) or nil
 
+    if not index and IsPreviewModeEnabled() then
+        index = GetPreviewRaidTargetIndex(frame)
+    end
+
     if not index then
         icon:SetTexture(nil)
         icon:Hide()
@@ -1176,7 +1209,11 @@ function UF:UpdateLeaderIcon(frame)
 
     local isLeader = false
 
-    if frame.unit and UnitExists and UnitExists(frame.unit) then
+    if IsPreviewModeEnabled() then
+        isLeader = frame.unit == "player" or frame.unit == "target"
+    end
+
+    if not isLeader and frame.unit and UnitExists and UnitExists(frame.unit) then
         if UnitLeadsAnyGroup then
             isLeader = UnitLeadsAnyGroup(frame.unit) and true or false
         elseif UnitIsGroupLeader then
@@ -1256,6 +1293,11 @@ function UF:UpdateRoleIcon(frame)
 
     local role = frame.unit and UnitGroupRolesAssigned and UnitGroupRolesAssigned(frame.unit) or nil
 
+    if (not role or role == "NONE") and IsPreviewModeEnabled() then
+        local preview = self:GetTestPreviewValues(frame)
+        role = preview and preview.role or nil
+    end
+
     if role == "TANK" then
         icon:SetAtlas("UI-LFG-RoleIcon-Tank-Micro-Raid", true)
     elseif role == "HEALER" then
@@ -1332,6 +1374,10 @@ function UF:UpdateCombatIndicator(frame)
 
     local inCombat = frame.unit and UnitAffectingCombat and UnitAffectingCombat(frame.unit) or false
 
+    if IsPreviewModeEnabled() then
+        inCombat = frame.unit == "player" or frame.unit == "target"
+    end
+
     if not inCombat then
         icon:SetTexture(nil)
         icon:Hide()
@@ -1406,7 +1452,13 @@ function UF:UpdateRestingIndicator(frame)
         return
     end
 
-    if frame.unit ~= "player" or not IsResting or not IsResting() then
+    local isResting = frame.unit == "player" and IsResting and IsResting()
+
+    if IsPreviewModeEnabled() then
+        isResting = frame.unit == "player"
+    end
+
+    if not isResting then
         icon:SetTexture(nil)
         icon:Hide()
         holder:Hide()
@@ -1464,6 +1516,16 @@ function UF:UpdateReadyCheckIndicator(frame)
     end
 
     local status = frame.unit and GetReadyCheckStatus and GetReadyCheckStatus(frame.unit) or nil
+
+    if not status and IsPreviewModeEnabled() then
+        local previewMap = {
+            player = "ready",
+            target = "notready",
+            focus = "waiting",
+            pet = "ready",
+        }
+        status = previewMap[frame.unit] or "ready"
+    end
 
     if status == "ready" then
         icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
@@ -1861,7 +1923,8 @@ function UF:ApplyConfig(frame)
         local power = frame.Elements.PowerBar
         power:ClearAllPoints()
         power:SetStatusBarTexture(powerTexture)
-        power:SetStatusBarColor(powerR, powerG, powerB, powerA)
+        power:SetStatusBarColor(powerR, powerG, powerB, 1)
+        power:SetAlpha(powerA or 1)
 
         if power.bg then
             power.bg:SetTexture(powerTexture)
@@ -1907,7 +1970,8 @@ function UF:ApplyConfig(frame)
 
         altPower:ClearAllPoints()
         altPower:SetStatusBarTexture(altPowerTexture)
-        altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, altPowerA or 1)
+        altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, 1)
+        altPower:SetAlpha(altPowerA or 1)
 
         if altPower.bg then
             altPower.bg:SetTexture(altPowerTexture)
@@ -2187,7 +2251,7 @@ end
 function UF:ApplyTestValues(frame)
     self:RefreshUnitBarValues(frame)
 
-    if FocalPoint.guiTestModeEnabled
+    if IsPreviewModeEnabled()
         and frame
         and frame.unit == "player"
         and frame.config
@@ -2217,7 +2281,7 @@ function UF:ApplyTestValues(frame)
         self:ApplyConfig(frame)
     end
 
-    if FocalPoint.guiTestModeEnabled then
+    if IsPreviewModeEnabled() then
         StartCastBarPreview(frame)
     else
         StartCastBar(frame)
@@ -2428,15 +2492,15 @@ function UF:Refresh(frame)
 
     local isDeadUnit = false
 
-    if not FocalPoint.guiTestModeEnabled and frame.unit ~= "player" and UnitIsDeadOrGhost then
+    if not IsPreviewModeEnabled() and frame.unit ~= "player" and UnitIsDeadOrGhost then
         isDeadUnit = IsSafeTrue(UnitIsDeadOrGhost(frame.unit))
     end
 
-    if not isDeadUnit and not FocalPoint.guiTestModeEnabled and frame.unit ~= "player" then
+    if not isDeadUnit and not IsPreviewModeEnabled() and frame.unit ~= "player" then
         isDeadUnit = IsUnitDeadByHealth(frame.unit)
     end
 
-    local shouldHideForMissingUnit = not FocalPoint.guiTestModeEnabled
+    local shouldHideForMissingUnit = not IsPreviewModeEnabled()
         and frame.unit ~= "player"
         and (
             (UnitExists and not UnitExists(frame.unit))

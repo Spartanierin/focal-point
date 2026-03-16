@@ -8,6 +8,7 @@ local _, FocalPoint = ...
 
 local _LDB = LibStub("LibDataBroker-1.1", true)
 local _DBIcon = LibStub("LibDBIcon-1.0", true)
+local L = FocalPoint.L or {}
 
 -- Use a stable name as the key for LibDBIcon (do not use a localized title).
 local _MINIMAP_ICON_NAME = "FocalPoint"
@@ -34,13 +35,15 @@ function FocalPoint:InitMinimapIcon()
                 if button == "LeftButton" then
                     FocalPoint:OpenConfig()
                 elseif button == "RightButton" then
-                    FocalPoint:SpawnUnitFrame("player")
+                    if FocalPoint.ToggleFrameLock then
+                        FocalPoint:ToggleFrameLock()
+                    end
                 end
             end,
             OnTooltipShow = function(tooltip)
-                tooltip:AddLine("Focal Point")
-                tooltip:AddLine("Left Click: Open config", 1, 1, 1)
-                tooltip:AddLine("Right Click: Spawn test frame", 1, 1, 1)
+                tooltip:AddLine(L["ADDON_NAME"] or "Focal Point")
+                tooltip:AddLine(L["MINIMAP_TOOLTIP_LEFT_CLICK"] or "Left Click: Open config", 1, 1, 1)
+                tooltip:AddLine(L["MINIMAP_TOOLTIP_RIGHT_CLICK"] or "Right Click: Toggle frame lock", 1, 1, 1)
             end,
         })
     end

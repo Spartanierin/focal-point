@@ -4,6 +4,8 @@ ns.L = ns.L or {}
 local L = ns.L
 
 L["ADDON_NAME"] = "Focal Point"
+L["MINIMAP_TOOLTIP_LEFT_CLICK"] = "Left Click: Open config"
+L["MINIMAP_TOOLTIP_RIGHT_CLICK"] = "Right Click: Lock or unlock frames"
 L["INFO_VERSION"] = "Version"
 L["INFO_GENERAL_WELCOME"] = "Welcome to Focal Point."
 L["INFO_GENERAL_DESCRIPTION"] = "Focal Point is a modular unit frame addon that combines flexible customization with a fast path to a good result."

@@ -5,6 +5,7 @@ FocalPoint.GUI.Widgets = FocalPoint.GUI.Widgets or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 
+local OptionPaths = FocalPoint.GUI.Helpers.OptionPaths
 local OptionValues = FocalPoint.GUI.Helpers.OptionValues
 local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
 
@@ -21,6 +22,24 @@ local function NormalizeNumber(value, fallback)
     end
 
     return 0
+end
+
+local function SyncNamedColorAlpha(path, value)
+    if type(path) ~= "table" or #path < 2 or path[#path] ~= 4 then
+        return
+    end
+
+    local parentPath = {}
+    for i = 1, #path - 1 do
+        parentPath[i] = path[i]
+    end
+
+    local colorTable = OptionValues.Get(parentPath)
+    if type(colorTable) ~= "table" then
+        return
+    end
+
+    colorTable.a = value
 end
 
 function Sliders.Create(config)
@@ -107,6 +126,7 @@ function Sliders.Create(config)
         local normalized = NormalizeNumber(value, fallbackValue)
 
         OptionValues.Set(config.path, normalized)
+        SyncNamedColorAlpha(config.path, normalized)
         UpdateUI(normalized)
         OptionRefresh.Live()
 
@@ -134,6 +154,7 @@ function Sliders.Create(config)
 
             if OptionValues.Reset(config.path) then
                 local resetValue = NormalizeNumber(OptionValues.Get(config.path, fallbackValue), fallbackValue)
+                SyncNamedColorAlpha(config.path, resetValue)
                 UpdateUI(resetValue)
                 OptionRefresh.Live()
 

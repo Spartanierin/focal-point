@@ -24,6 +24,8 @@ L["VALUE_FONT_STYLE_OUTLINE_MONOCHROME"] = "Kontur + Monochrom"
 L["VALUE_FONT_STYLE_THICK_OUTLINE_MONOCHROME"] = "Dicke Kontur + Monochrom"
 
 L["ADDON_NAME"] = "Focal Point"
+L["MINIMAP_TOOLTIP_LEFT_CLICK"] = "Linksklick: Konfiguration oeffnen"
+L["MINIMAP_TOOLTIP_RIGHT_CLICK"] = "Rechtsklick: Frames sperren/entsperren"
 L["INFO_VERSION"] = "Version"
 L["INFO_GENERAL_WELCOME"] = "Willkommen bei Focal Point."
 L["INFO_GENERAL_DESCRIPTION"] = "Focal Point ist ein modulares Unit-Frame-Addon, das flexible Anpassung mit einem schnellen Weg zu einem guten Ergebnis verbindet."

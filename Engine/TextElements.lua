@@ -3,6 +3,10 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrame = FocalPoint.UnitFrame or {}
 local UF = FocalPoint.UnitFrame
 
+local function IsPreviewModeEnabled()
+    return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
+end
+
 local function UnpackColor(color, fallback)
     color = color or fallback or { 1, 1, 1, 1 }
 
@@ -41,7 +45,7 @@ local function GetLocalizedClassName(classToken)
 end
 
 local function GetClassTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.classToken and (FocalPoint.guiTestModeEnabled or frame.IsTemplatePreview) then
+    if frame and frame.TestValues and frame.TestValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
         local classToken = frame.TestValues.classToken:upper()
         local classColor = nil
 
@@ -165,7 +169,7 @@ local function BuildColorCode(r, g, b, a)
 end
 
 local function GetPowerTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.powerToken and (FocalPoint.guiTestModeEnabled or frame.IsTemplatePreview) then
+    if frame and frame.TestValues and frame.TestValues.powerToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
         local previewToken = frame.TestValues.powerToken
         local previewColor = PowerBarColor and (PowerBarColor[previewToken] or PowerBarColor[0])
         if previewColor then
@@ -195,7 +199,7 @@ local function GetPowerTextColor(unit, frame)
 end
 
 local function GetReactionTextColor(unit, frame)
-    if frame and frame.TestValues and (FocalPoint.guiTestModeEnabled or frame.IsTemplatePreview) then
+    if frame and frame.TestValues and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
         local reaction = frame.TestValues.reaction or 5
         local previewColor = FACTION_BAR_COLORS and FACTION_BAR_COLORS[reaction]
         if previewColor then
@@ -598,7 +602,7 @@ function UF:RefreshLiveValues(frame)
 
     frame.LiveValues = frame.LiveValues or {}
 
-    if FocalPoint.guiTestModeEnabled and frame.TestValues then
+    if IsPreviewModeEnabled() and frame.TestValues then
         local preview = frame.TestValues
         local healthCurrent = preview.healthCurrent or 100
         local healthMax = preview.healthMax or 100
@@ -1054,7 +1058,7 @@ local function GetTagPreviewFallback(token)
 end
 
 local function ResolveToken(frame, unit, token)
-    if not FocalPoint.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
+    if not IsPreviewModeEnabled() and (not unit or not UnitExists or not UnitExists(unit)) then
         local colorToken = ResolveColorTag(frame, unit, token)
         if colorToken ~= nil then
             return colorToken
@@ -1078,7 +1082,7 @@ local function ResolveToken(frame, unit, token)
 end
 
 local function ResolveBasicTag(frame, unit, token)
-    if FocalPoint.guiTestModeEnabled and frame and frame.TestValues then
+    if IsPreviewModeEnabled() and frame and frame.TestValues then
         local preview = frame.TestValues
 
         if token == "name" then
@@ -1512,7 +1516,7 @@ local function ResolveBasicTag(frame, unit, token)
 end
 
 local function HasActiveCast(unit)
-    if FocalPoint.guiTestModeEnabled then
+    if IsPreviewModeEnabled() then
         return true
     end
 
@@ -1655,7 +1659,7 @@ local function ApplyDirectTemplate(frame, textObject, unit, template, fallbackCo
         return false
     end
 
-    if not FocalPoint.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
+    if not IsPreviewModeEnabled() and (not unit or not UnitExists or not UnitExists(unit)) then
         return false
     end
 
@@ -1881,7 +1885,7 @@ function UF:RegisterTextEvents(frame)
     eventFrame:SetScript("OnUpdate", function(self, elapsed)
         local owner = self.owner
         local castBar = owner and owner.Elements and owner.Elements.CastBar
-        local hasPreviewCast = FocalPoint.guiTestModeEnabled and castBar and castBar.isPreview
+        local hasPreviewCast = IsPreviewModeEnabled() and castBar and castBar.isPreview
         if not owner or not FrameUsesCastTime(owner) or (not hasPreviewCast and not HasActiveCast(owner.unit)) then
             self.elapsed = 0
             return

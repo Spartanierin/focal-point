@@ -46,7 +46,7 @@ function FocalPoint:GetDefaultDB()
 
                     width = 260,
                     height = 65,
-                    alpha = 0.85,
+                    alpha = 0.9,
                     scale = 1,
                     frameLevel = 0,
                     frameStrata = "MEDIUM",
@@ -75,21 +75,21 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetY = -20,
 
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 0.7686275243759155, 0.7411764860153198, 0.2156862914562225, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
-                    healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 1.00 },
+                    healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 0.65 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
 
-                    powerColor = { 0.8000000715255737, 0.01176470704376698, 0.00, 0.58203125 },
+                    powerColor = { 0.8000000715255737, 0.01176470704376698, 0.00, 0.65 },
                     powerBackground = true,
                     powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
                     useClassColorPower = true,
@@ -161,8 +161,8 @@ function FocalPoint:GetDefaultDB()
                         insideSide = "RIGHT",
                         anchorTo = "Frame",
                         point = "TOPRIGHT",
-                        relativePoint = "TOPRIGHT",
-                        offsetX = 112,
+                        relativePoint = "BOTTOMRIGHT",
+                        offsetX = -15,
                         offsetY = -11,
                     },
 
@@ -197,7 +197,7 @@ function FocalPoint:GetDefaultDB()
                     Texts = {
                         Name = {
                             enabled = true,
-                            tag = "[name]",
+                            tag = "[name] [status] [status:timer]",
 
                             anchorTo = "Frame",
                             point = "TOPRIGHT",
@@ -206,7 +206,7 @@ function FocalPoint:GetDefaultDB()
                             offsetY = 20,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 19,
+                            fontSize = 16,
                             justifyH = "LEFT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
@@ -258,7 +258,7 @@ function FocalPoint:GetDefaultDB()
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
+                            fontSize = 12,
                             justifyH = "LEFT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
@@ -300,8 +300,8 @@ function FocalPoint:GetDefaultDB()
                         },
 
                         Level = {
-                            enabled = true,
-                            tag = "[level]",
+                            enabled = false,
+                            tag = "",
 
                             anchorTo = "PowerBar",
                             point = "RIGHT",
@@ -328,16 +328,16 @@ function FocalPoint:GetDefaultDB()
 
                         Class = {
                             enabled = true,
-                            tag = "[class]",
+                            tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
 
                             anchorTo = "PowerBar",
                             point = "RIGHT",
-                            relativePoint = "CENTER",
-                            offsetX = 63,
+                            relativePoint = "RIGHT",
+                            offsetX = -5,
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
+                            fontSize = 12,
                             justifyH = "CENTER",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
@@ -353,8 +353,8 @@ function FocalPoint:GetDefaultDB()
                         },
 
                         Race = {
-                            enabled = true,
-                            tag = "[race]",
+                            enabled = false,
+                            tag = "",
 
                             anchorTo = "PowerBar",
                             point = "RIGHT",
@@ -379,18 +379,18 @@ function FocalPoint:GetDefaultDB()
                         },
 
                         Status = {
-                            enabled = true,
-                            tag = "[status][dead][dead:timer]",
+                            enabled = false,
+                            tag = "",
 
                             anchorTo = "HealthBar",
-                            point = "CENTER",
-                            relativePoint = "CENTER",
-                            offsetX = 100,
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -41,
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 22,
-                            justifyH = "CENTER",
+                            fontSize = 15,
+                            justifyH = "RIGHT",
 
                             color = { 1.00, 0.82, 0.20, 1.00 },
 
@@ -549,7 +549,7 @@ function FocalPoint:GetDefaultDB()
                     
                     width = 260,
                     height = 65,
-                    alpha = 0.85,
+                    alpha = 0.9,
                     scale = 1,
                     frameLevel = 1,
                     frameStrata = "MEDIUM",
@@ -576,23 +576,23 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
 
-                    backgroundColor = { 0.08, 0.08, 0.08, 0.90 },
-                    borderColor = { 0.20, 0.20, 0.20, 1.00 },
+                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
+                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
-                    healthColor = { 0.10, 0.80, 0.10, 1.00 },
+                    healthColor = { 0.10, 0.80, 0.10, 0.65 },
                     healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.35 },
+                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
 
-                    powerColor = { 0.20, 0.40, 0.90, 1.00 },
+                    powerColor = { 0.20, 0.40, 0.90, 0.65 },
                     powerBackground = true,
-                    powerBackgroundColor = { 0.00, 0.00, 0.00, 0.35 },
+                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
 
@@ -707,7 +707,7 @@ function FocalPoint:GetDefaultDB()
                             offsetY = 20,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 19,
+                            fontSize = 16,
                             justifyH = "CENTER",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
@@ -759,7 +759,7 @@ function FocalPoint:GetDefaultDB()
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
+                            fontSize = 12,
                             justifyH = "RIGHT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
@@ -801,8 +801,8 @@ function FocalPoint:GetDefaultDB()
                         },
 
                         Level = {
-                            enabled = true,
-                            tag = "[level]",
+                            enabled = false,
+                            tag = "",
 
                             anchorTo = "PowerBar",
                             point = "LEFT",
@@ -827,8 +827,8 @@ function FocalPoint:GetDefaultDB()
                         },
 
                         Class = {
-                            enabled = true,
-                            tag = "[class]",
+                            enabled = false,
+                            tag = "",
 
                             anchorTo = "PowerBar",
                             point = "LEFT",
@@ -854,17 +854,17 @@ function FocalPoint:GetDefaultDB()
 
                         Race = {
                             enabled = true,
-                            tag = "[creature]",
+                            tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
 
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
-                            offsetX = 90,
+                            offsetX = 2,
                             offsetY = 0,
 
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
-                            justifyH = "CENTER",
+                            fontSize = 12,
+                            justifyH = "LEFT",
 
                             color = { 1.00, 1.00, 1.00, 1.00 },
 
@@ -879,8 +879,8 @@ function FocalPoint:GetDefaultDB()
                         },
 
                         Status = {
-                            enabled = true,
-                            tag = "[status][dead][dead:timer]",
+                            enabled = false,
+                            tag = "",
 
                             anchorTo = "HealthBar",
                             point = "LEFT",
@@ -1076,10 +1076,10 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = 4,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    castBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
