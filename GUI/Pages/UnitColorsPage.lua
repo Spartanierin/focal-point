@@ -1,0 +1,190 @@
+local _, ns = ...
+
+ns.GUI = ns.GUI or {}
+ns.GUI.Pages = ns.GUI.Pages or {}
+
+local C = ns.Constants
+local KM = ns.KeyMap
+local L = ns.L
+local ColorPicker = ns.GUI.Widgets.ColorPicker
+local Checkbox = ns.GUI.Widgets.Checkbox
+
+local UnitColorsPage = {}
+ns.GUI.Pages.UnitColors = UnitColorsPage
+
+function UnitColorsPage.Build(container, unitKey, deps)
+    local ResetFlowContainer = deps.ResetFlowContainer
+    local AddPageHeading = deps.AddPageHeading
+    local AddSectionHeading = deps.AddSectionHeading
+    local CreateSection = deps.CreateSection
+    local AddLayoutHandle = deps.AddLayoutHandle
+    local ResolveLayoutText = deps.ResolveLayoutText
+    local ResolveLayoutPath = deps.ResolveLayoutPath
+
+    ResetFlowContainer(container)
+
+    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    local COLORS_TAB_LAYOUT = ns.GUI.Layouts.UnitColors.ColorTab
+
+    local function IsUnitDisabled()
+        return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
+    end
+
+    local function IsPowerBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showPowerBar" }, true)
+    end
+
+    local function IsAlternativePowerBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showAlternativePowerBar" }, false)
+    end
+
+    local function IsCastBarDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showCastBar" }, true)
+    end
+
+    local function IsHealthColorPickerDisabled()
+        return IsUnitDisabled()
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorHealth" }, false)
+    end
+
+    local function IsHealthBackgroundPickerDisabled()
+        return IsUnitDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "healthBackground" }, true)
+    end
+
+    local function IsPowerColorPickerDisabled()
+        return IsPowerBarDisabled()
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorPower" }, false)
+    end
+
+    local function IsPowerBackgroundPickerDisabled()
+        return IsPowerBarDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
+    end
+
+    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.COLORS))
+
+    local function ResolveColorSectionHeading(sectionKey)
+        if sectionKey == "$healthBar" then
+            return ns.GetLabel(KM.Bars, C.Bars.HEALTH)
+        end
+
+        if sectionKey == "$powerBar" then
+            return ns.GetLabel(KM.Bars, C.Bars.POWER)
+        end
+
+        if sectionKey == "$castBar" then
+            return ns.GetLabel(KM.Bars, C.Bars.CAST)
+        end
+
+        if sectionKey == "$texts" then
+            return ns.GetLabel(KM.Tabs, C.Tabs.TEXTS)
+        end
+
+        return ResolveLayoutText(sectionKey)
+    end
+
+    local function ResolveColorDisabled(def)
+        if def.disabled == "unit" then
+            return IsUnitDisabled
+        end
+
+        if def.disabled == "power" then
+            return IsPowerBarDisabled
+        end
+
+        if def.disabled == "cast" then
+            return IsCastBarDisabled
+        end
+
+        if def.disabled == "healthColor" then
+            return IsHealthColorPickerDisabled
+        end
+
+        if def.disabled == "healthBackground" then
+            return IsHealthBackgroundPickerDisabled
+        end
+
+        if def.disabled == "powerColor" then
+            return IsPowerColorPickerDisabled
+        end
+
+        if def.disabled == "powerBackground" then
+            return IsPowerBackgroundPickerDisabled
+        end
+
+        return nil
+    end
+
+    local function AddColorSectionWidget(layout, def, state)
+        if type(def) ~= "table" or type(def.path) ~= "table" then
+            return
+        end
+
+        if def.widget == "colorpicker" then
+            local picker = ColorPicker.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                hasAlpha = def.hasAlpha == true,
+                resetText = L["OPTION_RESET"],
+                disabled = ResolveColorDisabled(def),
+            })
+
+            AddLayoutHandle(layout, picker, def)
+
+            if def.path[#def.path] == "healthColor" then
+                state.healthColorPickerHandle = picker
+            end
+
+            if def.path[#def.path] == "powerColor" then
+                state.powerColorPickerHandle = picker
+            end
+
+            return
+        end
+
+        if def.widget == "checkbox" then
+            AddLayoutHandle(layout, Checkbox.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                fallback = def.fallback,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveColorDisabled(def),
+                refreshGUI = def.refreshGUI,
+                onChanged = function()
+                    if def.onChanged == "refresh_health_color"
+                        and state.healthColorPickerHandle
+                        and state.healthColorPickerHandle.RefreshState
+                    then
+                        state.healthColorPickerHandle.RefreshState()
+                    end
+
+                    if def.onChanged == "refresh_power_color"
+                        and state.powerColorPickerHandle
+                        and state.powerColorPickerHandle.RefreshState
+                    then
+                        state.powerColorPickerHandle.RefreshState()
+                    end
+                end,
+            }), def)
+        end
+    end
+
+    for _, sectionDef in ipairs(COLORS_TAB_LAYOUT) do
+        AddSectionHeading(container, ResolveColorSectionHeading(sectionDef.section))
+
+        if sectionDef.mode == "section" then
+            local layout = CreateSection(container)
+            local sectionState = {}
+
+            for _, item in ipairs(sectionDef.items) do
+                AddColorSectionWidget(layout, item, sectionState)
+            end
+        end
+    end
+end

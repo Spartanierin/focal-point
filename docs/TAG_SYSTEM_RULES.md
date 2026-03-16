@@ -1,184 +1,205 @@
-# Tag System Rules
+# Portrait Tag System Rules
 
-## Goal
+## Purpose
 
-Portrait tags should render stable UI text from prepared display values.
-Tags should not be responsible for reconstructing or transforming volatile live unit data at render time.
+This document defines the rules for Portrait's tag system and template content layer.
 
-This matters because modern Retail WoW can expose unit data as secret values. Those values may still work for direct Blizzard UI APIs, but they can break when addons try to:
+It complements `ARCHITECTURE.md`:
+
+- `ARCHITECTURE.md` explains the larger text system model
+- this file explains how tags and inline formatting should behave inside that model
+
+The tag system exists to produce stable rendered text from prepared runtime data.  
+It is not intended to be a general calculation layer.
+
+## Architectural Position
+
+Portrait's text architecture is based on a strict separation:
+
+- **template** = content, including tags and inline formatting
+- **text element** = presentation, placement, font, base color, and effects
+- **tag resolution** = centralized runtime logic
+- **rendering** = visible output on the frame
+
+That separation must remain intact.
+
+### Important consequence
+
+Tags belong to the content layer.
+
+That means tags may define:
+
+- which unit data appears
+- how segments are formatted inline
+- where inline colors begin and end
+
+Tags must not become a replacement for:
+
+- layout configuration
+- positioning
+- font settings
+- default text element color
+- visual effects such as shadow
+
+## Why the Rules Are Strict
+
+Modern Retail WoW can expose some unit data as secret values.
+
+Those values may still work when handed directly to Blizzard UI functions, but they become unstable when addons try to:
 
 - compare them
 - divide them
 - parse them
 - use them as table keys
-- manipulate them as strings
+- reshape them as strings
 
-The tag system should therefore prefer display-ready values over raw unit API calls.
+Because of that, Portrait tags should prefer prepared display values over raw unit API values whenever possible.
 
 ## Core Rules
 
-### 1. Tags Prefer `frame.LiveValues`
+### 1. Tags Prefer Prepared Display Values
 
-A tag should first read from `frame.LiveValues`.
+A tag should first read from prepared values such as `frame.LiveValues`.
 
-Good:
+Preferred examples:
+
 - `healthCurrentText`
 - `healthMaxText`
 - `healthPercentText`
+- `healthCurrentAbbr`
 - `powerCurrentText`
 - `powerMaxText`
+- `powerPercentText`
 - `altPowerCurrentText`
 - `altPowerMaxText`
 
-Avoid:
+Avoid as a primary tag source:
+
 - direct `UnitHealth(...)`
 - direct `UnitHealthPercent(...)`
 - direct `UnitPower(...)`
 - direct `UnitPowerMax(...)`
 
-Exception:
-- direct unit API access is acceptable as a final fallback when the result is only passed through for display and not processed further
-
 ### 2. Tags Return Display Values, Not Work Values
 
 Tags should usually return:
-- a final string
-- or a value that is already known to be safe for formatting
 
-Avoid using tag templates as a calculation layer.
+- a final string
+- or a value already known to be safe for direct formatting
 
 Good:
-- `[hp:perc]` -> uses `healthPercentText`
-- `[power:cur:abbr]` -> uses `powerCurrentAbbr`
+
+- `[hp:perc]` -> `healthPercentText`
+- `[power:cur:abbr]` -> `powerCurrentAbbr`
 
 Avoid:
-- computing a percent inside the token resolver
-- recomputing abbreviated values inside the token resolver
-- parsing rendered text back into numbers inside normal runtime paths
+
+- computing percentages inside the token resolver
+- rebuilding abbreviations inside the token resolver
+- parsing rendered output back into numbers during normal runtime
 
 ### 3. Formatting Belongs in Refresh Helpers
 
 Formatting and normalization should happen before tag rendering.
 
-Preferred pattern:
-- collect runtime data
-- normalize it into `frame.LiveValues`
-- render tags from those prepared values
+Preferred flow:
+
+1. collect runtime values
+2. normalize them into display-ready fields
+3. resolve tags from those prepared fields
 
 This keeps token resolvers simple and predictable.
 
-### 4. Raw Values Are Allowed Only for Direct Text Output
+### 4. Raw Values Are Only Acceptable for Direct Pass-Through Output
 
-Raw values are acceptable when the tag only displays them and does not manipulate them.
+Raw values are acceptable only when the result is passed straight through for display and not manipulated further.
 
-Examples:
-- current HP as a number string
-- current Power as a number string
+Acceptable examples:
 
-Unsafe follow-up work on raw values:
+- showing a current HP number directly
+- showing a current power number directly
+
+Unsafe follow-up work on volatile values includes:
+
 - arithmetic
 - `tonumber(...)` rescue chains
 - table indexing
-- string token surgery on secret strings
+- string surgery on protected strings
 
-### 5. Layout and Text Rendering Stay Separate
+### 5. Layout and Text Resolution Stay Separate
 
-Text updates should not be coupled to layout rebuilds.
+Text updates must not depend on layout rebuilds.
 
 Preferred structure:
+
 - refresh runtime values
+- resolve templates and tags
 - update text objects
 - keep layout/config application separate
 
-This prevents text bugs from being hidden inside full frame refreshes.
+This prevents text bugs from hiding inside full frame rebuilds.
 
-### 6. Test Mode Uses Explicit Dummy Values
+### 6. Test Mode Uses Explicit Preview Values
 
-Test mode should always use normal Lua values prepared in `frame.TestValues` / `frame.LiveValues`.
+Test mode should use normal Lua preview values prepared in `frame.TestValues` and related preview paths.
 
-Tags in test mode should never depend on live unit API calls.
+Tags in test mode should not depend on live unit APIs.
 
-## Recommended Data Model
+## Templates and Raw Tag Strings
 
-For each bar-like domain, maintain three layers:
+Portrait supports two content sources for a text element:
 
-### Raw
+1. a linked template via `templateName`
+2. a direct raw string via `tag`
 
-Only when needed for direct UI handoff.
+### Preferred rule
 
-Examples:
-- `healthCurrentRaw`
-- `healthMaxRaw`
-- `powerCurrentRaw`
-- `powerMaxRaw`
+`templateName` is the primary path.
 
-### Safe Numeric
+The direct `tag` string exists as:
 
-Only if we have a proven safe conversion path.
+- fallback
+- migration path
+- expert path
+- one-off special case
 
-Examples:
-- `healthCurrentSafe`
-- `healthMaxSafe`
-- `powerCurrentSafe`
-- `powerMaxSafe`
+The system should keep moving toward template-first content, not away from it.
 
-These should be treated as optional, not guaranteed.
+## Inline Color Rules
 
-### Display
-
-Preferred tag source.
+Inline color tags are part of the template content layer.
 
 Examples:
-- `healthCurrentText`
-- `healthMaxText`
-- `healthPercentText`
-- `healthCurrentAbbr`
-- `healthMaxAbbr`
-- `powerCurrentText`
-- `powerMaxText`
-- `powerCurrentAbbr`
-- `powerMaxAbbr`
 
-## Abbreviation Style
+- `[color:class]`
+- `[color:blizz_pwr]`
+- `[color:reaction]`
+- `[color:blizz_yellow]`
+- `[color:ffcc00]`
+- `[rc]`
 
-Portrait currently uses Blizzard number abbreviation output for `:abbr` tags.
+### Meaning
 
-### Current Rule
+- inline color tags affect only segments inside the resolved text string
+- they do not redefine the base presentation color of the text element
 
-- `:abbr` values are prepared before tag rendering
-- Portrait calls Blizzard's `AbbreviateLargeNumbers(...)`
-- the returned string is used directly
-- Portrait does not normalize casing, spacing, suffixes, or separators afterward
-- if Blizzard abbreviation does not return a usable string, Portrait falls back to the prepared display text
+### Reset rule
 
-### Why
+`[rc]` resets inline color formatting back to the text element's configured base color.
 
-- this is currently the most stable path under Retail secret value behavior
-- it avoids further parsing or manipulation of potentially protected values
-- it keeps the tag system simple: prepared display values in, rendered text out
+This is a key architectural rule:
 
-### Consequence
+- global text color remains part of the text element's presentation
+- inline colors remain part of the content string
+- reset tags return from content-level formatting to element-level default color
 
-- output may differ from earlier Portrait-specific styling
-- examples:
-  - uppercase `K`
-  - spaces before suffixes
-  - locale-specific separators
-- this is acceptable by design as long as the output is stable and direct from Blizzard
+The two layers must not be merged conceptually.
 
-## Color Tags
+## Supported Color Syntax
 
-Portrait supports inline color tags as lightweight formatting prefixes inside templates.
+The documented color syntax is the unified `[color:...]` format plus `[rc]`.
 
-### Current Rule
-
-- color formatting is applied inline through `[color:...]`
-- color reset uses `[rc]`
-- the returned color escape codes are used directly
-- templates may combine multiple color prefixes with normal data tags
-- legacy color tags may remain parser-compatible, but the documented syntax is the unified `[color:...]` form
-
-### Supported Forms
+Supported forms include:
 
 - `[color:class]`
 - `[color:blizz_pwr]`
@@ -192,20 +213,94 @@ Portrait supports inline color tags as lightweight formatting prefixes inside te
 - `[color:aarrggbb]`
 - `[rc]`
 
-### Guidance
+Legacy color tags may remain parser-compatible for migration purposes, but they are not the preferred documented syntax.
 
-- use color tags as prefixes around existing data tags
-- prefer short, explicit sequences over long nested constructions
-- keep color tags declarative; they should resolve to a color code, not perform additional formatting work
+## Abbreviation Policy
+
+Portrait currently uses Blizzard abbreviation output for `:abbr` tags.
+
+### Current rule
+
+- abbreviation values are prepared before tag rendering
+- Portrait calls Blizzard's `AbbreviateLargeNumbers(...)`
+- the returned string is used directly
+- Portrait does not rewrite casing, spacing, suffixes, or separators afterward
+- if Blizzard does not return a usable string, Portrait falls back to prepared display text
+
+### Why
+
+This is currently the most stable approach under Retail secret-value behavior.
+
+It avoids:
+
+- addon-side number reconstruction
+- risky post-processing
+- reformatting of possibly protected values
+
+### Consequence
+
+Output may differ from Portrait's earlier custom styling.
 
 Examples:
-- `[color:class][name][rc]`
-- `[color:blizz_pwr][power:cur][rc]`
-- `[color:blizz_yellow][level] [classification][rc]`
 
-## Current Findings In `TextElements.lua`
+- uppercase `K`
+- spaces before suffixes
+- locale-specific separators
 
-### Safe / Good Enough
+That is acceptable as long as the output is stable and directly sourced from Blizzard formatting.
+
+## Recommended Runtime Data Layers
+
+For each bar-like domain, Portrait should maintain three conceptual layers.
+
+### Raw
+
+Only when needed for direct UI handoff.
+
+Examples:
+
+- `healthCurrentRaw`
+- `healthMaxRaw`
+- `powerCurrentRaw`
+- `powerMaxRaw`
+
+### Safe Numeric
+
+Only if a proven safe conversion path exists.
+
+Examples:
+
+- `healthCurrentSafe`
+- `healthMaxSafe`
+- `powerCurrentSafe`
+- `powerMaxSafe`
+
+These are optional, not guaranteed.
+
+### Display
+
+This is the preferred tag source.
+
+Examples:
+
+- `healthCurrentText`
+- `healthMaxText`
+- `healthPercentText`
+- `healthCurrentAbbr`
+- `healthMaxAbbr`
+- `powerCurrentText`
+- `powerMaxText`
+- `powerPercentText`
+- `powerCurrentAbbr`
+- `powerMaxAbbr`
+- `altPowerCurrentText`
+- `altPowerMaxText`
+
+## Current Practical Assessment
+
+### Stable / Good Enough
+
+These already fit the intended direction reasonably well:
 
 - `hp:cur:abbr`
 - `hp:max:abbr`
@@ -213,12 +308,15 @@ Examples:
 - `power:max:abbr`
 - `altpower:cur:abbr`
 - `altpower:max:abbr`
+- `hp:perc`
+- `power:perc`
 - `perhp`
 
-These already prefer prepared display values.
-For `:abbr`, that prepared value is now the direct Blizzard abbreviation string or a plain display-text fallback.
+These prefer prepared display values.
 
-### Needs Cleanup
+### Still Worth Cleaning Up Later
+
+These still retain narrower fallback behavior and should gradually move toward display-first-only resolution:
 
 - `hp:cur`
 - `hp:max`
@@ -229,46 +327,46 @@ For `:abbr`, that prepared value is now the direct Blizzard abbreviation string 
 - `curpp`
 - `maxpp`
 
-These still keep a narrow fallback path and should eventually move to prepared text variants only.
+### Current Risk Profile
 
-### Highest Risk
+The highest remaining risk is no longer the token definitions themselves.
 
-- no longer the primary percent path for `hp:perc` and `power:perc`
-- remaining risk is mostly in the broader runtime value preparation, not in the token definitions themselves
-- `:abbr` is intentionally delegated to Blizzard formatting instead of Portrait-side math
+The bigger risk sits in runtime value preparation whenever volatile unit data still has to be normalized.
 
-## Recommended Next Adjustments
+## Recommended Direction
 
-### Short Term
+### Short term
 
-- keep `hp:perc` and `perhp` sourced from `healthPercentText`
-- add prepared display fields for:
-  - `powerPercentText`
-  - `altPowerPercentText` if needed later
-- reduce the remaining direct unit API fallbacks in token resolvers
-- keep abbreviation policy conservative: prefer direct Blizzard output over Portrait-side rewriting
+- keep percent tags sourced from prepared text values
+- continue using prepared abbreviation values
+- reduce direct live-unit fallbacks where possible
 
-### Medium Term
+### Medium term
 
-- split refresh helpers by domain:
-  - `RefreshHealthDisplayValues`
-  - `RefreshPowerDisplayValues`
-  - `RefreshAltPowerDisplayValues`
-- let tags consume only those domain display values
+Split display preparation by domain:
 
-### Long Term
+- `RefreshHealthDisplayValues`
+- `RefreshPowerDisplayValues`
+- `RefreshAltPowerDisplayValues`
 
-- document which tokens are:
-  - safe display tokens
-  - compatibility/legacy tokens
-  - risky raw fallback tokens
-- deprecate risky legacy fallbacks gradually once defaults and user templates have migrated
+Then let tags consume only those prepared domain values.
 
-## Practical Rule Of Thumb
+### Long term
 
-If a token needs math, parsing, lookup tricks, or string surgery at render time, it is probably in the wrong layer.
+Classify tokens explicitly as:
 
-Portrait tags should mostly be:
-- read prepared value
-- format if trivial
-- render
+- safe display tokens
+- compatibility tokens
+- risky legacy fallback tokens
+
+Then deprecate risky fallback behavior gradually once templates and defaults are fully migrated.
+
+## Rule of Thumb
+
+If a token requires math, parsing, lookup tricks, or string surgery at render time, it is probably operating in the wrong layer.
+
+Portrait tags should mostly do this:
+
+1. read prepared value
+2. format only if trivial
+3. render

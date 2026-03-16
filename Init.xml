@@ -25,6 +25,7 @@
     <Script file="GUI/Helpers/OptionValues.lua"/>
     <Script file="GUI/Helpers/OptionRefresh.lua"/>
     <Script file="GUI/Layouts/SectionLayout.lua"/>
+    <Script file="GUI/Helpers/LayoutHelpers.lua"/>
     <Script file="GUI/Widgets/ColorPicker.lua"/>
     <Script file="GUI/Widgets/Sliders.lua"/>
     <Script file="GUI/Widgets/Dropdown.lua"/>
@@ -42,5 +43,13 @@
     <Script file="GUI/Layouts/UnitRestingIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/UnitReadyCheckIndicatorLayouts.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>
+    <Script file="GUI/Pages/GeneralPage.lua"/>
+    <Script file="GUI/Pages/ProfilesPage.lua"/>
+    <Script file="GUI/Pages/UnitBarsPage.lua"/>
+    <Script file="GUI/Pages/UnitColorsPage.lua"/>
+    <Script file="GUI/Pages/UnitFramePage.lua"/>
+    <Script file="GUI/Pages/UnitTextsPage.lua"/>
+    <Script file="GUI/Pages/TextBuilderPage.lua"/>
+    <Script file="GUI/Pages/TagDatabasePage.lua"/>
     <Script file="GUI/GUI.lua"/>
 </Ui>

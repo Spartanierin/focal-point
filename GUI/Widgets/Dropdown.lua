@@ -44,7 +44,7 @@ function Dropdown.Create(config)
     if config.showReset ~= false then
         resetButton = AceGUI:Create("Button")
         resetButton:SetText(config.resetText or "Reset")
-        resetButton:SetWidth(100)
+        resetButton:SetWidth(config.resetWidth or 100)
         row:AddChild(resetButton)
     end
 

@@ -1,41 +1,40 @@
-# Portrait – Architekturüberblick
+# Portrait Architecture Overview
 
-## Ziel
+## Purpose
 
-Die GUI von Portrait soll so aufgebaut sein, dass sie logisch, skalierbar und leicht lokalisierbar bleibt.
+Portrait is designed as a modular unit frame addon with a configuration UI that mirrors the real structure of the addon instead of exposing a flat list of unrelated options.
 
-Die Struktur folgt dabei immer derselben Reihenfolge:
+The intended configuration hierarchy is:
 
-**Unit → Tab → Objekt → Eigenschaften**
+**Unit -> Tab -> Object -> Properties**
 
-Beispiel:
+Example:
 
 - Unit: `player`
 - Tab: `bars`
-- Objekt: `health_bar`
-- Eigenschaft: `width`
+- Object: `HealthBar`
+- Property: `height`
 
-Die GUI soll nicht aus lose verteilten Einzeloptionen bestehen, sondern die technische Struktur des Addons klar widerspiegeln.
+This keeps the GUI scalable, learnable, and easy to localize.
 
----
+## Navigation Model
 
-## Grundprinzip der Navigation
+The navigation follows an object-oriented structure.
 
-Die Navigation ist objektorientiert aufgebaut.
-
-### Hauptebene
+### Top level
 
 - General
 - Units
+- Text Builder
+- Tag Database
 
-### Unter „General“
+### Under General
 
+- General settings
 - Profiles
-- Themes
-- Global Defaults
-- Test Mode
+- Themes and workflow-related entry points as they are added
 
-### Unter „Units“
+### Under Units
 
 - Player
 - Target
@@ -45,13 +44,11 @@ Die Navigation ist objektorientiert aufgebaut.
 - Focus Target
 - Boss
 
-Jede Unit besitzt dieselbe Grundstruktur. Dadurch bleibt die GUI konsistent und erlernbar.
+Each unit follows the same conceptual structure so the UI stays consistent even when units differ in enabled features.
 
----
+## Standard Unit Tabs
 
-## Standardtabs pro Unit
-
-Jede Unit-Seite verwendet dieselben Haupttabs:
+Each unit page is split into the same high-level tab families:
 
 - Frame
 - Bars
@@ -59,251 +56,392 @@ Jede Unit-Seite verwendet dieselben Haupttabs:
 - Elements
 - Visibility
 
-Diese Tabs beschreiben die Art des bearbeiteten Objekts, nicht einzelne konkrete Optionen.
+These tabs describe the kind of object being edited, not a random collection of options.
 
----
-
-## Inhalt der Tabs
+## Tab Responsibilities
 
 ### Frame
 
-Enthält alle Einstellungen, die das gesamte Unit Frame betreffen.
+Contains properties that affect the unit frame as a whole.
 
-Beispiele:
+Examples:
 
-- Enabled
-- Width
-- Height
-- Scale
-- Alpha
-- Anchor From / To
-- X / Y Offset
-- Frame Strata
-- Frame Level
+- enabled
+- width / height
+- scale
+- alpha
+- anchor points
+- offsets
+- frame strata
+- frame level
 
 ### Bars
 
-Enthält alle Bar-Objekte einer Unit.
+Contains bar-like objects for a unit.
 
-Maximal vorgesehen:
+Current and planned examples:
 
 - Health Bar
 - Power Bar
 - Alt Power Bar
 - Cast Bar
 
-Jede Bar soll möglichst dieselbe innere Struktur besitzen, z. B.:
+Bars should follow a similar internal structure whenever possible, for example:
 
 - General
-- Size & Position
+- Size and Position
 - Style
 - Behavior
 
 ### Texts
 
-Enthält alle Text- bzw. Tag-Objekte einer Unit.
+Contains text elements rendered on a unit.
 
-Beispiele:
+This tab family is now built around a template-driven text system rather than a fixed list of role-specific text labels.
 
-- Name
-- Health Value
-- Power Value
-- Level
-- Status
-- Cast Name
-- Cast Time
-- Custom Texts
+Examples of current text-bearing concepts:
 
-Texte sind eigene Informationsobjekte und werden nicht logisch einer Bar untergeordnet, auch wenn sie optisch auf einer Bar liegen können.
+- name
+- health
+- power
+- level / class / race
+- status
+- cast texts
+- additional custom text elements
+
+Texts are independent information objects. They may be visually attached to bars, but they are not conceptually owned by a bar.
 
 ### Elements
 
-Enthält alle grafischen Objekte, die weder Bar noch Text sind.
+Contains graphical objects that are neither bars nor text.
 
-Beispiele:
+Examples:
 
-- Portrait
-- Background
-- Border
-- Highlight
-- Raid Target Icon
-- Leader Icon
-- Role Icon
-- Combat Indicator
-- Resting Indicator
-- Ready Check Indicator
-- PvP Indicator
+- portrait
+- raid target icon
+- leader icon
+- role icon
+- combat indicator
+- resting indicator
+- ready check indicator
 
 ### Visibility
 
-Enthält Sichtbarkeits- und Zustandslogik.
+Contains state- and context-based visibility logic.
 
-Beispiele:
+Examples:
 
-- Show in Solo / Party / Raid
-- In Combat Only
-- Out of Combat Only
-- Alive Only
-- Has Target
-- Alpha / Fade Rules
+- show in solo / party / raid
+- combat-only conditions
+- target-dependent visibility
+- alpha / fade rules
 
-Sichtbarkeit ist eine Logik-Ebene und wird nicht mit Stil-Einstellungen vermischt.
+Visibility is treated as logic, not as styling.
 
----
+## Internal Keys vs Localized Labels
 
-## Technische Benennung
+Visible labels and technical identifiers are intentionally separated.
 
-Im Projekt werden sichtbare Namen und technische Schlüssel strikt getrennt.
+### Internal keys
 
-### 1. Internal Keys
+Internal keys are language-neutral and stable.  
+They are used in configuration paths, GUI routing, and code references.
 
-Internal Keys sind sprachneutral und stabil.  
-Sie werden für Datenmodell, GUI-Struktur und Code-Referenzen verwendet.
-
-Beispiele:
+Examples:
 
 - `player`
 - `target`
-- `bars`
-- `texts`
-- `health_bar`
-- `name_text`
-- `portrait`
+- `Texts`
+- `Health`
+- `Custom1`
+- `Portrait`
 
-Diese Keys dürfen nicht von sichtbaren Texten abhängen.
+These keys must not depend on localized UI strings.
 
-### 2. Localization Keys
+### Localization keys
 
-Alle sichtbaren Texte laufen über Locale-Keys.
+All visible labels go through locale keys.
 
-Beispiele:
+Examples:
 
-- `UNIT_PLAYER`
-- `TAB_BARS`
-- `BAR_HEALTH`
-- `TEXT_NAME`
-- `ELEMENT_PORTRAIT`
+- `NAV_GENERAL`
+- `OPTION_ENABLED`
+- `INFO_UNIT_TEXT_TEMPLATE_GROUP`
 
-Die GUI verwendet also niemals sichtbare Rohtexte als technische Identität.
-
-**Richtig:**
-
-```lua
-key = "health_bar"
-name = L["BAR_HEALTH"]
-
-
-
-
+This keeps the data model stable while still allowing the addon UI to be translated cleanly.
 
 ## GUI State and Refresh Model
 
-The configuration UI uses a shared widget state model across all standard controls (checkboxes, dropdowns, sliders, color pickers).
+The configuration UI uses a shared widget state model across standard controls such as:
+
+- checkboxes
+- dropdowns
+- sliders
+- color pickers
 
 Each widget may define:
+
 - `disabled`
 - `locked`
 - `refreshGUI`
 
-The `disabled` and `locked` values may be static booleans or functions that are evaluated dynamically against the current configuration state.
+`disabled` and `locked` may be static booleans or functions that are evaluated against current state.
 
 ### Widget state refresh
 
-Widgets expose a `RefreshState()` function and register themselves with the GUI refresh system.  
-This allows the UI to update the interactive state of visible controls without rebuilding the entire page.
+Widgets expose a refreshable state model instead of forcing a full page rebuild every time something changes.
 
-This was introduced because full GUI rebuilds caused multiple UX and interaction problems:
-- scroll position jumping back to the top
-- TreeGroup state instability
-- sliders losing proper drag behavior
-- unnecessary widget recreation for simple state changes
+This exists because full GUI rebuilds caused major UX problems during development:
+
+- scroll position resetting
+- TreeGroup instability
+- sliders losing smooth drag behavior
+- unnecessary widget recreation
 
 The rule is:
 
-- **State changes** should refresh visible widget states
-- **Structural changes** may rebuild the page if necessary
+- **state changes** should refresh visible widget state
+- **structural changes** may rebuild the page when needed
 
-A full page rebuild is therefore a fallback, not the primary refresh mechanism.
+## Section Layout Metadata
+
+Portrait's two-column GUI layout now supports small optional metadata on section items.
+
+These fields are interpreted by the shared section layout engine and are fully backward-compatible.
+If a layout item does not provide them, the engine keeps the previous alternating left/right behavior.
+
+### Supported fields
+
+- `placement`
+  - Optional
+  - Supported values:
+    - `"left"`
+    - `"right"`
+  - Any other value, or no value, falls back to automatic alternating placement
+
+- `span`
+  - Optional
+  - Supported values:
+    - `1`
+    - `2`
+  - `2` makes the item render as a full-width row inside the section
+
+- `rowType`
+  - Optional
+  - Currently supported values:
+    - `"subsection"`
+    - `"full"`
+  - Both currently behave as full-width rows and provide a semantic hook for future styling/grouping
+
+### Usage example
+
+```lua
+{ widget = "dropdown", path = ..., placement = "left" }
+{ widget = "slider", path = ..., placement = "right" }
+{ widget = "checkbox", path = ..., span = 2 }
+{ widget = "fontstyle", path = ..., rowType = "subsection", span = 2 }
+```
+
+### Design intent
+
+This metadata exists to improve local layout structure without introducing page-specific hacks.
+
+It allows a page definition to express:
+
+- forced left/right placement
+- full-width rows
+- lightweight subsection grouping semantics
+
+The engine remains generic and reusable across pages.
 
 ## Refresh Separation
 
-The refresh system is intentionally split into separate layers:
+Refresh behavior is intentionally split into separate layers:
 
 - `OptionRefresh.GUI()`  
-  Refreshes visible widget states in the configuration UI
+  Refreshes visible configuration controls
 
 - `OptionRefresh.Live()`  
-  Refreshes live unit frames and preview/test environments
+  Refreshes live unit frames and preview/test state
 
 - `OptionRefresh.All()`  
-  Combines both when needed
+  Combines both when necessary
 
-This separation exists because GUI refreshes and live frame refreshes have different requirements.
+This separation prevents GUI interaction problems while still allowing live frame updates.
 
-### Why this separation exists
+## Text System
 
-Using a single “refresh everything” path caused several problems during development:
-- GUI controls were rebuilt during slider interaction
-- scroll position was lost
-- TreeGroup state was reset unexpectedly
-- widget interaction became unstable
+The text system is one of Portrait's core architectural features and must be treated as an existing system, not as an experimental side feature.
 
-As a result, GUI refreshes are treated as a separate concern from frame rendering.
+### Core model
 
-## Portrait as the First Image Element
+- A unit can have multiple **text elements**
+- Each text element is its own text carrier on the unit
+- A text element stores presentation data such as:
+  - enabled state
+  - position
+  - anchor target
+  - font
+  - base color
+  - effects such as shadow
 
-The portrait system is the first complete image-based element implemented end-to-end.
+The actual text content comes primarily from a **template**.
+
+### Template model
+
+A template is a stored text string that may contain:
+
+- content tags
+- inline formatting tags
+- inline color tags
+
+Examples:
+
+- `[name]`
+- `[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%`
+- `[color:blizz_yellow][level][rc] [color:class][class][rc] [race]`
+
+Templates live in `profile.TextTemplates`.
+
+### Template references
+
+A text element uses `templateName` to reference a stored template.
+
+If no template is linked, the text element may fall back to a direct raw tag string in `tag`.
+
+That means:
+
+- `templateName` is the preferred content source
+- `tag` is fallback or an expert/special-case path
+
+### Runtime resolution
+
+At runtime the text system resolves:
+
+1. the linked template if `templateName` exists
+2. otherwise the direct `tag` string
+
+That resolved string is then evaluated against live unit data and rendered into the frame.
+
+This keeps the separation clear:
+
+- **template** = content
+- **text element** = presentation
+- **tag resolution** = runtime logic
+- **rendering** = visible output
+
+### Color model
+
+The text system distinguishes between global text presentation and inline content formatting.
+
+#### Global text color
+
+The `color` field on a text element is part of the element's presentation.
+
+It defines the base text color for that whole text object.
+
+#### Inline color tags
+
+Inline color tags are part of the content string, for example:
+
+- `[color:class]`
+- `[color:blizz_pwr]`
+- `[color:reaction]`
+- `[color:ffcc00]`
+- `[rc]`
+
+These tags affect only segments inside the resolved text string.
+
+#### Reset behavior
+
+Reset tags end inline color control and restore the text element's configured base color.
+
+This is an important rule:
+
+- inline color logic must not replace the text element's global presentation color
+- the global presentation color must remain the default state that inline formatting returns to
+
+### Builder and unit-page relationship
+
+The Text Builder is not a second text system.  
+It is the authoring and distribution tool for the same template-based text architecture.
+
+Its responsibilities are:
+
+- build and preview templates
+- save templates
+- show where templates are already used
+- apply templates to units
+
+The unit text pages are the presentation editors for individual text elements.
+
+Their responsibilities are:
+
+- choose which template a text element uses
+- place the text element
+- style the text element
+- optionally edit the raw fallback string in Expert Mode
+
+### Current UI direction
+
+The long-term direction is:
+
+- content comes from templates
+- units expose text elements instead of hard-coded "health text", "power text", and similar mental models
+
+The current implementation already moves toward this by:
+
+- linking text elements to templates
+- showing template-aware tab labels
+- hiding empty text elements
+- keeping raw tag editing as an expert path instead of the primary workflow
+
+## Portrait as the First Image Element Blueprint
+
+Portrait is the first complete image-based element implemented end-to-end.
 
 It includes:
-- defaults in the unit configuration
-- a dedicated GUI section
-- hierarchical option dependency handling
-- live application inside `UnitFrame.lua`
-- portrait-specific event-based texture refresh
 
-This element serves as the blueprint for future image-based elements such as:
-- raid target marker
-- resting symbol
-- combat indicator
-- other icon or texture based overlays
+- defaults in the unit configuration
+- dedicated GUI sections
+- dependency-aware option handling
+- live application in `UnitFrame.lua`
+- event-driven refresh logic
+
+This serves as the blueprint for future image-style elements.
 
 ## Image Element Placement Model
 
-Image-based elements follow a placement model with two distinct modes:
+Image-based elements follow a shared placement model with two modes:
 
 - `INSIDE`
 - `ATTACHED`
 
-These are not cosmetic variants. They represent different layout behaviors.
-
 ### INSIDE
 
-An image element placed `INSIDE` reserves space inside the unit frame.
+An `INSIDE` element reserves space inside the frame.
 
 For portraits this means:
-- the portrait remains square
-- the frame reserves horizontal space for it
-- health and power bars do **not** anchor directly to the portrait
-- bars only shift their own offsets to leave room
 
-This rule is important because anchoring bars directly to the portrait caused circular dependency issues in WoW’s layout system.
+- the portrait remains square
+- the frame reserves space visually
+- bars shift to make room
+- bars do not anchor directly to the portrait
+
+This avoids circular layout dependencies.
 
 ### ATTACHED
 
-An image element placed `ATTACHED` does not affect the internal frame layout.
+An `ATTACHED` element does not alter internal layout.  
+It anchors freely to a selected target such as:
 
-Instead, it is anchored freely to a chosen target such as:
 - `Frame`
 - `HealthBar`
 - `PowerBar`
 
-This allows image-based elements to behave like external anchors without forcing health/power layout changes.
-
 ## Portrait Element Model
 
-The portrait configuration uses a dedicated image-element style data model.
-
-Example fields:
+Portrait uses an image-element style data model with fields such as:
 
 - `enabled`
 - `placement`
@@ -320,80 +458,66 @@ Example fields:
 
 ### Size and scale instead of width and height
 
-Portraits intentionally use `size` and `scale` instead of separate width and height values.
+Portrait intentionally uses `size` and `scale` instead of separate width and height values.
 
-This avoids distortion and keeps portraits square by design.
+That keeps the portrait square by design and avoids distortion.
 
-The general rule for image-based elements is:
+General rule:
+
 - bars may stretch
-- images should usually keep aspect ratio unless explicitly designed otherwise
+- image elements should preserve aspect ratio unless intentionally designed otherwise
 
 ## Portrait Rendering Strategy
 
-The current portrait implementation supports a stable 2D rendering path first.
+The stable implementation path prioritizes 2D rendering first.
 
-The 2D portrait is updated through portrait-related events, including world entry and portrait/model update events.  
-This was necessary because setting the portrait texture during initial frame construction was sometimes too early, which caused the portrait area to exist without the image being visible until a later manual refresh.
+Portrait updates are event-driven rather than relying only on initial frame construction timing.  
+This exists because portrait textures could otherwise fail to appear until a later manual refresh.
 
-The portrait update path was therefore made event-driven instead of relying only on frame construction timing.
+### 3D mode status
 
-### Current status of 3D mode
-
-The portrait model already contains a `mode` field (`2D` / `3D`) as part of the architecture.
+The data model already supports `2D` and `3D`.
 
 At the current stage:
-- `2D` is the stable implementation
-- `3D` is part of the intended model, but should be treated as an extension point until a dedicated model-based implementation is added
+
+- `2D` is the stable mode
+- `3D` is an extension point and should be treated as such until a full model-based path is finished
 
 ## Dependency Handling in the GUI
 
-The GUI uses hierarchical dependency logic for options.
+The GUI uses hierarchical dependency logic for option state.
 
-Example:
-- unit disabled → all portrait options disabled
-- portrait disabled → all portrait sub-options disabled
-- portrait placement = `INSIDE` → inside-only options enabled
-- portrait placement = `ATTACHED` → anchor/offset options enabled
+Examples:
 
-This dependency model is implemented through widget state functions rather than page-local ad hoc conditions.
+- unit disabled -> child options disabled
+- portrait disabled -> portrait sub-options disabled
+- placement = `INSIDE` -> inside-only options enabled
+- placement = `ATTACHED` -> anchor options enabled
 
-The goal is to keep option dependencies declarative and reusable.
+The goal is to keep dependency behavior declarative instead of spreading ad hoc conditions across page code.
 
 ## Navigation and UI State Persistence
 
-The configuration UI maintains state for:
+The configuration UI preserves:
+
 - expanded TreeGroup nodes
 - selected navigation path
-- visible widget states
+- visible widget state
+- scroll position where possible
 
-This was added to avoid repeated UI friction during iterative configuration work.
+This is important because Portrait is a workflow-heavy UI, and rebuilding too aggressively creates unnecessary friction.
 
-Examples:
-- the `Units` node should remain expanded by default
-- option toggles should not force the user back to the top of long option lists
-- visible controls should update state without disrupting the current work context
+## Practical Stability Exception
 
-## Architectural Direction for Future Image Elements
+There is at least one intentional implementation exception in the GUI:
 
-Portrait is the first implementation of a broader design direction.
+- the **Units > Frame > Behavior** checkboxes are rendered directly with raw AceGUI `CheckBox` widgets
 
-Future image-based elements should reuse the same conceptual model where appropriate:
-- shared placement logic (`INSIDE` vs `ATTACHED`)
-- square-safe sizing (`size` + `scale`)
-- anchor-based external attachment
-- state-driven GUI visibility and enable/disable logic
+This exists because earlier wrapper-based implementations caused those controls to disappear in-game even though surrounding content rendered correctly.
 
-The goal is to avoid one-off implementations for each indicator or symbol and instead grow a reusable image-element architecture.
+So for that block the current rule is:
 
-## GUI note: Frame > Behavior checkboxes
+- prefer direct rendering
+- do not abstract it again without re-testing in-game
 
-The checkboxes in **Units > Frame > Behavior** are intentionally rendered directly with raw AceGUI `CheckBox` widgets and added straight to the container.
-
-Why this exists: multiple refactors using wrapper widgets, intermediate groups, and section-style layouts caused a weird rendering failure where the section heading and other widgets were visible, but the real behavior checkboxes disappeared in-game.
-
-Current rule for this block:
-- build the checkboxes directly
-- add them directly to the page container
-- avoid extra wrapper/group abstractions here unless they are re-tested in-game
-
-This is a deliberate stability exception, not unfinished cleanup.
+This is a deliberate stability choice, not unfinished cleanup.

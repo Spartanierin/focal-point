@@ -1,6 +1,6 @@
 ## Title: Portrait
 ## Interface: 120000, 120001
-## Version: 0.9.7
+## Version: 0.9.8
 ## Author: Spartanierin
 ## Notes: Flexible, modular unit frames designed for fast setup and detailed customization.
 
