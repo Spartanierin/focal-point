@@ -1,15 +1,15 @@
-local _, PORTRAIT = ...
+local _, FocalPoint = ...
 
-PORTRAIT.GUI = PORTRAIT.GUI or {}
-PORTRAIT.GUI.Widgets = PORTRAIT.GUI.Widgets or {}
+FocalPoint.GUI = FocalPoint.GUI or {}
+FocalPoint.GUI.Widgets = FocalPoint.GUI.Widgets or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 
-local OptionValues = PORTRAIT.GUI.Helpers.OptionValues
-local OptionRefresh = PORTRAIT.GUI.Helpers.OptionRefresh
+local OptionValues = FocalPoint.GUI.Helpers.OptionValues
+local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
 
 local Checkbox = {}
-PORTRAIT.GUI.Widgets.Checkbox = Checkbox
+FocalPoint.GUI.Widgets.Checkbox = Checkbox
 
 local function NormalizeBoolean(value, fallback)
     if type(value) == "boolean" then

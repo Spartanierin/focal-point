@@ -1,4 +1,4 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
 -- =========================================================
 -- Minimap Icon (LibDataBroker-1.1 + LibDBIcon-1.0)
@@ -10,13 +10,9 @@ local _LDB = LibStub("LibDataBroker-1.1", true)
 local _DBIcon = LibStub("LibDBIcon-1.0", true)
 
 -- Use a stable name as the key for LibDBIcon (do not use a localized title).
-local _MINIMAP_ICON_NAME = "Portrait"
+local _MINIMAP_ICON_NAME = "FocalPoint"
 
-local _PortraitLDBObj
-
-local _, Portrait = ...
-
-function Portrait:InitMinimapIcon()
+function FocalPoint:InitMinimapIcon()
     if self.minimapInitialized then
         return
     end
@@ -30,25 +26,25 @@ function Portrait:InitMinimapIcon()
     end
 
     if not self.launcher then
-        self.launcher = LDB:NewDataObject("Portrait", {
+        self.launcher = LDB:NewDataObject(_MINIMAP_ICON_NAME, {
             type = "launcher",
-            text = "Portrait",
-            icon = "Interface\\AddOns\\Portrait\\Media\\Icon.tga",
+            text = "Focal Point",
+            icon = "Interface\\AddOns\\FocalPoint\\Media\\Icon.tga",
             OnClick = function(_, button)
                 if button == "LeftButton" then
-                    Portrait:OpenConfig()
+                    FocalPoint:OpenConfig()
                 elseif button == "RightButton" then
-                    Portrait:SpawnUnitFrame("player")
+                    FocalPoint:SpawnUnitFrame("player")
                 end
             end,
             OnTooltipShow = function(tooltip)
-                tooltip:AddLine("Portrait")
+                tooltip:AddLine("Focal Point")
                 tooltip:AddLine("Left Click: Open config", 1, 1, 1)
                 tooltip:AddLine("Right Click: Spawn test frame", 1, 1, 1)
             end,
         })
     end
 
-    DBIcon:Register("Portrait", self.launcher, self.db.profile.Minimap)
+    DBIcon:Register(_MINIMAP_ICON_NAME, self.launcher, self.db.profile.Minimap)
     self.minimapInitialized = true
 end

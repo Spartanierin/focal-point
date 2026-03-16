@@ -1,10 +1,10 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
-Portrait.UnitFrame = Portrait.UnitFrame or {}
-local UF = Portrait.UnitFrame
+FocalPoint.UnitFrame = FocalPoint.UnitFrame or {}
+local UF = FocalPoint.UnitFrame
 
 local function GetUnitDB(unit)
-    local db = Portrait.db
+    local db = FocalPoint.db
     if not db or not db.profile or not db.profile.Units then
         return nil
     end
@@ -187,7 +187,7 @@ local function GetCurrentHealthValues(frame)
 
     local unit = frame.unit
     local unitExists = UnitExists and UnitExists(unit)
-    local previewValues = Portrait.guiTestModeEnabled and UF:GetTestPreviewValues(frame) or nil
+    local previewValues = FocalPoint.guiTestModeEnabled and UF:GetTestPreviewValues(frame) or nil
 
     if previewValues then
         return previewValues.healthCurrent or 100, previewValues.healthMax or 100
@@ -445,7 +445,7 @@ end
 
 -- Frame
 function UF:CreateBaseFrame(unit, config)
-    local frameName = "Portrait_" .. unit:gsub("^%l", string.upper)
+    local frameName = "FocalPoint_" .. unit:gsub("^%l", string.upper)
     local frame = CreateFrame("Button", frameName, UIParent, "SecureUnitButtonTemplate, BackdropTemplate")
 
     frame.unit = unit
@@ -547,7 +547,7 @@ function UF:RefreshUnitBarValues(frame)
 
     local unit = frame.unit
     local unitExists = UnitExists and UnitExists(unit)
-    local previewValues = Portrait.guiTestModeEnabled and self:GetTestPreviewValues(frame) or nil
+    local previewValues = FocalPoint.guiTestModeEnabled and self:GetTestPreviewValues(frame) or nil
     frame.LiveValues = frame.LiveValues or {}
     frame.TestValues = previewValues
     local previousAltPowerVisible = frame.LiveValues.altPowerVisible
@@ -911,7 +911,7 @@ function UF:RegisterCastBarEvents(frame)
 
         local now = GetTime and GetTime() or 0
         if castBar.isPreview then
-            if not Portrait.guiTestModeEnabled then
+            if not FocalPoint.guiTestModeEnabled then
                 StopCastBar(owner)
                 return
             end
@@ -1756,18 +1756,18 @@ function UF:ApplyConfig(frame)
     local powerTexture = GetStatusBarTexture(config.powerBarTexture)
     local castTexture = GetStatusBarTexture(config.castBarTexture)
     local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
-    local globalClickThrough = Portrait.db
-        and Portrait.db.profile
-        and Portrait.db.profile.General
-        and Portrait.db.profile.General.GlobalClickThrough == true
-    local globalMouseEnabled = Portrait.db
-        and Portrait.db.profile
-        and Portrait.db.profile.General
-        and Portrait.db.profile.General.MouseEnabled
-    local globalClampToScreen = Portrait.db
-        and Portrait.db.profile
-        and Portrait.db.profile.General
-        and Portrait.db.profile.General.ClampToScreen
+    local globalClickThrough = FocalPoint.db
+        and FocalPoint.db.profile
+        and FocalPoint.db.profile.General
+        and FocalPoint.db.profile.General.GlobalClickThrough == true
+    local globalMouseEnabled = FocalPoint.db
+        and FocalPoint.db.profile
+        and FocalPoint.db.profile.General
+        and FocalPoint.db.profile.General.MouseEnabled
+    local globalClampToScreen = FocalPoint.db
+        and FocalPoint.db.profile
+        and FocalPoint.db.profile.General
+        and FocalPoint.db.profile.General.ClampToScreen
     local mouseEnabled = globalMouseEnabled
     local clampToScreen = globalClampToScreen
 
@@ -2188,7 +2188,7 @@ end
 function UF:ApplyTestValues(frame)
     self:RefreshUnitBarValues(frame)
 
-    if Portrait.guiTestModeEnabled
+    if FocalPoint.guiTestModeEnabled
         and frame
         and frame.unit == "player"
         and frame.config
@@ -2218,7 +2218,7 @@ function UF:ApplyTestValues(frame)
         self:ApplyConfig(frame)
     end
 
-    if Portrait.guiTestModeEnabled then
+    if FocalPoint.guiTestModeEnabled then
         StartCastBarPreview(frame)
     else
         StartCastBar(frame)
@@ -2369,8 +2369,8 @@ function UF:Build(unit)
 
     if unit == "player" and config.showAlternativePowerBar then
         config.Texts = config.Texts or {}
-        if config.Texts.AltPower == nil and Portrait.GetDefaultDB then
-            local defaults = Portrait:GetDefaultDB()
+        if config.Texts.AltPower == nil and FocalPoint.GetDefaultDB then
+            local defaults = FocalPoint:GetDefaultDB()
             local defaultAltPowerText = defaults
                 and defaults.profile
                 and defaults.profile.Units
@@ -2429,15 +2429,15 @@ function UF:Refresh(frame)
 
     local isDeadUnit = false
 
-    if not Portrait.guiTestModeEnabled and frame.unit ~= "player" and UnitIsDeadOrGhost then
+    if not FocalPoint.guiTestModeEnabled and frame.unit ~= "player" and UnitIsDeadOrGhost then
         isDeadUnit = IsSafeTrue(UnitIsDeadOrGhost(frame.unit))
     end
 
-    if not isDeadUnit and not Portrait.guiTestModeEnabled and frame.unit ~= "player" then
+    if not isDeadUnit and not FocalPoint.guiTestModeEnabled and frame.unit ~= "player" then
         isDeadUnit = IsUnitDeadByHealth(frame.unit)
     end
 
-    local shouldHideForMissingUnit = not Portrait.guiTestModeEnabled
+    local shouldHideForMissingUnit = not FocalPoint.guiTestModeEnabled
         and frame.unit ~= "player"
         and (
             (UnitExists and not UnitExists(frame.unit))
@@ -2481,7 +2481,7 @@ function UF:Refresh(frame)
     frame:Show()
 end
 
-function Portrait:SpawnUnitFrame(unit)
+function FocalPoint:SpawnUnitFrame(unit)
     self.frames = self.frames or {}
 
     if self.frames[unit] then
@@ -2504,7 +2504,7 @@ function Portrait:SpawnUnitFrame(unit)
     return frame
 end
 
-function Portrait:RefreshUnitFrame(unit)
+function FocalPoint:RefreshUnitFrame(unit)
     if not self.frames or not self.frames[unit] then
         return
     end

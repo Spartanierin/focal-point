@@ -1,23 +1,25 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
-function Portrait:SetupSlashCommands()
+function FocalPoint:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
     end
 
-    SLASH_PORTRAIT1 = "/portrait"
-    SLASH_PORTRAIT2 = "/port"
+    SLASH_FOCALPOINT1 = "/focalpoint"
+    SLASH_FOCALPOINT2 = "/fp"
+    SLASH_FOCALPOINT3 = "/portrait"
+    SLASH_FOCALPOINT4 = "/port"
 
-    SlashCmdList["PORTRAIT"] = function(msg)
+    SlashCmdList["FOCALPOINT"] = function(msg)
         msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 
         if msg == "" or msg == "config" then
-            Portrait:OpenConfig()
+            FocalPoint:OpenConfig()
         elseif msg == "test" then
-            Portrait:SpawnUnitFrame("player")
+            FocalPoint:SpawnUnitFrame("player")
         else
-            if Portrait.Info then
-                Portrait:Info("/port, /port config, /port test")
+            if FocalPoint.Info then
+                FocalPoint:Info("/fp, /fp config, /fp test")
             end
         end
     end

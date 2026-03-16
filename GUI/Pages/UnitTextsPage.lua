@@ -329,7 +329,11 @@ function UnitTextsPage.Build(container, unitKey, deps)
         templateDropdown:SetValue(currentTemplateName ~= "" and currentTemplateName or nil)
         templateDropdown:SetDisabled(IsUnitDisabled())
         templateDropdownGroup:AddChild(templateDropdown)
-        templateFields:Add({ group = templateDropdownGroup })
+        templateFields:Add({ group = templateDropdownGroup }, {
+            placement = "full",
+            rowType = "toolbar",
+            subsection = ResolveLayoutText("SECTION_CONTENT"),
+        })
 
         if IsExpertModeEnabled() then
             local rawTemplateGroup = AceGUI:Create("SimpleGroup")
@@ -367,7 +371,11 @@ function UnitTextsPage.Build(container, unitKey, deps)
             end
             expertInfo:SetText(string.format("|cff8f98a3%s|r", L["INFO_UNIT_TEXT_TEMPLATE_EXPERT_HINT"] or "Expert Mode: you can still edit the raw template string below."))
             rawTemplateGroup:AddChild(expertInfo)
-            templateFields:Add({ group = rawTemplateGroup })
+            templateFields:Add({ group = rawTemplateGroup }, {
+                placement = "full",
+                rowType = "preview",
+                subsection = ResolveLayoutText("SECTION_CONTENT"),
+            })
         end
 
         local previewGroup = AceGUI:Create("InlineGroup")

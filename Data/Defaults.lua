@@ -1,6 +1,6 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
-function Portrait:GetDefaultDB()
+function FocalPoint:GetDefaultDB()
     return {
         profile = {
             General = {
@@ -1045,7 +1045,7 @@ function Portrait:GetDefaultDB()
                     clampToScreen = true,
                     clickThrough = false,
 
-                    relativeTo = "Portrait_Player",
+                    relativeTo = "FocalPoint_Player",
                     point = "TOPLEFT",
                     relativePoint = "TOPLEFT",
                     x = -100,

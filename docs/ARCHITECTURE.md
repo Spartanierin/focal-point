@@ -1,8 +1,8 @@
-# Portrait Architecture Overview
+# FocalPoint Architecture Overview
 
 ## Purpose
 
-Portrait is designed as a modular unit frame addon with a configuration UI that mirrors the real structure of the addon instead of exposing a flat list of unrelated options.
+FocalPoint is designed as a modular unit frame addon with a configuration UI that mirrors the real structure of the addon instead of exposing a flat list of unrelated options.
 
 The intended configuration hierarchy is:
 
@@ -205,7 +205,7 @@ The rule is:
 
 ## Section Layout Metadata
 
-Portrait's two-column GUI layout now supports small optional metadata on section items.
+FocalPoint's two-column GUI layout now supports small optional metadata on section items.
 
 These fields are interpreted by the shared section layout engine and are fully backward-compatible.
 If a layout item does not provide them, the engine keeps the previous alternating left/right behavior.
@@ -217,6 +217,8 @@ If a layout item does not provide them, the engine keeps the previous alternatin
   - Supported values:
     - `"left"`
     - `"right"`
+    - `"full"`
+  - `"full"` forces a full-width row
   - Any other value, or no value, falls back to automatic alternating placement
 
 - `span`
@@ -229,17 +231,26 @@ If a layout item does not provide them, the engine keeps the previous alternatin
 - `rowType`
   - Optional
   - Currently supported values:
-    - `"subsection"`
-    - `"full"`
-  - Both currently behave as full-width rows and provide a semantic hook for future styling/grouping
+    - `"default"`
+    - `"inline"`
+    - `"actions"`
+    - `"preview"`
+    - `"toolbar"`
+  - `actions`, `preview`, and `toolbar` currently default to full-width rows
+  - `default` and `inline` keep normal section flow unless `placement` or `span` says otherwise
+
+- `subsection`
+  - Optional
+  - String label for a lightweight subsection header inside the current section
+  - When the subsection value changes, the engine inserts a full-width heading row before the next item
 
 ### Usage example
 
 ```lua
-{ widget = "dropdown", path = ..., placement = "left" }
-{ widget = "slider", path = ..., placement = "right" }
-{ widget = "checkbox", path = ..., span = 2 }
-{ widget = "fontstyle", path = ..., rowType = "subsection", span = 2 }
+{ widget = "dropdown", path = ..., placement = "left", rowType = "inline" }
+{ widget = "slider", path = ..., placement = "right", rowType = "inline" }
+{ widget = "checkbox", path = ..., placement = "full", rowType = "toolbar" }
+{ widget = "colorpicker", path = ..., span = 2, rowType = "preview", subsection = "SECTION_COLOR" }
 ```
 
 ### Design intent
@@ -250,7 +261,8 @@ It allows a page definition to express:
 
 - forced left/right placement
 - full-width rows
-- lightweight subsection grouping semantics
+- semantic row roles such as toolbars, previews, and action rows
+- lightweight subsection grouping semantics without page-specific hacks
 
 The engine remains generic and reusable across pages.
 
@@ -271,7 +283,7 @@ This separation prevents GUI interaction problems while still allowing live fram
 
 ## Text System
 
-The text system is one of Portrait's core architectural features and must be treated as an existing system, not as an experimental side feature.
+The text system is one of FocalPoint's core architectural features and must be treated as an existing system, not as an experimental side feature.
 
 ### Core model
 
@@ -505,7 +517,7 @@ The configuration UI preserves:
 - visible widget state
 - scroll position where possible
 
-This is important because Portrait is a workflow-heavy UI, and rebuilding too aggressively creates unnecessary friction.
+This is important because FocalPoint is a workflow-heavy UI, and rebuilding too aggressively creates unnecessary friction.
 
 ## Practical Stability Exception
 

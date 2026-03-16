@@ -69,8 +69,8 @@ ns.GUI.Layouts.UnitBars.CastBarTab = {
 ns.GUI.Layouts.UnitBars.Lists = {
     textures = {
         ["Interface\\TargetingFrame\\UI-StatusBar"] = "VALUE_TEXTURE_BLIZZARD",
-        ["Interface\\AddOns\\Portrait\\Media\\Textures\\BetterBlizzard.blp"] = "VALUE_TEXTURE_BETTER_BLIZZARD",
-        ["Interface\\AddOns\\Portrait\\Media\\Textures\\Gradient.png"] = "VALUE_TEXTURE_GRADIENT",
+        ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp"] = "VALUE_TEXTURE_BETTER_BLIZZARD",
+        ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\Gradient.png"] = "VALUE_TEXTURE_GRADIENT",
     },
     anchorPoints = {
         TOPLEFT = "VALUE_ANCHOR_TOPLEFT",

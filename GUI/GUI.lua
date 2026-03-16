@@ -1,12 +1,12 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
 local AceGUI = LibStub("AceGUI-3.0")
-local L = Portrait.L
+local L = FocalPoint.L
 
-Portrait.GUI = Portrait.GUI or {}
-Portrait.GUI.selectedPath = Portrait.GUI.selectedPath or "general"
+FocalPoint.GUI = FocalPoint.GUI or {}
+FocalPoint.GUI.selectedPath = FocalPoint.GUI.selectedPath or "general"
 
-local NAV_TREE = Portrait.GUIBuilders.CreateNavTree()
+local NAV_TREE = FocalPoint.GUIBuilders.CreateNavTree()
 
 local POINTS = {
     CENTER = "CENTER",
@@ -63,7 +63,7 @@ local function AlphaToPercent(color)
 end
 
 local function GetProfile()
-    return Portrait.db and Portrait.db.profile
+    return FocalPoint.db and FocalPoint.db.profile
 end
 
 local function GetUnitConfig(unit)
@@ -77,8 +77,8 @@ local function GetTextConfig(unit, textKey)
 end
 
 local function SafeRefreshUnit(unit)
-    if Portrait.RefreshUnitFrame then
-        Portrait:RefreshUnitFrame(unit)
+    if FocalPoint.RefreshUnitFrame then
+        FocalPoint:RefreshUnitFrame(unit)
     end
 end
 
@@ -441,7 +441,7 @@ local function SnapToWholePixel(value)
     return math.floor(value + 0.5)
 end
 
-local function ApplyPortraitTreePixelSnap(treeGroup)
+local function ApplyFocalPointTreePixelSnap(treeGroup)
     if not treeGroup or treeGroup._portraitTreeDebugDone then
         return
     end
@@ -489,7 +489,7 @@ local function RenderPlaceholderPage(container, title, text)
 end
 
 local function BuildGeneralPage(container)
-    Portrait.GUIBuilders.BuildGeneralPage(container)
+    FocalPoint.GUIBuilders.BuildGeneralPage(container)
 end
 
 local function BuildPlayerHealthBarTabGeneral(container)
@@ -816,7 +816,7 @@ local function NormalizeGroupValue(group)
     return group
 end
 
-local C = Portrait.Constants
+local C = FocalPoint.Constants
 
 local function ParseUnitPath(path)
     local unitKey = string.match(path or "", "^units%.([^.]+)$")
@@ -824,7 +824,7 @@ local function ParseUnitPath(path)
 end
 
 local function RenderPage(container, path)
-    local OptionRefresh = Portrait.GUI.Helpers.OptionRefresh
+    local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
     if OptionRefresh and OptionRefresh.ClearStateWidgets then
         OptionRefresh.ClearStateWidgets()
     end
@@ -834,37 +834,37 @@ local function RenderPage(container, path)
     end
 
     if path == C.Nav.TAG_DATABASE then
-        Portrait.GUIBuilders.BuildTagDatabasePage(container)
+        FocalPoint.GUIBuilders.BuildTagDatabasePage(container)
         return
     end
 
     if path == C.Nav.TEXT_BUILDER then
-        Portrait.GUIBuilders.BuildTextBuilderPage(container)
+        FocalPoint.GUIBuilders.BuildTextBuilderPage(container)
         return
     end
 
     if path == "profiles" then
-        Portrait.GUIBuilders.BuildProfilesPage(container)
+        FocalPoint.GUIBuilders.BuildProfilesPage(container)
         return
     end
 
 
     if path == "units" then
-        Portrait.GUIBuilders.BuildPlaceholderPage(container, "Units")
+        FocalPoint.GUIBuilders.BuildPlaceholderPage(container, "Units")
         return
     end
 
     local unitKey = ParseUnitPath(path)
     if unitKey then
-        Portrait.GUIBuilders.BuildUnitPage(container, unitKey)
+        FocalPoint.GUIBuilders.BuildUnitPage(container, unitKey)
         return
     end
 
-    Portrait.GUIBuilders.BuildPlaceholderPage(container, path or "Unknown")
+    FocalPoint.GUIBuilders.BuildPlaceholderPage(container, path or "Unknown")
 end
 
-function Portrait.GUI:RefreshOptions()
-    local addon = Portrait
+function FocalPoint.GUI:RefreshOptions()
+    local addon = FocalPoint
 
     if not addon.guiTreeGroup then
         return
@@ -874,14 +874,14 @@ function Portrait.GUI:RefreshOptions()
     RenderPage(addon.guiTreeGroup, selectedPath)
 end
 
-function Portrait:CreateGUI()
+function FocalPoint:CreateGUI()
     if self.guiFrame then
         self.guiFrame:Show()
         return
     end
 
     local frame = AceGUI:Create("Frame")
-    frame:SetTitle("Portrait")
+    frame:SetTitle("Focal Point")
     frame:SetStatusText((L and L["GUI_STATUS_READY"]) or "Ready")
     frame:SetLayout("Fill")
     frame:SetWidth(980)
@@ -919,8 +919,8 @@ function Portrait:CreateGUI()
             end
         end
 
-        if Portrait.RefreshAllUnitFrames then
-            Portrait:RefreshAllUnitFrames()
+        if FocalPoint.RefreshAllUnitFrames then
+            FocalPoint:RefreshAllUnitFrames()
         end
     end
 
@@ -942,25 +942,25 @@ function Portrait:CreateGUI()
             end
         end
 
-        if Portrait.RefreshAllUnitFrames then
-            Portrait:RefreshAllUnitFrames()
+        if FocalPoint.RefreshAllUnitFrames then
+            FocalPoint:RefreshAllUnitFrames()
         end
     end
 
     frame:SetCallback("OnClose", function(widget)
-        Portrait:DisableTestMode()
+        FocalPoint:DisableTestMode()
         widget:Hide()
     end)
 
     if frame.frame then
         frame.frame:HookScript("OnHide", function()
-            Portrait:DisableTestMode()
+            FocalPoint:DisableTestMode()
         end)
     end
 
     self.guiTreeStatus = self.guiTreeStatus or {
         groups = {
-            [Portrait.Constants.Nav.UNITS] = true,
+            [FocalPoint.Constants.Nav.UNITS] = true,
         },
         selected = self.GUI.selectedPath or "general",
     }
@@ -973,12 +973,12 @@ function Portrait:CreateGUI()
     treeGroup:SetTree(NAV_TREE)
 
     treeGroup.localstatus.groups = treeGroup.localstatus.groups or {}
-    treeGroup.localstatus.groups[Portrait.Constants.Nav.UNITS] = true
+    treeGroup.localstatus.groups[FocalPoint.Constants.Nav.UNITS] = true
 
     treeGroup:SetCallback("OnGroupSelected", function(widget, _, group)
         local normalizedGroup = NormalizeGroupValue(group)
-        Portrait.GUI.selectedPath = normalizedGroup
-        Portrait.guiTreeStatus.selected = normalizedGroup
+        FocalPoint.GUI.selectedPath = normalizedGroup
+        FocalPoint.guiTreeStatus.selected = normalizedGroup
         RenderPage(widget, normalizedGroup)
     end)
 
@@ -991,7 +991,7 @@ function Portrait:CreateGUI()
         local button = CreateFrame("Button", nil, statusBg, "UIPanelButtonTemplate")
         button:SetText(self.guiTestModeEnabled and ((L and L["GUI_TEST_STOP"]) or "Stop Test") or ((L and L["GUI_TEST_START"]) or "Test"))
         button:SetScript("OnClick", function()
-            Portrait:ToggleTestMode()
+            FocalPoint:ToggleTestMode()
         end)
         self.guiTestButton = button
     end
@@ -1000,9 +1000,9 @@ function Portrait:CreateGUI()
 
     local initialPath = self.GUI.selectedPath or "general"
     treeGroup:SelectByValue(initialPath)
-    ApplyPortraitTreePixelSnap(treeGroup)
+    ApplyFocalPointTreePixelSnap(treeGroup)
 end
 
-function Portrait:OpenConfig()
+function FocalPoint:OpenConfig()
     self:CreateGUI()
 end

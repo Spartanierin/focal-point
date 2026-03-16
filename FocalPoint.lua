@@ -1,13 +1,13 @@
-local ADDON_NAME, PORTRAIT = ...
+local ADDON_NAME, FocalPoint = ...
 
-PORTRAIT.ADDON_NAME = ADDON_NAME
-PORTRAIT.frames = PORTRAIT.frames or {}
+FocalPoint.ADDON_NAME = "FocalPoint"
+FocalPoint.frames = FocalPoint.frames or {}
 
 local AceLocale = LibStub("AceLocale-3.0")
-PORTRAIT.L = AceLocale:GetLocale("Portrait", true) or {}
+FocalPoint.L = AceLocale:GetLocale("FocalPoint", true) or FocalPoint.L or {}
 
-local PortraitAddon = LibStub("AceAddon-3.0"):NewAddon("Portrait")
-PORTRAIT.Ace = PortraitAddon
+local FocalPointAddon = LibStub("AceAddon-3.0"):NewAddon("FocalPoint")
+FocalPoint.Ace = FocalPointAddon
 
 local BLIZZARD_UNIT_FRAMES = {
     "player",
@@ -21,12 +21,12 @@ local function ApplyBlizzardFrameVisibility(hidden)
         return
     end
 
-    local oUF = PORTRAIT.oUF
+    local oUF = FocalPoint.oUF
     if not (oUF and oUF.DisableBlizzard) then
         return
     end
 
-    if PORTRAIT.blizzardFramesDisabled then
+    if FocalPoint.blizzardFramesDisabled then
         return
     end
 
@@ -34,7 +34,7 @@ local function ApplyBlizzardFrameVisibility(hidden)
         oUF:DisableBlizzard(unit)
     end
 
-    PORTRAIT.blizzardFramesDisabled = true
+    FocalPoint.blizzardFramesDisabled = true
 end
 
 local function RefreshBlizzardFrameMouseState(disabled)
@@ -53,12 +53,12 @@ local function RefreshBlizzardFrameMouseState(disabled)
 end
 
 local function EnsureImageElementDefaults()
-    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.GetDefaultDB then
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
     end
 
-    local profile = PORTRAIT.db.profile
-    local defaults = PORTRAIT:GetDefaultDB()
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
     local units = profile and profile.Units
     local defaultUnits = defaults and defaults.profile and defaults.profile.Units
 
@@ -81,12 +81,12 @@ local function EnsureImageElementDefaults()
 end
 
 local function EnsureBarTextureDefaults()
-    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.GetDefaultDB then
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
     end
 
-    local profile = PORTRAIT.db.profile
-    local defaults = PORTRAIT:GetDefaultDB()
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
     local units = profile and profile.Units
     local defaultUnits = defaults and defaults.profile and defaults.profile.Units
 
@@ -135,12 +135,12 @@ local function ApplyCastTextLayoutDefaults(textConfig, isName)
 end
 
 local function EnsureCastTextDefaults()
-    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.db.profile.Units then
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.db.profile.Units then
         return
     end
 
     for _, unitKey in ipairs({ "player", "target" }) do
-        local unitDB = PORTRAIT.db.profile.Units[unitKey]
+        local unitDB = FocalPoint.db.profile.Units[unitKey]
         local texts = unitDB and unitDB.Texts
         if type(texts) == "table" then
             local castName = texts.CastName
@@ -169,12 +169,12 @@ local function EnsureCastTextDefaults()
 end
 
 local function EnsureAlternativePowerDefaults()
-    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.GetDefaultDB then
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
     end
 
-    local profile = PORTRAIT.db.profile
-    local defaults = PORTRAIT:GetDefaultDB()
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
     local units = profile and profile.Units
     local defaultUnits = defaults and defaults.profile and defaults.profile.Units
 
@@ -214,12 +214,12 @@ local function EnsureAlternativePowerDefaults()
 end
 
 local function EnsureTextTemplateDefaults()
-    if not PORTRAIT.db or not PORTRAIT.db.profile or not PORTRAIT.GetDefaultDB then
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
     end
 
-    local profile = PORTRAIT.db.profile
-    local defaults = PORTRAIT:GetDefaultDB()
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
     local defaultTemplates = defaults and defaults.profile and defaults.profile.TextTemplates
     if type(defaultTemplates) ~= "table" then
         return
@@ -235,14 +235,14 @@ local function EnsureTextTemplateDefaults()
 end
 
 local function EnsureTextTemplateLinks()
-    if not PORTRAIT.db or not PORTRAIT.db.profile then
+    if not FocalPoint.db or not FocalPoint.db.profile then
         return
     end
 
-    local profile = PORTRAIT.db.profile
+    local profile = FocalPoint.db.profile
     local templates = profile.TextTemplates
     local units = profile.Units
-    local defaults = PORTRAIT.GetDefaultDB and PORTRAIT:GetDefaultDB()
+    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()
     local defaultUnits = defaults and defaults.profile and defaults.profile.Units
 
     if type(templates) ~= "table" or type(units) ~= "table" then
@@ -327,11 +327,11 @@ local function EnsureTextTemplateLinks()
 end
 
 local function EnsureNoEmptyTextElements()
-    if not PORTRAIT.db or not PORTRAIT.db.profile or type(PORTRAIT.db.profile.Units) ~= "table" then
+    if not FocalPoint.db or not FocalPoint.db.profile or type(FocalPoint.db.profile.Units) ~= "table" then
         return
     end
 
-    for _, unitConfig in pairs(PORTRAIT.db.profile.Units) do
+    for _, unitConfig in pairs(FocalPoint.db.profile.Units) do
         local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
         if type(texts) == "table" then
             for _, textConfig in pairs(texts) do
@@ -350,8 +350,8 @@ local function EnsureNoEmptyTextElements()
     end
 end
 
-function PortraitAddon:OnInitialize()
-    PORTRAIT.db = LibStub("AceDB-3.0"):New("PortraitDB", PORTRAIT:GetDefaultDB(), true)
+function FocalPointAddon:OnInitialize()
+    FocalPoint.db = LibStub("AceDB-3.0"):New("FocalPointDB", FocalPoint:GetDefaultDB(), true)
     EnsureImageElementDefaults()
     EnsureBarTextureDefaults()
     EnsureCastTextDefaults()
@@ -360,49 +360,49 @@ function PortraitAddon:OnInitialize()
     EnsureTextTemplateLinks()
     EnsureNoEmptyTextElements()
 
-    PORTRAIT.LDS = PORTRAIT.LDS or LibStub("LibDualSpec-1.0", true)
-    if PORTRAIT.LDS then
-        PORTRAIT.LDS:EnhanceDatabase(PORTRAIT.db, "Portrait")
+    FocalPoint.LDS = FocalPoint.LDS or LibStub("LibDualSpec-1.0", true)
+    if FocalPoint.LDS then
+        FocalPoint.LDS:EnhanceDatabase(FocalPoint.db, "FocalPoint")
     end
 
-    PORTRAIT.TAG_UPDATE_INTERVAL = PORTRAIT.db.profile.General.TagUpdateInterval or 0.25
-    PORTRAIT.SEPARATOR = PORTRAIT.db.profile.General.Separator or "||"
-    PORTRAIT.TOT_SEPARATOR = PORTRAIT.db.profile.General.ToTSeparator or "»"
+    FocalPoint.TAG_UPDATE_INTERVAL = FocalPoint.db.profile.General.TagUpdateInterval or 0.25
+    FocalPoint.SEPARATOR = FocalPoint.db.profile.General.Separator or "||"
+    FocalPoint.TOT_SEPARATOR = FocalPoint.db.profile.General.ToTSeparator or "»"
 
-    if PORTRAIT.InitMinimapIcon then
-        PORTRAIT:InitMinimapIcon()
-    end
-end
-
-function PortraitAddon:OnEnable()
-    if PORTRAIT.Init then
-        PORTRAIT:Init()
-    end
-
-    if PORTRAIT.SetupSlashCommands then
-        PORTRAIT:SetupSlashCommands()
-    end
-
-    if PORTRAIT.CreatePositionController then
-        PORTRAIT:CreatePositionController()
-    end
-
-    if PORTRAIT.StartTagTicker then
-        PORTRAIT:StartTagTicker()
-    end
-
-    if PORTRAIT.SpawnUnitFrame then
-        PORTRAIT:SpawnUnitFrame("player")
-        PORTRAIT:SpawnUnitFrame("target")
-        PORTRAIT:SpawnUnitFrame("pet")
-    end
-
-    if PORTRAIT.ApplyGeneralSettings then
-        PORTRAIT:ApplyGeneralSettings()
+    if FocalPoint.InitMinimapIcon then
+        FocalPoint:InitMinimapIcon()
     end
 end
 
-function PORTRAIT:RefreshAllUnitFrames()
+function FocalPointAddon:OnEnable()
+    if FocalPoint.Init then
+        FocalPoint:Init()
+    end
+
+    if FocalPoint.SetupSlashCommands then
+        FocalPoint:SetupSlashCommands()
+    end
+
+    if FocalPoint.CreatePositionController then
+        FocalPoint:CreatePositionController()
+    end
+
+    if FocalPoint.StartTagTicker then
+        FocalPoint:StartTagTicker()
+    end
+
+    if FocalPoint.SpawnUnitFrame then
+        FocalPoint:SpawnUnitFrame("player")
+        FocalPoint:SpawnUnitFrame("target")
+        FocalPoint:SpawnUnitFrame("pet")
+    end
+
+    if FocalPoint.ApplyGeneralSettings then
+        FocalPoint:ApplyGeneralSettings()
+    end
+end
+
+function FocalPoint:RefreshAllUnitFrames()
     if not self.frames then
         return
     end
@@ -412,7 +412,7 @@ function PORTRAIT:RefreshAllUnitFrames()
     end
 end
 
-function PORTRAIT:ApplyGeneralSettings()
+function FocalPoint:ApplyGeneralSettings()
     local general = self.db and self.db.profile and self.db.profile.General
     if not general then
         return

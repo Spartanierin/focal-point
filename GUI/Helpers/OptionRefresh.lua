@@ -1,12 +1,12 @@
-local _, PORTRAIT = ...
+local _, FocalPoint = ...
 
-PORTRAIT.GUI = PORTRAIT.GUI or {}
-PORTRAIT.GUI.Helpers = PORTRAIT.GUI.Helpers or {}
+FocalPoint.GUI = FocalPoint.GUI or {}
+FocalPoint.GUI.Helpers = FocalPoint.GUI.Helpers or {}
 
 local OptionRefresh = {}
 local registeredStateWidgets = {}
 
-PORTRAIT.GUI.Helpers.OptionRefresh = OptionRefresh
+FocalPoint.GUI.Helpers.OptionRefresh = OptionRefresh
 
 function OptionRefresh.RegisterStateWidget(widget)
     if not widget or type(widget.RefreshState) ~= "function" then
@@ -42,20 +42,20 @@ function OptionRefresh.GUI()
         return
     end
 
-    if PORTRAIT.GUI and PORTRAIT.GUI.RefreshOptions then
-        PORTRAIT.GUI:RefreshOptions()
+    if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+        FocalPoint.GUI:RefreshOptions()
     end
 end
 
 function OptionRefresh.Frames()
-    if PORTRAIT.RefreshAllFrames then
-        PORTRAIT:RefreshAllFrames()
+    if FocalPoint.RefreshAllFrames then
+        FocalPoint:RefreshAllFrames()
     end
 end
 
 function OptionRefresh.Preview()
-    if PORTRAIT.TestEnvironment and PORTRAIT.TestEnvironment.Refresh then
-        PORTRAIT.TestEnvironment:Refresh()
+    if FocalPoint.TestEnvironment and FocalPoint.TestEnvironment.Refresh then
+        FocalPoint.TestEnvironment:Refresh()
     end
 end
 

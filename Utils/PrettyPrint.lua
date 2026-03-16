@@ -1,7 +1,7 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
 
-local ADDON_PREFIX = "|cfff2e699Portrait|r"   -- gold
+local ADDON_PREFIX = "|cfff2e699Focal Point|r"   -- gold
 local COLORS = {
     info  = "|cff80b4ff",    -- light blue 
     ok    = "|cff00ff98",    -- teal
@@ -9,22 +9,22 @@ local COLORS = {
     error = "|cffff6060",    -- red
 }
 
-function Portrait:Print(msg)
+function FocalPoint:Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(ADDON_PREFIX .. ": " .. tostring(msg))
 end
 
-function Portrait:Info(msg)
+function FocalPoint:Info(msg)
     DEFAULT_CHAT_FRAME:AddMessage(ADDON_PREFIX .. ": " .. COLORS.info .. tostring(msg) .. "|r")
 end
 
-function Portrait:Success(msg)
+function FocalPoint:Success(msg)
     DEFAULT_CHAT_FRAME:AddMessage(ADDON_PREFIX .. ": " .. COLORS.ok .. tostring(msg) .. "|r")
 end
 
-function Portrait:Warn(msg)
+function FocalPoint:Warn(msg)
     DEFAULT_CHAT_FRAME:AddMessage(ADDON_PREFIX .. ": " .. COLORS.warn .. tostring(msg) .. "|r")
 end
 
-function Portrait:Error(msg)
+function FocalPoint:Error(msg)
     DEFAULT_CHAT_FRAME:AddMessage(ADDON_PREFIX .. ": " .. COLORS.error .. tostring(msg) .. "|r")
 end

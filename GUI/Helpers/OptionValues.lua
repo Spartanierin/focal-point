@@ -1,27 +1,27 @@
-local _, PORTRAIT = ...
+local _, FocalPoint = ...
 
-PORTRAIT.GUI = PORTRAIT.GUI or {}
-PORTRAIT.GUI.Helpers = PORTRAIT.GUI.Helpers or {}
+FocalPoint.GUI = FocalPoint.GUI or {}
+FocalPoint.GUI.Helpers = FocalPoint.GUI.Helpers or {}
 
-local OptionPaths = PORTRAIT.GUI.Helpers.OptionPaths
+local OptionPaths = FocalPoint.GUI.Helpers.OptionPaths
 local OptionValues = {}
 
-PORTRAIT.GUI.Helpers.OptionValues = OptionValues
+FocalPoint.GUI.Helpers.OptionValues = OptionValues
 
 local function GetProfileDB()
-    if not PORTRAIT.db or not PORTRAIT.db.profile then
+    if not FocalPoint.db or not FocalPoint.db.profile then
         return nil
     end
 
-    return PORTRAIT.db.profile
+    return FocalPoint.db.profile
 end
 
 local function GetDefaultsDB()
-    if not PORTRAIT.GetDefaultDB then
+    if not FocalPoint.GetDefaultDB then
         return nil
     end
 
-    local defaults = PORTRAIT:GetDefaultDB()
+    local defaults = FocalPoint:GetDefaultDB()
 
     if not defaults or not defaults.profile then
         return nil

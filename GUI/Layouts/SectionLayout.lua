@@ -1,12 +1,12 @@
-local _, PORTRAIT = ...
+local _, FocalPoint = ...
 
-PORTRAIT.GUI = PORTRAIT.GUI or {}
-PORTRAIT.GUI.Layouts = PORTRAIT.GUI.Layouts or {}
+FocalPoint.GUI = FocalPoint.GUI or {}
+FocalPoint.GUI.Layouts = FocalPoint.GUI.Layouts or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 
 local SectionLayout = {}
-PORTRAIT.GUI.Layouts.SectionLayout = SectionLayout
+FocalPoint.GUI.Layouts.SectionLayout = SectionLayout
 
 local function CreateColumn(relativeWidth)
     local column = AceGUI:Create("SimpleGroup")
@@ -29,17 +29,48 @@ local function CreateSingleColumn()
     return column
 end
 
+local function CreateSubsectionHeader(text)
+    local group = AceGUI:Create("SimpleGroup")
+    group:SetFullWidth(true)
+    group:SetLayout("Flow")
+
+    local spacer = AceGUI:Create("Label")
+    spacer:SetText(" ")
+    spacer:SetFullWidth(true)
+    spacer:SetHeight(4)
+    group:AddChild(spacer)
+
+    local heading = AceGUI:Create("Heading")
+    heading:SetText(text or "")
+    heading:SetFullWidth(true)
+    group:AddChild(heading)
+
+    return group
+end
+
 local function NormalizeLayoutMeta(meta)
     local source = type(meta) == "table" and meta or {}
 
     local placement = source.placement
-    if placement ~= "left" and placement ~= "right" then
+    if placement ~= "left" and placement ~= "right" and placement ~= "full" then
         placement = "auto"
     end
 
     local span = tonumber(source.span) == 2 and 2 or 1
     local rowType = source.rowType
-    if rowType == "full" or rowType == "subsection" then
+    if rowType ~= "inline"
+        and rowType ~= "actions"
+        and rowType ~= "preview"
+        and rowType ~= "toolbar"
+    then
+        rowType = "default"
+    end
+
+    if placement == "full" then
+        span = 2
+    end
+
+    if rowType == "actions" or rowType == "preview" or rowType == "toolbar" then
         span = 2
     end
 
@@ -47,6 +78,7 @@ local function NormalizeLayoutMeta(meta)
         placement = placement,
         span = span,
         rowType = rowType,
+        subsection = type(source.subsection) == "string" and source.subsection ~= "" and source.subsection or nil,
     }
 end
 
@@ -63,6 +95,7 @@ function SectionLayout.CreateTwoColumn(parent)
     local currentLeft = nil
     local currentRight = nil
     local nextColumn = 1
+    local currentSubsection = nil
 
     local layout = {}
 
@@ -70,6 +103,18 @@ function SectionLayout.CreateTwoColumn(parent)
         currentLeft = nil
         currentRight = nil
         nextColumn = 1
+    end
+
+    local function AddSubsection(text)
+        ResetRowState()
+
+        local row = CreateRow()
+        local column = CreateSingleColumn()
+        row:AddChild(column)
+        column:AddChild(CreateSubsectionHeader(text))
+        section:AddChild(row)
+
+        ResetRowState()
     end
 
     local function EnsureTwoColumnRow()
@@ -107,6 +152,13 @@ function SectionLayout.CreateTwoColumn(parent)
         end
 
         local resolvedMeta = NormalizeLayoutMeta(meta or handle.layoutMeta)
+        if resolvedMeta.subsection ~= currentSubsection then
+            if resolvedMeta.subsection then
+                AddSubsection(resolvedMeta.subsection)
+            end
+            currentSubsection = resolvedMeta.subsection
+        end
+
         if resolvedMeta.span == 2 then
             AddFullWidth(handle)
             return handle
@@ -132,6 +184,7 @@ function SectionLayout.CreateTwoColumn(parent)
 
     function layout:Reset()
         ResetRowState()
+        currentSubsection = nil
     end
 
     return layout

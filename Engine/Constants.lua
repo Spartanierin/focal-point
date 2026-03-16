@@ -4,7 +4,7 @@ ns.Constants = ns.Constants or {}
 local C = ns.Constants
 
 -- AddOn
-C.ADDON_NAME = "Portrait"
+C.ADDON_NAME = "FocalPoint"
 
 -- Navigation
 C.Nav = {

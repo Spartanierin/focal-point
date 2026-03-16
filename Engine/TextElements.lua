@@ -1,7 +1,7 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
-Portrait.UnitFrame = Portrait.UnitFrame or {}
-local UF = Portrait.UnitFrame
+FocalPoint.UnitFrame = FocalPoint.UnitFrame or {}
+local UF = FocalPoint.UnitFrame
 
 local function UnpackColor(color, fallback)
     color = color or fallback or { 1, 1, 1, 1 }
@@ -41,7 +41,7 @@ local function GetLocalizedClassName(classToken)
 end
 
 local function GetClassTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.classToken and (Portrait.guiTestModeEnabled or frame.IsTemplatePreview) then
+    if frame and frame.TestValues and frame.TestValues.classToken and (FocalPoint.guiTestModeEnabled or frame.IsTemplatePreview) then
         local classToken = frame.TestValues.classToken:upper()
         local classColor = nil
 
@@ -165,7 +165,7 @@ local function BuildColorCode(r, g, b, a)
 end
 
 local function GetPowerTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.powerToken and (Portrait.guiTestModeEnabled or frame.IsTemplatePreview) then
+    if frame and frame.TestValues and frame.TestValues.powerToken and (FocalPoint.guiTestModeEnabled or frame.IsTemplatePreview) then
         local previewToken = frame.TestValues.powerToken
         local previewColor = PowerBarColor and (PowerBarColor[previewToken] or PowerBarColor[0])
         if previewColor then
@@ -195,7 +195,7 @@ local function GetPowerTextColor(unit, frame)
 end
 
 local function GetReactionTextColor(unit, frame)
-    if frame and frame.TestValues and (Portrait.guiTestModeEnabled or frame.IsTemplatePreview) then
+    if frame and frame.TestValues and (FocalPoint.guiTestModeEnabled or frame.IsTemplatePreview) then
         local reaction = frame.TestValues.reaction or 5
         local previewColor = FACTION_BAR_COLORS and FACTION_BAR_COLORS[reaction]
         if previewColor then
@@ -546,7 +546,7 @@ function UF:RefreshLiveValues(frame)
 
     frame.LiveValues = frame.LiveValues or {}
 
-    if Portrait.guiTestModeEnabled and frame.TestValues then
+    if FocalPoint.guiTestModeEnabled and frame.TestValues then
         local preview = frame.TestValues
         local healthCurrent = preview.healthCurrent or 100
         local healthMax = preview.healthMax or 100
@@ -922,7 +922,7 @@ local TAG_DATABASE = {
     { token = "[altpower:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "100" },
     { token = "[cast:name]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_NAME", example = "Frostbolt" },
     { token = "[cast:time]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_TIME", example = "1.8" },
-    { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "Portrait" },
+    { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "FocalPoint" },
     { token = "[guild]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_GUILD", example = "Guild Name" },
     { token = "[realm]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_REALM", example = "Lordaeron" },
     { token = "[level]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_LEVEL", example = "80" },
@@ -973,7 +973,7 @@ local function GetTagPreviewFallback(token)
 end
 
 local function ResolveToken(frame, unit, token)
-    if not Portrait.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
+    if not FocalPoint.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
         local colorToken = ResolveColorTag(frame, unit, token)
         if colorToken ~= nil then
             return colorToken
@@ -997,7 +997,7 @@ local function ResolveToken(frame, unit, token)
 end
 
 local function ResolveBasicTag(frame, unit, token)
-    if Portrait.guiTestModeEnabled and frame and frame.TestValues then
+    if FocalPoint.guiTestModeEnabled and frame and frame.TestValues then
         local preview = frame.TestValues
 
         if token == "name" then
@@ -1407,7 +1407,7 @@ local function ResolveBasicTag(frame, unit, token)
 end
 
 local function HasActiveCast(unit)
-    if Portrait.guiTestModeEnabled then
+    if FocalPoint.guiTestModeEnabled then
         return true
     end
 
@@ -1487,7 +1487,7 @@ local function ResolveConfiguredTemplate(textConfig)
     end
 
     local templateName = textConfig.templateName
-    local templates = Portrait.db and Portrait.db.profile and Portrait.db.profile.TextTemplates
+    local templates = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.TextTemplates
     if type(templateName) == "string" and templateName ~= "" and type(templates) == "table" then
         local linkedTemplate = templates[templateName]
         if type(linkedTemplate) == "string" and linkedTemplate ~= "" then
@@ -1530,7 +1530,7 @@ local function ApplyDirectTemplate(frame, textObject, unit, template, fallbackCo
         return false
     end
 
-    if not Portrait.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
+    if not FocalPoint.guiTestModeEnabled and (not unit or not UnitExists or not UnitExists(unit)) then
         return false
     end
 
@@ -1756,7 +1756,7 @@ function UF:RegisterTextEvents(frame)
     eventFrame:SetScript("OnUpdate", function(self, elapsed)
         local owner = self.owner
         local castBar = owner and owner.Elements and owner.Elements.CastBar
-        local hasPreviewCast = Portrait.guiTestModeEnabled and castBar and castBar.isPreview
+        local hasPreviewCast = FocalPoint.guiTestModeEnabled and castBar and castBar.isPreview
         if not owner or not FrameUsesCastTime(owner) or (not hasPreviewCast and not HasActiveCast(owner.unit)) then
             self.elapsed = 0
             return

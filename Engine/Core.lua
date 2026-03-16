@@ -1,23 +1,23 @@
-local _, Portrait = ...
+local _, FocalPoint = ...
 
-function Portrait:Init()
+function FocalPoint:Init()
     self.frames = self.frames or {}
-    self:Info("Portrait loaded.")
+    self:Info("Focal Point loaded.")
 end
 
-function Portrait:CreatePositionController()
+function FocalPoint:CreatePositionController()
     if self.positionController then
         return self.positionController
     end
 
-    local frame = CreateFrame("Frame", "PortraitPositionController", UIParent)
+    local frame = CreateFrame("Frame", "FocalPointPositionController", UIParent)
     frame:Hide()
 
     self.positionController = frame
     return frame
 end
 
-function Portrait:StartTagTicker()
+function FocalPoint:StartTagTicker()
     if self.tagTicker then
         return
     end
@@ -30,8 +30,8 @@ function Portrait:StartTagTicker()
         elapsed = elapsed + dt
         if elapsed >= interval then
             elapsed = 0
-            if Portrait.UpdateAllTags then
-                Portrait:UpdateAllTags()
+            if FocalPoint.UpdateAllTags then
+                FocalPoint:UpdateAllTags()
             end
         end
     end)
@@ -39,11 +39,11 @@ function Portrait:StartTagTicker()
     self.tagTicker = frame
 end
 
-function Portrait:UpdateAllTags()
+function FocalPoint:UpdateAllTags()
     -- Platzhalter für spätere Tag-Engine
 end
 
-function Portrait:RefreshAllFrames()
+function FocalPoint:RefreshAllFrames()
     if not self.frames then
         return
     end

@@ -25,6 +25,7 @@ function LayoutHelpers.AddLayoutHandle(layout, handle, def)
             placement = def.placement,
             span = def.span,
             rowType = def.rowType,
+            subsection = LayoutHelpers.ResolveLayoutText(def.subsection),
         }
     end
 

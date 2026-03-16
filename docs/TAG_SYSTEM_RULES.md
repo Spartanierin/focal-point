@@ -1,8 +1,8 @@
-# Portrait Tag System Rules
+# FocalPoint Tag System Rules
 
 ## Purpose
 
-This document defines the rules for Portrait's tag system and template content layer.
+This document defines the rules for FocalPoint's tag system and template content layer.
 
 It complements `ARCHITECTURE.md`:
 
@@ -14,7 +14,7 @@ It is not intended to be a general calculation layer.
 
 ## Architectural Position
 
-Portrait's text architecture is based on a strict separation:
+FocalPoint's text architecture is based on a strict separation:
 
 - **template** = content, including tags and inline formatting
 - **text element** = presentation, placement, font, base color, and effects
@@ -53,7 +53,7 @@ Those values may still work when handed directly to Blizzard UI functions, but t
 - use them as table keys
 - reshape them as strings
 
-Because of that, Portrait tags should prefer prepared display values over raw unit API values whenever possible.
+Because of that, FocalPoint tags should prefer prepared display values over raw unit API values whenever possible.
 
 ## Core Rules
 
@@ -147,7 +147,7 @@ Tags in test mode should not depend on live unit APIs.
 
 ## Templates and Raw Tag Strings
 
-Portrait supports two content sources for a text element:
+FocalPoint supports two content sources for a text element:
 
 1. a linked template via `templateName`
 2. a direct raw string via `tag`
@@ -217,15 +217,15 @@ Legacy color tags may remain parser-compatible for migration purposes, but they 
 
 ## Abbreviation Policy
 
-Portrait currently uses Blizzard abbreviation output for `:abbr` tags.
+FocalPoint currently uses Blizzard abbreviation output for `:abbr` tags.
 
 ### Current rule
 
 - abbreviation values are prepared before tag rendering
-- Portrait calls Blizzard's `AbbreviateLargeNumbers(...)`
+- FocalPoint calls Blizzard's `AbbreviateLargeNumbers(...)`
 - the returned string is used directly
-- Portrait does not rewrite casing, spacing, suffixes, or separators afterward
-- if Blizzard does not return a usable string, Portrait falls back to prepared display text
+- FocalPoint does not rewrite casing, spacing, suffixes, or separators afterward
+- if Blizzard does not return a usable string, FocalPoint falls back to prepared display text
 
 ### Why
 
@@ -239,7 +239,7 @@ It avoids:
 
 ### Consequence
 
-Output may differ from Portrait's earlier custom styling.
+Output may differ from FocalPoint's earlier custom styling.
 
 Examples:
 
@@ -251,7 +251,7 @@ That is acceptable as long as the output is stable and directly sourced from Bli
 
 ## Recommended Runtime Data Layers
 
-For each bar-like domain, Portrait should maintain three conceptual layers.
+For each bar-like domain, FocalPoint should maintain three conceptual layers.
 
 ### Raw
 
@@ -365,7 +365,7 @@ Then deprecate risky fallback behavior gradually once templates and defaults are
 
 If a token requires math, parsing, lookup tricks, or string surgery at render time, it is probably operating in the wrong layer.
 
-Portrait tags should mostly do this:
+FocalPoint tags should mostly do this:
 
 1. read prepared value
 2. format only if trivial

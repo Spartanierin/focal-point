@@ -19,7 +19,7 @@ function GeneralPage.Build(container, deps)
     ResetFlowContainer(container)
 
     local version = GetAddonVersionText()
-    local logoPath = "Interface\\AddOns\\Portrait\\Media\\Icon.tga"
+    local logoPath = "Interface\\AddOns\\FocalPoint\\Media\\Icon.tga"
 
     local function CreateSpacer(height)
         local spacer = AceGUI:Create("Label")
@@ -102,7 +102,7 @@ function GeneralPage.Build(container, deps)
     if welcome.SetFont then
         welcome:SetFont(STANDARD_TEXT_FONT, 13, "")
     end
-    welcome:SetText(string.format("|cfff2e4b8%s|r", L["INFO_GENERAL_WELCOME"] or "Welcome to Portrait."))
+    welcome:SetText(string.format("|cfff2e4b8%s|r", L["INFO_GENERAL_WELCOME"] or "Welcome to Focal Point."))
     aboutGroup:AddChild(welcome)
 
     aboutGroup:AddChild(CreateSpacer(3))
@@ -114,7 +114,7 @@ function GeneralPage.Build(container, deps)
     end
     description:SetText(string.format(
         "|cffd7dbe0%s|r",
-        L["INFO_GENERAL_DESCRIPTION"] or "Portrait is a modular unit frame addon with configurable frames, bars, texts, and elements."
+        L["INFO_GENERAL_DESCRIPTION"] or "Focal Point is a modular unit frame addon with configurable frames, bars, texts, and elements."
     ))
     aboutGroup:AddChild(description)
 
