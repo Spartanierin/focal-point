@@ -539,6 +539,58 @@ local function GetSecondaryPowerDisplayValues(unit)
     return secondaryPowerType, currentText, maxText, maxNumber
 end
 
+local function GetGhostText()
+    return (FocalPoint.L and FocalPoint.L["STATUS_GHOST"]) or PLAYER_STATUS_GHOST or GHOST or "Ghost"
+end
+
+local function GetUpperStatusText(text, fallback)
+    local value = text or fallback or ""
+    if type(value) ~= "string" or value == "" then
+        return ""
+    end
+
+    return string.upper(value)
+end
+
+local function FormatStatusTimerValue(seconds)
+    local totalSeconds = math.max(0, math.floor(tonumber(seconds) or 0))
+    local minutes = math.floor(totalSeconds / 60)
+    local remainingSeconds = totalSeconds % 60
+    return string.format("(%02d:%02d)", minutes, remainingSeconds)
+end
+
+local function GetCurrentStatusInfo(unit)
+    if not unit then
+        return "", ""
+    end
+
+    if UnitExists and not IsSafeTrue(UnitExists(unit)) then
+        return "", ""
+    end
+
+    if UnitIsConnected and not IsSafeTrue(UnitIsConnected(unit)) then
+        return "offline", GetUpperStatusText(PLAYER_OFFLINE, "Offline")
+    end
+
+    if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
+        if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
+            return "ghost", GetUpperStatusText(GetGhostText(), "Ghost")
+        end
+
+        return "dead", GetUpperStatusText(DEAD, "Dead")
+    end
+
+    if UnitIsAFK and IsSafeTrue(UnitIsAFK(unit)) then
+        return "afk", GetUpperStatusText(AFK, "AFK")
+    end
+
+    if UnitIsDND and IsSafeTrue(UnitIsDND(unit)) then
+        return "dnd", GetUpperStatusText(DND, "DND")
+    end
+
+    return "", ""
+end
+
 function UF:RefreshLiveValues(frame)
     if not frame or not frame.unit then
         return
@@ -585,6 +637,10 @@ function UF:RefreshLiveValues(frame)
         frame.LiveValues.altPowerMaxSafe = ToSafeNumber(altPowerMax)
         frame.LiveValues.altPowerCurrentRaw = altPowerCurrent
         frame.LiveValues.altPowerMaxRaw = altPowerMax
+        frame.LiveValues.statusKey = preview.statusKey or ""
+        frame.LiveValues.statusText = preview.status or ""
+        frame.LiveValues.statusTimerStart = preview.statusTimerStart
+        frame.LiveValues.deadTimerStart = preview.deadTimerStart
         return
     end
 
@@ -688,6 +744,28 @@ function UF:RefreshLiveValues(frame)
     frame.LiveValues.altPowerMaxRaw = frame.LiveValues.altPowerMax
     frame.LiveValues.altPowerType = secondaryPowerType
     frame.LiveValues.altPowerVisible = secondaryPowerType ~= nil and frame.LiveValues.altPowerMaxSafe > 0
+
+    local statusKey, statusText = GetCurrentStatusInfo(unit)
+    local previousStatusKey = frame.LiveValues.statusKey or ""
+    local now = GetTime and GetTime() or 0
+
+    frame.LiveValues.statusKey = statusKey
+    frame.LiveValues.statusText = statusText
+
+    if statusKey == "dead" or statusKey == "ghost" then
+        if previousStatusKey ~= statusKey or type(frame.LiveValues.deadTimerStart) ~= "number" then
+            frame.LiveValues.deadTimerStart = now
+        end
+        frame.LiveValues.statusTimerStart = nil
+    elseif statusKey ~= "" then
+        if previousStatusKey ~= statusKey or type(frame.LiveValues.statusTimerStart) ~= "number" then
+            frame.LiveValues.statusTimerStart = now
+        end
+        frame.LiveValues.deadTimerStart = nil
+    else
+        frame.LiveValues.statusTimerStart = nil
+        frame.LiveValues.deadTimerStart = nil
+    end
 end
 
 local TOKEN_DEFS = {
@@ -933,9 +1011,12 @@ local TAG_DATABASE = {
     { token = "[type]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_TYPE", example = "Humanoid" },
     { token = "[creature]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_CREATURE", example = "Humanoid" },
     { token = "[status]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_STATUS", example = "AFK" },
+    { token = "[status:timer]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_STATUS_TIMER", example = "(00:12)" },
+    { token = "[dead:timer]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_DEAD_TIMER", example = "(00:12)" },
     { token = "[afk]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_AFK", example = "AFK" },
     { token = "[dnd]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_DND", example = "DND" },
     { token = "[dead]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_DEAD", example = "Dead" },
+    { token = "[ghost]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_GHOST", example = "Ghost" },
     { token = "[offline]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_OFFLINE", example = "Offline" },
     { token = "[pvp]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_PVP", example = "PvP" },
     { token = "[combat]", category = "INFO_TAG_CATEGORY_STATUS", description = "INFO_TAG_DESC_COMBAT", example = "Combat" },
@@ -1044,6 +1125,14 @@ local function ResolveBasicTag(frame, unit, token)
             return preview.status or ""
         end
 
+        if token == "status:timer" then
+            return preview.statusTimer or ""
+        end
+
+        if token == "dead:timer" then
+            return preview.deadTimer or ""
+        end
+
         if token == "afk" then
             return preview.afk or ""
         end
@@ -1054,6 +1143,10 @@ local function ResolveBasicTag(frame, unit, token)
 
         if token == "dead" then
             return preview.dead or ""
+        end
+
+        if token == "ghost" then
+            return preview.ghost or ""
         end
 
         if token == "offline" then
@@ -1231,40 +1324,41 @@ local function ResolveBasicTag(frame, unit, token)
     end
 
     if token == "status" then
-        if not unit then
+        local statusKey, statusText = GetCurrentStatusInfo(unit)
+        if statusKey == "dead" or statusKey == "ghost" then
             return ""
         end
 
-        if UnitExists and not IsSafeTrue(UnitExists(unit)) then
+        return statusText
+    end
+
+    if token == "status:timer" then
+        local statusKey = GetLiveValue(frame, "statusKey", "")
+        local statusTimerStart = GetLiveValue(frame, "statusTimerStart", nil)
+        local now = GetTime and GetTime() or 0
+
+        if statusKey == "" or statusKey == "dead" or statusKey == "ghost" or type(statusTimerStart) ~= "number" then
             return ""
         end
 
-        if UnitIsConnected and not IsSafeTrue(UnitIsConnected(unit)) then
-            return PLAYER_OFFLINE or "Offline"
+        return FormatStatusTimerValue(now - statusTimerStart)
+    end
+
+    if token == "dead:timer" then
+        local statusKey = GetLiveValue(frame, "statusKey", "")
+        local deadTimerStart = GetLiveValue(frame, "deadTimerStart", nil)
+        local now = GetTime and GetTime() or 0
+
+        if (statusKey ~= "dead" and statusKey ~= "ghost") or type(deadTimerStart) ~= "number" then
+            return ""
         end
 
-        if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
-            if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
-                return DEAD or "Dead"
-            end
-
-            return DEAD or "Dead"
-        end
-
-        if UnitIsAFK and IsSafeTrue(UnitIsAFK(unit)) then
-            return AFK or "AFK"
-        end
-
-        if UnitIsDND and IsSafeTrue(UnitIsDND(unit)) then
-            return DND or "DND"
-        end
-
-        return ""
+        return FormatStatusTimerValue(now - deadTimerStart)
     end
 
     if token == "afk" then
         if UnitIsAFK and unit and IsSafeTrue(UnitIsAFK(unit)) then
-            return AFK or "AFK"
+            return GetUpperStatusText(AFK, "AFK")
         end
 
         return ""
@@ -1272,7 +1366,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "dnd" then
         if UnitIsDND and unit and IsSafeTrue(UnitIsDND(unit)) then
-            return DND or "DND"
+            return GetUpperStatusText(DND, "DND")
         end
 
         return ""
@@ -1280,7 +1374,18 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "dead" then
         if UnitIsDeadOrGhost and unit and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
-            return DEAD or "Dead"
+            if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
+                return GetUpperStatusText(GetGhostText(), "Ghost")
+            end
+            return GetUpperStatusText(DEAD, "Dead")
+        end
+
+        return ""
+    end
+
+    if token == "ghost" then
+        if UnitIsGhost and unit and IsSafeTrue(UnitIsGhost(unit)) then
+            return GetUpperStatusText(GetGhostText(), "Ghost")
         end
 
         return ""
@@ -1288,7 +1393,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "offline" then
         if UnitIsConnected and unit and not IsSafeTrue(UnitIsConnected(unit)) then
-            return PLAYER_OFFLINE or "Offline"
+            return GetUpperStatusText(PLAYER_OFFLINE, "Offline")
         end
 
         return ""
@@ -1296,7 +1401,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "pvp" then
         if UnitIsPVP and unit and IsSafeTrue(UnitIsPVP(unit)) then
-            return PVP or "PvP"
+            return GetUpperStatusText(PVP, "PvP")
         end
 
         return ""
@@ -1304,7 +1409,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "combat" then
         if UnitAffectingCombat and unit and IsSafeTrue(UnitAffectingCombat(unit)) then
-            return COMBAT or "Combat"
+            return GetUpperStatusText(COMBAT, "Combat")
         end
 
         return ""
@@ -1312,7 +1417,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "resting" then
         if unit == "player" and IsResting and IsSafeTrue(IsResting()) then
-            return PLAYER_STATUS_RESTING or "Resting"
+            return GetUpperStatusText(PLAYER_STATUS_RESTING, "Resting")
         end
 
         return ""
@@ -1320,14 +1425,14 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "leader" then
         if UnitIsGroupLeader and unit and IsSafeTrue(UnitIsGroupLeader(unit)) then
-            return LEADER or "Leader"
+            return GetUpperStatusText(LEADER, "Leader")
         end
 
         return ""
     end
 
     if token == "role" then
-        return GetRoleText(unit)
+        return GetUpperStatusText(GetRoleText(unit), "")
     end
 
     if token == "cast:name" then
@@ -1481,13 +1586,33 @@ local function TemplateContainsToken(template, token)
     return template:find("%[" .. token:gsub("([^%w:])", "%%%1") .. "%]") ~= nil
 end
 
-local function ResolveConfiguredTemplate(textConfig)
+local function ResolveConfiguredTemplate(frame, textConfig)
     if type(textConfig) ~= "table" then
         return ""
     end
 
-    local templateName = textConfig.templateName
     local templates = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.TextTemplates
+    local statusKey = GetLiveValue(frame, "statusKey", "")
+    if type(statusKey) == "string" and statusKey ~= "" and type(textConfig.stateTemplates) == "table" and type(templates) == "table" then
+        local stateKeys = { statusKey }
+
+        -- Ghost should be able to reuse the dead template if no dedicated ghost template exists.
+        if statusKey == "ghost" then
+            stateKeys[#stateKeys + 1] = "dead"
+        end
+
+        for _, stateKey in ipairs(stateKeys) do
+            local stateTemplateName = textConfig.stateTemplates[stateKey]
+            if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
+                local stateTemplate = templates[stateTemplateName]
+                if type(stateTemplate) == "string" and stateTemplate ~= "" then
+                    return stateTemplate
+                end
+            end
+        end
+    end
+
+    local templateName = textConfig.templateName
     if type(templateName) == "string" and templateName ~= "" and type(templates) == "table" then
         local linkedTemplate = templates[templateName]
         if type(linkedTemplate) == "string" and linkedTemplate ~= "" then
@@ -1605,7 +1730,7 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
 
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
-    local template = ResolveConfiguredTemplate(textConfig)
+    local template = ResolveConfiguredTemplate(frame, textConfig)
 
     if key == "Class" or TemplateContainsToken(template, "class") then
         local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
@@ -1670,7 +1795,7 @@ function UF:UpdateTextElement(frame, key)
         return
     end
 
-    local template = ResolveConfiguredTemplate(textConfig)
+    local template = ResolveConfiguredTemplate(frame, textConfig)
     local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
     local altPowerType = GetLiveValue(frame, "altPowerType", nil)
     local altPowerMaxRaw = ToSafeNumber(GetLiveValue(frame, "altPowerMaxRaw", 0))

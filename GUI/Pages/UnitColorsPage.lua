@@ -8,6 +8,7 @@ local KM = ns.KeyMap
 local L = ns.L
 local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Checkbox = ns.GUI.Widgets.Checkbox
+local Slider = ns.GUI.Widgets.Sliders
 
 local UnitColorsPage = {}
 ns.GUI.Pages.UnitColors = UnitColorsPage
@@ -171,6 +172,22 @@ function UnitColorsPage.Build(container, unitKey, deps)
                         state.powerColorPickerHandle.RefreshState()
                     end
                 end,
+            }), def)
+            return
+        end
+
+        if def.widget == "slider" then
+            AddLayoutHandle(layout, Slider.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                min = def.min,
+                max = def.max,
+                step = def.step,
+                fallback = def.fallback,
+                format = def.format,
+                resetText = L["OPTION_RESET"],
+                disabled = ResolveColorDisabled(def),
             }), def)
         end
     end

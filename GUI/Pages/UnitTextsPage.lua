@@ -318,6 +318,13 @@ function UnitTextsPage.Build(container, unitKey, deps)
         templateGroup:AddChild(templateHint)
 
         local templateFields = CreateSection(templateGroup)
+        local stateTemplateOptions = {
+            { key = "dead", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_DEAD"] or "When DEAD" },
+            { key = "ghost", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_GHOST"] or "When GHOST" },
+            { key = "offline", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_OFFLINE"] or "When OFFLINE" },
+            { key = "afk", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_AFK"] or "When AFK" },
+            { key = "dnd", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_DND"] or "When DND" },
+        }
 
         local templateDropdownGroup = AceGUI:Create("SimpleGroup")
         templateDropdownGroup:SetFullWidth(true)
@@ -334,6 +341,39 @@ function UnitTextsPage.Build(container, unitKey, deps)
             rowType = "toolbar",
             subsection = ResolveLayoutText("SECTION_CONTENT"),
         })
+
+        local stateTemplateList = { [""] = L["OPTION_NONE"] or "None" }
+        for templateName, label in pairs(templatesList) do
+            stateTemplateList[templateName] = label
+        end
+
+        for _, option in ipairs(stateTemplateOptions) do
+            local stateDropdownGroup = AceGUI:Create("SimpleGroup")
+            stateDropdownGroup:SetFullWidth(true)
+            stateDropdownGroup:SetLayout("Flow")
+
+            local stateDropdown = AceGUI:Create("Dropdown")
+            stateDropdown:SetLabel(option.label)
+            stateDropdown:SetWidth(320)
+            stateDropdown:SetList(stateTemplateList)
+            stateDropdown:SetValue(textConfig.stateTemplates and textConfig.stateTemplates[option.key] or "")
+            stateDropdown:SetDisabled(IsUnitDisabled())
+            stateDropdown:SetCallback("OnValueChanged", function(_, _, value)
+                if IsUnitDisabled() then
+                    return
+                end
+
+                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "stateTemplates", option.key }, value or "")
+                ns.GUI.Helpers.OptionRefresh.Live()
+                ns.GUI:RefreshOptions()
+            end)
+            stateDropdownGroup:AddChild(stateDropdown)
+
+            templateFields:Add({ group = stateDropdownGroup }, {
+                placement = "full",
+                subsection = ResolveLayoutText("SECTION_STATE_RULES"),
+            })
+        end
 
         if IsExpertModeEnabled() then
             local rawTemplateGroup = AceGUI:Create("SimpleGroup")
@@ -434,6 +474,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
 
             ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "templateName" }, "")
             ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, "")
+            ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "stateTemplates" }, {})
             ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "enabled" }, false)
             ns.GUI.Helpers.OptionRefresh.Live()
             ns.GUI:RefreshOptions()

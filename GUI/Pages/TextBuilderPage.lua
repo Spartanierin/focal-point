@@ -205,6 +205,14 @@ function TextBuilderPage.Build(container, deps)
             return true
         end
 
+        if type(templateName) == "string" and templateName ~= "" and type(textConfig.stateTemplates) == "table" then
+            for _, stateTemplateName in pairs(textConfig.stateTemplates) do
+                if stateTemplateName == templateName then
+                    return true
+                end
+            end
+        end
+
         if type(templateValue) == "string" and templateValue ~= "" and textConfig.tag == templateValue then
             return true
         end
@@ -263,6 +271,13 @@ function TextBuilderPage.Build(container, deps)
         for _, textConfig in pairs(texts) do
             if TextConfigUsesTemplate(textConfig, templateName, templateValue) then
                 textConfig.templateName = ""
+                if type(textConfig.stateTemplates) == "table" then
+                    for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
+                        if stateTemplateName == templateName then
+                            textConfig.stateTemplates[stateKey] = ""
+                        end
+                    end
+                end
                 if type(templateValue) == "string" and templateValue ~= "" and textConfig.tag == templateValue then
                     textConfig.tag = ""
                 end
@@ -276,6 +291,37 @@ function TextBuilderPage.Build(container, deps)
         end
 
         return changed
+    end
+
+    local function RenameTemplateReferences(oldName, newName)
+        if type(oldName) ~= "string" or oldName == "" or type(newName) ~= "string" or newName == "" or oldName == newName then
+            return 0
+        end
+
+        local renamedCount = 0
+        local units = ns.db and ns.db.profile and ns.db.profile.Units or {}
+        for _, unitConfig in pairs(units) do
+            local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+            if type(texts) == "table" then
+                for _, textConfig in pairs(texts) do
+                    if type(textConfig) == "table" and textConfig.templateName == oldName then
+                        textConfig.templateName = newName
+                        renamedCount = renamedCount + 1
+                    end
+
+                    if type(textConfig) == "table" and type(textConfig.stateTemplates) == "table" then
+                        for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
+                            if stateTemplateName == oldName then
+                                textConfig.stateTemplates[stateKey] = newName
+                                renamedCount = renamedCount + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return renamedCount
     end
 
     local function RefreshTemplateUsageState()
@@ -503,6 +549,7 @@ function TextBuilderPage.Build(container, deps)
 
     updateTemplateButton:SetCallback("OnClick", function()
         local selectedName = state.textBuilder.selectedTemplate or ""
+        local updatedName = (templateNameEdit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
         local template = templateEdit:GetText() or ""
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
@@ -510,8 +557,32 @@ function TextBuilderPage.Build(container, deps)
             return
         end
 
+        if updatedName == "" then
+            SetStatus(L["INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"] or "Please enter a template name.")
+            return
+        end
+
+        if updatedName ~= selectedName and type(templates[updatedName]) == "string" then
+            SetStatus((L["INFO_TEXT_BUILDER_STATUS_NAME_EXISTS"] or "A template with this name already exists:") .. " " .. updatedName)
+            return
+        end
+
+        if updatedName ~= selectedName then
+            templates[updatedName] = template
+            templates[selectedName] = nil
+            RenameTemplateReferences(selectedName, updatedName)
+            state.textBuilder.selectedTemplate = updatedName
+            state.textBuilder.templateName = updatedName
+            state.textBuilder.template = template
+            templateNameEdit:SetText(updatedName)
+            RefreshTemplateDropdown()
+            SetStatus((L["INFO_TEXT_BUILDER_STATUS_UPDATED"] or "Template updated:") .. " " .. updatedName)
+            return
+        end
+
         templates[selectedName] = template
         state.textBuilder.template = template
+        state.textBuilder.templateName = selectedName
         RefreshTemplateDropdown()
         SetStatus((L["INFO_TEXT_BUILDER_STATUS_UPDATED"] or "Template updated:") .. " " .. selectedName)
     end)

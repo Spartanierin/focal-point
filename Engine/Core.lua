@@ -40,7 +40,21 @@ function FocalPoint:StartTagTicker()
 end
 
 function FocalPoint:UpdateAllTags()
-    -- Platzhalter für spätere Tag-Engine
+    if not self.frames or not self.UnitFrame then
+        return
+    end
+
+    for _, frame in pairs(self.frames) do
+        if frame and frame:IsShown() then
+            if self.UnitFrame.RefreshLiveValues then
+                self.UnitFrame:RefreshLiveValues(frame)
+            end
+
+            if self.UnitFrame.UpdateTextElements then
+                self.UnitFrame:UpdateTextElements(frame)
+            end
+        end
+    end
 end
 
 function FocalPoint:RefreshAllFrames()

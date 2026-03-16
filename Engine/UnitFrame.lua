@@ -173,7 +173,7 @@ local function GetResolvedHealthBarColor(frame, config, currentHealth, maxHealth
     if config and config.useClassColorHealth then
         local classR, classG, classB, classA = GetClassColorForUnit(frame and frame.unit, config.useReactionColorNpcHealth)
         if classR and classG and classB then
-            healthR, healthG, healthB, healthA = classR, classG, classB, classA or 1
+            healthR, healthG, healthB = classR, classG, classB
         end
     end
 
@@ -1748,7 +1748,7 @@ function UF:ApplyConfig(frame)
     if config.useClassColorPower then
         local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame.unit)
         if resourceR and resourceG and resourceB then
-            powerR, powerG, powerB, powerA = resourceR, resourceG, resourceB, resourceA or 1
+            powerR, powerG, powerB = resourceR, resourceG, resourceB
         end
     end
 
@@ -1903,7 +1903,6 @@ function UF:ApplyConfig(frame)
             altPowerR = altPowerTypeColor.r or altPowerTypeColor[1] or altPowerR
             altPowerG = altPowerTypeColor.g or altPowerTypeColor[2] or altPowerG
             altPowerB = altPowerTypeColor.b or altPowerTypeColor[3] or altPowerB
-            altPowerA = 1
         end
 
         altPower:ClearAllPoints()
@@ -2474,9 +2473,6 @@ function UF:Refresh(frame)
     end
     if self.UpdateTextElements then
         self:UpdateTextElements(frame)
-    end
-    if frame.SetAlpha then
-        frame:SetAlpha(1)
     end
     frame:Show()
 end

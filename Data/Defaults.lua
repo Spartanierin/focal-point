@@ -27,7 +27,7 @@ function FocalPoint:GetDefaultDB()
                 ["Sparta's Unit Frame - Alt Power"] = "[altpower:cur] / [altpower:max]",
                 ["Sparta's Unit Frame - Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
                 ["Sparta's Unit Frame - Creature"] = "[creature]",
-                ["Sparta's Unit Frame - Status"] = "[status]",
+                ["Sparta's Unit Frame - Status"] = "[status][dead][dead:timer]",
                 ["Sparta's Unit Frame - Cast Name"] = "[cast:name]",
                 ["Sparta's Unit Frame - Cast Time"] = "[cast:time]",
             },
@@ -380,7 +380,7 @@ function FocalPoint:GetDefaultDB()
 
                         Status = {
                             enabled = true,
-                            tag = "[status]",
+                            tag = "[status][dead][dead:timer]",
 
                             anchorTo = "HealthBar",
                             point = "CENTER",
@@ -880,7 +880,7 @@ function FocalPoint:GetDefaultDB()
 
                         Status = {
                             enabled = true,
-                            tag = "[status]",
+                            tag = "[status][dead][dead:timer]",
 
                             anchorTo = "HealthBar",
                             point = "LEFT",
@@ -1302,7 +1302,7 @@ function FocalPoint:GetDefaultDB()
 
                         Status = {
                             enabled = true,
-                            tag = "[status]",
+                            tag = "[status][dead][dead:timer]",
                             anchorTo = "HealthBar",
                             point = "CENTER",
                             relativePoint = "CENTER",
