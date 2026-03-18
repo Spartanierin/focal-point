@@ -2,1479 +2,174 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrame = FocalPoint.UnitFrame or {}
 local UF = FocalPoint.UnitFrame
+
+-- UnitFrame.lua is now the public facade and high-level orchestrator for the
+-- split unit-frame runtime. Detailed responsibilities live in the grouped
+-- submodules under Engine/UnitFrame/.
+
+-- Runtime modules
+local Cast = FocalPoint.UnitFrameCastBar or {}
+local CastRuntime = FocalPoint.UnitFrameCastRuntime or {}
+local Factory = FocalPoint.UnitFrameFactory or {}
+local Health = FocalPoint.UnitFrameHealth or {}
+local BuildRuntime = FocalPoint.UnitFrameBuild or {}
+local RefreshRuntime = FocalPoint.UnitFrameRefresh or {}
+local Layout = FocalPoint.UnitFrameLayout or {}
+local BarLayout = FocalPoint.UnitFrameBarLayout or {}
+local Power = FocalPoint.UnitFramePower or {}
+local Portrait = FocalPoint.UnitFramePortrait or {}
+
+-- Indicator modules
+local Indicators = FocalPoint.UnitFrameIndicators or {}
+local RaidTarget = FocalPoint.UnitFrameRaidTarget or {}
+local Leader = FocalPoint.UnitFrameLeader or {}
+local Role = FocalPoint.UnitFrameRole or {}
+local Combat = FocalPoint.UnitFrameCombat or {}
+local Resting = FocalPoint.UnitFrameResting or {}
+local ReadyCheck = FocalPoint.UnitFrameReadyCheck or {}
+
+-- Shared helpers
+local Visibility = FocalPoint.UnitFrameVisibility or {}
+local Utils = FocalPoint.UnitFrameUtils or {}
+local Assets = FocalPoint.UnitFrameAssets or {}
+local Colors = FocalPoint.UnitFrameColors or {}
+local Presence = FocalPoint.UnitFramePresence or {}
+local Preview = FocalPoint.UnitFramePreview or {}
+local Range = FocalPoint.UnitFrameRange or {}
 local StopCastBar
 
-local TARGET_OUT_OF_RANGE_ALPHA = 0.5
-local TARGET_RANGE_FADE_SPEED = 16
-
-local function GetUnitDB(unit)
-    local db = FocalPoint.db
-    if not db or not db.profile or not db.profile.Units then
-        return nil
-    end
-    return db.profile.Units[unit]
-end
-
-local function UnpackColor(color, fallback)
-    color = color or fallback or { 1, 1, 1, 1 }
-
-    local r = color[1] or color.r or 1
-    local g = color[2] or color.g or 1
-    local b = color[3] or color.b or 1
-    local a = color[4]
-    if a == nil then
-        a = color.a
-    end
-    if a == nil then
-        a = 1
-    end
-
-    return r, g, b, a
-end
-
-local function IsSafeTrue(value)
-    return type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) and value
-end
-
-local function ResolveInterruptibleState(notInterruptible)
-    if type(notInterruptible) == "boolean" and not (issecretvalue and issecretvalue(notInterruptible)) then
-        return not notInterruptible
-    end
-
-    return true
-end
-
-local function DoesUnitSeemPresent(unit)
-    if not unit then
-        return false
-    end
-
-    if UnitExists and IsSafeTrue(UnitExists(unit)) then
-        return true
-    end
-
-    if UnitGUID then
-        local guid = UnitGUID(unit)
-        if type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid)) then
-            return true
-        end
-    end
-
-    if UnitName then
-        local name = UnitName(unit)
-        if type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name)) then
-            return true
-        end
-    end
-
-    if UnitIsVisible and IsSafeTrue(UnitIsVisible(unit)) then
-        return true
-    end
-
-    return false
-end
-
-local function GetTargetPresenceSnapshot(unit)
-    local snapshot = {
-        exists = false,
-        guid = false,
-        name = false,
-        visible = false,
-        dead = false,
-    }
-
-    if not unit then
-        return snapshot
-    end
-
-    if UnitExists then
-        snapshot.exists = IsSafeTrue(UnitExists(unit))
-    end
-
-    if UnitGUID then
-        local guid = UnitGUID(unit)
-        snapshot.guid = type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid))
-    end
-
-    if UnitName then
-        local name = UnitName(unit)
-        snapshot.name = type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name))
-    end
-
-    if UnitIsVisible then
-        snapshot.visible = IsSafeTrue(UnitIsVisible(unit))
-    end
-
-    if UnitIsDeadOrGhost then
-        snapshot.dead = IsSafeTrue(UnitIsDeadOrGhost(unit))
-    end
-
-    return snapshot
-end
-
-local function MaybeDebugTarget(frame, message)
-    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame.unit == "target" and FocalPoint.Debug) then
-        return
-    end
-
-    local now = GetTime and GetTime() or 0
-    if frame._targetDebugLastAt and (now - frame._targetDebugLastAt) < 0.20 then
-        return
-    end
-
-    frame._targetDebugLastAt = now
-    FocalPoint:Debug(message)
-end
-
-local function ToSafeNumberValue(value)
-    if value == nil then
-        return 0
-    end
-
-    if type(value) == "number" and not (issecretvalue and issecretvalue(value)) then
-        return value
-    end
-
-    local textOk, textValue = pcall(tostring, value)
-    if textOk and type(textValue) == "string" then
-        local numberOk, numberValue = pcall(tonumber, textValue)
-        if numberOk and type(numberValue) == "number" and not (issecretvalue and issecretvalue(numberValue)) then
-            return numberValue
-        end
-    end
-
-    local formattedOk, formattedValue = pcall(string.format, "%.0f", value)
-    if formattedOk and type(formattedValue) == "string" then
-        local numberOk, numberValue = pcall(tonumber, formattedValue)
-        if numberOk and type(numberValue) == "number" and not (issecretvalue and issecretvalue(numberValue)) then
-            return numberValue
-        end
-    end
-
-    return 0
-end
-
-local function FormatDisplayNumber(value)
-    if value == nil then
-        return "0"
-    end
-
-    if BreakUpLargeNumbers then
-        local ok, result = pcall(BreakUpLargeNumbers, value)
-        if ok and type(result) == "string" then
-            return result
-        end
-    end
-
-    local ok, result = pcall(string.format, "%s", value)
-    if ok and type(result) == "string" then
-        return result
-    end
-
-    return "0"
-end
-
-local function ResolveBlizzardAbbreviation(rawValue, displayText)
-    if type(AbbreviateLargeNumbers) == "function" then
-        local ok, abbreviation = pcall(AbbreviateLargeNumbers, rawValue)
-        if ok and type(abbreviation) == "string" then
-            return abbreviation
-        end
-    end
-
-    if type(displayText) == "string" then
-        return displayText
-    end
-
-    return ""
-end
-
-local function IsPreviewModeEnabled()
-    return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
-end
-
-local function GetRangeFadeMultiplier(frame)
-    local rangeThreshold = tonumber(FocalPoint and FocalPoint.TARGET_RANGE_CHECK_YARDS) or 40
-
-    if not frame or frame.unit ~= "target" or IsPreviewModeEnabled() then
-        return 1
-    end
-
-    if not DoesUnitSeemPresent(frame.unit) then
-        return 1
-    end
-
-    if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(frame.unit)) then
-        return 1
-    end
-
-    if UnitIsConnected and not IsSafeTrue(UnitIsConnected(frame.unit)) then
-        return 1
-    end
-
-    if UnitCanAttack and UnitCanAssist then
-        local isHostile = IsSafeTrue(UnitCanAttack("player", frame.unit))
-        local isFriendly = IsSafeTrue(UnitCanAssist("player", frame.unit))
-        if isFriendly and not isHostile then
-            return 1
-        end
-    end
-
-    if not (FocalPoint and FocalPoint.RangeCheck) then
-        return 1
-    end
-
-    if FocalPoint.RangeCheck.GetRange then
-        local ok, minRange, maxRange = pcall(FocalPoint.RangeCheck.GetRange, FocalPoint.RangeCheck, frame.unit, true, false, 0.15)
-        if ok and type(minRange) == "number" then
-            if type(maxRange) == "number" and maxRange <= rangeThreshold then
-                return 1
-            end
-
-            if minRange > rangeThreshold then
-                return TARGET_OUT_OF_RANGE_ALPHA
-            end
-
-            if maxRange == nil and minRange >= rangeThreshold then
-                return TARGET_OUT_OF_RANGE_ALPHA
-            end
-
-            return 1
-        end
-    end
-
-    if not FocalPoint.GetTargetRangeChecker then
-        return 1
-    end
-
-    local checker = FocalPoint:GetTargetRangeChecker()
-    if type(checker) ~= "function" then
-        return 1
-    end
-
-    local ok, inRange = pcall(checker, frame.unit)
-    if not ok or type(inRange) ~= "boolean" or (issecretvalue and issecretvalue(inRange)) then
-        return 1
-    end
-
-    return inRange and 1 or TARGET_OUT_OF_RANGE_ALPHA
-end
-
-local function EnsureRangeFadeDriver(frame)
-    if not frame or frame.RangeFadeDriver then
-        return frame and frame.RangeFadeDriver or nil
-    end
-
-    local driver = CreateFrame("Frame", nil, frame)
-    driver:Hide()
-    driver.owner = frame
-    driver:SetScript("OnUpdate", function(self, elapsed)
-        local owner = self.owner
-        if not owner or not owner:IsShown() then
-            self:Hide()
-            return
-        end
-
-        local targetAlpha = owner._rangeTargetAlpha
-        local currentAlpha = owner._rangeCurrentAlpha
-        if type(targetAlpha) ~= "number" or type(currentAlpha) ~= "number" then
-            self:Hide()
-            return
-        end
-
-        local delta = targetAlpha - currentAlpha
-        if math.abs(delta) < 0.01 then
-            owner._rangeCurrentAlpha = targetAlpha
-            owner:SetAlpha(targetAlpha)
-            self:Hide()
-            return
-        end
-
-        local step = math.min(1, (elapsed or 0) * TARGET_RANGE_FADE_SPEED)
-        currentAlpha = currentAlpha + (delta * step)
-        owner._rangeCurrentAlpha = currentAlpha
-        owner:SetAlpha(currentAlpha)
-    end)
-
-    frame.RangeFadeDriver = driver
-    return driver
-end
-
-local function ClearFrameVisualState(frame)
-    if not frame then
-        return
-    end
-
-    if frame.Texts then
-        for _, textObject in pairs(frame.Texts) do
-            if textObject and textObject.SetText then
-                textObject:SetText("")
-            end
-        end
-    end
-
-    if frame.Elements then
-        local health = frame.Elements.HealthBar
-        if health then
-            health:SetMinMaxValues(0, 1)
-            health:SetValue(0)
-            health:Hide()
-            if health.bg then
-                health.bg:Hide()
-            end
-        end
-
-        local power = frame.Elements.PowerBar
-        if power then
-            power:SetMinMaxValues(0, 1)
-            power:SetValue(0)
-            power:Hide()
-            if power.bg then
-                power.bg:Hide()
-            end
-        end
-
-        local altPower = frame.Elements.AlternativePowerBar
-        if altPower then
-            altPower:SetMinMaxValues(0, 1)
-            altPower:SetValue(0)
-            altPower:Hide()
-            if altPower.bg then
-                altPower.bg:Hide()
-            end
-        end
-
-        if frame.Elements.CastBar then
-            StopCastBar(frame)
-        end
-
-        local portrait = frame.Elements.Portrait
-        if portrait then
-            portrait:Hide()
-            if portrait.Texture then
-                portrait.Texture:SetTexture(nil)
-            end
-        end
-
-        for _, key in ipairs({
-            "RaidTargetIcon",
-            "LeaderIcon",
-            "RoleIcon",
-            "CombatIndicator",
-            "RestingIndicator",
-            "ReadyCheckIndicator",
-        }) do
-            local holder = frame.Elements[key]
-            if holder then
-                holder:Hide()
-                local texture = holder.Texture or holder
-                if texture and texture.SetTexture then
-                    texture:SetTexture(nil)
-                end
-            end
-        end
-    end
-
-    if frame.SetBackdropColor then
-        frame:SetBackdropColor(0, 0, 0, 0)
-    end
-    if frame.SetBackdropBorderColor then
-        frame:SetBackdropBorderColor(0, 0, 0, 0)
-    end
-
-    frame._rangeCurrentAlpha = 0
-    frame._rangeTargetAlpha = 0
-    if frame.RangeFadeDriver then
-        frame.RangeFadeDriver:Hide()
-    end
-end
-
-local function IsUnitDeadByHealth(unit)
-    if not unit or not UnitHealth or not UnitHealthMax then
-        return false
-    end
-
-    local ok, result = pcall(function()
-        local currentHealth = UnitHealth(unit)
-        local maxHealth = UnitHealthMax(unit)
-        return type(currentHealth) == "number"
-            and type(maxHealth) == "number"
-            and maxHealth > 0
-            and currentHealth <= 0
-    end)
-
-    return ok and result == true
-end
-
-local function GetClassColorForUnit(unit, useReactionForNpc)
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
-        return nil
-    end
-
-    if UnitIsPlayer and UnitIsPlayer(unit) and UnitIsEnemy and IsSafeTrue(UnitIsEnemy("player", unit)) then
-        local hostileColor = FACTION_BAR_COLORS and (FACTION_BAR_COLORS[2] or FACTION_BAR_COLORS[1]) or nil
-        if hostileColor then
-            return hostileColor.r or hostileColor[1], hostileColor.g or hostileColor[2], hostileColor.b or hostileColor[3], 1
-        end
-
-        return 1, 0.1, 0.1, 1
-    end
-
-    if UnitReaction and FACTION_BAR_COLORS then
-        local reaction = UnitReaction("player", unit)
-        local color = reaction and FACTION_BAR_COLORS[reaction] or nil
-
-        if UnitIsPlayer and UnitIsPlayer(unit) and UnitCanAttack and IsSafeTrue(UnitCanAttack("player", unit)) and color then
-            return color.r or color[1], color.g or color[2], color.b or color[3], 1
-        end
-
-        if UnitIsPlayer and not UnitIsPlayer(unit) and useReactionForNpc and color then
-            return color.r or color[1], color.g or color[2], color.b or color[3], 1
-        end
-    end
-
-    if UnitIsPlayer and not UnitIsPlayer(unit) then
-        if useReactionForNpc and UnitReaction and FACTION_BAR_COLORS then
-            local reaction = UnitReaction("player", unit)
-            local color = reaction and FACTION_BAR_COLORS[reaction] or nil
-            if color then
-                return color.r or color[1], color.g or color[2], color.b or color[3], 1
-            end
-        end
-
-        return nil
-    end
-
-    local _, classToken = UnitClass(unit)
-    if not classToken then
-        return nil
-    end
-
-    local color = nil
-
-    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-        color = CUSTOM_CLASS_COLORS[classToken]
-    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-        color = RAID_CLASS_COLORS[classToken]
-    end
-
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
-end
-
-local function GetPowerColorForUnit(unit)
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitPowerType then
-        return nil
-    end
-
-    local powerType = UnitPowerType(unit)
-    if powerType == nil then
-        return nil
-    end
-
-    local color = PowerBarColor and PowerBarColor[powerType]
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4]
-end
-
-local function GetResolvedHealthBarColor(frame, config, currentHealth, maxHealth)
-    local healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
-
-    if config and config.useClassColorHealth then
-        local classR, classG, classB, classA = GetClassColorForUnit(frame and frame.unit, config.useReactionColorNpcHealth)
-        if classR and classG and classB then
-            healthR, healthG, healthB = classR, classG, classB
-        end
-    end
-
-    return healthR, healthG, healthB, healthA
-end
-
-local function GetCurrentHealthValues(frame)
-    if not frame or not frame.unit then
-        return 0, 1
-    end
-
-    local unit = frame.unit
-    local unitExists = DoesUnitSeemPresent(unit)
-    local previewValues = IsPreviewModeEnabled() and UF:GetTestPreviewValues(frame) or nil
-
-    if previewValues then
-        return previewValues.healthCurrent or 100, previewValues.healthMax or 100
-    end
-
-    if unitExists and UnitHealth and UnitHealthMax then
-        return UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
-    end
-
-    return 0, 1
-end
-
+-- Shared aliases used directly by the coordinating runtime below.
+local GetUnitDB = Utils.GetUnitDB
+local UnpackColor = Utils.UnpackColor
+local ResolveInterruptibleState = Utils.ResolveInterruptibleState
+local GetPowerColorForUnit = Colors.GetPowerColorForUnit
+local GetStatusBarTexture = Assets.GetStatusBarTexture
+local GetFontPath = Assets.GetFontPath
+local BuildFontFlags = Assets.BuildFontFlags
+local ApplyCastBarStateColor = Cast.ApplyStateColor
+local ApplyCastBarLayout = Cast.ApplyLayout
+local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
+local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
+local MaybeDebugTarget = Presence.MaybeDebugTarget
+local ToSafeNumberValue = Utils.ToSafeNumberValue
+local FormatDisplayNumber = Utils.FormatDisplayNumber
+local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
+local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local GetActiveCastTiming = Cast.GetActiveTiming
+local GetPreviewRaidTargetIndex = Preview.GetRaidTargetIndex
+local GetSecondaryPowerTypeForUnit = Preview.GetSecondaryPowerTypeForUnit
+local GetSecondaryPowerValues = Preview.GetSecondaryPowerValues
+local StartCastBar = Cast.Start
+local StartCastBarPreview = Cast.StartPreview
+local QueueCastBarRefresh = Cast.QueueRefresh
+local GetAnchorTarget = Factory.GetAnchorTarget
+local CreateBaseFrame = Factory.CreateBaseFrame
+local CreateHealthBar = Factory.CreateHealthBar
+local CreatePowerBar = Factory.CreatePowerBar
+local CreateAlternativePowerBar = Factory.CreateAlternativePowerBar
+local CreateCastBar = Factory.CreateCastBar
+local CreateOverlayIndicatorHolder = Indicators.CreateHolder
+local ApplyOverlayIndicatorConfig = Indicators.ApplyConfig
+local ApplyOverlayIndicatorBatch = Indicators.ApplyBatch
+local CreatePortrait = Portrait.Create
+local ApplyPortraitLayout = Portrait.ApplyLayout
+local UpdatePortraitTexture = Portrait.UpdateTexture
+local RegisterPortraitEvents = Portrait.RegisterEvents
+local CreateRaidTargetIcon = RaidTarget.Create
+local ApplyRaidTargetLayout = RaidTarget.ApplyLayout
+local UpdateRaidTargetIcon = RaidTarget.Update
+local RegisterRaidTargetEvents = RaidTarget.RegisterEvents
+local UpdateLeaderIcon = Leader.Update
+local RegisterLeaderIconEvents = Leader.RegisterEvents
+local UpdateRoleIcon = Role.Update
+local RegisterRoleIconEvents = Role.RegisterEvents
+local UpdateCombatIndicator = Combat.Update
+local RegisterCombatIndicatorEvents = Combat.RegisterEvents
+local UpdateRestingIndicator = Resting.Update
+local RegisterRestingIndicatorEvents = Resting.RegisterEvents
+local UpdateReadyCheckIndicator = ReadyCheck.Update
+local RegisterReadyCheckIndicatorEvents = ReadyCheck.RegisterEvents
+local ApplyBaseFrameLayout = Layout.ApplyBaseFrame
+local ApplyHealthAndPowerLayout = BarLayout.ApplyHealthAndPower
+local ApplyAlternativePowerLayout = BarLayout.ApplyAlternativePower
+local EnsurePlayerAltPowerText = BuildRuntime.EnsurePlayerAltPowerText
+local BuildElements = BuildRuntime.CreateElements
+local RegisterBuildEvents = BuildRuntime.RegisterEvents
+local ApplyRefreshFlow = RefreshRuntime.Apply
+local HandleMissingUnit = Visibility.HandleMissingUnit
+local RegisterVisibilityEvents = Visibility.RegisterEvents
+local ClearFrameVisualState = Visibility.ClearFrameVisualState
+local QueueVisibilityRefresh = Visibility.QueueRefresh
+local GetRangeFadeMultiplier = Range.GetFadeMultiplier
+local EnsureRangeFadeDriver = Range.EnsureFadeDriver
+
+-- Health and bar coordination wrappers
 function UF:UpdateHealthBarValue(frame)
-    if not frame or not frame.Elements or not frame.Elements.HealthBar then
-        return
-    end
-
-    frame.LiveValues = frame.LiveValues or {}
-
-    local currentHealth, maxHealth = GetCurrentHealthValues(frame)
-    frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
-    frame.Elements.HealthBar:SetValue(currentHealth)
-
-    frame.LiveValues.healthCurrentRaw = currentHealth
-    frame.LiveValues.healthMaxRaw = maxHealth
-    frame.LiveValues.healthCurrentSafe = ToSafeNumberValue(currentHealth)
-    frame.LiveValues.healthMaxSafe = ToSafeNumberValue(maxHealth)
-    frame.LiveValues.healthCurrentText = FormatDisplayNumber(currentHealth)
-    frame.LiveValues.healthMaxText = FormatDisplayNumber(maxHealth)
-    frame.LiveValues.healthCurrentAbbr = ResolveBlizzardAbbreviation(currentHealth, frame.LiveValues.healthCurrentText)
-    frame.LiveValues.healthMaxAbbr = ResolveBlizzardAbbreviation(maxHealth, frame.LiveValues.healthMaxText)
+    return Health.UpdateBarValue(frame)
 end
 
 function UF:UpdateHealthBarColor(frame)
-    if not frame or not frame.Elements or not frame.Elements.HealthBar then
-        return
-    end
-
-    local config = GetUnitDB(frame.unit)
-    if not config then
-        return
-    end
-
-    local healthR, healthG, healthB, healthA = GetResolvedHealthBarColor(
-        frame,
-        config,
-        frame.LiveValues and frame.LiveValues.healthCurrentRaw,
-        frame.LiveValues and frame.LiveValues.healthMaxRaw
-    )
-    frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, 1)
-    frame.Elements.HealthBar:SetAlpha(healthA or 1)
+    return Health.UpdateBarColor(frame)
 end
 
 function UF:RefreshHealthBar(frame)
-    if not frame or not frame.Elements or not frame.Elements.HealthBar then
-        return
-    end
-
-    self:UpdateHealthBarValue(frame)
-    self:UpdateHealthBarColor(frame)
+    return Health.RefreshBar(self, frame)
 end
 
 function UF:RefreshHealthText(frame)
-    if not frame then
-        return
-    end
-
-    if self.RefreshLiveValues then
-        self:RefreshLiveValues(frame)
-    end
-
-    if self.UpdateTextElement then
-        self:UpdateTextElement(frame, "Health")
-    end
+    return Health.RefreshText(self, frame)
 end
 
 function UF:RefreshHealth(frame)
-    if not frame then
-        return
-    end
-
-    self:RefreshHealthBar(frame)
-    self:RefreshHealthText(frame)
+    return Health.Refresh(self, frame)
 end
-
-local function GetStatusBarTexture(path)
-    if type(path) == "string" and path ~= "" then
-        return path
-    end
-    return "Interface\\TargetingFrame\\UI-StatusBar"
-end
-
-local function GetFontPath(path)
-    if type(path) == "string" and path ~= "" then
-        return path
-    end
-    return STANDARD_TEXT_FONT
-end
-
-local TEST_PREVIEW_VALUES = {
-    player = {
-        healthCurrent = 146000,
-        healthMax = 146000,
-        powerCurrent = 84,
-        powerMax = 100,
-        altPowerCurrent = 72,
-        altPowerMax = 100,
-        name = "Spartanierin",
-        level = 84,
-        classToken = "WARRIOR",
-        role = "DAMAGER",
-        race = "Mensch",
-        castName = "Schildschlag",
-        castDuration = 2.5,
-    },
-    target = {
-        healthCurrent = 108000,
-        healthMax = 146000,
-        powerCurrent = 42,
-        powerMax = 100,
-        altPowerCurrent = 0,
-        altPowerMax = 0,
-        name = "Zielattrappe",
-        level = 83,
-        classToken = "PALADIN",
-        role = "TANK",
-        creature = "Humanoid",
-        castName = "Frostblitz",
-        castDuration = 2.5,
-    },
-    focus = {
-        healthCurrent = 92000,
-        healthMax = 120000,
-        powerCurrent = 55,
-        powerMax = 100,
-        altPowerCurrent = 0,
-        altPowerMax = 0,
-        name = "Fokusziel",
-        level = 83,
-        classToken = "PRIEST",
-        role = "HEALER",
-        creature = "Humanoid",
-        castName = "Heilung",
-        castDuration = 2.5,
-    },
-    pet = {
-        healthCurrent = 72000,
-        healthMax = 90000,
-        powerCurrent = 70,
-        powerMax = 100,
-        altPowerCurrent = 0,
-        altPowerMax = 0,
-        name = "Begleiter",
-        level = 83,
-        role = "DAMAGER",
-        creature = "Wildtier",
-    },
-}
 
 function UF:GetTestPreviewValues(frame)
-    if not frame or not frame.unit then
-        return nil
-    end
-
-    return TEST_PREVIEW_VALUES[frame.unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
-end
-
-local function GetPreviewRaidTargetIndex(frame)
-    local previewMap = {
-        player = 1,
-        target = 8,
-        focus = 3,
-        pet = 2,
-        targettarget = 7,
-        focustarget = 4,
-        boss = 6,
-    }
-
-    return previewMap[frame and frame.unit or ""] or 1
-end
-
-local SECONDARY_POWER_BAR_SPECS = {
-    [258] = 0, -- Shadow Priest -> Mana
-    [262] = 0, -- Elemental Shaman -> Mana
-}
-
-local function GetPlayerSpecializationID()
-    if not GetSpecialization or not GetSpecializationInfo then
-        return nil
-    end
-
-    local specializationIndex = GetSpecialization()
-    if not specializationIndex then
-        return nil
-    end
-
-    local specializationID = GetSpecializationInfo(specializationIndex)
-    if type(specializationID) ~= "number" then
-        return nil
-    end
-
-    return specializationID
-end
-
-local function GetSecondaryPowerTypeForUnit(unit)
-    if unit ~= "player" then
-        return nil
-    end
-
-    local specializationID = GetPlayerSpecializationID()
-    if not specializationID then
-        return nil
-    end
-
-    return SECONDARY_POWER_BAR_SPECS[specializationID]
-end
-
-local function GetSecondaryPowerValues(unit)
-    local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
-    if secondaryPowerType == nil or not UnitPower or not UnitPowerMax then
-        return nil, 0, 0
-    end
-
-    return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
-end
-
-local function ApplyCastBarStateColor(castBar, isInterruptible, baseColor)
-    if not castBar then
-        return
-    end
-
-    if isInterruptible == false then
-        castBar:SetStatusBarColor(0.60, 0.60, 0.60, 1.00)
-        castBar:SetAlpha(1.00)
-    else
-        local r, g, b, a = UnpackColor(baseColor, { 1.00, 0.72, 0.18, 1.00 })
-        castBar:SetStatusBarColor(r, g, b, 1.00)
-        castBar:SetAlpha(a or 1.00)
-    end
-end
-
-local function BuildFontFlags(config)
-    local flags = {}
-
-    if config.outline then
-        flags[#flags + 1] = "OUTLINE"
-    end
-
-    if config.thickOutline then
-        flags[#flags + 1] = "THICKOUTLINE"
-    end
-
-    if config.monochrome then
-        flags[#flags + 1] = "MONOCHROME"
-    end
-
-    return table.concat(flags, ",")
+    return Preview.GetTestValues(frame)
 end
 
 function UF:GetAnchorTarget(frame, anchorTo)
-    if anchorTo == "HealthBar" then
-        return frame.Elements.HealthBar or frame
-    elseif anchorTo == "PowerBar" then
-        return frame.Elements.PowerBar or frame
-    elseif anchorTo == "AlternativePowerBar" then
-        return frame.Elements.AlternativePowerBar or frame
-    elseif anchorTo == "CastBar" then
-        return frame.Elements.CastBar or frame
-    elseif anchorTo == "Frame" then
-        return frame
-    end
-
-    return frame
+    return GetAnchorTarget(frame, anchorTo)
 end
 
-
--- Frame
 function UF:CreateBaseFrame(unit, config)
-    local frameName = "FocalPoint_" .. unit:gsub("^%l", string.upper)
-    local frame = CreateFrame("Button", frameName, UIParent, "SecureUnitButtonTemplate, BackdropTemplate")
-
-    frame.unit = unit
-    frame.config = config
-    frame.Elements = {}
-    frame.Texts = {}
-    frame.Tags = {}
-    frame.LiveValues = {}
-
-    frame:RegisterForClicks("AnyUp")
-    frame:SetAttribute("unit", unit)
-    frame:SetAttribute("*type1", "target")
-    frame:SetAttribute("*type2", "togglemenu")
-    frame:SetAttribute("toggleForVehicle", true)
-    frame:Hide()
-
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 },
-    })
-
-    if FocalPoint.UpdateFrameDragState then
-        FocalPoint:UpdateFrameDragState(frame)
-    end
-
-    return frame
+    return CreateBaseFrame(unit, config)
 end
 
--- HealthBar
 function UF:CreateHealthBar(frame)
-    local health = CreateFrame("StatusBar", nil, frame)
-    health:SetMinMaxValues(0, 100)
-
-    local bg = health:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    health.bg = bg
-
-    frame.Elements.HealthBar = health
-    frame.health = health
+    return CreateHealthBar(frame)
 end
 
--- PowerBar
 function UF:CreatePowerBar(frame)
-    local power = CreateFrame("StatusBar", nil, frame)
-    power:SetMinMaxValues(0, 100)
-
-    local bg = power:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    power.bg = bg
-
-    frame.Elements.PowerBar = power
-    frame.power = power
+    return CreatePowerBar(frame)
 end
 
 function UF:CreateAlternativePowerBar(frame)
-    local power = CreateFrame("StatusBar", nil, frame)
-    power:SetMinMaxValues(0, 100)
-    power:SetFrameStrata(frame:GetFrameStrata())
-    power:SetFrameLevel(frame:GetFrameLevel() + 3)
-
-    local bg = power:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    power.bg = bg
-
-    frame.Elements.AlternativePowerBar = power
-    frame.alternativePower = power
+    return CreateAlternativePowerBar(frame)
 end
 
 function UF:CreateCastBar(frame)
-    local cast = CreateFrame("StatusBar", nil, frame)
-    cast:SetMinMaxValues(0, 1)
-    cast:SetFrameStrata(frame:GetFrameStrata())
-    cast:SetFrameLevel(frame:GetFrameLevel() + 5)
-    cast:Hide()
-
-    local bg = cast:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    cast.bg = bg
-
-    local icon = cast:CreateTexture(nil, "ARTWORK")
-    icon:Hide()
-    cast.icon = icon
-
-    cast.isCasting = false
-    cast.isChannel = false
-    cast.startTime = 0
-    cast.endTime = 0
-
-    frame.Elements.CastBar = cast
-    frame.castBar = cast
+    return CreateCastBar(frame)
 end
 
 function UF:RefreshUnitBarValues(frame)
-    if not frame or not frame.unit then
-        return
-    end
-
-    local unit = frame.unit
-    local unitExists = DoesUnitSeemPresent(unit)
-    local previewValues = IsPreviewModeEnabled() and self:GetTestPreviewValues(frame) or nil
-    frame.LiveValues = frame.LiveValues or {}
-    frame.TestValues = previewValues
-    local previousAltPowerVisible = frame.LiveValues.altPowerVisible
-
-    if frame.Elements.HealthBar then
-        self:RefreshHealthBar(frame)
-    end
-
-    if frame.Elements.PowerBar then
-        local currentPower = 0
-        local maxPower = 1
-
-        if previewValues then
-            currentPower = previewValues.powerCurrent or 65
-            maxPower = previewValues.powerMax or 100
-        elseif unitExists and UnitPower and UnitPowerMax then
-            currentPower = UnitPower(unit) or 0
-            maxPower = UnitPowerMax(unit) or 1
-        end
-
-        frame.Elements.PowerBar:SetMinMaxValues(0, maxPower)
-        frame.Elements.PowerBar:SetValue(currentPower)
-
-        frame.LiveValues.powerCurrentRaw = currentPower
-        frame.LiveValues.powerMaxRaw = maxPower
-        frame.LiveValues.powerCurrentText = FormatDisplayNumber(currentPower)
-        frame.LiveValues.powerMaxText = FormatDisplayNumber(maxPower)
-        frame.LiveValues.powerCurrentSafe = ToSafeNumberValue(currentPower)
-        frame.LiveValues.powerMaxSafe = ToSafeNumberValue(maxPower)
-        frame.LiveValues.powerCurrentAbbr = ResolveBlizzardAbbreviation(currentPower, frame.LiveValues.powerCurrentText)
-        frame.LiveValues.powerMaxAbbr = ResolveBlizzardAbbreviation(maxPower, frame.LiveValues.powerMaxText)
-    end
-
-    if frame.Elements.AlternativePowerBar then
-        local currentAltPower = 0
-        local maxAltPower = 0
-        local showAltPower = false
-
-        local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
-
-        if previewValues then
-            currentAltPower = previewValues.altPowerCurrent or 0
-            maxAltPower = previewValues.altPowerMax or 0
-            showAltPower = secondaryPowerType ~= nil and maxAltPower > 0
-        elseif secondaryPowerType ~= nil and unitExists then
-            _, currentAltPower, maxAltPower = GetSecondaryPowerValues(unit)
-            showAltPower = maxAltPower > 0
-        end
-
-        frame.Elements.AlternativePowerBar:SetMinMaxValues(0, math.max(maxAltPower, 1))
-        frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
-
-        frame.LiveValues.altPowerCurrentRaw = currentAltPower
-        frame.LiveValues.altPowerMaxRaw = maxAltPower
-        frame.LiveValues.altPowerCurrentText = FormatDisplayNumber(currentAltPower)
-        frame.LiveValues.altPowerMaxText = FormatDisplayNumber(maxAltPower)
-        frame.LiveValues.altPowerVisible = showAltPower
-        frame.LiveValues.altPowerType = secondaryPowerType
-        frame.LiveValues.altPowerCurrentSafe = ToSafeNumberValue(currentAltPower)
-        frame.LiveValues.altPowerMaxSafe = ToSafeNumberValue(maxAltPower)
-        frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
-        frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
-
-        if previousAltPowerVisible ~= nil
-            and previousAltPowerVisible ~= showAltPower
-            and not frame.isApplyingAltPowerLayout
-        then
-            frame.isApplyingAltPowerLayout = true
-            self:ApplyConfig(frame)
-            frame.isApplyingAltPowerLayout = false
-        end
-    end
+    return Power.RefreshUnitBarValues(self, frame)
 end
 
-local function GetActiveCastTiming(unit, castBar)
-    if not unit then
-        return nil, nil, nil, nil, nil, nil
-    end
+StopCastBar = Cast.Stop
 
-    local function ResolveFallbackDuration(durationMS, fallbackSeconds)
-        if type(durationMS) == "number" and not (issecretvalue and issecretvalue(durationMS)) then
-            return durationMS > 100 and (durationMS / 1000) or durationMS
-        end
-
-        return fallbackSeconds
-    end
-
-    local function ReuseExistingTiming(isChannel, castID, castToken)
-        if not castBar or not castBar.isCasting then
-            return nil, nil
-        end
-
-        if castBar.isChannel ~= isChannel then
-            return nil, nil
-        end
-
-        if castID ~= nil and castBar.castID == castID then
-            return castBar.startTime, castBar.endTime
-        end
-
-        if type(castToken) == "string" and castToken ~= "" and castBar.castToken == castToken then
-            return castBar.startTime, castBar.endTime
-        end
-
-        return nil, nil
-    end
-
-    if UnitCastingInfo then
-        local castName, _, castIcon, startTimeMS, endTimeMS, _, _, notInterruptible, _, castID = UnitCastingInfo(unit)
-        if type(castName) == "string" then
-            local isInterruptible = ResolveInterruptibleState(notInterruptible)
-            if type(startTimeMS) == "number"
-                and type(endTimeMS) == "number"
-                and not (issecretvalue and issecretvalue(startTimeMS))
-                and not (issecretvalue and issecretvalue(endTimeMS))
-            then
-                return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, isInterruptible, castID
-            end
-
-            if UnitCastingDuration then
-                local durationMS = UnitCastingDuration(unit)
-                local duration = ResolveFallbackDuration(durationMS, nil)
-                if duration then
-                    if castBar
-                        and castBar.isCasting
-                        and not castBar.isChannel
-                        and castBar.castID == castID
-                        and type(castBar.startTime) == "number"
-                        and type(castBar.endTime) == "number"
-                    then
-                        return false, castBar.startTime, castBar.endTime, castIcon, isInterruptible, castID
-                    end
-
-                    local now = GetTime and GetTime() or 0
-                    return false, now, now + duration, castIcon, isInterruptible, castID
-                end
-            end
-
-            local now = GetTime and GetTime() or 0
-            local reusedStart, reusedEnd = ReuseExistingTiming(false, castID, castName)
-            if type(reusedStart) == "number" and type(reusedEnd) == "number" then
-                return false, reusedStart, reusedEnd, castIcon, isInterruptible, castID, castName
-            end
-            return false, now, now + 2.5, castIcon, isInterruptible, castID, castName
-        end
-    end
-
-    if UnitChannelInfo then
-        local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible, _, _, castID = UnitChannelInfo(unit)
-        if type(channelName) == "string" then
-            local isInterruptible = ResolveInterruptibleState(notInterruptible)
-            if type(startTimeMS) == "number"
-                and type(endTimeMS) == "number"
-                and not (issecretvalue and issecretvalue(startTimeMS))
-                and not (issecretvalue and issecretvalue(endTimeMS))
-            then
-                return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, isInterruptible, castID
-            end
-
-            if UnitChannelDuration then
-                local durationMS = UnitChannelDuration(unit)
-                local duration = ResolveFallbackDuration(durationMS, nil)
-                if duration then
-                    if castBar
-                        and castBar.isCasting
-                        and castBar.isChannel
-                        and castBar.castID == castID
-                        and type(castBar.startTime) == "number"
-                        and type(castBar.endTime) == "number"
-                    then
-                        return true, castBar.startTime, castBar.endTime, channelIcon, isInterruptible, castID
-                    end
-
-                    local now = GetTime and GetTime() or 0
-                    return true, now, now + duration, channelIcon, isInterruptible, castID
-                end
-            end
-
-            local now = GetTime and GetTime() or 0
-            local reusedStart, reusedEnd = ReuseExistingTiming(true, castID, channelName)
-            if type(reusedStart) == "number" and type(reusedEnd) == "number" then
-                return true, reusedStart, reusedEnd, channelIcon, isInterruptible, castID, channelName
-            end
-            return true, now, now + 2.5, channelIcon, isInterruptible, castID, channelName
-        end
-    end
-
-    return nil, nil, nil, nil, nil, nil
-end
-
-local function StartCastBar(frame)
-    local castBar = frame and frame.Elements and frame.Elements.CastBar
-    local unit = frame and frame.unit
-    if not castBar or not unit then
-        return
-    end
-
-    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID, castToken = GetActiveCastTiming(unit, castBar)
-
-    if type(startTime) ~= "number" or type(endTime) ~= "number" then
-        castBar.isCasting = false
-        castBar.isPreview = false
-        castBar:Hide()
-        return
-    end
-
-    castBar.startTime = startTime
-    castBar.endTime = endTime
-    castBar.isCasting = true
-    castBar.isChannel = isChannel and true or false
-    castBar.isPreview = false
-    castBar.isInterruptible = isInterruptible ~= false
-    castBar.castID = castID
-    castBar.castToken = castToken
-    castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
-    castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
-    ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
-
-    if castBar.icon then
-        if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
-            castBar.icon:SetTexture(spellIcon)
-            castBar.icon:Show()
-        else
-            castBar.icon:SetTexture(nil)
-            castBar.icon:Hide()
-        end
-    end
-
-    if frame.config and frame.config.showCastBar ~= false then
-        castBar:Show()
-    end
-end
-
-local function StartCastBarPreview(frame)
-    local castBar = frame and frame.Elements and frame.Elements.CastBar
-    if not castBar then
-        return
-    end
-
-    local now = GetTime and GetTime() or 0
-    castBar.startTime = now
-    castBar.endTime = now + 2.5
-    castBar.isCasting = true
-    castBar.isChannel = false
-    castBar.isPreview = true
-    castBar.isInterruptible = true
-    castBar.castID = nil
-    castBar.castToken = "preview"
-    castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
-    castBar:SetValue(now + 1.25)
-    ApplyCastBarStateColor(castBar, true, frame.config and frame.config.castBarColor)
-
-    if castBar.icon then
-        if frame.config and frame.config.showCastBarIcon ~= false then
-            castBar.icon:SetTexture(136048)
-            castBar.icon:Show()
-        else
-            castBar.icon:SetTexture(nil)
-            castBar.icon:Hide()
-        end
-    end
-
-    if frame.config and frame.config.showCastBar ~= false then
-        castBar:Show()
-    end
-end
-
-StopCastBar = function(frame)
-    local castBar = frame and frame.Elements and frame.Elements.CastBar
-    if not castBar then
-        return
-    end
-
-    castBar.isCasting = false
-    castBar.isChannel = false
-    castBar.isPreview = false
-    castBar.isInterruptible = true
-    castBar.startTime = 0
-    castBar.endTime = 0
-    castBar.castID = nil
-    castBar.castToken = nil
-    if castBar.icon then
-        castBar.icon:SetTexture(nil)
-        castBar.icon:Hide()
-    end
-    castBar:Hide()
-end
-
-local function QueueCastBarRefresh(frame)
-    if not frame or not C_Timer or not C_Timer.After then
-        return
-    end
-
-    if frame.castBarRefreshQueued then
-        return
-    end
-
-    frame.castBarRefreshQueued = true
-    C_Timer.After(0, function()
-        if not frame then
-            return
-        end
-
-        frame.castBarRefreshQueued = false
-
-        if UF.RefreshCastBar then
-            UF:RefreshCastBar(frame)
-        end
-    end)
-end
-
-local function QueueVisibilityRefresh(frame)
-    if not frame or not C_Timer or not C_Timer.After then
-        return
-    end
-
-    frame.visibilityRefreshQueued = frame.visibilityRefreshQueued or {}
-
-    local function QueueAfter(delay)
-        if frame.visibilityRefreshQueued[delay] then
-            return
-        end
-
-        frame.visibilityRefreshQueued[delay] = true
-        C_Timer.After(delay, function()
-            if not frame then
-                return
-            end
-
-            if frame.visibilityRefreshQueued then
-                frame.visibilityRefreshQueued[delay] = nil
-            end
-
-            if UF and UF.Refresh then
-                UF:Refresh(frame)
-            end
-        end)
-    end
-
-    QueueAfter(0)
-    QueueAfter(0.05)
-end
-
+-- Cast bar runtime wrappers
 function UF:RefreshCastBar(frame)
-    local castBar = frame and frame.Elements and frame.Elements.CastBar
-    if not castBar then
-        return
-    end
-
-    if frame.config and frame.config.showCastBar == false then
-        StopCastBar(frame)
-        return
-    end
-
-    local unit = frame.unit
-    if not unit then
-        StopCastBar(frame)
-        return
-    end
-
-    local now = GetTime and GetTime() or 0
-    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID, castToken = GetActiveCastTiming(unit, castBar)
-    local hasCast = type(startTime) == "number" and type(endTime) == "number"
-
-    if hasCast then
-        local duration = math.max(endTime - startTime, 0.001)
-
-        castBar.isCasting = true
-        castBar.isChannel = isChannel
-        castBar.isPreview = false
-        castBar.isInterruptible = isInterruptible ~= false
-        castBar.castID = castID
-        castBar.castToken = castToken
-        castBar.startTime = startTime
-        castBar.endTime = endTime
-        castBar:SetMinMaxValues(0, duration)
-
-        if isChannel then
-            castBar:SetValue(math.max(endTime - now, 0))
-        else
-            castBar:SetValue(math.max(now - startTime, 0))
-        end
-
-        ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
-
-        if castBar.icon then
-            if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
-                castBar.icon:SetTexture(spellIcon)
-                castBar.icon:Show()
-            else
-                castBar.icon:SetTexture(nil)
-                castBar.icon:Hide()
-            end
-        end
-
-        castBar:Show()
-    elseif not castBar.isPreview then
-        StopCastBar(frame)
-    end
+    return CastRuntime.Refresh(self, frame)
 end
 
 function UF:RegisterCastBarEvents(frame)
-    if not frame or frame.CastBarEventFrame or not frame.Elements or not frame.Elements.CastBar then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-    eventFrame.elapsed = 0
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnUpdate", function(self, elapsed)
-        local owner = self.owner
-        local castBar = owner and owner.Elements and owner.Elements.CastBar
-        if not owner or not castBar or not castBar.isCasting then
-            self.elapsed = 0
-            return
-        end
-
-        self.elapsed = (self.elapsed or 0) + elapsed
-        if self.elapsed < 0.02 then
-            return
-        end
-
-        self.elapsed = 0
-
-        local now = GetTime and GetTime() or 0
-        if castBar.isPreview then
-            if not IsPreviewModeEnabled() then
-                StopCastBar(owner)
-                return
-            end
-
-            if now >= castBar.endTime then
-                castBar.startTime = now
-                castBar.endTime = now + 2.5
-                castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
-            end
-
-            castBar:SetValue(now)
-            return
-        end
-
-        UF:RefreshCastBar(owner)
-    end)
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner then
-            return
-        end
-
-        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            UF:RefreshCastBar(owner)
-            QueueCastBarRefresh(owner)
-            return
-        end
-
-        if event == "UNIT_PET" then
-            if owner.unit == "pet" and unit == "player" then
-                UF:RefreshCastBar(owner)
-                QueueCastBarRefresh(owner)
-            end
-            return
-        end
-
-        if event == "PLAYER_ENTERING_WORLD" then
-            UF:RefreshCastBar(owner)
-            QueueCastBarRefresh(owner)
-            return
-        end
-
-        if unit and unit ~= owner.unit then
-            return
-        end
-
-        if event == "UNIT_SPELLCAST_STOP"
-            or event == "UNIT_SPELLCAST_FAILED"
-            or event == "UNIT_SPELLCAST_INTERRUPTED"
-            or event == "UNIT_SPELLCAST_CHANNEL_STOP"
-        then
-            StopCastBar(owner)
-            return
-        end
-
-        UF:RefreshCastBar(owner)
-        QueueCastBarRefresh(owner)
-    end)
-
-    frame.CastBarEventFrame = eventFrame
+    return CastRuntime.RegisterEvents(self, frame)
 end
 
--- Raid Target Icon
+-- Overlay indicator creation helpers
 function UF:CreateRaidTargetIcon(frame)
-    -- Use a dedicated overlay frame so the RTM can reliably sit above bars.
-    -- A plain texture on the base frame can end up visually behind child
-    -- frames like HealthBar/PowerBar when frame levels differ.
-    local holder = CreateFrame("Frame", nil, frame)
-    holder:SetAllPoints(frame)
-    holder:SetFrameStrata(frame:GetFrameStrata())
-    holder:SetFrameLevel(frame:GetFrameLevel() + 20)
-    holder:Hide()
-
-    local texture = holder:CreateTexture(nil, "OVERLAY", nil, 7)
-    texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
-    texture:Hide()
-
-    holder.Texture = texture
-    frame.Elements.RaidTargetIcon = holder
-    frame.RaidTargetIcon = holder
-end
-
-local function CreateOverlayIndicatorHolder(frame, elementKey)
-    local holder = CreateFrame("Frame", nil, frame)
-    holder:SetAllPoints(frame)
-    holder:SetFrameStrata(frame:GetFrameStrata())
-    holder:SetFrameLevel(frame:GetFrameLevel() + 20)
-    holder:Hide()
-
-    local texture = holder:CreateTexture(nil, "OVERLAY", nil, 7)
-    texture:Hide()
-
-    holder.Texture = texture
-    frame.Elements[elementKey] = holder
-    frame[elementKey] = holder
-end
-
-local function ApplyOverlayIndicatorConfig(owner, frame, holder, options)
-    if not holder then
-        return
-    end
-
-    local icon = holder.Texture or holder
-
-    holder:ClearAllPoints()
-    holder:SetScale(1)
-    holder:SetFrameStrata(frame:GetFrameStrata())
-    holder:SetFrameLevel(math.max(frame:GetFrameLevel() + 20, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 10) or (frame:GetFrameLevel() + 20)))
-    icon:ClearAllPoints()
-    icon:SetScale(1)
-
-    if options.enabled then
-        local effectiveSize = options.size * options.scale
-        holder:SetSize(effectiveSize, effectiveSize)
-        icon:SetAllPoints(holder)
-
-        if options.placement == "INSIDE" then
-            if options.insideSide == "LEFT" then
-                holder:SetPoint("TOPLEFT", frame, "TOPLEFT", options.borderInset + options.padding, -(options.borderInset + options.padding))
-            else
-                holder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(options.borderInset + options.padding), -(options.borderInset + options.padding))
-            end
-        else
-            local anchorParent = owner:GetAnchorTarget(frame, options.anchorTo) or frame
-            holder:SetPoint(
-                options.point,
-                anchorParent,
-                options.relativePoint,
-                options.offsetX,
-                options.offsetY
-            )
-        end
-
-        options.updateFunc(frame)
-    else
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-    end
+    return CreateRaidTargetIcon(frame)
 end
 
 function UF:CreateLeaderIcon(frame)
@@ -1497,577 +192,66 @@ function UF:CreateReadyCheckIndicator(frame)
     CreateOverlayIndicatorHolder(frame, "ReadyCheckIndicator")
 end
 
-
+-- Overlay indicator runtime wrappers
 function UF:UpdateRaidTargetIcon(frame)
-    if not frame or not frame.Elements or not frame.Elements.RaidTargetIcon then
-        return
-    end
-
-    local holder = frame.Elements.RaidTargetIcon
-    local icon = holder.Texture or holder
-    local config = frame.config
-    local rtmConfig = config and config.RaidTargetIcon or nil
-
-    if not rtmConfig or rtmConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    local index = frame.unit and GetRaidTargetIndex and GetRaidTargetIndex(frame.unit) or nil
-
-    if not index and IsPreviewModeEnabled() then
-        index = GetPreviewRaidTargetIndex(frame)
-    end
-
-    if not index then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
-    SetRaidTargetIconTexture(icon, index)
-    holder:Show()
-    icon:Show()
+    return UpdateRaidTargetIcon(self, frame)
 end
 
 function UF:RegisterRaidTargetEvents(frame)
-    if not frame or frame.RaidTargetEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("RAID_TARGET_UPDATE")
-    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-    eventFrame:RegisterEvent("UNIT_TARGET")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        if event == "UNIT_TARGET" then
-            if owner.unit ~= "targettarget" and owner.unit ~= "focustarget" then
-                return
-            end
-
-            local expectedUnit = owner.unit == "targettarget" and "target" or "focus"
-            if unit ~= expectedUnit then
-                return
-            end
-        elseif event == "UNIT_PET" and unit ~= "player" then
-            return
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdateRaidTargetIcon(owner)
-            end
-        end)
-    end)
-
-    frame.RaidTargetEventFrame = eventFrame
+    return RegisterRaidTargetEvents(self, frame)
 end
 
 function UF:UpdateLeaderIcon(frame)
-    if not frame or not frame.Elements or not frame.Elements.LeaderIcon then
-        return
-    end
-
-    local holder = frame.Elements.LeaderIcon
-    local icon = holder.Texture or holder
-    local config = frame.config
-    local leaderConfig = config and config.LeaderIcon or nil
-
-    if not leaderConfig or leaderConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    local isLeader = false
-
-    if IsPreviewModeEnabled() then
-        isLeader = frame.unit == "player" or frame.unit == "target"
-    end
-
-    if not isLeader and frame.unit and UnitExists and UnitExists(frame.unit) then
-        if UnitLeadsAnyGroup then
-            isLeader = UnitLeadsAnyGroup(frame.unit) and true or false
-        elseif UnitIsGroupLeader then
-            isLeader = UnitIsGroupLeader(frame.unit) and true or false
-        end
-    end
-
-    if not isLeader then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    icon:SetAtlas("UI-HUD-UnitFrame-Player-Group-LeaderIcon", true)
-    holder:Show()
-    icon:Show()
+    return UpdateLeaderIcon(self, frame)
 end
 
 function UF:RegisterLeaderIconEvents(frame)
-    if not frame or frame.LeaderIconEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-    eventFrame:RegisterEvent("PARTY_LEADER_CHANGED")
-    eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        if event == "UNIT_PET" and unit ~= "player" then
-            return
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdateLeaderIcon(owner)
-            end
-        end)
-    end)
-
-    frame.LeaderIconEventFrame = eventFrame
+    return RegisterLeaderIconEvents(self, frame)
 end
 
 function UF:UpdateRoleIcon(frame)
-    if not frame or not frame.Elements or not frame.Elements.RoleIcon then
-        return
-    end
-
-    local holder = frame.Elements.RoleIcon
-    local icon = holder.Texture or holder
-    local config = frame.config
-    local roleConfig = config and config.RoleIcon or nil
-
-    if not roleConfig or roleConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    local role = frame.unit and UnitGroupRolesAssigned and UnitGroupRolesAssigned(frame.unit) or nil
-
-    if (not role or role == "NONE") and IsPreviewModeEnabled() then
-        local preview = self:GetTestPreviewValues(frame)
-        role = preview and preview.role or nil
-    end
-
-    if role == "TANK" then
-        icon:SetAtlas("UI-LFG-RoleIcon-Tank-Micro-Raid", true)
-    elseif role == "HEALER" then
-        icon:SetAtlas("UI-LFG-RoleIcon-Healer-Micro-Raid", true)
-    elseif role == "DAMAGER" then
-        icon:SetAtlas("UI-LFG-RoleIcon-DPS-Micro-Raid", true)
-    else
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    holder:Show()
-    icon:Show()
+    return UpdateRoleIcon(self, frame)
 end
 
 function UF:RegisterRoleIconEvents(frame)
-    if not frame or frame.RoleIconEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-    eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        if event == "UNIT_PET" and unit ~= "player" then
-            return
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdateRoleIcon(owner)
-            end
-        end)
-    end)
-
-    frame.RoleIconEventFrame = eventFrame
+    return RegisterRoleIconEvents(self, frame)
 end
 
 function UF:UpdateCombatIndicator(frame)
-    if not frame or not frame.Elements or not frame.Elements.CombatIndicator then
-        return
-    end
-
-    local holder = frame.Elements.CombatIndicator
-    local icon = holder.Texture or holder
-    local config = frame.config
-    local combatConfig = config and config.CombatIndicator or nil
-
-    if not combatConfig or combatConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    local inCombat = frame.unit and UnitAffectingCombat and UnitAffectingCombat(frame.unit) or false
-
-    if IsPreviewModeEnabled() then
-        inCombat = frame.unit == "player" or frame.unit == "target"
-    end
-
-    if not inCombat then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    icon:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon", true)
-    holder:Show()
-    icon:Show()
+    return UpdateCombatIndicator(self, frame)
 end
 
 function UF:RegisterCombatIndicatorEvents(frame)
-    if not frame or frame.CombatIndicatorEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("UNIT_FLAGS")
-    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        if event == "UNIT_FLAGS" and unit ~= owner.unit then
-            return
-        end
-
-        if event == "UNIT_PET" and unit ~= "player" then
-            return
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdateCombatIndicator(owner)
-            end
-        end)
-    end)
-
-    frame.CombatIndicatorEventFrame = eventFrame
+    return RegisterCombatIndicatorEvents(self, frame)
 end
 
 function UF:UpdateRestingIndicator(frame)
-    if not frame or not frame.Elements or not frame.Elements.RestingIndicator then
-        return
-    end
-
-    local holder = frame.Elements.RestingIndicator
-    local icon = holder.Texture or holder
-    local config = frame.config
-    local restingConfig = config and config.RestingIndicator or nil
-
-    if not restingConfig or restingConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    local isResting = frame.unit == "player" and IsResting and IsResting()
-
-    if IsPreviewModeEnabled() then
-        isResting = frame.unit == "player"
-    end
-
-    if not isResting then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    icon:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
-    icon:SetTexCoord(0, 0.5, 0, 0.421875)
-    holder:Show()
-    icon:Show()
+    return UpdateRestingIndicator(self, frame)
 end
 
 function UF:RegisterRestingIndicatorEvents(frame)
-    if not frame or frame.RestingIndicatorEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
-
-    eventFrame:SetScript("OnEvent", function()
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdateRestingIndicator(owner)
-            end
-        end)
-    end)
-
-    frame.RestingIndicatorEventFrame = eventFrame
+    return RegisterRestingIndicatorEvents(self, frame)
 end
 
 function UF:UpdateReadyCheckIndicator(frame)
-    if not frame or not frame.Elements or not frame.Elements.ReadyCheckIndicator then
-        return
-    end
-
-    local holder = frame.Elements.ReadyCheckIndicator
-    local icon = holder.Texture or holder
-    local config = frame.config
-    local readyCheckConfig = config and config.ReadyCheckIndicator or nil
-
-    if not readyCheckConfig or readyCheckConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    local status = frame.unit and GetReadyCheckStatus and GetReadyCheckStatus(frame.unit) or nil
-
-    if not status and IsPreviewModeEnabled() then
-        local previewMap = {
-            player = "ready",
-            target = "notready",
-            focus = "waiting",
-            pet = "ready",
-        }
-        status = previewMap[frame.unit] or "ready"
-    end
-
-    if status == "ready" then
-        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
-    elseif status == "notready" then
-        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-    elseif status == "waiting" then
-        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
-    else
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
-        return
-    end
-
-    icon:SetTexCoord(0, 1, 0, 1)
-    holder:Show()
-    icon:Show()
+    return UpdateReadyCheckIndicator(self, frame)
 end
 
 function UF:RegisterReadyCheckIndicatorEvents(frame)
-    if not frame or frame.ReadyCheckIndicatorEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("READY_CHECK")
-    eventFrame:RegisterEvent("READY_CHECK_CONFIRM")
-    eventFrame:RegisterEvent("READY_CHECK_FINISHED")
-    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        if event == "UNIT_PET" and unit ~= "player" then
-            return
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdateReadyCheckIndicator(owner)
-            end
-        end)
-    end)
-
-    frame.ReadyCheckIndicatorEventFrame = eventFrame
+    return RegisterReadyCheckIndicatorEvents(self, frame)
 end
 
 -- Portrait
 function UF:CreatePortrait(frame)
-    local portraitHolder = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    portraitHolder:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-        insets = { left = 0, right = 0, top = 0, bottom = 0 },
-    })
-
-    local portraitTexture = portraitHolder:CreateTexture(nil, "ARTWORK")
-    portraitTexture:SetAllPoints()
-    portraitTexture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-
-    portraitHolder.Texture = portraitTexture
-
-    frame.Elements.Portrait = portraitHolder
-    frame.Portrait = portraitHolder
+    return CreatePortrait(frame)
 end
 
 function UF:UpdatePortraitTexture(frame)
-    if not frame or not frame.Elements or not frame.Elements.Portrait then
-        return
-    end
-
-    local portrait = frame.Elements.Portrait
-    local texture = portrait.Texture
-    local config = frame.config
-    local portraitConfig = config and config.Portrait or nil
-
-    if not texture then
-        return
-    end
-
-    if not portraitConfig or portraitConfig.enabled == false then
-        texture:SetTexture(nil)
-        return
-    end
-
-    texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-
-    if frame.unit and UnitExists(frame.unit) then
-        SetPortraitTexture(texture, frame.unit)
-    else
-        texture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-    end
-
-    texture:Show()
+    return UpdatePortraitTexture(frame)
 end
 
 function UF:RegisterPortraitEvents(frame)
-    if not frame or frame.PortraitEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("PORTRAITS_UPDATED")
-    eventFrame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
-    eventFrame:RegisterEvent("UNIT_MODEL_CHANGED")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner or not owner:IsShown() then
-            return
-        end
-
-        if event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
-            if unit ~= owner.unit then
-                return
-            end
-        end
-
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                UF:UpdatePortraitTexture(owner)
-            end
-        end)
-    end)
-
-    frame.PortraitEventFrame = eventFrame
+    return RegisterPortraitEvents(frame)
 end
 
 function UF:ApplyConfig(frame)
@@ -2188,8 +372,6 @@ function UF:ApplyConfig(frame)
     local readyCheckOffsetY = tonumber(readyCheckConfig.offsetY) or 0
     local readyCheckAnchorTo = readyCheckConfig.anchorTo or "Frame"
 
-    local bgR, bgG, bgB, bgA = UnpackColor(config.backgroundColor, { 0.08, 0.08, 0.08, 0.9 })
-    local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0.2, 0.2, 0.2, 1 })
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
 
@@ -2212,424 +394,233 @@ function UF:ApplyConfig(frame)
     local powerTexture = GetStatusBarTexture(config.powerBarTexture)
     local castTexture = GetStatusBarTexture(config.castBarTexture)
     local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
-    local globalClickThrough = FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.General
-        and FocalPoint.db.profile.General.GlobalClickThrough == true
-    local globalMouseEnabled = FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.General
-        and FocalPoint.db.profile.General.MouseEnabled
-    local globalClampToScreen = FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.General
-        and FocalPoint.db.profile.General.ClampToScreen
-    local mouseEnabled = globalMouseEnabled
-    local clampToScreen = globalClampToScreen
+    ApplyBaseFrameLayout(self, frame, config, {
+        width = width,
+        height = height,
+        alpha = alpha,
+        scale = scale,
+        frameLevel = frameLevel,
+        frameStrata = frameStrata,
+    })
 
-    if mouseEnabled == nil then
-        mouseEnabled = config.mouseEnabled ~= false
-    end
-
-    if clampToScreen == nil then
-        clampToScreen = config.clampToScreen == true
-    end
-
-    local shouldBeShown = config.enabled ~= false
-    if shouldBeShown and not IsPreviewModeEnabled() and frame.unit ~= "player" then
-        shouldBeShown = DoesUnitSeemPresent(frame.unit)
-    end
-
-    frame:ClearAllPoints()
-    frame:SetSize(width, height)
-    frame:SetAlpha(alpha)
-    frame:SetScale(scale)
-    frame:SetFrameLevel(frameLevel)
-    frame:SetFrameStrata(frameStrata)
-    frame:SetShown(shouldBeShown)
-    frame:EnableMouse(mouseEnabled ~= false)
-    frame:SetMouseClickEnabled(not (config.clickThrough or globalClickThrough))
-    frame:SetClampedToScreen(clampToScreen == true)
-
-    local relativeTo = _G[config.relativeTo or "UIParent"] or UIParent
-    local point = config.point or "CENTER"
-    local relativePoint = config.relativePoint or "CENTER"
-    local x = config.x or 0
-    local y = config.y or 0
-
-    local relativeScale = 1
-    if relativeTo.GetEffectiveScale then
-        relativeScale = relativeTo:GetEffectiveScale()
-    end
-
-    local frameScale = frame:GetEffectiveScale() or 1
-
-    local adjustedX = x * (relativeScale / frameScale)
-    local adjustedY = y * (relativeScale / frameScale)
-
-    frame:SetPoint(
-        point,
-        relativeTo,
-        relativePoint,
-        adjustedX,
-        adjustedY
-    )
-
-    frame:SetBackdropColor(bgR, bgG, bgB, bgA)
-    frame:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
-
-     -- HealthBar
-    if frame.Elements.HealthBar then
-        local health = frame.Elements.HealthBar
-        health:ClearAllPoints()
-        health:SetStatusBarTexture(healthTexture)
-
-        if health.bg then
-            health.bg:SetTexture(healthTexture)
-            health.bg:SetVertexColor(healthBgR, healthBgG, healthBgB, healthBgA)
-            health.bg:SetShown(healthBackgroundShown)
-        end
-
-        local healthLeftOffset = borderInset
-        local healthRightOffset = -borderInset
-        local healthBottomY = borderInset
-        if alternativePowerBarVisible then
-            healthBottomY = healthBottomY + alternativePowerBarHeight
-        end
-        if showPowerBar then
-            healthBottomY = healthBottomY + powerBarHeight
-        end
-
-        if portraitInside then
-            if portraitInsideSide == "LEFT" then
-                healthLeftOffset = borderInset + portraitReservedSpace
-            elseif portraitInsideSide == "RIGHT" then
-                healthRightOffset = -(borderInset + portraitReservedSpace)
-            end
-        end
-
-        health:SetPoint("TOPLEFT", frame, "TOPLEFT", healthLeftOffset, -borderInset)
-        health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", healthRightOffset, -borderInset)
-        health:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", healthLeftOffset, healthBottomY)
-        health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", healthRightOffset, healthBottomY)
-
-        health:Show()
-        self:UpdateHealthBarColor(frame)
-    end
-
-    -- PowerBar
-    if frame.Elements.PowerBar then
-        local power = frame.Elements.PowerBar
-        power:ClearAllPoints()
-        power:SetStatusBarTexture(powerTexture)
-        power:SetStatusBarColor(powerR, powerG, powerB, 1)
-        power:SetAlpha(powerA or 1)
-
-        if power.bg then
-            power.bg:SetTexture(powerTexture)
-            power.bg:SetVertexColor(powerBgR, powerBgG, powerBgB, powerBgA)
-            power.bg:SetShown(powerBackgroundShown and showPowerBar)
-        end
-
-        if showPowerBar then
-            local powerLeftOffset = borderInset
-            local powerRightOffset = -borderInset
-            local powerBottomOffset = borderInset + (alternativePowerBarVisible and alternativePowerBarHeight or 0)
-
-            if portraitInside then
-                if portraitInsideSide == "LEFT" then
-                    powerLeftOffset = borderInset + portraitReservedSpace
-                elseif portraitInsideSide == "RIGHT" then
-                    powerRightOffset = -(borderInset + portraitReservedSpace)
-                end
-            end
-
-            power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
-            power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
-            power:SetHeight(powerBarHeight)
-            power:Show()
-        else
-            if power.bg then
-                power.bg:Hide()
-            end
-            power:Hide()
-        end
-    end
+    ApplyHealthAndPowerLayout(self, frame, {
+        borderInset = borderInset,
+        portraitInside = portraitInside,
+        portraitInsideSide = portraitInsideSide,
+        portraitReservedSpace = portraitReservedSpace,
+        alternativePowerBarVisible = alternativePowerBarVisible,
+        alternativePowerBarHeight = alternativePowerBarHeight,
+        showPowerBar = showPowerBar,
+        powerBarHeight = powerBarHeight,
+        healthTexture = healthTexture,
+        healthBgR = healthBgR,
+        healthBgG = healthBgG,
+        healthBgB = healthBgB,
+        healthBgA = healthBgA,
+        healthBackgroundShown = healthBackgroundShown,
+        powerTexture = powerTexture,
+        powerR = powerR,
+        powerG = powerG,
+        powerB = powerB,
+        powerA = powerA,
+        powerBgR = powerBgR,
+        powerBgG = powerBgG,
+        powerBgB = powerBgB,
+        powerBgA = powerBgA,
+        powerBackgroundShown = powerBackgroundShown,
+    })
 
     self:ApplyRangeFade(frame)
 
-    if frame.Elements.AlternativePowerBar then
-        local altPower = frame.Elements.AlternativePowerBar
-        local altPowerType = liveAltPowerType or (frame.LiveValues and frame.LiveValues.altPowerType) or 0
-        local altPowerTypeColor = PowerBarColor and PowerBarColor[altPowerType]
-        local altPowerR, altPowerG, altPowerB, altPowerA = powerR, powerG, powerB, powerA
-        if altPowerTypeColor then
-            altPowerR = altPowerTypeColor.r or altPowerTypeColor[1] or altPowerR
-            altPowerG = altPowerTypeColor.g or altPowerTypeColor[2] or altPowerG
-            altPowerB = altPowerTypeColor.b or altPowerTypeColor[3] or altPowerB
-        end
-
-        altPower:ClearAllPoints()
-        altPower:SetStatusBarTexture(altPowerTexture)
-        altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, 1)
-        altPower:SetAlpha(altPowerA or 1)
-
-        if altPower.bg then
-            altPower.bg:SetTexture(altPowerTexture)
-            altPower.bg:SetVertexColor(powerBgR, powerBgG, powerBgB, powerBgA)
-            altPower.bg:SetShown(alternativePowerBarVisible and powerBackgroundShown)
-        end
-
-        if alternativePowerBarVisible then
-            local currentAltPower = liveAltPowerCurrent or (frame.LiveValues and frame.LiveValues.altPowerCurrentRaw) or 0
-            local maxAltPower = liveAltPowerMax or (frame.LiveValues and frame.LiveValues.altPowerMaxRaw) or 0
-
-            altPower:SetMinMaxValues(0, math.max(maxAltPower, 1))
-            altPower:SetValue(currentAltPower)
-
-            local altPowerLeftOffset = borderInset
-            local altPowerRightOffset = -borderInset
-
-            if portraitInside then
-                if portraitInsideSide == "LEFT" then
-                    altPowerLeftOffset = borderInset + portraitReservedSpace
-                elseif portraitInsideSide == "RIGHT" then
-                    altPowerRightOffset = -(borderInset + portraitReservedSpace)
-                end
-            end
-
-            altPower:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", altPowerLeftOffset, borderInset)
-            altPower:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", altPowerRightOffset, borderInset)
-            altPower:SetHeight(alternativePowerBarHeight)
-            altPower:Show()
-        else
-            if altPower.bg then
-                altPower.bg:Hide()
-            end
-            altPower:Hide()
-        end
-    end
+    ApplyAlternativePowerLayout(frame, {
+        borderInset = borderInset,
+        portraitInside = portraitInside,
+        portraitInsideSide = portraitInsideSide,
+        portraitReservedSpace = portraitReservedSpace,
+        alternativePowerBarVisible = alternativePowerBarVisible,
+        alternativePowerBarHeight = alternativePowerBarHeight,
+        liveAltPowerType = liveAltPowerType,
+        liveAltPowerCurrent = liveAltPowerCurrent,
+        liveAltPowerMax = liveAltPowerMax,
+        altPowerTexture = altPowerTexture,
+        powerR = powerR,
+        powerG = powerG,
+        powerB = powerB,
+        powerA = powerA,
+        powerBgR = powerBgR,
+        powerBgG = powerBgG,
+        powerBgB = powerBgB,
+        powerBgA = powerBgA,
+        powerBackgroundShown = powerBackgroundShown,
+    })
 
     if frame.Elements.CastBar then
-        local castBar = frame.Elements.CastBar
         local showCastBar = config.showCastBar ~= false
         local showCastBarIcon = config.showCastBarIcon ~= false
         local castBarHeight = tonumber(config.castBarHeight) or 10
-        local castBarIconSize = showCastBarIcon and castBarHeight or 0
-        local castBarIconGap = showCastBarIcon and 4 or 0
         local castBarPoint = config.castBarPoint or "BOTTOMLEFT"
         local castBarRelativePoint = config.castBarRelativePoint or "TOPLEFT"
         local castBarOffsetX = tonumber(config.castBarOffsetX) or 0
         local castBarOffsetY = tonumber(config.castBarOffsetY) or 4
 
-        castBar:ClearAllPoints()
-        castBar:SetFrameStrata(frame:GetFrameStrata())
-        castBar:SetFrameLevel(math.max(frame:GetFrameLevel() + 5, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 1) or (frame:GetFrameLevel() + 5)))
-        castBar:SetStatusBarTexture(castTexture)
-        ApplyCastBarStateColor(castBar, castBar.isInterruptible, config.castBarColor)
-
-        if castBar.bg then
-            castBar.bg:SetTexture(castTexture)
-            castBar.bg:SetVertexColor(0, 0, 0, 0.35)
-        end
-
-        castBar:SetPoint(
-            castBarPoint,
-            frame,
-            castBarRelativePoint,
-            castBarOffsetX + borderInset + castBarIconSize + castBarIconGap,
-            castBarOffsetY
-        )
-        castBar:SetWidth(math.max(width - (borderInset * 2) - castBarIconSize - castBarIconGap, 20))
-        castBar:SetHeight(castBarHeight)
-
-        if castBar.icon then
-            castBar.icon:ClearAllPoints()
-            castBar.icon:SetSize(castBarHeight, castBarHeight)
-            castBar.icon:SetPoint("CENTER", castBar, "LEFT", -((castBarHeight / 2) + castBarIconGap), 0)
-            if not showCastBarIcon or not castBar.isCasting then
-                castBar.icon:SetTexture(nil)
-                castBar.icon:Hide()
-            end
-        end
-
-        if not showCastBar or not castBar.isCasting then
-            castBar:Hide()
-        end
+        ApplyCastBarLayout(frame, {
+            showCastBar = showCastBar,
+            showCastBarIcon = showCastBarIcon,
+            castBarHeight = castBarHeight,
+            castBarPoint = castBarPoint,
+            castBarRelativePoint = castBarRelativePoint,
+            castBarOffsetX = castBarOffsetX,
+            castBarOffsetY = castBarOffsetY,
+            castTexture = castTexture,
+            castBarColor = config.castBarColor,
+            borderInset = borderInset,
+            width = width,
+        })
     end
 
     -- Portrait
     if frame.Elements.Portrait then
-        local portrait = frame.Elements.Portrait
-        portrait:ClearAllPoints()
-        portrait:SetScale(1)
-
-        if portraitEnabled then
-            portrait:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
-            portrait:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
-            portrait:SetSize(portraitEffectiveSize, portraitEffectiveSize)
-
-            if portraitInside then
-                if portraitInsideSide == "RIGHT" then
-                    portrait:SetPoint("RIGHT", frame, "RIGHT", -borderInset, 0)
-                else
-                    portrait:SetPoint("LEFT", frame, "LEFT", borderInset, 0)
-                end
-            else
-                local portraitAnchorParent = self:GetAnchorTarget(frame, portraitAnchorTo) or frame
-                portrait:SetPoint(
-                    portraitPoint,
-                    portraitAnchorParent,
-                    portraitRelativePoint,
-                    portraitOffsetX,
-                    portraitOffsetY
-                )
-            end
-
-            self:UpdatePortraitTexture(frame)
-
-            portrait:Show()
-        else
-            if portrait.Texture then
-                portrait.Texture:SetTexture(nil)
-            end
-            portrait:Hide()
-        end
+        ApplyPortraitLayout(self, frame, {
+            portraitEnabled = portraitEnabled,
+            portraitEffectiveSize = portraitEffectiveSize,
+            portraitInside = portraitInside,
+            portraitInsideSide = portraitInsideSide,
+            portraitAnchorTo = portraitAnchorTo,
+            portraitPoint = portraitPoint,
+            portraitRelativePoint = portraitRelativePoint,
+            portraitOffsetX = portraitOffsetX,
+            portraitOffsetY = portraitOffsetY,
+            borderInset = borderInset,
+            borderR = borderR,
+            borderG = borderG,
+            borderB = borderB,
+            borderA = borderA,
+        })
     end
 
     -- Raid Target Icon
     if frame.Elements.RaidTargetIcon then
-        local holder = frame.Elements.RaidTargetIcon
-        local icon = holder.Texture or holder
         local raidTargetPlacement = raidTargetConfig.placement or "ATTACHED"
         local raidTargetPadding = tonumber(raidTargetConfig.padding) or 2
         local raidTargetInsideSide = raidTargetConfig.insideSide or "RIGHT"
 
-        holder:ClearAllPoints()
-        holder:SetScale(1)
-        holder:SetFrameStrata(frame:GetFrameStrata())
-        holder:SetFrameLevel(math.max(frame:GetFrameLevel() + 20, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 10) or (frame:GetFrameLevel() + 20)))
-        icon:ClearAllPoints()
-        icon:SetScale(1)
-
-        if raidTargetEnabled then
-            local effectiveSize = raidTargetSize * raidTargetScale
-            holder:SetSize(effectiveSize, effectiveSize)
-            icon:SetAllPoints(holder)
-
-            if raidTargetPlacement == "INSIDE" then
-                if raidTargetInsideSide == "LEFT" then
-                    holder:SetPoint("TOPLEFT", frame, "TOPLEFT", borderInset + raidTargetPadding, -(borderInset + raidTargetPadding))
-                else
-                    holder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(borderInset + raidTargetPadding), -(borderInset + raidTargetPadding))
-                end
-            else
-                local anchorParent = self:GetAnchorTarget(frame, raidTargetAnchorTo) or frame
-                holder:SetPoint(
-                    raidTargetPoint,
-                    anchorParent,
-                    raidTargetRelativePoint,
-                    raidTargetOffsetX,
-                    raidTargetOffsetY
-                )
-            end
-
-            self:UpdateRaidTargetIcon(frame)
-        else
-            icon:SetTexture(nil)
-            icon:Hide()
-            holder:Hide()
-        end
+        ApplyRaidTargetLayout(self, frame, {
+            raidTargetEnabled = raidTargetEnabled,
+            raidTargetPlacement = raidTargetPlacement,
+            raidTargetPadding = raidTargetPadding,
+            raidTargetInsideSide = raidTargetInsideSide,
+            raidTargetSize = raidTargetSize,
+            raidTargetScale = raidTargetScale,
+            raidTargetAnchorTo = raidTargetAnchorTo,
+            raidTargetPoint = raidTargetPoint,
+            raidTargetRelativePoint = raidTargetRelativePoint,
+            raidTargetOffsetX = raidTargetOffsetX,
+            raidTargetOffsetY = raidTargetOffsetY,
+            borderInset = borderInset,
+        })
     end
 
-    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.LeaderIcon, {
-        enabled = leaderEnabled,
-        placement = leaderPlacement,
-        size = leaderSize,
-        scale = leaderScale,
-        padding = leaderPadding,
-        insideSide = leaderInsideSide,
-        anchorTo = leaderAnchorTo,
-        point = leaderPoint,
-        relativePoint = leaderRelativePoint,
-        offsetX = leaderOffsetX,
-        offsetY = leaderOffsetY,
-        borderInset = borderInset,
-        updateFunc = function(targetFrame)
-            self:UpdateLeaderIcon(targetFrame)
-        end,
-    })
-
-    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.RoleIcon, {
-        enabled = roleEnabled,
-        placement = rolePlacement,
-        size = roleSize,
-        scale = roleScale,
-        padding = rolePadding,
-        insideSide = roleInsideSide,
-        anchorTo = roleAnchorTo,
-        point = rolePoint,
-        relativePoint = roleRelativePoint,
-        offsetX = roleOffsetX,
-        offsetY = roleOffsetY,
-        borderInset = borderInset,
-        updateFunc = function(targetFrame)
-            self:UpdateRoleIcon(targetFrame)
-        end,
-    })
-
-    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.CombatIndicator, {
-        enabled = combatEnabled,
-        placement = combatPlacement,
-        size = combatSize,
-        scale = combatScale,
-        padding = combatPadding,
-        insideSide = combatInsideSide,
-        anchorTo = combatAnchorTo,
-        point = combatPoint,
-        relativePoint = combatRelativePoint,
-        offsetX = combatOffsetX,
-        offsetY = combatOffsetY,
-        borderInset = borderInset,
-        updateFunc = function(targetFrame)
-            self:UpdateCombatIndicator(targetFrame)
-        end,
-    })
-
-    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.RestingIndicator, {
-        enabled = restingEnabled,
-        placement = restingPlacement,
-        size = restingSize,
-        scale = restingScale,
-        padding = restingPadding,
-        insideSide = restingInsideSide,
-        anchorTo = restingAnchorTo,
-        point = restingPoint,
-        relativePoint = restingRelativePoint,
-        offsetX = restingOffsetX,
-        offsetY = restingOffsetY,
-        borderInset = borderInset,
-        updateFunc = function(targetFrame)
-            self:UpdateRestingIndicator(targetFrame)
-        end,
-    })
-
-    ApplyOverlayIndicatorConfig(self, frame, frame.Elements.ReadyCheckIndicator, {
-        enabled = readyCheckEnabled,
-        placement = readyCheckPlacement,
-        size = readyCheckSize,
-        scale = readyCheckScale,
-        padding = readyCheckPadding,
-        insideSide = readyCheckInsideSide,
-        anchorTo = readyCheckAnchorTo,
-        point = readyCheckPoint,
-        relativePoint = readyCheckRelativePoint,
-        offsetX = readyCheckOffsetX,
-        offsetY = readyCheckOffsetY,
-        borderInset = borderInset,
-        updateFunc = function(targetFrame)
-            self:UpdateReadyCheckIndicator(targetFrame)
-        end,
+    ApplyOverlayIndicatorBatch(self, frame, {
+        {
+            holder = frame.Elements.LeaderIcon,
+            options = {
+                enabled = leaderEnabled,
+                placement = leaderPlacement,
+                size = leaderSize,
+                scale = leaderScale,
+                padding = leaderPadding,
+                insideSide = leaderInsideSide,
+                anchorTo = leaderAnchorTo,
+                point = leaderPoint,
+                relativePoint = leaderRelativePoint,
+                offsetX = leaderOffsetX,
+                offsetY = leaderOffsetY,
+                borderInset = borderInset,
+                updateFunc = function(targetFrame)
+                    self:UpdateLeaderIcon(targetFrame)
+                end,
+            },
+        },
+        {
+            holder = frame.Elements.RoleIcon,
+            options = {
+                enabled = roleEnabled,
+                placement = rolePlacement,
+                size = roleSize,
+                scale = roleScale,
+                padding = rolePadding,
+                insideSide = roleInsideSide,
+                anchorTo = roleAnchorTo,
+                point = rolePoint,
+                relativePoint = roleRelativePoint,
+                offsetX = roleOffsetX,
+                offsetY = roleOffsetY,
+                borderInset = borderInset,
+                updateFunc = function(targetFrame)
+                    self:UpdateRoleIcon(targetFrame)
+                end,
+            },
+        },
+        {
+            holder = frame.Elements.CombatIndicator,
+            options = {
+                enabled = combatEnabled,
+                placement = combatPlacement,
+                size = combatSize,
+                scale = combatScale,
+                padding = combatPadding,
+                insideSide = combatInsideSide,
+                anchorTo = combatAnchorTo,
+                point = combatPoint,
+                relativePoint = combatRelativePoint,
+                offsetX = combatOffsetX,
+                offsetY = combatOffsetY,
+                borderInset = borderInset,
+                updateFunc = function(targetFrame)
+                    self:UpdateCombatIndicator(targetFrame)
+                end,
+            },
+        },
+        {
+            holder = frame.Elements.RestingIndicator,
+            options = {
+                enabled = restingEnabled,
+                placement = restingPlacement,
+                size = restingSize,
+                scale = restingScale,
+                padding = restingPadding,
+                insideSide = restingInsideSide,
+                anchorTo = restingAnchorTo,
+                point = restingPoint,
+                relativePoint = restingRelativePoint,
+                offsetX = restingOffsetX,
+                offsetY = restingOffsetY,
+                borderInset = borderInset,
+                updateFunc = function(targetFrame)
+                    self:UpdateRestingIndicator(targetFrame)
+                end,
+            },
+        },
+        {
+            holder = frame.Elements.ReadyCheckIndicator,
+            options = {
+                enabled = readyCheckEnabled,
+                placement = readyCheckPlacement,
+                size = readyCheckSize,
+                scale = readyCheckScale,
+                padding = readyCheckPadding,
+                insideSide = readyCheckInsideSide,
+                anchorTo = readyCheckAnchorTo,
+                point = readyCheckPoint,
+                relativePoint = readyCheckRelativePoint,
+                offsetX = readyCheckOffsetX,
+                offsetY = readyCheckOffsetY,
+                borderInset = borderInset,
+                updateFunc = function(targetFrame)
+                    self:UpdateReadyCheckIndicator(targetFrame)
+                end,
+            },
+        },
     })
 
     -- Texts
@@ -2741,140 +732,15 @@ function UF:ApplyTestValues(frame)
 end
 
 function UF:RegisterVisibilityEvents(frame)
-    if not frame or frame.VisibilityEventFrame or frame.unit == "player" then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("UNIT_HEALTH")
-    eventFrame:RegisterEvent("UNIT_MAXHEALTH")
-    eventFrame:RegisterEvent("UNIT_FLAGS")
-    eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
-    eventFrame:RegisterEvent("UNIT_TARGETABLE_CHANGED")
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner then
-            return
-        end
-
-        if unit and unit ~= owner.unit and not (owner.unit == "pet" and event == "UNIT_PET" and unit == "player") then
-            return
-        end
-
-        if event == "UNIT_PET" and unit ~= "player" then
-            return
-        end
-
-        owner._lastVisibilityEvent = event
-        UF:Refresh(owner)
-
-        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" then
-            QueueVisibilityRefresh(owner)
-        end
-    end)
-
-    frame.VisibilityEventFrame = eventFrame
+    return RegisterVisibilityEvents(self, frame)
 end
 
 function UF:RegisterHealthBarEvents(frame)
-    if not frame or frame.HealthBarEventFrame or not frame.Elements or not frame.Elements.HealthBar then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    if frame.unit and eventFrame.RegisterUnitEvent then
-        eventFrame:RegisterUnitEvent("UNIT_HEALTH", frame.unit)
-        eventFrame:RegisterUnitEvent("UNIT_MAXHEALTH", frame.unit)
-    else
-        eventFrame:RegisterEvent("UNIT_HEALTH")
-        eventFrame:RegisterEvent("UNIT_MAXHEALTH")
-    end
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner then
-            return
-        end
-
-        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            UF:Refresh(owner)
-            return
-        end
-
-        if event == "UNIT_PET" then
-            if owner.unit ~= "pet" or unit ~= "player" then
-                return
-            end
-            UF:Refresh(owner)
-            return
-        elseif event == "PLAYER_ENTERING_WORLD" and owner.unit ~= "player" then
-            UF:Refresh(owner)
-            return
-        elseif unit and unit ~= owner.unit then
-            return
-        end
-
-        UF:RefreshHealth(owner)
-    end)
-
-    frame.HealthBarEventFrame = eventFrame
+    return Health.RegisterEvents(self, frame)
 end
 
 function UF:RegisterAlternativePowerEvents(frame)
-    if not frame or frame.AlternativePowerEventFrame or frame.unit ~= "player" then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    eventFrame:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
-    eventFrame:RegisterUnitEvent("UNIT_MAXPOWER", "player")
-    eventFrame:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner then
-            return
-        end
-
-        if unit and unit ~= owner.unit then
-            return
-        end
-
-        UF:RefreshUnitBarValues(owner)
-        UF:ApplyConfig(owner)
-        if UF.RefreshLiveValues then
-            UF:RefreshLiveValues(owner)
-        end
-        if UF.UpdateTextElements then
-            UF:UpdateTextElements(owner)
-        end
-    end)
-
-    frame.AlternativePowerEventFrame = eventFrame
+    return Power.RegisterAlternativeEvents(self, frame)
 end
 
 function UF:Build(unit)
@@ -2884,47 +750,12 @@ function UF:Build(unit)
     end
 
     if unit == "player" and config.showAlternativePowerBar then
-        config.Texts = config.Texts or {}
-        if config.Texts.AltPower == nil and FocalPoint.GetDefaultDB then
-            local defaults = FocalPoint:GetDefaultDB()
-            local defaultAltPowerText = defaults
-                and defaults.profile
-                and defaults.profile.Units
-                and defaults.profile.Units.player
-                and defaults.profile.Units.player.Texts
-                and defaults.profile.Units.player.Texts.AltPower
-
-            if defaultAltPowerText ~= nil then
-                config.Texts.AltPower = CopyTable(defaultAltPowerText)
-            end
-        end
+        EnsurePlayerAltPowerText(config)
     end
 
     local frame = self:CreateBaseFrame(unit, config)
-    self:CreateHealthBar(frame)
-    self:CreatePowerBar(frame)
-    self:CreateAlternativePowerBar(frame)
-    self:CreateCastBar(frame)
-    self:CreatePortrait(frame)
-    self:RegisterPortraitEvents(frame)
-    self:CreateRaidTargetIcon(frame)
-    self:RegisterRaidTargetEvents(frame)
-    self:CreateLeaderIcon(frame)
-    self:RegisterLeaderIconEvents(frame)
-    self:CreateRoleIcon(frame)
-    self:RegisterRoleIconEvents(frame)
-    self:CreateCombatIndicator(frame)
-    self:RegisterCombatIndicatorEvents(frame)
-    self:CreateRestingIndicator(frame)
-    self:RegisterRestingIndicatorEvents(frame)
-    self:CreateReadyCheckIndicator(frame)
-    self:RegisterReadyCheckIndicatorEvents(frame)
-    self:RegisterCastBarEvents(frame)
-    self:CreateTextElements(frame)
-    self:RegisterTextEvents(frame)
-    self:RegisterVisibilityEvents(frame)
-    self:RegisterHealthBarEvents(frame)
-    self:RegisterAlternativePowerEvents(frame)
+    BuildElements(self, frame)
+    RegisterBuildEvents(self, frame)
 
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
@@ -2943,73 +774,11 @@ function UF:Refresh(frame)
         return
     end
 
-    local shouldHideForMissingUnit = not IsPreviewModeEnabled()
-        and frame.unit ~= "player"
-        and (not DoesUnitSeemPresent(frame.unit))
-
-    if shouldHideForMissingUnit then
-        if frame.EnableMouse then
-            frame:EnableMouse(false)
-        end
-        if frame.SetMouseClickEnabled then
-            frame:SetMouseClickEnabled(false)
-        end
-
-        frame._missingUnitSince = frame._missingUnitSince or (GetTime and GetTime() or 0)
-
-        if frame.unit == "target" then
-            local now = GetTime and GetTime() or 0
-            local elapsedMissing = now - (frame._missingUnitSince or now)
-            local snapshot = GetTargetPresenceSnapshot(frame.unit)
-
-            MaybeDebugTarget(frame, string.format(
-                "Hide-Kandidat: event=%s exists=%s guid=%s name=%s visible=%s dead=%s dt=%.2f",
-                tostring(frame._lastVisibilityEvent or "?"),
-                tostring(snapshot.exists),
-                tostring(snapshot.guid),
-                tostring(snapshot.name),
-                tostring(snapshot.visible),
-                tostring(snapshot.dead),
-                elapsedMissing
-            ))
-
-            if elapsedMissing < 0.35 then
-                ClearFrameVisualState(frame)
-                frame:Hide()
-                return
-            end
-        end
-    else
-        frame._missingUnitSince = nil
-    end
-
-    if shouldHideForMissingUnit then
-        ClearFrameVisualState(frame)
-
-        if frame.SetAlpha then
-            frame:SetAlpha(0)
-        end
-
-        MaybeDebugTarget(frame, "Target-Frame wird jetzt verborgen")
-        frame:Hide()
+    if HandleMissingUnit(frame) then
         return
     end
 
-    frame.config = config
-    self:RefreshUnitBarValues(frame)
-    self:ApplyConfig(frame)
-    self:ApplyTestValues(frame)
-    if self.RefreshCastBar then
-        self:RefreshCastBar(frame)
-    end
-    if self.RefreshLiveValues then
-        self:RefreshLiveValues(frame)
-    end
-    if self.UpdateTextElements then
-        self:UpdateTextElements(frame)
-    end
-    self:ApplyRangeFade(frame)
-    frame:Show()
+    ApplyRefreshFlow(self, frame, config)
 end
 
 function FocalPoint:SpawnUnitFrame(unit)
