@@ -6,6 +6,36 @@ FocalPoint.frames = FocalPoint.frames or {}
 local AceLocale = LibStub("AceLocale-3.0")
 FocalPoint.L = AceLocale:GetLocale("FocalPoint", true) or FocalPoint.L or {}
 
+local TARGET_RANGE_CHECK_YARDS = 20
+FocalPoint.TARGET_RANGE_CHECK_YARDS = TARGET_RANGE_CHECK_YARDS
+
+local function PrintToChat(prefix, message)
+    if type(message) ~= "string" or message == "" then
+        return
+    end
+
+    local text = string.format("|cff6fd2ffFocalPoint|r %s%s", prefix or "", message)
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(text)
+    end
+end
+
+function FocalPoint:Info(message)
+    PrintToChat("", message)
+end
+
+function FocalPoint:Warn(message)
+    PrintToChat("|cffff7b7b|r ", message)
+end
+
+function FocalPoint:Success(message)
+    PrintToChat("|cff72e06a|r ", message)
+end
+
+function FocalPoint:Debug(message)
+    PrintToChat("|cffb7a6ff[Debug]|r ", message)
+end
+
 local FocalPointAddon = LibStub("AceAddon-3.0"):NewAddon("FocalPoint")
 FocalPoint.Ace = FocalPointAddon
 
@@ -350,6 +380,27 @@ local function EnsureNoEmptyTextElements()
     end
 end
 
+local function InitRangeCheck()
+    FocalPoint.RangeCheck = LibStub("LibRangeCheck-3.0", true)
+    FocalPoint.targetRangeChecker = nil
+    FocalPoint.targetRangeCheckerCombat = nil
+end
+
+function FocalPoint:GetTargetRangeChecker()
+    if not self.RangeCheck or not self.RangeCheck.GetSmartMaxChecker then
+        return nil
+    end
+
+    local inCombat = InCombatLockdown and InCombatLockdown() or false
+    if self.targetRangeChecker and self.targetRangeCheckerCombat == inCombat then
+        return self.targetRangeChecker
+    end
+
+    self.targetRangeChecker = self.RangeCheck:GetSmartMaxChecker(TARGET_RANGE_CHECK_YARDS, inCombat)
+    self.targetRangeCheckerCombat = inCombat
+    return self.targetRangeChecker
+end
+
 function FocalPointAddon:OnInitialize()
     FocalPoint.db = LibStub("AceDB-3.0"):New("FocalPointDB", FocalPoint:GetDefaultDB(), true)
     EnsureImageElementDefaults()
@@ -359,6 +410,7 @@ function FocalPointAddon:OnInitialize()
     EnsureTextTemplateDefaults()
     EnsureTextTemplateLinks()
     EnsureNoEmptyTextElements()
+    InitRangeCheck()
 
     FocalPoint.LDS = FocalPoint.LDS or LibStub("LibDualSpec-1.0", true)
     if FocalPoint.LDS then

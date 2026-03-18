@@ -547,13 +547,86 @@ local function GetGhostText()
     return (FocalPoint.L and FocalPoint.L["STATUS_GHOST"]) or PLAYER_STATUS_GHOST or GHOST or "Ghost"
 end
 
-local function GetUpperStatusText(text, fallback)
+local function GetDeadText()
+    return (FocalPoint.L and FocalPoint.L["STATUS_DEAD"]) or DEAD or "Dead"
+end
+
+local function GetOfflineText()
+    return (FocalPoint.L and FocalPoint.L["STATUS_OFFLINE"]) or PLAYER_OFFLINE or "Offline"
+end
+
+local function GetCombatText()
+    return (FocalPoint.L and FocalPoint.L["STATUS_COMBAT"]) or COMBAT or "Combat"
+end
+
+local function GetRestingText()
+    return (FocalPoint.L and FocalPoint.L["STATUS_RESTING"]) or PLAYER_STATUS_RESTING or "Resting"
+end
+
+local function GetLeaderText()
+    return (FocalPoint.L and FocalPoint.L["STATUS_LEADER"]) or LEADER or "Leader"
+end
+
+local function GetStatusText(text, fallback)
     local value = text or fallback or ""
     if type(value) ~= "string" or value == "" then
         return ""
     end
 
-    return string.upper(value)
+    return value
+end
+
+local function IsUnknownUnitName(name)
+    if type(name) ~= "string" or name == "" then
+        return true
+    end
+
+    local normalized = name:lower()
+    local unknownToken = UNKNOWNOBJECT
+    if type(unknownToken) == "string" and unknownToken ~= "" then
+        local normalizedUnknown = unknownToken:lower()
+        if normalized == normalizedUnknown or normalized:find("^" .. normalizedUnknown:gsub("([^%w])", "%%%1")) then
+            return true
+        end
+    end
+
+    return normalized == "unknown" or normalized:find("^unknown[%s<]") ~= nil
+end
+
+local function GetResolvedUnitName(unit)
+    if not unit then
+        return ""
+    end
+
+    if GetUnitName then
+        local fullName = GetUnitName(unit, true)
+        if type(fullName) == "string" and fullName ~= "" and not IsUnknownUnitName(fullName) then
+            return fullName
+        end
+    end
+
+    if UnitName then
+        local unitName = UnitName(unit)
+        if type(unitName) == "string" and unitName ~= "" and not IsUnknownUnitName(unitName) then
+            return unitName
+        end
+    end
+
+    if UnitPVPName then
+        local pvpName = UnitPVPName(unit)
+        if type(pvpName) == "string" and pvpName ~= "" and not IsUnknownUnitName(pvpName) then
+            return pvpName
+        end
+    end
+
+    if UnitName then
+        local fallbackName = UnitName(unit)
+        if type(fallbackName) == "string" then
+            return fallbackName
+        end
+    end
+
+    return ""
 end
 
 local function FormatStatusTimerValue(seconds)
@@ -573,23 +646,23 @@ local function GetCurrentStatusInfo(unit)
     end
 
     if UnitIsConnected and not IsSafeTrue(UnitIsConnected(unit)) then
-        return "offline", GetUpperStatusText(PLAYER_OFFLINE, "Offline")
+        return "offline", GetStatusText(GetOfflineText(), "Offline")
     end
 
     if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
         if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
-            return "ghost", GetUpperStatusText(GetGhostText(), "Ghost")
+            return "ghost", GetStatusText(GetGhostText(), "Ghost")
         end
 
-        return "dead", GetUpperStatusText(DEAD, "Dead")
+        return "dead", GetStatusText(GetDeadText(), "Dead")
     end
 
     if UnitIsAFK and IsSafeTrue(UnitIsAFK(unit)) then
-        return "afk", GetUpperStatusText(AFK, "AFK")
+        return "afk", GetStatusText(AFK, "AFK")
     end
 
     if UnitIsDND and IsSafeTrue(UnitIsDND(unit)) then
-        return "dnd", GetUpperStatusText(DND, "DND")
+        return "dnd", GetStatusText(DND, "DND")
     end
 
     return "", ""
@@ -1205,11 +1278,7 @@ local function ResolveBasicTag(frame, unit, token)
     end
 
     if token == "name" then
-        if unit and UnitName then
-            return UnitName(unit) or ""
-        end
-
-        return ""
+        return GetResolvedUnitName(unit)
     end
 
     if token == "level" then
@@ -1362,7 +1431,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "afk" then
         if UnitIsAFK and unit and IsSafeTrue(UnitIsAFK(unit)) then
-            return GetUpperStatusText(AFK, "AFK")
+            return GetStatusText(AFK, "AFK")
         end
 
         return ""
@@ -1370,7 +1439,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "dnd" then
         if UnitIsDND and unit and IsSafeTrue(UnitIsDND(unit)) then
-            return GetUpperStatusText(DND, "DND")
+            return GetStatusText(DND, "DND")
         end
 
         return ""
@@ -1379,9 +1448,9 @@ local function ResolveBasicTag(frame, unit, token)
     if token == "dead" then
         if UnitIsDeadOrGhost and unit and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
             if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
-                return GetUpperStatusText(GetGhostText(), "Ghost")
+                return GetStatusText(GetGhostText(), "Ghost")
             end
-            return GetUpperStatusText(DEAD, "Dead")
+            return GetStatusText(GetDeadText(), "Dead")
         end
 
         return ""
@@ -1389,7 +1458,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "ghost" then
         if UnitIsGhost and unit and IsSafeTrue(UnitIsGhost(unit)) then
-            return GetUpperStatusText(GetGhostText(), "Ghost")
+            return GetStatusText(GetGhostText(), "Ghost")
         end
 
         return ""
@@ -1397,7 +1466,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "offline" then
         if UnitIsConnected and unit and not IsSafeTrue(UnitIsConnected(unit)) then
-            return GetUpperStatusText(PLAYER_OFFLINE, "Offline")
+            return GetStatusText(GetOfflineText(), "Offline")
         end
 
         return ""
@@ -1405,7 +1474,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "pvp" then
         if UnitIsPVP and unit and IsSafeTrue(UnitIsPVP(unit)) then
-            return GetUpperStatusText(PVP, "PvP")
+            return GetStatusText(PVP, "PvP")
         end
 
         return ""
@@ -1413,7 +1482,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "combat" then
         if UnitAffectingCombat and unit and IsSafeTrue(UnitAffectingCombat(unit)) then
-            return GetUpperStatusText(COMBAT, "Combat")
+            return GetStatusText(GetCombatText(), "Combat")
         end
 
         return ""
@@ -1421,7 +1490,7 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "resting" then
         if unit == "player" and IsResting and IsSafeTrue(IsResting()) then
-            return GetUpperStatusText(PLAYER_STATUS_RESTING, "Resting")
+            return GetStatusText(GetRestingText(), "Resting")
         end
 
         return ""
@@ -1429,14 +1498,14 @@ local function ResolveBasicTag(frame, unit, token)
 
     if token == "leader" then
         if UnitIsGroupLeader and unit and IsSafeTrue(UnitIsGroupLeader(unit)) then
-            return GetUpperStatusText(LEADER, "Leader")
+            return GetStatusText(GetLeaderText(), "Leader")
         end
 
         return ""
     end
 
     if token == "role" then
-        return GetUpperStatusText(GetRoleText(unit), "")
+        return GetStatusText(GetRoleText(unit), "")
     end
 
     if token == "cast:name" then

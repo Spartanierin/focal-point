@@ -13,6 +13,31 @@ local Dropdown = ns.GUI.Widgets.Dropdown
 local Checkbox = ns.GUI.Widgets.Checkbox
 local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
 
+ns.GUI.Helpers = ns.GUI.Helpers or {}
+ns.GUI.Helpers.TitleStyles = ns.GUI.Helpers.TitleStyles or {}
+
+local TitleStyles = ns.GUI.Helpers.TitleStyles
+
+local function WrapColor(text, color)
+    if type(text) ~= "string" or text == "" then
+        return text or ""
+    end
+
+    return string.format("|cff%s%s|r", color, text)
+end
+
+function TitleStyles.FormatPage(text)
+    return WrapColor(text, "d8c27a")
+end
+
+function TitleStyles.FormatGroup(text)
+    return WrapColor(text, "e7dcc4")
+end
+
+function TitleStyles.FormatSubsection(text)
+    return WrapColor(text, "8fa8bf")
+end
+
 local function GetGUIState()
     ns.GUI._state = ns.GUI._state or {
         unitTabs = {},
@@ -96,7 +121,7 @@ local function AddSectionHeading(container, text, topSpacing)
     container:AddChild(spacer)
 
     local heading = AceGUI:Create("Heading")
-    heading:SetText(text)
+    heading:SetText(TitleStyles.FormatGroup(text))
     heading:SetFullWidth(true)
     container:AddChild(heading)
 end
@@ -104,7 +129,7 @@ end
 local function AddPageHeading(container, text)
     local heading = AceGUI:Create("Heading")
     heading:SetFullWidth(true)
-    heading:SetText(text)
+    heading:SetText(TitleStyles.FormatPage(text))
     container:AddChild(heading)
 end
 

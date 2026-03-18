@@ -4,6 +4,7 @@ FocalPoint.GUI = FocalPoint.GUI or {}
 FocalPoint.GUI.Layouts = FocalPoint.GUI.Layouts or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
+local TitleStyles = FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.TitleStyles or nil
 
 local SectionLayout = {}
 FocalPoint.GUI.Layouts.SectionLayout = SectionLayout
@@ -41,7 +42,11 @@ local function CreateSubsectionHeader(text)
     group:AddChild(spacer)
 
     local heading = AceGUI:Create("Heading")
-    heading:SetText(text or "")
+    if TitleStyles and TitleStyles.FormatSubsection then
+        heading:SetText(TitleStyles.FormatSubsection(text or ""))
+    else
+        heading:SetText(text or "")
+    end
     heading:SetFullWidth(true)
     group:AddChild(heading)
 

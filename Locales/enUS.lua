@@ -118,7 +118,12 @@ L["INFO_TAG_DESC_COMBAT"] = "Shows Combat when the unit is in combat."
 L["INFO_TAG_DESC_RESTING"] = "Shows Resting when the player is in a rest area."
 L["INFO_TAG_DESC_LEADER"] = "Shows Leader when the unit is the group leader."
 L["INFO_TAG_DESC_ROLE"] = "Shows the current group role such as Tank, Healer, or Damager."
-L["STATUS_GHOST"] = "GHOST"
+L["STATUS_DEAD"] = "Dead"
+L["STATUS_GHOST"] = "Ghost"
+L["STATUS_OFFLINE"] = "Offline"
+L["STATUS_COMBAT"] = "Combat"
+L["STATUS_RESTING"] = "Resting"
+L["STATUS_LEADER"] = "Leader"
 
 -- Navigation
 L["NAV_GENERAL"] = "General"

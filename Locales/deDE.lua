@@ -138,7 +138,12 @@ L["INFO_TAG_DESC_COMBAT"] = "Zeigt Kampf an, wenn die Einheit im Kampf ist."
 L["INFO_TAG_DESC_RESTING"] = "Zeigt Ausruhen an, wenn der Spieler sich in einem Ruhebereich befindet."
 L["INFO_TAG_DESC_LEADER"] = "Zeigt Gruppenleiter an, wenn die Einheit Gruppenleiter ist."
 L["INFO_TAG_DESC_ROLE"] = "Zeigt die aktuelle Gruppenrolle wie Tank, Heiler oder Schadensausteiler."
-L["STATUS_GHOST"] = "GEIST"
+L["STATUS_DEAD"] = "Tot"
+L["STATUS_GHOST"] = "Geist"
+L["STATUS_OFFLINE"] = "Offline"
+L["STATUS_COMBAT"] = "Kampf"
+L["STATUS_RESTING"] = "Ruhend"
+L["STATUS_LEADER"] = "Leiter"
 
 -- Navigation
 L["NAV_GENERAL"] = "Allgemein"

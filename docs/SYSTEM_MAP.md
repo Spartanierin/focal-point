@@ -198,6 +198,36 @@ The goal is to keep future changes intentional and reduce accidental coupling.
 **Consumed by**
 
 - Text system
+
+### 8. Runtime Debug Hooks
+
+**Responsibility**
+
+- Provide small operational diagnostics for unstable runtime edge cases
+- Help inspect transient frame states without changing the normal feature flow
+
+**Current example**
+
+- `/fp debug target`
+- Toggles temporary target visibility diagnostics in chat
+- Used to inspect short-lived `target` transitions during events such as `PLAYER_TARGET_CHANGED`
+
+**May know**
+
+- Temporary target visibility state
+- Chat debug output helpers
+- Event timing relevant to the observed bug
+
+**Should not know**
+
+- GUI structure
+- profile persistence rules
+- unrelated runtime behavior outside the debug case
+
+**Consumed by**
+
+- Slash commands
+- Target visibility debugging workflow
 - Text Builder preview
 - Tag Database
 

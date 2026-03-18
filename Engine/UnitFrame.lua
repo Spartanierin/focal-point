@@ -2,6 +2,10 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrame = FocalPoint.UnitFrame or {}
 local UF = FocalPoint.UnitFrame
+local StopCastBar
+
+local TARGET_OUT_OF_RANGE_ALPHA = 0.5
+local TARGET_RANGE_FADE_SPEED = 16
 
 local function GetUnitDB(unit)
     local db = FocalPoint.db
@@ -30,6 +34,96 @@ end
 
 local function IsSafeTrue(value)
     return type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) and value
+end
+
+local function ResolveInterruptibleState(notInterruptible)
+    if type(notInterruptible) == "boolean" and not (issecretvalue and issecretvalue(notInterruptible)) then
+        return not notInterruptible
+    end
+
+    return true
+end
+
+local function DoesUnitSeemPresent(unit)
+    if not unit then
+        return false
+    end
+
+    if UnitExists and IsSafeTrue(UnitExists(unit)) then
+        return true
+    end
+
+    if UnitGUID then
+        local guid = UnitGUID(unit)
+        if type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid)) then
+            return true
+        end
+    end
+
+    if UnitName then
+        local name = UnitName(unit)
+        if type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name)) then
+            return true
+        end
+    end
+
+    if UnitIsVisible and IsSafeTrue(UnitIsVisible(unit)) then
+        return true
+    end
+
+    return false
+end
+
+local function GetTargetPresenceSnapshot(unit)
+    local snapshot = {
+        exists = false,
+        guid = false,
+        name = false,
+        visible = false,
+        dead = false,
+    }
+
+    if not unit then
+        return snapshot
+    end
+
+    if UnitExists then
+        snapshot.exists = IsSafeTrue(UnitExists(unit))
+    end
+
+    if UnitGUID then
+        local guid = UnitGUID(unit)
+        snapshot.guid = type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid))
+    end
+
+    if UnitName then
+        local name = UnitName(unit)
+        snapshot.name = type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name))
+    end
+
+    if UnitIsVisible then
+        snapshot.visible = IsSafeTrue(UnitIsVisible(unit))
+    end
+
+    if UnitIsDeadOrGhost then
+        snapshot.dead = IsSafeTrue(UnitIsDeadOrGhost(unit))
+    end
+
+    return snapshot
+end
+
+local function MaybeDebugTarget(frame, message)
+    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame.unit == "target" and FocalPoint.Debug) then
+        return
+    end
+
+    local now = GetTime and GetTime() or 0
+    if frame._targetDebugLastAt and (now - frame._targetDebugLastAt) < 0.20 then
+        return
+    end
+
+    frame._targetDebugLastAt = now
+    FocalPoint:Debug(message)
 end
 
 local function ToSafeNumberValue(value)
@@ -99,6 +193,202 @@ local function IsPreviewModeEnabled()
     return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
 end
 
+local function GetRangeFadeMultiplier(frame)
+    local rangeThreshold = tonumber(FocalPoint and FocalPoint.TARGET_RANGE_CHECK_YARDS) or 40
+
+    if not frame or frame.unit ~= "target" or IsPreviewModeEnabled() then
+        return 1
+    end
+
+    if not DoesUnitSeemPresent(frame.unit) then
+        return 1
+    end
+
+    if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(frame.unit)) then
+        return 1
+    end
+
+    if UnitIsConnected and not IsSafeTrue(UnitIsConnected(frame.unit)) then
+        return 1
+    end
+
+    if UnitCanAttack and UnitCanAssist then
+        local isHostile = IsSafeTrue(UnitCanAttack("player", frame.unit))
+        local isFriendly = IsSafeTrue(UnitCanAssist("player", frame.unit))
+        if isFriendly and not isHostile then
+            return 1
+        end
+    end
+
+    if not (FocalPoint and FocalPoint.RangeCheck) then
+        return 1
+    end
+
+    if FocalPoint.RangeCheck.GetRange then
+        local ok, minRange, maxRange = pcall(FocalPoint.RangeCheck.GetRange, FocalPoint.RangeCheck, frame.unit, true, false, 0.15)
+        if ok and type(minRange) == "number" then
+            if type(maxRange) == "number" and maxRange <= rangeThreshold then
+                return 1
+            end
+
+            if minRange > rangeThreshold then
+                return TARGET_OUT_OF_RANGE_ALPHA
+            end
+
+            if maxRange == nil and minRange >= rangeThreshold then
+                return TARGET_OUT_OF_RANGE_ALPHA
+            end
+
+            return 1
+        end
+    end
+
+    if not FocalPoint.GetTargetRangeChecker then
+        return 1
+    end
+
+    local checker = FocalPoint:GetTargetRangeChecker()
+    if type(checker) ~= "function" then
+        return 1
+    end
+
+    local ok, inRange = pcall(checker, frame.unit)
+    if not ok or type(inRange) ~= "boolean" or (issecretvalue and issecretvalue(inRange)) then
+        return 1
+    end
+
+    return inRange and 1 or TARGET_OUT_OF_RANGE_ALPHA
+end
+
+local function EnsureRangeFadeDriver(frame)
+    if not frame or frame.RangeFadeDriver then
+        return frame and frame.RangeFadeDriver or nil
+    end
+
+    local driver = CreateFrame("Frame", nil, frame)
+    driver:Hide()
+    driver.owner = frame
+    driver:SetScript("OnUpdate", function(self, elapsed)
+        local owner = self.owner
+        if not owner or not owner:IsShown() then
+            self:Hide()
+            return
+        end
+
+        local targetAlpha = owner._rangeTargetAlpha
+        local currentAlpha = owner._rangeCurrentAlpha
+        if type(targetAlpha) ~= "number" or type(currentAlpha) ~= "number" then
+            self:Hide()
+            return
+        end
+
+        local delta = targetAlpha - currentAlpha
+        if math.abs(delta) < 0.01 then
+            owner._rangeCurrentAlpha = targetAlpha
+            owner:SetAlpha(targetAlpha)
+            self:Hide()
+            return
+        end
+
+        local step = math.min(1, (elapsed or 0) * TARGET_RANGE_FADE_SPEED)
+        currentAlpha = currentAlpha + (delta * step)
+        owner._rangeCurrentAlpha = currentAlpha
+        owner:SetAlpha(currentAlpha)
+    end)
+
+    frame.RangeFadeDriver = driver
+    return driver
+end
+
+local function ClearFrameVisualState(frame)
+    if not frame then
+        return
+    end
+
+    if frame.Texts then
+        for _, textObject in pairs(frame.Texts) do
+            if textObject and textObject.SetText then
+                textObject:SetText("")
+            end
+        end
+    end
+
+    if frame.Elements then
+        local health = frame.Elements.HealthBar
+        if health then
+            health:SetMinMaxValues(0, 1)
+            health:SetValue(0)
+            health:Hide()
+            if health.bg then
+                health.bg:Hide()
+            end
+        end
+
+        local power = frame.Elements.PowerBar
+        if power then
+            power:SetMinMaxValues(0, 1)
+            power:SetValue(0)
+            power:Hide()
+            if power.bg then
+                power.bg:Hide()
+            end
+        end
+
+        local altPower = frame.Elements.AlternativePowerBar
+        if altPower then
+            altPower:SetMinMaxValues(0, 1)
+            altPower:SetValue(0)
+            altPower:Hide()
+            if altPower.bg then
+                altPower.bg:Hide()
+            end
+        end
+
+        if frame.Elements.CastBar then
+            StopCastBar(frame)
+        end
+
+        local portrait = frame.Elements.Portrait
+        if portrait then
+            portrait:Hide()
+            if portrait.Texture then
+                portrait.Texture:SetTexture(nil)
+            end
+        end
+
+        for _, key in ipairs({
+            "RaidTargetIcon",
+            "LeaderIcon",
+            "RoleIcon",
+            "CombatIndicator",
+            "RestingIndicator",
+            "ReadyCheckIndicator",
+        }) do
+            local holder = frame.Elements[key]
+            if holder then
+                holder:Hide()
+                local texture = holder.Texture or holder
+                if texture and texture.SetTexture then
+                    texture:SetTexture(nil)
+                end
+            end
+        end
+    end
+
+    if frame.SetBackdropColor then
+        frame:SetBackdropColor(0, 0, 0, 0)
+    end
+    if frame.SetBackdropBorderColor then
+        frame:SetBackdropBorderColor(0, 0, 0, 0)
+    end
+
+    frame._rangeCurrentAlpha = 0
+    frame._rangeTargetAlpha = 0
+    if frame.RangeFadeDriver then
+        frame.RangeFadeDriver:Hide()
+    end
+end
+
 local function IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false
@@ -119,6 +409,28 @@ end
 local function GetClassColorForUnit(unit, useReactionForNpc)
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
         return nil
+    end
+
+    if UnitIsPlayer and UnitIsPlayer(unit) and UnitIsEnemy and IsSafeTrue(UnitIsEnemy("player", unit)) then
+        local hostileColor = FACTION_BAR_COLORS and (FACTION_BAR_COLORS[2] or FACTION_BAR_COLORS[1]) or nil
+        if hostileColor then
+            return hostileColor.r or hostileColor[1], hostileColor.g or hostileColor[2], hostileColor.b or hostileColor[3], 1
+        end
+
+        return 1, 0.1, 0.1, 1
+    end
+
+    if UnitReaction and FACTION_BAR_COLORS then
+        local reaction = UnitReaction("player", unit)
+        local color = reaction and FACTION_BAR_COLORS[reaction] or nil
+
+        if UnitIsPlayer and UnitIsPlayer(unit) and UnitCanAttack and IsSafeTrue(UnitCanAttack("player", unit)) and color then
+            return color.r or color[1], color.g or color[2], color.b or color[3], 1
+        end
+
+        if UnitIsPlayer and not UnitIsPlayer(unit) and useReactionForNpc and color then
+            return color.r or color[1], color.g or color[2], color.b or color[3], 1
+        end
     end
 
     if UnitIsPlayer and not UnitIsPlayer(unit) then
@@ -190,7 +502,7 @@ local function GetCurrentHealthValues(frame)
     end
 
     local unit = frame.unit
-    local unitExists = UnitExists and UnitExists(unit)
+    local unitExists = DoesUnitSeemPresent(unit)
     local previewValues = IsPreviewModeEnabled() and UF:GetTestPreviewValues(frame) or nil
 
     if previewValues then
@@ -575,7 +887,7 @@ function UF:RefreshUnitBarValues(frame)
     end
 
     local unit = frame.unit
-    local unitExists = UnitExists and UnitExists(unit)
+    local unitExists = DoesUnitSeemPresent(unit)
     local previewValues = IsPreviewModeEnabled() and self:GetTestPreviewValues(frame) or nil
     frame.LiveValues = frame.LiveValues or {}
     frame.TestValues = previewValues
@@ -656,20 +968,50 @@ local function GetActiveCastTiming(unit, castBar)
         return nil, nil, nil, nil, nil, nil
     end
 
+    local function ResolveFallbackDuration(durationMS, fallbackSeconds)
+        if type(durationMS) == "number" and not (issecretvalue and issecretvalue(durationMS)) then
+            return durationMS > 100 and (durationMS / 1000) or durationMS
+        end
+
+        return fallbackSeconds
+    end
+
+    local function ReuseExistingTiming(isChannel, castID, castToken)
+        if not castBar or not castBar.isCasting then
+            return nil, nil
+        end
+
+        if castBar.isChannel ~= isChannel then
+            return nil, nil
+        end
+
+        if castID ~= nil and castBar.castID == castID then
+            return castBar.startTime, castBar.endTime
+        end
+
+        if type(castToken) == "string" and castToken ~= "" and castBar.castToken == castToken then
+            return castBar.startTime, castBar.endTime
+        end
+
+        return nil, nil
+    end
+
     if UnitCastingInfo then
         local castName, _, castIcon, startTimeMS, endTimeMS, _, _, notInterruptible, _, castID = UnitCastingInfo(unit)
         if type(castName) == "string" then
-            if unit == "player"
-                and type(startTimeMS) == "number"
+            local isInterruptible = ResolveInterruptibleState(notInterruptible)
+            if type(startTimeMS) == "number"
                 and type(endTimeMS) == "number"
+                and not (issecretvalue and issecretvalue(startTimeMS))
+                and not (issecretvalue and issecretvalue(endTimeMS))
             then
-                return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, not notInterruptible, castID
+                return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, isInterruptible, castID
             end
 
             if UnitCastingDuration then
                 local durationMS = UnitCastingDuration(unit)
-                if type(durationMS) == "number" then
-                    local duration = durationMS > 100 and (durationMS / 1000) or durationMS
+                local duration = ResolveFallbackDuration(durationMS, nil)
+                if duration then
                     if castBar
                         and castBar.isCasting
                         and not castBar.isChannel
@@ -677,30 +1019,39 @@ local function GetActiveCastTiming(unit, castBar)
                         and type(castBar.startTime) == "number"
                         and type(castBar.endTime) == "number"
                     then
-                        return false, castBar.startTime, castBar.endTime, castIcon, not notInterruptible, castID
+                        return false, castBar.startTime, castBar.endTime, castIcon, isInterruptible, castID
                     end
 
                     local now = GetTime and GetTime() or 0
-                    return false, now, now + duration, castIcon, not notInterruptible, castID
+                    return false, now, now + duration, castIcon, isInterruptible, castID
                 end
             end
+
+            local now = GetTime and GetTime() or 0
+            local reusedStart, reusedEnd = ReuseExistingTiming(false, castID, castName)
+            if type(reusedStart) == "number" and type(reusedEnd) == "number" then
+                return false, reusedStart, reusedEnd, castIcon, isInterruptible, castID, castName
+            end
+            return false, now, now + 2.5, castIcon, isInterruptible, castID, castName
         end
     end
 
     if UnitChannelInfo then
         local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible, _, _, castID = UnitChannelInfo(unit)
         if type(channelName) == "string" then
-            if unit == "player"
-                and type(startTimeMS) == "number"
+            local isInterruptible = ResolveInterruptibleState(notInterruptible)
+            if type(startTimeMS) == "number"
                 and type(endTimeMS) == "number"
+                and not (issecretvalue and issecretvalue(startTimeMS))
+                and not (issecretvalue and issecretvalue(endTimeMS))
             then
-                return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, not notInterruptible, castID
+                return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, isInterruptible, castID
             end
 
             if UnitChannelDuration then
                 local durationMS = UnitChannelDuration(unit)
-                if type(durationMS) == "number" then
-                    local duration = durationMS > 100 and (durationMS / 1000) or durationMS
+                local duration = ResolveFallbackDuration(durationMS, nil)
+                if duration then
                     if castBar
                         and castBar.isCasting
                         and castBar.isChannel
@@ -708,13 +1059,20 @@ local function GetActiveCastTiming(unit, castBar)
                         and type(castBar.startTime) == "number"
                         and type(castBar.endTime) == "number"
                     then
-                        return true, castBar.startTime, castBar.endTime, channelIcon, not notInterruptible, castID
+                        return true, castBar.startTime, castBar.endTime, channelIcon, isInterruptible, castID
                     end
 
                     local now = GetTime and GetTime() or 0
-                    return true, now, now + duration, channelIcon, not notInterruptible, castID
+                    return true, now, now + duration, channelIcon, isInterruptible, castID
                 end
             end
+
+            local now = GetTime and GetTime() or 0
+            local reusedStart, reusedEnd = ReuseExistingTiming(true, castID, channelName)
+            if type(reusedStart) == "number" and type(reusedEnd) == "number" then
+                return true, reusedStart, reusedEnd, channelIcon, isInterruptible, castID, channelName
+            end
+            return true, now, now + 2.5, channelIcon, isInterruptible, castID, channelName
         end
     end
 
@@ -728,7 +1086,7 @@ local function StartCastBar(frame)
         return
     end
 
-    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID = GetActiveCastTiming(unit, castBar)
+    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID, castToken = GetActiveCastTiming(unit, castBar)
 
     if type(startTime) ~= "number" or type(endTime) ~= "number" then
         castBar.isCasting = false
@@ -744,6 +1102,7 @@ local function StartCastBar(frame)
     castBar.isPreview = false
     castBar.isInterruptible = isInterruptible ~= false
     castBar.castID = castID
+    castBar.castToken = castToken
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
     ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
@@ -777,6 +1136,7 @@ local function StartCastBarPreview(frame)
     castBar.isPreview = true
     castBar.isInterruptible = true
     castBar.castID = nil
+    castBar.castToken = "preview"
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(now + 1.25)
     ApplyCastBarStateColor(castBar, true, frame.config and frame.config.castBarColor)
@@ -796,7 +1156,7 @@ local function StartCastBarPreview(frame)
     end
 end
 
-local function StopCastBar(frame)
+StopCastBar = function(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return
@@ -809,6 +1169,7 @@ local function StopCastBar(frame)
     castBar.startTime = 0
     castBar.endTime = 0
     castBar.castID = nil
+    castBar.castToken = nil
     if castBar.icon then
         castBar.icon:SetTexture(nil)
         castBar.icon:Hide()
@@ -839,6 +1200,38 @@ local function QueueCastBarRefresh(frame)
     end)
 end
 
+local function QueueVisibilityRefresh(frame)
+    if not frame or not C_Timer or not C_Timer.After then
+        return
+    end
+
+    frame.visibilityRefreshQueued = frame.visibilityRefreshQueued or {}
+
+    local function QueueAfter(delay)
+        if frame.visibilityRefreshQueued[delay] then
+            return
+        end
+
+        frame.visibilityRefreshQueued[delay] = true
+        C_Timer.After(delay, function()
+            if not frame then
+                return
+            end
+
+            if frame.visibilityRefreshQueued then
+                frame.visibilityRefreshQueued[delay] = nil
+            end
+
+            if UF and UF.Refresh then
+                UF:Refresh(frame)
+            end
+        end)
+    end
+
+    QueueAfter(0)
+    QueueAfter(0.05)
+end
+
 function UF:RefreshCastBar(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
@@ -857,7 +1250,7 @@ function UF:RefreshCastBar(frame)
     end
 
     local now = GetTime and GetTime() or 0
-    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID = GetActiveCastTiming(unit, castBar)
+    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID, castToken = GetActiveCastTiming(unit, castBar)
     local hasCast = type(startTime) == "number" and type(endTime) == "number"
 
     if hasCast then
@@ -868,6 +1261,7 @@ function UF:RefreshCastBar(frame)
         castBar.isPreview = false
         castBar.isInterruptible = isInterruptible ~= false
         castBar.castID = castID
+        castBar.castToken = castToken
         castBar.startTime = startTime
         castBar.endTime = endTime
         castBar:SetMinMaxValues(0, duration)
@@ -1841,13 +2235,18 @@ function UF:ApplyConfig(frame)
         clampToScreen = config.clampToScreen == true
     end
 
+    local shouldBeShown = config.enabled ~= false
+    if shouldBeShown and not IsPreviewModeEnabled() and frame.unit ~= "player" then
+        shouldBeShown = DoesUnitSeemPresent(frame.unit)
+    end
+
     frame:ClearAllPoints()
     frame:SetSize(width, height)
     frame:SetAlpha(alpha)
     frame:SetScale(scale)
     frame:SetFrameLevel(frameLevel)
     frame:SetFrameStrata(frameStrata)
-    frame:SetShown(config.enabled ~= false)
+    frame:SetShown(shouldBeShown)
     frame:EnableMouse(mouseEnabled ~= false)
     frame:SetMouseClickEnabled(not (config.clickThrough or globalClickThrough))
     frame:SetClampedToScreen(clampToScreen == true)
@@ -1956,6 +2355,8 @@ function UF:ApplyConfig(frame)
             power:Hide()
         end
     end
+
+    self:ApplyRangeFade(frame)
 
     if frame.Elements.AlternativePowerBar then
         local altPower = frame.Elements.AlternativePowerBar
@@ -2248,6 +2649,53 @@ function UF:ApplyConfig(frame)
     end
 end
 
+function UF:ApplyRangeFade(frame)
+    if not frame then
+        return
+    end
+
+    local config = frame.config or GetUnitDB(frame.unit)
+    local baseAlpha = (config and config.alpha) or 1
+    local rangeMultiplier = GetRangeFadeMultiplier(frame)
+    local targetAlpha = baseAlpha * rangeMultiplier
+
+    if frame.unit ~= "target" or not frame:IsShown() then
+        frame._rangeCurrentAlpha = targetAlpha
+        frame._rangeTargetAlpha = targetAlpha
+        frame:SetAlpha(targetAlpha)
+        if frame.RangeFadeDriver then
+            frame.RangeFadeDriver:Hide()
+        end
+        return
+    end
+
+    frame._rangeTargetAlpha = targetAlpha
+    if type(frame._rangeCurrentAlpha) ~= "number" then
+        frame._rangeCurrentAlpha = targetAlpha
+        frame:SetAlpha(targetAlpha)
+        if frame.RangeFadeDriver then
+            frame.RangeFadeDriver:Hide()
+        end
+        return
+    end
+
+    local driver = EnsureRangeFadeDriver(frame)
+    if not driver then
+        frame._rangeCurrentAlpha = targetAlpha
+        frame:SetAlpha(targetAlpha)
+        return
+    end
+
+    if math.abs(frame._rangeCurrentAlpha - targetAlpha) < 0.01 then
+        frame._rangeCurrentAlpha = targetAlpha
+        frame:SetAlpha(targetAlpha)
+        driver:Hide()
+        return
+    end
+
+    driver:Show()
+end
+
 function UF:ApplyTestValues(frame)
     self:RefreshUnitBarValues(frame)
 
@@ -2328,7 +2776,12 @@ function UF:RegisterVisibilityEvents(frame)
             return
         end
 
+        owner._lastVisibilityEvent = event
         UF:Refresh(owner)
+
+        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" then
+            QueueVisibilityRefresh(owner)
+        end
     end)
 
     frame.VisibilityEventFrame = eventFrame
@@ -2490,40 +2943,54 @@ function UF:Refresh(frame)
         return
     end
 
-    local isDeadUnit = false
-
-    if not IsPreviewModeEnabled() and frame.unit ~= "player" and UnitIsDeadOrGhost then
-        isDeadUnit = IsSafeTrue(UnitIsDeadOrGhost(frame.unit))
-    end
-
-    if not isDeadUnit and not IsPreviewModeEnabled() and frame.unit ~= "player" then
-        isDeadUnit = IsUnitDeadByHealth(frame.unit)
-    end
-
     local shouldHideForMissingUnit = not IsPreviewModeEnabled()
         and frame.unit ~= "player"
-        and (
-            (UnitExists and not UnitExists(frame.unit))
-            or isDeadUnit
-        )
+        and (not DoesUnitSeemPresent(frame.unit))
 
     if shouldHideForMissingUnit then
-        if frame.Texts then
-            for _, textObject in pairs(frame.Texts) do
-                if textObject and textObject.SetText then
-                    textObject:SetText("")
-                end
-            end
+        if frame.EnableMouse then
+            frame:EnableMouse(false)
+        end
+        if frame.SetMouseClickEnabled then
+            frame:SetMouseClickEnabled(false)
         end
 
-        if frame.Elements and frame.Elements.CastBar then
-            StopCastBar(frame)
+        frame._missingUnitSince = frame._missingUnitSince or (GetTime and GetTime() or 0)
+
+        if frame.unit == "target" then
+            local now = GetTime and GetTime() or 0
+            local elapsedMissing = now - (frame._missingUnitSince or now)
+            local snapshot = GetTargetPresenceSnapshot(frame.unit)
+
+            MaybeDebugTarget(frame, string.format(
+                "Hide-Kandidat: event=%s exists=%s guid=%s name=%s visible=%s dead=%s dt=%.2f",
+                tostring(frame._lastVisibilityEvent or "?"),
+                tostring(snapshot.exists),
+                tostring(snapshot.guid),
+                tostring(snapshot.name),
+                tostring(snapshot.visible),
+                tostring(snapshot.dead),
+                elapsedMissing
+            ))
+
+            if elapsedMissing < 0.35 then
+                ClearFrameVisualState(frame)
+                frame:Hide()
+                return
+            end
         end
+    else
+        frame._missingUnitSince = nil
+    end
+
+    if shouldHideForMissingUnit then
+        ClearFrameVisualState(frame)
 
         if frame.SetAlpha then
             frame:SetAlpha(0)
         end
 
+        MaybeDebugTarget(frame, "Target-Frame wird jetzt verborgen")
         frame:Hide()
         return
     end
@@ -2532,12 +2999,16 @@ function UF:Refresh(frame)
     self:RefreshUnitBarValues(frame)
     self:ApplyConfig(frame)
     self:ApplyTestValues(frame)
+    if self.RefreshCastBar then
+        self:RefreshCastBar(frame)
+    end
     if self.RefreshLiveValues then
         self:RefreshLiveValues(frame)
     end
     if self.UpdateTextElements then
         self:UpdateTextElements(frame)
     end
+    self:ApplyRangeFade(frame)
     frame:Show()
 end
 

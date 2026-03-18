@@ -255,6 +255,10 @@ function FocalPoint:UpdateAllTags()
                 self.UnitFrame:RefreshLiveValues(frame)
             end
 
+            if self.UnitFrame.ApplyRangeFade then
+                self.UnitFrame:ApplyRangeFade(frame)
+            end
+
             if self.UnitFrame.UpdateTextElements then
                 self.UnitFrame:UpdateTextElements(frame)
             end
