@@ -9,12 +9,12 @@
     <Script file="Services/Integrations/SlashCommands.lua"/>
     <Script file="Services/Integrations/MinimapButton.lua"/>
 
-    <Script file="Engine/Constants.lua"/>
+    <Script file="Data/Constants.lua"/>
 
     <Script file="Locales/enUS.lua"/>
     <Script file="Locales/deDE.lua"/>
 
-    <Script file="Engine/KeyMap.lua"/>
+    <Script file="Data/KeyMap.lua"/>
     <Script file="Engine/Localization.lua"/>
 
     <Script file="Engine/Core.lua"/>
@@ -43,6 +43,19 @@
     <Script file="Engine/UnitFrame/Bars/UnitFrameHealth.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFramePower.lua"/>
     <Script file="Engine/UnitFrame.lua"/>
+    <Script file="Engine/Text/Shared/TextElementUtils.lua"/>
+    <Script file="Engine/Text/Shared/TextElementStatus.lua"/>
+    <Script file="Engine/Text/Shared/TextElementColors.lua"/>
+    <Script file="Engine/Text/Shared/TextElementPower.lua"/>
+    <Script file="Engine/Text/Shared/TextElementBasicTags.lua"/>
+    <Script file="Engine/Text/Shared/TextElementTokenResolver.lua"/>
+    <Script file="Engine/Text/Shared/TextElementTemplates.lua"/>
+    <Script file="Engine/Text/Shared/TextElementDirectTemplate.lua"/>
+    <Script file="Engine/Text/Runtime/TextElementFactory.lua"/>
+    <Script file="Engine/Text/Runtime/TextElementUpdate.lua"/>
+    <Script file="Engine/Text/Runtime/TextElementEvents.lua"/>
+    <Script file="Engine/Text/Runtime/TextElementApply.lua"/>
+    <Script file="Engine/Text/Runtime/TextElementLiveValues.lua"/>
     <Script file="Engine/TextElements.lua"/>
 
     <Script file="GUI/Helpers/OptionPaths.lua"/>

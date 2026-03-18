@@ -3,341 +3,73 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrame = FocalPoint.UnitFrame or {}
 local UF = FocalPoint.UnitFrame
 
-local function IsPreviewModeEnabled()
-    return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
-end
+-- Shared text modules.
+local TextUtils = FocalPoint.TextElementUtils or {}
+local TextStatus = FocalPoint.TextElementStatus or {}
+local TextColors = FocalPoint.TextElementColors or {}
+local TextPower = FocalPoint.TextElementPower or {}
+local TextBasicTags = FocalPoint.TextElementBasicTags or {}
+local TextTokenResolver = FocalPoint.TextElementTokenResolver or {}
+local TextTemplates = FocalPoint.TextElementTemplates or {}
+local TextDirectTemplate = FocalPoint.TextElementDirectTemplate or {}
+local TextFactory = FocalPoint.TextElementFactory or {}
+local TextUpdate = FocalPoint.TextElementUpdate or {}
+local TextEvents = FocalPoint.TextElementEvents or {}
+local TextApply = FocalPoint.TextElementApply or {}
+local TextLiveValues = FocalPoint.TextElementLiveValues or {}
 
-local function UnpackColor(color, fallback)
-    color = color or fallback or { 1, 1, 1, 1 }
+-- Shared utility aliases.
+local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
+local UnpackColor = TextUtils.UnpackColor
+local GetFontPath = TextUtils.GetFontPath
+local BuildFontFlags = TextUtils.BuildFontFlags
+local FormatNumber = TextUtils.FormatNumber
+local FormatTextValue = TextUtils.FormatTextValue
+local FormatTimeValue = TextUtils.FormatTimeValue
+local IsSafeTrue = TextUtils.IsSafeTrue
+local ToSafeNumber = TextUtils.ToSafeNumber
 
-    local r = color[1] or color.r or 1
-    local g = color[2] or color.g or 1
-    local b = color[3] or color.b or 1
-    local a = color[4]
-    if a == nil then
-        a = color.a
-    end
-    if a == nil then
-        a = 1
-    end
+-- Shared status/tag resolver aliases.
+local GetLocalizedClassName = TextStatus.GetLocalizedClassName
+local GetClassificationText = TextStatus.GetClassificationText
+local GetRoleText = TextStatus.GetRoleText
+local GetGhostText = TextStatus.GetGhostText
+local GetDeadText = TextStatus.GetDeadText
+local GetOfflineText = TextStatus.GetOfflineText
+local GetCombatText = TextStatus.GetCombatText
+local GetRestingText = TextStatus.GetRestingText
+local GetLeaderText = TextStatus.GetLeaderText
+local GetStatusText = TextStatus.GetStatusText
+local GetResolvedUnitName = TextStatus.GetResolvedUnitName
+local FormatStatusTimerValue = TextStatus.FormatStatusTimerValue
+local GetCurrentStatusInfo = TextStatus.GetCurrentStatusInfo
 
-    return r, g, b, a
-end
+-- Shared color resolver aliases.
+local GetClassTextColor = TextColors.GetClassTextColor
+local ResolveColorTag = TextColors.ResolveColorTag
 
-local function GetFontPath(path)
-    if type(path) == "string" and path ~= "" then
-        return path
-    end
-    return STANDARD_TEXT_FONT
-end
+-- Shared live-value aliases.
+local GetLiveValue = TextPower.GetLiveValue
+local GetSecondaryPowerDisplayValues = TextPower.GetSecondaryPowerDisplayValues
 
-local function GetLocalizedClassName(classToken)
-    if type(classToken) ~= "string" or classToken == "" then
-        return nil
-    end
+-- Orchestrator aliases for extracted modules.
+local ResolveBasicTagShared = TextBasicTags.Resolve
+local ResolveTokenShared = TextTokenResolver.Resolve
+local ResolveTextTemplateShared = TextTemplates.ResolveTextTemplate
+local TemplateContainsTokenShared = TextTemplates.ContainsToken
+local ResolveConfiguredTemplateShared = TextTemplates.ResolveConfigured
+local BuildTemplatePreviewShared = TextTemplates.BuildPreview
+local ApplyDirectTemplateShared = TextDirectTemplate.Apply
+local CreateTextElementShared = TextFactory.CreateElement
+local CreateTextElementsShared = TextFactory.CreateAll
+local UpdateTextElementShared = TextUpdate.UpdateElement
+local UpdateTextElementsShared = TextUpdate.UpdateAll
+local RegisterTextEventsShared = TextEvents.Register
+local ApplyTextElementConfigShared = TextApply.ApplyElementConfig
+local ApplyTestTextValuesShared = TextApply.ApplyTestValues
+local RefreshLiveValues = TextLiveValues.Refresh
 
-    classToken = classToken:upper()
-
-    return
-        (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classToken]) or
-        (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[classToken]) or
-        classToken
-end
-
-local function GetClassTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        local classToken = frame.TestValues.classToken:upper()
-        local classColor = nil
-
-        if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-            classColor = CUSTOM_CLASS_COLORS[classToken]
-        elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-            classColor = RAID_CLASS_COLORS[classToken]
-        elseif C_ClassColor and C_ClassColor.GetClassColor then
-            classColor = C_ClassColor.GetClassColor(classToken)
-        end
-
-        if classColor then
-            return classColor.r or classColor[1], classColor.g or classColor[2], classColor.b or classColor[3], classColor.a or 1
-        end
-    end
-
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
-        return nil
-    end
-
-    local _, classToken = UnitClass(unit)
-    if not classToken then
-        return nil
-    end
-
-    if type(classToken) == "string" then
-        classToken = classToken:upper()
-    end
-
-    local color = nil
-
-    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-        color = CUSTOM_CLASS_COLORS[classToken]
-    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-        color = RAID_CLASS_COLORS[classToken]
-    elseif C_ClassColor and C_ClassColor.GetClassColor then
-        local classColor = C_ClassColor.GetClassColor(classToken)
-        if classColor then
-            return classColor.r or 1, classColor.g or 1, classColor.b or 1, classColor.a or 1
-        end
-    end
-
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
-end
-
-local function GetClassificationText(unit)
-    if not unit or not UnitClassification then
-        return ""
-    end
-
-    local classification = UnitClassification(unit)
-    if type(classification) ~= "string" or classification == "" or classification == "normal" then
-        return ""
-    end
-
-    if classification == "worldboss" then
-        return BOSS or "Boss"
-    elseif classification == "elite" then
-        return ELITE or "Elite"
-    elseif classification == "rareelite" then
-        if ITEM_QUALITY3_DESC and ELITE then
-            return ITEM_QUALITY3_DESC .. " " .. ELITE
-        end
-        return "Rare Elite"
-    elseif classification == "rare" then
-        return ITEM_QUALITY3_DESC or "Rare"
-    elseif classification == "trivial" then
-        return MINIMAP_TRACKING_TRIVIAL_QUESTS or "Trivial"
-    end
-
-    return classification
-end
-
-local function GetRoleText(unit)
-    if not unit or not UnitGroupRolesAssigned then
-        return ""
-    end
-
-    local role = UnitGroupRolesAssigned(unit)
-    if type(role) ~= "string" or role == "" or role == "NONE" then
-        return ""
-    end
-
-    if role == "TANK" then
-        return TANK or "Tank"
-    elseif role == "HEALER" then
-        return HEALER or "Healer"
-    elseif role == "DAMAGER" then
-        return DAMAGER or "Damager"
-    end
-
-    return role
-end
-
-local function ClampColorComponent(value)
-    if type(value) ~= "number" then
-        return 255
-    end
-
-    if value < 0 then
-        value = 0
-    elseif value > 1 then
-        value = 1
-    end
-
-    return math.floor((value * 255) + 0.5)
-end
-
-local function BuildColorCode(r, g, b, a)
-    return string.format(
-        "|c%02x%02x%02x%02x",
-        ClampColorComponent(a == nil and 1 or a),
-        ClampColorComponent(r),
-        ClampColorComponent(g),
-        ClampColorComponent(b)
-    )
-end
-
-local function GetPowerTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.powerToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        local previewToken = frame.TestValues.powerToken
-        local previewColor = PowerBarColor and (PowerBarColor[previewToken] or PowerBarColor[0])
-        if previewColor then
-            return previewColor.r or previewColor[1], previewColor.g or previewColor[2], previewColor.b or previewColor[3], 1
-        end
-    end
-
-    if not unit or not UnitPowerType then
-        return nil
-    end
-
-    local powerType, powerToken, altR, altG, altB = UnitPowerType(unit)
-    if type(altR) == "number" and type(altG) == "number" and type(altB) == "number" then
-        return altR, altG, altB, 1
-    end
-
-    local powerColor = nil
-    if PowerBarColor then
-        powerColor = (powerToken and PowerBarColor[powerToken]) or PowerBarColor[powerType]
-    end
-
-    if not powerColor then
-        return nil
-    end
-
-    return powerColor.r or powerColor[1], powerColor.g or powerColor[2], powerColor.b or powerColor[3], 1
-end
-
-local function GetReactionTextColor(unit, frame)
-    if frame and frame.TestValues and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        local reaction = frame.TestValues.reaction or 5
-        local previewColor = FACTION_BAR_COLORS and FACTION_BAR_COLORS[reaction]
-        if previewColor then
-            return previewColor.r or previewColor[1], previewColor.g or previewColor[2], previewColor.b or previewColor[3], 1
-        end
-    end
-
-    if not unit or not UnitReaction or not FACTION_BAR_COLORS then
-        return nil
-    end
-
-    local reaction = UnitReaction("player", unit)
-    local color = reaction and FACTION_BAR_COLORS[reaction] or nil
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
-end
-
-local function GetBlizzardNamedColor(colorName)
-    if type(colorName) ~= "string" or colorName == "" then
-        return nil
-    end
-
-    colorName = colorName:lower()
-    local colorMap = {
-        normal = NORMAL_FONT_COLOR,
-        highlight = HIGHLIGHT_FONT_COLOR,
-        disabled = DISABLED_FONT_COLOR,
-        red = RED_FONT_COLOR,
-        green = GREEN_FONT_COLOR,
-        yellow = YELLOW_FONT_COLOR,
-    }
-
-    local color = colorMap[colorName]
-    if not color then
-        return nil
-    end
-
-    return BuildColorCode(color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1)
-end
-
-local function GetExplicitColorCode(value)
-    local hex = type(value) == "string" and value:match("^#?([0-9A-Fa-f]+)$") or nil
-    if not hex then
-        return nil
-    end
-
-    hex = hex:lower()
-    if #hex == 6 then
-        return "|cff" .. hex
-    end
-
-    if #hex == 8 then
-        return "|c" .. hex
-    end
-
-    return nil
-end
-
-local function ResolveColorTag(frame, unit, token, fallbackColor)
-    if token == "rc" or token == "resetcolor" then
-        if type(fallbackColor) == "table" then
-            local r, g, b, a = UnpackColor(fallbackColor, { 1, 1, 1, 1 })
-            return BuildColorCode(r, g, b, a)
-        end
-        return "|r"
-    end
-
-    if token == "classcolor" or token == "raidcolor" then
-        local r, g, b, a = GetClassTextColor(unit, frame)
-        if r and g and b then
-            return BuildColorCode(r, g, b, a)
-        end
-        return nil
-    end
-
-    if token == "powercolor" then
-        local r, g, b, a = GetPowerTextColor(unit, frame)
-        if r and g and b then
-            return BuildColorCode(r, g, b, a)
-        end
-        return nil
-    end
-
-    local colorValue = type(token) == "string" and token:match("^color:(.+)$") or nil
-    if colorValue then
-        colorValue = colorValue:lower()
-
-        if colorValue == "class" or colorValue == "raid" then
-            local r, g, b, a = GetClassTextColor(unit, frame)
-            if r and g and b then
-                return BuildColorCode(r, g, b, a)
-            end
-            return nil
-        end
-
-        if colorValue == "blizz_pwr" then
-            local r, g, b, a = GetPowerTextColor(unit, frame)
-            if r and g and b then
-                return BuildColorCode(r, g, b, a)
-            end
-            return nil
-        end
-
-        if colorValue == "reaction" then
-            local r, g, b, a = GetReactionTextColor(unit, frame)
-            if r and g and b then
-                return BuildColorCode(r, g, b, a)
-            end
-            return nil
-        end
-
-        local blizzardKey = colorValue:match("^blizz_(.+)$")
-        if blizzardKey then
-            return GetBlizzardNamedColor(blizzardKey)
-        end
-
-        local explicitColor = GetExplicitColorCode(colorValue)
-        if explicitColor then
-            return explicitColor
-        end
-    end
-
-    local explicitColor = GetExplicitColorCode(token)
-    if explicitColor then
-        return explicitColor
-    end
-
-    local blizzardColor = type(token) == "string" and token:match("^blizz:([%w_]+)$") or nil
-    if blizzardColor then
-        return GetBlizzardNamedColor(blizzardColor)
-    end
-
-    return nil
-end
-
+-- Keeps font strings above the main unit frame layers.
 local function GetTextLayerParent(frame)
     if not frame then
         return nil
@@ -356,495 +88,11 @@ local function GetTextLayerParent(frame)
     return holder
 end
 
-local function BuildFontFlags(config)
-    local flags = {}
-
-    if config.outline then
-        flags[#flags + 1] = "OUTLINE"
-    end
-
-    if config.thickOutline then
-        flags[#flags + 1] = "THICKOUTLINE"
-    end
-
-    if config.monochrome then
-        flags[#flags + 1] = "MONOCHROME"
-    end
-
-    return table.concat(flags, ",")
-end
-
-local function FormatNumber(value)
-    if value == nil then
-        return "0"
-    end
-
-    if BreakUpLargeNumbers then
-        local ok, result = pcall(BreakUpLargeNumbers, value)
-        if ok and type(result) == "string" then
-            return result
-        end
-    end
-
-    local ok, result = pcall(string.format, "%s", value)
-    if ok and type(result) == "string" then
-        return result
-    end
-
-    return "0"
-end
-
-local function FormatInteger(value)
-    if value == nil then
-        return "0"
-    end
-
-    local ok, result = pcall(string.format, "%d", value)
-    if ok and type(result) == "string" then
-        return result
-    end
-
-    return "0"
-end
-
-local function FormatTextValue(value)
-    if type(value) == "string" then
-        return value
-    end
-
-    return FormatInteger(value)
-end
-
-local function FormatTimeValue(value)
-    if type(value) ~= "number" then
-        return ""
-    end
-
-    if value < 0 then
-        value = 0
-    end
-
-    return string.format("%.1f", value)
-end
-
-local function IsSafeTrue(value)
-    if type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) then
-        return value
-    end
-
-    return false
-end
-
-local function ToSafeNumber(value)
-    if value == nil then
-        return 0
-    end
-
-    if type(value) == "number" and not (issecretvalue and issecretvalue(value)) then
-        return value
-    end
-
-    local directOk, directValue = pcall(tonumber, value)
-    if directOk and type(directValue) == "number" and not (issecretvalue and issecretvalue(directValue)) then
-        return directValue
-    end
-
-    local textOk, textValue = pcall(tostring, value)
-    if textOk and type(textValue) == "string" then
-        local parsedOk, parsedValue = pcall(tonumber, textValue)
-        if parsedOk and type(parsedValue) == "number" and not (issecretvalue and issecretvalue(parsedValue)) then
-            return parsedValue
-        end
-    end
-
-    local ok, formatted = pcall(string.format, "%.0f", value)
-    if ok and type(formatted) == "string" and not (issecretvalue and issecretvalue(formatted)) then
-        return tonumber(formatted) or 0
-    end
-
-    return 0
-end
-
-local function GetLiveValue(frame, key, fallback)
-    if frame and frame.LiveValues and frame.LiveValues[key] ~= nil then
-        return frame.LiveValues[key]
-    end
-
-    return fallback
-end
-
-local SECONDARY_POWER_BAR_SPECS = {
-    [258] = 0, -- Shadow Priest -> Mana
-    [262] = 0, -- Elemental Shaman -> Mana
-}
-
-local function GetPlayerSpecializationID()
-    if not GetSpecialization or not GetSpecializationInfo then
-        return nil
-    end
-
-    local specializationIndex = GetSpecialization()
-    if not specializationIndex then
-        return nil
-    end
-
-    local specializationID = GetSpecializationInfo(specializationIndex)
-    if type(specializationID) ~= "number" then
-        return nil
-    end
-
-    return specializationID
-end
-
-local function GetSecondaryPowerTypeForUnit(unit)
-    if unit ~= "player" then
-        return nil
-    end
-
-    local specializationID = GetPlayerSpecializationID()
-    if not specializationID then
-        return nil
-    end
-
-    return SECONDARY_POWER_BAR_SPECS[specializationID]
-end
-
-local function GetSecondaryPowerValues(unit)
-    local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
-    if secondaryPowerType == nil or not UnitPower or not UnitPowerMax then
-        return nil, 0, 0
-    end
-
-    return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
-end
-
-local function GetSecondaryPowerDisplayValues(unit)
-    local secondaryPowerType, currentValue, maxValue = GetSecondaryPowerValues(unit)
-    if secondaryPowerType == nil then
-        return nil, "0", "0", 0
-    end
-
-    local currentTextOk, currentText = pcall(tostring, currentValue)
-    local maxTextOk, maxText = pcall(tostring, maxValue)
-
-    if not currentTextOk or type(currentText) ~= "string" then
-        currentText = "0"
-    end
-
-    if not maxTextOk or type(maxText) ~= "string" then
-        maxText = "0"
-    end
-
-    local maxNumberOk, maxNumber = pcall(tonumber, maxText)
-    if not maxNumberOk or type(maxNumber) ~= "number" then
-        maxNumber = 0
-    end
-
-    return secondaryPowerType, currentText, maxText, maxNumber
-end
-
-local function GetGhostText()
-    return (FocalPoint.L and FocalPoint.L["STATUS_GHOST"]) or PLAYER_STATUS_GHOST or GHOST or "Ghost"
-end
-
-local function GetDeadText()
-    return (FocalPoint.L and FocalPoint.L["STATUS_DEAD"]) or DEAD or "Dead"
-end
-
-local function GetOfflineText()
-    return (FocalPoint.L and FocalPoint.L["STATUS_OFFLINE"]) or PLAYER_OFFLINE or "Offline"
-end
-
-local function GetCombatText()
-    return (FocalPoint.L and FocalPoint.L["STATUS_COMBAT"]) or COMBAT or "Combat"
-end
-
-local function GetRestingText()
-    return (FocalPoint.L and FocalPoint.L["STATUS_RESTING"]) or PLAYER_STATUS_RESTING or "Resting"
-end
-
-local function GetLeaderText()
-    return (FocalPoint.L and FocalPoint.L["STATUS_LEADER"]) or LEADER or "Leader"
-end
-
-local function GetStatusText(text, fallback)
-    local value = text or fallback or ""
-    if type(value) ~= "string" or value == "" then
-        return ""
-    end
-
-    return value
-end
-
-local function IsUnknownUnitName(name)
-    if type(name) ~= "string" or name == "" then
-        return true
-    end
-
-    local normalized = name:lower()
-    local unknownToken = UNKNOWNOBJECT
-    if type(unknownToken) == "string" and unknownToken ~= "" then
-        local normalizedUnknown = unknownToken:lower()
-        if normalized == normalizedUnknown or normalized:find("^" .. normalizedUnknown:gsub("([^%w])", "%%%1")) then
-            return true
-        end
-    end
-
-    return normalized == "unknown" or normalized:find("^unknown[%s<]") ~= nil
-end
-
-local function GetResolvedUnitName(unit)
-    if not unit then
-        return ""
-    end
-
-    if GetUnitName then
-        local fullName = GetUnitName(unit, true)
-        if type(fullName) == "string" and fullName ~= "" and not IsUnknownUnitName(fullName) then
-            return fullName
-        end
-    end
-
-    if UnitName then
-        local unitName = UnitName(unit)
-        if type(unitName) == "string" and unitName ~= "" and not IsUnknownUnitName(unitName) then
-            return unitName
-        end
-    end
-
-    if UnitPVPName then
-        local pvpName = UnitPVPName(unit)
-        if type(pvpName) == "string" and pvpName ~= "" and not IsUnknownUnitName(pvpName) then
-            return pvpName
-        end
-    end
-
-    if UnitName then
-        local fallbackName = UnitName(unit)
-        if type(fallbackName) == "string" then
-            return fallbackName
-        end
-    end
-
-    return ""
-end
-
-local function FormatStatusTimerValue(seconds)
-    local totalSeconds = math.max(0, math.floor(tonumber(seconds) or 0))
-    local minutes = math.floor(totalSeconds / 60)
-    local remainingSeconds = totalSeconds % 60
-    return string.format("(%02d:%02d)", minutes, remainingSeconds)
-end
-
-local function GetCurrentStatusInfo(unit)
-    if not unit then
-        return "", ""
-    end
-
-    if UnitExists and not IsSafeTrue(UnitExists(unit)) then
-        return "", ""
-    end
-
-    if UnitIsConnected and not IsSafeTrue(UnitIsConnected(unit)) then
-        return "offline", GetStatusText(GetOfflineText(), "Offline")
-    end
-
-    if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
-        if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
-            return "ghost", GetStatusText(GetGhostText(), "Ghost")
-        end
-
-        return "dead", GetStatusText(GetDeadText(), "Dead")
-    end
-
-    if UnitIsAFK and IsSafeTrue(UnitIsAFK(unit)) then
-        return "afk", GetStatusText(AFK, "AFK")
-    end
-
-    if UnitIsDND and IsSafeTrue(UnitIsDND(unit)) then
-        return "dnd", GetStatusText(DND, "DND")
-    end
-
-    return "", ""
-end
-
 function UF:RefreshLiveValues(frame)
-    if not frame or not frame.unit then
-        return
-    end
-
-    frame.LiveValues = frame.LiveValues or {}
-
-    if IsPreviewModeEnabled() and frame.TestValues then
-        local preview = frame.TestValues
-        local healthCurrent = preview.healthCurrent or 100
-        local healthMax = preview.healthMax or 100
-        local powerCurrent = preview.powerCurrent or 65
-        local powerMax = preview.powerMax or 100
-        local altPowerCurrent = preview.altPowerCurrent or 0
-        local altPowerMax = preview.altPowerMax or 0
-
-        frame.LiveValues.healthCurrent = healthCurrent
-        frame.LiveValues.healthMax = healthMax
-        frame.LiveValues.healthCurrentText = FormatNumber(healthCurrent)
-        frame.LiveValues.healthMaxText = FormatNumber(healthMax)
-        frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
-        frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
-        frame.LiveValues.healthPercentValue = healthMax > 0 and math.floor((healthCurrent / healthMax) * 100) or 0
-        frame.LiveValues.healthPercentText = FormatInteger(frame.LiveValues.healthPercentValue)
-        frame.LiveValues.healthCurrentRaw = healthCurrent
-        frame.LiveValues.healthMaxRaw = healthMax
-
-        frame.LiveValues.powerCurrent = powerCurrent
-        frame.LiveValues.powerMax = powerMax
-        frame.LiveValues.powerCurrentText = FormatNumber(powerCurrent)
-        frame.LiveValues.powerMaxText = FormatNumber(powerMax)
-        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
-        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
-        frame.LiveValues.powerCurrentRaw = powerCurrent
-        frame.LiveValues.powerMaxRaw = powerMax
-        frame.LiveValues.powerPercentValue = powerMax > 0 and math.floor((powerCurrent / powerMax) * 100) or 0
-        frame.LiveValues.powerPercentText = FormatInteger(frame.LiveValues.powerPercentValue)
-
-        frame.LiveValues.altPowerCurrent = altPowerCurrent
-        frame.LiveValues.altPowerMax = altPowerMax
-        frame.LiveValues.altPowerCurrentText = FormatNumber(altPowerCurrent)
-        frame.LiveValues.altPowerMaxText = FormatNumber(altPowerMax)
-        frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
-        frame.LiveValues.altPowerMaxSafe = ToSafeNumber(altPowerMax)
-        frame.LiveValues.altPowerCurrentRaw = altPowerCurrent
-        frame.LiveValues.altPowerMaxRaw = altPowerMax
-        frame.LiveValues.statusKey = preview.statusKey or ""
-        frame.LiveValues.statusText = preview.status or ""
-        frame.LiveValues.statusTimerStart = preview.statusTimerStart
-        frame.LiveValues.deadTimerStart = preview.deadTimerStart
-        return
-    end
-
-    local unit = frame.unit
-    local healthCurrent = UnitHealth and UnitHealth(unit) or 0
-    local healthMax = UnitHealthMax and UnitHealthMax(unit) or 0
-    local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
-    local powerCurrent = UnitPower and UnitPower(unit) or 0
-    local powerMax = UnitPowerMax and UnitPowerMax(unit) or 0
-    local altPowerCurrent = 0
-    local altPowerMax = 0
-    local healthBar = frame.Elements and frame.Elements.HealthBar
-    local powerBar = frame.Elements and frame.Elements.PowerBar
-    local alternativePowerBar = frame.Elements and frame.Elements.AlternativePowerBar
-    local healthBarCurrent = healthBar and healthBar.GetValue and healthBar:GetValue() or nil
-    local powerBarCurrent = powerBar and powerBar.GetValue and powerBar:GetValue() or nil
-    local alternativePowerBarCurrent = alternativePowerBar and alternativePowerBar.GetValue and alternativePowerBar:GetValue() or nil
-    local healthBarMax = nil
-    local powerBarMax = nil
-    local alternativePowerBarMax = nil
-
-    if healthBar and healthBar.GetMinMaxValues then
-        local _, maxValue = healthBar:GetMinMaxValues()
-        healthBarMax = maxValue
-    end
-
-    if powerBar and powerBar.GetMinMaxValues then
-        local _, maxValue = powerBar:GetMinMaxValues()
-        powerBarMax = maxValue
-    end
-
-    if alternativePowerBar and alternativePowerBar.GetMinMaxValues then
-        local _, maxValue = alternativePowerBar:GetMinMaxValues()
-        alternativePowerBarMax = maxValue
-    end
-
-    local secondaryPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
-
-    if secondaryPowerType ~= nil then
-        secondaryPowerType, altPowerCurrent, altPowerMax = GetSecondaryPowerValues(unit)
-    end
-
-    frame.LiveValues.healthCurrent = healthCurrent
-    frame.LiveValues.healthMax = healthMax
-    frame.LiveValues.healthCurrentText = FormatNumber(healthCurrent)
-    frame.LiveValues.healthMaxText = FormatNumber(healthMax)
-    frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthBarCurrent)
-    if frame.LiveValues.healthCurrentSafe <= 0 then
-        frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
-    end
-    frame.LiveValues.healthMaxSafe = ToSafeNumber(healthBarMax)
-    if frame.LiveValues.healthMaxSafe <= 0 then
-        frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
-    end
-    frame.LiveValues.healthPercentText = FormatInteger(healthPercent)
-    frame.LiveValues.healthPercentValue = 0
-    if frame.LiveValues.healthMaxSafe > 0 and frame.LiveValues.healthCurrentSafe >= 0 then
-        frame.LiveValues.healthPercentValue = math.floor((frame.LiveValues.healthCurrentSafe / frame.LiveValues.healthMaxSafe) * 100)
-    end
-    if frame.LiveValues.healthPercentValue <= 0 then
-        frame.LiveValues.healthPercentValue = ToSafeNumber(healthPercent)
-    end
-
-    frame.LiveValues.powerCurrent = powerCurrent
-    frame.LiveValues.powerMax = powerMax
-    frame.LiveValues.powerCurrentText = FormatNumber(powerCurrent)
-    frame.LiveValues.powerMaxText = FormatNumber(powerMax)
-    frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerBarCurrent)
-    if frame.LiveValues.powerCurrentSafe <= 0 then
-        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
-    end
-    frame.LiveValues.powerMaxSafe = ToSafeNumber(powerBarMax)
-    if frame.LiveValues.powerMaxSafe <= 0 then
-        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
-    end
-    frame.LiveValues.powerPercentValue = 0
-    if frame.LiveValues.powerMaxSafe > 0 and frame.LiveValues.powerCurrentSafe >= 0 then
-        frame.LiveValues.powerPercentValue = math.floor((frame.LiveValues.powerCurrentSafe / frame.LiveValues.powerMaxSafe) * 100)
-    end
-    frame.LiveValues.powerPercentText = FormatInteger(frame.LiveValues.powerPercentValue)
-
-    local altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
-    local altPowerMaxSafe = ToSafeNumber(altPowerMax)
-    local alternativePowerBarCurrentSafe = ToSafeNumber(alternativePowerBarCurrent)
-    local alternativePowerBarMaxSafe = ToSafeNumber(alternativePowerBarMax)
-
-    frame.LiveValues.altPowerCurrent = altPowerCurrentSafe
-    if frame.LiveValues.altPowerCurrent <= 0 and alternativePowerBarCurrentSafe > 0 then
-        frame.LiveValues.altPowerCurrent = alternativePowerBarCurrentSafe
-    end
-
-    frame.LiveValues.altPowerMax = altPowerMaxSafe
-    if frame.LiveValues.altPowerMax <= 0 and alternativePowerBarMaxSafe > 0 then
-        frame.LiveValues.altPowerMax = alternativePowerBarMaxSafe
-    end
-    frame.LiveValues.altPowerCurrentText = FormatNumber(frame.LiveValues.altPowerCurrent)
-    frame.LiveValues.altPowerMaxText = FormatNumber(frame.LiveValues.altPowerMax)
-    frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(frame.LiveValues.altPowerCurrent)
-    frame.LiveValues.altPowerMaxSafe = ToSafeNumber(frame.LiveValues.altPowerMax)
-    frame.LiveValues.altPowerCurrentRaw = frame.LiveValues.altPowerCurrent
-    frame.LiveValues.altPowerMaxRaw = frame.LiveValues.altPowerMax
-    frame.LiveValues.altPowerType = secondaryPowerType
-    frame.LiveValues.altPowerVisible = secondaryPowerType ~= nil and frame.LiveValues.altPowerMaxSafe > 0
-
-    local statusKey, statusText = GetCurrentStatusInfo(unit)
-    local previousStatusKey = frame.LiveValues.statusKey or ""
-    local now = GetTime and GetTime() or 0
-
-    frame.LiveValues.statusKey = statusKey
-    frame.LiveValues.statusText = statusText
-
-    if statusKey == "dead" or statusKey == "ghost" then
-        if previousStatusKey ~= statusKey or type(frame.LiveValues.deadTimerStart) ~= "number" then
-            frame.LiveValues.deadTimerStart = now
-        end
-        frame.LiveValues.statusTimerStart = nil
-    elseif statusKey ~= "" then
-        if previousStatusKey ~= statusKey or type(frame.LiveValues.statusTimerStart) ~= "number" then
-            frame.LiveValues.statusTimerStart = now
-        end
-        frame.LiveValues.deadTimerStart = nil
-    else
-        frame.LiveValues.statusTimerStart = nil
-        frame.LiveValues.deadTimerStart = nil
-    end
+    return RefreshLiveValues(frame)
 end
 
+-- Simple token definitions that map directly to cached live values.
 local TOKEN_DEFS = {
     ["hp:cur"] = {
         value = function(unit, frame)
@@ -1106,6 +354,7 @@ function UF:GetTagDatabase()
     return TAG_DATABASE
 end
 
+-- Preview builder for the text builder and GUI preview surfaces.
 local function GetTagPreviewFallback(token)
     local previewFrame = {
         IsTemplatePreview = true,
@@ -1131,459 +380,40 @@ local function GetTagPreviewFallback(token)
 end
 
 local function ResolveToken(frame, unit, token)
-    if not IsPreviewModeEnabled() and (not unit or not UnitExists or not UnitExists(unit)) then
-        local colorToken = ResolveColorTag(frame, unit, token)
-        if colorToken ~= nil then
-            return colorToken
-        end
-        return ""
-    end
-
-    local colorToken = ResolveColorTag(frame, unit, token)
-    if colorToken ~= nil then
-        return colorToken
-    end
-
-    local def = TOKEN_DEFS[token]
-    if not def then
-        return nil
-    end
-
-    local value = def.value and def.value(unit, frame) or nil
-    local formatter = def.format or FormatNumber
-    return formatter(value)
+    return ResolveTokenShared(frame, unit, token, {
+        IsPreviewModeEnabled = IsPreviewModeEnabled,
+        ResolveColorTag = ResolveColorTag,
+        TokenDefinitions = TOKEN_DEFS,
+        FormatNumber = FormatNumber,
+    })
 end
 
+-- Basic built-in tag resolver before the lower-level token table is queried.
 local function ResolveBasicTag(frame, unit, token)
-    if IsPreviewModeEnabled() and frame and frame.TestValues then
-        local preview = frame.TestValues
-
-        if token == "name" then
-            return preview.name or ""
-        end
-
-        if token == "level" then
-            return preview.level and tostring(preview.level) or ""
-        end
-
-        if token == "class" then
-            return preview.className or GetLocalizedClassName(preview.classToken) or ""
-        end
-
-        if token == "race" then
-            return preview.race or ""
-        end
-
-        if token == "classification" then
-            return preview.classification or ""
-        end
-
-        if token == "guild" then
-            return preview.guild or ""
-        end
-
-        if token == "realm" then
-            return preview.realm or ""
-        end
-
-        if token == "family" then
-            return preview.family or preview.creature or ""
-        end
-
-        if token == "type" then
-            return preview.type or preview.creature or ""
-        end
-
-        if token == "creature" then
-            return preview.creature or preview.race or ""
-        end
-
-        if token == "status" then
-            return preview.status or ""
-        end
-
-        if token == "status:timer" then
-            return preview.statusTimer or ""
-        end
-
-        if token == "dead:timer" then
-            return preview.deadTimer or ""
-        end
-
-        if token == "afk" then
-            return preview.afk or ""
-        end
-
-        if token == "dnd" then
-            return preview.dnd or ""
-        end
-
-        if token == "dead" then
-            return preview.dead or ""
-        end
-
-        if token == "ghost" then
-            return preview.ghost or ""
-        end
-
-        if token == "offline" then
-            return preview.offline or ""
-        end
-
-        if token == "pvp" then
-            return preview.pvp or ""
-        end
-
-        if token == "combat" then
-            return preview.combat or ""
-        end
-
-        if token == "resting" then
-            return preview.resting or ""
-        end
-
-        if token == "leader" then
-            return preview.leader or ""
-        end
-
-        if token == "role" then
-            return preview.role or ""
-        end
-
-        if token == "cast:name" then
-            return preview.castName or ""
-        end
-
-        if token == "cast:time" then
-            local castBar = frame.Elements and frame.Elements.CastBar
-            local now = GetTime and GetTime() or 0
-            if castBar and castBar.isCasting and type(castBar.endTime) == "number" then
-                return FormatTimeValue(math.max(castBar.endTime - now, 0))
-            end
-
-            return type(preview.castDuration) == "number" and FormatTimeValue(preview.castDuration) or ""
-        end
-
-        if token == "powercolor" or token == "raidcolor" or token == "resetcolor" or token == "classcolor" or token == "rc" then
-            local colorToken = ResolveColorTag(frame, unit, token)
-            if colorToken ~= nil then
-                return colorToken
-            end
-            return ""
-        end
-
-        if token == "lasthit" then
-            return preview.lastHit or ""
-        end
-    end
-
-    if token == "name" then
-        return GetResolvedUnitName(unit)
-    end
-
-    if token == "level" then
-        if unit and UnitLevel then
-            local level = UnitLevel(unit)
-            if type(level) == "number" and level > 0 then
-                return tostring(level)
-            end
-
-             if type(level) == "number" and level == -1 then
-                return "??"
-            end
-        end
-
-        return ""
-    end
-
-    if token == "class" then
-        if unit and UnitClass then
-            local className, classToken = UnitClass(unit)
-            if UnitIsPlayer and UnitIsPlayer(unit) and type(className) == "string" and className ~= "" then
-                return className
-            end
-
-            if not UnitIsPlayer or not UnitIsPlayer(unit) then
-                local localized = GetLocalizedClassName(classToken)
-
-                if type(localized) == "string" and localized ~= "" then
-                    return localized
-                end
-
-                if type(classToken) == "string" and classToken ~= "" then
-                    return classToken
-                end
-            end
-        end
-
-        return ""
-    end
-
-    if token == "race" then
-        if unit and UnitIsPlayer and UnitIsPlayer(unit) and UnitRace then
-            local raceName = UnitRace(unit)
-            if type(raceName) == "string" then
-                return raceName
-            end
-        end
-
-        return ""
-    end
-
-    if token == "classification" then
-        return GetClassificationText(unit)
-    end
-
-    if token == "guild" then
-        if unit and GetGuildInfo then
-            local guildName = GetGuildInfo(unit)
-            if type(guildName) == "string" then
-                return guildName
-            end
-        end
-
-        return ""
-    end
-
-    if token == "realm" then
-        if unit and UnitFullName then
-            local _, realmName = UnitFullName(unit)
-            if type(realmName) == "string" then
-                return realmName
-            end
-        end
-
-        return ""
-    end
-
-    if token == "family" then
-        if unit and UnitCreatureFamily then
-            local creatureFamily = UnitCreatureFamily(unit)
-            if type(creatureFamily) == "string" then
-                return creatureFamily
-            end
-        end
-
-        return ""
-    end
-
-    if token == "type" then
-        if unit and UnitCreatureType then
-            local creatureType = UnitCreatureType(unit)
-            if type(creatureType) == "string" then
-                return creatureType
-            end
-        end
-
-        return ""
-    end
-
-    if token == "creature" then
-        if unit and UnitCreatureFamily then
-            local creatureFamily = UnitCreatureFamily(unit)
-            if type(creatureFamily) == "string" then
-                return creatureFamily
-            end
-        end
-
-        if unit and UnitCreatureType then
-            local creatureType = UnitCreatureType(unit)
-            if type(creatureType) == "string" then
-                return creatureType
-            end
-        end
-
-        return ""
-    end
-
-    if token == "status" then
-        local statusKey, statusText = GetCurrentStatusInfo(unit)
-        if statusKey == "dead" or statusKey == "ghost" then
-            return ""
-        end
-
-        return statusText
-    end
-
-    if token == "status:timer" then
-        local statusKey = GetLiveValue(frame, "statusKey", "")
-        local statusTimerStart = GetLiveValue(frame, "statusTimerStart", nil)
-        local now = GetTime and GetTime() or 0
-
-        if statusKey == "" or statusKey == "dead" or statusKey == "ghost" or type(statusTimerStart) ~= "number" then
-            return ""
-        end
-
-        return FormatStatusTimerValue(now - statusTimerStart)
-    end
-
-    if token == "dead:timer" then
-        local statusKey = GetLiveValue(frame, "statusKey", "")
-        local deadTimerStart = GetLiveValue(frame, "deadTimerStart", nil)
-        local now = GetTime and GetTime() or 0
-
-        if (statusKey ~= "dead" and statusKey ~= "ghost") or type(deadTimerStart) ~= "number" then
-            return ""
-        end
-
-        return FormatStatusTimerValue(now - deadTimerStart)
-    end
-
-    if token == "afk" then
-        if UnitIsAFK and unit and IsSafeTrue(UnitIsAFK(unit)) then
-            return GetStatusText(AFK, "AFK")
-        end
-
-        return ""
-    end
-
-    if token == "dnd" then
-        if UnitIsDND and unit and IsSafeTrue(UnitIsDND(unit)) then
-            return GetStatusText(DND, "DND")
-        end
-
-        return ""
-    end
-
-    if token == "dead" then
-        if UnitIsDeadOrGhost and unit and IsSafeTrue(UnitIsDeadOrGhost(unit)) then
-            if UnitIsGhost and IsSafeTrue(UnitIsGhost(unit)) then
-                return GetStatusText(GetGhostText(), "Ghost")
-            end
-            return GetStatusText(GetDeadText(), "Dead")
-        end
-
-        return ""
-    end
-
-    if token == "ghost" then
-        if UnitIsGhost and unit and IsSafeTrue(UnitIsGhost(unit)) then
-            return GetStatusText(GetGhostText(), "Ghost")
-        end
-
-        return ""
-    end
-
-    if token == "offline" then
-        if UnitIsConnected and unit and not IsSafeTrue(UnitIsConnected(unit)) then
-            return GetStatusText(GetOfflineText(), "Offline")
-        end
-
-        return ""
-    end
-
-    if token == "pvp" then
-        if UnitIsPVP and unit and IsSafeTrue(UnitIsPVP(unit)) then
-            return GetStatusText(PVP, "PvP")
-        end
-
-        return ""
-    end
-
-    if token == "combat" then
-        if UnitAffectingCombat and unit and IsSafeTrue(UnitAffectingCombat(unit)) then
-            return GetStatusText(GetCombatText(), "Combat")
-        end
-
-        return ""
-    end
-
-    if token == "resting" then
-        if unit == "player" and IsResting and IsSafeTrue(IsResting()) then
-            return GetStatusText(GetRestingText(), "Resting")
-        end
-
-        return ""
-    end
-
-    if token == "leader" then
-        if UnitIsGroupLeader and unit and IsSafeTrue(UnitIsGroupLeader(unit)) then
-            return GetStatusText(GetLeaderText(), "Leader")
-        end
-
-        return ""
-    end
-
-    if token == "role" then
-        return GetStatusText(GetRoleText(unit), "")
-    end
-
-    if token == "cast:name" then
-        if not unit then
-            return ""
-        end
-
-        if UnitExists and not UnitExists(unit) then
-            return ""
-        end
-
-        if UnitCastingInfo then
-            local castName = UnitCastingInfo(unit)
-            if type(castName) == "string" then
-                return castName
-            end
-        end
-
-        if UnitChannelInfo then
-            local channelName = UnitChannelInfo(unit)
-            if type(channelName) == "string" then
-                return channelName
-            end
-        end
-
-        return ""
-    end
-
-    if token == "cast:time" then
-        if not unit then
-            return ""
-        end
-
-        if UnitExists and not UnitExists(unit) then
-            return ""
-        end
-
-        local now = GetTime and GetTime() or 0
-        local castBar = frame and frame.Elements and frame.Elements.CastBar
-
-        if castBar and castBar.isCasting and type(castBar.endTime) == "number" then
-            return FormatTimeValue(math.max(castBar.endTime - now, 0))
-        end
-
-        if unit == "player" and UnitCastingInfo then
-            local _, _, _, startTimeMS, endTimeMS = UnitCastingInfo(unit)
-            if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
-                local endTime = endTimeMS / 1000
-                return FormatTimeValue(endTime - now)
-            end
-        end
-
-        if unit == "player" and UnitChannelInfo then
-            local _, _, _, startTimeMS, endTimeMS = UnitChannelInfo(unit)
-            if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
-                local remaining = (endTimeMS / 1000) - now
-                return FormatTimeValue(remaining)
-            end
-        end
-
-        return ""
-    end
-
-    if token == "powercolor" or token == "raidcolor" or token == "resetcolor" or token == "classcolor" or token == "rc" then
-        local colorToken = ResolveColorTag(frame, unit, token)
-        if colorToken ~= nil then
-            return colorToken
-        end
-        return ""
-    end
-
-    if token == "lasthit" then
-        return ""
-    end
-
-    return ResolveToken(frame, unit, token)
+    return ResolveBasicTagShared(frame, unit, token, {
+        IsPreviewModeEnabled = IsPreviewModeEnabled,
+        FormatTimeValue = FormatTimeValue,
+        ResolveColorTag = ResolveColorTag,
+        GetLocalizedClassName = GetLocalizedClassName,
+        GetClassificationText = GetClassificationText,
+        GetCurrentStatusInfo = GetCurrentStatusInfo,
+        GetStatusText = GetStatusText,
+        GetGhostText = GetGhostText,
+        GetDeadText = GetDeadText,
+        GetOfflineText = GetOfflineText,
+        GetCombatText = GetCombatText,
+        GetRestingText = GetRestingText,
+        GetLeaderText = GetLeaderText,
+        GetRoleText = GetRoleText,
+        GetLiveValue = GetLiveValue,
+        FormatStatusTimerValue = FormatStatusTimerValue,
+        GetResolvedUnitName = GetResolvedUnitName,
+        IsSafeTrue = IsSafeTrue,
+        ResolveToken = ResolveToken,
+    })
 end
 
+-- Small local helper for cast-time text updates.
 local function HasActiveCast(unit)
     if IsPreviewModeEnabled() then
         return true
@@ -1610,6 +440,7 @@ local function HasActiveCast(unit)
     return false
 end
 
+-- Checks whether the current frame actually uses a CastTime text slot.
 local function FrameUsesCastTime(frame)
     if not frame or not frame.config or not frame.config.Texts then
         return false
@@ -1619,416 +450,135 @@ local function FrameUsesCastTime(frame)
     return type(textConfig) == "table" and textConfig.enabled ~= false
 end
 
+-- Local wrappers keep the public UF methods stable while delegating logic out.
 local function ResolveTextTemplate(frame, unit, template)
-    if type(template) ~= "string" or template == "" then
-        return ""
-    end
-
-    local result = {}
-    local cursor = 1
-
-    while true do
-        local startPos, endPos, token = template:find("%[([^%]]+)%]", cursor)
-        if not startPos then
-            result[#result + 1] = template:sub(cursor)
-            break
-        end
-
-        if startPos > cursor then
-            result[#result + 1] = template:sub(cursor, startPos - 1)
-        end
-
-        local resolved = ResolveBasicTag(frame, unit, token)
-        if resolved ~= nil then
-            result[#result + 1] = type(resolved) == "string" and resolved or FormatNumber(resolved)
-        else
-            result[#result + 1] = "[" .. token .. "]"
-        end
-
-        cursor = endPos + 1
-    end
-
-    return table.concat(result)
+    return ResolveTextTemplateShared(frame, unit, template, {
+        ResolveBasicTag = ResolveBasicTag,
+        FormatNumber = FormatNumber,
+    })
 end
 
 local function TemplateContainsToken(template, token)
-    if type(template) ~= "string" or template == "" then
-        return false
-    end
-
-    return template:find("%[" .. token:gsub("([^%w:])", "%%%1") .. "%]") ~= nil
+    return TemplateContainsTokenShared(template, token)
 end
 
 local function ResolveConfiguredTemplate(frame, textConfig)
-    if type(textConfig) ~= "table" then
-        return ""
-    end
-
-    local templates = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.TextTemplates
-    local statusKey = GetLiveValue(frame, "statusKey", "")
-    if type(statusKey) == "string" and statusKey ~= "" and type(textConfig.stateTemplates) == "table" and type(templates) == "table" then
-        local stateKeys = { statusKey }
-
-        -- Ghost should be able to reuse the dead template if no dedicated ghost template exists.
-        if statusKey == "ghost" then
-            stateKeys[#stateKeys + 1] = "dead"
-        end
-
-        for _, stateKey in ipairs(stateKeys) do
-            local stateTemplateName = textConfig.stateTemplates[stateKey]
-            if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
-                local stateTemplate = templates[stateTemplateName]
-                if type(stateTemplate) == "string" and stateTemplate ~= "" then
-                    return stateTemplate
-                end
-            end
-        end
-    end
-
-    local templateName = textConfig.templateName
-    if type(templateName) == "string" and templateName ~= "" and type(templates) == "table" then
-        local linkedTemplate = templates[templateName]
-        if type(linkedTemplate) == "string" and linkedTemplate ~= "" then
-            return linkedTemplate
-        end
-    end
-
-    return textConfig.tag or ""
+    return ResolveConfiguredTemplateShared(frame, textConfig, {
+        GetLiveValue = GetLiveValue,
+    })
 end
 
 function UF:BuildTemplatePreview(template, unit)
-    if type(template) ~= "string" or template == "" then
-        return ""
-    end
-
-    local parts = {}
-    local searchStart = 1
-
-    while true do
-        local tokenStart, tokenEnd, token = template:find("%[([^%]]+)%]", searchStart)
-        if not tokenStart then
-            parts[#parts + 1] = template:sub(searchStart)
-            break
-        end
-
-        if tokenStart > searchStart then
-            parts[#parts + 1] = template:sub(searchStart, tokenStart - 1)
-        end
-
-        parts[#parts + 1] = GetTagPreviewFallback(token)
-
-        searchStart = tokenEnd + 1
-    end
-
-    return table.concat(parts)
+    return BuildTemplatePreviewShared(template, {
+        GetTagPreviewFallback = GetTagPreviewFallback,
+    })
 end
 
+-- Public UF facade methods used by the unit-frame runtime.
 local function ApplyDirectTemplate(frame, textObject, unit, template, fallbackColor)
-    if not frame or not textObject then
-        return false
-    end
-
-    if not IsPreviewModeEnabled() and (not unit or not UnitExists or not UnitExists(unit)) then
-        return false
-    end
-
-    local formatString = template and template:gsub("%%", "%%%%") or ""
-    local formatArgs = {}
-    local hasToken = false
-
-    for token in template:gmatch("%[([^%]]+)%]") do
-        local resolved = ResolveColorTag(frame, unit, token, fallbackColor)
-        if resolved == nil then
-            resolved = ResolveBasicTag(frame, unit, token)
-        end
-        if resolved == nil then
-            resolved = "[" .. token .. "]"
-        elseif type(resolved) ~= "string" then
-            resolved = FormatNumber(resolved)
-        end
-
-        formatArgs[#formatArgs + 1] = resolved
-        hasToken = true
-    end
-
-    if not hasToken then
-        return false
-    end
-
-    formatString = formatString:gsub("%[([^%]]+)%]", "%%s")
-    textObject:SetFormattedText(formatString, unpack(formatArgs))
-    return true
+    return ApplyDirectTemplateShared(frame, textObject, unit, template, fallbackColor, {
+        IsPreviewModeEnabled = IsPreviewModeEnabled,
+        ResolveColorTag = ResolveColorTag,
+        ResolveBasicTag = ResolveBasicTag,
+        FormatNumber = FormatNumber,
+    })
 end
 
 function UF:CreateTextElement(frame, key, textConfig)
-    if not textConfig or textConfig.enabled == false then
-        return
-    end
-
-    local parent = GetTextLayerParent(frame)
-    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetDrawLayer("OVERLAY", 7)
-    text:SetWordWrap(false)
-    text:SetJustifyV("MIDDLE")
-
-    frame.Texts[key] = text
-    frame.Tags[key] = textConfig.tag or ""
+    return CreateTextElementShared(frame, key, textConfig, {
+        GetTextLayerParent = GetTextLayerParent,
+    })
 end
 
 function UF:CreateTextElements(frame)
-    local texts = frame.config.Texts
-    if not texts then
-        return
-    end
-
-    for key, textConfig in pairs(texts) do
-        self:CreateTextElement(frame, key, textConfig)
-    end
+    return CreateTextElementsShared(frame, {
+        CreateElement = function(targetFrame, key, textConfig)
+            return self:CreateTextElement(targetFrame, key, textConfig)
+        end,
+    })
 end
 
 function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
-    if not textObject or not textConfig then
-        return
-    end
-
-    if textConfig.enabled == false then
-        textObject:Hide()
-        return
-    end
-
-    local anchorParent = self:GetAnchorTarget(frame, textConfig.anchorTo)
-    local fontPath = GetFontPath(textConfig.font)
-    local fontSize = textConfig.fontSize or 12
-    local fontFlags = BuildFontFlags(textConfig)
-    local justifyH = textConfig.justifyH or "CENTER"
-
-    local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
-    local template = ResolveConfiguredTemplate(frame, textConfig)
-
-    if key == "Class" or TemplateContainsToken(template, "class") then
-        local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
-        if classR and classG and classB then
-            r, g, b, a = classR, classG, classB, classA or 1
-        end
-    elseif key == "Level" then
-        r, g, b, a = 1.00, 0.82, 0.00, 1.00
-    end
-
-    textObject:ClearAllPoints()
-    textObject:SetPoint(
-        textConfig.point or "CENTER",
-        anchorParent,
-        textConfig.relativePoint or "CENTER",
-        textConfig.offsetX or 0,
-        textConfig.offsetY or 0
-    )
-
-    if textConfig.anchorTo == "CastBar" and anchorParent and anchorParent.GetWidth then
-        local castBarWidth = anchorParent:GetWidth() or 0
-        if key == "CastTime" then
-            textObject:SetWidth(48)
-        elseif key == "CastName" then
-            textObject:SetWidth(math.max(castBarWidth - 56, 20))
-        else
-            textObject:SetWidth(0)
-        end
-    else
-        textObject:SetWidth(0)
-    end
-
-    textObject:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
-    textObject:SetTextColor(r, g, b, a)
-    textObject:SetJustifyH(justifyH)
-
-    if textConfig.shadowEnabled then
-        local sx = textConfig.shadowOffsetX or 1
-        local sy = textConfig.shadowOffsetY or -1
-        local sr, sg, sb, sa = UnpackColor(textConfig.shadowColor, { 0, 0, 0, 1 })
-
-        textObject:SetShadowOffset(sx, sy)
-        textObject:SetShadowColor(sr, sg, sb, sa)
-    else
-        textObject:SetShadowOffset(0, 0)
-        textObject:SetShadowColor(0, 0, 0, 0)
-    end
-
-    textObject:Show()
+    return ApplyTextElementConfigShared(frame, key, textObject, textConfig, {
+        GetAnchorTarget = function(targetFrame, anchorTo)
+            return self:GetAnchorTarget(targetFrame, anchorTo)
+        end,
+        GetFontPath = GetFontPath,
+        BuildFontFlags = BuildFontFlags,
+        UnpackColor = UnpackColor,
+        ResolveConfiguredTemplate = ResolveConfiguredTemplate,
+        TemplateContainsToken = TemplateContainsToken,
+        GetClassTextColor = GetClassTextColor,
+    })
 end
 
 function UF:UpdateTextElement(frame, key)
-    if not frame or not frame.Texts or not frame.Texts[key] then
-        return
-    end
-
-    local textObject = frame.Texts[key]
-    local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
-    if not textConfig or textConfig.enabled == false then
-        textObject:SetText("")
-        textObject:Hide()
-        return
-    end
-
-    local template = ResolveConfiguredTemplate(frame, textConfig)
-    local r, g, b, a = UnpackColor(textConfig.color, { 1, 1, 1, 1 })
-    local altPowerType = GetLiveValue(frame, "altPowerType", nil)
-    local altPowerMaxRaw = ToSafeNumber(GetLiveValue(frame, "altPowerMaxRaw", 0))
-    local altPowerCurrentRaw = ToSafeNumber(GetLiveValue(frame, "altPowerCurrentRaw", 0))
-    local altPowerAvailable = altPowerType ~= nil and altPowerMaxRaw > 0
-
-    if key == "AltPower" then
-        textObject:SetTextColor(r, g, b, a)
-        local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues(frame.unit)
-        if livePowerType ~= nil and liveMaxNumber > 0 then
-            textObject:SetText(liveCurrentText .. " / " .. liveMaxText)
-            textObject:Show()
-        elseif altPowerAvailable then
-            textObject:SetText(FormatNumber(altPowerCurrentRaw) .. " / " .. FormatNumber(altPowerMaxRaw))
-            textObject:Show()
-        else
-            textObject:SetText("")
-        end
-        return
-    end
-
-    if key == "Class" or TemplateContainsToken(template, "class") then
-        local classR, classG, classB, classA = GetClassTextColor(frame.unit, frame)
-        if classR and classG and classB then
-            r, g, b, a = classR, classG, classB, classA or 1
-        end
-    elseif key == "Level" then
-        r, g, b, a = 1.00, 0.82, 0.00, 1.00
-    end
-    textObject:SetTextColor(r, g, b, a)
-
-    if ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
-        return
-    end
-
-    textObject:SetText(ResolveTextTemplate(frame, frame.unit, template))
+    return UpdateTextElementShared(frame, key, {
+        ResolveConfiguredTemplate = ResolveConfiguredTemplate,
+        UnpackColor = UnpackColor,
+        GetLiveValue = GetLiveValue,
+        ToSafeNumber = ToSafeNumber,
+        GetSecondaryPowerDisplayValues = GetSecondaryPowerDisplayValues,
+        FormatNumber = FormatNumber,
+        TemplateContainsToken = TemplateContainsToken,
+        GetClassTextColor = GetClassTextColor,
+        ApplyDirectTemplate = ApplyDirectTemplate,
+        ResolveTextTemplate = ResolveTextTemplate,
+    })
 end
 
 function UF:UpdateTextElements(frame)
-    if not frame or not frame.config or not frame.config.Texts then
-        return
-    end
-
-    for key in pairs(frame.config.Texts) do
-        self:UpdateTextElement(frame, key)
-    end
+    return UpdateTextElementsShared(frame, {
+        UpdateElement = function(targetFrame, key)
+            return self:UpdateTextElement(targetFrame, key)
+        end,
+    })
 end
 
 function UF:RegisterTextEvents(frame)
-    if not frame or frame.TextEventFrame then
-        return
-    end
-
-    local eventFrame = CreateFrame("Frame", nil, frame)
-    eventFrame.owner = frame
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
-    eventFrame:RegisterEvent("PLAYER_FLAGS_CHANGED")
-    eventFrame:RegisterEvent("UNIT_LEVEL")
-    eventFrame:RegisterEvent("UNIT_FLAGS")
-    eventFrame:RegisterEvent("UNIT_CONNECTION")
-    eventFrame:RegisterEvent("UNIT_POWER_UPDATE")
-    eventFrame:RegisterEvent("UNIT_MAXPOWER")
-    eventFrame:RegisterEvent("UNIT_DISPLAYPOWER")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
-    eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-    eventFrame.elapsed = 0
-
-    if frame.unit == "target" then
-        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
-        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
-        eventFrame:RegisterEvent("UNIT_PET")
-    end
-
-    eventFrame:SetScript("OnUpdate", function(self, elapsed)
-        local owner = self.owner
-        local castBar = owner and owner.Elements and owner.Elements.CastBar
-        local hasPreviewCast = IsPreviewModeEnabled() and castBar and castBar.isPreview
-        if not owner or not FrameUsesCastTime(owner) or (not hasPreviewCast and not HasActiveCast(owner.unit)) then
-            self.elapsed = 0
-            return
-        end
-
-        self.elapsed = (self.elapsed or 0) + elapsed
-        if self.elapsed < 0.05 then
-            return
-        end
-
-        self.elapsed = 0
-        if UF.RefreshCastBar then
-            UF:RefreshCastBar(owner)
-        end
-        UF:UpdateTextElement(owner, "CastTime")
-    end)
-
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
-        local owner = eventFrame.owner
-        if not owner then
-            return
-        end
-
-        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+    return RegisterTextEventsShared(frame, {
+        IsPreviewModeEnabled = IsPreviewModeEnabled,
+        HasActiveCast = HasActiveCast,
+        FrameUsesCastTime = FrameUsesCastTime,
+        Refresh = function(targetFrame)
             if UF.Refresh then
-                UF:Refresh(owner)
+                return UF:Refresh(targetFrame)
             end
-            return
-        end
-
-        if event == "UNIT_PET" then
-            if owner.unit == "pet" and unit == "player" then
-                if UF.Refresh then
-                    UF:Refresh(owner)
-                end
+        end,
+        RefreshUnitBarValues = function(targetFrame)
+            if UF.RefreshUnitBarValues then
+                return UF:RefreshUnitBarValues(targetFrame)
             end
-            return
-        end
-
-        if event == "PLAYER_ENTERING_WORLD" and owner.unit ~= "player" then
-            if UF.Refresh then
-                UF:Refresh(owner)
+        end,
+        ApplyConfig = function(targetFrame)
+            if UF.ApplyConfig then
+                return UF:ApplyConfig(targetFrame)
             end
-            return
-        end
-
-        if unit and unit ~= owner.unit then
-            return
-        end
-
-        if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
-            return
-        end
-
-        if UF.RefreshUnitBarValues then
-            UF:RefreshUnitBarValues(owner)
-        end
-        if UF.ApplyConfig then
-            UF:ApplyConfig(owner)
-        end
-        if UF.RefreshCastBar then
-            UF:RefreshCastBar(owner)
-        end
-        UF:RefreshLiveValues(owner)
-        UF:UpdateTextElements(owner)
-        if UF.RefreshCastBar then
-            UF:RefreshCastBar(owner)
-        end
-    end)
-
-    frame.TextEventFrame = eventFrame
+        end,
+        RefreshCastBar = function(targetFrame)
+            if UF.RefreshCastBar then
+                return UF:RefreshCastBar(targetFrame)
+            end
+        end,
+        RefreshLiveValues = function(targetFrame)
+            return UF:RefreshLiveValues(targetFrame)
+        end,
+        UpdateTextElement = function(targetFrame, key)
+            return UF:UpdateTextElement(targetFrame, key)
+        end,
+        UpdateTextElements = function(targetFrame)
+            return UF:UpdateTextElements(targetFrame)
+        end,
+    })
 end
 
 function UF:ApplyTestTextValues(frame)
-    self:RefreshLiveValues(frame)
-    self:UpdateTextElements(frame)
+    return ApplyTestTextValuesShared(frame, {
+        RefreshLiveValues = function(targetFrame)
+            return self:RefreshLiveValues(targetFrame)
+        end,
+        UpdateTextElements = function(targetFrame)
+            return self:UpdateTextElements(targetFrame)
+        end,
+    })
 end
