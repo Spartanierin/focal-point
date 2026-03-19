@@ -41,7 +41,7 @@ function Utils.ResolveInterruptibleState(notInterruptible)
         return not notInterruptible
     end
 
-    return true
+    return false
 end
 
 function Utils.ToSafeNumberValue(value)

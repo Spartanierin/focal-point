@@ -9,7 +9,16 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
 local MaybeDebugTarget = Presence.MaybeDebugTarget
+local ForceDebugTarget = Presence.ForceDebugTarget
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+
+local function IsProtectedFrameInCombat(frame)
+    return frame
+        and frame.IsProtected
+        and frame:IsProtected()
+        and InCombatLockdown
+        and InCombatLockdown()
+end
 
 -- Visibility helpers handle visual cleanup and delayed refresh scheduling.
 
@@ -139,9 +148,19 @@ function Visibility.HandleMissingUnit(frame)
         return false
     end
 
+    local protectedFrame = frame.IsProtected and frame:IsProtected()
     local shouldHideForMissingUnit = not IsPreviewModeEnabled()
         and frame.unit ~= "player"
         and (not DoesUnitSeemPresent(frame.unit))
+
+    if shouldHideForMissingUnit and protectedFrame then
+        ForceDebugTarget(frame, IsProtectedFrameInCombat(frame)
+            and "Missing target during combat: clearing content, secure root unchanged"
+            or "Missing target: clearing content, secure root unchanged", "missing_target", 2.0)
+        Visibility.ClearFrameVisualState(frame)
+        Visibility.QueueRefresh(frame)
+        return true
+    end
 
     if shouldHideForMissingUnit then
         if frame.EnableMouse then
@@ -158,7 +177,7 @@ function Visibility.HandleMissingUnit(frame)
             local elapsedMissing = now - (frame._missingUnitSince or now)
             local snapshot = GetTargetPresenceSnapshot(frame.unit)
 
-            MaybeDebugTarget(frame, string.format(
+            ForceDebugTarget(frame, string.format(
                 "Hide-Kandidat: event=%s exists=%s guid=%s name=%s visible=%s dead=%s dt=%.2f",
                 tostring(frame._lastVisibilityEvent or "?"),
                 tostring(snapshot.exists),
@@ -167,7 +186,7 @@ function Visibility.HandleMissingUnit(frame)
                 tostring(snapshot.visible),
                 tostring(snapshot.dead),
                 elapsedMissing
-            ))
+            ), "hide_candidate", 2.0)
 
             if elapsedMissing < 0.35 then
                 Visibility.ClearFrameVisualState(frame)
@@ -199,7 +218,10 @@ function Visibility.RegisterEvents(owner, frame)
         return
     end
 
-    local eventFrame = CreateFrame("Frame", nil, frame)
+    -- Keep the event bridge independent from the secure unit frame itself.
+    -- If the unit frame is hidden or enters an odd protected state in combat,
+    -- we still want target/focus/pet events to keep flowing.
+    local eventFrame = CreateFrame("Frame")
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("UNIT_HEALTH")
@@ -207,6 +229,7 @@ function Visibility.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("UNIT_FLAGS")
     eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
     eventFrame:RegisterEvent("UNIT_TARGETABLE_CHANGED")
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
@@ -222,7 +245,11 @@ function Visibility.RegisterEvents(owner, frame)
             return
         end
 
-        if unit and unit ~= currentOwner.unit and not (currentOwner.unit == "pet" and event == "UNIT_PET" and unit == "player") then
+        if event ~= "PLAYER_REGEN_ENABLED"
+            and unit
+            and unit ~= currentOwner.unit
+            and not (currentOwner.unit == "pet" and event == "UNIT_PET" and unit == "player")
+        then
             return
         end
 
@@ -231,6 +258,30 @@ function Visibility.RegisterEvents(owner, frame)
         end
 
         currentOwner._lastVisibilityEvent = event
+        if currentOwner.unit == "target" and event == "PLAYER_TARGET_CHANGED" then
+            local snapshot = GetTargetPresenceSnapshot(currentOwner.unit)
+            local shown = currentOwner.IsShown and currentOwner:IsShown() or false
+            local alpha = tonumber(currentOwner.GetAlpha and currentOwner:GetAlpha() or 0) or 0
+            local suspicious = not snapshot.exists
+                or not snapshot.guid
+                or not snapshot.name
+                or not shown
+                or alpha < 0.99
+
+            if suspicious then
+                ForceDebugTarget(currentOwner, string.format(
+                    "Event PLAYER_TARGET_CHANGED: inCombat=%s shown=%s alpha=%.2f exists=%s guid=%s name=%s visible=%s dead=%s",
+                    tostring(InCombatLockdown and InCombatLockdown() or false),
+                    tostring(shown),
+                    alpha,
+                    tostring(snapshot.exists),
+                    tostring(snapshot.guid),
+                    tostring(snapshot.name),
+                    tostring(snapshot.visible),
+                    tostring(snapshot.dead)
+                ), "event_target_changed", 0.50)
+            end
+        end
         owner:Refresh(currentOwner)
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" then

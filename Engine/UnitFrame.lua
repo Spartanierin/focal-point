@@ -50,7 +50,6 @@ local ApplyCastBarStateColor = Cast.ApplyStateColor
 local ApplyCastBarLayout = Cast.ApplyLayout
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
-local MaybeDebugTarget = Presence.MaybeDebugTarget
 local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
@@ -102,6 +101,14 @@ local ClearFrameVisualState = Visibility.ClearFrameVisualState
 local QueueVisibilityRefresh = Visibility.QueueRefresh
 local GetRangeFadeMultiplier = Range.GetFadeMultiplier
 local EnsureRangeFadeDriver = Range.EnsureFadeDriver
+
+local function IsProtectedFrameInCombat(frame)
+    return frame
+        and frame.IsProtected
+        and frame:IsProtected()
+        and InCombatLockdown
+        and InCombatLockdown()
+end
 
 -- Health and bar coordination wrappers
 function UF:UpdateHealthBarValue(frame)
@@ -259,6 +266,7 @@ function UF:ApplyConfig(frame)
     if not config then
         return
     end
+    local protectedInCombat = IsProtectedFrameInCombat(frame)
 
     local width = config.width or 220
     local height = config.height or 40
@@ -268,6 +276,8 @@ function UF:ApplyConfig(frame)
     local frameStrata = config.frameStrata or "MEDIUM"
     local showPowerBar = config.showPowerBar and true or false
     local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
+    local healthBarReverseFill = config.healthBarReverseFill
+    local powerBarReverseFill = config.powerBarReverseFill
     local showAlternativePowerBar = config.showAlternativePowerBar and true or false
     local alternativePowerBarHeight = showAlternativePowerBar and (config.alternativePowerBarHeight or 5) or 0
     local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax = GetSecondaryPowerValues(frame.unit)
@@ -394,14 +404,25 @@ function UF:ApplyConfig(frame)
     local powerTexture = GetStatusBarTexture(config.powerBarTexture)
     local castTexture = GetStatusBarTexture(config.castBarTexture)
     local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
-    ApplyBaseFrameLayout(self, frame, config, {
-        width = width,
-        height = height,
-        alpha = alpha,
-        scale = scale,
-        frameLevel = frameLevel,
-        frameStrata = frameStrata,
-    })
+
+    if healthBarReverseFill == nil then
+        healthBarReverseFill = frame.unit == "target"
+    end
+
+    if powerBarReverseFill == nil then
+        powerBarReverseFill = frame.unit == "target"
+    end
+
+    if not protectedInCombat then
+        ApplyBaseFrameLayout(self, frame, config, {
+            width = width,
+            height = height,
+            alpha = alpha,
+            scale = scale,
+            frameLevel = frameLevel,
+            frameStrata = frameStrata,
+        })
+    end
 
     ApplyHealthAndPowerLayout(self, frame, {
         borderInset = borderInset,
@@ -412,6 +433,8 @@ function UF:ApplyConfig(frame)
         alternativePowerBarHeight = alternativePowerBarHeight,
         showPowerBar = showPowerBar,
         powerBarHeight = powerBarHeight,
+        healthBarReverseFill = healthBarReverseFill,
+        powerBarReverseFill = powerBarReverseFill,
         healthTexture = healthTexture,
         healthBgR = healthBgR,
         healthBgG = healthBgG,
@@ -473,6 +496,7 @@ function UF:ApplyConfig(frame)
             castBarOffsetY = castBarOffsetY,
             castTexture = castTexture,
             castBarColor = config.castBarColor,
+            castBarUninterruptibleColor = config.castBarUninterruptibleColor,
             borderInset = borderInset,
             width = width,
         })

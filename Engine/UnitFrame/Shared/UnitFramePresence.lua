@@ -21,14 +21,20 @@ function Presence.DoesUnitSeemPresent(unit)
 
     if UnitGUID then
         local guid = UnitGUID(unit)
-        if type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid)) then
+        local okGuid, hasGuid = pcall(function()
+            return type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid))
+        end)
+        if okGuid and hasGuid then
             return true
         end
     end
 
     if UnitName then
         local name = UnitName(unit)
-        if type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name)) then
+        local okName, hasName = pcall(function()
+            return type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name))
+        end)
+        if okName and hasName then
             return true
         end
     end
@@ -59,12 +65,18 @@ function Presence.GetTargetPresenceSnapshot(unit)
 
     if UnitGUID then
         local guid = UnitGUID(unit)
-        snapshot.guid = type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid))
+        local okGuid, hasGuid = pcall(function()
+            return type(guid) == "string" and guid ~= "" and not (issecretvalue and issecretvalue(guid))
+        end)
+        snapshot.guid = okGuid and hasGuid or false
     end
 
     if UnitName then
         local name = UnitName(unit)
-        snapshot.name = type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name))
+        local okName, hasName = pcall(function()
+            return type(name) == "string" and name ~= "" and not (issecretvalue and issecretvalue(name))
+        end)
+        snapshot.name = okName and hasName or false
     end
 
     if UnitIsVisible then
@@ -84,10 +96,38 @@ function Presence.MaybeDebugTarget(frame, message)
     end
 
     local now = GetTime and GetTime() or 0
-    if frame._targetDebugLastAt and (now - frame._targetDebugLastAt) < 0.20 then
+    if frame._targetDebugLastMessage == message
+        and frame._targetDebugLastAt
+        and (now - frame._targetDebugLastAt) < 3.0
+    then
         return
     end
 
+    if frame._targetDebugLastAt and (now - frame._targetDebugLastAt) < 0.50 then
+        return
+    end
+
+    frame._targetDebugLastMessage = message
+    frame._targetDebugLastAt = now
+    FocalPoint:Debug(message)
+end
+
+function Presence.ForceDebugTarget(frame, message, key, cooldown)
+    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame.unit == "target" and FocalPoint.Debug) then
+        return
+    end
+
+    local now = GetTime and GetTime() or 0
+    key = key or "__force"
+    cooldown = tonumber(cooldown) or 0
+
+    frame._targetDebugByKey = frame._targetDebugByKey or {}
+    local lastAt = frame._targetDebugByKey[key]
+    if lastAt and (now - lastAt) < cooldown then
+        return
+    end
+
+    frame._targetDebugByKey[key] = now
     frame._targetDebugLastAt = now
     FocalPoint:Debug(message)
 end

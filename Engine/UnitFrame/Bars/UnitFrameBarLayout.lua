@@ -15,11 +15,16 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
     local alternativePowerBarHeight = options.alternativePowerBarHeight
     local showPowerBar = options.showPowerBar
     local powerBarHeight = options.powerBarHeight
+    local healthBarReverseFill = options.healthBarReverseFill == true
+    local powerBarReverseFill = options.powerBarReverseFill == true
 
     if frame.Elements.HealthBar then
         local health = frame.Elements.HealthBar
         health:ClearAllPoints()
         health:SetStatusBarTexture(options.healthTexture)
+        if health.SetReverseFill then
+            health:SetReverseFill(healthBarReverseFill)
+        end
 
         if health.bg then
             health.bg:SetTexture(options.healthTexture)
@@ -58,6 +63,9 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         local power = frame.Elements.PowerBar
         power:ClearAllPoints()
         power:SetStatusBarTexture(options.powerTexture)
+        if power.SetReverseFill then
+            power:SetReverseFill(powerBarReverseFill)
+        end
         power:SetStatusBarColor(options.powerR, options.powerG, options.powerB, 1)
         power:SetAlpha(options.powerA or 1)
 

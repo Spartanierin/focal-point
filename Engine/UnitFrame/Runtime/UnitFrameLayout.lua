@@ -3,12 +3,13 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameLayout = FocalPoint.UnitFrameLayout or {}
 local Layout = FocalPoint.UnitFrameLayout
 
-local Presence = FocalPoint.UnitFramePresence or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 
-local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
-local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local UnpackColor = Utils.UnpackColor
+
+local function IsProtectedRoot(frame)
+    return frame and frame.IsProtected and frame:IsProtected()
+end
 
 -- Base frame layout keeps the generic frame visibility, position, and
 -- backdrop setup isolated from the more detailed element configuration.
@@ -47,10 +48,10 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
         clampToScreen = config.clampToScreen == true
     end
 
+    -- Visibility for non-player units is handled centrally by the refresh/
+    -- missing-unit pipeline. Keeping presence checks out of base layout avoids
+    -- a second hide path with slightly different timing during target swaps.
     local shouldBeShown = config.enabled ~= false
-    if shouldBeShown and not IsPreviewModeEnabled() and frame.unit ~= "player" then
-        shouldBeShown = DoesUnitSeemPresent(frame.unit)
-    end
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
@@ -58,7 +59,9 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     frame:SetScale(scale)
     frame:SetFrameLevel(frameLevel)
     frame:SetFrameStrata(frameStrata)
-    frame:SetShown(shouldBeShown)
+    if not IsProtectedRoot(frame) then
+        frame:SetShown(shouldBeShown)
+    end
     frame:EnableMouse(mouseEnabled ~= false)
     frame:SetMouseClickEnabled(not (config.clickThrough or globalClickThrough))
     frame:SetClampedToScreen(clampToScreen == true)

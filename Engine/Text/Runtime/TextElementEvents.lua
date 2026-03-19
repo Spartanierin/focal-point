@@ -24,7 +24,9 @@ function Events.Register(frame, deps)
         return
     end
 
-    local eventFrame = CreateFrame("Frame", nil, frame)
+    -- Keep text update events alive even if the owning unit frame is hidden or
+    -- enters a protected combat state.
+    local eventFrame = CreateFrame("Frame")
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("PLAYER_LEVEL_UP")

@@ -50,13 +50,21 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
 
     local function AddSectionWidget(layout, def)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        local fallbackValue = def.fallback
+        if def.path and unitKey == "target" then
+            local fieldKey = def.path[#def.path]
+            if fieldKey == "healthBarReverseFill" or fieldKey == "powerBarReverseFill" then
+                fallbackValue = true
+            end
+        end
+
         if def.widget == "colorpicker" then
             AddLayoutHandle(layout, ColorPicker.Create({
                 path = ResolveLayoutPath(def.path, unitKey),
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 hasAlpha = def.hasAlpha == true,
-                fallback = def.fallback,
+                fallback = fallbackValue,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
@@ -73,11 +81,24 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
-                fallback = def.fallback,
+                fallback = fallbackValue,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = def.disabled == "unit" and function()
                     return IsUnitDisabled(unitKey)
                 end or nil,
+                refreshGUI = def.refreshGUI,
+            }), def)
+            return
+        end
+
+        if def.widget == "checkbox" then
+            AddLayoutHandle(layout, Checkbox.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                fallback = fallbackValue,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
             }), def)
         end
@@ -149,13 +170,21 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
 
     local function AddSectionWidget(layout, def)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+        local fallbackValue = def.fallback
+        if def.path and unitKey == "target" then
+            local fieldKey = def.path[#def.path]
+            if fieldKey == "healthBarReverseFill" or fieldKey == "powerBarReverseFill" then
+                fallbackValue = true
+            end
+        end
+
         if def.widget == "colorpicker" then
             AddLayoutHandle(layout, ColorPicker.Create({
                 path = ResolveLayoutPath(def.path, unitKey),
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 hasAlpha = def.hasAlpha == true,
-                fallback = def.fallback,
+                fallback = fallbackValue,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
@@ -172,7 +201,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
-                fallback = def.fallback,
+                fallback = fallbackValue,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -185,7 +214,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 path = ResolveLayoutPath(def.path, unitKey),
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
-                fallback = def.fallback,
+                fallback = fallbackValue,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -349,6 +378,20 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
 
     local function AddSectionWidget(layout, def)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
+
+        if def.widget == "colorpicker" then
+            AddLayoutHandle(layout, ColorPicker.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                hasAlpha = def.hasAlpha == true,
+                fallback = def.fallback,
+                resetText = L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
+            }), def)
+            return
+        end
+
         if not CanBuildLayoutWidget(def, resolvedList) then
             return
         end

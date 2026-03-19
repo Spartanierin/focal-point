@@ -12,14 +12,15 @@ local ResolveInterruptibleState = Utils.ResolveInterruptibleState
 -- Cast bar helpers keep timing/state logic together so runtime refresh code
 -- can stay focused on orchestration.
 
-function CastBar.ApplyStateColor(castBar, isInterruptible, baseColor)
+function CastBar.ApplyStateColor(castBar, isInterruptible, baseColor, uninterruptibleColor)
     if not castBar then
         return
     end
 
     if isInterruptible == false then
-        castBar:SetStatusBarColor(0.60, 0.60, 0.60, 1.00)
-        castBar:SetAlpha(1.00)
+        local r, g, b, a = UnpackColor(uninterruptibleColor, { 0.60, 0.60, 0.60, 1.00 })
+        castBar:SetStatusBarColor(r, g, b, 1.00)
+        castBar:SetAlpha(a or 1.00)
     else
         local r, g, b, a = UnpackColor(baseColor, { 1.00, 0.72, 0.18, 1.00 })
         castBar:SetStatusBarColor(r, g, b, 1.00)
@@ -53,8 +54,16 @@ function CastBar.GetActiveTiming(unit, castBar)
             return castBar.startTime, castBar.endTime
         end
 
-        if type(castToken) == "string" and castToken ~= "" and castBar.castToken == castToken then
-            return castBar.startTime, castBar.endTime
+        local okHasToken, hasToken = pcall(function()
+            return type(castToken) == "string" and castToken ~= ""
+        end)
+        if okHasToken and hasToken then
+            local okSameToken, sameToken = pcall(function()
+                return castBar.castToken == castToken
+            end)
+            if okSameToken and sameToken then
+                return castBar.startTime, castBar.endTime
+            end
         end
 
         return nil, nil
@@ -166,12 +175,17 @@ function CastBar.Start(frame)
     castBar.isCasting = true
     castBar.isChannel = isChannel and true or false
     castBar.isPreview = false
-    castBar.isInterruptible = isInterruptible ~= false
+    castBar.isInterruptible = isInterruptible == true
     castBar.castID = castID
     castBar.castToken = castToken
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
-    CastBar.ApplyStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
+    CastBar.ApplyStateColor(
+        castBar,
+        castBar.isInterruptible,
+        frame.config and frame.config.castBarColor,
+        frame.config and frame.config.castBarUninterruptibleColor
+    )
 
     if castBar.icon then
         if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then
@@ -205,7 +219,12 @@ function CastBar.StartPreview(frame)
     castBar.castToken = "preview"
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(now + 1.25)
-    CastBar.ApplyStateColor(castBar, true, frame.config and frame.config.castBarColor)
+    CastBar.ApplyStateColor(
+        castBar,
+        true,
+        frame.config and frame.config.castBarColor,
+        frame.config and frame.config.castBarUninterruptibleColor
+    )
 
     if castBar.icon then
         if frame.config and frame.config.showCastBarIcon ~= false then
@@ -282,7 +301,12 @@ function CastBar.ApplyLayout(frame, options)
     castBar:SetFrameStrata(frame:GetFrameStrata())
     castBar:SetFrameLevel(math.max(frame:GetFrameLevel() + 5, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 1) or (frame:GetFrameLevel() + 5)))
     castBar:SetStatusBarTexture(options.castTexture)
-    CastBar.ApplyStateColor(castBar, castBar.isInterruptible, options.castBarColor)
+    CastBar.ApplyStateColor(
+        castBar,
+        castBar.isInterruptible,
+        options.castBarColor,
+        options.castBarUninterruptibleColor
+    )
 
     if castBar.bg then
         castBar.bg:SetTexture(options.castTexture)

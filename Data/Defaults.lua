@@ -58,6 +58,8 @@ function FocalPoint:GetDefaultDB()
 
                     showPowerBar = true,
                     powerBarHeight = 20,
+                    healthBarReverseFill = false,
+                    powerBarReverseFill = false,
                     showAlternativePowerBar = true,
                     alternativePowerBarHeight = 20,
                     alternativePowerBarWidth = 100,
@@ -79,7 +81,8 @@ function FocalPoint:GetDefaultDB()
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 0.7686275243759155, 0.7411764860153198, 0.2156862914562225, 1.00 },
+                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
+                    castBarUninterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
@@ -560,6 +563,8 @@ function FocalPoint:GetDefaultDB()
                     y = -290,
                     showPowerBar = true,
                     powerBarHeight = 20,
+                    healthBarReverseFill = true,
+                    powerBarReverseFill = true,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 100,
@@ -581,6 +586,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
+                    castBarUninterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
@@ -1060,6 +1066,8 @@ function FocalPoint:GetDefaultDB()
 
                     showPowerBar = true,
                     powerBarHeight = 15,
+                    healthBarReverseFill = false,
+                    powerBarReverseFill = false,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 75,
@@ -1081,6 +1089,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
+                    castBarUninterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },

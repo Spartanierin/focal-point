@@ -117,13 +117,15 @@ function LayoutHelpers.ResolveLayoutList(list)
 end
 
 function LayoutHelpers.LayoutWidgetRequiresPath(widgetType)
-    return widgetType == "checkbox"
+    return widgetType == "colorpicker"
+        or widgetType == "checkbox"
         or widgetType == "dropdown"
         or widgetType == "slider"
 end
 
 function LayoutHelpers.IsSupportedLayoutWidget(widgetType)
-    return widgetType == "checkbox"
+    return widgetType == "colorpicker"
+        or widgetType == "checkbox"
         or widgetType == "dropdown"
         or widgetType == "slider"
 end

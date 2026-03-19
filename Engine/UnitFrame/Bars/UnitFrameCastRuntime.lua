@@ -41,7 +41,7 @@ function Runtime.Refresh(owner, frame)
         castBar.isCasting = true
         castBar.isChannel = isChannel
         castBar.isPreview = false
-        castBar.isInterruptible = isInterruptible ~= false
+        castBar.isInterruptible = isInterruptible == true
         castBar.castID = castID
         castBar.castToken = castToken
         castBar.startTime = startTime
@@ -54,7 +54,12 @@ function Runtime.Refresh(owner, frame)
             castBar:SetValue(math.max(now - startTime, 0))
         end
 
-        ApplyCastBarStateColor(castBar, castBar.isInterruptible, frame.config and frame.config.castBarColor)
+        ApplyCastBarStateColor(
+            castBar,
+            castBar.isInterruptible,
+            frame.config and frame.config.castBarColor,
+            frame.config and frame.config.castBarUninterruptibleColor
+        )
 
         if castBar.icon then
             if frame.config and frame.config.showCastBarIcon ~= false and spellIcon ~= nil and spellIcon ~= "" then

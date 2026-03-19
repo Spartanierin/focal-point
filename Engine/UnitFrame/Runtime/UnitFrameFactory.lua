@@ -37,7 +37,10 @@ function Factory.CreateBaseFrame(unit, config)
     frame:SetAttribute("*type1", "target")
     frame:SetAttribute("*type2", "togglemenu")
     frame:SetAttribute("toggleForVehicle", true)
-    frame:Hide()
+
+    if unit ~= "player" and RegisterUnitWatch then
+        RegisterUnitWatch(frame)
+    end
 
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",

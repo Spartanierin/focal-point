@@ -3,6 +3,10 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameRefresh = FocalPoint.UnitFrameRefresh or {}
 local Refresh = FocalPoint.UnitFrameRefresh
 
+local function IsProtectedRoot(frame)
+    return frame and frame.IsProtected and frame:IsProtected()
+end
+
 -- Refresh orchestration keeps the normal live-update path together so the
 -- main unit-frame runtime only handles guards and high-level delegation.
 
@@ -27,5 +31,8 @@ function Refresh.Apply(owner, frame, config)
     end
 
     owner:ApplyRangeFade(frame)
-    frame:Show()
+
+    if not IsProtectedRoot(frame) then
+        frame:Show()
+    end
 end

@@ -12,6 +12,7 @@ ns.GUI.Layouts.UnitBars.HealthBarTab = {
         layout = "list",
         items = {
             { widget = "dropdown", path = { "Units", "$unitKey", "healthBarTexture" }, label = "OPTION_BAR_TEXTURE", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true },
+            { widget = "checkbox", path = { "Units", "$unitKey", "healthBarReverseFill" }, label = "OPTION_REVERSE_FILL", fallback = false, disabled = "unit", refreshGUI = true },
         },
     },
 }
@@ -23,6 +24,7 @@ ns.GUI.Layouts.UnitBars.PowerBarTab = {
         layout = "list",
         items = {
             { widget = "dropdown", path = { "Units", "$unitKey", "powerBarTexture" }, label = "OPTION_BAR_TEXTURE", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true },
+            { widget = "checkbox", path = { "Units", "$unitKey", "powerBarReverseFill" }, label = "OPTION_REVERSE_FILL", fallback = false, disabled = "unit", refreshGUI = true },
             { widget = "checkbox", path = { "Units", "$unitKey", "showPowerBar" }, label = "OPTION_SHOW_POWER_BAR", description = "OPTION_SHOW_POWER_BAR_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true },
             { widget = "slider", path = { "Units", "$unitKey", "powerBarHeight" }, label = "OPTION_POWER_BAR_HEIGHT", description = "OPTION_POWER_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 8, format = "%d", disabled = "power" },
         },
@@ -51,6 +53,8 @@ ns.GUI.Layouts.UnitBars.CastBarTab = {
             { widget = "checkbox", path = { "Units", "$unitKey", "showCastBar" }, label = "OPTION_SHOW_CAST_BAR", description = "OPTION_SHOW_CAST_BAR_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true },
             { widget = "checkbox", path = { "Units", "$unitKey", "showCastBarIcon" }, label = "OPTION_SHOW_CAST_BAR_ICON", description = "OPTION_SHOW_CAST_BAR_ICON_DESC", fallback = true, resetText = false, disabled = "cast", refreshGUI = true },
             { widget = "slider", path = { "Units", "$unitKey", "castBarHeight" }, label = "OPTION_CAST_BAR_HEIGHT", description = "OPTION_CAST_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 10, format = "%d", disabled = "cast" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarColor" }, label = "OPTION_CAST_BAR_COLOR", description = "OPTION_CAST_BAR_COLOR_DESC", hasAlpha = true, disabled = "cast" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarUninterruptibleColor" }, label = "OPTION_CAST_BAR_UNINTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_UNINTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast" },
         },
     },
     {
