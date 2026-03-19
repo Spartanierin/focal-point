@@ -132,3 +132,10 @@ function Preview.GetSecondaryPowerValues(unit)
 
     return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
 end
+
+function Preview.IsIndicatorVisible(frame, indicatorKey)
+    if not frame or not indicatorKey or not frame.unit then
+        return false
+    end
+    return true
+end

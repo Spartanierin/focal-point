@@ -40,6 +40,7 @@ function Factory.CreateBaseFrame(unit, config)
 
     if unit ~= "player" and RegisterUnitWatch then
         RegisterUnitWatch(frame)
+        frame._unitWatchRegistered = true
     end
 
     frame:SetBackdrop({

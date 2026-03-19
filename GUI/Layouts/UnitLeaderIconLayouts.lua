@@ -24,6 +24,7 @@ ns.GUI.Layouts.UnitLeaderIcon.LeaderIconTab = {
         items = {
             { widget = "slider", path = { "Units", "$unitKey", "LeaderIcon", "padding" }, label = "OPTION_PADDING", description = "OPTION_LEADER_ICON_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside" },
             { widget = "dropdown", path = { "Units", "$unitKey", "LeaderIcon", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_LEADER_ICON_INSIDE_SIDE_DESC", list = "insideSide", fallback = "LEFT", disabled = "inside" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "LeaderIcon", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "Frame", disabled = "inside" },
         },
     },
     {

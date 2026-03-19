@@ -906,6 +906,7 @@ function FocalPoint:CreateGUI()
         end
 
         self:SetTestModeEnabled(false)
+        FocalPoint._suppressMissingUnitUntil = (GetTime and (GetTime() + 1.0)) or 0
 
         if self.TestEnvironment then
             if self.TestEnvironment.Disable then
@@ -919,7 +920,45 @@ function FocalPoint:CreateGUI()
             end
         end
 
-        if FocalPoint.RefreshAllUnitFrames then
+        local visibility = FocalPoint and FocalPoint.UnitFrameVisibility
+        local clearVisuals = visibility and visibility.ClearFrameVisualState
+        local unitExists = UnitExists
+        if clearVisuals and FocalPoint and FocalPoint.frames then
+            for unit, frame in pairs(FocalPoint.frames) do
+                if frame and unit ~= "player" then
+                    clearVisuals(frame)
+
+                    local hasLiveUnit = unitExists and unitExists(unit)
+
+                    if not hasLiveUnit
+                        and frame.SetAlpha
+                    then
+                        frame:SetAlpha(0)
+                    end
+
+                    if not hasLiveUnit
+                        and frame.Hide
+                        and not (InCombatLockdown and InCombatLockdown())
+                    then
+                        frame:Hide()
+                    end
+                end
+            end
+        end
+
+        if FocalPoint and FocalPoint.frames and FocalPoint.RefreshUnitFrame then
+            C_Timer.After(0, function()
+                if not FocalPoint or not FocalPoint.frames or not FocalPoint.RefreshUnitFrame then
+                    return
+                end
+
+                for unit in pairs(FocalPoint.frames) do
+                    if unit == "player" or (unitExists and unitExists(unit)) then
+                        FocalPoint:RefreshUnitFrame(unit)
+                    end
+                end
+            end)
+        elseif FocalPoint.RefreshAllUnitFrames then
             FocalPoint:RefreshAllUnitFrames()
         end
     end

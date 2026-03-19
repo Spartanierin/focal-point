@@ -5,8 +5,11 @@ local Role = FocalPoint.UnitFrameRole
 
 local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
+local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
 
 -- Role icon runtime keeps role evaluation and event wiring isolated.
 
@@ -21,15 +24,13 @@ function Role.Update(owner, frame)
     local roleConfig = config and config.RoleIcon or nil
 
     if not roleConfig or roleConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_roleLayoutRefreshQueued")
         return
     end
 
     local role = frame.unit and UnitGroupRolesAssigned and UnitGroupRolesAssigned(frame.unit) or nil
 
-    if (not role or role == "NONE") and IsPreviewModeEnabled() then
+    if (not role or role == "NONE") and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "role") then
         local preview = Preview.GetTestValues(frame)
         role = preview and preview.role or nil
     end
@@ -41,14 +42,11 @@ function Role.Update(owner, frame)
     elseif role == "DAMAGER" then
         icon:SetAtlas("UI-LFG-RoleIcon-DPS-Micro-Raid", true)
     else
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_roleLayoutRefreshQueued")
         return
     end
 
-    holder:Show()
-    icon:Show()
+    HandleVisibilityTransition(owner, frame, holder, true, "_roleLayoutRefreshQueued")
 end
 
 function Role.RegisterEvents(owner, frame)

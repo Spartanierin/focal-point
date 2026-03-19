@@ -4,8 +4,12 @@ FocalPoint.UnitFrameLeader = FocalPoint.UnitFrameLeader or {}
 local Leader = FocalPoint.UnitFrameLeader
 
 local Presence = FocalPoint.UnitFramePresence or {}
+local Preview = FocalPoint.UnitFramePreview or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
+local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
 
 -- Leader icon runtime keeps the leader-state evaluation and event wiring
 -- isolated from the rest of the indicator logic.
@@ -21,16 +25,14 @@ function Leader.Update(owner, frame)
     local leaderConfig = config and config.LeaderIcon or nil
 
     if not leaderConfig or leaderConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_leaderLayoutRefreshQueued")
         return
     end
 
     local isLeader = false
 
     if IsPreviewModeEnabled() then
-        isLeader = frame.unit == "player" or frame.unit == "target"
+        isLeader = IsPreviewIndicatorVisible(frame, "leader")
     end
 
     if not isLeader and frame.unit and UnitExists and UnitExists(frame.unit) then
@@ -42,15 +44,17 @@ function Leader.Update(owner, frame)
     end
 
     if not isLeader then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_leaderLayoutRefreshQueued")
         return
     end
 
-    icon:SetAtlas("UI-HUD-UnitFrame-Player-Group-LeaderIcon", true)
-    holder:Show()
-    icon:Show()
+    if IsPreviewModeEnabled() then
+        icon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
+        icon:SetTexCoord(0, 1, 0, 1)
+    else
+        icon:SetAtlas("UI-HUD-UnitFrame-Player-Group-LeaderIcon", true)
+    end
+    HandleVisibilityTransition(owner, frame, holder, true, "_leaderLayoutRefreshQueued")
 end
 
 function Leader.RegisterEvents(owner, frame)

@@ -4,8 +4,12 @@ FocalPoint.UnitFrameCombat = FocalPoint.UnitFrameCombat or {}
 local Combat = FocalPoint.UnitFrameCombat
 
 local Presence = FocalPoint.UnitFramePresence or {}
+local Preview = FocalPoint.UnitFramePreview or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
+local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
 
 -- Combat indicator runtime keeps combat-state evaluation and event wiring
 -- isolated from the rest of the indicator logic.
@@ -21,28 +25,23 @@ function Combat.Update(owner, frame)
     local combatConfig = config and config.CombatIndicator or nil
 
     if not combatConfig or combatConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_combatLayoutRefreshQueued")
         return
     end
 
     local inCombat = frame.unit and UnitAffectingCombat and UnitAffectingCombat(frame.unit) or false
 
     if IsPreviewModeEnabled() then
-        inCombat = frame.unit == "player" or frame.unit == "target"
+        inCombat = IsPreviewIndicatorVisible(frame, "combat")
     end
 
     if not inCombat then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_combatLayoutRefreshQueued")
         return
     end
 
     icon:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon", true)
-    holder:Show()
-    icon:Show()
+    HandleVisibilityTransition(owner, frame, holder, true, "_combatLayoutRefreshQueued")
 end
 
 function Combat.RegisterEvents(owner, frame)

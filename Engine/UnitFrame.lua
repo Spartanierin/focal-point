@@ -14,6 +14,7 @@ local Factory = FocalPoint.UnitFrameFactory or {}
 local Health = FocalPoint.UnitFrameHealth or {}
 local BuildRuntime = FocalPoint.UnitFrameBuild or {}
 local RefreshRuntime = FocalPoint.UnitFrameRefresh or {}
+local InsideLayout = FocalPoint.UnitFrameInsideLayout or {}
 local Layout = FocalPoint.UnitFrameLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout or {}
 local Power = FocalPoint.UnitFramePower or {}
@@ -75,7 +76,6 @@ local ApplyPortraitLayout = Portrait.ApplyLayout
 local UpdatePortraitTexture = Portrait.UpdateTexture
 local RegisterPortraitEvents = Portrait.RegisterEvents
 local CreateRaidTargetIcon = RaidTarget.Create
-local ApplyRaidTargetLayout = RaidTarget.ApplyLayout
 local UpdateRaidTargetIcon = RaidTarget.Update
 local RegisterRaidTargetEvents = RaidTarget.RegisterEvents
 local UpdateLeaderIcon = Leader.Update
@@ -101,6 +101,10 @@ local ClearFrameVisualState = Visibility.ClearFrameVisualState
 local QueueVisibilityRefresh = Visibility.QueueRefresh
 local GetRangeFadeMultiplier = Range.GetFadeMultiplier
 local EnsureRangeFadeDriver = Range.EnsureFadeDriver
+local AccumulateInsideReserve = InsideLayout.AccumulateReserve
+local ApplyReserveToArea = InsideLayout.ApplyReserveToArea
+local ApplyVisibleReserve = InsideLayout.ApplyVisibleReserve
+local ApplyVisibleEntryReserves = InsideLayout.ApplyVisibleEntryReserves
 
 local function IsProtectedFrameInCombat(frame)
     return frame
@@ -298,6 +302,7 @@ function UF:ApplyConfig(frame)
     local portraitScale = tonumber(portraitConfig.scale) or 1
     local portraitPadding = tonumber(portraitConfig.padding) or 4
     local portraitInsideSide = portraitConfig.insideSide or "LEFT"
+    local portraitInsideAnchorTo = portraitConfig.insideAnchorTo or "Frame"
 
     local portraitPoint = portraitConfig.point or "RIGHT"
     local portraitRelativePoint = portraitConfig.relativePoint or "LEFT"
@@ -382,6 +387,25 @@ function UF:ApplyConfig(frame)
     local readyCheckOffsetY = tonumber(readyCheckConfig.offsetY) or 0
     local readyCheckAnchorTo = readyCheckConfig.anchorTo or "Frame"
 
+    local frameReserve = { left = 0, right = 0 }
+    local healthReserve = { left = 0, right = 0 }
+    local powerReserve = { left = 0, right = 0 }
+
+    if portraitInside then
+        ApplyReserveToArea(frameReserve, healthReserve, powerReserve, portraitInsideAnchorTo, portraitInsideSide, true, "INSIDE", portraitEffectiveSize, 1, portraitPadding)
+    end
+
+    if raidTargetEnabled then
+        local raidTargetPlacement = raidTargetConfig.placement or "ATTACHED"
+        ApplyReserveToArea(frameReserve, healthReserve, powerReserve, raidTargetConfig.insideAnchorTo or "Frame", raidTargetConfig.insideSide or "RIGHT", true, raidTargetPlacement, raidTargetSize, raidTargetScale, tonumber(raidTargetConfig.padding) or 2)
+    end
+
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, leaderConfig.insideAnchorTo or "Frame", leaderInsideSide, leaderEnabled, leaderPlacement, leaderSize, leaderScale, leaderPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, roleConfig.insideAnchorTo or "Frame", roleInsideSide, roleEnabled, rolePlacement, roleSize, roleScale, rolePadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, combatConfig.insideAnchorTo or "Frame", combatInsideSide, combatEnabled, combatPlacement, combatSize, combatScale, combatPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, restingConfig.insideAnchorTo or "Frame", restingInsideSide, restingEnabled, restingPlacement, restingSize, restingScale, restingPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, readyCheckConfig.insideAnchorTo or "Frame", readyCheckInsideSide, readyCheckEnabled, readyCheckPlacement, readyCheckSize, readyCheckScale, readyCheckPadding)
+
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
 
@@ -392,6 +416,8 @@ function UF:ApplyConfig(frame)
     local powerBackgroundEnabled = config.powerBackground ~= false
     local powerBgR, powerBgG, powerBgB, powerBgA = UnpackColor(config.powerBackgroundColor, { 0, 0, 0, 0.35 })
     local powerBackgroundShown = powerBackgroundEnabled and (powerBgA or 0) > 0.001
+
+    local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0, 0, 0, 0 })
 
     if config.useClassColorPower then
         local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame.unit)
@@ -424,17 +450,20 @@ function UF:ApplyConfig(frame)
         })
     end
 
-    ApplyHealthAndPowerLayout(self, frame, {
+    local barLayoutOptions = {
         borderInset = borderInset,
-        portraitInside = portraitInside,
-        portraitInsideSide = portraitInsideSide,
-        portraitReservedSpace = portraitReservedSpace,
         alternativePowerBarVisible = alternativePowerBarVisible,
         alternativePowerBarHeight = alternativePowerBarHeight,
         showPowerBar = showPowerBar,
         powerBarHeight = powerBarHeight,
         healthBarReverseFill = healthBarReverseFill,
         powerBarReverseFill = powerBarReverseFill,
+        frameLeftReserve = frameReserve.left,
+        frameRightReserve = frameReserve.right,
+        healthLeftReserve = healthReserve.left,
+        healthRightReserve = healthReserve.right,
+        powerLeftReserve = powerReserve.left,
+        powerRightReserve = powerReserve.right,
         healthTexture = healthTexture,
         healthBgR = healthBgR,
         healthBgG = healthBgG,
@@ -451,15 +480,18 @@ function UF:ApplyConfig(frame)
         powerBgB = powerBgB,
         powerBgA = powerBgA,
         powerBackgroundShown = powerBackgroundShown,
-    })
+    }
+
+    ApplyHealthAndPowerLayout(self, frame, barLayoutOptions)
 
     self:ApplyRangeFade(frame)
 
-    ApplyAlternativePowerLayout(frame, {
+    local alternativePowerLayoutOptions = {
         borderInset = borderInset,
-        portraitInside = portraitInside,
-        portraitInsideSide = portraitInsideSide,
-        portraitReservedSpace = portraitReservedSpace,
+        frameLeftReserve = frameReserve.left,
+        frameRightReserve = frameReserve.right,
+        powerLeftReserve = powerReserve.left,
+        powerRightReserve = powerReserve.right,
         alternativePowerBarVisible = alternativePowerBarVisible,
         alternativePowerBarHeight = alternativePowerBarHeight,
         liveAltPowerType = liveAltPowerType,
@@ -475,7 +507,9 @@ function UF:ApplyConfig(frame)
         powerBgB = powerBgB,
         powerBgA = powerBgA,
         powerBackgroundShown = powerBackgroundShown,
-    })
+    }
+
+    ApplyAlternativePowerLayout(frame, alternativePowerLayoutOptions)
 
     if frame.Elements.CastBar then
         local showCastBar = config.showCastBar ~= false
@@ -509,6 +543,13 @@ function UF:ApplyConfig(frame)
             portraitEffectiveSize = portraitEffectiveSize,
             portraitInside = portraitInside,
             portraitInsideSide = portraitInsideSide,
+            portraitInsideAnchorTo = portraitInsideAnchorTo,
+            frameLeftReserve = frameReserve.left,
+            frameRightReserve = frameReserve.right,
+            healthLeftReserve = healthReserve.left,
+            healthRightReserve = healthReserve.right,
+            powerLeftReserve = powerReserve.left,
+            powerRightReserve = powerReserve.right,
             portraitAnchorTo = portraitAnchorTo,
             portraitPoint = portraitPoint,
             portraitRelativePoint = portraitRelativePoint,
@@ -522,29 +563,35 @@ function UF:ApplyConfig(frame)
         })
     end
 
-    -- Raid Target Icon
-    if frame.Elements.RaidTargetIcon then
-        local raidTargetPlacement = raidTargetConfig.placement or "ATTACHED"
-        local raidTargetPadding = tonumber(raidTargetConfig.padding) or 2
-        local raidTargetInsideSide = raidTargetConfig.insideSide or "RIGHT"
-
-        ApplyRaidTargetLayout(self, frame, {
-            raidTargetEnabled = raidTargetEnabled,
-            raidTargetPlacement = raidTargetPlacement,
-            raidTargetPadding = raidTargetPadding,
-            raidTargetInsideSide = raidTargetInsideSide,
-            raidTargetSize = raidTargetSize,
-            raidTargetScale = raidTargetScale,
-            raidTargetAnchorTo = raidTargetAnchorTo,
-            raidTargetPoint = raidTargetPoint,
-            raidTargetRelativePoint = raidTargetRelativePoint,
-            raidTargetOffsetX = raidTargetOffsetX,
-            raidTargetOffsetY = raidTargetOffsetY,
-            borderInset = borderInset,
-        })
-    end
-
-    ApplyOverlayIndicatorBatch(self, frame, {
+    local overlayEntries = {
+        {
+            holder = frame.Elements.RaidTargetIcon,
+            options = {
+                enabled = raidTargetEnabled,
+                placement = raidTargetConfig.placement or "ATTACHED",
+                size = raidTargetSize,
+                scale = raidTargetScale,
+                padding = tonumber(raidTargetConfig.padding) or 2,
+                insideSide = raidTargetConfig.insideSide or "RIGHT",
+                insideAnchorTo = raidTargetConfig.insideAnchorTo or "Frame",
+                frameLeftReserve = frameReserve.left,
+                frameRightReserve = frameReserve.right,
+                healthLeftReserve = healthReserve.left,
+                healthRightReserve = healthReserve.right,
+                powerLeftReserve = powerReserve.left,
+                powerRightReserve = powerReserve.right,
+                anchorTo = raidTargetAnchorTo,
+                point = raidTargetPoint,
+                relativePoint = raidTargetRelativePoint,
+                offsetX = raidTargetOffsetX,
+                offsetY = raidTargetOffsetY,
+                borderInset = borderInset,
+                _elementKey = "RaidTargetIcon",
+                updateFunc = function(targetFrame)
+                    self:UpdateRaidTargetIcon(targetFrame)
+                end,
+            },
+        },
         {
             holder = frame.Elements.LeaderIcon,
             options = {
@@ -554,12 +601,20 @@ function UF:ApplyConfig(frame)
                 scale = leaderScale,
                 padding = leaderPadding,
                 insideSide = leaderInsideSide,
+                insideAnchorTo = leaderConfig.insideAnchorTo or "Frame",
+                frameLeftReserve = frameReserve.left,
+                frameRightReserve = frameReserve.right,
+                healthLeftReserve = healthReserve.left,
+                healthRightReserve = healthReserve.right,
+                powerLeftReserve = powerReserve.left,
+                powerRightReserve = powerReserve.right,
                 anchorTo = leaderAnchorTo,
                 point = leaderPoint,
                 relativePoint = leaderRelativePoint,
                 offsetX = leaderOffsetX,
                 offsetY = leaderOffsetY,
                 borderInset = borderInset,
+                _elementKey = "LeaderIcon",
                 updateFunc = function(targetFrame)
                     self:UpdateLeaderIcon(targetFrame)
                 end,
@@ -574,12 +629,20 @@ function UF:ApplyConfig(frame)
                 scale = roleScale,
                 padding = rolePadding,
                 insideSide = roleInsideSide,
+                insideAnchorTo = roleConfig.insideAnchorTo or "Frame",
+                frameLeftReserve = frameReserve.left,
+                frameRightReserve = frameReserve.right,
+                healthLeftReserve = healthReserve.left,
+                healthRightReserve = healthReserve.right,
+                powerLeftReserve = powerReserve.left,
+                powerRightReserve = powerReserve.right,
                 anchorTo = roleAnchorTo,
                 point = rolePoint,
                 relativePoint = roleRelativePoint,
                 offsetX = roleOffsetX,
                 offsetY = roleOffsetY,
                 borderInset = borderInset,
+                _elementKey = "RoleIcon",
                 updateFunc = function(targetFrame)
                     self:UpdateRoleIcon(targetFrame)
                 end,
@@ -594,12 +657,20 @@ function UF:ApplyConfig(frame)
                 scale = combatScale,
                 padding = combatPadding,
                 insideSide = combatInsideSide,
+                insideAnchorTo = combatConfig.insideAnchorTo or "Frame",
+                frameLeftReserve = frameReserve.left,
+                frameRightReserve = frameReserve.right,
+                healthLeftReserve = healthReserve.left,
+                healthRightReserve = healthReserve.right,
+                powerLeftReserve = powerReserve.left,
+                powerRightReserve = powerReserve.right,
                 anchorTo = combatAnchorTo,
                 point = combatPoint,
                 relativePoint = combatRelativePoint,
                 offsetX = combatOffsetX,
                 offsetY = combatOffsetY,
                 borderInset = borderInset,
+                _elementKey = "CombatIndicator",
                 updateFunc = function(targetFrame)
                     self:UpdateCombatIndicator(targetFrame)
                 end,
@@ -614,12 +685,20 @@ function UF:ApplyConfig(frame)
                 scale = restingScale,
                 padding = restingPadding,
                 insideSide = restingInsideSide,
+                insideAnchorTo = restingConfig.insideAnchorTo or "Frame",
+                frameLeftReserve = frameReserve.left,
+                frameRightReserve = frameReserve.right,
+                healthLeftReserve = healthReserve.left,
+                healthRightReserve = healthReserve.right,
+                powerLeftReserve = powerReserve.left,
+                powerRightReserve = powerReserve.right,
                 anchorTo = restingAnchorTo,
                 point = restingPoint,
                 relativePoint = restingRelativePoint,
                 offsetX = restingOffsetX,
                 offsetY = restingOffsetY,
                 borderInset = borderInset,
+                _elementKey = "RestingIndicator",
                 updateFunc = function(targetFrame)
                     self:UpdateRestingIndicator(targetFrame)
                 end,
@@ -634,18 +713,100 @@ function UF:ApplyConfig(frame)
                 scale = readyCheckScale,
                 padding = readyCheckPadding,
                 insideSide = readyCheckInsideSide,
+                insideAnchorTo = readyCheckConfig.insideAnchorTo or "Frame",
+                frameLeftReserve = frameReserve.left,
+                frameRightReserve = frameReserve.right,
+                healthLeftReserve = healthReserve.left,
+                healthRightReserve = healthReserve.right,
+                powerLeftReserve = powerReserve.left,
+                powerRightReserve = powerReserve.right,
                 anchorTo = readyCheckAnchorTo,
                 point = readyCheckPoint,
                 relativePoint = readyCheckRelativePoint,
                 offsetX = readyCheckOffsetX,
                 offsetY = readyCheckOffsetY,
                 borderInset = borderInset,
+                _elementKey = "ReadyCheckIndicator",
                 updateFunc = function(targetFrame)
                     self:UpdateReadyCheckIndicator(targetFrame)
                 end,
             },
         },
-    })
+    }
+
+    ApplyOverlayIndicatorBatch(self, frame, overlayEntries)
+
+    local visibleFrameReserve = { left = 0, right = 0 }
+    local visibleHealthReserve = { left = 0, right = 0 }
+    local visiblePowerReserve = { left = 0, right = 0 }
+
+    if portraitInside and frame.Elements.Portrait and frame.Elements.Portrait:IsShown() then
+        ApplyVisibleReserve(
+            visibleFrameReserve,
+            visibleHealthReserve,
+            visiblePowerReserve,
+            portraitInsideAnchorTo,
+            portraitInsideSide,
+            frame.Elements.Portrait,
+            portraitEffectiveSize,
+            1,
+            portraitPadding
+        )
+    end
+
+    ApplyVisibleEntryReserves(visibleFrameReserve, visibleHealthReserve, visiblePowerReserve, overlayEntries)
+
+    barLayoutOptions.frameLeftReserve = visibleFrameReserve.left
+    barLayoutOptions.frameRightReserve = visibleFrameReserve.right
+    barLayoutOptions.healthLeftReserve = visibleHealthReserve.left
+    barLayoutOptions.healthRightReserve = visibleHealthReserve.right
+    barLayoutOptions.powerLeftReserve = visiblePowerReserve.left
+    barLayoutOptions.powerRightReserve = visiblePowerReserve.right
+    ApplyHealthAndPowerLayout(self, frame, barLayoutOptions)
+
+    alternativePowerLayoutOptions.frameLeftReserve = visibleFrameReserve.left
+    alternativePowerLayoutOptions.frameRightReserve = visibleFrameReserve.right
+    alternativePowerLayoutOptions.powerLeftReserve = visiblePowerReserve.left
+    alternativePowerLayoutOptions.powerRightReserve = visiblePowerReserve.right
+    ApplyAlternativePowerLayout(frame, alternativePowerLayoutOptions)
+
+    if frame.Elements.Portrait then
+        ApplyPortraitLayout(self, frame, {
+            portraitEnabled = portraitEnabled,
+            portraitEffectiveSize = portraitEffectiveSize,
+            portraitInside = portraitInside,
+            portraitInsideSide = portraitInsideSide,
+            portraitInsideAnchorTo = portraitInsideAnchorTo,
+            frameLeftReserve = visibleFrameReserve.left,
+            frameRightReserve = visibleFrameReserve.right,
+            healthLeftReserve = visibleHealthReserve.left,
+            healthRightReserve = visibleHealthReserve.right,
+            powerLeftReserve = visiblePowerReserve.left,
+            powerRightReserve = visiblePowerReserve.right,
+            portraitAnchorTo = portraitAnchorTo,
+            portraitPoint = portraitPoint,
+            portraitRelativePoint = portraitRelativePoint,
+            portraitOffsetX = portraitOffsetX,
+            portraitOffsetY = portraitOffsetY,
+            borderInset = borderInset,
+            borderR = borderR,
+            borderG = borderG,
+            borderB = borderB,
+            borderA = borderA,
+        })
+    end
+
+    for _, entry in ipairs(overlayEntries) do
+        local options = entry.options
+        options.frameLeftReserve = visibleFrameReserve.left
+        options.frameRightReserve = visibleFrameReserve.right
+        options.healthLeftReserve = visibleHealthReserve.left
+        options.healthRightReserve = visibleHealthReserve.right
+        options.powerLeftReserve = visiblePowerReserve.left
+        options.powerRightReserve = visiblePowerReserve.right
+    end
+
+    ApplyOverlayIndicatorBatch(self, frame, overlayEntries)
 
     -- Texts
     if config.Texts then
@@ -662,6 +823,7 @@ function UF:ApplyConfig(frame)
             self:ApplyTextElementConfig(frame, key, frame.Texts[key], textConfig)
         end
     end
+
 end
 
 function UF:ApplyRangeFade(frame)

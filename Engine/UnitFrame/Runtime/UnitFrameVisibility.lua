@@ -20,6 +20,37 @@ local function IsProtectedFrameInCombat(frame)
         and InCombatLockdown()
 end
 
+local function IsMissingDebugSuppressed(frame)
+    local now = GetTime and GetTime() or 0
+    if frame and frame._suppressMissingUnitDebugUntil and now <= frame._suppressMissingUnitDebugUntil then
+        return true
+    end
+    return FocalPoint and FocalPoint._suppressMissingUnitUntil and now <= FocalPoint._suppressMissingUnitUntil
+end
+
+local function ShouldTreatMissingTargetAsSuspicious(frame)
+    if not frame or frame.unit ~= "target" then
+        return false
+    end
+
+    if IsProtectedFrameInCombat(frame) then
+        return true
+    end
+
+    local shown = frame.IsShown and frame:IsShown() or false
+    local alpha = tonumber(frame.GetAlpha and frame:GetAlpha() or 0) or 0
+    local visiblyStuck = shown and alpha > 0.05
+
+    local now = GetTime and GetTime() or 0
+    local lastRelevantAt = tonumber(frame._lastTargetEventAt) or 0
+    if visiblyStuck and lastRelevantAt > 0 and (now - lastRelevantAt) <= 1.0 then
+        return true
+    end
+
+    local lastEvent = tostring(frame._lastVisibilityEvent or "")
+    return visiblyStuck and (lastEvent == "PLAYER_TARGET_CHANGED" or lastEvent == "PLAYER_REGEN_ENABLED")
+end
+
 -- Visibility helpers handle visual cleanup and delayed refresh scheduling.
 
 function Visibility.ClearFrameVisualState(frame)
@@ -31,6 +62,9 @@ function Visibility.ClearFrameVisualState(frame)
         for _, textObject in pairs(frame.Texts) do
             if textObject and textObject.SetText then
                 textObject:SetText("")
+            end
+            if textObject and textObject.Hide then
+                textObject:Hide()
             end
         end
     end
@@ -154,11 +188,28 @@ function Visibility.HandleMissingUnit(frame)
         and (not DoesUnitSeemPresent(frame.unit))
 
     if shouldHideForMissingUnit and protectedFrame then
-        ForceDebugTarget(frame, IsProtectedFrameInCombat(frame)
-            and "Missing target during combat: clearing content, secure root unchanged"
-            or "Missing target: clearing content, secure root unchanged", "missing_target", 2.0)
+        if IsMissingDebugSuppressed(frame) then
+            Visibility.ClearFrameVisualState(frame)
+            if frame.SetAlpha then
+                frame:SetAlpha(0)
+            end
+            if frame.Hide and not IsProtectedFrameInCombat(frame) then
+                frame:Hide()
+            end
+            return true
+        end
+
+        local suspiciousMissingTarget = ShouldTreatMissingTargetAsSuspicious(frame)
+
+        if suspiciousMissingTarget then
+            ForceDebugTarget(frame, IsProtectedFrameInCombat(frame)
+                and "Missing target during combat: clearing content, secure root unchanged"
+                or "Missing target: clearing content, secure root unchanged", "missing_target", 2.0)
+        end
         Visibility.ClearFrameVisualState(frame)
-        Visibility.QueueRefresh(frame)
+        if suspiciousMissingTarget then
+            Visibility.QueueRefresh(frame)
+        end
         return true
     end
 
@@ -177,16 +228,18 @@ function Visibility.HandleMissingUnit(frame)
             local elapsedMissing = now - (frame._missingUnitSince or now)
             local snapshot = GetTargetPresenceSnapshot(frame.unit)
 
-            ForceDebugTarget(frame, string.format(
-                "Hide-Kandidat: event=%s exists=%s guid=%s name=%s visible=%s dead=%s dt=%.2f",
-                tostring(frame._lastVisibilityEvent or "?"),
-                tostring(snapshot.exists),
-                tostring(snapshot.guid),
-                tostring(snapshot.name),
-                tostring(snapshot.visible),
-                tostring(snapshot.dead),
-                elapsedMissing
-            ), "hide_candidate", 2.0)
+            if not IsMissingDebugSuppressed(frame) then
+                ForceDebugTarget(frame, string.format(
+                    "Hide-Kandidat: event=%s exists=%s guid=%s name=%s visible=%s dead=%s dt=%.2f",
+                    tostring(frame._lastVisibilityEvent or "?"),
+                    tostring(snapshot.exists),
+                    tostring(snapshot.guid),
+                    tostring(snapshot.name),
+                    tostring(snapshot.visible),
+                    tostring(snapshot.dead),
+                    elapsedMissing
+                ), "hide_candidate", 2.0)
+            end
 
             if elapsedMissing < 0.35 then
                 Visibility.ClearFrameVisualState(frame)
@@ -199,13 +252,26 @@ function Visibility.HandleMissingUnit(frame)
     end
 
     if shouldHideForMissingUnit then
+        if IsMissingDebugSuppressed(frame) then
+            Visibility.ClearFrameVisualState(frame)
+            if frame.SetAlpha then
+                frame:SetAlpha(0)
+            end
+            if frame.Hide then
+                frame:Hide()
+            end
+            return true
+        end
+
         Visibility.ClearFrameVisualState(frame)
 
         if frame.SetAlpha then
             frame:SetAlpha(0)
         end
 
-        MaybeDebugTarget(frame, "Target-Frame wird jetzt verborgen")
+        if not IsMissingDebugSuppressed(frame) then
+            MaybeDebugTarget(frame, "Target-Frame wird jetzt verborgen")
+        end
         frame:Hide()
         return true
     end
@@ -258,6 +324,9 @@ function Visibility.RegisterEvents(owner, frame)
         end
 
         currentOwner._lastVisibilityEvent = event
+        if currentOwner.unit == "target" and (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_ENABLED") then
+            currentOwner._lastTargetEventAt = GetTime and GetTime() or 0
+        end
         if currentOwner.unit == "target" and event == "PLAYER_TARGET_CHANGED" then
             local snapshot = GetTargetPresenceSnapshot(currentOwner.unit)
             local shown = currentOwner.IsShown and currentOwner:IsShown() or false

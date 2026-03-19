@@ -25,6 +25,7 @@ ns.GUI.Layouts.UnitPortrait.PortraitTab = {
         items = {
             { widget = "slider", path = { "Units", "$unitKey", "Portrait", "padding" }, label = "OPTION_PADDING", description = "OPTION_PORTRAIT_PADDING_DESC", min = 0, max = 20, step = 1, fallback = 4, format = "%d", disabled = "inside" },
             { widget = "dropdown", path = { "Units", "$unitKey", "Portrait", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_PORTRAIT_INSIDE_SIDE_DESC", list = "insideSide", fallback = "LEFT", disabled = "inside" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Portrait", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "Frame", disabled = "inside" },
         },
     },
     {

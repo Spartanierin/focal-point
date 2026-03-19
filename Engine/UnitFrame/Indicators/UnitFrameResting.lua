@@ -4,8 +4,12 @@ FocalPoint.UnitFrameResting = FocalPoint.UnitFrameResting or {}
 local Resting = FocalPoint.UnitFrameResting
 
 local Presence = FocalPoint.UnitFramePresence or {}
+local Preview = FocalPoint.UnitFramePreview or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
+local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
 
 -- Resting indicator runtime keeps player-resting state evaluation and
 -- event wiring isolated from the rest of the indicator logic.
@@ -21,29 +25,24 @@ function Resting.Update(owner, frame)
     local restingConfig = config and config.RestingIndicator or nil
 
     if not restingConfig or restingConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_restingLayoutRefreshQueued")
         return
     end
 
     local isResting = frame.unit == "player" and IsResting and IsResting()
 
     if IsPreviewModeEnabled() then
-        isResting = frame.unit == "player"
+        isResting = IsPreviewIndicatorVisible(frame, "resting")
     end
 
     if not isResting then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_restingLayoutRefreshQueued")
         return
     end
 
     icon:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
     icon:SetTexCoord(0, 0.5, 0, 0.421875)
-    holder:Show()
-    icon:Show()
+    HandleVisibilityTransition(owner, frame, holder, true, "_restingLayoutRefreshQueued")
 end
 
 function Resting.RegisterEvents(owner, frame)

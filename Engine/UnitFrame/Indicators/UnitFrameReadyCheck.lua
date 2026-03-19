@@ -4,8 +4,12 @@ FocalPoint.UnitFrameReadyCheck = FocalPoint.UnitFrameReadyCheck or {}
 local ReadyCheck = FocalPoint.UnitFrameReadyCheck
 
 local Presence = FocalPoint.UnitFramePresence or {}
+local Preview = FocalPoint.UnitFramePreview or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
+local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
 
 -- Ready check runtime keeps ready-check state evaluation and event wiring
 -- isolated from the rest of the indicator logic.
@@ -21,15 +25,13 @@ function ReadyCheck.Update(owner, frame)
     local readyCheckConfig = config and config.ReadyCheckIndicator or nil
 
     if not readyCheckConfig or readyCheckConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_readyCheckLayoutRefreshQueued")
         return
     end
 
     local status = frame.unit and GetReadyCheckStatus and GetReadyCheckStatus(frame.unit) or nil
 
-    if not status and IsPreviewModeEnabled() then
+    if not status and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "readyCheck") then
         local previewMap = {
             player = "ready",
             target = "notready",
@@ -46,15 +48,12 @@ function ReadyCheck.Update(owner, frame)
     elseif status == "waiting" then
         icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
     else
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        HandleVisibilityTransition(owner, frame, holder, false, "_readyCheckLayoutRefreshQueued")
         return
     end
 
     icon:SetTexCoord(0, 1, 0, 1)
-    holder:Show()
-    icon:Show()
+    HandleVisibilityTransition(owner, frame, holder, true, "_readyCheckLayoutRefreshQueued")
 end
 
 function ReadyCheck.RegisterEvents(owner, frame)

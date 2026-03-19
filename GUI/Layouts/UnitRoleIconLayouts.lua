@@ -24,6 +24,7 @@ ns.GUI.Layouts.UnitRoleIcon.RoleIconTab = {
         items = {
             { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "padding" }, label = "OPTION_PADDING", description = "OPTION_ROLE_ICON_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside" },
             { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_ROLE_ICON_INSIDE_SIDE_DESC", list = "insideSide", fallback = "RIGHT", disabled = "inside" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "Frame", disabled = "inside" },
         },
     },
     {

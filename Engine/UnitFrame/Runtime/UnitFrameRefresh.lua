@@ -2,9 +2,31 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameRefresh = FocalPoint.UnitFrameRefresh or {}
 local Refresh = FocalPoint.UnitFrameRefresh
+local Presence = FocalPoint.UnitFramePresence or {}
+
+local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
+end
+
+local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
+    if not frame or frame.unit == "player" then
+        return
+    end
+
+    if previewOutsideCombat then
+        if frame._unitWatchRegistered and UnregisterUnitWatch then
+            UnregisterUnitWatch(frame)
+            frame._unitWatchRegistered = false
+        end
+        return
+    end
+
+    if frame._unitWatchRegistered == false and RegisterUnitWatch then
+        RegisterUnitWatch(frame)
+        frame._unitWatchRegistered = true
+    end
 end
 
 -- Refresh orchestration keeps the normal live-update path together so the
@@ -32,7 +54,14 @@ function Refresh.Apply(owner, frame, config)
 
     owner:ApplyRangeFade(frame)
 
-    if not IsProtectedRoot(frame) then
+    local protectedRoot = IsProtectedRoot(frame)
+    local previewOutsideCombat = IsPreviewModeEnabled
+        and IsPreviewModeEnabled()
+        and not (InCombatLockdown and InCombatLockdown())
+
+    SyncPreviewUnitWatch(frame, previewOutsideCombat)
+
+    if not protectedRoot or previewOutsideCombat then
         frame:Show()
     end
 end

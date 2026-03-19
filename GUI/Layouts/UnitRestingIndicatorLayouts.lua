@@ -24,6 +24,7 @@ ns.GUI.Layouts.UnitRestingIndicator.RestingIndicatorTab = {
         items = {
             { widget = "slider", path = { "Units", "$unitKey", "RestingIndicator", "padding" }, label = "OPTION_PADDING", description = "OPTION_RESTING_INDICATOR_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside" },
             { widget = "dropdown", path = { "Units", "$unitKey", "RestingIndicator", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_RESTING_INDICATOR_INSIDE_SIDE_DESC", list = "insideSide", fallback = "LEFT", disabled = "inside" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RestingIndicator", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "Frame", disabled = "inside" },
         },
     },
     {

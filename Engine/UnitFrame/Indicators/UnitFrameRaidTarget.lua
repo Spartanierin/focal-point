@@ -5,9 +5,28 @@ local RaidTarget = FocalPoint.UnitFrameRaidTarget
 
 local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local InsideLayout = FocalPoint.UnitFrameInsideLayout or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local GetPreviewRaidTargetIndex = Preview.GetRaidTargetIndex
+local ResolveInsideAnchor = InsideLayout.ResolveAnchor
+
+local function QueueLayoutRefresh(owner, frame)
+    if not owner or not frame or frame._raidTargetLayoutRefreshQueued then
+        return
+    end
+
+    frame._raidTargetLayoutRefreshQueued = true
+    C_Timer.After(0, function()
+        if frame then
+            frame._raidTargetLayoutRefreshQueued = nil
+        end
+        if owner and frame and frame.config and owner.ApplyConfig then
+            owner:ApplyConfig(frame)
+        end
+    end)
+end
 
 -- Raid target marker uses a dedicated overlay frame so it can sit reliably
 -- above the unit bars even when frame levels change.
@@ -37,17 +56,21 @@ function RaidTarget.Update(owner, frame)
     local icon = holder.Texture or holder
     local config = frame.config
     local rtmConfig = config and config.RaidTargetIcon or nil
+    local wasShown = holder.IsShown and holder:IsShown() or false
 
     if not rtmConfig or rtmConfig.enabled == false then
         icon:SetTexture(nil)
         icon:Hide()
         holder:Hide()
+        if wasShown then
+            QueueLayoutRefresh(owner, frame)
+        end
         return
     end
 
     local index = frame.unit and GetRaidTargetIndex and GetRaidTargetIndex(frame.unit) or nil
 
-    if not index and IsPreviewModeEnabled() then
+    if not index and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "raidTarget") then
         index = GetPreviewRaidTargetIndex(frame)
     end
 
@@ -55,6 +78,9 @@ function RaidTarget.Update(owner, frame)
         icon:SetTexture(nil)
         icon:Hide()
         holder:Hide()
+        if wasShown then
+            QueueLayoutRefresh(owner, frame)
+        end
         return
     end
 
@@ -62,6 +88,9 @@ function RaidTarget.Update(owner, frame)
     SetRaidTargetIconTexture(icon, index)
     holder:Show()
     icon:Show()
+    if not wasShown then
+        QueueLayoutRefresh(owner, frame)
+    end
 end
 
 function RaidTarget.RegisterEvents(owner, frame)
@@ -135,10 +164,14 @@ function RaidTarget.ApplyLayout(owner, frame, options)
         icon:SetAllPoints(holder)
 
         if options.raidTargetPlacement == "INSIDE" then
+            local anchorParent, leftReserve, rightReserve = ResolveInsideAnchor and ResolveInsideAnchor(frame, options.raidTargetInsideAnchorTo or "Frame", options)
+            anchorParent = anchorParent or frame
+            leftReserve = tonumber(leftReserve) or 0
+            rightReserve = tonumber(rightReserve) or 0
             if options.raidTargetInsideSide == "LEFT" then
-                holder:SetPoint("TOPLEFT", frame, "TOPLEFT", options.borderInset + options.raidTargetPadding, -(options.borderInset + options.raidTargetPadding))
+                holder:SetPoint("TOPLEFT", anchorParent, "TOPLEFT", leftReserve + options.raidTargetPadding, -(options.borderInset or 0))
             else
-                holder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(options.borderInset + options.raidTargetPadding), -(options.borderInset + options.raidTargetPadding))
+                holder:SetPoint("TOPRIGHT", anchorParent, "TOPRIGHT", -(rightReserve + options.raidTargetPadding), -(options.borderInset or 0))
             end
         else
             local anchorParent = owner:GetAnchorTarget(frame, options.raidTargetAnchorTo) or frame

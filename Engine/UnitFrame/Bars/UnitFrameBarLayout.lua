@@ -8,15 +8,18 @@ local BarLayout = FocalPoint.UnitFrameBarLayout
 
 function BarLayout.ApplyHealthAndPower(owner, frame, options)
     local borderInset = options.borderInset
-    local portraitInside = options.portraitInside
-    local portraitInsideSide = options.portraitInsideSide
-    local portraitReservedSpace = options.portraitReservedSpace
     local alternativePowerBarVisible = options.alternativePowerBarVisible
     local alternativePowerBarHeight = options.alternativePowerBarHeight
     local showPowerBar = options.showPowerBar
     local powerBarHeight = options.powerBarHeight
     local healthBarReverseFill = options.healthBarReverseFill == true
     local powerBarReverseFill = options.powerBarReverseFill == true
+    local frameLeftReserve = tonumber(options.frameLeftReserve) or 0
+    local frameRightReserve = tonumber(options.frameRightReserve) or 0
+    local healthLeftReserve = tonumber(options.healthLeftReserve) or 0
+    local healthRightReserve = tonumber(options.healthRightReserve) or 0
+    local powerLeftReserve = tonumber(options.powerLeftReserve) or 0
+    local powerRightReserve = tonumber(options.powerRightReserve) or 0
 
     if frame.Elements.HealthBar then
         local health = frame.Elements.HealthBar
@@ -32,22 +35,14 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
             health.bg:SetShown(options.healthBackgroundShown)
         end
 
-        local healthLeftOffset = borderInset
-        local healthRightOffset = -borderInset
+        local healthLeftOffset = borderInset + frameLeftReserve + healthLeftReserve
+        local healthRightOffset = -(borderInset + frameRightReserve + healthRightReserve)
         local healthBottomY = borderInset
         if alternativePowerBarVisible then
             healthBottomY = healthBottomY + alternativePowerBarHeight
         end
         if showPowerBar then
             healthBottomY = healthBottomY + powerBarHeight
-        end
-
-        if portraitInside then
-            if portraitInsideSide == "LEFT" then
-                healthLeftOffset = borderInset + portraitReservedSpace
-            elseif portraitInsideSide == "RIGHT" then
-                healthRightOffset = -(borderInset + portraitReservedSpace)
-            end
         end
 
         health:SetPoint("TOPLEFT", frame, "TOPLEFT", healthLeftOffset, -borderInset)
@@ -76,17 +71,9 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         end
 
         if showPowerBar then
-            local powerLeftOffset = borderInset
-            local powerRightOffset = -borderInset
+            local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
+            local powerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
             local powerBottomOffset = borderInset + (alternativePowerBarVisible and alternativePowerBarHeight or 0)
-
-            if portraitInside then
-                if portraitInsideSide == "LEFT" then
-                    powerLeftOffset = borderInset + portraitReservedSpace
-                elseif portraitInsideSide == "RIGHT" then
-                    powerRightOffset = -(borderInset + portraitReservedSpace)
-                end
-            end
 
             power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
             power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
@@ -107,9 +94,10 @@ function BarLayout.ApplyAlternativePower(frame, options)
     end
 
     local borderInset = options.borderInset
-    local portraitInside = options.portraitInside
-    local portraitInsideSide = options.portraitInsideSide
-    local portraitReservedSpace = options.portraitReservedSpace
+    local frameLeftReserve = tonumber(options.frameLeftReserve) or 0
+    local frameRightReserve = tonumber(options.frameRightReserve) or 0
+    local powerLeftReserve = tonumber(options.powerLeftReserve) or 0
+    local powerRightReserve = tonumber(options.powerRightReserve) or 0
     local alternativePowerBarVisible = options.alternativePowerBarVisible
     local alternativePowerBarHeight = options.alternativePowerBarHeight
 
@@ -141,16 +129,8 @@ function BarLayout.ApplyAlternativePower(frame, options)
         altPower:SetMinMaxValues(0, math.max(maxAltPower, 1))
         altPower:SetValue(currentAltPower)
 
-        local altPowerLeftOffset = borderInset
-        local altPowerRightOffset = -borderInset
-
-        if portraitInside then
-            if portraitInsideSide == "LEFT" then
-                altPowerLeftOffset = borderInset + portraitReservedSpace
-            elseif portraitInsideSide == "RIGHT" then
-                altPowerRightOffset = -(borderInset + portraitReservedSpace)
-            end
-        end
+        local altPowerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
+        local altPowerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
 
         altPower:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", altPowerLeftOffset, borderInset)
         altPower:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", altPowerRightOffset, borderInset)
