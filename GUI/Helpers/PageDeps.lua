@@ -46,6 +46,17 @@ function PageDeps.CreateBarDeps(config)
     return deps
 end
 
+function PageDeps.CreateAuraDeps(config)
+    local deps = PageDeps.CreateLayoutDeps()
+
+    deps.GetGUIState = config.GetGUIState
+    deps.GetAuraTabValues = config.GetAuraTabValues
+    deps.BuildScrollableTabContent = config.BuildScrollableTabContent
+    deps.BuildPlaceholderPage = config.BuildPlaceholderPage
+
+    return deps
+end
+
 function PageDeps.CreateGeneralDeps()
     local BuilderUI = ns.GUI.Helpers.BuilderUI
     local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
@@ -90,6 +101,7 @@ function PageDeps.CreateUnitPageDeps(config)
         GetGUIState = config.GetGUIState,
         GetUnitTabValues = config.GetUnitTabValues,
         BuildUnitBarsPage = config.BuildUnitBarsPage,
+        BuildUnitAurasPage = config.BuildUnitAurasPage,
         BuildUnitTextsPage = config.BuildUnitTextsPage,
         BuildUnitElementsPage = config.BuildUnitElementsPage,
         BuildUnitFramePage = config.BuildUnitFramePage,

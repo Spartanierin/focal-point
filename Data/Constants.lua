@@ -43,6 +43,7 @@ C.UnitOrder = {
 C.Tabs = {
     FRAME = "frame",
     BARS = "bars",
+    AURAS = "auras",
     TEXTS = "texts",
     ELEMENTS = "elements",
     VISIBILITY = "visibility",
@@ -52,10 +53,22 @@ C.Tabs = {
 C.TabOrder = {
     C.Tabs.FRAME,
     C.Tabs.BARS,
+    C.Tabs.AURAS,
     C.Tabs.TEXTS,
     C.Tabs.ELEMENTS,
     C.Tabs.COLORS,
     C.Tabs.VISIBILITY,
+}
+
+-- Auras
+C.Auras = {
+    BUFFS = "buffs",
+    DEBUFFS = "debuffs",
+}
+
+C.AuraOrder = {
+    C.Auras.BUFFS,
+    C.Auras.DEBUFFS,
 }
 
 -- Bars

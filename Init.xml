@@ -58,6 +58,16 @@
     <Script file="Engine/Text/Runtime/TextElementApply.lua"/>
     <Script file="Engine/Text/Runtime/TextElementLiveValues.lua"/>
     <Script file="Engine/TextElements.lua"/>
+    <Script file="Engine/Auras/Runtime/AuraScan.lua"/>
+    <Script file="Engine/Auras/Runtime/AuraFilters.lua"/>
+    <Script file="Engine/Auras/Runtime/AuraSorting.lua"/>
+    <Script file="Engine/Auras/Runtime/AuraEvents.lua"/>
+    <Script file="Engine/Auras/Runtime/AuraCache.lua"/>
+    <Script file="Engine/Auras/Layout/AuraContainer.lua"/>
+    <Script file="Engine/Auras/Layout/AuraBlockLayout.lua"/>
+    <Script file="Engine/Auras/Layout/AuraAnchor.lua"/>
+    <Script file="Engine/Auras/Layout/AuraRenderer.lua"/>
+    <Script file="Engine/Auras/Runtime/AuraRuntime.lua"/>
 
     <Script file="GUI/Helpers/OptionPaths.lua"/>
     <Script file="GUI/Helpers/OptionValues.lua"/>
@@ -75,6 +85,7 @@
     <Script file="GUI/GUIWidgets.lua"/>
     <Script file="GUI/Layouts/UnitFrameLayouts.lua"/>
     <Script file="GUI/Layouts/UnitBarLayouts.lua"/>
+    <Script file="GUI/Layouts/UnitAuraLayouts.lua"/>
     <Script file="GUI/Layouts/UnitColorLayouts.lua"/>
     <Script file="GUI/Layouts/UnitTextLayouts.lua"/>
     <Script file="GUI/Layouts/UnitPortraitLayouts.lua"/>
@@ -90,6 +101,7 @@
     <Script file="GUI/Pages/Shared/ElementLayoutPage.lua"/>
     <Script file="GUI/Pages/Shared/PlaceholderPage.lua"/>
     <Script file="GUI/Pages/UnitBarsPage.lua"/>
+    <Script file="GUI/Pages/UnitAurasPage.lua"/>
     <Script file="GUI/Pages/UnitColorsPage.lua"/>
     <Script file="GUI/Pages/UnitFramePage.lua"/>
     <Script file="GUI/Pages/UnitElementsPage.lua"/>

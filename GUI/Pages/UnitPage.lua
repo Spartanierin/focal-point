@@ -33,6 +33,11 @@ function UnitPage.Build(container, unitKey, deps)
             return
         end
 
+        if tabKey == ns.Constants.Tabs.AURAS then
+            deps.BuildUnitAurasPage(widget, unitKey)
+            return
+        end
+
         if tabKey == ns.Constants.Tabs.TEXTS then
             deps.BuildUnitTextsPage(widget, unitKey)
             return

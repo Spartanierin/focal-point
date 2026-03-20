@@ -95,17 +95,17 @@ function FocalPoint:GetDefaultDB()
                     powerColor = { 0.8000000715255737, 0.01176470704376698, 0.00, 0.65 },
                     powerBackground = true,
                     powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
-                    useClassColorPower = true,
+                    useClassColorPower = false,
                     useReactionColorNpcHealth = false,
 
                     Portrait = {
                         enabled = false,
-                        placement = "INSIDE",   -- INSIDE / ATTACHED
+                        placement = "ATTACHED", -- INSIDE / ATTACHED
                         mode = "2D",            -- 2D / 3D
                         size = 60,
                         scale = 1,
                         padding = 4,            -- nur relevant für INSIDE
-                        insideSide = "LEFT",    -- LEFT / RIGHT
+                        insideSide = "RIGHT",   -- LEFT / RIGHT
                         anchorTo = "Frame",     -- für ATTACHED
                         point = "RIGHT",
                         relativePoint = "LEFT",
@@ -115,11 +115,12 @@ function FocalPoint:GetDefaultDB()
 
                     RaidTargetIcon = {
                         enabled = true,
-                        placement = "ATTACHED", -- INSIDE / ATTACHED
-                        size = 50,
-                        scale = 0.92,
-                        padding = 2,             -- only relevant for INSIDE
-                        insideSide = "LEFT",
+                        placement = "INSIDE",   -- INSIDE / ATTACHED
+                        size = 40,
+                        scale = 1,
+                        padding = 0,             -- only relevant for INSIDE
+                        insideSide = "RIGHT",
+                        insideAnchorTo = "HealthBar",
                         anchorTo = "Frame",
                         point = "BOTTOM",
                         relativePoint = "BOTTOM",
@@ -129,11 +130,12 @@ function FocalPoint:GetDefaultDB()
 
                     LeaderIcon = {
                         enabled = true,
-                        placement = "ATTACHED",
+                        placement = "INSIDE",
                         size = 20,
                         scale = 1,
-                        padding = 2,
-                        insideSide = "LEFT",
+                        padding = 0,
+                        insideSide = "RIGHT",
+                        insideAnchorTo = "PowerBar",
                         anchorTo = "Frame",
                         point = "TOPLEFT",
                         relativePoint = "TOPLEFT",
@@ -171,16 +173,17 @@ function FocalPoint:GetDefaultDB()
 
                     RestingIndicator = {
                         enabled = true,
-                        placement = "ATTACHED",
-                        size = 25,
+                        placement = "INSIDE",
+                        size = 20,
                         scale = 1,
-                        padding = 2,
-                        insideSide = "LEFT",
-                        anchorTo = "Frame",
-                        point = "BOTTOMRIGHT",
-                        relativePoint = "BOTTOMRIGHT",
-                        offsetX = 12,
-                        offsetY = -12,
+                        padding = 0,
+                        insideSide = "RIGHT",
+                        insideAnchorTo = "PowerBar",
+                        anchorTo = "HealthBar",
+                        point = "RIGHT",
+                        relativePoint = "RIGHT",
+                        offsetX = 3,
+                        offsetY = 0,
                     },
 
                     ReadyCheckIndicator = {
@@ -195,6 +198,68 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                    },
+
+                    Buffs = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        anchorTo = "Frame",
+                        point = "BOTTOMLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 0,
+                        offsetY = 4,
+                        insideAnchorTo = "Frame",
+                        insideSide = "LEFT",
+                        iconSize = 25,
+                        stackFontScale = 1,
+                        timerFontScale = 1.35,
+                        spacingX = 3,
+                        spacingY = 3,
+                        iconsPerRow = 4,
+                        maxRows = 0,
+                        growthX = "RIGHT",
+                        growthY = "UP",
+                        showOnlyMine = false,
+                        hidePermanentAuras = true,
+                        hideLongAuras = false,
+                        longAuraThreshold = 300,
+                        showStealableOnly = false,
+                        showDispellableOnly = false,
+                        showBossAuras = true,
+                        showStackText = true,
+                        showTimerText = true,
+                        sortMode = "NEWEST_FIRST",
+                    },
+
+                    Debuffs = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        anchorTo = "Frame",
+                        point = "BOTTOMRIGHT",
+                        relativePoint = "TOPRIGHT",
+                        offsetX = 0,
+                        offsetY = 4,
+                        insideAnchorTo = "Frame",
+                        insideSide = "RIGHT",
+                        iconSize = 25,
+                        stackFontScale = 1,
+                        timerFontScale = 1,
+                        spacingX = 3,
+                        spacingY = 3,
+                        iconsPerRow = 4,
+                        maxRows = 0,
+                        growthX = "LEFT",
+                        growthY = "UP",
+                        showOnlyMine = true,
+                        hidePermanentAuras = false,
+                        hideLongAuras = true,
+                        longAuraThreshold = 300,
+                        showStealableOnly = false,
+                        showDispellableOnly = false,
+                        showBossAuras = true,
+                        showStackText = true,
+                        showTimerText = true,
+                        sortMode = "TIME_REMAINING_ASC",
                     },
 
                     Texts = {
@@ -619,11 +684,12 @@ function FocalPoint:GetDefaultDB()
 
                     RaidTargetIcon = {
                         enabled = true,
-                        placement = "ATTACHED", -- INSIDE / ATTACHED
-                        size = 45,
+                        placement = "INSIDE",   -- INSIDE / ATTACHED
+                        size = 40,
                         scale = 1,
-                        padding = 2,             -- only relevant for INSIDE
-                        insideSide = "RIGHT",   -- LEFT / RIGHT
+                        padding = 0,             -- only relevant for INSIDE
+                        insideSide = "LEFT",    -- LEFT / RIGHT
+                        insideAnchorTo = "HealthBar",
                         anchorTo = "HealthBar",
                         point = "TOPLEFT",
                         relativePoint = "TOPLEFT",
@@ -699,6 +765,68 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                    },
+
+                    Buffs = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        anchorTo = "Frame",
+                        point = "BOTTOMLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 0,
+                        offsetY = 4,
+                        insideAnchorTo = "Frame",
+                        insideSide = "LEFT",
+                        iconSize = 25,
+                        stackFontScale = 1,
+                        timerFontScale = 1,
+                        spacingX = 3,
+                        spacingY = 3,
+                        iconsPerRow = 4,
+                        maxRows = 0,
+                        growthX = "RIGHT",
+                        growthY = "UP",
+                        showOnlyMine = false,
+                        hidePermanentAuras = true,
+                        hideLongAuras = true,
+                        longAuraThreshold = 300,
+                        showStealableOnly = false,
+                        showDispellableOnly = false,
+                        showBossAuras = true,
+                        showStackText = true,
+                        showTimerText = true,
+                        sortMode = "NEWEST_FIRST",
+                    },
+
+                    Debuffs = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        anchorTo = "Frame",
+                        point = "BOTTOMRIGHT",
+                        relativePoint = "TOPRIGHT",
+                        offsetX = 0,
+                        offsetY = 4,
+                        insideAnchorTo = "Frame",
+                        insideSide = "RIGHT",
+                        iconSize = 25,
+                        stackFontScale = 1,
+                        timerFontScale = 1,
+                        spacingX = 3,
+                        spacingY = 3,
+                        iconsPerRow = 4,
+                        maxRows = 0,
+                        growthX = "LEFT",
+                        growthY = "UP",
+                        showOnlyMine = true,
+                        hidePermanentAuras = true,
+                        hideLongAuras = true,
+                        longAuraThreshold = 300,
+                        showStealableOnly = false,
+                        showDispellableOnly = false,
+                        showBossAuras = true,
+                        showStackText = true,
+                        showTimerText = true,
+                        sortMode = "TIME_REMAINING_ASC",
                     },
 
                     Texts = {

@@ -91,6 +91,13 @@ function TabValues.GetBarTabValues()
     }
 end
 
+function TabValues.GetAuraTabValues()
+    return {
+        { text = ns.GetLabel(KM.Auras, C.Auras.BUFFS), value = C.Auras.BUFFS },
+        { text = ns.GetLabel(KM.Auras, C.Auras.DEBUFFS), value = C.Auras.DEBUFFS },
+    }
+end
+
 function TabValues.GetElementTabValues()
     return {
         { text = ns.GetLabel(KM.Elements, C.Elements.PORTRAIT), value = C.Elements.PORTRAIT },

@@ -42,6 +42,9 @@ function Build.CreateElements(owner, frame)
     owner:CreateRestingIndicator(frame)
     owner:CreateReadyCheckIndicator(frame)
     owner:CreateTextElements(frame)
+    if owner.BuildAuraElements then
+        owner:BuildAuraElements(frame)
+    end
 end
 
 function Build.RegisterEvents(owner, frame)
@@ -57,4 +60,7 @@ function Build.RegisterEvents(owner, frame)
     owner:RegisterVisibilityEvents(frame)
     owner:RegisterHealthBarEvents(frame)
     owner:RegisterAlternativePowerEvents(frame)
+    if owner.RegisterAuraEvents then
+        owner:RegisterAuraEvents(frame)
+    end
 end

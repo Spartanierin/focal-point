@@ -28,10 +28,16 @@ KM.Units = {
 KM.Tabs = {
     [C.Tabs.FRAME] = "TAB_FRAME",
     [C.Tabs.BARS] = "TAB_BARS",
+    [C.Tabs.AURAS] = "TAB_AURAS",
     [C.Tabs.TEXTS] = "TAB_TEXTS",
     [C.Tabs.ELEMENTS] = "TAB_ELEMENTS",
     [C.Tabs.COLORS] = "TAB_COLORS",
     [C.Tabs.VISIBILITY] = "TAB_VISIBILITY",
+}
+
+KM.Auras = {
+    [C.Auras.BUFFS] = "AURA_BUFFS",
+    [C.Auras.DEBUFFS] = "AURA_DEBUFFS",
 }
 
 KM.Bars = {

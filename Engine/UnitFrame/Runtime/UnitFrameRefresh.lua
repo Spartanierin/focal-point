@@ -48,6 +48,9 @@ function Refresh.Apply(owner, frame, config)
     if owner.RefreshLiveValues then
         owner:RefreshLiveValues(frame)
     end
+    if owner.RefreshAuras then
+        owner:RefreshAuras(frame)
+    end
     if owner.UpdateTextElements then
         owner:UpdateTextElements(frame)
     end

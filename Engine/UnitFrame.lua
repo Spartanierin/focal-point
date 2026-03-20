@@ -135,6 +135,33 @@ function UF:RefreshHealth(frame)
     return Health.Refresh(self, frame)
 end
 
+function UF:RefreshAuras(frame)
+    local AuraRuntime = FocalPoint.AuraRuntime or {}
+    if AuraRuntime.RefreshAuras then
+        return AuraRuntime.RefreshAuras(frame)
+    end
+
+    return {}
+end
+
+function UF:BuildAuraElements(frame)
+    local AuraRuntime = FocalPoint.AuraRuntime or {}
+    if AuraRuntime.BuildAuraContainers then
+        return AuraRuntime.BuildAuraContainers(frame)
+    end
+
+    return nil
+end
+
+function UF:RegisterAuraEvents(frame)
+    local AuraRuntime = FocalPoint.AuraRuntime or {}
+    if AuraRuntime.RegisterAuraEvents then
+        return AuraRuntime.RegisterAuraEvents(frame)
+    end
+
+    return nil
+end
+
 function UF:GetTestPreviewValues(frame)
     return Preview.GetTestValues(frame)
 end

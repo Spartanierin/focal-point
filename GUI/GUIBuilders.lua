@@ -17,6 +17,7 @@ local TabValues = ns.GUI.Helpers.TabValues
 
 local GetGUIState = GUIState.GetState
 local CreateBarDeps = PageDeps.CreateBarDeps
+local CreateAuraDeps = PageDeps.CreateAuraDeps
 local CreateGeneralDeps = PageDeps.CreateGeneralDeps
 local CreateLayoutDeps = PageDeps.CreateLayoutDeps
 local CreateProfilesDeps = PageDeps.CreateProfilesDeps
@@ -25,6 +26,7 @@ local CreateTextBuilderDeps = PageDeps.CreateTextBuilderDeps
 local CreateTextDeps = PageDeps.CreateTextDeps
 local CreateUnitPageDeps = PageDeps.CreateUnitPageDeps
 local GetBarTabValues = TabValues.GetBarTabValues
+local GetAuraTabValues = TabValues.GetAuraTabValues
 local GetElementTabValues = TabValues.GetElementTabValues
 local GetTextElementLabel = TabValues.GetTextElementLabel
 local GetTextTabValues = TabValues.GetTextTabValues
@@ -202,6 +204,21 @@ function B.BuildUnitBarsPage(container, unitKey)
     }))
 end
 
+function B.BuildUnitAurasPage(container, unitKey)
+    local page = ns.GUI.Pages and ns.GUI.Pages.UnitAuras
+    if not page or not page.BuildTabs then
+        B.BuildPlaceholderPage(container, ns.GetLabel(KM.Tabs, C.Tabs.AURAS))
+        return
+    end
+
+    page.BuildTabs(container, unitKey, CreateAuraDeps({
+        GetGUIState = GetGUIState,
+        GetAuraTabValues = GetAuraTabValues,
+        BuildScrollableTabContent = BuildScrollableTabContent,
+        BuildPlaceholderPage = B.BuildPlaceholderPage,
+    }))
+end
+
 function B.BuildUnitPage(container, unitKey)
     local page = ns.GUI.Pages and ns.GUI.Pages.UnitPage
     if not page or not page.Build then
@@ -213,6 +230,7 @@ function B.BuildUnitPage(container, unitKey)
         GetGUIState = GetGUIState,
         GetUnitTabValues = GetUnitTabValues,
         BuildUnitBarsPage = B.BuildUnitBarsPage,
+        BuildUnitAurasPage = B.BuildUnitAurasPage,
         BuildUnitTextsPage = B.BuildUnitTextsPage,
         BuildUnitElementsPage = B.BuildUnitElementsPage,
         BuildUnitFramePage = B.BuildUnitFramePage,

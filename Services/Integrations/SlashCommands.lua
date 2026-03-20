@@ -22,9 +22,14 @@ function FocalPoint:SetupSlashCommands()
             if FocalPoint.Info then
                 FocalPoint:Info("Target-Debug " .. (FocalPoint.debugTargetVisibility and "aktiv" or "inaktiv"))
             end
+        elseif msg == "debug aura" then
+            FocalPoint.debugAuraTiming = not FocalPoint.debugAuraTiming
+            if FocalPoint.Info then
+                FocalPoint:Info("Aura-Debug " .. (FocalPoint.debugAuraTiming and "aktiv" or "inaktiv"))
+            end
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp test, /fp debug target")
+                FocalPoint:Info("/fp, /fp config, /fp test, /fp debug target, /fp debug aura")
             end
         end
     end

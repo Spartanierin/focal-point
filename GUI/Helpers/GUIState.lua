@@ -12,6 +12,8 @@ function GUIState.GetState()
         unitScroll = {},
         unitBarTabs = {},
         unitBarScroll = {},
+        unitAuraTabs = {},
+        unitAuraScroll = {},
         unitTextTabs = {},
         unitTextScroll = {},
         unitElementTabs = {},
