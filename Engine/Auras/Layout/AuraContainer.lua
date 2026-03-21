@@ -142,6 +142,8 @@ function AuraContainer.ApplyData(container, aura, config)
 
     AuraContainer.ApplyLayout(container, config)
     container.AuraData = aura
+    container.BoundAuraInstanceId = aura.auraInstanceId or 0
+    container.RenderState = "bound"
 
     if container.Icon then
         container.Icon:SetTexture(aura.icon)
@@ -226,11 +228,13 @@ function AuraContainer.Clear(container)
 
     container:SetScript("OnUpdate", nil)
     container.AuraData = nil
+    container.BoundAuraInstanceId = 0
+    container.RenderState = "cleared"
     container:Hide()
 
     if State.Guard then
         local ownerFrame = container:GetParent() and container:GetParent():GetParent() or nil
-        State.Guard(ownerFrame, "aura_button_cleared_state", (not container:IsShown()) and container.AuraData == nil, "button clear left stale state")
+        State.Guard(ownerFrame, "aura_button_cleared_state", (not container:IsShown()) and container.AuraData == nil and (container.BoundAuraInstanceId or 0) == 0, "button clear left stale state")
     end
 end
 

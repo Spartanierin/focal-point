@@ -36,6 +36,11 @@ function AuraRenderer.Build(frame)
         groupFrame:EnableMouse(false)
         groupFrame.pool = {}
         groupFrame.groupKey = groupKey
+        groupFrame.RuntimeState = {
+            phase = "cold",
+            renderedCount = 0,
+            lastReason = nil,
+        }
         groupFrame:Hide()
 
         frame.Elements[groupKey] = groupFrame
@@ -113,6 +118,10 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
     end
 
     groupFrame:Show()
+    groupFrame.RuntimeState = groupFrame.RuntimeState or {}
+    groupFrame.RuntimeState.phase = "rendered"
+    groupFrame.RuntimeState.renderedCount = metrics.shownCount
+    groupFrame.RuntimeState.lastReason = "render"
 
     if State.Guard then
         State.Guard(frame, "aura_group_visible_without_items", metrics.shownCount > 0, string.format("group=%s", tostring(groupKey)))
@@ -134,6 +143,10 @@ function AuraRenderer.ClearGroup(frame, groupKey)
         end
     end
 
+    groupFrame.RuntimeState = groupFrame.RuntimeState or {}
+    groupFrame.RuntimeState.phase = "empty_valid"
+    groupFrame.RuntimeState.renderedCount = 0
+    groupFrame.RuntimeState.lastReason = "clear"
     groupFrame:Hide()
 end
 

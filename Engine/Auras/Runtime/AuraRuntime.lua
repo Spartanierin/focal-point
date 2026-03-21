@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.AuraRuntime = FocalPoint.AuraRuntime or {}
 local AuraRuntime = FocalPoint.AuraRuntime
+local State = FocalPoint.UnitFrameState or {}
 
 -- Public facade for the aura pipeline.
 
@@ -41,6 +42,12 @@ local function SyncFullAuraState(frame, unit)
     }
 
     AuraCache.SyncFromScans(frame, unit, scansByGroup)
+end
+
+local function Log(frame, action, details)
+    if State.DebugLog then
+        State.DebugLog(frame, "aura-" .. tostring(action or "?"), details)
+    end
 end
 
 function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
@@ -83,6 +90,15 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
         AuraRenderer.RenderGroup(frame, groupKey, sortedAuras, groupConfig)
     end
 
+    if AuraCache.MarkRefreshApplied then
+        AuraCache.MarkRefreshApplied(frame, groupKey, {
+            raw = type(allAuras) == "table" and #allAuras or 0,
+            visible = type(visibleAuras) == "table" and #visibleAuras or 0,
+            sorted = type(sortedAuras) == "table" and #sortedAuras or 0,
+            rendered = type(sortedAuras) == "table" and #sortedAuras or 0,
+        })
+    end
+
     return sortedAuras
 end
 
@@ -93,6 +109,9 @@ function AuraRuntime.RefreshAuras(frame, forceFullScan)
 
     local AuraCache = FocalPoint.AuraCache or {}
     local rootCache = frame.AuraCache
+    if AuraCache.MarkRefreshStart then
+        AuraCache.MarkRefreshStart(frame, frame.unit, forceFullScan and "fullscan" or "refresh")
+    end
 
     if forceFullScan or not rootCache or not rootCache.allById or not next(rootCache.allById) then
         SyncFullAuraState(frame, frame.unit)
@@ -100,10 +119,13 @@ function AuraRuntime.RefreshAuras(frame, forceFullScan)
         AuraCache.ReconcileEventAuras(frame, frame.unit)
     end
 
-    return {
+    local result = {
         Buffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Buffs"),
         Debuffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Debuffs"),
     }
+
+    Log(frame, "refresh-applied", string.format("mode=%s buffs=%d debuffs=%d", tostring(forceFullScan and "fullscan" or "refresh"), #(result.Buffs or {}), #(result.Debuffs or {})))
+    return result
 end
 
 function AuraRuntime.BuildAuraContainers(frame)
@@ -140,4 +162,6 @@ function AuraRuntime.Reset(frame)
         AuraRenderer.ClearGroup(frame, "Buffs")
         AuraRenderer.ClearGroup(frame, "Debuffs")
     end
+
+    Log(frame, "reset")
 end

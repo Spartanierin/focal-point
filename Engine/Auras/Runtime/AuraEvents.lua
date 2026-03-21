@@ -4,6 +4,12 @@ FocalPoint.AuraEvents = FocalPoint.AuraEvents or {}
 local AuraEvents = FocalPoint.AuraEvents
 local State = FocalPoint.UnitFrameState or {}
 
+local function Log(frame, action, details)
+    if State.DebugLog then
+        State.DebugLog(frame, "aura-" .. tostring(action or "?"), details)
+    end
+end
+
 -- Event registration shim for the aura runtime.
 
 local function QueueAuraRefresh(owner, refreshFunc, delay, forceFullScan)
@@ -47,6 +53,10 @@ local function QueueUnknownAuraReconcile(owner, refreshFunc)
     local AuraCache = FocalPoint.AuraCache or {}
     if not (AuraCache.HasUnknownEventAuras and AuraCache.HasUnknownEventAuras(owner)) then
         return
+    end
+
+    if AuraCache.MarkReconcileQueued then
+        AuraCache.MarkReconcileQueued(owner, "unknown-event-auras")
     end
 
     local token = BumpReconcileToken(owner)
@@ -105,6 +115,7 @@ function AuraEvents.Register(frame, refreshFunc)
             if AuraCache.ClearAll then
                 AuraCache.ClearAll(owner)
             end
+            Log(owner, "event", "PLAYER_ENTERING_WORLD fullscan")
             QueueAuraRefresh(owner, refreshFunc, 0, true)
             QueueAuraRefresh(owner, refreshFunc, 0.15, true)
             return
@@ -117,6 +128,7 @@ function AuraEvents.Register(frame, refreshFunc)
                 if AuraCache.ClearAll then
                     AuraCache.ClearAll(owner)
                 end
+                Log(owner, "event", "UNIT_AURA full")
                 QueueAuraRefresh(owner, refreshFunc, 0, true)
                 return
             end
@@ -125,6 +137,7 @@ function AuraEvents.Register(frame, refreshFunc)
                 AuraCache.ApplyUpdate(owner, owner.unit, updateInfo)
             end
 
+            Log(owner, "event", "UNIT_AURA incremental")
             QueueAuraRefresh(owner, refreshFunc, 0, false)
             QueueUnknownAuraReconcile(owner, refreshFunc)
 
@@ -137,6 +150,7 @@ function AuraEvents.Register(frame, refreshFunc)
             if AuraCache.ClearAll then
                 AuraCache.ClearAll(owner)
             end
+            Log(owner, "event", string.format("%s fullscan", tostring(event)))
             QueueAuraRefresh(owner, refreshFunc, 0, true)
         end
     end)

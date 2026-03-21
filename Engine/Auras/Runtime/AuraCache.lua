@@ -2,11 +2,31 @@ local _, FocalPoint = ...
 
 FocalPoint.AuraCache = FocalPoint.AuraCache or {}
 local AuraCache = FocalPoint.AuraCache
+local State = FocalPoint.UnitFrameState or {}
 
 -- Owns the authoritative aura cache for a unit frame. Raw event/fullscan data
 -- lands here first; Buff/Debuff lists are derived afterwards.
 
 local GROUP_KEYS = { "Buffs", "Debuffs" }
+
+local function Log(frame, action, details)
+    if State.DebugLog then
+        State.DebugLog(frame, "aura-" .. tostring(action or "?"), details)
+    end
+end
+
+local function CountKeys(source)
+    local count = 0
+    if type(source) ~= "table" then
+        return count
+    end
+
+    for _ in pairs(source) do
+        count = count + 1
+    end
+
+    return count
+end
 
 local function ToInstanceId(value)
     local ok, result = pcall(function()
@@ -48,7 +68,33 @@ local function GetRoot(frame)
     frame.AuraCache.rawByGroup = frame.AuraCache.rawByGroup or {}
     frame.AuraCache.unkeyedByGroup = frame.AuraCache.unkeyedByGroup or {}
     frame.AuraCache.groups = frame.AuraCache.groups or {}
+    frame.AuraCache.state = frame.AuraCache.state or {
+        phase = "cold",
+        boundUnit = frame and frame.unit or nil,
+        lastReason = nil,
+        lastRefreshMode = nil,
+        version = 0,
+        pendingReconcile = false,
+    }
     return frame.AuraCache
+end
+
+local function GetRootState(frame)
+    local root = GetRoot(frame)
+    root.state = root.state or {}
+    return root.state
+end
+
+local function GetGroupState(group)
+    group.state = group.state or {
+        phase = "empty_valid",
+        lastReason = nil,
+        renderedCount = 0,
+        visibleCount = 0,
+        sortedCount = 0,
+        rawCount = 0,
+    }
+    return group.state
 end
 
 local function AuraMatchesGroup(aura, groupKey)
@@ -76,7 +122,55 @@ function AuraCache.GetGroup(frame, groupKey)
     group.activeAuras = group.activeAuras or {}
     group.visibleAuras = group.visibleAuras or {}
     group.sortedAuras = group.sortedAuras or {}
+    GetGroupState(group)
     return group
+end
+
+function AuraCache.MarkRefreshStart(frame, unit, mode)
+    local state = GetRootState(frame)
+    state.boundUnit = unit or state.boundUnit
+    state.phase = "refreshing"
+    state.lastRefreshMode = mode or state.lastRefreshMode or "refresh"
+    state.lastReason = mode or state.lastReason
+    Log(frame, "refresh-start", string.format("mode=%s unit=%s", tostring(state.lastRefreshMode or "-"), tostring(state.boundUnit or "-")))
+end
+
+function AuraCache.MarkReconcileQueued(frame, reason)
+    local state = GetRootState(frame)
+    state.pendingReconcile = true
+    state.lastReason = reason or "reconcile"
+    Log(frame, "reconcile-queued", string.format("reason=%s", tostring(state.lastReason or "-")))
+end
+
+function AuraCache.MarkRefreshApplied(frame, groupKey, counts)
+    local group = AuraCache.GetGroup(frame, groupKey)
+    local groupState = GetGroupState(group)
+    local rootState = GetRootState(frame)
+    counts = type(counts) == "table" and counts or {}
+
+    groupState.phase = (tonumber(counts.sorted or 0) or 0) > 0 and "rendered" or "empty_valid"
+    groupState.lastReason = rootState.lastReason
+    groupState.rawCount = tonumber(counts.raw or 0) or 0
+    groupState.visibleCount = tonumber(counts.visible or 0) or 0
+    groupState.sortedCount = tonumber(counts.sorted or 0) or 0
+    groupState.renderedCount = tonumber(counts.rendered or counts.sorted or 0) or 0
+
+    rootState.phase = "cache_ready"
+    rootState.pendingReconcile = false
+
+    Log(frame, "render-applied", string.format("group=%s raw=%d vis=%d sorted=%d", tostring(groupKey), groupState.rawCount, groupState.visibleCount, groupState.sortedCount))
+end
+
+function AuraCache.MarkGroupCleared(frame, groupKey, reason)
+    local group = AuraCache.GetGroup(frame, groupKey)
+    local groupState = GetGroupState(group)
+    groupState.phase = "empty_valid"
+    groupState.lastReason = reason or "clear"
+    groupState.rawCount = 0
+    groupState.visibleCount = 0
+    groupState.sortedCount = 0
+    groupState.renderedCount = 0
+    Log(frame, "group-cleared", string.format("group=%s reason=%s", tostring(groupKey), tostring(groupState.lastReason or "-")))
 end
 
 function AuraCache.SyncFromScans(frame, unit, scansByGroup)
@@ -86,16 +180,20 @@ function AuraCache.SyncFromScans(frame, unit, scansByGroup)
 
     local AuraScan = FocalPoint.AuraScan or {}
     local root = GetRoot(frame)
+    local rootState = GetRootState(frame)
     local scannedById = {}
     local now = (GetTime and GetTime()) or 0
 
     for _, groupKey in ipairs(GROUP_KEYS) do
         local rawAuras = type(scansByGroup[groupKey]) == "table" and scansByGroup[groupKey] or {}
         local group = AuraCache.GetGroup(frame, groupKey)
+        local groupState = GetGroupState(group)
         local unkeyed = {}
 
         group.rawAuras = rawAuras
         root.rawByGroup[groupKey] = rawAuras
+        groupState.phase = "hydrating"
+        groupState.rawCount = #rawAuras
 
         for index, rawAura in ipairs(rawAuras) do
             local aura = AuraScan.NormalizeAura and AuraScan.NormalizeAura(rawAura, unit, groupKey, "FULLSCAN") or nil
@@ -126,6 +224,14 @@ function AuraCache.SyncFromScans(frame, unit, scansByGroup)
             end
         end
     end
+
+    rootState.boundUnit = unit
+    rootState.phase = "cache_ready"
+    rootState.lastRefreshMode = "fullscan"
+    rootState.lastReason = "fullscan"
+    rootState.pendingReconcile = false
+    rootState.version = (tonumber(rootState.version) or 0) + 1
+    Log(frame, "cache-sync", string.format("mode=fullscan ids=%d", CountKeys(scannedById)))
 
     return root.allById
 end
@@ -161,6 +267,7 @@ function AuraCache.ReconcileEventAuras(frame, unit)
 
     local AuraScan = FocalPoint.AuraScan or {}
     local root = GetRoot(frame)
+    local rootState = GetRootState(frame)
     local changed = false
 
     if not (AuraScan.GetAuraDataByInstanceID and AuraScan.NormalizeAura) then
@@ -180,6 +287,15 @@ function AuraCache.ReconcileEventAuras(frame, unit)
                 end
             end
         end
+    end
+
+    rootState.pendingReconcile = false
+    if changed then
+        rootState.phase = "cache_ready"
+        rootState.lastRefreshMode = "reconcile"
+        rootState.lastReason = "reconcile"
+        rootState.version = (tonumber(rootState.version) or 0) + 1
+        Log(frame, "cache-reconcile", "changed=true")
     end
 
     return changed
@@ -206,6 +322,8 @@ function AuraCache.ApplyUpdate(frame, unit, updateInfo)
 
     local AuraScan = FocalPoint.AuraScan or {}
     local root = GetRoot(frame)
+    local rootState = GetRootState(frame)
+    local changed = false
 
     local function ResolveGroupHint(rawAura)
         if type(rawAura) ~= "table" or not AuraScan.AuraBelongsToGroup then
@@ -237,7 +355,10 @@ function AuraCache.ApplyUpdate(frame, unit, updateInfo)
         end
 
         if type(rawAura) ~= "table" then
-            root.allById[auraInstanceId] = nil
+            if root.allById[auraInstanceId] ~= nil then
+                root.allById[auraInstanceId] = nil
+                return true
+            end
             return false
         end
 
@@ -252,19 +373,22 @@ function AuraCache.ApplyUpdate(frame, unit, updateInfo)
             end
         end
 
-        root.allById[auraInstanceId] = nil
+        if root.allById[auraInstanceId] ~= nil then
+            root.allById[auraInstanceId] = nil
+            return true
+        end
         return false
     end
 
     if type(updateInfo.addedAuras) == "table" then
         for _, rawAura in ipairs(updateInfo.addedAuras) do
-            UpsertRawAura(rawAura)
+            changed = UpsertRawAura(rawAura) or changed
         end
     end
 
     if type(updateInfo.updatedAuraInstanceIDs) == "table" then
         for _, auraInstanceId in ipairs(updateInfo.updatedAuraInstanceIDs) do
-            UpsertRawAura(nil, auraInstanceId)
+            changed = UpsertRawAura(nil, auraInstanceId) or changed
         end
     end
 
@@ -272,12 +396,25 @@ function AuraCache.ApplyUpdate(frame, unit, updateInfo)
         for _, auraInstanceId in ipairs(updateInfo.removedAuraInstanceIDs) do
             auraInstanceId = ToInstanceId(auraInstanceId)
             if auraInstanceId > 0 then
-                root.allById[auraInstanceId] = nil
+                if root.allById[auraInstanceId] ~= nil then
+                    root.allById[auraInstanceId] = nil
+                    changed = true
+                end
             end
         end
     end
 
-    return true
+    rootState.boundUnit = unit
+    rootState.phase = changed and "dirty_event" or "cache_ready"
+    rootState.lastRefreshMode = "event"
+    rootState.lastReason = "UNIT_AURA"
+    rootState.pendingReconcile = AuraCache.HasUnknownEventAuras(frame)
+    if changed then
+        rootState.version = (tonumber(rootState.version) or 0) + 1
+    end
+    Log(frame, "cache-update", string.format("changed=%s pendingReconcile=%s", tostring(changed), tostring(rootState.pendingReconcile == true)))
+
+    return changed
 end
 
 function AuraCache.ClearGroup(frame, groupKey)
@@ -291,6 +428,7 @@ function AuraCache.ClearGroup(frame, groupKey)
     if root.groups then
         root.groups[groupKey] = nil
     end
+    AuraCache.MarkGroupCleared(frame, groupKey, "clear-group")
 end
 
 function AuraCache.ClearAll(frame)
@@ -298,5 +436,6 @@ function AuraCache.ClearAll(frame)
         return
     end
 
+    Log(frame, "cache-reset", "scope=all")
     frame.AuraCache = nil
 end
