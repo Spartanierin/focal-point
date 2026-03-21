@@ -68,6 +68,17 @@ function PageDeps.CreateGeneralDeps()
     }
 end
 
+function PageDeps.CreateThemeDeps()
+    local BuilderUI = ns.GUI.Helpers.BuilderUI
+    local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
+
+    return {
+        ResetFlowContainer = BuilderUI.ResetFlowContainer,
+        AddPageHeading = BuilderUI.AddPageHeading,
+        CreateSection = LayoutHelpers.CreateSection,
+    }
+end
+
 function PageDeps.CreateProfilesDeps(config)
     local BuilderUI = ns.GUI.Helpers.BuilderUI
 

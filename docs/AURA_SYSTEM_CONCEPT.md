@@ -160,6 +160,17 @@ The runtime should not:
 - decide page layout
 - own unit frame geometry directly
 
+### Time classification
+
+Aura timing is documented separately in
+[AURA_TIME_CLASSIFICATION.md](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/docs/AURA_TIME_CLASSIFICATION.md).
+
+That document explains:
+
+- which Blizzard fields are evaluated
+- how `durationObject` is interpreted
+- how FocalPoint distinguishes `TIMED`, `PERMANENT`, `PENDING`, and `UNRESOLVED`
+
 ## Initial Supported Units
 
 Phase 1 should intentionally stay small.

@@ -37,11 +37,19 @@ function Utils.IsSafeTrue(value)
 end
 
 function Utils.ResolveInterruptibleState(notInterruptible)
+    return Utils.ResolveInterruptState(notInterruptible) == "INTERRUPTIBLE"
+end
+
+function Utils.ResolveInterruptState(notInterruptible)
     if type(notInterruptible) == "boolean" and not (issecretvalue and issecretvalue(notInterruptible)) then
-        return not notInterruptible
+        if notInterruptible then
+            return "PROTECTED"
+        end
+
+        return "INTERRUPTIBLE"
     end
 
-    return false
+    return "UNKNOWN"
 end
 
 function Utils.ToSafeNumberValue(value)

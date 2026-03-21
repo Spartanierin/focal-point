@@ -19,6 +19,7 @@ local GetGUIState = GUIState.GetState
 local CreateBarDeps = PageDeps.CreateBarDeps
 local CreateAuraDeps = PageDeps.CreateAuraDeps
 local CreateGeneralDeps = PageDeps.CreateGeneralDeps
+local CreateThemeDeps = PageDeps.CreateThemeDeps
 local CreateLayoutDeps = PageDeps.CreateLayoutDeps
 local CreateProfilesDeps = PageDeps.CreateProfilesDeps
 local CreateTagDatabaseDeps = PageDeps.CreateTagDatabaseDeps
@@ -69,6 +70,16 @@ function B.BuildProfilesPage(container)
         GetGUIState = GetGUIState,
         BuildPlaceholderPage = B.BuildPlaceholderPage,
     }))
+end
+
+function B.BuildThemesPage(container)
+    local page = ns.GUI.Pages and ns.GUI.Pages.Themes
+    if not page or not page.Build then
+        B.BuildPlaceholderPage(container, L["NAV_THEMES"] or "Themes")
+        return
+    end
+
+    page.Build(container, CreateThemeDeps())
 end
 
 function B.BuildTagDatabasePage(container)

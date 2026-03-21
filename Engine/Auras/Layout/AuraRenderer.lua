@@ -16,6 +16,32 @@ local function GetAuraAnchor()
     return FocalPoint.AuraAnchor or {}
 end
 
+local function ResolveAnchorOffsets(config)
+    config = config or {}
+
+    local offsetX = tonumber(config.offsetX) or 0
+    local offsetY = tonumber(config.offsetY) or 0
+    local placement = config.placement or "ATTACHED"
+
+    if placement ~= "INSIDE" then
+        local blockGapX = tonumber(config.blockGapX)
+        if blockGapX == nil then
+            blockGapX = 4
+        end
+
+        local relativePoint = config.relativePoint or config.point or "TOPLEFT"
+        if type(relativePoint) == "string" then
+            if string.find(relativePoint, "RIGHT", 1, true) then
+                offsetX = offsetX + blockGapX
+            elseif string.find(relativePoint, "LEFT", 1, true) then
+                offsetX = offsetX - blockGapX
+            end
+        end
+    end
+
+    return offsetX, offsetY
+end
+
 -- Maps prepared aura records onto reusable aura containers.
 
 function AuraRenderer.Build(frame)
@@ -88,13 +114,14 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
 
     local AuraAnchor = GetAuraAnchor()
     local anchorTarget = AuraAnchor.Resolve and AuraAnchor.Resolve(frame, config, groupKey) or frame
+    local offsetX, offsetY = ResolveAnchorOffsets(config)
     groupFrame:ClearAllPoints()
     groupFrame:SetPoint(
         config.point or "TOPLEFT",
         anchorTarget,
         config.relativePoint or config.point or "TOPLEFT",
-        tonumber(config.offsetX) or 0,
-        tonumber(config.offsetY) or 0
+        offsetX,
+        offsetY
     )
 
     if AuraBlockLayout.Apply then

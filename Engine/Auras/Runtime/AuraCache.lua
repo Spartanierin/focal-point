@@ -113,6 +113,15 @@ local function AuraMatchesGroup(aura, groupKey)
     return false
 end
 
+local function NeedsDurationReconcile(aura)
+    if type(aura) ~= "table" or aura._cacheSource ~= "EVENT" then
+        return false
+    end
+
+    local durationState = aura.durationState
+    return durationState == "UNKNOWN" or durationState == "PENDING" or durationState == "UNRESOLVED"
+end
+
 function AuraCache.GetGroup(frame, groupKey)
     local root = GetRoot(frame)
     root.groups[groupKey] = root.groups[groupKey] or {}
@@ -275,7 +284,7 @@ function AuraCache.ReconcileEventAuras(frame, unit)
     end
 
     for auraInstanceId, cachedAura in pairs(root.allById) do
-        if type(cachedAura) == "table" and cachedAura._cacheSource == "EVENT" and cachedAura.durationState == "UNKNOWN" then
+        if NeedsDurationReconcile(cachedAura) then
             local rawAura = AuraScan.GetAuraDataByInstanceID(unit, auraInstanceId)
             if type(rawAura) == "table" then
                 local aura = AuraScan.NormalizeAura(rawAura, unit, nil, "EVENT")
@@ -307,7 +316,7 @@ function AuraCache.HasUnknownEventAuras(frame)
     end
 
     for _, aura in pairs(frame.AuraCache.allById) do
-        if type(aura) == "table" and aura._cacheSource == "EVENT" and aura.durationState == "UNKNOWN" then
+        if NeedsDurationReconcile(aura) then
             return true
         end
     end

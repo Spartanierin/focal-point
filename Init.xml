@@ -15,7 +15,9 @@
     <Script file="Locales/deDE.lua"/>
 
     <Script file="Data/KeyMap.lua"/>
+    <Script file="Data/Themes.lua"/>
     <Script file="Engine/Localization.lua"/>
+    <Script file="Services/ThemeService.lua"/>
 
     <Script file="Engine/Core.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFrameUtils.lua"/>
@@ -80,6 +82,7 @@
     <Script file="GUI/Helpers/PageDeps.lua"/>
     <Script file="GUI/Layouts/SectionLayout.lua"/>
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
+    <Script file="GUI/Preview/ThemePreview.lua"/>
     <Script file="GUI/Widgets/ColorPicker.lua"/>
     <Script file="GUI/Widgets/Sliders.lua"/>
     <Script file="GUI/Widgets/Dropdown.lua"/>
@@ -99,6 +102,7 @@
     <Script file="GUI/Layouts/UnitReadyCheckIndicatorLayouts.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>
     <Script file="GUI/Pages/GeneralPage.lua"/>
+    <Script file="GUI/Pages/ThemesPage.lua"/>
     <Script file="GUI/Pages/ProfilesPage.lua"/>
     <Script file="GUI/Pages/Shared/ElementLayoutPage.lua"/>
     <Script file="GUI/Pages/Shared/PlaceholderPage.lua"/>

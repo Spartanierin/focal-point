@@ -558,7 +558,7 @@ function UF:ApplyConfig(frame)
             castBarOffsetY = castBarOffsetY,
             castTexture = castTexture,
             castBarColor = config.castBarColor,
-            castBarUninterruptibleColor = config.castBarUninterruptibleColor,
+            castBarInterruptibleColor = config.castBarInterruptibleColor or config.castBarUninterruptibleColor,
             borderInset = borderInset,
             width = width,
         })

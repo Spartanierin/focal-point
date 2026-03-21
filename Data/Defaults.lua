@@ -82,7 +82,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarUninterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
+                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
@@ -651,7 +651,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarUninterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
+                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
@@ -1217,7 +1217,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarUninterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
+                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
 
                     backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },

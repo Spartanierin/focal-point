@@ -208,15 +208,18 @@ end
 
 local function ReadDurationObjectFields(durationObject)
     if not durationObject then
-        return 0, 0, 0, false, false
+        return 0, 0, 0, false, false, false
     end
 
     local duration = 0
     local expirationTime = 0
     local remaining = 0
+    local hasExplicitDurationSignal = false
+    local startTime = 0
 
     local valueRemaining = CallDurationMethod(durationObject, "GetRemainingDuration")
     if valueRemaining ~= nil then
+        hasExplicitDurationSignal = true
         remaining = ToSafeNumber(valueRemaining)
     end
 
@@ -230,6 +233,9 @@ local function ReadDurationObjectFields(durationObject)
             valueDuration = rawValue
         end
     end
+    if valueDuration ~= nil then
+        hasExplicitDurationSignal = true
+    end
     duration = ToSafeNumber(valueDuration)
 
     local valueExpiration = CallDurationMethod(durationObject, "GetExpirationTime")
@@ -239,16 +245,21 @@ local function ReadDurationObjectFields(durationObject)
         end)
         valueExpiration = rawValue
     end
+    if valueExpiration ~= nil then
+        hasExplicitDurationSignal = true
+    end
     expirationTime = ToSafeNumber(valueExpiration)
 
     if CompareNonPositive(expirationTime) == true then
-        local startTime = 0
         local valueStart = CallDurationMethod(durationObject, "GetStartTime")
         if valueStart == nil then
             local _, rawValue = pcall(function()
                 return durationObject.startTime or durationObject.start
             end)
             valueStart = rawValue
+        end
+        if valueStart ~= nil then
+            hasExplicitDurationSignal = true
         end
         startTime = ToSafeNumber(valueStart)
 
@@ -277,7 +288,13 @@ local function ReadDurationObjectFields(durationObject)
 
     local hasFullTimer = ComparePositive(duration) == true and ComparePositive(expirationTime) == true
     local hasReadableRemaining = ComparePositive(remaining) == true
-    return duration, expirationTime, remaining, hasFullTimer, hasReadableRemaining
+    local hasExplicitZeroTimer = hasExplicitDurationSignal
+        and CompareNonPositive(duration) == true
+        and CompareNonPositive(expirationTime) == true
+        and CompareNonPositive(remaining) == true
+        and CompareNonPositive(startTime) == true
+
+    return duration, expirationTime, remaining, hasFullTimer, hasReadableRemaining, hasExplicitZeroTimer
 end
 
 local function ResolveTimeModel(unit, rawAura, sourceContext)
@@ -299,13 +316,20 @@ local function ResolveTimeModel(unit, rawAura, sourceContext)
     end
 
     if durationObject then
-        local duration, expirationTime, remaining, hasFullTimer, hasReadableRemaining = ReadDurationObjectFields(durationObject)
+        local duration, expirationTime, remaining, hasFullTimer, hasReadableRemaining, hasExplicitZeroTimer = ReadDurationObjectFields(durationObject)
         if hasFullTimer then
             return duration, expirationTime, remaining, durationObject, "object-readable", "TIMED", "READY"
         end
 
         if hasReadableRemaining then
             return duration, expirationTime, remaining, durationObject, "object-remaining", "TIMED", "READY"
+        end
+
+        local rawLooksPermanent = rawHasFields
+            and rawDurationNonPositive == true
+            and rawExpirationNonPositive == true
+        if hasExplicitZeroTimer and rawLooksPermanent then
+            return 0, 0, 0, durationObject, "object-zero", "PERMANENT", "HIDDEN"
         end
     end
 
@@ -322,7 +346,7 @@ local function ResolveTimeModel(unit, rawAura, sourceContext)
 
     if durationObject then
         if sourceContext == "EVENT" then
-            return 0, 0, 0, durationObject, "object-unreadable", "UNKNOWN", "UNAVAILABLE"
+            return 0, 0, 0, durationObject, "object-unreadable", "PENDING", "UNAVAILABLE"
         end
 
         return 0, 0, 0, durationObject, "object-unreadable", "PERMANENT", "HIDDEN"
@@ -332,7 +356,7 @@ local function ResolveTimeModel(unit, rawAura, sourceContext)
         return 0, 0, 0, nil, "missing", "PERMANENT", "HIDDEN"
     end
 
-    return 0, 0, 0, nil, "unknown", "UNKNOWN", "UNAVAILABLE"
+    return 0, 0, 0, nil, "unknown", "UNRESOLVED", "UNAVAILABLE"
 end
 
 local function IsAuraVisibleInFilter(unit, auraInstanceId, filterToken)
@@ -395,11 +419,25 @@ local function SafeUnitGUID(unit)
     end
 
     local ok, guid = pcall(UnitGUID, unit)
-    if not ok or type(guid) ~= "string" or guid == "" then
+    if not ok or guid == nil then
         return nil
     end
 
     if issecretvalue and issecretvalue(guid) then
+        return nil
+    end
+
+    local okType, isString = pcall(function()
+        return type(guid) == "string"
+    end)
+    if not okType or isString ~= true then
+        return nil
+    end
+
+    local okNonEmpty, isNonEmpty = pcall(function()
+        return guid ~= ""
+    end)
+    if not okNonEmpty or isNonEmpty ~= true then
         return nil
     end
 
@@ -564,7 +602,7 @@ function AuraScan.NormalizeAura(rawAura, unit, groupKey, sourceContext)
     local isPlayerCast = IsSafeTrue(rawAura.castByPlayer)
     local isMine = ResolveIsMine(unit, groupKey, rawAura, sourceUnit, isPlayerCast, isHelpful, isHarmful)
 
-    return {
+    local normalizedAura = {
         spellId = rawAura.spellId or 0,
         auraInstanceId = rawAura.auraInstanceId or rawAura.auraInstanceID or 0,
 
@@ -595,12 +633,14 @@ function AuraScan.NormalizeAura(rawAura, unit, groupKey, sourceContext)
         dispelName = rawAura.dispelName,
         canApplyAura = IsSafeTrue(rawAura.canApplyAura),
 
-        durationKnown = durationState ~= "UNKNOWN",
+        durationKnown = durationState ~= "UNKNOWN" and durationState ~= "PENDING" and durationState ~= "UNRESOLVED",
         hasDuration = hasDuration,
         hasStacks = CompareMoreThanOne(count),
         sourceIndex = ToSafeNumber(rawAura.sourceIndex or 0),
         sortKey = 0,
     }
+
+    return normalizedAura
 end
 
 function AuraScan.BuildDisplayAuras(rawAuras, unit, groupKey)

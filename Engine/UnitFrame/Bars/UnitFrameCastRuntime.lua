@@ -32,7 +32,7 @@ function Runtime.Refresh(owner, frame)
     end
 
     local now = GetTime and GetTime() or 0
-    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID, castToken = GetActiveCastTiming(unit, castBar)
+    local isChannel, startTime, endTime, spellIcon, interruptState, castID, castToken = GetActiveCastTiming(unit, castBar)
     local hasCast = type(startTime) == "number" and type(endTime) == "number"
 
     if hasCast then
@@ -41,7 +41,9 @@ function Runtime.Refresh(owner, frame)
         castBar.isCasting = true
         castBar.isChannel = isChannel
         castBar.isPreview = false
-        castBar.isInterruptible = isInterruptible == true
+        castBar.interruptState = interruptState or "UNKNOWN"
+        castBar.isInterruptible = castBar.interruptState == "INTERRUPTIBLE"
+        castBar.canKick = castBar.interruptState == "INTERRUPTIBLE"
         castBar.castID = castID
         castBar.castToken = castToken
         castBar.startTime = startTime
@@ -56,9 +58,9 @@ function Runtime.Refresh(owner, frame)
 
         ApplyCastBarStateColor(
             castBar,
-            castBar.isInterruptible,
+            castBar.interruptState,
             frame.config and frame.config.castBarColor,
-            frame.config and frame.config.castBarUninterruptibleColor
+            frame.config and (frame.config.castBarInterruptibleColor or frame.config.castBarUninterruptibleColor)
         )
 
         if castBar.icon then

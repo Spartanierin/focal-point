@@ -843,6 +843,11 @@ local function RenderPage(container, path)
         return
     end
 
+    if path == C.Nav.THEMES then
+        FocalPoint.GUIBuilders.BuildThemesPage(container)
+        return
+    end
+
     if path == "profiles" then
         FocalPoint.GUIBuilders.BuildProfilesPage(container)
         return

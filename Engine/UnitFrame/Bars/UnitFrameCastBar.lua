@@ -8,18 +8,18 @@ local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 
 local UnpackColor = Utils.UnpackColor
-local ResolveInterruptibleState = Utils.ResolveInterruptibleState
+local ResolveInterruptState = Utils.ResolveInterruptState
 
 -- Cast bar helpers keep timing/state logic together so runtime refresh code
 -- can stay focused on orchestration.
 
-function CastBar.ApplyStateColor(castBar, isInterruptible, baseColor, uninterruptibleColor)
+function CastBar.ApplyStateColor(castBar, interruptState, baseColor, interruptibleColor)
     if not castBar then
         return
     end
 
-    if isInterruptible == false then
-        local r, g, b, a = UnpackColor(uninterruptibleColor, { 0.60, 0.60, 0.60, 1.00 })
+    if interruptState == "INTERRUPTIBLE" then
+        local r, g, b, a = UnpackColor(interruptibleColor, { 0.60, 0.60, 0.60, 1.00 })
         castBar:SetStatusBarColor(r, g, b, 1.00)
         castBar:SetAlpha(a or 1.00)
     else
@@ -73,13 +73,13 @@ function CastBar.GetActiveTiming(unit, castBar)
     if UnitCastingInfo then
         local castName, _, castIcon, startTimeMS, endTimeMS, _, _, notInterruptible, _, castID = UnitCastingInfo(unit)
         if type(castName) == "string" then
-            local isInterruptible = ResolveInterruptibleState(notInterruptible)
+            local interruptState = ResolveInterruptState(notInterruptible)
             if type(startTimeMS) == "number"
                 and type(endTimeMS) == "number"
                 and not (issecretvalue and issecretvalue(startTimeMS))
                 and not (issecretvalue and issecretvalue(endTimeMS))
             then
-                return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, isInterruptible, castID
+                return false, startTimeMS / 1000, endTimeMS / 1000, castIcon, interruptState, castID
             end
 
             if UnitCastingDuration then
@@ -93,34 +93,34 @@ function CastBar.GetActiveTiming(unit, castBar)
                         and type(castBar.startTime) == "number"
                         and type(castBar.endTime) == "number"
                     then
-                        return false, castBar.startTime, castBar.endTime, castIcon, isInterruptible, castID
+                        return false, castBar.startTime, castBar.endTime, castIcon, interruptState, castID
                     end
 
                     local now = GetTime and GetTime() or 0
-                    return false, now, now + duration, castIcon, isInterruptible, castID
+                    return false, now, now + duration, castIcon, interruptState, castID
                 end
             end
 
             local now = GetTime and GetTime() or 0
             local reusedStart, reusedEnd = ReuseExistingTiming(false, castID, castName)
             if type(reusedStart) == "number" and type(reusedEnd) == "number" then
-                return false, reusedStart, reusedEnd, castIcon, isInterruptible, castID, castName
+                return false, reusedStart, reusedEnd, castIcon, interruptState, castID, castName
             end
 
-            return false, now, now + 2.5, castIcon, isInterruptible, castID, castName
+            return false, now, now + 2.5, castIcon, interruptState, castID, castName
         end
     end
 
     if UnitChannelInfo then
         local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible, _, _, castID = UnitChannelInfo(unit)
         if type(channelName) == "string" then
-            local isInterruptible = ResolveInterruptibleState(notInterruptible)
+            local interruptState = ResolveInterruptState(notInterruptible)
             if type(startTimeMS) == "number"
                 and type(endTimeMS) == "number"
                 and not (issecretvalue and issecretvalue(startTimeMS))
                 and not (issecretvalue and issecretvalue(endTimeMS))
             then
-                return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, isInterruptible, castID
+                return true, startTimeMS / 1000, endTimeMS / 1000, channelIcon, interruptState, castID
             end
 
             if UnitChannelDuration then
@@ -134,21 +134,21 @@ function CastBar.GetActiveTiming(unit, castBar)
                         and type(castBar.startTime) == "number"
                         and type(castBar.endTime) == "number"
                     then
-                        return true, castBar.startTime, castBar.endTime, channelIcon, isInterruptible, castID
+                        return true, castBar.startTime, castBar.endTime, channelIcon, interruptState, castID
                     end
 
                     local now = GetTime and GetTime() or 0
-                    return true, now, now + duration, channelIcon, isInterruptible, castID
+                    return true, now, now + duration, channelIcon, interruptState, castID
                 end
             end
 
             local now = GetTime and GetTime() or 0
             local reusedStart, reusedEnd = ReuseExistingTiming(true, castID, channelName)
             if type(reusedStart) == "number" and type(reusedEnd) == "number" then
-                return true, reusedStart, reusedEnd, channelIcon, isInterruptible, castID, channelName
+                return true, reusedStart, reusedEnd, channelIcon, interruptState, castID, channelName
             end
 
-            return true, now, now + 2.5, channelIcon, isInterruptible, castID, channelName
+            return true, now, now + 2.5, channelIcon, interruptState, castID, channelName
         end
     end
 
@@ -162,12 +162,10 @@ function CastBar.Start(frame)
         return
     end
 
-    local isChannel, startTime, endTime, spellIcon, isInterruptible, castID, castToken = CastBar.GetActiveTiming(unit, castBar)
+    local isChannel, startTime, endTime, spellIcon, interruptState, castID, castToken = CastBar.GetActiveTiming(unit, castBar)
 
     if type(startTime) ~= "number" or type(endTime) ~= "number" then
-        castBar.isCasting = false
-        castBar.isPreview = false
-        castBar:Hide()
+        CastBar.Stop(frame)
         return
     end
 
@@ -176,16 +174,18 @@ function CastBar.Start(frame)
     castBar.isCasting = true
     castBar.isChannel = isChannel and true or false
     castBar.isPreview = false
-    castBar.isInterruptible = isInterruptible == true
+    castBar.interruptState = interruptState or "UNKNOWN"
+    castBar.isInterruptible = castBar.interruptState == "INTERRUPTIBLE"
+    castBar.canKick = castBar.interruptState == "INTERRUPTIBLE"
     castBar.castID = castID
     castBar.castToken = castToken
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(castBar.isChannel and castBar.endTime or castBar.startTime)
     CastBar.ApplyStateColor(
         castBar,
-        castBar.isInterruptible,
+        castBar.interruptState,
         frame.config and frame.config.castBarColor,
-        frame.config and frame.config.castBarUninterruptibleColor
+        frame.config and (frame.config.castBarInterruptibleColor or frame.config.castBarUninterruptibleColor)
     )
 
     if castBar.icon then
@@ -215,16 +215,18 @@ function CastBar.StartPreview(frame)
     castBar.isCasting = true
     castBar.isChannel = false
     castBar.isPreview = true
+    castBar.interruptState = "INTERRUPTIBLE"
     castBar.isInterruptible = true
+    castBar.canKick = true
     castBar.castID = nil
     castBar.castToken = "preview"
     castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
     castBar:SetValue(now + 1.25)
     CastBar.ApplyStateColor(
         castBar,
-        true,
+        castBar.interruptState,
         frame.config and frame.config.castBarColor,
-        frame.config and frame.config.castBarUninterruptibleColor
+        frame.config and (frame.config.castBarInterruptibleColor or frame.config.castBarUninterruptibleColor)
     )
 
     if castBar.icon then
@@ -251,7 +253,9 @@ function CastBar.Stop(frame)
     castBar.isCasting = false
     castBar.isChannel = false
     castBar.isPreview = false
-    castBar.isInterruptible = true
+    castBar.interruptState = "UNKNOWN"
+    castBar.isInterruptible = false
+    castBar.canKick = false
     castBar.startTime = 0
     castBar.endTime = 0
     castBar.castID = nil
@@ -313,9 +317,9 @@ function CastBar.ApplyLayout(frame, options)
     castBar:SetStatusBarTexture(options.castTexture)
     CastBar.ApplyStateColor(
         castBar,
-        castBar.isInterruptible,
+        castBar.interruptState,
         options.castBarColor,
-        options.castBarUninterruptibleColor
+        options.castBarInterruptibleColor or options.castBarUninterruptibleColor
     )
 
     if castBar.bg then

@@ -9,12 +9,47 @@ FocalPoint.L = AceLocale:GetLocale("FocalPoint", true) or FocalPoint.L or {}
 local TARGET_RANGE_CHECK_YARDS = 20
 FocalPoint.TARGET_RANGE_CHECK_YARDS = TARGET_RANGE_CHECK_YARDS
 
+local function ToChatSafeString(value)
+    local okDirect, directValue = pcall(function()
+        if type(value) ~= "string" then
+            return nil
+        end
+
+        if value == "" then
+            return nil
+        end
+
+        return value
+    end)
+    if okDirect and type(directValue) == "string" then
+        return directValue
+    end
+
+    local okText, textValue = pcall(tostring, value)
+    if okText and type(textValue) == "string" then
+        local okNonEmpty, isNonEmpty = pcall(function()
+            return textValue ~= ""
+        end)
+        if okNonEmpty and isNonEmpty == true then
+            return textValue
+        end
+    end
+
+    return nil
+end
+
 local function PrintToChat(prefix, message)
-    if type(message) ~= "string" or message == "" then
+    local safeMessage = ToChatSafeString(message)
+    if not safeMessage then
         return
     end
 
-    local text = string.format("|cff6fd2ffFocalPoint|r %s%s", prefix or "", message)
+    local safePrefix = ToChatSafeString(prefix) or ""
+    local okText, text = pcall(string.format, "|cff6fd2ffFocalPoint|r %s%s", safePrefix, safeMessage)
+    if not okText or type(text) ~= "string" then
+        return
+    end
+
     if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
         DEFAULT_CHAT_FRAME:AddMessage(text)
     end
@@ -243,6 +278,34 @@ local function EnsureAlternativePowerDefaults()
     end
 end
 
+local function EnsureCastBarInterruptibleColorDefaults()
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if not units or not defaultUnits then
+        return
+    end
+
+    for unitKey, unitDefaults in pairs(defaultUnits) do
+        local unitDB = units[unitKey]
+        if type(unitDB) == "table" and type(unitDefaults) == "table" then
+            if unitDB.castBarInterruptibleColor == nil then
+                if unitDB.castBarUninterruptibleColor ~= nil then
+                    unitDB.castBarInterruptibleColor = CopyTable(unitDB.castBarUninterruptibleColor)
+                elseif unitDefaults.castBarInterruptibleColor ~= nil then
+                    unitDB.castBarInterruptibleColor = CopyTable(unitDefaults.castBarInterruptibleColor)
+                end
+            end
+        end
+    end
+end
+
 local function EnsureTextTemplateDefaults()
     if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
@@ -407,6 +470,7 @@ function FocalPointAddon:OnInitialize()
     EnsureBarTextureDefaults()
     EnsureCastTextDefaults()
     EnsureAlternativePowerDefaults()
+    EnsureCastBarInterruptibleColorDefaults()
     EnsureTextTemplateDefaults()
     EnsureTextTemplateLinks()
     EnsureNoEmptyTextElements()

@@ -46,7 +46,7 @@ ns.GUI.Layouts.UnitColors.ColorTab = {
         layout = "list",
         items = {
             { widget = "colorpicker", path = { "Units", "$unitKey", "castBarColor" }, label = "OPTION_CAST_BAR_COLOR", description = "OPTION_CAST_BAR_COLOR_DESC", hasAlpha = true, disabled = "cast" },
-            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarUninterruptibleColor" }, label = "OPTION_CAST_BAR_UNINTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_UNINTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarInterruptibleColor" }, label = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast" },
         },
     },
 }

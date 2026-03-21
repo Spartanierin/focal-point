@@ -218,6 +218,32 @@ The goal is to keep future changes intentional and reduce accidental coupling.
 - Chat debug output helpers
 - Event timing relevant to the observed bug
 
+### 9. Theme System
+
+**Responsibility**
+
+- Provide curated visual starting points for the addon
+- Define preset data for frame, text, indicator, and aura presentation
+- Support a future Quickmode workflow without becoming a second profile system
+
+**May know**
+
+- Theme metadata
+- Stable profile field structure
+- Which field groups are safe for preset ownership
+
+**Should not know**
+
+- frame runtime internals
+- aura cache internals
+- text token parsing internals
+- GUI layout engine internals
+
+**Consumed by**
+
+- Theme apply service
+- General / Quick Start GUI entry points
+
 **Should not know**
 
 - GUI structure

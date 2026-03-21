@@ -54,7 +54,7 @@ ns.GUI.Layouts.UnitBars.CastBarTab = {
             { widget = "checkbox", path = { "Units", "$unitKey", "showCastBarIcon" }, label = "OPTION_SHOW_CAST_BAR_ICON", description = "OPTION_SHOW_CAST_BAR_ICON_DESC", fallback = true, resetText = false, disabled = "cast", refreshGUI = true },
             { widget = "slider", path = { "Units", "$unitKey", "castBarHeight" }, label = "OPTION_CAST_BAR_HEIGHT", description = "OPTION_CAST_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 10, format = "%d", disabled = "cast" },
             { widget = "colorpicker", path = { "Units", "$unitKey", "castBarColor" }, label = "OPTION_CAST_BAR_COLOR", description = "OPTION_CAST_BAR_COLOR_DESC", hasAlpha = true, disabled = "cast" },
-            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarUninterruptibleColor" }, label = "OPTION_CAST_BAR_UNINTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_UNINTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarInterruptibleColor" }, label = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast" },
         },
     },
     {

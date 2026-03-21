@@ -33,6 +33,7 @@ The navigation follows an object-oriented structure.
 - General settings
 - Profiles
 - Themes and workflow-related entry points as they are added
+- Quick Start / Quickmode as it is introduced
 
 ### Under Units
 
@@ -202,6 +203,21 @@ The rule is:
 
 - **state changes** should refresh visible widget state
 - **structural changes** may rebuild the page when needed
+
+## Themes and Quickmode
+
+Themes are intended as product-level presets, not as runtime behavior.
+
+Their role is to provide strong, fast starting points for users who should not
+have to build an entire layout from scratch.
+
+Quickmode is intended to sit above themes as a guided entry flow:
+
+- choose a base style
+- apply a small number of practical overrides
+- keep the resulting profile fully editable
+
+This keeps the addon flexible without forcing every user into an expert-first workflow.
 
 ## Section Layout Metadata
 
