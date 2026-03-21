@@ -6,6 +6,7 @@ local Leader = FocalPoint.UnitFrameLeader
 local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local Indicators = FocalPoint.UnitFrameIndicators or {}
+local State = FocalPoint.UnitFrameState or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
@@ -88,11 +89,15 @@ function Leader.RegisterEvents(owner, frame)
             return
         end
 
-        C_Timer.After(0, function()
-            if currentOwner and currentOwner:IsShown() then
-                owner:UpdateLeaderIcon(currentOwner)
-            end
-        end)
+        if State.QueueRefresh then
+            State.QueueRefresh(currentOwner, event, "layout")
+        else
+            C_Timer.After(0, function()
+                if currentOwner and currentOwner:IsShown() then
+                    owner:UpdateLeaderIcon(currentOwner)
+                end
+            end)
+        end
     end)
 
     frame.LeaderIconEventFrame = eventFrame

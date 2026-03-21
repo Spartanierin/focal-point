@@ -5,10 +5,10 @@ local Runtime = FocalPoint.UnitFrameCastRuntime
 
 local Cast = FocalPoint.UnitFrameCastBar or {}
 local Presence = FocalPoint.UnitFramePresence or {}
+local State = FocalPoint.UnitFrameState or {}
 
 local ApplyCastBarStateColor = Cast.ApplyStateColor
 local GetActiveCastTiming = Cast.GetActiveTiming
-local QueueCastBarRefresh = Cast.QueueRefresh
 local StopCastBar = Cast.Stop
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 
@@ -145,23 +145,28 @@ function Runtime.RegisterEvents(owner, frame)
             return
         end
 
+        local function Queue(scope, options)
+            if State.QueueRefresh then
+                State.QueueRefresh(currentOwner, event, scope, options)
+            else
+                owner:RefreshCastBar(currentOwner)
+            end
+        end
+
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            owner:RefreshCastBar(currentOwner)
-            QueueCastBarRefresh(currentOwner)
+            Queue({ "castbar", "layout" })
             return
         end
 
         if event == "UNIT_PET" then
             if currentOwner.unit == "pet" and unit == "player" then
-                owner:RefreshCastBar(currentOwner)
-                QueueCastBarRefresh(currentOwner)
+                Queue({ "castbar", "layout" })
             end
             return
         end
 
         if event == "PLAYER_ENTERING_WORLD" then
-            owner:RefreshCastBar(currentOwner)
-            QueueCastBarRefresh(currentOwner)
+            Queue({ "castbar", "layout" })
             return
         end
 
@@ -174,12 +179,11 @@ function Runtime.RegisterEvents(owner, frame)
             or event == "UNIT_SPELLCAST_INTERRUPTED"
             or event == "UNIT_SPELLCAST_CHANNEL_STOP"
         then
-            StopCastBar(currentOwner)
+            Queue("castbar")
             return
         end
 
-        owner:RefreshCastBar(currentOwner)
-        QueueCastBarRefresh(currentOwner)
+        Queue("castbar")
     end)
 
     frame.CastBarEventFrame = eventFrame

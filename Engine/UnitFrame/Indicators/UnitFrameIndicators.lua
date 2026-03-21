@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameIndicators = FocalPoint.UnitFrameIndicators or {}
 local Indicators = FocalPoint.UnitFrameIndicators
+local State = FocalPoint.UnitFrameState or {}
 
 -- Shared helper logic for non-portrait overlay indicators such as leader,
 -- role, combat, resting, and ready check.
@@ -53,6 +54,17 @@ function Indicators.QueueLayoutRefresh(owner, frame, stateKey)
     end
 
     frame[stateKey] = true
+
+    if State.QueueRefresh then
+        State.QueueRefresh(frame, "indicator_layout", "layout")
+        C_Timer.After(0.01, function()
+            if frame then
+                frame[stateKey] = nil
+            end
+        end)
+        return
+    end
+
     C_Timer.After(0, function()
         if frame then
             frame[stateKey] = nil

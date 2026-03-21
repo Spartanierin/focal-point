@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFramePortrait = FocalPoint.UnitFramePortrait or {}
 local Portrait = FocalPoint.UnitFramePortrait
+local State = FocalPoint.UnitFrameState or {}
 
 -- Portrait helpers encapsulate creation, texture refresh, and portrait-specific
 -- event registration without pulling in the full unit-frame runtime.
@@ -86,11 +87,15 @@ function Portrait.RegisterEvents(frame)
             end
         end
 
-        C_Timer.After(0, function()
-            if owner and owner:IsShown() then
-                Portrait.UpdateTexture(owner)
-            end
-        end)
+        if State.QueueRefresh then
+            State.QueueRefresh(owner, event, "layout")
+        else
+            C_Timer.After(0, function()
+                if owner and owner:IsShown() then
+                    Portrait.UpdateTexture(owner)
+                end
+            end)
+        end
     end)
 
     frame.PortraitEventFrame = eventFrame

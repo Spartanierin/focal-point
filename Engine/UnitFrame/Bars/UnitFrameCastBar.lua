@@ -4,6 +4,7 @@ FocalPoint.UnitFrameCastBar = FocalPoint.UnitFrameCastBar or {}
 local CastBar = FocalPoint.UnitFrameCastBar
 
 local Assets = FocalPoint.UnitFrameAssets or {}
+local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 
 local UnpackColor = Utils.UnpackColor
@@ -263,7 +264,16 @@ function CastBar.Stop(frame)
 end
 
 function CastBar.QueueRefresh(frame)
-    if not frame or not C_Timer or not C_Timer.After then
+    if not frame then
+        return
+    end
+
+    if State.QueueRefresh then
+        State.QueueRefresh(frame, "castbar", "castbar")
+        return
+    end
+
+    if not C_Timer or not C_Timer.After then
         return
     end
 

@@ -2,15 +2,27 @@ local _, FocalPoint = ...
 
 FocalPoint.AuraEvents = FocalPoint.AuraEvents or {}
 local AuraEvents = FocalPoint.AuraEvents
+local State = FocalPoint.UnitFrameState or {}
 
 -- Event registration shim for the aura runtime.
 
 local function QueueAuraRefresh(owner, refreshFunc, delay, forceFullScan)
-    if type(refreshFunc) ~= "function" then
+    if not owner then
         return
     end
 
     delay = tonumber(delay) or 0
+    if State.QueueRefresh then
+        State.QueueRefresh(owner, "auras", "auras", {
+            forceAuraFullScan = forceFullScan == true,
+        }, delay)
+        return
+    end
+
+    if type(refreshFunc) ~= "function" then
+        return
+    end
+
     C_Timer.After(delay, function()
         if owner and owner.config then
             refreshFunc(owner, forceFullScan)
@@ -48,7 +60,7 @@ local function QueueUnknownAuraReconcile(owner, refreshFunc)
 
             local currentAuraCache = FocalPoint.AuraCache or {}
             if currentAuraCache.HasUnknownEventAuras and currentAuraCache.HasUnknownEventAuras(owner) then
-                refreshFunc(owner, false)
+                QueueAuraRefresh(owner, refreshFunc, 0, false)
             end
         end)
     end
@@ -113,10 +125,8 @@ function AuraEvents.Register(frame, refreshFunc)
                 AuraCache.ApplyUpdate(owner, owner.unit, updateInfo)
             end
 
-            if type(refreshFunc) == "function" then
-                refreshFunc(owner, false)
-                QueueUnknownAuraReconcile(owner, refreshFunc)
-            end
+            QueueAuraRefresh(owner, refreshFunc, 0, false)
+            QueueUnknownAuraReconcile(owner, refreshFunc)
 
             return
         end

@@ -5,6 +5,7 @@ local Visibility = FocalPoint.UnitFrameVisibility
 
 local Cast = FocalPoint.UnitFrameCastBar or {}
 local Presence = FocalPoint.UnitFramePresence or {}
+local State = FocalPoint.UnitFrameState or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
@@ -146,35 +147,18 @@ function Visibility.ClearFrameVisualState(frame)
 end
 
 function Visibility.QueueRefresh(frame)
-    if not frame or not C_Timer or not C_Timer.After then
+    if not frame then
+        return
+    end
+    if State.QueueRefresh then
+        State.QueueRefresh(frame, "visibility", "visibility", nil, 0)
+        State.QueueRefresh(frame, "visibility", "visibility", nil, 0.05)
         return
     end
 
-    frame.visibilityRefreshQueued = frame.visibilityRefreshQueued or {}
-
-    local function QueueAfter(delay)
-        if frame.visibilityRefreshQueued[delay] then
-            return
-        end
-
-        frame.visibilityRefreshQueued[delay] = true
-        C_Timer.After(delay, function()
-            if not frame then
-                return
-            end
-
-            if frame.visibilityRefreshQueued then
-                frame.visibilityRefreshQueued[delay] = nil
-            end
-
-            if FocalPoint.UnitFrame and FocalPoint.UnitFrame.Refresh then
-                FocalPoint.UnitFrame:Refresh(frame)
-            end
-        end)
+    if FocalPoint.UnitFrame and FocalPoint.UnitFrame.Refresh then
+        FocalPoint.UnitFrame:Refresh(frame)
     end
-
-    QueueAfter(0)
-    QueueAfter(0.05)
 end
 
 function Visibility.HandleMissingUnit(frame)
@@ -189,7 +173,11 @@ function Visibility.HandleMissingUnit(frame)
 
     if shouldHideForMissingUnit and protectedFrame then
         if IsMissingDebugSuppressed(frame) then
-            Visibility.ClearFrameVisualState(frame)
+            if State.HandleUnitLost then
+                State.HandleUnitLost(frame, "missing_unit_protected_suppressed")
+            else
+                Visibility.ClearFrameVisualState(frame)
+            end
             if frame.SetAlpha then
                 frame:SetAlpha(0)
             end
@@ -206,7 +194,11 @@ function Visibility.HandleMissingUnit(frame)
                 and "Missing target during combat: clearing content, secure root unchanged"
                 or "Missing target: clearing content, secure root unchanged", "missing_target", 2.0)
         end
-        Visibility.ClearFrameVisualState(frame)
+        if State.HandleUnitLost then
+            State.HandleUnitLost(frame, "missing_unit_protected")
+        else
+            Visibility.ClearFrameVisualState(frame)
+        end
         if suspiciousMissingTarget then
             Visibility.QueueRefresh(frame)
         end
@@ -242,7 +234,11 @@ function Visibility.HandleMissingUnit(frame)
             end
 
             if elapsedMissing < 0.35 then
-                Visibility.ClearFrameVisualState(frame)
+                if State.HandleUnitLost then
+                    State.HandleUnitLost(frame, "target_missing_transition")
+                else
+                    Visibility.ClearFrameVisualState(frame)
+                end
                 frame:Hide()
                 return true
             end
@@ -253,7 +249,11 @@ function Visibility.HandleMissingUnit(frame)
 
     if shouldHideForMissingUnit then
         if IsMissingDebugSuppressed(frame) then
-            Visibility.ClearFrameVisualState(frame)
+            if State.HandleUnitLost then
+                State.HandleUnitLost(frame, "missing_unit_suppressed")
+            else
+                Visibility.ClearFrameVisualState(frame)
+            end
             if frame.SetAlpha then
                 frame:SetAlpha(0)
             end
@@ -263,7 +263,11 @@ function Visibility.HandleMissingUnit(frame)
             return true
         end
 
-        Visibility.ClearFrameVisualState(frame)
+        if State.HandleUnitLost then
+            State.HandleUnitLost(frame, "missing_unit")
+        else
+            Visibility.ClearFrameVisualState(frame)
+        end
 
         if frame.SetAlpha then
             frame:SetAlpha(0)
@@ -323,6 +327,12 @@ function Visibility.RegisterEvents(owner, frame)
             return
         end
 
+        if (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET")
+            and State.HandleTargetSwap
+        then
+            State.HandleTargetSwap(currentOwner, event)
+        end
+
         currentOwner._lastVisibilityEvent = event
         if currentOwner.unit == "target" and (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_ENABLED") then
             currentOwner._lastTargetEventAt = GetTime and GetTime() or 0
@@ -351,7 +361,11 @@ function Visibility.RegisterEvents(owner, frame)
                 ), "event_target_changed", 0.50)
             end
         end
-        owner:Refresh(currentOwner)
+        if State.QueueRefresh then
+            State.QueueRefresh(currentOwner, event, "visibility")
+        else
+            owner:Refresh(currentOwner)
+        end
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" then
             Visibility.QueueRefresh(currentOwner)

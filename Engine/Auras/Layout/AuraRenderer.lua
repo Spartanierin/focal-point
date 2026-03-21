@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.AuraRenderer = FocalPoint.AuraRenderer or {}
 local AuraRenderer = FocalPoint.AuraRenderer
+local State = FocalPoint.UnitFrameState or {}
 
 local function GetAuraContainer()
     return FocalPoint.AuraContainer or {}
@@ -112,6 +113,10 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
     end
 
     groupFrame:Show()
+
+    if State.Guard then
+        State.Guard(frame, "aura_group_visible_without_items", metrics.shownCount > 0, string.format("group=%s", tostring(groupKey)))
+    end
 end
 
 function AuraRenderer.ClearGroup(frame, groupKey)
@@ -131,3 +136,5 @@ function AuraRenderer.ClearGroup(frame, groupKey)
 
     groupFrame:Hide()
 end
+
+AuraRenderer.ResetGroup = AuraRenderer.ClearGroup

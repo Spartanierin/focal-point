@@ -6,6 +6,7 @@ local Health = FocalPoint.UnitFrameHealth
 local Colors = FocalPoint.UnitFrameColors or {}
 local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
@@ -140,8 +141,16 @@ function Health.RegisterEvents(owner, frame)
             return
         end
 
+        local function Queue(scope)
+            if State.QueueRefresh then
+                State.QueueRefresh(currentOwner, event, scope)
+            else
+                owner:Refresh(currentOwner)
+            end
+        end
+
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            owner:Refresh(currentOwner)
+            Queue({ "bars", "texts", "layout" })
             return
         end
 
@@ -149,16 +158,16 @@ function Health.RegisterEvents(owner, frame)
             if currentOwner.unit ~= "pet" or unit ~= "player" then
                 return
             end
-            owner:Refresh(currentOwner)
+            Queue({ "bars", "texts", "layout" })
             return
         elseif event == "PLAYER_ENTERING_WORLD" and currentOwner.unit ~= "player" then
-            owner:Refresh(currentOwner)
+            Queue({ "bars", "texts", "layout" })
             return
         elseif unit and unit ~= currentOwner.unit then
             return
         end
 
-        owner:RefreshHealth(currentOwner)
+        Queue({ "bars", "texts" })
     end)
 
     frame.HealthBarEventFrame = eventFrame

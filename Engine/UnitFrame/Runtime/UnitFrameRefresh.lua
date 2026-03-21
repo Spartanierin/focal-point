@@ -32,7 +32,7 @@ end
 -- Refresh orchestration keeps the normal live-update path together so the
 -- main unit-frame runtime only handles guards and high-level delegation.
 
-function Refresh.Apply(owner, frame, config)
+function Refresh.Apply(owner, frame, config, refreshRequest)
     if not owner or not frame or not config then
         return
     end
@@ -49,7 +49,7 @@ function Refresh.Apply(owner, frame, config)
         owner:RefreshLiveValues(frame)
     end
     if owner.RefreshAuras then
-        owner:RefreshAuras(frame)
+        owner:RefreshAuras(frame, refreshRequest and refreshRequest.forceAuraFullScan == true)
     end
     if owner.UpdateTextElements then
         owner:UpdateTextElements(frame)

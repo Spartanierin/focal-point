@@ -123,3 +123,21 @@ function AuraRuntime.RegisterAuraEvents(frame)
 
     return nil
 end
+
+function AuraRuntime.Reset(frame)
+    if not frame then
+        return
+    end
+
+    local AuraCache = FocalPoint.AuraCache or {}
+    local AuraRenderer = FocalPoint.AuraRenderer or {}
+
+    if AuraCache.ClearAll then
+        AuraCache.ClearAll(frame)
+    end
+
+    if AuraRenderer.ClearGroup then
+        AuraRenderer.ClearGroup(frame, "Buffs")
+        AuraRenderer.ClearGroup(frame, "Debuffs")
+    end
+end

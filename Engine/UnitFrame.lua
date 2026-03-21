@@ -14,6 +14,7 @@ local Factory = FocalPoint.UnitFrameFactory or {}
 local Health = FocalPoint.UnitFrameHealth or {}
 local BuildRuntime = FocalPoint.UnitFrameBuild or {}
 local RefreshRuntime = FocalPoint.UnitFrameRefresh or {}
+local StateRuntime = FocalPoint.UnitFrameState or {}
 local InsideLayout = FocalPoint.UnitFrameInsideLayout or {}
 local Layout = FocalPoint.UnitFrameLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout or {}
@@ -967,6 +968,12 @@ function UF:Build(unit)
     end
 
     local frame = self:CreateBaseFrame(unit, config)
+    if StateRuntime.Ensure then
+        StateRuntime.Ensure(frame)
+    end
+    if StateRuntime.SetPhase then
+        StateRuntime.SetPhase(frame, "built")
+    end
     BuildElements(self, frame)
     RegisterBuildEvents(self, frame)
 
@@ -977,7 +984,7 @@ function UF:Build(unit)
     return frame
 end
 
-function UF:Refresh(frame)
+function UF:Refresh(frame, refreshRequest)
     if not frame then
         return
     end
@@ -987,11 +994,32 @@ function UF:Refresh(frame)
         return
     end
 
+    if StateRuntime.Ensure then
+        StateRuntime.Ensure(frame)
+    end
+    if StateRuntime.SetPhase then
+        StateRuntime.SetPhase(frame, "bound")
+    end
+
     if HandleMissingUnit(frame) then
+        if StateRuntime.SetPhase then
+            StateRuntime.SetPhase(frame, "empty_valid")
+        end
         return
     end
 
-    ApplyRefreshFlow(self, frame, config)
+    ApplyRefreshFlow(self, frame, config, refreshRequest)
+
+    if StateRuntime.Guard and frame.unit ~= "player" then
+        local shouldExist = DoesUnitSeemPresent and DoesUnitSeemPresent(frame.unit)
+        local shown = frame.IsShown and frame:IsShown() or false
+        StateRuntime.Guard(frame, "visible_missing_unit", not (shown and not shouldExist), "frame visible while unit seems absent")
+    end
+
+    if StateRuntime.SetPhase then
+        local shown = frame.IsShown and frame:IsShown()
+        StateRuntime.SetPhase(frame, shown and "visible" or "bound")
+    end
 end
 
 function FocalPoint:SpawnUnitFrame(unit)

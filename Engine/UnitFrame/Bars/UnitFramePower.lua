@@ -5,6 +5,7 @@ local Power = FocalPoint.UnitFramePower
 
 local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
@@ -27,7 +28,6 @@ function Power.RefreshUnitBarValues(owner, frame)
     local previewValues = IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil
     frame.LiveValues = frame.LiveValues or {}
     frame.TestValues = previewValues
-    local previousAltPowerVisible = frame.LiveValues.altPowerVisible
 
     if frame.Elements.HealthBar and owner and owner.RefreshHealthBar then
         owner:RefreshHealthBar(frame)
@@ -87,15 +87,6 @@ function Power.RefreshUnitBarValues(owner, frame)
         frame.LiveValues.altPowerMaxSafe = ToSafeNumberValue(maxAltPower)
         frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
         frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
-
-        if previousAltPowerVisible ~= nil
-            and previousAltPowerVisible ~= showAltPower
-            and not frame.isApplyingAltPowerLayout
-        then
-            frame.isApplyingAltPowerLayout = true
-            owner:ApplyConfig(frame)
-            frame.isApplyingAltPowerLayout = false
-        end
     end
 end
 
@@ -122,13 +113,17 @@ function Power.RegisterAlternativeEvents(owner, frame)
             return
         end
 
-        owner:RefreshUnitBarValues(currentOwner)
-        owner:ApplyConfig(currentOwner)
-        if owner.RefreshLiveValues then
-            owner:RefreshLiveValues(currentOwner)
-        end
-        if owner.UpdateTextElements then
-            owner:UpdateTextElements(currentOwner)
+        if State.QueueRefresh then
+            State.QueueRefresh(currentOwner, event, { "bars", "texts", "layout" })
+        else
+            owner:RefreshUnitBarValues(currentOwner)
+            owner:ApplyConfig(currentOwner)
+            if owner.RefreshLiveValues then
+                owner:RefreshLiveValues(currentOwner)
+            end
+            if owner.UpdateTextElements then
+                owner:UpdateTextElements(currentOwner)
+            end
         end
     end)
 

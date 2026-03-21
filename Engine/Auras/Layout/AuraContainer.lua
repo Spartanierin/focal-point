@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.AuraContainer = FocalPoint.AuraContainer or {}
 local AuraContainer = FocalPoint.AuraContainer
+local State = FocalPoint.UnitFrameState or {}
 
 -- Defines the inner aura widget: icon, swipe, stack text, and border.
 
@@ -195,6 +196,10 @@ function AuraContainer.ApplyData(container, aura, config)
     SetCooldownCountdownVisibility(container, showTimerText and cooldownActive)
 
     container:Show()
+
+    if State.Guard then
+        State.Guard(container:GetParent() and container:GetParent():GetParent() or nil, "aura_button_missing_id", aura.auraInstanceId ~= nil or aura.icon ~= nil, "rendered aura button without key/icon")
+    end
 end
 
 function AuraContainer.Clear(container)
@@ -222,4 +227,11 @@ function AuraContainer.Clear(container)
     container:SetScript("OnUpdate", nil)
     container.AuraData = nil
     container:Hide()
+
+    if State.Guard then
+        local ownerFrame = container:GetParent() and container:GetParent():GetParent() or nil
+        State.Guard(ownerFrame, "aura_button_cleared_state", (not container:IsShown()) and container.AuraData == nil, "button clear left stale state")
+    end
 end
+
+AuraContainer.Reset = AuraContainer.Clear
