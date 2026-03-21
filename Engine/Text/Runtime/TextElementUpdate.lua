@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.TextElementUpdate = FocalPoint.TextElementUpdate or {}
 
 local Update = FocalPoint.TextElementUpdate
+local TextState = FocalPoint.TextElementState or {}
 
 -- Keeps live text refresh logic together while layout/event wiring remains
 -- in the orchestrating text module.
@@ -83,5 +84,9 @@ function Update.UpdateAll(frame, deps)
 
     for key in pairs(frame.config.Texts) do
         updateElement(frame, key)
+    end
+
+    if TextState.MarkRenderApplied then
+        TextState.MarkRenderApplied(frame)
     end
 end

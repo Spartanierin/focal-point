@@ -3,6 +3,8 @@ local _, FocalPoint = ...
 FocalPoint.TextElementEvents = FocalPoint.TextElementEvents or {}
 
 local Events = FocalPoint.TextElementEvents
+local RuntimeState = FocalPoint.UnitFrameState or {}
+local TextState = FocalPoint.TextElementState or {}
 
 -- Owns the runtime event bridge that keeps text values refreshed without
 -- forcing the main text module to hold all event plumbing inline.
@@ -13,15 +15,29 @@ function Events.Register(frame, deps)
     local HasActiveCast = deps.HasActiveCast
     local FrameUsesCastTime = deps.FrameUsesCastTime
     local Refresh = deps.Refresh
-    local RefreshUnitBarValues = deps.RefreshUnitBarValues
-    local ApplyConfig = deps.ApplyConfig
     local RefreshCastBar = deps.RefreshCastBar
-    local RefreshLiveValues = deps.RefreshLiveValues
     local UpdateTextElement = deps.UpdateTextElement
-    local UpdateTextElements = deps.UpdateTextElements
 
     if not frame or frame.TextEventFrame then
         return
+    end
+
+    if TextState.Ensure then
+        TextState.Ensure(frame)
+    end
+
+    local function QueueTextCommit(reason, scope, options, delay)
+        if TextState.QueueRefresh then
+            return TextState.QueueRefresh(frame, reason, scope or "texts", options, delay)
+        end
+
+        if RuntimeState.QueueRefresh then
+            return RuntimeState.QueueRefresh(frame, reason or "texts", scope or "texts", options, delay)
+        end
+
+        if Refresh then
+            return Refresh(frame)
+        end
     end
 
     -- Keep text update events alive even if the owning unit frame is hidden or
@@ -61,9 +77,15 @@ function Events.Register(frame, deps)
         local hasPreviewCast = IsPreviewModeEnabled and IsPreviewModeEnabled() and castBar and castBar.isPreview
         if not owner or not FrameUsesCastTime or not FrameUsesCastTime(owner) or (not hasPreviewCast and not (HasActiveCast and HasActiveCast(owner.unit))) then
             self.elapsed = 0
+            if TextState.SetCastTickerActive then
+                TextState.SetCastTickerActive(owner, false)
+            end
             return
         end
 
+        if TextState.SetCastTickerActive then
+            TextState.SetCastTickerActive(owner, true)
+        end
         self.elapsed = (self.elapsed or 0) + elapsed
         if self.elapsed < 0.05 then
             return
@@ -85,23 +107,19 @@ function Events.Register(frame, deps)
         end
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            if Refresh then
-                Refresh(owner)
-            end
+            QueueTextCommit(event, "texts")
             return
         end
 
         if event == "UNIT_PET" then
-            if owner.unit == "pet" and unit == "player" and Refresh then
-                Refresh(owner)
+            if owner.unit == "pet" and unit == "player" then
+                QueueTextCommit(event, "texts")
             end
             return
         end
 
         if event == "PLAYER_ENTERING_WORLD" and owner.unit ~= "player" then
-            if Refresh then
-                Refresh(owner)
-            end
+            QueueTextCommit(event, "texts")
             return
         end
 
@@ -113,24 +131,7 @@ function Events.Register(frame, deps)
             return
         end
 
-        if RefreshUnitBarValues then
-            RefreshUnitBarValues(owner)
-        end
-        if ApplyConfig then
-            ApplyConfig(owner)
-        end
-        if RefreshCastBar then
-            RefreshCastBar(owner)
-        end
-        if RefreshLiveValues then
-            RefreshLiveValues(owner)
-        end
-        if UpdateTextElements then
-            UpdateTextElements(owner)
-        end
-        if RefreshCastBar then
-            RefreshCastBar(owner)
-        end
+        QueueTextCommit(event, "texts")
     end)
 
     frame.TextEventFrame = eventFrame

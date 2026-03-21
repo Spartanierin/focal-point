@@ -184,6 +184,10 @@ function State.ResetDerivedFrameState(frame)
 
     frame.LiveValues = WipeTable(frame.LiveValues)
     frame.TestValues = nil
+    local TextState = FocalPoint.TextElementState or {}
+    if TextState.Reset then
+        TextState.Reset(frame)
+    end
     State.DebugLog(frame, "reset-derived")
 end
 

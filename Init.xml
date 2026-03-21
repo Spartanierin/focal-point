@@ -54,6 +54,7 @@
     <Script file="Engine/Text/Shared/TextElementTemplates.lua"/>
     <Script file="Engine/Text/Shared/TextElementDirectTemplate.lua"/>
     <Script file="Engine/Text/Runtime/TextElementFactory.lua"/>
+    <Script file="Engine/Text/Runtime/TextElementState.lua"/>
     <Script file="Engine/Text/Runtime/TextElementUpdate.lua"/>
     <Script file="Engine/Text/Runtime/TextElementEvents.lua"/>
     <Script file="Engine/Text/Runtime/TextElementApply.lua"/>

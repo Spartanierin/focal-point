@@ -6,6 +6,7 @@ local LiveValues = FocalPoint.TextElementLiveValues
 local TextUtils = FocalPoint.TextElementUtils or {}
 local TextStatus = FocalPoint.TextElementStatus or {}
 local TextPower = FocalPoint.TextElementPower or {}
+local TextState = FocalPoint.TextElementState or {}
 
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
 local FormatNumber = TextUtils.FormatNumber
@@ -18,7 +19,14 @@ local GetSecondaryPowerValues = TextPower.GetSecondaryPowerValues
 -- Builds the live text value cache that all token resolvers read from.
 function LiveValues.Refresh(frame)
     if not frame or not frame.unit then
+        if TextState.Reset then
+            TextState.Reset(frame)
+        end
         return
+    end
+
+    if TextState.Ensure then
+        TextState.Ensure(frame)
     end
 
     frame.LiveValues = frame.LiveValues or {}
@@ -66,6 +74,9 @@ function LiveValues.Refresh(frame)
         frame.LiveValues.statusText = preview.status or ""
         frame.LiveValues.statusTimerStart = preview.statusTimerStart
         frame.LiveValues.deadTimerStart = preview.deadTimerStart
+        if TextState.MarkLiveValuesFresh then
+            TextState.MarkLiveValuesFresh(frame)
+        end
         return
     end
 
@@ -190,5 +201,9 @@ function LiveValues.Refresh(frame)
     else
         frame.LiveValues.statusTimerStart = nil
         frame.LiveValues.deadTimerStart = nil
+    end
+
+    if TextState.MarkLiveValuesFresh then
+        TextState.MarkLiveValuesFresh(frame)
     end
 end
