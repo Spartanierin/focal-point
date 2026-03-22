@@ -10,8 +10,37 @@ local SectionLayout = ns.GUI.Layouts.SectionLayout
 local LayoutHelpers = {}
 ns.GUI.Helpers.LayoutHelpers = LayoutHelpers
 
+function LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    if not container then
+        return
+    end
+
+    container._focalPointDefaultSectionTopSpacing = 16
+    container._focalPointBuiltSectionCount = 0
+end
+
 function LayoutHelpers.CreateSection(container)
-    return SectionLayout.CreateTwoColumn(container)
+    if not container then
+        return nil
+    end
+
+    local sectionTitle = container._focalPointPendingSectionTitle
+    local topSpacing = container._focalPointPendingSectionTopSpacing
+    local headerAction = container._focalPointPendingSectionHeaderAction
+    container._focalPointPendingSectionTitle = nil
+    container._focalPointPendingSectionTopSpacing = nil
+    container._focalPointPendingSectionHeaderAction = nil
+
+    if sectionTitle and sectionTitle ~= "" then
+        local defaultTopSpacing = container._focalPointDefaultSectionTopSpacing
+        local builtSectionCount = container._focalPointBuiltSectionCount or 0
+        if builtSectionCount > 0 and (type(topSpacing) ~= "number" or topSpacing <= 0) and type(defaultTopSpacing) == "number" then
+            topSpacing = defaultTopSpacing
+        end
+        container._focalPointBuiltSectionCount = builtSectionCount + 1
+    end
+
+    return SectionLayout.CreateTwoColumn(container, sectionTitle, topSpacing, headerAction)
 end
 
 function LayoutHelpers.AddLayoutHandle(layout, handle, def)
@@ -27,6 +56,18 @@ function LayoutHelpers.AddLayoutHandle(layout, handle, def)
             rowType = def.rowType,
             subsection = LayoutHelpers.ResolveLayoutText(def.subsection),
         }
+
+        if def.widget == "checkbox"
+            and type(def.path) == "table"
+            and def.path[1] == "Units"
+            and def.path[#def.path] == "enabled"
+            and meta.placement == nil
+            and meta.span == nil
+            and meta.rowType == nil
+        then
+            meta.placement = "left"
+            meta.rowType = "standalone"
+        end
     end
 
     return layout:Add(handle, meta)

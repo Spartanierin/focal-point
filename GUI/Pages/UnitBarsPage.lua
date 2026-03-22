@@ -7,6 +7,9 @@ local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
+local OptionValues = ns.GUI.Helpers.OptionValues
+local OptionRefresh = ns.GUI.Helpers.OptionRefresh
+local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
 local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Slider = ns.GUI.Widgets.Sliders
 local Dropdown = ns.GUI.Widgets.Dropdown
@@ -21,7 +24,6 @@ end
 
 function UnitBarsPage.BuildHealth(container, unitKey, deps)
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
@@ -31,12 +33,11 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
     local CanBuildLayoutWidget = deps.CanBuildLayoutWidget
 
     ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
     local HEALTH_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.HealthBarTab
     local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
-
-    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.HEALTH))
 
     local function ResolveDisabled(def)
         if def.disabled == "unit" then
@@ -46,6 +47,24 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
         end
 
         return nil
+    end
+
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
     end
 
     local function AddSectionWidget(layout, def)
@@ -82,6 +101,7 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
                 fallback = fallbackValue,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = def.disabled == "unit" and function()
                     return IsUnitDisabled(unitKey)
@@ -97,6 +117,7 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 fallback = fallbackValue,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -105,7 +126,13 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
     end
 
     for _, sectionDef in ipairs(HEALTH_BAR_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section), 0, {
+            text = L["OPTION_RESET"] or RESET or "Reset",
+            width = 112,
+            onClick = function()
+                ResetSection(sectionDef)
+            end,
+        })
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)
@@ -123,7 +150,6 @@ end
 
 function UnitBarsPage.BuildPower(container, unitKey, deps)
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
@@ -133,8 +159,9 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
     local CanBuildLayoutWidget = deps.CanBuildLayoutWidget
 
     ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
     local POWER_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.PowerBarTab
     local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
 
@@ -147,8 +174,6 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
         return IsUnitDisabled(unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showAlternativePowerBar" }, false)
     end
-
-    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.POWER))
 
     local function ResolveDisabled(def)
         if def.disabled == "unit" then
@@ -168,6 +193,24 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
         return nil
     end
 
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
+    end
+
     local function AddSectionWidget(layout, def)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
         local fallbackValue = def.fallback
@@ -202,6 +245,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
                 fallback = fallbackValue,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -215,6 +259,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 fallback = fallbackValue,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -232,6 +277,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 step = def.step,
                 fallback = def.fallback,
                 format = def.format,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
@@ -239,7 +285,13 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
     end
 
     for _, sectionDef in ipairs(POWER_BAR_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section), 0, {
+            text = L["OPTION_RESET"] or RESET or "Reset",
+            width = 112,
+            onClick = function()
+                ResetSection(sectionDef)
+            end,
+        })
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)
@@ -252,7 +304,6 @@ end
 
 function UnitBarsPage.BuildAlternativePower(container, unitKey, deps)
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
@@ -260,16 +311,15 @@ function UnitBarsPage.BuildAlternativePower(container, unitKey, deps)
     local ResolveLayoutPath = deps.ResolveLayoutPath
 
     ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
     local ALT_POWER_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.AlternativePowerBarTab
 
     local function IsAlternativePowerBarDisabled()
         return IsUnitDisabled(unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showAlternativePowerBar" }, false)
     end
-
-    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.ALT_POWER))
 
     local info = AceGUI:Create("Label")
     info:SetFullWidth(true)
@@ -296,6 +346,24 @@ function UnitBarsPage.BuildAlternativePower(container, unitKey, deps)
         return nil
     end
 
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
+    end
+
     local function AddSectionWidget(layout, def)
         if def.widget == "checkbox" then
             AddLayoutHandle(layout, Checkbox.Create({
@@ -303,6 +371,7 @@ function UnitBarsPage.BuildAlternativePower(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 fallback = def.fallback,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -320,6 +389,7 @@ function UnitBarsPage.BuildAlternativePower(container, unitKey, deps)
                 step = def.step,
                 fallback = def.fallback,
                 format = def.format,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
@@ -327,7 +397,13 @@ function UnitBarsPage.BuildAlternativePower(container, unitKey, deps)
     end
 
     for _, sectionDef in ipairs(ALT_POWER_BAR_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section), 0, {
+            text = L["OPTION_RESET"] or RESET or "Reset",
+            width = 112,
+            onClick = function()
+                ResetSection(sectionDef)
+            end,
+        })
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)
@@ -340,7 +416,6 @@ end
 
 function UnitBarsPage.BuildCast(container, unitKey, deps)
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
@@ -350,8 +425,9 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
     local CanBuildLayoutWidget = deps.CanBuildLayoutWidget
 
     ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
     local CAST_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.CastBarTab
     local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
 
@@ -359,8 +435,6 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
         return IsUnitDisabled(unitKey)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showCastBar" }, true)
     end
-
-    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.BARS) .. " - " .. ns.GetLabel(KM.Bars, C.Bars.CAST))
 
     local function ResolveDisabled(def)
         if def.disabled == "unit" then
@@ -374,6 +448,24 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
         end
 
         return nil
+    end
+
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
     end
 
     local function AddSectionWidget(layout, def)
@@ -403,6 +495,7 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
                 fallback = def.fallback,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -416,6 +509,7 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 fallback = def.fallback,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -433,6 +527,7 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
                 step = def.step,
                 fallback = def.fallback,
                 format = def.format,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
@@ -440,7 +535,13 @@ function UnitBarsPage.BuildCast(container, unitKey, deps)
     end
 
     for _, sectionDef in ipairs(CAST_BAR_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+        AddSectionHeading(container, ResolveLayoutText(sectionDef.section), 0, {
+            text = L["OPTION_RESET"] or RESET or "Reset",
+            width = 112,
+            onClick = function()
+                ResetSection(sectionDef)
+            end,
+        })
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)

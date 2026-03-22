@@ -1,6 +1,7 @@
 local _, ns = ...
 
 local AceGUI = LibStub("AceGUI-3.0")
+local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or nil
 
 ns.GUI = ns.GUI or {}
 ns.GUI.Widgets = ns.GUI.Widgets or {}
@@ -16,8 +17,12 @@ function Widgets.CreateSectionHeader(text)
     fs:SetPoint("LEFT", group.frame, "LEFT", 0, 0)
     fs:SetPoint("RIGHT", group.frame, "RIGHT", 0, 0)
     fs:SetJustifyH("LEFT")
-    fs:SetText("|cffFFD100" .. text .. "|r")
-    fs:SetFont(STANDARD_TEXT_FONT, 18, "")
+    fs:SetText(text or "")
+    if TextStyles and TextStyles.ApplyFontString then
+        TextStyles.ApplyFontString(fs, "sectionHeader", { size = 18 })
+    else
+        fs:SetFont(STANDARD_TEXT_FONT, 18, "")
+    end
 
     local line = group.frame:CreateTexture(nil, "ARTWORK")
     line:SetHeight(1)

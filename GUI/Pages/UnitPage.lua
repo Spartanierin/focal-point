@@ -10,11 +10,16 @@ ns.GUI.Pages.UnitPage = UnitPage
 
 function UnitPage.Build(container, unitKey, deps)
     container:ReleaseChildren()
-    container:SetLayout("Fill")
+    container:SetLayout("Flow")
 
     local state = deps.GetGUIState()
     state.unitTabs[unitKey] = state.unitTabs[unitKey] or ns.Constants.Tabs.FRAME
     state.unitScroll[unitKey] = state.unitScroll[unitKey] or {}
+    local unitLabel = ns.GetLabel(ns.KeyMap.Units, unitKey)
+
+    if deps.AddPageHeading then
+        deps.AddPageHeading(container, unitLabel)
+    end
 
     local tabGroup = AceGUI:Create("TabGroup")
     tabGroup:SetFullWidth(true)
@@ -67,9 +72,8 @@ function UnitPage.Build(container, unitKey, deps)
             return
         end
 
-        local unitLabel = ns.GetLabel(ns.KeyMap.Units, unitKey)
         local tabLabel = ns.GetLabel(ns.KeyMap.Tabs, tabKey)
-        deps.BuildPlaceholderPage(scroll, unitLabel .. " - " .. tabLabel)
+        deps.BuildPlaceholderPage(scroll, tabLabel)
     end)
 
     container:AddChild(tabGroup)

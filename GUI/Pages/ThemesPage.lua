@@ -5,6 +5,7 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L
+local TextStyles = ns.GUI.Helpers.TextStyles
 
 local ThemesPage = {}
 ns.GUI.Pages.Themes = ThemesPage
@@ -16,6 +17,12 @@ function ThemesPage.Build(container, deps)
     local ThemeService = ns.ThemeService or {}
     local ThemePreview = ns.GUI and ns.GUI.Preview and ns.GUI.Preview.ThemePreview
 
+    local function StyleGroupTitle(widget)
+        if TextStyles and TextStyles.ApplyWidgetText then
+            TextStyles.ApplyWidgetText(widget, "sectionHeader", { size = 13 })
+        end
+    end
+
     ResetFlowContainer(container)
 
     if AddPageHeading then
@@ -24,13 +31,10 @@ function ThemesPage.Build(container, deps)
 
     local intro = AceGUI:Create("Label")
     intro:SetFullWidth(true)
-    if intro.SetFont then
-        intro:SetFont(STANDARD_TEXT_FONT, 12, "")
+    intro:SetText(L["INFO_GENERAL_THEMES_DESC"] or "Apply a strong starting layout. Afterwards everything remains fully editable.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(intro, "label", { size = 12 })
     end
-    intro:SetText(string.format(
-        "|cffd7dbe0%s|r",
-        L["INFO_GENERAL_THEMES_DESC"] or "Apply a strong starting layout. Afterwards everything remains fully editable."
-    ))
     container:AddChild(intro)
 
     local spacer = AceGUI:Create("Label")
@@ -48,19 +52,20 @@ function ThemesPage.Build(container, deps)
     previewGroup:SetFullWidth(true)
     previewGroup:SetLayout("Flow")
     previewGroup:SetTitle(L["INFO_THEME_PREVIEW_TITLE"] or "Preview")
+    StyleGroupTitle(previewGroup)
     container:AddChild(previewGroup)
 
     local previewHeading = AceGUI:Create("Label")
     previewHeading:SetFullWidth(true)
-    if previewHeading.SetFont then
-        previewHeading:SetFont(STANDARD_TEXT_FONT, 13, "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(previewHeading, "highlight", { size = 13 })
     end
     previewGroup:AddChild(previewHeading)
 
     local previewDescription = AceGUI:Create("Label")
     previewDescription:SetFullWidth(true)
-    if previewDescription.SetFont then
-        previewDescription:SetFont(STANDARD_TEXT_FONT, 11, "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(previewDescription, "help", { size = 11 })
     end
     previewGroup:AddChild(previewDescription)
 
@@ -84,8 +89,15 @@ function ThemesPage.Build(container, deps)
         local label = (theme.labelKey and L[theme.labelKey]) or theme.id or themeId
         local description = (theme.descriptionKey and L[theme.descriptionKey]) or ""
 
-        previewHeading:SetText(string.format("|cffe7dcc4%s:|r %s", L["INFO_THEME_PREVIEWING"] or "Previewing", label))
-        previewDescription:SetText(string.format("|cff9ea8b3%s|r", description ~= "" and description or (L["INFO_THEME_PREVIEW_DESC"] or "")))
+        previewHeading:SetText(string.format("%s: %s", L["INFO_THEME_PREVIEWING"] or "Previewing", label))
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(previewHeading, "highlight", { size = 13 })
+        end
+
+        previewDescription:SetText(description ~= "" and description or (L["INFO_THEME_PREVIEW_DESC"] or ""))
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(previewDescription, "help", { size = 11 })
+        end
 
         if previewController and previewController.SetTheme then
             previewController:SetTheme(themeId)
@@ -104,6 +116,7 @@ function ThemesPage.Build(container, deps)
     themeGroup:SetFullWidth(true)
     themeGroup:SetLayout("Flow")
     themeGroup:SetTitle(L["INFO_GENERAL_THEMES"] or "Themes")
+    StyleGroupTitle(themeGroup)
     container:AddChild(themeGroup)
 
     local themeLayout = CreateSection(themeGroup)
@@ -115,22 +128,22 @@ function ThemesPage.Build(container, deps)
 
         local title = AceGUI:Create("Label")
         title:SetFullWidth(true)
-        if title.SetFont then
-            title:SetFont(STANDARD_TEXT_FONT, 13, "")
-        end
 
         local label = (theme.labelKey and L[theme.labelKey]) or theme.id or themeId
         local isActive = activeThemeId == theme.id
         local activeSuffix = isActive and string.format("  (%s)", L["INFO_THEME_ACTIVE"] or "Active") or ""
-        title:SetText(string.format("%s%s|r", isActive and "|cff72e06a" or "|cffe7dcc4", label .. activeSuffix))
+        title:SetText(label .. activeSuffix)
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(title, isActive and "highlight" or "label", { size = 13 })
+        end
         card:AddChild(title)
 
         local description = AceGUI:Create("Label")
         description:SetFullWidth(true)
-        if description.SetFont then
-            description:SetFont(STANDARD_TEXT_FONT, 11, "")
+        description:SetText((theme.descriptionKey and L[theme.descriptionKey]) or "")
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(description, "help", { size = 11 })
         end
-        description:SetText(string.format("|cff9ea8b3%s|r", (theme.descriptionKey and L[theme.descriptionKey]) or ""))
         card:AddChild(description)
 
         local actions = AceGUI:Create("SimpleGroup")

@@ -5,6 +5,7 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L
+local TextStyles = ns.GUI.Helpers.TextStyles
 
 local TagDatabasePage = {}
 ns.GUI.Pages.TagDatabase = TagDatabasePage
@@ -13,6 +14,12 @@ function TagDatabasePage.Build(container, deps)
     local GetGUIState = deps.GetGUIState
     local BuildScrollableTabContent = deps.BuildScrollableTabContent
     local BuildPlaceholderPage = deps.BuildPlaceholderPage
+
+    local function StyleGroupTitle(widget)
+        if TextStyles and TextStyles.ApplyWidgetText then
+            TextStyles.ApplyWidgetText(widget, "sectionHeader", { size = 13 })
+        end
+    end
 
     container:ReleaseChildren()
     container:SetLayout("Fill")
@@ -105,24 +112,25 @@ function TagDatabasePage.Build(container, deps)
     introGroup:SetFullWidth(true)
     introGroup:SetLayout("Flow")
     introGroup:SetTitle(L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
+    StyleGroupTitle(introGroup)
     root:AddChild(introGroup)
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
-    if description.SetFont then
-        description:SetFont(STANDARD_TEXT_FONT, 12, "")
+    description:SetText(L["INFO_TAG_DATABASE_DESCRIPTION"] or "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(description, "label", { size = 12 })
     end
-    description:SetText(string.format("|cffcfd5dd%s|r", L["INFO_TAG_DATABASE_DESCRIPTION"] or ""))
     introGroup:AddChild(description)
 
     introGroup:AddChild(CreateLocalSpacer(2))
 
     local hint = AceGUI:Create("Label")
     hint:SetFullWidth(true)
-    if hint.SetFont then
-        hint:SetFont(STANDARD_TEXT_FONT, 12, "")
+    hint:SetText(L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(hint, "highlight", { size = 12 })
     end
-    hint:SetText(string.format("|cff6fd2ff%s|r", L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or ""))
     introGroup:AddChild(hint)
 
     root:AddChild(CreateLocalSpacer(2))
@@ -132,6 +140,7 @@ function TagDatabasePage.Build(container, deps)
     referenceGroup:SetFullHeight(true)
     referenceGroup:SetLayout("Fill")
     referenceGroup:SetTitle(L["INFO_TAG_DATABASE_REFERENCE"] or "Reference")
+    StyleGroupTitle(referenceGroup)
     root:AddChild(referenceGroup)
 
     local tabGroup = AceGUI:Create("TabGroup")
@@ -147,10 +156,10 @@ function TagDatabasePage.Build(container, deps)
         BuildScrollableTabContent(widget, state.tagDatabaseScroll[categoryKey], function(content)
             local categoryLabel = AceGUI:Create("Label")
             categoryLabel:SetFullWidth(true)
-            if categoryLabel.SetFont then
-                categoryLabel:SetFont(STANDARD_TEXT_FONT, 13, "")
+            categoryLabel:SetText(L[categoryKey] or categoryKey)
+            if TextStyles and TextStyles.ApplyLabelWidget then
+                TextStyles.ApplyLabelWidget(categoryLabel, "sectionHeader", { size = 13 })
             end
-            categoryLabel:SetText(string.format("|cffe6d6a8%s|r", L[categoryKey] or categoryKey))
             content:AddChild(categoryLabel)
 
             content:AddChild(CreateLocalSpacer(2))
@@ -163,10 +172,10 @@ function TagDatabasePage.Build(container, deps)
             local function AddHeaderCell(text, width)
                 local label = AceGUI:Create("Label")
                 label:SetWidth(width)
-                if label.SetFont then
-                    label:SetFont(STANDARD_TEXT_FONT, 11, "")
+                label:SetText(text)
+                if TextStyles and TextStyles.ApplyLabelWidget then
+                    TextStyles.ApplyLabelWidget(label, "help", { size = 11 })
                 end
-                label:SetText(string.format("|cff9a9a9a%s|r", text))
                 headerRow:AddChild(label)
             end
 
@@ -185,34 +194,34 @@ function TagDatabasePage.Build(container, deps)
 
                 local tokenLabel = AceGUI:Create("Label")
                 tokenLabel:SetWidth(170)
-                if tokenLabel.SetFont then
-                    tokenLabel:SetFont(STANDARD_TEXT_FONT, 12, "")
+                tokenLabel:SetText(def.token)
+                if TextStyles and TextStyles.ApplyLabelWidget then
+                    TextStyles.ApplyLabelWidget(tokenLabel, "highlight", { size = 12 })
                 end
-                tokenLabel:SetText(string.format("|cff6fd2ff%s|r", def.token))
                 row:AddChild(tokenLabel)
 
                 local descriptionLabel = AceGUI:Create("Label")
                 descriptionLabel:SetWidth(320)
-                if descriptionLabel.SetFont then
-                    descriptionLabel:SetFont(STANDARD_TEXT_FONT, 11, "")
+                descriptionLabel:SetText(L[def.description] or def.description)
+                if TextStyles and TextStyles.ApplyLabelWidget then
+                    TextStyles.ApplyLabelWidget(descriptionLabel, "label", { size = 11 })
                 end
-                descriptionLabel:SetText(string.format("|cffd7d2c8%s|r", L[def.description] or def.description))
                 row:AddChild(descriptionLabel)
 
                 local exampleLabel = AceGUI:Create("Label")
                 exampleLabel:SetWidth(120)
-                if exampleLabel.SetFont then
-                    exampleLabel:SetFont(STANDARD_TEXT_FONT, 11, "")
+                exampleLabel:SetText(def.example or "")
+                if TextStyles and TextStyles.ApplyLabelWidget then
+                    TextStyles.ApplyLabelWidget(exampleLabel, "highlight", { size = 11 })
                 end
-                exampleLabel:SetText(string.format("|cffe6d6a8%s|r", def.example or ""))
                 row:AddChild(exampleLabel)
 
                 local appliesLabel = AceGUI:Create("Label")
                 appliesLabel:SetWidth(160)
-                if appliesLabel.SetFont then
-                    appliesLabel:SetFont(STANDARD_TEXT_FONT, 11, "")
+                appliesLabel:SetText(ResolveTagAppliesTo(def))
+                if TextStyles and TextStyles.ApplyLabelWidget then
+                    TextStyles.ApplyLabelWidget(appliesLabel, "help", { size = 11 })
                 end
-                appliesLabel:SetText(string.format("|cff9a9a9a%s|r", ResolveTagAppliesTo(def)))
                 row:AddChild(appliesLabel)
             end
         end)

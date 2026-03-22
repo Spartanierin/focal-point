@@ -7,48 +7,63 @@ ns.GUI.Helpers.TitleStyles = ns.GUI.Helpers.TitleStyles or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
+local TextStyles = ns.GUI.Helpers.TextStyles
 
 local BuilderUI = ns.GUI.Helpers.BuilderUI
 local TitleStyles = ns.GUI.Helpers.TitleStyles
 
-local function WrapColor(text, color)
-    if type(text) ~= "string" or text == "" then
-        return text or ""
-    end
-
-    return string.format("|cff%s%s|r", color, text)
-end
-
 function TitleStyles.FormatPage(text)
-    return WrapColor(text, "d8c27a")
+    return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "sectionHeader") or text
 end
 
 function TitleStyles.FormatGroup(text)
-    return WrapColor(text, "e7dcc4")
+    return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "sectionHeader") or text
 end
 
 function TitleStyles.FormatSubsection(text)
-    return WrapColor(text, "8fa8bf")
+    return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "label") or text
 end
 
-function BuilderUI.AddSectionHeading(container, text, topSpacing)
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
-    spacer:SetFullWidth(true)
-    spacer:SetHeight(topSpacing or 0)
-    container:AddChild(spacer)
+function BuilderUI.AddSectionHeading(container, text, topSpacing, headerAction)
+    if not container then
+        return
+    end
 
-    local heading = AceGUI:Create("Heading")
-    heading:SetText(TitleStyles.FormatGroup(text))
-    heading:SetFullWidth(true)
-    container:AddChild(heading)
+    container._focalPointPendingSectionTitle = text
+    container._focalPointPendingSectionTopSpacing = topSpacing or 0
+    container._focalPointPendingSectionHeaderAction = headerAction
 end
 
-function BuilderUI.AddPageHeading(container, text)
-    local heading = AceGUI:Create("Heading")
+function BuilderUI.AddPageHeading(container, text, subtitle)
+    local headerGroup = AceGUI:Create("SimpleGroup")
+    headerGroup:SetFullWidth(true)
+    headerGroup:SetLayout("Flow")
+
+    local heading = AceGUI:Create("Label")
     heading:SetFullWidth(true)
-    heading:SetText(TitleStyles.FormatPage(text))
-    container:AddChild(heading)
+    heading:SetText(text or "")
+    if heading.label and heading.label.SetJustifyH then
+        heading.label:SetJustifyH("CENTER")
+    end
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(heading, "label", { size = 15, shadow = true })
+    end
+    headerGroup:AddChild(heading)
+
+    if type(subtitle) == "string" and subtitle ~= "" then
+        local subtitleLabel = AceGUI:Create("Label")
+        subtitleLabel:SetFullWidth(true)
+        subtitleLabel:SetText(subtitle)
+        if subtitleLabel.label and subtitleLabel.label.SetJustifyH then
+            subtitleLabel.label:SetJustifyH("CENTER")
+        end
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(subtitleLabel, "help", { size = 11 })
+        end
+        headerGroup:AddChild(subtitleLabel)
+    end
+
+    container:AddChild(headerGroup)
 end
 
 function BuilderUI.ResetFlowContainer(container)

@@ -12,9 +12,9 @@ ns.GUI.Layouts.UnitReadyCheckIndicator.ReadyCheckIndicatorTab = {
         layout = "list",
         items = {
             { widget = "checkbox", path = { "Units", "$unitKey", "ReadyCheckIndicator", "enabled" }, label = "OPTION_READY_CHECK_INDICATOR_ENABLED", description = "OPTION_READY_CHECK_INDICATOR_ENABLED_DESC", fallback = true, refreshGUI = true, disabled = "unit" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "placement" }, label = "OPTION_READY_CHECK_INDICATOR_PLACEMENT", description = "OPTION_READY_CHECK_INDICATOR_PLACEMENT_DESC", list = "placement", fallback = "ATTACHED", refreshGUI = true, disabled = "readycheck" },
-            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "size" }, label = "OPTION_READY_CHECK_INDICATOR_SIZE", description = "OPTION_READY_CHECK_INDICATOR_SIZE_DESC", min = 8, max = 64, step = 1, fallback = 16, format = "%d", disabled = "readycheck" },
-            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "scale" }, label = "OPTION_READY_CHECK_INDICATOR_SCALE", description = "OPTION_READY_CHECK_INDICATOR_SCALE_DESC", min = 0.25, max = 3.0, step = 0.01, fallback = 1.0, format = "%.2f", disabled = "readycheck" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "placement" }, label = "OPTION_READY_CHECK_INDICATOR_PLACEMENT", description = "OPTION_READY_CHECK_INDICATOR_PLACEMENT_DESC", list = "placement", fallback = "ATTACHED", refreshGUI = true, disabled = "readycheck", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "size" }, label = "OPTION_READY_CHECK_INDICATOR_SIZE", description = "OPTION_READY_CHECK_INDICATOR_SIZE_DESC", min = 8, max = 64, step = 1, fallback = 16, format = "%d", disabled = "readycheck", placement = "right" },
+            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "scale" }, label = "OPTION_READY_CHECK_INDICATOR_SCALE", description = "OPTION_READY_CHECK_INDICATOR_SCALE_DESC", min = 0.25, max = 3.0, step = 0.01, fallback = 1.0, format = "%.2f", disabled = "readycheck", placement = "left" },
         },
     },
     {
@@ -22,9 +22,9 @@ ns.GUI.Layouts.UnitReadyCheckIndicator.ReadyCheckIndicatorTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "padding" }, label = "OPTION_PADDING", description = "OPTION_READY_CHECK_INDICATOR_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_READY_CHECK_INDICATOR_INSIDE_SIDE_DESC", list = "insideSide", fallback = "RIGHT", disabled = "inside" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "Frame", disabled = "inside" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_INSIDE_ANCHOR_TO_DESC", list = "anchorTo", fallback = "Frame", disabled = "inside", placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_READY_CHECK_INDICATOR_INSIDE_SIDE_DESC", list = "insideSide", fallback = "RIGHT", disabled = "inside", placement = "right" },
+            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "padding" }, label = "OPTION_PADDING", description = "OPTION_READY_CHECK_INDICATOR_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside", placement = "left" },
         },
     },
     {
@@ -32,11 +32,11 @@ ns.GUI.Layouts.UnitReadyCheckIndicator.ReadyCheckIndicatorTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "anchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_READY_CHECK_INDICATOR_ANCHOR_TO_TARGET_DESC", list = "anchorTo", fallback = "Frame", disabled = "attached" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "point" }, label = "OPTION_ANCHOR_FROM", description = "OPTION_READY_CHECK_INDICATOR_ANCHOR_FROM_DESC", list = "anchorPoints", fallback = "TOPRIGHT", disabled = "attached" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "relativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_READY_CHECK_INDICATOR_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "TOP", disabled = "attached" },
-            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "offsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_READY_CHECK_INDICATOR_OFFSET_X_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached" },
-            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "offsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_READY_CHECK_INDICATOR_OFFSET_Y_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "anchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_READY_CHECK_INDICATOR_ANCHOR_TO_TARGET_DESC", list = "anchorTo", fallback = "Frame", disabled = "attached", placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "point" }, label = "OPTION_ANCHOR_FROM", description = "OPTION_READY_CHECK_INDICATOR_ANCHOR_FROM_DESC", list = "anchorPoints", fallback = "TOPRIGHT", disabled = "attached", placement = "right" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "ReadyCheckIndicator", "relativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_READY_CHECK_INDICATOR_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "TOP", disabled = "attached", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "offsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_READY_CHECK_INDICATOR_OFFSET_X_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "ReadyCheckIndicator", "offsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_READY_CHECK_INDICATOR_OFFSET_Y_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached", placement = "right" },
         },
     },
 }

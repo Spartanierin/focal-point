@@ -6,6 +6,9 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
+local OptionValues = ns.GUI.Helpers.OptionValues
+local OptionRefresh = ns.GUI.Helpers.OptionRefresh
+local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
 local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Checkbox = ns.GUI.Widgets.Checkbox
 local Slider = ns.GUI.Widgets.Sliders
@@ -15,7 +18,6 @@ ns.GUI.Pages.UnitColors = UnitColorsPage
 
 function UnitColorsPage.Build(container, unitKey, deps)
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
@@ -23,8 +25,9 @@ function UnitColorsPage.Build(container, unitKey, deps)
     local ResolveLayoutPath = deps.ResolveLayoutPath
 
     ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
     local COLORS_TAB_LAYOUT = ns.GUI.Layouts.UnitColors.ColorTab
 
     local function IsUnitDisabled()
@@ -65,8 +68,6 @@ function UnitColorsPage.Build(container, unitKey, deps)
         return IsPowerBarDisabled()
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
     end
-
-    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.COLORS))
 
     local function ResolveColorSectionHeading(sectionKey)
         if sectionKey == "$healthBar" then
@@ -120,6 +121,24 @@ function UnitColorsPage.Build(container, unitKey, deps)
         return nil
     end
 
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
+    end
+
     local function AddColorSectionWidget(layout, def, state)
         if type(def) ~= "table" or type(def.path) ~= "table" then
             return
@@ -154,6 +173,7 @@ function UnitColorsPage.Build(container, unitKey, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 fallback = def.fallback,
+                showReset = false,
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveColorDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -186,6 +206,7 @@ function UnitColorsPage.Build(container, unitKey, deps)
                 step = def.step,
                 fallback = def.fallback,
                 format = def.format,
+                showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveColorDisabled(def),
             }), def)
@@ -193,7 +214,13 @@ function UnitColorsPage.Build(container, unitKey, deps)
     end
 
     for _, sectionDef in ipairs(COLORS_TAB_LAYOUT) do
-        AddSectionHeading(container, ResolveColorSectionHeading(sectionDef.section))
+        AddSectionHeading(container, ResolveColorSectionHeading(sectionDef.section), 0, {
+            text = L["OPTION_RESET"] or RESET or "Reset",
+            width = 112,
+            onClick = function()
+                ResetSection(sectionDef)
+            end,
+        })
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)

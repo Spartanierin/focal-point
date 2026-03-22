@@ -108,7 +108,10 @@ function PageDeps.CreateTextBuilderDeps(config)
 end
 
 function PageDeps.CreateUnitPageDeps(config)
+    local BuilderUI = ns.GUI.Helpers.BuilderUI
+
     return {
+        AddPageHeading = BuilderUI.AddPageHeading,
         GetGUIState = config.GetGUIState,
         GetUnitTabValues = config.GetUnitTabValues,
         BuildUnitBarsPage = config.BuildUnitBarsPage,

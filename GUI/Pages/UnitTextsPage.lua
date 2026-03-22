@@ -11,7 +11,89 @@ local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Slider = ns.GUI.Widgets.Sliders
 local Dropdown = ns.GUI.Widgets.Dropdown
 local Checkbox = ns.GUI.Widgets.Checkbox
-local TitleStyles = ns.GUI.Helpers and ns.GUI.Helpers.TitleStyles or nil
+local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or nil
+local LayoutHelpers = ns.GUI.Helpers and ns.GUI.Helpers.LayoutHelpers or nil
+local TextUtils = FocalPoint and FocalPoint.TextElementUtils or nil
+local TextColors = FocalPoint and FocalPoint.TextElementColors or nil
+
+local function TemplateUsesToken(template, token)
+    if type(template) ~= "string" or template == "" or type(token) ~= "string" or token == "" then
+        return false
+    end
+
+    return template:find("%[" .. token:gsub("([^%w:])", "%%%1") .. "%]") ~= nil
+end
+
+local function ApplyPreviewTextAppearance(widget, unitKey, textKey, textConfig, templateText)
+    if not widget or type(textConfig) ~= "table" then
+        return
+    end
+
+    local fontString = widget.label or widget.text
+    if not fontString then
+        return
+    end
+
+    local fontPath = TextUtils and TextUtils.GetFontPath and TextUtils.GetFontPath(textConfig.font) or STANDARD_TEXT_FONT
+    local fontSize = textConfig.fontSize or 12
+    local fontFlags = TextUtils and TextUtils.BuildFontFlags and TextUtils.BuildFontFlags(textConfig) or ""
+    local justifyH = textConfig.justifyH or "LEFT"
+
+    if fontString.SetFont then
+        fontString:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
+    end
+
+    if fontString.SetJustifyH then
+        fontString:SetJustifyH(justifyH)
+    end
+
+    local r, g, b, a = 1, 1, 1, 1
+    if TextUtils and TextUtils.UnpackColor then
+        r, g, b, a = TextUtils.UnpackColor(textConfig.color, { 1, 1, 1, 1 })
+    end
+
+    local previewFrame = {
+        unit = unitKey,
+        IsTemplatePreview = true,
+        TestValues = ns.UnitFrame and ns.UnitFrame.GetTestPreviewValues and ns.UnitFrame:GetTestPreviewValues({ unit = unitKey }) or nil,
+    }
+
+    if textKey == "Class" or TemplateUsesToken(templateText, "class") then
+        local classR, classG, classB, classA = TextColors and TextColors.GetClassTextColor and TextColors.GetClassTextColor(unitKey, previewFrame)
+        if classR and classG and classB then
+            r, g, b, a = classR, classG, classB, classA or 1
+        end
+    elseif textKey == "Level" then
+        r, g, b, a = 1.00, 0.82, 0.00, 1.00
+    end
+
+    if fontString.SetTextColor then
+        fontString:SetTextColor(r, g, b, a)
+    end
+
+    if textConfig.shadowEnabled then
+        local sx = textConfig.shadowOffsetX or 1
+        local sy = textConfig.shadowOffsetY or -1
+        local sr, sg, sb, sa = 0, 0, 0, 1
+        if TextUtils and TextUtils.UnpackColor then
+            sr, sg, sb, sa = TextUtils.UnpackColor(textConfig.shadowColor, { 0, 0, 0, 1 })
+        end
+
+        if fontString.SetShadowOffset then
+            fontString:SetShadowOffset(sx, sy)
+        end
+        if fontString.SetShadowColor then
+            fontString:SetShadowColor(sr, sg, sb, sa)
+        end
+    else
+        if fontString.SetShadowOffset then
+            fontString:SetShadowOffset(0, 0)
+        end
+        if fontString.SetShadowColor then
+            fontString:SetShadowColor(0, 0, 0, 0)
+        end
+    end
+end
 
 local UnitTextsPage = {}
 ns.GUI.Pages.UnitTexts = UnitTextsPage
@@ -21,7 +103,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
     local GetTextElementLabel = deps.GetTextElementLabel
     local GetTextTabValues = deps.GetTextTabValues
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
+    local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
     local BuildScrollableTabContent = deps.BuildScrollableTabContent
@@ -30,18 +112,12 @@ function UnitTextsPage.Build(container, unitKey, deps)
     local ResolveLayoutList = deps.ResolveLayoutList
     local CanBuildLayoutWidget = deps.CanBuildLayoutWidget
 
-    local function FormatGroupTitle(text)
-        if TitleStyles and TitleStyles.FormatGroup then
-            return TitleStyles.FormatGroup(text)
-        end
-
-        return text
-    end
-
     local function BuildUnitTextPage(content, textConfigKey, textLabel)
         ResetFlowContainer(content)
+        if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+            LayoutHelpers.ApplyUnitLayoutDefaults(content)
+        end
 
-        local unitLabel = ns.GetLabel(KM.Units, unitKey)
         local TEXT_TAB_LAYOUT = ns.GUI.Layouts.UnitTexts.TextTab
         local TEXT_TAB_LISTS = ns.GUI.Layouts.UnitTexts.Lists
         local tokenReplacements = {
@@ -165,46 +241,33 @@ function UnitTextsPage.Build(container, unitKey, deps)
             return ValuesEqual(currentValue, defaultValue)
         end
 
-        local function BuildGroupResetAction(label, paths, disabled)
-            local row = AceGUI:Create("SimpleGroup")
-            row:SetFullWidth(true)
-            row:SetLayout("Flow")
-
-            local button = AceGUI:Create("Button")
-            button:SetText(label)
-            button:SetWidth(120)
-            row:AddChild(button)
-
-            local function HasChanges()
-                for _, path in ipairs(paths) do
-                    if not IsPathAtDefault(path) then
-                        return true
-                    end
-                end
-
-                return false
+        local function ResetPaths(paths, disabled)
+            if type(disabled) == "function" and disabled() then
+                return
             end
 
-            button:SetDisabled((type(disabled) == "function" and disabled()) or not HasChanges())
-            button:SetCallback("OnClick", function()
-                if (type(disabled) == "function" and disabled()) then
-                    return
-                end
+            local changed = false
+            for _, path in ipairs(paths) do
+                changed = ns.GUI.Helpers.OptionValues.Reset(path) or changed
+            end
 
-                local changed = false
-                for _, path in ipairs(paths) do
-                    changed = ns.GUI.Helpers.OptionValues.Reset(path) or changed
-                end
+            if changed then
+                ns.GUI.Helpers.OptionRefresh.Live()
+                ns.GUI:RefreshOptions()
+            end
+        end
 
-                if changed then
-                    ns.GUI.Helpers.OptionRefresh.Live()
-                    ns.GUI:RefreshOptions()
-                end
-            end)
+        local function BuildSectionResetAction(paths, disabled)
+            if type(paths) ~= "table" or #paths == 0 then
+                return nil
+            end
 
             return {
-                group = row,
-                button = button,
+                text = L["OPTION_RESET"] or RESET or "Reset",
+                width = 112,
+                onClick = function()
+                    ResetPaths(paths, disabled)
+                end,
             }
         end
 
@@ -221,6 +284,14 @@ function UnitTextsPage.Build(container, unitKey, deps)
             editBox:DisableButton(true)
             editBox:SetText(ns.GUI.Helpers.OptionValues.Get(path, def.fallback or ""))
             editBox:SetDisabled(ns.GUI.Helpers.OptionValues.ResolveState(disabled, def))
+            if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+                TextStyles.ApplyInteractiveWidgetText(
+                    editBox,
+                    "label",
+                    ns.GUI.Helpers.OptionValues.ResolveState(disabled, def),
+                    { size = 12 }
+                )
+            end
             editBox:SetCallback("OnEnterPressed", function(widget, _, newValue)
                 if ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) then
                     return
@@ -253,6 +324,13 @@ function UnitTextsPage.Build(container, unitKey, deps)
                 local description = AceGUI:Create("Label")
                 description:SetFullWidth(true)
                 description:SetText(ResolveLayoutText(def.description))
+                if TextStyles and TextStyles.ApplyLabelWidget then
+                    TextStyles.ApplyLabelWidget(
+                        description,
+                        ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) and "disabled" or "help",
+                        { size = 11 }
+                    )
+                end
                 group:AddChild(description)
             end
 
@@ -294,6 +372,14 @@ function UnitTextsPage.Build(container, unitKey, deps)
                 dropdown:SetWidth(220)
                 dropdown:SetValue(currentStyle)
                 dropdown:SetDisabled(ns.GUI.Helpers.OptionValues.ResolveState(disabled, def))
+                if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+                    TextStyles.ApplyInteractiveWidgetText(
+                        dropdown,
+                        "label",
+                        ns.GUI.Helpers.OptionValues.ResolveState(disabled, def),
+                        { size = 12 }
+                    )
+                end
                 dropdown:SetCallback("OnValueChanged", function(_, _, newValue)
                     if ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) then
                         return
@@ -310,6 +396,21 @@ function UnitTextsPage.Build(container, unitKey, deps)
                     ns.GUI.Helpers.OptionRefresh.Live()
                 end)
                 group:AddChild(dropdown)
+
+                if def.description and def.description ~= "" then
+                    local description = AceGUI:Create("Label")
+                    description:SetFullWidth(true)
+                    description:SetText(ResolveLayoutText(def.description))
+                    if TextStyles and TextStyles.ApplyLabelWidget then
+                        TextStyles.ApplyLabelWidget(
+                            description,
+                            ns.GUI.Helpers.OptionValues.ResolveState(disabled, def) and "disabled" or "help",
+                            { size = 11 }
+                        )
+                    end
+                    group:AddChild(description)
+                end
+
                 AddLayoutHandle(layout, { group = group }, def)
                 return
             end
@@ -339,7 +440,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
                     label = ResolveLayoutText(def.label),
                     description = ResolveLayoutText(def.description),
                     fallback = def.fallback,
-                    showReset = def.showReset,
+                    showReset = false,
                     resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                     resetWidth = def.resetWidth or 64,
                     disabled = ResolveDisabled(def),
@@ -355,7 +456,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
                     description = ResolveLayoutText(def.description),
                     list = resolvedList,
                     fallback = def.fallback,
-                    showReset = def.showReset,
+                    showReset = false,
                     resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                     resetWidth = def.resetWidth or 64,
                     disabled = ResolveDisabled(def),
@@ -374,7 +475,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
                     step = def.step,
                     fallback = def.fallback,
                     format = def.format,
-                    showReset = def.showReset,
+                    showReset = false,
                     resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                     resetWidth = def.resetWidth or 64,
                     disabled = ResolveDisabled(def),
@@ -382,46 +483,68 @@ function UnitTextsPage.Build(container, unitKey, deps)
             end
         end
 
-        AddPageHeading(content, unitLabel .. " > " .. ns.GetLabel(KM.Tabs, C.Tabs.TEXTS) .. " > " .. textLabel)
-
-        local enableGroup = AceGUI:Create("SimpleGroup")
-        enableGroup:SetFullWidth(true)
-        enableGroup:SetLayout("Flow")
-        content:AddChild(enableGroup)
-
-        local enabledCheckbox = Checkbox.Create({
-            path = { "Units", unitKey, "Texts", textConfigKey, "enabled" },
-            label = ResolveLayoutText("OPTION_ENABLED"),
-            fallback = true,
-            showReset = false,
-            resetText = L["OPTION_RESET"],
-            disabled = IsUnitDisabled,
-            refreshGUI = true,
-        })
-        if enabledCheckbox and enabledCheckbox.group then
-            enableGroup:AddChild(enabledCheckbox.group)
-        end
-
         local templatesList, templates = GetTemplateList()
         local textConfig = GetTextConfig()
         local currentTemplateName = ResolveCurrentTemplateName(textConfig, templates)
         local currentTemplateText = ResolveCurrentTemplateText(textConfig, templates)
 
-        local contentGroup = AceGUI:Create("InlineGroup")
-        contentGroup:SetFullWidth(true)
-        contentGroup:SetLayout("Flow")
-        contentGroup:SetTitle(FormatGroupTitle(L["INFO_UNIT_TEXT_TEMPLATE_GROUP"] or "Template"))
-        content:AddChild(contentGroup)
+        AddSectionHeading(content, ResolveLayoutText("SECTION_GENERAL"), 0, BuildSectionResetAction({
+            { "Units", unitKey, "Texts", textConfigKey, "enabled" },
+            { "Units", unitKey, "Texts", textConfigKey, "color" },
+        }, IsTextDisabled))
+        local basicsLayout = CreateSection(content)
+        local generalHint = AceGUI:Create("Label")
+        generalHint:SetFullWidth(true)
+        generalHint:SetText(L["INFO_UNIT_TEXT_GENERAL_HINT"] or "Controls whether this text element is active and which base color it uses.")
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(generalHint, "help", { size = 10 })
+        end
+        basicsLayout:Add({ group = generalHint }, {
+            placement = "full",
+        })
+        AddLayoutHandle(basicsLayout, Checkbox.Create({
+            path = { "Units", unitKey, "Texts", textConfigKey, "enabled" },
+            label = ResolveLayoutText("OPTION_ENABLED"),
+            description = ResolveLayoutText("OPTION_ENABLED_DESC"),
+            fallback = true,
+            showReset = false,
+            resetText = L["OPTION_RESET"],
+            disabled = IsUnitDisabled,
+            refreshGUI = true,
+        }), {
+            widget = "checkbox",
+            path = { "Units", unitKey, "Texts", textConfigKey, "enabled" },
+            placement = "left",
+            rowType = "inline",
+        })
+        AddLayoutHandle(basicsLayout, ColorPicker.Create({
+            path = { "Units", unitKey, "Texts", textConfigKey, "color" },
+            label = ResolveLayoutText("OPTION_COLOR"),
+            description = ResolveLayoutText("OPTION_COLOR_DESC"),
+            hasAlpha = true,
+            fallback = { 1, 1, 1, 1 },
+            resetText = L["OPTION_RESET"],
+            resetWidth = 64,
+            disabled = IsTextDisabled,
+        }), {
+            widget = "colorpicker",
+            path = { "Units", unitKey, "Texts", textConfigKey, "color" },
+            placement = "right",
+            rowType = "inline",
+        })
 
         local templateHint = AceGUI:Create("Label")
         templateHint:SetFullWidth(true)
-        if templateHint.SetFont then
-            templateHint:SetFont(STANDARD_TEXT_FONT, 10, "")
+        templateHint:SetText(L["INFO_UNIT_TEXT_TEMPLATE_HINT"] or "Choose a template for this text element. Layout, font, and effects stay on this page.")
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(templateHint, "help", { size = 10 })
         end
-        templateHint:SetText(string.format("|cff9ea8b3%s|r", L["INFO_UNIT_TEXT_TEMPLATE_HINT"] or "Choose a template for this text element. Layout, font, and effects stay on this page."))
-        contentGroup:AddChild(templateHint)
 
-        local templateFields = CreateSection(contentGroup)
+        AddSectionHeading(content, L["INFO_UNIT_TEXT_TEMPLATE_GROUP"] or "Template")
+        local templateFields = CreateSection(content)
+        templateFields:Add({ group = templateHint }, {
+            placement = "full",
+        })
         local stateTemplateOptions = {
             { key = "dead", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_DEAD"] or "When DEAD" },
             { key = "ghost", label = L["INFO_UNIT_TEXT_TEMPLATE_STATE_GHOST"] or "When GHOST" },
@@ -439,11 +562,10 @@ function UnitTextsPage.Build(container, unitKey, deps)
         templateDropdown:SetList(templatesList)
         templateDropdown:SetValue(currentTemplateName ~= "" and currentTemplateName or nil)
         templateDropdown:SetDisabled(IsUnitDisabled())
+        if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+            TextStyles.ApplyInteractiveWidgetText(templateDropdown, "label", IsUnitDisabled(), { size = 12 })
+        end
         templateDropdownGroup:AddChild(templateDropdown)
-        templateFields:Add({ group = templateDropdownGroup }, {
-            placement = "full",
-            rowType = "toolbar",
-        })
 
         local stateTemplateList = { [""] = L["OPTION_NONE"] or "None" }
         for templateName, label in pairs(templatesList) do
@@ -452,13 +574,37 @@ function UnitTextsPage.Build(container, unitKey, deps)
 
         local stateHint = AceGUI:Create("Label")
         stateHint:SetFullWidth(true)
-        if stateHint.SetFont then
-            stateHint:SetFont(STANDARD_TEXT_FONT, 10, "")
+        stateHint:SetText(L["INFO_UNIT_TEXT_TEMPLATE_STATE_HINT"] or "Optional: choose a replacement template for specific unit states. While a state is active, it replaces the base template above.")
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(stateHint, "help", { size = 10 })
         end
-        stateHint:SetText(string.format("|cff9ea8b3%s|r", L["INFO_UNIT_TEXT_TEMPLATE_STATE_HINT"] or "Optional: replace the base template while a status is active."))
-        templateFields:Add({ group = stateHint }, {
-            placement = "full",
-        })
+
+        local stateHintSecondary = AceGUI:Create("Label")
+        stateHintSecondary:SetFullWidth(true)
+        stateHintSecondary:SetText(L["INFO_UNIT_TEXT_TEMPLATE_STATE_HINT_SECONDARY"] or "Leave a state empty to keep using the base template.")
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(stateHintSecondary, "help", { size = 10 })
+        end
+
+        local leftTemplateColumn = AceGUI:Create("SimpleGroup")
+        leftTemplateColumn:SetFullWidth(true)
+        leftTemplateColumn:SetLayout("Flow")
+
+        leftTemplateColumn:AddChild(templateDropdownGroup)
+
+        local rightTemplateColumn = AceGUI:Create("SimpleGroup")
+        rightTemplateColumn:SetFullWidth(true)
+        rightTemplateColumn:SetLayout("Flow")
+
+        local rightTemplateHeading = AceGUI:Create("Label")
+        rightTemplateHeading:SetFullWidth(true)
+        rightTemplateHeading:SetText(L["INFO_UNIT_TEXT_TEMPLATE_STATE_GROUP_OPTIONAL"] or "Optional Replacement Templates")
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(rightTemplateHeading, "highlight", { size = 12 })
+        end
+        rightTemplateColumn:AddChild(rightTemplateHeading)
+        rightTemplateColumn:AddChild(stateHint)
+        rightTemplateColumn:AddChild(stateHintSecondary)
 
         for _, option in ipairs(stateTemplateOptions) do
             local stateDropdownGroup = AceGUI:Create("SimpleGroup")
@@ -471,6 +617,9 @@ function UnitTextsPage.Build(container, unitKey, deps)
             stateDropdown:SetList(stateTemplateList)
             stateDropdown:SetValue(textConfig.stateTemplates and textConfig.stateTemplates[option.key] or "")
             stateDropdown:SetDisabled(IsUnitDisabled())
+            if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+                TextStyles.ApplyInteractiveWidgetText(stateDropdown, "label", IsUnitDisabled(), { size = 12 })
+            end
             stateDropdown:SetCallback("OnValueChanged", function(_, _, value)
                 if IsUnitDisabled() then
                     return
@@ -482,9 +631,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
             end)
             stateDropdownGroup:AddChild(stateDropdown)
 
-            templateFields:Add({ group = stateDropdownGroup }, {
-                placement = "full",
-            })
+            rightTemplateColumn:AddChild(stateDropdownGroup)
         end
 
         if IsExpertModeEnabled() then
@@ -497,6 +644,9 @@ function UnitTextsPage.Build(container, unitKey, deps)
             rawTemplateEdit:DisableButton(true)
             rawTemplateEdit:SetText(textConfig.tag or "")
             rawTemplateEdit:SetDisabled(IsUnitDisabled())
+            if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+                TextStyles.ApplyInteractiveWidgetText(rawTemplateEdit, "label", IsUnitDisabled(), { size = 12 })
+            end
             rawTemplateEdit:SetCallback("OnEnterPressed", function(widget, _, newValue)
                 if IsUnitDisabled() then
                     return
@@ -518,40 +668,57 @@ function UnitTextsPage.Build(container, unitKey, deps)
 
             local expertInfo = AceGUI:Create("Label")
             expertInfo:SetFullWidth(true)
-            if expertInfo.SetFont then
-                expertInfo:SetFont(STANDARD_TEXT_FONT, 10, "")
+            expertInfo:SetText(L["INFO_UNIT_TEXT_TEMPLATE_EXPERT_HINT"] or "Expert Mode: you can still edit the raw template string below.")
+            if TextStyles and TextStyles.ApplyLabelWidget then
+                TextStyles.ApplyLabelWidget(expertInfo, "help", { size = 10 })
             end
-            expertInfo:SetText(string.format("|cff8f98a3%s|r", L["INFO_UNIT_TEXT_TEMPLATE_EXPERT_HINT"] or "Expert Mode: you can still edit the raw template string below."))
             rawTemplateGroup:AddChild(expertInfo)
-            templateFields:Add({ group = rawTemplateGroup }, {
-                placement = "full",
-                rowType = "preview",
-            })
+            leftTemplateColumn:AddChild(rawTemplateGroup)
         end
+
+        local previewTopSpacer = AceGUI:Create("Label")
+        previewTopSpacer:SetFullWidth(true)
+        previewTopSpacer:SetText(" ")
+        previewTopSpacer:SetHeight(6)
+        leftTemplateColumn:AddChild(previewTopSpacer)
 
         local previewGroup = AceGUI:Create("SimpleGroup")
         previewGroup:SetFullWidth(true)
         previewGroup:SetLayout("Flow")
-        contentGroup:AddChild(previewGroup)
 
-        local previewLabel = AceGUI:Create("Label")
-        previewLabel:SetFullWidth(true)
-        previewLabel:SetText(L["INFO_UNIT_TEXT_TEMPLATE_PREVIEW"] or "Preview")
-        previewGroup:AddChild(previewLabel)
+        local previewPanel = AceGUI:Create("InlineGroup")
+        previewPanel:SetFullWidth(true)
+        previewPanel:SetLayout("Flow")
+        previewPanel:SetTitle(L["INFO_UNIT_TEXT_TEMPLATE_CURRENT_PREVIEW"] or "Current Preview")
+        if previewPanel._focalPointHeaderButton then
+            previewPanel._focalPointHeaderButton:SetScript("OnClick", nil)
+            previewPanel._focalPointHeaderButton:Hide()
+        end
+        if previewPanel.titletext and TextStyles and TextStyles.ApplyFontString then
+            TextStyles.ApplyFontString(previewPanel.titletext, "highlight", {
+                size = 12,
+                shadow = true,
+            })
+        end
 
         local previewBox = AceGUI:Create("Label")
         previewBox:SetFullWidth(true)
-        previewBox:SetHeight(34)
-        if previewBox.SetFont then
-            previewBox:SetFont(STANDARD_TEXT_FONT, 13, "")
-        end
+        previewBox:SetHeight(math.max((textConfig.fontSize or 12) + 18, 40))
         previewBox:SetText((ns.UnitFrame and ns.UnitFrame.BuildTemplatePreview and ns.UnitFrame:BuildTemplatePreview(currentTemplateText)) or currentTemplateText or " ")
-        previewGroup:AddChild(previewBox)
+        ApplyPreviewTextAppearance(previewBox, unitKey, textConfigKey, textConfig, currentTemplateText)
+        previewPanel:AddChild(previewBox)
+        previewGroup:AddChild(previewPanel)
+        leftTemplateColumn:AddChild(previewGroup)
+
+        local actionTopSpacer = AceGUI:Create("Label")
+        actionTopSpacer:SetFullWidth(true)
+        actionTopSpacer:SetText(" ")
+        actionTopSpacer:SetHeight(6)
+        leftTemplateColumn:AddChild(actionTopSpacer)
 
         local actionGroup = AceGUI:Create("SimpleGroup")
         actionGroup:SetFullWidth(true)
         actionGroup:SetLayout("Flow")
-        contentGroup:AddChild(actionGroup)
 
         local deleteTextButton = AceGUI:Create("Button")
         deleteTextButton:SetText(L["INFO_UNIT_TEXT_TEMPLATE_DELETE"] or "Delete Text")
@@ -564,6 +731,15 @@ function UnitTextsPage.Build(container, unitKey, deps)
         openBuilderButton:SetWidth(165)
         openBuilderButton:SetDisabled(IsUnitDisabled())
         actionGroup:AddChild(openBuilderButton)
+        leftTemplateColumn:AddChild(actionGroup)
+
+        templateFields:Add({ group = leftTemplateColumn }, {
+            placement = "left",
+        })
+
+        templateFields:Add({ group = rightTemplateColumn }, {
+            placement = "right",
+        })
 
         templateDropdown:SetCallback("OnValueChanged", function(_, _, value)
             if IsUnitDisabled() then
@@ -618,23 +794,6 @@ function UnitTextsPage.Build(container, unitKey, deps)
             end
         end)
 
-        local basicsGroup = AceGUI:Create("InlineGroup")
-        basicsGroup:SetFullWidth(true)
-        basicsGroup:SetLayout("Flow")
-        basicsGroup:SetTitle(FormatGroupTitle(ResolveLayoutText("SECTION_GENERAL")))
-        content:AddChild(basicsGroup)
-
-        local basicsLayout = CreateSection(basicsGroup)
-        basicsLayout:Add(ColorPicker.Create({
-            path = { "Units", unitKey, "Texts", textConfigKey, "color" },
-            label = ResolveLayoutText("OPTION_COLOR"),
-            hasAlpha = true,
-            fallback = { 1, 1, 1, 1 },
-            resetText = L["OPTION_RESET"],
-            resetWidth = 64,
-            disabled = IsTextDisabled,
-        }))
-
         local sectionOrder = {
             "SECTION_POSITION",
             "SECTION_FONT",
@@ -649,13 +808,22 @@ function UnitTextsPage.Build(container, unitKey, deps)
         for _, sectionKey in ipairs(sectionOrder) do
             local sectionDef = sectionDefsByKey[sectionKey]
             if sectionDef and sectionDef.mode == "section" then
-                local sectionGroup = AceGUI:Create("InlineGroup")
-                sectionGroup:SetFullWidth(true)
-                sectionGroup:SetLayout("Flow")
-                sectionGroup:SetTitle(FormatGroupTitle(ResolveLayoutText(sectionDef.section)))
-                content:AddChild(sectionGroup)
+                local resetPaths = {}
+                for _, item in ipairs(sectionDef.items) do
+                    if type(item.path) == "table" then
+                        local skipBaseColor = sectionKey == "SECTION_EFFECTS"
+                            and item.widget == "colorpicker"
+                            and item.path[#item.path] == "color"
 
-                local layout = CreateSection(sectionGroup)
+                        if not skipBaseColor then
+                            table.insert(resetPaths, ResolveLayoutPath(item.path, unitKey, tokenReplacements))
+                        end
+                    end
+                end
+
+                AddSectionHeading(content, ResolveLayoutText(sectionDef.section), 0, BuildSectionResetAction(resetPaths, IsTextDisabled))
+                local layout = CreateSection(content)
+
                 for _, item in ipairs(sectionDef.items) do
                     local itemDef = {}
                     for key, value in pairs(item) do

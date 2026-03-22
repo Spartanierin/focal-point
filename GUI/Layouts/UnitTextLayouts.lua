@@ -11,10 +11,10 @@ ns.GUI.Layouts.UnitTexts.TextTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "font" }, label = "OPTION_FONT", list = "fonts", fallback = STANDARD_TEXT_FONT, disabled = "text", span = 2, rowType = "toolbar" },
-            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "fontSize" }, label = "OPTION_FONT_SIZE", min = 6, max = 32, step = 1, fallback = 12, format = "%d", disabled = "text", placement = "left", rowType = "inline" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "justifyH" }, label = "OPTION_JUSTIFY_H", list = "justifyH", fallback = "CENTER", disabled = "text", placement = "right", rowType = "inline" },
-            { widget = "fontstyle", path = { "Units", "$unitKey", "Texts", "$textKey" }, label = "OPTION_FONT_STYLE", list = "fontStyles", fallback = "NONE", disabled = "text", placement = "full", rowType = "toolbar", subsection = "SECTION_STYLE" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "font" }, label = "OPTION_FONT", description = "OPTION_FONT_DESC", list = "fonts", fallback = STANDARD_TEXT_FONT, disabled = "text", placement = "left", rowType = "inline" },
+            { widget = "fontstyle", path = { "Units", "$unitKey", "Texts", "$textKey" }, label = "OPTION_FONT_STYLE", description = "OPTION_FONT_STYLE_DESC", list = "fontStyles", fallback = "NONE", disabled = "text", placement = "right", rowType = "inline" },
+            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "fontSize" }, label = "OPTION_FONT_SIZE", description = "OPTION_FONT_SIZE_DESC", min = 6, max = 32, step = 1, fallback = 12, format = "%d", disabled = "text", placement = "left", rowType = "inline" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "justifyH" }, label = "OPTION_JUSTIFY_H", description = "OPTION_JUSTIFY_H_DESC", list = "justifyH", fallback = "CENTER", disabled = "text", placement = "right", rowType = "inline" },
         },
     },
     {
@@ -22,11 +22,11 @@ ns.GUI.Layouts.UnitTexts.TextTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "anchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "HealthBar", disabled = "text", placement = "full", rowType = "toolbar", subsection = "SECTION_ATTACHED" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "point" }, label = "OPTION_ANCHOR_FROM", list = "anchorPoints", fallback = "CENTER", disabled = "text", placement = "left", rowType = "inline", subsection = "SECTION_ATTACHED" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "relativePoint" }, label = "OPTION_ANCHOR_TO", list = "anchorPoints", fallback = "CENTER", disabled = "text", placement = "right", rowType = "inline", subsection = "SECTION_ATTACHED" },
-            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "offsetX" }, label = "OPTION_X_OFFSET", min = -100, max = 100, step = 1, fallback = 0, format = "%d", disabled = "text", placement = "left", rowType = "inline" },
-            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "offsetY" }, label = "OPTION_Y_OFFSET", min = -100, max = 100, step = 1, fallback = 0, format = "%d", disabled = "text", placement = "right", rowType = "inline" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "anchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_ANCHOR_TO_TARGET_DESC", list = "anchorTo", fallback = "HealthBar", disabled = "text", placement = "full", rowType = "toolbar", subsection = "SECTION_ATTACHED" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "point" }, label = "OPTION_ANCHOR_FROM", description = "OPTION_ANCHOR_FROM_DESC", list = "anchorPoints", fallback = "CENTER", disabled = "text", placement = "left", rowType = "inline", subsection = "SECTION_ATTACHED" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "relativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "CENTER", disabled = "text", placement = "right", rowType = "inline", subsection = "SECTION_ATTACHED" },
+            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "offsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_X_OFFSET_DESC", min = -100, max = 100, step = 1, fallback = 0, format = "%d", disabled = "text", placement = "left", rowType = "inline" },
+            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "offsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_Y_OFFSET_DESC", min = -100, max = 100, step = 1, fallback = 0, format = "%d", disabled = "text", placement = "right", rowType = "inline" },
         },
     },
     {
@@ -34,11 +34,11 @@ ns.GUI.Layouts.UnitTexts.TextTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "checkbox", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowEnabled" }, label = "OPTION_FONT_SHADOW", fallback = true, disabled = "text", placement = "full", rowType = "toolbar", subsection = "OPTION_FONT_SHADOW" },
-            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowOffsetX" }, label = "OPTION_SHADOW_OFFSET_X", min = -10, max = 10, step = 1, fallback = 1, format = "%d", disabled = "shadow", placement = "left", rowType = "inline", subsection = "OPTION_FONT_SHADOW" },
-            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowOffsetY" }, label = "OPTION_SHADOW_OFFSET_Y", min = -10, max = 10, step = 1, fallback = -1, format = "%d", disabled = "shadow", placement = "right", rowType = "inline", subsection = "OPTION_FONT_SHADOW" },
-            { widget = "colorpicker", path = { "Units", "$unitKey", "Texts", "$textKey", "color" }, label = "OPTION_COLOR", hasAlpha = true, fallback = { 1, 1, 1, 1 }, disabled = "text", placement = "full", rowType = "preview" },
-            { widget = "colorpicker", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowColor" }, label = "OPTION_SHADOW_COLOR", hasAlpha = true, fallback = { 0, 0, 0, 1 }, disabled = "shadow", placement = "full", rowType = "preview", subsection = "OPTION_FONT_SHADOW" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowEnabled" }, label = "OPTION_FONT_SHADOW", description = "OPTION_FONT_SHADOW_DESC", fallback = true, disabled = "text", placement = "left", rowType = "inline", subsection = "OPTION_FONT_SHADOW" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowColor" }, label = "OPTION_SHADOW_COLOR", description = "OPTION_SHADOW_COLOR_DESC", hasAlpha = true, fallback = { 0, 0, 0, 1 }, disabled = "shadow", placement = "right", rowType = "inline", subsection = "OPTION_FONT_SHADOW" },
+            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowOffsetX" }, label = "OPTION_SHADOW_OFFSET_X", description = "OPTION_SHADOW_OFFSET_X_DESC", min = -10, max = 10, step = 1, fallback = 1, format = "%d", disabled = "shadow", placement = "left", rowType = "inline", subsection = "OPTION_FONT_SHADOW" },
+            { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "shadowOffsetY" }, label = "OPTION_SHADOW_OFFSET_Y", description = "OPTION_SHADOW_OFFSET_Y_DESC", min = -10, max = 10, step = 1, fallback = -1, format = "%d", disabled = "shadow", placement = "right", rowType = "inline", subsection = "OPTION_FONT_SHADOW" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "Texts", "$textKey", "color" }, label = "OPTION_COLOR", description = "OPTION_COLOR_DESC", hasAlpha = true, fallback = { 1, 1, 1, 1 }, disabled = "text", placement = "full", rowType = "preview" },
         },
     },
 }

@@ -7,6 +7,7 @@ local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
+local TextStyles = ns.GUI.Helpers.TextStyles
 
 local TextBuilderPage = {}
 ns.GUI.Pages.TextBuilder = TextBuilderPage
@@ -14,6 +15,12 @@ ns.GUI.Pages.TextBuilder = TextBuilderPage
 function TextBuilderPage.Build(container, deps)
     local GetGUIState = deps.GetGUIState
     local ResetFlowContainer = deps.ResetFlowContainer
+
+    local function StyleGroupTitle(widget)
+        if TextStyles and TextStyles.ApplyWidgetText then
+            TextStyles.ApplyWidgetText(widget, "sectionHeader", { size = 13 })
+        end
+    end
 
     ResetFlowContainer(container)
 
@@ -42,24 +49,25 @@ function TextBuilderPage.Build(container, deps)
     introGroup:SetFullWidth(true)
     introGroup:SetLayout("Flow")
     introGroup:SetTitle(L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
+    StyleGroupTitle(introGroup)
     container:AddChild(introGroup)
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
-    if description.SetFont then
-        description:SetFont(STANDARD_TEXT_FONT, 12, "")
+    description:SetText(L["INFO_TEXT_BUILDER_DESCRIPTION"] or "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(description, "label", { size = 12 })
     end
-    description:SetText(string.format("|cffcfd5dd%s|r", L["INFO_TEXT_BUILDER_DESCRIPTION"] or ""))
     introGroup:AddChild(description)
 
     introGroup:AddChild(CreateSpacer(2))
 
     local hint = AceGUI:Create("Label")
     hint:SetFullWidth(true)
-    if hint.SetFont then
-        hint:SetFont(STANDARD_TEXT_FONT, 12, "")
+    hint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_HINT"] or "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(hint, "highlight", { size = 12 })
     end
-    hint:SetText(string.format("|cff6fd2ff%s|r", L["INFO_TEXT_BUILDER_TEMPLATE_HINT"] or ""))
     introGroup:AddChild(hint)
 
     container:AddChild(CreateSpacer(3))
@@ -68,6 +76,7 @@ function TextBuilderPage.Build(container, deps)
     builderGroup:SetFullWidth(true)
     builderGroup:SetLayout("Flow")
     builderGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
+    StyleGroupTitle(builderGroup)
     container:AddChild(builderGroup)
 
     local templateEdit = AceGUI:Create("EditBox")
@@ -75,6 +84,9 @@ function TextBuilderPage.Build(container, deps)
     templateEdit:SetWidth(520)
     templateEdit:DisableButton(true)
     templateEdit:SetText(state.textBuilder.template or "")
+    if TextStyles and TextStyles.ApplyWidgetText then
+        TextStyles.ApplyWidgetText(templateEdit, "label", { size = 12 })
+    end
     builderGroup:AddChild(templateEdit)
 
     local updateButton = AceGUI:Create("Button")
@@ -88,6 +100,7 @@ function TextBuilderPage.Build(container, deps)
     previewGroup:SetFullWidth(true)
     previewGroup:SetLayout("Flow")
     previewGroup:SetTitle(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
+    StyleGroupTitle(previewGroup)
     container:AddChild(previewGroup)
 
     local previewLabel = AceGUI:Create("Label")
@@ -103,6 +116,9 @@ function TextBuilderPage.Build(container, deps)
     end
     previewLabel:SetHeight(28)
     previewLabel:SetText(" ")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(previewLabel, "highlight", { size = 14 })
+    end
     previewGroup:AddChild(previewLabel)
 
     container:AddChild(CreateSpacer(2))
@@ -111,6 +127,7 @@ function TextBuilderPage.Build(container, deps)
     templatesGroup:SetFullWidth(true)
     templatesGroup:SetLayout("Flow")
     templatesGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
+    StyleGroupTitle(templatesGroup)
     container:AddChild(templatesGroup)
 
     local templates = (ns.db and ns.db.profile and ns.db.profile.TextTemplates) or {}
@@ -118,6 +135,9 @@ function TextBuilderPage.Build(container, deps)
     local templateSelect = AceGUI:Create("Dropdown")
     templateSelect:SetLabel(L["INFO_TEXT_BUILDER_SAVED_TEMPLATES"] or "Saved Templates")
     templateSelect:SetWidth(260)
+    if TextStyles and TextStyles.ApplyWidgetText then
+        TextStyles.ApplyWidgetText(templateSelect, "label", { size = 12 })
+    end
     templatesGroup:AddChild(templateSelect)
 
     local templateNameEdit = AceGUI:Create("EditBox")
@@ -125,6 +145,9 @@ function TextBuilderPage.Build(container, deps)
     templateNameEdit:SetWidth(300)
     templateNameEdit:DisableButton(true)
     templateNameEdit:SetText(state.textBuilder.templateName or "")
+    if TextStyles and TextStyles.ApplyWidgetText then
+        TextStyles.ApplyWidgetText(templateNameEdit, "label", { size = 12 })
+    end
     templatesGroup:AddChild(templateNameEdit)
 
     local saveButton = AceGUI:Create("Button")
@@ -148,11 +171,15 @@ function TextBuilderPage.Build(container, deps)
     usageGroup:SetFullWidth(true)
     usageGroup:SetLayout("Flow")
     usageGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE"] or "Template Usage")
+    StyleGroupTitle(usageGroup)
     container:AddChild(usageGroup)
 
     local usageHint = AceGUI:Create("Label")
     usageHint:SetFullWidth(true)
     usageHint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT"] or "Checked units already use the selected template. Uncheck to remove the template link from that unit.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(usageHint, "help", { size = 11 })
+    end
     usageGroup:AddChild(usageHint)
 
     local usageRow = AceGUI:Create("SimpleGroup")
@@ -168,6 +195,7 @@ function TextBuilderPage.Build(container, deps)
     applyGroup:SetFullWidth(true)
     applyGroup:SetLayout("Flow")
     applyGroup:SetTitle(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
+    StyleGroupTitle(applyGroup)
     container:AddChild(applyGroup)
 
     local applyTemplateButton = AceGUI:Create("Button")
@@ -337,6 +365,9 @@ function TextBuilderPage.Build(container, deps)
             checkbox:SetLabel(label)
             checkbox:SetValue(state.textBuilder.applyUnits and state.textBuilder.applyUnits[unitKey] == true)
             checkbox:SetDisabled(selectedTemplateName == "")
+            if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+                TextStyles.ApplyInteractiveWidgetText(checkbox, "label", selectedTemplateName == "", { size = 12 })
+            end
         end
     end
 
@@ -346,6 +377,9 @@ function TextBuilderPage.Build(container, deps)
         checkbox:SetLabel(ns.GetLabel(KM.Units, unitKey))
         checkbox:SetValue(false)
         checkbox:SetDisabled(true)
+        if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+            TextStyles.ApplyInteractiveWidgetText(checkbox, "label", true, { size = 12 })
+        end
         checkbox:SetCallback("OnValueChanged", function(widget, _, value)
             local selectedTemplateName = state.textBuilder.selectedTemplate or ""
 

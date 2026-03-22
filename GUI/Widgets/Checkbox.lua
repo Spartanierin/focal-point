@@ -7,6 +7,7 @@ local AceGUI = LibStub("AceGUI-3.0")
 
 local OptionValues = FocalPoint.GUI.Helpers.OptionValues
 local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
+local TextStyles = FocalPoint.GUI.Helpers.TextStyles
 
 local Checkbox = {}
 FocalPoint.GUI.Widgets.Checkbox = Checkbox
@@ -35,6 +36,7 @@ function Checkbox.Create(config)
     local labelText = config.label or "[Missing Label]"
     local descriptionText = config.description
     local fallbackValue = NormalizeBoolean(config.fallback, false)
+    local skipTextStyle = config.skipTextStyle == true
 
     local group = AceGUI:Create("SimpleGroup")
     group:SetFullWidth(true)
@@ -65,6 +67,9 @@ function Checkbox.Create(config)
         local description = AceGUI:Create("Label")
         description:SetFullWidth(true)
         description:SetText(descriptionText)
+        if (not skipTextStyle) and TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(description, "help", { size = 11 })
+        end
         group:AddChild(description)
     end
 
@@ -84,6 +89,14 @@ function Checkbox.Create(config)
         local interactive = not disabled and not locked
 
         checkbox:SetDisabled(not interactive)
+        if (not skipTextStyle) and TextStyles and TextStyles.ApplyInteractiveWidgetText then
+            TextStyles.ApplyInteractiveWidgetText(checkbox, "label", not interactive, { size = 12 })
+        end
+
+        local description = group.children and group.children[2]
+        if (not skipTextStyle) and description and TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(description, not interactive and "disabled" or "help", { size = 11 })
+        end
 
         if resetButton then
             resetButton:SetDisabled(not interactive)

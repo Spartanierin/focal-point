@@ -12,9 +12,9 @@ ns.GUI.Layouts.UnitRoleIcon.RoleIconTab = {
         layout = "list",
         items = {
             { widget = "checkbox", path = { "Units", "$unitKey", "RoleIcon", "enabled" }, label = "OPTION_ROLE_ICON_ENABLED", description = "OPTION_ROLE_ICON_ENABLED_DESC", fallback = true, refreshGUI = true, disabled = "unit" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "placement" }, label = "OPTION_ROLE_ICON_PLACEMENT", description = "OPTION_ROLE_ICON_PLACEMENT_DESC", list = "placement", fallback = "ATTACHED", refreshGUI = true, disabled = "role" },
-            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "size" }, label = "OPTION_ROLE_ICON_SIZE", description = "OPTION_ROLE_ICON_SIZE_DESC", min = 8, max = 64, step = 1, fallback = 16, format = "%d", disabled = "role" },
-            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "scale" }, label = "OPTION_ROLE_ICON_SCALE", description = "OPTION_ROLE_ICON_SCALE_DESC", min = 0.25, max = 3.0, step = 0.01, fallback = 1.0, format = "%.2f", disabled = "role" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "placement" }, label = "OPTION_ROLE_ICON_PLACEMENT", description = "OPTION_ROLE_ICON_PLACEMENT_DESC", list = "placement", fallback = "ATTACHED", refreshGUI = true, disabled = "role", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "size" }, label = "OPTION_ROLE_ICON_SIZE", description = "OPTION_ROLE_ICON_SIZE_DESC", min = 8, max = 64, step = 1, fallback = 16, format = "%d", disabled = "role", placement = "right" },
+            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "scale" }, label = "OPTION_ROLE_ICON_SCALE", description = "OPTION_ROLE_ICON_SCALE_DESC", min = 0.25, max = 3.0, step = 0.01, fallback = 1.0, format = "%.2f", disabled = "role", placement = "left" },
         },
     },
     {
@@ -22,9 +22,9 @@ ns.GUI.Layouts.UnitRoleIcon.RoleIconTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "padding" }, label = "OPTION_PADDING", description = "OPTION_ROLE_ICON_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_ROLE_ICON_INSIDE_SIDE_DESC", list = "insideSide", fallback = "RIGHT", disabled = "inside" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", list = "anchorTo", fallback = "Frame", disabled = "inside" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "insideAnchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_INSIDE_ANCHOR_TO_DESC", list = "anchorTo", fallback = "Frame", disabled = "inside", placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "insideSide" }, label = "OPTION_INSIDE_SIDE", description = "OPTION_ROLE_ICON_INSIDE_SIDE_DESC", list = "insideSide", fallback = "RIGHT", disabled = "inside", placement = "right" },
+            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "padding" }, label = "OPTION_PADDING", description = "OPTION_ROLE_ICON_PADDING_DESC", min = 0, max = 32, step = 1, fallback = 2, format = "%d", disabled = "inside", placement = "left" },
         },
     },
     {
@@ -32,11 +32,11 @@ ns.GUI.Layouts.UnitRoleIcon.RoleIconTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "anchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_ROLE_ICON_ANCHOR_TO_TARGET_DESC", list = "anchorTo", fallback = "Frame", disabled = "attached" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "point" }, label = "OPTION_ANCHOR_FROM", description = "OPTION_ROLE_ICON_ANCHOR_FROM_DESC", list = "anchorPoints", fallback = "TOPRIGHT", disabled = "attached" },
-            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "relativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_ROLE_ICON_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "TOP", disabled = "attached" },
-            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "offsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_ROLE_ICON_OFFSET_X_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached" },
-            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "offsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_ROLE_ICON_OFFSET_Y_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "anchorTo" }, label = "OPTION_ANCHOR_TO_TARGET", description = "OPTION_ROLE_ICON_ANCHOR_TO_TARGET_DESC", list = "anchorTo", fallback = "Frame", disabled = "attached", placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "point" }, label = "OPTION_ANCHOR_FROM", description = "OPTION_ROLE_ICON_ANCHOR_FROM_DESC", list = "anchorPoints", fallback = "TOPRIGHT", disabled = "attached", placement = "right" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "RoleIcon", "relativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_ROLE_ICON_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "TOP", disabled = "attached", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "offsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_ROLE_ICON_OFFSET_X_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "RoleIcon", "offsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_ROLE_ICON_OFFSET_Y_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "attached", placement = "right" },
         },
     },
 }

@@ -7,6 +7,8 @@ ns.GUI.Pages.Shared.ElementLayout = ns.GUI.Pages.Shared.ElementLayout or {}
 
 local L = ns.L
 local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
+local OptionValues = ns.GUI.Helpers.OptionValues
+local OptionRefresh = ns.GUI.Helpers.OptionRefresh
 local Checkbox = ns.GUI.Widgets.Checkbox
 local Dropdown = ns.GUI.Widgets.Dropdown
 local Slider = ns.GUI.Widgets.Sliders
@@ -22,8 +24,9 @@ local Page = ns.GUI.Pages.Shared.ElementLayout
 
 function Page.Build(container, unitKey, config, deps)
     deps.ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(ns.KeyMap.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
 
     local function IsUnitDisabled()
         return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
@@ -81,6 +84,7 @@ function Page.Build(container, unitKey, config, deps)
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
                 fallback = def.fallback,
+                showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -95,6 +99,7 @@ function Page.Build(container, unitKey, config, deps)
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
                 fallback = def.fallback,
+                showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -112,16 +117,39 @@ function Page.Build(container, unitKey, config, deps)
                 step = def.step,
                 fallback = def.fallback,
                 format = def.format,
+                showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
         end
     end
 
-    deps.AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(ns.KeyMap.Tabs, ns.Constants.Tabs.ELEMENTS) .. " - " .. ns.GetLabel(ns.KeyMap.Elements, config.elementKey))
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
+    end
 
     for _, sectionDef in ipairs(config.layout) do
-        deps.AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+        deps.AddSectionHeading(container, ResolveLayoutText(sectionDef.section), 0, {
+            text = L["OPTION_RESET"] or RESET or "Reset",
+            width = 112,
+            onClick = function()
+                ResetSection(sectionDef)
+            end,
+        })
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)

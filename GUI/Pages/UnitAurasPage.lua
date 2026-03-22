@@ -10,6 +10,9 @@ local L = ns.L
 local Checkbox = ns.GUI.Widgets.Checkbox
 local Dropdown = ns.GUI.Widgets.Dropdown
 local Slider = ns.GUI.Widgets.Sliders
+local OptionValues = ns.GUI.Helpers.OptionValues
+local OptionRefresh = ns.GUI.Helpers.OptionRefresh
+local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
 
 local UnitAurasPage = {}
 ns.GUI.Pages.UnitAuras = UnitAurasPage
@@ -20,7 +23,6 @@ end
 
 local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, deps)
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local AddSectionHeading = deps.AddSectionHeading
     local CreateSection = deps.CreateSection
     local AddLayoutHandle = deps.AddLayoutHandle
@@ -30,8 +32,9 @@ local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, 
     local CanBuildLayoutWidget = deps.CanBuildLayoutWidget
 
     ResetFlowContainer(container)
-
-    local unitLabel = ns.GetLabel(KM.Units, unitKey)
+    if LayoutHelpers and LayoutHelpers.ApplyUnitLayoutDefaults then
+        LayoutHelpers.ApplyUnitLayoutDefaults(container)
+    end
     local AURA_LAYOUT = ns.GUI.Layouts.UnitAuras.AuraTab
     local AURA_LISTS = ns.GUI.Layouts.UnitAuras.Lists
     local replacements = { ["$auraKey"] = auraConfigKey }
@@ -51,7 +54,59 @@ local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, 
             or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, auraConfigKey, "placement" }, "ATTACHED") ~= "ATTACHED"
     end
 
-    AddPageHeading(container, unitLabel .. " - " .. ns.GetLabel(KM.Tabs, C.Tabs.AURAS) .. " - " .. auraLabel)
+    local function IsLongAuraThresholdDisabled()
+        return IsAuraDisabled()
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, auraConfigKey, "hideLongAuras" }, true) ~= true
+    end
+
+    local function ShouldRenderSection(sectionKey)
+        local placement = ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, auraConfigKey, "placement" }, "ATTACHED")
+
+        if sectionKey == "SECTION_ATTACHED" then
+            return placement == "ATTACHED"
+        end
+
+        if sectionKey == "SECTION_INSIDE" then
+            return placement == "INSIDE"
+        end
+
+        return true
+    end
+
+    local function ShouldSkipItem(def)
+        if type(def) ~= "table" or type(def.path) ~= "table" then
+            return false
+        end
+
+        local fieldKey = def.path[#def.path]
+        if auraConfigKey == "Buffs" and fieldKey == "showDispellableOnly" then
+            return true
+        end
+
+        if auraConfigKey == "Debuffs" and fieldKey == "showStealableOnly" then
+            return true
+        end
+
+        return false
+    end
+
+    local function ResetSection(sectionDef)
+        local changed = false
+
+        for _, item in ipairs(sectionDef.items or {}) do
+            if not ShouldSkipItem(item) and type(item.path) == "table" then
+                local resolvedPath = ResolveLayoutPath(item.path, unitKey, replacements)
+                changed = OptionValues.Reset(resolvedPath) or changed
+            end
+        end
+
+        if changed then
+            OptionRefresh.All()
+            if ns.GUI and ns.GUI.RefreshOptions then
+                ns.GUI:RefreshOptions()
+            end
+        end
+    end
 
     local intro = AceGUI:Create("Label")
     intro:SetFullWidth(true)
@@ -83,19 +138,16 @@ local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, 
             return IsAttachedDisabled
         end
 
+        if def.disabled == "longAuraThreshold" then
+            return IsLongAuraThresholdDisabled
+        end
+
         return nil
     end
 
     local function AddSectionWidget(layout, def)
-        if type(def.path) == "table" then
-            local fieldKey = def.path[#def.path]
-            if auraConfigKey == "Buffs" and fieldKey == "showDispellableOnly" then
-                return
-            end
-
-            if auraConfigKey == "Debuffs" and fieldKey == "showStealableOnly" then
-                return
-            end
+        if ShouldSkipItem(def) then
+            return
         end
 
         local resolvedList = def.list and ResolveLayoutList(AURA_LISTS[def.list]) or nil
@@ -122,6 +174,7 @@ local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, 
                 description = ResolveLayoutText(def.description),
                 list = resolvedList,
                 fallback = def.fallback,
+                showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
@@ -139,6 +192,7 @@ local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, 
                 step = def.step,
                 fallback = def.fallback,
                 format = def.format,
+                showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
             }), def)
@@ -146,12 +200,20 @@ local function BuildAuraGroupPage(container, unitKey, auraConfigKey, auraLabel, 
     end
 
     for _, sectionDef in ipairs(AURA_LAYOUT) do
-        AddSectionHeading(container, ResolveLayoutText(sectionDef.section))
+        if ShouldRenderSection(sectionDef.section) then
+            AddSectionHeading(container, ResolveLayoutText(sectionDef.section), 0, {
+                text = L["OPTION_RESET"] or RESET or "Reset",
+                width = 112,
+                onClick = function()
+                    ResetSection(sectionDef)
+                end,
+            })
 
-        if sectionDef.mode == "section" then
-            local layout = CreateSection(container)
-            for _, item in ipairs(sectionDef.items) do
-                AddSectionWidget(layout, item)
+            if sectionDef.mode == "section" then
+                local layout = CreateSection(container)
+                for _, item in ipairs(sectionDef.items) do
+                    AddSectionWidget(layout, item)
+                end
             end
         end
     end

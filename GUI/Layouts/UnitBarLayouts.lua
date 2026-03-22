@@ -11,8 +11,8 @@ ns.GUI.Layouts.UnitBars.HealthBarTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "healthBarTexture" }, label = "OPTION_BAR_TEXTURE", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "healthBarReverseFill" }, label = "OPTION_REVERSE_FILL", fallback = false, disabled = "unit", refreshGUI = true },
+            { widget = "dropdown", path = { "Units", "$unitKey", "healthBarTexture" }, label = "OPTION_BAR_TEXTURE", description = "OPTION_BAR_TEXTURE_DESC", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true, placement = "left" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "healthBarReverseFill" }, label = "OPTION_REVERSE_FILL", description = "OPTION_REVERSE_FILL_DESC", fallback = false, disabled = "unit", refreshGUI = true, placement = "right" },
         },
     },
 }
@@ -23,10 +23,10 @@ ns.GUI.Layouts.UnitBars.PowerBarTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "powerBarTexture" }, label = "OPTION_BAR_TEXTURE", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "powerBarReverseFill" }, label = "OPTION_REVERSE_FILL", fallback = false, disabled = "unit", refreshGUI = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "showPowerBar" }, label = "OPTION_SHOW_POWER_BAR", description = "OPTION_SHOW_POWER_BAR_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true },
-            { widget = "slider", path = { "Units", "$unitKey", "powerBarHeight" }, label = "OPTION_POWER_BAR_HEIGHT", description = "OPTION_POWER_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 8, format = "%d", disabled = "power" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "showPowerBar" }, label = "OPTION_SHOW_POWER_BAR", description = "OPTION_SHOW_POWER_BAR_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true, placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "powerBarTexture" }, label = "OPTION_BAR_TEXTURE", description = "OPTION_BAR_TEXTURE_DESC", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true, placement = "right" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "powerBarReverseFill" }, label = "OPTION_REVERSE_FILL", description = "OPTION_REVERSE_FILL_DESC", fallback = false, disabled = "unit", refreshGUI = true, placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "powerBarHeight" }, label = "OPTION_POWER_BAR_HEIGHT", description = "OPTION_POWER_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 8, format = "%d", disabled = "power", placement = "right" },
         },
     },
 }
@@ -37,8 +37,8 @@ ns.GUI.Layouts.UnitBars.AlternativePowerBarTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "checkbox", path = { "Units", "$unitKey", "showAlternativePowerBar" }, label = "OPTION_SHOW_ALTERNATIVE_POWER_BAR", description = "OPTION_SHOW_ALTERNATIVE_POWER_BAR_DESC", fallback = false, resetText = false, disabled = "unit", refreshGUI = true },
-            { widget = "slider", path = { "Units", "$unitKey", "alternativePowerBarHeight" }, label = "OPTION_ALTERNATIVE_POWER_BAR_HEIGHT", description = "OPTION_ALTERNATIVE_POWER_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 5, format = "%d", disabled = "alternativePower" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "showAlternativePowerBar" }, label = "OPTION_SHOW_ALTERNATIVE_POWER_BAR", description = "OPTION_SHOW_ALTERNATIVE_POWER_BAR_DESC", fallback = false, resetText = false, disabled = "unit", refreshGUI = true, placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "alternativePowerBarHeight" }, label = "OPTION_ALTERNATIVE_POWER_BAR_HEIGHT", description = "OPTION_ALTERNATIVE_POWER_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 5, format = "%d", disabled = "alternativePower", placement = "right" },
         },
     },
 }
@@ -49,12 +49,12 @@ ns.GUI.Layouts.UnitBars.CastBarTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "castBarTexture" }, label = "OPTION_BAR_TEXTURE", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "showCastBar" }, label = "OPTION_SHOW_CAST_BAR", description = "OPTION_SHOW_CAST_BAR_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true },
-            { widget = "checkbox", path = { "Units", "$unitKey", "showCastBarIcon" }, label = "OPTION_SHOW_CAST_BAR_ICON", description = "OPTION_SHOW_CAST_BAR_ICON_DESC", fallback = true, resetText = false, disabled = "cast", refreshGUI = true },
-            { widget = "slider", path = { "Units", "$unitKey", "castBarHeight" }, label = "OPTION_CAST_BAR_HEIGHT", description = "OPTION_CAST_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 10, format = "%d", disabled = "cast" },
-            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarColor" }, label = "OPTION_CAST_BAR_COLOR", description = "OPTION_CAST_BAR_COLOR_DESC", hasAlpha = true, disabled = "cast" },
-            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarInterruptibleColor" }, label = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "showCastBar" }, label = "OPTION_SHOW_CAST_BAR", description = "OPTION_SHOW_CAST_BAR_DESC", fallback = true, resetText = false, disabled = "unit", refreshGUI = true, placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "castBarTexture" }, label = "OPTION_BAR_TEXTURE", description = "OPTION_BAR_TEXTURE_DESC", list = "textures", fallback = "Interface\\TargetingFrame\\UI-StatusBar", disabled = "unit", refreshGUI = true, placement = "right" },
+            { widget = "checkbox", path = { "Units", "$unitKey", "showCastBarIcon" }, label = "OPTION_SHOW_CAST_BAR_ICON", description = "OPTION_SHOW_CAST_BAR_ICON_DESC", fallback = true, resetText = false, disabled = "cast", refreshGUI = true, placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "castBarHeight" }, label = "OPTION_CAST_BAR_HEIGHT", description = "OPTION_CAST_BAR_HEIGHT_DESC", min = 4, max = 30, step = 1, fallback = 10, format = "%d", disabled = "cast", placement = "right" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarColor" }, label = "OPTION_CAST_BAR_COLOR", description = "OPTION_CAST_BAR_COLOR_DESC", hasAlpha = true, disabled = "cast", placement = "left" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "castBarInterruptibleColor" }, label = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR", description = "OPTION_CAST_BAR_INTERRUPTIBLE_COLOR_DESC", hasAlpha = true, disabled = "cast", placement = "right" },
         },
     },
     {
@@ -62,10 +62,10 @@ ns.GUI.Layouts.UnitBars.CastBarTab = {
         mode = "section",
         layout = "list",
         items = {
-            { widget = "dropdown", path = { "Units", "$unitKey", "castBarPoint" }, label = "OPTION_ANCHOR_FROM", list = "anchorPoints", fallback = "BOTTOMLEFT", disabled = "cast", refreshGUI = true },
-            { widget = "dropdown", path = { "Units", "$unitKey", "castBarRelativePoint" }, label = "OPTION_ANCHOR_TO", list = "anchorPoints", fallback = "TOPLEFT", disabled = "cast", refreshGUI = true },
-            { widget = "slider", path = { "Units", "$unitKey", "castBarOffsetX" }, label = "OPTION_X_OFFSET", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "cast" },
-            { widget = "slider", path = { "Units", "$unitKey", "castBarOffsetY" }, label = "OPTION_Y_OFFSET", min = -500, max = 500, step = 1, fallback = 4, format = "%d", disabled = "cast" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "castBarPoint" }, label = "OPTION_ANCHOR_FROM", description = "OPTION_ANCHOR_FROM_DESC", list = "anchorPoints", fallback = "BOTTOMLEFT", disabled = "cast", refreshGUI = true, placement = "left" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "castBarRelativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "TOPLEFT", disabled = "cast", refreshGUI = true, placement = "right" },
+            { widget = "slider", path = { "Units", "$unitKey", "castBarOffsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_X_OFFSET_DESC", min = -500, max = 500, step = 1, fallback = 0, format = "%d", disabled = "cast", placement = "left" },
+            { widget = "slider", path = { "Units", "$unitKey", "castBarOffsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_Y_OFFSET_DESC", min = -500, max = 500, step = 1, fallback = 4, format = "%d", disabled = "cast", placement = "right" },
         },
     },
 }
