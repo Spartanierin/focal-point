@@ -73,6 +73,12 @@ function Portrait.RegisterEvents(frame)
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "targettarget" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
+    elseif frame.unit == "focustarget" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
     end
 
     eventFrame:SetScript("OnEvent", function(_, event, unit)
@@ -83,6 +89,14 @@ function Portrait.RegisterEvents(frame)
 
         if event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
             if unit ~= owner.unit then
+                return
+            end
+        end
+
+        if event == "UNIT_TARGET" then
+            local targetOk = owner.unit == "targettarget" and unit == "target"
+            local focusOk = owner.unit == "focustarget" and unit == "focus"
+            if not targetOk and not focusOk then
                 return
             end
         end

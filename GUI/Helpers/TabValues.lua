@@ -112,6 +112,7 @@ function TabValues.GetElementTabValues()
         { text = ns.GetLabel(KM.Elements, C.Elements.COMBAT_INDICATOR), value = C.Elements.COMBAT_INDICATOR },
         { text = ns.GetLabel(KM.Elements, C.Elements.RESTING_INDICATOR), value = C.Elements.RESTING_INDICATOR },
         { text = ns.GetLabel(KM.Elements, C.Elements.READY_CHECK_INDICATOR), value = C.Elements.READY_CHECK_INDICATOR },
+        { text = ns.GetLabel(KM.Elements, C.Elements.CLASSIFICATION_INDICATOR), value = C.Elements.CLASSIFICATION_INDICATOR },
     }
 end
 

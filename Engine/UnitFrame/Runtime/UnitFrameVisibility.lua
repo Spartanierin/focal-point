@@ -306,6 +306,12 @@ function Visibility.RegisterEvents(owner, frame)
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "targettarget" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
+    elseif frame.unit == "focustarget" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
     elseif frame.unit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
     elseif frame.unit == "pet" then
@@ -321,6 +327,8 @@ function Visibility.RegisterEvents(owner, frame)
         if event ~= "PLAYER_REGEN_ENABLED"
             and unit
             and unit ~= currentOwner.unit
+            and not (currentOwner.unit == "targettarget" and event == "UNIT_TARGET" and unit == "target")
+            and not (currentOwner.unit == "focustarget" and event == "UNIT_TARGET" and unit == "focus")
             and not (currentOwner.unit == "pet" and event == "UNIT_PET" and unit == "player")
         then
             return
@@ -330,7 +338,7 @@ function Visibility.RegisterEvents(owner, frame)
             return
         end
 
-        if (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET")
+        if (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" or event == "UNIT_TARGET")
             and State.HandleTargetSwap
         then
             State.HandleTargetSwap(currentOwner, event)
@@ -370,7 +378,7 @@ function Visibility.RegisterEvents(owner, frame)
             owner:Refresh(currentOwner)
         end
 
-        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" then
+        if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" or event == "UNIT_TARGET" then
             Visibility.QueueRefresh(currentOwner)
         end
     end)

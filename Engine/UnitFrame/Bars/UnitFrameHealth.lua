@@ -155,6 +155,12 @@ function Health.RegisterEvents(owner, frame)
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "targettarget" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
+    elseif frame.unit == "focustarget" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
     elseif frame.unit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
     elseif frame.unit == "pet" then
@@ -176,6 +182,16 @@ function Health.RegisterEvents(owner, frame)
         end
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+            Queue({ "bars", "texts", "layout" })
+            return
+        end
+
+        if event == "UNIT_TARGET" then
+            if currentOwner.unit ~= "targettarget" or unit ~= "target" then
+                if currentOwner.unit ~= "focustarget" or unit ~= "focus" then
+                    return
+                end
+            end
             Queue({ "bars", "texts", "layout" })
             return
         end

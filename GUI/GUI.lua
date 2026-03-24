@@ -879,9 +879,42 @@ function FocalPoint.GUI:RefreshOptions()
     RenderPage(addon.guiTreeGroup, selectedPath)
 end
 
+local function ShowGUIFrame(widget)
+    if not widget then
+        return
+    end
+
+    if widget.frame and widget.frame.Show then
+        widget.frame:Show()
+        return
+    end
+
+    if widget.Show then
+        widget:Show()
+    end
+end
+
+local function HideGUIFrame(widget)
+    if not widget then
+        return
+    end
+
+    if widget.frame and widget.frame.Hide then
+        widget.frame:Hide()
+        return
+    end
+
+    if widget.Hide then
+        widget:Hide()
+    end
+end
+
 function FocalPoint:CreateGUI()
     if self.guiFrame then
-        self.guiFrame:Show()
+        if self.guiTestModeEnabled then
+            self:DisableTestMode()
+        end
+        ShowGUIFrame(self.guiFrame)
         return
     end
 
@@ -989,16 +1022,22 @@ function FocalPoint:CreateGUI()
         if FocalPoint.RefreshAllUnitFrames then
             FocalPoint:RefreshAllUnitFrames()
         end
+
+        if enabled and self.guiFrame then
+            self._hidingGUIForTestMode = true
+            HideGUIFrame(self.guiFrame)
+        end
     end
 
     frame:SetCallback("OnClose", function(widget)
-        FocalPoint:DisableTestMode()
         widget:Hide()
     end)
 
     if frame.frame then
         frame.frame:HookScript("OnHide", function()
-            FocalPoint:DisableTestMode()
+            if FocalPoint._hidingGUIForTestMode then
+                FocalPoint._hidingGUIForTestMode = nil
+            end
         end)
     end
 

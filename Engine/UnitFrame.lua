@@ -1039,7 +1039,7 @@ function UF:Refresh(frame, refreshRequest)
 
     ApplyRefreshFlow(self, frame, config, refreshRequest)
 
-    if StateRuntime.Guard and frame.unit ~= "player" then
+    if StateRuntime.Guard and frame.unit ~= "player" and not IsPreviewModeEnabled() then
         local shouldExist = DoesUnitSeemPresent and DoesUnitSeemPresent(frame.unit)
         local shown = frame.IsShown and frame:IsShown() or false
         StateRuntime.Guard(frame, "visible_missing_unit", not (shown and not shouldExist), "frame visible while unit seems absent")

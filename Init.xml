@@ -101,6 +101,7 @@
     <Script file="GUI/Layouts/UnitCombatIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/UnitRestingIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/UnitReadyCheckIndicatorLayouts.lua"/>
+    <Script file="GUI/Layouts/UnitClassificationIndicatorLayouts.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>
     <Script file="GUI/Pages/GeneralPage.lua"/>
     <Script file="GUI/Pages/ThemesPage.lua"/>

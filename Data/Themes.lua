@@ -145,6 +145,47 @@ FocalPoint.Themes = {
                     },
                 },
             },
+            focus = {
+                frame = {
+                    width = 260,
+                    height = 65,
+                    alpha = 0.9,
+                    scale = 1,
+                },
+                portrait = {
+                    enabled = false,
+                },
+                bars = {
+                    showPowerBar = true,
+                    showAlternativePowerBar = false,
+                    powerBarHeight = 20,
+                },
+                texts = {
+                    Name = { enabled = true, fontSize = 16 },
+                    Health = { enabled = true, fontSize = 15 },
+                    Power = { enabled = true, fontSize = 14 },
+                },
+                auras = {
+                    Buffs = {
+                        enabled = true,
+                        iconSize = 25,
+                        iconsPerRow = 4,
+                        showStackText = true,
+                        showTimerText = true,
+                        hidePermanentAuras = true,
+                        hideLongAuras = false,
+                    },
+                    Debuffs = {
+                        enabled = true,
+                        iconSize = 25,
+                        iconsPerRow = 4,
+                        showStackText = true,
+                        showTimerText = true,
+                        hidePermanentAuras = false,
+                        hideLongAuras = true,
+                    },
+                },
+            },
         },
     },
 
@@ -235,6 +276,47 @@ FocalPoint.Themes = {
                 },
             },
             target = {
+                frame = {
+                    width = 220,
+                    height = 44,
+                    alpha = 0.95,
+                    scale = 1,
+                },
+                portrait = {
+                    enabled = false,
+                },
+                bars = {
+                    showPowerBar = true,
+                    showAlternativePowerBar = false,
+                    powerBarHeight = 10,
+                },
+                texts = {
+                    Name = { enabled = true, fontSize = 14 },
+                    Health = { enabled = true, tag = "[hp:cur:abbr]", fontSize = 13 },
+                    Power = { enabled = false },
+                },
+                auras = {
+                    Buffs = {
+                        enabled = true,
+                        iconSize = 20,
+                        iconsPerRow = 4,
+                        showStackText = true,
+                        showTimerText = true,
+                        hidePermanentAuras = true,
+                        hideLongAuras = true,
+                    },
+                    Debuffs = {
+                        enabled = true,
+                        iconSize = 20,
+                        iconsPerRow = 4,
+                        showStackText = true,
+                        showTimerText = true,
+                        hidePermanentAuras = false,
+                        hideLongAuras = true,
+                    },
+                },
+            },
+            focus = {
                 frame = {
                     width = 220,
                     height = 44,
@@ -376,6 +458,50 @@ FocalPoint.Themes = {
                 },
             },
             target = {
+                frame = {
+                    width = 280,
+                    height = 60,
+                    alpha = 0.95,
+                    scale = 1,
+                },
+                portrait = {
+                    enabled = true,
+                    placement = "INSIDE",
+                    insideSide = "LEFT",
+                    size = 54,
+                },
+                bars = {
+                    showPowerBar = true,
+                    showAlternativePowerBar = false,
+                    powerBarHeight = 14,
+                },
+                texts = {
+                    Name = { enabled = true, fontSize = 15 },
+                    Health = { enabled = true, fontSize = 14 },
+                    Power = { enabled = true, fontSize = 12 },
+                },
+                auras = {
+                    Buffs = {
+                        enabled = true,
+                        iconSize = 24,
+                        iconsPerRow = 5,
+                        showStackText = true,
+                        showTimerText = true,
+                        hidePermanentAuras = true,
+                        hideLongAuras = false,
+                    },
+                    Debuffs = {
+                        enabled = true,
+                        iconSize = 24,
+                        iconsPerRow = 5,
+                        showStackText = true,
+                        showTimerText = true,
+                        hidePermanentAuras = false,
+                        hideLongAuras = true,
+                    },
+                },
+            },
+            focus = {
                 frame = {
                     width = 280,
                     height = 60,

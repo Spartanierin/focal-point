@@ -73,6 +73,12 @@ function Leader.RegisterEvents(owner, frame)
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    elseif frame.unit == "targettarget" then
+        eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
+    elseif frame.unit == "focustarget" then
+        eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+        eventFrame:RegisterEvent("UNIT_TARGET")
     elseif frame.unit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
     elseif frame.unit == "pet" then
@@ -87,6 +93,14 @@ function Leader.RegisterEvents(owner, frame)
 
         if event == "UNIT_PET" and unit ~= "player" then
             return
+        end
+
+        if event == "UNIT_TARGET" then
+            local targetOk = currentOwner.unit == "targettarget" and unit == "target"
+            local focusOk = currentOwner.unit == "focustarget" and unit == "focus"
+            if not targetOk and not focusOk then
+                return
+            end
         end
 
         if State.QueueRefresh then

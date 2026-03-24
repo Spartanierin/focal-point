@@ -87,6 +87,18 @@ local function BuildElementPage(container, unitKey, elementKey)
             layout = ns.GUI.Layouts.UnitReadyCheckIndicator.ReadyCheckIndicatorTab,
         })
         return true
+    elseif elementKey == C.Elements.CLASSIFICATION_INDICATOR then
+        BuildStandardElementLayoutPage(container, unitKey, {
+            optionKey = "ClassificationIndicator",
+            disabledKey = "classification",
+            elementKey = C.Elements.CLASSIFICATION_INDICATOR,
+            lists = ns.GUI.Layouts.UnitClassificationIndicator.Lists,
+            layout = ns.GUI.Layouts.UnitClassificationIndicator.ClassificationIndicatorTab,
+            isUnavailable = function(currentUnitKey)
+                return currentUnitKey == "player" or currentUnitKey == "pet"
+            end,
+        })
+        return true
     end
 
     return false

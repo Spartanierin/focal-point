@@ -230,6 +230,48 @@ local function EnsureBarTextureDefaults()
     end
 end
 
+local function EnsureExpandedUnitDefaults(unitKey)
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if type(units) ~= "table" or type(defaultUnits) ~= "table" then
+        return
+    end
+
+    local unitDB = units[unitKey]
+    local unitDefaults = defaultUnits[unitKey]
+    if type(unitDefaults) ~= "table" then
+        return
+    end
+
+    if unitDB == nil then
+        units[unitKey] = CopyTable(unitDefaults)
+        return
+    end
+
+    if type(unitDB) ~= "table" then
+        units[unitKey] = CopyTable(unitDefaults)
+        return
+    end
+
+    local meaningfulKeys = 0
+    for key in pairs(unitDB) do
+        if key ~= "enabled" then
+            meaningfulKeys = meaningfulKeys + 1
+        end
+    end
+
+    if meaningfulKeys == 0 then
+        units[unitKey] = CopyTable(unitDefaults)
+    end
+end
+
 local function ApplyCastTextLayoutDefaults(textConfig, isName)
     if type(textConfig) ~= "table" then
         return
@@ -458,6 +500,12 @@ local function EnsureTextTemplateLinks()
         if textKey == "Name" then
             if unitKey == "player" then
                 return "Unit Name Player"
+            elseif unitKey == "targettarget" then
+                return "Unit Name Target"
+            elseif unitKey == "focustarget" then
+                return "Unit Name Focus"
+            elseif unitKey == "focus" then
+                return "Unit Name Focus"
             elseif unitKey == "target" then
                 return "Unit Name Target"
             end
@@ -496,6 +544,12 @@ local function EnsureTextTemplateLinks()
         if textKey == "Race" then
             if unitKey == "target" then
                 return "Target Level and Class"
+            elseif unitKey == "targettarget" then
+                return "Target Level and Class"
+            elseif unitKey == "focustarget" then
+                return "Focus Level and Class"
+            elseif unitKey == "focus" then
+                return "Focus Level and Class"
             elseif unitKey ~= "player" then
                 return "Creature"
             end
@@ -639,6 +693,9 @@ function FocalPointAddon:OnInitialize()
     FocalPoint.db = LibStub("AceDB-3.0"):New("FocalPointDB", FocalPoint:GetDefaultDB(), true)
     EnsureImageElementDefaults()
     EnsureBarTextureDefaults()
+    EnsureExpandedUnitDefaults("targettarget")
+    EnsureExpandedUnitDefaults("focus")
+    EnsureExpandedUnitDefaults("focustarget")
     EnsureCastTextDefaults()
     EnsureAlternativePowerDefaults()
     EnsureCastBarInterruptibleColorDefaults()
@@ -714,6 +771,18 @@ function FocalPointAddon:OnEnable()
 
     RunStartupStep("SpawnUnitFrame(target)", function()
         FocalPoint:SpawnUnitFrame("target")
+    end)
+
+    RunStartupStep("SpawnUnitFrame(targettarget)", function()
+        FocalPoint:SpawnUnitFrame("targettarget")
+    end)
+
+    RunStartupStep("SpawnUnitFrame(focus)", function()
+        FocalPoint:SpawnUnitFrame("focus")
+    end)
+
+    RunStartupStep("SpawnUnitFrame(focustarget)", function()
+        FocalPoint:SpawnUnitFrame("focustarget")
     end)
 
     RunStartupStep("SpawnUnitFrame(pet)", function()
@@ -817,6 +886,9 @@ function FocalPoint:DumpRuntimeDiagnostics()
         "StartTagTicker",
         "SpawnUnitFrame(player)",
         "SpawnUnitFrame(target)",
+        "SpawnUnitFrame(targettarget)",
+        "SpawnUnitFrame(focus)",
+        "SpawnUnitFrame(focustarget)",
         "SpawnUnitFrame(pet)",
         "ApplyGeneralSettings",
         "PostWorld ApplyGeneralSettings",
@@ -833,7 +905,7 @@ function FocalPoint:DumpRuntimeDiagnostics()
         end
     end
 
-    for _, unit in ipairs({ "player", "target" }) do
+    for _, unit in ipairs({ "player", "target", "targettarget", "focus", "focustarget" }) do
         local unitDB = self.db and self.db.profile and self.db.profile.Units and self.db.profile.Units[unit] or {}
         local frame = self.frames and self.frames[unit] or nil
         local exists = UnitExists and SafeBool(UnitExists(unit)) or false

@@ -128,6 +128,7 @@ C.Elements = {
     COMBAT_INDICATOR = "combat_indicator",
     RESTING_INDICATOR = "resting_indicator",
     READY_CHECK_INDICATOR = "ready_check_indicator",
+    CLASSIFICATION_INDICATOR = "classification_indicator",
     PVP_INDICATOR = "pvp_indicator",
     INDICATORS = "indicators",
 }
@@ -143,6 +144,7 @@ C.ElementOrder = {
     C.Elements.COMBAT_INDICATOR,
     C.Elements.RESTING_INDICATOR,
     C.Elements.READY_CHECK_INDICATOR,
+    C.Elements.CLASSIFICATION_INDICATOR,
     C.Elements.PVP_INDICATOR,
 }
 
