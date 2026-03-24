@@ -179,6 +179,32 @@ When designing or refactoring a unit settings page, prefer this pattern:
 3. behavior/filtering section
 4. placement/detail section
 
+## Element-Local Color Rule
+
+Within `Units`, colors should normally live with the element they belong to.
+
+Examples:
+
+- health-bar colors belong to `Bars > Health`
+- power-bar colors belong to `Bars > Power`
+- cast-bar colors belong to `Bars > Cast`
+- text colors belong to `Texts`
+
+The `Colors` tab should be reserved for frame-level surface colors such as:
+
+- frame background
+- frame border
+- other truly frame-global color settings
+
+The goal is to let users configure one element in one place instead of splitting
+shape and color across separate tabs.
+
+Current unit-page application:
+
+- frame background and border live in `Frame`
+- the dedicated unit `Colors` tab is no longer part of the primary unit-page
+  navigation
+
 Not every page must have every section, but the order should stay consistent
 with the page's real purpose.
 

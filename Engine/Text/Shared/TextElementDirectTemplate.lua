@@ -13,12 +13,19 @@ function DirectTemplate.Apply(frame, textObject, unit, template, fallbackColor, 
     local ResolveColorTag = deps.ResolveColorTag
     local ResolveBasicTag = deps.ResolveBasicTag
     local FormatNumber = deps.FormatNumber
+    local NormalizeTemplateText = deps.NormalizeTemplateText
 
     if not frame or not textObject then
         return false
     end
 
-    if not IsPreviewModeEnabled() and (not unit or not UnitExists or not UnitExists(unit)) then
+    template = NormalizeTemplateText and NormalizeTemplateText(template) or (type(template) == "string" and template or "")
+    if template == "" then
+        return false
+    end
+
+    local previewMode = type(IsPreviewModeEnabled) == "function" and IsPreviewModeEnabled() or false
+    if not previewMode and (not unit or not UnitExists or not UnitExists(unit)) then
         return false
     end
 
@@ -46,6 +53,13 @@ function DirectTemplate.Apply(frame, textObject, unit, template, fallbackColor, 
     end
 
     formatString = formatString:gsub("%[([^%]]+)%]", "%%s")
-    textObject:SetFormattedText(formatString, unpack(formatArgs))
-    return true
+    local ok = pcall(function()
+        textObject:SetFormattedText(formatString, unpack(formatArgs))
+    end)
+
+    if ok then
+        return true
+    end
+
+    return false
 end

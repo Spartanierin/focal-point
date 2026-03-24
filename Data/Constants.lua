@@ -56,7 +56,6 @@ C.TabOrder = {
     C.Tabs.AURAS,
     C.Tabs.TEXTS,
     C.Tabs.ELEMENTS,
-    C.Tabs.COLORS,
     C.Tabs.VISIBILITY,
 }
 

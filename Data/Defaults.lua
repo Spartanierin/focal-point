@@ -20,16 +20,19 @@ function FocalPoint:GetDefaultDB()
             },
 
             TextTemplates = {
-                ["Sparta's Unit Frame - Name"] = "[name]",
-                ["Sparta's Unit Frame - Health"] = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
-                ["Sparta's Unit Frame - Player Power"] = "[power:cur]/[power:max]",
-                ["Sparta's Unit Frame - Target Power"] = "[power:cur:abbr]/[power:max:abbr]",
-                ["Sparta's Unit Frame - Alt Power"] = "[altpower:cur] / [altpower:max]",
-                ["Sparta's Unit Frame - Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
-                ["Sparta's Unit Frame - Creature"] = "[creature]",
-                ["Sparta's Unit Frame - Status"] = "[status][dead][dead:timer]",
-                ["Sparta's Unit Frame - Cast Name"] = "[cast:name]",
-                ["Sparta's Unit Frame - Cast Time"] = "[cast:time]",
+                ["Alt Power"] = "[altpower:cur] / [altpower:max]",
+                ["Unit Name Target"] = "[name] [status] [status:timer]",
+                ["Dead/Ghost Timer"] = "[dead] [dead:timer]",
+                ["Cast Name"] = "[cast:name]",
+                ["Power"] = "[power:cur:abbr]/[power:max:abbr]",
+                ["Unit Name Player"] = "[status] [status:timer] [name]",
+                ["Health"] = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+                ["Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
+                ["Cast Time"] = "[cast:time]",
+                ["Status"] = "[status] [status:timer]",
+                ["Dead Target"] = "[dead]",
+                ["Target Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
+                ["Creature"] = "[creature]",
             },
 
             Units = {
@@ -88,6 +91,7 @@ function FocalPoint:GetDefaultDB()
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
                     healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 0.65 },
+                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
@@ -139,8 +143,8 @@ function FocalPoint:GetDefaultDB()
                         anchorTo = "Frame",
                         point = "TOPLEFT",
                         relativePoint = "TOPLEFT",
-                        offsetX = -116,
-                        offsetY = 18,
+                        offsetX = 149,
+                        offsetY = 35,
                     },
 
                     RoleIcon = {
@@ -153,8 +157,8 @@ function FocalPoint:GetDefaultDB()
                         anchorTo = "Frame",
                         point = "TOPRIGHT",
                         relativePoint = "TOPRIGHT",
-                        offsetX = 127,
-                        offsetY = 18,
+                        offsetX = 20,
+                        offsetY = 20,
                     },
 
                     CombatIndicator = {
@@ -165,10 +169,10 @@ function FocalPoint:GetDefaultDB()
                         padding = 2,
                         insideSide = "RIGHT",
                         anchorTo = "Frame",
-                        point = "TOPRIGHT",
-                        relativePoint = "BOTTOMRIGHT",
-                        offsetX = -15,
-                        offsetY = -11,
+                        point = "TOPLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 3,
+                        offsetY = 17,
                     },
 
                     RestingIndicator = {
@@ -189,12 +193,12 @@ function FocalPoint:GetDefaultDB()
                     ReadyCheckIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
-                        size = 16,
+                        size = 20,
                         scale = 1,
                         padding = 2,
                         insideSide = "RIGHT",
                         anchorTo = "Frame",
-                        point = "TOPRIGHT",
+                        point = "TOP",
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
@@ -250,7 +254,7 @@ function FocalPoint:GetDefaultDB()
                         maxRows = 0,
                         growthX = "LEFT",
                         growthY = "UP",
-                        showOnlyMine = true,
+                        showOnlyMine = false,
                         hidePermanentAuras = false,
                         hideLongAuras = true,
                         longAuraThreshold = 300,
@@ -265,7 +269,7 @@ function FocalPoint:GetDefaultDB()
                     Texts = {
                         Name = {
                             enabled = true,
-                            tag = "[name] [status] [status:timer]",
+                            tag = "[status] [status:timer] [name]",
 
                             anchorTo = "Frame",
                             point = "TOPRIGHT",
@@ -292,6 +296,10 @@ function FocalPoint:GetDefaultDB()
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
+                            stateTemplates = {
+                                dead = "Dead/Ghost Timer",
+                                ghost = "Dead/Ghost Timer",
+                            },
 
                             anchorTo = "HealthBar",
                             point = "LEFT",
@@ -317,7 +325,7 @@ function FocalPoint:GetDefaultDB()
 
                         Power = {
                             enabled = true,
-                            tag = "[power:cur]/[power:max]",
+                            tag = "[power:cur:abbr]/[power:max:abbr]",
 
                             anchorTo = "PowerBar",
                             point = "LEFT",
@@ -397,6 +405,7 @@ function FocalPoint:GetDefaultDB()
                         Class = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
+                            overflowMode = "ELLIPSIS",
 
                             anchorTo = "PowerBar",
                             point = "RIGHT",
@@ -657,6 +666,7 @@ function FocalPoint:GetDefaultDB()
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
                     healthColor = { 0.10, 0.80, 0.10, 0.65 },
+                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
@@ -700,7 +710,7 @@ function FocalPoint:GetDefaultDB()
                     LeaderIcon = {
                         enabled = true,
                         placement = "ATTACHED",
-                        size = 16,
+                        size = 20,
                         scale = 1,
                         padding = 2,
                         insideSide = "LEFT",
@@ -708,21 +718,21 @@ function FocalPoint:GetDefaultDB()
                         point = "TOPLEFT",
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
-                        offsetY = 0,
+                        offsetY = 40,
                     },
 
                     RoleIcon = {
                         enabled = true,
                         placement = "ATTACHED",
-                        size = 16,
+                        size = 20,
                         scale = 1,
                         padding = 2,
                         insideSide = "RIGHT",
                         anchorTo = "Frame",
-                        point = "TOPRIGHT",
-                        relativePoint = "TOP",
-                        offsetX = 0,
-                        offsetY = 0,
+                        point = "TOPLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = -20,
+                        offsetY = 20,
                     },
 
                     CombatIndicator = {
@@ -756,7 +766,7 @@ function FocalPoint:GetDefaultDB()
                     ReadyCheckIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
-                        size = 16,
+                        size = 20,
                         scale = 1,
                         padding = 2,
                         insideSide = "RIGHT",
@@ -832,7 +842,7 @@ function FocalPoint:GetDefaultDB()
                     Texts = {
                         Name = {
                             enabled = true,
-                            tag = "[name]",
+                            tag = "[name] [status] [status:timer]",
 
                             anchorTo = "Frame",
                             point = "TOPLEFT",
@@ -859,6 +869,9 @@ function FocalPoint:GetDefaultDB()
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
+                            stateTemplates = {
+                                dead = "Dead Target",
+                            },
 
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -989,6 +1002,7 @@ function FocalPoint:GetDefaultDB()
                         Race = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
+                            overflowMode = "ELLIPSIS",
 
                             anchorTo = "PowerBar",
                             point = "LEFT",
@@ -1223,6 +1237,7 @@ function FocalPoint:GetDefaultDB()
                     borderColor = { 0.00, 0.00, 0.00, 0.00 },
 
                     healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 1.00 },
+                    healthLowColor = { 1.00, 0.12, 0.12, 1.00 },
                     healthBackground = true,
                     healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
                     useClassColorHealth = true,
@@ -1334,7 +1349,7 @@ function FocalPoint:GetDefaultDB()
                     Texts = {
                         Name = {
                             enabled = true,
-                            tag = "[name]",
+                            tag = "[status] [status:timer] [name]",
                             anchorTo = "Frame",
                             point = "TOPRIGHT",
                             relativePoint = "TOPRIGHT",
@@ -1376,7 +1391,7 @@ function FocalPoint:GetDefaultDB()
 
                         Power = {
                             enabled = true,
-                            tag = "[power:cur]/[power:max]",
+                            tag = "[power:cur:abbr]/[power:max:abbr]",
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
@@ -1439,7 +1454,7 @@ function FocalPoint:GetDefaultDB()
 
                         Status = {
                             enabled = true,
-                            tag = "[status][dead][dead:timer]",
+                            tag = "[status] [status:timer]",
                             anchorTo = "HealthBar",
                             point = "CENTER",
                             relativePoint = "CENTER",

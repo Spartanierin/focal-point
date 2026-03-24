@@ -75,6 +75,9 @@ function AuraContainer.Create(parent)
     cooldown:SetAllPoints(frame)
     cooldown:SetDrawEdge(false)
     cooldown:SetDrawSwipe(true)
+    if cooldown.SetReverse then
+        cooldown:SetReverse(true)
+    end
     if cooldown.SetHideCountdownNumbers then
         cooldown:SetHideCountdownNumbers(true)
     end
@@ -93,11 +96,11 @@ function AuraContainer.Create(parent)
     frame.TextOverlay = textOverlay
 
     local countText = textOverlay:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-    countText:SetPoint("TOPLEFT", textOverlay, "TOPLEFT", 1, -1)
-    countText:SetJustifyH("LEFT")
+    countText:SetPoint("BOTTOMRIGHT", textOverlay, "BOTTOMRIGHT", -1, 1)
+    countText:SetJustifyH("RIGHT")
     countText:SetTextColor(1, 1, 1, 1)
     countText:SetShadowColor(0, 0, 0, 1)
-    countText:SetShadowOffset(1, -1)
+    countText:SetShadowOffset(1.5, -1.5)
     countText:Hide()
     frame.CountText = countText
 
@@ -114,11 +117,11 @@ function AuraContainer.ApplyLayout(container, config)
 
     if container.CountText then
         local stackFontScale = math.max(tonumber(config and config.stackFontScale) or 1, 0.5)
-        local fontSize = math.max(math.floor((iconSize * 0.42 * stackFontScale) + 0.5), 8)
+        local fontSize = math.max(math.floor((iconSize * 0.54 * stackFontScale) + 0.5), 10)
         container.CountText:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
         container.CountText:SetTextColor(1, 1, 1, 1)
         container.CountText:SetShadowColor(0, 0, 0, 1)
-        container.CountText:SetShadowOffset(1, -1)
+        container.CountText:SetShadowOffset(1.5, -1.5)
     end
 
     if container.CooldownText then

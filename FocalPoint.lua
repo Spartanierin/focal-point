@@ -81,24 +81,77 @@ local BLIZZARD_UNIT_FRAMES = {
     "pet",
 }
 
+local BLIZZARD_FRAME_OBJECTS = {
+    "PlayerFrame",
+    "TargetFrame",
+    "TargetFrameContainer",
+    "FocusFrame",
+    "FocusFrameContainer",
+    "PetFrame",
+}
+
+local blizzardFrameHider = nil
+
+local function EnsureBlizzardFrameHider()
+    if blizzardFrameHider then
+        return blizzardFrameHider
+    end
+
+    blizzardFrameHider = CreateFrame("Frame", "FocalPointBlizzardFrameHider", UIParent)
+    blizzardFrameHider:Hide()
+    return blizzardFrameHider
+end
+
+local function ApplyDirectBlizzardFrameHide()
+    local hiddenParent = EnsureBlizzardFrameHider()
+
+    for _, frameName in ipairs(BLIZZARD_FRAME_OBJECTS) do
+        local frame = _G[frameName]
+        if frame then
+            if frame.UnregisterAllEvents then
+                frame:UnregisterAllEvents()
+            end
+            if frame.SetParent then
+                frame:SetParent(hiddenParent)
+            end
+            if frame.SetAlpha then
+                frame:SetAlpha(0)
+            end
+            if frame.Hide then
+                frame:Hide()
+            end
+            if not frame._focalPointForcedHidden then
+                frame:HookScript("OnShow", function(self)
+                    if FocalPoint.blizzardFramesDisabled and self.Hide then
+                        if self.SetAlpha then
+                            self:SetAlpha(0)
+                        end
+                        self:Hide()
+                    end
+                end)
+                frame._focalPointForcedHidden = true
+            end
+        end
+    end
+end
+
 local function ApplyBlizzardFrameVisibility(hidden)
     if not hidden then
         return
     end
 
     local oUF = FocalPoint.oUF
-    if not (oUF and oUF.DisableBlizzard) then
-        return
-    end
-
     if FocalPoint.blizzardFramesDisabled then
         return
     end
 
-    for _, unit in ipairs(BLIZZARD_UNIT_FRAMES) do
-        oUF:DisableBlizzard(unit)
+    if oUF and oUF.DisableBlizzard then
+        for _, unit in ipairs(BLIZZARD_UNIT_FRAMES) do
+            oUF:DisableBlizzard(unit)
+        end
     end
 
+    ApplyDirectBlizzardFrameHide()
     FocalPoint.blizzardFramesDisabled = true
 end
 
@@ -327,6 +380,65 @@ local function EnsureTextTemplateDefaults()
     end
 end
 
+local function NormalizeLegacyTextTemplateNames()
+    if not FocalPoint.db or not FocalPoint.db.profile then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local templates = profile.TextTemplates
+    local units = profile.Units
+    if type(templates) ~= "table" then
+        return
+    end
+
+    local renameMap = {
+        ["Sparta's Unit Frame - Health"] = "Health",
+        ["Sparta's Unit Frame - Alt Power"] = "Alt Power",
+        ["Sparta's Unit Frame - Player Level and Class"] = "Player Level and Class",
+        ["Sparta's Unit Frame - Creature"] = "Creature",
+        ["Sparta's Unit Frame - Status"] = "Status",
+        ["Sparta's Unit Frame - Cast Name"] = "Cast Name",
+        ["Sparta's Unit Frame - Cast Time"] = "Cast Time",
+    }
+
+    for legacyName, newName in pairs(renameMap) do
+        if templates[legacyName] ~= nil then
+            if templates[newName] == nil then
+                templates[newName] = templates[legacyName]
+            end
+            templates[legacyName] = nil
+        end
+    end
+
+    if type(units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(units) do
+        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+        if type(texts) == "table" then
+            for _, textConfig in pairs(texts) do
+                if type(textConfig) == "table" then
+                    local templateName = textConfig.templateName
+                    if type(templateName) == "string" and renameMap[templateName] then
+                        textConfig.templateName = renameMap[templateName]
+                    end
+
+                    local stateTemplates = textConfig.stateTemplates
+                    if type(stateTemplates) == "table" then
+                        for stateKey, stateTemplateName in pairs(stateTemplates) do
+                            if type(stateTemplateName) == "string" and renameMap[stateTemplateName] then
+                                stateTemplates[stateKey] = renameMap[stateTemplateName]
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function EnsureTextTemplateLinks()
     if not FocalPoint.db or not FocalPoint.db.profile then
         return
@@ -344,39 +456,49 @@ local function EnsureTextTemplateLinks()
 
     local function ResolveDefaultTemplateName(unitKey, textKey)
         if textKey == "Name" then
-            return "Sparta's Unit Frame - Name"
+            if unitKey == "player" then
+                return "Unit Name Player"
+            elseif unitKey == "target" then
+                return "Unit Name Target"
+            end
+
+            return nil
         end
 
         if textKey == "Health" then
-            return "Sparta's Unit Frame - Health"
+            return "Health"
         end
 
         if textKey == "Power" then
-            if unitKey == "player" then
-                return "Sparta's Unit Frame - Player Power"
-            end
-
-            return "Sparta's Unit Frame - Target Power"
+            return "Power"
         end
 
         if textKey == "AltPower" then
-            return "Sparta's Unit Frame - Alt Power"
+            return "Alt Power"
+        end
+
+        if textKey == "Class" and unitKey == "player" then
+            return "Player Level and Class"
         end
 
         if textKey == "Status" then
-            return "Sparta's Unit Frame - Status"
+            return "Status"
         end
 
         if textKey == "CastName" then
-            return "Sparta's Unit Frame - Cast Name"
+            return "Cast Name"
         end
 
         if textKey == "CastTime" then
-            return "Sparta's Unit Frame - Cast Time"
+            return "Cast Time"
         end
 
-        if textKey == "Race" and unitKey ~= "player" then
-            return "Sparta's Unit Frame - Creature"
+        if textKey == "Race" then
+            if unitKey == "target" then
+                return "Target Level and Class"
+            elseif unitKey ~= "player" then
+                return "Creature"
+            end
         end
 
         return nil
@@ -410,6 +532,55 @@ local function EnsureTextTemplateLinks()
                             local mappedTemplateName = ResolveDefaultTemplateName(unitKey, textKey)
                             if type(mappedTemplateName) == "string" and type(templates[mappedTemplateName]) == "string" then
                                 textConfig.templateName = mappedTemplateName
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function EnsureCoreTextDefaults()
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if type(units) ~= "table" or type(defaultUnits) ~= "table" then
+        return
+    end
+
+    for unitKey, unitDefaults in pairs(defaultUnits) do
+        local unitDB = units[unitKey]
+        local defaultTexts = type(unitDefaults) == "table" and unitDefaults.Texts or nil
+        if type(unitDB) == "table" and type(defaultTexts) == "table" then
+            unitDB.Texts = unitDB.Texts or {}
+
+            for textKey, defaultText in pairs(defaultTexts) do
+                if type(defaultText) == "table" then
+                    local textDB = unitDB.Texts[textKey]
+                    if textDB == nil then
+                        unitDB.Texts[textKey] = CopyTable(defaultText)
+                    elseif type(textDB) == "table" then
+                        local hasTemplate = type(textDB.templateName) == "string" and textDB.templateName ~= ""
+                        local hasTag = type(textDB.tag) == "string" and textDB.tag ~= ""
+                        local defaultHasTemplate = type(defaultText.templateName) == "string" and defaultText.templateName ~= ""
+                        local defaultHasTag = type(defaultText.tag) == "string" and defaultText.tag ~= ""
+
+                        if not hasTemplate and not hasTag then
+                            if defaultHasTemplate then
+                                textDB.templateName = defaultText.templateName
+                            end
+                            if defaultHasTag then
+                                textDB.tag = defaultText.tag
+                            end
+                            if textDB.enabled == false and defaultText.enabled == true then
+                                textDB.enabled = true
                             end
                         end
                     end
@@ -472,7 +643,9 @@ function FocalPointAddon:OnInitialize()
     EnsureAlternativePowerDefaults()
     EnsureCastBarInterruptibleColorDefaults()
     EnsureTextTemplateDefaults()
+    NormalizeLegacyTextTemplateNames()
     EnsureTextTemplateLinks()
+    EnsureCoreTextDefaults()
     EnsureNoEmptyTextElements()
     InitRangeCheck()
 
@@ -491,31 +664,80 @@ function FocalPointAddon:OnInitialize()
 end
 
 function FocalPointAddon:OnEnable()
-    if FocalPoint.Init then
+    FocalPoint.startupDiagnostics = {}
+
+    local function RunStartupStep(label, fn)
+        if type(fn) ~= "function" then
+            FocalPoint.startupDiagnostics[tostring(label)] = {
+                ok = false,
+                message = "missing-function",
+            }
+            return true
+        end
+
+        local ok, err = pcall(fn)
+        if not ok then
+            FocalPoint.startupDiagnostics[tostring(label)] = {
+                ok = false,
+                message = tostring(err),
+            }
+            FocalPoint:Warn(string.format("Startup step failed: %s -> %s", tostring(label), tostring(err)))
+            return false
+        end
+
+        FocalPoint.startupDiagnostics[tostring(label)] = {
+            ok = true,
+            message = "ok",
+        }
+        return true
+    end
+
+    RunStartupStep("Init", function()
         FocalPoint:Init()
-    end
+    end)
 
-    if FocalPoint.SetupSlashCommands then
+    RunStartupStep("SetupSlashCommands", function()
         FocalPoint:SetupSlashCommands()
-    end
+    end)
 
-    if FocalPoint.CreatePositionController then
+    RunStartupStep("CreatePositionController", function()
         FocalPoint:CreatePositionController()
-    end
+    end)
 
-    if FocalPoint.StartTagTicker then
+    RunStartupStep("StartTagTicker", function()
         FocalPoint:StartTagTicker()
-    end
+    end)
 
-    if FocalPoint.SpawnUnitFrame then
+    RunStartupStep("SpawnUnitFrame(player)", function()
         FocalPoint:SpawnUnitFrame("player")
-        FocalPoint:SpawnUnitFrame("target")
-        FocalPoint:SpawnUnitFrame("pet")
-    end
+    end)
 
-    if FocalPoint.ApplyGeneralSettings then
+    RunStartupStep("SpawnUnitFrame(target)", function()
+        FocalPoint:SpawnUnitFrame("target")
+    end)
+
+    RunStartupStep("SpawnUnitFrame(pet)", function()
+        FocalPoint:SpawnUnitFrame("pet")
+    end)
+
+    RunStartupStep("ApplyGeneralSettings", function()
         FocalPoint:ApplyGeneralSettings()
-    end
+    end)
+
+    local postWorldInit = CreateFrame("Frame")
+    postWorldInit:RegisterEvent("PLAYER_ENTERING_WORLD")
+    postWorldInit:SetScript("OnEvent", function(self)
+        self:UnregisterAllEvents()
+        self:SetScript("OnEvent", nil)
+
+        RunStartupStep("PostWorld ApplyGeneralSettings", function()
+            FocalPoint:ApplyGeneralSettings()
+        end)
+
+        RunStartupStep("PostWorld RefreshAllUnitFrames", function()
+            FocalPoint:RefreshAllUnitFrames()
+        end)
+    end)
 end
 
 function FocalPoint:RefreshAllUnitFrames()
@@ -536,4 +758,138 @@ function FocalPoint:ApplyGeneralSettings()
 
     RefreshBlizzardFrameMouseState(general.HideBlizzardFrames == true)
     ApplyBlizzardFrameVisibility(general.HideBlizzardFrames == true)
+end
+
+local function SafeBool(value)
+    local ok, result = pcall(function()
+        return type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) and value or false
+    end)
+    return ok and result or false
+end
+
+local function SafeNumber(value)
+    local ok, result = pcall(function()
+        return tonumber(value)
+    end)
+    if ok and type(result) == "number" and not (issecretvalue and issecretvalue(result)) then
+        return result
+    end
+    return nil
+end
+
+local function SafePointText(frame)
+    if not frame or not frame.GetPoint then
+        return "point=?"
+    end
+
+    local ok, point, relativeTo, relativePoint, x, y = pcall(frame.GetPoint, frame, 1)
+    if not ok then
+        return "point=?"
+    end
+
+    local relativeName = "?"
+    if type(relativeTo) == "table" and relativeTo.GetName then
+        relativeName = relativeTo:GetName() or "anonymous"
+    elseif type(relativeTo) == "string" then
+        relativeName = relativeTo
+    end
+
+    x = SafeNumber(x) or 0
+    y = SafeNumber(y) or 0
+
+    return string.format("%s->%s@%s(%d,%d)", tostring(point or "?"), tostring(relativeName), tostring(relativePoint or "?"), x, y)
+end
+
+function FocalPoint:DumpRuntimeDiagnostics()
+    local general = self.db and self.db.profile and self.db.profile.General or {}
+    self:Info(string.format(
+        "Diag general: hideBlizz=%s mouse=%s unlocked=%s disabled=%s",
+        tostring(general.HideBlizzardFrames == true),
+        tostring(general.MouseEnabled ~= false),
+        tostring(self.framesUnlocked == true),
+        tostring(self.blizzardFramesDisabled == true)
+    ))
+
+    for _, label in ipairs({
+        "Init",
+        "SetupSlashCommands",
+        "CreatePositionController",
+        "StartTagTicker",
+        "SpawnUnitFrame(player)",
+        "SpawnUnitFrame(target)",
+        "SpawnUnitFrame(pet)",
+        "ApplyGeneralSettings",
+        "PostWorld ApplyGeneralSettings",
+        "PostWorld RefreshAllUnitFrames",
+    }) do
+        local step = self.startupDiagnostics and self.startupDiagnostics[label] or nil
+        if step then
+            self:Info(string.format(
+                "Diag startup %s: ok=%s msg=%s",
+                tostring(label),
+                tostring(step.ok == true),
+                tostring(step.message or "?")
+            ))
+        end
+    end
+
+    for _, unit in ipairs({ "player", "target" }) do
+        local unitDB = self.db and self.db.profile and self.db.profile.Units and self.db.profile.Units[unit] or {}
+        local frame = self.frames and self.frames[unit] or nil
+        local exists = UnitExists and SafeBool(UnitExists(unit)) or false
+        local shown = frame and frame.IsShown and SafeBool(frame:IsShown()) or false
+        local alpha = frame and frame.GetAlpha and SafeNumber(frame:GetAlpha()) or nil
+        local spawnDiag = self.spawnDiagnostics and self.spawnDiagnostics[unit] or nil
+
+        self:Info(string.format(
+            "Diag %s db: enabled=%s point=%s rel=%s x=%s y=%s scale=%s size=%sx%s",
+            unit,
+            tostring(type(unitDB) == "table" and unitDB.enabled ~= false),
+            tostring(type(unitDB) == "table" and unitDB.point or "?"),
+            tostring(type(unitDB) == "table" and unitDB.relativePoint or "?"),
+            tostring(type(unitDB) == "table" and unitDB.x or "?"),
+            tostring(type(unitDB) == "table" and unitDB.y or "?"),
+            tostring(type(unitDB) == "table" and unitDB.scale or "?"),
+            tostring(type(unitDB) == "table" and unitDB.width or "?"),
+            tostring(type(unitDB) == "table" and unitDB.height or "?")
+        ))
+
+        self:Info(string.format(
+            "Diag %s frame: exists=%s spawned=%s shown=%s alpha=%s overlay=%s point=%s",
+            unit,
+            tostring(exists),
+            tostring(frame ~= nil),
+            tostring(shown),
+            alpha and string.format("%.2f", alpha) or "?",
+            tostring(frame and frame.MoveOverlay and frame.MoveOverlay:IsShown() or false),
+            SafePointText(frame)
+        ))
+
+        if spawnDiag then
+            self:Info(string.format(
+                "Diag %s spawn: ok=%s config=%s enabled=%s reason=%s",
+                unit,
+                tostring(spawnDiag.ok == true),
+                tostring(spawnDiag.hasConfig == true),
+                tostring(spawnDiag.enabled == true),
+                tostring(spawnDiag.reason or "?")
+            ))
+        end
+    end
+
+    for _, frameName in ipairs({ "PlayerFrame", "TargetFrame", "TargetFrameContainer" }) do
+        local frame = _G[frameName]
+        if frame then
+            local shown = frame.IsShown and SafeBool(frame:IsShown()) or false
+            local alpha = frame.GetAlpha and SafeNumber(frame:GetAlpha()) or nil
+            local parentName = frame.GetParent and frame:GetParent() and frame:GetParent():GetName() or "?"
+            self:Info(string.format(
+                "Diag blizz %s: shown=%s alpha=%s parent=%s",
+                frameName,
+                tostring(shown),
+                alpha and string.format("%.2f", alpha) or "?",
+                tostring(parentName or "?")
+            ))
+        end
+    end
 end

@@ -75,7 +75,7 @@ end
 function B.BuildThemesPage(container)
     local page = ns.GUI.Pages and ns.GUI.Pages.Themes
     if not page or not page.Build then
-        B.BuildPlaceholderPage(container, L["NAV_THEMES"] or "Themes")
+        B.BuildPlaceholderPage(container, L["NAV_THEMES"] or "Presets")
         return
     end
 

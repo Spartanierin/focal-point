@@ -6,6 +6,48 @@ local Apply = FocalPoint.TextElementApply
 
 -- Applies layout and style settings to text elements while leaving template
 -- and live update logic in their dedicated modules.
+local function ResolveOverflowWidth(key, textConfig, anchorParent)
+    if not textConfig then
+        return 0
+    end
+
+    local anchorTo = textConfig.anchorTo
+    local justifyH = textConfig.justifyH or "CENTER"
+    local point = textConfig.point or "CENTER"
+    local relativePoint = textConfig.relativePoint or "CENTER"
+    local overflowMode = textConfig.overflowMode or "NONE"
+    local anchorWidth = anchorParent and anchorParent.GetWidth and anchorParent:GetWidth() or 0
+
+    if anchorTo == "CastBar" and anchorWidth > 0 then
+        if key == "CastTime" then
+            return 48
+        end
+
+        if key == "CastName" then
+            return math.max(anchorWidth - 56, 20)
+        end
+    end
+
+    if overflowMode == "NONE" or anchorWidth <= 0 then
+        return 0
+    end
+
+    local edgeAnchored = justifyH == "LEFT"
+        or justifyH == "RIGHT"
+        or point:find("LEFT", 1, true) ~= nil
+        or point:find("RIGHT", 1, true) ~= nil
+        or relativePoint:find("LEFT", 1, true) ~= nil
+        or relativePoint:find("RIGHT", 1, true) ~= nil
+
+    if edgeAnchored then
+        -- Be a bit more generous for side-anchored texts. A strict half-width
+        -- avoids overlap, but truncates common label/status texts too early.
+        return math.max(math.floor(anchorWidth * 0.65) - 6, 24)
+    end
+
+    return math.max(anchorWidth - 12, 24)
+end
+
 function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     deps = deps or {}
 
@@ -53,17 +95,18 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
         textConfig.offsetY or 0
     )
 
-    if textConfig.anchorTo == "CastBar" and anchorParent and anchorParent.GetWidth then
-        local castBarWidth = anchorParent:GetWidth() or 0
-        if key == "CastTime" then
-            textObject:SetWidth(48)
-        elseif key == "CastName" then
-            textObject:SetWidth(math.max(castBarWidth - 56, 20))
-        else
-            textObject:SetWidth(0)
-        end
-    else
-        textObject:SetWidth(0)
+    local overflowWidth = ResolveOverflowWidth(key, textConfig, anchorParent)
+    textObject:SetWidth(overflowWidth)
+    textObject.FocalPointOverflowMode = textConfig.overflowMode or "NONE"
+    textObject.FocalPointOverflowWidth = overflowWidth
+    if textObject.SetMaxLines then
+        textObject:SetMaxLines(1)
+    end
+    if textObject.SetWordWrap then
+        textObject:SetWordWrap(false)
+    end
+    if textObject.SetNonSpaceWrap then
+        textObject:SetNonSpaceWrap(false)
     end
 
     textObject:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)

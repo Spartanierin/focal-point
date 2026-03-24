@@ -62,6 +62,8 @@ function GeneralPage.Build(container, deps)
             return handle
         end
 
+        local emphasized = config.emphasize == true
+
         if handle.checkbox then
             handle.checkbox:SetWidth(240)
             if handle.checkbox.text then
@@ -69,7 +71,14 @@ function GeneralPage.Build(container, deps)
                     handle.checkbox.text:SetFontObject(GameFontHighlight)
                 end
                 if handle.checkbox.text.SetFont then
-                    handle.checkbox.text:SetFont(STANDARD_TEXT_FONT, 12, "")
+                    handle.checkbox.text:SetFont(STANDARD_TEXT_FONT, emphasized and 14 or 12, "")
+                end
+                if handle.checkbox.text.SetTextColor then
+                    if emphasized then
+                        handle.checkbox.text:SetTextColor(0.906, 0.769, 0.290, 1)
+                    else
+                        handle.checkbox.text:SetTextColor(0.949, 0.902, 0.788, 1)
+                    end
                 end
                 if handle.checkbox.text.SetShadowOffset then
                     handle.checkbox.text:SetShadowOffset(1, -1)
@@ -90,10 +99,14 @@ function GeneralPage.Build(container, deps)
         if description and description.SetText then
             description:SetText("    " .. (config.description or ""))
             if description.SetFont then
-                description:SetFont(STANDARD_TEXT_FONT, 10, "")
+                description:SetFont(STANDARD_TEXT_FONT, emphasized and 11 or 10, "")
             end
             if description.label and description.label.SetTextColor then
-                description.label:SetTextColor(0.56, 0.60, 0.64, 1)
+                if emphasized then
+                    description.label:SetTextColor(0.82, 0.84, 0.88, 1)
+                else
+                    description.label:SetTextColor(0.56, 0.60, 0.64, 1)
+                end
             end
             if description.label and description.label.SetShadowOffset then
                 description.label:SetShadowOffset(1, -1)
@@ -103,13 +116,18 @@ function GeneralPage.Build(container, deps)
             end
         end
 
-        handle.group:AddChild(CreateSpacer(6))
+        handle.group:AddChild(CreateSpacer(2))
         return handle
     end
 
     local function ResetGroupTitle(widget, size)
         if not widget or not widget.titletext then
             return
+        end
+
+        if widget._focalPointHeaderButton then
+            widget._focalPointHeaderButton:SetScript("OnClick", nil)
+            widget._focalPointHeaderButton:Hide()
         end
 
         if widget.titletext.SetFont then
@@ -187,7 +205,7 @@ function GeneralPage.Build(container, deps)
     end
     description:SetText(string.format(
         "|cffd7dbe0%s|r",
-        L["INFO_GENERAL_DESCRIPTION"] or "Focal Point is a modular unit frame addon with configurable frames, bars, texts, and elements."
+        L["INFO_GENERAL_DESCRIPTION"] or "Focal Point is a modular unit frame addon with configurable frames, bars, texts, and indicators."
     ))
     StyleLabelFont(description, 12, 1, 1, 1)
     aboutGroup:AddChild(description)
@@ -201,30 +219,32 @@ function GeneralPage.Build(container, deps)
     end
     hint:SetText(string.format(
         "|cff9ea8b3%s|r",
-        L["INFO_GENERAL_HINT"] or "Use the navigation on the left to configure units, bars, texts, colors, and elements."
+        L["INFO_GENERAL_HINT"] or "Use the navigation on the left to configure units, bars, texts, and indicators."
     ))
     StyleLabelFont(hint, 11, 1, 1, 1)
     aboutGroup:AddChild(hint)
 
-    aboutGroup:AddChild(CreateSpacer(8))
+    aboutGroup:AddChild(CreateSpacer(4))
 
     local modeGroup = AceGUI:Create("InlineGroup")
     modeGroup:SetFullWidth(true)
     modeGroup:SetLayout("Flow")
-    modeGroup:SetTitle(L["INFO_GENERAL_MODE"] or "Workflow Mode")
-    ResetGroupTitle(modeGroup, 12)
+    modeGroup:SetTitle(L["OPTION_EXPERT_MODE"] or "Expert Mode")
+    ResetGroupTitle(modeGroup, 13)
     container:AddChild(modeGroup)
 
-    modeGroup:AddChild(CreateSpacer(6))
+    modeGroup:AddChild(CreateSpacer(2))
 
     local modeLayout = CreateSection(modeGroup)
     modeLayout:Add(CreateStyledGeneralOption({
         path = { "General", "ExpertMode" },
         label = L["OPTION_EXPERT_MODE"] or "Expert Mode",
-        description = L["OPTION_EXPERT_MODE_DESC"] or "Enabled: maximum configurability. Disabled = Quick Mode for a faster path to a good result through a template or theme.",
+        description = L["OPTION_EXPERT_MODE_DESC"] or "Enabled: maximum configurability. Disabled = Quick Mode for a faster path to a good result through a template or preset.",
         fallback = true,
         refreshGUI = true,
         skipTextStyle = true,
+        showReset = false,
+        emphasize = true,
     }))
 
     local settingsGroup = AceGUI:Create("InlineGroup")
@@ -234,7 +254,7 @@ function GeneralPage.Build(container, deps)
     ResetGroupTitle(settingsGroup, 12)
     container:AddChild(settingsGroup)
 
-    settingsGroup:AddChild(CreateSpacer(8))
+    settingsGroup:AddChild(CreateSpacer(2))
 
     local settingsLayout = CreateSection(settingsGroup)
 
@@ -244,6 +264,7 @@ function GeneralPage.Build(container, deps)
         description = L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"],
         fallback = false,
         skipTextStyle = true,
+        showReset = false,
         onChanged = function()
             if ns.ApplyGeneralSettings then
                 ns:ApplyGeneralSettings()
@@ -266,6 +287,7 @@ function GeneralPage.Build(container, deps)
         description = L["OPTION_GLOBAL_CLICKTHROUGH_DESC"],
         fallback = false,
         skipTextStyle = true,
+        showReset = false,
         onChanged = function()
             if ns.RefreshAllUnitFrames then
                 ns:RefreshAllUnitFrames()
@@ -279,6 +301,7 @@ function GeneralPage.Build(container, deps)
         description = L["OPTION_MOUSE_ENABLED_DESC"],
         fallback = true,
         skipTextStyle = true,
+        showReset = false,
         onChanged = function()
             if ns.RefreshAllUnitFrames then
                 ns:RefreshAllUnitFrames()
@@ -292,6 +315,7 @@ function GeneralPage.Build(container, deps)
         description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
         fallback = true,
         skipTextStyle = true,
+        showReset = false,
         onChanged = function()
             if ns.RefreshAllUnitFrames then
                 ns:RefreshAllUnitFrames()

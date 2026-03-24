@@ -44,7 +44,7 @@ The GUI has two primary context layers:
    - `Bars`
    - `Auras`
    - `Texts`
-   - `Elements`
+   - `Indicators`
    - `Colors`
    - `Visibility`
 

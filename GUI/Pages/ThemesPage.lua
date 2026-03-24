@@ -26,12 +26,12 @@ function ThemesPage.Build(container, deps)
     ResetFlowContainer(container)
 
     if AddPageHeading then
-        AddPageHeading(container, L["NAV_THEMES"] or "Themes")
+        AddPageHeading(container, L["NAV_THEMES"] or "Presets")
     end
 
     local intro = AceGUI:Create("Label")
     intro:SetFullWidth(true)
-    intro:SetText(L["INFO_GENERAL_THEMES_DESC"] or "Apply a strong starting layout. Afterwards everything remains fully editable.")
+    intro:SetText(L["INFO_GENERAL_THEMES_DESC"] or "Apply a strong starting preset. Afterwards everything remains fully editable.")
     if TextStyles and TextStyles.ApplyLabelWidget then
         TextStyles.ApplyLabelWidget(intro, "label", { size = 12 })
     end
@@ -51,7 +51,7 @@ function ThemesPage.Build(container, deps)
     local previewGroup = AceGUI:Create("InlineGroup")
     previewGroup:SetFullWidth(true)
     previewGroup:SetLayout("Flow")
-    previewGroup:SetTitle(L["INFO_THEME_PREVIEW_TITLE"] or "Preview")
+    previewGroup:SetTitle(L["INFO_THEME_PREVIEW_TITLE"] or "Preset Preview")
     StyleGroupTitle(previewGroup)
     container:AddChild(previewGroup)
 
@@ -115,7 +115,7 @@ function ThemesPage.Build(container, deps)
     local themeGroup = AceGUI:Create("InlineGroup")
     themeGroup:SetFullWidth(true)
     themeGroup:SetLayout("Flow")
-    themeGroup:SetTitle(L["INFO_GENERAL_THEMES"] or "Themes")
+    themeGroup:SetTitle(L["INFO_GENERAL_THEMES"] or "Presets")
     StyleGroupTitle(themeGroup)
     container:AddChild(themeGroup)
 
@@ -152,7 +152,7 @@ function ThemesPage.Build(container, deps)
         card:AddChild(actions)
 
         local previewButton = AceGUI:Create("Button")
-        previewButton:SetText(L["THEME_PREVIEW"] or "Preview Theme")
+        previewButton:SetText(L["THEME_PREVIEW"] or "Preview Preset")
         previewButton:SetWidth(140)
         previewButton:SetCallback("OnClick", function()
             RefreshPreview(themeId)
@@ -160,7 +160,7 @@ function ThemesPage.Build(container, deps)
         actions:AddChild(previewButton)
 
         local applyButton = AceGUI:Create("Button")
-        applyButton:SetText(L["INFO_GENERAL_THEME_APPLY"] or "Apply Theme")
+        applyButton:SetText(L["INFO_GENERAL_THEME_APPLY"] or "Apply Preset")
         applyButton:SetWidth(140)
         applyButton:SetCallback("OnClick", function()
             if ThemeService.ApplyTheme and ThemeService.ApplyTheme(themeId) then

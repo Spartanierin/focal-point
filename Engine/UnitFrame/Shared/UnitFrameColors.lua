@@ -6,6 +6,7 @@ local Colors = FocalPoint.UnitFrameColors
 local Utils = FocalPoint.UnitFrameUtils or {}
 local IsSafeTrue = Utils.IsSafeTrue
 local UnpackColor = Utils.UnpackColor
+local ToSafeNumberValue = Utils.ToSafeNumberValue
 
 -- Color helpers stay side-effect free.
 -- They resolve health and power colors without touching frame state.
@@ -104,6 +105,123 @@ function Colors.GetPowerColorForUnit(unit)
     return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4]
 end
 
+local function BuildCurveColor(r, g, b, a)
+    if CreateColor then
+        local color = CreateColor(r, g, b, a)
+        if color then
+            return color
+        end
+    end
+
+    local color = { r = r, g = g, b = b, a = a }
+    function color:GetRGBA()
+        return self.r, self.g, self.b, self.a
+    end
+    return color
+end
+
+local function ResolveCurveColor(curve, percent, fallbackR, fallbackG, fallbackB, fallbackA)
+    if not curve or type(percent) ~= "number" or not curve.Evaluate then
+        return fallbackR, fallbackG, fallbackB, fallbackA
+    end
+
+    local ok, color = pcall(curve.Evaluate, curve, percent)
+    if not ok or not color then
+        return fallbackR, fallbackG, fallbackB, fallbackA
+    end
+
+    if color.GetRGBA then
+        local r, g, b, a = color:GetRGBA()
+        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+            return r, g, b, type(a) == "number" and a or fallbackA
+        end
+    end
+
+    local r = color.r or color[1]
+    local g = color.g or color[2]
+    local b = color.b or color[3]
+    local a = color.a or color[4]
+    if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+        return r, g, b, type(a) == "number" and a or fallbackA
+    end
+
+    return fallbackR, fallbackG, fallbackB, fallbackA
+end
+
+local function ResolveUnitHealthCurveColor(unit, curve, fallbackR, fallbackG, fallbackB, fallbackA)
+    if type(unit) ~= "string" or unit == "" or not curve or not UnitHealthPercent then
+        return nil
+    end
+
+    local ok, color = pcall(UnitHealthPercent, unit, false, curve)
+    if not ok or not color then
+        return nil
+    end
+
+    if color.GetRGBA then
+        local r, g, b, a = color:GetRGBA()
+        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+            return r, g, b, type(a) == "number" and a or fallbackA, true
+        end
+    end
+
+    local r = color.r or color[1]
+    local g = color.g or color[2]
+    local b = color.b or color[3]
+    local a = color.a or color[4]
+    if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+        return r, g, b, type(a) == "number" and a or fallbackA, true
+    end
+
+    return nil
+end
+
+local function ResolvePredictionCurveColor(frame, curve, fallbackR, fallbackG, fallbackB, fallbackA)
+    local values = frame and frame.HealthPredictionValues
+    if not values or not curve or not values.EvaluateCurrentHealthPercent then
+        return nil
+    end
+
+    local ok, color = pcall(values.EvaluateCurrentHealthPercent, values, curve)
+    if not ok or not color then
+        return nil
+    end
+
+    if color.GetRGBA then
+        local r, g, b, a = color:GetRGBA()
+        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+            return r, g, b, type(a) == "number" and a or fallbackA, true
+        end
+    end
+
+    local r = color.r or color[1]
+    local g = color.g or color[2]
+    local b = color.b or color[3]
+    local a = color.a or color[4]
+    if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+        return r, g, b, type(a) == "number" and a or fallbackA, true
+    end
+
+    return nil
+end
+
+local function GetHealthPercent(currentHealth, maxHealth)
+    local current = ToSafeNumberValue and ToSafeNumberValue(currentHealth) or 0
+    local maximum = ToSafeNumberValue and ToSafeNumberValue(maxHealth) or 0
+    if maximum <= 0 then
+        return nil
+    end
+
+    local percent = current / maximum
+    if percent < 0 then
+        percent = 0
+    elseif percent > 1 then
+        percent = 1
+    end
+
+    return percent
+end
+
 function Colors.GetResolvedHealthBarColor(frame, config)
     local healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
 
@@ -111,6 +229,63 @@ function Colors.GetResolvedHealthBarColor(frame, config)
         local classR, classG, classB = Colors.GetClassColorForUnit(frame and frame.unit, config.useReactionColorNpcHealth)
         if classR and classG and classB then
             healthR, healthG, healthB = classR, classG, classB
+        end
+    end
+
+    local lowR, lowG, lowB, lowA = UnpackColor(config and config.healthLowColor, { 1.0, 0.12, 0.12, healthA or 1 })
+
+    if C_CurveUtil and C_CurveUtil.CreateColorCurve then
+        local curve = C_CurveUtil.CreateColorCurve()
+        if curve then
+            if curve.SetType and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Linear then
+                curve:SetType(Enum.LuaCurveType.Linear)
+            end
+            curve:AddPoint(0, BuildCurveColor(lowR, lowG, lowB, lowA))
+            curve:AddPoint(0.30, BuildCurveColor(lowR, lowG, lowB, lowA))
+            curve:AddPoint(0.75, BuildCurveColor(1.0, 0.84, 0.18, math.max(lowA or 1, healthA or 1)))
+            curve:AddPoint(1, BuildCurveColor(healthR, healthG, healthB, healthA))
+
+            local resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction = ResolvePredictionCurveColor(
+                frame,
+                curve,
+                healthR,
+                healthG,
+                healthB,
+                healthA
+            )
+            if resolvedFromPrediction then
+                return resolvedR, resolvedG, resolvedB, resolvedA
+            end
+
+            local percent = GetHealthPercent(
+                frame and frame.LiveValues and frame.LiveValues.healthCurrentSafe,
+                frame and frame.LiveValues and frame.LiveValues.healthMaxSafe
+            )
+            if percent then
+                return ResolveCurveColor(curve, percent, healthR, healthG, healthB, healthA)
+            end
+
+            percent = GetHealthPercent(
+                frame and frame.LiveValues and frame.LiveValues.healthBarCurrentSafe,
+                frame and frame.LiveValues and frame.LiveValues.healthBarMaxSafe
+            )
+            if percent then
+                return ResolveCurveColor(curve, percent, healthR, healthG, healthB, healthA)
+            end
+
+            local resolvedFromUnit
+            resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromUnit = ResolveUnitHealthCurveColor(
+                frame and frame.unit,
+                curve,
+                healthR,
+                healthG,
+                healthB,
+                healthA
+            )
+
+            if resolvedFromUnit then
+                return resolvedR, resolvedG, resolvedB, resolvedA
+            end
         end
     end
 

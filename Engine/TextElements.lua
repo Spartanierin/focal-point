@@ -59,6 +59,7 @@ local ResolveTextTemplateShared = TextTemplates.ResolveTextTemplate
 local TemplateContainsTokenShared = TextTemplates.ContainsToken
 local ResolveConfiguredTemplateShared = TextTemplates.ResolveConfigured
 local BuildTemplatePreviewShared = TextTemplates.BuildPreview
+local NormalizeTemplateTextShared = TextTemplates.NormalizeTemplateText
 local ApplyDirectTemplateShared = TextDirectTemplate.Apply
 local CreateTextElementShared = TextFactory.CreateElement
 local CreateTextElementsShared = TextFactory.CreateAll
@@ -481,6 +482,7 @@ local function ApplyDirectTemplate(frame, textObject, unit, template, fallbackCo
         ResolveColorTag = ResolveColorTag,
         ResolveBasicTag = ResolveBasicTag,
         FormatNumber = FormatNumber,
+        NormalizeTemplateText = NormalizeTemplateTextShared,
     })
 end
 

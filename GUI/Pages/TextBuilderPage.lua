@@ -12,6 +12,15 @@ local TextStyles = ns.GUI.Helpers.TextStyles
 local TextBuilderPage = {}
 ns.GUI.Pages.TextBuilder = TextBuilderPage
 
+local function NormalizeTemplateInput(value)
+    local normalizer = ns.TextElementTemplates and ns.TextElementTemplates.NormalizeTemplateText
+    if type(normalizer) == "function" then
+        return normalizer(value)
+    end
+
+    return type(value) == "string" and value or ""
+end
+
 function TextBuilderPage.Build(container, deps)
     local GetGUIState = deps.GetGUIState
     local ResetFlowContainer = deps.ResetFlowContainer
@@ -83,7 +92,7 @@ function TextBuilderPage.Build(container, deps)
     templateEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
     templateEdit:SetWidth(520)
     templateEdit:DisableButton(true)
-    templateEdit:SetText(state.textBuilder.template or "")
+    templateEdit:SetText(NormalizeTemplateInput(state.textBuilder.template or ""))
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(templateEdit, "label", { size = 12 })
     end
@@ -529,7 +538,7 @@ function TextBuilderPage.Build(container, deps)
     end)
 
     updateButton:SetCallback("OnClick", function()
-        state.textBuilder.template = templateEdit:GetText() or ""
+        state.textBuilder.template = NormalizeTemplateInput(templateEdit:GetText() or "")
         RefreshPreview()
     end)
 
@@ -555,8 +564,8 @@ function TextBuilderPage.Build(container, deps)
         templateNameEdit:SetText(selectedName)
 
         if type(selectedTemplate) == "string" then
-            state.textBuilder.template = selectedTemplate
-            templateEdit:SetText(selectedTemplate)
+            state.textBuilder.template = NormalizeTemplateInput(selectedTemplate)
+            templateEdit:SetText(NormalizeTemplateInput(selectedTemplate))
             RefreshPreview()
         end
 
@@ -566,7 +575,7 @@ function TextBuilderPage.Build(container, deps)
 
     saveButton:SetCallback("OnClick", function()
         local name = (templateNameEdit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local template = templateEdit:GetText() or ""
+        local template = NormalizeTemplateInput(templateEdit:GetText() or "")
 
         if name == "" then
             SetStatus(L["INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"] or "Please enter a template name.")
@@ -584,7 +593,7 @@ function TextBuilderPage.Build(container, deps)
     updateTemplateButton:SetCallback("OnClick", function()
         local selectedName = state.textBuilder.selectedTemplate or ""
         local updatedName = (templateNameEdit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local template = templateEdit:GetText() or ""
+        local template = NormalizeTemplateInput(templateEdit:GetText() or "")
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
             SetStatus(L["INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"] or "Select a saved template first.")

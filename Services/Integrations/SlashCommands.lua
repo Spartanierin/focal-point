@@ -27,9 +27,13 @@ function FocalPoint:SetupSlashCommands()
             if FocalPoint.Info then
                 FocalPoint:Info("Runtime-Debug " .. (FocalPoint.debugRuntimeState and "aktiv" or "inaktiv"))
             end
+        elseif msg == "diag" or msg == "debug diag" or msg == "debug frames" then
+            if FocalPoint.DumpRuntimeDiagnostics then
+                FocalPoint:DumpRuntimeDiagnostics()
+            end
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp test, /fp debug target, /fp debug runtime")
+                FocalPoint:Info("/fp, /fp config, /fp test, /fp debug target, /fp debug runtime, /fp diag")
             end
         end
     end

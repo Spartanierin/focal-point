@@ -36,6 +36,15 @@ ns.GUI.Layouts.UnitFrame.FrameTab = {
         },
     },
     {
+        section = "SECTION_COLOR",
+        mode = "section",
+        layout = "list",
+        items = {
+            { widget = "colorpicker", path = { "Units", "$unitKey", "backgroundColor" }, label = "OPTION_BACKGROUND_COLOR", description = "OPTION_BACKGROUND_COLOR_DESC", hasAlpha = true, placement = "left" },
+            { widget = "colorpicker", path = { "Units", "$unitKey", "borderColor" }, label = "OPTION_BORDER_COLOR", description = "OPTION_BORDER_COLOR_DESC", hasAlpha = true, placement = "right" },
+        },
+    },
+    {
         section = "SECTION_LAYERING",
         mode = "direct_layering",
         items = {

@@ -963,23 +963,52 @@ function UF:Build(unit)
         return nil
     end
 
+    local function RunBuildStep(label, fn)
+        local ok, result = xpcall(fn, function(err)
+            return tostring(err)
+        end)
+        if not ok then
+            error(string.format("Build step failed for %s [%s]: %s", tostring(unit), tostring(label), tostring(result)))
+        end
+        return result
+    end
+
     if unit == "player" and config.showAlternativePowerBar then
         EnsurePlayerAltPowerText(config)
     end
 
-    local frame = self:CreateBaseFrame(unit, config)
+    local frame = RunBuildStep("CreateBaseFrame", function()
+        return self:CreateBaseFrame(unit, config)
+    end)
+    if not frame then
+        error(string.format("Build step failed for %s [CreateBaseFrame]: returned nil", tostring(unit)))
+    end
     if StateRuntime.Ensure then
-        StateRuntime.Ensure(frame)
+        RunBuildStep("StateRuntime.Ensure", function()
+            StateRuntime.Ensure(frame)
+        end)
     end
     if StateRuntime.SetPhase then
-        StateRuntime.SetPhase(frame, "built")
+        RunBuildStep("StateRuntime.SetPhase(built)", function()
+            StateRuntime.SetPhase(frame, "built")
+        end)
     end
-    BuildElements(self, frame)
-    RegisterBuildEvents(self, frame)
+    RunBuildStep("BuildElements", function()
+        BuildElements(self, frame)
+    end)
+    RunBuildStep("RegisterBuildEvents", function()
+        RegisterBuildEvents(self, frame)
+    end)
 
-    self:ApplyConfig(frame)
-    self:ApplyTestValues(frame)
-    self:Refresh(frame)
+    RunBuildStep("ApplyConfig", function()
+        self:ApplyConfig(frame)
+    end)
+    RunBuildStep("ApplyTestValues", function()
+        self:ApplyTestValues(frame)
+    end)
+    RunBuildStep("Refresh", function()
+        self:Refresh(frame)
+    end)
 
     return frame
 end
@@ -1024,21 +1053,61 @@ end
 
 function FocalPoint:SpawnUnitFrame(unit)
     self.frames = self.frames or {}
+    self.spawnDiagnostics = self.spawnDiagnostics or {}
 
     if self.frames[unit] then
         self.frames[unit]:Hide()
         self.frames[unit] = nil
     end
 
-    local frame = UF:Build(unit)
+    local unitDB = self.db and self.db.profile and self.db.profile.Units and self.db.profile.Units[unit] or nil
+    local buildOk, frameOrError = xpcall(function()
+        return UF:Build(unit)
+    end, function(err)
+        return tostring(err)
+    end)
+
+    if not buildOk then
+        self.spawnDiagnostics[unit] = {
+            ok = false,
+            hasConfig = type(unitDB) == "table",
+            enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            reason = frameOrError,
+        }
+        if self.Warn then
+            self:Warn("Spawn failed for " .. tostring(unit) .. ": " .. tostring(frameOrError))
+        end
+        return nil
+    end
+
+    local frame = frameOrError
     if frame then
         self.frames[unit] = frame
+        self.spawnDiagnostics[unit] = {
+            ok = true,
+            hasConfig = true,
+            enabled = true,
+            reason = "spawned",
+        }
         if self.Success then
             self:Success("Spawned frame for " .. unit)
         end
     else
+        local reason = "UF:Build returned nil unexpectedly"
+        if type(unitDB) ~= "table" then
+            reason = "unit config missing"
+        elseif unitDB.enabled == false then
+            reason = "unit disabled in config"
+        end
+
+        self.spawnDiagnostics[unit] = {
+            ok = false,
+            hasConfig = type(unitDB) == "table",
+            enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            reason = reason,
+        }
         if self.Warn then
-            self:Warn("Could not spawn frame for " .. tostring(unit))
+            self:Warn("Could not spawn frame for " .. tostring(unit) .. " (" .. tostring(reason) .. ")")
         end
     end
 

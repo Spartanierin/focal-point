@@ -27,6 +27,7 @@ ns.GUI.Layouts.UnitTexts.TextTab = {
             { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "relativePoint" }, label = "OPTION_ANCHOR_TO", description = "OPTION_ANCHOR_TO_DESC", list = "anchorPoints", fallback = "CENTER", disabled = "text", placement = "right", rowType = "inline", subsection = "SECTION_ATTACHED" },
             { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "offsetX" }, label = "OPTION_X_OFFSET", description = "OPTION_X_OFFSET_DESC", min = -100, max = 100, step = 1, fallback = 0, format = "%d", disabled = "text", placement = "left", rowType = "inline" },
             { widget = "slider", path = { "Units", "$unitKey", "Texts", "$textKey", "offsetY" }, label = "OPTION_Y_OFFSET", description = "OPTION_Y_OFFSET_DESC", min = -100, max = 100, step = 1, fallback = 0, format = "%d", disabled = "text", placement = "right", rowType = "inline" },
+            { widget = "dropdown", path = { "Units", "$unitKey", "Texts", "$textKey", "overflowMode" }, label = "OPTION_TEXT_OVERFLOW", description = "OPTION_TEXT_OVERFLOW_DESC", list = "overflowMode", fallback = "NONE", disabled = "text", placement = "left", rowType = "inline" },
         },
     },
     {
@@ -70,6 +71,11 @@ ns.GUI.Layouts.UnitTexts.Lists = {
         LEFT = "VALUE_JUSTIFY_LEFT",
         CENTER = "VALUE_JUSTIFY_CENTER",
         RIGHT = "VALUE_JUSTIFY_RIGHT",
+    },
+    overflowMode = {
+        NONE = "VALUE_OVERFLOW_NONE",
+        CLIP = "VALUE_OVERFLOW_CLIP",
+        ELLIPSIS = "VALUE_OVERFLOW_ELLIPSIS",
     },
     fontStyles = {
         NONE = "VALUE_FONT_STYLE_NONE",

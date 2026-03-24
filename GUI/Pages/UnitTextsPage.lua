@@ -24,6 +24,15 @@ local function TemplateUsesToken(template, token)
     return template:find("%[" .. token:gsub("([^%w:])", "%%%1") .. "%]") ~= nil
 end
 
+local function NormalizeTemplateInput(value)
+    local normalizer = ns.TextElementTemplates and ns.TextElementTemplates.NormalizeTemplateText
+    if type(normalizer) == "function" then
+        return normalizer(value)
+    end
+
+    return type(value) == "string" and value or ""
+end
+
 local function ApplyPreviewTextAppearance(widget, unitKey, textKey, textConfig, templateText)
     if not widget or type(textConfig) ~= "table" then
         return
@@ -642,7 +651,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
             rawTemplateEdit:SetLabel(L["OPTION_TAG"] or "Tag")
             rawTemplateEdit:SetWidth(320)
             rawTemplateEdit:DisableButton(true)
-            rawTemplateEdit:SetText(textConfig.tag or "")
+            rawTemplateEdit:SetText(NormalizeTemplateInput(textConfig.tag or ""))
             rawTemplateEdit:SetDisabled(IsUnitDisabled())
             if TextStyles and TextStyles.ApplyInteractiveWidgetText then
                 TextStyles.ApplyInteractiveWidgetText(rawTemplateEdit, "label", IsUnitDisabled(), { size = 12 })
@@ -652,7 +661,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
                     return
                 end
 
-                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, newValue or "")
+                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, NormalizeTemplateInput(newValue))
                 ns.GUI.Helpers.OptionRefresh.Live()
                 widget:ClearFocus()
             end)
@@ -661,7 +670,7 @@ function UnitTextsPage.Build(container, unitKey, deps)
                     return
                 end
 
-                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, widget:GetText() or "")
+                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textConfigKey, "tag" }, NormalizeTemplateInput(widget:GetText()))
                 ns.GUI.Helpers.OptionRefresh.Live()
             end)
             rawTemplateGroup:AddChild(rawTemplateEdit)

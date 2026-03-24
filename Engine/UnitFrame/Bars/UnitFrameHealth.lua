@@ -31,6 +31,21 @@ function Health.GetCurrentValues(frame)
         return previewValues.healthCurrent or 100, previewValues.healthMax or 100
     end
 
+    if unitExists and CreateUnitHealPredictionCalculator and UnitGetDetailedHealPrediction then
+        frame.HealthPredictionValues = frame.HealthPredictionValues or CreateUnitHealPredictionCalculator()
+        local values = frame.HealthPredictionValues
+        if values then
+            local updateOk = pcall(UnitGetDetailedHealPrediction, unit, "player", values)
+            if updateOk and values.GetCurrentHealth and values.GetMaximumHealth then
+                local currentOk, currentHealth = pcall(values.GetCurrentHealth, values)
+                local maxOk, maxHealth = pcall(values.GetMaximumHealth, values)
+                if currentOk and maxOk and type(currentHealth) == "number" and type(maxHealth) == "number" then
+                    return currentHealth, maxHealth
+                end
+            end
+        end
+    end
+
     if unitExists and UnitHealth and UnitHealthMax then
         return UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
     end
@@ -53,6 +68,17 @@ function Health.UpdateBarValue(frame)
     frame.LiveValues.healthMaxRaw = maxHealth
     frame.LiveValues.healthCurrentSafe = ToSafeNumberValue(currentHealth)
     frame.LiveValues.healthMaxSafe = ToSafeNumberValue(maxHealth)
+    frame.LiveValues.healthBarCurrentSafe = ToSafeNumberValue(frame.Elements.HealthBar:GetValue())
+    do
+        local _, displayedMax = frame.Elements.HealthBar:GetMinMaxValues()
+        frame.LiveValues.healthBarMaxSafe = ToSafeNumberValue(displayedMax)
+    end
+    if frame.LiveValues.healthBarCurrentSafe <= 0 and frame.LiveValues.healthCurrentSafe > 0 then
+        frame.LiveValues.healthBarCurrentSafe = frame.LiveValues.healthCurrentSafe
+    end
+    if frame.LiveValues.healthBarMaxSafe <= 0 and frame.LiveValues.healthMaxSafe > 0 then
+        frame.LiveValues.healthBarMaxSafe = frame.LiveValues.healthMaxSafe
+    end
     frame.LiveValues.healthCurrentText = FormatDisplayNumber(currentHealth)
     frame.LiveValues.healthMaxText = FormatDisplayNumber(maxHealth)
     frame.LiveValues.healthCurrentAbbr = ResolveBlizzardAbbreviation(currentHealth, frame.LiveValues.healthCurrentText)

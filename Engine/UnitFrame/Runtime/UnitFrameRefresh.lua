@@ -61,10 +61,11 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     local previewOutsideCombat = IsPreviewModeEnabled
         and IsPreviewModeEnabled()
         and not (InCombatLockdown and InCombatLockdown())
+    local outsideCombat = not (InCombatLockdown and InCombatLockdown())
 
     SyncPreviewUnitWatch(frame, previewOutsideCombat)
 
-    if not protectedRoot or previewOutsideCombat then
+    if not protectedRoot or previewOutsideCombat or outsideCombat then
         frame:Show()
     end
 end

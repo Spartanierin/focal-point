@@ -13,6 +13,7 @@ function UnitPage.Build(container, unitKey, deps)
     container:SetLayout("Flow")
 
     local state = deps.GetGUIState()
+    local BuildScrollableTabContent = deps.BuildScrollableTabContent
     state.unitTabs[unitKey] = state.unitTabs[unitKey] or ns.Constants.Tabs.FRAME
     state.unitScroll[unitKey] = state.unitScroll[unitKey] or {}
     local unitLabel = ns.GetLabel(ns.KeyMap.Units, unitKey)
@@ -54,6 +55,15 @@ function UnitPage.Build(container, unitKey, deps)
         end
 
         state.unitScroll[unitKey][tabKey] = state.unitScroll[unitKey][tabKey] or { scrollvalue = 0 }
+
+        if tabKey == ns.Constants.Tabs.FRAME then
+            if BuildScrollableTabContent then
+                BuildScrollableTabContent(widget, state.unitScroll[unitKey][tabKey], function(content)
+                    deps.BuildUnitFramePage(content, unitKey)
+                end)
+                return
+            end
+        end
 
         local scroll = AceGUI:Create("ScrollFrame")
         scroll:SetFullWidth(true)

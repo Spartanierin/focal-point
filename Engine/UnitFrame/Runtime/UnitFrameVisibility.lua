@@ -202,6 +202,9 @@ function Visibility.HandleMissingUnit(frame)
         if suspiciousMissingTarget then
             Visibility.QueueRefresh(frame)
         end
+        if not IsProtectedFrameInCombat(frame) and frame.Hide then
+            frame:Hide()
+        end
         return true
     end
 

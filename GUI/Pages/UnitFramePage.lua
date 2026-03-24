@@ -8,6 +8,7 @@ local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
 local Checkbox = ns.GUI.Widgets.Checkbox
+local ColorPicker = ns.GUI.Widgets.ColorPicker
 local OptionValues = ns.GUI.Helpers.OptionValues
 local OptionRefresh = ns.GUI.Helpers.OptionRefresh
 local Slider = ns.GUI.Widgets.Sliders
@@ -35,6 +36,25 @@ function UnitFramePage.Build(container, unitKey, deps)
         return not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "enabled" }, true)
     end
 
+    local function RefreshUnitFrameNow()
+        if ns.RefreshUnitFrame then
+            ns:RefreshUnitFrame(unitKey)
+        elseif ns.RefreshAllUnitFrames then
+            ns:RefreshAllUnitFrames()
+        end
+    end
+
+    local function RefreshUnitPosition()
+        if ns.frames and ns.frames[unitKey] and ns.ApplyStoredFramePosition then
+            ns:ApplyStoredFramePosition(ns.frames[unitKey])
+            if ns.UpdateFrameDragState then
+                ns:UpdateFrameDragState(ns.frames[unitKey])
+            end
+        end
+
+        RefreshUnitFrameNow()
+    end
+
     local FRAME_TAB_LISTS = ns.GUI.Layouts.UnitFrame.Lists
     local FRAME_TAB_LAYOUT = ns.GUI.Layouts.UnitFrame.FrameTab
 
@@ -56,6 +76,19 @@ function UnitFramePage.Build(container, unitKey, deps)
         end
 
         if def.widget == "checkbox" then
+            local onChanged = def.onChanged
+            if type(resolvedPath) == "table"
+                and resolvedPath[1] == "Units"
+                and resolvedPath[2] == unitKey
+            then
+                onChanged = function(value)
+                    if def.onChanged then
+                        def.onChanged(value)
+                    end
+                    RefreshUnitFrameNow()
+                end
+            end
+
             AddLayoutHandle(layout, Checkbox.Create({
                 path = resolvedPath,
                 label = ResolveLayoutText(def.label),
@@ -65,11 +98,34 @@ function UnitFramePage.Build(container, unitKey, deps)
                 resetText = L["OPTION_RESET"],
                 disabled = disabledResolver,
                 refreshGUI = def.refreshGUI,
+                onChanged = onChanged,
             }), def)
             return
         end
 
         if def.widget == "slider" then
+            local onChanged = def.onChanged
+            if type(resolvedPath) == "table"
+                and resolvedPath[1] == "Units"
+                and resolvedPath[2] == unitKey
+            then
+                if resolvedPath[3] == "x" or resolvedPath[3] == "y" then
+                    onChanged = function(value)
+                        if def.onChanged then
+                            def.onChanged(value)
+                        end
+                        RefreshUnitPosition()
+                    end
+                else
+                    onChanged = function(value)
+                        if def.onChanged then
+                            def.onChanged(value)
+                        end
+                        RefreshUnitFrameNow()
+                    end
+                end
+            end
+
             AddLayoutHandle(layout, Slider.Create({
                 path = resolvedPath,
                 label = ResolveLayoutText(def.label),
@@ -82,11 +138,60 @@ function UnitFramePage.Build(container, unitKey, deps)
                 showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = disabledResolver,
+                onChanged = onChanged,
+            }), def)
+            return
+        end
+
+        if def.widget == "colorpicker" then
+            local onChanged = def.onChanged
+            if type(resolvedPath) == "table"
+                and resolvedPath[1] == "Units"
+                and resolvedPath[2] == unitKey
+            then
+                onChanged = function(value)
+                    if def.onChanged then
+                        def.onChanged(value)
+                    end
+                    RefreshUnitFrameNow()
+                end
+            end
+
+            AddLayoutHandle(layout, ColorPicker.Create({
+                path = resolvedPath,
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                hasAlpha = def.hasAlpha == true,
+                resetText = L["OPTION_RESET"],
+                disabled = disabledResolver,
+                onChanged = onChanged,
             }), def)
             return
         end
 
         if def.widget == "dropdown" then
+            local onChanged = def.onChanged
+            if type(resolvedPath) == "table"
+                and resolvedPath[1] == "Units"
+                and resolvedPath[2] == unitKey
+            then
+                if resolvedPath[3] == "point" or resolvedPath[3] == "relativePoint" then
+                    onChanged = function(value)
+                        if def.onChanged then
+                            def.onChanged(value)
+                        end
+                        RefreshUnitPosition()
+                    end
+                else
+                    onChanged = function(value)
+                        if def.onChanged then
+                            def.onChanged(value)
+                        end
+                        RefreshUnitFrameNow()
+                    end
+                end
+            end
+
             AddLayoutHandle(layout, Dropdown.Create({
                 path = resolvedPath,
                 label = ResolveLayoutText(def.label),
@@ -96,6 +201,7 @@ function UnitFramePage.Build(container, unitKey, deps)
                 showReset = false,
                 resetText = L["OPTION_RESET"],
                 disabled = disabledResolver,
+                onChanged = onChanged,
             }), def)
         end
     end

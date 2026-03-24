@@ -10,6 +10,7 @@ local L = ns.L
 local OptionValues = ns.GUI.Helpers.OptionValues
 local OptionRefresh = ns.GUI.Helpers.OptionRefresh
 local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
+local TextStyles = ns.GUI.Helpers.TextStyles
 local ColorPicker = ns.GUI.Widgets.ColorPicker
 local Slider = ns.GUI.Widgets.Sliders
 local Dropdown = ns.GUI.Widgets.Dropdown
@@ -39,11 +40,29 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
     local HEALTH_BAR_LAYOUT = ns.GUI.Layouts.UnitBars.HealthBarTab
     local BAR_LISTS = ns.GUI.Layouts.UnitBars.Lists
 
+    local function IsHealthColorPickerDisabled()
+        return IsUnitDisabled(unitKey)
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorHealth" }, false)
+    end
+
+    local function IsHealthBackgroundPickerDisabled()
+        return IsUnitDisabled(unitKey)
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "healthBackground" }, true)
+    end
+
     local function ResolveDisabled(def)
         if def.disabled == "unit" then
             return function()
                 return IsUnitDisabled(unitKey)
             end
+        end
+
+        if def.disabled == "healthColor" then
+            return IsHealthColorPickerDisabled
+        end
+
+        if def.disabled == "healthBackground" then
+            return IsHealthBackgroundPickerDisabled
         end
 
         return nil
@@ -67,7 +86,45 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
         end
     end
 
-    local function AddSectionWidget(layout, def)
+    local function CreateStaticEnabledHandle()
+        local group = AceGUI:Create("SimpleGroup")
+        group:SetFullWidth(true)
+        group:SetLayout("List")
+
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Flow")
+        group:AddChild(row)
+
+        local checkbox = AceGUI:Create("CheckBox")
+        checkbox:SetLabel(ResolveLayoutText("OPTION_ENABLED"))
+        checkbox:SetValue(true)
+        checkbox:SetWidth(220)
+        checkbox:SetDisabled(true)
+        if TextStyles and TextStyles.ApplyInteractiveWidgetText then
+            TextStyles.ApplyInteractiveWidgetText(checkbox, "label", false, { size = 12 })
+        end
+        row:AddChild(checkbox)
+
+        local description = AceGUI:Create("Label")
+        description:SetFullWidth(true)
+        description:SetText(ResolveLayoutText("OPTION_HEALTH_BAR_ALWAYS_ENABLED_DESC"))
+        if TextStyles and TextStyles.ApplyLabelWidget then
+            TextStyles.ApplyLabelWidget(description, "help", { size = 11 })
+        end
+        group:AddChild(description)
+
+        return {
+            group = group,
+        }
+    end
+
+    local function AddSectionWidget(layout, def, state)
+        if def.widget == "static_enabled" then
+            AddLayoutHandle(layout, CreateStaticEnabledHandle(), def)
+            return
+        end
+
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
         local fallbackValue = def.fallback
         if def.path and unitKey == "target" then
@@ -78,7 +135,7 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
         end
 
         if def.widget == "colorpicker" then
-            AddLayoutHandle(layout, ColorPicker.Create({
+            local picker = ColorPicker.Create({
                 path = ResolveLayoutPath(def.path, unitKey),
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
@@ -86,7 +143,13 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
                 fallback = fallbackValue,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
-            }), def)
+            })
+            AddLayoutHandle(layout, picker, def)
+
+            if def.path[#def.path] == "healthColor" then
+                state.healthColorPickerHandle = picker
+            end
+
             return
         end
 
@@ -121,6 +184,31 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
+                onChanged = function()
+                    if def.onChanged == "refresh_health_color"
+                        and state.healthColorPickerHandle
+                        and state.healthColorPickerHandle.RefreshState
+                    then
+                        state.healthColorPickerHandle.RefreshState()
+                    end
+                end,
+            }), def)
+            return
+        end
+
+        if def.widget == "slider" then
+            AddLayoutHandle(layout, Slider.Create({
+                path = ResolveLayoutPath(def.path, unitKey),
+                label = ResolveLayoutText(def.label),
+                description = ResolveLayoutText(def.description),
+                min = def.min,
+                max = def.max,
+                step = def.step,
+                fallback = def.fallback,
+                format = def.format,
+                showReset = false,
+                resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
+                disabled = ResolveDisabled(def),
             }), def)
         end
     end
@@ -136,16 +224,12 @@ function UnitBarsPage.BuildHealth(container, unitKey, deps)
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)
+            local sectionState = {}
             for _, item in ipairs(sectionDef.items) do
-                AddSectionWidget(layout, item)
+                AddSectionWidget(layout, item, sectionState)
             end
         end
     end
-
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(L["INFO_HEALTH_BAR_COLORS_MOVED"])
-    container:AddChild(label)
 end
 
 function UnitBarsPage.BuildPower(container, unitKey, deps)
@@ -175,6 +259,16 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
             or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "showAlternativePowerBar" }, false)
     end
 
+    local function IsPowerColorPickerDisabled()
+        return IsPowerBarDisabled()
+            or ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "useClassColorPower" }, false)
+    end
+
+    local function IsPowerBackgroundPickerDisabled()
+        return IsPowerBarDisabled()
+            or not ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "powerBackground" }, true)
+    end
+
     local function ResolveDisabled(def)
         if def.disabled == "unit" then
             return function()
@@ -188,6 +282,14 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
 
         if def.disabled == "alternativePower" then
             return IsAlternativePowerBarDisabled
+        end
+
+        if def.disabled == "powerColor" then
+            return IsPowerColorPickerDisabled
+        end
+
+        if def.disabled == "powerBackground" then
+            return IsPowerBackgroundPickerDisabled
         end
 
         return nil
@@ -211,7 +313,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
         end
     end
 
-    local function AddSectionWidget(layout, def)
+    local function AddSectionWidget(layout, def, state)
         local resolvedList = def.list and ResolveLayoutList(BAR_LISTS[def.list]) or nil
         local fallbackValue = def.fallback
         if def.path and unitKey == "target" then
@@ -222,7 +324,7 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
         end
 
         if def.widget == "colorpicker" then
-            AddLayoutHandle(layout, ColorPicker.Create({
+            local picker = ColorPicker.Create({
                 path = ResolveLayoutPath(def.path, unitKey),
                 label = ResolveLayoutText(def.label),
                 description = ResolveLayoutText(def.description),
@@ -230,7 +332,13 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 fallback = fallbackValue,
                 resetText = L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
-            }), def)
+            })
+            AddLayoutHandle(layout, picker, def)
+
+            if def.path[#def.path] == "powerColor" then
+                state.powerColorPickerHandle = picker
+            end
+
             return
         end
 
@@ -263,6 +371,14 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
                 resetText = def.resetText ~= nil and def.resetText or L["OPTION_RESET"],
                 disabled = ResolveDisabled(def),
                 refreshGUI = def.refreshGUI,
+                onChanged = function()
+                    if def.onChanged == "refresh_power_color"
+                        and state.powerColorPickerHandle
+                        and state.powerColorPickerHandle.RefreshState
+                    then
+                        state.powerColorPickerHandle.RefreshState()
+                    end
+                end,
             }), def)
             return
         end
@@ -295,8 +411,9 @@ function UnitBarsPage.BuildPower(container, unitKey, deps)
 
         if sectionDef.mode == "section" then
             local layout = CreateSection(container)
+            local sectionState = {}
             for _, item in ipairs(sectionDef.items) do
-                AddSectionWidget(layout, item)
+                AddSectionWidget(layout, item, sectionState)
             end
         end
     end

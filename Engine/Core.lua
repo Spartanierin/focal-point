@@ -63,12 +63,10 @@ local function EnsureMoveOverlay(frame)
     return overlay
 end
 
-local function UpdateMoveOverlay(frame)
-    if not frame or not frame.MoveOverlay or not frame.MoveOverlay.Coords then
-        return
+local function GetFrameCenterOffsets(frame)
+    if not frame then
+        return 0, 0
     end
-
-    local x, y = 0, 0
 
     if frame.GetCenter and UIParent and UIParent.GetCenter then
         local frameCenterX, frameCenterY = frame:GetCenter()
@@ -77,18 +75,26 @@ local function UpdateMoveOverlay(frame)
         local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
 
         if frameCenterX and frameCenterY and parentCenterX and parentCenterY and parentScale ~= 0 then
-            x = (frameCenterX - parentCenterX) * (frameScale / parentScale)
-            y = (frameCenterY - parentCenterY) * (frameScale / parentScale)
-        elseif frame.GetPoint then
-            local _, _, _, pointX, pointY = frame:GetPoint(1)
-            x = tonumber(pointX) or 0
-            y = tonumber(pointY) or 0
+            return
+                (frameCenterX - parentCenterX) * (frameScale / parentScale),
+                (frameCenterY - parentCenterY) * (frameScale / parentScale)
         end
-    elseif frame.GetPoint then
-        local _, _, _, pointX, pointY = frame:GetPoint(1)
-        x = tonumber(pointX) or 0
-        y = tonumber(pointY) or 0
     end
+
+    if frame.GetPoint then
+        local _, _, _, pointX, pointY = frame:GetPoint(1)
+        return tonumber(pointX) or 0, tonumber(pointY) or 0
+    end
+
+    return 0, 0
+end
+
+local function UpdateMoveOverlay(frame)
+    if not frame or not frame.MoveOverlay or not frame.MoveOverlay.Coords then
+        return
+    end
+
+    local x, y = GetFrameCenterOffsets(frame)
 
     x = math.floor((tonumber(x) or 0) + 0.5)
     y = math.floor((tonumber(y) or 0) + 0.5)
@@ -108,33 +114,100 @@ local function SaveFramePosition(frame)
         return
     end
 
-    local x, y = 0, 0
-
-    if frame.GetCenter and UIParent and UIParent.GetCenter then
-        local frameCenterX, frameCenterY = frame:GetCenter()
-        local parentCenterX, parentCenterY = UIParent:GetCenter()
-        local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
-        local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
-
-        if frameCenterX and frameCenterY and parentCenterX and parentCenterY and parentScale ~= 0 then
-            x = (frameCenterX - parentCenterX) * (frameScale / parentScale)
-            y = (frameCenterY - parentCenterY) * (frameScale / parentScale)
-        elseif frame.GetPoint then
-            local _, _, _, pointX, pointY = frame:GetPoint(1)
-            x = tonumber(pointX) or 0
-            y = tonumber(pointY) or 0
-        end
-    elseif frame.GetPoint then
-        local _, _, _, pointX, pointY = frame:GetPoint(1)
-        x = tonumber(pointX) or 0
-        y = tonumber(pointY) or 0
-    end
+    local x, y = GetFrameCenterOffsets(frame)
 
     unitConfig.point = "CENTER"
     unitConfig.relativePoint = "CENTER"
     unitConfig.relativeTo = "UIParent"
     unitConfig.x = x
     unitConfig.y = y
+end
+
+function FocalPoint:ApplyStoredFramePosition(frame)
+    if not frame or not frame.unit then
+        return
+    end
+
+    local unitConfig = self.db
+        and self.db.profile
+        and self.db.profile.Units
+        and self.db.profile.Units[frame.unit]
+    if not unitConfig then
+        return
+    end
+
+    local relativeTo = _G[unitConfig.relativeTo or "UIParent"] or UIParent
+    local point = unitConfig.point or "CENTER"
+    local relativePoint = unitConfig.relativePoint or "CENTER"
+    local x = unitConfig.x or 0
+    local y = unitConfig.y or 0
+
+    local relativeScale = relativeTo.GetEffectiveScale and relativeTo:GetEffectiveScale() or 1
+    local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
+    local adjustedX = x * (relativeScale / frameScale)
+    local adjustedY = y * (relativeScale / frameScale)
+
+    frame:ClearAllPoints()
+    frame:SetPoint(point, relativeTo, relativePoint, adjustedX, adjustedY)
+end
+
+local function BeginFrameDrag(frame)
+    if not frame or not frame.unit then
+        return
+    end
+
+    local unitConfig = FocalPoint.db
+        and FocalPoint.db.profile
+        and FocalPoint.db.profile.Units
+        and FocalPoint.db.profile.Units[frame.unit]
+    if not unitConfig then
+        return
+    end
+
+    local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    local cursorX, cursorY = GetCursorPosition()
+
+    local startX, startY = GetFrameCenterOffsets(frame)
+    unitConfig.point = "CENTER"
+    unitConfig.relativePoint = "CENTER"
+    unitConfig.relativeTo = "UIParent"
+    unitConfig.x = startX
+    unitConfig.y = startY
+
+    frame._focalPointDragState = {
+        cursorX = (cursorX or 0) / scale,
+        cursorY = (cursorY or 0) / scale,
+        startX = tonumber(startX) or 0,
+        startY = tonumber(startY) or 0,
+    }
+
+    frame:SetScript("OnUpdate", function(movingFrame)
+        local dragState = movingFrame._focalPointDragState
+        if not dragState then
+            return
+        end
+
+        local currentX, currentY = GetCursorPosition()
+        currentX = (currentX or 0) / scale
+        currentY = (currentY or 0) / scale
+
+        unitConfig.x = dragState.startX + (currentX - dragState.cursorX)
+        unitConfig.y = dragState.startY + (currentY - dragState.cursorY)
+        FocalPoint:ApplyStoredFramePosition(movingFrame)
+        UpdateMoveOverlay(movingFrame)
+    end)
+end
+
+local function EndFrameDrag(frame)
+    if not frame then
+        return
+    end
+
+    frame._focalPointDragState = nil
+    frame:SetScript("OnUpdate", nil)
+    SaveFramePosition(frame)
+    FocalPoint:ApplyStoredFramePosition(frame)
+    UpdateMoveOverlay(frame)
 end
 
 function FocalPoint:UpdateFrameDragState(frame)
@@ -150,6 +223,18 @@ function FocalPoint:UpdateFrameDragState(frame)
         if overlay then
             overlay:SetFrameStrata(frame:GetFrameStrata())
             overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 40, (frame.Elements and frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 20) or (frame:GetFrameLevel() + 40)))
+            overlay:EnableMouse(true)
+            overlay:RegisterForDrag("LeftButton")
+            overlay:SetScript("OnDragStart", function()
+                if not FocalPoint.framesUnlocked then
+                    return
+                end
+
+                BeginFrameDrag(frame)
+            end)
+            overlay:SetScript("OnDragStop", function()
+                EndFrameDrag(frame)
+            end)
             overlay:Show()
             UpdateMoveOverlay(frame)
         end
@@ -159,25 +244,24 @@ function FocalPoint:UpdateFrameDragState(frame)
                 return
             end
 
-            target:StartMoving()
-            target:SetScript("OnUpdate", function(movingFrame)
-                UpdateMoveOverlay(movingFrame)
-            end)
+            BeginFrameDrag(target)
         end)
         frame:SetScript("OnDragStop", function(target)
-            target:StopMovingOrSizing()
-            target:SetScript("OnUpdate", nil)
-            SaveFramePosition(target)
-            UpdateMoveOverlay(target)
+            EndFrameDrag(target)
         end)
     else
         if overlay then
+            overlay:RegisterForDrag()
+            overlay:SetScript("OnDragStart", nil)
+            overlay:SetScript("OnDragStop", nil)
+            overlay:EnableMouse(false)
             overlay:Hide()
         end
         frame:RegisterForDrag()
         frame:SetScript("OnDragStart", nil)
         frame:SetScript("OnDragStop", nil)
         frame:SetScript("OnUpdate", nil)
+        frame._focalPointDragState = nil
     end
 end
 
@@ -188,6 +272,31 @@ function FocalPoint:UpdateAllFrameDragStates()
 
     for _, frame in pairs(self.frames) do
         self:UpdateFrameDragState(frame)
+    end
+end
+
+function FocalPoint:ClearAllMoveOverlays()
+    if not self.frames then
+        return
+    end
+
+    for _, frame in pairs(self.frames) do
+        if frame then
+            frame._focalPointDragState = nil
+            frame:SetScript("OnUpdate", nil)
+            frame:RegisterForDrag()
+            frame:SetScript("OnDragStart", nil)
+            frame:SetScript("OnDragStop", nil)
+
+            local overlay = frame.MoveOverlay
+            if overlay then
+                overlay:RegisterForDrag()
+                overlay:SetScript("OnDragStart", nil)
+                overlay:SetScript("OnDragStop", nil)
+                overlay:EnableMouse(false)
+                overlay:Hide()
+            end
+        end
     end
 end
 
@@ -209,15 +318,18 @@ function FocalPoint:ToggleFrameLock()
         end
     end
 
-    if self.RefreshAllFrames then
-        self:RefreshAllFrames()
-    end
-
-    self:UpdateAllFrameDragStates()
-
     if self.framesUnlocked then
+        if self.RefreshAllFrames then
+            self:RefreshAllFrames()
+        end
+        self:UpdateAllFrameDragStates()
         self:Info("Unit frames unlocked. Drag with left mouse button.")
     else
+        self:ClearAllMoveOverlays()
+        self:UpdateAllFrameDragStates()
+        if self.RefreshAllFrames then
+            self:RefreshAllFrames()
+        end
         self:Info("Unit frames locked.")
     end
 end

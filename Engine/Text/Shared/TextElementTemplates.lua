@@ -7,13 +7,31 @@ local Templates = FocalPoint.TextElementTemplates
 -- Template helpers keep state-template selection and plain token expansion
 -- together without pulling the full text-application flow into one file.
 
+local MAX_TEMPLATE_LENGTH = 512
+
+local function NormalizeTemplateText(template)
+    if type(template) ~= "string" then
+        return ""
+    end
+
+    template = template:gsub("[%z\1-\8\11\12\14-\31]", "")
+    if #template > MAX_TEMPLATE_LENGTH then
+        template = template:sub(1, MAX_TEMPLATE_LENGTH)
+    end
+
+    return template
+end
+
+Templates.NormalizeTemplateText = NormalizeTemplateText
+
 function Templates.ResolveTextTemplate(frame, unit, template, deps)
     deps = deps or {}
 
     local ResolveBasicTag = deps.ResolveBasicTag
     local FormatNumber = deps.FormatNumber
 
-    if type(template) ~= "string" or template == "" then
+    template = NormalizeTemplateText(template)
+    if template == "" then
         return ""
     end
 
@@ -45,7 +63,8 @@ function Templates.ResolveTextTemplate(frame, unit, template, deps)
 end
 
 function Templates.ContainsToken(template, token)
-    if type(template) ~= "string" or template == "" then
+    template = NormalizeTemplateText(template)
+    if template == "" then
         return false
     end
 
@@ -75,7 +94,7 @@ function Templates.ResolveConfigured(frame, textConfig, deps)
             if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
                 local stateTemplate = templates[stateTemplateName]
                 if type(stateTemplate) == "string" and stateTemplate ~= "" then
-                    return stateTemplate
+                    return NormalizeTemplateText(stateTemplate)
                 end
             end
         end
@@ -85,11 +104,11 @@ function Templates.ResolveConfigured(frame, textConfig, deps)
     if type(templateName) == "string" and templateName ~= "" and type(templates) == "table" then
         local linkedTemplate = templates[templateName]
         if type(linkedTemplate) == "string" and linkedTemplate ~= "" then
-            return linkedTemplate
+            return NormalizeTemplateText(linkedTemplate)
         end
     end
 
-    return textConfig.tag or ""
+    return NormalizeTemplateText(textConfig.tag or "")
 end
 
 function Templates.BuildPreview(template, deps)
@@ -97,7 +116,8 @@ function Templates.BuildPreview(template, deps)
 
     local GetTagPreviewFallback = deps.GetTagPreviewFallback
 
-    if type(template) ~= "string" or template == "" then
+    template = NormalizeTemplateText(template)
+    if template == "" then
         return ""
     end
 
