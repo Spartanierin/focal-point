@@ -318,6 +318,10 @@ function Visibility.RegisterEvents(owner, frame)
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
+    if type(frame.unit) == "string" and frame.unit:match("^boss%d+$") then
+        eventFrame:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+    end
+
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         local currentOwner = eventFrame.owner
         if not currentOwner then

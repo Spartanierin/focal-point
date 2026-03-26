@@ -24,6 +24,7 @@ local CreateLayoutDeps = PageDeps.CreateLayoutDeps
 local CreateProfilesDeps = PageDeps.CreateProfilesDeps
 local CreateTagDatabaseDeps = PageDeps.CreateTagDatabaseDeps
 local CreateTextBuilderDeps = PageDeps.CreateTextBuilderDeps
+local CreateEditorDeps = PageDeps.CreateEditorDeps
 local CreateTextDeps = PageDeps.CreateTextDeps
 local CreateUnitPageDeps = PageDeps.CreateUnitPageDeps
 local GetBarTabValues = TabValues.GetBarTabValues
@@ -105,6 +106,20 @@ function B.BuildTextBuilderPage(container)
 
     page.Build(container, CreateTextBuilderDeps({
         GetGUIState = GetGUIState,
+    }))
+end
+
+function B.BuildEditorPage(container)
+    local page = ns.GUI.Pages and ns.GUI.Pages.Editor
+    if not page or not page.Build then
+        B.BuildPlaceholderPage(container, ns.GetLabel(KM.Nav, C.Nav.EDITOR))
+        return
+    end
+
+    page.Build(container, CreateEditorDeps({
+        GetEditorState = ns.GUI.Editor and ns.GUI.Editor.State and ns.GUI.Editor.State.Get,
+        BuildScrollableTabContent = BuildScrollableTabContent,
+        Sidebar = ns.GUI.Editor and ns.GUI.Editor.Sidebar,
     }))
 end
 

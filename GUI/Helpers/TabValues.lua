@@ -46,27 +46,8 @@ function TabValues.CreateNavTree()
     local tree = {}
 
     table.insert(tree, MakeNode(
-        C.Nav.GENERAL,
-        ns.GetLabel(KM.Nav, C.Nav.GENERAL)
-    ))
-
-    table.insert(tree, MakeNode(
-        C.Nav.THEMES,
-        ns.GetLabel(KM.Nav, C.Nav.THEMES)
-    ))
-
-    local unitChildren = {}
-    for _, unitKey in ipairs(C.UnitOrder) do
-        table.insert(unitChildren, MakeNode(
-            "units." .. unitKey,
-            ns.GetLabel(KM.Units, unitKey)
-        ))
-    end
-
-    table.insert(tree, MakeNode(
-        C.Nav.UNITS,
-        ns.GetLabel(KM.Nav, C.Nav.UNITS),
-        unitChildren
+        C.Nav.EDITOR,
+        ns.GetLabel(KM.Nav, C.Nav.EDITOR)
     ))
 
     table.insert(tree, MakeNode(

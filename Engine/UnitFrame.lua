@@ -1060,7 +1060,7 @@ function FocalPoint:SpawnUnitFrame(unit)
         self.frames[unit] = nil
     end
 
-    local unitDB = self.db and self.db.profile and self.db.profile.Units and self.db.profile.Units[unit] or nil
+    local unitDB = GetUnitDB(unit)
     local buildOk, frameOrError = xpcall(function()
         return UF:Build(unit)
     end, function(err)
@@ -1115,6 +1115,24 @@ function FocalPoint:SpawnUnitFrame(unit)
 end
 
 function FocalPoint:RefreshUnitFrame(unit)
+    if unit == "boss" then
+        if self.EnsureBossFrames then
+            self:EnsureBossFrames()
+        end
+
+        if not self.frames then
+            return
+        end
+
+        for bossIndex = 1, 5 do
+            local bossUnit = "boss" .. bossIndex
+            if self.frames[bossUnit] then
+                UF:Refresh(self.frames[bossUnit])
+            end
+        end
+        return
+    end
+
     if not self.frames or not self.frames[unit] then
         return
     end

@@ -272,6 +272,50 @@ local function EnsureExpandedUnitDefaults(unitKey)
     end
 end
 
+local function EnsureDerivedUnitDefaults(unitKey, sourceUnitKey, mutateFn)
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if type(units) ~= "table" or type(defaultUnits) ~= "table" then
+        return
+    end
+
+    local sourceDefaults = defaultUnits[sourceUnitKey]
+    if type(sourceDefaults) ~= "table" then
+        return
+    end
+
+    local unitDB = units[unitKey]
+    local needsInit = type(unitDB) ~= "table"
+
+    if not needsInit then
+        local meaningfulKeys = 0
+        for key in pairs(unitDB) do
+            if key ~= "enabled" then
+                meaningfulKeys = meaningfulKeys + 1
+            end
+        end
+        needsInit = meaningfulKeys == 0
+    end
+
+    if not needsInit then
+        return
+    end
+
+    local derivedDefaults = CopyTable(sourceDefaults)
+    if type(mutateFn) == "function" then
+        mutateFn(derivedDefaults)
+    end
+
+    units[unitKey] = derivedDefaults
+end
+
 local function ApplyCastTextLayoutDefaults(textConfig, isName)
     if type(textConfig) ~= "table" then
         return
@@ -696,6 +740,19 @@ function FocalPointAddon:OnInitialize()
     EnsureExpandedUnitDefaults("targettarget")
     EnsureExpandedUnitDefaults("focus")
     EnsureExpandedUnitDefaults("focustarget")
+    EnsureDerivedUnitDefaults("boss", "targettarget", function(unitConfig)
+        unitConfig.enabled = true
+        unitConfig.point = "TOPRIGHT"
+        unitConfig.relativeTo = "UIParent"
+        unitConfig.relativePoint = "TOPRIGHT"
+        unitConfig.x = -340
+        unitConfig.y = -170
+        unitConfig.bossSpacing = 10
+        unitConfig.Portrait = unitConfig.Portrait or {}
+        unitConfig.Portrait.enabled = true
+        unitConfig.Portrait.placement = unitConfig.Portrait.placement or "INSIDE"
+        unitConfig.Portrait.insideSide = unitConfig.Portrait.insideSide or "LEFT"
+    end)
     EnsureCastTextDefaults()
     EnsureAlternativePowerDefaults()
     EnsureCastBarInterruptibleColorDefaults()
@@ -789,6 +846,13 @@ function FocalPointAddon:OnEnable()
         FocalPoint:SpawnUnitFrame("pet")
     end)
 
+    for bossIndex = 1, 5 do
+        local bossUnit = "boss" .. bossIndex
+        RunStartupStep("SpawnUnitFrame(" .. bossUnit .. ")", function()
+            FocalPoint:SpawnUnitFrame(bossUnit)
+        end)
+    end
+
     RunStartupStep("ApplyGeneralSettings", function()
         FocalPoint:ApplyGeneralSettings()
     end)
@@ -809,7 +873,29 @@ function FocalPointAddon:OnEnable()
     end)
 end
 
+function FocalPoint:EnsureBossFrames()
+    if not self.SpawnUnitFrame then
+        return
+    end
+
+    local bossConfig = self.UnitFrameUtils and self.UnitFrameUtils.GetUnitDB and self.UnitFrameUtils.GetUnitDB("boss")
+    if type(bossConfig) ~= "table" or bossConfig.enabled == false then
+        return
+    end
+
+    self.frames = self.frames or {}
+
+    for bossIndex = 1, 5 do
+        local bossUnit = "boss" .. bossIndex
+        if not self.frames[bossUnit] then
+            self:SpawnUnitFrame(bossUnit)
+        end
+    end
+end
+
 function FocalPoint:RefreshAllUnitFrames()
+    self:EnsureBossFrames()
+
     if not self.frames then
         return
     end
@@ -890,6 +976,11 @@ function FocalPoint:DumpRuntimeDiagnostics()
         "SpawnUnitFrame(focus)",
         "SpawnUnitFrame(focustarget)",
         "SpawnUnitFrame(pet)",
+        "SpawnUnitFrame(boss1)",
+        "SpawnUnitFrame(boss2)",
+        "SpawnUnitFrame(boss3)",
+        "SpawnUnitFrame(boss4)",
+        "SpawnUnitFrame(boss5)",
         "ApplyGeneralSettings",
         "PostWorld ApplyGeneralSettings",
         "PostWorld RefreshAllUnitFrames",
@@ -905,8 +996,8 @@ function FocalPoint:DumpRuntimeDiagnostics()
         end
     end
 
-    for _, unit in ipairs({ "player", "target", "targettarget", "focus", "focustarget" }) do
-        local unitDB = self.db and self.db.profile and self.db.profile.Units and self.db.profile.Units[unit] or {}
+    for _, unit in ipairs({ "player", "target", "targettarget", "focus", "focustarget", "boss1", "boss2", "boss3", "boss4", "boss5" }) do
+        local unitDB = self.UnitFrameUtils and self.UnitFrameUtils.GetUnitDB and self.UnitFrameUtils.GetUnitDB(unit) or {}
         local frame = self.frames and self.frames[unit] or nil
         local exists = UnitExists and SafeBool(UnitExists(unit)) or false
         local shown = frame and frame.IsShown and SafeBool(frame:IsShown()) or false

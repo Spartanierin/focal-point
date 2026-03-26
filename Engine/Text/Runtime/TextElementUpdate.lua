@@ -4,14 +4,14 @@ FocalPoint.TextElementUpdate = FocalPoint.TextElementUpdate or {}
 
 local Update = FocalPoint.TextElementUpdate
 local TextState = FocalPoint.TextElementState or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
 local animatedNameTexts = {}
 local animatedNameTicker = nil
 
 local function IsClassificationNameGlowEnabled(frame)
     local unit = frame and frame.unit
-    local profile = FocalPoint and FocalPoint.db and FocalPoint.db.profile
-    local unitConfig = profile and profile.Units and unit and profile.Units[unit]
+    local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
     local indicatorConfig = unitConfig and unitConfig.ClassificationIndicator
 
     if indicatorConfig == nil then

@@ -107,6 +107,18 @@ function PageDeps.CreateTextBuilderDeps(config)
     }
 end
 
+function PageDeps.CreateEditorDeps(config)
+    local BuilderUI = ns.GUI.Helpers.BuilderUI
+
+    return {
+        ResetFlowContainer = BuilderUI.ResetFlowContainer,
+        AddPageHeading = BuilderUI.AddPageHeading,
+        GetEditorState = config.GetEditorState,
+        BuildScrollableTabContent = config.BuildScrollableTabContent,
+        Sidebar = config.Sidebar,
+    }
+end
+
 function PageDeps.CreateUnitPageDeps(config)
     local BuilderUI = ns.GUI.Helpers.BuilderUI
 

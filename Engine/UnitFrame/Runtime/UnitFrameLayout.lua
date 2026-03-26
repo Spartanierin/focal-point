@@ -6,6 +6,7 @@ local Layout = FocalPoint.UnitFrameLayout
 local Utils = FocalPoint.UnitFrameUtils or {}
 
 local UnpackColor = Utils.UnpackColor
+local GetBossFrameIndex = Utils.GetBossFrameIndex
 
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
@@ -33,19 +34,10 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
         and FocalPoint.db.profile
         and FocalPoint.db.profile.General
         and FocalPoint.db.profile.General.MouseEnabled
-    local globalClampToScreen = FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.General
-        and FocalPoint.db.profile.General.ClampToScreen
     local mouseEnabled = globalMouseEnabled
-    local clampToScreen = globalClampToScreen
 
     if mouseEnabled == nil then
         mouseEnabled = config.mouseEnabled ~= false
-    end
-
-    if clampToScreen == nil then
-        clampToScreen = config.clampToScreen == true
     end
 
     -- Visibility for non-player units is handled centrally by the refresh/
@@ -64,7 +56,7 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     end
     frame:EnableMouse(mouseEnabled ~= false)
     frame:SetMouseClickEnabled(not (config.clickThrough or globalClickThrough))
-    frame:SetClampedToScreen(clampToScreen == true)
+    frame:SetClampedToScreen(true)
 
     local relativeTo = _G[config.relativeTo or "UIParent"] or UIParent
     local point = config.point or "CENTER"
@@ -81,6 +73,12 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
 
     local adjustedX = x * (relativeScale / frameScale)
     local adjustedY = y * (relativeScale / frameScale)
+    local bossIndex = GetBossFrameIndex and GetBossFrameIndex(frame and frame.unit)
+    if bossIndex and bossIndex > 1 then
+        local stackGap = tonumber(config.bossSpacing) or 10
+        local stackOffset = (bossIndex - 1) * ((height + stackGap) * (relativeScale / frameScale))
+        adjustedY = adjustedY - stackOffset
+    end
 
     frame:SetPoint(
         point,

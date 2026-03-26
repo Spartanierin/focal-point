@@ -54,12 +54,25 @@ function TextBuilderPage.Build(container, deps)
         return spacer
     end
 
-    local introGroup = AceGUI:Create("InlineGroup")
-    introGroup:SetFullWidth(true)
-    introGroup:SetLayout("Flow")
-    introGroup:SetTitle(L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
-    StyleGroupTitle(introGroup)
-    container:AddChild(introGroup)
+    local function CreateSection(title)
+        local group = AceGUI:Create("InlineGroup")
+        group:SetFullWidth(true)
+        group:SetLayout("Flow")
+        group:SetTitle(title)
+        StyleGroupTitle(group)
+        container:AddChild(group)
+        return group
+    end
+
+    local function CreateRow(parent)
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Flow")
+        parent:AddChild(row)
+        return row
+    end
+
+    local introGroup = CreateSection(L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
@@ -81,36 +94,38 @@ function TextBuilderPage.Build(container, deps)
 
     container:AddChild(CreateSpacer(3))
 
-    local builderGroup = AceGUI:Create("InlineGroup")
-    builderGroup:SetFullWidth(true)
-    builderGroup:SetLayout("Flow")
-    builderGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
-    StyleGroupTitle(builderGroup)
-    container:AddChild(builderGroup)
+    local builderGroup = CreateSection(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
+
+    local templateHelp = AceGUI:Create("Label")
+    templateHelp:SetFullWidth(true)
+    templateHelp:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_HINT"] or "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(templateHelp, "help", { size = 11 })
+    end
+    builderGroup:AddChild(templateHelp)
+
+    builderGroup:AddChild(CreateSpacer(2))
+
+    local templateRow = CreateRow(builderGroup)
 
     local templateEdit = AceGUI:Create("EditBox")
     templateEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
-    templateEdit:SetWidth(520)
+    templateEdit:SetWidth(560)
     templateEdit:DisableButton(true)
     templateEdit:SetText(NormalizeTemplateInput(state.textBuilder.template or ""))
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(templateEdit, "label", { size = 12 })
     end
-    builderGroup:AddChild(templateEdit)
+    templateRow:AddChild(templateEdit)
 
     local updateButton = AceGUI:Create("Button")
     updateButton:SetText(L["INFO_TEXT_BUILDER_APPLY"] or "Update Preview")
-    updateButton:SetWidth(150)
-    builderGroup:AddChild(updateButton)
+    updateButton:SetWidth(170)
+    templateRow:AddChild(updateButton)
 
     container:AddChild(CreateSpacer(2))
 
-    local previewGroup = AceGUI:Create("InlineGroup")
-    previewGroup:SetFullWidth(true)
-    previewGroup:SetLayout("Flow")
-    previewGroup:SetTitle(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
-    StyleGroupTitle(previewGroup)
-    container:AddChild(previewGroup)
+    local previewGroup = CreateSection(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
 
     local previewLabel = AceGUI:Create("Label")
     previewLabel:SetFullWidth(true)
@@ -123,7 +138,7 @@ function TextBuilderPage.Build(container, deps)
     if previewLabel.label and previewLabel.label.SetJustifyV then
         previewLabel.label:SetJustifyV("MIDDLE")
     end
-    previewLabel:SetHeight(28)
+    previewLabel:SetHeight(34)
     previewLabel:SetText(" ")
     if TextStyles and TextStyles.ApplyLabelWidget then
         TextStyles.ApplyLabelWidget(previewLabel, "highlight", { size = 14 })
@@ -132,56 +147,52 @@ function TextBuilderPage.Build(container, deps)
 
     container:AddChild(CreateSpacer(2))
 
-    local templatesGroup = AceGUI:Create("InlineGroup")
-    templatesGroup:SetFullWidth(true)
-    templatesGroup:SetLayout("Flow")
-    templatesGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
-    StyleGroupTitle(templatesGroup)
-    container:AddChild(templatesGroup)
+    local templatesGroup = CreateSection(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
 
     local templates = (ns.db and ns.db.profile and ns.db.profile.TextTemplates) or {}
 
+    local savedTemplateRow = CreateRow(templatesGroup)
+
     local templateSelect = AceGUI:Create("Dropdown")
     templateSelect:SetLabel(L["INFO_TEXT_BUILDER_SAVED_TEMPLATES"] or "Saved Templates")
-    templateSelect:SetWidth(260)
+    templateSelect:SetWidth(460)
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(templateSelect, "label", { size = 12 })
     end
-    templatesGroup:AddChild(templateSelect)
+    savedTemplateRow:AddChild(templateSelect)
+
+    local deleteTemplateButton = AceGUI:Create("Button")
+    deleteTemplateButton:SetText(L["INFO_TEXT_BUILDER_DELETE"] or "Delete")
+    deleteTemplateButton:SetWidth(140)
+    savedTemplateRow:AddChild(deleteTemplateButton)
+
+    templatesGroup:AddChild(CreateSpacer(2))
+
+    local templateNameRow = CreateRow(templatesGroup)
 
     local templateNameEdit = AceGUI:Create("EditBox")
     templateNameEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE_NAME"] or "Template Name")
-    templateNameEdit:SetWidth(300)
+    templateNameEdit:SetWidth(400)
     templateNameEdit:DisableButton(true)
     templateNameEdit:SetText(state.textBuilder.templateName or "")
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(templateNameEdit, "label", { size = 12 })
     end
-    templatesGroup:AddChild(templateNameEdit)
+    templateNameRow:AddChild(templateNameEdit)
 
     local saveButton = AceGUI:Create("Button")
     saveButton:SetText(L["INFO_TEXT_BUILDER_SAVE"] or "Save")
-    saveButton:SetWidth(110)
-    templatesGroup:AddChild(saveButton)
+    saveButton:SetWidth(120)
+    templateNameRow:AddChild(saveButton)
 
     local updateTemplateButton = AceGUI:Create("Button")
     updateTemplateButton:SetText(L["INFO_TEXT_BUILDER_UPDATE"] or "Update")
-    updateTemplateButton:SetWidth(110)
-    templatesGroup:AddChild(updateTemplateButton)
-
-    local deleteTemplateButton = AceGUI:Create("Button")
-    deleteTemplateButton:SetText(L["INFO_TEXT_BUILDER_DELETE"] or "Delete")
-    deleteTemplateButton:SetWidth(110)
-    templatesGroup:AddChild(deleteTemplateButton)
+    updateTemplateButton:SetWidth(140)
+    templateNameRow:AddChild(updateTemplateButton)
 
     container:AddChild(CreateSpacer(2))
 
-    local usageGroup = AceGUI:Create("InlineGroup")
-    usageGroup:SetFullWidth(true)
-    usageGroup:SetLayout("Flow")
-    usageGroup:SetTitle(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE"] or "Template Usage")
-    StyleGroupTitle(usageGroup)
-    container:AddChild(usageGroup)
+    local usageGroup = CreateSection(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE"] or "Template Usage")
 
     local usageHint = AceGUI:Create("Label")
     usageHint:SetFullWidth(true)
@@ -191,25 +202,27 @@ function TextBuilderPage.Build(container, deps)
     end
     usageGroup:AddChild(usageHint)
 
-    local usageRow = AceGUI:Create("SimpleGroup")
-    usageRow:SetFullWidth(true)
-    usageRow:SetLayout("Flow")
-    usageGroup:AddChild(usageRow)
+    local usageRow = CreateRow(usageGroup)
 
     local usageCheckboxes = {}
 
     container:AddChild(CreateSpacer(2))
 
-    local applyGroup = AceGUI:Create("InlineGroup")
-    applyGroup:SetFullWidth(true)
-    applyGroup:SetLayout("Flow")
-    applyGroup:SetTitle(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
-    StyleGroupTitle(applyGroup)
-    container:AddChild(applyGroup)
+    local applyGroup = CreateSection(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
+
+    local applyHint = AceGUI:Create("Label")
+    applyHint:SetFullWidth(true)
+    applyHint:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(applyHint, "help", { size = 11 })
+    end
+    applyGroup:AddChild(applyHint)
+
+    applyGroup:AddChild(CreateSpacer(2))
 
     local applyTemplateButton = AceGUI:Create("Button")
     applyTemplateButton:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
-    applyTemplateButton:SetWidth(160)
+    applyTemplateButton:SetWidth(170)
     applyGroup:AddChild(applyTemplateButton)
 
     local function RefreshPreview()
@@ -382,7 +395,7 @@ function TextBuilderPage.Build(container, deps)
 
     local function CreateTemplateUsageCheckbox(unitKey)
         local checkbox = AceGUI:Create("CheckBox")
-        checkbox:SetWidth(140)
+        checkbox:SetWidth(150)
         checkbox:SetLabel(ns.GetLabel(KM.Units, unitKey))
         checkbox:SetValue(false)
         checkbox:SetDisabled(true)

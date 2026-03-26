@@ -14,7 +14,6 @@ ns.GUI.Pages.Profiles = ProfilesPage
 function ProfilesPage.Build(container, deps)
     local GetGUIState = deps.GetGUIState
     local ResetFlowContainer = deps.ResetFlowContainer
-    local AddPageHeading = deps.AddPageHeading
     local BuildPlaceholderPage = deps.BuildPlaceholderPage
 
     local function StyleGroupTitle(widget)
@@ -37,6 +36,24 @@ function ProfilesPage.Build(container, deps)
         spacer:SetFullWidth(true)
         spacer:SetHeight(height or 1)
         return spacer
+    end
+
+    local function CreateSection(title)
+        local group = AceGUI:Create("InlineGroup")
+        group:SetFullWidth(true)
+        group:SetLayout("Flow")
+        group:SetTitle(title)
+        StyleGroupTitle(group)
+        container:AddChild(group)
+        return group
+    end
+
+    local function CreateRow(parent)
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Flow")
+        parent:AddChild(row)
+        return row
     end
 
     local function RefreshProfileUI()
@@ -88,8 +105,7 @@ function ProfilesPage.Build(container, deps)
         return list
     end
 
-    AddPageHeading(container, L["NAV_PROFILES"] or "Profiles")
-    container:AddChild(CreateSpacer(2))
+    local introGroup = CreateSection(L["NAV_PROFILES"] or "Profiles")
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
@@ -97,16 +113,11 @@ function ProfilesPage.Build(container, deps)
     if TextStyles and TextStyles.ApplyLabelWidget then
         TextStyles.ApplyLabelWidget(description, "label", { size = 12 })
     end
-    container:AddChild(description)
+    introGroup:AddChild(description)
 
     container:AddChild(CreateSpacer(4))
 
-    local currentGroup = AceGUI:Create("InlineGroup")
-    currentGroup:SetFullWidth(true)
-    currentGroup:SetLayout("Flow")
-    currentGroup:SetTitle(L["INFO_PROFILES_CURRENT"] or "Current Profile")
-    StyleGroupTitle(currentGroup)
-    container:AddChild(currentGroup)
+    local currentGroup = CreateSection(L["INFO_PROFILES_CURRENT"] or "Current Profile")
 
     local currentLabel = AceGUI:Create("Label")
     currentLabel:SetFullWidth(true)
@@ -116,66 +127,82 @@ function ProfilesPage.Build(container, deps)
     end
     currentGroup:AddChild(currentLabel)
 
-    local switchGroup = AceGUI:Create("InlineGroup")
-    switchGroup:SetFullWidth(true)
-    switchGroup:SetLayout("Flow")
-    switchGroup:SetTitle(L["INFO_PROFILES_SWITCH"] or "Switch / Manage")
-    StyleGroupTitle(switchGroup)
-    container:AddChild(switchGroup)
+    local switchGroup = CreateSection(L["INFO_PROFILES_SWITCH"] or "Switch / Manage")
+
+    local switchHint = AceGUI:Create("Label")
+    switchHint:SetFullWidth(true)
+    switchHint:SetText(L["INFO_PROFILES_DESCRIPTION"] or "Manage shared settings across characters.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(switchHint, "help", { size = 11 })
+    end
+    switchGroup:AddChild(switchHint)
+
+    switchGroup:AddChild(CreateSpacer(2))
+
+    local switchRow = CreateRow(switchGroup)
 
     local profileSelect = AceGUI:Create("Dropdown")
     profileSelect:SetLabel(L["INFO_PROFILES_SAVED"] or "Saved Profiles")
-    profileSelect:SetWidth(260)
+    profileSelect:SetWidth(420)
     profileSelect:SetList(GetProfileList())
     profileSelect:SetValue(state.profiles.selectedProfile or db:GetCurrentProfile())
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(profileSelect, "label", { size = 12 })
     end
-    switchGroup:AddChild(profileSelect)
+    switchRow:AddChild(profileSelect)
 
     local activateButton = AceGUI:Create("Button")
     activateButton:SetText(L["INFO_PROFILES_ACTIVATE"] or "Activate")
-    activateButton:SetWidth(120)
-    switchGroup:AddChild(activateButton)
+    activateButton:SetWidth(130)
+    switchRow:AddChild(activateButton)
 
     local copyButton = AceGUI:Create("Button")
     copyButton:SetText(L["INFO_PROFILES_COPY_FROM"] or "Copy From")
-    copyButton:SetWidth(120)
-    switchGroup:AddChild(copyButton)
-
-    local deleteButton = AceGUI:Create("Button")
-    deleteButton:SetText(L["INFO_PROFILES_DELETE"] or "Delete")
-    deleteButton:SetWidth(120)
-    switchGroup:AddChild(deleteButton)
-
-    local resetButton = AceGUI:Create("Button")
-    resetButton:SetText(L["INFO_PROFILES_RESET"] or "Reset")
-    resetButton:SetWidth(120)
-    switchGroup:AddChild(resetButton)
+    copyButton:SetWidth(130)
+    switchRow:AddChild(copyButton)
 
     switchGroup:AddChild(CreateSpacer(2))
 
-    local createGroup = AceGUI:Create("InlineGroup")
-    createGroup:SetFullWidth(true)
-    createGroup:SetLayout("Flow")
-    createGroup:SetTitle(L["INFO_PROFILES_CREATE"] or "Create / Switch")
-    StyleGroupTitle(createGroup)
-    container:AddChild(createGroup)
+    local dangerRow = CreateRow(switchGroup)
+
+    local deleteButton = AceGUI:Create("Button")
+    deleteButton:SetText(L["INFO_PROFILES_DELETE"] or "Delete")
+    deleteButton:SetWidth(130)
+    dangerRow:AddChild(deleteButton)
+
+    local resetButton = AceGUI:Create("Button")
+    resetButton:SetText(L["INFO_PROFILES_RESET"] or "Reset")
+    resetButton:SetWidth(130)
+    dangerRow:AddChild(resetButton)
+
+    local createGroup = CreateSection(L["INFO_PROFILES_CREATE"] or "Create / Switch")
+
+    local createHint = AceGUI:Create("Label")
+    createHint:SetFullWidth(true)
+    createHint:SetText(L["INFO_PROFILES_CREATE_AND_SWITCH"] or "Create and Switch")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(createHint, "help", { size = 11 })
+    end
+    createGroup:AddChild(createHint)
+
+    createGroup:AddChild(CreateSpacer(2))
+
+    local createRow = CreateRow(createGroup)
 
     local nameEdit = AceGUI:Create("EditBox")
     nameEdit:SetLabel(L["INFO_PROFILES_NAME"] or "Profile Name")
-    nameEdit:SetWidth(260)
+    nameEdit:SetWidth(460)
     nameEdit:DisableButton(true)
     nameEdit:SetText(state.profiles.newProfileName or "")
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(nameEdit, "label", { size = 12 })
     end
-    createGroup:AddChild(nameEdit)
+    createRow:AddChild(nameEdit)
 
     local createButton = AceGUI:Create("Button")
     createButton:SetText(L["INFO_PROFILES_CREATE_AND_SWITCH"] or "Create and Switch")
     createButton:SetWidth(160)
-    createGroup:AddChild(createButton)
+    createRow:AddChild(createButton)
 
     profileSelect:SetCallback("OnValueChanged", function(_, _, value)
         state.profiles.selectedProfile = value or db:GetCurrentProfile()

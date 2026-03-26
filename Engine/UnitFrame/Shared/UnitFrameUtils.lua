@@ -6,13 +6,43 @@ local Utils = FocalPoint.UnitFrameUtils
 -- Utility helpers shared by the unit-frame runtime.
 -- Keep this file focused on pure value conversion and safe API handling.
 
+function Utils.NormalizeConfigUnitKey(unit)
+    if type(unit) ~= "string" or unit == "" then
+        return unit
+    end
+
+    if unit:match("^boss%d+$") then
+        return "boss"
+    end
+
+    return unit
+end
+
+function Utils.GetBossFrameIndex(unit)
+    if type(unit) ~= "string" then
+        return nil
+    end
+
+    local bossIndex = unit:match("^boss(%d+)$")
+    if not bossIndex then
+        return nil
+    end
+
+    bossIndex = tonumber(bossIndex)
+    if type(bossIndex) == "number" and bossIndex >= 1 and bossIndex <= 5 then
+        return bossIndex
+    end
+
+    return nil
+end
+
 function Utils.GetUnitDB(unit)
     local db = FocalPoint.db
     if not db or not db.profile or not db.profile.Units then
         return nil
     end
 
-    return db.profile.Units[unit]
+    return db.profile.Units[Utils.NormalizeConfigUnitKey(unit)]
 end
 
 function Utils.UnpackColor(color, fallback)

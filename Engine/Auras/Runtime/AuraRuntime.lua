@@ -3,10 +3,15 @@ local _, FocalPoint = ...
 FocalPoint.AuraRuntime = FocalPoint.AuraRuntime or {}
 local AuraRuntime = FocalPoint.AuraRuntime
 local State = FocalPoint.UnitFrameState or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
 -- Public facade for the aura pipeline.
 
 local function GetUnitConfig(unit)
+    if UnitUtils.GetUnitDB then
+        return UnitUtils.GetUnitDB(unit)
+    end
+
     local db = FocalPoint.db
     if not db or not db.profile or not db.profile.Units then
         return nil

@@ -1,5 +1,17 @@
 local _, FocalPoint = ...
 
+local function GetUnitConfig(unit)
+    local utils = FocalPoint.UnitFrameUtils
+    if utils and utils.GetUnitDB then
+        return utils.GetUnitDB(unit)
+    end
+
+    return FocalPoint.db
+        and FocalPoint.db.profile
+        and FocalPoint.db.profile.Units
+        and FocalPoint.db.profile.Units[unit]
+end
+
 function FocalPoint:Init()
     self.frames = self.frames or {}
     self.framesUnlocked = self.framesUnlocked == true
@@ -39,21 +51,15 @@ local function EnsureMoveOverlay(frame)
         edgeSize = 2,
         insets = { left = 0, right = 0, top = 0, bottom = 0 },
     })
-    overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.08)
-    overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.95)
-
-    local label = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetPoint("CENTER", overlay, "CENTER", 0, 6)
-    label:SetFont(STANDARD_TEXT_FONT, 14, "OUTLINE")
-    label:SetText("DRAG")
-    label:SetTextColor(0.98, 0.84, 0.24, 0.95)
-    overlay.Label = label
+    overlay:SetBackdropColor(0, 0, 0, 0)
+    overlay:SetBackdropBorderColor(0, 0, 0, 0)
 
     local coords = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     coords:SetPoint("TOPLEFT", overlay, "TOPLEFT", 6, -6)
     coords:SetFont(STANDARD_TEXT_FONT, 14, "OUTLINE")
     coords:SetText("X: 0  Y: 0")
     coords:SetTextColor(0.35, 1.00, 0.45, 0.95)
+    coords:Hide()
     if coords.SetJustifyH then
         coords:SetJustifyH("LEFT")
     end
@@ -62,6 +68,132 @@ local function EnsureMoveOverlay(frame)
     frame.MoveOverlay = overlay
     return overlay
 end
+
+local function EnsureSelectionOverlay(frame)
+    if not frame then
+        return nil
+    end
+
+    if frame.SelectionOverlay then
+        return frame.SelectionOverlay
+    end
+
+    local overlay = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    overlay:SetAllPoints(frame)
+    overlay:SetFrameStrata(frame:GetFrameStrata())
+    overlay:SetFrameLevel(frame:GetFrameLevel() + 30)
+    overlay:EnableMouse(false)
+    overlay:Hide()
+    overlay:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 3,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 },
+    })
+    overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.14)
+    overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 1.00)
+
+    frame.SelectionOverlay = overlay
+    return overlay
+end
+
+local function IsSelectedEditorFrame(frame)
+    if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+        return false
+    end
+
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    local state = editorState and editorState.Get and editorState.Get() or nil
+    local selectedUnit = state and state.selectedUnit
+    if type(selectedUnit) ~= "string" or selectedUnit == "" then
+        return false
+    end
+
+    if selectedUnit == "boss" then
+        return frame.unit:match("^boss%d+$") ~= nil
+    end
+
+    return frame.unit == selectedUnit
+end
+
+local function UpdateSelectionOverlay(frame)
+    if not frame then
+        return
+    end
+
+    local overlay = EnsureSelectionOverlay(frame)
+    if not overlay then
+        return
+    end
+
+    overlay:SetFrameStrata(frame:GetFrameStrata())
+    overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 30, (frame.MoveOverlay and frame.MoveOverlay:GetFrameLevel() - 5) or (frame:GetFrameLevel() + 30)))
+
+    if IsSelectedEditorFrame(frame) then
+        overlay:Show()
+    else
+        overlay:Hide()
+    end
+end
+
+local function UpdateMoveOverlayVisuals(frame)
+    if not frame or not frame.MoveOverlay then
+        return
+    end
+
+    local overlay = frame.MoveOverlay
+    local coords = overlay.Coords
+    local isSelected = IsSelectedEditorFrame(frame)
+    local isDragging = frame._focalPointDragState ~= nil
+
+    overlay:SetBackdropColor(0, 0, 0, 0)
+    overlay:SetBackdropBorderColor(0, 0, 0, 0)
+
+    if coords then
+        if (isSelected and FocalPoint.framesUnlocked) or isDragging then
+            coords:Show()
+        else
+            coords:Hide()
+        end
+    end
+end
+
+local function EnsureEditorSelectionHooks(frame)
+    if not frame or frame._focalPointEditorSelectHooked then
+        return
+    end
+
+    local function HandleSelection()
+        if not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+            return
+        end
+
+        if FocalPoint.SelectEditorUnit and frame.unit then
+            FocalPoint:SelectEditorUnit(frame.unit)
+        end
+    end
+
+    if frame.HookScript then
+        frame:HookScript("OnMouseUp", function(_, button)
+            if button == "LeftButton" then
+                HandleSelection()
+            end
+        end)
+    end
+
+    local overlay = EnsureMoveOverlay(frame)
+    if overlay and overlay.HookScript then
+        overlay:HookScript("OnMouseUp", function(_, button)
+            if button == "LeftButton" then
+                HandleSelection()
+            end
+        end)
+    end
+
+    frame._focalPointEditorSelectHooked = true
+end
+
+local UpdateMoveOverlay
 
 local function GetFrameCenterOffsets(frame)
     if not frame then
@@ -89,7 +221,38 @@ local function GetFrameCenterOffsets(frame)
     return 0, 0
 end
 
-local function UpdateMoveOverlay(frame)
+local function GetBossStackOffset(frame, unitConfig)
+    if not frame or not frame.unit then
+        return 0
+    end
+
+    local utils = FocalPoint.UnitFrameUtils
+    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame.unit)
+    if not bossIndex or bossIndex <= 1 then
+        return 0
+    end
+
+    local height = frame.GetHeight and frame:GetHeight() or 0
+    local stackGap = type(unitConfig) == "table" and (tonumber(unitConfig.bossSpacing) or 10) or 10
+    return (bossIndex - 1) * ((tonumber(height) or 0) + stackGap)
+end
+
+local function ApplyBossStackPositions()
+    if not FocalPoint.frames then
+        return
+    end
+
+    for bossIndex = 1, 5 do
+        local bossUnit = "boss" .. bossIndex
+        local bossFrame = FocalPoint.frames[bossUnit]
+        if bossFrame then
+            FocalPoint:ApplyStoredFramePosition(bossFrame)
+            UpdateMoveOverlay(bossFrame)
+        end
+    end
+end
+
+UpdateMoveOverlay = function(frame)
     if not frame or not frame.MoveOverlay or not frame.MoveOverlay.Coords then
         return
     end
@@ -99,6 +262,7 @@ local function UpdateMoveOverlay(frame)
     x = math.floor((tonumber(x) or 0) + 0.5)
     y = math.floor((tonumber(y) or 0) + 0.5)
     frame.MoveOverlay.Coords:SetText(string.format("X: %d  Y: %d", x, y))
+    UpdateMoveOverlayVisuals(frame)
 end
 
 local function SaveFramePosition(frame)
@@ -106,21 +270,19 @@ local function SaveFramePosition(frame)
         return
     end
 
-    local unitConfig = FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.Units
-        and FocalPoint.db.profile.Units[frame.unit]
+    local unitConfig = GetUnitConfig(frame.unit)
     if not unitConfig then
         return
     end
 
     local x, y = GetFrameCenterOffsets(frame)
+    local bossStackOffset = GetBossStackOffset(frame, unitConfig)
 
     unitConfig.point = "CENTER"
     unitConfig.relativePoint = "CENTER"
     unitConfig.relativeTo = "UIParent"
     unitConfig.x = x
-    unitConfig.y = y
+    unitConfig.y = y + bossStackOffset
 end
 
 function FocalPoint:ApplyStoredFramePosition(frame)
@@ -128,10 +290,7 @@ function FocalPoint:ApplyStoredFramePosition(frame)
         return
     end
 
-    local unitConfig = self.db
-        and self.db.profile
-        and self.db.profile.Units
-        and self.db.profile.Units[frame.unit]
+    local unitConfig = GetUnitConfig(frame.unit)
     if not unitConfig then
         return
     end
@@ -146,6 +305,10 @@ function FocalPoint:ApplyStoredFramePosition(frame)
     local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
     local adjustedX = x * (relativeScale / frameScale)
     local adjustedY = y * (relativeScale / frameScale)
+    local bossStackOffset = GetBossStackOffset(frame, unitConfig)
+    if bossStackOffset ~= 0 then
+        adjustedY = adjustedY - (bossStackOffset * (relativeScale / frameScale))
+    end
 
     frame:ClearAllPoints()
     frame:SetPoint(point, relativeTo, relativePoint, adjustedX, adjustedY)
@@ -156,10 +319,7 @@ local function BeginFrameDrag(frame)
         return
     end
 
-    local unitConfig = FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.Units
-        and FocalPoint.db.profile.Units[frame.unit]
+    local unitConfig = GetUnitConfig(frame.unit)
     if not unitConfig then
         return
     end
@@ -168,6 +328,10 @@ local function BeginFrameDrag(frame)
     local cursorX, cursorY = GetCursorPosition()
 
     local startX, startY = GetFrameCenterOffsets(frame)
+    local bossStackOffset = GetBossStackOffset(frame, unitConfig)
+    if bossStackOffset ~= 0 then
+        startY = startY + bossStackOffset
+    end
     unitConfig.point = "CENTER"
     unitConfig.relativePoint = "CENTER"
     unitConfig.relativeTo = "UIParent"
@@ -193,9 +357,15 @@ local function BeginFrameDrag(frame)
 
         unitConfig.x = dragState.startX + (currentX - dragState.cursorX)
         unitConfig.y = dragState.startY + (currentY - dragState.cursorY)
-        FocalPoint:ApplyStoredFramePosition(movingFrame)
-        UpdateMoveOverlay(movingFrame)
+        if movingFrame.unit and movingFrame.unit:match("^boss%d+$") then
+            ApplyBossStackPositions()
+        else
+            FocalPoint:ApplyStoredFramePosition(movingFrame)
+            UpdateMoveOverlay(movingFrame)
+        end
     end)
+
+    UpdateMoveOverlayVisuals(frame)
 end
 
 local function EndFrameDrag(frame)
@@ -206,14 +376,22 @@ local function EndFrameDrag(frame)
     frame._focalPointDragState = nil
     frame:SetScript("OnUpdate", nil)
     SaveFramePosition(frame)
-    FocalPoint:ApplyStoredFramePosition(frame)
-    UpdateMoveOverlay(frame)
+    if frame.unit and frame.unit:match("^boss%d+$") then
+        ApplyBossStackPositions()
+    else
+        FocalPoint:ApplyStoredFramePosition(frame)
+        UpdateMoveOverlay(frame)
+    end
+
+    UpdateMoveOverlayVisuals(frame)
 end
 
 function FocalPoint:UpdateFrameDragState(frame)
     if not frame then
         return
     end
+
+    EnsureEditorSelectionHooks(frame)
 
     local overlay = EnsureMoveOverlay(frame)
     frame:SetMovable(self.framesUnlocked == true)
@@ -263,6 +441,9 @@ function FocalPoint:UpdateFrameDragState(frame)
         frame:SetScript("OnUpdate", nil)
         frame._focalPointDragState = nil
     end
+
+    UpdateSelectionOverlay(frame)
+    UpdateMoveOverlayVisuals(frame)
 end
 
 function FocalPoint:UpdateAllFrameDragStates()
@@ -296,7 +477,23 @@ function FocalPoint:ClearAllMoveOverlays()
                 overlay:EnableMouse(false)
                 overlay:Hide()
             end
+
+            local selectionOverlay = frame.SelectionOverlay
+            if selectionOverlay then
+                selectionOverlay:Hide()
+            end
         end
+    end
+end
+
+function FocalPoint:RefreshEditorSelectionVisuals()
+    if not self.frames then
+        return
+    end
+
+    for _, frame in pairs(self.frames) do
+        UpdateSelectionOverlay(frame)
+        UpdateMoveOverlayVisuals(frame)
     end
 end
 
@@ -307,12 +504,18 @@ function FocalPoint:ToggleFrameLock()
         local unitOrder = self.Constants and self.Constants.UnitOrder or {}
 
         for _, unit in ipairs(unitOrder) do
-            local config = self.db
-                and self.db.profile
-                and self.db.profile.Units
-                and self.db.profile.Units[unit]
+            local config = GetUnitConfig(unit)
 
-            if type(config) == "table" and config.enabled ~= false and not self.frames[unit] then
+            if unit == "boss" then
+                if type(config) == "table" and config.enabled ~= false then
+                    for bossIndex = 1, 5 do
+                        local bossUnit = "boss" .. bossIndex
+                        if not self.frames[bossUnit] then
+                            self:SpawnUnitFrame(bossUnit)
+                        end
+                    end
+                end
+            elseif type(config) == "table" and config.enabled ~= false and not self.frames[unit] then
                 self:SpawnUnitFrame(unit)
             end
         end
@@ -323,12 +526,20 @@ function FocalPoint:ToggleFrameLock()
             self:RefreshAllFrames()
         end
         self:UpdateAllFrameDragStates()
+        self:RefreshEditorSelectionVisuals()
+        if self.GUI and self.GUI.RefreshOptions then
+            self.GUI:RefreshOptions()
+        end
         self:Info("Unit frames unlocked. Drag with left mouse button.")
     else
         self:ClearAllMoveOverlays()
         self:UpdateAllFrameDragStates()
+        self:RefreshEditorSelectionVisuals()
         if self.RefreshAllFrames then
             self:RefreshAllFrames()
+        end
+        if self.GUI and self.GUI.RefreshOptions then
+            self.GUI:RefreshOptions()
         end
         self:Info("Unit frames locked.")
     end

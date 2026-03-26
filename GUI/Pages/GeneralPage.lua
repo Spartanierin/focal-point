@@ -185,8 +185,6 @@ function GeneralPage.Build(container, deps)
     StyleLabelFont(versionLine, 12, 1, 1, 1)
     aboutGroup:AddChild(versionLine)
 
-    aboutGroup:AddChild(CreateSpacer(6))
-
     local welcome = AceGUI:Create("Label")
     welcome:SetFullWidth(true)
     if welcome.SetFont then
@@ -195,8 +193,6 @@ function GeneralPage.Build(container, deps)
     welcome:SetText(string.format("|cfff2e4b8%s|r", L["INFO_GENERAL_WELCOME"] or "Welcome to Focal Point."))
     StyleLabelFont(welcome, 13, 1, 1, 1)
     aboutGroup:AddChild(welcome)
-
-    aboutGroup:AddChild(CreateSpacer(3))
 
     local description = AceGUI:Create("Label")
     description:SetFullWidth(true)
@@ -210,8 +206,6 @@ function GeneralPage.Build(container, deps)
     StyleLabelFont(description, 12, 1, 1, 1)
     aboutGroup:AddChild(description)
 
-    aboutGroup:AddChild(CreateSpacer(5))
-
     local hint = AceGUI:Create("Label")
     hint:SetFullWidth(true)
     if hint.SetFont then
@@ -224,7 +218,21 @@ function GeneralPage.Build(container, deps)
     StyleLabelFont(hint, 11, 1, 1, 1)
     aboutGroup:AddChild(hint)
 
-    aboutGroup:AddChild(CreateSpacer(4))
+    aboutGroup:AddChild(CreateSpacer(2))
+
+    local editorHint = AceGUI:Create("Label")
+    editorHint:SetFullWidth(true)
+    if editorHint.SetFont then
+        editorHint:SetFont(STANDARD_TEXT_FONT, 11, "")
+    end
+    editorHint:SetText(string.format(
+        "|cff6fd2ff%s|r",
+        L["INFO_GENERAL_EDITOR_HINT"] or "Main configuration now happens in the Editor. This page only keeps global addon settings."
+    ))
+    StyleLabelFont(editorHint, 11, 1, 1, 1)
+    aboutGroup:AddChild(editorHint)
+
+    aboutGroup:AddChild(CreateSpacer(2))
 
     local modeGroup = AceGUI:Create("InlineGroup")
     modeGroup:SetFullWidth(true)
@@ -257,69 +265,45 @@ function GeneralPage.Build(container, deps)
     settingsGroup:AddChild(CreateSpacer(2))
 
     local settingsLayout = CreateSection(settingsGroup)
+    local settingsMovedHint = AceGUI:Create("Label")
+    settingsMovedHint:SetFullWidth(true)
+    if settingsMovedHint.SetFont then
+        settingsMovedHint:SetFont(STANDARD_TEXT_FONT, 11, "")
+    end
+    settingsMovedHint:SetText(string.format(
+        "|cff9ea8b3%s|r",
+        L["INFO_GENERAL_SETTINGS_EDITOR_HINT"] or "Core global options now live in the fixed editor header."
+    ))
+    StyleLabelFont(settingsMovedHint, 11, 1, 1, 1)
+    settingsLayout:Add(settingsMovedHint)
 
-    settingsLayout:Add(CreateStyledGeneralOption({
-        path = { "General", "HideBlizzardFrames" },
-        label = L["OPTION_HIDE_BLIZZARD_FRAMES"],
-        description = L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"],
-        fallback = false,
-        skipTextStyle = true,
-        showReset = false,
-        onChanged = function()
-            if ns.ApplyGeneralSettings then
-                ns:ApplyGeneralSettings()
-            end
+    local expertModeEnabled = ns.db
+        and ns.db.profile
+        and ns.db.profile.General
+        and ns.db.profile.General.ExpertMode ~= false
 
-            local hideBlizzardFrames = ns.db
-                and ns.db.profile
-                and ns.db.profile.General
-                and ns.db.profile.General.HideBlizzardFrames == true
+    if expertModeEnabled then
+        local advancedGroup = AceGUI:Create("InlineGroup")
+        advancedGroup:SetFullWidth(true)
+        advancedGroup:SetLayout("Flow")
+        advancedGroup:SetTitle(L["INFO_GENERAL_ADVANCED"] or "Advanced Global Settings")
+        ResetGroupTitle(advancedGroup, 12)
+        container:AddChild(advancedGroup)
 
-            if not hideBlizzardFrames and ns.Info then
-                ns:Info(L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"])
-            end
-        end,
-    }))
+        advancedGroup:AddChild(CreateSpacer(2))
 
-    settingsLayout:Add(CreateStyledGeneralOption({
-        path = { "General", "GlobalClickThrough" },
-        label = L["OPTION_GLOBAL_CLICKTHROUGH"],
-        description = L["OPTION_GLOBAL_CLICKTHROUGH_DESC"],
-        fallback = false,
-        skipTextStyle = true,
-        showReset = false,
-        onChanged = function()
-            if ns.RefreshAllUnitFrames then
-                ns:RefreshAllUnitFrames()
-            end
-        end,
-    }))
+        local advancedLayout = CreateSection(advancedGroup)
+        local movedHint = AceGUI:Create("Label")
+        movedHint:SetFullWidth(true)
+        if movedHint.SetFont then
+            movedHint:SetFont(STANDARD_TEXT_FONT, 11, "")
+        end
+        movedHint:SetText(string.format(
+            "|cff9ea8b3%s|r",
+            L["INFO_GENERAL_ADVANCED_EDITOR_HINT"] or "Advanced interaction options now live in the fixed editor header."
+        ))
+        StyleLabelFont(movedHint, 11, 1, 1, 1)
+        advancedLayout:Add(movedHint)
 
-    settingsLayout:Add(CreateStyledGeneralOption({
-        path = { "General", "MouseEnabled" },
-        label = L["OPTION_MOUSE_ENABLED"],
-        description = L["OPTION_MOUSE_ENABLED_DESC"],
-        fallback = true,
-        skipTextStyle = true,
-        showReset = false,
-        onChanged = function()
-            if ns.RefreshAllUnitFrames then
-                ns:RefreshAllUnitFrames()
-            end
-        end,
-    }))
-
-    settingsLayout:Add(CreateStyledGeneralOption({
-        path = { "General", "ClampToScreen" },
-        label = L["OPTION_CLAMP_TO_SCREEN"],
-        description = L["OPTION_CLAMP_TO_SCREEN_DESC"],
-        fallback = true,
-        skipTextStyle = true,
-        showReset = false,
-        onChanged = function()
-            if ns.RefreshAllUnitFrames then
-                ns:RefreshAllUnitFrames()
-            end
-        end,
-    }))
+    end
 end

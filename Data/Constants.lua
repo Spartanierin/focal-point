@@ -9,6 +9,7 @@ C.ADDON_NAME = "FocalPoint"
 -- Navigation
 C.Nav = {
     GENERAL = "general",
+    EDITOR = "editor",
     TAG_DATABASE = "tag_database",
     TEXT_BUILDER = "text_builder",
     PROFILES = "profiles",

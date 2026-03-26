@@ -68,6 +68,15 @@ function TagDatabasePage.Build(container, deps)
         return spacer
     end
 
+    local function GetColumnWidths()
+        return {
+            tag = 150,
+            description = 300,
+            example = 150,
+            applies = 150,
+        }
+    end
+
     local function ResolveTagAppliesTo(def)
         local token = type(def.token) == "string" and def.token or ""
 
@@ -154,6 +163,8 @@ function TagDatabasePage.Build(container, deps)
         state.tagDatabaseScroll[categoryKey] = state.tagDatabaseScroll[categoryKey] or { scrollvalue = 0 }
 
         BuildScrollableTabContent(widget, state.tagDatabaseScroll[categoryKey], function(content)
+            local widths = GetColumnWidths()
+
             local categoryLabel = AceGUI:Create("Label")
             categoryLabel:SetFullWidth(true)
             categoryLabel:SetText(L[categoryKey] or categoryKey)
@@ -179,10 +190,10 @@ function TagDatabasePage.Build(container, deps)
                 headerRow:AddChild(label)
             end
 
-            AddHeaderCell(L["INFO_TAG_DATABASE_COL_TAG"] or "Tag", 170)
-            AddHeaderCell(L["INFO_TAG_DATABASE_COL_DESC"] or "Description", 320)
-            AddHeaderCell(L["INFO_TAG_DATABASE_COL_EXAMPLE"] or "Example", 120)
-            AddHeaderCell(L["INFO_TAG_DATABASE_COL_APPLIES"] or "Applies To", 160)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_TAG"] or "Tag", widths.tag)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_DESC"] or "Description", widths.description)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_EXAMPLE"] or "Example", widths.example)
+            AddHeaderCell(L["INFO_TAG_DATABASE_COL_APPLIES"] or "Applies To", widths.applies)
 
             content:AddChild(CreateLocalSpacer(1))
 
@@ -193,7 +204,7 @@ function TagDatabasePage.Build(container, deps)
                 content:AddChild(row)
 
                 local tokenLabel = AceGUI:Create("Label")
-                tokenLabel:SetWidth(170)
+                tokenLabel:SetWidth(widths.tag)
                 tokenLabel:SetText(def.token)
                 if TextStyles and TextStyles.ApplyLabelWidget then
                     TextStyles.ApplyLabelWidget(tokenLabel, "highlight", { size = 12 })
@@ -201,7 +212,7 @@ function TagDatabasePage.Build(container, deps)
                 row:AddChild(tokenLabel)
 
                 local descriptionLabel = AceGUI:Create("Label")
-                descriptionLabel:SetWidth(320)
+                descriptionLabel:SetWidth(widths.description)
                 descriptionLabel:SetText(L[def.description] or def.description)
                 if TextStyles and TextStyles.ApplyLabelWidget then
                     TextStyles.ApplyLabelWidget(descriptionLabel, "label", { size = 11 })
@@ -209,7 +220,7 @@ function TagDatabasePage.Build(container, deps)
                 row:AddChild(descriptionLabel)
 
                 local exampleLabel = AceGUI:Create("Label")
-                exampleLabel:SetWidth(120)
+                exampleLabel:SetWidth(widths.example)
                 exampleLabel:SetText(def.example or "")
                 if TextStyles and TextStyles.ApplyLabelWidget then
                     TextStyles.ApplyLabelWidget(exampleLabel, "highlight", { size = 11 })
@@ -217,7 +228,7 @@ function TagDatabasePage.Build(container, deps)
                 row:AddChild(exampleLabel)
 
                 local appliesLabel = AceGUI:Create("Label")
-                appliesLabel:SetWidth(160)
+                appliesLabel:SetWidth(widths.applies)
                 appliesLabel:SetText(ResolveTagAppliesTo(def))
                 if TextStyles and TextStyles.ApplyLabelWidget then
                     TextStyles.ApplyLabelWidget(appliesLabel, "help", { size = 11 })

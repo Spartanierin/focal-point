@@ -6,6 +6,7 @@ local C = ns.Constants
 
 KM.Nav = {
     [C.Nav.GENERAL] = "NAV_GENERAL",
+    [C.Nav.EDITOR] = "NAV_EDITOR",
     [C.Nav.TAG_DATABASE] = "NAV_TAG_DATABASE",
     [C.Nav.TEXT_BUILDER] = "NAV_TEXT_BUILDER",
     [C.Nav.PROFILES] = "NAV_PROFILES",

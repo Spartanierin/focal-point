@@ -4,7 +4,32 @@ local AceGUI = LibStub("AceGUI-3.0")
 local L = FocalPoint.L
 
 FocalPoint.GUI = FocalPoint.GUI or {}
-FocalPoint.GUI.selectedPath = FocalPoint.GUI.selectedPath or "general"
+
+local ShowGUIFrame
+local HideGUIFrame
+
+local function ResolveDefaultGUIPath(path)
+    local unitKey = type(path) == "string" and string.match(path, "^units%.([^.]+)$") or nil
+    if unitKey then
+        local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+        if editorState and editorState.SetSelectedUnit then
+            editorState.SetSelectedUnit(unitKey)
+        end
+        return FocalPoint.Constants.Nav.EDITOR
+    end
+
+    if path == "units" then
+        return FocalPoint.Constants.Nav.EDITOR
+    end
+
+    if path == nil or path == "" or path == "general" or path == FocalPoint.Constants.Nav.THEMES then
+        return FocalPoint.Constants.Nav.EDITOR
+    end
+
+    return path
+end
+
+FocalPoint.GUI.selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI.selectedPath)
 
 local NAV_TREE = FocalPoint.GUIBuilders.CreateNavTree()
 
@@ -389,48 +414,39 @@ local function ArrangeFrameFooter(frame, testButton)
 
     local statusText = frame.statustext
     local statusBg = statusText:GetParent()
+    local rootFrame = frame.frame or (statusBg and statusBg:GetParent())
     local closeButton = frame.closebutton
-    local footerParent = statusBg and statusBg:GetParent()
 
-    if not statusBg or not footerParent then
+    if not statusBg or not rootFrame then
         return
     end
 
+    if not closeButton and rootFrame.GetChildren then
+        for _, child in ipairs({ rootFrame:GetChildren() }) do
+            if child
+                and child.GetObjectType
+                and child:GetObjectType() == "Button"
+                and child.GetText
+                and child:GetText() == CLOSE
+            then
+                closeButton = child
+                break
+            end
+        end
+    end
+
     if testButton then
-        testButton:SetParent(footerParent)
-        testButton:ClearAllPoints()
-        testButton:SetSize(110, 20)
-        testButton:SetPoint("BOTTOMLEFT", footerParent, "BOTTOMLEFT", 15, 17)
+        testButton:Hide()
     end
 
     if closeButton then
+        closeButton:SetParent(rootFrame)
         closeButton:ClearAllPoints()
-        closeButton:SetPoint("BOTTOMRIGHT", footerParent, "BOTTOMRIGHT", -27, 17)
+        closeButton:SetPoint("TOPRIGHT", rootFrame, "TOPRIGHT", -8, -6)
     end
 
-    statusBg:ClearAllPoints()
-
-    if testButton and closeButton then
-        statusBg:SetPoint("BOTTOMLEFT", testButton, "BOTTOMRIGHT", 10, -2)
-        statusBg:SetPoint("BOTTOMRIGHT", closeButton, "BOTTOMLEFT", -10, -2)
-    elseif testButton then
-        statusBg:SetPoint("BOTTOMLEFT", testButton, "BOTTOMRIGHT", 10, -2)
-        statusBg:SetPoint("BOTTOMRIGHT", footerParent, "BOTTOMRIGHT", -132, 15)
-    elseif closeButton then
-        statusBg:SetPoint("BOTTOMLEFT", footerParent, "BOTTOMLEFT", 15, 15)
-        statusBg:SetPoint("BOTTOMRIGHT", closeButton, "BOTTOMLEFT", -10, -2)
-    else
-        statusBg:SetPoint("BOTTOMLEFT", footerParent, "BOTTOMLEFT", 15, 15)
-        statusBg:SetPoint("BOTTOMRIGHT", footerParent, "BOTTOMRIGHT", -132, 15)
-    end
-
-    statusBg:SetHeight(24)
-
-    statusText:ClearAllPoints()
-    statusText:SetPoint("TOPLEFT", statusBg, "TOPLEFT", 10, -2)
-    statusText:SetPoint("BOTTOMRIGHT", statusBg, "BOTTOMRIGHT", -10, 2)
-    statusText:SetJustifyH("LEFT")
-    statusText:SetJustifyV("MIDDLE")
+    statusBg:Hide()
+    statusText:Hide()
 end
 
 local function SnapToWholePixel(value)
@@ -823,97 +839,635 @@ local function ParseUnitPath(path)
     return unitKey
 end
 
+local function RenderCenteredToolPage(container, buildFunc)
+    if type(buildFunc) ~= "function" then
+        return
+    end
+
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+
+    local toolHost = AceGUI:Create("SimpleGroup")
+    toolHost:SetFullWidth(true)
+    toolHost:SetFullHeight(true)
+    toolHost:SetLayout("Fill")
+    container:AddChild(toolHost)
+
+    local toolPanel = AceGUI:Create("SimpleGroup")
+    toolPanel:SetFullWidth(false)
+    toolPanel:SetFullHeight(false)
+    toolPanel:SetLayout("Flow")
+    toolHost:AddChild(toolPanel)
+
+    local toolContent = AceGUI:Create("SimpleGroup")
+    toolContent:SetFullWidth(true)
+    toolContent:SetFullHeight(true)
+    toolContent:SetLayout("Flow")
+    toolPanel:AddChild(toolContent)
+
+    local function PositionToolPanel()
+        if not toolHost.frame or not toolPanel.frame then
+            return
+        end
+
+        local hostWidth = toolHost.frame:GetWidth() or 0
+        local hostHeight = toolHost.frame:GetHeight() or 0
+
+        local panelWidth = math.min(math.max(hostWidth - 120, 720), 860)
+        local panelHeight = math.min(math.max(hostHeight - 84, 580), 780)
+
+        toolPanel:SetWidth(panelWidth)
+        toolPanel:SetHeight(panelHeight)
+        toolPanel.frame:ClearAllPoints()
+        toolPanel.frame:SetPoint("TOP", toolHost.frame, "TOP", 0, -40)
+
+        if toolContent and toolContent.frame then
+            toolContent.frame:ClearAllPoints()
+            toolContent.frame:SetPoint("TOPLEFT", toolPanel.frame, "TOPLEFT", 18, -18)
+            toolContent.frame:SetPoint("BOTTOMRIGHT", toolPanel.frame, "BOTTOMRIGHT", -18, 18)
+        end
+    end
+
+    if toolPanel.frame then
+        PositionToolPanel()
+
+        local bg = toolPanel.frame:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.06, 0.07, 0.09, 0.90)
+        toolPanel._panelBg = bg
+
+        local border = toolPanel.frame:CreateTexture(nil, "BORDER")
+        border:SetAllPoints()
+        border:SetColorTexture(0, 0, 0, 0)
+        toolPanel._panelBorder = border
+
+        local leftEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
+        leftEdge:SetPoint("TOPLEFT")
+        leftEdge:SetPoint("BOTTOMLEFT")
+        leftEdge:SetWidth(1)
+        leftEdge:SetColorTexture(0.16, 0.19, 0.24, 0.95)
+        toolPanel._leftEdge = leftEdge
+
+        local rightEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
+        rightEdge:SetPoint("TOPRIGHT")
+        rightEdge:SetPoint("BOTTOMRIGHT")
+        rightEdge:SetWidth(1)
+        rightEdge:SetColorTexture(0.16, 0.19, 0.24, 0.95)
+        toolPanel._rightEdge = rightEdge
+
+        local topEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
+        topEdge:SetPoint("TOPLEFT")
+        topEdge:SetPoint("TOPRIGHT")
+        topEdge:SetHeight(1)
+        topEdge:SetColorTexture(0.20, 0.23, 0.28, 0.95)
+        toolPanel._topEdge = topEdge
+
+        local accent = toolPanel.frame:CreateTexture(nil, "ARTWORK")
+        accent:SetPoint("TOPLEFT", toolPanel.frame, "TOPLEFT", 0, 0)
+        accent:SetPoint("TOPRIGHT", toolPanel.frame, "TOPRIGHT", 0, 0)
+        accent:SetHeight(2)
+        accent:SetColorTexture(0.78, 0.65, 0.24, 0.65)
+        toolPanel._accent = accent
+
+        local bottomEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
+        bottomEdge:SetPoint("BOTTOMLEFT")
+        bottomEdge:SetPoint("BOTTOMRIGHT")
+        bottomEdge:SetHeight(1)
+        bottomEdge:SetColorTexture(0.10, 0.12, 0.15, 0.95)
+        toolPanel._bottomEdge = bottomEdge
+    end
+
+    toolPanel:SetLayout("Flow")
+    buildFunc(toolContent)
+
+    PositionToolPanel()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, PositionToolPanel)
+        C_Timer.After(0.05, PositionToolPanel)
+    end
+end
+
 local function RenderPage(container, path)
     local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
+    local EditorPage = FocalPoint.GUI and FocalPoint.GUI.Pages and FocalPoint.GUI.Pages.Editor
     if OptionRefresh and OptionRefresh.ClearStateWidgets then
         OptionRefresh.ClearStateWidgets()
     end
+
+    if path ~= C.Nav.EDITOR and EditorPage and EditorPage.Release then
+        EditorPage.Release()
+    end
+
     if path == "general" then
-        BuildGeneralPage(container)
+        FocalPoint.GUIBuilders.BuildEditorPage(container)
+        return
+    end
+
+    if path == C.Nav.EDITOR then
+        FocalPoint.GUIBuilders.BuildEditorPage(container)
         return
     end
 
     if path == C.Nav.TAG_DATABASE then
-        FocalPoint.GUIBuilders.BuildTagDatabasePage(container)
+        RenderCenteredToolPage(container, function(panel)
+            FocalPoint.GUIBuilders.BuildTagDatabasePage(panel)
+        end)
         return
     end
 
     if path == C.Nav.TEXT_BUILDER then
-        FocalPoint.GUIBuilders.BuildTextBuilderPage(container)
+        RenderCenteredToolPage(container, function(panel)
+            FocalPoint.GUIBuilders.BuildTextBuilderPage(panel)
+        end)
         return
     end
 
     if path == C.Nav.THEMES then
-        FocalPoint.GUIBuilders.BuildThemesPage(container)
+        FocalPoint.GUIBuilders.BuildEditorPage(container)
         return
     end
 
     if path == "profiles" then
-        FocalPoint.GUIBuilders.BuildProfilesPage(container)
+        RenderCenteredToolPage(container, function(panel)
+            FocalPoint.GUIBuilders.BuildProfilesPage(panel)
+        end)
         return
     end
 
 
     if path == "units" then
-        FocalPoint.GUIBuilders.BuildPlaceholderPage(container, "Units")
+        FocalPoint.GUIBuilders.BuildEditorPage(container)
         return
     end
 
     local unitKey = ParseUnitPath(path)
     if unitKey then
-        FocalPoint.GUIBuilders.BuildUnitPage(container, unitKey)
+        local editorState = FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+        if editorState and editorState.SetSelectedUnit then
+            editorState.SetSelectedUnit(unitKey)
+        end
+
+        FocalPoint.GUIBuilders.BuildEditorPage(container)
         return
     end
 
     FocalPoint.GUIBuilders.BuildPlaceholderPage(container, path or "Unknown")
 end
 
-function FocalPoint.GUI:RefreshOptions()
-    local addon = FocalPoint
-
-    if not addon.guiTreeGroup then
+local function BuildAppSidebar(container)
+    local Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Sidebar
+    local EditorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    if not Sidebar or not Sidebar.BuildContext or not EditorState or not EditorState.Get then
         return
     end
 
-    local selectedPath = self.selectedPath or "general"
-    RenderPage(addon.guiTreeGroup, selectedPath)
+    Sidebar.BuildContext(container, EditorState.Get(), {
+        onNavigate = function(path)
+            local normalizedPath = ResolveDefaultGUIPath(path)
+            FocalPoint.GUI.selectedPath = normalizedPath
+            if FocalPoint.guiTreeStatus then
+                FocalPoint.guiTreeStatus.selected = normalizedPath
+            end
+            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+                FocalPoint.GUI:RefreshOptions()
+            end
+        end,
+        onUnitChanged = function(unitKey)
+            if EditorState.SetSelectedUnit then
+                EditorState.SetSelectedUnit(unitKey)
+            end
+            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+                FocalPoint.GUI:RefreshOptions()
+            end
+        end,
+        onModeChanged = function(mode)
+            if EditorState.SetMode then
+                EditorState.SetMode(mode)
+            end
+            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+                FocalPoint.GUI:RefreshOptions()
+            end
+        end,
+        onThemeChanged = function(themeId)
+            if EditorState.SetSelectedThemeId then
+                EditorState.SetSelectedThemeId(themeId)
+            end
+            BuildAppSidebar(container)
+        end,
+        onThemeApplied = function(themeId)
+            if EditorState.SetSelectedThemeId then
+                EditorState.SetSelectedThemeId(themeId)
+            end
+            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+                FocalPoint.GUI:RefreshOptions()
+            end
+        end,
+        onGlobalChanged = function()
+            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+                FocalPoint.GUI:RefreshOptions()
+            end
+        end,
+        onClose = function()
+            if FocalPoint.guiFrame then
+                HideGUIFrame(FocalPoint.guiFrame)
+            end
+        end,
+    })
 end
 
-local function ShowGUIFrame(widget)
+local function CaptureFrameChromeState(widget)
+    if not widget or widget._focalPointChromeState then
+        return widget and widget._focalPointChromeState
+    end
+
+    local rootFrame = widget.frame or widget
+    local contentFrame = widget.content
+    if not rootFrame or not contentFrame then
+        return nil
+    end
+
+    local state = {
+        regions = {},
+        children = {},
+        contentPoints = {},
+        closeButton = nil,
+        backdropColor = nil,
+        backdropBorderColor = nil,
+    }
+
+    if rootFrame.GetRegions then
+        for _, region in ipairs({ rootFrame:GetRegions() }) do
+            state.regions[#state.regions + 1] = {
+                object = region,
+                shown = region.IsShown and region:IsShown() or true,
+            }
+        end
+    end
+
+    if rootFrame.GetChildren then
+        for _, child in ipairs({ rootFrame:GetChildren() }) do
+            if child ~= contentFrame then
+                state.children[#state.children + 1] = {
+                    object = child,
+                    shown = child.IsShown and child:IsShown() or true,
+                }
+            end
+
+            if not state.closeButton
+                and child
+                and child.GetObjectType
+                and child:GetObjectType() == "Button"
+                and child.GetText
+                and child:GetText() == CLOSE
+            then
+                state.closeButton = child
+            end
+        end
+    end
+
+    if contentFrame.GetNumPoints and contentFrame.GetPoint then
+        for index = 1, contentFrame:GetNumPoints() do
+            local point, relativeTo, relativePoint, xOfs, yOfs = contentFrame:GetPoint(index)
+            state.contentPoints[#state.contentPoints + 1] = {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                x = xOfs,
+                y = yOfs,
+            }
+        end
+    end
+
+    if rootFrame.GetBackdropColor then
+        local r, g, b, a = rootFrame:GetBackdropColor()
+        state.backdropColor = { r, g, b, a }
+    end
+
+    if rootFrame.GetBackdropBorderColor then
+        local r, g, b, a = rootFrame:GetBackdropBorderColor()
+        state.backdropBorderColor = { r, g, b, a }
+    end
+
+    widget._focalPointChromeState = state
+    return state
+end
+
+local function ApplyFrameChromeMode(widget, screenEditMode)
+    local rootFrame = widget and (widget.frame or widget)
+    local contentFrame = widget and widget.content
+    if not rootFrame or not contentFrame then
+        return
+    end
+
+    local state = CaptureFrameChromeState(widget)
+    if not state then
+        return
+    end
+
+    if screenEditMode then
+        if widget._focalPointMinimalChrome then
+            return
+        end
+
+        for _, regionState in ipairs(state.regions) do
+            if regionState.object and regionState.object.Hide then
+                regionState.object:Hide()
+            end
+        end
+
+        for _, childState in ipairs(state.children) do
+            if childState.object and childState.object.Hide then
+                childState.object:Hide()
+            end
+        end
+
+        if rootFrame.SetBackdropColor then
+            rootFrame:SetBackdropColor(0, 0, 0, 0)
+        end
+
+        if rootFrame.SetBackdropBorderColor then
+            rootFrame:SetBackdropBorderColor(0, 0, 0, 0)
+        end
+
+        if widget.EnableResize then
+            widget:EnableResize(false)
+        end
+
+        if rootFrame.SetMovable then
+            rootFrame:SetMovable(false)
+        end
+
+        if rootFrame.SetResizable then
+            rootFrame:SetResizable(false)
+        end
+
+        if rootFrame.EnableMouse then
+            rootFrame:EnableMouse(false)
+        end
+
+        contentFrame:ClearAllPoints()
+        contentFrame:SetPoint("TOPLEFT", rootFrame, "TOPLEFT", 0, 0)
+        contentFrame:SetPoint("BOTTOMRIGHT", rootFrame, "BOTTOMRIGHT", 0, 0)
+
+        widget._focalPointMinimalChrome = true
+        return
+    end
+
+    if not widget._focalPointMinimalChrome then
+        return
+    end
+
+    for _, regionState in ipairs(state.regions) do
+        if regionState.object then
+            if regionState.shown and regionState.object.Show then
+                regionState.object:Show()
+            elseif regionState.object.Hide then
+                regionState.object:Hide()
+            end
+        end
+    end
+
+    for _, childState in ipairs(state.children) do
+        if childState.object then
+            if childState.shown and childState.object.Show then
+                childState.object:Show()
+            elseif childState.object.Hide then
+                childState.object:Hide()
+            end
+        end
+    end
+
+    if rootFrame.SetBackdropColor and state.backdropColor then
+        rootFrame:SetBackdropColor(unpack(state.backdropColor))
+    end
+
+    if rootFrame.SetBackdropBorderColor and state.backdropBorderColor then
+        rootFrame:SetBackdropBorderColor(unpack(state.backdropBorderColor))
+    end
+
+    if widget.EnableResize then
+        widget:EnableResize(true)
+    end
+
+    if rootFrame.SetMovable then
+        rootFrame:SetMovable(true)
+    end
+
+    if rootFrame.SetResizable then
+        rootFrame:SetResizable(true)
+    end
+
+    if rootFrame.EnableMouse then
+        rootFrame:EnableMouse(true)
+    end
+
+    contentFrame:ClearAllPoints()
+    for _, pointData in ipairs(state.contentPoints) do
+        contentFrame:SetPoint(
+            pointData.point,
+            pointData.relativeTo,
+            pointData.relativePoint,
+            pointData.x,
+            pointData.y
+        )
+    end
+
+    widget._focalPointMinimalChrome = nil
+end
+
+local function UpdateAppShellGeometry()
+    local widget = FocalPoint.guiFrame
+    if not widget then
+        return
+    end
+
+    local rootFrame = widget.frame or widget
+    if not rootFrame then
+        return
+    end
+
+    local selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI and FocalPoint.GUI.selectedPath)
+    local editorShellMode = selectedPath == FocalPoint.Constants.Nav.EDITOR
+
+    local targetWidth = editorShellMode and 335 or 1220
+    local targetHeight = editorShellMode and ((UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760) or 760
+
+    if widget.SetWidth then
+        widget:SetWidth(targetWidth)
+    elseif widget.frame and widget.frame.SetWidth then
+        widget.frame:SetWidth(targetWidth)
+    end
+
+    if widget.SetHeight then
+        widget:SetHeight(targetHeight)
+    elseif widget.frame and widget.frame.SetHeight then
+        widget.frame:SetHeight(targetHeight)
+    end
+
+    if FocalPoint.guiAppSidebar and FocalPoint.guiContentHost then
+        if editorShellMode then
+            FocalPoint.guiAppSidebar.relWidth = nil
+            FocalPoint.guiAppSidebar.width = 285
+            FocalPoint.guiAppSidebar.frame.width = 285
+            FocalPoint.guiAppSidebar.frame:SetWidth(285)
+
+            FocalPoint.guiContentHost.relWidth = nil
+            FocalPoint.guiContentHost.width = 1
+            FocalPoint.guiContentHost.frame.width = 1
+            FocalPoint.guiContentHost.frame:SetWidth(1)
+        else
+            FocalPoint.guiAppSidebar.width = nil
+            FocalPoint.guiAppSidebar.frame.width = nil
+            FocalPoint.guiAppSidebar:SetRelativeWidth(0.24)
+
+            FocalPoint.guiContentHost.width = nil
+            FocalPoint.guiContentHost.frame.width = nil
+            FocalPoint.guiContentHost:SetRelativeWidth(0.76)
+        end
+    end
+
+    ApplyFrameChromeMode(widget, editorShellMode)
+
+    if editorShellMode then
+        if not widget._focalPointDockedForScreenEdit then
+            local point, relativeTo, relativePoint, xOfs, yOfs = rootFrame:GetPoint(1)
+            widget._focalPointRestorePoint = {
+                point = point or "CENTER",
+                relativeTo = relativeTo,
+                relativePoint = relativePoint or "CENTER",
+                x = xOfs or 0,
+                y = yOfs or 0,
+            }
+            widget._focalPointDockedForScreenEdit = true
+        end
+
+        rootFrame:ClearAllPoints()
+        rootFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+    elseif widget._focalPointDockedForScreenEdit then
+        widget._focalPointDockedForScreenEdit = nil
+
+        local restore = widget._focalPointRestorePoint
+        rootFrame:ClearAllPoints()
+        if restore then
+            rootFrame:SetPoint(
+                restore.point or "CENTER",
+                restore.relativeTo or UIParent,
+                restore.relativePoint or "CENTER",
+                restore.x or 0,
+                restore.y or 0
+            )
+        else
+            rootFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        end
+    end
+end
+
+function FocalPoint.GUI:RefreshOptions()
+    local addon = FocalPoint
+
+    if not addon.guiContentHost then
+        return
+    end
+
+    local selectedPath = ResolveDefaultGUIPath(self.selectedPath)
+    UpdateAppShellGeometry()
+    if addon.guiAppSidebar then
+        BuildAppSidebar(addon.guiAppSidebar)
+    end
+    RenderPage(addon.guiContentHost, selectedPath)
+
+    if addon.RefreshEditorSelectionVisuals then
+        addon:RefreshEditorSelectionVisuals()
+    end
+end
+
+function FocalPoint:IsEditorActive()
+    if not self.guiFrame then
+        return false
+    end
+
+    local frame = self.guiFrame.frame or self.guiFrame
+    if not frame or (frame.IsShown and not frame:IsShown()) then
+        return false
+    end
+
+    return ResolveDefaultGUIPath(self.GUI and self.GUI.selectedPath) == self.Constants.Nav.EDITOR
+end
+
+function FocalPoint:SelectEditorUnit(unit)
+    if type(unit) ~= "string" or unit == "" then
+        return
+    end
+
+    local selectedUnit = unit
+    if selectedUnit:match("^boss%d+$") then
+        selectedUnit = "boss"
+    end
+
+    local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
+    if editorState and editorState.SetSelectedUnit then
+        editorState.SetSelectedUnit(selectedUnit)
+    end
+
+    if self.GUI then
+        self.GUI.selectedPath = self.Constants.Nav.EDITOR
+    end
+
+    if self.guiTreeStatus then
+        self.guiTreeStatus.selected = self.Constants.Nav.EDITOR
+    end
+
+    if self.GUI and self.GUI.RefreshOptions then
+        self.GUI:RefreshOptions()
+    elseif self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
+    end
+end
+
+ShowGUIFrame = function(widget)
     if not widget then
         return
     end
 
     if widget.frame and widget.frame.Show then
         widget.frame:Show()
+        if FocalPoint.RefreshEditorSelectionVisuals then
+            FocalPoint:RefreshEditorSelectionVisuals()
+        end
         return
     end
 
     if widget.Show then
         widget:Show()
+        if FocalPoint.RefreshEditorSelectionVisuals then
+            FocalPoint:RefreshEditorSelectionVisuals()
+        end
     end
 end
 
-local function HideGUIFrame(widget)
+HideGUIFrame = function(widget)
     if not widget then
         return
     end
 
     if widget.frame and widget.frame.Hide then
         widget.frame:Hide()
+        if FocalPoint.RefreshEditorSelectionVisuals then
+            FocalPoint:RefreshEditorSelectionVisuals()
+        end
         return
     end
 
     if widget.Hide then
         widget:Hide()
+        if FocalPoint.RefreshEditorSelectionVisuals then
+            FocalPoint:RefreshEditorSelectionVisuals()
+        end
     end
 end
 
 function FocalPoint:CreateGUI()
     if self.guiFrame then
-        if self.guiTestModeEnabled then
-            self:DisableTestMode()
-        end
         ShowGUIFrame(self.guiFrame)
         return
     end
@@ -922,16 +1476,12 @@ function FocalPoint:CreateGUI()
     frame:SetTitle("Focal Point")
     frame:SetStatusText((L and L["GUI_STATUS_READY"]) or "Ready")
     frame:SetLayout("Fill")
-    frame:SetWidth(980)
-    frame:SetHeight(640)
+    frame:SetWidth(1220)
+    frame:SetHeight(760)
     frame:EnableResize(true)
 
     function self:SetTestModeEnabled(enabled)
         self.guiTestModeEnabled = enabled and true or false
-
-        if self.guiTestButton then
-            self.guiTestButton:SetText(self.guiTestModeEnabled and ((L and L["GUI_TEST_STOP"]) or "Stop Test") or ((L and L["GUI_TEST_START"]) or "Test"))
-        end
 
         if self.guiFrame then
             self.guiFrame:SetStatusText(self.guiTestModeEnabled and ((L and L["GUI_TEST_ACTIVE"]) or "Test mode active") or ((L and L["GUI_STATUS_READY"]) or "Ready"))
@@ -1005,6 +1555,10 @@ function FocalPoint:CreateGUI()
         local enabled = not self.guiTestModeEnabled
         self:SetTestModeEnabled(enabled)
 
+        if enabled and FocalPoint.EnsureBossFrames then
+            FocalPoint:EnsureBossFrames()
+        end
+
         if self.TestEnvironment then
             if enabled and self.TestEnvironment.Enable then
                 self.TestEnvironment:Enable()
@@ -1023,9 +1577,8 @@ function FocalPoint:CreateGUI()
             FocalPoint:RefreshAllUnitFrames()
         end
 
-        if enabled and self.guiFrame then
-            self._hidingGUIForTestMode = true
-            HideGUIFrame(self.guiFrame)
+        if self.GUI and self.GUI.RefreshOptions then
+            self.GUI:RefreshOptions()
         end
     end
 
@@ -1033,59 +1586,63 @@ function FocalPoint:CreateGUI()
         widget:Hide()
     end)
 
-    if frame.frame then
-        frame.frame:HookScript("OnHide", function()
-            if FocalPoint._hidingGUIForTestMode then
-                FocalPoint._hidingGUIForTestMode = nil
-            end
-        end)
-    end
-
     self.guiTreeStatus = self.guiTreeStatus or {
-        groups = {
-            [FocalPoint.Constants.Nav.UNITS] = true,
-        },
-        selected = self.GUI.selectedPath or "general",
+        groups = {},
+        selected = ResolveDefaultGUIPath(self.GUI.selectedPath),
     }
+    self.guiTreeStatus.selected = ResolveDefaultGUIPath(self.guiTreeStatus.selected)
 
-    local treeGroup = AceGUI:Create("TreeGroup")
-    treeGroup:SetFullWidth(true)
-    treeGroup:SetFullHeight(true)
-    treeGroup:SetLayout("Fill")
-    treeGroup:SetStatusTable(self.guiTreeStatus)
-    treeGroup:SetTree(NAV_TREE)
+    local root = AceGUI:Create("SimpleGroup")
+    root:SetFullWidth(true)
+    root:SetFullHeight(true)
+    root:SetLayout("Flow")
+    frame:AddChild(root)
 
-    treeGroup.localstatus.groups = treeGroup.localstatus.groups or {}
-    treeGroup.localstatus.groups[FocalPoint.Constants.Nav.UNITS] = true
+    local appSidebar = AceGUI:Create("SimpleGroup")
+    appSidebar:SetRelativeWidth(0.24)
+    appSidebar:SetHeight(700)
+    appSidebar:SetLayout("Fill")
+    root:AddChild(appSidebar)
 
-    treeGroup:SetCallback("OnGroupSelected", function(widget, _, group)
-        local normalizedGroup = NormalizeGroupValue(group)
-        FocalPoint.GUI.selectedPath = normalizedGroup
-        FocalPoint.guiTreeStatus.selected = normalizedGroup
-        RenderPage(widget, normalizedGroup)
-    end)
+    if appSidebar.frame then
+        local sidebarBg = appSidebar.frame:CreateTexture(nil, "BACKGROUND")
+        sidebarBg:SetAllPoints()
+        sidebarBg:SetColorTexture(0.05, 0.06, 0.08, 0.84)
+        appSidebar._sidebarBg = sidebarBg
 
-    frame:AddChild(treeGroup)
-    self.guiFrame = frame
-    self.guiTreeGroup = treeGroup
-
-    local statusBg = frame.statustext and frame.statustext:GetParent()
-    if statusBg and not self.guiTestButton then
-        local button = CreateFrame("Button", nil, statusBg, "UIPanelButtonTemplate")
-        button:SetText(self.guiTestModeEnabled and ((L and L["GUI_TEST_STOP"]) or "Stop Test") or ((L and L["GUI_TEST_START"]) or "Test"))
-        button:SetScript("OnClick", function()
-            FocalPoint:ToggleTestMode()
-        end)
-        self.guiTestButton = button
+        local sidebarBorder = appSidebar.frame:CreateTexture(nil, "BORDER")
+        sidebarBorder:SetPoint("TOPRIGHT")
+        sidebarBorder:SetPoint("BOTTOMRIGHT")
+        sidebarBorder:SetWidth(1)
+        sidebarBorder:SetColorTexture(0.16, 0.19, 0.24, 0.9)
+        appSidebar._sidebarBorder = sidebarBorder
     end
 
-    ArrangeFrameFooter(frame, self.guiTestButton)
+    local contentHost = AceGUI:Create("SimpleGroup")
+    contentHost:SetRelativeWidth(0.76)
+    contentHost:SetHeight(700)
+    contentHost:SetLayout("Fill")
+    root:AddChild(contentHost)
 
-    local initialPath = self.GUI.selectedPath or "general"
-    treeGroup:SelectByValue(initialPath)
-    ApplyFocalPointTreePixelSnap(treeGroup)
+    self.guiFrame = frame
+    self.guiAppSidebar = appSidebar
+    self.guiContentHost = contentHost
+
+    ArrangeFrameFooter(frame, nil)
+
+    local initialPath = ResolveDefaultGUIPath(self.GUI.selectedPath or self.guiTreeStatus.selected)
+    self.GUI.selectedPath = initialPath
+    UpdateAppShellGeometry()
+    BuildAppSidebar(appSidebar)
+    RenderPage(contentHost, initialPath)
 end
 
 function FocalPoint:OpenConfig()
+    if self.GUI then
+        self.GUI.selectedPath = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
+    end
+    if self.guiTreeStatus then
+        self.guiTreeStatus.selected = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
+    end
     self:CreateGUI()
 end
