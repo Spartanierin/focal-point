@@ -840,110 +840,20 @@ local function ParseUnitPath(path)
 end
 
 local function RenderCenteredToolPage(container, buildFunc)
-    if type(buildFunc) ~= "function" then
+    local scaffold = FocalPoint.GUI and FocalPoint.GUI.ToolPageScaffold
+    if scaffold and scaffold.Render then
+        scaffold.Render(container, buildFunc)
         return
     end
 
-    container:ReleaseChildren()
-    container:SetLayout("Fill")
-
-    local toolHost = AceGUI:Create("SimpleGroup")
-    toolHost:SetFullWidth(true)
-    toolHost:SetFullHeight(true)
-    toolHost:SetLayout("Fill")
-    container:AddChild(toolHost)
-
-    local toolPanel = AceGUI:Create("SimpleGroup")
-    toolPanel:SetFullWidth(false)
-    toolPanel:SetFullHeight(false)
-    toolPanel:SetLayout("Flow")
-    toolHost:AddChild(toolPanel)
-
-    local toolContent = AceGUI:Create("SimpleGroup")
-    toolContent:SetFullWidth(true)
-    toolContent:SetFullHeight(true)
-    toolContent:SetLayout("Flow")
-    toolPanel:AddChild(toolContent)
-
-    local function PositionToolPanel()
-        if not toolHost.frame or not toolPanel.frame then
-            return
-        end
-
-        local hostWidth = toolHost.frame:GetWidth() or 0
-        local hostHeight = toolHost.frame:GetHeight() or 0
-
-        local panelWidth = math.min(math.max(hostWidth - 120, 720), 860)
-        local panelHeight = math.min(math.max(hostHeight - 84, 580), 780)
-
-        toolPanel:SetWidth(panelWidth)
-        toolPanel:SetHeight(panelHeight)
-        toolPanel.frame:ClearAllPoints()
-        toolPanel.frame:SetPoint("TOP", toolHost.frame, "TOP", 0, -40)
-
-        if toolContent and toolContent.frame then
-            toolContent.frame:ClearAllPoints()
-            toolContent.frame:SetPoint("TOPLEFT", toolPanel.frame, "TOPLEFT", 18, -18)
-            toolContent.frame:SetPoint("BOTTOMRIGHT", toolPanel.frame, "BOTTOMRIGHT", -18, 18)
-        end
+    local shell = FocalPoint.GUI and FocalPoint.GUI.AppShell
+    if shell and shell.RenderCenteredToolPage then
+        shell.RenderCenteredToolPage(container, buildFunc)
+        return
     end
 
-    if toolPanel.frame then
-        PositionToolPanel()
-
-        local bg = toolPanel.frame:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.06, 0.07, 0.09, 0.90)
-        toolPanel._panelBg = bg
-
-        local border = toolPanel.frame:CreateTexture(nil, "BORDER")
-        border:SetAllPoints()
-        border:SetColorTexture(0, 0, 0, 0)
-        toolPanel._panelBorder = border
-
-        local leftEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
-        leftEdge:SetPoint("TOPLEFT")
-        leftEdge:SetPoint("BOTTOMLEFT")
-        leftEdge:SetWidth(1)
-        leftEdge:SetColorTexture(0.16, 0.19, 0.24, 0.95)
-        toolPanel._leftEdge = leftEdge
-
-        local rightEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
-        rightEdge:SetPoint("TOPRIGHT")
-        rightEdge:SetPoint("BOTTOMRIGHT")
-        rightEdge:SetWidth(1)
-        rightEdge:SetColorTexture(0.16, 0.19, 0.24, 0.95)
-        toolPanel._rightEdge = rightEdge
-
-        local topEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
-        topEdge:SetPoint("TOPLEFT")
-        topEdge:SetPoint("TOPRIGHT")
-        topEdge:SetHeight(1)
-        topEdge:SetColorTexture(0.20, 0.23, 0.28, 0.95)
-        toolPanel._topEdge = topEdge
-
-        local accent = toolPanel.frame:CreateTexture(nil, "ARTWORK")
-        accent:SetPoint("TOPLEFT", toolPanel.frame, "TOPLEFT", 0, 0)
-        accent:SetPoint("TOPRIGHT", toolPanel.frame, "TOPRIGHT", 0, 0)
-        accent:SetHeight(2)
-        accent:SetColorTexture(0.78, 0.65, 0.24, 0.65)
-        toolPanel._accent = accent
-
-        local bottomEdge = toolPanel.frame:CreateTexture(nil, "BORDER")
-        bottomEdge:SetPoint("BOTTOMLEFT")
-        bottomEdge:SetPoint("BOTTOMRIGHT")
-        bottomEdge:SetHeight(1)
-        bottomEdge:SetColorTexture(0.10, 0.12, 0.15, 0.95)
-        toolPanel._bottomEdge = bottomEdge
-    end
-
-    toolPanel:SetLayout("Flow")
-    buildFunc(toolContent)
-
-    PositionToolPanel()
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0, PositionToolPanel)
-        C_Timer.After(0.05, PositionToolPanel)
+    if type(buildFunc) == "function" then
+        buildFunc(container)
     end
 end
 
@@ -1015,13 +925,16 @@ local function RenderPage(container, path)
 end
 
 local function BuildAppSidebar(container)
-    local Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Sidebar
+    local Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ContextSidebar
+    if not Sidebar or not Sidebar.Build then
+        Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Sidebar
+    end
     local EditorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
-    if not Sidebar or not Sidebar.BuildContext or not EditorState or not EditorState.Get then
+    if not Sidebar or not EditorState or not EditorState.Get then
         return
     end
 
-    Sidebar.BuildContext(container, EditorState.Get(), {
+    Sidebar.Build(container, EditorState.Get(), {
         onNavigate = function(path)
             local normalizedPath = ResolveDefaultGUIPath(path)
             FocalPoint.GUI.selectedPath = normalizedPath
@@ -1075,290 +988,10 @@ local function BuildAppSidebar(container)
     })
 end
 
-local function CaptureFrameChromeState(widget)
-    if not widget or widget._focalPointChromeState then
-        return widget and widget._focalPointChromeState
-    end
-
-    local rootFrame = widget.frame or widget
-    local contentFrame = widget.content
-    if not rootFrame or not contentFrame then
-        return nil
-    end
-
-    local state = {
-        regions = {},
-        children = {},
-        contentPoints = {},
-        closeButton = nil,
-        backdropColor = nil,
-        backdropBorderColor = nil,
-    }
-
-    if rootFrame.GetRegions then
-        for _, region in ipairs({ rootFrame:GetRegions() }) do
-            state.regions[#state.regions + 1] = {
-                object = region,
-                shown = region.IsShown and region:IsShown() or true,
-            }
-        end
-    end
-
-    if rootFrame.GetChildren then
-        for _, child in ipairs({ rootFrame:GetChildren() }) do
-            if child ~= contentFrame then
-                state.children[#state.children + 1] = {
-                    object = child,
-                    shown = child.IsShown and child:IsShown() or true,
-                }
-            end
-
-            if not state.closeButton
-                and child
-                and child.GetObjectType
-                and child:GetObjectType() == "Button"
-                and child.GetText
-                and child:GetText() == CLOSE
-            then
-                state.closeButton = child
-            end
-        end
-    end
-
-    if contentFrame.GetNumPoints and contentFrame.GetPoint then
-        for index = 1, contentFrame:GetNumPoints() do
-            local point, relativeTo, relativePoint, xOfs, yOfs = contentFrame:GetPoint(index)
-            state.contentPoints[#state.contentPoints + 1] = {
-                point = point,
-                relativeTo = relativeTo,
-                relativePoint = relativePoint,
-                x = xOfs,
-                y = yOfs,
-            }
-        end
-    end
-
-    if rootFrame.GetBackdropColor then
-        local r, g, b, a = rootFrame:GetBackdropColor()
-        state.backdropColor = { r, g, b, a }
-    end
-
-    if rootFrame.GetBackdropBorderColor then
-        local r, g, b, a = rootFrame:GetBackdropBorderColor()
-        state.backdropBorderColor = { r, g, b, a }
-    end
-
-    widget._focalPointChromeState = state
-    return state
-end
-
-local function ApplyFrameChromeMode(widget, screenEditMode)
-    local rootFrame = widget and (widget.frame or widget)
-    local contentFrame = widget and widget.content
-    if not rootFrame or not contentFrame then
-        return
-    end
-
-    local state = CaptureFrameChromeState(widget)
-    if not state then
-        return
-    end
-
-    if screenEditMode then
-        if widget._focalPointMinimalChrome then
-            return
-        end
-
-        for _, regionState in ipairs(state.regions) do
-            if regionState.object and regionState.object.Hide then
-                regionState.object:Hide()
-            end
-        end
-
-        for _, childState in ipairs(state.children) do
-            if childState.object and childState.object.Hide then
-                childState.object:Hide()
-            end
-        end
-
-        if rootFrame.SetBackdropColor then
-            rootFrame:SetBackdropColor(0, 0, 0, 0)
-        end
-
-        if rootFrame.SetBackdropBorderColor then
-            rootFrame:SetBackdropBorderColor(0, 0, 0, 0)
-        end
-
-        if widget.EnableResize then
-            widget:EnableResize(false)
-        end
-
-        if rootFrame.SetMovable then
-            rootFrame:SetMovable(false)
-        end
-
-        if rootFrame.SetResizable then
-            rootFrame:SetResizable(false)
-        end
-
-        if rootFrame.EnableMouse then
-            rootFrame:EnableMouse(false)
-        end
-
-        contentFrame:ClearAllPoints()
-        contentFrame:SetPoint("TOPLEFT", rootFrame, "TOPLEFT", 0, 0)
-        contentFrame:SetPoint("BOTTOMRIGHT", rootFrame, "BOTTOMRIGHT", 0, 0)
-
-        widget._focalPointMinimalChrome = true
-        return
-    end
-
-    if not widget._focalPointMinimalChrome then
-        return
-    end
-
-    for _, regionState in ipairs(state.regions) do
-        if regionState.object then
-            if regionState.shown and regionState.object.Show then
-                regionState.object:Show()
-            elseif regionState.object.Hide then
-                regionState.object:Hide()
-            end
-        end
-    end
-
-    for _, childState in ipairs(state.children) do
-        if childState.object then
-            if childState.shown and childState.object.Show then
-                childState.object:Show()
-            elseif childState.object.Hide then
-                childState.object:Hide()
-            end
-        end
-    end
-
-    if rootFrame.SetBackdropColor and state.backdropColor then
-        rootFrame:SetBackdropColor(unpack(state.backdropColor))
-    end
-
-    if rootFrame.SetBackdropBorderColor and state.backdropBorderColor then
-        rootFrame:SetBackdropBorderColor(unpack(state.backdropBorderColor))
-    end
-
-    if widget.EnableResize then
-        widget:EnableResize(true)
-    end
-
-    if rootFrame.SetMovable then
-        rootFrame:SetMovable(true)
-    end
-
-    if rootFrame.SetResizable then
-        rootFrame:SetResizable(true)
-    end
-
-    if rootFrame.EnableMouse then
-        rootFrame:EnableMouse(true)
-    end
-
-    contentFrame:ClearAllPoints()
-    for _, pointData in ipairs(state.contentPoints) do
-        contentFrame:SetPoint(
-            pointData.point,
-            pointData.relativeTo,
-            pointData.relativePoint,
-            pointData.x,
-            pointData.y
-        )
-    end
-
-    widget._focalPointMinimalChrome = nil
-end
-
 local function UpdateAppShellGeometry()
-    local widget = FocalPoint.guiFrame
-    if not widget then
-        return
-    end
-
-    local rootFrame = widget.frame or widget
-    if not rootFrame then
-        return
-    end
-
-    local selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI and FocalPoint.GUI.selectedPath)
-    local editorShellMode = selectedPath == FocalPoint.Constants.Nav.EDITOR
-
-    local targetWidth = editorShellMode and 335 or 1220
-    local targetHeight = editorShellMode and ((UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760) or 760
-
-    if widget.SetWidth then
-        widget:SetWidth(targetWidth)
-    elseif widget.frame and widget.frame.SetWidth then
-        widget.frame:SetWidth(targetWidth)
-    end
-
-    if widget.SetHeight then
-        widget:SetHeight(targetHeight)
-    elseif widget.frame and widget.frame.SetHeight then
-        widget.frame:SetHeight(targetHeight)
-    end
-
-    if FocalPoint.guiAppSidebar and FocalPoint.guiContentHost then
-        if editorShellMode then
-            FocalPoint.guiAppSidebar.relWidth = nil
-            FocalPoint.guiAppSidebar.width = 285
-            FocalPoint.guiAppSidebar.frame.width = 285
-            FocalPoint.guiAppSidebar.frame:SetWidth(285)
-
-            FocalPoint.guiContentHost.relWidth = nil
-            FocalPoint.guiContentHost.width = 1
-            FocalPoint.guiContentHost.frame.width = 1
-            FocalPoint.guiContentHost.frame:SetWidth(1)
-        else
-            FocalPoint.guiAppSidebar.width = nil
-            FocalPoint.guiAppSidebar.frame.width = nil
-            FocalPoint.guiAppSidebar:SetRelativeWidth(0.24)
-
-            FocalPoint.guiContentHost.width = nil
-            FocalPoint.guiContentHost.frame.width = nil
-            FocalPoint.guiContentHost:SetRelativeWidth(0.76)
-        end
-    end
-
-    ApplyFrameChromeMode(widget, editorShellMode)
-
-    if editorShellMode then
-        if not widget._focalPointDockedForScreenEdit then
-            local point, relativeTo, relativePoint, xOfs, yOfs = rootFrame:GetPoint(1)
-            widget._focalPointRestorePoint = {
-                point = point or "CENTER",
-                relativeTo = relativeTo,
-                relativePoint = relativePoint or "CENTER",
-                x = xOfs or 0,
-                y = yOfs or 0,
-            }
-            widget._focalPointDockedForScreenEdit = true
-        end
-
-        rootFrame:ClearAllPoints()
-        rootFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
-    elseif widget._focalPointDockedForScreenEdit then
-        widget._focalPointDockedForScreenEdit = nil
-
-        local restore = widget._focalPointRestorePoint
-        rootFrame:ClearAllPoints()
-        if restore then
-            rootFrame:SetPoint(
-                restore.point or "CENTER",
-                restore.relativeTo or UIParent,
-                restore.relativePoint or "CENTER",
-                restore.x or 0,
-                restore.y or 0
-            )
-        else
-            rootFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-        end
+    local shell = FocalPoint.GUI and FocalPoint.GUI.AppShell
+    if shell and shell.UpdateGeometry then
+        shell.UpdateGeometry(FocalPoint, ResolveDefaultGUIPath)
     end
 end
 
@@ -1592,41 +1225,15 @@ function FocalPoint:CreateGUI()
     }
     self.guiTreeStatus.selected = ResolveDefaultGUIPath(self.guiTreeStatus.selected)
 
-    local root = AceGUI:Create("SimpleGroup")
-    root:SetFullWidth(true)
-    root:SetFullHeight(true)
-    root:SetLayout("Flow")
-    frame:AddChild(root)
-
-    local appSidebar = AceGUI:Create("SimpleGroup")
-    appSidebar:SetRelativeWidth(0.24)
-    appSidebar:SetHeight(700)
-    appSidebar:SetLayout("Fill")
-    root:AddChild(appSidebar)
-
-    if appSidebar.frame then
-        local sidebarBg = appSidebar.frame:CreateTexture(nil, "BACKGROUND")
-        sidebarBg:SetAllPoints()
-        sidebarBg:SetColorTexture(0.05, 0.06, 0.08, 0.84)
-        appSidebar._sidebarBg = sidebarBg
-
-        local sidebarBorder = appSidebar.frame:CreateTexture(nil, "BORDER")
-        sidebarBorder:SetPoint("TOPRIGHT")
-        sidebarBorder:SetPoint("BOTTOMRIGHT")
-        sidebarBorder:SetWidth(1)
-        sidebarBorder:SetColorTexture(0.16, 0.19, 0.24, 0.9)
-        appSidebar._sidebarBorder = sidebarBorder
+    local shell = self.GUI and self.GUI.AppShell
+    local root, appSidebar, contentHost
+    if shell and shell.BuildRoot then
+        root, appSidebar, contentHost = shell.BuildRoot(self, frame)
+    else
+        return
     end
 
-    local contentHost = AceGUI:Create("SimpleGroup")
-    contentHost:SetRelativeWidth(0.76)
-    contentHost:SetHeight(700)
-    contentHost:SetLayout("Fill")
-    root:AddChild(contentHost)
-
     self.guiFrame = frame
-    self.guiAppSidebar = appSidebar
-    self.guiContentHost = contentHost
 
     ArrangeFrameFooter(frame, nil)
 

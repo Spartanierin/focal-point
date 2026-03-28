@@ -5,15 +5,10 @@ local KM = ns.KeyMap
 local C = ns.Constants
 
 KM.Nav = {
-    [C.Nav.GENERAL] = "NAV_GENERAL",
     [C.Nav.EDITOR] = "NAV_EDITOR",
     [C.Nav.TAG_DATABASE] = "NAV_TAG_DATABASE",
     [C.Nav.TEXT_BUILDER] = "NAV_TEXT_BUILDER",
     [C.Nav.PROFILES] = "NAV_PROFILES",
-    [C.Nav.THEMES] = "NAV_THEMES",
-    [C.Nav.GLOBAL_DEFAULTS] = "NAV_GLOBAL_DEFAULTS",
-    [C.Nav.TEST_MODE] = "NAV_TEST_MODE",
-    [C.Nav.UNITS] = "NAV_UNITS",
 }
 
 KM.Units = {
@@ -24,16 +19,6 @@ KM.Units = {
     [C.Units.FOCUS] = "UNIT_FOCUS",
     [C.Units.FOCUSTARGET] = "UNIT_FOCUS_TARGET",
     [C.Units.BOSS] = "UNIT_BOSS",
-}
-
-KM.Tabs = {
-    [C.Tabs.FRAME] = "TAB_FRAME",
-    [C.Tabs.BARS] = "TAB_BARS",
-    [C.Tabs.AURAS] = "TAB_AURAS",
-    [C.Tabs.TEXTS] = "TAB_TEXTS",
-    [C.Tabs.ELEMENTS] = "TAB_ELEMENTS",
-    [C.Tabs.COLORS] = "TAB_COLORS",
-    [C.Tabs.VISIBILITY] = "TAB_VISIBILITY",
 }
 
 KM.Auras = {

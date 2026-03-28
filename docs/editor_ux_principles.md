@@ -60,6 +60,17 @@ Regeln:
 - Presets sind Startzustaende, keine parallele Eigenschaftenebene.
 - Der Editor soll sich wie ein Werkzeug anfuehlen, nicht wie ein Addon-Optionsdialog.
 
+## Architektur-Richtung
+
+- `GUI.lua` ist Bootstrap und Routing, nicht mehr der Ort fuer komplette Shell-Implementierung.
+- Shell-Chrome, Tool-Flaeche und App-Geometrie leben in `GUI/AppShell.lua`.
+- Die zentrierte Werkzeugflaeche fuer `Profiles`, `Text Builder` und `Tag-Datenbank` lebt in `GUI/ToolPageScaffold.lua`.
+- Die linke Kontextleiste und der rechte Inspector leben in `GUI/Editor/ContextSidebar.lua` und `GUI/Editor/InspectorSidebar.lua`.
+- Inspector-Lifecycle, Rebuild und Scroll-Restore leben in `GUI/Editor/EditorController.lua`.
+- Gemeinsame Sidebar-Helfer und Metadaten leben in `GUI/Editor/SidebarShared.lua`.
+- `GUI/Editor/EditorSidebar.lua` bleibt nur als Legacy-Bruecke fuer bestehende Aufrufe erhalten.
+- Seiteninhalte bleiben in ihren Page-Modulen.
+
 ## Sekundaere Werkzeuge
 
 - `Profiles`, `Text Builder` und `Tag-Datenbank` bleiben eigenstaendige Werkzeuge.

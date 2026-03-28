@@ -23,62 +23,6 @@ function PageDeps.CreateLayoutDeps()
     }
 end
 
-function PageDeps.CreateTextDeps(config)
-    local deps = PageDeps.CreateLayoutDeps()
-
-    deps.GetGUIState = config.GetGUIState
-    deps.GetTextElementLabel = config.GetTextElementLabel
-    deps.GetTextTabValues = config.GetTextTabValues
-    deps.BuildScrollableTabContent = config.BuildScrollableTabContent
-    deps.BuildPlaceholderPage = config.BuildPlaceholderPage
-
-    return deps
-end
-
-function PageDeps.CreateBarDeps(config)
-    local deps = PageDeps.CreateLayoutDeps()
-
-    deps.GetGUIState = config.GetGUIState
-    deps.GetBarTabValues = config.GetBarTabValues
-    deps.BuildScrollableTabContent = config.BuildScrollableTabContent
-    deps.BuildPlaceholderPage = config.BuildPlaceholderPage
-
-    return deps
-end
-
-function PageDeps.CreateAuraDeps(config)
-    local deps = PageDeps.CreateLayoutDeps()
-
-    deps.GetGUIState = config.GetGUIState
-    deps.GetAuraTabValues = config.GetAuraTabValues
-    deps.BuildScrollableTabContent = config.BuildScrollableTabContent
-    deps.BuildPlaceholderPage = config.BuildPlaceholderPage
-
-    return deps
-end
-
-function PageDeps.CreateGeneralDeps()
-    local BuilderUI = ns.GUI.Helpers.BuilderUI
-    local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
-
-    return {
-        ResetFlowContainer = BuilderUI.ResetFlowContainer,
-        GetAddonVersionText = BuilderUI.GetAddonVersionText,
-        CreateSection = LayoutHelpers.CreateSection,
-    }
-end
-
-function PageDeps.CreateThemeDeps()
-    local BuilderUI = ns.GUI.Helpers.BuilderUI
-    local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
-
-    return {
-        ResetFlowContainer = BuilderUI.ResetFlowContainer,
-        AddPageHeading = BuilderUI.AddPageHeading,
-        CreateSection = LayoutHelpers.CreateSection,
-    }
-end
-
 function PageDeps.CreateProfilesDeps(config)
     local BuilderUI = ns.GUI.Helpers.BuilderUI
 
@@ -116,22 +60,5 @@ function PageDeps.CreateEditorDeps(config)
         GetEditorState = config.GetEditorState,
         BuildScrollableTabContent = config.BuildScrollableTabContent,
         Sidebar = config.Sidebar,
-    }
-end
-
-function PageDeps.CreateUnitPageDeps(config)
-    local BuilderUI = ns.GUI.Helpers.BuilderUI
-
-    return {
-        AddPageHeading = BuilderUI.AddPageHeading,
-        GetGUIState = config.GetGUIState,
-        GetUnitTabValues = config.GetUnitTabValues,
-        BuildUnitBarsPage = config.BuildUnitBarsPage,
-        BuildUnitAurasPage = config.BuildUnitAurasPage,
-        BuildUnitTextsPage = config.BuildUnitTextsPage,
-        BuildUnitElementsPage = config.BuildUnitElementsPage,
-        BuildUnitFramePage = config.BuildUnitFramePage,
-        BuildUnitColorsPage = config.BuildUnitColorsPage,
-        BuildPlaceholderPage = config.BuildPlaceholderPage,
     }
 end

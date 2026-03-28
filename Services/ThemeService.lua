@@ -2,6 +2,28 @@ local _, FocalPoint = ...
 
 FocalPoint.ThemeService = FocalPoint.ThemeService or {}
 local ThemeService = FocalPoint.ThemeService
+local themeRestoreState = nil
+local RESTORE_STATE_KEY = "_ThemeRestoreState"
+local CUSTOM_THEME_KEY = "_CustomThemeSnapshot"
+local CUSTOM_THEME_ID = "__custom__"
+local PRESERVED_UNIT_KEYS = {
+    "enabled",
+    "mouseEnabled",
+    "clickThrough",
+    "clampToScreen",
+    "showInSolo",
+    "showInParty",
+    "showInRaid",
+    "showInArena",
+    "showInPvp",
+    "point",
+    "relativeTo",
+    "relativePoint",
+    "x",
+    "y",
+    "frameLevel",
+    "frameStrata",
+}
 
 local SECTION_MAP = {
     frame = {
@@ -9,10 +31,17 @@ local SECTION_MAP = {
         height = "height",
         alpha = "alpha",
         scale = "scale",
+        bossSpacing = "bossSpacing",
         backgroundColor = "backgroundColor",
         borderColor = "borderColor",
+        healthColor = "healthColor",
+        healthLowColor = "healthLowColor",
         healthBackgroundColor = "healthBackgroundColor",
+        powerColor = "powerColor",
         powerBackgroundColor = "powerBackgroundColor",
+        useClassColorHealth = "useClassColorHealth",
+        useClassColorPower = "useClassColorPower",
+        useReactionColorNpcHealth = "useReactionColorNpcHealth",
         healthBarTexture = "healthBarTexture",
         powerBarTexture = "powerBarTexture",
     },
@@ -35,6 +64,12 @@ local SECTION_MAP = {
         showAlternativePowerBar = "showAlternativePowerBar",
         powerBarHeight = "powerBarHeight",
         alternativePowerBarHeight = "alternativePowerBarHeight",
+        showCastBar = "showCastBar",
+        showCastBarIcon = "showCastBarIcon",
+        castBarHeight = "castBarHeight",
+        castBarTexture = "castBarTexture",
+        castBarColor = "castBarColor",
+        castBarInterruptibleColor = "castBarInterruptibleColor",
     },
 }
 
@@ -156,6 +191,62 @@ local function ApplyThemeToUnitConfig(unitConfig, unitTheme)
     return unitConfig
 end
 
+local function PreserveUnitPlacementAndVisibility(targetConfig, sourceConfig)
+    if type(targetConfig) ~= "table" or type(sourceConfig) ~= "table" then
+        return
+    end
+
+    for _, key in ipairs(PRESERVED_UNIT_KEYS) do
+        if sourceConfig[key] ~= nil then
+            targetConfig[key] = CloneValue(sourceConfig[key])
+        end
+    end
+end
+
+local function BuildAppliedUnitConfig(unitKey, currentUnitConfig, unitTheme, defaultUnits)
+    local baseConfig = CloneValue(defaultUnits and defaultUnits[unitKey]) or {}
+    PreserveUnitPlacementAndVisibility(baseConfig, currentUnitConfig)
+    return ApplyThemeToUnitConfig(baseConfig, unitTheme)
+end
+
+local function GetPersistedRestoreState(profile)
+    local general = profile and profile.General
+    local saved = general and general[RESTORE_STATE_KEY]
+    if type(saved) ~= "table" then
+        return nil
+    end
+
+    return saved
+end
+
+local function SetPersistedRestoreState(profile, snapshot)
+    if not profile then
+        return
+    end
+
+    profile.General = profile.General or {}
+    profile.General[RESTORE_STATE_KEY] = snapshot and CloneValue(snapshot) or nil
+end
+
+local function GetPersistedDefaultTheme(profile)
+    local general = profile and profile.General
+    local saved = general and general[CUSTOM_THEME_KEY]
+    if type(saved) ~= "table" then
+        return nil
+    end
+
+    return saved
+end
+
+local function SetPersistedDefaultTheme(profile, snapshot)
+    if not profile then
+        return
+    end
+
+    profile.General = profile.General or {}
+    profile.General[CUSTOM_THEME_KEY] = snapshot and CloneValue(snapshot) or nil
+end
+
 function ThemeService.GetThemes()
     return FocalPoint.Themes or {}
 end
@@ -167,6 +258,10 @@ function ThemeService.GetTheme(themeId)
     end
 
     return themes[themeId]
+end
+
+function ThemeService.GetCustomThemeId()
+    return CUSTOM_THEME_ID
 end
 
 function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
@@ -186,7 +281,122 @@ function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
     return ApplyThemeToUnitConfig(baseConfig, theme.units and theme.units[unitKey])
 end
 
+function ThemeService.HasRestoreSnapshot()
+    if type(themeRestoreState) == "table" then
+        return true
+    end
+
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    return type(GetPersistedRestoreState(profile)) == "table"
+end
+
+function ThemeService.HasDefaultSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    return type(GetPersistedDefaultTheme(profile)) == "table"
+end
+
+function ThemeService.CaptureDefaultSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile or type(profile.Units) ~= "table" then
+        return false
+    end
+
+    local snapshot = {
+        Units = CloneValue(profile.Units),
+        ActiveThemeId = profile.General and profile.General.ActiveThemeId or nil,
+    }
+
+    SetPersistedDefaultTheme(profile, snapshot)
+    return true
+end
+
+function ThemeService.RestoreDefaultSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile or type(profile.Units) ~= "table" then
+        return false
+    end
+
+    local snapshot = CloneValue(GetPersistedDefaultTheme(profile))
+    if type(snapshot) ~= "table" then
+        return false
+    end
+
+    profile.Units = CloneValue(snapshot.Units) or profile.Units
+    profile.General = profile.General or {}
+    profile.General.ActiveThemeId = snapshot.ActiveThemeId
+
+    if FocalPoint.RefreshAllUnitFrames then
+        FocalPoint:RefreshAllUnitFrames()
+    end
+
+    if FocalPoint.Info then
+        local label = FocalPoint.L and FocalPoint.L["THEME_CUSTOM"] or "My Layout"
+        FocalPoint:Info((FocalPoint.L and FocalPoint.L["INFO_THEME_APPLIED"] or "Applied theme:") .. " " .. tostring(label))
+    end
+
+    return true
+end
+
+function ThemeService.CaptureRestoreSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile or type(profile.Units) ~= "table" then
+        return false
+    end
+
+    if themeRestoreState or GetPersistedRestoreState(profile) then
+        return true
+    end
+
+    themeRestoreState = {
+        Units = CloneValue(profile.Units),
+        ActiveThemeId = profile.General and profile.General.ActiveThemeId or nil,
+    }
+    SetPersistedRestoreState(profile, themeRestoreState)
+
+    return true
+end
+
+function ThemeService.ClearRestoreSnapshot()
+    themeRestoreState = nil
+
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if profile then
+        SetPersistedRestoreState(profile, nil)
+    end
+end
+
+function ThemeService.RestoreSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile or type(profile.Units) ~= "table" then
+        return false
+    end
+
+    if type(themeRestoreState) ~= "table" then
+        themeRestoreState = CloneValue(GetPersistedRestoreState(profile))
+    end
+
+    if type(themeRestoreState) ~= "table" then
+        return false
+    end
+
+    profile.Units = CloneValue(themeRestoreState.Units) or profile.Units
+    profile.General = profile.General or {}
+    profile.General.ActiveThemeId = themeRestoreState.ActiveThemeId
+    themeRestoreState = nil
+    SetPersistedRestoreState(profile, nil)
+
+    if FocalPoint.RefreshAllUnitFrames then
+        FocalPoint:RefreshAllUnitFrames()
+    end
+
+    return true
+end
+
 function ThemeService.ApplyTheme(themeId)
+    if themeId == CUSTOM_THEME_ID then
+        return ThemeService.RestoreDefaultSnapshot()
+    end
+
     local theme = ThemeService.GetTheme(themeId)
     if not theme then
         if FocalPoint.Warn then
@@ -199,16 +409,26 @@ function ThemeService.ApplyTheme(themeId)
     if not profile or type(profile.Units) ~= "table" then
         return false
     end
+    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
 
     if type(theme.global) == "table" then
         profile.General = profile.General or {}
         MergeInto(profile.General, theme.global)
     end
 
-    for unitKey, unitTheme in pairs(theme.units or {}) do
-        local unitConfig = profile.Units[unitKey]
-        if type(unitConfig) == "table" and type(unitTheme) == "table" then
-            ApplyThemeToUnitConfig(unitConfig, unitTheme)
+    if theme.applyDefaults and type(defaultUnits) == "table" then
+        for unitKey, defaultUnit in pairs(defaultUnits) do
+            if type(defaultUnit) == "table" and type(profile.Units[unitKey]) == "table" then
+                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, profile.Units[unitKey], theme.units and theme.units[unitKey], defaultUnits)
+            end
+        end
+    else
+        for unitKey, unitTheme in pairs(theme.units or {}) do
+            local unitConfig = profile.Units[unitKey]
+            if type(unitConfig) == "table" and type(unitTheme) == "table" then
+                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, unitConfig, unitTheme, defaultUnits)
+            end
         end
     end
 
