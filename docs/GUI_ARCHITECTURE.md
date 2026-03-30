@@ -679,7 +679,7 @@ Current code-backed geometry values:
 
 - editor left toolbar width: `285`
 - editor inspector width: `285`
-- main host width in editor mode: `335`
+- main host width: `1220`
 - editor host anchor: `TOPLEFT` to `UIParent`
 - inspector anchor: `TOPRIGHT` to `UIParent`
 - inspector inset: `16` left/right, `10` top/bottom
@@ -743,6 +743,12 @@ Define editor runtime roles explicitly in code:
 - editor workspace host
 - editor inspector host
 
+Current runtime naming direction:
+
+- `guiEditorToolbarHost`
+- `guiEditorWorkspaceHost`
+- `guiEditorInspectorHost`
+
 At this phase, behavior should remain the same.
 
 The purpose is only to stop treating the editor as:
@@ -770,6 +776,16 @@ It only makes clear which logic is:
 - true editor behavior
 - temporary host adaptation
 
+Current compensation naming direction:
+
+- `ApplyEditorHostChromeCompensation`
+- `ApplyEditorShellLayoutCompensation`
+- `ApplyEditorHostDockingCompensation`
+- `ApplyVisualChromeSuppression`
+- `ExpandHostContentToFullscreen`
+
+Tool-mode counterparts should stay separately named where relevant so editor-only compensation does not remain hidden inside generic shell code.
+
 ### Phase E4: Introduce an Editor Screen Host
 
 Create a dedicated editor presentation root that conceptually owns:
@@ -784,6 +800,13 @@ Important:
 - the goal is to give the editor a screen-native structure
 - the tool-page host should remain unchanged during this phase
 
+Current runtime naming direction:
+
+- `guiEditorPresentationHost`
+- `guiEditorToolbarHost`
+- `guiEditorWorkspaceHost`
+- `guiEditorInspectorHost`
+
 This is the first phase where the editor starts to have a runtime model that matches its on-screen identity.
 
 ### Phase E5: Reattach Existing Visual Components
@@ -794,6 +817,13 @@ Once the editor screen host exists, reattach existing visual editor parts to it 
 - keep `InspectorSidebar` styling and hierarchy
 - keep current widths and screen positions
 - keep workspace behavior visually unchanged
+
+Current safe first step:
+
+- parent and anchor the inspector against the editor presentation host instead of anchoring it directly to `UIParent`
+- introduce an explicit workspace layer beneath the same presentation host without changing the visible workspace composition
+- introduce a dedicated inspector layer beneath the same presentation host so workspace and inspector become sibling runtime layers
+- explicitly tag the left editor sidebar as the editor toolbar runtime surface, even while it still lives in the shell
 
 Success condition:
 
@@ -814,6 +844,13 @@ Candidates:
 This phase should be incremental.
 
 If a compensation layer is still stabilizing visual behavior, it should stay until its replacement is proven safe.
+
+Current first reduction direction:
+
+- stop collapsing the invisible editor main host to sidebar width if the visible editor composition remains unchanged
+- stop minimizing the shell content host to a one-pixel placeholder if editor presentation layers already own the visible workspace
+- stop forcing move/resize suppression on the invisible editor host when mouse suppression already prevents direct interaction
+- stop forcing full-screen height onto the shell content host in editor mode when presentation layers already own the visible editor area
 
 ### Phase E7: Reevaluate the Main Host
 

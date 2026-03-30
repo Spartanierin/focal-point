@@ -17,6 +17,12 @@ end
 function EditorPage.Build(container, deps)
     EditorPage.Release()
     deps.ResetFlowContainer(container)
+    container._focalPointEditorWorkspaceRole = "editor_workspace"
+
+    if ns and ns.guiEditorWorkspaceHost then
+        ns.guiEditorWorkspaceHost._focalPointEditorRole = "editor_workspace"
+    end
+
     local controller = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Controller
     if controller and controller.BuildInspector then
         controller.BuildInspector(container, deps)

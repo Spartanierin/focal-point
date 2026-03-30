@@ -25,6 +25,7 @@ local GetFirstThemeId = Shared.GetFirstThemeId
 function ContextSidebar.Build(container, state, options)
     container:ReleaseChildren()
     container:SetLayout("Flow")
+    container._focalPointEditorRole = options.shellMode == "editor" and "editor_toolbar" or nil
 
     local ThemeService = ns.ThemeService or {}
     local BuilderUI = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.BuilderUI or {}

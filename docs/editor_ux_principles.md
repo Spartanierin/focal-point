@@ -84,6 +84,11 @@ Regeln:
 - Zuerst werden Verantwortlichkeiten klarer, erst spaeter technische Traeger ersetzt.
 - Sichtbare Editor-Bausteine werden erst dann umgehaengt, wenn ihr Erscheinungsbild als Referenz gesichert ist.
 - Tool-Seiten duerfen unabhhaengig davon weiter vereinfacht werden; sie sind kein Grund, den Editor frueh mitzuziehen.
+- Fruehe Phasen benennen zuerst die drei Editor-Rollen explizit:
+  - Toolbar-Host
+  - Workspace-Host
+  - Inspector-Host
+- Die naechste sichere Ebene ist ein eigener, unsichtbarer Editor-Presentation-Host hinter derselben sichtbaren Editor-Komposition.
 
 ## Aktuelle Referenzwirkung
 

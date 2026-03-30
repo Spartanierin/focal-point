@@ -1205,6 +1205,11 @@ function FocalPoint:CloseConfig()
         controller.ReleaseInspector()
     end
 
+    local shell = self.GUI and self.GUI.AppShell
+    if shell and shell.ClearEditorRuntimeRoles then
+        shell.ClearEditorRuntimeRoles(self)
+    end
+
     if self.guiTestModeEnabled and self.DisableTestMode then
         self:DisableTestMode()
     end

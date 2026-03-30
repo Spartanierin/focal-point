@@ -7,8 +7,22 @@ local AceGUI = LibStub("AceGUI-3.0")
 local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 
+local function GetEditorPresentationAnchor()
+    return ns.guiEditorInspectorLayer or ns.guiEditorPresentationHost or UIParent
+end
+
+function EditorController.GetActiveInspectorHost()
+    return ns.GUI and ns.GUI.Editor and ns.GUI.Editor._activeInspectorHost
+end
+
+function EditorController.SetActiveInspectorHost(widget)
+    ns.guiEditorInspectorHost = widget
+    ns.GUI.Editor._activeInspectorHost = widget
+    ns.GUI.Editor._activeInspectorSidebar = widget
+end
+
 function EditorController.UpdateActiveInspectorGeometry()
-    local inspectorSidebar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor._activeInspectorSidebar
+    local inspectorSidebar = EditorController.GetActiveInspectorHost()
     if not inspectorSidebar or not inspectorSidebar.frame then
         return
     end
@@ -29,8 +43,9 @@ function EditorController.UpdateActiveInspectorGeometry()
         inspectorSidebar.frame:SetHeight(targetHeight)
     end
 
+    local anchorHost = GetEditorPresentationAnchor()
     inspectorSidebar.frame:ClearAllPoints()
-    inspectorSidebar.frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", 0, 0)
+    inspectorSidebar.frame:SetPoint("TOPRIGHT", anchorHost, "TOPRIGHT", 0, 0)
 
     local inspectorContent = inspectorSidebar._focalPointInspectorContent
     if inspectorContent then
@@ -51,7 +66,7 @@ function EditorController.UpdateActiveInspectorGeometry()
 end
 
 function EditorController.ReleaseInspector()
-    local inspectorSidebar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor._activeInspectorSidebar
+    local inspectorSidebar = EditorController.GetActiveInspectorHost()
     if not inspectorSidebar then
         return
     end
@@ -60,6 +75,8 @@ function EditorController.ReleaseInspector()
         inspectorSidebar.frame:Hide()
     end
 
+    ns.guiEditorInspectorHost = nil
+    ns.GUI.Editor._activeInspectorHost = nil
     ns.GUI.Editor._activeInspectorSidebar = nil
 end
 
@@ -72,6 +89,7 @@ function EditorController.BuildInspector(container, deps)
     inspectorSidebar:SetRelativeWidth(1.0)
     inspectorSidebar:SetHeight(700)
     inspectorSidebar:SetLayout("Fill")
+    inspectorSidebar._focalPointEditorRole = "editor_inspector"
 
     local inspectorContent = AceGUI:Create("SimpleGroup")
     inspectorContent:SetFullWidth(true)
@@ -81,8 +99,9 @@ function EditorController.BuildInspector(container, deps)
     inspectorSidebar._focalPointInspectorContent = inspectorContent
 
     if inspectorSidebar.frame then
+        local anchorHost = GetEditorPresentationAnchor()
         if inspectorSidebar.frame.SetParent then
-            inspectorSidebar.frame:SetParent(UIParent)
+            inspectorSidebar.frame:SetParent(anchorHost)
         end
         if inspectorSidebar.frame.SetFrameStrata then
             inspectorSidebar.frame:SetFrameStrata("DIALOG")
@@ -108,7 +127,7 @@ function EditorController.BuildInspector(container, deps)
         inspectorSidebar._inspectorAccent = inspectorAccent
     end
 
-    ns.GUI.Editor._activeInspectorSidebar = inspectorSidebar
+    EditorController.SetActiveInspectorHost(inspectorSidebar)
 
     EditorController.UpdateActiveInspectorGeometry()
     if inspectorSidebar.frame and inspectorSidebar.frame.Show then

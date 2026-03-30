@@ -74,6 +74,150 @@ function AppShell.RenderMainContent(container, shellMode, buildFunc)
     end
 end
 
+local function EnsureEditorPresentationHost(addon)
+    if not addon then
+        return nil
+    end
+
+    local host = addon.guiEditorPresentationHost
+    if host then
+        return host
+    end
+
+    host = CreateFrame("Frame", nil, UIParent)
+    host:SetAllPoints(UIParent)
+    host:SetFrameStrata("BACKGROUND")
+    host:EnableMouse(false)
+    host:Hide()
+    host._focalPointEditorRole = "editor_presentation"
+
+    addon.guiEditorPresentationHost = host
+    return host
+end
+
+local function EnsureEditorWorkspaceLayer(addon)
+    if not addon then
+        return nil
+    end
+
+    local layer = addon.guiEditorWorkspaceLayer
+    if layer then
+        return layer
+    end
+
+    local presentationHost = EnsureEditorPresentationHost(addon)
+    if not presentationHost then
+        return nil
+    end
+
+    layer = CreateFrame("Frame", nil, presentationHost)
+    layer:SetAllPoints(presentationHost)
+    layer:SetFrameStrata("BACKGROUND")
+    layer:EnableMouse(false)
+    layer:Hide()
+    layer._focalPointEditorRole = "editor_workspace_layer"
+
+    addon.guiEditorWorkspaceLayer = layer
+    return layer
+end
+
+local function EnsureEditorInspectorLayer(addon)
+    if not addon then
+        return nil
+    end
+
+    local layer = addon.guiEditorInspectorLayer
+    if layer then
+        return layer
+    end
+
+    local presentationHost = EnsureEditorPresentationHost(addon)
+    if not presentationHost then
+        return nil
+    end
+
+    layer = CreateFrame("Frame", nil, presentationHost)
+    layer:SetAllPoints(presentationHost)
+    layer:SetFrameStrata("DIALOG")
+    layer:EnableMouse(false)
+    layer:Hide()
+    layer._focalPointEditorRole = "editor_inspector_layer"
+
+    addon.guiEditorInspectorLayer = layer
+    return layer
+end
+
+local function ShowEditorPresentationHost(addon)
+    local host = EnsureEditorPresentationHost(addon)
+    if host and host.Show then
+        host:Show()
+    end
+
+    local workspaceLayer = EnsureEditorWorkspaceLayer(addon)
+    if workspaceLayer and workspaceLayer.Show then
+        workspaceLayer:Show()
+    end
+
+    local inspectorLayer = EnsureEditorInspectorLayer(addon)
+    if inspectorLayer and inspectorLayer.Show then
+        inspectorLayer:Show()
+    end
+
+    return host
+end
+
+local function HideEditorPresentationHost(addon)
+    local host = addon and addon.guiEditorPresentationHost
+    local workspaceLayer = addon and addon.guiEditorWorkspaceLayer
+    local inspectorLayer = addon and addon.guiEditorInspectorLayer
+    if inspectorLayer and inspectorLayer.Hide then
+        inspectorLayer:Hide()
+    end
+    if workspaceLayer and workspaceLayer.Hide then
+        workspaceLayer:Hide()
+    end
+    if host and host.Hide then
+        host:Hide()
+    end
+end
+
+function AppShell.AssignEditorRuntimeRoles(addon)
+    if not addon then
+        return
+    end
+
+    local presentationHost = ShowEditorPresentationHost(addon)
+    addon.guiEditorToolbarHost = addon.guiAppSidebar
+    addon.guiEditorWorkspaceHost = addon.guiEditorWorkspaceLayer or presentationHost or addon.guiContentHost
+    addon.guiEditorInspectorHost = addon.guiEditorInspectorLayer or presentationHost
+
+    if addon.guiEditorToolbarHost then
+        addon.guiEditorToolbarHost._focalPointEditorRole = "editor_toolbar"
+        if addon.guiEditorToolbarHost.frame then
+            addon.guiEditorToolbarHost.frame._focalPointEditorRole = "editor_toolbar"
+        end
+    end
+end
+
+function AppShell.ClearEditorRuntimeRoles(addon)
+    if not addon then
+        return
+    end
+
+    HideEditorPresentationHost(addon)
+
+    if addon.guiEditorToolbarHost then
+        addon.guiEditorToolbarHost._focalPointEditorRole = nil
+        if addon.guiEditorToolbarHost.frame then
+            addon.guiEditorToolbarHost.frame._focalPointEditorRole = nil
+        end
+    end
+
+    addon.guiEditorToolbarHost = nil
+    addon.guiEditorWorkspaceHost = nil
+    addon.guiEditorInspectorHost = nil
+end
+
 local function CaptureFrameChromeState(widget)
     if not widget or widget._focalPointChromeState then
         return widget and widget._focalPointChromeState
@@ -151,68 +295,34 @@ local function CaptureFrameChromeState(widget)
     return state
 end
 
-function AppShell.ApplyFrameChromeMode(widget, chromeMode)
-    local rootFrame = widget and (widget.frame or widget)
-    local contentFrame = widget and widget.content
-    if not rootFrame or not contentFrame then
+local function ApplyVisualChromeSuppression(rootFrame, state)
+    if not rootFrame or not state then
         return
     end
 
-    local state = CaptureFrameChromeState(widget)
-    if not state then
-        return
+    for _, regionState in ipairs(state.regions) do
+        if regionState.object and regionState.object.Hide then
+            regionState.object:Hide()
+        end
     end
 
-    if chromeMode == "shell" then
-        if widget._focalPointMinimalChrome then
-            return
+    for _, childState in ipairs(state.children) do
+        if childState.object and childState.object.Hide then
+            childState.object:Hide()
         end
-
-        for _, regionState in ipairs(state.regions) do
-            if regionState.object and regionState.object.Hide then
-                regionState.object:Hide()
-            end
-        end
-
-        for _, childState in ipairs(state.children) do
-            if childState.object and childState.object.Hide then
-                childState.object:Hide()
-            end
-        end
-
-        if rootFrame.SetBackdropColor then
-            rootFrame:SetBackdropColor(0, 0, 0, 0)
-        end
-
-        if rootFrame.SetBackdropBorderColor then
-            rootFrame:SetBackdropBorderColor(0, 0, 0, 0)
-        end
-
-        if widget.EnableResize then
-            widget:EnableResize(false)
-        end
-
-        if rootFrame.SetMovable then
-            rootFrame:SetMovable(false)
-        end
-
-        if rootFrame.SetResizable then
-            rootFrame:SetResizable(false)
-        end
-
-        if rootFrame.EnableMouse then
-            rootFrame:EnableMouse(false)
-        end
-
-        contentFrame:ClearAllPoints()
-        contentFrame:SetPoint("TOPLEFT", rootFrame, "TOPLEFT", 0, 0)
-        contentFrame:SetPoint("BOTTOMRIGHT", rootFrame, "BOTTOMRIGHT", 0, 0)
-
-        widget._focalPointMinimalChrome = true
-        return
     end
 
-    if not widget._focalPointMinimalChrome then
+    if rootFrame.SetBackdropColor then
+        rootFrame:SetBackdropColor(0, 0, 0, 0)
+    end
+
+    if rootFrame.SetBackdropBorderColor then
+        rootFrame:SetBackdropBorderColor(0, 0, 0, 0)
+    end
+end
+
+local function RestoreVisualChrome(rootFrame, state)
+    if not rootFrame or not state then
         return
     end
 
@@ -243,21 +353,21 @@ function AppShell.ApplyFrameChromeMode(widget, chromeMode)
     if rootFrame.SetBackdropBorderColor and state.backdropBorderColor then
         rootFrame:SetBackdropBorderColor(unpack(state.backdropBorderColor))
     end
+end
 
-    if widget.EnableResize then
-        widget:EnableResize(true)
+local function ExpandHostContentToFullscreen(rootFrame, contentFrame)
+    if not rootFrame or not contentFrame then
+        return
     end
 
-    if rootFrame.SetMovable then
-        rootFrame:SetMovable(true)
-    end
+    contentFrame:ClearAllPoints()
+    contentFrame:SetPoint("TOPLEFT", rootFrame, "TOPLEFT", 0, 0)
+    contentFrame:SetPoint("BOTTOMRIGHT", rootFrame, "BOTTOMRIGHT", 0, 0)
+end
 
-    if rootFrame.SetResizable then
-        rootFrame:SetResizable(true)
-    end
-
-    if rootFrame.EnableMouse then
-        rootFrame:EnableMouse(true)
+local function RestoreHostContentPoints(contentFrame, state)
+    if not contentFrame or not state then
+        return
     end
 
     contentFrame:ClearAllPoints()
@@ -270,8 +380,142 @@ function AppShell.ApplyFrameChromeMode(widget, chromeMode)
             pointData.y
         )
     end
+end
+
+function AppShell.ApplyFrameChromeMode(widget, chromeMode)
+    local rootFrame = widget and (widget.frame or widget)
+    local contentFrame = widget and widget.content
+    if not rootFrame or not contentFrame then
+        return
+    end
+
+    local state = CaptureFrameChromeState(widget)
+    if not state then
+        return
+    end
+
+    if chromeMode == "shell" then
+        if widget._focalPointMinimalChrome then
+            return
+        end
+
+        ApplyVisualChromeSuppression(rootFrame, state)
+
+        if rootFrame.EnableMouse then
+            rootFrame:EnableMouse(false)
+        end
+
+        ExpandHostContentToFullscreen(rootFrame, contentFrame)
+
+        widget._focalPointMinimalChrome = true
+        return
+    end
+
+    if not widget._focalPointMinimalChrome then
+        return
+    end
+
+    RestoreVisualChrome(rootFrame, state)
+
+    if rootFrame.EnableMouse then
+        rootFrame:EnableMouse(true)
+    end
+
+    RestoreHostContentPoints(contentFrame, state)
 
     widget._focalPointMinimalChrome = nil
+end
+
+function AppShell.ApplyEditorHostChromeCompensation(widget)
+    AppShell.ApplyFrameChromeMode(widget, "shell")
+end
+
+function AppShell.ApplyWindowHostChrome(widget)
+    AppShell.ApplyFrameChromeMode(widget, "window")
+end
+
+local function ApplyEditorShellLayoutCompensation(addon, targetHeight)
+    if not addon or not addon.guiAppSidebar or not addon.guiContentHost then
+        return
+    end
+
+    addon.guiAppSidebar.relWidth = nil
+    addon.guiAppSidebar.width = 285
+    addon.guiAppSidebar.frame.width = 285
+    addon.guiAppSidebar.frame:SetWidth(285)
+    addon.guiAppSidebar:SetHeight(targetHeight)
+    if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
+        addon.guiAppSidebar.frame:SetHeight(targetHeight)
+    end
+
+    addon.guiContentHost.relWidth = nil
+    addon.guiContentHost.width = nil
+    addon.guiContentHost.frame.width = nil
+end
+
+local function ApplyToolShellLayout(addon, targetHeight)
+    if not addon or not addon.guiAppSidebar or not addon.guiContentHost then
+        return
+    end
+
+    addon.guiAppSidebar.width = nil
+    addon.guiAppSidebar.frame.width = nil
+    addon.guiAppSidebar:SetRelativeWidth(SHELL_SIDEBAR_REL_WIDTH)
+    addon.guiAppSidebar:SetHeight(targetHeight)
+    if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
+        addon.guiAppSidebar.frame:SetHeight(targetHeight)
+    end
+
+    addon.guiContentHost.width = nil
+    addon.guiContentHost.frame.width = nil
+    addon.guiContentHost:SetRelativeWidth(SHELL_CONTENT_REL_WIDTH)
+    addon.guiContentHost:SetHeight(targetHeight)
+    if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
+        addon.guiContentHost.frame:SetHeight(targetHeight)
+    end
+end
+
+local function ApplyEditorHostDockingCompensation(widget, rootFrame)
+    if not widget or not rootFrame then
+        return
+    end
+
+    if not widget._focalPointDockedForScreenEdit then
+        local point, relativeTo, relativePoint, xOfs, yOfs = rootFrame:GetPoint(1)
+        widget._focalPointRestorePoint = {
+            point = point or "CENTER",
+            relativeTo = relativeTo,
+            relativePoint = relativePoint or "CENTER",
+            x = xOfs or 0,
+            y = yOfs or 0,
+        }
+        widget._focalPointDockedForScreenEdit = true
+    end
+
+    rootFrame:ClearAllPoints()
+    rootFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+end
+
+local function RestoreHostDockingAfterEditor(widget, rootFrame)
+    if not widget or not rootFrame or not widget._focalPointDockedForScreenEdit then
+        return
+    end
+
+    widget._focalPointDockedForScreenEdit = nil
+
+    local restore = widget._focalPointRestorePoint
+    rootFrame:ClearAllPoints()
+    if restore then
+        rootFrame:SetPoint(
+            restore.point or "CENTER",
+            restore.relativeTo or UIParent,
+            restore.relativePoint or "CENTER",
+            restore.x or 0,
+            restore.y or 0
+        )
+    else
+        rootFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
 end
 
 function AppShell.UpdateGeometry(addon, resolvePath)
@@ -290,7 +534,13 @@ function AppShell.UpdateGeometry(addon, resolvePath)
     local editorShellMode = shellMode == "editor"
     addon.guiShellMode = shellMode
 
-    local targetWidth = editorShellMode and 335 or 1220
+    if editorShellMode then
+        AppShell.AssignEditorRuntimeRoles(addon)
+    else
+        AppShell.ClearEditorRuntimeRoles(addon)
+    end
+
+    local targetWidth = 1220
     local targetHeight = editorShellMode and ((UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760) or 760
 
     if widget.SetWidth then
@@ -305,79 +555,24 @@ function AppShell.UpdateGeometry(addon, resolvePath)
         widget.frame:SetHeight(targetHeight)
     end
 
-    if addon.guiAppSidebar and addon.guiContentHost then
-        if editorShellMode then
-            addon.guiAppSidebar.relWidth = nil
-            addon.guiAppSidebar.width = 285
-            addon.guiAppSidebar.frame.width = 285
-            addon.guiAppSidebar.frame:SetWidth(285)
-            addon.guiAppSidebar:SetHeight(targetHeight)
-            if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
-                addon.guiAppSidebar.frame:SetHeight(targetHeight)
-            end
-
-            addon.guiContentHost.relWidth = nil
-            addon.guiContentHost.width = 1
-            addon.guiContentHost.frame.width = 1
-            addon.guiContentHost.frame:SetWidth(1)
-            addon.guiContentHost:SetHeight(targetHeight)
-            if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
-                addon.guiContentHost.frame:SetHeight(targetHeight)
-            end
-        else
-            addon.guiAppSidebar.width = nil
-            addon.guiAppSidebar.frame.width = nil
-            addon.guiAppSidebar:SetRelativeWidth(SHELL_SIDEBAR_REL_WIDTH)
-            addon.guiAppSidebar:SetHeight(targetHeight)
-            if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
-                addon.guiAppSidebar.frame:SetHeight(targetHeight)
-            end
-
-            addon.guiContentHost.width = nil
-            addon.guiContentHost.frame.width = nil
-            addon.guiContentHost:SetRelativeWidth(SHELL_CONTENT_REL_WIDTH)
-            addon.guiContentHost:SetHeight(targetHeight)
-            if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
-                addon.guiContentHost.frame:SetHeight(targetHeight)
-            end
-        end
+    if editorShellMode then
+        ApplyEditorShellLayoutCompensation(addon, targetHeight)
+    else
+        ApplyToolShellLayout(addon, targetHeight)
     end
 
     local hostChromeMode = AppShell.ResolveHostChromeMode(shellMode)
     addon.guiHostChromeMode = hostChromeMode
-    AppShell.ApplyFrameChromeMode(widget, hostChromeMode)
+    if hostChromeMode == "shell" then
+        AppShell.ApplyEditorHostChromeCompensation(widget)
+    else
+        AppShell.ApplyWindowHostChrome(widget)
+    end
 
     if editorShellMode then
-        if not widget._focalPointDockedForScreenEdit then
-            local point, relativeTo, relativePoint, xOfs, yOfs = rootFrame:GetPoint(1)
-            widget._focalPointRestorePoint = {
-                point = point or "CENTER",
-                relativeTo = relativeTo,
-                relativePoint = relativePoint or "CENTER",
-                x = xOfs or 0,
-                y = yOfs or 0,
-            }
-            widget._focalPointDockedForScreenEdit = true
-        end
-
-        rootFrame:ClearAllPoints()
-        rootFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
-    elseif widget._focalPointDockedForScreenEdit then
-        widget._focalPointDockedForScreenEdit = nil
-
-        local restore = widget._focalPointRestorePoint
-        rootFrame:ClearAllPoints()
-        if restore then
-            rootFrame:SetPoint(
-                restore.point or "CENTER",
-                restore.relativeTo or UIParent,
-                restore.relativePoint or "CENTER",
-                restore.x or 0,
-                restore.y or 0
-            )
-        else
-            rootFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-        end
+        ApplyEditorHostDockingCompensation(widget, rootFrame)
+    else
+        RestoreHostDockingAfterEditor(widget, rootFrame)
     end
 
     if addon.guiRoot and addon.guiRoot.DoLayout then
