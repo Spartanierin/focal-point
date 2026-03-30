@@ -60,6 +60,7 @@ local GetActiveCastTiming = Cast.GetActiveTiming
 local GetPreviewRaidTargetIndex = Preview.GetRaidTargetIndex
 local GetSecondaryPowerTypeForUnit = Preview.GetSecondaryPowerTypeForUnit
 local GetSecondaryPowerValues = Preview.GetSecondaryPowerValues
+local IsDetailedPreviewEnabled = Preview.IsDetailedPreviewEnabled
 local StartCastBar = Cast.Start
 local StartCastBarPreview = Cast.StartPreview
 local QueueCastBarRefresh = Cast.QueueRefresh
@@ -935,7 +936,11 @@ function UF:ApplyTestValues(frame)
     end
 
     if IsPreviewModeEnabled() then
-        StartCastBarPreview(frame)
+        if IsDetailedPreviewEnabled and IsDetailedPreviewEnabled(frame) then
+            StartCastBarPreview(frame)
+        else
+            StopCastBar(frame)
+        end
     else
         StartCastBar(frame)
     end

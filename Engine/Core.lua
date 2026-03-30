@@ -1,6 +1,10 @@
 local _, FocalPoint = ...
 
 local function GetUnitConfig(unit)
+    if type(unit) == "string" and unit:match("^boss%d+$") then
+        unit = "boss"
+    end
+
     local utils = FocalPoint.UnitFrameUtils
     if utils and utils.GetUnitDB then
         return utils.GetUnitDB(unit)
@@ -48,7 +52,7 @@ local function EnsureMoveOverlay(frame)
     overlay:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 2,
+        edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 },
     })
     overlay:SetBackdropColor(0, 0, 0, 0)
@@ -64,6 +68,26 @@ local function EnsureMoveOverlay(frame)
         coords:SetJustifyH("LEFT")
     end
     overlay.Coords = coords
+
+    local accent = overlay:CreateTexture(nil, "ARTWORK")
+    accent:SetPoint("TOPLEFT", overlay, "TOPLEFT", 1, -1)
+    accent:SetPoint("TOPRIGHT", overlay, "TOPRIGHT", -1, -1)
+    accent:SetHeight(2)
+    accent:SetColorTexture(0.78, 0.65, 0.24, 0.42)
+    accent:Hide()
+    overlay.Accent = accent
+
+    local placeholderLabel = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    placeholderLabel:SetPoint("CENTER", overlay, "CENTER", 0, 0)
+    placeholderLabel:SetFont(STANDARD_TEXT_FONT, 14, "")
+    placeholderLabel:SetTextColor(0.93, 0.94, 0.96, 0.96)
+    if placeholderLabel.SetJustifyH then
+        placeholderLabel:SetJustifyH("CENTER")
+    end
+    placeholderLabel:SetShadowOffset(1, -1)
+    placeholderLabel:SetShadowColor(0, 0, 0, 0.75)
+    placeholderLabel:Hide()
+    overlay.PlaceholderLabel = placeholderLabel
 
     frame.MoveOverlay = overlay
     return overlay
@@ -143,11 +167,57 @@ local function UpdateMoveOverlayVisuals(frame)
 
     local overlay = frame.MoveOverlay
     local coords = overlay.Coords
+    local accent = overlay.Accent
+    local placeholderLabel = overlay.PlaceholderLabel
     local isSelected = IsSelectedEditorFrame(frame)
     local isDragging = frame._focalPointDragState ~= nil
+    local isPlaceholder = FocalPoint.framesUnlocked
+        and not FocalPoint.guiTestModeEnabled
+        and FocalPoint.IsEditorActive
+        and FocalPoint:IsEditorActive()
+        and not isSelected
+        and not isDragging
 
-    overlay:SetBackdropColor(0, 0, 0, 0)
-    overlay:SetBackdropBorderColor(0, 0, 0, 0)
+    local preview = FocalPoint.UnitFramePreview and FocalPoint.UnitFramePreview.GetTestValues and FocalPoint.UnitFramePreview.GetTestValues(frame) or nil
+    local placeholderName = preview and preview.name or (frame.unit or "")
+    local unitConfig = GetUnitConfig(frame.unit)
+    local isEnabled = type(unitConfig) ~= "table" or unitConfig.enabled ~= false
+
+    if isPlaceholder then
+        if isEnabled then
+            overlay:SetBackdropColor(0.05, 0.06, 0.08, 0.72)
+            overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.82)
+        else
+            overlay:SetBackdropColor(0.05, 0.06, 0.08, 0.18)
+            overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.24)
+        end
+        if accent then
+            if isEnabled then
+                accent:SetColorTexture(0.78, 0.65, 0.24, 0.42)
+            else
+                accent:SetColorTexture(0.78, 0.65, 0.24, 0.10)
+            end
+            accent:Show()
+        end
+        if placeholderLabel then
+            placeholderLabel:SetText(placeholderName)
+            if isEnabled then
+                placeholderLabel:SetTextColor(0.93, 0.94, 0.96, 0.96)
+            else
+                placeholderLabel:SetTextColor(0.82, 0.84, 0.88, 0.38)
+            end
+            placeholderLabel:Show()
+        end
+    else
+        overlay:SetBackdropColor(0, 0, 0, 0)
+        overlay:SetBackdropBorderColor(0, 0, 0, 0)
+        if accent then
+            accent:Hide()
+        end
+        if placeholderLabel then
+            placeholderLabel:Hide()
+        end
+    end
 
     if coords then
         if (isSelected and FocalPoint.framesUnlocked) or isDragging then

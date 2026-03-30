@@ -26,8 +26,15 @@ local TEXT_ORDER = {
     "Name",
     "Health",
     "Power",
+    "Level",
+    "Class",
+    "Race",
+    "Status",
     "CastName",
     "CastTime",
+    "Custom1",
+    "Custom2",
+    "Custom3",
 }
 
 local INDICATOR_META = {
@@ -555,17 +562,46 @@ local function FormatTextKey(textKey)
         return "Text"
     end
 
+    local keyMap = ns.KeyMap and ns.KeyMap.Texts
+    if type(keyMap) == "table" then
+        local labelKey = keyMap[textKey]
+        if type(labelKey) == "string" and type(L[labelKey]) == "string" and L[labelKey] ~= "" then
+            return L[labelKey]
+        end
+    end
+
     local spaced = textKey:gsub("(%l)(%u)", "%1 %2")
     return spaced
 end
 
 local function BuildTextList(texts)
     local list = {}
+    local seen = {}
+
+    if type(texts) ~= "table" then
+        return list
+    end
 
     for _, textKey in ipairs(TEXT_ORDER) do
-        if type(texts) == "table" and type(texts[textKey]) == "table" then
+        if type(texts[textKey]) == "table" then
             list[textKey] = FormatTextKey(textKey)
+            seen[textKey] = true
         end
+    end
+
+    local extraKeys = {}
+    for textKey, textConfig in pairs(texts) do
+        if not seen[textKey] and type(textConfig) == "table" then
+            extraKeys[#extraKeys + 1] = textKey
+        end
+    end
+
+    table.sort(extraKeys, function(a, b)
+        return tostring(a) < tostring(b)
+    end)
+
+    for _, textKey in ipairs(extraKeys) do
+        list[textKey] = FormatTextKey(textKey)
     end
 
     return list

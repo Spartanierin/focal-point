@@ -128,6 +128,93 @@ local TEST_PREVIEW_VALUES = {
     },
 }
 
+local PLACEHOLDER_PREVIEW_VALUES = {
+    player = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Spieler",
+    },
+    target = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Ziel",
+    },
+    focus = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Fokus",
+    },
+    targettarget = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Ziel des Ziels",
+    },
+    focustarget = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Fokusziel",
+    },
+    pet = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Begleiter",
+    },
+    boss = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Boss",
+    },
+    boss1 = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Boss 1",
+    },
+    boss2 = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Boss 2",
+    },
+    boss3 = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Boss 3",
+    },
+    boss4 = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Boss 4",
+    },
+    boss5 = {
+        healthCurrent = 100,
+        healthMax = 100,
+        powerCurrent = 0,
+        powerMax = 100,
+        name = "Boss 5",
+    },
+}
+
 local SECONDARY_POWER_BAR_SPECS = {
     [258] = 0, -- Shadow Priest -> Mana
     [262] = 0, -- Elemental Shaman -> Mana
@@ -136,12 +223,62 @@ local SECONDARY_POWER_BAR_SPECS = {
 -- Preview helpers provide stable fake values for test/unlock mode
 -- and encapsulate the small amount of secondary power lookup logic.
 
+local function GetSelectedEditorUnit()
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    local state = editorState and editorState.Get and editorState.Get() or nil
+    return state and state.selectedUnit or nil
+end
+
+local function IsSelectedEditorFrame(frame)
+    if not frame or not frame.unit then
+        return false
+    end
+
+    local selectedUnit = GetSelectedEditorUnit()
+    if type(selectedUnit) ~= "string" or selectedUnit == "" then
+        return false
+    end
+
+    if selectedUnit == "boss" then
+        return frame.unit:match("^boss%d+$") ~= nil
+    end
+
+    return frame.unit == selectedUnit
+end
+
+function Preview.IsDetailedPreviewEnabled(frame)
+    if FocalPoint.guiTestModeEnabled then
+        return true
+    end
+
+    if FocalPoint.framesUnlocked then
+        return IsSelectedEditorFrame(frame)
+    end
+
+    return false
+end
+
+function Preview.IsPlaceholderPreviewEnabled(frame)
+    return FocalPoint.framesUnlocked and not FocalPoint.guiTestModeEnabled and not Preview.IsDetailedPreviewEnabled(frame)
+end
+
 function Preview.GetTestValues(frame)
     if not frame or not frame.unit then
         return nil
     end
 
-    return TEST_PREVIEW_VALUES[frame.unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+    if Preview.IsDetailedPreviewEnabled(frame) then
+        return TEST_PREVIEW_VALUES[frame.unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+    end
+
+    if Preview.IsPlaceholderPreviewEnabled(frame) then
+        return PLACEHOLDER_PREVIEW_VALUES[frame.unit]
+            or PLACEHOLDER_PREVIEW_VALUES.boss
+            or PLACEHOLDER_PREVIEW_VALUES.target
+            or PLACEHOLDER_PREVIEW_VALUES.player
+    end
+
+    return nil
 end
 
 function Preview.GetRaidTargetIndex(frame)
@@ -207,5 +344,6 @@ function Preview.IsIndicatorVisible(frame, indicatorKey)
     if not frame or not indicatorKey or not frame.unit then
         return false
     end
-    return true
+
+    return Preview.IsDetailedPreviewEnabled(frame)
 end

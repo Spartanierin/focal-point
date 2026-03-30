@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.UnitFramePortrait = FocalPoint.UnitFramePortrait or {}
 local Portrait = FocalPoint.UnitFramePortrait
 local State = FocalPoint.UnitFrameState or {}
+local Preview = FocalPoint.UnitFramePreview or {}
 
 -- Portrait helpers encapsulate creation, texture refresh, and portrait-specific
 -- event registration without pulling in the full unit-frame runtime.
@@ -43,6 +44,11 @@ function Portrait.UpdateTexture(frame)
     end
 
     if not portraitConfig or portraitConfig.enabled == false then
+        texture:SetTexture(nil)
+        return
+    end
+
+    if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
         texture:SetTexture(nil)
         return
     end
@@ -121,10 +127,11 @@ function Portrait.ApplyLayout(owner, frame, options)
     end
 
     local portrait = frame.Elements.Portrait
+    local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
     portrait:ClearAllPoints()
     portrait:SetScale(1)
 
-    if options.portraitEnabled then
+    if options.portraitEnabled and not isPlaceholder then
         portrait:SetBackdropColor(0.05, 0.05, 0.05, 0.9)
         portrait:SetBackdropBorderColor(options.borderR, options.borderG, options.borderB, options.borderA)
         portrait:SetSize(options.portraitEffectiveSize, options.portraitEffectiveSize)

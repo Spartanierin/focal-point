@@ -82,7 +82,6 @@
     <Script file="GUI/Helpers/TabValues.lua"/>
     <Script file="GUI/Helpers/PageDeps.lua"/>
     <Script file="GUI/AppShell.lua"/>
-    <Script file="GUI/ToolPageScaffold.lua"/>
     <Script file="GUI/Layouts/SectionLayout.lua"/>
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
     <Script file="GUI/Preview/ThemePreview.lua"/>

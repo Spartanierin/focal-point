@@ -14,7 +14,6 @@ local Shared = ns.GUI.Editor.SidebarShared or {}
 local AddSpacer = Shared.AddSpacer
 local CreateSection = Shared.CreateSection
 local StyleSidebarButton = Shared.StyleSidebarButton
-local IsToolPagePath = Shared.IsToolPagePath
 local AddActiveSidebarItem = Shared.AddActiveSidebarItem
 local CompactSidebarText = Shared.CompactSidebarText
 local AddCheckBox = Shared.AddCheckBox
@@ -33,21 +32,21 @@ function ContextSidebar.Build(container, state, options)
     local themes = ThemeService.GetThemes and ThemeService.GetThemes() or {}
     local themeList = BuildThemeList(themes)
     local customThemeId = ThemeService.GetCustomThemeId and ThemeService.GetCustomThemeId() or "__custom__"
-    local hasCustomSnapshot = ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot()
-    if hasCustomSnapshot then
-        themeList[customThemeId] = L["THEME_CUSTOM"] or "My Layout"
-    end
     local activeThemeId = ns.db and ns.db.profile and ns.db.profile.General and ns.db.profile.General.ActiveThemeId
     local selectedThemeId = state.selectedThemeId
     local versionText = BuilderUI.GetAddonVersionText and BuilderUI.GetAddonVersionText() or "dev"
     local logoPath = "Interface\\AddOns\\FocalPoint\\Media\\Icon.tga"
     local generalConfig = ns.db and ns.db.profile and ns.db.profile.General
-    local currentPath = ns.GUI and ns.GUI.selectedPath
-    local normalizedCurrent = currentPath == nil and C.Nav.EDITOR or currentPath
-    local showingToolPage = IsToolPagePath(normalizedCurrent)
+    local normalizedCurrent = options.currentPath or (ns.GUI and ns.GUI.selectedPath) or C.Nav.EDITOR
+    local shellMode = options.shellMode or "tool"
+    local showingToolPage = shellMode == "tool"
 
     if type(generalConfig) ~= "table" then
         return
+    end
+
+    if ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot() then
+        themeList[customThemeId] = L["THEME_CUSTOM"] or "My Layout"
     end
 
     if not themeList[selectedThemeId] then
@@ -130,7 +129,7 @@ function ContextSidebar.Build(container, state, options)
         toolsSection:AddChild(closeButton)
     end
 
-    if showingToolPage then
+    local function AddToolWorkspaceSection()
         local toolContext = CreateSection(container, L["EDITOR_CONTEXT_WORKSPACE"] or "Workspace", { style = "prominent" })
 
         local toolLabel = AceGUI:Create("Label")
@@ -168,7 +167,9 @@ function ContextSidebar.Build(container, state, options)
             end
         end)
         toolContext:AddChild(returnButton)
-    else
+    end
+
+    local function AddEditorWorkspaceSection()
         local workspace = CreateSection(container, L["EDITOR_CONTEXT_WORKSPACE"] or "Workspace", { style = "prominent" })
 
         AddUnitSelector(workspace, state.selectedUnit, function(value)
@@ -184,7 +185,9 @@ function ContextSidebar.Build(container, state, options)
                 options.onModeChanged(state.mode)
             end
         end)
+    end
 
+    local function AddEditorPreviewSection()
         local previewSection = CreateSection(container, L["EDITOR_CONTEXT_PREVIEW"] or "Editing", { style = "prominent" })
 
         local testButton = AceGUI:Create("Button")
@@ -223,168 +226,189 @@ function ContextSidebar.Build(container, state, options)
             previewHint.label:SetTextColor(0.67, 0.71, 0.76, 1)
         end
         previewSection:AddChild(previewHint)
+    end
 
-        if next(themeList) ~= nil then
-            local presetSection = CreateSection(container, L["EDITOR_CONTEXT_PRESET"] or "Presets")
+    local function AddEditorPresetSection()
+        if next(themeList) == nil then
+            return
+        end
 
-            local presetIntro = AceGUI:Create("Label")
-            presetIntro:SetFullWidth(true)
-            presetIntro:SetText(L["EDITOR_PRESET_CONTEXT_HINT"] or "")
-            if presetIntro.label and presetIntro.label.SetFont then
-                presetIntro.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-                presetIntro.label:SetTextColor(0.71, 0.74, 0.78, 1)
+        local presetSection = CreateSection(container, L["EDITOR_CONTEXT_PRESET"] or "Presets")
+
+        local presetIntro = AceGUI:Create("Label")
+        presetIntro:SetFullWidth(true)
+        presetIntro:SetText(L["EDITOR_PRESET_CONTEXT_HINT"] or "")
+        if presetIntro.label and presetIntro.label.SetFont then
+            presetIntro.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            presetIntro.label:SetTextColor(0.71, 0.74, 0.78, 1)
+        end
+        presetSection:AddChild(presetIntro)
+
+        AddDropdown(presetSection, L["EDITOR_PRESET_SELECT"] or L["THEME_SELECT"] or "Select Preset", themeList, selectedThemeId, function(value)
+            state.selectedThemeId = value
+            if options.onThemeChanged then
+                options.onThemeChanged(value)
             end
-            presetSection:AddChild(presetIntro)
+        end)
 
-            AddDropdown(presetSection, L["EDITOR_PRESET_SELECT"] or L["THEME_SELECT"] or "Select Preset", themeList, selectedThemeId, function(value)
-                state.selectedThemeId = value
-                if options.onThemeChanged then
-                    options.onThemeChanged(value)
-                end
-            end)
+        local selectedTheme = themes[selectedThemeId]
+        local themeInfo = AceGUI:Create("Label")
+        themeInfo:SetFullWidth(true)
+        local themeDescription = nil
+        if selectedThemeId == customThemeId then
+            themeDescription = L["THEME_CUSTOM_DESC"] or (L["INFO_GENERAL_THEMES_DESC"] or "")
+        else
+            themeDescription = (selectedTheme and selectedTheme.descriptionKey and L[selectedTheme.descriptionKey]) or (L["INFO_GENERAL_THEMES_DESC"] or "")
+        end
+        themeInfo:SetText(CompactSidebarText(themeDescription, 82))
+        if themeInfo.label and themeInfo.label.SetFont then
+            themeInfo.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            themeInfo.label:SetTextColor(0.67, 0.70, 0.75, 1)
+        end
+        presetSection:AddChild(themeInfo)
 
-            local selectedTheme = themes[selectedThemeId]
-            local themeInfo = AceGUI:Create("Label")
-            themeInfo:SetFullWidth(true)
-            local themeDescription = nil
-            if selectedThemeId == customThemeId then
-                themeDescription = L["THEME_CUSTOM_DESC"] or "Restores your own saved baseline layout."
-            else
-                themeDescription = (selectedTheme and selectedTheme.descriptionKey and L[selectedTheme.descriptionKey]) or (L["INFO_GENERAL_THEMES_DESC"] or "")
+        local applyButton = AceGUI:Create("Button")
+        applyButton:SetText(L["THEME_APPLY"] or L["INFO_GENERAL_THEME_APPLY"] or "Apply Preset")
+        applyButton:SetFullWidth(true)
+        applyButton:SetDisabled(not selectedThemeId)
+        StyleSidebarButton(applyButton, "secondary")
+        applyButton:SetCallback("OnClick", function()
+            if not selectedThemeId or not ThemeService.ApplyTheme then
+                return
             end
-            themeInfo:SetText(CompactSidebarText(themeDescription, 82))
-            if themeInfo.label and themeInfo.label.SetFont then
-                themeInfo.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-                themeInfo.label:SetTextColor(0.67, 0.70, 0.75, 1)
+
+            if selectedThemeId ~= customThemeId and ThemeService.HasDefaultSnapshot and ThemeService.CaptureDefaultSnapshot and not ThemeService.HasDefaultSnapshot() then
+                ThemeService.CaptureDefaultSnapshot()
             end
-            presetSection:AddChild(themeInfo)
 
-            local applyButton = AceGUI:Create("Button")
-            applyButton:SetText(L["THEME_APPLY"] or L["INFO_GENERAL_THEME_APPLY"] or "Apply Preset")
-            applyButton:SetFullWidth(true)
-            applyButton:SetDisabled(not selectedThemeId)
-            StyleSidebarButton(applyButton, "secondary")
-            applyButton:SetCallback("OnClick", function()
-                if not selectedThemeId or not ThemeService.ApplyTheme then
-                    return
+            if selectedThemeId ~= customThemeId and ThemeService.CaptureRestoreSnapshot then
+                ThemeService.CaptureRestoreSnapshot()
+            end
+
+            if ThemeService.ApplyTheme(selectedThemeId) then
+                state.selectedThemeId = ns.db and ns.db.profile and ns.db.profile.General and ns.db.profile.General.ActiveThemeId or selectedThemeId
+                if options.onThemeApplied then
+                    options.onThemeApplied(state.selectedThemeId)
                 end
+            end
+        end)
+        presetSection:AddChild(applyButton)
 
-                if ThemeService.CaptureDefaultSnapshot and not (ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot()) then
-                    ThemeService.CaptureDefaultSnapshot()
-                end
+        if ThemeService.CaptureDefaultSnapshot then
+            AddSpacer(presetSection, 2)
 
-                if ThemeService.CaptureRestoreSnapshot then
-                    ThemeService.CaptureRestoreSnapshot()
-                end
-
-                if ThemeService.ApplyTheme(selectedThemeId) then
-                    state.selectedThemeId = ns.db and ns.db.profile and ns.db.profile.General and ns.db.profile.General.ActiveThemeId or selectedThemeId
+            local saveCustomButton = AceGUI:Create("Button")
+            saveCustomButton:SetText(L["EDITOR_PRESET_SAVE_CUSTOM"] or "Save Current Layout as My Layout")
+            saveCustomButton:SetFullWidth(true)
+            StyleSidebarButton(saveCustomButton, "ghost")
+            saveCustomButton:SetCallback("OnClick", function()
+                if ThemeService.CaptureDefaultSnapshot and ThemeService.CaptureDefaultSnapshot() then
                     if options.onThemeApplied then
                         options.onThemeApplied(state.selectedThemeId)
                     end
                 end
             end)
-            presetSection:AddChild(applyButton)
+            presetSection:AddChild(saveCustomButton)
+        end
 
-            local saveDefaultButton = AceGUI:Create("Button")
-            saveDefaultButton:SetText(L["EDITOR_PRESET_SAVE_CUSTOM"] or "Save Current Layout as My Layout")
-            saveDefaultButton:SetFullWidth(true)
-            StyleSidebarButton(saveDefaultButton, "secondary")
-            saveDefaultButton:SetCallback("OnClick", function()
-                if ThemeService.CaptureDefaultSnapshot and ThemeService.CaptureDefaultSnapshot() then
-                    state.selectedThemeId = customThemeId
-                    if options.onThemeChanged then
-                        options.onThemeChanged(customThemeId)
+        if ThemeService.HasRestoreSnapshot and ThemeService.HasRestoreSnapshot() and ThemeService.RestoreSnapshot then
+            AddSpacer(presetSection, 2)
+
+            local restoreButton = AceGUI:Create("Button")
+            restoreButton:SetText(L["EDITOR_PRESET_RESTORE"] or "Restore Previous Layout")
+            restoreButton:SetFullWidth(true)
+            StyleSidebarButton(restoreButton, "ghost")
+            restoreButton:SetCallback("OnClick", function()
+                if ThemeService.RestoreSnapshot and ThemeService.RestoreSnapshot() then
+                    state.selectedThemeId = ns.db and ns.db.profile and ns.db.profile.General and ns.db.profile.General.ActiveThemeId or state.selectedThemeId
+                    if options.onThemeApplied then
+                        options.onThemeApplied(state.selectedThemeId)
                     end
                 end
             end)
-            presetSection:AddChild(saveDefaultButton)
+            presetSection:AddChild(restoreButton)
 
-            if ThemeService.HasRestoreSnapshot and ThemeService.HasRestoreSnapshot() then
-                local restoreButton = AceGUI:Create("Button")
-                restoreButton:SetText(L["EDITOR_PRESET_RESTORE"] or "Restore Previous Layout")
-                restoreButton:SetFullWidth(true)
-                StyleSidebarButton(restoreButton, "secondary")
-                restoreButton:SetCallback("OnClick", function()
-                    if ThemeService.RestoreSnapshot and ThemeService.RestoreSnapshot() then
-                        local restoredThemeId = ns.db and ns.db.profile and ns.db.profile.General and ns.db.profile.General.ActiveThemeId
-                        if restoredThemeId and state.selectedThemeId ~= restoredThemeId then
-                            state.selectedThemeId = restoredThemeId
-                        end
+            local restoreHint = AceGUI:Create("Label")
+            restoreHint:SetFullWidth(true)
+            restoreHint:SetText(L["EDITOR_PRESET_RESTORE_HINT"] or "")
+            if restoreHint.label and restoreHint.label.SetFont then
+                restoreHint.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+                restoreHint.label:SetTextColor(0.67, 0.70, 0.75, 1)
+            end
+            presetSection:AddChild(restoreHint)
+        end
+    end
 
-                        if options.onThemeApplied then
-                            options.onThemeApplied(state.selectedThemeId)
-                        end
-                    end
-                end)
-                presetSection:AddChild(restoreButton)
+    local function AddGlobalSection(isToolLayout)
+        local globalSection = CreateSection(container, L["EDITOR_CONTEXT_GLOBAL"] or "Addon", { style = "muted" })
 
-                local restoreHint = AceGUI:Create("Label")
-                restoreHint:SetFullWidth(true)
-                restoreHint:SetText(CompactSidebarText(L["EDITOR_PRESET_RESTORE_HINT"] or "", 82))
-                if restoreHint.label and restoreHint.label.SetFont then
-                    restoreHint.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-                    restoreHint.label:SetTextColor(0.67, 0.70, 0.75, 1)
+        AddCheckBox(globalSection, L["OPTION_HIDE_BLIZZARD_FRAMES"] or "Hide Blizzard Frames", generalConfig.HideBlizzardFrames == true, function(value)
+            generalConfig.HideBlizzardFrames = value and true or false
+
+            if ns.ApplyGeneralSettings then
+                ns:ApplyGeneralSettings()
+            end
+
+            if not generalConfig.HideBlizzardFrames and ns.Info then
+                ns:Info(L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"])
+            end
+
+            if options.onGlobalChanged then
+                options.onGlobalChanged()
+            end
+        end)
+
+        if not isToolLayout and generalConfig.ExpertMode ~= false then
+            AddCheckBox(globalSection, L["OPTION_MOUSE_ENABLED"] or "Mouse Enabled", generalConfig.MouseEnabled ~= false, function(value)
+                generalConfig.MouseEnabled = value and true or false
+
+                if ns.RefreshAllUnitFrames then
+                    ns:RefreshAllUnitFrames()
                 end
-                presetSection:AddChild(restoreHint)
-            end
+
+                if options.onGlobalChanged then
+                    options.onGlobalChanged()
+                end
+            end)
+
+            AddCheckBox(globalSection, L["OPTION_GLOBAL_CLICKTHROUGH"] or "Global Click Through", generalConfig.GlobalClickThrough == true, function(value)
+                generalConfig.GlobalClickThrough = value and true or false
+
+                if ns.RefreshAllUnitFrames then
+                    ns:RefreshAllUnitFrames()
+                end
+
+                if options.onGlobalChanged then
+                    options.onGlobalChanged()
+                end
+            end)
         end
     end
 
-    local globalSection = CreateSection(container, L["EDITOR_CONTEXT_GLOBAL"] or "Addon", { style = "muted" })
+    local function AddFooterNote(text)
+        AddSpacer(container, 2)
 
-    AddCheckBox(globalSection, L["OPTION_HIDE_BLIZZARD_FRAMES"] or "Hide Blizzard Frames", generalConfig.HideBlizzardFrames == true, function(value)
-        generalConfig.HideBlizzardFrames = value and true or false
-
-        if ns.ApplyGeneralSettings then
-            ns:ApplyGeneralSettings()
+        local info = AceGUI:Create("Label")
+        info:SetFullWidth(true)
+        info:SetText(text or "")
+        if info.label and info.label.SetFont then
+            info.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            info.label:SetTextColor(0.55, 0.58, 0.63, 1)
         end
-
-        if not generalConfig.HideBlizzardFrames and ns.Info then
-            ns:Info(L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"])
-        end
-
-        if options.onGlobalChanged then
-            options.onGlobalChanged()
-        end
-    end)
-
-    if generalConfig.ExpertMode ~= false then
-        AddCheckBox(globalSection, L["OPTION_MOUSE_ENABLED"] or "Mouse Enabled", generalConfig.MouseEnabled ~= false, function(value)
-            generalConfig.MouseEnabled = value and true or false
-
-            if ns.RefreshAllUnitFrames then
-                ns:RefreshAllUnitFrames()
-            end
-
-            if options.onGlobalChanged then
-                options.onGlobalChanged()
-            end
-        end)
-
-        AddCheckBox(globalSection, L["OPTION_GLOBAL_CLICKTHROUGH"] or "Global Click Through", generalConfig.GlobalClickThrough == true, function(value)
-            generalConfig.GlobalClickThrough = value and true or false
-
-            if ns.RefreshAllUnitFrames then
-                ns:RefreshAllUnitFrames()
-            end
-
-            if options.onGlobalChanged then
-                options.onGlobalChanged()
-            end
-        end)
+        container:AddChild(info)
     end
 
-    AddSpacer(container, 2)
-
-    local info = AceGUI:Create("Label")
-    info:SetFullWidth(true)
-    info:SetText(L["EDITOR_PREVIEW_NOTE"] or "")
-    if info.label and info.label.SetFont then
-        info.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-        info.label:SetTextColor(0.55, 0.58, 0.63, 1)
+    if showingToolPage then
+        AddToolWorkspaceSection()
+        AddGlobalSection(true)
+        AddFooterNote(L["EDITOR_PREVIEW_NOTE"] or "")
+    else
+        AddEditorWorkspaceSection()
+        AddEditorPreviewSection()
+        AddEditorPresetSection()
+        AddGlobalSection(false)
+        AddFooterNote(L["EDITOR_PREVIEW_NOTE"] or "")
     end
-    container:AddChild(info)
 end
 
 

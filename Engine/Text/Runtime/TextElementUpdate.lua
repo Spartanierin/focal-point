@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.TextElementUpdate = FocalPoint.TextElementUpdate or {}
 
 local Update = FocalPoint.TextElementUpdate
+local Preview = FocalPoint.UnitFramePreview or {}
 local TextState = FocalPoint.TextElementState or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
@@ -466,6 +467,13 @@ function Update.UpdateElement(frame, key, deps)
         local textObject = frame.Texts[key]
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
         if not textConfig or textConfig.enabled == false then
+            StopAnimatedNameText(textObject)
+            textObject:SetText("")
+            textObject:Hide()
+            return
+        end
+
+        if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
             StopAnimatedNameText(textObject)
             textObject:SetText("")
             textObject:Hide()

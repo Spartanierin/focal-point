@@ -209,42 +209,54 @@ local function BuildAppliedUnitConfig(unitKey, currentUnitConfig, unitTheme, def
     return ApplyThemeToUnitConfig(baseConfig, unitTheme)
 end
 
-local function GetPersistedRestoreState(profile)
+local function GetPersistedRestoreState()
+    local profile = FocalPoint.db and FocalPoint.db.profile
     local general = profile and profile.General
-    local saved = general and general[RESTORE_STATE_KEY]
-    if type(saved) ~= "table" then
+    if type(general) ~= "table" then
         return nil
     end
 
-    return saved
-end
-
-local function SetPersistedRestoreState(profile, snapshot)
-    if not profile then
-        return
-    end
-
-    profile.General = profile.General or {}
-    profile.General[RESTORE_STATE_KEY] = snapshot and CloneValue(snapshot) or nil
-end
-
-local function GetPersistedDefaultTheme(profile)
-    local general = profile and profile.General
-    local saved = general and general[CUSTOM_THEME_KEY]
-    if type(saved) ~= "table" then
+    local persisted = general[RESTORE_STATE_KEY]
+    if type(persisted) ~= "table" then
         return nil
     end
 
-    return saved
+    return CloneValue(persisted)
 end
 
-local function SetPersistedDefaultTheme(profile, snapshot)
-    if not profile then
+local function SetPersistedRestoreState(snapshot)
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    local general = profile and profile.General
+    if type(general) ~= "table" then
         return
     end
 
-    profile.General = profile.General or {}
-    profile.General[CUSTOM_THEME_KEY] = snapshot and CloneValue(snapshot) or nil
+    general[RESTORE_STATE_KEY] = snapshot and CloneValue(snapshot) or nil
+end
+
+local function GetPersistedDefaultTheme()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    local general = profile and profile.General
+    if type(general) ~= "table" then
+        return nil
+    end
+
+    local persisted = general[CUSTOM_THEME_KEY]
+    if type(persisted) ~= "table" then
+        return nil
+    end
+
+    return CloneValue(persisted)
+end
+
+local function SetPersistedDefaultTheme(snapshot)
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    local general = profile and profile.General
+    if type(general) ~= "table" then
+        return
+    end
+
+    general[CUSTOM_THEME_KEY] = snapshot and CloneValue(snapshot) or nil
 end
 
 function ThemeService.GetThemes()
@@ -252,6 +264,19 @@ function ThemeService.GetThemes()
 end
 
 function ThemeService.GetTheme(themeId)
+    if themeId == CUSTOM_THEME_ID then
+        local snapshot = ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot()
+        if snapshot then
+            return {
+                id = CUSTOM_THEME_ID,
+                labelKey = "THEME_CUSTOM",
+                descriptionKey = "THEME_CUSTOM_DESC",
+                applyDefaults = false,
+                units = {},
+            }
+        end
+    end
+
     local themes = ThemeService.GetThemes()
     if type(themeId) ~= "string" or themeId == "" then
         return nil
@@ -262,6 +287,108 @@ end
 
 function ThemeService.GetCustomThemeId()
     return CUSTOM_THEME_ID
+end
+
+function ThemeService.HasRestoreSnapshot()
+    if type(themeRestoreState) == "table" then
+        return true
+    end
+
+    themeRestoreState = GetPersistedRestoreState()
+    return type(themeRestoreState) == "table"
+end
+
+function ThemeService.HasDefaultSnapshot()
+    return type(GetPersistedDefaultTheme()) == "table"
+end
+
+function ThemeService.CaptureDefaultSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile or type(profile.Units) ~= "table" then
+        return false
+    end
+
+    local snapshot = {
+        units = CloneValue(profile.Units),
+        activeThemeId = profile.General and profile.General.ActiveThemeId or nil,
+    }
+
+    SetPersistedDefaultTheme(snapshot)
+    return true
+end
+
+function ThemeService.RestoreDefaultSnapshot()
+    local snapshot = GetPersistedDefaultTheme()
+    if type(snapshot) ~= "table" then
+        return false
+    end
+
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile then
+        return false
+    end
+
+    if type(snapshot.units) == "table" then
+        profile.Units = CloneValue(snapshot.units)
+    end
+
+    profile.General = profile.General or {}
+    profile.General.ActiveThemeId = snapshot.activeThemeId or profile.General.ActiveThemeId
+
+    if FocalPoint.RefreshAllUnitFrames then
+        FocalPoint:RefreshAllUnitFrames()
+    end
+
+    return true
+end
+
+function ThemeService.CaptureRestoreSnapshot()
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile or type(profile.Units) ~= "table" then
+        return false
+    end
+
+    themeRestoreState = {
+        units = CloneValue(profile.Units),
+        activeThemeId = profile.General and profile.General.ActiveThemeId or nil,
+    }
+
+    SetPersistedRestoreState(themeRestoreState)
+    return true
+end
+
+function ThemeService.ClearRestoreSnapshot()
+    themeRestoreState = nil
+    SetPersistedRestoreState(nil)
+end
+
+function ThemeService.RestoreSnapshot()
+    if type(themeRestoreState) ~= "table" then
+        themeRestoreState = GetPersistedRestoreState()
+    end
+
+    if type(themeRestoreState) ~= "table" then
+        return false
+    end
+
+    local profile = FocalPoint.db and FocalPoint.db.profile
+    if not profile then
+        return false
+    end
+
+    if type(themeRestoreState.units) == "table" then
+        profile.Units = CloneValue(themeRestoreState.units)
+    end
+
+    profile.General = profile.General or {}
+    profile.General.ActiveThemeId = themeRestoreState.activeThemeId or profile.General.ActiveThemeId
+
+    if FocalPoint.RefreshAllUnitFrames then
+        FocalPoint:RefreshAllUnitFrames()
+    end
+
+    ThemeService.ClearRestoreSnapshot()
+    return true
 end
 
 function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
@@ -279,117 +406,6 @@ function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
     end
 
     return ApplyThemeToUnitConfig(baseConfig, theme.units and theme.units[unitKey])
-end
-
-function ThemeService.HasRestoreSnapshot()
-    if type(themeRestoreState) == "table" then
-        return true
-    end
-
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    return type(GetPersistedRestoreState(profile)) == "table"
-end
-
-function ThemeService.HasDefaultSnapshot()
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    return type(GetPersistedDefaultTheme(profile)) == "table"
-end
-
-function ThemeService.CaptureDefaultSnapshot()
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    if not profile or type(profile.Units) ~= "table" then
-        return false
-    end
-
-    local snapshot = {
-        Units = CloneValue(profile.Units),
-        ActiveThemeId = profile.General and profile.General.ActiveThemeId or nil,
-    }
-
-    SetPersistedDefaultTheme(profile, snapshot)
-    return true
-end
-
-function ThemeService.RestoreDefaultSnapshot()
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    if not profile or type(profile.Units) ~= "table" then
-        return false
-    end
-
-    local snapshot = CloneValue(GetPersistedDefaultTheme(profile))
-    if type(snapshot) ~= "table" then
-        return false
-    end
-
-    profile.Units = CloneValue(snapshot.Units) or profile.Units
-    profile.General = profile.General or {}
-    profile.General.ActiveThemeId = snapshot.ActiveThemeId
-
-    if FocalPoint.RefreshAllUnitFrames then
-        FocalPoint:RefreshAllUnitFrames()
-    end
-
-    if FocalPoint.Info then
-        local label = FocalPoint.L and FocalPoint.L["THEME_CUSTOM"] or "My Layout"
-        FocalPoint:Info((FocalPoint.L and FocalPoint.L["INFO_THEME_APPLIED"] or "Applied theme:") .. " " .. tostring(label))
-    end
-
-    return true
-end
-
-function ThemeService.CaptureRestoreSnapshot()
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    if not profile or type(profile.Units) ~= "table" then
-        return false
-    end
-
-    if themeRestoreState or GetPersistedRestoreState(profile) then
-        return true
-    end
-
-    themeRestoreState = {
-        Units = CloneValue(profile.Units),
-        ActiveThemeId = profile.General and profile.General.ActiveThemeId or nil,
-    }
-    SetPersistedRestoreState(profile, themeRestoreState)
-
-    return true
-end
-
-function ThemeService.ClearRestoreSnapshot()
-    themeRestoreState = nil
-
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    if profile then
-        SetPersistedRestoreState(profile, nil)
-    end
-end
-
-function ThemeService.RestoreSnapshot()
-    local profile = FocalPoint.db and FocalPoint.db.profile
-    if not profile or type(profile.Units) ~= "table" then
-        return false
-    end
-
-    if type(themeRestoreState) ~= "table" then
-        themeRestoreState = CloneValue(GetPersistedRestoreState(profile))
-    end
-
-    if type(themeRestoreState) ~= "table" then
-        return false
-    end
-
-    profile.Units = CloneValue(themeRestoreState.Units) or profile.Units
-    profile.General = profile.General or {}
-    profile.General.ActiveThemeId = themeRestoreState.ActiveThemeId
-    themeRestoreState = nil
-    SetPersistedRestoreState(profile, nil)
-
-    if FocalPoint.RefreshAllUnitFrames then
-        FocalPoint:RefreshAllUnitFrames()
-    end
-
-    return true
 end
 
 function ThemeService.ApplyTheme(themeId)

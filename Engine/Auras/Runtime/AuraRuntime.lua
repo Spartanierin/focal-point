@@ -4,6 +4,7 @@ FocalPoint.AuraRuntime = FocalPoint.AuraRuntime or {}
 local AuraRuntime = FocalPoint.AuraRuntime
 local State = FocalPoint.UnitFrameState or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local Preview = FocalPoint.UnitFramePreview or {}
 
 -- Public facade for the aura pipeline.
 
@@ -67,6 +68,16 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
 
     local groupConfig = GetGroupConfig(frame, groupKey)
     if not groupConfig or groupConfig.enabled == false then
+        if AuraCache.ClearGroup then
+            AuraCache.ClearGroup(frame, groupKey)
+        end
+        if AuraRenderer.ClearGroup then
+            AuraRenderer.ClearGroup(frame, groupKey)
+        end
+        return {}
+    end
+
+    if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
         if AuraCache.ClearGroup then
             AuraCache.ClearGroup(frame, groupKey)
         end

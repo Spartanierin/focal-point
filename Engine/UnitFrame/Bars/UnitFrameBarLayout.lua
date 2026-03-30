@@ -2,6 +2,21 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameBarLayout = FocalPoint.UnitFrameBarLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout
+local Preview = FocalPoint.UnitFramePreview or {}
+
+local function IsPlaceholderUnitEnabled(frame)
+    if not frame or not frame.unit then
+        return true
+    end
+
+    local unitKey = frame.unit
+    if type(unitKey) == "string" and unitKey:match("^boss%d+$") then
+        unitKey = "boss"
+    end
+
+    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(unitKey)
+    return type(config) ~= "table" or config.enabled ~= false
+end
 
 -- Health and power bar layout stays separate from live value refresh so the
 -- main runtime can focus on orchestration.
@@ -56,17 +71,37 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
 
     if frame.Elements.PowerBar then
         local power = frame.Elements.PowerBar
+        local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
+        local isEnabledPlaceholder = isPlaceholder and IsPlaceholderUnitEnabled(frame)
         power:ClearAllPoints()
         power:SetStatusBarTexture(options.powerTexture)
         if power.SetReverseFill then
             power:SetReverseFill(powerBarReverseFill)
         end
-        power:SetStatusBarColor(options.powerR, options.powerG, options.powerB, 1)
-        power:SetAlpha(options.powerA or 1)
+        if isPlaceholder then
+            if isEnabledPlaceholder then
+                power:SetStatusBarColor(0.24, 0.28, 0.34, 1)
+                power:SetAlpha(0.62)
+            else
+                power:SetStatusBarColor(0.24, 0.28, 0.34, 0.26)
+                power:SetAlpha(0.18)
+            end
+        else
+            power:SetStatusBarColor(options.powerR, options.powerG, options.powerB, 1)
+            power:SetAlpha(options.powerA or 1)
+        end
 
         if power.bg then
             power.bg:SetTexture(options.powerTexture)
-            power.bg:SetVertexColor(options.powerBgR, options.powerBgG, options.powerBgB, options.powerBgA)
+            if isPlaceholder then
+                if isEnabledPlaceholder then
+                    power.bg:SetVertexColor(0.08, 0.10, 0.13, 0.30)
+                else
+                    power.bg:SetVertexColor(0.08, 0.10, 0.13, 0.10)
+                end
+            else
+                power.bg:SetVertexColor(options.powerBgR, options.powerBgG, options.powerBgB, options.powerBgA)
+            end
             power.bg:SetShown(options.powerBackgroundShown and showPowerBar)
         end
 
@@ -102,6 +137,8 @@ function BarLayout.ApplyAlternativePower(frame, options)
     local alternativePowerBarHeight = options.alternativePowerBarHeight
 
     local altPower = frame.Elements.AlternativePowerBar
+    local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
+    local isEnabledPlaceholder = isPlaceholder and IsPlaceholderUnitEnabled(frame)
     local altPowerType = options.liveAltPowerType or (frame.LiveValues and frame.LiveValues.altPowerType) or 0
     local altPowerTypeColor = PowerBarColor and PowerBarColor[altPowerType]
     local altPowerR, altPowerG, altPowerB, altPowerA = options.powerR, options.powerG, options.powerB, options.powerA
@@ -113,12 +150,30 @@ function BarLayout.ApplyAlternativePower(frame, options)
 
     altPower:ClearAllPoints()
     altPower:SetStatusBarTexture(options.altPowerTexture)
-    altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, 1)
-    altPower:SetAlpha(altPowerA or 1)
+    if isPlaceholder then
+        if isEnabledPlaceholder then
+            altPower:SetStatusBarColor(0.24, 0.28, 0.34, 1)
+            altPower:SetAlpha(0.55)
+        else
+            altPower:SetStatusBarColor(0.24, 0.28, 0.34, 0.24)
+            altPower:SetAlpha(0.16)
+        end
+    else
+        altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, 1)
+        altPower:SetAlpha(altPowerA or 1)
+    end
 
     if altPower.bg then
         altPower.bg:SetTexture(options.altPowerTexture)
-        altPower.bg:SetVertexColor(options.powerBgR, options.powerBgG, options.powerBgB, options.powerBgA)
+        if isPlaceholder then
+            if isEnabledPlaceholder then
+                altPower.bg:SetVertexColor(0.08, 0.10, 0.13, 0.24)
+            else
+                altPower.bg:SetVertexColor(0.08, 0.10, 0.13, 0.08)
+            end
+        else
+            altPower.bg:SetVertexColor(options.powerBgR, options.powerBgG, options.powerBgB, options.powerBgA)
+        end
         altPower.bg:SetShown(alternativePowerBarVisible and options.powerBackgroundShown)
     end
 

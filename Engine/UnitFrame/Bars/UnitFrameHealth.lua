@@ -16,6 +16,20 @@ local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
 
+local function IsPlaceholderUnitEnabled(frame)
+    if not frame or not frame.unit then
+        return true
+    end
+
+    local unitKey = frame.unit
+    if type(unitKey) == "string" and unitKey:match("^boss%d+$") then
+        unitKey = "boss"
+    end
+
+    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(unitKey)
+    return type(config) ~= "table" or config.enabled ~= false
+end
+
 -- Health helpers keep value formatting and health-bar updates together.
 
 function Health.GetCurrentValues(frame)
@@ -87,6 +101,18 @@ end
 
 function Health.UpdateBarColor(frame)
     if not frame or not frame.Elements or not frame.Elements.HealthBar then
+        return
+    end
+
+    if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
+        local isEnabled = IsPlaceholderUnitEnabled(frame)
+        if isEnabled then
+            frame.Elements.HealthBar:SetStatusBarColor(0.34, 0.40, 0.48, 0.92)
+            frame.Elements.HealthBar:SetAlpha(0.78)
+        else
+            frame.Elements.HealthBar:SetStatusBarColor(0.34, 0.40, 0.48, 0.28)
+            frame.Elements.HealthBar:SetAlpha(0.22)
+        end
         return
     end
 
