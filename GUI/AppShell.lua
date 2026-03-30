@@ -6,8 +6,63 @@ local AceGUI = LibStub("AceGUI-3.0")
 local AppShell = {}
 ns.GUI.AppShell = AppShell
 
-local SHELL_SIDEBAR_REL_WIDTH = 0.235
-local SHELL_CONTENT_REL_WIDTH = 0.755
+local SHELL_SIDEBAR_WIDTH = 285
+local SHELL_CONTENT_WIDTH = 900
+
+local function SetShellSidebarVisualState(sidebar, visible)
+    if not sidebar then
+        return
+    end
+
+    local frame = sidebar.frame
+    if frame then
+        if frame._sidebar and frame._sidebar.SetShown then
+            frame._sidebar:SetShown(visible)
+        end
+        if frame._sidebarBorder and frame._sidebarBorder.SetShown then
+            frame._sidebarBorder:SetShown(visible)
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(visible and 1 or 0)
+        end
+    end
+
+    if sidebar.content then
+        if sidebar.content.SetAlpha then
+            sidebar.content:SetAlpha(visible and 1 or 0)
+        end
+        if visible then
+            sidebar.content:Show()
+        else
+            sidebar.content:Hide()
+        end
+    end
+end
+
+local function EnsureSidebarSurface(frame, ownerKey)
+    if not frame then
+        return
+    end
+
+    local bgKey = ownerKey or "_sidebarBg"
+    local borderKey = (ownerKey or "_sidebarBg") .. "Border"
+
+    if not frame[bgKey] then
+        local sidebarBg = frame:CreateTexture(nil, "BACKGROUND")
+        sidebarBg:SetAllPoints()
+        sidebarBg:SetColorTexture(0.05, 0.06, 0.08, 0.84)
+        frame[bgKey] = sidebarBg
+    end
+
+    if not frame[borderKey] then
+        local sidebarBorder = frame:CreateTexture(nil, "BORDER")
+        sidebarBorder:SetPoint("TOPRIGHT")
+        sidebarBorder:SetPoint("BOTTOMRIGHT")
+        sidebarBorder:SetWidth(1)
+        sidebarBorder:SetColorTexture(0.16, 0.19, 0.24, 0.9)
+        frame[borderKey] = sidebarBorder
+    end
+end
 
 local function GetMainHostWidget(addon)
     if not addon then
@@ -121,6 +176,96 @@ local function EnsureEditorWorkspaceLayer(addon)
     return layer
 end
 
+local function EnsureEditorToolbarLayer(addon)
+    if not addon then
+        return nil
+    end
+
+    local layer = addon.guiEditorToolbarLayer
+    if layer then
+        return layer
+    end
+
+    layer = CreateFrame("Frame", nil, UIParent)
+    layer:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+    layer:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
+    layer:SetWidth(285)
+    layer:SetFrameStrata("FULLSCREEN_DIALOG")
+    layer:SetFrameLevel(120)
+    if layer.SetAlpha then
+        layer:SetAlpha(1)
+    end
+    if layer.SetIgnoreParentAlpha then
+        layer:SetIgnoreParentAlpha(true)
+    end
+    layer:EnableMouse(false)
+    layer:Hide()
+    layer._focalPointEditorRole = "editor_toolbar_layer"
+
+    EnsureSidebarSurface(layer, "_editorSidebar")
+
+    addon.guiEditorToolbarLayer = layer
+    return layer
+end
+
+local function EnsureEditorToolbarContainer(addon)
+    if not addon then
+        return nil
+    end
+
+    local container = addon.guiEditorToolbarContainer
+    if container then
+        return container
+    end
+
+    local layer = EnsureEditorToolbarLayer(addon)
+    if not layer then
+        return nil
+    end
+
+    container = AceGUI:Create("SimpleGroup")
+    container:SetFullWidth(true)
+    container:SetFullHeight(true)
+    container:SetLayout("Flow")
+    if container.frame then
+        container.frame:SetParent(layer)
+        container.frame:ClearAllPoints()
+        container.frame:SetAllPoints(layer)
+        if layer.GetFrameStrata and container.frame.SetFrameStrata then
+            container.frame:SetFrameStrata(layer:GetFrameStrata())
+        end
+        if layer.GetFrameLevel and container.frame.SetFrameLevel then
+            container.frame:SetFrameLevel((layer:GetFrameLevel() or 0) + 1)
+        end
+        if container.frame.SetAlpha then
+            container.frame:SetAlpha(1)
+        end
+        if container.frame.SetIgnoreParentAlpha then
+            container.frame:SetIgnoreParentAlpha(true)
+        end
+        container.frame:Show()
+    end
+    if container.content then
+        container.content:SetParent(container.frame or layer)
+        container.content:ClearAllPoints()
+        container.content:SetAllPoints(container.frame or layer)
+        if layer.GetFrameLevel and container.content.SetFrameLevel then
+            container.content:SetFrameLevel((layer:GetFrameLevel() or 0) + 2)
+        end
+        if container.content.SetAlpha then
+            container.content:SetAlpha(1)
+        end
+        if container.content.SetIgnoreParentAlpha then
+            container.content:SetIgnoreParentAlpha(true)
+        end
+        container.content:Show()
+    end
+    container._focalPointEditorRole = "editor_toolbar"
+
+    addon.guiEditorToolbarContainer = container
+    return container
+end
+
 local function EnsureEditorInspectorLayer(addon)
     if not addon then
         return nil
@@ -153,6 +298,13 @@ local function ShowEditorPresentationHost(addon)
         host:Show()
     end
 
+    local toolbarLayer = EnsureEditorToolbarLayer(addon)
+    if toolbarLayer and toolbarLayer.Show then
+        toolbarLayer:Show()
+    end
+
+    EnsureEditorToolbarContainer(addon)
+
     local workspaceLayer = EnsureEditorWorkspaceLayer(addon)
     if workspaceLayer and workspaceLayer.Show then
         workspaceLayer:Show()
@@ -168,6 +320,7 @@ end
 
 local function HideEditorPresentationHost(addon)
     local host = addon and addon.guiEditorPresentationHost
+    local toolbarLayer = addon and addon.guiEditorToolbarLayer
     local workspaceLayer = addon and addon.guiEditorWorkspaceLayer
     local inspectorLayer = addon and addon.guiEditorInspectorLayer
     if inspectorLayer and inspectorLayer.Hide then
@@ -176,9 +329,24 @@ local function HideEditorPresentationHost(addon)
     if workspaceLayer and workspaceLayer.Hide then
         workspaceLayer:Hide()
     end
+    if toolbarLayer and toolbarLayer.Hide then
+        toolbarLayer:Hide()
+    end
     if host and host.Hide then
         host:Hide()
     end
+end
+
+function AppShell.GetSidebarBuildHost(addon)
+    if not addon then
+        return nil
+    end
+
+    if addon.guiShellMode == "editor" then
+        return addon.guiEditorToolbarHost or addon.guiEditorToolbarContainer or addon.guiAppSidebar
+    end
+
+    return addon.guiAppSidebar
 end
 
 function AppShell.AssignEditorRuntimeRoles(addon)
@@ -187,7 +355,7 @@ function AppShell.AssignEditorRuntimeRoles(addon)
     end
 
     local presentationHost = ShowEditorPresentationHost(addon)
-    addon.guiEditorToolbarHost = addon.guiAppSidebar
+    addon.guiEditorToolbarHost = addon.guiEditorToolbarContainer or addon.guiAppSidebar
     addon.guiEditorWorkspaceHost = addon.guiEditorWorkspaceLayer or presentationHost or addon.guiContentHost
     addon.guiEditorInspectorHost = addon.guiEditorInspectorLayer or presentationHost
 
@@ -207,6 +375,9 @@ function AppShell.ClearEditorRuntimeRoles(addon)
     HideEditorPresentationHost(addon)
 
     if addon.guiEditorToolbarHost then
+        if addon.guiEditorToolbarHost.ReleaseChildren then
+            addon.guiEditorToolbarHost:ReleaseChildren()
+        end
         addon.guiEditorToolbarHost._focalPointEditorRole = nil
         if addon.guiEditorToolbarHost.frame then
             addon.guiEditorToolbarHost.frame._focalPointEditorRole = nil
@@ -405,8 +576,6 @@ function AppShell.ApplyFrameChromeMode(widget, chromeMode)
             rootFrame:EnableMouse(false)
         end
 
-        ExpandHostContentToFullscreen(rootFrame, contentFrame)
-
         widget._focalPointMinimalChrome = true
         return
     end
@@ -447,6 +616,10 @@ local function ApplyEditorShellLayoutCompensation(addon, targetHeight)
     if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
         addon.guiAppSidebar.frame:SetHeight(targetHeight)
     end
+    SetShellSidebarVisualState(addon.guiAppSidebar, false)
+    if addon.guiEditorToolbarLayer and addon.guiEditorToolbarLayer.SetHeight then
+        addon.guiEditorToolbarLayer:SetHeight(targetHeight)
+    end
 
     addon.guiContentHost.relWidth = nil
     addon.guiContentHost.width = nil
@@ -460,15 +633,20 @@ local function ApplyToolShellLayout(addon, targetHeight)
 
     addon.guiAppSidebar.width = nil
     addon.guiAppSidebar.frame.width = nil
-    addon.guiAppSidebar:SetRelativeWidth(SHELL_SIDEBAR_REL_WIDTH)
+    addon.guiAppSidebar.relWidth = nil
+    addon.guiAppSidebar.width = SHELL_SIDEBAR_WIDTH
+    addon.guiAppSidebar.frame.width = SHELL_SIDEBAR_WIDTH
+    addon.guiAppSidebar.frame:SetWidth(SHELL_SIDEBAR_WIDTH)
     addon.guiAppSidebar:SetHeight(targetHeight)
     if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
         addon.guiAppSidebar.frame:SetHeight(targetHeight)
     end
+    SetShellSidebarVisualState(addon.guiAppSidebar, true)
 
-    addon.guiContentHost.width = nil
-    addon.guiContentHost.frame.width = nil
-    addon.guiContentHost:SetRelativeWidth(SHELL_CONTENT_REL_WIDTH)
+    addon.guiContentHost.relWidth = nil
+    addon.guiContentHost.width = SHELL_CONTENT_WIDTH
+    addon.guiContentHost.frame.width = SHELL_CONTENT_WIDTH
+    addon.guiContentHost.frame:SetWidth(SHELL_CONTENT_WIDTH)
     addon.guiContentHost:SetHeight(targetHeight)
     if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
         addon.guiContentHost.frame:SetHeight(targetHeight)
@@ -595,27 +773,19 @@ function AppShell.BuildRoot(addon, hostWidget)
     hostWidget:AddChild(root)
 
     local appSidebar = AceGUI:Create("SimpleGroup")
-    appSidebar:SetRelativeWidth(SHELL_SIDEBAR_REL_WIDTH)
+    appSidebar:SetWidth(SHELL_SIDEBAR_WIDTH)
     appSidebar:SetHeight(700)
     appSidebar:SetLayout("Fill")
     root:AddChild(appSidebar)
 
     if appSidebar.frame then
-        local sidebarBg = appSidebar.frame:CreateTexture(nil, "BACKGROUND")
-        sidebarBg:SetAllPoints()
-        sidebarBg:SetColorTexture(0.05, 0.06, 0.08, 0.84)
-        appSidebar._sidebarBg = sidebarBg
-
-        local sidebarBorder = appSidebar.frame:CreateTexture(nil, "BORDER")
-        sidebarBorder:SetPoint("TOPRIGHT")
-        sidebarBorder:SetPoint("BOTTOMRIGHT")
-        sidebarBorder:SetWidth(1)
-        sidebarBorder:SetColorTexture(0.16, 0.19, 0.24, 0.9)
-        appSidebar._sidebarBorder = sidebarBorder
+        EnsureSidebarSurface(appSidebar.frame, "_sidebar")
+        appSidebar._sidebarBg = appSidebar.frame._sidebar
+        appSidebar._sidebarBorder = appSidebar.frame._sidebarBorder
     end
 
     local contentHost = AceGUI:Create("SimpleGroup")
-    contentHost:SetRelativeWidth(SHELL_CONTENT_REL_WIDTH)
+    contentHost:SetWidth(SHELL_CONTENT_WIDTH)
     contentHost:SetHeight(700)
     contentHost:SetLayout("Fill")
     root:AddChild(contentHost)

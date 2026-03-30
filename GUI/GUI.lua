@@ -996,8 +996,15 @@ local function BuildAppSidebar(container)
 
     local selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI and FocalPoint.GUI.selectedPath)
     local shellMode = (AppShell and AppShell.ResolveShellMode and AppShell.ResolveShellMode(FocalPoint, selectedPath)) or "tool"
+    local targetContainer = (AppShell and AppShell.GetSidebarBuildHost and AppShell.GetSidebarBuildHost(FocalPoint)) or container
+    if not targetContainer then
+        return
+    end
+    if targetContainer ~= container and container and container.ReleaseChildren then
+        container:ReleaseChildren()
+    end
 
-    Sidebar.Build(container, EditorState.Get(), {
+    Sidebar.Build(targetContainer, EditorState.Get(), {
         shellMode = shellMode,
         currentPath = selectedPath,
         onNavigate = function(path)
@@ -1030,7 +1037,7 @@ local function BuildAppSidebar(container)
             if EditorState.SetSelectedThemeId then
                 EditorState.SetSelectedThemeId(themeId)
             end
-            BuildAppSidebar(container)
+            BuildAppSidebar(targetContainer)
         end,
         onThemeApplied = function(themeId)
             if EditorState.SetSelectedThemeId then
