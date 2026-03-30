@@ -490,6 +490,10 @@ local function ApplyVisualChromeSuppression(rootFrame, state)
         return
     end
 
+    if rootFrame.SetAlpha then
+        rootFrame:SetAlpha(0)
+    end
+
     for _, regionState in ipairs(state.regions) do
         if regionState.object and regionState.object.Hide then
             regionState.object:Hide()
@@ -523,6 +527,10 @@ end
 local function RestoreVisualChrome(rootFrame, state)
     if not rootFrame or not state then
         return
+    end
+
+    if rootFrame.SetAlpha then
+        rootFrame:SetAlpha(1)
     end
 
     for _, regionState in ipairs(state.regions) do
