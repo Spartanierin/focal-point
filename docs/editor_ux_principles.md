@@ -60,11 +60,59 @@ Regeln:
 - Presets sind Startzustaende, keine parallele Eigenschaftenebene.
 - Der Editor soll sich wie ein Werkzeug anfuehlen, nicht wie ein Addon-Optionsdialog.
 
+## Visuelle Schutzregeln
+
+- Architektur-Aenderungen duerfen die sichtbare Editor-Anmutung nicht unbeabsichtigt veraendern.
+- Schriftarten, Groessen, Farben, Transparenzen, Linien, Spacer und Abstaende gelten als Teil des Produkterlebnisses.
+- Linke Leiste, Arbeitsraum und Inspector muessen ihre visuelle Balance behalten.
+- Breiten und Anker der editorischen Hauptzonen sind keine beliebigen technischen Werte, sondern Teil des Designs.
+- Ein interner Refactor ist nur dann gut, wenn der Editor danach gleich oder bewusster besser aussieht, nicht nur sauberer implementiert ist.
+
+## Editor-Zielmodell
+
+- Der Editor ist die primaere Produktoberflaeche des Addons.
+- Der technische Host ist nur Traegersystem und darf nicht die sichtbare Identitaet des Editors bestimmen.
+- Die sichtbare Editorstruktur bleibt:
+  1. linke Werkzeugleiste
+  2. freier Bearbeitungsraum
+  3. rechter Inspector
+- Wenn das Traegersystem angepasst wird, soll sich die Bildschirmwirkung dieser drei Zonen moeglichst nicht aendern.
+
+## Migrationsregel fuer den Editor
+
+- Der Editor wird nur phasenweise umgebaut.
+- Zuerst werden Verantwortlichkeiten klarer, erst spaeter technische Traeger ersetzt.
+- Sichtbare Editor-Bausteine werden erst dann umgehaengt, wenn ihr Erscheinungsbild als Referenz gesichert ist.
+- Tool-Seiten duerfen unabhhaengig davon weiter vereinfacht werden; sie sind kein Grund, den Editor frueh mitzuziehen.
+
+## Aktuelle Referenzwirkung
+
+- Links und rechts rahmen den Editor wie zwei verwandte Werkzeugzonen.
+- Die Mitte bleibt offen und ist kein klassischer Formular- oder Panelbereich.
+- Die dunklen, halbtransparenten Seitenflaechen sollen die Spielwelt nicht verdraengen, sondern einrahmen.
+- Auch inaktive Unit Frames bleiben sichtbar Teil der Komposition und tragen zur Lesbarkeit des Gesamtlayouts bei.
+- Die aktive Unit hebt sich staerker ab, aber der Rest des Layouts darf nicht optisch verschwinden.
+- Die visuelle Spannung entsteht aus:
+  - dunkler Flaeche
+  - goldenen/hellen Ueberschriften
+  - roten Aktionsbuttons
+  - kompaktem, ruhigem Vertikalrhythmus
+- Der Editor soll wie ein eingebettetes Ingame-Werkzeug wirken, nicht wie ein Standard-Optionsfenster.
+
+## Aktuelle Referenzwerte
+
+- Linke Werkzeugleiste: Breite aktuell `285`
+- Rechter Inspector: Breite aktuell `285`
+- Beide Seitenzonen: dunkle halbtransparente Grundflaechen mit feinen kuehlen Rahmen
+- Ueberschriften: klein bis mittelgross, gold/hell, nicht plakativ
+- Hilfs- und Beschreibungstexte: kompakt und zurueckgenommen
+- Standard-Spacer-Rhythmus: dicht, aber konsistent, meist im Bereich `4` bis `8`
+
 ## Architektur-Richtung
 
 - `GUI.lua` ist Bootstrap und Routing, nicht mehr der Ort fuer komplette Shell-Implementierung.
 - Shell-Chrome, Tool-Flaeche und App-Geometrie leben in `GUI/AppShell.lua`.
-- Die zentrierte Werkzeugflaeche fuer `Profiles`, `Text Builder` und `Tag-Datenbank` lebt in `GUI/ToolPageScaffold.lua`.
+- `Profiles`, `Text Builder` und `Tag-Datenbank` rendern als normale Seiten in die rechte Hauptflaeche der Shell.
 - Die linke Kontextleiste und der rechte Inspector leben in `GUI/Editor/ContextSidebar.lua` und `GUI/Editor/InspectorSidebar.lua`.
 - Inspector-Lifecycle, Rebuild und Scroll-Restore leben in `GUI/Editor/EditorController.lua`.
 - Gemeinsame Sidebar-Helfer und Metadaten leben in `GUI/Editor/SidebarShared.lua`.
@@ -74,14 +122,14 @@ Regeln:
 ## Sekundaere Werkzeuge
 
 - `Profiles`, `Text Builder` und `Tag-Datenbank` bleiben eigenstaendige Werkzeuge.
-- Sie oeffnen als zentrierte Formularflaeche im Mittelbereich statt als weiterer Inspector.
+- Sie oeffnen in der rechten Hauptflaeche der Shell und nicht als weiterer Inspector.
 - Die linke Spalte bleibt als App-Kontext sichtbar.
 - Auf Tool-Seiten wird die linke Spalte vereinfacht: Werkzeuge bleiben oben, der volle Unit-Arbeitskontext wird zugunsten eines kompakten Rueckwegs in den Editor reduziert.
 - Der Editor fuer Unit-Frames selbst bleibt davon unberuehrt und wird nicht wieder zur klassischen Seitenlogik zurueckgebaut.
 
 ### Layout-Regeln fuer Tool-Seiten
 
-- Tool-Seiten nutzen eine bewusste, zentrierte Werkzeugflaeche statt eine fast vollflaechige Form.
+- Tool-Seiten nutzen die rechte Hauptflaeche als Formularbereich statt eines eigenen Innenfensters.
 - Inhalte folgen einer klaren Vertikalstruktur:
   1. Einfuehrung
   2. Hauptaktion oder Hauptinhalt

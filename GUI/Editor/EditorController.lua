@@ -7,6 +7,49 @@ local AceGUI = LibStub("AceGUI-3.0")
 local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 
+function EditorController.UpdateActiveInspectorGeometry()
+    local inspectorSidebar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor._activeInspectorSidebar
+    if not inspectorSidebar or not inspectorSidebar.frame then
+        return
+    end
+
+    local targetWidth = 285
+    local targetHeight = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760
+
+    if inspectorSidebar.SetWidth then
+        inspectorSidebar:SetWidth(targetWidth)
+    end
+    if inspectorSidebar.SetHeight then
+        inspectorSidebar:SetHeight(targetHeight)
+    end
+    if inspectorSidebar.frame.SetWidth then
+        inspectorSidebar.frame:SetWidth(targetWidth)
+    end
+    if inspectorSidebar.frame.SetHeight then
+        inspectorSidebar.frame:SetHeight(targetHeight)
+    end
+
+    inspectorSidebar.frame:ClearAllPoints()
+    inspectorSidebar.frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", 0, 0)
+
+    local inspectorContent = inspectorSidebar._focalPointInspectorContent
+    if inspectorContent then
+        if inspectorContent.SetWidth then
+            inspectorContent:SetWidth(targetWidth - 32)
+        end
+        if inspectorContent.SetHeight then
+            inspectorContent:SetHeight(targetHeight - 20)
+        end
+    end
+
+    local inspectorInset = inspectorSidebar._focalPointInspectorInset
+    if inspectorInset then
+        inspectorInset:ClearAllPoints()
+        inspectorInset:SetPoint("TOPLEFT", inspectorSidebar.frame, "TOPLEFT", 16, -10)
+        inspectorInset:SetPoint("BOTTOMRIGHT", inspectorSidebar.frame, "BOTTOMRIGHT", -16, 10)
+    end
+end
+
 function EditorController.ReleaseInspector()
     local inspectorSidebar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor._activeInspectorSidebar
     if not inspectorSidebar then
@@ -29,15 +72,22 @@ function EditorController.BuildInspector(container, deps)
     inspectorSidebar:SetRelativeWidth(1.0)
     inspectorSidebar:SetHeight(700)
     inspectorSidebar:SetLayout("Fill")
-    container:AddChild(inspectorSidebar)
 
     local inspectorContent = AceGUI:Create("SimpleGroup")
     inspectorContent:SetFullWidth(true)
     inspectorContent:SetFullHeight(true)
     inspectorContent:SetLayout("Fill")
     inspectorSidebar:AddChild(inspectorContent)
+    inspectorSidebar._focalPointInspectorContent = inspectorContent
 
     if inspectorSidebar.frame then
+        if inspectorSidebar.frame.SetParent then
+            inspectorSidebar.frame:SetParent(UIParent)
+        end
+        if inspectorSidebar.frame.SetFrameStrata then
+            inspectorSidebar.frame:SetFrameStrata("DIALOG")
+        end
+
         local inspectorBg = inspectorSidebar.frame:CreateTexture(nil, "BACKGROUND")
         inspectorBg:SetAllPoints()
         inspectorBg:SetColorTexture(0.05, 0.06, 0.08, 0.76)
@@ -60,21 +110,13 @@ function EditorController.BuildInspector(container, deps)
 
     ns.GUI.Editor._activeInspectorSidebar = inspectorSidebar
 
-    local function PositionInspectorForEditorShell()
-        if not inspectorSidebar or not inspectorSidebar.frame then
-            return
-        end
-
-        inspectorSidebar.frame:ClearAllPoints()
-        inspectorSidebar.frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", 0, 0)
-        inspectorSidebar.frame:SetWidth(285)
-        inspectorSidebar.frame:SetHeight((UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760)
+    EditorController.UpdateActiveInspectorGeometry()
+    if inspectorSidebar.frame and inspectorSidebar.frame.Show then
+        inspectorSidebar.frame:Show()
     end
-
-    PositionInspectorForEditorShell()
     if C_Timer and C_Timer.After then
-        C_Timer.After(0, PositionInspectorForEditorShell)
-        C_Timer.After(0.05, PositionInspectorForEditorShell)
+        C_Timer.After(0, EditorController.UpdateActiveInspectorGeometry)
+        C_Timer.After(0.05, EditorController.UpdateActiveInspectorGeometry)
     end
 
     local inspectorInset = nil
@@ -82,6 +124,7 @@ function EditorController.BuildInspector(container, deps)
         inspectorInset = CreateFrame("Frame", nil, inspectorSidebar.frame)
         inspectorInset:SetPoint("TOPLEFT", inspectorSidebar.frame, "TOPLEFT", 16, -10)
         inspectorInset:SetPoint("BOTTOMRIGHT", inspectorSidebar.frame, "BOTTOMRIGHT", -16, 10)
+        inspectorSidebar._focalPointInspectorInset = inspectorInset
 
         inspectorContent.frame:ClearAllPoints()
         inspectorContent.frame:SetParent(inspectorInset)

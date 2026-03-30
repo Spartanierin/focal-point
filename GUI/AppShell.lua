@@ -6,6 +6,74 @@ local AceGUI = LibStub("AceGUI-3.0")
 local AppShell = {}
 ns.GUI.AppShell = AppShell
 
+local SHELL_SIDEBAR_REL_WIDTH = 0.235
+local SHELL_CONTENT_REL_WIDTH = 0.755
+
+local function GetMainHostWidget(addon)
+    if not addon then
+        return nil
+    end
+
+    return addon.guiMainHost
+end
+
+local function IsToolPath(addon, path)
+    local nav = addon and addon.Constants and addon.Constants.Nav
+    if not nav then
+        return false
+    end
+
+    return path == nav.PROFILES
+        or path == nav.TEXT_BUILDER
+        or path == nav.TAG_DATABASE
+end
+
+function AppShell.ResolveShellMode(addon, path)
+    local nav = addon and addon.Constants and addon.Constants.Nav
+    if not nav then
+        return "tool"
+    end
+
+    if path == nav.EDITOR then
+        return "editor"
+    end
+
+    if IsToolPath(addon, path) then
+        return "tool"
+    end
+
+    return "tool"
+end
+
+function AppShell.ResolveHostChromeMode(shellMode)
+    if shellMode == "editor" then
+        return "shell"
+    end
+
+    if shellMode == "tool" then
+        return "window"
+    end
+
+    return "window"
+end
+
+function AppShell.PrepareContentHost(container, shellMode)
+    if not container then
+        return
+    end
+
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+    container._focalPointShellMode = shellMode or "tool"
+end
+
+function AppShell.RenderMainContent(container, shellMode, buildFunc)
+    AppShell.PrepareContentHost(container, shellMode)
+    if type(buildFunc) == "function" then
+        buildFunc(container)
+    end
+end
+
 local function CaptureFrameChromeState(widget)
     if not widget or widget._focalPointChromeState then
         return widget and widget._focalPointChromeState
@@ -83,7 +151,7 @@ local function CaptureFrameChromeState(widget)
     return state
 end
 
-function AppShell.ApplyFrameChromeMode(widget, editorShellMode)
+function AppShell.ApplyFrameChromeMode(widget, chromeMode)
     local rootFrame = widget and (widget.frame or widget)
     local contentFrame = widget and widget.content
     if not rootFrame or not contentFrame then
@@ -95,7 +163,7 @@ function AppShell.ApplyFrameChromeMode(widget, editorShellMode)
         return
     end
 
-    if editorShellMode then
+    if chromeMode == "shell" then
         if widget._focalPointMinimalChrome then
             return
         end
@@ -207,7 +275,7 @@ function AppShell.ApplyFrameChromeMode(widget, editorShellMode)
 end
 
 function AppShell.UpdateGeometry(addon, resolvePath)
-    local widget = addon and addon.guiFrame
+    local widget = GetMainHostWidget(addon)
     if not widget or type(resolvePath) ~= "function" then
         return
     end
@@ -218,7 +286,9 @@ function AppShell.UpdateGeometry(addon, resolvePath)
     end
 
     local selectedPath = resolvePath(addon.GUI and addon.GUI.selectedPath)
-    local editorShellMode = selectedPath == addon.Constants.Nav.EDITOR
+    local shellMode = AppShell.ResolveShellMode(addon, selectedPath)
+    local editorShellMode = shellMode == "editor"
+    addon.guiShellMode = shellMode
 
     local targetWidth = editorShellMode and 335 or 1220
     local targetHeight = editorShellMode and ((UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760) or 760
@@ -241,23 +311,41 @@ function AppShell.UpdateGeometry(addon, resolvePath)
             addon.guiAppSidebar.width = 285
             addon.guiAppSidebar.frame.width = 285
             addon.guiAppSidebar.frame:SetWidth(285)
+            addon.guiAppSidebar:SetHeight(targetHeight)
+            if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
+                addon.guiAppSidebar.frame:SetHeight(targetHeight)
+            end
 
             addon.guiContentHost.relWidth = nil
             addon.guiContentHost.width = 1
             addon.guiContentHost.frame.width = 1
             addon.guiContentHost.frame:SetWidth(1)
+            addon.guiContentHost:SetHeight(targetHeight)
+            if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
+                addon.guiContentHost.frame:SetHeight(targetHeight)
+            end
         else
             addon.guiAppSidebar.width = nil
             addon.guiAppSidebar.frame.width = nil
-            addon.guiAppSidebar:SetRelativeWidth(0.24)
+            addon.guiAppSidebar:SetRelativeWidth(SHELL_SIDEBAR_REL_WIDTH)
+            addon.guiAppSidebar:SetHeight(targetHeight)
+            if addon.guiAppSidebar.frame and addon.guiAppSidebar.frame.SetHeight then
+                addon.guiAppSidebar.frame:SetHeight(targetHeight)
+            end
 
             addon.guiContentHost.width = nil
             addon.guiContentHost.frame.width = nil
-            addon.guiContentHost:SetRelativeWidth(0.76)
+            addon.guiContentHost:SetRelativeWidth(SHELL_CONTENT_REL_WIDTH)
+            addon.guiContentHost:SetHeight(targetHeight)
+            if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
+                addon.guiContentHost.frame:SetHeight(targetHeight)
+            end
         end
     end
 
-    AppShell.ApplyFrameChromeMode(widget, editorShellMode)
+    local hostChromeMode = AppShell.ResolveHostChromeMode(shellMode)
+    addon.guiHostChromeMode = hostChromeMode
+    AppShell.ApplyFrameChromeMode(widget, hostChromeMode)
 
     if editorShellMode then
         if not widget._focalPointDockedForScreenEdit then
@@ -291,17 +379,28 @@ function AppShell.UpdateGeometry(addon, resolvePath)
             rootFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         end
     end
+
+    if addon.guiRoot and addon.guiRoot.DoLayout then
+        addon.guiRoot:DoLayout()
+    end
+
+    local editorController = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
+    if shellMode ~= "editor" and editorController and editorController.ReleaseInspector then
+        editorController.ReleaseInspector()
+    elseif editorController and editorController.UpdateActiveInspectorGeometry then
+        editorController.UpdateActiveInspectorGeometry()
+    end
 end
 
-function AppShell.BuildRoot(addon, frame)
+function AppShell.BuildRoot(addon, hostWidget)
     local root = AceGUI:Create("SimpleGroup")
     root:SetFullWidth(true)
     root:SetFullHeight(true)
     root:SetLayout("Flow")
-    frame:AddChild(root)
+    hostWidget:AddChild(root)
 
     local appSidebar = AceGUI:Create("SimpleGroup")
-    appSidebar:SetRelativeWidth(0.24)
+    appSidebar:SetRelativeWidth(SHELL_SIDEBAR_REL_WIDTH)
     appSidebar:SetHeight(700)
     appSidebar:SetLayout("Fill")
     root:AddChild(appSidebar)
@@ -321,7 +420,7 @@ function AppShell.BuildRoot(addon, frame)
     end
 
     local contentHost = AceGUI:Create("SimpleGroup")
-    contentHost:SetRelativeWidth(0.76)
+    contentHost:SetRelativeWidth(SHELL_CONTENT_REL_WIDTH)
     contentHost:SetHeight(700)
     contentHost:SetLayout("Fill")
     root:AddChild(contentHost)
@@ -332,12 +431,7 @@ function AppShell.BuildRoot(addon, frame)
     return root, appSidebar, contentHost
 end
 
-function AppShell.RenderCenteredToolPage(container, buildFunc)
-    local scaffold = ns.GUI and ns.GUI.ToolPageScaffold
-    if scaffold and scaffold.Render then
-        return scaffold.Render(container, buildFunc)
-    end
-
+function AppShell.RenderToolContent(container, buildFunc)
     if type(buildFunc) == "function" then
         buildFunc(container)
     end

@@ -8,6 +8,38 @@ FocalPoint.GUI = FocalPoint.GUI or {}
 local ShowGUIFrame
 local HideGUIFrame
 
+local function GetMainHostWidget(addon)
+    if not addon then
+        return nil
+    end
+
+    return addon.guiMainHost
+end
+
+local function GetMainHostFrame(addon)
+    local widget = GetMainHostWidget(addon)
+    if not widget then
+        return nil
+    end
+
+    return widget.frame or widget
+end
+
+local function GetReadyStatusText()
+    return (L and L["GUI_STATUS_READY"]) or "Ready"
+end
+
+function FocalPoint.GUI:SetStatusText(message)
+    local host = GetMainHostWidget(FocalPoint)
+    if host and host.SetStatusText then
+        host:SetStatusText(message or GetReadyStatusText())
+    end
+end
+
+function FocalPoint.GUI:ResetStatusText()
+    self:SetStatusText(GetReadyStatusText())
+end
+
 local function ResolveDefaultGUIPath(path)
     local unitKey = type(path) == "string" and string.match(path, "^units%.([^.]+)$") or nil
     if unitKey then
@@ -839,19 +871,7 @@ local function ParseUnitPath(path)
     return unitKey
 end
 
-local function RenderCenteredToolPage(container, buildFunc)
-    local scaffold = FocalPoint.GUI and FocalPoint.GUI.ToolPageScaffold
-    if scaffold and scaffold.Render then
-        scaffold.Render(container, buildFunc)
-        return
-    end
-
-    local shell = FocalPoint.GUI and FocalPoint.GUI.AppShell
-    if shell and shell.RenderCenteredToolPage then
-        shell.RenderCenteredToolPage(container, buildFunc)
-        return
-    end
-
+local function RenderToolContent(container, buildFunc)
     if type(buildFunc) == "function" then
         buildFunc(container)
     end
@@ -860,53 +880,88 @@ end
 local function RenderPage(container, path)
     local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
     local EditorPage = FocalPoint.GUI and FocalPoint.GUI.Pages and FocalPoint.GUI.Pages.Editor
+    local AppShell = FocalPoint.GUI and FocalPoint.GUI.AppShell
+    local shellMode = (AppShell and AppShell.ResolveShellMode and AppShell.ResolveShellMode(FocalPoint, path)) or "tool"
+
+    local function RenderInShellMode(targetMode, buildFunc)
+        local mode = targetMode or shellMode
+        if AppShell and AppShell.RenderMainContent then
+            AppShell.RenderMainContent(container, mode, buildFunc)
+            return
+        end
+
+        if container and container.ReleaseChildren then
+            container:ReleaseChildren()
+        end
+        if container and container.SetLayout then
+            container:SetLayout("Fill")
+        end
+        if type(buildFunc) == "function" then
+            buildFunc(container)
+        end
+    end
+
     if OptionRefresh and OptionRefresh.ClearStateWidgets then
         OptionRefresh.ClearStateWidgets()
     end
 
-    if path ~= C.Nav.EDITOR and EditorPage and EditorPage.Release then
+    if shellMode ~= "editor" and EditorPage and EditorPage.Release then
         EditorPage.Release()
     end
 
     if path == "general" then
-        FocalPoint.GUIBuilders.BuildEditorPage(container)
+        RenderInShellMode("editor", function(content)
+            FocalPoint.GUIBuilders.BuildEditorPage(content)
+        end)
         return
     end
 
     if path == C.Nav.EDITOR then
-        FocalPoint.GUIBuilders.BuildEditorPage(container)
+        RenderInShellMode("editor", function(content)
+            FocalPoint.GUIBuilders.BuildEditorPage(content)
+        end)
         return
     end
 
     if path == C.Nav.TAG_DATABASE then
-        RenderCenteredToolPage(container, function(panel)
-            FocalPoint.GUIBuilders.BuildTagDatabasePage(panel)
+        RenderInShellMode("tool", function(content)
+            RenderToolContent(content, function(panel)
+                FocalPoint.GUIBuilders.BuildTagDatabasePage(panel)
+            end)
         end)
         return
     end
 
     if path == C.Nav.TEXT_BUILDER then
-        RenderCenteredToolPage(container, function(panel)
-            FocalPoint.GUIBuilders.BuildTextBuilderPage(panel)
+        RenderInShellMode("tool", function(content)
+            RenderToolContent(content, function(panel)
+                FocalPoint.GUIBuilders.BuildTextBuilderPage(panel)
+            end)
         end)
         return
     end
 
     if path == C.Nav.THEMES then
-        FocalPoint.GUIBuilders.BuildEditorPage(container)
+        RenderInShellMode("editor", function(content)
+            FocalPoint.GUIBuilders.BuildEditorPage(content)
+        end)
         return
     end
 
     if path == "profiles" then
-        RenderCenteredToolPage(container, function(panel)
-            FocalPoint.GUIBuilders.BuildProfilesPage(panel)
+        RenderInShellMode("tool", function(content)
+            RenderToolContent(content, function(panel)
+                FocalPoint.GUIBuilders.BuildProfilesPage(panel)
+            end)
         end)
         return
     end
 
 
     if path == "units" then
-        FocalPoint.GUIBuilders.BuildEditorPage(container)
+        RenderInShellMode("editor", function(content)
+            FocalPoint.GUIBuilders.BuildEditorPage(content)
+        end)
         return
     end
 
@@ -917,11 +972,15 @@ local function RenderPage(container, path)
             editorState.SetSelectedUnit(unitKey)
         end
 
-        FocalPoint.GUIBuilders.BuildEditorPage(container)
+        RenderInShellMode("editor", function(content)
+            FocalPoint.GUIBuilders.BuildEditorPage(content)
+        end)
         return
     end
 
-    FocalPoint.GUIBuilders.BuildPlaceholderPage(container, path or "Unknown")
+    RenderInShellMode(shellMode, function(content)
+        FocalPoint.GUIBuilders.BuildPlaceholderPage(content, path or "Unknown")
+    end)
 end
 
 local function BuildAppSidebar(container)
@@ -930,11 +989,17 @@ local function BuildAppSidebar(container)
         Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Sidebar
     end
     local EditorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    local AppShell = FocalPoint.GUI and FocalPoint.GUI.AppShell
     if not Sidebar or not EditorState or not EditorState.Get then
         return
     end
 
+    local selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI and FocalPoint.GUI.selectedPath)
+    local shellMode = (AppShell and AppShell.ResolveShellMode and AppShell.ResolveShellMode(FocalPoint, selectedPath)) or "tool"
+
     Sidebar.Build(container, EditorState.Get(), {
+        shellMode = shellMode,
+        currentPath = selectedPath,
         onNavigate = function(path)
             local normalizedPath = ResolveDefaultGUIPath(path)
             FocalPoint.GUI.selectedPath = normalizedPath
@@ -981,8 +1046,8 @@ local function BuildAppSidebar(container)
             end
         end,
         onClose = function()
-            if FocalPoint.guiFrame then
-                HideGUIFrame(FocalPoint.guiFrame)
+            if FocalPoint.CloseConfig then
+                FocalPoint:CloseConfig()
             end
         end,
     })
@@ -997,6 +1062,10 @@ end
 
 function FocalPoint.GUI:RefreshOptions()
     local addon = FocalPoint
+
+    if addon._closingConfig then
+        return
+    end
 
     if not addon.guiContentHost then
         return
@@ -1015,12 +1084,12 @@ function FocalPoint.GUI:RefreshOptions()
 end
 
 function FocalPoint:IsEditorActive()
-    if not self.guiFrame then
+    local frame = GetMainHostFrame(self)
+    if not frame then
         return false
     end
 
-    local frame = self.guiFrame.frame or self.guiFrame
-    if not frame or (frame.IsShown and not frame:IsShown()) then
+    if frame.IsShown and not frame:IsShown() then
         return false
     end
 
@@ -1032,12 +1101,18 @@ function FocalPoint:SelectEditorUnit(unit)
         return
     end
 
+    local previousUnit = nil
+    local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
+    if editorState and editorState.Get then
+        local currentState = editorState.Get()
+        previousUnit = currentState and currentState.selectedUnit or nil
+    end
+
     local selectedUnit = unit
     if selectedUnit:match("^boss%d+$") then
         selectedUnit = "boss"
     end
 
-    local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
     if editorState and editorState.SetSelectedUnit then
         editorState.SetSelectedUnit(selectedUnit)
     end
@@ -1055,6 +1130,21 @@ function FocalPoint:SelectEditorUnit(unit)
     elseif self.RefreshEditorSelectionVisuals then
         self:RefreshEditorSelectionVisuals()
     end
+
+    if (self.framesUnlocked or self.guiTestModeEnabled) and self.RefreshAllFrames then
+        self:RefreshAllFrames()
+    else
+        if previousUnit and self.RefreshUnitFrame then
+            self:RefreshUnitFrame(previousUnit)
+        end
+        if selectedUnit and self.RefreshUnitFrame then
+            self:RefreshUnitFrame(selectedUnit)
+        end
+    end
+
+    if self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
+    end
 end
 
 ShowGUIFrame = function(widget)
@@ -1064,7 +1154,9 @@ ShowGUIFrame = function(widget)
 
     if widget.frame and widget.frame.Show then
         widget.frame:Show()
-        if FocalPoint.RefreshEditorSelectionVisuals then
+        if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+            FocalPoint.GUI:RefreshOptions()
+        elseif FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
         end
         return
@@ -1072,7 +1164,9 @@ ShowGUIFrame = function(widget)
 
     if widget.Show then
         widget:Show()
-        if FocalPoint.RefreshEditorSelectionVisuals then
+        if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
+            FocalPoint.GUI:RefreshOptions()
+        elseif FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
         end
     end
@@ -1099,25 +1193,79 @@ HideGUIFrame = function(widget)
     end
 end
 
-function FocalPoint:CreateGUI()
-    if self.guiFrame then
-        ShowGUIFrame(self.guiFrame)
+function FocalPoint:CloseConfig()
+    if self._closingConfig then
         return
     end
 
-    local frame = AceGUI:Create("Frame")
-    frame:SetTitle("Focal Point")
-    frame:SetStatusText((L and L["GUI_STATUS_READY"]) or "Ready")
-    frame:SetLayout("Fill")
-    frame:SetWidth(1220)
-    frame:SetHeight(760)
-    frame:EnableResize(true)
+    self._closingConfig = true
+
+    local controller = self.GUI and self.GUI.Editor and self.GUI.Editor.Controller
+    if controller and controller.ReleaseInspector then
+        controller.ReleaseInspector()
+    end
+
+    if self.guiTestModeEnabled and self.DisableTestMode then
+        self:DisableTestMode()
+    end
+
+    if self.framesUnlocked then
+        self.framesUnlocked = false
+        if self.ClearAllMoveOverlays then
+            self:ClearAllMoveOverlays()
+        end
+        if self.UpdateAllFrameDragStates then
+            self:UpdateAllFrameDragStates()
+        end
+        if self.RefreshAllFrames then
+            self:RefreshAllFrames()
+        elseif self.RefreshAllUnitFrames then
+            self:RefreshAllUnitFrames()
+        end
+    end
+
+    if self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
+    end
+
+    if self.RefreshAllUnitFrames then
+        self:RefreshAllUnitFrames()
+    end
+
+    local hostWidget = GetMainHostWidget(self)
+    if hostWidget then
+        HideGUIFrame(hostWidget)
+    end
+
+    self._closingConfig = false
+end
+
+local function CreateMainHostWidget()
+    local hostWidget = AceGUI:Create("Frame")
+    hostWidget:SetTitle("Focal Point")
+    hostWidget:SetStatusText(GetReadyStatusText())
+    hostWidget:SetLayout("Fill")
+    hostWidget:SetWidth(1220)
+    hostWidget:SetHeight(760)
+    hostWidget:EnableResize(true)
+
+    return hostWidget
+end
+
+function FocalPoint:CreateGUI()
+    local existingHost = GetMainHostWidget(self)
+    if existingHost then
+        ShowGUIFrame(existingHost)
+        return
+    end
+
+    local hostWidget = CreateMainHostWidget()
 
     function self:SetTestModeEnabled(enabled)
         self.guiTestModeEnabled = enabled and true or false
 
-        if self.guiFrame then
-            self.guiFrame:SetStatusText(self.guiTestModeEnabled and ((L and L["GUI_TEST_ACTIVE"]) or "Test mode active") or ((L and L["GUI_STATUS_READY"]) or "Ready"))
+        if self.GUI and self.GUI.SetStatusText then
+            self.GUI:SetStatusText(self.guiTestModeEnabled and ((L and L["GUI_TEST_ACTIVE"]) or "Test mode active") or GetReadyStatusText())
         end
     end
 
@@ -1215,8 +1363,10 @@ function FocalPoint:CreateGUI()
         end
     end
 
-    frame:SetCallback("OnClose", function(widget)
-        widget:Hide()
+    hostWidget:SetCallback("OnClose", function()
+        if self.CloseConfig then
+            self:CloseConfig()
+        end
     end)
 
     self.guiTreeStatus = self.guiTreeStatus or {
@@ -1228,20 +1378,59 @@ function FocalPoint:CreateGUI()
     local shell = self.GUI and self.GUI.AppShell
     local root, appSidebar, contentHost
     if shell and shell.BuildRoot then
-        root, appSidebar, contentHost = shell.BuildRoot(self, frame)
+        root, appSidebar, contentHost = shell.BuildRoot(self, hostWidget)
     else
         return
     end
 
-    self.guiFrame = frame
+    self.guiMainHost = hostWidget
+    self.guiRoot = root
 
-    ArrangeFrameFooter(frame, nil)
+    ArrangeFrameFooter(hostWidget, nil)
 
     local initialPath = ResolveDefaultGUIPath(self.GUI.selectedPath or self.guiTreeStatus.selected)
     self.GUI.selectedPath = initialPath
     UpdateAppShellGeometry()
     BuildAppSidebar(appSidebar)
     RenderPage(contentHost, initialPath)
+
+    local function ReflowShellForDisplaySize()
+        local widgetFrame = GetMainHostFrame(self)
+        if not widgetFrame then
+            return
+        end
+        if widgetFrame.IsShown and not widgetFrame:IsShown() then
+            return
+        end
+
+        UpdateAppShellGeometry()
+        if self.guiRoot and self.guiRoot.DoLayout then
+            self.guiRoot:DoLayout()
+        end
+
+        local controller = self.GUI and self.GUI.Editor and self.GUI.Editor.Controller
+        if controller and controller.UpdateActiveInspectorGeometry then
+            controller.UpdateActiveInspectorGeometry()
+        end
+    end
+
+    if not self.guiResizeWatcher then
+        local watcher = CreateFrame("Frame")
+        watcher:SetScript("OnEvent", function()
+            ReflowShellForDisplaySize()
+        end)
+        watcher:RegisterEvent("DISPLAY_SIZE_CHANGED")
+        watcher:RegisterEvent("UI_SCALE_CHANGED")
+        self.guiResizeWatcher = watcher
+    end
+
+    local rootFrame = GetMainHostFrame(self)
+    if rootFrame and rootFrame.HookScript and not rootFrame._focalPointResizeHooked then
+        rootFrame:HookScript("OnSizeChanged", function()
+            ReflowShellForDisplaySize()
+        end)
+        rootFrame._focalPointResizeHooked = true
+    end
 end
 
 function FocalPoint:OpenConfig()

@@ -85,8 +85,8 @@ function ProfilesPage.Build(container, deps)
     end
 
     local function SetStatus(message)
-        if ns.guiFrame and ns.guiFrame.SetStatusText then
-            ns.guiFrame:SetStatusText(message)
+        if ns.GUI and ns.GUI.SetStatusText then
+            ns.GUI:SetStatusText(message)
         end
     end
 
