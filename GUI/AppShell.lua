@@ -404,7 +404,11 @@ local function CaptureFrameChromeState(widget)
         regions = {},
         children = {},
         contentPoints = {},
+        contentFrame = contentFrame,
         closeButton = nil,
+        titleChildren = {},
+        statusChildren = {},
+        sizerChildren = {},
         backdropColor = nil,
         backdropBorderColor = nil,
     }
@@ -435,6 +439,21 @@ local function CaptureFrameChromeState(widget)
                 and child:GetText() == CLOSE
             then
                 state.closeButton = child
+            end
+
+            if child and child.GetScript then
+                local onMouseDown = child:GetScript("OnMouseDown")
+                local onMouseUp = child:GetScript("OnMouseUp")
+                local onEnter = child:GetScript("OnEnter")
+                local onLeave = child:GetScript("OnLeave")
+
+                if onEnter or onLeave then
+                    state.statusChildren[#state.statusChildren + 1] = child
+                elseif onMouseDown and onMouseUp then
+                    state.titleChildren[#state.titleChildren + 1] = child
+                elseif onMouseDown and not onMouseUp then
+                    state.sizerChildren[#state.sizerChildren + 1] = child
+                end
             end
         end
     end
@@ -477,19 +496,28 @@ local function ApplyVisualChromeSuppression(rootFrame, state)
         end
     end
 
-    for _, childState in ipairs(state.children) do
-        if childState.object and childState.object.Hide then
-            childState.object:Hide()
+    if state.closeButton and state.closeButton.Hide then
+        state.closeButton:Hide()
+    end
+
+    for _, child in ipairs(state.titleChildren or {}) do
+        if child and child.Hide then
+            child:Hide()
         end
     end
 
-    if rootFrame.SetBackdropColor then
-        rootFrame:SetBackdropColor(0, 0, 0, 0)
+    for _, child in ipairs(state.statusChildren or {}) do
+        if child and child.Hide then
+            child:Hide()
+        end
     end
 
-    if rootFrame.SetBackdropBorderColor then
-        rootFrame:SetBackdropBorderColor(0, 0, 0, 0)
+    for _, child in ipairs(state.sizerChildren or {}) do
+        if child and child.Hide then
+            child:Hide()
+        end
     end
+
 end
 
 local function RestoreVisualChrome(rootFrame, state)
