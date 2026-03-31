@@ -39,6 +39,29 @@ local function SetShellSidebarVisualState(sidebar, visible)
     end
 end
 
+local function SetToolContentVisualState(contentHost, visible)
+    if not contentHost or not contentHost.frame then
+        return
+    end
+
+    local frame = contentHost.frame
+    if frame._toolContentBg and frame._toolContentBg.SetShown then
+        frame._toolContentBg:SetShown(visible)
+    end
+    if frame._toolContentBorderTop and frame._toolContentBorderTop.SetShown then
+        frame._toolContentBorderTop:SetShown(visible)
+    end
+    if frame._toolContentBorderBottom and frame._toolContentBorderBottom.SetShown then
+        frame._toolContentBorderBottom:SetShown(visible)
+    end
+    if frame._toolContentBorderLeft and frame._toolContentBorderLeft.SetShown then
+        frame._toolContentBorderLeft:SetShown(visible)
+    end
+    if frame._toolContentBorderRight and frame._toolContentBorderRight.SetShown then
+        frame._toolContentBorderRight:SetShown(visible)
+    end
+end
+
 local function EnsureSidebarSurface(frame, ownerKey)
     if not frame then
         return
@@ -64,6 +87,55 @@ local function EnsureSidebarSurface(frame, ownerKey)
     end
 end
 
+local function EnsureToolContentSurface(frame)
+    if not frame then
+        return
+    end
+
+    if not frame._toolContentBg then
+        local bg = frame:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.05, 0.06, 0.08, 0.84)
+        frame._toolContentBg = bg
+    end
+
+    if not frame._toolContentBorderTop then
+        local top = frame:CreateTexture(nil, "BORDER")
+        top:SetPoint("TOPLEFT")
+        top:SetPoint("TOPRIGHT")
+        top:SetHeight(1)
+        top:SetColorTexture(0.16, 0.19, 0.24, 0.9)
+        frame._toolContentBorderTop = top
+    end
+
+    if not frame._toolContentBorderBottom then
+        local bottom = frame:CreateTexture(nil, "BORDER")
+        bottom:SetPoint("BOTTOMLEFT")
+        bottom:SetPoint("BOTTOMRIGHT")
+        bottom:SetHeight(1)
+        bottom:SetColorTexture(0.16, 0.19, 0.24, 0.9)
+        frame._toolContentBorderBottom = bottom
+    end
+
+    if not frame._toolContentBorderLeft then
+        local left = frame:CreateTexture(nil, "BORDER")
+        left:SetPoint("TOPLEFT")
+        left:SetPoint("BOTTOMLEFT")
+        left:SetWidth(1)
+        left:SetColorTexture(0.16, 0.19, 0.24, 0.0)
+        frame._toolContentBorderLeft = left
+    end
+
+    if not frame._toolContentBorderRight then
+        local right = frame:CreateTexture(nil, "BORDER")
+        right:SetPoint("TOPRIGHT")
+        right:SetPoint("BOTTOMRIGHT")
+        right:SetWidth(1)
+        right:SetColorTexture(0.16, 0.19, 0.24, 0.9)
+        frame._toolContentBorderRight = right
+    end
+end
+
 local function GetMainHostWidget(addon)
     if not addon then
         return nil
@@ -83,13 +155,29 @@ local function IsToolPath(addon, path)
         or path == nav.TAG_DATABASE
 end
 
-function AppShell.ResolveShellMode(addon, path)
+local function IsEditorPath(addon, path)
     local nav = addon and addon.Constants and addon.Constants.Nav
     if not nav then
-        return "tool"
+        return false
     end
 
-    if path == nav.EDITOR then
+    if path == nav.EDITOR
+        or path == nav.GENERAL
+        or path == nav.THEMES
+        or path == nav.UNITS
+    then
+        return true
+    end
+
+    if type(path) == "string" and path:match("^units%.([^.]+)$") then
+        return true
+    end
+
+    return false
+end
+
+function AppShell.ResolveShellMode(addon, path)
+    if IsEditorPath(addon, path) then
         return "editor"
     end
 
@@ -106,7 +194,7 @@ function AppShell.ResolveHostChromeMode(shellMode)
     end
 
     if shellMode == "tool" then
-        return "window"
+        return "tool_shell"
     end
 
     return "window"
@@ -601,22 +689,52 @@ function AppShell.ApplyFrameChromeMode(widget, chromeMode)
         return
     end
 
-    if chromeMode == "shell" then
-        if widget._focalPointMinimalChrome then
+    local currentMode = widget._focalPointChromeMode
+
+    if chromeMode == "shell" or chromeMode == "tool_shell" then
+        if widget._focalPointMinimalChrome and currentMode == chromeMode then
             return
+        end
+
+        if widget._focalPointMinimalChrome and currentMode and currentMode ~= chromeMode then
+            RestoreVisualChrome(rootFrame, state)
+            if rootFrame.EnableMouse then
+                rootFrame:EnableMouse(true)
+            end
+            if rootFrame.SetAlpha then
+                rootFrame:SetAlpha(1)
+            end
+            RestoreHostContentPoints(contentFrame, state)
+            widget._focalPointMinimalChrome = nil
         end
 
         ApplyVisualChromeSuppression(rootFrame, state)
 
-        if rootFrame.EnableMouse then
-            rootFrame:EnableMouse(false)
+        if chromeMode == "shell" then
+            if rootFrame.EnableMouse then
+                rootFrame:EnableMouse(false)
+            end
+        else
+            if rootFrame.SetBackdropColor then
+                rootFrame:SetBackdropColor(0, 0, 0, 0)
+            end
+
+            if rootFrame.SetBackdropBorderColor then
+                rootFrame:SetBackdropBorderColor(0, 0, 0, 0)
+            end
+
+            if rootFrame.SetAlpha then
+                rootFrame:SetAlpha(1)
+            end
         end
 
         widget._focalPointMinimalChrome = true
+        widget._focalPointChromeMode = chromeMode
         return
     end
 
     if not widget._focalPointMinimalChrome then
+        widget._focalPointChromeMode = chromeMode
         return
     end
 
@@ -629,6 +747,7 @@ function AppShell.ApplyFrameChromeMode(widget, chromeMode)
     RestoreHostContentPoints(contentFrame, state)
 
     widget._focalPointMinimalChrome = nil
+    widget._focalPointChromeMode = chromeMode
 end
 
 function AppShell.ApplyEditorHostChromeCompensation(widget)
@@ -653,6 +772,7 @@ local function ApplyEditorShellLayoutCompensation(addon, targetHeight)
         addon.guiAppSidebar.frame:SetHeight(targetHeight)
     end
     SetShellSidebarVisualState(addon.guiAppSidebar, false)
+    SetToolContentVisualState(addon.guiContentHost, false)
     if addon.guiEditorToolbarLayer and addon.guiEditorToolbarLayer.SetHeight then
         addon.guiEditorToolbarLayer:SetHeight(targetHeight)
     end
@@ -687,6 +807,7 @@ local function ApplyToolShellLayout(addon, targetHeight)
     if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
         addon.guiContentHost.frame:SetHeight(targetHeight)
     end
+    SetToolContentVisualState(addon.guiContentHost, true)
 end
 
 local function ApplyEditorHostDockingCompensation(widget, rootFrame)
@@ -777,11 +898,7 @@ function AppShell.UpdateGeometry(addon, resolvePath)
 
     local hostChromeMode = AppShell.ResolveHostChromeMode(shellMode)
     addon.guiHostChromeMode = hostChromeMode
-    if hostChromeMode == "shell" then
-        AppShell.ApplyEditorHostChromeCompensation(widget)
-    else
-        AppShell.ApplyWindowHostChrome(widget)
-    end
+    AppShell.ApplyFrameChromeMode(widget, hostChromeMode)
 
     if editorShellMode then
         ApplyEditorHostDockingCompensation(widget, rootFrame)
@@ -825,6 +942,10 @@ function AppShell.BuildRoot(addon, hostWidget)
     contentHost:SetHeight(700)
     contentHost:SetLayout("Fill")
     root:AddChild(contentHost)
+
+    if contentHost.frame then
+        EnsureToolContentSurface(contentHost.frame)
+    end
 
     addon.guiAppSidebar = appSidebar
     addon.guiContentHost = contentHost

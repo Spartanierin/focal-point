@@ -16,6 +16,34 @@ It is intentionally split into:
 
 The goal is to create a shared understanding before further GUI refactors happen.
 
+Related architecture:
+
+- [TEXT_ARCHITECTURE.md](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/docs/TEXT_ARCHITECTURE.md) describes the text/template model, current legacy slot assumptions, and the migration path to free text elements.
+
+## Product UI Decision
+
+FocalPoint's intended product UI is not a classic windowed dialog.
+
+The intended visible surface is:
+
+- the shell
+- the editor presentation
+- the tool-page presentation
+
+The visible AceGUI window chrome is not considered part of the product UI.
+
+This means:
+
+- the main host may remain as technical infrastructure
+- but the host must not define the visible identity of the addon
+- left/right layout zones and in-world editing surfaces are the intended UI
+- future refactors should move the code toward a real shell/presentation model, not toward a disguised window model
+
+In practical terms, the project prefers:
+
+- a real shell with visible UI zones
+- over a window widget that is repeatedly hidden, bent, or cosmetically disguised
+
 ## Terminology
 
 To avoid confusion, these terms should be used consistently.
@@ -48,6 +76,7 @@ At runtime, the host chrome is now treated separately from the host itself:
 - the host still exists as the root widget
 - the visible window chrome is no longer conceptually required for shell rendering
 - the shell can use the host in an embedded or windowed presentation mode
+- in `editor` mode the host is now visually neutralized and primarily remains technical infrastructure
 
 ### Shell
 
@@ -72,6 +101,8 @@ Examples:
 - profiles page
 - text builder page
 - tag database page
+
+In `tool` mode, this area should read as a dedicated Focal Point work view rather than as a generic embedded dialog body.
 
 ### Editor Mode
 
@@ -99,6 +130,15 @@ Pages such as:
 - `Tag Database`
 
 These are not editor workspaces. They are classic content pages rendered into the main content area.
+
+Tool pages may be calmer and more guided than the editor, but they should still belong to the same product family.
+
+That means:
+
+- same surface language
+- same hierarchy language
+- same overall product tone
+- same feeling of a deliberate tool rather than a borrowed admin form
 
 ### Shell Mode
 
@@ -142,6 +182,13 @@ Current runtime direction:
 
 - `editor` currently resolves to host chrome mode `shell`
 - `tool` currently resolves to host chrome mode `window`
+- in practice, `editor` now keeps the host only as a technical root while the visible editor composition is carried by dedicated toolbar/workspace/inspector runtime layers
+
+Long-term direction:
+
+- visible host chrome should not be required for either editor mode or tool pages
+- the shell should be the intended visible structure
+- host chrome should only remain if it serves a deliberate product purpose rather than compensating for implementation details
 
 ## Current Runtime Structure
 
@@ -161,6 +208,7 @@ Important detail:
 
 Historically, if the user saw a title bar labeled `Focal Point`, that was the real root GUI window, not a nested child panel.
 The current refactor direction is to keep that root widget while making its visible chrome optional.
+That direction is now materially advanced for the editor: the editor no longer visibly depends on the host window itself.
 
 ## 2. Shell Inside the Main Window
 
@@ -213,6 +261,9 @@ From the shell perspective, these routes collapse into two shell modes:
 
 - `editor`
 - `tool`
+
+For tool pages, route changes should not feel like leaving the product shell.
+They should feel like opening another Focal Point tool inside the same shell, with a clearer workflow and calmer content pacing than the editor.
 
 ## Visible UI Zones
 
@@ -848,6 +899,20 @@ If a compensation layer is still stabilizing visual behavior, it should stay unt
 Current first reduction direction:
 
 - stop collapsing the invisible editor main host to sidebar width if the visible editor composition remains unchanged
+
+Current status:
+
+- collapsing the editor main host to sidebar width has been removed
+- forcing the host content to fullscreen has been removed
+- broad host-child suppression has been reduced to explicit chrome children
+- extra backdrop nulling has been removed
+- the remaining editor-specific host suppression is primarily the host `regions`, because those still render the visible AceGUI window frame behind the editor
+
+This means the editor now treats the main host as:
+
+- technical root for routing, lifecycle, and shared shell ownership
+- visually neutralized infrastructure in editor mode
+- not the visible source of editor identity
 - stop minimizing the shell content host to a one-pixel placeholder if editor presentation layers already own the visible workspace
 - stop forcing move/resize suppression on the invisible editor host when mouse suppression already prevents direct interaction
 - stop forcing full-screen height onto the shell content host in editor mode when presentation layers already own the visible editor area
@@ -858,6 +923,9 @@ Only after the editor runs naturally on its own presentation host should the pro
 
 - keep the current AceGUI main host
 - or replace the main host with a lighter WoW `Frame`
+
+At the current stage, replacing the host is no longer urgent for editor visuals.
+The more important open question is whether the remaining host `regions` can ever be classified more precisely than a broad region hide, or whether that broad hide is the pragmatic final state for the AceGUI host.
 
 At that point, the host decision becomes much safer because the editor will no longer depend on host tricks for its identity.
 

@@ -22,21 +22,6 @@ local POINTS = {
     BOTTOMRIGHT = "BOTTOMRIGHT",
 }
 
-local TEXT_ORDER = {
-    "Name",
-    "Health",
-    "Power",
-    "Level",
-    "Class",
-    "Race",
-    "Status",
-    "CastName",
-    "CastTime",
-    "Custom1",
-    "Custom2",
-    "Custom3",
-}
-
 local INDICATOR_META = {
     Portrait = {
         labelKey = "OPTION_PORTRAIT_ENABLED",
@@ -574,34 +559,224 @@ local function FormatTextKey(textKey)
     return spaced
 end
 
+local function GetFallbackTemplateLabel(textConfig)
+    return nil
+end
+
+local function FormatTextEntry(textId, textConfig)
+    if type(textConfig) ~= "table" then
+        return nil
+    end
+
+    local templateName = textConfig.templateName
+    if type(templateName) == "string" and templateName ~= "" then
+        return templateName
+    end
+
+    if type(textConfig.stateTemplates) == "table" then
+        for _, linkedTemplateName in pairs(textConfig.stateTemplates) do
+            if type(linkedTemplateName) == "string" and linkedTemplateName ~= "" then
+                return linkedTemplateName
+            end
+        end
+    end
+
+    return GetFallbackTemplateLabel(textConfig)
+end
+
+local function HasMeaningfulTextIdentity(textConfig)
+    if type(textConfig) ~= "table" then
+        return false
+    end
+
+    if type(textConfig.templateName) == "string" and textConfig.templateName ~= "" then
+        return true
+    end
+
+    if type(textConfig.stateTemplates) == "table" then
+        for _, linkedTemplateName in pairs(textConfig.stateTemplates) do
+            if type(linkedTemplateName) == "string" and linkedTemplateName ~= "" then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function NormalizeStateTemplatesForInspector(stateTemplates)
+    if type(stateTemplates) ~= "table" then
+        return ""
+    end
+
+    local entries = {}
+    for stateKey, templateName in pairs(stateTemplates) do
+        if type(templateName) == "string" and templateName ~= "" then
+            entries[#entries + 1] = tostring(stateKey) .. "=" .. templateName
+        end
+    end
+
+    table.sort(entries)
+    return table.concat(entries, "|")
+end
+
+local function IsGeneratedTextId(textId)
+    return type(textId) == "string" and textId:match("^text_%d+$") ~= nil
+end
+
+local function IsLegacyCustomTextId(textId)
+    return type(textId) == "string" and textId:match("^Custom%d+$") ~= nil
+end
+
+local function HasExplicitTemplateBinding(textConfig)
+    if type(textConfig) ~= "table" then
+        return false
+    end
+
+    if type(textConfig.templateName) == "string" and textConfig.templateName ~= "" then
+        return true
+    end
+
+    return NormalizeStateTemplatesForInspector(textConfig.stateTemplates) ~= ""
+end
+
+local function IsInactiveGeneratedTemplateDuplicate(textId, textConfig, texts)
+    if not IsGeneratedTextId(textId) or type(textConfig) ~= "table" or textConfig.enabled ~= false then
+        return false
+    end
+
+    local templateName = textConfig.templateName
+    if type(templateName) ~= "string" or templateName == "" or type(texts) ~= "table" then
+        return false
+    end
+
+    for otherId, otherConfig in pairs(texts) do
+        if otherId ~= textId
+            and type(otherConfig) == "table"
+            and HasExplicitTemplateBinding(otherConfig)
+            and otherConfig.templateName == templateName
+            and not IsGeneratedTextId(otherId)
+        then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function IsLegacyCustomTemplateDuplicate(textId, textConfig, texts)
+    if not IsLegacyCustomTextId(textId) or type(textConfig) ~= "table" or type(texts) ~= "table" then
+        return false
+    end
+
+    local templateName = textConfig.templateName
+    if type(templateName) ~= "string" or templateName == "" then
+        return false
+    end
+
+    local fieldCount = 0
+    for key, value in pairs(textConfig) do
+        if key == "templateName" then
+            if type(value) == "string" and value ~= "" then
+                fieldCount = fieldCount + 1
+            end
+        elseif key == "stateTemplates" then
+            if NormalizeStateTemplatesForInspector(value) ~= "" then
+                fieldCount = fieldCount + 1
+            end
+        elseif key == "tag" then
+            if type(value) == "string" and value ~= "" then
+                fieldCount = fieldCount + 1
+            end
+        elseif key == "enabled" then
+            if value ~= nil then
+                fieldCount = fieldCount + 1
+            end
+        else
+            fieldCount = fieldCount + 1
+        end
+    end
+
+    if fieldCount > 1 then
+        return false
+    end
+
+    for otherId, otherConfig in pairs(texts) do
+        if otherId ~= textId
+            and type(otherConfig) == "table"
+            and HasExplicitTemplateBinding(otherConfig)
+            and otherConfig.templateName == templateName
+            and not IsLegacyCustomTextId(otherId)
+        then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function BuildSortedTextIds(texts)
+    local textIds = {}
+
+    if type(texts) ~= "table" then
+        return textIds
+    end
+
+    for textId, textConfig in pairs(texts) do
+        if HasMeaningfulTextIdentity(textConfig)
+            and not IsInactiveGeneratedTemplateDuplicate(textId, textConfig, texts)
+            and not IsLegacyCustomTemplateDuplicate(textId, textConfig, texts)
+        then
+            textIds[#textIds + 1] = textId
+        end
+    end
+
+    table.sort(textIds, function(a, b)
+        local labelA = tostring(FormatTextEntry(a, texts[a] or {}))
+        local labelB = tostring(FormatTextEntry(b, texts[b] or {}))
+
+        if labelA == labelB then
+            local aIsGenerated = type(a) == "string" and a:match("^text_%d+$") ~= nil
+            local bIsGenerated = type(b) == "string" and b:match("^text_%d+$") ~= nil
+            if aIsGenerated ~= bIsGenerated then
+                return aIsGenerated
+            end
+            return tostring(a) < tostring(b)
+        end
+
+        return labelA < labelB
+    end)
+
+    return textIds
+end
+
 local function BuildTextList(texts)
     local list = {}
-    local seen = {}
+    local orderedIds = BuildSortedTextIds(texts)
 
     if type(texts) ~= "table" then
         return list
     end
 
-    for _, textKey in ipairs(TEXT_ORDER) do
-        if type(texts[textKey]) == "table" then
-            list[textKey] = FormatTextKey(textKey)
-            seen[textKey] = true
+    for _, textId in ipairs(orderedIds) do
+        local label = FormatTextEntry(textId, texts[textId])
+        if type(label) == "string" and label ~= "" then
+            list[textId] = label
         end
     end
 
-    local extraKeys = {}
-    for textKey, textConfig in pairs(texts) do
-        if not seen[textKey] and type(textConfig) == "table" then
-            extraKeys[#extraKeys + 1] = textKey
-        end
+    local duplicateCounts = {}
+    for _, label in pairs(list) do
+        duplicateCounts[label] = (duplicateCounts[label] or 0) + 1
     end
 
-    table.sort(extraKeys, function(a, b)
-        return tostring(a) < tostring(b)
-    end)
-
-    for _, textKey in ipairs(extraKeys) do
-        list[textKey] = FormatTextKey(textKey)
+    local duplicateIndex = {}
+    for _, textId in ipairs(orderedIds) do
+        local label = list[textId]
+        if label and duplicateCounts[label] and duplicateCounts[label] > 1 then
+            duplicateIndex[label] = (duplicateIndex[label] or 0) + 1
+            list[textId] = string.format("%s %d", label, duplicateIndex[label])
+        end
     end
 
     return list
@@ -683,18 +858,19 @@ local function GetFirstAuraKey(auraList)
     return "Buffs"
 end
 
-local function GetFirstTextKey(textList)
-    for _, textKey in ipairs(TEXT_ORDER) do
-        if textList[textKey] then
-            return textKey
+local function GetFirstTextId(textList)
+    local firstTextId = nil
+    local firstLabel = nil
+
+    for textId in pairs(textList) do
+        local label = tostring(textList[textId] or "")
+        if firstTextId == nil or label < firstLabel or (label == firstLabel and tostring(textId) < tostring(firstTextId)) then
+            firstTextId = textId
+            firstLabel = label
         end
     end
 
-    for textKey in pairs(textList) do
-        return textKey
-    end
-
-    return "Name"
+    return firstTextId
 end
 
 local function BuildThemeList(themes)
@@ -754,7 +930,8 @@ Shared.BuildIndicatorList = BuildIndicatorList
 Shared.GetFirstIndicatorKey = GetFirstIndicatorKey
 Shared.BuildAuraList = BuildAuraList
 Shared.GetFirstAuraKey = GetFirstAuraKey
-Shared.GetFirstTextKey = GetFirstTextKey
+Shared.GetFirstTextId = GetFirstTextId
+Shared.GetFirstTextKey = GetFirstTextId
 Shared.BuildThemeList = BuildThemeList
 Shared.GetFirstThemeId = GetFirstThemeId
 

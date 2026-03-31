@@ -78,6 +78,7 @@
     <Script file="GUI/Helpers/OptionRefresh.lua"/>
     <Script file="GUI/Helpers/TextStyles.lua"/>
     <Script file="GUI/Helpers/BuilderUI.lua"/>
+    <Script file="GUI/Helpers/ToolPageUI.lua"/>
     <Script file="GUI/Helpers/GUIState.lua"/>
     <Script file="GUI/Helpers/TabValues.lua"/>
     <Script file="GUI/Helpers/PageDeps.lua"/>

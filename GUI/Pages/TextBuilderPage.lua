@@ -8,6 +8,7 @@ local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
 local TextStyles = ns.GUI.Helpers.TextStyles
+local ToolPageUI = ns.GUI.Helpers.ToolPageUI
 
 local TextBuilderPage = {}
 ns.GUI.Pages.TextBuilder = TextBuilderPage
@@ -25,12 +26,6 @@ function TextBuilderPage.Build(container, deps)
     local GetGUIState = deps.GetGUIState
     local ResetFlowContainer = deps.ResetFlowContainer
 
-    local function StyleGroupTitle(widget)
-        if TextStyles and TextStyles.ApplyWidgetText then
-            TextStyles.ApplyWidgetText(widget, "sectionHeader", { size = 13 })
-        end
-    end
-
     ResetFlowContainer(container)
 
     local state = GetGUIState()
@@ -46,55 +41,35 @@ function TextBuilderPage.Build(container, deps)
         },
     }
 
-    local function CreateSpacer(height)
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText(" ")
-        spacer:SetFullWidth(true)
-        spacer:SetHeight(height or 1)
-        return spacer
+    local CreateSpacer = ToolPageUI and ToolPageUI.CreateSpacer
+    local CreateRow = ToolPageUI and ToolPageUI.CreateRow
+    local CreateButton = ToolPageUI and ToolPageUI.CreateButton
+
+    local page = ToolPageUI and ToolPageUI.CreatePageRoot(container, 880) or container
+    if ToolPageUI and ToolPageUI.CreatePageHeader then
+        ToolPageUI.CreatePageHeader(
+            page,
+            L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder",
+            L["INFO_TEXT_BUILDER_DESCRIPTION"] or "",
+            L["INFO_TOOLS_WORKSPACE"] or "Werkzeugansicht"
+        )
     end
 
-    local function CreateSection(title)
-        local group = AceGUI:Create("InlineGroup")
-        group:SetFullWidth(true)
-        group:SetLayout("Flow")
-        group:SetTitle(title)
-        StyleGroupTitle(group)
-        container:AddChild(group)
-        return group
-    end
-
-    local function CreateRow(parent)
-        local row = AceGUI:Create("SimpleGroup")
-        row:SetFullWidth(true)
-        row:SetLayout("Flow")
-        parent:AddChild(row)
-        return row
-    end
-
-    local introGroup = CreateSection(L["INFO_TEXT_BUILDER_TITLE"] or "Text Builder")
-
-    local description = AceGUI:Create("Label")
-    description:SetFullWidth(true)
-    description:SetText(L["INFO_TEXT_BUILDER_DESCRIPTION"] or "")
+    local introHint = AceGUI:Create("Label")
+    introHint:SetFullWidth(true)
+    introHint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_HINT"] or "")
     if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(description, "label", { size = 12 })
+        TextStyles.ApplyLabelWidget(introHint, "highlight", { size = 12 })
     end
-    introGroup:AddChild(description)
+    page:AddChild(introHint)
 
-    introGroup:AddChild(CreateSpacer(2))
+    page:AddChild(CreateSpacer(10))
 
-    local hint = AceGUI:Create("Label")
-    hint:SetFullWidth(true)
-    hint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_HINT"] or "")
-    if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(hint, "highlight", { size = 12 })
-    end
-    introGroup:AddChild(hint)
-
-    container:AddChild(CreateSpacer(3))
-
-    local builderGroup = CreateSection(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
+    local builderGroup = ToolPageUI and ToolPageUI.CreateCard(
+        page,
+        L["INFO_TEXT_BUILDER_TEMPLATE"] or "01 Vorlage entwerfen",
+        L["INFO_TEXT_BUILDER_TEMPLATE_WORKFLOW"] or "Baue hier die Vorlage auf, mit der spaeter Vorschau, Bibliothek und Textverknuepfung arbeiten."
+    ) or page
 
     local templateHelp = AceGUI:Create("Label")
     templateHelp:SetFullWidth(true)
@@ -104,13 +79,13 @@ function TextBuilderPage.Build(container, deps)
     end
     builderGroup:AddChild(templateHelp)
 
-    builderGroup:AddChild(CreateSpacer(2))
+    builderGroup:AddChild(CreateSpacer(3))
 
-    local templateRow = CreateRow(builderGroup)
+    local templateRow = CreateRow(builderGroup, 64)
 
     local templateEdit = AceGUI:Create("EditBox")
     templateEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE"] or "Template")
-    templateEdit:SetWidth(560)
+    templateEdit:SetWidth(620)
     templateEdit:DisableButton(true)
     templateEdit:SetText(NormalizeTemplateInput(state.textBuilder.template or ""))
     if TextStyles and TextStyles.ApplyWidgetText then
@@ -118,14 +93,23 @@ function TextBuilderPage.Build(container, deps)
     end
     templateRow:AddChild(templateEdit)
 
-    local updateButton = AceGUI:Create("Button")
-    updateButton:SetText(L["INFO_TEXT_BUILDER_APPLY"] or "Update Preview")
-    updateButton:SetWidth(170)
+    local updateButton = CreateButton(L["INFO_TEXT_BUILDER_APPLY"] or "Update Preview", 190)
     templateRow:AddChild(updateButton)
 
-    container:AddChild(CreateSpacer(2))
+    local templateFlowHint = AceGUI:Create("Label")
+    templateFlowHint:SetFullWidth(true)
+    templateFlowHint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_FLOW_HINT"] or "Arbeite erst an der Vorlage, pruefe dann die Wirkung und speichere nur Varianten, die als Werkzeugbaustein wirklich taugen.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(templateFlowHint, "help", { size = 10 })
+    end
+    builderGroup:AddChild(templateFlowHint)
 
-    local previewGroup = CreateSection(L["INFO_TEXT_BUILDER_PREVIEW"] or "Preview")
+    local previewGroup = ToolPageUI and ToolPageUI.CreateCard(
+        page,
+        L["INFO_TEXT_BUILDER_PREVIEW"] or "02 Vorschau lesen",
+        L["INFO_TEXT_BUILDER_PREVIEW_HINT_TOOL"] or "Die Vorschau zeigt sofort, ob Lesbarkeit, Informationsdichte und Rhythmus der Vorlage stimmen.",
+        { topSpacing = 8 }
+    ) or page
 
     local previewLabel = AceGUI:Create("Label")
     previewLabel:SetFullWidth(true)
@@ -145,34 +129,43 @@ function TextBuilderPage.Build(container, deps)
     end
     previewGroup:AddChild(previewLabel)
 
-    container:AddChild(CreateSpacer(2))
+    local previewHint = AceGUI:Create("Label")
+    previewHint:SetFullWidth(true)
+    previewHint:SetText(L["INFO_TEXT_BUILDER_PREVIEW_CONTEXT"] or "Nutze diesen Schritt als schnellen Qualitaetscheck, bevor du die Vorlage speicherst oder verknuepfst.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(previewHint, "help", { size = 10 })
+    end
+    previewGroup:AddChild(previewHint)
 
-    local templatesGroup = CreateSection(L["INFO_TEXT_BUILDER_TEMPLATES"] or "Templates")
+    local templatesGroup = ToolPageUI and ToolPageUI.CreateCard(
+        page,
+        L["INFO_TEXT_BUILDER_TEMPLATES"] or "03 Vorlagenbibliothek",
+        L["INFO_TEXT_BUILDER_TEMPLATES_HINT_TOOL"] or "Speichere gute Bausteine, aktualisiere bestehende Vorlagen und halte deine Bibliothek sauber und wiederverwendbar.",
+        { topSpacing = 8 }
+    ) or page
 
     local templates = (ns.db and ns.db.profile and ns.db.profile.TextTemplates) or {}
 
-    local savedTemplateRow = CreateRow(templatesGroup)
+    local savedTemplateRow = CreateRow(templatesGroup, 64)
 
     local templateSelect = AceGUI:Create("Dropdown")
     templateSelect:SetLabel(L["INFO_TEXT_BUILDER_SAVED_TEMPLATES"] or "Saved Templates")
-    templateSelect:SetWidth(460)
+    templateSelect:SetWidth(540)
     if TextStyles and TextStyles.ApplyWidgetText then
         TextStyles.ApplyWidgetText(templateSelect, "label", { size = 12 })
     end
     savedTemplateRow:AddChild(templateSelect)
 
-    local deleteTemplateButton = AceGUI:Create("Button")
-    deleteTemplateButton:SetText(L["INFO_TEXT_BUILDER_DELETE"] or "Delete")
-    deleteTemplateButton:SetWidth(140)
+    local deleteTemplateButton = CreateButton(L["INFO_TEXT_BUILDER_DELETE"] or "Delete", 150)
     savedTemplateRow:AddChild(deleteTemplateButton)
 
     templatesGroup:AddChild(CreateSpacer(2))
 
-    local templateNameRow = CreateRow(templatesGroup)
+    local templateNameRow = CreateRow(templatesGroup, 64)
 
     local templateNameEdit = AceGUI:Create("EditBox")
     templateNameEdit:SetLabel(L["INFO_TEXT_BUILDER_TEMPLATE_NAME"] or "Template Name")
-    templateNameEdit:SetWidth(400)
+    templateNameEdit:SetWidth(460)
     templateNameEdit:DisableButton(true)
     templateNameEdit:SetText(state.textBuilder.templateName or "")
     if TextStyles and TextStyles.ApplyWidgetText then
@@ -180,25 +173,32 @@ function TextBuilderPage.Build(container, deps)
     end
     templateNameRow:AddChild(templateNameEdit)
 
-    local saveButton = AceGUI:Create("Button")
-    saveButton:SetText(L["INFO_TEXT_BUILDER_SAVE"] or "Save")
-    saveButton:SetWidth(120)
+    local saveButton = CreateButton(L["INFO_TEXT_BUILDER_SAVE"] or "Save", 120)
     templateNameRow:AddChild(saveButton)
 
-    local updateTemplateButton = AceGUI:Create("Button")
-    updateTemplateButton:SetText(L["INFO_TEXT_BUILDER_UPDATE"] or "Update")
-    updateTemplateButton:SetWidth(140)
+    local updateTemplateButton = CreateButton(L["INFO_TEXT_BUILDER_UPDATE"] or "Update", 140)
     templateNameRow:AddChild(updateTemplateButton)
 
-    container:AddChild(CreateSpacer(2))
+    local templatesHint = AceGUI:Create("Label")
+    templatesHint:SetFullWidth(true)
+    templatesHint:SetText(L["INFO_TEXT_BUILDER_LIBRARY_HINT"] or "Die Bibliothek ist dein wiederverwendbarer Werkzeugkasten. Nicht jeder Zwischenstand muss dort landen.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(templatesHint, "help", { size = 10 })
+    end
+    templatesGroup:AddChild(templatesHint)
 
-    local usageGroup = CreateSection(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE"] or "Template Usage")
+    local usageGroup = ToolPageUI and ToolPageUI.CreateCard(
+        page,
+        L["INFO_TEXT_BUILDER_TEMPLATE_USAGE"] or "04 Verknuepfung und Anwendung",
+        L["INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT"] or "Checked units already use the selected template. Uncheck to remove the template link from that unit.",
+        { topSpacing = 8 }
+    ) or page
 
     local usageHint = AceGUI:Create("Label")
     usageHint:SetFullWidth(true)
-    usageHint:SetText(L["INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT"] or "Checked units already use the selected template. Uncheck to remove the template link from that unit.")
+    usageHint:SetText(L["INFO_TEXT_BUILDER_USAGE_LEAD"] or "Verknuepfte Units")
     if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(usageHint, "help", { size = 11 })
+        TextStyles.ApplyLabelWidget(usageHint, "label", { size = 12 })
     end
     usageGroup:AddChild(usageHint)
 
@@ -206,24 +206,26 @@ function TextBuilderPage.Build(container, deps)
 
     local usageCheckboxes = {}
 
-    container:AddChild(CreateSpacer(2))
-
-    local applyGroup = CreateSection(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Apply To Text")
-
     local applyHint = AceGUI:Create("Label")
     applyHint:SetFullWidth(true)
-    applyHint:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
+    applyHint:SetText(L["INFO_TEXT_BUILDER_APPLY_TO_TEXT"] or "Auf Text anwenden")
     if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(applyHint, "help", { size = 11 })
+        TextStyles.ApplyLabelWidget(applyHint, "label", { size = 12 })
     end
-    applyGroup:AddChild(applyHint)
+    usageGroup:AddChild(CreateSpacer(4))
+    usageGroup:AddChild(applyHint)
 
-    applyGroup:AddChild(CreateSpacer(2))
+    local applyContext = AceGUI:Create("Label")
+    applyContext:SetFullWidth(true)
+    applyContext:SetText(L["INFO_TEXT_BUILDER_APPLY_CONTEXT"] or "Lege die aktuelle Vorlage kontrolliert auf freie Text-Slots der ausgewaehlten Units und halte die Verknuepfung anschliessend in der Bibliothek nachvollziehbar.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(applyContext, "help", { size = 10 })
+    end
+    usageGroup:AddChild(applyContext)
 
-    local applyTemplateButton = AceGUI:Create("Button")
-    applyTemplateButton:SetText(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template")
-    applyTemplateButton:SetWidth(170)
-    applyGroup:AddChild(applyTemplateButton)
+    usageGroup:AddChild(CreateSpacer(3))
+    local applyTemplateButton = CreateButton(L["INFO_TEXT_BUILDER_APPLY_TEMPLATE"] or "Apply Template", 190)
+    usageGroup:AddChild(applyTemplateButton)
 
     local function RefreshPreview()
         local template = state.textBuilder.template or ""
@@ -261,10 +263,6 @@ function TextBuilderPage.Build(container, deps)
                     return true
                 end
             end
-        end
-
-        if type(templateValue) == "string" and templateValue ~= "" and textConfig.tag == templateValue then
-            return true
         end
 
         return false
@@ -318,23 +316,36 @@ function TextBuilderPage.Build(container, deps)
             return false
         end
 
-        for _, textConfig in pairs(texts) do
+        for textId, textConfig in pairs(texts) do
             if TextConfigUsesTemplate(textConfig, templateName, templateValue) then
-                textConfig.templateName = ""
-                if type(textConfig.stateTemplates) == "table" then
+                if type(textId) == "string" and (textId:match("^text_%d+$") or textId:match("^Custom%d+$")) then
+                    texts[textId] = nil
+                    changed = true
+                else
+                    textConfig.templateName = ""
+                end
+
+                if texts[textId] == nil then
+                    -- removed entirely above
+                elseif type(textConfig.stateTemplates) == "table" then
                     for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
                         if stateTemplateName == templateName then
                             textConfig.stateTemplates[stateKey] = ""
                         end
                     end
                 end
-                if type(templateValue) == "string" and templateValue ~= "" and textConfig.tag == templateValue then
-                    textConfig.tag = ""
-                end
-                if (textConfig.templateName == nil or textConfig.templateName == "")
-                    and (textConfig.tag == nil or textConfig.tag == "")
+                if texts[textId] ~= nil
+                    and (textConfig.templateName == nil or textConfig.templateName == "")
+                    and (
+                        type(textConfig.stateTemplates) ~= "table"
+                        or next(textConfig.stateTemplates) == nil
+                    )
                 then
-                    textConfig.enabled = false
+                    if type(textId) == "string" and textId:match("^text_%d+$") then
+                        texts[textId] = nil
+                    else
+                        textConfig.enabled = false
+                    end
                 end
                 changed = true
             end
@@ -436,24 +447,55 @@ function TextBuilderPage.Build(container, deps)
         RefreshTemplateUsageState()
     end
 
-    local function GetNextTextElementSlot(unitKey)
-        local candidateSlots = { "Custom1", "Custom2", "Custom3" }
+    local function BuildNewTextElementConfig(template, linkedTemplateName)
+        return {
+            enabled = true,
+            tag = template or "",
+            templateName = linkedTemplateName or "",
+            font = STANDARD_TEXT_FONT,
+            fontStyle = "NONE",
+            fontSize = 12,
+            justifyH = "CENTER",
+            anchorTo = "HealthBar",
+            point = "CENTER",
+            relativePoint = "CENTER",
+            offsetX = 0,
+            offsetY = 0,
+            overflowMode = "NONE",
+            shadowEnabled = true,
+            shadowColor = { 0, 0, 0, 1 },
+            shadowOffsetX = 1,
+            shadowOffsetY = -1,
+            color = { 1, 1, 1, 1 },
+        }
+    end
 
-        for _, slotKey in ipairs(candidateSlots) do
-            local textConfig = ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts", slotKey }, {}) or {}
-            local hasTemplateName = type(textConfig.templateName) == "string" and textConfig.templateName ~= ""
-            local hasTag = type(textConfig.tag) == "string" and textConfig.tag ~= ""
-            local isEnabled = textConfig.enabled == true
+    local function GetNextTextElementId(unitKey)
+        local texts = ns.GUI.Helpers.OptionValues.Get({ "Units", unitKey, "Texts" }, {}) or {}
+        local maxIndex = 0
 
-            if (not isEnabled) or (not hasTemplateName and not hasTag) then
-                return slotKey
+        if type(texts) == "table" then
+            for textId in pairs(texts) do
+                if type(textId) == "string" then
+                    local numericId = tonumber(textId:match("^text_(%d+)$"))
+                    if numericId and numericId > maxIndex then
+                        maxIndex = numericId
+                    end
+                end
             end
         end
 
-        return nil
+        local nextIndex = maxIndex + 1
+        local candidateId = string.format("text_%d", nextIndex)
+        while type(texts) == "table" and texts[candidateId] ~= nil do
+            nextIndex = nextIndex + 1
+            candidateId = string.format("text_%d", nextIndex)
+        end
+
+        return candidateId
     end
 
-    local function ApplyTemplateToTextSlot()
+    local function ApplyTemplateToTextElement()
         local template = templateEdit:GetText() or ""
         local selectedTemplateName = state.textBuilder.selectedTemplate or ""
         local linkedTemplateName = ""
@@ -488,18 +530,12 @@ function TextBuilderPage.Build(container, deps)
 
         local appliedEntries = {}
         local removedEntries = {}
-        local skippedUnits = {}
 
         for _, unitKey in ipairs(unitsToAdd) do
-            local slotKey = GetNextTextElementSlot(unitKey)
-            if not slotKey then
-                skippedUnits[#skippedUnits + 1] = ns.GetLabel(KM.Units, unitKey)
-            else
-                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "enabled" }, true)
-                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "tag" }, template)
-                ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", slotKey, "templateName" }, linkedTemplateName)
-                appliedEntries[#appliedEntries + 1] = string.format("%s -> %s", ns.GetLabel(KM.Units, unitKey), slotKey)
-            end
+            local textId = GetNextTextElementId(unitKey)
+            local newTextConfig = BuildNewTextElementConfig(template, linkedTemplateName)
+            ns.GUI.Helpers.OptionValues.Set({ "Units", unitKey, "Texts", textId }, newTextConfig)
+            appliedEntries[#appliedEntries + 1] = ns.GetLabel(KM.Units, unitKey)
         end
 
         for _, unitKey in ipairs(unitsToRemove) do
@@ -529,9 +565,7 @@ function TextBuilderPage.Build(container, deps)
             statusText = statusText .. " (" .. linkedTemplateName .. ")"
         end
         if #appliedEntries == 0 and #removedEntries == 0 then
-            statusText = L["INFO_TEXT_BUILDER_STATUS_NO_FREE_SLOT"] or "No free text element available for the selected units."
-        elseif #skippedUnits > 0 then
-            statusText = statusText .. " | " .. (L["INFO_TEXT_BUILDER_STATUS_SKIPPED_UNITS"] or "Skipped") .. ": " .. table.concat(skippedUnits, ", ")
+            statusText = L["INFO_TEXT_BUILDER_STATUS_SELECT_UNIT"] or "Select at least one unit."
         end
 
         SetStatus(statusText)
@@ -556,7 +590,7 @@ function TextBuilderPage.Build(container, deps)
     end)
 
     applyTemplateButton:SetCallback("OnClick", function()
-        ApplyTemplateToTextSlot()
+        ApplyTemplateToTextElement()
     end)
 
     templateNameEdit:SetCallback("OnEnterPressed", function(widget, _, value)

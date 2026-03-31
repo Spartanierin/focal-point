@@ -10,7 +10,8 @@ local state = {
     selectedUnit = "player",
     mode = "quick",
     selectedThemeId = "classic",
-    selectedTextKey = "Name",
+    selectedTextId = nil,
+    selectedTextKey = nil,
     selectedIndicatorKey = "Portrait",
     selectedAuraKey = "Buffs",
     collapsedSections = {},
@@ -44,12 +45,17 @@ function EditorState.SetSelectedThemeId(themeId)
     state.selectedThemeId = themeId
 end
 
-function EditorState.SetSelectedTextKey(textKey)
-    if type(textKey) ~= "string" or textKey == "" then
+function EditorState.SetSelectedTextId(textId)
+    if type(textId) ~= "string" or textId == "" then
         return
     end
 
-    state.selectedTextKey = textKey
+    state.selectedTextId = textId
+    state.selectedTextKey = textId
+end
+
+function EditorState.SetSelectedTextKey(textKey)
+    EditorState.SetSelectedTextId(textKey)
 end
 
 function EditorState.SetSelectedIndicatorKey(indicatorKey)

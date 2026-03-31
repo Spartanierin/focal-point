@@ -24,7 +24,7 @@ local BuildIndicatorList = Shared.BuildIndicatorList
 local GetFirstIndicatorKey = Shared.GetFirstIndicatorKey
 local BuildAuraList = Shared.BuildAuraList
 local GetFirstAuraKey = Shared.GetFirstAuraKey
-local GetFirstTextKey = Shared.GetFirstTextKey
+local GetFirstTextId = Shared.GetFirstTextId or Shared.GetFirstTextKey
 
 function InspectorSidebar.Build(container, state, options)
     container:ReleaseChildren()
@@ -73,13 +73,23 @@ function InspectorSidebar.Build(container, state, options)
     end
 
     local textList = BuildTextList(unitConfig.Texts)
-    local selectedTextKey = state.selectedTextKey
-    if not textList[selectedTextKey] then
-        selectedTextKey = GetFirstTextKey(textList)
-        state.selectedTextKey = selectedTextKey
+    local selectedTextId = state.selectedTextId or state.selectedTextKey
+    if not textList[selectedTextId] then
+        selectedTextId = GetFirstTextId(textList)
+        state.selectedTextId = selectedTextId
+        state.selectedTextKey = selectedTextId
     end
 
-    local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[selectedTextKey] or nil
+    local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[selectedTextId] or nil
+    local linkedTemplateName = textConfig and textConfig.templateName or nil
+    if (type(linkedTemplateName) ~= "string" or linkedTemplateName == "") and textConfig and type(textConfig.stateTemplates) == "table" then
+        for _, stateTemplateName in pairs(textConfig.stateTemplates) do
+            if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
+                linkedTemplateName = stateTemplateName
+                break
+            end
+        end
+    end
     local indicatorList = BuildIndicatorList(state.selectedUnit)
     local selectedIndicatorKey = state.selectedIndicatorKey
     if not indicatorList[selectedIndicatorKey] then
@@ -400,13 +410,26 @@ function InspectorSidebar.Build(container, state, options)
     if textConfig then
         AddSpacer(container, 6)
 
-        local textSection = CreateInspectorSection("texts", L["EDITOR_SECTION_TEXTS"] or "Texts", true)
+        local textSection = CreateInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true)
         if textSection then
 
-            AddDropdown(textSection, L["EDITOR_OPTION_TEXT"] or "Text", textList, selectedTextKey, function(value)
+            AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", textList, selectedTextId, function(value)
+                state.selectedTextId = value
                 state.selectedTextKey = value
                 NotifySidebarChanged()
             end)
+
+            local templateSummary = AceGUI:Create("Label")
+            templateSummary:SetFullWidth(true)
+            templateSummary:SetText(
+                (L["EDITOR_TEMPLATE_LINKED"] or "Linked Template") .. ": " ..
+                ((type(linkedTemplateName) == "string" and linkedTemplateName ~= "") and linkedTemplateName or (L["EDITOR_TEXT_DIRECT_TEMPLATE"] or "Direct Template"))
+            )
+            if templateSummary.label and templateSummary.label.SetFont then
+                templateSummary.label:SetFont(STANDARD_TEXT_FONT, 10, "")
+                templateSummary.label:SetTextColor(0.55, 0.59, 0.64, 1)
+            end
+            textSection:AddChild(templateSummary)
 
             AddCheckBox(textSection, L["OPTION_ENABLED"] or "Enabled", textConfig.enabled ~= false, function(value)
                 textConfig.enabled = value and true or false

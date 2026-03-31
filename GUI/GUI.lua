@@ -1067,6 +1067,29 @@ local function UpdateAppShellGeometry()
     end
 end
 
+local function StabilizeRenderedShell(expectedPath)
+    local addon = FocalPoint
+    if not addon or addon._closingConfig then
+        return
+    end
+
+    local currentPath = ResolveDefaultGUIPath(addon.GUI and addon.GUI.selectedPath)
+    if expectedPath and currentPath ~= ResolveDefaultGUIPath(expectedPath) then
+        return
+    end
+
+    UpdateAppShellGeometry()
+
+    if addon.guiRoot and addon.guiRoot.DoLayout then
+        addon.guiRoot:DoLayout()
+    end
+
+    local controller = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
+    if controller and controller.UpdateActiveInspectorGeometry then
+        controller.UpdateActiveInspectorGeometry()
+    end
+end
+
 function FocalPoint.GUI:RefreshOptions()
     local addon = FocalPoint
 
@@ -1084,6 +1107,13 @@ function FocalPoint.GUI:RefreshOptions()
         BuildAppSidebar(addon.guiAppSidebar)
     end
     RenderPage(addon.guiContentHost, selectedPath)
+    StabilizeRenderedShell(selectedPath)
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            StabilizeRenderedShell(selectedPath)
+        end)
+    end
 
     if addon.RefreshEditorSelectionVisuals then
         addon:RefreshEditorSelectionVisuals()
@@ -1405,6 +1435,13 @@ function FocalPoint:CreateGUI()
     UpdateAppShellGeometry()
     BuildAppSidebar(appSidebar)
     RenderPage(contentHost, initialPath)
+    StabilizeRenderedShell(initialPath)
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            StabilizeRenderedShell(initialPath)
+        end)
+    end
 
     local function ReflowShellForDisplaySize()
         local widgetFrame = GetMainHostFrame(self)

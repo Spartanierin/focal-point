@@ -10,6 +10,28 @@ local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local animatedNameTexts = {}
 local animatedNameTicker = nil
 
+local function ResolveTextRole(textConfig, key)
+    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
+        return textConfig.role
+    end
+
+    if key == "Name" then
+        return "name"
+    elseif key == "AltPower" then
+        return "altpower"
+    elseif key == "CastName" then
+        return "cast_name"
+    elseif key == "CastTime" then
+        return "cast_time"
+    elseif key == "Class" then
+        return "class"
+    elseif key == "Level" then
+        return "level"
+    end
+
+    return nil
+end
+
 local function IsClassificationNameGlowEnabled(frame)
     local unit = frame and frame.unit
     local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
@@ -273,13 +295,19 @@ local function StopAnimatedNameText(textObject)
     animatedNameTexts[textObject] = nil
 end
 
-local function ApplyAnimatedNameText(frame, key, textObject, renderedText, r, g, b, a)
+local function ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
     if not textObject then
         return
     end
 
-    if key ~= "Name" then
+    if textRole ~= "name" then
         StopAnimatedNameText(textObject)
+        return
+    end
+
+    if InCombatLockdown and InCombatLockdown() then
+        StopAnimatedNameText(textObject)
+        textObject:SetTextColor(r, g, b, a)
         return
     end
 
@@ -415,6 +443,10 @@ local function ApplyOverflow(textObject, renderedText, mode)
         return
     end
 
+    if InCombatLockdown and InCombatLockdown() then
+        return
+    end
+
     if textObject.SetWidth then
         textObject:SetWidth(maxWidth)
     end
@@ -423,8 +455,19 @@ local function ApplyOverflow(textObject, renderedText, mode)
         return
     end
 
-    local currentWidth = textObject.GetStringWidth and textObject:GetStringWidth() or 0
-    if currentWidth <= maxWidth then
+    local currentWidth = 0
+    if textObject.GetStringWidth then
+        local okWidth, measuredWidth = pcall(textObject.GetStringWidth, textObject)
+        if not okWidth or type(measuredWidth) ~= "number" then
+            return
+        end
+        currentWidth = measuredWidth
+    end
+
+    local okFitsCurrent, fitsCurrent = pcall(function()
+        return currentWidth <= maxWidth
+    end)
+    if not okFitsCurrent or fitsCurrent then
         return
     end
 
@@ -439,7 +482,23 @@ local function ApplyOverflow(textObject, renderedText, mode)
     for limit = math.max(visibleCount - 1, 0), 0, -1 do
         local candidate = limit > 0 and BuildEllipsisCandidate(tokens, limit) or "..."
         textObject:SetText(candidate)
-        if (textObject.GetStringWidth and textObject:GetStringWidth() or 0) <= maxWidth then
+        local candidateWidth = 0
+        if textObject.GetStringWidth then
+            local okWidth, measuredWidth = pcall(textObject.GetStringWidth, textObject)
+            if not okWidth or type(measuredWidth) ~= "number" then
+                return
+            end
+            candidateWidth = measuredWidth
+        end
+
+        local okFitsCandidate, fitsCandidate = pcall(function()
+            return candidateWidth <= maxWidth
+        end)
+        if not okFitsCandidate then
+            return
+        end
+
+        if fitsCandidate then
             return
         end
     end
@@ -481,13 +540,14 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
+        local textRole = ResolveTextRole(textConfig, key)
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
         local altPowerType = GetLiveValue and GetLiveValue(frame, "altPowerType", nil) or nil
         local altPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxRaw", 0) or 0) or 0
         local altPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentRaw", 0) or 0) or 0
         local altPowerAvailable = altPowerType ~= nil and altPowerMaxRaw > 0
 
-        if key == "AltPower" then
+        if textRole == "altpower" then
             StopAnimatedNameText(textObject)
             textObject:SetTextColor(r, g, b, a)
             local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(frame.unit)
@@ -511,19 +571,20 @@ function Update.UpdateElement(frame, key, deps)
             return
         end
 
-        if key == "Class" or (TemplateContainsToken and TemplateContainsToken(template, "class")) then
+        if textRole == "class" or (TemplateContainsToken and TemplateContainsToken(template, "class")) then
             local classR, classG, classB, classA = GetClassTextColor and GetClassTextColor(frame.unit, frame)
             if classR and classG and classB then
                 r, g, b, a = classR, classG, classB, classA or 1
             end
-        elseif key == "Level" then
+        elseif textRole == "level" then
             r, g, b, a = 1.00, 0.82, 0.00, 1.00
         end
         textObject:SetTextColor(r, g, b, a)
 
         if ApplyDirectTemplate and ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
             ApplyOverflow(textObject, textObject:GetText() or "", textConfig.overflowMode)
-            ApplyAnimatedNameText(frame, key, textObject, textObject:GetText() or "", r, g, b, a)
+            ApplyAnimatedNameText(frame, textRole, textObject, textObject:GetText() or "", r, g, b, a)
+            textObject:Show()
             return
         end
 
@@ -532,7 +593,8 @@ function Update.UpdateElement(frame, key, deps)
             ResolveTextTemplate and ResolveTextTemplate(frame, frame.unit, template) or "",
             textConfig.overflowMode
         )
-        ApplyAnimatedNameText(frame, key, textObject, textObject:GetText() or "", r, g, b, a)
+        ApplyAnimatedNameText(frame, textRole, textObject, textObject:GetText() or "", r, g, b, a)
+        textObject:Show()
     end, function(message)
         return tostring(message)
     end)

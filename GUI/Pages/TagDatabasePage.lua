@@ -6,6 +6,7 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L
 local TextStyles = ns.GUI.Helpers.TextStyles
+local ToolPageUI = ns.GUI.Helpers.ToolPageUI
 
 local TagDatabasePage = {}
 ns.GUI.Pages.TagDatabase = TagDatabasePage
@@ -14,12 +15,6 @@ function TagDatabasePage.Build(container, deps)
     local GetGUIState = deps.GetGUIState
     local BuildScrollableTabContent = deps.BuildScrollableTabContent
     local BuildPlaceholderPage = deps.BuildPlaceholderPage
-
-    local function StyleGroupTitle(widget)
-        if TextStyles and TextStyles.ApplyWidgetText then
-            TextStyles.ApplyWidgetText(widget, "sectionHeader", { size = 13 })
-        end
-    end
 
     container:ReleaseChildren()
     container:SetLayout("Fill")
@@ -60,13 +55,7 @@ function TagDatabasePage.Build(container, deps)
     state.tagDatabaseTab = state.tagDatabaseTab or firstTab
     state.tagDatabaseScroll = state.tagDatabaseScroll or {}
 
-    local function CreateLocalSpacer(height)
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText(" ")
-        spacer:SetFullWidth(true)
-        spacer:SetHeight(height or 1)
-        return spacer
-    end
+    local CreateLocalSpacer = ToolPageUI and ToolPageUI.CreateSpacer
 
     local function GetColumnWidths()
         return {
@@ -117,40 +106,56 @@ function TagDatabasePage.Build(container, deps)
     root:SetLayout("Flow")
     container:AddChild(root)
 
-    local introGroup = AceGUI:Create("InlineGroup")
-    introGroup:SetFullWidth(true)
-    introGroup:SetLayout("Flow")
-    introGroup:SetTitle(L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
-    StyleGroupTitle(introGroup)
-    root:AddChild(introGroup)
-
-    local description = AceGUI:Create("Label")
-    description:SetFullWidth(true)
-    description:SetText(L["INFO_TAG_DATABASE_DESCRIPTION"] or "")
-    if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(description, "label", { size = 12 })
+    local page = ToolPageUI and ToolPageUI.CreatePageRoot(root, 880) or root
+    if page.SetFullHeight then
+        page:SetFullHeight(true)
     end
-    introGroup:AddChild(description)
 
-    introGroup:AddChild(CreateLocalSpacer(2))
-
-    local hint = AceGUI:Create("Label")
-    hint:SetFullWidth(true)
-    hint:SetText(L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or "")
-    if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(hint, "highlight", { size = 12 })
+    if ToolPageUI and ToolPageUI.CreatePageHeader then
+        ToolPageUI.CreatePageHeader(
+            page,
+            L["INFO_TAG_DATABASE_TITLE"] or "Tag Database",
+            L["INFO_TAG_DATABASE_DESCRIPTION"] or "",
+            L["INFO_TOOLS_WORKSPACE"] or "Werkzeugansicht"
+        )
     end
-    introGroup:AddChild(hint)
 
-    root:AddChild(CreateLocalSpacer(2))
+    local introHint = AceGUI:Create("Label")
+    introHint:SetFullWidth(true)
+    introHint:SetText(L["INFO_TAG_DATABASE_TEMPLATE_HINT"] or "")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(introHint, "highlight", { size = 12 })
+    end
+    page:AddChild(introHint)
 
-    local referenceGroup = AceGUI:Create("InlineGroup")
-    referenceGroup:SetFullWidth(true)
-    referenceGroup:SetFullHeight(true)
-    referenceGroup:SetLayout("Fill")
-    referenceGroup:SetTitle(L["INFO_TAG_DATABASE_REFERENCE"] or "Reference")
-    StyleGroupTitle(referenceGroup)
-    root:AddChild(referenceGroup)
+    page:AddChild(CreateLocalSpacer(10))
+
+    local introGroup = ToolPageUI and ToolPageUI.CreateCard(
+        page,
+        L["INFO_TAG_DATABASE_REFERENCE"] or "01 Orientierung",
+        L["INFO_TAG_DATABASE_REFERENCE_HINT_TOOL"] or "Nutze die Tag-Datenbank wie eine Referenzwand: erst Kategorie waehlen, dann Bedeutung, Beispiel und Einsatzbereich lesen."
+    ) or page
+
+    local introLead = AceGUI:Create("Label")
+    introLead:SetFullWidth(true)
+    introLead:SetText(L["INFO_TAG_DATABASE_REFERENCE_CONTEXT"] or "Die Datenbank hilft beim Bauen lesbarer Vorlagen und beim Verstaendnis der verfuegbaren Textbausteine.")
+    if TextStyles and TextStyles.ApplyLabelWidget then
+        TextStyles.ApplyLabelWidget(introLead, "help", { size = 11 })
+    end
+    introGroup:AddChild(introLead)
+
+    local referenceGroup = ToolPageUI and ToolPageUI.CreateCard(
+        page,
+        L["INFO_TAG_DATABASE_CATEGORY"] or "02 Nach Kategorien erkunden",
+        L["INFO_TAG_DATABASE_CATEGORY_HINT_TOOL"] or "Jede Kategorie fasst Tags mit aehnlicher Aufgabe zusammen, damit du schneller von der Idee zum passenden Baustein kommst.",
+        { topSpacing = 8 }
+    ) or page
+    if referenceGroup.SetFullHeight then
+        referenceGroup:SetFullHeight(true)
+    end
+    if referenceGroup.frame and referenceGroup.frame.SetHeight then
+        referenceGroup.frame:SetHeight(560)
+    end
 
     local tabGroup = AceGUI:Create("TabGroup")
     tabGroup:SetFullWidth(true)
@@ -173,7 +178,15 @@ function TagDatabasePage.Build(container, deps)
             end
             content:AddChild(categoryLabel)
 
-            content:AddChild(CreateLocalSpacer(2))
+            local categoryHint = AceGUI:Create("Label")
+            categoryHint:SetFullWidth(true)
+            categoryHint:SetText(L["INFO_TAG_DATABASE_CATEGORY_CONTEXT"] or "Lies diese Kategorie wie ein kuratiertes Nachschlagewerk: Tag, Bedeutung, Beispiel und typischer Einsatzbereich.")
+            if TextStyles and TextStyles.ApplyLabelWidget then
+                TextStyles.ApplyLabelWidget(categoryHint, "help", { size = 10 })
+            end
+            content:AddChild(categoryHint)
+
+            content:AddChild(CreateLocalSpacer(3))
 
             local headerRow = AceGUI:Create("SimpleGroup")
             headerRow:SetFullWidth(true)

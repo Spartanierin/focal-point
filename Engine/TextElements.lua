@@ -441,14 +441,56 @@ local function HasActiveCast(unit)
     return false
 end
 
--- Checks whether the current frame actually uses a CastTime text slot.
-local function FrameUsesCastTime(frame)
-    if not frame or not frame.config or not frame.config.Texts then
-        return false
+local function ResolveTextRole(textConfig, key)
+    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
+        return textConfig.role
     end
 
-    local textConfig = frame.config.Texts.CastTime
+    if key == "Name" then
+        return "name"
+    elseif key == "AltPower" then
+        return "altpower"
+    elseif key == "CastName" then
+        return "cast_name"
+    elseif key == "CastTime" then
+        return "cast_time"
+    elseif key == "Class" then
+        return "class"
+    elseif key == "Level" then
+        return "level"
+    end
+
+    return nil
+end
+
+local function FindTextKeyByRole(frame, role, legacyKey)
+    if not frame or not frame.config or not frame.config.Texts then
+        return nil
+    end
+
+    for textKey, textConfig in pairs(frame.config.Texts) do
+        local textRole = ResolveTextRole(textConfig, textKey)
+        if textRole == role then
+            return textKey
+        end
+    end
+
+    if legacyKey and type(frame.config.Texts[legacyKey]) == "table" then
+        return legacyKey
+    end
+
+    return nil
+end
+
+-- Checks whether the current frame actually uses a CastTime text element.
+local function FrameUsesCastTime(frame)
+    local castTimeKey = FindTextKeyByRole(frame, "cast_time", "CastTime")
+    local textConfig = castTimeKey and frame.config and frame.config.Texts and frame.config.Texts[castTimeKey]
     return type(textConfig) == "table" and textConfig.enabled ~= false
+end
+
+local function ResolveCastTimeTextKey(frame)
+    return FindTextKeyByRole(frame, "cast_time", "CastTime")
 end
 
 -- Local wrappers keep the public UF methods stable while delegating logic out.
@@ -542,6 +584,7 @@ function UF:RegisterTextEvents(frame)
         IsPreviewModeEnabled = IsPreviewModeEnabled,
         HasActiveCast = HasActiveCast,
         FrameUsesCastTime = FrameUsesCastTime,
+        ResolveCastTimeTextKey = ResolveCastTimeTextKey,
         Refresh = function(targetFrame)
             if UF.Refresh then
                 return UF:Refresh(targetFrame)

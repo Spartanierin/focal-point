@@ -11,6 +11,16 @@ local function GetEditorPresentationAnchor()
     return ns.guiEditorInspectorLayer or ns.guiEditorPresentationHost or UIParent
 end
 
+local function GetPersistentInspectorSidebar()
+    return ns.GUI and ns.GUI.Editor and ns.GUI.Editor._persistentInspectorSidebar
+end
+
+local function SetPersistentInspectorSidebar(widget)
+    ns.GUI = ns.GUI or {}
+    ns.GUI.Editor = ns.GUI.Editor or {}
+    ns.GUI.Editor._persistentInspectorSidebar = widget
+end
+
 function EditorController.GetActiveInspectorHost()
     return ns.GUI and ns.GUI.Editor and ns.GUI.Editor._activeInspectorHost
 end
@@ -44,6 +54,15 @@ function EditorController.UpdateActiveInspectorGeometry()
     end
 
     local anchorHost = GetEditorPresentationAnchor()
+    if inspectorSidebar.frame.SetParent then
+        inspectorSidebar.frame:SetParent(anchorHost)
+    end
+    if anchorHost and anchorHost.GetFrameStrata and inspectorSidebar.frame.SetFrameStrata then
+        inspectorSidebar.frame:SetFrameStrata(anchorHost:GetFrameStrata())
+    end
+    if anchorHost and anchorHost.GetFrameLevel and inspectorSidebar.frame.SetFrameLevel then
+        inspectorSidebar.frame:SetFrameLevel((anchorHost:GetFrameLevel() or 0) + 1)
+    end
     inspectorSidebar.frame:ClearAllPoints()
     inspectorSidebar.frame:SetPoint("TOPRIGHT", anchorHost, "TOPRIGHT", 0, 0)
 
@@ -80,12 +99,13 @@ function EditorController.ReleaseInspector()
     ns.GUI.Editor._activeInspectorSidebar = nil
 end
 
-function EditorController.BuildInspector(container, deps)
-    local state = deps.GetEditorState()
-    local BuildScrollableTabContent = deps.BuildScrollableTabContent
-    local Sidebar = (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.InspectorSidebar) or deps.Sidebar
+local function EnsureInspectorSidebar()
+    local inspectorSidebar = GetPersistentInspectorSidebar()
+    if inspectorSidebar and inspectorSidebar.frame then
+        return inspectorSidebar
+    end
 
-    local inspectorSidebar = AceGUI:Create("SimpleGroup")
+    inspectorSidebar = AceGUI:Create("SimpleGroup")
     inspectorSidebar:SetRelativeWidth(1.0)
     inspectorSidebar:SetHeight(700)
     inspectorSidebar:SetLayout("Fill")
@@ -103,44 +123,43 @@ function EditorController.BuildInspector(container, deps)
         if inspectorSidebar.frame.SetParent then
             inspectorSidebar.frame:SetParent(anchorHost)
         end
-        if inspectorSidebar.frame.SetFrameStrata then
+        if anchorHost and anchorHost.GetFrameStrata and inspectorSidebar.frame.SetFrameStrata then
+            inspectorSidebar.frame:SetFrameStrata(anchorHost:GetFrameStrata())
+        elseif inspectorSidebar.frame.SetFrameStrata then
             inspectorSidebar.frame:SetFrameStrata("DIALOG")
         end
+        if anchorHost and anchorHost.GetFrameLevel and inspectorSidebar.frame.SetFrameLevel then
+            inspectorSidebar.frame:SetFrameLevel((anchorHost:GetFrameLevel() or 0) + 1)
+        end
 
-        local inspectorBg = inspectorSidebar.frame:CreateTexture(nil, "BACKGROUND")
-        inspectorBg:SetAllPoints()
-        inspectorBg:SetColorTexture(0.05, 0.06, 0.08, 0.76)
-        inspectorSidebar._inspectorBg = inspectorBg
+        if not inspectorSidebar._inspectorBg then
+            local inspectorBg = inspectorSidebar.frame:CreateTexture(nil, "BACKGROUND")
+            inspectorBg:SetAllPoints()
+            inspectorBg:SetColorTexture(0.05, 0.06, 0.08, 0.76)
+            inspectorSidebar._inspectorBg = inspectorBg
+        end
 
-        local inspectorBorder = inspectorSidebar.frame:CreateTexture(nil, "BORDER")
-        inspectorBorder:SetPoint("TOPLEFT")
-        inspectorBorder:SetPoint("BOTTOMLEFT")
-        inspectorBorder:SetWidth(1)
-        inspectorBorder:SetColorTexture(0.16, 0.19, 0.24, 0.9)
-        inspectorSidebar._inspectorBorder = inspectorBorder
+        if not inspectorSidebar._inspectorBorder then
+            local inspectorBorder = inspectorSidebar.frame:CreateTexture(nil, "BORDER")
+            inspectorBorder:SetPoint("TOPLEFT")
+            inspectorBorder:SetPoint("BOTTOMLEFT")
+            inspectorBorder:SetWidth(1)
+            inspectorBorder:SetColorTexture(0.16, 0.19, 0.24, 0.9)
+            inspectorSidebar._inspectorBorder = inspectorBorder
+        end
 
-        local inspectorAccent = inspectorSidebar.frame:CreateTexture(nil, "ARTWORK")
-        inspectorAccent:SetPoint("TOPLEFT")
-        inspectorAccent:SetPoint("TOPRIGHT")
-        inspectorAccent:SetHeight(2)
-        inspectorAccent:SetColorTexture(0.78, 0.65, 0.24, 0.50)
-        inspectorSidebar._inspectorAccent = inspectorAccent
+        if not inspectorSidebar._inspectorAccent then
+            local inspectorAccent = inspectorSidebar.frame:CreateTexture(nil, "ARTWORK")
+            inspectorAccent:SetPoint("TOPLEFT")
+            inspectorAccent:SetPoint("TOPRIGHT")
+            inspectorAccent:SetHeight(2)
+            inspectorAccent:SetColorTexture(0.78, 0.65, 0.24, 0.50)
+            inspectorSidebar._inspectorAccent = inspectorAccent
+        end
     end
 
-    EditorController.SetActiveInspectorHost(inspectorSidebar)
-
-    EditorController.UpdateActiveInspectorGeometry()
-    if inspectorSidebar.frame and inspectorSidebar.frame.Show then
-        inspectorSidebar.frame:Show()
-    end
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0, EditorController.UpdateActiveInspectorGeometry)
-        C_Timer.After(0.05, EditorController.UpdateActiveInspectorGeometry)
-    end
-
-    local inspectorInset = nil
-    if inspectorSidebar.frame and inspectorContent.frame then
-        inspectorInset = CreateFrame("Frame", nil, inspectorSidebar.frame)
+    if inspectorSidebar.frame and inspectorContent.frame and not inspectorSidebar._focalPointInspectorInset then
+        local inspectorInset = CreateFrame("Frame", nil, inspectorSidebar.frame)
         inspectorInset:SetPoint("TOPLEFT", inspectorSidebar.frame, "TOPLEFT", 16, -10)
         inspectorInset:SetPoint("BOTTOMRIGHT", inspectorSidebar.frame, "BOTTOMRIGHT", -16, 10)
         inspectorSidebar._focalPointInspectorInset = inspectorInset
@@ -149,6 +168,46 @@ function EditorController.BuildInspector(container, deps)
         inspectorContent.frame:SetParent(inspectorInset)
         inspectorContent.frame:SetPoint("TOPLEFT", inspectorInset, "TOPLEFT", 0, 0)
         inspectorContent.frame:SetPoint("BOTTOMRIGHT", inspectorInset, "BOTTOMRIGHT", 0, 0)
+    end
+
+    SetPersistentInspectorSidebar(inspectorSidebar)
+    return inspectorSidebar
+end
+
+function EditorController.BuildInspector(container, deps)
+    local state = deps.GetEditorState()
+    local BuildScrollableTabContent = deps.BuildScrollableTabContent
+    local Sidebar = (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.InspectorSidebar) or deps.Sidebar
+    local inspectorSidebar = EnsureInspectorSidebar()
+    local inspectorContent = inspectorSidebar and inspectorSidebar._focalPointInspectorContent
+    if not inspectorSidebar or not inspectorContent then
+        return
+    end
+
+    ns.GUI.Editor._inspectorBuildSerial = (ns.GUI.Editor._inspectorBuildSerial or 0) + 1
+    local buildSerial = ns.GUI.Editor._inspectorBuildSerial
+
+    EditorController.SetActiveInspectorHost(inspectorSidebar)
+
+    EditorController.UpdateActiveInspectorGeometry()
+    if inspectorSidebar.frame and inspectorSidebar.frame.Show then
+        inspectorSidebar.frame:Show()
+    end
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                and EditorController.GetActiveInspectorHost() == inspectorSidebar
+            then
+                EditorController.UpdateActiveInspectorGeometry()
+            end
+        end)
+        C_Timer.After(0.05, function()
+            if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                and EditorController.GetActiveInspectorHost() == inspectorSidebar
+            then
+                EditorController.UpdateActiveInspectorGeometry()
+            end
+        end)
     end
 
     state.editorSidebarScroll = state.editorSidebarScroll or { scrollvalue = 0 }
@@ -245,8 +304,20 @@ function EditorController.BuildInspector(container, deps)
             end)
             RestoreSidebarScroll()
             if C_Timer and C_Timer.After then
-                C_Timer.After(0, RestoreSidebarScroll)
-                C_Timer.After(0.05, RestoreSidebarScroll)
+                C_Timer.After(0, function()
+                    if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                        and EditorController.GetActiveInspectorHost() == inspectorSidebar
+                    then
+                        RestoreSidebarScroll()
+                    end
+                end)
+                C_Timer.After(0.05, function()
+                    if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                        and EditorController.GetActiveInspectorHost() == inspectorSidebar
+                    then
+                        RestoreSidebarScroll()
+                    end
+                end)
             end
             return
         end
@@ -262,8 +333,20 @@ function EditorController.BuildInspector(container, deps)
         })
         RestoreSidebarScroll()
         if C_Timer and C_Timer.After then
-            C_Timer.After(0, RestoreSidebarScroll)
-            C_Timer.After(0.05, RestoreSidebarScroll)
+            C_Timer.After(0, function()
+                if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                    and EditorController.GetActiveInspectorHost() == inspectorSidebar
+                then
+                    RestoreSidebarScroll()
+                end
+            end)
+            C_Timer.After(0.05, function()
+                if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                    and EditorController.GetActiveInspectorHost() == inspectorSidebar
+                then
+                    RestoreSidebarScroll()
+                end
+            end)
         end
     end
 

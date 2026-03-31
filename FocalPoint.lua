@@ -602,12 +602,24 @@ local function EnsureTextTemplateLinks()
         return nil
     end
 
+    local function IsAutoLinkedLegacyTextKey(textKey)
+        return textKey == "Name"
+            or textKey == "Health"
+            or textKey == "Power"
+            or textKey == "AltPower"
+            or textKey == "Class"
+            or textKey == "Status"
+            or textKey == "CastName"
+            or textKey == "CastTime"
+            or textKey == "Race"
+    end
+
     for unitKey, unitConfig in pairs(units) do
         local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
         local defaultTexts = defaultUnits and defaultUnits[unitKey] and defaultUnits[unitKey].Texts
         if type(texts) == "table" then
             for textKey, textConfig in pairs(texts) do
-                if type(textConfig) == "table" then
+                if type(textConfig) == "table" and IsAutoLinkedLegacyTextKey(textKey) then
                     local currentTemplateName = textConfig.templateName
                     local currentTag = textConfig.tag
 
@@ -653,6 +665,18 @@ local function EnsureCoreTextDefaults()
         return
     end
 
+    local function IsCoreLegacyTextKey(textKey)
+        return textKey == "Name"
+            or textKey == "Health"
+            or textKey == "Power"
+            or textKey == "AltPower"
+            or textKey == "Class"
+            or textKey == "Race"
+            or textKey == "Status"
+            or textKey == "CastName"
+            or textKey == "CastTime"
+    end
+
     for unitKey, unitDefaults in pairs(defaultUnits) do
         local unitDB = units[unitKey]
         local defaultTexts = type(unitDefaults) == "table" and unitDefaults.Texts or nil
@@ -660,7 +684,7 @@ local function EnsureCoreTextDefaults()
             unitDB.Texts = unitDB.Texts or {}
 
             for textKey, defaultText in pairs(defaultTexts) do
-                if type(defaultText) == "table" then
+                if type(defaultText) == "table" and IsCoreLegacyTextKey(textKey) then
                     local textDB = unitDB.Texts[textKey]
                     if textDB == nil then
                         unitDB.Texts[textKey] = CopyTable(defaultText)
@@ -705,6 +729,113 @@ local function EnsureNoEmptyTextElements()
 
                     if not hasTemplate and not hasTag then
                         textConfig.enabled = false
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function NormalizeStateTemplateSignature(stateTemplates)
+    if type(stateTemplates) ~= "table" then
+        return ""
+    end
+
+    local entries = {}
+    for stateKey, templateName in pairs(stateTemplates) do
+        if type(templateName) == "string" and templateName ~= "" then
+            entries[#entries + 1] = tostring(stateKey) .. "=" .. templateName
+        end
+    end
+
+    table.sort(entries)
+    return table.concat(entries, "|")
+end
+
+local function CountMeaningfulTextFields(textConfig)
+    if type(textConfig) ~= "table" then
+        return 0
+    end
+
+    local count = 0
+    for key, value in pairs(textConfig) do
+        if key == "templateName" then
+            if type(value) == "string" and value ~= "" then
+                count = count + 1
+            end
+        elseif key == "tag" then
+            if type(value) == "string" and value ~= "" then
+                count = count + 1
+            end
+        elseif key == "stateTemplates" then
+            if NormalizeStateTemplateSignature(value) ~= "" then
+                count = count + 1
+            end
+        elseif key == "enabled" then
+            if value ~= nil then
+                count = count + 1
+            end
+        else
+            count = count + 1
+        end
+    end
+
+    return count
+end
+
+local function IsGeneratedTextId(textId)
+    return type(textId) == "string" and textId:match("^text_%d+$") ~= nil
+end
+
+local function IsLegacyCustomTextId(textId)
+    return type(textId) == "string" and textId:match("^Custom%d+$") ~= nil
+end
+
+local function RemoveLegacyDuplicateTextElements()
+    if not FocalPoint.db or not FocalPoint.db.profile or type(FocalPoint.db.profile.Units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(FocalPoint.db.profile.Units) do
+        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+        if type(texts) == "table" then
+            local templateOwners = {}
+
+            for textId, textConfig in pairs(texts) do
+                if type(textConfig) == "table" then
+                    local templateName = textConfig.templateName
+                    if type(templateName) == "string" and templateName ~= "" then
+                        templateOwners[templateName] = templateOwners[templateName] or {}
+                        templateOwners[templateName][#templateOwners[templateName] + 1] = textId
+                    end
+                end
+            end
+
+            for templateName, owners in pairs(templateOwners) do
+                if #owners > 1 then
+                    local hasCanonicalLegacy = false
+
+                    for _, textId in ipairs(owners) do
+                        if type(textId) == "string"
+                            and not IsGeneratedTextId(textId)
+                            and not IsLegacyCustomTextId(textId)
+                        then
+                            hasCanonicalLegacy = true
+                            break
+                        end
+                    end
+
+                    if hasCanonicalLegacy then
+                        for _, textId in ipairs(owners) do
+                            local textConfig = texts[textId]
+                            if type(textConfig) == "table" then
+                                if IsGeneratedTextId(textId) and textConfig.enabled == false then
+                                    texts[textId] = nil
+                                elseif IsLegacyCustomTextId(textId) and CountMeaningfulTextFields(textConfig) <= 1 then
+                                    texts[textId] = nil
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -761,6 +892,7 @@ function FocalPointAddon:OnInitialize()
     EnsureTextTemplateLinks()
     EnsureCoreTextDefaults()
     EnsureNoEmptyTextElements()
+    RemoveLegacyDuplicateTextElements()
     InitRangeCheck()
 
     FocalPoint.LDS = FocalPoint.LDS or LibStub("LibDualSpec-1.0", true)

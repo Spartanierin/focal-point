@@ -60,6 +60,14 @@ Regeln:
 - Presets sind Startzustaende, keine parallele Eigenschaftenebene.
 - Der Editor soll sich wie ein Werkzeug anfuehlen, nicht wie ein Addon-Optionsdialog.
 
+## Produktentscheidung fuer die sichtbare UI
+
+- Das Addon soll nicht wie ein verkleidetes klassisches Fenster wirken.
+- Die sichtbare UI soll aus Shell, Editorflaeche und Tool-Seiten bestehen, nicht aus Fensterdeko.
+- Wenn ein technischer Host im Hintergrund bestehen bleibt, darf er die sichtbare Produktidentitaet nicht bestimmen.
+- Fensterrahmen, Titelzeilen und aehnliches sichtbares Chrome gehoeren nur dann zur UI, wenn sie bewusst gewollt sind, nicht weil die Implementierung sie mitbringt.
+- Architekturarbeit soll deshalb nicht auf dauerhaftes Verbiegen eines Fensters hinauslaufen, sondern auf eine echte Oberflaechenstruktur mit klaren Zonen.
+
 ## Visuelle Schutzregeln
 
 - Architektur-Aenderungen duerfen die sichtbare Editor-Anmutung nicht unbeabsichtigt veraendern.
@@ -77,6 +85,7 @@ Regeln:
   2. freier Bearbeitungsraum
   3. rechter Inspector
 - Wenn das Traegersystem angepasst wird, soll sich die Bildschirmwirkung dieser drei Zonen moeglichst nicht aendern.
+- Der aktuelle Stand stuetzt dieses Ziel bereits: Im Editor ist der Main-Host sichtbar weitgehend neutralisiert; die Editor-Wirkung entsteht aus Toolbar, Workspace und Inspector, nicht mehr aus einem Fensterrahmen.
 
 ## Migrationsregel fuer den Editor
 
@@ -123,6 +132,8 @@ Regeln:
 - Gemeinsame Sidebar-Helfer und Metadaten leben in `GUI/Editor/SidebarShared.lua`.
 - `GUI/Editor/EditorSidebar.lua` bleibt nur als Legacy-Bruecke fuer bestehende Aufrufe erhalten.
 - Seiteninhalte bleiben in ihren Page-Modulen.
+- Im Editor ist die linke Werkzeugleiste inzwischen auf einer eigenen Runtime-Schicht vom alten Shell-Sidebar-Unterbau getrennt.
+- Der technische Main-Host bleibt fuer Lifecycle und gemeinsame Infrastruktur erhalten, bestimmt aber die sichtbare Editor-Anmutung kaum noch.
 
 ## Sekundaere Werkzeuge
 
@@ -142,6 +153,51 @@ Regeln:
   4. seltenere oder destruktivere Aktionen zuletzt
 - Lange Aktionsketten sollen in mehrere ruhige Zeilen aufgeteilt werden statt in eine einzige breite Formularreihe.
 - Feste Breiten duerfen genutzt werden, muessen aber an die zentrierte Tool-Flaeche angepasst sein und nicht mehr vom alten Vollflaechen-Dialog ausgehen.
+
+## Tool-Seiten als Produktflaechen
+
+- Tool-Seiten sollen sich wie echte Focal-Point-Werkzeuge anfuehlen und nicht wie klassische Admin- oder Optionsformulare.
+- Die rechte Tool-Flaeche ist eine bewusste Arbeitsansicht innerhalb derselben Produktwelt wie der Editor.
+- Produktkohhaerenz entsteht ueber dieselben Grundprinzipien:
+  - ruhige dunkle Flaechen
+  - goldene oder helle Hierarchietexte
+  - rote Aktionsbuttons
+  - klarer Vertikalrhythmus
+  - kompakte, aber nicht gehetzte Informationsdichte
+- Tool-Seiten duerfen ruhiger und gefuehrter sein als der Editor, aber nicht generischer.
+- Der Editor bleibt die staerkere Referenz fuer Wertigkeit, Tonalitaet und Designgrammatik.
+
+## Tool-Seiten duerfen sich vom Editor unterscheiden
+
+- Tool-Seiten brauchen keinen freien Ingame-Arbeitsraum.
+- Tool-Seiten brauchen keinen Inspector-Charakter.
+- Tool-Seiten duerfen staerker ueber gefuehrten Werkzeugfluss funktionieren:
+  1. aktueller Zustand
+  2. Quelle oder Kontext
+  3. Hauptaktion
+  4. seltener genutzte Pflege- oder Sicherheitsaktionen
+- Tool-Seiten sollen weniger wie Formulare stapeln und mehr wie ruhige Arbeitsablaeufe fuehren.
+
+## Was fuer Produktkohhaerenz gleich bleiben muss
+
+- Linke Shell und rechte Tool-Ansicht muessen als zusammengehoerige Oberflaeche lesbar sein.
+- Die rechte Seite darf nicht wie eine fremde Unteranwendung wirken.
+- Gleiche Typografie-Rollen muessen wiederkehren:
+  - Seitenkopf
+  - Abschnittstitel
+  - Hilfstexte
+  - hervorgehobene Statuswerte
+- Oberflaechen sollen eher komponiert als nur technisch angeordnet wirken.
+- Jede Tool-Seite soll die Frage positiv beantworten:
+  - Fuehlt sich das wie ein ernstes Focal-Point-Werkzeug innerhalb derselben Produktfamilie wie der Editor an?
+
+## Text-Builder Produktregel
+
+- Der Text Builder ist kein Nebentool, sondern ein Kernwerkzeug des Produkts.
+- Nutzer arbeiten mit Vorlagen und Text-Elementen, nicht mit festen Text-Slots.
+- Wenn Inspector, Builder und Runtime unterschiedliche Begriffe sprechen, gilt der Text Builder als Referenz fuer das sichtbare Produktmodell.
+- Harte Text-Slot-Begriffe wie `Name`, `Race` oder `Custom1` duerfen nicht die sichtbare Produktsprache bestimmen.
+- Die zugrundeliegende Architektur soll deshalb auf freie Textelemente mit Vorlagenverknuepfung zielen.
 
 ## Rueckbau-Regeln
 

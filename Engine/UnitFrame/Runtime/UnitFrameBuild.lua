@@ -3,6 +3,33 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameBuild = FocalPoint.UnitFrameBuild or {}
 local Build = FocalPoint.UnitFrameBuild
 
+local function TextConfigHasRole(textConfig, role, legacyKey, textKey)
+    if type(textConfig) ~= "table" then
+        return false
+    end
+
+    if type(textConfig.role) == "string" and textConfig.role ~= "" then
+        return textConfig.role == role
+    end
+
+    return legacyKey ~= nil and textKey == legacyKey
+end
+
+local function HasTextRole(config, role, legacyKey)
+    local texts = config and config.Texts
+    if type(texts) ~= "table" then
+        return false
+    end
+
+    for textKey, textConfig in pairs(texts) do
+        if TextConfigHasRole(textConfig, role, legacyKey, textKey) then
+            return true
+        end
+    end
+
+    return false
+end
+
 -- Build orchestration keeps the creation and registration sequence in one
 -- place so the main unit-frame runtime can stay focused on live behavior.
 
@@ -12,7 +39,7 @@ function Build.EnsurePlayerAltPowerText(config)
     end
 
     config.Texts = config.Texts or {}
-    if config.Texts.AltPower ~= nil or not FocalPoint.GetDefaultDB then
+    if HasTextRole(config, "altpower", "AltPower") or not FocalPoint.GetDefaultDB then
         return
     end
 
@@ -25,7 +52,12 @@ function Build.EnsurePlayerAltPowerText(config)
         and defaults.profile.Units.player.Texts.AltPower
 
     if defaultAltPowerText ~= nil then
-        config.Texts.AltPower = CopyTable(defaultAltPowerText)
+        local altPowerText = CopyTable(defaultAltPowerText)
+        if type(altPowerText) == "table" and (type(altPowerText.role) ~= "string" or altPowerText.role == "") then
+            altPowerText.role = "altpower"
+        end
+
+        config.Texts.AltPower = altPowerText
     end
 end
 

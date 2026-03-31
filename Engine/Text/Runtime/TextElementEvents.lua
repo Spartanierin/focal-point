@@ -14,6 +14,7 @@ function Events.Register(frame, deps)
     local IsPreviewModeEnabled = deps.IsPreviewModeEnabled
     local HasActiveCast = deps.HasActiveCast
     local FrameUsesCastTime = deps.FrameUsesCastTime
+    local ResolveCastTimeTextKey = deps.ResolveCastTimeTextKey
     local Refresh = deps.Refresh
     local RefreshCastBar = deps.RefreshCastBar
     local UpdateTextElement = deps.UpdateTextElement
@@ -102,7 +103,10 @@ function Events.Register(frame, deps)
             RefreshCastBar(owner)
         end
         if UpdateTextElement then
-            UpdateTextElement(owner, "CastTime")
+            local castTimeKey = ResolveCastTimeTextKey and ResolveCastTimeTextKey(owner) or "CastTime"
+            if castTimeKey then
+                UpdateTextElement(owner, castTimeKey)
+            end
         end
     end)
 
