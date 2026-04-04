@@ -54,42 +54,67 @@ local function IsClassificationNameGlowEnabled(frame)
 end
 
 local function StripTextMarkup(text)
-    if type(text) ~= "string" or text == "" then
+    if type(text) ~= "string" then
         return ""
     end
 
-    text = text:gsub("|c%x%x%x%x%x%x%x%x", "")
-    text = text:gsub("|r", "")
-    text = text:gsub("|T.-|t", "")
-    return text
+    local ok, stripped = pcall(function()
+        if text == "" then
+            return ""
+        end
+
+        local value = text:gsub("|c%x%x%x%x%x%x%x%x", "")
+        value = value:gsub("|r", "")
+        value = value:gsub("|T.-|t", "")
+        return value
+    end)
+
+    if not ok or type(stripped) ~= "string" then
+        return ""
+    end
+
+    return stripped
 end
 
 local function SplitUtf8Characters(text)
     local chars = {}
-    if type(text) ~= "string" or text == "" then
+    if type(text) ~= "string" then
         return chars
     end
 
-    local index = 1
-    local length = #text
-
-    while index <= length do
-        local byte = text:byte(index)
-        local charLength = 1
-
-        if byte and byte >= 240 then
-            charLength = 4
-        elseif byte and byte >= 224 then
-            charLength = 3
-        elseif byte and byte >= 192 then
-            charLength = 2
+    local ok, parts = pcall(function()
+        if text == "" then
+            return {}
         end
 
-        chars[#chars + 1] = text:sub(index, math.min(index + charLength - 1, length))
-        index = index + charLength
+        local result = {}
+        local index = 1
+        local length = #text
+
+        while index <= length do
+            local byte = text:byte(index)
+            local charLength = 1
+
+            if byte and byte >= 240 then
+                charLength = 4
+            elseif byte and byte >= 224 then
+                charLength = 3
+            elseif byte and byte >= 192 then
+                charLength = 2
+            end
+
+            result[#result + 1] = text:sub(index, math.min(index + charLength - 1, length))
+            index = index + charLength
+        end
+
+        return result
+    end)
+
+    if not ok or type(parts) ~= "table" then
+        return chars
     end
 
-    return chars
+    return parts
 end
 
 local function ClampColorComponent(value)
@@ -217,7 +242,15 @@ local function RefreshAnimatedNameText(textObject, entry)
         return
     end
 
-    local styledText = BuildAnimatedNameText(entry.rawText, entry.style, GetTime and GetTime() or 0)
+    local okStyled, styledText = pcall(BuildAnimatedNameText, entry.rawText, entry.style, GetTime and GetTime() or 0)
+    if not okStyled or type(styledText) ~= "string" then
+        StopAnimatedNameText(textObject)
+        if entry.rawText ~= nil then
+            textObject:SetText(entry.rawText)
+        end
+        return
+    end
+
     if styledText ~= entry.lastText then
         entry.lastText = styledText
         textObject:SetText(styledText)

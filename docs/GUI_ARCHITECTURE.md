@@ -140,6 +140,17 @@ That means:
 - same overall product tone
 - same feeling of a deliberate tool rather than a borrowed admin form
 
+Tool pages should also express an internal work flow rather than just a stack of forms.
+
+For reference, the `Profiles` page now follows four explicit tool zones:
+
+1. active state
+2. source adoption / management
+3. new profile creation
+4. maintenance / destructive actions
+
+This zoning is intentional product behavior, not just page decoration.
+
 ### Shell Mode
 
 The shell currently has two conceptual modes:

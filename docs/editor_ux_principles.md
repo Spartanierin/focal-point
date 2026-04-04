@@ -178,6 +178,19 @@ Regeln:
   4. seltener genutzte Pflege- oder Sicherheitsaktionen
 - Tool-Seiten sollen weniger wie Formulare stapeln und mehr wie ruhige Arbeitsablaeufe fuehren.
 
+## Werkzeugzonen fuer Tool-Seiten
+
+- Tool-Seiten sollen nicht nur aus gleichfoermigen Formular-Sections bestehen.
+- Sie sollen als erkennbare Werkzeugzonen aufgebaut werden, die unterschiedliche Arbeitsphasen sichtbar machen.
+- Fuer `Profiles` gilt das Referenzmuster:
+  1. aktiver Stand
+  2. Quelle uebernehmen oder verwalten
+  3. neuen Arbeitsstand anlegen
+  4. seltene oder destruktive Pflegeaktionen
+- Diese Zonen sollen nicht nur textlich, sondern auch ueber Flaechen, Abstand, Gewichtung und CTA-Priorisierung spuerrbar sein.
+- Primaere Aktionen sollen als bewusste Arbeitsschritte erscheinen, nicht nur als Buttons in einem Formularblock.
+- Sekundaere oder riskantere Aktionen gehoeren sichtbar nach unten und duerfen nicht dieselbe Alltagswichtigkeit ausstrahlen wie normale Arbeitsaktionen.
+
 ## Was fuer Produktkohhaerenz gleich bleiben muss
 
 - Linke Shell und rechte Tool-Ansicht muessen als zusammengehoerige Oberflaeche lesbar sein.

@@ -7,7 +7,10 @@ local AppShell = {}
 ns.GUI.AppShell = AppShell
 
 local SHELL_SIDEBAR_WIDTH = 285
-local SHELL_CONTENT_WIDTH = 900
+local SHELL_COLUMNS = {
+    { width = SHELL_SIDEBAR_WIDTH },
+    { weight = 1 },
+}
 
 local function SetShellSidebarVisualState(sidebar, visible)
     if not sidebar then
@@ -208,6 +211,7 @@ function AppShell.PrepareContentHost(container, shellMode)
     container:ReleaseChildren()
     container:SetLayout("Fill")
     container._focalPointShellMode = shellMode or "tool"
+    container._focalPointUsesOwnSurface = nil
 end
 
 function AppShell.RenderMainContent(container, shellMode, buildFunc)
@@ -799,15 +803,14 @@ local function ApplyToolShellLayout(addon, targetHeight)
     end
     SetShellSidebarVisualState(addon.guiAppSidebar, true)
 
+    addon.guiContentHost.width = nil
+    addon.guiContentHost.frame.width = nil
     addon.guiContentHost.relWidth = nil
-    addon.guiContentHost.width = SHELL_CONTENT_WIDTH
-    addon.guiContentHost.frame.width = SHELL_CONTENT_WIDTH
-    addon.guiContentHost.frame:SetWidth(SHELL_CONTENT_WIDTH)
     addon.guiContentHost:SetHeight(targetHeight)
     if addon.guiContentHost.frame and addon.guiContentHost.frame.SetHeight then
         addon.guiContentHost.frame:SetHeight(targetHeight)
     end
-    SetToolContentVisualState(addon.guiContentHost, true)
+    SetToolContentVisualState(addon.guiContentHost, not addon.guiContentHost._focalPointUsesOwnSurface)
 end
 
 local function ApplyEditorHostDockingCompensation(widget, rootFrame)
@@ -922,11 +925,17 @@ function AppShell.BuildRoot(addon, hostWidget)
     local root = AceGUI:Create("SimpleGroup")
     root:SetFullWidth(true)
     root:SetFullHeight(true)
-    root:SetLayout("Flow")
+    root:SetLayout("Table")
+    root:SetUserData("table", {
+        columns = SHELL_COLUMNS,
+        space = 0,
+        spaceH = 0,
+        spaceV = 0,
+    })
     hostWidget:AddChild(root)
 
     local appSidebar = AceGUI:Create("SimpleGroup")
-    appSidebar:SetWidth(SHELL_SIDEBAR_WIDTH)
+    appSidebar:SetFullWidth(true)
     appSidebar:SetHeight(700)
     appSidebar:SetLayout("Fill")
     root:AddChild(appSidebar)
@@ -938,7 +947,7 @@ function AppShell.BuildRoot(addon, hostWidget)
     end
 
     local contentHost = AceGUI:Create("SimpleGroup")
-    contentHost:SetWidth(SHELL_CONTENT_WIDTH)
+    contentHost:SetFullWidth(true)
     contentHost:SetHeight(700)
     contentHost:SetLayout("Fill")
     root:AddChild(contentHost)

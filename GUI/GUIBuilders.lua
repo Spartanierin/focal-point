@@ -49,6 +49,18 @@ function B.BuildProfilesPage(container)
     }))
 end
 
+function B.OpenProfilesWindow()
+    local page = ns.GUI.Pages and ns.GUI.Pages.Profiles
+    if not page or not page.OpenWindow then
+        return
+    end
+
+    page.OpenWindow(CreateProfilesDeps({
+        GetGUIState = GetGUIState,
+        BuildPlaceholderPage = B.BuildPlaceholderPage,
+    }))
+end
+
 function B.BuildTagDatabasePage(container)
     local page = ns.GUI.Pages and ns.GUI.Pages.TagDatabase
     if not page or not page.Build then
@@ -63,6 +75,19 @@ function B.BuildTagDatabasePage(container)
     }))
 end
 
+function B.OpenTagDatabaseWindow()
+    local page = ns.GUI.Pages and ns.GUI.Pages.TagDatabase
+    if not page or not page.OpenWindow then
+        return
+    end
+
+    page.OpenWindow(CreateTagDatabaseDeps({
+        GetGUIState = GetGUIState,
+        BuildScrollableTabContent = BuildScrollableTabContent,
+        BuildPlaceholderPage = B.BuildPlaceholderPage,
+    }))
+end
+
 function B.BuildTextBuilderPage(container)
     local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
     if not page or not page.Build then
@@ -71,6 +96,17 @@ function B.BuildTextBuilderPage(container)
     end
 
     page.Build(container, CreateTextBuilderDeps({
+        GetGUIState = GetGUIState,
+    }))
+end
+
+function B.OpenTextBuilderWindow()
+    local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
+    if not page or not page.OpenWindow then
+        return
+    end
+
+    page.OpenWindow(CreateTextBuilderDeps({
         GetGUIState = GetGUIState,
     }))
 end

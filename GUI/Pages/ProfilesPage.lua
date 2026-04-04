@@ -6,464 +6,662 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local L = ns.L
-local TextStyles = ns.GUI.Helpers.TextStyles
+local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
+local SidebarShared = ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
 
 local ProfilesPage = {}
 ns.GUI.Pages.Profiles = ProfilesPage
 
-local PAGE_WIDTH = 880
-local CARD_BACKGROUND = { 0.07, 0.08, 0.10, 0.74 }
-local CARD_BORDER = { 0.16, 0.19, 0.24, 0.92 }
-local CARD_HEADER = { 0.10, 0.11, 0.14, 0.48 }
-local CARD_ACCENT = { 0.91, 0.77, 0.29, 0.92 }
+local fallbackRootState = {}
+local windowContext
+
+local PANEL_BACKGROUND = { 0.07, 0.08, 0.10, 0.90 }
+local PANEL_BORDER = { 0.24, 0.27, 0.31, 0.92 }
+local PANEL_HEADER = { 0.10, 0.11, 0.14, 0.70 }
+local FIELD_BACKGROUND = { 0.10, 0.11, 0.14, 0.96 }
+local FIELD_BORDER = { 0.31, 0.34, 0.39, 0.95 }
+local BUTTON_RED = { 0.34, 0.12, 0.12, 0.95 }
+local BUTTON_RED_DARK = { 0.23, 0.08, 0.08, 0.98 }
+local BUTTON_RED_HIGHLIGHT = { 0.48, 0.18, 0.18, 0.95 }
+local BUTTON_RED_DISABLED = { 0.19, 0.12, 0.12, 0.90 }
+local HINT_TEXT = { 0.70, 0.73, 0.78 }
+local FOOTER_HINT_TEXT = { 0.62, 0.65, 0.70 }
+local DESCRIPTION_TEXT = { 0.68, 0.70, 0.75 }
+local VALUE_TEXT = { 0.93, 0.90, 0.80 }
 
 local function T(key, fallback)
     return (L and L[key]) or fallback
 end
 
-local function ApplySectionHeader(widget, size)
-    if TextStyles and TextStyles.ApplyWidgetText then
-        TextStyles.ApplyWidgetText(widget, "sectionHeader", { size = size or 13 })
+local function Trim(value)
+    if type(value) ~= "string" then
+        return ""
+    end
+
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function GetProfilesState(deps)
+    local rootState = (deps and deps.GetGUIState and deps.GetGUIState()) or fallbackRootState
+    rootState.profiles = rootState.profiles or {}
+
+    local state = rootState.profiles
+    local db = ns.db
+
+    if state.selectedProfile == nil and db and db.GetCurrentProfile then
+        state.selectedProfile = db:GetCurrentProfile()
+    end
+
+    if state.newProfileName == nil then
+        state.newProfileName = ""
+    end
+
+    return state
+end
+
+local function SetStatus(message)
+    if ns.GUI and ns.GUI.SetStatusText then
+        ns.GUI:SetStatusText(message)
     end
 end
 
-local function ApplyLabelStyle(widget, role, size)
-    if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(widget, role, { size = size })
+local function RefreshProfileUI()
+    if ns.GUI and ns.GUI.RefreshOptions then
+        ns.GUI:RefreshOptions()
     end
 end
 
-local function ApplyWidgetStyle(widget, role, size)
-    if TextStyles and TextStyles.ApplyWidgetText then
-        TextStyles.ApplyWidgetText(widget, role, { size = size })
-    end
-end
-
-local function CreateSpacer(height)
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
-    spacer:SetFullWidth(true)
-    spacer:SetHeight(height or 1)
-    return spacer
-end
-
-local function CreateFlowGroup(fullWidth, width)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetLayout("Flow")
-    if fullWidth then
-        group:SetFullWidth(true)
-    elseif width then
-        group:SetWidth(width)
-    end
-    return group
-end
-
-local function CreateRow(parent, height)
-    local row = CreateFlowGroup(true)
-    if height then
-        row:SetHeight(height)
-    end
-    parent:AddChild(row)
-    return row
-end
-
-local function CreateCard(parent, title, subtitle, options)
-    local opts = type(options) == "table" and options or {}
-
-    if (opts.topSpacing or 0) > 0 then
-        parent:AddChild(CreateSpacer(opts.topSpacing))
-    end
-
-    local card = AceGUI:Create("SimpleGroup")
-    card:SetFullWidth(true)
-    card:SetLayout("Flow")
-    parent:AddChild(card)
-
-    local frame = card.frame
-    local content = card.content
-    if frame and content then
-        if not frame._fpCardBg then
-            local bg = frame:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints()
-            bg:SetColorTexture(unpack(CARD_BACKGROUND))
-            frame._fpCardBg = bg
-        end
-
-        if not frame._fpCardHeader then
-            local header = frame:CreateTexture(nil, "BORDER")
-            header:SetPoint("TOPLEFT")
-            header:SetPoint("TOPRIGHT")
-            header:SetHeight(34)
-            header:SetColorTexture(unpack(CARD_HEADER))
-            frame._fpCardHeader = header
-        end
-
-        if not frame._fpCardAccent then
-            local accent = frame:CreateTexture(nil, "BORDER")
-            accent:SetPoint("TOPLEFT")
-            accent:SetPoint("TOPRIGHT")
-            accent:SetHeight(2)
-            accent:SetColorTexture(unpack(CARD_ACCENT))
-            frame._fpCardAccent = accent
-        end
-
-        local function EnsureBorder(name, ...)
-            if frame[name] then
-                return
-            end
-
-            local border = frame:CreateTexture(nil, "BORDER")
-            border:SetColorTexture(unpack(CARD_BORDER))
-            border:SetPoint(...)
-            frame[name] = border
-        end
-
-        EnsureBorder("_fpCardBorderTop", "TOPLEFT", frame, "TOPLEFT", 0, 0)
-        frame._fpCardBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-        frame._fpCardBorderTop:SetHeight(1)
-
-        EnsureBorder("_fpCardBorderBottom", "BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-        frame._fpCardBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-        frame._fpCardBorderBottom:SetHeight(1)
-
-        EnsureBorder("_fpCardBorderLeft", "TOPLEFT", frame, "TOPLEFT", 0, 0)
-        frame._fpCardBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-        frame._fpCardBorderLeft:SetWidth(1)
-
-        EnsureBorder("_fpCardBorderRight", "TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-        frame._fpCardBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-        frame._fpCardBorderRight:SetWidth(1)
-
-        content:ClearAllPoints()
-        content:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -12)
-        content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -16, 14)
-    end
-
-    if title and title ~= "" then
-        local titleLabel = AceGUI:Create("Label")
-        titleLabel:SetFullWidth(true)
-        titleLabel:SetText(title)
-        ApplyLabelStyle(titleLabel, "sectionHeader", 13)
-        card:AddChild(titleLabel)
-    end
-
-    if subtitle and subtitle ~= "" then
-        local subtitleLabel = AceGUI:Create("Label")
-        subtitleLabel:SetFullWidth(true)
-        subtitleLabel:SetText(subtitle)
-        ApplyLabelStyle(subtitleLabel, "help", 11)
-        card:AddChild(subtitleLabel)
-    end
-
-    if title or subtitle then
-        card:AddChild(CreateSpacer(6))
-    end
-
-    return card
-end
-
-local function CreatePageRoot(container)
-    local root = CreateFlowGroup(true)
-    container:AddChild(root)
-
-    local column = CreateFlowGroup(false, PAGE_WIDTH)
-    root:AddChild(column)
-    return column
-end
-
-local function CreatePageHeader(parent, title, descriptionText)
-    local header = CreateFlowGroup(true)
-    parent:AddChild(header)
-
-    local eyebrow = AceGUI:Create("Label")
-    eyebrow:SetFullWidth(true)
-    eyebrow:SetText(T("INFO_TOOLS_WORKSPACE", "Werkzeugansicht"))
-    ApplyLabelStyle(eyebrow, "help", 10)
-    header:AddChild(eyebrow)
-
-    local titleLabel = AceGUI:Create("Label")
-    titleLabel:SetFullWidth(true)
-    titleLabel:SetText(title)
-    ApplyLabelStyle(titleLabel, "sectionHeader", 17)
-    header:AddChild(titleLabel)
-
-    local description = AceGUI:Create("Label")
-    description:SetFullWidth(true)
-    description:SetText(descriptionText or "")
-    ApplyLabelStyle(description, "help", 11)
-    header:AddChild(description)
-end
-
-local function CreateStatCard(parent, currentProfile)
-    local card = CreateCard(
-        parent,
-        T("INFO_PROFILES_CURRENT", "01 Aktiver Stand"),
-        T("INFO_PROFILES_CURRENT_HINT_TOOL", "Das aktive Profil definiert den aktuellen Arbeitsstand fuer Frames, Farben und Texte.")
-    )
-
-    local statusLabel = AceGUI:Create("Label")
-    statusLabel:SetFullWidth(true)
-    statusLabel:SetText(T("INFO_PROFILES_STATUS_ACTIVE_PROFILE", "Der Editor und alle Werkzeugseiten arbeiten gerade mit diesem Profil."))
-    ApplyLabelStyle(statusLabel, "help", 11)
-    card:AddChild(statusLabel)
-
-    card:AddChild(CreateSpacer(4))
-
-    local activeProfile = AceGUI:Create("Label")
-    activeProfile:SetFullWidth(true)
-    activeProfile:SetText(currentProfile or "Default")
-    ApplyLabelStyle(activeProfile, "highlight", 18)
-    card:AddChild(activeProfile)
-
-    local contextLabel = AceGUI:Create("Label")
-    contextLabel:SetFullWidth(true)
-    contextLabel:SetText(T("INFO_PROFILES_STATUS_CONTEXT", "Alle folgenden Aktionen beziehen sich auf diesen aktuellen Stand oder auf eine ausgewaehlte Quelle."))
-    ApplyLabelStyle(contextLabel, "help", 10)
-    card:AddChild(contextLabel)
-end
-
-function ProfilesPage.Build(container, deps)
-    local GetGUIState = deps.GetGUIState
-    local ResetFlowContainer = deps.ResetFlowContainer
-    local BuildPlaceholderPage = deps.BuildPlaceholderPage
-
-    ResetFlowContainer(container)
-
+local function RebuildFramesForProfile()
     local db = ns.db
     if not db then
-        BuildPlaceholderPage(container, T("NAV_PROFILES", "Profile"))
         return
     end
 
-    local function CreateButton(text, width)
-        local button = AceGUI:Create("Button")
-        button:SetText(text)
-        button:SetWidth(width)
-        return button
+    if ns.ApplyGeneralSettings then
+        ns:ApplyGeneralSettings()
     end
 
-    local function RefreshProfileUI()
-        if ns.GUI and ns.GUI.RefreshOptions then
-            ns.GUI:RefreshOptions()
-        end
-    end
+    ns.frames = ns.frames or {}
+    for _, unitKey in ipairs(C.UnitOrder or {}) do
+        local unitDB = db.profile and db.profile.Units and db.profile.Units[unitKey]
+        local enabled = type(unitDB) == "table" and unitDB.enabled ~= false
 
-    local function RebuildFramesForProfile()
-        if ns.ApplyGeneralSettings then
-            ns:ApplyGeneralSettings()
-        end
-
-        ns.frames = ns.frames or {}
-
-        for _, unitKey in ipairs(C.UnitOrder) do
-            local unitDB = db.profile and db.profile.Units and db.profile.Units[unitKey]
-            local enabled = type(unitDB) == "table" and unitDB.enabled ~= false
-
-            if enabled then
-                if ns.SpawnUnitFrame then
-                    ns:SpawnUnitFrame(unitKey)
-                end
-            elseif ns.frames[unitKey] then
-                ns.frames[unitKey]:Hide()
-                ns.frames[unitKey] = nil
+        if enabled then
+            if ns.SpawnUnitFrame then
+                ns:SpawnUnitFrame(unitKey)
             end
+        elseif ns.frames[unitKey] then
+            ns.frames[unitKey]:Hide()
+            ns.frames[unitKey] = nil
         end
     end
+end
 
-    local function SetStatus(message)
-        if ns.GUI and ns.GUI.SetStatusText then
-            ns.GUI:SetStatusText(message)
-        end
-    end
-
-    local state = GetGUIState()
-    state.profiles = state.profiles or {
-        selectedProfile = db:GetCurrentProfile(),
-        newProfileName = "",
-    }
-
-    local function GetProfileList()
-        local list = {}
-        local profiles = db:GetProfiles({})
-        for _, profileName in ipairs(profiles) do
-            list[profileName] = profileName
-        end
+local function GetProfileList(db)
+    local list = {}
+    if not db or not db.GetProfiles then
         return list
     end
 
-    local page = CreatePageRoot(container)
-    CreatePageHeader(
-        page,
-        T("NAV_PROFILES", "Profile"),
-        T("INFO_PROFILES_DESCRIPTION", "Verwalte geteilte Einstellungen zwischen Charakteren.")
-    )
+    local profiles = db:GetProfiles({})
+    for _, profileName in ipairs(profiles or {}) do
+        list[profileName] = profileName
+    end
 
-    page:AddChild(CreateSpacer(10))
-    CreateStatCard(page, db:GetCurrentProfile())
+    return list
+end
 
-    local sourceCard = CreateCard(
-        page,
-        T("INFO_PROFILES_SWITCH", "02 Quelle und Uebernahme"),
-        T("INFO_PROFILES_SWITCH_HINT", "Waehle ein gespeichertes Profil als Quelle, aktiviere es direkt oder uebernimm dessen Stand in das aktive Profil."),
-        { topSpacing = 8 }
-    )
+local function CenterWindow(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
 
-    local sourceLead = AceGUI:Create("Label")
-    sourceLead:SetFullWidth(true)
-    sourceLead:SetText(T("INFO_PROFILES_SWITCH_LEAD", "Quelle waehlen"))
-    ApplyLabelStyle(sourceLead, "label", 12)
-    sourceCard:AddChild(sourceLead)
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+end
 
-    sourceCard:AddChild(CreateSpacer(3))
+local function FocusWindow(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
 
-    local sourceRow = CreateRow(sourceCard, 64)
+    if frame.IsShown and not frame:IsShown() then
+        CenterWindow(window)
+    end
 
-    local profileSelect = AceGUI:Create("Dropdown")
-    profileSelect:SetLabel(T("INFO_PROFILES_SAVED", "Gespeicherte Profile"))
-    profileSelect:SetWidth(500)
-    profileSelect:SetList(GetProfileList())
-    profileSelect:SetValue(state.profiles.selectedProfile or db:GetCurrentProfile())
-    ApplyWidgetStyle(profileSelect, "label", 12)
-    sourceRow:AddChild(profileSelect)
+    if window.Show then
+        window:Show()
+    elseif frame.Show then
+        frame:Show()
+    end
 
-    local activateButton = CreateButton(T("INFO_PROFILES_ACTIVATE", "Aktivieren"), 150)
-    sourceRow:AddChild(activateButton)
+    frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    frame:SetToplevel(true)
+    if frame.Raise then
+        frame:Raise()
+    end
+end
 
-    local copyButton = CreateButton(T("INFO_PROFILES_COPY_FROM", "Als Quelle uebernehmen"), 186)
-    sourceRow:AddChild(copyButton)
+local function ApplyTextStyle(target, role, size, alpha)
+    if not target then
+        return
+    end
 
-    local sourceHint = AceGUI:Create("Label")
-    sourceHint:SetFullWidth(true)
-    sourceHint:SetText(T("INFO_PROFILES_SOURCE_FLOW_HINT", "Aktivieren wechselt komplett auf das ausgewaehlte Profil. Uebernehmen kopiert dessen Stand in das aktuell aktive Profil."))
-    ApplyLabelStyle(sourceHint, "help", 10)
-    sourceCard:AddChild(sourceHint)
+    if TextStyles and TextStyles.ApplyFontString then
+        TextStyles.ApplyFontString(target, role, {
+            size = size,
+            alpha = alpha,
+        })
+    end
+end
 
-    local createCard = CreateCard(
-        page,
-        T("INFO_PROFILES_CREATE", "03 Neues Profil anlegen"),
-        T("INFO_PROFILES_CREATE_HINT", "Lege einen neuen Arbeitsstand an und wechsle direkt in ihn, wenn du eine neue Richtung ausprobieren willst."),
-        { topSpacing = 8 }
-    )
+local function SetTextureColor(texture, color)
+    if texture and texture.SetVertexColor and color then
+        texture:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+end
 
-    local createLead = AceGUI:Create("Label")
-    createLead:SetFullWidth(true)
-    createLead:SetText(T("INFO_PROFILES_CREATE_LEAD", "Neuer Profilname"))
-    ApplyLabelStyle(createLead, "label", 12)
-    createCard:AddChild(createLead)
+local function CreateSectionTitle(text, size)
+    local label = AceGUI:Create("Label")
+    label:SetFullWidth(true)
+    label:SetText(text or "")
+    ApplyTextStyle(label.label, "sectionHeader", size or 13, 1)
+    return label
+end
 
-    createCard:AddChild(CreateSpacer(3))
+local function CreateBodyText(text, role, size, color)
+    local label = AceGUI:Create("Label")
+    label:SetFullWidth(true)
+    label:SetText(text or "")
+    ApplyTextStyle(label.label, role or "label", size or 12, 1)
 
-    local createRow = CreateRow(createCard, 64)
+    if color and label.label and label.label.SetTextColor then
+        label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
 
-    local nameEdit = AceGUI:Create("EditBox")
-    nameEdit:SetLabel(T("INFO_PROFILES_NAME", "Profilname"))
-    nameEdit:SetWidth(610)
-    nameEdit:DisableButton(true)
-    nameEdit:SetText(state.profiles.newProfileName or "")
-    ApplyWidgetStyle(nameEdit, "label", 12)
-    createRow:AddChild(nameEdit)
+    return label
+end
 
-    local createButton = CreateButton(T("INFO_PROFILES_CREATE_AND_SWITCH", "Erstellen und wechseln"), 210)
-    createRow:AddChild(createButton)
+local function StyleActionButton(button, variant)
+    if not button or not button.frame then
+        return
+    end
 
-    local createHint = AceGUI:Create("Label")
-    createHint:SetFullWidth(true)
-    createHint:SetText(T("INFO_PROFILES_CREATE_CONTEXT", "Neue Profile sind ideal fuer Varianten, saisonale Layouts oder Experimente, ohne den aktuellen Stand zu verlieren."))
-    ApplyLabelStyle(createHint, "help", 10)
-    createCard:AddChild(createHint)
+    if SidebarShared and SidebarShared.StyleSidebarButton then
+        SidebarShared.StyleSidebarButton(button, variant == "danger" and "danger" or "primary")
+    end
 
-    local maintenanceCard = CreateCard(
-        page,
-        T("INFO_PROFILES_MAINTENANCE", "04 Pflege und Wiederherstellung"),
-        T("INFO_PROFILES_MAINTENANCE_HINT", "Seltenere Eingriffe bleiben bewusst am Ende, damit der aktive Arbeitsfluss ruhig und sicher bleibt."),
-        { topSpacing = 8 }
-    )
+    button:SetHeight(26)
 
-    local maintenanceLead = AceGUI:Create("Label")
-    maintenanceLead:SetFullWidth(true)
-    maintenanceLead:SetText(T("INFO_PROFILES_MAINTENANCE_LEAD", "Ruecksetzen oder aufraeumen"))
-    ApplyLabelStyle(maintenanceLead, "label", 12)
-    maintenanceCard:AddChild(maintenanceLead)
-
-    maintenanceCard:AddChild(CreateSpacer(3))
-
-    local maintenanceRow = CreateRow(maintenanceCard, 46)
-    local resetButton = CreateButton(T("INFO_PROFILES_RESET", "Aktives Profil zuruecksetzen"), 220)
-    maintenanceRow:AddChild(resetButton)
-
-    local deleteButton = CreateButton(T("INFO_PROFILES_DELETE", "Ausgewaehltes Profil loeschen"), 220)
-    maintenanceRow:AddChild(deleteButton)
-
-    local maintenanceHint = AceGUI:Create("Label")
-    maintenanceHint:SetFullWidth(true)
-    maintenanceHint:SetText(T("INFO_PROFILES_MAINTENANCE_NOTE", "Das aktive Profil kann nicht geloescht werden. Ruecksetzen betrifft immer nur das aktuell aktive Profil."))
-    ApplyLabelStyle(maintenanceHint, "help", 10)
-    maintenanceCard:AddChild(maintenanceHint)
-
-    local function RefreshActionState()
-        local currentProfile = db:GetCurrentProfile()
-        local selectedProfile = state.profiles.selectedProfile or currentProfile
-        local sameAsCurrent = selectedProfile == currentProfile
-        local hasSelectedProfile = type(selectedProfile) == "string" and selectedProfile ~= ""
-        local hasNewProfileName = type((nameEdit:GetText() or "")) == "string" and (nameEdit:GetText() or ""):match("%S") ~= nil
-
-        if activateButton.SetDisabled then
-            activateButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
-        end
-
-        if copyButton.SetDisabled then
-            copyButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
-        end
-
-        if deleteButton.SetDisabled then
-            deleteButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
-        end
-
-        if resetButton.SetDisabled then
-            resetButton:SetDisabled(currentProfile == nil or currentProfile == "")
-        end
-
-        if createButton.SetDisabled then
-            createButton:SetDisabled(not hasNewProfileName)
+    if button.text then
+        ApplyTextStyle(button.text, variant == "danger" and "danger" or "label", 12, 1)
+        if button.text.SetTextColor then
+            button.text:SetTextColor(0.95, 0.91, 0.88, 1)
         end
     end
 
-    profileSelect:SetCallback("OnValueChanged", function(_, _, value)
-        state.profiles.selectedProfile = value or db:GetCurrentProfile()
-        RefreshActionState()
+    local frame = button.frame
+    local normal = frame.GetNormalTexture and frame:GetNormalTexture() or nil
+    local pushed = frame.GetPushedTexture and frame:GetPushedTexture() or nil
+    local highlight = frame.GetHighlightTexture and frame:GetHighlightTexture() or nil
+    local disabled = frame.GetDisabledTexture and frame:GetDisabledTexture() or nil
+
+    SetTextureColor(normal, BUTTON_RED)
+    SetTextureColor(pushed, BUTTON_RED_DARK)
+    SetTextureColor(highlight, BUTTON_RED_HIGHLIGHT)
+    SetTextureColor(disabled, BUTTON_RED_DISABLED)
+end
+
+local function StyleDropdown(dropdown)
+    if not dropdown then
+        return
+    end
+
+    ApplyTextStyle(dropdown.label, "label", 12, 1)
+    if dropdown.text and dropdown.text.SetTextColor then
+        dropdown.text:SetTextColor(VALUE_TEXT[1], VALUE_TEXT[2], VALUE_TEXT[3], 1)
+    end
+
+    if dropdown.dropdown then
+        local name = dropdown.dropdown:GetName()
+        if name then
+            SetTextureColor(_G[name .. "Left"], FIELD_BORDER)
+            SetTextureColor(_G[name .. "Middle"], FIELD_BACKGROUND)
+            SetTextureColor(_G[name .. "Right"], FIELD_BORDER)
+        end
+    end
+
+    if dropdown.button then
+        local buttonNormal = dropdown.button.GetNormalTexture and dropdown.button:GetNormalTexture() or nil
+        local buttonPushed = dropdown.button.GetPushedTexture and dropdown.button:GetPushedTexture() or nil
+        local buttonHighlight = dropdown.button.GetHighlightTexture and dropdown.button:GetHighlightTexture() or nil
+        SetTextureColor(buttonNormal, FIELD_BORDER)
+        SetTextureColor(buttonPushed, BUTTON_RED_DARK)
+        SetTextureColor(buttonHighlight, BUTTON_RED_HIGHLIGHT)
+    end
+end
+
+local function StyleEditBox(editBox)
+    if not editBox then
+        return
+    end
+
+    ApplyTextStyle(editBox.label, "label", 12, 1)
+
+    if editBox.editbox then
+        if editBox.editbox.SetTextColor then
+            editBox.editbox:SetTextColor(VALUE_TEXT[1], VALUE_TEXT[2], VALUE_TEXT[3], 1)
+        end
+
+        for _, region in ipairs({ editBox.editbox:GetRegions() }) do
+            if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+                SetTextureColor(region, FIELD_BORDER)
+            end
+        end
+    end
+end
+
+local function ApplyWindowChrome(window)
+    if not window or not window.frame then
+        return
+    end
+
+    local frame = window.frame
+    local content = window.content
+
+    if window.titletext then
+        ApplyTextStyle(window.titletext, "sectionHeader", 15, 1)
+    end
+
+    if not frame._fpPanelFill then
+        frame._fpPanelFill = frame:CreateTexture(nil, "ARTWORK")
+        frame._fpPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+        frame._fpPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    end
+    frame._fpPanelFill:SetColorTexture(unpack(PANEL_BACKGROUND))
+
+    if not frame._fpPanelHeaderFill then
+        frame._fpPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
+        frame._fpPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+        frame._fpPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+        frame._fpPanelHeaderFill:SetHeight(26)
+    end
+    frame._fpPanelHeaderFill:SetColorTexture(unpack(PANEL_HEADER))
+
+    local function EnsureBorder(name)
+        if not frame[name] then
+            frame[name] = frame:CreateTexture(nil, "BORDER")
+        end
+        frame[name]:SetColorTexture(unpack(PANEL_BORDER))
+        frame[name]:Show()
+    end
+
+    EnsureBorder("_fpPanelBorderTop")
+    frame._fpPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+    frame._fpPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpPanelBorderTop:SetHeight(1)
+
+    EnsureBorder("_fpPanelBorderBottom")
+    frame._fpPanelBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
+    frame._fpPanelBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    frame._fpPanelBorderBottom:SetHeight(1)
+
+    EnsureBorder("_fpPanelBorderLeft")
+    frame._fpPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+    frame._fpPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
+    frame._fpPanelBorderLeft:SetWidth(1)
+
+    EnsureBorder("_fpPanelBorderRight")
+    frame._fpPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    frame._fpPanelBorderRight:SetWidth(1)
+
+    if content then
+        if not content._fpAccent then
+            content._fpAccent = content:CreateTexture(nil, "BORDER")
+            content._fpAccent:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -2)
+            content._fpAccent:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -2)
+            content._fpAccent:SetHeight(1)
+        end
+        content._fpAccent:SetColorTexture(0.83, 0.70, 0.30, 0.35)
+    end
+end
+
+local function CreateActionButton(text, variant)
+    local button = AceGUI:Create("Button")
+    button:SetText(text or "")
+    button:SetFullWidth(true)
+    StyleActionButton(button, variant)
+    return button
+end
+
+local function CreateVerticalGroup(spacing)
+    local group = AceGUI:Create("SimpleGroup")
+    group:SetFullWidth(true)
+    group:SetLayout("Table")
+    group:SetUserData("table", {
+        columns = {
+            { weight = 1 },
+        },
+        spaceH = 0,
+        spaceV = spacing or 8,
+        align = "TOPLEFT",
+        alignV = "start",
+        alignH = "start",
+    })
+    return group
+end
+
+local function CreateTwoColumnGroup(spacing)
+    local group = AceGUI:Create("SimpleGroup")
+    group:SetFullWidth(true)
+    group:SetLayout("Table")
+    group:SetUserData("table", {
+        columns = {
+            { weight = 1 },
+            { weight = 1 },
+        },
+        spaceH = spacing or 24,
+        spaceV = 0,
+        align = "TOPLEFT",
+        alignV = "start",
+        alignH = "start",
+    })
+    return group
+end
+
+local function SyncNameEditText(context, text)
+    if not context or not context.nameEdit then
+        return
+    end
+
+    local value = text or ""
+    if context.nameEdit:GetText() == value then
+        return
+    end
+
+    context.suspendNameCallbacks = true
+    context.nameEdit:SetText(value)
+    context.suspendNameCallbacks = false
+end
+
+local function SyncDropdownValue(context, value)
+    if not context or not context.profileSelect then
+        return
+    end
+
+    context.suspendProfileCallbacks = true
+    context.profileSelect:SetValue(value)
+    context.suspendProfileCallbacks = false
+end
+
+local function RefreshWindowState()
+    local context = windowContext
+    if not context then
+        return
+    end
+
+    local db = ns.db
+    local state = context.state or {}
+
+    if not db then
+        context.activeProfileValue:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        context.profileSelect:SetList({})
+        SyncDropdownValue(context, nil)
+        context.profileSelect:SetDisabled(true)
+        context.nameEdit:SetDisabled(true)
+        context.activateButton:SetDisabled(true)
+        context.copyButton:SetDisabled(true)
+        context.createButton:SetDisabled(true)
+        context.resetButton:SetDisabled(true)
+        context.deleteButton:SetDisabled(true)
+        context.sourceState:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        context.maintenanceHint:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        if context.window and context.window.DoLayout then
+            context.window:DoLayout()
+        end
+        return
+    end
+
+    local currentProfile = db:GetCurrentProfile() or "Default"
+    local profileList = GetProfileList(db)
+    local selectedProfile = state.selectedProfile or currentProfile
+
+    if type(selectedProfile) ~= "string" or selectedProfile == "" or not profileList[selectedProfile] then
+        selectedProfile = currentProfile
+        state.selectedProfile = selectedProfile
+    end
+
+    local newProfileName = Trim(state.newProfileName or context.nameEdit:GetText() or "")
+    local sameAsCurrent = selectedProfile == currentProfile
+    local hasSelectedProfile = type(selectedProfile) == "string" and selectedProfile ~= ""
+    local hasNewProfileName = newProfileName ~= ""
+
+    context.activeProfileValue:SetText(currentProfile)
+    context.profileSelect:SetList(profileList)
+    context.profileSelect:SetDisabled(false)
+    SyncDropdownValue(context, selectedProfile)
+
+    context.nameEdit:SetDisabled(false)
+    SyncNameEditText(context, state.newProfileName or "")
+
+    context.activateButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
+    context.copyButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
+    context.deleteButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
+    context.resetButton:SetDisabled(currentProfile == nil or currentProfile == "")
+    context.createButton:SetDisabled(not hasNewProfileName)
+
+    if hasSelectedProfile then
+        context.sourceState:SetText(string.format(
+            "%s: %s",
+            T("INFO_PROFILES_SELECTED_SOURCE", "Quelle"),
+            selectedProfile
+        ))
+    else
+        context.sourceState:SetText(T("INFO_PROFILES_SOURCE_SUMMARY_NONE", "Keine Quelle ausgewaehlt"))
+    end
+
+    if sameAsCurrent or not hasSelectedProfile then
+        context.maintenanceHint:SetText(T(
+            "INFO_PROFILES_MAINTENANCE_IDLE",
+            "Zuruecksetzen betrifft das aktive Profil. Zum Loeschen zuerst ein anderes Profil auswaehlen."
+        ))
+    else
+        context.maintenanceHint:SetText(string.format(
+            "%s %s",
+            T("INFO_PROFILES_MAINTENANCE_TARGET", "Loeschen wuerde entfernen:"),
+            selectedProfile
+        ))
+    end
+
+    if context.window and context.window.DoLayout then
+        context.window:DoLayout()
+    end
+end
+
+local function CreateWindowContent(window, state)
+    local root = CreateVerticalGroup(24)
+    root:SetFullWidth(true)
+    root:SetFullHeight(true)
+    window:AddChild(root)
+
+    local headerGroup = CreateVerticalGroup(12)
+    root:AddChild(headerGroup)
+
+    local title = CreateSectionTitle(T("NAV_PROFILES", "Profile"), 18)
+    headerGroup:AddChild(title)
+
+    local intro = CreateBodyText(T(
+        "INFO_PROFILES_DESCRIPTION",
+        "Verwalte geteilte Einstellungen zwischen Charakteren. Beim Kopieren ist das aktive Profil das Ziel, das ausgewaehlte Profil die Quelle."
+    ), "help", 11, DESCRIPTION_TEXT)
+    headerGroup:AddChild(intro)
+
+    local activeGroup = CreateVerticalGroup(6)
+    headerGroup:AddChild(activeGroup)
+
+    local activeProfileLabel = CreateBodyText(
+        T("INFO_PROFILES_CURRENT_ACTIVE", "Aktives Profil"),
+        "sectionHeader",
+        13
+    )
+    activeGroup:AddChild(activeProfileLabel)
+
+    local activeProfileValue = CreateBodyText("", "label", 17, VALUE_TEXT)
+    activeGroup:AddChild(activeProfileValue)
+
+    local columns = CreateTwoColumnGroup(28)
+    root:AddChild(columns)
+
+    local leftColumn = CreateVerticalGroup(10)
+    leftColumn:SetFullWidth(true)
+    columns:AddChild(leftColumn)
+
+    local rightColumn = CreateVerticalGroup(10)
+    rightColumn:SetFullWidth(true)
+    columns:AddChild(rightColumn)
+
+    leftColumn:AddChild(CreateSectionTitle(T("INFO_PROFILES_SOURCE_PICK", "Profil von anderer Unit uebernehmen")))
+
+    local profileSelect = AceGUI:Create("Dropdown")
+    profileSelect:SetLabel(T("INFO_PROFILES_SOURCE_PROFILE", "Quellprofil"))
+    profileSelect:SetFullWidth(true)
+    StyleDropdown(profileSelect)
+    leftColumn:AddChild(profileSelect)
+
+    local activateButton = CreateActionButton(T("INFO_PROFILES_ACTIVATE", "Aktivieren"), "primary")
+    leftColumn:AddChild(activateButton)
+
+    local copyButton = CreateActionButton(T("INFO_PROFILES_COPY_FROM", "In aktives Profil kopieren"), "primary")
+    leftColumn:AddChild(copyButton)
+
+    local sourceState = CreateBodyText("", "help", 9, HINT_TEXT)
+    leftColumn:AddChild(sourceState)
+
+    rightColumn:AddChild(CreateSectionTitle(T("INFO_PROFILES_CREATE_SIMPLE", "Neues Profil anlegen")))
+
+    local nameEdit = AceGUI:Create("EditBox")
+    nameEdit:SetLabel(T("INFO_PROFILES_NAME", "Profilname"))
+    nameEdit:SetFullWidth(true)
+    nameEdit:DisableButton(true)
+    nameEdit:SetText(state.newProfileName or "")
+    StyleEditBox(nameEdit)
+    rightColumn:AddChild(nameEdit)
+
+    local createButton = CreateActionButton(T("INFO_PROFILES_CREATE_AND_SWITCH", "Erstellen und wechseln"), "primary")
+    rightColumn:AddChild(createButton)
+
+    local footerGroup = CreateVerticalGroup(10)
+    root:AddChild(footerGroup)
+
+    footerGroup:AddChild(CreateSectionTitle(T("INFO_PROFILES_MAINTENANCE", "Profilwartung")))
+
+    local maintenanceButtons = CreateTwoColumnGroup(16)
+    footerGroup:AddChild(maintenanceButtons)
+
+    local resetButton = CreateActionButton(T("INFO_PROFILES_RESET", "Zuruecksetzen"), "primary")
+    maintenanceButtons:AddChild(resetButton)
+
+    local deleteButton = CreateActionButton(T("INFO_PROFILES_DELETE_SHORT", "Loeschen"), "danger")
+    maintenanceButtons:AddChild(deleteButton)
+
+    local maintenanceHint = CreateBodyText("", "help", 9, FOOTER_HINT_TEXT)
+    footerGroup:AddChild(maintenanceHint)
+
+    return {
+        window = window,
+        state = state,
+        root = root,
+        activeProfileValue = activeProfileValue,
+        profileSelect = profileSelect,
+        nameEdit = nameEdit,
+        activateButton = activateButton,
+        copyButton = copyButton,
+        createButton = createButton,
+        resetButton = resetButton,
+        deleteButton = deleteButton,
+        sourceState = sourceState,
+        maintenanceHint = maintenanceHint,
+        suspendNameCallbacks = false,
+        suspendProfileCallbacks = false,
+    }
+end
+
+local function WireWindowCallbacks(context)
+    if not context then
+        return
+    end
+
+    context.profileSelect:SetCallback("OnValueChanged", function(_, _, value)
+        local db = ns.db
+        if not db then
+            return
+        end
+
+        if context.suspendProfileCallbacks then
+            return
+        end
+
+        context.state.selectedProfile = value or db:GetCurrentProfile()
+        RefreshWindowState()
     end)
 
-    nameEdit:SetCallback("OnEnterPressed", function(widget, _, value)
-        state.profiles.newProfileName = value or ""
+    context.nameEdit:SetCallback("OnTextChanged", function(_, _, value)
+        if context.suspendNameCallbacks then
+            return
+        end
+
+        context.state.newProfileName = value or ""
+        RefreshWindowState()
+    end)
+
+    context.nameEdit:SetCallback("OnEnterPressed", function(widget, _, value)
+        if context.suspendNameCallbacks then
+            return
+        end
+
+        context.state.newProfileName = value or ""
         widget:ClearFocus()
-        RefreshActionState()
+        RefreshWindowState()
     end)
 
-    nameEdit:SetCallback("OnTextChanged", function(_, _, value)
-        state.profiles.newProfileName = value or ""
-        RefreshActionState()
+    context.nameEdit:SetCallback("OnFocusLost", function(widget)
+        if context.suspendNameCallbacks then
+            return
+        end
+
+        context.state.newProfileName = widget:GetText() or ""
+        RefreshWindowState()
     end)
 
-    nameEdit:SetCallback("OnFocusLost", function(widget)
-        state.profiles.newProfileName = widget:GetText() or ""
-        RefreshActionState()
-    end)
+    context.activateButton:SetCallback("OnClick", function()
+        local db = ns.db
+        if not db then
+            return
+        end
 
-    activateButton:SetCallback("OnClick", function()
-        local profileName = state.profiles.selectedProfile or db:GetCurrentProfile()
+        local profileName = context.state.selectedProfile or db:GetCurrentProfile()
         if not profileName or profileName == "" then
             return
         end
 
         db:SetProfile(profileName)
-        state.profiles.selectedProfile = profileName
+        context.state.selectedProfile = profileName
         RebuildFramesForProfile()
         RefreshProfileUI()
+        RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_ACTIVATED", "Profil aktiviert:")) .. " " .. profileName)
     end)
 
-    copyButton:SetCallback("OnClick", function()
-        local profileName = state.profiles.selectedProfile or db:GetCurrentProfile()
+    context.copyButton:SetCallback("OnClick", function()
+        local db = ns.db
+        if not db then
+            return
+        end
+
+        local profileName = context.state.selectedProfile or db:GetCurrentProfile()
         if not profileName or profileName == "" then
             return
         end
@@ -476,42 +674,129 @@ function ProfilesPage.Build(container, deps)
         db:CopyProfile(profileName)
         RebuildFramesForProfile()
         RefreshProfileUI()
+        RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_COPIED", "Profil uebernommen:")) .. " " .. profileName)
     end)
 
-    deleteButton:SetCallback("OnClick", function()
-        local profileName = state.profiles.selectedProfile or db:GetCurrentProfile()
+    context.deleteButton:SetCallback("OnClick", function()
+        local db = ns.db
+        if not db then
+            return
+        end
+
+        local profileName = context.state.selectedProfile or db:GetCurrentProfile()
         if not profileName or profileName == "" or profileName == db:GetCurrentProfile() then
             return
         end
 
         db:DeleteProfile(profileName, true)
-        state.profiles.selectedProfile = db:GetCurrentProfile()
+        context.state.selectedProfile = db:GetCurrentProfile()
         RefreshProfileUI()
+        RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_DELETED", "Profil geloescht:")) .. " " .. profileName)
     end)
 
-    resetButton:SetCallback("OnClick", function()
+    context.resetButton:SetCallback("OnClick", function()
+        local db = ns.db
+        if not db then
+            return
+        end
+
         local currentProfile = db:GetCurrentProfile()
+        if not currentProfile or currentProfile == "" then
+            return
+        end
+
         db:ResetProfile()
         RebuildFramesForProfile()
         RefreshProfileUI()
+        RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_RESET", "Profil zurueckgesetzt:")) .. " " .. currentProfile)
     end)
 
-    createButton:SetCallback("OnClick", function()
-        local profileName = (nameEdit:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    context.createButton:SetCallback("OnClick", function()
+        local db = ns.db
+        if not db then
+            return
+        end
+
+        local profileName = Trim(context.nameEdit:GetText() or "")
         if profileName == "" then
             return
         end
 
         db:SetProfile(profileName)
-        state.profiles.selectedProfile = profileName
-        state.profiles.newProfileName = profileName
+        context.state.selectedProfile = profileName
+        context.state.newProfileName = ""
         RebuildFramesForProfile()
         RefreshProfileUI()
+        RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_CREATED", "Profil erstellt:")) .. " " .. profileName)
     end)
-
-    RefreshActionState()
 end
+
+local function CreateWindow(state)
+    local window = AceGUI:Create("Window")
+    window:SetTitle(T("NAV_PROFILES", "Profile"))
+    window:SetLayout("Fill")
+    window:SetWidth(760)
+    window:SetHeight(520)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+    end
+
+    ApplyWindowChrome(window)
+    CenterWindow(window)
+
+    local context = CreateWindowContent(window, state)
+    windowContext = context
+    WireWindowCallbacks(context)
+
+    window:SetCallback("OnClose", function()
+        if ns.GUI and ns.GUI.ResetStatusText then
+            ns.GUI:ResetStatusText()
+        end
+    end)
+
+    return context
+end
+
+function ProfilesPage.OpenWindow(deps)
+    local state = GetProfilesState(deps)
+
+    if not windowContext or not windowContext.window or not windowContext.window.frame then
+        CreateWindow(state)
+    else
+        windowContext.state = state
+    end
+
+    RefreshWindowState()
+    FocusWindow(windowContext.window)
+end
+
+function ProfilesPage.HideWindow()
+    if not windowContext or not windowContext.window then
+        return
+    end
+
+    if windowContext.window.Hide then
+        windowContext.window:Hide()
+    elseif windowContext.window.frame and windowContext.window.frame.Hide then
+        windowContext.window.frame:Hide()
+    end
+end
+
+function ProfilesPage.Build(container, deps)
+    if container and container.ReleaseChildren then
+        container:ReleaseChildren()
+    end
+    if container and container.SetLayout then
+        container:SetLayout("Fill")
+    end
+
+    ProfilesPage.OpenWindow(deps)
+end
+
+return ProfilesPage

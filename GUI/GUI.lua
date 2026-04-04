@@ -1008,6 +1008,27 @@ local function BuildAppSidebar(container)
         shellMode = shellMode,
         currentPath = selectedPath,
         onNavigate = function(path)
+            if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.PROFILES) then
+                if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenProfilesWindow then
+                    FocalPoint.GUIBuilders.OpenProfilesWindow()
+                end
+                return
+            end
+
+            if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TAG_DATABASE) then
+                if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTagDatabaseWindow then
+                    FocalPoint.GUIBuilders.OpenTagDatabaseWindow()
+                end
+                return
+            end
+
+            if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TEXT_BUILDER) then
+                if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTextBuilderWindow then
+                    FocalPoint.GUIBuilders.OpenTextBuilderWindow()
+                end
+                return
+            end
+
             local normalizedPath = ResolveDefaultGUIPath(path)
             FocalPoint.GUI.selectedPath = normalizedPath
             if FocalPoint.guiTreeStatus then
@@ -1268,6 +1289,21 @@ function FocalPoint:CloseConfig()
 
     if self.RefreshEditorSelectionVisuals then
         self:RefreshEditorSelectionVisuals()
+    end
+
+    local profilesPage = self.GUI and self.GUI.Pages and self.GUI.Pages.Profiles
+    if profilesPage and profilesPage.HideWindow then
+        profilesPage.HideWindow()
+    end
+
+    local tagDatabasePage = self.GUI and self.GUI.Pages and self.GUI.Pages.TagDatabase
+    if tagDatabasePage and tagDatabasePage.HideWindow then
+        tagDatabasePage.HideWindow()
+    end
+
+    local textBuilderPage = self.GUI and self.GUI.Pages and self.GUI.Pages.TextBuilder
+    if textBuilderPage and textBuilderPage.HideWindow then
+        textBuilderPage.HideWindow()
     end
 
     if self.RefreshAllUnitFrames then
