@@ -7,8 +7,9 @@ local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
-local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
-local SidebarShared = ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
+local FormElementDefinitions = ns.GUI.Layouts and ns.GUI.Layouts.FormElements
+local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
+local TextBuilderFormLayout = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.Form
 
 local TextBuilderPage = {}
 ns.GUI.Pages.TextBuilder = TextBuilderPage
@@ -25,19 +26,16 @@ local UNIT_KEYS = {
 local fallbackRootState = {}
 local windowContext
 
-local PANEL_BACKGROUND = { 0.07, 0.08, 0.10, 0.90 }
-local PANEL_BORDER = { 0.24, 0.27, 0.31, 0.92 }
-local PANEL_HEADER = { 0.10, 0.11, 0.14, 0.70 }
-local FIELD_BACKGROUND = { 0.10, 0.11, 0.14, 0.96 }
-local FIELD_BORDER = { 0.31, 0.34, 0.39, 0.95 }
-local BUTTON_RED = { 0.34, 0.12, 0.12, 0.95 }
-local BUTTON_RED_DARK = { 0.23, 0.08, 0.08, 0.98 }
-local BUTTON_RED_HIGHLIGHT = { 0.48, 0.18, 0.18, 0.95 }
-local BUTTON_RED_DISABLED = { 0.19, 0.12, 0.12, 0.90 }
-local DESCRIPTION_TEXT = { 0.68, 0.70, 0.75 }
-local HINT_TEXT = { 0.70, 0.73, 0.78 }
-local FOOTER_HINT_TEXT = { 0.62, 0.65, 0.70 }
-local VALUE_TEXT = { 0.93, 0.90, 0.80 }
+local CreateBodyText = FormWidgets.CreateBodyText
+local StyleDropdown = function(dropdown)
+    return FormWidgets.StyleDropdown(dropdown, "accented")
+end
+local StyleEditBox = FormWidgets.StyleEditBox
+local StyleCheckBox = FormWidgets.StyleCheckBox
+local ApplySectionPadding = FormWidgets.ApplySectionPadding
+local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
+local CreateActionButton = FormWidgets.CreateActionButton
+local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
     return (L and L[key]) or fallback
@@ -146,216 +144,131 @@ local function FocusWindow(window)
     end
 end
 
-local function ApplyTextStyle(target, role, size, alpha)
-    if not target then
-        return
+local function ResolveItemText(item)
+    if not item then
+        return ""
     end
 
-    if TextStyles and TextStyles.ApplyFontString then
-        TextStyles.ApplyFontString(target, role, {
-            size = size,
-            alpha = alpha,
-        })
+    if item.builder == "templateExample" then
+        return (T("INFO_TEXT_BUILDER_TEMPLATE_EXAMPLE", "Beispiel:") .. " " .. TEMPLATE_EXAMPLE)
     end
+
+    if item.textKey or item.textFallback then
+        return T(item.textKey, item.textFallback or "")
+    end
+
+    return item.text or ""
 end
 
-local function SetTextureColor(texture, color)
-    if texture and texture.SetVertexColor and color then
-        texture:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+local function BuildSectionChildrenIndex(definitions)
+    local index = {
+        __root = {},
+    }
+
+    for _, definition in ipairs(definitions or {}) do
+        local props = definition.properties or definition
+        local parentKey = props.parentSection or "__root"
+        index[parentKey] = index[parentKey] or {}
+        index[parentKey][#index[parentKey] + 1] = definition
     end
+
+    return index
 end
 
-local function CreateSectionTitle(text, size)
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(text or "")
-    ApplyTextStyle(label.label, "sectionHeader", size or 13, 1)
-    return label
-end
+local ResolveItemProperties
 
-local function CreateBodyText(text, role, size, color)
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(text or "")
-    ApplyTextStyle(label.label, role or "label", size or 12, 1)
-
-    if color and label.label and label.label.SetTextColor then
-        label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+local function CreateItemWidget(item, state)
+    local props = ResolveItemProperties(item)
+    if not props or not props.widget then
+        return nil
     end
 
-    return label
-end
-
-local function StyleActionButton(button, variant)
-    if not button or not button.frame then
-        return
-    end
-
-    if SidebarShared and SidebarShared.StyleSidebarButton then
-        SidebarShared.StyleSidebarButton(button, variant == "danger" and "danger" or "primary")
-    end
-
-    button:SetHeight(26)
-
-    if button.text and button.text.SetTextColor then
-        button.text:SetTextColor(0.95, 0.91, 0.88, 1)
-    end
-
-    local frame = button.frame
-    local normal = frame.GetNormalTexture and frame:GetNormalTexture() or nil
-    local pushed = frame.GetPushedTexture and frame:GetPushedTexture() or nil
-    local highlight = frame.GetHighlightTexture and frame:GetHighlightTexture() or nil
-    local disabled = frame.GetDisabledTexture and frame:GetDisabledTexture() or nil
-
-    SetTextureColor(normal, BUTTON_RED)
-    SetTextureColor(pushed, BUTTON_RED_DARK)
-    SetTextureColor(highlight, BUTTON_RED_HIGHLIGHT)
-    SetTextureColor(disabled, BUTTON_RED_DISABLED)
-end
-
-local function StyleDropdown(dropdown)
-    if not dropdown then
-        return
-    end
-
-    ApplyTextStyle(dropdown.label, "label", 12, 1)
-    if dropdown.text and dropdown.text.SetTextColor then
-        dropdown.text:SetTextColor(VALUE_TEXT[1], VALUE_TEXT[2], VALUE_TEXT[3], 1)
-    end
-
-    if dropdown.dropdown then
-        local name = dropdown.dropdown:GetName()
-        if name then
-            SetTextureColor(_G[name .. "Left"], FIELD_BORDER)
-            SetTextureColor(_G[name .. "Middle"], FIELD_BACKGROUND)
-            SetTextureColor(_G[name .. "Right"], FIELD_BORDER)
+    if props.widget == "label" or props.widget == "computed_label" then
+        local label = CreateBodyText(
+            ResolveItemText(props),
+            props.role or "label",
+            props.size or 12,
+            ResolveItemColor(props.colorKey),
+            props.width,
+            props.fullWidth
+        )
+        if props.justifyH and label.label and label.label.SetJustifyH then
+            label.label:SetJustifyH(props.justifyH)
         end
+        return label
     end
 
-    if dropdown.button then
-        local buttonNormal = dropdown.button.GetNormalTexture and dropdown.button:GetNormalTexture() or nil
-        local buttonPushed = dropdown.button.GetPushedTexture and dropdown.button:GetPushedTexture() or nil
-        local buttonHighlight = dropdown.button.GetHighlightTexture and dropdown.button:GetHighlightTexture() or nil
-        SetTextureColor(buttonNormal, FIELD_BORDER)
-        SetTextureColor(buttonPushed, BUTTON_RED_DARK)
-        SetTextureColor(buttonHighlight, BUTTON_RED_HIGHLIGHT)
+    if props.widget == "dropdown" then
+        local dropdown = AceGUI:Create("Dropdown")
+        if props.label ~= nil then
+            dropdown:SetLabel(props.label)
+        else
+            dropdown:SetLabel(T(props.labelKey, props.labelFallback or ""))
+        end
+        if props.fullWidth ~= false then
+            dropdown:SetFullWidth(true)
+        end
+        StyleDropdown(dropdown)
+        return dropdown
     end
+
+    if props.widget == "editbox" then
+        local editBox = AceGUI:Create("EditBox")
+        editBox:SetLabel(T(props.labelKey, props.labelFallback or ""))
+        if props.fullWidth ~= false then
+            editBox:SetFullWidth(true)
+        end
+        if props.disableButton then
+            editBox:DisableButton(true)
+        end
+        local text = props.stateKey and state and state[props.stateKey] or props.text or ""
+        if props.normalize == "template" then
+            text = NormalizeTemplateInput(text)
+        end
+        editBox:SetText(text)
+        StyleEditBox(editBox)
+        return editBox
+    end
+
+    if props.widget == "button" then
+        return CreateActionButton(ResolveItemText(props), props.buttonVariant, props.width, props.fullWidth)
+    end
+
+    if props.widget == "checkbox" then
+        local checkbox = AceGUI:Create("CheckBox")
+        if props.fullWidth ~= false then
+            checkbox:SetFullWidth(true)
+        end
+        checkbox:SetLabel(ns.GetLabel and ns.GetLabel(KM.Units, props.unitKey) or props.unitKey or "")
+        checkbox:SetValue(props.checked and true or false)
+        checkbox:SetDisabled(props.disabled and true or false)
+        StyleCheckBox(checkbox, props.disabled and true or false)
+        return checkbox
+    end
+
+    return nil
 end
 
-local function StyleEditBox(editBox)
-    if not editBox then
+local function RenderSectionItems(group, definition, state, widgetsById, usageCheckboxes)
+    if not group or not definition or type(definition.items) ~= "table" then
         return
     end
 
-    ApplyTextStyle(editBox.label, "label", 12, 1)
-
-    if editBox.editbox then
-        if editBox.editbox.SetTextColor then
-            editBox.editbox:SetTextColor(VALUE_TEXT[1], VALUE_TEXT[2], VALUE_TEXT[3], 1)
-        end
-
-        for _, region in ipairs({ editBox.editbox:GetRegions() }) do
-            if region and region.GetObjectType and region:GetObjectType() == "Texture" then
-                SetTextureColor(region, FIELD_BORDER)
+    for _, item in ipairs(definition.items) do
+        local widget = CreateItemWidget(item, state)
+        if widget then
+            group:AddChild(widget)
+            if item.hideInitially and widget.frame and widget.frame.Hide then
+                widget.frame:Hide()
+            end
+            if item.id then
+                widgetsById[item.id] = widget
+            end
+            if item.widget == "checkbox" and item.unitKey then
+                usageCheckboxes[item.unitKey] = widget
             end
         end
     end
-end
-
-local function StyleCheckBox(checkbox, disabled)
-    if not checkbox then
-        return
-    end
-
-    if checkbox.text and checkbox.text.SetTextColor then
-        if disabled then
-            checkbox.text:SetTextColor(0.50, 0.50, 0.50, 1)
-        else
-            checkbox.text:SetTextColor(0.94, 0.90, 0.82, 1)
-        end
-    end
-
-    if TextStyles and TextStyles.ApplyInteractiveWidgetText then
-        TextStyles.ApplyInteractiveWidgetText(checkbox, "label", disabled and true or false, { size = 12 })
-    end
-end
-
-local function ApplyWindowChrome(window)
-    if not window or not window.frame then
-        return
-    end
-
-    local frame = window.frame
-    local content = window.content
-
-    if window.titletext then
-        ApplyTextStyle(window.titletext, "sectionHeader", 15, 1)
-    end
-
-    if not frame._fpPanelFill then
-        frame._fpPanelFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
-    end
-    frame._fpPanelFill:SetColorTexture(unpack(PANEL_BACKGROUND))
-
-    if not frame._fpPanelHeaderFill then
-        frame._fpPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-        frame._fpPanelHeaderFill:SetHeight(26)
-    end
-    frame._fpPanelHeaderFill:SetColorTexture(unpack(PANEL_HEADER))
-
-    local function EnsureBorder(name)
-        if not frame[name] then
-            frame[name] = frame:CreateTexture(nil, "BORDER")
-        end
-        frame[name]:SetColorTexture(unpack(PANEL_BORDER))
-        frame[name]:Show()
-    end
-
-    EnsureBorder("_fpPanelBorderTop")
-    frame._fpPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-    frame._fpPanelBorderTop:SetHeight(1)
-
-    EnsureBorder("_fpPanelBorderBottom")
-    frame._fpPanelBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
-    frame._fpPanelBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
-    frame._fpPanelBorderBottom:SetHeight(1)
-
-    EnsureBorder("_fpPanelBorderLeft")
-    frame._fpPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
-    frame._fpPanelBorderLeft:SetWidth(1)
-
-    EnsureBorder("_fpPanelBorderRight")
-    frame._fpPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-    frame._fpPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
-    frame._fpPanelBorderRight:SetWidth(1)
-
-    if content then
-        if not content._fpAccent then
-            content._fpAccent = content:CreateTexture(nil, "BORDER")
-            content._fpAccent:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -2)
-            content._fpAccent:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -2)
-            content._fpAccent:SetHeight(1)
-        end
-        content._fpAccent:SetColorTexture(0.83, 0.70, 0.30, 0.35)
-    end
-end
-
-local function CreateActionButton(text, variant, width, fullWidth)
-    local button = AceGUI:Create("Button")
-    button:SetText(text or "")
-    if fullWidth == false and width then
-        button:SetWidth(width)
-    else
-        button:SetFullWidth(true)
-    end
-    StyleActionButton(button, variant)
-    return button
 end
 
 local function CreateVerticalGroup(spacing)
@@ -411,6 +324,179 @@ local function CreateFourColumnGroup(spacing)
         alignH = "start",
     })
     return group
+end
+
+local function CloneLayoutValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    local copy = {}
+    for key, entry in pairs(value) do
+        copy[key] = CloneLayoutValue(entry)
+    end
+    return copy
+end
+
+local function MergeLayoutValue(target, source)
+    if type(source) ~= "table" then
+        return CloneLayoutValue(source)
+    end
+
+    target = type(target) == "table" and target or {}
+    for key, value in pairs(source) do
+        if type(value) == "table" and type(target[key]) == "table" then
+            target[key] = MergeLayoutValue(target[key], value)
+        else
+            target[key] = CloneLayoutValue(value)
+        end
+    end
+
+    return target
+end
+
+ResolveItemProperties = function(item)
+    if not item then
+        return nil
+    end
+
+    local resolved = {}
+    local widgetKey = item.widget == "computed_label" and "computed_label" or item.widget
+    local itemDefinitions = FormElementDefinitions and FormElementDefinitions.Items and FormElementDefinitions.Items[widgetKey] or nil
+    local variantDefinition = itemDefinitions and itemDefinitions[item.itemVariant] or nil
+
+    if not variantDefinition and item.widget == "computed_label" then
+        itemDefinitions = FormElementDefinitions and FormElementDefinitions.Items and FormElementDefinitions.Items.label or nil
+        variantDefinition = itemDefinitions and itemDefinitions[item.itemVariant] or nil
+    end
+
+    resolved = MergeLayoutValue(resolved, variantDefinition)
+    resolved = MergeLayoutValue(resolved, item)
+
+    return resolved
+end
+
+local function ResolveSectionProperties(definition)
+    local props = definition and (definition.properties or definition) or nil
+    if not props then
+        return nil
+    end
+
+    local resolved = {}
+    local typeDefinitions = FormElementDefinitions and FormElementDefinitions.Sections and FormElementDefinitions.Sections[props.type] or nil
+    local variantDefinition = typeDefinitions and typeDefinitions[props.variant] or nil
+
+    resolved = MergeLayoutValue(resolved, variantDefinition)
+    resolved = MergeLayoutValue(resolved, props)
+
+    return resolved
+end
+
+local function ApplyGroupMinHeight(group, props)
+    local minHeight = props and props.heightInfo and props.heightInfo.min
+    if type(minHeight) ~= "number" or minHeight <= 0 or props.height or props.fullHeight then
+        return
+    end
+
+    if group.GetHeight and group:GetHeight() < minHeight then
+        group:SetHeight(minHeight)
+    end
+
+    local originalLayoutFinished = group.LayoutFinished
+    if type(originalLayoutFinished) ~= "function" then
+        return
+    end
+
+    group.LayoutFinished = function(self, width, height)
+        if self.noAutoHeight then
+            return originalLayoutFinished(self, width, height)
+        end
+
+        local resolvedHeight = height or 0
+        if resolvedHeight < minHeight then
+            resolvedHeight = minHeight
+        end
+
+        return originalLayoutFinished(self, width, resolvedHeight)
+    end
+end
+
+local function CreateLayoutGroup(definition, window)
+    if not definition then
+        return nil
+    end
+
+    local props = ResolveSectionProperties(definition)
+    local widgetType = props.widget or "SimpleGroup"
+    local group
+    if widgetType == "SimpleGroup" then
+        if props.layout == "VerticalGroup" then
+            group = CreateVerticalGroup(props.spacing)
+        elseif props.layout == "TwoColumnGroup" then
+            group = CreateTwoColumnGroup(props.spacing)
+        elseif props.layout == "FourColumnGroup" then
+            group = CreateFourColumnGroup(props.spacing)
+        elseif props.layout == "SimpleGroup" then
+            group = AceGUI:Create("SimpleGroup")
+            group:SetLayout(props.layoutMode or "List")
+        else
+            return nil
+        end
+    else
+        return nil
+    end
+
+    group.Type = props.type
+    group.Variant = props.variant
+
+    if props.fullWidth then
+        group:SetFullWidth(true)
+    end
+    if props.fullHeight then
+        group:SetFullHeight(true)
+    end
+    if props.width then
+        group:SetWidth(props.width)
+    end
+    if props.height then
+        group:SetHeight(props.height)
+    elseif not props.fullHeight and group.SetHeight then
+        group:SetHeight(1)
+    end
+    if props.layoutTable then
+        group:SetUserData("table", props.layoutTable)
+    end
+
+    ApplySectionPadding(group, props.padding)
+
+    ApplyGroupMinHeight(group, props)
+
+    return group
+end
+
+local function CreateLayoutGroups(window, definitions)
+    local groups = {}
+
+    for _, definition in ipairs(definitions or {}) do
+        local group = CreateLayoutGroup(definition, window)
+        if group then
+            groups[definition.section] = group
+        end
+    end
+
+    return groups
+end
+
+local function AssembleLayoutSections(parent, parentSection, definitions, groups, state, widgetsById, childIndex, usageCheckboxes)
+    local children = childIndex[parentSection or "__root"] or {}
+    for _, definition in ipairs(children) do
+        local group = groups[definition.section]
+        if group and parent and parent.AddChild then
+            parent:AddChild(group)
+            RenderSectionItems(group, definition, state, widgetsById, usageCheckboxes)
+            AssembleLayoutSections(group, definition.section, definitions, groups, state, widgetsById, childIndex, usageCheckboxes)
+        end
+    end
 end
 
 local function SyncEditBoxText(context, widget, value, flagName)
@@ -804,182 +890,31 @@ local function RefreshWindowState()
 end
 
 local function CreateWindowContent(window, state)
-    local root = CreateVerticalGroup(14)
-    root:SetFullWidth(true)
-    root:SetFullHeight(true)
-    window:AddChild(root)
-
-    local headerGroup = CreateVerticalGroup(4)
-    root:AddChild(headerGroup)
-
-    headerGroup:AddChild(CreateSectionTitle(T("INFO_TEXT_BUILDER_TITLE", "Text Builder"), 18))
-    headerGroup:AddChild(CreateBodyText(
-        T("INFO_TEXT_BUILDER_DESCRIPTION_SHORT", "Vorlage bauen, Vorschau pruefen, speichern und anwenden."),
-        "help",
-        11,
-        DESCRIPTION_TEXT
-    ))
-
-    local templateGroup = CreateVerticalGroup(4)
-    root:AddChild(templateGroup)
-
-    templateGroup:AddChild(CreateSectionTitle(T("INFO_TEXT_BUILDER_TEMPLATE", "Vorlage"), 14))
-    templateGroup:AddChild(CreateBodyText(
-        (T("INFO_TEXT_BUILDER_TEMPLATE_EXAMPLE", "Beispiel:") .. " " .. TEMPLATE_EXAMPLE),
-        "help",
-        10,
-        HINT_TEXT
-    ))
-
-    local templateEdit = AceGUI:Create("EditBox")
-    templateEdit:SetLabel(T("INFO_TEXT_BUILDER_TEMPLATE", "Vorlage"))
-    templateEdit:SetFullWidth(true)
-    templateEdit:DisableButton(true)
-    templateEdit:SetText(NormalizeTemplateInput(state.template or ""))
-    StyleEditBox(templateEdit)
-    templateGroup:AddChild(templateEdit)
-
-    local updateButton = CreateActionButton(T("INFO_TEXT_BUILDER_APPLY", "Vorschau aktualisieren"), "primary", 220, false)
-    templateGroup:AddChild(updateButton)
-
-    local previewGroup = CreateVerticalGroup(3)
-    root:AddChild(previewGroup)
-
-    previewGroup:AddChild(CreateSectionTitle(T("INFO_TEXT_BUILDER_PREVIEW", "Vorschau"), 14))
-
-    local previewValue = CreateBodyText(" ", "highlight", 20, VALUE_TEXT)
-    if previewValue.label and previewValue.label.SetJustifyH then
-        previewValue.label:SetJustifyH("LEFT")
-    end
-    previewGroup:AddChild(previewValue)
-
-    previewGroup:AddChild(CreateBodyText(
-        T("INFO_TEXT_BUILDER_PREVIEW_HINT_SHORT", "Kurz pruefen, dann speichern oder anwenden."),
-        "help",
-        10,
-        HINT_TEXT
-    ))
-
-    local templatesGroup = CreateVerticalGroup(4)
-    root:AddChild(templatesGroup)
-
-    templatesGroup:AddChild(CreateSectionTitle(T("INFO_TEXT_BUILDER_TEMPLATES", "Vorlagen"), 14))
-    templatesGroup:AddChild(CreateBodyText(
-        T("INFO_TEXT_BUILDER_TEMPLATES_HINT_SHORT", "Gespeicherte Vorlagen verwalten."),
-        "help",
-        10,
-        DESCRIPTION_TEXT
-    ))
-
-    local templatesColumns = CreateTwoColumnGroup(20)
-    templatesGroup:AddChild(templatesColumns)
-
-    local templatesLeft = CreateVerticalGroup(6)
-    templatesColumns:AddChild(templatesLeft)
-
-    local templatesRight = CreateVerticalGroup(6)
-    templatesColumns:AddChild(templatesRight)
-
-    local templateSelect = AceGUI:Create("Dropdown")
-    templateSelect:SetLabel(T("INFO_TEXT_BUILDER_SAVED_TEMPLATES", "Gespeicherte Vorlagen"))
-    templateSelect:SetFullWidth(true)
-    StyleDropdown(templateSelect)
-    templatesLeft:AddChild(templateSelect)
-
-    local templateNameEdit = AceGUI:Create("EditBox")
-    templateNameEdit:SetLabel(T("INFO_TEXT_BUILDER_TEMPLATE_NAME", "Vorlagenname"))
-    templateNameEdit:SetFullWidth(true)
-    templateNameEdit:DisableButton(true)
-    templateNameEdit:SetText(state.templateName or "")
-    StyleEditBox(templateNameEdit)
-    templatesRight:AddChild(templateNameEdit)
-
-    local templatesActions = AceGUI:Create("SimpleGroup")
-    templatesActions:SetFullWidth(true)
-    templatesActions:SetLayout("Table")
-    templatesActions:SetUserData("table", {
-        columns = {
-            { weight = 1 },
-            { weight = 1 },
-            { weight = 1 },
-        },
-        spaceH = 12,
-        spaceV = 0,
-        align = "TOPLEFT",
-        alignV = "start",
-        alignH = "start",
-    })
-    templatesGroup:AddChild(templatesActions)
-
-    local saveButton = CreateActionButton(T("INFO_TEXT_BUILDER_SAVE", "Speichern"), "primary")
-    templatesActions:AddChild(saveButton)
-
-    local updateTemplateButton = CreateActionButton(T("INFO_TEXT_BUILDER_UPDATE", "Aktualisieren"), "primary")
-    templatesActions:AddChild(updateTemplateButton)
-
-    local deleteTemplateButton = CreateActionButton(T("INFO_TEXT_BUILDER_DELETE", "Loeschen"), "danger")
-    templatesActions:AddChild(deleteTemplateButton)
-
-    local libraryHint = CreateBodyText(
-        T("INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT", "Vorlagen sichern, aktualisieren oder entfernen."),
-        "help",
-        10,
-        HINT_TEXT
-    )
-    templatesGroup:AddChild(libraryHint)
-
-    local usageGroup = CreateVerticalGroup(4)
-    root:AddChild(usageGroup)
-
-    usageGroup:AddChild(CreateSectionTitle(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE", "Vorlagenverwendung"), 14))
-    local usageHint = CreateBodyText(
-        T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT", "Auswaehlen, dann Vorlage anwenden."),
-        "help",
-        10,
-        DESCRIPTION_TEXT
-    )
-    usageGroup:AddChild(usageHint)
-    usageGroup:AddChild(CreateBodyText(
-        T("INFO_TEXT_BUILDER_USAGE_LEAD", "Verknuepfte Units"),
-        "label",
-        12,
-        VALUE_TEXT
-    ))
-
-    local usageRow = CreateFourColumnGroup(16)
-    usageGroup:AddChild(usageRow)
-
+    local groups = CreateLayoutGroups(window, TextBuilderFormLayout)
+    local childIndex = BuildSectionChildrenIndex(TextBuilderFormLayout)
+    local widgets = {}
     local usageCheckboxes = {}
-    for _, unitKey in ipairs(UNIT_KEYS) do
-        local checkbox = AceGUI:Create("CheckBox")
-        checkbox:SetFullWidth(true)
-        checkbox:SetLabel(ns.GetLabel and ns.GetLabel(KM.Units, unitKey) or unitKey)
-        checkbox:SetValue(false)
-        checkbox:SetDisabled(true)
-        StyleCheckBox(checkbox, true)
-        usageRow:AddChild(checkbox)
-        usageCheckboxes[unitKey] = checkbox
-    end
 
-    local applyTemplateButton = CreateActionButton(T("INFO_TEXT_BUILDER_APPLY_TEMPLATE", "Vorlage anwenden"), "primary", 220, false)
-    usageGroup:AddChild(applyTemplateButton)
+    AssembleLayoutSections(window, nil, TextBuilderFormLayout, groups, state, widgets, childIndex, usageCheckboxes)
+
+    local root = groups.Root
 
     return {
         window = window,
         state = state,
         root = root,
-        templateEdit = templateEdit,
-        updateButton = updateButton,
-        previewValue = previewValue,
-        templateSelect = templateSelect,
-        templateNameEdit = templateNameEdit,
-        deleteTemplateButton = deleteTemplateButton,
-        saveButton = saveButton,
-        updateTemplateButton = updateTemplateButton,
-        libraryHint = libraryHint,
-        usageHint = usageHint,
+        templateEdit = widgets.templateEdit,
+        updateButton = widgets.updateButton,
+        previewValue = widgets.previewValue,
+        templateSelect = widgets.templateSelect,
+        templateNameEdit = widgets.templateNameEdit,
+        deleteTemplateButton = widgets.deleteTemplateButton,
+        saveButton = widgets.saveButton,
+        updateTemplateButton = widgets.updateTemplateButton,
+        libraryHint = widgets.libraryHint,
+        usageHint = widgets.usageHint,
         usageCheckboxes = usageCheckboxes,
-        applyTemplateButton = applyTemplateButton,
+        applyTemplateButton = widgets.applyTemplateButton,
         suspendTemplateSelectCallbacks = false,
         suspendTemplateNameCallbacks = false,
         suspendTemplateEditCallbacks = false,

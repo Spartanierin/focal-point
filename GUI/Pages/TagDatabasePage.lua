@@ -5,7 +5,9 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L
-local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
+local FormElementDefinitions = ns.GUI.Layouts and ns.GUI.Layouts.FormElements
+local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
+local TagDatabaseFormLayout = ns.GUI.Layouts and ns.GUI.Layouts.TagDatabase and ns.GUI.Layouts.TagDatabase.Form
 
 local TagDatabasePage = {}
 ns.GUI.Pages.TagDatabase = TagDatabasePage
@@ -22,14 +24,13 @@ local CATEGORY_ORDER = {
 local fallbackRootState = {}
 local windowContext
 
-local PANEL_BACKGROUND = { 0.07, 0.08, 0.10, 0.90 }
-local PANEL_BORDER = { 0.24, 0.27, 0.31, 0.92 }
-local PANEL_HEADER = { 0.10, 0.11, 0.14, 0.70 }
-local FIELD_BACKGROUND = { 0.10, 0.11, 0.14, 0.96 }
-local FIELD_BORDER = { 0.31, 0.34, 0.39, 0.95 }
-local DESCRIPTION_TEXT = { 0.68, 0.70, 0.75 }
-local HINT_TEXT = { 0.70, 0.73, 0.78 }
-local VALUE_TEXT = { 0.93, 0.90, 0.80 }
+local CreateBodyText = FormWidgets.CreateBodyText
+local StyleDropdown = function(dropdown)
+    return FormWidgets.StyleDropdown(dropdown, "neutral")
+end
+local ApplySectionPadding = FormWidgets.ApplySectionPadding
+local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
+local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
     return (L and L[key]) or fallback
@@ -134,136 +135,33 @@ local function FocusWindow(window)
     end
 end
 
-local function ApplyTextStyle(target, role, size, alpha)
-    if not target then
-        return
+local function ResolveItemText(item)
+    if not item then
+        return ""
     end
 
-    if TextStyles and TextStyles.ApplyFontString then
-        TextStyles.ApplyFontString(target, role, {
-            size = size,
-            alpha = alpha,
-        })
+    if item.textKey or item.textFallback then
+        return T(item.textKey, item.textFallback or "")
     end
+
+    return item.text or ""
 end
 
-local function SetTextureColor(texture, color)
-    if texture and texture.SetVertexColor and color then
-        texture:SetVertexColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+local function BuildSectionChildrenIndex(definitions)
+    local index = {
+        __root = {},
+    }
+
+    for _, definition in ipairs(definitions or {}) do
+        local props = definition.properties or definition
+        local parentKey = props.parentSection or "__root"
+        index[parentKey] = index[parentKey] or {}
+        index[parentKey][#index[parentKey] + 1] = definition
     end
+
+    return index
 end
 
-local function CreateBodyText(text, role, size, color)
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetText(text or "")
-    ApplyTextStyle(label.label, role or "label", size or 12, 1)
-
-    if color and label.label and label.label.SetTextColor then
-        label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
-    end
-
-    return label
-end
-
-local function CreateSectionTitle(text, size)
-    return CreateBodyText(text, "sectionHeader", size or 13)
-end
-
-local function StyleDropdown(dropdown)
-    if not dropdown then
-        return
-    end
-
-    ApplyTextStyle(dropdown.label, "label", 12, 1)
-    if dropdown.text and dropdown.text.SetTextColor then
-        dropdown.text:SetTextColor(VALUE_TEXT[1], VALUE_TEXT[2], VALUE_TEXT[3], 1)
-    end
-
-    if dropdown.dropdown then
-        local name = dropdown.dropdown:GetName()
-        if name then
-            SetTextureColor(_G[name .. "Left"], FIELD_BORDER)
-            SetTextureColor(_G[name .. "Middle"], FIELD_BACKGROUND)
-            SetTextureColor(_G[name .. "Right"], FIELD_BORDER)
-        end
-    end
-
-    if dropdown.button then
-        local buttonNormal = dropdown.button.GetNormalTexture and dropdown.button:GetNormalTexture() or nil
-        local buttonPushed = dropdown.button.GetPushedTexture and dropdown.button:GetPushedTexture() or nil
-        local buttonHighlight = dropdown.button.GetHighlightTexture and dropdown.button:GetHighlightTexture() or nil
-        SetTextureColor(buttonNormal, FIELD_BORDER)
-        SetTextureColor(buttonPushed, FIELD_BORDER)
-        SetTextureColor(buttonHighlight, FIELD_BORDER)
-    end
-end
-
-local function ApplyWindowChrome(window)
-    if not window or not window.frame then
-        return
-    end
-
-    local frame = window.frame
-    local content = window.content
-
-    if window.titletext then
-        ApplyTextStyle(window.titletext, "sectionHeader", 15, 1)
-    end
-
-    if not frame._fpPanelFill then
-        frame._fpPanelFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
-    end
-    frame._fpPanelFill:SetColorTexture(unpack(PANEL_BACKGROUND))
-
-    if not frame._fpPanelHeaderFill then
-        frame._fpPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-        frame._fpPanelHeaderFill:SetHeight(26)
-    end
-    frame._fpPanelHeaderFill:SetColorTexture(unpack(PANEL_HEADER))
-
-    local function EnsureBorder(name)
-        if not frame[name] then
-            frame[name] = frame:CreateTexture(nil, "BORDER")
-        end
-        frame[name]:SetColorTexture(unpack(PANEL_BORDER))
-        frame[name]:Show()
-    end
-
-    EnsureBorder("_fpPanelBorderTop")
-    frame._fpPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-    frame._fpPanelBorderTop:SetHeight(1)
-
-    EnsureBorder("_fpPanelBorderBottom")
-    frame._fpPanelBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
-    frame._fpPanelBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
-    frame._fpPanelBorderBottom:SetHeight(1)
-
-    EnsureBorder("_fpPanelBorderLeft")
-    frame._fpPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
-    frame._fpPanelBorderLeft:SetWidth(1)
-
-    EnsureBorder("_fpPanelBorderRight")
-    frame._fpPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-    frame._fpPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
-    frame._fpPanelBorderRight:SetWidth(1)
-
-    if content then
-        if not content._fpAccent then
-            content._fpAccent = content:CreateTexture(nil, "BORDER")
-            content._fpAccent:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -2)
-            content._fpAccent:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -2)
-            content._fpAccent:SetHeight(1)
-        end
-        content._fpAccent:SetColorTexture(0.83, 0.70, 0.30, 0.35)
-    end
-end
 
 local function CreateRootContent(window)
     local scroll = AceGUI:Create("ScrollFrame")
@@ -280,20 +178,220 @@ local function CreateRootContent(window)
     return content
 end
 
-local function CreateFieldGroup(width, title, labelText)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetLayout("List")
-    group:SetWidth(width)
-    group:AddChild(CreateSectionTitle(title, 13))
-    group:AddChild(CreateBodyText(labelText, "label", 12, DESCRIPTION_TEXT))
+local function CloneLayoutValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
 
-    local dropdown = AceGUI:Create("Dropdown")
-    dropdown:SetLabel("")
-    dropdown:SetWidth(width - 4)
-    StyleDropdown(dropdown)
-    group:AddChild(dropdown)
+    local copy = {}
+    for key, entry in pairs(value) do
+        copy[key] = CloneLayoutValue(entry)
+    end
+    return copy
+end
 
-    return group, dropdown
+local function MergeLayoutValue(target, source)
+    if type(source) ~= "table" then
+        return CloneLayoutValue(source)
+    end
+
+    target = type(target) == "table" and target or {}
+    for key, value in pairs(source) do
+        if type(value) == "table" and type(target[key]) == "table" then
+            target[key] = MergeLayoutValue(target[key], value)
+        else
+            target[key] = CloneLayoutValue(value)
+        end
+    end
+
+    return target
+end
+
+local ResolveItemProperties
+
+ResolveItemProperties = function(item)
+    if not item then
+        return nil
+    end
+
+    local resolved = {}
+    local itemDefinitions = FormElementDefinitions and FormElementDefinitions.Items and FormElementDefinitions.Items[item.widget] or nil
+    local variantDefinition = itemDefinitions and itemDefinitions[item.itemVariant] or nil
+
+    resolved = MergeLayoutValue(resolved, variantDefinition)
+    resolved = MergeLayoutValue(resolved, item)
+
+    return resolved
+end
+
+local function ResolveSectionProperties(definition)
+    local props = definition and (definition.properties or definition) or nil
+    if not props then
+        return nil
+    end
+
+    local resolved = {}
+    local typeDefinitions = FormElementDefinitions and FormElementDefinitions.Sections and FormElementDefinitions.Sections[props.type] or nil
+    local variantDefinition = typeDefinitions and typeDefinitions[props.variant] or nil
+
+    resolved = MergeLayoutValue(resolved, variantDefinition)
+    resolved = MergeLayoutValue(resolved, props)
+
+    return resolved
+end
+
+local function ApplyGroupMinHeight(group, props)
+    local minHeight = props and props.heightInfo and props.heightInfo.min
+    if type(minHeight) ~= "number" or minHeight <= 0 or props.height or props.fullHeight then
+        return
+    end
+
+    if group.GetHeight and group:GetHeight() < minHeight then
+        group:SetHeight(minHeight)
+    end
+
+    local originalLayoutFinished = group.LayoutFinished
+    if type(originalLayoutFinished) ~= "function" then
+        return
+    end
+
+    group.LayoutFinished = function(self, width, height)
+        if self.noAutoHeight then
+            return originalLayoutFinished(self, width, height)
+        end
+
+        local resolvedHeight = height or 0
+        if resolvedHeight < minHeight then
+            resolvedHeight = minHeight
+        end
+
+        return originalLayoutFinished(self, width, resolvedHeight)
+    end
+end
+
+local function CreateItemWidget(group, item)
+    local props = ResolveItemProperties(item)
+    if not props or not props.widget then
+        return nil
+    end
+
+    if props.widget == "label" then
+        return CreateBodyText(
+            ResolveItemText(props),
+            props.role or "label",
+            props.size or 12,
+            ResolveItemColor(props.colorKey),
+            props.width,
+            props.fullWidth
+        )
+    end
+
+    if props.widget == "dropdown" then
+        local dropdown = AceGUI:Create("Dropdown")
+        if props.label ~= nil then
+            dropdown:SetLabel(props.label)
+        else
+            dropdown:SetLabel(T(props.labelKey, props.labelFallback or ""))
+        end
+        if props.fitGroupWidth then
+            dropdown:SetWidth((group.frame and group.frame.width or group.width or props.groupWidthFallback or 332) - 4)
+        elseif props.fullWidth ~= false then
+            dropdown:SetFullWidth(true)
+        end
+        StyleDropdown(dropdown)
+        return dropdown
+    end
+
+    return nil
+end
+
+local function RenderSectionItems(group, definition, widgetsById)
+    if not group or not definition or type(definition.items) ~= "table" then
+        return
+    end
+
+    for _, item in ipairs(definition.items) do
+        local widget = CreateItemWidget(group, item)
+        if widget then
+            group:AddChild(widget)
+            if item.hideInitially and widget.frame and widget.frame.Hide then
+                widget.frame:Hide()
+            end
+            if item.id then
+                widgetsById[item.id] = widget
+            end
+        end
+    end
+end
+
+local function CreateLayoutGroup(window, definition)
+    if not definition then
+        return nil
+    end
+
+    local props = ResolveSectionProperties(definition)
+    local widgetType = props.widget
+    local group
+    if widgetType == "ScrollFrame" and props.layout == "RootContent" then
+        group = CreateRootContent(window)
+    elseif widgetType == "SimpleGroup" and props.layout == "SimpleGroup" then
+        group = AceGUI:Create("SimpleGroup")
+        group:SetLayout(props.layoutMode or "List")
+    else
+        return nil
+    end
+
+    group.Type = props.type
+    group.Variant = props.variant
+
+    if props.fullWidth then
+        group:SetFullWidth(true)
+    end
+    if props.fullHeight then
+        group:SetFullHeight(true)
+    end
+    if props.width then
+        group:SetWidth(props.width)
+    end
+    if props.height then
+        group:SetHeight(props.height)
+    elseif not props.fullHeight and group.SetHeight then
+        group:SetHeight(1)
+    end
+
+    ApplySectionPadding(group, props.padding)
+
+    ApplyGroupMinHeight(group, props)
+
+    return group
+end
+
+local function CreateLayoutGroups(window, definitions)
+    local groups = {}
+
+    for _, definition in ipairs(definitions or {}) do
+        local group = CreateLayoutGroup(window, definition)
+        if group then
+            groups[definition.section] = group
+        end
+    end
+
+    return groups
+end
+
+local function AssembleLayoutSections(parent, parentSection, definitions, groups, widgetsById, childIndex)
+    local children = childIndex[parentSection or "__root"] or {}
+    for _, definition in ipairs(children) do
+        local group = groups[definition.section]
+        local props = ResolveSectionProperties(definition)
+        if group and parent and parent.AddChild then
+            if props.layout ~= "RootContent" then
+                parent:AddChild(group)
+            end
+            RenderSectionItems(group, definition, widgetsById)
+            AssembleLayoutSections(group, definition.section, definitions, groups, widgetsById, childIndex)
+        end
+    end
 end
 
 local function RefreshWindowState()
@@ -364,52 +462,15 @@ local function RefreshWindowState()
 end
 
 local function CreateWindowContent(window, state)
-    local root = CreateRootContent(window)
+    local groups = CreateLayoutGroups(window, TagDatabaseFormLayout)
+    local childIndex = BuildSectionChildrenIndex(TagDatabaseFormLayout)
+    local widgets = {}
+    AssembleLayoutSections(window, nil, TagDatabaseFormLayout, groups, widgets, childIndex)
+    local root = groups.Root
 
-    root:AddChild(CreateBodyText(T("INFO_TAG_DATABASE_TITLE", "Tag-Datenbank"), "sectionHeader", 18))
-    root:AddChild(CreateBodyText(T("INFO_TAG_DATABASE_DESCRIPTION_SHORT", "Tags finden, auswaehlen und ihre Bedeutung direkt nachschlagen."), "label", 11, DESCRIPTION_TEXT))
-    root:AddChild(CreateBodyText(" ", "label", 6))
+    local filtersGroup = groups.ColumnContainer
 
-    local filtersGroup = AceGUI:Create("SimpleGroup")
-    filtersGroup:SetFullWidth(true)
-    filtersGroup:SetLayout("Flow")
-    root:AddChild(filtersGroup)
-
-    local categoryGroup, categorySelect = CreateFieldGroup(332, T("INFO_TAG_DATABASE_CATEGORY_PICK", "Kategorie waehlen"), T("INFO_TAG_DATABASE_CATEGORY_LABEL", "Kategorie"))
-    local tagGroup, tagSelect = CreateFieldGroup(332, T("INFO_TAG_DATABASE_TAG_PICK", "Tag waehlen"), T("INFO_TAG_DATABASE_TAG_LABEL", "Tag"))
-    filtersGroup:AddChild(categoryGroup)
-    filtersGroup:AddChild(tagGroup)
-
-    root:AddChild(CreateBodyText(" ", "label", 6))
-
-    local detailsGroup = AceGUI:Create("SimpleGroup")
-    detailsGroup:SetFullWidth(true)
-    detailsGroup:SetLayout("List")
-    root:AddChild(detailsGroup)
-
-    detailsGroup:AddChild(CreateSectionTitle(T("INFO_TAG_DATABASE_DETAILS", "Details"), 13))
-    detailsGroup:AddChild(CreateBodyText(T("INFO_TAG_DATABASE_COL_TAG", "Tag"), "label", 12, DESCRIPTION_TEXT))
-    local tokenValue = CreateBodyText("-", "highlight", 15, VALUE_TEXT)
-    detailsGroup:AddChild(tokenValue)
-
-    detailsGroup:AddChild(CreateBodyText(" ", "label", 4))
-    detailsGroup:AddChild(CreateBodyText(T("INFO_TAG_DATABASE_COL_DESC", "Beschreibung"), "label", 12, DESCRIPTION_TEXT))
-    local descriptionValue = CreateBodyText("-", "label", 12)
-    detailsGroup:AddChild(descriptionValue)
-
-    detailsGroup:AddChild(CreateBodyText(" ", "label", 4))
-    detailsGroup:AddChild(CreateBodyText(T("INFO_TAG_DATABASE_COL_EXAMPLE", "Beispiel"), "label", 12, DESCRIPTION_TEXT))
-    local exampleValue = CreateBodyText("-", "highlight", 12, VALUE_TEXT)
-    detailsGroup:AddChild(exampleValue)
-
-    detailsGroup:AddChild(CreateBodyText(" ", "label", 6))
-    detailsGroup:AddChild(CreateSectionTitle(T("INFO_TAG_DATABASE_USAGE_HINT_TITLE", "Hinweis"), 13))
-    local hintValue = CreateBodyText(T("INFO_TAG_DATABASE_USAGE_HINT", "Nutze die Tag-Datenbank als Nachschlagehilfe und uebernimm Tags anschliessend bewusst in deine Vorlagen."), "label", 11, HINT_TEXT)
-    detailsGroup:AddChild(hintValue)
-
-    local emptyState = CreateBodyText("", "label", 11, HINT_TEXT)
-    emptyState.frame:Hide()
-    root:AddChild(emptyState)
+    local detailsGroup = groups.Footer
 
     return {
         window = window,
@@ -417,13 +478,13 @@ local function CreateWindowContent(window, state)
         root = root,
         filtersGroup = filtersGroup,
         detailsGroup = detailsGroup,
-        categorySelect = categorySelect,
-        tagSelect = tagSelect,
-        tokenValue = tokenValue,
-        descriptionValue = descriptionValue,
-        exampleValue = exampleValue,
-        hintValue = hintValue,
-        emptyState = emptyState,
+        categorySelect = widgets.categorySelect,
+        tagSelect = widgets.tagSelect,
+        tokenValue = widgets.tokenValue,
+        descriptionValue = widgets.descriptionValue,
+        exampleValue = widgets.exampleValue,
+        hintValue = widgets.hintValue,
+        emptyState = widgets.emptyState,
     }
 end
 

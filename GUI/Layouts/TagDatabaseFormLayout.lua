@@ -1,0 +1,221 @@
+local _, ns = ...
+
+ns.GUI = ns.GUI or {}
+ns.GUI.Layouts = ns.GUI.Layouts or {}
+ns.GUI.Layouts.TagDatabase = ns.GUI.Layouts.TagDatabase or {}
+
+--[[
+Declarative form layout for the Tag Database popup.
+
+Goal:
+- describe structure and sizing intent without embedding widget construction details
+- keep page files focused on widget content, callbacks, and behavior
+
+Important fields:
+- section: stable identifier for this group
+- properties: all declarative settings for this section
+  parentSection: parent group in this declaration tree
+  type: semantic role of this section
+  variant: structural specialization resolved through FormElementDefinitions
+  width / height: explicit runtime size overrides; only numeric values are applied
+  widthInfo / heightInfo: documentation for humans about where the effective size comes from
+    source can be explicit, parent, content, or default
+    min keeps content-driven sections from collapsing below a readable baseline
+    value stores the known effective size when it is stable
+    derivedFrom explains the origin of that effective value
+- items: widgets that belong to this section, in render order
+  itemVariant: semantic widget styling preset resolved through FormElementDefinitions
+]]
+ns.GUI.Layouts.TagDatabase.Form = {
+    {
+        section = "Root",
+        properties = {
+            type = "root",
+            variant = "scroll_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 10,
+                bottom = 10,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "parent",
+            },
+        },
+        items = {
+            { id = "title", widget = "label", itemVariant = "page_title", textKey = "INFO_TAG_DATABASE_TITLE", textFallback = "Tag-Datenbank" },
+            { id = "intro", widget = "label", itemVariant = "description_text_body", textKey = "INFO_TAG_DATABASE_DESCRIPTION_SHORT", textFallback = "Tags finden, auswaehlen und ihre Bedeutung direkt nachschlagen." },
+            { id = "topSpacer", widget = "label", itemVariant = "spacer_small", text = " " },
+        },
+    },
+    {
+        section = "ColumnContainer",
+        properties = {
+            parentSection = "Root",
+            type = "column_container",
+            variant = "flow_row",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 8,
+                bottom = 8,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 120,
+                derivedFrom = "LeftColumn + RightColumn flow row",
+            },
+        },
+        items = {},
+    },
+    {
+        section = "LeftColumn",
+        properties = {
+            parentSection = "ColumnContainer",
+            type = "column",
+            variant = "fixed_list",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            widthInfo = {
+                source = "explicit",
+                value = 332,
+                derivedFrom = "FormElements.Sections.column.fixed_list.width",
+            },
+            heightInfo = {
+                source = "content",
+                min = 120,
+                derivedFrom = "category section title + label + dropdown",
+            },
+        },
+        items = {
+            { id = "categoryTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TAG_DATABASE_CATEGORY_PICK", textFallback = "Kategorie waehlen" },
+            { id = "categoryLabel", widget = "label", itemVariant = "field_label", textKey = "INFO_TAG_DATABASE_CATEGORY_LABEL", textFallback = "Kategorie" },
+            { id = "categorySelect", widget = "dropdown", itemVariant = "fixed_width_field", label = "", fitGroupWidth = true, groupWidthFallback = 332 },
+        },
+    },
+    {
+        section = "RightColumn",
+        properties = {
+            parentSection = "ColumnContainer",
+            type = "column",
+            variant = "fixed_list",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            widthInfo = {
+                source = "explicit",
+                value = 332,
+                derivedFrom = "FormElements.Sections.column.fixed_list.width",
+            },
+            heightInfo = {
+                source = "content",
+                min = 120,
+                derivedFrom = "tag section title + label + dropdown",
+            },
+        },
+        items = {
+            { id = "tagTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TAG_DATABASE_TAG_PICK", textFallback = "Tag waehlen" },
+            { id = "tagLabel", widget = "label", itemVariant = "field_label", textKey = "INFO_TAG_DATABASE_TAG_LABEL", textFallback = "Tag" },
+            { id = "tagSelect", widget = "dropdown", itemVariant = "fixed_width_field", label = "", fitGroupWidth = true, groupWidthFallback = 332 },
+        },
+    },
+    {
+        section = "MiddleSpacer",
+        properties = {
+            parentSection = "Root",
+            type = "section",
+            variant = "note_block",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 12,
+                derivedFrom = "single spacer label",
+            },
+        },
+        items = {
+            { id = "middleSpacer", widget = "label", itemVariant = "spacer_small", text = " " },
+        },
+    },
+    {
+        section = "Footer",
+        properties = {
+            parentSection = "Root",
+            type = "section",
+            variant = "details_stack",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 180,
+                derivedFrom = "details labels + values + usage hint stack",
+            },
+        },
+        items = {
+            { id = "detailsTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TAG_DATABASE_DETAILS", textFallback = "Details" },
+            { id = "tokenLabel", widget = "label", itemVariant = "field_label", textKey = "INFO_TAG_DATABASE_COL_TAG", textFallback = "Tag" },
+            { id = "tokenValue", widget = "label", itemVariant = "value_display_small", text = "-" },
+            { id = "detailsSpacer1", widget = "label", itemVariant = "spacer_xsmall", text = " " },
+            { id = "descriptionLabel", widget = "label", itemVariant = "field_label", textKey = "INFO_TAG_DATABASE_COL_DESC", textFallback = "Beschreibung" },
+            { id = "descriptionValue", widget = "label", itemVariant = "body_text", text = "-" },
+            { id = "detailsSpacer2", widget = "label", itemVariant = "spacer_xsmall", text = " " },
+            { id = "exampleLabel", widget = "label", itemVariant = "field_label", textKey = "INFO_TAG_DATABASE_COL_EXAMPLE", textFallback = "Beispiel" },
+            { id = "exampleValue", widget = "label", itemVariant = "value_text", text = "-" },
+            { id = "detailsSpacer3", widget = "label", itemVariant = "spacer_small", text = " " },
+            { id = "hintTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TAG_DATABASE_USAGE_HINT_TITLE", textFallback = "Hinweis" },
+            { id = "hintValue", widget = "label", itemVariant = "hint_text_body", textKey = "INFO_TAG_DATABASE_USAGE_HINT", textFallback = "Nutze die Tag-Datenbank als Nachschlagehilfe und uebernimm Tags anschliessend bewusst in deine Vorlagen." },
+        },
+    },
+    {
+        section = "EmptyState",
+        properties = {
+            parentSection = "Root",
+            type = "section",
+            variant = "note_block",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 20,
+                derivedFrom = "emptyState label",
+            },
+        },
+        items = {
+            { id = "emptyState", widget = "label", itemVariant = "hint_text_body", text = "", hideInitially = true },
+        },
+    },
+}
