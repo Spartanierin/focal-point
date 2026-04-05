@@ -36,17 +36,32 @@ function B.BuildPlaceholderPage(container, title)
     end
 end
 
-function B.BuildProfilesPage(container)
-    local page = ns.GUI.Pages and ns.GUI.Pages.Profiles
-    if not page or not page.Build then
-        B.BuildPlaceholderPage(container, L["NAV_PROFILES"] or "Profiles")
+local function PrepareWindowHost(container)
+    if not container then
         return
     end
 
-    page.Build(container, CreateProfilesDeps({
+    container:ReleaseChildren()
+    container:SetLayout("Fill")
+end
+
+local function OpenWindowFromBuilder(container, page, deps, fallbackTitle)
+    if not page or not page.OpenWindow then
+        B.BuildPlaceholderPage(container, fallbackTitle)
+        return
+    end
+
+    PrepareWindowHost(container)
+    page.OpenWindow(deps)
+end
+
+-- Tool builders only keep the host container clean and launch the standalone windows.
+function B.BuildProfilesPage(container)
+    local page = ns.GUI.Pages and ns.GUI.Pages.Profiles
+
+    OpenWindowFromBuilder(container, page, CreateProfilesDeps({
         GetGUIState = GetGUIState,
-        BuildPlaceholderPage = B.BuildPlaceholderPage,
-    }))
+    }), L["NAV_PROFILES"] or "Profiles")
 end
 
 function B.OpenProfilesWindow()
@@ -57,22 +72,15 @@ function B.OpenProfilesWindow()
 
     page.OpenWindow(CreateProfilesDeps({
         GetGUIState = GetGUIState,
-        BuildPlaceholderPage = B.BuildPlaceholderPage,
     }))
 end
 
 function B.BuildTagDatabasePage(container)
     local page = ns.GUI.Pages and ns.GUI.Pages.TagDatabase
-    if not page or not page.Build then
-        B.BuildPlaceholderPage(container, L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
-        return
-    end
 
-    page.Build(container, CreateTagDatabaseDeps({
+    OpenWindowFromBuilder(container, page, CreateTagDatabaseDeps({
         GetGUIState = GetGUIState,
-        BuildScrollableTabContent = BuildScrollableTabContent,
-        BuildPlaceholderPage = B.BuildPlaceholderPage,
-    }))
+    }), L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
 end
 
 function B.OpenTagDatabaseWindow()
@@ -83,21 +91,15 @@ function B.OpenTagDatabaseWindow()
 
     page.OpenWindow(CreateTagDatabaseDeps({
         GetGUIState = GetGUIState,
-        BuildScrollableTabContent = BuildScrollableTabContent,
-        BuildPlaceholderPage = B.BuildPlaceholderPage,
     }))
 end
 
 function B.BuildTextBuilderPage(container)
     local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
-    if not page or not page.Build then
-        B.BuildPlaceholderPage(container, ns.GetLabel(KM.Nav, C.Nav.TEXT_BUILDER))
-        return
-    end
 
-    page.Build(container, CreateTextBuilderDeps({
+    OpenWindowFromBuilder(container, page, CreateTextBuilderDeps({
         GetGUIState = GetGUIState,
-    }))
+    }), ns.GetLabel(KM.Nav, C.Nav.TEXT_BUILDER))
 end
 
 function B.OpenTextBuilderWindow()

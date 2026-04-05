@@ -527,15 +527,6 @@ local function ApplyFocalPointTreePixelSnap(treeGroup)
 end
 
 
-local function RenderPlaceholderPage(container, title, text)
-    container:ReleaseChildren()
-    container:SetLayout("Flow")
-
-    AddHeading(container, title)
-    AddSpacer(container, 10)
-    AddLabel(container, text or "This page is not implemented yet.")
-end
-
 local function BuildGeneralPage(container)
     FocalPoint.GUIBuilders.BuildGeneralPage(container)
 end

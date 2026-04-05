@@ -5,7 +5,6 @@ ns.GUI.Helpers = ns.GUI.Helpers or {}
 ns.GUI.Helpers.BuilderUI = ns.GUI.Helpers.BuilderUI or {}
 ns.GUI.Helpers.TitleStyles = ns.GUI.Helpers.TitleStyles or {}
 
-local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local TextStyles = ns.GUI.Helpers.TextStyles
 
@@ -22,48 +21,6 @@ end
 
 function TitleStyles.FormatSubsection(text)
     return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "label") or text
-end
-
-function BuilderUI.AddSectionHeading(container, text, topSpacing, headerAction)
-    if not container then
-        return
-    end
-
-    container._focalPointPendingSectionTitle = text
-    container._focalPointPendingSectionTopSpacing = topSpacing or 0
-    container._focalPointPendingSectionHeaderAction = headerAction
-end
-
-function BuilderUI.AddPageHeading(container, text, subtitle)
-    local headerGroup = AceGUI:Create("SimpleGroup")
-    headerGroup:SetFullWidth(true)
-    headerGroup:SetLayout("Flow")
-
-    local heading = AceGUI:Create("Label")
-    heading:SetFullWidth(true)
-    heading:SetText(text or "")
-    if heading.label and heading.label.SetJustifyH then
-        heading.label:SetJustifyH("CENTER")
-    end
-    if TextStyles and TextStyles.ApplyLabelWidget then
-        TextStyles.ApplyLabelWidget(heading, "label", { size = 15, shadow = true })
-    end
-    headerGroup:AddChild(heading)
-
-    if type(subtitle) == "string" and subtitle ~= "" then
-        local subtitleLabel = AceGUI:Create("Label")
-        subtitleLabel:SetFullWidth(true)
-        subtitleLabel:SetText(subtitle)
-        if subtitleLabel.label and subtitleLabel.label.SetJustifyH then
-            subtitleLabel.label:SetJustifyH("CENTER")
-        end
-        if TextStyles and TextStyles.ApplyLabelWidget then
-            TextStyles.ApplyLabelWidget(subtitleLabel, "help", { size = 11 })
-        end
-        headerGroup:AddChild(subtitleLabel)
-    end
-
-    container:AddChild(headerGroup)
 end
 
 function BuilderUI.ResetFlowContainer(container)
