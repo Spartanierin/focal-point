@@ -59,6 +59,84 @@ function FormWidgets.ResolveItemColor(colorKey)
     return colorKey and GetItemColors()[colorKey] or nil
 end
 
+local function CanRelayout(container)
+    if not container or not container.DoLayout then
+        return false
+    end
+
+    local tableLayout = AceGUI:GetLayout("Table")
+    if container.LayoutFunc == tableLayout and container.GetUserData then
+        return type(container:GetUserData("table")) == "table"
+    end
+
+    return true
+end
+
+local function RequestOwnerRelayout(container)
+    local current = container
+    while current do
+        if CanRelayout(current) then
+            current:DoLayout()
+        end
+        current = current._fpOwnerGroup
+    end
+end
+
+function FormWidgets.ApplySectionBorder(group, border)
+    if not group or not group.frame then
+        return
+    end
+
+    local frame = group.frame
+    local chromeColors = GetChromeColors()
+    local color = chromeColors.sectionBorder
+
+    if border == false or not color then
+        for _, name in ipairs({
+            "_fpSectionBorderTop",
+            "_fpSectionBorderBottom",
+            "_fpSectionBorderLeft",
+            "_fpSectionBorderRight",
+        }) do
+            if frame[name] and frame[name].Hide then
+                frame[name]:Hide()
+            end
+        end
+        return
+    end
+
+    local thickness = type(border) == "table" and (border.thickness or 1) or 1
+    local inset = type(border) == "table" and (border.inset or 0) or 0
+
+    local function EnsureBorder(name)
+        if not frame[name] then
+            frame[name] = frame:CreateTexture(nil, "BORDER")
+        end
+        frame[name]:SetColorTexture(unpack(color))
+        frame[name]:Show()
+    end
+
+    EnsureBorder("_fpSectionBorderTop")
+    frame._fpSectionBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+    frame._fpSectionBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -inset, -inset)
+    frame._fpSectionBorderTop:SetHeight(thickness)
+
+    EnsureBorder("_fpSectionBorderBottom")
+    frame._fpSectionBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, inset)
+    frame._fpSectionBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+    frame._fpSectionBorderBottom:SetHeight(thickness)
+
+    EnsureBorder("_fpSectionBorderLeft")
+    frame._fpSectionBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+    frame._fpSectionBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, inset)
+    frame._fpSectionBorderLeft:SetWidth(thickness)
+
+    EnsureBorder("_fpSectionBorderRight")
+    frame._fpSectionBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -inset, -inset)
+    frame._fpSectionBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+    frame._fpSectionBorderRight:SetWidth(thickness)
+end
+
 function FormWidgets.ApplySectionPadding(group, padding)
     if not group or not group.content or group.type == "ScrollFrame" then
         return
@@ -101,17 +179,33 @@ end
 
 function FormWidgets.CreateBodyText(text, role, size, color, width, fullWidth)
     local label = AceGUI:Create("Label")
+    local originalSetText = label.SetText
     if type(width) == "number" then
         label:SetWidth(width)
     elseif fullWidth ~= false then
         label:SetFullWidth(true)
+        if label.frame then
+            label.frame.width = nil
+        end
     end
-    label:SetText(text or "")
     FormWidgets.ApplyTextStyle(label.label, role or "label", size or 12, 1)
 
     if color and label.label and label.label.SetTextColor then
         label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
     end
+
+    label.SetText = function(self, value)
+        local previousHeight = self.frame and self.frame:GetHeight() or 0
+        originalSetText(self, value)
+        local updatedHeight = self.frame and self.frame:GetHeight() or 0
+        if math.abs(updatedHeight - previousHeight) > 0.5 then
+            RequestOwnerRelayout(self._fpOwnerGroup)
+        end
+    end
+
+    -- Re-apply the text after styling so AceGUI recalculates the label height
+    -- using the final font metrics instead of the initial widget default font.
+    label:SetText(text or "")
 
     return label
 end

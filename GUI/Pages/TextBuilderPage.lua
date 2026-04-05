@@ -7,8 +7,8 @@ local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
-local FormElementDefinitions = ns.GUI.Layouts and ns.GUI.Layouts.FormElements
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
+local FormLayoutRuntime = ns.GUI.Helpers and ns.GUI.Helpers.FormLayoutRuntime
 local TextBuilderFormLayout = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.Form
 
 local TextBuilderPage = {}
@@ -32,7 +32,6 @@ local StyleDropdown = function(dropdown)
 end
 local StyleEditBox = FormWidgets.StyleEditBox
 local StyleCheckBox = FormWidgets.StyleCheckBox
-local ApplySectionPadding = FormWidgets.ApplySectionPadding
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
 local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
@@ -160,25 +159,7 @@ local function ResolveItemText(item)
     return item.text or ""
 end
 
-local function BuildSectionChildrenIndex(definitions)
-    local index = {
-        __root = {},
-    }
-
-    for _, definition in ipairs(definitions or {}) do
-        local props = definition.properties or definition
-        local parentKey = props.parentSection or "__root"
-        index[parentKey] = index[parentKey] or {}
-        index[parentKey][#index[parentKey] + 1] = definition
-    end
-
-    return index
-end
-
-local ResolveItemProperties
-
-local function CreateItemWidget(item, state)
-    local props = ResolveItemProperties(item)
+local function CreateItemWidget(group, item, props, state)
     if not props or not props.widget then
         return nil
     end
@@ -247,256 +228,6 @@ local function CreateItemWidget(item, state)
     end
 
     return nil
-end
-
-local function RenderSectionItems(group, definition, state, widgetsById, usageCheckboxes)
-    if not group or not definition or type(definition.items) ~= "table" then
-        return
-    end
-
-    for _, item in ipairs(definition.items) do
-        local widget = CreateItemWidget(item, state)
-        if widget then
-            group:AddChild(widget)
-            if item.hideInitially and widget.frame and widget.frame.Hide then
-                widget.frame:Hide()
-            end
-            if item.id then
-                widgetsById[item.id] = widget
-            end
-            if item.widget == "checkbox" and item.unitKey then
-                usageCheckboxes[item.unitKey] = widget
-            end
-        end
-    end
-end
-
-local function CreateVerticalGroup(spacing)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetFullWidth(true)
-    group:SetLayout("Table")
-    group:SetUserData("table", {
-        columns = {
-            { weight = 1 },
-        },
-        spaceH = 0,
-        spaceV = spacing or 8,
-        align = "TOPLEFT",
-        alignV = "start",
-        alignH = "start",
-    })
-    return group
-end
-
-local function CreateTwoColumnGroup(spacing)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetFullWidth(true)
-    group:SetLayout("Table")
-    group:SetUserData("table", {
-        columns = {
-            { weight = 1 },
-            { weight = 1 },
-        },
-        spaceH = spacing or 24,
-        spaceV = 0,
-        align = "TOPLEFT",
-        alignV = "start",
-        alignH = "start",
-    })
-    return group
-end
-
-local function CreateFourColumnGroup(spacing)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetFullWidth(true)
-    group:SetLayout("Table")
-    group:SetUserData("table", {
-        columns = {
-            { weight = 1 },
-            { weight = 1 },
-            { weight = 1 },
-            { weight = 1 },
-        },
-        spaceH = spacing or 16,
-        spaceV = 0,
-        align = "TOPLEFT",
-        alignV = "start",
-        alignH = "start",
-    })
-    return group
-end
-
-local function CloneLayoutValue(value)
-    if type(value) ~= "table" then
-        return value
-    end
-
-    local copy = {}
-    for key, entry in pairs(value) do
-        copy[key] = CloneLayoutValue(entry)
-    end
-    return copy
-end
-
-local function MergeLayoutValue(target, source)
-    if type(source) ~= "table" then
-        return CloneLayoutValue(source)
-    end
-
-    target = type(target) == "table" and target or {}
-    for key, value in pairs(source) do
-        if type(value) == "table" and type(target[key]) == "table" then
-            target[key] = MergeLayoutValue(target[key], value)
-        else
-            target[key] = CloneLayoutValue(value)
-        end
-    end
-
-    return target
-end
-
-ResolveItemProperties = function(item)
-    if not item then
-        return nil
-    end
-
-    local resolved = {}
-    local widgetKey = item.widget == "computed_label" and "computed_label" or item.widget
-    local itemDefinitions = FormElementDefinitions and FormElementDefinitions.Items and FormElementDefinitions.Items[widgetKey] or nil
-    local variantDefinition = itemDefinitions and itemDefinitions[item.itemVariant] or nil
-
-    if not variantDefinition and item.widget == "computed_label" then
-        itemDefinitions = FormElementDefinitions and FormElementDefinitions.Items and FormElementDefinitions.Items.label or nil
-        variantDefinition = itemDefinitions and itemDefinitions[item.itemVariant] or nil
-    end
-
-    resolved = MergeLayoutValue(resolved, variantDefinition)
-    resolved = MergeLayoutValue(resolved, item)
-
-    return resolved
-end
-
-local function ResolveSectionProperties(definition)
-    local props = definition and (definition.properties or definition) or nil
-    if not props then
-        return nil
-    end
-
-    local resolved = {}
-    local typeDefinitions = FormElementDefinitions and FormElementDefinitions.Sections and FormElementDefinitions.Sections[props.type] or nil
-    local variantDefinition = typeDefinitions and typeDefinitions[props.variant] or nil
-
-    resolved = MergeLayoutValue(resolved, variantDefinition)
-    resolved = MergeLayoutValue(resolved, props)
-
-    return resolved
-end
-
-local function ApplyGroupMinHeight(group, props)
-    local minHeight = props and props.heightInfo and props.heightInfo.min
-    if type(minHeight) ~= "number" or minHeight <= 0 or props.height or props.fullHeight then
-        return
-    end
-
-    if group.GetHeight and group:GetHeight() < minHeight then
-        group:SetHeight(minHeight)
-    end
-
-    local originalLayoutFinished = group.LayoutFinished
-    if type(originalLayoutFinished) ~= "function" then
-        return
-    end
-
-    group.LayoutFinished = function(self, width, height)
-        if self.noAutoHeight then
-            return originalLayoutFinished(self, width, height)
-        end
-
-        local resolvedHeight = height or 0
-        if resolvedHeight < minHeight then
-            resolvedHeight = minHeight
-        end
-
-        return originalLayoutFinished(self, width, resolvedHeight)
-    end
-end
-
-local function CreateLayoutGroup(definition, window)
-    if not definition then
-        return nil
-    end
-
-    local props = ResolveSectionProperties(definition)
-    local widgetType = props.widget or "SimpleGroup"
-    local group
-    if widgetType == "SimpleGroup" then
-        if props.layout == "VerticalGroup" then
-            group = CreateVerticalGroup(props.spacing)
-        elseif props.layout == "TwoColumnGroup" then
-            group = CreateTwoColumnGroup(props.spacing)
-        elseif props.layout == "FourColumnGroup" then
-            group = CreateFourColumnGroup(props.spacing)
-        elseif props.layout == "SimpleGroup" then
-            group = AceGUI:Create("SimpleGroup")
-            group:SetLayout(props.layoutMode or "List")
-        else
-            return nil
-        end
-    else
-        return nil
-    end
-
-    group.Type = props.type
-    group.Variant = props.variant
-
-    if props.fullWidth then
-        group:SetFullWidth(true)
-    end
-    if props.fullHeight then
-        group:SetFullHeight(true)
-    end
-    if props.width then
-        group:SetWidth(props.width)
-    end
-    if props.height then
-        group:SetHeight(props.height)
-    elseif not props.fullHeight and group.SetHeight then
-        group:SetHeight(1)
-    end
-    if props.layoutTable then
-        group:SetUserData("table", props.layoutTable)
-    end
-
-    ApplySectionPadding(group, props.padding)
-
-    ApplyGroupMinHeight(group, props)
-
-    return group
-end
-
-local function CreateLayoutGroups(window, definitions)
-    local groups = {}
-
-    for _, definition in ipairs(definitions or {}) do
-        local group = CreateLayoutGroup(definition, window)
-        if group then
-            groups[definition.section] = group
-        end
-    end
-
-    return groups
-end
-
-local function AssembleLayoutSections(parent, parentSection, definitions, groups, state, widgetsById, childIndex, usageCheckboxes)
-    local children = childIndex[parentSection or "__root"] or {}
-    for _, definition in ipairs(children) do
-        local group = groups[definition.section]
-        if group and parent and parent.AddChild then
-            parent:AddChild(group)
-            RenderSectionItems(group, definition, state, widgetsById, usageCheckboxes)
-            AssembleLayoutSections(group, definition.section, definitions, groups, state, widgetsById, childIndex, usageCheckboxes)
-        end
-    end
 end
 
 local function SyncEditBoxText(context, widget, value, flagName)
@@ -890,12 +621,16 @@ local function RefreshWindowState()
 end
 
 local function CreateWindowContent(window, state)
-    local groups = CreateLayoutGroups(window, TextBuilderFormLayout)
-    local childIndex = BuildSectionChildrenIndex(TextBuilderFormLayout)
-    local widgets = {}
     local usageCheckboxes = {}
-
-    AssembleLayoutSections(window, nil, TextBuilderFormLayout, groups, state, widgets, childIndex, usageCheckboxes)
+    local groups, widgets = FormLayoutRuntime.BuildLayout(window, TextBuilderFormLayout, {
+        state = state,
+        createItemWidget = CreateItemWidget,
+        onWidgetCreated = function(widget, group, item)
+            if item.widget == "checkbox" and item.unitKey then
+                usageCheckboxes[item.unitKey] = widget
+            end
+        end,
+    })
 
     local root = groups.Root
 
@@ -1166,17 +901,6 @@ function TextBuilderPage.HideWindow()
     elseif windowContext.window.frame and windowContext.window.frame.Hide then
         windowContext.window.frame:Hide()
     end
-end
-
-function TextBuilderPage.Build(container, deps)
-    if container and container.ReleaseChildren then
-        container:ReleaseChildren()
-    end
-    if container and container.SetLayout then
-        container:SetLayout("Fill")
-    end
-
-    TextBuilderPage.OpenWindow(deps)
 end
 
 return TextBuilderPage

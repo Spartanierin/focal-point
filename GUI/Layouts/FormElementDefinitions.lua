@@ -17,6 +17,16 @@ Usage:
 - explicit values in layout files override these defaults
 - nested info blocks such as heightInfo are merged, so layout files can add
   derivedFrom notes while shared definitions provide baseline defaults such as min
+
+Form baseline rules:
+1. Every form page has a header section with a page title and page description.
+2. Every section receives a border by default unless it explicitly opts out.
+3. Frame-to-frame section gaps are modeled explicitly with spacer containers, not with parent layout spacing.
+4. Any section that is not marked as a header or footer is treated as a content section.
+5. Every semantic section should expose a section title and a short section description.
+6. Content sections can contain widget groups; widget groups never receive a border by default.
+7. Every widget group owns a structural header, body, and footer. Header and footer may stay empty, but they remain part of the structure.
+8. Sections can explicitly declare whether they belong to a widget group's header, body, or footer.
 ]]
 ns.GUI.Layouts.FormElements = {
     Palette = {
@@ -27,6 +37,7 @@ ns.GUI.Layouts.FormElements = {
             fieldBackground = { 0.10, 0.11, 0.14, 0.96 },
             fieldBorder = { 0.31, 0.34, 0.39, 0.95 },
             accent = { 0.83, 0.70, 0.30, 0.35 },
+            sectionBorder = { 0.31, 0.34, 0.39, 0.70 },
         },
         Buttons = {
             primary = { 0.34, 0.12, 0.12, 0.95 },
@@ -49,17 +60,17 @@ ns.GUI.Layouts.FormElements = {
             window_content = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
-                spacing = 20,
+                spacing = 0,
                 fullWidth = true,
                 fullHeight = true,
             },
             section_stack = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
-                spacing = 6,
+                spacing = 8,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
         },
@@ -67,7 +78,7 @@ ns.GUI.Layouts.FormElements = {
             window_content = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
-                spacing = 14,
+                spacing = 0,
                 fullWidth = true,
                 fullHeight = true,
             },
@@ -80,16 +91,16 @@ ns.GUI.Layouts.FormElements = {
             spacious_info_stack = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
-                spacing = 6,
+                spacing = 8,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             compact_info_stack = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
-                spacing = 11,
+                spacing = 8,
                 heightInfo = {
                     source = "content",
                     min = 80,
@@ -103,7 +114,7 @@ ns.GUI.Layouts.FormElements = {
                 spacing = 4,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             note_text = {
@@ -123,7 +134,7 @@ ns.GUI.Layouts.FormElements = {
                 spacing = 4,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             preview_stack = {
@@ -181,7 +192,7 @@ ns.GUI.Layouts.FormElements = {
                 spacing = 36,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             compact_dual_column = {
@@ -190,7 +201,7 @@ ns.GUI.Layouts.FormElements = {
                 spacing = 20,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             four_column = {
@@ -221,7 +232,7 @@ ns.GUI.Layouts.FormElements = {
                 fullWidth = true,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             compact_form_column = {
@@ -230,7 +241,7 @@ ns.GUI.Layouts.FormElements = {
                 spacing = 6,
                 heightInfo = {
                     source = "content",
-                    min = 100,
+                    min = 85,
                 },
             },
             fixed_list = {
@@ -287,17 +298,17 @@ ns.GUI.Layouts.FormElements = {
             },
         },
     },
-    Items = {
+        Items = {
         label = {
             page_title = {
                 role = "sectionHeader",
-                size = 16,
+                size = 18,
             },
             page_intro = {
                 role = "help",
                 size = 11,
                 colorKey = "description",
-                width = 760,
+                fullWidth = true,
             },
             section_title = {
                 role = "sectionHeader",
@@ -306,6 +317,11 @@ ns.GUI.Layouts.FormElements = {
             section_title_large = {
                 role = "sectionHeader",
                 size = 14,
+            },
+            section_description = {
+                role = "help",
+                size = 10,
+                colorKey = "description",
             },
             description_text = {
                 role = "help",

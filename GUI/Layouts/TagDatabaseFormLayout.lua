@@ -30,6 +30,7 @@ ns.GUI.Layouts.TagDatabase.Form = {
     {
         section = "Root",
         properties = {
+            sectionKind = "root",
             type = "root",
             variant = "scroll_content",
             padding = {
@@ -45,16 +46,40 @@ ns.GUI.Layouts.TagDatabase.Form = {
                 source = "parent",
             },
         },
+        items = {},
+    },
+    {
+        section = "Header",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "header",
+            variant = "compact_info_stack",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 80,
+                derivedFrom = "title + intro + spacing",
+            },
+        },
         items = {
             { id = "title", widget = "label", itemVariant = "page_title", textKey = "INFO_TAG_DATABASE_TITLE", textFallback = "Tag-Datenbank" },
-            { id = "intro", widget = "label", itemVariant = "description_text_body", textKey = "INFO_TAG_DATABASE_DESCRIPTION_SHORT", textFallback = "Tags finden, auswaehlen und ihre Bedeutung direkt nachschlagen." },
-            { id = "topSpacer", widget = "label", itemVariant = "spacer_small", text = " " },
+            { id = "intro", widget = "label", itemVariant = "page_intro", textKey = "INFO_TAG_DATABASE_DESCRIPTION_SHORT", textFallback = "Tags finden, auswaehlen und ihre Bedeutung direkt nachschlagen." },
         },
     },
     {
         section = "ColumnContainer",
         properties = {
             parentSection = "Root",
+            sectionKind = "widget_group",
             type = "column_container",
             variant = "flow_row",
             padding = {
@@ -78,6 +103,7 @@ ns.GUI.Layouts.TagDatabase.Form = {
         section = "LeftColumn",
         properties = {
             parentSection = "ColumnContainer",
+            sectionKind = "widget_group",
             type = "column",
             variant = "fixed_list",
             padding = {
@@ -107,6 +133,7 @@ ns.GUI.Layouts.TagDatabase.Form = {
         section = "RightColumn",
         properties = {
             parentSection = "ColumnContainer",
+            sectionKind = "widget_group",
             type = "column",
             variant = "fixed_list",
             padding = {
@@ -136,6 +163,7 @@ ns.GUI.Layouts.TagDatabase.Form = {
         section = "MiddleSpacer",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "note_block",
             padding = {
@@ -161,6 +189,7 @@ ns.GUI.Layouts.TagDatabase.Form = {
         section = "Footer",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "details_stack",
             padding = {
@@ -197,6 +226,7 @@ ns.GUI.Layouts.TagDatabase.Form = {
         section = "EmptyState",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "note_block",
             padding = {

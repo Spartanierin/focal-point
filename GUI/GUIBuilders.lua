@@ -13,18 +13,12 @@ local L = ns.L
 local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
 local GUIState = ns.GUI.Helpers.GUIState
 local PageDeps = ns.GUI.Helpers.PageDeps
-local TabValues = ns.GUI.Helpers.TabValues
 
 local GetGUIState = GUIState.GetState
 local CreateProfilesDeps = PageDeps.CreateProfilesDeps
 local CreateTagDatabaseDeps = PageDeps.CreateTagDatabaseDeps
 local CreateTextBuilderDeps = PageDeps.CreateTextBuilderDeps
 local CreateEditorDeps = PageDeps.CreateEditorDeps
-
--- Navigation data is built centrally so the tree and tab order stay consistent.
-function B.CreateNavTree()
-    return TabValues.CreateNavTree()
-end
 
 local BuildScrollableTabContent = LayoutHelpers.BuildScrollableTabContent
 

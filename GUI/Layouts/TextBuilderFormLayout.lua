@@ -30,6 +30,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
     {
         section = "Root",
         properties = {
+            sectionKind = "root",
             type = "root",
             variant = "window_content",
             padding = {
@@ -51,6 +52,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "Header",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "header",
             variant = "compact_info_stack",
             padding = {
@@ -70,13 +72,14 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
         items = {
             { id = "title", widget = "label", itemVariant = "page_title", textKey = "INFO_TEXT_BUILDER_TITLE", textFallback = "Text Builder" },
-            { id = "intro", widget = "label", itemVariant = "description_text", textKey = "INFO_TEXT_BUILDER_DESCRIPTION_SHORT", textFallback = "Vorlage bauen, Vorschau pruefen, speichern und anwenden." },
+            { id = "intro", widget = "label", itemVariant = "page_intro", textKey = "INFO_TEXT_BUILDER_DESCRIPTION_SHORT", textFallback = "Vorlage bauen, Vorschau pruefen, speichern und anwenden." },
         },
     },
     {
         section = "Template",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "editor_stack",
             padding = {
@@ -105,6 +108,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "Preview",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "preview_stack",
             padding = {
@@ -132,6 +136,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "Templates",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "editor_stack",
             padding = {
@@ -151,13 +156,14 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
         items = {
             { id = "templatesTitle", widget = "label", itemVariant = "section_title_large", textKey = "INFO_TEXT_BUILDER_TEMPLATES", textFallback = "Vorlagen" },
-            { id = "templatesHint", widget = "label", itemVariant = "field_help", textKey = "INFO_TEXT_BUILDER_TEMPLATES_HINT_SHORT", textFallback = "Gespeicherte Vorlagen verwalten." },
+            { id = "templatesHint", widget = "label", itemVariant = "section_description", textKey = "INFO_TEXT_BUILDER_TEMPLATES_HINT_SHORT", textFallback = "Gespeicherte Vorlagen verwalten." },
         },
     },
     {
         section = "TemplatesColumns",
         properties = {
             parentSection = "Templates",
+            sectionKind = "widget_group",
             type = "column_container",
             variant = "compact_dual_column",
             padding = {
@@ -181,6 +187,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "TemplatesLeftColumn",
         properties = {
             parentSection = "TemplatesColumns",
+            sectionKind = "widget_group",
             type = "column",
             variant = "compact_form_column",
             padding = {
@@ -206,6 +213,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "TemplatesRightColumn",
         properties = {
             parentSection = "TemplatesColumns",
+            sectionKind = "widget_group",
             type = "column",
             variant = "compact_form_column",
             padding = {
@@ -231,6 +239,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "Actions",
         properties = {
             parentSection = "Templates",
+            sectionKind = "widget_group",
             type = "action_row",
             variant = "triple_button",
             padding = {
@@ -258,6 +267,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "TemplatesNote",
         properties = {
             parentSection = "Templates",
+            sectionKind = "section",
             type = "section",
             variant = "note_stack",
             padding = {
@@ -283,6 +293,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "Footer",
         properties = {
             parentSection = "Root",
+            sectionKind = "section",
             type = "section",
             variant = "usage_stack",
             padding = {
@@ -302,7 +313,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
         items = {
             { id = "usageTitle", widget = "label", itemVariant = "section_title_large", textKey = "INFO_TEXT_BUILDER_TEMPLATE_USAGE", textFallback = "Vorlagenverwendung" },
-            { id = "usageHint", widget = "label", itemVariant = "field_help", textKey = "INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT", textFallback = "Auswaehlen, dann Vorlage anwenden." },
+            { id = "usageHint", widget = "label", itemVariant = "section_description", textKey = "INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT", textFallback = "Auswaehlen, dann Vorlage anwenden." },
             { id = "usageLead", widget = "label", itemVariant = "usage_label", textKey = "INFO_TEXT_BUILDER_USAGE_LEAD", textFallback = "Verknuepfte Units" },
         },
     },
@@ -310,6 +321,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "UsageColumns",
         properties = {
             parentSection = "Footer",
+            sectionKind = "widget_group",
             type = "column_container",
             variant = "four_column",
             padding = {
@@ -338,6 +350,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         section = "ApplyRow",
         properties = {
             parentSection = "Footer",
+            sectionKind = "widget_group",
             type = "action_row",
             variant = "single_button",
             padding = {
