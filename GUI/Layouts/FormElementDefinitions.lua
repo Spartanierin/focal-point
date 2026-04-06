@@ -238,10 +238,12 @@ ns.GUI.Layouts.FormElements = {
                 spacing = 0,
                 fullWidth = true,
                 fullHeight = true,
+                border = false,
             },
             scroll_content = {
                 widget = "ScrollFrame",
                 layout = "RootContent",
+                border = false,
             },
         },
         header = {
@@ -543,6 +545,11 @@ ns.GUI.Layouts.FormElements = {
                 size = 12,
                 colorKey = "description",
             },
+            field_label_subtle = {
+                role = "label",
+                size = 11,
+                colorKey = "sectionDescription",
+            },
             status_hint = {
                 role = "help",
                 size = 9,
@@ -587,6 +594,18 @@ ns.GUI.Layouts.FormElements = {
                 role = "highlight",
                 size = 22,
                 colorKey = "valueEmphasis",
+                justifyH = "LEFT",
+            },
+            detail_value_primary = {
+                role = "highlight",
+                size = 24,
+                colorKey = "valueEmphasis",
+                justifyH = "LEFT",
+            },
+            detail_value_secondary = {
+                role = "highlight",
+                size = 20,
+                colorKey = "value",
                 justifyH = "LEFT",
             },
             result_value_hero = {
@@ -665,7 +684,10 @@ ns.GUI.Layouts.FormElements = {
                 fullWidth = true,
                 fieldVariant = "editor_inset",
             },
-            fixed_width_field = {},
+            fixed_width_field = {
+                fullWidth = true,
+                fieldVariant = "editor_inset",
+            },
         },
         editbox = {
             form_field = {

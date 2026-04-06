@@ -102,14 +102,18 @@ local function ApplyHorizontalSizing(group, props)
         return
     end
 
+    if type(props.width) == "number" then
+        if props.fullWidth ~= true then
+            group:SetFullWidth(false)
+        end
+        group:SetWidth(props.width)
+        return
+    end
+
     if props.fullWidth then
         group:SetFullWidth(true)
     elseif props.fullWidth == false then
         group:SetFullWidth(false)
-    end
-
-    if type(props.width) == "number" then
-        group:SetWidth(props.width)
     end
 end
 

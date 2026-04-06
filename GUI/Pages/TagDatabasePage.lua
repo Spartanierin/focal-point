@@ -26,7 +26,9 @@ local windowContext
 
 local CreateBodyText = FormWidgets.CreateBodyText
 local StyleDropdown = FormWidgets.StyleDropdown
+local StyleEditBox = FormWidgets.StyleEditBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
+local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
@@ -132,6 +134,78 @@ local function FocusWindow(window)
     end
 end
 
+local function FocusCopyEditBox(editBox)
+    local input = editBox and editBox.editbox
+    if not input then
+        return
+    end
+
+    if input.SetFocus then
+        input:SetFocus()
+    end
+    if input.HighlightText then
+        input:HighlightText()
+    end
+end
+
+local function EnsureCopyDialog()
+    if windowContext and windowContext.copyDialog and windowContext.copyDialog.window and windowContext.copyDialog.window.frame then
+        return windowContext.copyDialog
+    end
+
+    local dialog = {}
+    local window = AceGUI:Create("Window")
+    window:SetTitle(T("INFO_TAG_DATABASE_COPY_TITLE"))
+    window:SetLayout("Flow")
+    window:SetWidth(420)
+    window:SetHeight(150)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+    end
+
+    ApplyWindowChrome(window)
+    CenterWindow(window)
+
+    local intro = CreateBodyText(
+        T("INFO_TAG_DATABASE_COPY_HINT"),
+        "help",
+        10,
+        ResolveItemColor("description"),
+        nil,
+        true
+    )
+    window:AddChild(intro)
+
+    local editBox = AceGUI:Create("EditBox")
+    editBox:SetLabel(T("INFO_TAG_DATABASE_COPY_VALUE"))
+    editBox:SetFullWidth(true)
+    editBox:DisableButton(true)
+    StyleEditBox(editBox, "editor_inset")
+    window:AddChild(editBox)
+
+    window:SetCallback("OnClose", function(widget)
+        if widget and widget.Hide then
+            widget:Hide()
+        end
+    end)
+
+    dialog.window = window
+    dialog.editBox = editBox
+    windowContext.copyDialog = dialog
+
+    return dialog
+end
+
+local function OpenCopyDialog(tagText)
+    local dialog = EnsureCopyDialog()
+    local value = tagText or ""
+    dialog.editBox:SetText(value)
+    FocusWindow(dialog.window)
+    FocusCopyEditBox(dialog.editBox)
+end
+
 local function ResolveItemText(item)
     if not item then
         return ""
@@ -180,6 +254,10 @@ local function CreateItemWidget(group, item, props)
         return dropdown
     end
 
+    if props.widget == "button" then
+        return CreateActionButton(ResolveItemText(props), props.buttonVariant, props.width, props.fullWidth)
+    end
+
     return nil
 end
 
@@ -204,13 +282,16 @@ local function RefreshWindowState()
     windowContext.categorySelect:SetValue(state.category ~= "" and state.category or nil)
 
     if #tagDatabase == 0 or not defaultCategory then
+        windowContext.selectedTagText = ""
         windowContext.emptyState:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        windowContext.emptyStateGroup.frame:Show()
         windowContext.emptyState.frame:Show()
         windowContext.filtersGroup.frame:Hide()
         windowContext.detailsGroup.frame:Hide()
         return
     end
 
+    windowContext.emptyStateGroup.frame:Hide()
     windowContext.emptyState.frame:Hide()
     windowContext.filtersGroup.frame:Show()
     windowContext.detailsGroup.frame:Show()
@@ -220,10 +301,13 @@ local function RefreshWindowState()
         state.tagIndex = nil
         windowContext.tagSelect:SetList({})
         windowContext.tagSelect:SetValue(nil)
+        windowContext.selectedTagText = ""
         windowContext.tokenValue:SetText("-")
         windowContext.descriptionValue:SetText("-")
         windowContext.exampleValue:SetText("-")
-        windowContext.hintValue:SetText(T("INFO_TAG_DATABASE_USAGE_HINT"))
+        if windowContext.copySelectedTag and windowContext.copySelectedTag.SetDisabled then
+            windowContext.copySelectedTag:SetDisabled(true)
+        end
         return
     end
 
@@ -238,16 +322,23 @@ local function RefreshWindowState()
 
     local entry = entries[selectedIndex]
     if not entry then
+        windowContext.selectedTagText = ""
         windowContext.tokenValue:SetText("-")
         windowContext.descriptionValue:SetText("-")
         windowContext.exampleValue:SetText("-")
+        if windowContext.copySelectedTag and windowContext.copySelectedTag.SetDisabled then
+            windowContext.copySelectedTag:SetDisabled(true)
+        end
         return
     end
 
+    windowContext.selectedTagText = entry.token or ""
     windowContext.tokenValue:SetText(entry.token or "-")
     windowContext.descriptionValue:SetText(T(entry.description, entry.description or "-"))
     windowContext.exampleValue:SetText(entry.example or "-")
-    windowContext.hintValue:SetText(T("INFO_TAG_DATABASE_USAGE_HINT"))
+    if windowContext.copySelectedTag and windowContext.copySelectedTag.SetDisabled then
+        windowContext.copySelectedTag:SetDisabled(windowContext.selectedTagText == "")
+    end
 end
 
 local function CreateWindowContent(window, state)
@@ -258,7 +349,8 @@ local function CreateWindowContent(window, state)
 
     local filtersGroup = groups.ColumnContainer
 
-    local detailsGroup = groups.Footer
+    local detailsGroup = groups.DetailsSection
+    local emptyStateGroup = groups.EmptyState
 
     return {
         window = window,
@@ -266,13 +358,15 @@ local function CreateWindowContent(window, state)
         root = root,
         filtersGroup = filtersGroup,
         detailsGroup = detailsGroup,
+        emptyStateGroup = emptyStateGroup,
         categorySelect = widgets.categorySelect,
         tagSelect = widgets.tagSelect,
         tokenValue = widgets.tokenValue,
         descriptionValue = widgets.descriptionValue,
         exampleValue = widgets.exampleValue,
-        hintValue = widgets.hintValue,
+        copySelectedTag = widgets.copySelectedTag,
         emptyState = widgets.emptyState,
+        selectedTagText = "",
     }
 end
 
@@ -287,13 +381,19 @@ local function WireWindowCallbacks(context)
         context.state.tagIndex = value or "1"
         RefreshWindowState()
     end)
+
+    if context.copySelectedTag then
+        context.copySelectedTag:SetCallback("OnClick", function()
+            OpenCopyDialog(context.selectedTagText)
+        end)
+    end
 end
 
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
     window:SetTitle(T("INFO_TAG_DATABASE_TITLE"))
     window:SetLayout("Fill")
-    window:SetWidth(760)
+    window:SetWidth(820)
     window:SetHeight(540)
     window:EnableResize(false)
 
