@@ -17,18 +17,14 @@ local fallbackRootState = {}
 local windowContext
 
 local CreateBodyText = FormWidgets.CreateBodyText
-local StyleDropdown = function(dropdown)
-    return FormWidgets.StyleDropdown(dropdown, "accented")
-end
+local StyleDropdown = FormWidgets.StyleDropdown
 local StyleEditBox = FormWidgets.StyleEditBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
-local CreateActionButton = function(text, variant)
-    return FormWidgets.CreateActionButton(text, variant)
-end
+local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
-    return (L and L[key]) or fallback
+    return (L and L[key]) or fallback or ""
 end
 
 local function Trim(value)
@@ -147,8 +143,8 @@ local function ResolveItemText(item)
         return ""
     end
 
-    if item.textKey or item.textFallback then
-        return T(item.textKey, item.textFallback or "")
+    if item.textKey then
+        return T(item.textKey)
     end
 
     return item.text or ""
@@ -160,7 +156,7 @@ local function CreateItemWidget(group, item, props, state)
     end
 
     if props.widget == "label" then
-        return CreateBodyText(
+        local label = CreateBodyText(
             ResolveItemText(props),
             props.role or "label",
             props.size or 12,
@@ -168,21 +164,25 @@ local function CreateItemWidget(group, item, props, state)
             props.width,
             props.fullWidth
         )
+        if props.justifyH and label.label and label.label.SetJustifyH then
+            label.label:SetJustifyH(props.justifyH)
+        end
+        return label
     end
 
     if props.widget == "dropdown" then
         local dropdown = AceGUI:Create("Dropdown")
-        dropdown:SetLabel(T(props.labelKey, props.labelFallback or ""))
+        dropdown:SetLabel(T(props.labelKey))
         if props.fullWidth ~= false then
             dropdown:SetFullWidth(true)
         end
-        StyleDropdown(dropdown)
+        StyleDropdown(dropdown, props.fieldVariant or "accented")
         return dropdown
     end
 
     if props.widget == "editbox" then
         local editBox = AceGUI:Create("EditBox")
-        editBox:SetLabel(T(props.labelKey, props.labelFallback or ""))
+        editBox:SetLabel(T(props.labelKey))
         if props.fullWidth ~= false then
             editBox:SetFullWidth(true)
         end
@@ -191,12 +191,12 @@ local function CreateItemWidget(group, item, props, state)
         end
         local text = props.stateKey and state and state[props.stateKey] or props.text or ""
         editBox:SetText(text)
-        StyleEditBox(editBox)
+        StyleEditBox(editBox, props.fieldVariant)
         return editBox
     end
 
     if props.widget == "button" then
-        return CreateActionButton(ResolveItemText(props), props.buttonVariant)
+        return CreateActionButton(ResolveItemText(props), props.buttonVariant, props.width, props.fullWidth)
     end
 
     return nil
@@ -237,7 +237,7 @@ local function RefreshWindowState()
     local state = context.state or {}
 
     if not db then
-        context.activeProfileValue:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        context.activeProfileValue:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.profileSelect:SetList({})
         SyncDropdownValue(context, nil)
         context.profileSelect:SetDisabled(true)
@@ -247,8 +247,8 @@ local function RefreshWindowState()
         context.createButton:SetDisabled(true)
         context.resetButton:SetDisabled(true)
         context.deleteButton:SetDisabled(true)
-        context.sourceState:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
-        context.maintenanceHint:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        context.sourceState:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        context.maintenanceHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
         if context.window and context.window.DoLayout then
             context.window:DoLayout()
         end
@@ -286,11 +286,11 @@ local function RefreshWindowState()
     if hasSelectedProfile then
         context.sourceState:SetText(string.format(
             "%s: %s",
-            T("INFO_PROFILES_SELECTED_SOURCE_SHORT", "Ausgewaehlt"),
+            T("INFO_PROFILES_SELECTED_SOURCE_SHORT"),
             selectedProfile
         ))
     else
-        context.sourceState:SetText(T("INFO_PROFILES_SOURCE_SUMMARY_NONE", "Keine Quelle ausgewaehlt"))
+        context.sourceState:SetText(T("INFO_PROFILES_SOURCE_SUMMARY_NONE"))
     end
 
     if sameAsCurrent or not hasSelectedProfile then
@@ -301,7 +301,7 @@ local function RefreshWindowState()
     else
         context.maintenanceHint:SetText(string.format(
             "%s %s",
-            T("INFO_PROFILES_MAINTENANCE_TARGET_SHORT", "Loeschen betrifft:"),
+            T("INFO_PROFILES_MAINTENANCE_TARGET_SHORT"),
             selectedProfile
         ))
     end
@@ -401,7 +401,7 @@ local function WireWindowCallbacks(context)
         RebuildFramesForProfile()
         RefreshProfileUI()
         RefreshWindowState()
-        SetStatus((T("INFO_PROFILES_STATUS_ACTIVATED", "Profil aktiviert:")) .. " " .. profileName)
+        SetStatus((T("INFO_PROFILES_STATUS_ACTIVATED")) .. " " .. profileName)
     end)
 
     context.copyButton:SetCallback("OnClick", function()
@@ -416,7 +416,7 @@ local function WireWindowCallbacks(context)
         end
 
         if profileName == db:GetCurrentProfile() then
-            SetStatus(T("INFO_PROFILES_STATUS_COPY_SAME", "Quelle und aktives Profil sind identisch."))
+            SetStatus(T("INFO_PROFILES_STATUS_COPY_SAME"))
             return
         end
 
@@ -424,7 +424,7 @@ local function WireWindowCallbacks(context)
         RebuildFramesForProfile()
         RefreshProfileUI()
         RefreshWindowState()
-        SetStatus((T("INFO_PROFILES_STATUS_COPIED", "Profil uebernommen:")) .. " " .. profileName)
+        SetStatus((T("INFO_PROFILES_STATUS_COPIED")) .. " " .. profileName)
     end)
 
     context.deleteButton:SetCallback("OnClick", function()
@@ -442,7 +442,7 @@ local function WireWindowCallbacks(context)
         context.state.selectedProfile = db:GetCurrentProfile()
         RefreshProfileUI()
         RefreshWindowState()
-        SetStatus((T("INFO_PROFILES_STATUS_DELETED", "Profil geloescht:")) .. " " .. profileName)
+        SetStatus((T("INFO_PROFILES_STATUS_DELETED")) .. " " .. profileName)
     end)
 
     context.resetButton:SetCallback("OnClick", function()
@@ -460,7 +460,7 @@ local function WireWindowCallbacks(context)
         RebuildFramesForProfile()
         RefreshProfileUI()
         RefreshWindowState()
-        SetStatus((T("INFO_PROFILES_STATUS_RESET", "Profil zurueckgesetzt:")) .. " " .. currentProfile)
+        SetStatus((T("INFO_PROFILES_STATUS_RESET")) .. " " .. currentProfile)
     end)
 
     context.createButton:SetCallback("OnClick", function()
@@ -480,13 +480,13 @@ local function WireWindowCallbacks(context)
         RebuildFramesForProfile()
         RefreshProfileUI()
         RefreshWindowState()
-        SetStatus((T("INFO_PROFILES_STATUS_CREATED", "Profil erstellt:")) .. " " .. profileName)
+        SetStatus((T("INFO_PROFILES_STATUS_CREATED")) .. " " .. profileName)
     end)
 end
 
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
-    window:SetTitle(T("NAV_PROFILES", "Profile"))
+    window:SetTitle(T("NAV_PROFILES"))
     window:SetLayout("Fill")
     window:SetWidth(760)
     window:SetHeight(520)

@@ -97,6 +97,22 @@ local function CreateSimpleListGroup()
     return group
 end
 
+local function ApplyHorizontalSizing(group, props)
+    if not group or type(props) ~= "table" then
+        return
+    end
+
+    if props.fullWidth then
+        group:SetFullWidth(true)
+    elseif props.fullWidth == false then
+        group:SetFullWidth(false)
+    end
+
+    if type(props.width) == "number" then
+        group:SetWidth(props.width)
+    end
+end
+
 -- Section gaps are modeled as dedicated spacer containers instead of using the
 -- parent layout spacing. This keeps "frame-to-frame" distance explicit and
 -- separate from:
@@ -387,6 +403,8 @@ function FormLayoutRuntime.CreateLayoutGroup(host, definition)
             concreteGroup:SetUserData("table", groupProps.layoutTable)
         end
 
+        ApplyHorizontalSizing(concreteGroup, groupProps)
+
         return concreteGroup
     end
 
@@ -433,14 +451,9 @@ function FormLayoutRuntime.CreateLayoutGroup(host, definition)
     group.StructureSlot = props.structureSlot
     group.Structure = props.structure
 
-    if props.fullWidth then
-        group:SetFullWidth(true)
-    end
+    ApplyHorizontalSizing(group, props)
     if props.fullHeight then
         group:SetFullHeight(true)
-    end
-    if props.width then
-        group:SetWidth(props.width)
     end
     if props.height then
         group:SetHeight(props.height)
@@ -449,9 +462,18 @@ function FormLayoutRuntime.CreateLayoutGroup(host, definition)
     end
     local formWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
     local applySectionBorder = formWidgets and formWidgets.ApplySectionBorder
+    local applySectionSurface = formWidgets and formWidgets.ApplySectionSurface
     local applySectionPadding = formWidgets and formWidgets.ApplySectionPadding
+    local resolveSectionStyle = formWidgets and formWidgets.ResolveSectionStyle
+    local sectionStyle = resolveSectionStyle and resolveSectionStyle(props.surfaceStyle) or nil
+    if applySectionSurface then
+        applySectionSurface(group, sectionStyle)
+    end
     if applySectionBorder then
         local border = props.border
+        if border == nil and sectionStyle and sectionStyle.border ~= nil then
+            border = sectionStyle.border
+        end
         if border == nil and IsWidgetGroupKind(props.sectionKind) then
             border = false
         end

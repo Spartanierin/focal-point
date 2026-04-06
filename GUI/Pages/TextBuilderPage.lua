@@ -16,20 +16,21 @@ ns.GUI.Pages.TextBuilder = TextBuilderPage
 
 local DEFAULT_TEMPLATE = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%"
 local TEMPLATE_EXAMPLE = DEFAULT_TEMPLATE
-local UNIT_KEYS = {
+local UNIT_KEYS = C.UnitOrder or {
     C.Units.PLAYER,
     C.Units.TARGET,
-    C.Units.FOCUS,
+    C.Units.TARGETTARGET,
     C.Units.PET,
+    C.Units.FOCUS,
+    C.Units.FOCUSTARGET,
+    C.Units.BOSS,
 }
 
 local fallbackRootState = {}
 local windowContext
 
 local CreateBodyText = FormWidgets.CreateBodyText
-local StyleDropdown = function(dropdown)
-    return FormWidgets.StyleDropdown(dropdown, "accented")
-end
+local StyleDropdown = FormWidgets.StyleDropdown
 local StyleEditBox = FormWidgets.StyleEditBox
 local StyleCheckBox = FormWidgets.StyleCheckBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
@@ -37,7 +38,7 @@ local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
-    return (L and L[key]) or fallback
+    return (L and L[key]) or fallback or ""
 end
 
 local function Trim(value)
@@ -73,17 +74,10 @@ local function GetTextBuilderState(deps)
     end
 
     state.applyUnits = state.applyUnits or {}
-    if state.applyUnits[C.Units.PLAYER] == nil then
-        state.applyUnits[C.Units.PLAYER] = true
-    end
-    if state.applyUnits[C.Units.TARGET] == nil then
-        state.applyUnits[C.Units.TARGET] = false
-    end
-    if state.applyUnits[C.Units.FOCUS] == nil then
-        state.applyUnits[C.Units.FOCUS] = false
-    end
-    if state.applyUnits[C.Units.PET] == nil then
-        state.applyUnits[C.Units.PET] = false
+    for index, unitKey in ipairs(UNIT_KEYS) do
+        if state.applyUnits[unitKey] == nil then
+            state.applyUnits[unitKey] = index == 1
+        end
     end
 
     return state
@@ -149,11 +143,11 @@ local function ResolveItemText(item)
     end
 
     if item.builder == "templateExample" then
-        return (T("INFO_TEXT_BUILDER_TEMPLATE_EXAMPLE", "Beispiel:") .. " " .. TEMPLATE_EXAMPLE)
+        return (T("INFO_TEXT_BUILDER_TEMPLATE_EXAMPLE") .. " " .. TEMPLATE_EXAMPLE)
     end
 
-    if item.textKey or item.textFallback then
-        return T(item.textKey, item.textFallback or "")
+    if item.textKey then
+        return T(item.textKey)
     end
 
     return item.text or ""
@@ -184,18 +178,18 @@ local function CreateItemWidget(group, item, props, state)
         if props.label ~= nil then
             dropdown:SetLabel(props.label)
         else
-            dropdown:SetLabel(T(props.labelKey, props.labelFallback or ""))
+            dropdown:SetLabel(T(props.labelKey))
         end
         if props.fullWidth ~= false then
             dropdown:SetFullWidth(true)
         end
-        StyleDropdown(dropdown)
+        StyleDropdown(dropdown, props.fieldVariant or "accented")
         return dropdown
     end
 
     if props.widget == "editbox" then
         local editBox = AceGUI:Create("EditBox")
-        editBox:SetLabel(T(props.labelKey, props.labelFallback or ""))
+        editBox:SetLabel(T(props.labelKey))
         if props.fullWidth ~= false then
             editBox:SetFullWidth(true)
         end
@@ -207,7 +201,7 @@ local function CreateItemWidget(group, item, props, state)
             text = NormalizeTemplateInput(text)
         end
         editBox:SetText(text)
-        StyleEditBox(editBox)
+        StyleEditBox(editBox, props.fieldVariant)
         return editBox
     end
 
@@ -217,7 +211,10 @@ local function CreateItemWidget(group, item, props, state)
 
     if props.widget == "checkbox" then
         local checkbox = AceGUI:Create("CheckBox")
-        if props.fullWidth ~= false then
+        if type(props.width) == "number" then
+            checkbox:SetFullWidth(false)
+            checkbox:SetWidth(props.width)
+        elseif props.fullWidth ~= false then
             checkbox:SetFullWidth(true)
         end
         checkbox:SetLabel(ns.GetLabel and ns.GetLabel(KM.Units, props.unitKey) or props.unitKey or "")
@@ -246,12 +243,10 @@ local function SyncEditBoxText(context, widget, value, flagName)
 end
 
 local function GetTemplateUsageCounts(templateName)
-    local usage = {
-        [C.Units.PLAYER] = 0,
-        [C.Units.TARGET] = 0,
-        [C.Units.FOCUS] = 0,
-        [C.Units.PET] = 0,
-    }
+    local usage = {}
+    for _, unitKey in ipairs(UNIT_KEYS) do
+        usage[unitKey] = 0
+    end
 
     if type(templateName) ~= "string" or templateName == "" then
         return usage
@@ -511,7 +506,7 @@ local function ApplyTemplateToTextElement(context)
     end
 
     if #unitsToAdd == 0 and #unitsToRemove == 0 then
-        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT", "Select at least one unit."))
+        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT"))
         return
     end
 
@@ -539,10 +534,10 @@ local function ApplyTemplateToTextElement(context)
 
     local statusParts = {}
     if #appliedEntries > 0 then
-        statusParts[#statusParts + 1] = (T("INFO_TEXT_BUILDER_STATUS_APPLIED_TO", "Applied to") .. ": " .. table.concat(appliedEntries, ", "))
+        statusParts[#statusParts + 1] = (T("INFO_TEXT_BUILDER_STATUS_APPLIED_TO") .. ": " .. table.concat(appliedEntries, ", "))
     end
     if #removedEntries > 0 then
-        statusParts[#statusParts + 1] = (T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_UNLINKED", "Template unlinked from") .. ": " .. table.concat(removedEntries, ", "))
+        statusParts[#statusParts + 1] = (T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_UNLINKED") .. ": " .. table.concat(removedEntries, ", "))
     end
 
     local statusText = table.concat(statusParts, " | ")
@@ -550,7 +545,7 @@ local function ApplyTemplateToTextElement(context)
         statusText = statusText .. " (" .. linkedTemplateName .. ")"
     end
     if statusText == "" then
-        statusText = T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT", "Select at least one unit.")
+        statusText = T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT")
     end
 
     SetStatus(statusText)
@@ -568,7 +563,7 @@ local function RefreshWindowState()
     if not hasDB then
         context.templateEdit:SetDisabled(true)
         context.updateButton:SetDisabled(true)
-        context.previewValue:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        context.previewValue:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.templateSelect:SetList({})
         context.templateSelect:SetDisabled(true)
         context.templateNameEdit:SetDisabled(true)
@@ -576,8 +571,8 @@ local function RefreshWindowState()
         context.saveButton:SetDisabled(true)
         context.updateTemplateButton:SetDisabled(true)
         context.applyTemplateButton:SetDisabled(true)
-        context.libraryHint:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
-        context.usageHint:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        context.libraryHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        context.usageHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
         for _, checkbox in pairs(context.usageCheckboxes or {}) do
             checkbox:SetDisabled(true)
             checkbox:SetValue(false)
@@ -598,8 +593,8 @@ local function RefreshWindowState()
     context.templateNameEdit:SetDisabled(false)
     SyncEditBoxText(context, context.templateNameEdit, context.state.templateName or "", "suspendTemplateNameCallbacks")
 
-    context.libraryHint:SetText(T("INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT", "Vorlagen sichern, aktualisieren oder entfernen."))
-    context.usageHint:SetText(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT", "Auswaehlen, dann Vorlage anwenden."))
+    context.libraryHint:SetText(T("INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT"))
+    context.usageHint:SetText(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT"))
 
     local hasSelectedTemplate = type(context.state.selectedTemplate) == "string" and context.state.selectedTemplate ~= ""
     local hasTemplateName = Trim(context.templateNameEdit:GetText() or "") ~= ""
@@ -772,7 +767,7 @@ local function WireWindowCallbacks(context)
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
         if name == "" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED", "Please enter a template name."))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"))
             return
         end
 
@@ -782,7 +777,7 @@ local function WireWindowCallbacks(context)
         context.state.template = template
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED", "Template saved:")) .. " " .. name)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name)
     end)
 
     context.updateTemplateButton:SetCallback("OnClick", function()
@@ -792,17 +787,17 @@ local function WireWindowCallbacks(context)
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE", "Select a saved template first."))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
             return
         end
 
         if updatedName == "" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED", "Please enter a template name."))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"))
             return
         end
 
         if updatedName ~= selectedName and type(templates[updatedName]) == "string" then
-            SetStatus((T("INFO_TEXT_BUILDER_STATUS_NAME_EXISTS", "A template with this name already exists:")) .. " " .. updatedName)
+            SetStatus((T("INFO_TEXT_BUILDER_STATUS_NAME_EXISTS")) .. " " .. updatedName)
             return
         end
 
@@ -815,7 +810,7 @@ local function WireWindowCallbacks(context)
             context.state.template = template
             RefreshTemplateDropdown(context)
             RefreshWindowState()
-            SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED", "Template updated:")) .. " " .. updatedName)
+            SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. updatedName)
             return
         end
 
@@ -824,7 +819,7 @@ local function WireWindowCallbacks(context)
         context.state.templateName = selectedName
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED", "Template updated:")) .. " " .. selectedName)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName)
     end)
 
     context.deleteTemplateButton:SetCallback("OnClick", function()
@@ -832,7 +827,7 @@ local function WireWindowCallbacks(context)
         local selectedName = context.state.selectedTemplate or ""
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE", "Select a saved template first."))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
             return
         end
 
@@ -841,7 +836,7 @@ local function WireWindowCallbacks(context)
         context.state.templateName = ""
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED", "Template deleted:")) .. " " .. selectedName)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. selectedName)
     end)
 
     context.applyTemplateButton:SetCallback("OnClick", function()
@@ -851,10 +846,10 @@ end
 
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
-    window:SetTitle(T("INFO_TEXT_BUILDER_TITLE", "Text Builder"))
+    window:SetTitle(T("INFO_TEXT_BUILDER_TITLE"))
     window:SetLayout("Fill")
-    window:SetWidth(980)
-    window:SetHeight(660)
+    window:SetWidth(1040)
+    window:SetHeight(700)
     window:EnableResize(false)
 
     if window.frame then

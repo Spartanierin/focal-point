@@ -31,28 +31,185 @@ Form baseline rules:
 ns.GUI.Layouts.FormElements = {
     Palette = {
         Chrome = {
-            panelBackground = { 0.07, 0.08, 0.10, 0.90 },
-            panelBorder = { 1.00, 1.00, 1.00, 1.00 },
-            panelHeader = { 0.10, 0.11, 0.14, 0.70 },
+            panelBackground = { 0.06, 0.07, 0.09, 0.94 },
+            panelBorder = { 0.42, 0.38, 0.26, 0.92 },
+            panelInnerBorder = { 0.18, 0.20, 0.24, 0.92 },
+            panelHeader = { 0.11, 0.12, 0.15, 0.82 },
+            panelTopShade = { 1.00, 1.00, 1.00, 0.05 },
+            panelBottomShade = { 0.00, 0.00, 0.00, 0.42 },
             fieldBackground = { 0.10, 0.11, 0.14, 0.96 },
             fieldBorder = { 0.31, 0.34, 0.39, 0.95 },
-            accent = { 0.83, 0.70, 0.30, 0.35 },
-            sectionBorder = { 0.31, 0.34, 0.39, 0.70 },
-        },
-        Buttons = {
-            primary = { 0.34, 0.12, 0.12, 0.95 },
-            pressed = { 0.23, 0.08, 0.08, 0.98 },
-            highlight = { 0.48, 0.18, 0.18, 0.95 },
-            disabled = { 0.19, 0.12, 0.12, 0.90 },
-            text = { 0.95, 0.91, 0.88, 1.00 },
+            fieldBorderFocus = { 0.74, 0.61, 0.26, 0.95 },
+            fieldInsetTop = { 1.00, 1.00, 1.00, 0.04 },
+            fieldInsetBottom = { 0.00, 0.00, 0.00, 0.28 },
+            accent = { 0.83, 0.70, 0.30, 0.22 },
+            sectionBorder = { 0.30, 0.33, 0.38, 0.56 },
+            sectionFill = { 0.09, 0.10, 0.12, 0.52 },
+            sectionFillStrong = { 0.11, 0.12, 0.15, 0.66 },
+            sectionInsetTop = { 1.00, 1.00, 1.00, 0.035 },
+            sectionInsetBottom = { 0.00, 0.00, 0.00, 0.26 },
+            sectionAccent = { 0.83, 0.70, 0.30, 0.26 },
+            headerAccent = { 0.90, 0.78, 0.34, 0.42 },
+            workspaceDivider = { 0.34, 0.37, 0.42, 0.24 },
         },
         ItemColors = {
+            pageIntro = { 0.78, 0.75, 0.69, 1.00 },
             description = { 0.68, 0.70, 0.75 },
+            sectionDescription = { 0.65, 0.67, 0.72, 1.00 },
             hint = { 0.70, 0.73, 0.78 },
+            statusMuted = { 0.58, 0.61, 0.66, 1.00 },
             footerHint = { 0.62, 0.65, 0.70 },
+            footerMuted = { 0.52, 0.55, 0.60, 1.00 },
             value = { 0.93, 0.90, 0.80 },
+            valueEmphasis = { 0.97, 0.95, 0.91, 1.00 },
             checkbox = { 0.94, 0.90, 0.82, 1.00 },
             checkboxDisabled = { 0.50, 0.50, 0.50, 1.00 },
+        },
+    },
+    SectionStyles = {
+        page_header = {
+            border = {
+                color = { 0.40, 0.36, 0.24, 0.72 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.12, 0.13, 0.16, 0.70 },
+                topShade = { 1.00, 1.00, 1.00, 0.04 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.28 },
+                accent = {
+                    color = { 0.90, 0.78, 0.34, 0.40 },
+                    edge = "bottom",
+                    thickness = 1,
+                    insetLeft = 10,
+                    insetRight = 10,
+                },
+            },
+        },
+        status_panel = {
+            border = {
+                color = { 0.37, 0.35, 0.25, 0.54 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.10, 0.11, 0.13, 0.58 },
+                topShade = { 1.00, 1.00, 1.00, 0.03 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.24 },
+                accent = {
+                    color = { 0.86, 0.74, 0.30, 0.18 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 10,
+                    insetRight = 10,
+                },
+            },
+        },
+        section_panel = {
+            border = {
+                color = { 0.30, 0.33, 0.38, 0.58 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.09, 0.10, 0.12, 0.48 },
+                topShade = { 1.00, 1.00, 1.00, 0.03 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.24 },
+            },
+        },
+        result_panel = {
+            border = {
+                color = { 0.41, 0.37, 0.25, 0.68 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.11, 0.12, 0.15, 0.62 },
+                topShade = { 1.00, 1.00, 1.00, 0.04 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.28 },
+                accent = {
+                    color = { 0.88, 0.76, 0.31, 0.24 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 10,
+                    insetRight = 10,
+                },
+            },
+        },
+        workspace_split = {
+            border = false,
+            surface = {
+                divider = {
+                    mode = "center_vertical",
+                    color = { 0.34, 0.37, 0.42, 0.24 },
+                    thickness = 1,
+                    insetTop = 12,
+                    insetBottom = 12,
+                },
+            },
+        },
+    },
+    ButtonStyles = {
+        primary = {
+            sidebarVariant = "primary",
+            height = 24,
+            textRole = "label",
+            textColor = { 0.96, 0.92, 0.84, 1.00 },
+            normal = { 0.42, 0.29, 0.10, 0.98 },
+            pushed = { 0.29, 0.20, 0.08, 0.98 },
+            highlight = { 0.56, 0.39, 0.14, 0.98 },
+            disabled = { 0.18, 0.15, 0.11, 0.82 },
+        },
+        secondary = {
+            sidebarVariant = "secondary",
+            height = 22,
+            textRole = "label",
+            textColor = { 0.87, 0.89, 0.92, 1.00 },
+            normal = { 0.16, 0.18, 0.21, 0.96 },
+            pushed = { 0.11, 0.13, 0.16, 0.98 },
+            highlight = { 0.24, 0.27, 0.31, 0.98 },
+            disabled = { 0.11, 0.12, 0.14, 0.82 },
+        },
+        danger = {
+            sidebarVariant = "danger",
+            height = 22,
+            textRole = "danger",
+            textColor = { 0.95, 0.88, 0.88, 1.00 },
+            normal = { 0.41, 0.07, 0.07, 0.98 },
+            pushed = { 0.27, 0.04, 0.04, 0.98 },
+            highlight = { 0.56, 0.10, 0.10, 0.98 },
+            disabled = { 0.17, 0.08, 0.08, 0.82 },
+        },
+    },
+    FieldStyles = {
+        accented = {
+            background = { 0.10, 0.11, 0.14, 0.96 },
+            border = { 0.31, 0.34, 0.39, 0.95 },
+            borderFocus = { 0.48, 0.18, 0.18, 0.95 },
+            valueColor = { 0.93, 0.90, 0.80, 1.00 },
+            buttonNormal = { 0.31, 0.34, 0.39, 0.95 },
+            buttonPushed = { 0.23, 0.08, 0.08, 0.98 },
+            buttonHighlight = { 0.48, 0.18, 0.18, 0.95 },
+        },
+        neutral = {
+            background = { 0.10, 0.11, 0.14, 0.96 },
+            border = { 0.31, 0.34, 0.39, 0.95 },
+            borderFocus = { 0.44, 0.47, 0.52, 0.95 },
+            valueColor = { 0.93, 0.90, 0.80, 1.00 },
+            buttonNormal = { 0.31, 0.34, 0.39, 0.95 },
+            buttonPushed = { 0.31, 0.34, 0.39, 0.95 },
+            buttonHighlight = { 0.31, 0.34, 0.39, 0.95 },
+        },
+        editor_inset = {
+            background = { 0.07, 0.08, 0.10, 0.98 },
+            border = { 0.31, 0.29, 0.20, 0.92 },
+            borderFocus = { 0.74, 0.61, 0.26, 0.95 },
+            valueColor = { 0.95, 0.93, 0.89, 1.00 },
+            buttonNormal = { 0.31, 0.29, 0.20, 0.92 },
+            buttonPushed = { 0.23, 0.18, 0.08, 0.98 },
+            buttonHighlight = { 0.46, 0.36, 0.14, 0.98 },
+            insetTop = { 1.00, 1.00, 1.00, 0.04 },
+            insetBottom = { 0.00, 0.00, 0.00, 0.30 },
         },
     },
     Sections = {
@@ -88,22 +245,13 @@ ns.GUI.Layouts.FormElements = {
             },
         },
         header = {
-            spacious_info_stack = {
+            page_header = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
                 spacing = 8,
                 heightInfo = {
                     source = "content",
                     min = 85,
-                },
-            },
-            compact_info_stack = {
-                widget = "SimpleGroup",
-                layout = "VerticalGroup",
-                spacing = 8,
-                heightInfo = {
-                    source = "content",
-                    min = 80,
                 },
             },
         },
@@ -146,13 +294,40 @@ ns.GUI.Layouts.FormElements = {
                     min = 80,
                 },
             },
-            usage_stack = {
+            compact_input_stack = {
+                widget = "SimpleGroup",
+                layout = "VerticalGroup",
+                spacing = 2,
+                heightInfo = {
+                    source = "content",
+                    min = 72,
+                },
+            },
+            management_stack = {
                 widget = "SimpleGroup",
                 layout = "VerticalGroup",
                 spacing = 4,
                 heightInfo = {
                     source = "content",
-                    min = 120,
+                    min = 84,
+                },
+            },
+            result_stack = {
+                widget = "SimpleGroup",
+                layout = "VerticalGroup",
+                spacing = 3,
+                heightInfo = {
+                    source = "content",
+                    min = 68,
+                },
+            },
+            usage_stack = {
+                widget = "SimpleGroup",
+                layout = "VerticalGroup",
+                spacing = 3,
+                heightInfo = {
+                    source = "content",
+                    min = 96,
                 },
             },
             note_stack = {
@@ -198,7 +373,7 @@ ns.GUI.Layouts.FormElements = {
             compact_dual_column = {
                 widget = "SimpleGroup",
                 layout = "TwoColumnGroup",
-                spacing = 20,
+                spacing = 16,
                 heightInfo = {
                     source = "content",
                     min = 85,
@@ -207,7 +382,7 @@ ns.GUI.Layouts.FormElements = {
             four_column = {
                 widget = "SimpleGroup",
                 layout = "FourColumnGroup",
-                spacing = 16,
+                spacing = 10,
                 heightInfo = {
                     source = "content",
                     min = 28,
@@ -298,9 +473,13 @@ ns.GUI.Layouts.FormElements = {
             },
         },
     },
-        Items = {
+    Items = {
         label = {
             page_title = {
+                role = "sectionHeader",
+                size = 18,
+            },
+            page_title_hero = {
                 role = "sectionHeader",
                 size = 18,
             },
@@ -308,6 +487,18 @@ ns.GUI.Layouts.FormElements = {
                 role = "help",
                 size = 11,
                 colorKey = "description",
+                fullWidth = true,
+            },
+            page_intro_soft = {
+                role = "help",
+                size = 11,
+                colorKey = "pageIntro",
+                fullWidth = true,
+            },
+            example_text_muted = {
+                role = "help",
+                size = 9,
+                colorKey = "footerMuted",
                 fullWidth = true,
             },
             section_title = {
@@ -318,10 +509,19 @@ ns.GUI.Layouts.FormElements = {
                 role = "sectionHeader",
                 size = 14,
             },
+            group_title = {
+                role = "sectionHeader",
+                size = 13,
+            },
             section_description = {
                 role = "help",
                 size = 10,
                 colorKey = "description",
+            },
+            group_description = {
+                role = "help",
+                size = 10,
+                colorKey = "sectionDescription",
             },
             description_text = {
                 role = "help",
@@ -348,10 +548,25 @@ ns.GUI.Layouts.FormElements = {
                 size = 9,
                 colorKey = "hint",
             },
+            status_hint_subtle = {
+                role = "help",
+                size = 8,
+                colorKey = "statusMuted",
+            },
             footer_hint = {
                 role = "help",
                 size = 8,
                 colorKey = "footerHint",
+            },
+            footer_hint_muted = {
+                role = "help",
+                size = 8,
+                colorKey = "footerMuted",
+            },
+            preview_hint_subtle = {
+                role = "help",
+                size = 9,
+                colorKey = "sectionDescription",
             },
             hint_text = {
                 role = "help",
@@ -367,6 +582,18 @@ ns.GUI.Layouts.FormElements = {
                 role = "highlight",
                 size = 18,
                 colorKey = "value",
+            },
+            status_value = {
+                role = "highlight",
+                size = 22,
+                colorKey = "valueEmphasis",
+                justifyH = "LEFT",
+            },
+            result_value_hero = {
+                role = "highlight",
+                size = 24,
+                colorKey = "valueEmphasis",
+                justifyH = "LEFT",
             },
             value_display_large = {
                 role = "highlight",
@@ -408,10 +635,19 @@ ns.GUI.Layouts.FormElements = {
                 size = 10,
                 colorKey = "hint",
             },
+            example_text_muted = {
+                role = "help",
+                size = 9,
+                colorKey = "footerMuted",
+                fullWidth = true,
+            },
         },
         button = {
             primary_action = {
                 buttonVariant = "primary",
+            },
+            secondary_action = {
+                buttonVariant = "secondary",
             },
             danger_action = {
                 buttonVariant = "danger",
@@ -421,6 +657,14 @@ ns.GUI.Layouts.FormElements = {
             form_field = {
                 fullWidth = true,
             },
+            profile_field = {
+                fullWidth = true,
+                fieldVariant = "editor_inset",
+            },
+            builder_field = {
+                fullWidth = true,
+                fieldVariant = "editor_inset",
+            },
             fixed_width_field = {},
         },
         editbox = {
@@ -428,9 +672,30 @@ ns.GUI.Layouts.FormElements = {
                 fullWidth = true,
                 disableButton = true,
             },
+            profile_field = {
+                fullWidth = true,
+                disableButton = true,
+                fieldVariant = "editor_inset",
+            },
+            builder_field = {
+                fullWidth = true,
+                disableButton = true,
+                fieldVariant = "editor_inset",
+            },
         },
         checkbox = {
             unit_toggle = {
+                checked = false,
+                disabled = true,
+                fullWidth = true,
+            },
+            usage_toggle = {
+                checked = false,
+                disabled = true,
+                fullWidth = false,
+                width = 160,
+            },
+            usage_toggle_grid = {
                 checked = false,
                 disabled = true,
                 fullWidth = true,

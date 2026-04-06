@@ -60,7 +60,8 @@ ns.GUI.Layouts.Profile.Form = {
             parentSection = "Root",
             sectionKind = "section",
             type = "header",
-            variant = "spacious_info_stack",
+            variant = "page_header",
+            surfaceStyle = "page_header",
             padding = {
                 left = 10,
                 right = 10,
@@ -79,8 +80,8 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "title", widget = "label", itemVariant = "page_title", textKey = "NAV_PROFILES", textFallback = "Profile" },
-            { id = "intro", widget = "label", itemVariant = "page_intro", textKey = "INFO_PROFILES_DESCRIPTION_SHORT", textFallback = "Aktives Profil sehen, Quelle uebernehmen oder ein neues Profil anlegen." },
+            { id = "title", widget = "label", itemVariant = "page_title_hero", textKey = "NAV_PROFILES" },
+            { id = "intro", widget = "label", itemVariant = "page_intro_soft", textKey = "INFO_PROFILES_DESCRIPTION_SHORT" },
         },
     },
     {
@@ -90,6 +91,7 @@ ns.GUI.Layouts.Profile.Form = {
             sectionKind = "section",
             type = "info_block",
             variant = "key_value",
+            surfaceStyle = "status_panel",
             padding = {
                 left = 10,
                 right = 10,
@@ -108,8 +110,8 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "activeProfileLabel", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_CURRENT_ACTIVE", textFallback = "Aktives Profil" },
-            { id = "activeProfileValue", widget = "label", itemVariant = "value_display", text = "" },
+            { id = "activeProfileLabel", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_CURRENT_ACTIVE" },
+            { id = "activeProfileValue", widget = "label", itemVariant = "status_value", text = "" },
         },
     },
     {
@@ -119,6 +121,7 @@ ns.GUI.Layouts.Profile.Form = {
             sectionKind = "widget_group",
             type = "column_container",
             variant = "wide_dual_column",
+            surfaceStyle = "workspace_split",
             padding = {
                 left = 8,
                 right = 8,
@@ -163,12 +166,12 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "sourceTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_SOURCE_PICK", textFallback = "Profil von anderer Unit uebernehmen" },
-            { id = "sourceHint", widget = "label", itemVariant = "section_description", textKey = "INFO_PROFILES_SOURCE_PICK_HINT_SHORT", textFallback = "Quelle waehlen und in das aktive Profil uebernehmen." },
-            { id = "profileSelect", widget = "dropdown", itemVariant = "form_field", labelKey = "INFO_PROFILES_SOURCE_PROFILE", labelFallback = "Quellprofil" },
-            { id = "activateButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_PROFILES_ACTIVATE", textFallback = "Aktivieren" },
-            { id = "copyButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_PROFILES_COPY_FROM", textFallback = "In aktives Profil kopieren" },
-            { id = "sourceState", widget = "label", itemVariant = "status_hint", text = "" },
+            { id = "sourceTitle", widget = "label", itemVariant = "group_title", textKey = "INFO_PROFILES_SOURCE_PICK" },
+            { id = "sourceHint", widget = "label", itemVariant = "group_description", textKey = "INFO_PROFILES_SOURCE_PICK_HINT_SHORT" },
+            { id = "profileSelect", widget = "dropdown", itemVariant = "profile_field", labelKey = "INFO_PROFILES_SOURCE_PROFILE" },
+            { id = "activateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_PROFILES_ACTIVATE" },
+            { id = "copyButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_PROFILES_COPY_FROM" },
+            { id = "sourceState", widget = "label", itemVariant = "footer_hint_muted", text = "" },
         },
     },
     {
@@ -196,10 +199,10 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "createTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_CREATE_SIMPLE", textFallback = "Neues Profil anlegen" },
-            { id = "createHint", widget = "label", itemVariant = "section_description", textKey = "INFO_PROFILES_CREATE_SIMPLE_HINT_SHORT", textFallback = "Namen vergeben und direkt in das neue Profil wechseln." },
-            { id = "nameEdit", widget = "editbox", itemVariant = "form_field", labelKey = "INFO_PROFILES_NAME", labelFallback = "Profilname", stateKey = "newProfileName" },
-            { id = "createButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_PROFILES_CREATE_AND_SWITCH", textFallback = "Erstellen und wechseln" },
+            { id = "createTitle", widget = "label", itemVariant = "group_title", textKey = "INFO_PROFILES_CREATE_SIMPLE" },
+            { id = "createHint", widget = "label", itemVariant = "group_description", textKey = "INFO_PROFILES_CREATE_SIMPLE_HINT_SHORT" },
+            { id = "nameEdit", widget = "editbox", itemVariant = "profile_field", labelKey = "INFO_PROFILES_NAME", stateKey = "newProfileName" },
+            { id = "createButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_PROFILES_CREATE_AND_SWITCH" },
         },
     },
     {
@@ -209,6 +212,7 @@ ns.GUI.Layouts.Profile.Form = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
+            surfaceStyle = "section_panel",
             padding = {
                 left = 10,
                 right = 10,
@@ -227,7 +231,7 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "maintenanceTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_MAINTENANCE", textFallback = "Profilwartung" },
+            { id = "maintenanceTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_MAINTENANCE" },
         },
     },
     {
@@ -270,8 +274,8 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "resetButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_PROFILES_RESET", textFallback = "Zuruecksetzen" },
-            { id = "deleteButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_DELETE_SHORT", textFallback = "Loeschen" },
+            { id = "resetButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_RESET" },
+            { id = "deleteButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_DELETE_SHORT" },
         },
     },
     {
@@ -301,7 +305,7 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "maintenanceHint", widget = "label", itemVariant = "footer_hint", text = "" },
+            { id = "maintenanceHint", widget = "label", itemVariant = "footer_hint_muted", text = "" },
         },
     },
 }

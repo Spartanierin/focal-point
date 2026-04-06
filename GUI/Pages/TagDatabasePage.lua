@@ -25,14 +25,12 @@ local fallbackRootState = {}
 local windowContext
 
 local CreateBodyText = FormWidgets.CreateBodyText
-local StyleDropdown = function(dropdown)
-    return FormWidgets.StyleDropdown(dropdown, "neutral")
-end
+local StyleDropdown = FormWidgets.StyleDropdown
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
-    return (L and L[key]) or fallback
+    return (L and L[key]) or fallback or ""
 end
 
 local function GetTagDatabaseState(deps)
@@ -70,7 +68,7 @@ local function BuildCategoryList(grouped)
     local list = {}
     for _, categoryKey in ipairs(CATEGORY_ORDER) do
         if grouped[categoryKey] and #grouped[categoryKey] > 0 then
-            list[categoryKey] = T(categoryKey, categoryKey)
+            list[categoryKey] = T(categoryKey)
         end
     end
     return list
@@ -139,8 +137,8 @@ local function ResolveItemText(item)
         return ""
     end
 
-    if item.textKey or item.textFallback then
-        return T(item.textKey, item.textFallback or "")
+    if item.textKey then
+        return T(item.textKey)
     end
 
     return item.text or ""
@@ -152,7 +150,7 @@ local function CreateItemWidget(group, item, props)
     end
 
     if props.widget == "label" then
-        return CreateBodyText(
+        local label = CreateBodyText(
             ResolveItemText(props),
             props.role or "label",
             props.size or 12,
@@ -160,6 +158,10 @@ local function CreateItemWidget(group, item, props)
             props.width,
             props.fullWidth
         )
+        if props.justifyH and label.label and label.label.SetJustifyH then
+            label.label:SetJustifyH(props.justifyH)
+        end
+        return label
     end
 
     if props.widget == "dropdown" then
@@ -167,14 +169,14 @@ local function CreateItemWidget(group, item, props)
         if props.label ~= nil then
             dropdown:SetLabel(props.label)
         else
-            dropdown:SetLabel(T(props.labelKey, props.labelFallback or ""))
+            dropdown:SetLabel(T(props.labelKey))
         end
         if props.fitGroupWidth then
             dropdown:SetWidth((group.frame and group.frame.width or group.width or props.groupWidthFallback or 332) - 4)
         elseif props.fullWidth ~= false then
             dropdown:SetFullWidth(true)
         end
-        StyleDropdown(dropdown)
+        StyleDropdown(dropdown, props.fieldVariant or "neutral")
         return dropdown
     end
 
@@ -202,7 +204,7 @@ local function RefreshWindowState()
     windowContext.categorySelect:SetValue(state.category ~= "" and state.category or nil)
 
     if #tagDatabase == 0 or not defaultCategory then
-        windowContext.emptyState:SetText(T("INFO_COMMON_UNAVAILABLE", "Diese Ansicht ist im Moment nicht verfuegbar."))
+        windowContext.emptyState:SetText(T("INFO_COMMON_UNAVAILABLE"))
         windowContext.emptyState.frame:Show()
         windowContext.filtersGroup.frame:Hide()
         windowContext.detailsGroup.frame:Hide()
@@ -221,7 +223,7 @@ local function RefreshWindowState()
         windowContext.tokenValue:SetText("-")
         windowContext.descriptionValue:SetText("-")
         windowContext.exampleValue:SetText("-")
-        windowContext.hintValue:SetText(T("INFO_TAG_DATABASE_USAGE_HINT", "Nutze die Tag-Datenbank als Nachschlagehilfe und uebernimm Tags anschliessend bewusst in deine Vorlagen."))
+        windowContext.hintValue:SetText(T("INFO_TAG_DATABASE_USAGE_HINT"))
         return
     end
 
@@ -245,7 +247,7 @@ local function RefreshWindowState()
     windowContext.tokenValue:SetText(entry.token or "-")
     windowContext.descriptionValue:SetText(T(entry.description, entry.description or "-"))
     windowContext.exampleValue:SetText(entry.example or "-")
-    windowContext.hintValue:SetText(T("INFO_TAG_DATABASE_USAGE_HINT", "Nutze die Tag-Datenbank als Nachschlagehilfe und uebernimm Tags anschliessend bewusst in deine Vorlagen."))
+    windowContext.hintValue:SetText(T("INFO_TAG_DATABASE_USAGE_HINT"))
 end
 
 local function CreateWindowContent(window, state)
@@ -289,7 +291,7 @@ end
 
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
-    window:SetTitle(T("INFO_TAG_DATABASE_TITLE", "Tag-Datenbank"))
+    window:SetTitle(T("INFO_TAG_DATABASE_TITLE"))
     window:SetLayout("Fill")
     window:SetWidth(760)
     window:SetHeight(540)
