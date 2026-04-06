@@ -8,16 +8,6 @@ local GUIState = ns.GUI.Helpers.GUIState
 
 function GUIState.GetState()
     ns.GUI._state = ns.GUI._state or {
-        unitTabs = {},
-        unitScroll = {},
-        unitBarTabs = {},
-        unitBarScroll = {},
-        unitAuraTabs = {},
-        unitAuraScroll = {},
-        unitTextTabs = {},
-        unitTextScroll = {},
-        unitElementTabs = {},
-        unitElementScroll = {},
         textBuilder = {
             template = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
         },

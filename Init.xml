@@ -99,15 +99,8 @@
     <Script file="GUI/Layouts/UnitFrameLayouts.lua"/>
     <Script file="GUI/Layouts/UnitBarLayouts.lua"/>
     <Script file="GUI/Layouts/UnitAuraLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitColorLayouts.lua"/>
     <Script file="GUI/Layouts/UnitTextLayouts.lua"/>
     <Script file="GUI/Layouts/UnitPortraitLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitRaidTargetLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitLeaderIconLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitRoleIconLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitCombatIndicatorLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitRestingIndicatorLayouts.lua"/>
-    <Script file="GUI/Layouts/UnitReadyCheckIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/UnitClassificationIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/FormElementDefinitions.lua"/>
     <Script file="GUI/Layouts/ProfileFormLayout.lua"/>
