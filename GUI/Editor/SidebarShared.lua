@@ -115,9 +115,9 @@ local THEME_ORDER = {
 }
 
 local function AddSpacer(container, height)
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText(" ")
+    local spacer = AceGUI:Create("SimpleGroup")
     spacer:SetFullWidth(true)
+    spacer:SetAutoAdjustHeight(false)
     spacer:SetHeight(height or 8)
     container:AddChild(spacer)
 end
@@ -486,7 +486,15 @@ local function AddUnitSelector(container, selectedUnit, onChanged)
 
     local label = AceGUI:Create("Label")
     label:SetFullWidth(true)
+    label:SetHeight(18)
     label:SetText(L["EDITOR_UNIT"] or "Unit")
+    if label.label and label.label.SetFont then
+        label.label:SetFont(STANDARD_TEXT_FONT, 12, "")
+        label.label:SetJustifyH("LEFT")
+        label.label:SetTextColor(0.82, 0.84, 0.88, 1)
+        label.label:SetShadowOffset(1, -1)
+        label.label:SetShadowColor(0, 0, 0, 0.65)
+    end
     container:AddChild(label)
 
     local grid = AceGUI:Create("SimpleGroup")
