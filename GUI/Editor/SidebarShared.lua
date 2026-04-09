@@ -63,6 +63,8 @@ local INDICATOR_META = {
     CombatIndicator = {
         labelKey = "OPTION_COMBAT_INDICATOR_ENABLED",
         optionKey = "CombatIndicator",
+        effectLabel = "OPTION_COMBAT_INDICATOR_EFFECT",
+        effectListKey = "status",
         placementLabel = "OPTION_COMBAT_INDICATOR_PLACEMENT",
         sizeLabel = "OPTION_COMBAT_INDICATOR_SIZE",
         scaleLabel = "OPTION_COMBAT_INDICATOR_SCALE",
@@ -71,6 +73,8 @@ local INDICATOR_META = {
     RestingIndicator = {
         labelKey = "OPTION_RESTING_INDICATOR_ENABLED",
         optionKey = "RestingIndicator",
+        effectLabel = "OPTION_RESTING_INDICATOR_EFFECT",
+        effectListKey = "status",
         placementLabel = "OPTION_RESTING_INDICATOR_PLACEMENT",
         sizeLabel = "OPTION_RESTING_INDICATOR_SIZE",
         scaleLabel = "OPTION_RESTING_INDICATOR_SCALE",
@@ -477,38 +481,66 @@ end
 
 local function AddUnitSelector(container, selectedUnit, onChanged)
     local list = BuildUnitList()
+    local columnWidth = 108
+    local columnSpacing = 6
 
     local label = AceGUI:Create("Label")
     label:SetFullWidth(true)
     label:SetText(L["EDITOR_UNIT"] or "Unit")
     container:AddChild(label)
 
-    local row = AceGUI:Create("SimpleGroup")
-    row:SetFullWidth(true)
-    row:SetLayout("Flow")
-    container:AddChild(row)
+    local grid = AceGUI:Create("SimpleGroup")
+    grid:SetFullWidth(true)
+    grid:SetLayout("List")
+    container:AddChild(grid)
 
-    for _, unitKey in ipairs(C.UnitOrder or {}) do
-        local button = AceGUI:Create("Button")
-        local isSelected = unitKey == selectedUnit
-        button:SetText(list[unitKey] or unitKey)
-        button:SetWidth(108)
-        button:SetDisabled(isSelected)
-        button:SetCallback("OnClick", function()
-            if onChanged then
-                onChanged(unitKey)
-            end
-        end)
+    for index = 1, #(C.UnitOrder or {}), 2 do
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Table")
+        row:SetUserData("table", {
+            columns = {
+                columnWidth,
+                columnWidth,
+            },
+            space = columnSpacing,
+            spaceH = columnSpacing,
+            spaceV = 0,
+        })
+        grid:AddChild(row)
 
-        if button.text and button.text.SetTextColor then
-            if isSelected then
-                button.text:SetTextColor(0.90, 0.82, 0.55, 1)
+        for offset = 0, 1 do
+            local unitKey = C.UnitOrder[index + offset]
+            if unitKey then
+                local button = AceGUI:Create("Button")
+                local isSelected = unitKey == selectedUnit
+                button:SetText(list[unitKey] or unitKey)
+                button:SetWidth(columnWidth)
+                StyleSidebarButton(button, isSelected and "active" or "secondary")
+                button:SetDisabled(isSelected)
+                button:SetCallback("OnClick", function()
+                    if onChanged then
+                        onChanged(unitKey)
+                    end
+                end)
+
+                if button.text and button.text.SetTextColor then
+                    if isSelected then
+                        button.text:SetTextColor(0.90, 0.82, 0.55, 1)
+                    else
+                        button.text:SetTextColor(0.88, 0.90, 0.94, 1)
+                    end
+                end
+
+                row:AddChild(button)
             else
-                button.text:SetTextColor(0.88, 0.90, 0.94, 1)
+                local spacer = AceGUI:Create("Label")
+                spacer:SetText(" ")
+                spacer:SetWidth(columnWidth)
+                spacer:SetHeight(24)
+                row:AddChild(spacer)
             end
         end
-
-        row:AddChild(button)
     end
 end
 

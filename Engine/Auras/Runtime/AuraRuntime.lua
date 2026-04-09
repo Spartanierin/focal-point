@@ -56,44 +56,17 @@ local function Log(frame, action, details)
     end
 end
 
-function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
-    if not frame or not unit or not groupKey then
-        return {}
-    end
-
+local function ApplyAuraResult(frame, groupKey, auraList, groupConfig)
     local AuraFilters = FocalPoint.AuraFilters or {}
     local AuraSorting = FocalPoint.AuraSorting or {}
     local AuraCache = FocalPoint.AuraCache or {}
     local AuraRenderer = FocalPoint.AuraRenderer or {}
 
-    local groupConfig = GetGroupConfig(frame, groupKey)
-    if not groupConfig or groupConfig.enabled == false then
-        if AuraCache.ClearGroup then
-            AuraCache.ClearGroup(frame, groupKey)
-        end
-        if AuraRenderer.ClearGroup then
-            AuraRenderer.ClearGroup(frame, groupKey)
-        end
-        return {}
-    end
-
-    if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
-        if AuraCache.ClearGroup then
-            AuraCache.ClearGroup(frame, groupKey)
-        end
-        if AuraRenderer.ClearGroup then
-            AuraRenderer.ClearGroup(frame, groupKey)
-        end
-        return {}
-    end
-
-    local cacheGroup = AuraCache.GetGroup and AuraCache.GetGroup(frame, groupKey)
-    local allAuras = AuraCache.GetAllAuras and AuraCache.GetAllAuras(frame, groupKey) or (cacheGroup and cacheGroup.allAuras) or {}
-
+    local allAuras = type(auraList) == "table" and auraList or {}
     local visibleAuras = AuraFilters.FilterAuras and AuraFilters.FilterAuras(allAuras, groupConfig, groupKey, frame) or allAuras
     local sortedAuras = AuraSorting.SortAuras and AuraSorting.SortAuras(visibleAuras, groupConfig, groupKey) or visibleAuras
 
-    cacheGroup = AuraCache.GetGroup and AuraCache.GetGroup(frame, groupKey)
+    local cacheGroup = AuraCache.GetGroup and AuraCache.GetGroup(frame, groupKey)
     if cacheGroup then
         cacheGroup.allAuras = allAuras
         cacheGroup.displayAuras = allAuras
@@ -116,6 +89,35 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
     end
 
     return sortedAuras
+end
+
+function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
+    if not frame or not unit or not groupKey then
+        return {}
+    end
+
+    local AuraCache = FocalPoint.AuraCache or {}
+    local AuraRenderer = FocalPoint.AuraRenderer or {}
+
+    local groupConfig = GetGroupConfig(frame, groupKey)
+    if not groupConfig or groupConfig.enabled == false then
+        if AuraCache.ClearGroup then
+            AuraCache.ClearGroup(frame, groupKey)
+        end
+        if AuraRenderer.ClearGroup then
+            AuraRenderer.ClearGroup(frame, groupKey)
+        end
+        return {}
+    end
+
+    local previewAuras = Preview.GetTestAuras and Preview.GetTestAuras(frame, groupKey) or nil
+    if previewAuras ~= nil then
+        return ApplyAuraResult(frame, groupKey, previewAuras, groupConfig)
+    end
+
+    local cacheGroup = AuraCache.GetGroup and AuraCache.GetGroup(frame, groupKey)
+    local allAuras = AuraCache.GetAllAuras and AuraCache.GetAllAuras(frame, groupKey) or (cacheGroup and cacheGroup.allAuras) or {}
+    return ApplyAuraResult(frame, groupKey, allAuras, groupConfig)
 end
 
 function AuraRuntime.RefreshAuras(frame, forceFullScan)

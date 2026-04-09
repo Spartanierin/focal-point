@@ -28,6 +28,32 @@ function Colors.IsUnitDeadByHealth(unit)
     return ok and result == true
 end
 
+local function ResolveClassColorByToken(classToken)
+    if type(classToken) == "string" then
+        classToken = classToken:upper()
+    end
+
+    if not classToken or classToken == "" then
+        return nil
+    end
+
+    local color = nil
+
+    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
+        color = CUSTOM_CLASS_COLORS[classToken]
+    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
+        color = RAID_CLASS_COLORS[classToken]
+    elseif C_ClassColor and C_ClassColor.GetClassColor then
+        color = C_ClassColor.GetClassColor(classToken)
+    end
+
+    if not color then
+        return nil
+    end
+
+    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1
+end
+
 function Colors.GetClassColorForUnit(unit, useReactionForNpc)
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
         return nil
@@ -56,6 +82,14 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
     end
 
     if UnitIsPlayer and not UnitIsPlayer(unit) then
+        if unit == "pet" then
+            local _, ownerClassToken = UnitClass("player")
+            local ownerR, ownerG, ownerB, ownerA = ResolveClassColorByToken(ownerClassToken)
+            if ownerR and ownerG and ownerB then
+                return ownerR, ownerG, ownerB, ownerA or 1
+            end
+        end
+
         if useReactionForNpc and UnitReaction and FACTION_BAR_COLORS then
             local reaction = UnitReaction("player", unit)
             local color = reaction and FACTION_BAR_COLORS[reaction] or nil
@@ -68,23 +102,7 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
     end
 
     local _, classToken = UnitClass(unit)
-    if not classToken then
-        return nil
-    end
-
-    local color = nil
-
-    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-        color = CUSTOM_CLASS_COLORS[classToken]
-    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-        color = RAID_CLASS_COLORS[classToken]
-    end
-
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
+    return ResolveClassColorByToken(classToken)
 end
 
 function Colors.GetPowerColorForUnit(unit)

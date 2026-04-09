@@ -10,6 +10,8 @@ function Factory.GetAnchorTarget(frame, anchorTo)
         return frame.Elements.HealthBar or frame
     elseif anchorTo == "PowerBar" then
         return frame.Elements.PowerBar or frame
+    elseif anchorTo == "ClassPowerBar" then
+        return frame.Elements.ClassPowerBar or frame
     elseif anchorTo == "AlternativePowerBar" then
         return frame.Elements.AlternativePowerBar or frame
     elseif anchorTo == "CastBar" then
@@ -96,6 +98,30 @@ function Factory.CreateAlternativePowerBar(frame)
 
     frame.Elements.AlternativePowerBar = power
     frame.alternativePower = power
+end
+
+function Factory.CreateClassPowerBar(frame)
+    local holder = CreateFrame("Frame", nil, frame)
+    holder:SetFrameStrata(frame:GetFrameStrata())
+    holder:SetFrameLevel(frame:GetFrameLevel() + 4)
+    holder.Bars = {}
+    holder:Hide()
+
+    for index = 1, 10 do
+        local bar = CreateFrame("StatusBar", nil, holder)
+        bar:SetMinMaxValues(0, 1)
+        bar:Hide()
+
+        local bg = bar:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+        bar.bg = bg
+
+        holder.Bars[index] = bar
+    end
+
+    frame.Elements.ClassPowerBar = holder
+    frame.classPower = holder
 end
 
 function Factory.CreateCastBar(frame)

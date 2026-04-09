@@ -235,6 +235,34 @@ local TOKEN_DEFS = {
         format = FormatTextValue,
         direct = true,
     },
+    ["classpower:cur"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "classPowerCurrentText", GetLiveValue(frame, "classPowerCurrentRaw", "0"))
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["classpower:max"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "classPowerMaxText", GetLiveValue(frame, "classPowerMaxRaw", "0"))
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["classpower:cur:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "classPowerCurrentAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["classpower:max:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "classPowerMaxAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
     ["curhp"] = {
         value = function(unit, frame)
             return GetLiveValue(frame, "healthCurrentText", GetLiveValue(frame, "healthCurrentRaw", "0"))
@@ -324,6 +352,10 @@ local TAG_DATABASE = {
     { token = "[altpower:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "100" },
     { token = "[altpower:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "72" },
     { token = "[altpower:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "100" },
+    { token = "[classpower:cur]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR", example = "4" },
+    { token = "[classpower:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "5" },
+    { token = "[classpower:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "4" },
+    { token = "[classpower:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "5" },
     { token = "[cast:name]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_NAME", example = "Frostbolt" },
     { token = "[cast:time]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_TIME", example = "1.8" },
     { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "FocalPoint" },
@@ -450,6 +482,8 @@ local function ResolveTextRole(textConfig, key)
         return "name"
     elseif key == "AltPower" then
         return "altpower"
+    elseif key == "ClassPower" then
+        return "classpower"
     elseif key == "CastName" then
         return "cast_name"
     elseif key == "CastTime" then

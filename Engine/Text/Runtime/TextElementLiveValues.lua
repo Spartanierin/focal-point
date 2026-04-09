@@ -115,8 +115,10 @@ function LiveValues.Refresh(frame)
 
     local secondaryPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
 
+    local altPowerMin = 0
+
     if secondaryPowerType ~= nil then
-        secondaryPowerType, altPowerCurrent, altPowerMax = GetSecondaryPowerValues(unit)
+        secondaryPowerType, altPowerCurrent, altPowerMax, altPowerMin = GetSecondaryPowerValues(unit)
     end
 
     frame.LiveValues.healthCurrent = healthCurrent
@@ -178,8 +180,9 @@ function LiveValues.Refresh(frame)
     frame.LiveValues.altPowerMaxSafe = ToSafeNumber(frame.LiveValues.altPowerMax)
     frame.LiveValues.altPowerCurrentRaw = frame.LiveValues.altPowerCurrent
     frame.LiveValues.altPowerMaxRaw = frame.LiveValues.altPowerMax
+    frame.LiveValues.altPowerMinRaw = ToSafeNumber(altPowerMin)
     frame.LiveValues.altPowerType = secondaryPowerType
-    frame.LiveValues.altPowerVisible = secondaryPowerType ~= nil and frame.LiveValues.altPowerMaxSafe > 0
+    frame.LiveValues.altPowerVisible = secondaryPowerType ~= nil
 
     local statusKey, statusText = GetCurrentStatusInfo(unit)
     local previousStatusKey = frame.LiveValues.statusKey or ""

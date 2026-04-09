@@ -11,35 +11,13 @@ local UnpackColor = TextUtils.UnpackColor
 -- Text color helpers keep color resolution and color-tag formatting separate
 -- from the main token and template runtime.
 
-function Colors.GetClassTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        local classToken = frame.TestValues.classToken:upper()
-        local classColor = nil
-
-        if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-            classColor = CUSTOM_CLASS_COLORS[classToken]
-        elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-            classColor = RAID_CLASS_COLORS[classToken]
-        elseif C_ClassColor and C_ClassColor.GetClassColor then
-            classColor = C_ClassColor.GetClassColor(classToken)
-        end
-
-        if classColor then
-            return classColor.r or classColor[1], classColor.g or classColor[2], classColor.b or classColor[3], classColor.a or 1
-        end
-    end
-
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
-        return nil
-    end
-
-    local _, classToken = UnitClass(unit)
-    if not classToken then
-        return nil
-    end
-
+local function ResolveClassColorByToken(classToken)
     if type(classToken) == "string" then
         classToken = classToken:upper()
+    end
+
+    if not classToken or classToken == "" then
+        return nil
     end
 
     local color = nil
@@ -49,17 +27,35 @@ function Colors.GetClassTextColor(unit, frame)
     elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
         color = RAID_CLASS_COLORS[classToken]
     elseif C_ClassColor and C_ClassColor.GetClassColor then
-        local classColor = C_ClassColor.GetClassColor(classToken)
-        if classColor then
-            return classColor.r or 1, classColor.g or 1, classColor.b or 1, classColor.a or 1
-        end
+        color = C_ClassColor.GetClassColor(classToken)
     end
 
     if not color then
         return nil
     end
 
-    return color.r or color[1], color.g or color[2], color.b or color[3], 1
+    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1
+end
+
+function Colors.GetClassTextColor(unit, frame)
+    if frame and frame.TestValues and frame.TestValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
+        return ResolveClassColorByToken(frame.TestValues.classToken)
+    end
+
+    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
+        return nil
+    end
+
+    if unit == "pet" then
+        local _, ownerClassToken = UnitClass("player")
+        local ownerR, ownerG, ownerB, ownerA = ResolveClassColorByToken(ownerClassToken)
+        if ownerR and ownerG and ownerB then
+            return ownerR, ownerG, ownerB, ownerA or 1
+        end
+    end
+
+    local _, classToken = UnitClass(unit)
+    return ResolveClassColorByToken(classToken)
 end
 
 function Colors.ClampColorComponent(value)

@@ -481,6 +481,41 @@ function AppShell.ClearEditorRuntimeRoles(addon)
     addon.guiEditorInspectorHost = nil
 end
 
+function AppShell.LayoutEditorToolbarHost(addon)
+    if not addon then
+        return
+    end
+
+    local host = addon.guiEditorToolbarHost or addon.guiEditorToolbarContainer
+    if not host then
+        return
+    end
+
+    local layer = addon.guiEditorToolbarLayer
+    local frame = host.frame
+    local content = host.content
+
+    if layer and frame then
+        frame:ClearAllPoints()
+        frame:SetAllPoints(layer)
+        if frame.SetWidth and layer.GetWidth then
+            frame:SetWidth(layer:GetWidth() or 0)
+        end
+        if frame.SetHeight and layer.GetHeight then
+            frame:SetHeight(layer:GetHeight() or 0)
+        end
+    end
+
+    if frame and content then
+        content:ClearAllPoints()
+        content:SetAllPoints(frame)
+    end
+
+    if host.DoLayout then
+        host:DoLayout()
+    end
+end
+
 local function CaptureFrameChromeState(widget)
     if not widget or widget._focalPointChromeState then
         return widget and widget._focalPointChromeState
@@ -912,6 +947,8 @@ function AppShell.UpdateGeometry(addon, resolvePath)
     if addon.guiRoot and addon.guiRoot.DoLayout then
         addon.guiRoot:DoLayout()
     end
+
+    AppShell.LayoutEditorToolbarHost(addon)
 
     local editorController = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
     if shellMode ~= "editor" and editorController and editorController.ReleaseInspector then

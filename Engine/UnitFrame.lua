@@ -19,6 +19,7 @@ local InsideLayout = FocalPoint.UnitFrameInsideLayout or {}
 local Layout = FocalPoint.UnitFrameLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout or {}
 local Power = FocalPoint.UnitFramePower or {}
+local ClassPower = FocalPoint.UnitFrameClassPower or {}
 local Portrait = FocalPoint.UnitFramePortrait or {}
 
 -- Indicator modules
@@ -29,6 +30,7 @@ local Role = FocalPoint.UnitFrameRole or {}
 local Combat = FocalPoint.UnitFrameCombat or {}
 local Resting = FocalPoint.UnitFrameResting or {}
 local ReadyCheck = FocalPoint.UnitFrameReadyCheck or {}
+local ClassificationIndicator = FocalPoint.UnitFrameClassificationIndicator or {}
 
 -- Shared helpers
 local Visibility = FocalPoint.UnitFrameVisibility or {}
@@ -68,6 +70,7 @@ local GetAnchorTarget = Factory.GetAnchorTarget
 local CreateBaseFrame = Factory.CreateBaseFrame
 local CreateHealthBar = Factory.CreateHealthBar
 local CreatePowerBar = Factory.CreatePowerBar
+local CreateClassPowerBar = Factory.CreateClassPowerBar
 local CreateAlternativePowerBar = Factory.CreateAlternativePowerBar
 local CreateCastBar = Factory.CreateCastBar
 local CreateOverlayIndicatorHolder = Indicators.CreateHolder
@@ -90,10 +93,14 @@ local UpdateRestingIndicator = Resting.Update
 local RegisterRestingIndicatorEvents = Resting.RegisterEvents
 local UpdateReadyCheckIndicator = ReadyCheck.Update
 local RegisterReadyCheckIndicatorEvents = ReadyCheck.RegisterEvents
+local ApplyClassificationIndicatorLayout = ClassificationIndicator.ApplyLayout
+local RegisterClassificationIndicatorEvents = ClassificationIndicator.RegisterEvents
 local ApplyBaseFrameLayout = Layout.ApplyBaseFrame
 local ApplyHealthAndPowerLayout = BarLayout.ApplyHealthAndPower
 local ApplyAlternativePowerLayout = BarLayout.ApplyAlternativePower
+local ApplyClassPowerLayout = ClassPower.ApplyLayout
 local EnsurePlayerAltPowerText = BuildRuntime.EnsurePlayerAltPowerText
+local EnsurePlayerClassPowerText = BuildRuntime.EnsurePlayerClassPowerText
 local BuildElements = BuildRuntime.CreateElements
 local RegisterBuildEvents = BuildRuntime.RegisterEvents
 local ApplyRefreshFlow = RefreshRuntime.Apply
@@ -184,6 +191,10 @@ function UF:CreatePowerBar(frame)
     return CreatePowerBar(frame)
 end
 
+function UF:CreateClassPowerBar(frame)
+    return CreateClassPowerBar(frame)
+end
+
 function UF:CreateAlternativePowerBar(frame)
     return CreateAlternativePowerBar(frame)
 end
@@ -193,7 +204,8 @@ function UF:CreateCastBar(frame)
 end
 
 function UF:RefreshUnitBarValues(frame)
-    return Power.RefreshUnitBarValues(self, frame)
+    Power.RefreshUnitBarValues(self, frame)
+    return ClassPower.RefreshValues(self, frame)
 end
 
 StopCastBar = Cast.Stop
@@ -230,6 +242,10 @@ end
 
 function UF:CreateReadyCheckIndicator(frame)
     CreateOverlayIndicatorHolder(frame, "ReadyCheckIndicator")
+end
+
+function UF:CreateClassificationIndicator(frame)
+    return ClassificationIndicator.Create(frame)
 end
 
 -- Overlay indicator runtime wrappers
@@ -281,6 +297,10 @@ function UF:RegisterReadyCheckIndicatorEvents(frame)
     return RegisterReadyCheckIndicatorEvents(self, frame)
 end
 
+function UF:RegisterClassificationIndicatorEvents(frame)
+    return RegisterClassificationIndicatorEvents(self, frame)
+end
+
 -- Portrait
 function UF:CreatePortrait(frame)
     return CreatePortrait(frame)
@@ -313,8 +333,25 @@ function UF:ApplyConfig(frame)
     local powerBarReverseFill = config.powerBarReverseFill
     local showAlternativePowerBar = config.showAlternativePowerBar and true or false
     local alternativePowerBarHeight = showAlternativePowerBar and (config.alternativePowerBarHeight or 5) or 0
-    local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax = GetSecondaryPowerValues(frame.unit)
-    local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil and liveAltPowerMax > 0
+    local showClassPowerBar = config.showClassPowerBar and true or false
+    local classPowerBarHeight = showClassPowerBar and (config.classPowerBarHeight or 12) or 0
+    local classPowerBarWidth = tonumber(config.classPowerBarWidth) or 100
+    local classPowerBarSpacing = tonumber(config.classPowerBarSpacing) or 2
+    local classPowerBarAnchorTo = config.classPowerBarAnchorTo or "HealthBar"
+    local classPowerBarPoint = config.classPowerBarPoint or "BOTTOMRIGHT"
+    local classPowerBarRelativePoint = config.classPowerBarRelativePoint or "BOTTOMRIGHT"
+    local classPowerBarOffsetX = tonumber(config.classPowerBarOffsetX) or -5
+    local classPowerBarOffsetY = tonumber(config.classPowerBarOffsetY) or 5
+    local alternativePowerBarWidth = tonumber(config.alternativePowerBarWidth) or 100
+    local alternativePowerBarAnchorTo = config.alternativePowerBarAnchorTo or "HealthBar"
+    local alternativePowerBarPoint = config.alternativePowerBarPoint or "BOTTOMLEFT"
+    local alternativePowerBarRelativePoint = config.alternativePowerBarRelativePoint or "BOTTOMLEFT"
+    local alternativePowerBarOffsetX = tonumber(config.alternativePowerBarOffsetX) or 5
+    local alternativePowerBarOffsetY = tonumber(config.alternativePowerBarOffsetY) or 5
+    local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetSecondaryPowerValues(frame.unit)
+    local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil
+    local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame.unit) or nil
+    local classPowerBarVisible = showClassPowerBar and liveClassPowerInfo ~= nil
     local borderInset = 1
 
     local portraitConfig = config.Portrait or {}
@@ -324,6 +361,7 @@ function UF:ApplyConfig(frame)
     local combatConfig = config.CombatIndicator or {}
     local restingConfig = config.RestingIndicator or {}
     local readyCheckConfig = config.ReadyCheckIndicator or {}
+    local classificationConfig = config.ClassificationIndicator or {}
     local portraitEnabled = portraitConfig.enabled and true or false
     local portraitPlacement = portraitConfig.placement or "INSIDE"
     local portraitMode = portraitConfig.mode or "2D"
@@ -381,6 +419,8 @@ function UF:ApplyConfig(frame)
     local roleAnchorTo = roleConfig.anchorTo or "Frame"
 
     local combatEnabled = combatConfig.enabled ~= false
+    local combatEffect = combatConfig.effect or "ICON"
+    local combatUsesOverlay = combatEffect == "FRAME_OVERLAY"
     local combatPlacement = combatConfig.placement or "ATTACHED"
     local combatSize = tonumber(combatConfig.size) or 16
     local combatScale = tonumber(combatConfig.scale) or 1
@@ -393,6 +433,8 @@ function UF:ApplyConfig(frame)
     local combatAnchorTo = combatConfig.anchorTo or "Frame"
 
     local restingEnabled = restingConfig.enabled ~= false
+    local restingEffect = restingConfig.effect or "ICON"
+    local restingUsesOverlay = restingEffect == "FRAME_OVERLAY"
     local restingPlacement = restingConfig.placement or "ATTACHED"
     local restingSize = tonumber(restingConfig.size) or 16
     local restingScale = tonumber(restingConfig.scale) or 1
@@ -415,6 +457,20 @@ function UF:ApplyConfig(frame)
     local readyCheckOffsetX = tonumber(readyCheckConfig.offsetX) or 0
     local readyCheckOffsetY = tonumber(readyCheckConfig.offsetY) or 0
     local readyCheckAnchorTo = readyCheckConfig.anchorTo or "Frame"
+    local classificationEnabled = classificationConfig.enabled ~= false
+    local classificationEffect = classificationConfig.effect or "PORTRAIT_OVERLAY"
+    local liveClassification = nil
+    if ClassificationIndicator.GetResolved then
+        local resolvedClassification, resolvedEffect = ClassificationIndicator.GetResolved(frame)
+        if resolvedEffect ~= nil then
+            classificationEffect = resolvedEffect
+        end
+        liveClassification = resolvedClassification
+    end
+    if not classificationEnabled then
+        classificationEffect = "NONE"
+        liveClassification = nil
+    end
 
     local frameReserve = { left = 0, right = 0 }
     local healthReserve = { left = 0, right = 0 }
@@ -431,12 +487,13 @@ function UF:ApplyConfig(frame)
 
     ApplyReserveToArea(frameReserve, healthReserve, powerReserve, leaderConfig.insideAnchorTo or "Frame", leaderInsideSide, leaderEnabled, leaderPlacement, leaderSize, leaderScale, leaderPadding)
     ApplyReserveToArea(frameReserve, healthReserve, powerReserve, roleConfig.insideAnchorTo or "Frame", roleInsideSide, roleEnabled, rolePlacement, roleSize, roleScale, rolePadding)
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, combatConfig.insideAnchorTo or "Frame", combatInsideSide, combatEnabled, combatPlacement, combatSize, combatScale, combatPadding)
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, restingConfig.insideAnchorTo or "Frame", restingInsideSide, restingEnabled, restingPlacement, restingSize, restingScale, restingPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, combatConfig.insideAnchorTo or "Frame", combatInsideSide, combatEnabled and not combatUsesOverlay, combatPlacement, combatSize, combatScale, combatPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, restingConfig.insideAnchorTo or "Frame", restingInsideSide, restingEnabled and not restingUsesOverlay, restingPlacement, restingSize, restingScale, restingPadding)
     ApplyReserveToArea(frameReserve, healthReserve, powerReserve, readyCheckConfig.insideAnchorTo or "Frame", readyCheckInsideSide, readyCheckEnabled, readyCheckPlacement, readyCheckSize, readyCheckScale, readyCheckPadding)
 
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
+    local classPowerR, classPowerG, classPowerB, classPowerA = UnpackColor(config.classPowerColor, { powerR, powerG, powerB, powerA })
 
     local healthBackgroundEnabled = config.healthBackground ~= false
     local healthBgR, healthBgG, healthBgB, healthBgA = UnpackColor(config.healthBackgroundColor, { 0, 0, 0, 0.35 })
@@ -444,7 +501,9 @@ function UF:ApplyConfig(frame)
 
     local powerBackgroundEnabled = config.powerBackground ~= false
     local powerBgR, powerBgG, powerBgB, powerBgA = UnpackColor(config.powerBackgroundColor, { 0, 0, 0, 0.35 })
+    local classPowerBgR, classPowerBgG, classPowerBgB, classPowerBgA = UnpackColor(config.classPowerBackgroundColor, { powerBgR, powerBgG, powerBgB, powerBgA })
     local powerBackgroundShown = powerBackgroundEnabled and (powerBgA or 0) > 0.001
+    local classPowerBackgroundShown = (classPowerBgA or 0) > 0.001
 
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0, 0, 0, 0 })
 
@@ -458,6 +517,7 @@ function UF:ApplyConfig(frame)
     local healthTexture = GetStatusBarTexture(config.healthBarTexture)
     local powerTexture = GetStatusBarTexture(config.powerBarTexture)
     local castTexture = GetStatusBarTexture(config.castBarTexture)
+    local classPowerTexture = GetStatusBarTexture(config.classPowerBarTexture or config.powerBarTexture)
     local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
 
     if healthBarReverseFill == nil then
@@ -523,9 +583,16 @@ function UF:ApplyConfig(frame)
         powerRightReserve = powerReserve.right,
         alternativePowerBarVisible = alternativePowerBarVisible,
         alternativePowerBarHeight = alternativePowerBarHeight,
+        alternativePowerBarWidth = alternativePowerBarWidth,
+        alternativePowerBarAnchorTo = alternativePowerBarAnchorTo,
+        alternativePowerBarPoint = alternativePowerBarPoint,
+        alternativePowerBarRelativePoint = alternativePowerBarRelativePoint,
+        alternativePowerBarOffsetX = alternativePowerBarOffsetX,
+        alternativePowerBarOffsetY = alternativePowerBarOffsetY,
         liveAltPowerType = liveAltPowerType,
         liveAltPowerCurrent = liveAltPowerCurrent,
         liveAltPowerMax = liveAltPowerMax,
+        liveAltPowerMin = liveAltPowerMin,
         altPowerTexture = altPowerTexture,
         powerR = powerR,
         powerG = powerG,
@@ -539,6 +606,32 @@ function UF:ApplyConfig(frame)
     }
 
     ApplyAlternativePowerLayout(frame, alternativePowerLayoutOptions)
+
+    ApplyClassPowerLayout(frame, {
+        classPowerBarVisible = classPowerBarVisible,
+        classPowerBarHeight = classPowerBarHeight,
+        classPowerBarWidth = classPowerBarWidth,
+        classPowerBarSpacing = classPowerBarSpacing,
+        classPowerBarAnchorTo = classPowerBarAnchorTo,
+        classPowerBarPoint = classPowerBarPoint,
+        classPowerBarRelativePoint = classPowerBarRelativePoint,
+        classPowerBarOffsetX = classPowerBarOffsetX,
+        classPowerBarOffsetY = classPowerBarOffsetY,
+        liveClassPowerType = liveClassPowerInfo and liveClassPowerInfo.typeId or nil,
+        liveClassPowerToken = liveClassPowerInfo and liveClassPowerInfo.token or nil,
+        liveClassPowerCurrent = liveClassPowerInfo and liveClassPowerInfo.current or 0,
+        liveClassPowerMax = liveClassPowerInfo and liveClassPowerInfo.max or 0,
+        classPowerTexture = classPowerTexture,
+        classPowerR = classPowerR,
+        classPowerG = classPowerG,
+        classPowerB = classPowerB,
+        classPowerA = classPowerA,
+        classPowerBgR = classPowerBgR,
+        classPowerBgG = classPowerBgG,
+        classPowerBgB = classPowerBgB,
+        classPowerBgA = classPowerBgA,
+        classPowerBackgroundShown = classPowerBackgroundShown,
+    })
 
     if frame.Elements.CastBar then
         local showCastBar = config.showCastBar ~= false
@@ -699,6 +792,7 @@ function UF:ApplyConfig(frame)
                 offsetX = combatOffsetX,
                 offsetY = combatOffsetY,
                 borderInset = borderInset,
+                customLayout = combatUsesOverlay,
                 _elementKey = "CombatIndicator",
                 updateFunc = function(targetFrame)
                     self:UpdateCombatIndicator(targetFrame)
@@ -727,6 +821,7 @@ function UF:ApplyConfig(frame)
                 offsetX = restingOffsetX,
                 offsetY = restingOffsetY,
                 borderInset = borderInset,
+                customLayout = restingUsesOverlay,
                 _elementKey = "RestingIndicator",
                 updateFunc = function(targetFrame)
                     self:UpdateRestingIndicator(targetFrame)
@@ -837,6 +932,11 @@ function UF:ApplyConfig(frame)
 
     ApplyOverlayIndicatorBatch(self, frame, overlayEntries)
 
+    ApplyClassificationIndicatorLayout(frame, {
+        effect = classificationEffect,
+        classification = liveClassification,
+    })
+
     -- Texts
     if config.Texts then
         for key, textConfig in pairs(config.Texts) do
@@ -915,12 +1015,14 @@ function UF:ApplyTestValues(frame)
         and GetSecondaryPowerTypeForUnit(frame.unit) ~= nil
     then
         local previewValues = self:GetTestPreviewValues(frame) or {}
+        local minAltPower = previewValues.altPowerMin or 0
         local currentAltPower = previewValues.altPowerCurrent or 72
         local maxAltPower = previewValues.altPowerMax or 100
 
         frame.LiveValues = frame.LiveValues or {}
-        frame.LiveValues.altPowerVisible = maxAltPower > 0
+        frame.LiveValues.altPowerVisible = true
         frame.LiveValues.altPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
+        frame.LiveValues.altPowerMinRaw = minAltPower
         frame.LiveValues.altPowerCurrentRaw = currentAltPower
         frame.LiveValues.altPowerMaxRaw = maxAltPower
         frame.LiveValues.altPowerCurrentText = FormatDisplayNumber(currentAltPower)
@@ -930,7 +1032,7 @@ function UF:ApplyTestValues(frame)
         frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
         frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
 
-        frame.Elements.AlternativePowerBar:SetMinMaxValues(0, math.max(maxAltPower, 1))
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
         frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
         self:ApplyConfig(frame)
     end
@@ -962,6 +1064,10 @@ function UF:RegisterAlternativePowerEvents(frame)
     return Power.RegisterAlternativeEvents(self, frame)
 end
 
+function UF:RegisterClassPowerEvents(frame)
+    return ClassPower.RegisterEvents(self, frame)
+end
+
 function UF:Build(unit)
     local config = GetUnitDB(unit)
     if not config or config.enabled == false then
@@ -980,6 +1086,9 @@ function UF:Build(unit)
 
     if unit == "player" and config.showAlternativePowerBar then
         EnsurePlayerAltPowerText(config)
+    end
+    if unit == "player" and config.showClassPowerBar then
+        EnsurePlayerClassPowerText(config)
     end
 
     local frame = RunBuildStep("CreateBaseFrame", function()

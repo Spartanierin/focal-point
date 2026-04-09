@@ -32,6 +32,7 @@
     <Script file="Engine/UnitFrame/Runtime/UnitFrameVisibility.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameInsideLayout.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameIndicators.lua"/>
+    <Script file="Engine/UnitFrame/Indicators/UnitFrameStatusOverlay.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFramePortrait.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameRaidTarget.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameLeader.lua"/>
@@ -39,6 +40,7 @@
     <Script file="Engine/UnitFrame/Indicators/UnitFrameCombat.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameResting.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameReadyCheck.lua"/>
+    <Script file="Engine/UnitFrame/Indicators/UnitFrameClassification.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameLayout.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameBarLayout.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameBuild.lua"/>
@@ -46,6 +48,7 @@
     <Script file="Engine/UnitFrame/Runtime/UnitFrameFactory.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameHealth.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFramePower.lua"/>
+    <Script file="Engine/UnitFrame/Bars/UnitFrameClassPower.lua"/>
     <Script file="Engine/UnitFrame.lua"/>
     <Script file="Engine/Text/Shared/TextElementUtils.lua"/>
     <Script file="Engine/Text/Shared/TextElementStatus.lua"/>
@@ -83,9 +86,7 @@
     <Script file="GUI/Helpers/FormWidgets.lua"/>
     <Script file="GUI/Helpers/FormLayoutRuntime.lua"/>
     <Script file="GUI/AppShell.lua"/>
-    <Script file="GUI/Layouts/SectionLayout.lua"/>
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
-    <Script file="GUI/Preview/ThemePreview.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
     <Script file="GUI/Editor/EditorController.lua"/>
     <Script file="GUI/Editor/SidebarShared.lua"/>

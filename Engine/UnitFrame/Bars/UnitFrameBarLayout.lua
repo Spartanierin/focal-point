@@ -4,6 +4,22 @@ FocalPoint.UnitFrameBarLayout = FocalPoint.UnitFrameBarLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout
 local Preview = FocalPoint.UnitFramePreview or {}
 
+local function GetAnchorTarget(frame, anchorTo)
+    if not frame then
+        return nil
+    end
+
+    if anchorTo == "HealthBar" then
+        return frame.Elements and frame.Elements.HealthBar or frame
+    elseif anchorTo == "PowerBar" then
+        return frame.Elements and frame.Elements.PowerBar or frame
+    elseif anchorTo == "CastBar" then
+        return frame.Elements and frame.Elements.CastBar or frame
+    end
+
+    return frame
+end
+
 local function IsPlaceholderUnitEnabled(frame)
     if not frame or not frame.unit then
         return true
@@ -23,8 +39,6 @@ end
 
 function BarLayout.ApplyHealthAndPower(owner, frame, options)
     local borderInset = options.borderInset
-    local alternativePowerBarVisible = options.alternativePowerBarVisible
-    local alternativePowerBarHeight = options.alternativePowerBarHeight
     local showPowerBar = options.showPowerBar
     local powerBarHeight = options.powerBarHeight
     local healthBarReverseFill = options.healthBarReverseFill == true
@@ -53,9 +67,6 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         local healthLeftOffset = borderInset + frameLeftReserve + healthLeftReserve
         local healthRightOffset = -(borderInset + frameRightReserve + healthRightReserve)
         local healthBottomY = borderInset
-        if alternativePowerBarVisible then
-            healthBottomY = healthBottomY + alternativePowerBarHeight
-        end
         if showPowerBar then
             healthBottomY = healthBottomY + powerBarHeight
         end
@@ -108,7 +119,7 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         if showPowerBar then
             local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
             local powerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
-            local powerBottomOffset = borderInset + (alternativePowerBarVisible and alternativePowerBarHeight or 0)
+            local powerBottomOffset = borderInset
 
             power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
             power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
@@ -135,6 +146,12 @@ function BarLayout.ApplyAlternativePower(frame, options)
     local powerRightReserve = tonumber(options.powerRightReserve) or 0
     local alternativePowerBarVisible = options.alternativePowerBarVisible
     local alternativePowerBarHeight = options.alternativePowerBarHeight
+    local alternativePowerBarWidth = tonumber(options.alternativePowerBarWidth) or 100
+    local alternativePowerBarAnchorTo = options.alternativePowerBarAnchorTo or "HealthBar"
+    local alternativePowerBarPoint = options.alternativePowerBarPoint or "BOTTOMLEFT"
+    local alternativePowerBarRelativePoint = options.alternativePowerBarRelativePoint or "BOTTOMLEFT"
+    local alternativePowerBarOffsetX = tonumber(options.alternativePowerBarOffsetX) or 0
+    local alternativePowerBarOffsetY = tonumber(options.alternativePowerBarOffsetY) or 0
 
     local altPower = frame.Elements.AlternativePowerBar
     local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
@@ -178,17 +195,33 @@ function BarLayout.ApplyAlternativePower(frame, options)
     end
 
     if alternativePowerBarVisible then
+        local minAltPower = options.liveAltPowerMin or (frame.LiveValues and frame.LiveValues.altPowerMinRaw) or 0
         local currentAltPower = options.liveAltPowerCurrent or (frame.LiveValues and frame.LiveValues.altPowerCurrentRaw) or 0
         local maxAltPower = options.liveAltPowerMax or (frame.LiveValues and frame.LiveValues.altPowerMaxRaw) or 0
 
-        altPower:SetMinMaxValues(0, math.max(maxAltPower, 1))
+        altPower:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
         altPower:SetValue(currentAltPower)
 
-        local altPowerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
-        local altPowerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
+        local anchorParent = GetAnchorTarget(frame, alternativePowerBarAnchorTo) or frame
+        local availableWidth = frame:GetWidth()
+            - ((borderInset or 0) * 2)
+            - frameLeftReserve
+            - frameRightReserve
+            - powerLeftReserve
+            - powerRightReserve
+        local effectiveWidth = math.max(
+            20,
+            math.min(alternativePowerBarWidth, availableWidth > 0 and availableWidth or alternativePowerBarWidth)
+        )
 
-        altPower:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", altPowerLeftOffset, borderInset)
-        altPower:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", altPowerRightOffset, borderInset)
+        altPower:SetWidth(effectiveWidth)
+        altPower:SetPoint(
+            alternativePowerBarPoint,
+            anchorParent,
+            alternativePowerBarRelativePoint,
+            alternativePowerBarOffsetX,
+            alternativePowerBarOffsetY
+        )
         altPower:SetHeight(alternativePowerBarHeight)
         altPower:Show()
     else

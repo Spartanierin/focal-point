@@ -137,6 +137,15 @@ function Indicators.ApplyConfig(owner, frame, holder, options)
     icon:SetScale(1)
 
     if options.enabled then
+        if options.customLayout then
+            if icon.SetTexture then
+                icon:SetTexture(nil)
+            end
+            icon:Hide()
+            options.updateFunc(frame)
+            return
+        end
+
         local effectiveSize = options.size * options.scale
         holder:SetSize(effectiveSize, effectiveSize)
         icon:SetAllPoints(holder)
@@ -186,6 +195,7 @@ function Indicators.ApplyBatch(owner, frame, entries)
             and holder.IsShown
             and holder:IsShown()
             and options.enabled
+            and not options.customLayout
         then
             if options.placement == "INSIDE" then
                 local groupKey = table.concat({

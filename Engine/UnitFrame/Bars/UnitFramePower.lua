@@ -59,6 +59,7 @@ function Power.RefreshUnitBarValues(owner, frame)
     end
 
     if frame.Elements.AlternativePowerBar then
+        local minAltPower = 0
         local currentAltPower = 0
         local maxAltPower = 0
         local showAltPower = false
@@ -66,17 +67,19 @@ function Power.RefreshUnitBarValues(owner, frame)
         local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
 
         if previewValues then
+            minAltPower = previewValues.altPowerMin or 0
             currentAltPower = previewValues.altPowerCurrent or 0
             maxAltPower = previewValues.altPowerMax or 0
-            showAltPower = secondaryPowerType ~= nil and maxAltPower > 0
+            showAltPower = secondaryPowerType ~= nil
         elseif secondaryPowerType ~= nil and unitExists then
-            _, currentAltPower, maxAltPower = GetSecondaryPowerValues(unit)
-            showAltPower = maxAltPower > 0
+            _, currentAltPower, maxAltPower, minAltPower = GetSecondaryPowerValues(unit)
+            showAltPower = true
         end
 
-        frame.Elements.AlternativePowerBar:SetMinMaxValues(0, math.max(maxAltPower, 1))
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
         frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
 
+        frame.LiveValues.altPowerMinRaw = minAltPower
         frame.LiveValues.altPowerCurrentRaw = currentAltPower
         frame.LiveValues.altPowerMaxRaw = maxAltPower
         frame.LiveValues.altPowerCurrentText = FormatDisplayNumber(currentAltPower)
@@ -98,7 +101,8 @@ function Power.RegisterAlternativeEvents(owner, frame)
     local eventFrame = CreateFrame("Frame", nil, frame)
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
+    eventFrame:RegisterEvent("UNIT_POWER_BAR_HIDE")
     eventFrame:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
     eventFrame:RegisterUnitEvent("UNIT_MAXPOWER", "player")
     eventFrame:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")

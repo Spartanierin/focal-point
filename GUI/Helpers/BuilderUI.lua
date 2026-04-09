@@ -3,25 +3,10 @@ local addonName, ns = ...
 ns.GUI = ns.GUI or {}
 ns.GUI.Helpers = ns.GUI.Helpers or {}
 ns.GUI.Helpers.BuilderUI = ns.GUI.Helpers.BuilderUI or {}
-ns.GUI.Helpers.TitleStyles = ns.GUI.Helpers.TitleStyles or {}
 
 local C = ns.Constants
-local TextStyles = ns.GUI.Helpers.TextStyles
 
 local BuilderUI = ns.GUI.Helpers.BuilderUI
-local TitleStyles = ns.GUI.Helpers.TitleStyles
-
-function TitleStyles.FormatPage(text)
-    return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "sectionHeader") or text
-end
-
-function TitleStyles.FormatGroup(text)
-    return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "sectionHeader") or text
-end
-
-function TitleStyles.FormatSubsection(text)
-    return TextStyles and TextStyles.Wrap and TextStyles.Wrap(text, "label") or text
-end
 
 function BuilderUI.ResetFlowContainer(container)
     container:ReleaseChildren()
@@ -33,7 +18,6 @@ function BuilderUI.GetAddonVersionText()
     local addonKeys = {
         addonName,
         C.ADDON_NAME,
-        "Portrait",
     }
 
     local function TryMetadata(addonKey)

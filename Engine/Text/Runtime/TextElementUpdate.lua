@@ -5,6 +5,7 @@ FocalPoint.TextElementUpdate = FocalPoint.TextElementUpdate or {}
 local Update = FocalPoint.TextElementUpdate
 local Preview = FocalPoint.UnitFramePreview or {}
 local TextState = FocalPoint.TextElementState or {}
+local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
 local animatedNameTexts = {}
@@ -19,6 +20,8 @@ local function ResolveTextRole(textConfig, key)
         return "name"
     elseif key == "AltPower" then
         return "altpower"
+    elseif key == "ClassPower" then
+        return "classpower"
     elseif key == "CastName" then
         return "cast_name"
     elseif key == "CastTime" then
@@ -32,25 +35,28 @@ local function ResolveTextRole(textConfig, key)
     return nil
 end
 
-local function IsClassificationNameGlowEnabled(frame)
+local function GetClassificationIndicatorEffect(frame)
     local unit = frame and frame.unit
     local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
     local indicatorConfig = unitConfig and unitConfig.ClassificationIndicator
 
     if indicatorConfig == nil then
-        return true
+        return "PORTRAIT_OVERLAY"
     end
 
     if type(indicatorConfig) ~= "table" then
-        return true
+        return "PORTRAIT_OVERLAY"
     end
 
     if indicatorConfig.enabled == false then
-        return false
+        return "NONE"
     end
 
-    local effect = indicatorConfig.effect or "NAME_GLOW"
-    return effect == "NAME_GLOW"
+    return indicatorConfig.effect or "PORTRAIT_OVERLAY"
+end
+
+local function IsClassificationNameGlowEnabled(frame)
+    return GetClassificationIndicatorEffect(frame) == "NAME_GLOW"
 end
 
 local function StripTextMarkup(text)
@@ -150,6 +156,32 @@ local function ToColorCode(r, g, b)
     )
 end
 
+local function GetClassificationLabelStyle(unit)
+    if not unit or not UnitClassification then
+        return nil
+    end
+
+    local classification = UnitClassification(unit)
+    if classification == "rare" then
+        return {
+            label = Status.GetClassificationText and Status.GetClassificationText(unit) or "Rare",
+            color = { 0.38, 0.70, 1.00 },
+        }
+    elseif classification == "elite" then
+        return {
+            label = Status.GetClassificationText and Status.GetClassificationText(unit) or "Elite",
+            color = { 0.98, 0.74, 0.26 },
+        }
+    elseif classification == "rareelite" or classification == "worldboss" then
+        return {
+            label = Status.GetClassificationText and Status.GetClassificationText(unit) or "Rare Elite",
+            color = { 1.00, 0.88, 0.40 },
+        }
+    end
+
+    return nil
+end
+
 local function GetClassificationAnimationStyle(unit)
     if not unit or not UnitClassification then
         return nil
@@ -201,6 +233,33 @@ local function GetClassificationAnimationStyle(unit)
     end
 
     return nil
+end
+
+local function ApplyClassificationNameLabel(frame, textRole, renderedText, template, templateContainsToken)
+    if textRole ~= "name" or type(renderedText) ~= "string" or renderedText == "" then
+        return renderedText
+    end
+
+    if GetClassificationIndicatorEffect(frame) ~= "NAME_LABEL" then
+        return renderedText
+    end
+
+    if templateContainsToken and templateContainsToken(template, "classification") then
+        return renderedText
+    end
+
+    local style = GetClassificationLabelStyle(frame and frame.unit)
+    if not style or type(style.label) ~= "string" or style.label == "" then
+        return renderedText
+    end
+
+    local color = style.color or { 1, 1, 1 }
+    return string.format(
+        "%s[%s]|r %s",
+        ToColorCode(color[1] or 1, color[2] or 1, color[3] or 1),
+        style.label,
+        renderedText
+    )
 end
 
 local function BuildAnimatedNameText(rawText, style, now)
@@ -579,6 +638,9 @@ function Update.UpdateElement(frame, key, deps)
         local altPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxRaw", 0) or 0) or 0
         local altPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentRaw", 0) or 0) or 0
         local altPowerAvailable = altPowerType ~= nil and altPowerMaxRaw > 0
+        local classPowerVisible = GetLiveValue and GetLiveValue(frame, "classPowerVisible", false) or false
+        local classPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerMaxRaw", 0) or 0) or 0
+        local classPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerCurrentRaw", 0) or 0) or 0
 
         if textRole == "altpower" then
             StopAnimatedNameText(textObject)
@@ -604,6 +666,23 @@ function Update.UpdateElement(frame, key, deps)
             return
         end
 
+        if textRole == "classpower" then
+            StopAnimatedNameText(textObject)
+            textObject:SetTextColor(r, g, b, a)
+
+            if classPowerVisible and classPowerMaxRaw > 0 then
+                ApplyOverflow(
+                    textObject,
+                    (FormatNumber and FormatNumber(classPowerCurrentRaw) or classPowerCurrentRaw) .. " / " .. (FormatNumber and FormatNumber(classPowerMaxRaw) or classPowerMaxRaw),
+                    textConfig.overflowMode
+                )
+                textObject:Show()
+            else
+                textObject:SetText("")
+            end
+            return
+        end
+
         if textRole == "class" or (TemplateContainsToken and TemplateContainsToken(template, "class")) then
             local classR, classG, classB, classA = GetClassTextColor and GetClassTextColor(frame.unit, frame)
             if classR and classG and classB then
@@ -615,18 +694,22 @@ function Update.UpdateElement(frame, key, deps)
         textObject:SetTextColor(r, g, b, a)
 
         if ApplyDirectTemplate and ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
-            ApplyOverflow(textObject, textObject:GetText() or "", textConfig.overflowMode)
-            ApplyAnimatedNameText(frame, textRole, textObject, textObject:GetText() or "", r, g, b, a)
+            local renderedText = textObject:GetText() or ""
+            renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
+            ApplyOverflow(textObject, renderedText, textConfig.overflowMode)
+            ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
             textObject:Show()
             return
         end
 
+        local renderedText = ResolveTextTemplate and ResolveTextTemplate(frame, frame.unit, template) or ""
+        renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
         ApplyOverflow(
             textObject,
-            ResolveTextTemplate and ResolveTextTemplate(frame, frame.unit, template) or "",
+            renderedText,
             textConfig.overflowMode
         )
-        ApplyAnimatedNameText(frame, textRole, textObject, textObject:GetText() or "", r, g, b, a)
+        ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
         textObject:Show()
     end, function(message)
         return tostring(message)

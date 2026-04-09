@@ -16,6 +16,8 @@ ns.GUI.Layouts.UnitTexts.Lists = {
         Frame = "VALUE_ANCHOR_TARGET_FRAME",
         HealthBar = "VALUE_ANCHOR_TARGET_HEALTH_BAR",
         PowerBar = "VALUE_ANCHOR_TARGET_POWER_BAR",
+        AlternativePowerBar = "VALUE_ANCHOR_TARGET_ALT_POWER_BAR",
+        ClassPowerBar = "VALUE_ANCHOR_TARGET_CLASS_POWER_BAR",
     },
     anchorPoints = {
         TOPLEFT = "VALUE_ANCHOR_TOPLEFT",

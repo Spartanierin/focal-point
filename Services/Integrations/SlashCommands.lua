@@ -7,8 +7,6 @@ function FocalPoint:SetupSlashCommands()
 
     SLASH_FOCALPOINT1 = "/focalpoint"
     SLASH_FOCALPOINT2 = "/fp"
-    SLASH_FOCALPOINT3 = "/portrait"
-    SLASH_FOCALPOINT4 = "/port"
 
     SlashCmdList["FOCALPOINT"] = function(msg)
         msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")

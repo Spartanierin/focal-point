@@ -3,13 +3,8 @@ local _, FocalPoint = ...
 FocalPoint.TextElementPower = FocalPoint.TextElementPower or {}
 local Power = FocalPoint.TextElementPower
 
--- Secondary power helpers stay separate so the main text runtime does not
--- need to keep specialization and fallback logic inline.
-
-local SECONDARY_POWER_BAR_SPECS = {
-    [258] = 0, -- Shadow Priest -> Mana
-    [262] = 0, -- Elemental Shaman -> Mana
-}
+-- Secondary power helpers stay separate so the main text runtime can reuse
+-- the unit-frame alternate-power source without duplicating Blizzard lookups.
 
 function Power.GetLiveValue(frame, key, fallback)
     if frame and frame.LiveValues and frame.LiveValues[key] ~= nil then
@@ -19,44 +14,22 @@ function Power.GetLiveValue(frame, key, fallback)
     return fallback
 end
 
-function Power.GetPlayerSpecializationID()
-    if not GetSpecialization or not GetSpecializationInfo then
-        return nil
-    end
-
-    local specializationIndex = GetSpecialization()
-    if not specializationIndex then
-        return nil
-    end
-
-    local specializationID = GetSpecializationInfo(specializationIndex)
-    if type(specializationID) ~= "number" then
-        return nil
-    end
-
-    return specializationID
-end
-
 function Power.GetSecondaryPowerTypeForUnit(unit)
-    if unit ~= "player" then
-        return nil
+    local preview = FocalPoint.UnitFramePreview or {}
+    if preview.GetSecondaryPowerTypeForUnit then
+        return preview.GetSecondaryPowerTypeForUnit(unit)
     end
 
-    local specializationID = Power.GetPlayerSpecializationID()
-    if not specializationID then
-        return nil
-    end
-
-    return SECONDARY_POWER_BAR_SPECS[specializationID]
+    return nil
 end
 
 function Power.GetSecondaryPowerValues(unit)
-    local secondaryPowerType = Power.GetSecondaryPowerTypeForUnit(unit)
-    if secondaryPowerType == nil or not UnitPower or not UnitPowerMax then
-        return nil, 0, 0
+    local preview = FocalPoint.UnitFramePreview or {}
+    if preview.GetSecondaryPowerValues then
+        return preview.GetSecondaryPowerValues(unit)
     end
 
-    return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
+    return nil, 0, 0, 0
 end
 
 function Power.GetSecondaryPowerDisplayValues(unit)

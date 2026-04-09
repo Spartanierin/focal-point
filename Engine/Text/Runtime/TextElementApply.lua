@@ -15,6 +15,8 @@ local function ResolveTextRole(textConfig, key)
         return "name"
     elseif key == "AltPower" then
         return "altpower"
+    elseif key == "ClassPower" then
+        return "classpower"
     elseif key == "CastName" then
         return "cast_name"
     elseif key == "CastTime" then

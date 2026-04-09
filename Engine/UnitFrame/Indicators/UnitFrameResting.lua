@@ -7,6 +7,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local Indicators = FocalPoint.UnitFrameIndicators or {}
 local State = FocalPoint.UnitFrameState or {}
+local StatusOverlay = FocalPoint.UnitFrameStatusOverlay or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
@@ -24,8 +25,12 @@ function Resting.Update(owner, frame)
     local icon = holder.Texture or holder
     local config = frame.config
     local restingConfig = config and config.RestingIndicator or nil
+    local effect = restingConfig and restingConfig.effect or "ICON"
 
     if not restingConfig or restingConfig.enabled == false then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
         HandleVisibilityTransition(owner, frame, holder, false, "_restingLayoutRefreshQueued")
         return
     end
@@ -37,10 +42,24 @@ function Resting.Update(owner, frame)
     end
 
     if not isResting then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
         HandleVisibilityTransition(owner, frame, holder, false, "_restingLayoutRefreshQueued")
         return
     end
 
+    if effect == "FRAME_OVERLAY" then
+        HandleVisibilityTransition(owner, frame, holder, true, "_restingLayoutRefreshQueued")
+        if StatusOverlay.Apply then
+            StatusOverlay.Apply(holder, frame, "resting")
+        end
+        return
+    end
+
+    if StatusOverlay.Hide then
+        StatusOverlay.Hide(holder)
+    end
     icon:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
     icon:SetTexCoord(0, 0.5, 0, 0.421875)
     HandleVisibilityTransition(owner, frame, holder, true, "_restingLayoutRefreshQueued")

@@ -215,18 +215,238 @@ local PLACEHOLDER_PREVIEW_VALUES = {
     },
 }
 
-local SECONDARY_POWER_BAR_SPECS = {
-    [258] = 0, -- Shadow Priest -> Mana
-    [262] = 0, -- Elemental Shaman -> Mana
+local TEST_PREVIEW_AURAS = {
+    detailed = {
+        Buffs = {
+            {
+                spellId = 17,
+                name = "Power Word: Shield",
+                icon = "Interface\\Icons\\Spell_Holy_PowerWordShield",
+                duration = 15,
+                remaining = 11,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+            },
+            {
+                spellId = 2825,
+                name = "Bloodlust",
+                icon = "Interface\\Icons\\Spell_Nature_BloodLust",
+                duration = 40,
+                remaining = 26,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+            },
+            {
+                spellId = 6673,
+                name = "Battle Shout",
+                icon = "Interface\\Icons\\Ability_Warrior_BattleShout",
+                duration = 300,
+                remaining = 180,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+            },
+            {
+                spellId = 31884,
+                name = "Avenging Wrath",
+                icon = "Interface\\Icons\\Spell_Holy_AvengineWrath",
+                duration = 20,
+                remaining = 9,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+            },
+            {
+                spellId = 29166,
+                name = "Innervate",
+                icon = "Interface\\Icons\\Spell_Nature_Lightning",
+                duration = 10,
+                remaining = 7,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+            },
+            {
+                spellId = 11426,
+                name = "Ice Barrier",
+                icon = "Interface\\Icons\\Spell_Ice_Lament",
+                duration = 60,
+                remaining = 32,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+                isStealable = true,
+            },
+        },
+        Debuffs = {
+            {
+                spellId = 589,
+                name = "Shadow Word: Pain",
+                icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+                duration = 16,
+                remaining = 14,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+                dispelName = "Magic",
+            },
+            {
+                spellId = 34914,
+                name = "Vampiric Touch",
+                icon = "Interface\\Icons\\Spell_Holy_Stoicism",
+                duration = 21,
+                remaining = 18,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+                dispelName = "Magic",
+            },
+            {
+                spellId = 25771,
+                name = "Forbearance",
+                icon = "Interface\\Icons\\Spell_Holy_RemoveCurse",
+                duration = 30,
+                remaining = 20,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+            },
+            {
+                spellId = 116,
+                name = "Frostbolt",
+                icon = "Interface\\Icons\\Spell_Frost_FrostBolt02",
+                duration = 8,
+                remaining = 5,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+                dispelName = "Magic",
+            },
+            {
+                spellId = 20066,
+                name = "Repentance",
+                icon = "Interface\\Icons\\Spell_Holy_PrayerOfHealing",
+                duration = 12,
+                remaining = 6,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+            },
+            {
+                spellId = 204242,
+                name = "Consecration Burn",
+                icon = "Interface\\Icons\\Ability_Paladin_Consecration",
+                duration = 9,
+                remaining = 4,
+                count = 2,
+                isMine = true,
+                isPlayerCast = true,
+                isBossAura = true,
+            },
+        },
+    },
+    placeholder = {
+        Buffs = {
+            {
+                spellId = 17,
+                name = "Power Word: Shield",
+                icon = "Interface\\Icons\\Spell_Holy_PowerWordShield",
+                duration = 15,
+                remaining = 10,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+            },
+            {
+                spellId = 2825,
+                name = "Bloodlust",
+                icon = "Interface\\Icons\\Spell_Nature_BloodLust",
+                duration = 40,
+                remaining = 24,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+            },
+            {
+                spellId = 11426,
+                name = "Ice Barrier",
+                icon = "Interface\\Icons\\Spell_Ice_Lament",
+                duration = 60,
+                remaining = 28,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+                isStealable = true,
+            },
+        },
+        Debuffs = {
+            {
+                spellId = 589,
+                name = "Shadow Word: Pain",
+                icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+                duration = 16,
+                remaining = 12,
+                count = 0,
+                isMine = true,
+                isPlayerCast = true,
+                dispelName = "Magic",
+            },
+            {
+                spellId = 116,
+                name = "Frostbolt",
+                icon = "Interface\\Icons\\Spell_Frost_FrostBolt02",
+                duration = 8,
+                remaining = 5,
+                count = 0,
+                isMine = false,
+                isPlayerCast = false,
+                dispelName = "Magic",
+            },
+            {
+                spellId = 204242,
+                name = "Consecration Burn",
+                icon = "Interface\\Icons\\Ability_Paladin_Consecration",
+                duration = 9,
+                remaining = 4,
+                count = 2,
+                isMine = true,
+                isPlayerCast = true,
+                isBossAura = true,
+            },
+        },
+    },
 }
 
+local ALTERNATE_POWER_INDEX = Enum and Enum.PowerType and Enum.PowerType.Alternate or 10
+
 -- Preview helpers provide stable fake values for test/unlock mode
--- and encapsulate the small amount of secondary power lookup logic.
+-- and encapsulate alternate power lookup for both live and editor states.
 
 local function GetSelectedEditorUnit()
     local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
     local state = editorState and editorState.Get and editorState.Get() or nil
     return state and state.selectedUnit or nil
+end
+
+function Preview.ShouldForceSecondaryPowerPreview(unit)
+    if unit ~= "player" then
+        return false
+    end
+
+    local unitConfig = FocalPoint.UnitFrameUtils
+        and FocalPoint.UnitFrameUtils.GetUnitDB
+        and FocalPoint.UnitFrameUtils.GetUnitDB(unit)
+    if type(unitConfig) ~= "table" or unitConfig.showAlternativePowerBar ~= true then
+        return false
+    end
+
+    if FocalPoint.guiTestModeEnabled then
+        return true
+    end
+
+    return FocalPoint.framesUnlocked and GetSelectedEditorUnit() == "player"
 end
 
 local function IsSelectedEditorFrame(frame)
@@ -281,6 +501,90 @@ function Preview.GetTestValues(frame)
     return nil
 end
 
+local function BuildPreviewAura(definition, frame, groupKey, index)
+    if type(definition) ~= "table" or not frame or not groupKey then
+        return nil
+    end
+
+    local now = (GetTime and GetTime()) or 0
+    local duration = tonumber(definition.duration) or 0
+    local remaining = tonumber(definition.remaining)
+    if remaining == nil then
+        remaining = duration
+    end
+    remaining = math.max(remaining or 0, 0)
+
+    local durationState = duration > 0 and "TIMED" or "PERMANENT"
+    local expirationTime = duration > 0 and (now + remaining) or 0
+    local isHelpful = groupKey == "Buffs"
+    local isHarmful = groupKey == "Debuffs"
+    local count = tonumber(definition.count) or 0
+    local spellId = tonumber(definition.spellId) or (100000 + index)
+    local unitSeed = string.len(tostring(frame.unit or "")) * 1000
+
+    return {
+        spellId = spellId,
+        auraInstanceId = unitSeed + ((isHelpful and 10000) or 20000) + index,
+        name = definition.name or "",
+        icon = definition.icon,
+        isHelpful = isHelpful,
+        isHarmful = isHarmful,
+        count = count,
+        duration = duration,
+        expirationTime = expirationTime,
+        remaining = remaining,
+        durationObject = nil,
+        durationSource = "PREVIEW",
+        durationState = durationState,
+        timerState = duration > 0 and "READY" or "NONE",
+        durationObjectPresent = false,
+        timerReadable = duration > 0,
+        sourceUnit = definition.sourceUnit or "player",
+        sourceGUID = nil,
+        isPlayerCast = definition.isPlayerCast ~= false,
+        isMine = definition.isMine ~= false,
+        isBossAura = definition.isBossAura == true,
+        isStealable = definition.isStealable == true,
+        dispelName = definition.dispelName,
+        canApplyAura = definition.canApplyAura == true,
+        durationKnown = true,
+        hasDuration = duration > 0,
+        hasStacks = count > 1,
+        sourceIndex = index,
+        sortKey = index,
+    }
+end
+
+function Preview.GetTestAuras(frame, groupKey)
+    if not frame or not frame.unit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
+        return nil
+    end
+
+    local previewSet = nil
+    if Preview.IsDetailedPreviewEnabled(frame) then
+        previewSet = TEST_PREVIEW_AURAS.detailed
+    elseif Preview.IsPlaceholderPreviewEnabled(frame) then
+        previewSet = TEST_PREVIEW_AURAS.placeholder
+    else
+        return nil
+    end
+
+    local definitions = previewSet and previewSet[groupKey] or nil
+    if type(definitions) ~= "table" then
+        return {}
+    end
+
+    local auras = {}
+    for index, definition in ipairs(definitions) do
+        local aura = BuildPreviewAura(definition, frame, groupKey, index)
+        if aura then
+            auras[#auras + 1] = aura
+        end
+    end
+
+    return auras
+end
+
 function Preview.GetRaidTargetIndex(frame)
     local previewMap = {
         player = 1,
@@ -300,44 +604,79 @@ function Preview.GetRaidTargetIndex(frame)
     return previewMap[frame and frame.unit or ""] or 1
 end
 
-function Preview.GetPlayerSpecializationID()
-    if not GetSpecialization or not GetSpecializationInfo then
-        return nil
+local function GetAlternatePowerBarInfo(unit)
+    if type(unit) ~= "string" or unit == "" then
+        return nil, nil
     end
 
-    local specializationIndex = GetSpecialization()
-    if not specializationIndex then
-        return nil
+    if not UnitPowerBarID or not GetUnitPowerBarInfoByID then
+        return nil, nil
     end
 
-    local specializationID = GetSpecializationInfo(specializationIndex)
-    if type(specializationID) ~= "number" then
-        return nil
+    local barID = UnitPowerBarID(unit)
+    if not barID then
+        return nil, nil
     end
 
-    return specializationID
+    local barInfo = GetUnitPowerBarInfoByID(barID)
+    if type(barInfo) ~= "table" then
+        return barID, nil
+    end
+
+    return barID, barInfo
+end
+
+local function IsAlternatePowerVisible(unit, barInfo)
+    if type(unit) ~= "string" or unit == "" or type(barInfo) ~= "table" then
+        return false
+    end
+
+    local visibleOnRaid = barInfo.showOnRaid
+        and ((UnitInParty and UnitInParty(unit)) or (UnitInRaid and UnitInRaid(unit)))
+    local visibleForOthers = not barInfo.hideFromOthers
+    local isPlayerUnit = UnitIsUnit and UnitIsUnit(unit, "player")
+
+    return visibleOnRaid or visibleForOthers or isPlayerUnit
+end
+
+local function GetForcedSecondaryPowerPreviewValues(unit)
+    if not Preview.ShouldForceSecondaryPowerPreview(unit) then
+        return nil, 0, 0, 0
+    end
+
+    local previewValues = TEST_PREVIEW_VALUES[unit] or TEST_PREVIEW_VALUES.player or {}
+    local minPower = tonumber(previewValues.altPowerMin) or 0
+    local maxPower = tonumber(previewValues.altPowerMax) or 100
+    local currentPower = tonumber(previewValues.altPowerCurrent)
+
+    if type(currentPower) ~= "number" then
+        currentPower = maxPower
+    end
+
+    return ALTERNATE_POWER_INDEX, currentPower, maxPower, minPower
 end
 
 function Preview.GetSecondaryPowerTypeForUnit(unit)
-    if unit ~= "player" then
-        return nil
+    local _, barInfo = GetAlternatePowerBarInfo(unit)
+    if IsAlternatePowerVisible(unit, barInfo) then
+        return ALTERNATE_POWER_INDEX
     end
 
-    local specializationID = Preview.GetPlayerSpecializationID()
-    if not specializationID then
-        return nil
-    end
-
-    return SECONDARY_POWER_BAR_SPECS[specializationID]
+    local previewPowerType = GetForcedSecondaryPowerPreviewValues(unit)
+    return previewPowerType
 end
 
 function Preview.GetSecondaryPowerValues(unit)
-    local secondaryPowerType = Preview.GetSecondaryPowerTypeForUnit(unit)
-    if secondaryPowerType == nil or not UnitPower or not UnitPowerMax then
-        return nil, 0, 0
+    local _, barInfo = GetAlternatePowerBarInfo(unit)
+    if IsAlternatePowerVisible(unit, barInfo) then
+        local minPower = tonumber(barInfo.minPower) or 0
+        local currentPower = UnitPower and UnitPower(unit, ALTERNATE_POWER_INDEX) or minPower
+        local maxPower = UnitPowerMax and UnitPowerMax(unit, ALTERNATE_POWER_INDEX) or minPower
+
+        return ALTERNATE_POWER_INDEX, currentPower or minPower, maxPower or minPower, minPower
     end
 
-    return secondaryPowerType, UnitPower(unit, secondaryPowerType) or 0, UnitPowerMax(unit, secondaryPowerType) or 0
+    return GetForcedSecondaryPowerPreviewValues(unit)
 end
 
 function Preview.IsIndicatorVisible(frame, indicatorKey)

@@ -91,6 +91,22 @@ function Visibility.ClearFrameVisualState(frame)
             end
         end
 
+        local classPower = frame.Elements.ClassPowerBar
+        if classPower then
+            classPower:Hide()
+            for index = 1, #(classPower.Bars or {}) do
+                local bar = classPower.Bars[index]
+                if bar then
+                    bar:SetMinMaxValues(0, 1)
+                    bar:SetValue(0)
+                    bar:Hide()
+                    if bar.bg then
+                        bar.bg:Hide()
+                    end
+                end
+            end
+        end
+
         local altPower = frame.Elements.AlternativePowerBar
         if altPower then
             altPower:SetMinMaxValues(0, 1)
@@ -120,6 +136,8 @@ function Visibility.ClearFrameVisualState(frame)
             "CombatIndicator",
             "RestingIndicator",
             "ReadyCheckIndicator",
+            "ClassificationPortraitOverlay",
+            "ClassificationCrest",
         }) do
             local holder = frame.Elements[key]
             if holder then

@@ -7,6 +7,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local Indicators = FocalPoint.UnitFrameIndicators or {}
 local State = FocalPoint.UnitFrameState or {}
+local StatusOverlay = FocalPoint.UnitFrameStatusOverlay or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
@@ -24,8 +25,12 @@ function Combat.Update(owner, frame)
     local icon = holder.Texture or holder
     local config = frame.config
     local combatConfig = config and config.CombatIndicator or nil
+    local effect = combatConfig and combatConfig.effect or "ICON"
 
     if not combatConfig or combatConfig.enabled == false then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
         HandleVisibilityTransition(owner, frame, holder, false, "_combatLayoutRefreshQueued")
         return
     end
@@ -37,11 +42,28 @@ function Combat.Update(owner, frame)
     end
 
     if not inCombat then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
         HandleVisibilityTransition(owner, frame, holder, false, "_combatLayoutRefreshQueued")
         return
     end
 
+    if effect == "FRAME_OVERLAY" then
+        HandleVisibilityTransition(owner, frame, holder, true, "_combatLayoutRefreshQueued")
+        if StatusOverlay.Apply then
+            StatusOverlay.Apply(holder, frame, "combat")
+        end
+        return
+    end
+
+    if StatusOverlay.Hide then
+        StatusOverlay.Hide(holder)
+    end
     icon:SetAtlas("UI-HUD-UnitFrame-Player-CombatIcon", true)
+    if icon.SetTexCoord then
+        icon:SetTexCoord(0, 1, 0, 1)
+    end
     HandleVisibilityTransition(owner, frame, holder, true, "_combatLayoutRefreshQueued")
 end
 

@@ -30,6 +30,7 @@ KM.Bars = {
     [C.Bars.HEALTH] = "BAR_HEALTH",
     [C.Bars.POWER] = "BAR_POWER",
     [C.Bars.ALT_POWER] = "BAR_ALT_POWER",
+    [C.Bars.CLASS_POWER] = "BAR_CLASS_POWER",
     [C.Bars.CAST] = "BAR_CAST",
 }
 

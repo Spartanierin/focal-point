@@ -76,6 +76,7 @@ C.Bars = {
     HEALTH = "health_bar",
     POWER = "power_bar",
     ALT_POWER = "alt_power_bar",
+    CLASS_POWER = "class_power_bar",
     CAST = "cast_bar",
 }
 
@@ -83,6 +84,7 @@ C.BarOrder = {
     C.Bars.HEALTH,
     C.Bars.POWER,
     C.Bars.ALT_POWER,
+    C.Bars.CLASS_POWER,
     C.Bars.CAST,
 }
 

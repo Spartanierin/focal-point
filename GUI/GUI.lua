@@ -105,6 +105,214 @@ local function ArrangeFrameFooter(frame, testButton)
     statusText:Hide()
 end
 
+local function HideWindowCloseButton(frameWidget)
+    if not frameWidget then
+        return
+    end
+
+    local rootFrame = frameWidget.frame or frameWidget
+    local closeButton = frameWidget.closebutton
+
+    if (not closeButton) and rootFrame and rootFrame.GetChildren then
+        for _, child in ipairs({ rootFrame:GetChildren() }) do
+            if child
+                and child.GetObjectType
+                and child:GetObjectType() == "Button"
+                and child.GetText
+                and child:GetText() == CLOSE
+            then
+                closeButton = child
+                break
+            end
+        end
+    end
+
+    if not closeButton then
+        return
+    end
+
+    if closeButton.Hide then
+        closeButton:Hide()
+    end
+    if closeButton.EnableMouse then
+        closeButton:EnableMouse(false)
+    end
+    if closeButton.SetScript then
+        closeButton:SetScript("OnClick", nil)
+    end
+end
+
+local function CreateWelcomeSpacer(height)
+    local spacer = AceGUI:Create("SimpleGroup")
+    spacer:SetFullWidth(true)
+    spacer:SetAutoAdjustHeight(false)
+    spacer:SetHeight(height or 10)
+    return spacer
+end
+
+local function ShouldShowEditorWelcomeTip()
+    local general = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
+    return type(general) == "table" and general.HideEditorWelcomeTip ~= true
+end
+
+local function SetEditorWelcomeTipHidden(hidden)
+    local general = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
+    if type(general) == "table" then
+        general.HideEditorWelcomeTip = hidden and true or false
+    end
+end
+
+local function HideEditorWelcomeTip()
+    local tipWindow = FocalPoint.guiEditorWelcomeTip
+    if not tipWindow then
+        return
+    end
+
+    FocalPoint.guiEditorWelcomeTip = nil
+    if tipWindow.Release then
+        tipWindow:Release()
+    elseif tipWindow.frame and tipWindow.frame.Hide then
+        tipWindow.frame:Hide()
+    end
+end
+
+local function ShowEditorWelcomeTip()
+    if not ShouldShowEditorWelcomeTip() then
+        return
+    end
+
+    local existing = FocalPoint.guiEditorWelcomeTip
+    if existing then
+        ShowGUIFrame(existing)
+        return
+    end
+
+    local FormWidgets = FocalPoint.GUI and FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormWidgets
+    local headingText = (L and L["EDITOR_WELCOME_HEADING"]) or "Welcome to Focal Point"
+    local introText = (L and L["EDITOR_WELCOME_INTRO"]) or "Focal Point works as an editor for your unit frames."
+    local stepsTitleText = (L and L["EDITOR_WELCOME_STEPS_TITLE"]) or "How to start:"
+    local stepsText = (L and L["EDITOR_WELCOME_STEPS"]) or "1. Click Unlock Frames on the left\n2. Pick a tool on the left like Profiles, Text Builder, or Tag Database\n3. Edit the currently selected unit on the right"
+    local noteText = (L and L["EDITOR_WELCOME_NOTE"]) or "Unlock Frames makes unit frames visible and movable."
+
+    local tipWindow = AceGUI:Create("Frame")
+    tipWindow:SetTitle((L and L["EDITOR_WELCOME_TITLE"]) or "Quick Start")
+    tipWindow:SetLayout("List")
+    tipWindow:SetWidth(560)
+    tipWindow:SetHeight(440)
+    tipWindow:EnableResize(false)
+    tipWindow:SetStatusText("")
+
+    if tipWindow.frame then
+        tipWindow.frame:SetFrameStrata("DIALOG")
+        tipWindow.frame:SetClampedToScreen(true)
+    end
+
+    if FormWidgets and FormWidgets.ApplyWindowChrome then
+        FormWidgets.ApplyWindowChrome(tipWindow)
+    end
+    ArrangeFrameFooter(tipWindow, nil)
+    HideWindowCloseButton(tipWindow)
+
+    local content = AceGUI:Create("SimpleGroup")
+    content:SetFullWidth(true)
+    content:SetFullHeight(true)
+    content:SetLayout("List")
+    if FormWidgets and FormWidgets.ApplySectionPadding then
+        FormWidgets.ApplySectionPadding(content, {
+            left = 22,
+            right = 22,
+            top = 20,
+            bottom = 20,
+        })
+    end
+    tipWindow:AddChild(content)
+
+    local heading
+    if FormWidgets and FormWidgets.CreateBodyText then
+        heading = FormWidgets.CreateBodyText(headingText, "sectionHeader", 18, nil, nil, true)
+    else
+        heading = AceGUI:Create("Label")
+        heading:SetFullWidth(true)
+        heading:SetText(headingText)
+    end
+    content:AddChild(heading)
+    content:AddChild(CreateWelcomeSpacer(16))
+
+    local intro
+    if FormWidgets and FormWidgets.CreateBodyText then
+        intro = FormWidgets.CreateBodyText(introText, "description", 15, nil, nil, true)
+    else
+        intro = AceGUI:Create("Label")
+        intro:SetFullWidth(true)
+        intro:SetText(introText)
+    end
+    content:AddChild(intro)
+    content:AddChild(CreateWelcomeSpacer(24))
+
+    local stepsTitle
+    if FormWidgets and FormWidgets.CreateBodyText then
+        stepsTitle = FormWidgets.CreateBodyText(stepsTitleText, "sectionHeader", 14, nil, nil, true)
+    else
+        stepsTitle = AceGUI:Create("Label")
+        stepsTitle:SetFullWidth(true)
+        stepsTitle:SetText(stepsTitleText)
+    end
+    content:AddChild(stepsTitle)
+    content:AddChild(CreateWelcomeSpacer(12))
+
+    local steps
+    if FormWidgets and FormWidgets.CreateBodyText then
+        steps = FormWidgets.CreateBodyText(stepsText, "description", 14, nil, nil, true)
+    else
+        steps = AceGUI:Create("Label")
+        steps:SetFullWidth(true)
+        steps:SetText(stepsText)
+    end
+    content:AddChild(steps)
+    content:AddChild(CreateWelcomeSpacer(22))
+
+    local note
+    if FormWidgets and FormWidgets.CreateBodyText then
+        note = FormWidgets.CreateBodyText(noteText, "description", 13, nil, nil, true)
+    else
+        note = AceGUI:Create("Label")
+        note:SetFullWidth(true)
+        note:SetText(noteText)
+    end
+    content:AddChild(note)
+    content:AddChild(CreateWelcomeSpacer(24))
+
+    local hideCheckbox = AceGUI:Create("CheckBox")
+    hideCheckbox:SetFullWidth(true)
+    hideCheckbox:SetLabel((L and L["EDITOR_WELCOME_DO_NOT_SHOW"]) or "Do not show this tip again")
+    hideCheckbox:SetValue(false)
+    if FormWidgets and FormWidgets.StyleCheckBox then
+        FormWidgets.StyleCheckBox(hideCheckbox, false)
+    end
+    content:AddChild(hideCheckbox)
+    content:AddChild(CreateWelcomeSpacer(18))
+
+    local confirmButton
+    if FormWidgets and FormWidgets.CreateActionButton then
+        confirmButton = FormWidgets.CreateActionButton((L and L["EDITOR_WELCOME_CONFIRM"]) or "Got it", "primary_action", nil, true)
+    else
+        confirmButton = AceGUI:Create("Button")
+        confirmButton:SetText((L and L["EDITOR_WELCOME_CONFIRM"]) or "Got it")
+        confirmButton:SetFullWidth(true)
+    end
+    content:AddChild(confirmButton)
+
+    local function CloseTip()
+        SetEditorWelcomeTipHidden(hideCheckbox.GetValue and hideCheckbox:GetValue())
+        HideEditorWelcomeTip()
+    end
+
+    confirmButton:SetCallback("OnClick", CloseTip)
+    tipWindow:SetCallback("OnClose", CloseTip)
+
+    FocalPoint.guiEditorWelcomeTip = tipWindow
+end
+
 local TREE_PATH_SEPARATOR = "\001"
 
 local function NormalizeGroupValue(group)
@@ -338,6 +546,12 @@ local function BuildAppSidebar(container)
             end
         end,
     })
+
+    if AppShell and AppShell.LayoutEditorToolbarHost then
+        AppShell.LayoutEditorToolbarHost(FocalPoint)
+    elseif targetContainer and targetContainer.DoLayout then
+        targetContainer:DoLayout()
+    end
 end
 
 local function UpdateAppShellGeometry()
@@ -362,6 +576,11 @@ local function StabilizeRenderedShell(expectedPath)
 
     if addon.guiRoot and addon.guiRoot.DoLayout then
         addon.guiRoot:DoLayout()
+    end
+
+    local shell = addon.GUI and addon.GUI.AppShell
+    if shell and shell.LayoutEditorToolbarHost then
+        shell.LayoutEditorToolbarHost(addon)
     end
 
     local controller = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
@@ -565,6 +784,8 @@ function FocalPoint:CloseConfig()
         textBuilderPage.HideWindow()
     end
 
+    HideEditorWelcomeTip()
+
     if self.RefreshAllUnitFrames then
         self:RefreshAllUnitFrames()
     end
@@ -752,6 +973,11 @@ function FocalPoint:CreateGUI()
             self.guiRoot:DoLayout()
         end
 
+        local shell = self.GUI and self.GUI.AppShell
+        if shell and shell.LayoutEditorToolbarHost then
+            shell.LayoutEditorToolbarHost(self)
+        end
+
         local controller = self.GUI and self.GUI.Editor and self.GUI.Editor.Controller
         if controller and controller.UpdateActiveInspectorGeometry then
             controller.UpdateActiveInspectorGeometry()
@@ -785,4 +1011,5 @@ function FocalPoint:OpenConfig()
         self.guiTreeStatus.selected = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
     end
     self:CreateGUI()
+    ShowEditorWelcomeTip()
 end

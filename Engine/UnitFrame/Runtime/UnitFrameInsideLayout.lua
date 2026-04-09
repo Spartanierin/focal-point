@@ -118,6 +118,7 @@ function InsideLayout.BuildHorizontalLaneBlock(entries)
             and holder.IsShown
             and holder:IsShown()
             and options.enabled
+            and not options.customLayout
             and options.placement == "INSIDE"
         then
             visibleIndex = visibleIndex + 1

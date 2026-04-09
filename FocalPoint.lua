@@ -417,6 +417,92 @@ local function EnsureAlternativePowerDefaults()
     end
 end
 
+local function EnsureClassPowerDefaults()
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if not units or not defaultUnits then
+        return
+    end
+
+    local keysToCopy = {
+        "showClassPowerBar",
+        "classPowerBarHeight",
+        "classPowerBarWidth",
+        "classPowerBarSpacing",
+        "classPowerBarAnchorTo",
+        "classPowerBarPoint",
+        "classPowerBarRelativePoint",
+        "classPowerBarOffsetX",
+        "classPowerBarOffsetY",
+        "classPowerBarTexture",
+        "classPowerColor",
+        "classPowerBackgroundColor",
+    }
+
+    for unitKey, unitDefaults in pairs(defaultUnits) do
+        local unitDB = units[unitKey]
+        if type(unitDB) == "table" and type(unitDefaults) == "table" then
+            for _, key in ipairs(keysToCopy) do
+                if unitDB[key] == nil and unitDefaults[key] ~= nil then
+                    if type(unitDefaults[key]) == "table" then
+                        unitDB[key] = CopyTable(unitDefaults[key])
+                    else
+                        unitDB[key] = unitDefaults[key]
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function EnsureStatusIndicatorEffectDefaults()
+    if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
+        return
+    end
+
+    local profile = FocalPoint.db.profile
+    local defaults = FocalPoint:GetDefaultDB()
+    local units = profile and profile.Units
+    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+
+    if type(units) ~= "table" or type(defaultUnits) ~= "table" then
+        return
+    end
+
+    for unitKey, unitDefaults in pairs(defaultUnits) do
+        local unitDB = units[unitKey]
+        if type(unitDB) == "table" and type(unitDefaults) == "table" then
+            for _, indicatorKey in ipairs({ "CombatIndicator", "RestingIndicator" }) do
+                local indicatorDB = unitDB[indicatorKey]
+                local indicatorDefaults = unitDefaults[indicatorKey]
+                if type(indicatorDB) == "table" and type(indicatorDefaults) == "table" and indicatorDB.effect == nil then
+                    indicatorDB.effect = indicatorDefaults.effect or "ICON"
+                end
+            end
+        end
+    end
+end
+
+local function MigrateClassificationIndicatorEffects()
+    if not FocalPoint.db or not FocalPoint.db.profile or type(FocalPoint.db.profile.Units) ~= "table" then
+        return
+    end
+
+    for _, unitDB in pairs(FocalPoint.db.profile.Units) do
+        local indicatorConfig = type(unitDB) == "table" and unitDB.ClassificationIndicator or nil
+        if type(indicatorConfig) == "table" and indicatorConfig.effect == "NAME_LABEL" then
+            indicatorConfig.effect = "PORTRAIT_OVERLAY"
+        end
+    end
+end
+
 local function EnsureCastBarInterruptibleColorDefaults()
     if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
@@ -569,6 +655,10 @@ local function EnsureTextTemplateLinks()
             return "Alt Power"
         end
 
+        if textKey == "ClassPower" then
+            return "Class Power"
+        end
+
         if textKey == "Class" and unitKey == "player" then
             return "Player Level and Class"
         end
@@ -607,6 +697,7 @@ local function EnsureTextTemplateLinks()
             or textKey == "Health"
             or textKey == "Power"
             or textKey == "AltPower"
+            or textKey == "ClassPower"
             or textKey == "Class"
             or textKey == "Status"
             or textKey == "CastName"
@@ -670,6 +761,7 @@ local function EnsureCoreTextDefaults()
             or textKey == "Health"
             or textKey == "Power"
             or textKey == "AltPower"
+            or textKey == "ClassPower"
             or textKey == "Class"
             or textKey == "Race"
             or textKey == "Status"
@@ -886,6 +978,9 @@ function FocalPointAddon:OnInitialize()
     end)
     EnsureCastTextDefaults()
     EnsureAlternativePowerDefaults()
+    EnsureClassPowerDefaults()
+    EnsureStatusIndicatorEffectDefaults()
+    MigrateClassificationIndicatorEffects()
     EnsureCastBarInterruptibleColorDefaults()
     EnsureTextTemplateDefaults()
     NormalizeLegacyTextTemplateNames()
