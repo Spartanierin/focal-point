@@ -29,7 +29,7 @@ This changelog follows a simple structure:
 - Added safer runtime handling for secret-value based resource and color updates.
 
 ### Changed
-- Finalized the default profile layout and promoted the current release candidate defaults from the live `Aradia - Lordaeron` setup.
+- Finalized the default profile layout and promoted the current release candidate defaults from the validated release profile setup.
 - Reworked the secondary resource bar so it behaves like a real stacked bar in the frame layout instead of stealing height from the health bar.
 - Simplified and clarified several inspector and profile UI labels ahead of release.
 - Reduced startup chat noise to the essential load message and kept diagnostics as an explicit support tool.
