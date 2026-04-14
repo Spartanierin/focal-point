@@ -25,6 +25,19 @@ local function GetMainHostFrame(addon)
     return widget.frame or widget
 end
 
+local function IsMainHostVisible(addon)
+    local frame = GetMainHostFrame(addon)
+    if not frame then
+        return false
+    end
+
+    if frame.IsShown then
+        return frame:IsShown()
+    end
+
+    return true
+end
+
 local function GetReadyStatusText()
     return (L and L["GUI_STATUS_READY"]) or "Ready"
 end
@@ -501,24 +514,24 @@ local function BuildAppSidebar(container)
             if FocalPoint.guiTreeStatus then
                 FocalPoint.guiTreeStatus.selected = normalizedPath
             end
-            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-                FocalPoint.GUI:RefreshOptions()
+            if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                FocalPoint.GUI:RequestRefreshOptions()
             end
         end,
         onUnitChanged = function(unitKey)
             if EditorState.SetSelectedUnit then
                 EditorState.SetSelectedUnit(unitKey)
             end
-            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-                FocalPoint.GUI:RefreshOptions()
+            if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                FocalPoint.GUI:RequestRefreshOptions()
             end
         end,
         onModeChanged = function(mode)
             if EditorState.SetMode then
                 EditorState.SetMode(mode)
             end
-            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-                FocalPoint.GUI:RefreshOptions()
+            if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                FocalPoint.GUI:RequestRefreshOptions()
             end
         end,
         onThemeChanged = function(themeId)
@@ -531,13 +544,13 @@ local function BuildAppSidebar(container)
             if EditorState.SetSelectedThemeId then
                 EditorState.SetSelectedThemeId(themeId)
             end
-            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-                FocalPoint.GUI:RefreshOptions()
+            if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                FocalPoint.GUI:RequestRefreshOptions()
             end
         end,
         onGlobalChanged = function()
-            if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-                FocalPoint.GUI:RefreshOptions()
+            if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                FocalPoint.GUI:RequestRefreshOptions()
             end
         end,
         onClose = function()
@@ -561,9 +574,13 @@ local function UpdateAppShellGeometry()
     end
 end
 
-local function StabilizeRenderedShell(expectedPath)
+local function StabilizeRenderedShell(expectedPath, refreshSerial)
     local addon = FocalPoint
     if not addon or addon._closingConfig then
+        return
+    end
+
+    if refreshSerial and addon._guiRefreshSerial ~= refreshSerial then
         return
     end
 
@@ -589,6 +606,38 @@ local function StabilizeRenderedShell(expectedPath)
     end
 end
 
+function FocalPoint.GUI:RequestRefreshOptions()
+    local addon = FocalPoint
+
+    if addon._closingConfig then
+        return
+    end
+
+    addon._pendingRefreshOptions = true
+
+    if addon._refreshingOptions or addon._refreshOptionsScheduled then
+        return
+    end
+
+    local function RunDeferredRefresh()
+        addon._refreshOptionsScheduled = false
+
+        if addon._closingConfig or not addon._pendingRefreshOptions then
+            return
+        end
+
+        self:RefreshOptions()
+    end
+
+    if C_Timer and C_Timer.After then
+        addon._refreshOptionsScheduled = true
+        C_Timer.After(0, RunDeferredRefresh)
+        return
+    end
+
+    RunDeferredRefresh()
+end
+
 function FocalPoint.GUI:RefreshOptions()
     local addon = FocalPoint
 
@@ -600,22 +649,46 @@ function FocalPoint.GUI:RefreshOptions()
         return
     end
 
+    if addon._refreshingOptions then
+        addon._pendingRefreshOptions = true
+        return
+    end
+
+    addon._refreshingOptions = true
+    addon._pendingRefreshOptions = nil
+    addon._guiRefreshSerial = (addon._guiRefreshSerial or 0) + 1
+
     local selectedPath = ResolveDefaultGUIPath(self.selectedPath)
-    UpdateAppShellGeometry()
-    if addon.guiAppSidebar then
-        BuildAppSidebar(addon.guiAppSidebar)
-    end
-    RenderPage(addon.guiContentHost, selectedPath)
-    StabilizeRenderedShell(selectedPath)
+    local refreshSerial = addon._guiRefreshSerial
+    local ok, err = xpcall(function()
+        UpdateAppShellGeometry()
+        if addon.guiAppSidebar then
+            BuildAppSidebar(addon.guiAppSidebar)
+        end
+        RenderPage(addon.guiContentHost, selectedPath)
+        StabilizeRenderedShell(selectedPath, refreshSerial)
 
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0, function()
-            StabilizeRenderedShell(selectedPath)
-        end)
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function()
+                StabilizeRenderedShell(selectedPath, refreshSerial)
+            end)
+        end
+
+        if addon.RefreshEditorSelectionVisuals then
+            addon:RefreshEditorSelectionVisuals()
+        end
+    end, function(message)
+        return tostring(message)
+    end)
+
+    addon._refreshingOptions = false
+
+    if addon._pendingRefreshOptions then
+        self:RequestRefreshOptions()
     end
 
-    if addon.RefreshEditorSelectionVisuals then
-        addon:RefreshEditorSelectionVisuals()
+    if not ok then
+        error(err)
     end
 end
 
@@ -661,8 +734,8 @@ function FocalPoint:SelectEditorUnit(unit)
         self.guiTreeStatus.selected = self.Constants.Nav.EDITOR
     end
 
-    if self.GUI and self.GUI.RefreshOptions then
-        self.GUI:RefreshOptions()
+    if self.GUI and self.GUI.RequestRefreshOptions then
+        self.GUI:RequestRefreshOptions()
     elseif self.RefreshEditorSelectionVisuals then
         self:RefreshEditorSelectionVisuals()
     end
@@ -690,8 +763,8 @@ ShowGUIFrame = function(widget)
 
     if widget.frame and widget.frame.Show then
         widget.frame:Show()
-        if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-            FocalPoint.GUI:RefreshOptions()
+        if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+            FocalPoint.GUI:RequestRefreshOptions()
         elseif FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
         end
@@ -700,8 +773,8 @@ ShowGUIFrame = function(widget)
 
     if widget.Show then
         widget:Show()
-        if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-            FocalPoint.GUI:RefreshOptions()
+        if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+            FocalPoint.GUI:RequestRefreshOptions()
         elseif FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
         end
@@ -811,11 +884,17 @@ local function CreateMainHostWidget()
 end
 
 function FocalPoint:CreateGUI()
+    if self._creatingGUI then
+        return
+    end
+
     local existingHost = GetMainHostWidget(self)
     if existingHost then
         ShowGUIFrame(existingHost)
         return
     end
+
+    self._creatingGUI = true
 
     local hostWidget = CreateMainHostWidget()
 
@@ -916,8 +995,8 @@ function FocalPoint:CreateGUI()
             FocalPoint:RefreshAllUnitFrames()
         end
 
-        if self.GUI and self.GUI.RefreshOptions then
-            self.GUI:RefreshOptions()
+        if self.GUI and self.GUI.RequestRefreshOptions then
+            self.GUI:RequestRefreshOptions()
         end
     end
 
@@ -938,6 +1017,7 @@ function FocalPoint:CreateGUI()
     if shell and shell.BuildRoot then
         root, appSidebar, contentHost = shell.BuildRoot(self, hostWidget)
     else
+        self._creatingGUI = false
         return
     end
 
@@ -1001,15 +1081,26 @@ function FocalPoint:CreateGUI()
         end)
         rootFrame._focalPointResizeHooked = true
     end
+
+    self._creatingGUI = false
 end
 
 function FocalPoint:OpenConfig()
+    local editorPath = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
+    local alreadyVisible = IsMainHostVisible(self)
+    local currentPath = ResolveDefaultGUIPath(self.GUI and self.GUI.selectedPath)
+
     if self.GUI then
-        self.GUI.selectedPath = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
+        self.GUI.selectedPath = editorPath
     end
     if self.guiTreeStatus then
-        self.guiTreeStatus.selected = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
+        self.guiTreeStatus.selected = editorPath
     end
+
+    if alreadyVisible and currentPath == editorPath and not self._creatingGUI then
+        return
+    end
+
     self:CreateGUI()
     ShowEditorWelcomeTip()
 end

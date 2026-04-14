@@ -38,10 +38,9 @@ Please refer to the `.toc` file for the exact interface version included in this
 
 ## Slash Commands
 
-- `/fp` — open the main command entry
-- `/fp config` — open the configuration interface
-- `/fp test` — activate test mode
-- `/fp diag` — print diagnostic information
+- `/fp` - open the main command entry
+- `/fp config` - open the configuration interface
+- `/fp diag` - print diagnostic information
 
 Some legacy aliases may still be available for compatibility.
 

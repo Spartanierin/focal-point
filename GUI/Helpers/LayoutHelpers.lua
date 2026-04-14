@@ -11,6 +11,8 @@ ns.GUI.Helpers.LayoutHelpers = LayoutHelpers
 function LayoutHelpers.BuildScrollableTabContent(widget, statusTable, buildFunc)
     widget:ReleaseChildren()
     widget:SetLayout("Fill")
+    widget._focalPointScrollBuildSerial = (widget._focalPointScrollBuildSerial or 0) + 1
+    local buildSerial = widget._focalPointScrollBuildSerial
 
     local scroll = AceGUI:Create("ScrollFrame")
     scroll:SetLayout("Flow")
@@ -35,6 +37,14 @@ function LayoutHelpers.BuildScrollableTabContent(widget, statusTable, buildFunc)
 
     if C_Timer and C_Timer.After then
         C_Timer.After(0, function()
+            if not widget or widget._focalPointScrollBuildSerial ~= buildSerial then
+                return
+            end
+
+            if not widget.children or widget.children[1] ~= scroll then
+                return
+            end
+
             if scroll and scroll.DoLayout then
                 scroll:DoLayout()
             end

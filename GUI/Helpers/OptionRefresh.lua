@@ -42,8 +42,8 @@ function OptionRefresh.GUI()
         return
     end
 
-    if FocalPoint.GUI and FocalPoint.GUI.RefreshOptions then
-        FocalPoint.GUI:RefreshOptions()
+    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+        FocalPoint.GUI:RequestRefreshOptions()
     end
 end
 

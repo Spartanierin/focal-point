@@ -597,8 +597,8 @@ function FocalPoint:ToggleFrameLock()
         end
         self:UpdateAllFrameDragStates()
         self:RefreshEditorSelectionVisuals()
-        if self.GUI and self.GUI.RefreshOptions then
-            self.GUI:RefreshOptions()
+        if self.GUI and self.GUI.RequestRefreshOptions then
+            self.GUI:RequestRefreshOptions()
         end
         self:Info("Unit frames unlocked. Drag with left mouse button.")
     else
@@ -608,8 +608,8 @@ function FocalPoint:ToggleFrameLock()
         if self.RefreshAllFrames then
             self:RefreshAllFrames()
         end
-        if self.GUI and self.GUI.RefreshOptions then
-            self.GUI:RefreshOptions()
+        if self.GUI and self.GUI.RequestRefreshOptions then
+            self.GUI:RequestRefreshOptions()
         end
         self:Info("Unit frames locked.")
     end

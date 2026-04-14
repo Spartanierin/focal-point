@@ -203,6 +203,7 @@ ns.GUI.Layouts.Profile.Form = {
             { id = "createHint", widget = "label", itemVariant = "group_description", textKey = "INFO_PROFILES_CREATE_SIMPLE_HINT_SHORT" },
             { id = "nameEdit", widget = "editbox", itemVariant = "profile_field", labelKey = "INFO_PROFILES_NAME", stateKey = "newProfileName" },
             { id = "createButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_PROFILES_CREATE_AND_SWITCH" },
+            { id = "createState", widget = "label", itemVariant = "footer_hint_muted", text = "" },
         },
     },
     {

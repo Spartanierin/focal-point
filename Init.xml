@@ -4,7 +4,6 @@
 
     <Script file="FocalPoint.lua"/>
     <Script file="Data/Defaults.lua"/>
-    <Script file="Utils/PrettyPrint.lua"/>
 
     <Script file="Services/Integrations/SlashCommands.lua"/>
     <Script file="Services/Integrations/MinimapButton.lua"/>

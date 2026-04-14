@@ -60,34 +60,14 @@ local function SetStatus(message)
 end
 
 local function RefreshProfileUI()
-    if ns.GUI and ns.GUI.RefreshOptions then
-        ns.GUI:RefreshOptions()
+    if ns.GUI and ns.GUI.RequestRefreshOptions then
+        ns.GUI:RequestRefreshOptions()
     end
 end
 
 local function RebuildFramesForProfile()
-    local db = ns.db
-    if not db then
-        return
-    end
-
-    if ns.ApplyGeneralSettings then
-        ns:ApplyGeneralSettings()
-    end
-
-    ns.frames = ns.frames or {}
-    for _, unitKey in ipairs(C.UnitOrder or {}) do
-        local unitDB = db.profile and db.profile.Units and db.profile.Units[unitKey]
-        local enabled = type(unitDB) == "table" and unitDB.enabled ~= false
-
-        if enabled then
-            if ns.SpawnUnitFrame then
-                ns:SpawnUnitFrame(unitKey)
-            end
-        elseif ns.frames[unitKey] then
-            ns.frames[unitKey]:Hide()
-            ns.frames[unitKey] = nil
-        end
+    if ns.RebuildFramesForActiveProfile then
+        ns:RebuildFramesForActiveProfile()
     end
 end
 
@@ -248,6 +228,7 @@ local function RefreshWindowState()
         context.resetButton:SetDisabled(true)
         context.deleteButton:SetDisabled(true)
         context.sourceState:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        context.createState:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.maintenanceHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
         if context.window and context.window.DoLayout then
             context.window:DoLayout()
@@ -268,6 +249,7 @@ local function RefreshWindowState()
     local sameAsCurrent = selectedProfile == currentProfile
     local hasSelectedProfile = type(selectedProfile) == "string" and selectedProfile ~= ""
     local hasNewProfileName = newProfileName ~= ""
+    local newProfileExists = hasNewProfileName and profileList[newProfileName] ~= nil
 
     context.activeProfileValue:SetText(currentProfile)
     context.profileSelect:SetList(profileList)
@@ -281,7 +263,7 @@ local function RefreshWindowState()
     context.copyButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
     context.deleteButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
     context.resetButton:SetDisabled(currentProfile == nil or currentProfile == "")
-    context.createButton:SetDisabled(not hasNewProfileName)
+    context.createButton:SetDisabled(not hasNewProfileName or newProfileExists)
 
     if hasSelectedProfile then
         context.sourceState:SetText(string.format(
@@ -291,6 +273,12 @@ local function RefreshWindowState()
         ))
     else
         context.sourceState:SetText(T("INFO_PROFILES_SOURCE_SUMMARY_NONE"))
+    end
+
+    if newProfileExists then
+        context.createState:SetText(T("INFO_PROFILES_CREATE_NAME_EXISTS"))
+    else
+        context.createState:SetText(T("INFO_PROFILES_CREATE_EMPTY_SUMMARY"))
     end
 
     if sameAsCurrent or not hasSelectedProfile then
@@ -329,6 +317,7 @@ local function CreateWindowContent(window, state)
         activateButton = widgets.activateButton,
         copyButton = widgets.copyButton,
         createButton = widgets.createButton,
+        createState = widgets.createState,
         resetButton = widgets.resetButton,
         deleteButton = widgets.deleteButton,
         sourceState = widgets.sourceState,
@@ -472,6 +461,14 @@ local function WireWindowCallbacks(context)
         local profileName = Trim(context.nameEdit:GetText() or "")
         if profileName == "" then
             return
+        end
+
+        if db.GetProfiles then
+            local profiles = GetProfileList(db)
+            if profiles[profileName] then
+                SetStatus(T("INFO_PROFILES_CREATE_NAME_EXISTS"))
+                return
+            end
         end
 
         db:SetProfile(profileName)

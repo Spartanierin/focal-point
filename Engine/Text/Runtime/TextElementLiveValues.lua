@@ -15,6 +15,7 @@ local ToSafeNumber = TextUtils.ToSafeNumber
 local GetCurrentStatusInfo = TextStatus.GetCurrentStatusInfo
 local GetSecondaryPowerTypeForUnit = TextPower.GetSecondaryPowerTypeForUnit
 local GetSecondaryPowerValues = TextPower.GetSecondaryPowerValues
+local GetSecondaryPowerDisplayValues = TextPower.GetSecondaryPowerDisplayValues
 
 -- Builds the live text value cache that all token resolvers read from.
 function LiveValues.Refresh(frame)
@@ -114,11 +115,20 @@ function LiveValues.Refresh(frame)
     end
 
     local secondaryPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
+    local displayPowerType = nil
+    local displayAltPowerCurrentText = nil
+    local displayAltPowerMaxText = nil
+    local displayAltPowerCurrentSafe = 0
+    local displayAltPowerMaxSafe = 0
 
     local altPowerMin = 0
 
     if secondaryPowerType ~= nil then
         secondaryPowerType, altPowerCurrent, altPowerMax, altPowerMin = GetSecondaryPowerValues(unit)
+        if GetSecondaryPowerDisplayValues then
+            displayPowerType, displayAltPowerCurrentText, displayAltPowerMaxText, _, displayAltPowerCurrentSafe, displayAltPowerMaxSafe =
+                GetSecondaryPowerDisplayValues(unit)
+        end
     end
 
     frame.LiveValues.healthCurrent = healthCurrent
@@ -164,25 +174,45 @@ function LiveValues.Refresh(frame)
     local altPowerMaxSafe = ToSafeNumber(altPowerMax)
     local alternativePowerBarCurrentSafe = ToSafeNumber(alternativePowerBarCurrent)
     local alternativePowerBarMaxSafe = ToSafeNumber(alternativePowerBarMax)
+    local preparedAltPowerCurrentSafe = ToSafeNumber(displayAltPowerCurrentSafe)
+    if preparedAltPowerCurrentSafe <= 0 then
+        preparedAltPowerCurrentSafe = ToSafeNumber(frame.LiveValues.altPowerCurrentSafe)
+    end
+    local preparedAltPowerMaxSafe = ToSafeNumber(displayAltPowerMaxSafe)
+    if preparedAltPowerMaxSafe <= 0 then
+        preparedAltPowerMaxSafe = ToSafeNumber(frame.LiveValues.altPowerMaxSafe)
+    end
+    local preparedAltPowerCurrentText = type(displayAltPowerCurrentText) == "string" and displayAltPowerCurrentText or frame.LiveValues.altPowerCurrentText
+    local preparedAltPowerMaxText = type(displayAltPowerMaxText) == "string" and displayAltPowerMaxText or frame.LiveValues.altPowerMaxText
 
     frame.LiveValues.altPowerCurrent = altPowerCurrentSafe
     if frame.LiveValues.altPowerCurrent <= 0 and alternativePowerBarCurrentSafe > 0 then
         frame.LiveValues.altPowerCurrent = alternativePowerBarCurrentSafe
+    end
+    if frame.LiveValues.altPowerCurrent <= 0 and preparedAltPowerCurrentSafe > 0 then
+        frame.LiveValues.altPowerCurrent = preparedAltPowerCurrentSafe
     end
 
     frame.LiveValues.altPowerMax = altPowerMaxSafe
     if frame.LiveValues.altPowerMax <= 0 and alternativePowerBarMaxSafe > 0 then
         frame.LiveValues.altPowerMax = alternativePowerBarMaxSafe
     end
-    frame.LiveValues.altPowerCurrentText = FormatNumber(frame.LiveValues.altPowerCurrent)
-    frame.LiveValues.altPowerMaxText = FormatNumber(frame.LiveValues.altPowerMax)
+    if frame.LiveValues.altPowerMax <= 0 and preparedAltPowerMaxSafe > 0 then
+        frame.LiveValues.altPowerMax = preparedAltPowerMaxSafe
+    end
+    frame.LiveValues.altPowerCurrentText = type(preparedAltPowerCurrentText) == "string" and preparedAltPowerCurrentText or FormatNumber(frame.LiveValues.altPowerCurrent)
+    frame.LiveValues.altPowerMaxText = type(preparedAltPowerMaxText) == "string" and preparedAltPowerMaxText or FormatNumber(frame.LiveValues.altPowerMax)
     frame.LiveValues.altPowerCurrentSafe = ToSafeNumber(frame.LiveValues.altPowerCurrent)
+    if frame.LiveValues.altPowerCurrentSafe <= 0 and preparedAltPowerCurrentSafe > 0 then
+        frame.LiveValues.altPowerCurrentSafe = preparedAltPowerCurrentSafe
+    end
     frame.LiveValues.altPowerMaxSafe = ToSafeNumber(frame.LiveValues.altPowerMax)
-    frame.LiveValues.altPowerCurrentRaw = frame.LiveValues.altPowerCurrent
-    frame.LiveValues.altPowerMaxRaw = frame.LiveValues.altPowerMax
+    if frame.LiveValues.altPowerMaxSafe <= 0 and preparedAltPowerMaxSafe > 0 then
+        frame.LiveValues.altPowerMaxSafe = preparedAltPowerMaxSafe
+    end
     frame.LiveValues.altPowerMinRaw = ToSafeNumber(altPowerMin)
-    frame.LiveValues.altPowerType = secondaryPowerType
-    frame.LiveValues.altPowerVisible = secondaryPowerType ~= nil
+    frame.LiveValues.altPowerType = displayPowerType ~= nil and displayPowerType or secondaryPowerType
+    frame.LiveValues.altPowerVisible = frame.LiveValues.altPowerType ~= nil
 
     local statusKey, statusText = GetCurrentStatusInfo(unit)
     local previousStatusKey = frame.LiveValues.statusKey or ""

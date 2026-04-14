@@ -331,6 +331,7 @@ function UF:ApplyConfig(frame)
     local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
     local healthBarReverseFill = config.healthBarReverseFill
     local powerBarReverseFill = config.powerBarReverseFill
+    local alternativePowerBarReverseFill = config.alternativePowerBarReverseFill
     local showAlternativePowerBar = config.showAlternativePowerBar and true or false
     local alternativePowerBarHeight = showAlternativePowerBar and (config.alternativePowerBarHeight or 5) or 0
     local showClassPowerBar = config.showClassPowerBar and true or false
@@ -342,12 +343,6 @@ function UF:ApplyConfig(frame)
     local classPowerBarRelativePoint = config.classPowerBarRelativePoint or "BOTTOMRIGHT"
     local classPowerBarOffsetX = tonumber(config.classPowerBarOffsetX) or -5
     local classPowerBarOffsetY = tonumber(config.classPowerBarOffsetY) or 5
-    local alternativePowerBarWidth = tonumber(config.alternativePowerBarWidth) or 100
-    local alternativePowerBarAnchorTo = config.alternativePowerBarAnchorTo or "HealthBar"
-    local alternativePowerBarPoint = config.alternativePowerBarPoint or "BOTTOMLEFT"
-    local alternativePowerBarRelativePoint = config.alternativePowerBarRelativePoint or "BOTTOMLEFT"
-    local alternativePowerBarOffsetX = tonumber(config.alternativePowerBarOffsetX) or 5
-    local alternativePowerBarOffsetY = tonumber(config.alternativePowerBarOffsetY) or 5
     local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetSecondaryPowerValues(frame.unit)
     local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil
     local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame.unit) or nil
@@ -501,11 +496,28 @@ function UF:ApplyConfig(frame)
 
     local powerBackgroundEnabled = config.powerBackground ~= false
     local powerBgR, powerBgG, powerBgB, powerBgA = UnpackColor(config.powerBackgroundColor, { 0, 0, 0, 0.35 })
+    local alternativePowerBackgroundEnabled = config.alternativePowerBackground
+    if alternativePowerBackgroundEnabled == nil then
+        alternativePowerBackgroundEnabled = powerBackgroundEnabled
+    else
+        alternativePowerBackgroundEnabled = alternativePowerBackgroundEnabled ~= false
+    end
+    local altPowerBgR, altPowerBgG, altPowerBgB, altPowerBgA = UnpackColor(config.alternativePowerBackgroundColor, { powerBgR, powerBgG, powerBgB, powerBgA })
+    local altPowerColorR, altPowerColorG, altPowerColorB, altPowerColorA = UnpackColor(config.alternativePowerColor, { powerR, powerG, powerB, powerA })
     local classPowerBgR, classPowerBgG, classPowerBgB, classPowerBgA = UnpackColor(config.classPowerBackgroundColor, { powerBgR, powerBgG, powerBgB, powerBgA })
     local powerBackgroundShown = powerBackgroundEnabled and (powerBgA or 0) > 0.001
+    local altPowerBackgroundShown = alternativePowerBackgroundEnabled and (altPowerBgA or 0) > 0.001
     local classPowerBackgroundShown = (classPowerBgA or 0) > 0.001
 
     local borderR, borderG, borderB, borderA = UnpackColor(config.borderColor, { 0, 0, 0, 0 })
+    local classPowerBorderR = borderR
+    local classPowerBorderG = borderG
+    local classPowerBorderB = borderB
+    local classPowerBorderA = borderA
+
+    if (classPowerBorderA or 0) <= 0.001 then
+        classPowerBorderR, classPowerBorderG, classPowerBorderB, classPowerBorderA = 0, 0, 0, 0.85
+    end
 
     if config.useClassColorPower then
         local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame.unit)
@@ -519,6 +531,7 @@ function UF:ApplyConfig(frame)
     local castTexture = GetStatusBarTexture(config.castBarTexture)
     local classPowerTexture = GetStatusBarTexture(config.classPowerBarTexture or config.powerBarTexture)
     local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
+    local bottomExtensionHeight = alternativePowerBarVisible and alternativePowerBarHeight or 0
 
     if healthBarReverseFill == nil then
         healthBarReverseFill = frame.unit == "target"
@@ -528,10 +541,15 @@ function UF:ApplyConfig(frame)
         powerBarReverseFill = frame.unit == "target"
     end
 
+    if alternativePowerBarReverseFill == nil then
+        alternativePowerBarReverseFill = powerBarReverseFill
+    end
+
     if not protectedInCombat then
         ApplyBaseFrameLayout(self, frame, config, {
             width = width,
             height = height,
+            bottomExtensionHeight = bottomExtensionHeight,
             alpha = alpha,
             scale = scale,
             frameLevel = frameLevel,
@@ -583,17 +601,22 @@ function UF:ApplyConfig(frame)
         powerRightReserve = powerReserve.right,
         alternativePowerBarVisible = alternativePowerBarVisible,
         alternativePowerBarHeight = alternativePowerBarHeight,
-        alternativePowerBarWidth = alternativePowerBarWidth,
-        alternativePowerBarAnchorTo = alternativePowerBarAnchorTo,
-        alternativePowerBarPoint = alternativePowerBarPoint,
-        alternativePowerBarRelativePoint = alternativePowerBarRelativePoint,
-        alternativePowerBarOffsetX = alternativePowerBarOffsetX,
-        alternativePowerBarOffsetY = alternativePowerBarOffsetY,
         liveAltPowerType = liveAltPowerType,
         liveAltPowerCurrent = liveAltPowerCurrent,
         liveAltPowerMax = liveAltPowerMax,
         liveAltPowerMin = liveAltPowerMin,
         altPowerTexture = altPowerTexture,
+        altPowerReverseFill = alternativePowerBarReverseFill,
+        altPowerR = altPowerColorR,
+        altPowerG = altPowerColorG,
+        altPowerB = altPowerColorB,
+        altPowerA = altPowerColorA,
+        altPowerHasCustomColor = type(config.alternativePowerColor) == "table",
+        altPowerBgR = altPowerBgR,
+        altPowerBgG = altPowerBgG,
+        altPowerBgB = altPowerBgB,
+        altPowerBgA = altPowerBgA,
+        altPowerBackgroundShown = altPowerBackgroundShown,
         powerR = powerR,
         powerG = powerG,
         powerB = powerB,
@@ -631,6 +654,10 @@ function UF:ApplyConfig(frame)
         classPowerBgB = classPowerBgB,
         classPowerBgA = classPowerBgA,
         classPowerBackgroundShown = classPowerBackgroundShown,
+        classPowerBorderR = classPowerBorderR,
+        classPowerBorderG = classPowerBorderG,
+        classPowerBorderB = classPowerBorderB,
+        classPowerBorderA = classPowerBorderA,
     })
 
     if frame.Elements.CastBar then
@@ -1165,16 +1192,114 @@ function UF:Refresh(frame, refreshRequest)
     end
 end
 
-function FocalPoint:SpawnUnitFrame(unit)
-    self.frames = self.frames or {}
-    self.spawnDiagnostics = self.spawnDiagnostics or {}
+local function ExpandActiveProfileUnits(owner)
+    local orderedUnits = {}
+    local activeUnits = {}
+    local unitOrder = owner and owner.Constants and owner.Constants.UnitOrder or {}
 
-    if self.frames[unit] then
-        self.frames[unit]:Hide()
-        self.frames[unit] = nil
+    for _, unitKey in ipairs(unitOrder or {}) do
+        local unitConfig = GetUnitDB(unitKey)
+        local enabled = type(unitConfig) == "table" and unitConfig.enabled ~= false
+
+        if enabled then
+            if unitKey == "boss" then
+                for bossIndex = 1, 5 do
+                    local bossUnit = "boss" .. bossIndex
+                    orderedUnits[#orderedUnits + 1] = bossUnit
+                    activeUnits[bossUnit] = true
+                end
+            else
+                orderedUnits[#orderedUnits + 1] = unitKey
+                activeUnits[unitKey] = true
+            end
+        end
     end
 
+    return orderedUnits, activeUnits
+end
+
+function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
+    if not unit then
+        return nil
+    end
+
+    self.frames = self.frames or {}
+    self.framePool = self.framePool or {}
+
+    local frame = self.frames[unit]
+    if not frame then
+        return nil
+    end
+
+    if frame._unitWatchRegistered and UnregisterUnitWatch then
+        UnregisterUnitWatch(frame)
+        frame._unitWatchRegistered = false
+    end
+
+    if ClearFrameVisualState then
+        ClearFrameVisualState(frame)
+    end
+
+    if frame.SelectionOverlay and frame.SelectionOverlay.Hide then
+        frame.SelectionOverlay:Hide()
+    end
+    if frame.MoveOverlay and frame.MoveOverlay.Hide then
+        frame.MoveOverlay:Hide()
+    end
+    if frame.EnableMouse then
+        frame:EnableMouse(false)
+    end
+    if frame.SetMouseClickEnabled then
+        pcall(frame.SetMouseClickEnabled, frame, false)
+    end
+    if frame.SetAlpha then
+        frame:SetAlpha(0)
+    end
+    if frame.Hide then
+        frame:Hide()
+    end
+
+    self.frames[unit] = nil
+    if preserveForReuse then
+        self.framePool[unit] = frame
+    else
+        self.framePool[unit] = nil
+    end
+
+    return frame
+end
+
+function FocalPoint:SpawnUnitFrame(unit)
+    self.frames = self.frames or {}
+    self.framePool = self.framePool or {}
+    self.spawnDiagnostics = self.spawnDiagnostics or {}
     local unitDB = GetUnitDB(unit)
+
+    if self.frames[unit] then
+        self.spawnDiagnostics[unit] = {
+            ok = true,
+            hasConfig = type(unitDB) == "table",
+            enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            reason = "active_reused",
+        }
+        self:RefreshUnitFrame(unit)
+        return self.frames[unit]
+    end
+
+    if self.framePool[unit] then
+        local recycledFrame = self.framePool[unit]
+        self.framePool[unit] = nil
+        self.frames[unit] = recycledFrame
+        self.spawnDiagnostics[unit] = {
+            ok = true,
+            hasConfig = type(unitDB) == "table",
+            enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            reason = "pooled_reused",
+        }
+        self:RefreshUnitFrame(unit)
+        return recycledFrame
+    end
+
     local buildOk, frameOrError = xpcall(function()
         return UF:Build(unit)
     end, function(err)
@@ -1203,9 +1328,6 @@ function FocalPoint:SpawnUnitFrame(unit)
             enabled = true,
             reason = "spawned",
         }
-        if self.Success then
-            self:Success("Spawned frame for " .. unit)
-        end
     else
         local reason = "UF:Build returned nil unexpectedly"
         if type(unitDB) ~= "table" then
@@ -1220,12 +1342,56 @@ function FocalPoint:SpawnUnitFrame(unit)
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
             reason = reason,
         }
-        if self.Warn then
+        if reason == "UF:Build returned nil unexpectedly" and self.Warn then
             self:Warn("Could not spawn frame for " .. tostring(unit) .. " (" .. tostring(reason) .. ")")
         end
     end
 
     return frame
+end
+
+function FocalPoint:RebuildFramesForActiveProfile()
+    local general = self.db and self.db.profile and self.db.profile.General or {}
+    self.TAG_UPDATE_INTERVAL = general.TagUpdateInterval or 0.25
+    self.SEPARATOR = general.Separator or "||"
+    self.TOT_SEPARATOR = general.ToTSeparator or "»"
+
+    if self.ApplyGeneralSettings then
+        self:ApplyGeneralSettings()
+    end
+
+    self.frames = self.frames or {}
+    self.framePool = self.framePool or {}
+
+    local orderedUnits, activeUnits = ExpandActiveProfileUnits(self)
+    local unitsToDeactivate = {}
+
+    for unit in pairs(self.frames) do
+        if not activeUnits[unit] then
+            unitsToDeactivate[#unitsToDeactivate + 1] = unit
+        end
+    end
+
+    for _, unit in ipairs(unitsToDeactivate) do
+        self:DeactivateUnitFrame(unit, true)
+    end
+
+    for _, unit in ipairs(orderedUnits) do
+        if self.frames[unit] then
+            self:RefreshUnitFrame(unit)
+        elseif self.framePool[unit] then
+            local recycledFrame = self.framePool[unit]
+            self.framePool[unit] = nil
+            self.frames[unit] = recycledFrame
+            self:RefreshUnitFrame(unit)
+        elseif self.SpawnUnitFrame then
+            self:SpawnUnitFrame(unit)
+        end
+    end
+
+    if self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
+    end
 end
 
 function FocalPoint:RefreshUnitFrame(unit)

@@ -99,22 +99,25 @@ local function GetPlayerAuraApplications(spellID)
         return nil
     end
 
-    return tonumber(auraInfo.applications) or 0
+    return ToSafeNumberValue(auraInfo.applications)
 end
 
 local function BuildInfo(typeId, token, current, max)
-    current = tonumber(current) or 0
-    max = tonumber(max) or 0
-
-    if max <= 0 then
+    local rawCurrent = current
+    local rawMax = max
+    local safeCurrent = ToSafeNumberValue(current)
+    local safeMax = ToSafeNumberValue(max)
+    if safeMax <= 0 then
         return nil
     end
 
     return {
         typeId = typeId,
         token = token,
-        current = current,
-        max = max,
+        current = rawCurrent,
+        max = rawMax,
+        safeCurrent = safeCurrent,
+        safeMax = safeMax,
     }
 end
 
@@ -123,9 +126,9 @@ local function GetNumericPowerInfo(typeId, token, current)
         return nil
     end
 
-    local max = UnitPowerMax("player", typeId) or 0
+    local max = ToSafeNumberValue(UnitPowerMax("player", typeId))
     if current == nil and UnitPower then
-        current = UnitPower("player", typeId) or 0
+        current = ToSafeNumberValue(UnitPower("player", typeId))
     end
 
     return BuildInfo(typeId, token, current, max)
@@ -136,11 +139,11 @@ local function GetWarlockSoulShards()
         return 0
     end
 
-    local current = UnitPower("player", POWER_ID_SOUL_SHARDS) or 0
+    local current = ToSafeNumberValue(UnitPower("player", POWER_ID_SOUL_SHARDS))
     if GetSpecializationIndex() == SPEC_WARLOCK_DESTRUCTION and UnitPowerDisplayMod then
-        local displayMod = UnitPowerDisplayMod(POWER_ID_SOUL_SHARDS) or 1
+        local displayMod = ToSafeNumberValue(UnitPowerDisplayMod(POWER_ID_SOUL_SHARDS))
         if displayMod > 0 then
-            current = (UnitPower("player", POWER_ID_SOUL_SHARDS, true) or 0) / displayMod
+            current = ToSafeNumberValue(UnitPower("player", POWER_ID_SOUL_SHARDS, true)) / displayMod
         end
     end
 
@@ -335,10 +338,10 @@ function ClassPower.RefreshValues(owner, frame)
     frame.LiveValues.classPowerVisible = true
     frame.LiveValues.classPowerCurrentRaw = info.current
     frame.LiveValues.classPowerMaxRaw = info.max
-    frame.LiveValues.classPowerCurrentText = FormatDisplayNumber(info.current)
-    frame.LiveValues.classPowerMaxText = FormatDisplayNumber(info.max)
-    frame.LiveValues.classPowerCurrentSafe = ToSafeNumberValue(info.current)
-    frame.LiveValues.classPowerMaxSafe = ToSafeNumberValue(info.max)
+    frame.LiveValues.classPowerCurrentText = FormatDisplayNumber(info.safeCurrent)
+    frame.LiveValues.classPowerMaxText = FormatDisplayNumber(info.safeMax)
+    frame.LiveValues.classPowerCurrentSafe = info.safeCurrent
+    frame.LiveValues.classPowerMaxSafe = info.safeMax
     frame.LiveValues.classPowerCurrentAbbr = ResolveBlizzardAbbreviation(info.current, frame.LiveValues.classPowerCurrentText)
     frame.LiveValues.classPowerMaxAbbr = ResolveBlizzardAbbreviation(info.max, frame.LiveValues.classPowerMaxText)
     frame.LiveValues.classPowerType = info.typeId
@@ -394,6 +397,10 @@ function ClassPower.ApplyLayout(frame, options)
     local usableWidth = width - ((maxValue - 1) * spacing)
     local segmentWidth = maxValue > 0 and (usableWidth / maxValue) or usableWidth
     local numActive = currentValue + 0.9
+    local borderR = options.classPowerBorderR or 0
+    local borderG = options.classPowerBorderG or 0
+    local borderB = options.classPowerBorderB or 0
+    local borderA = options.classPowerBorderA or 0.85
 
     for index = 1, #bars do
         local bar = bars[index]
@@ -415,6 +422,10 @@ function ClassPower.ApplyLayout(frame, options)
                 bar.bg:SetVertexColor(options.classPowerBgR or 0, options.classPowerBgG or 0, options.classPowerBgB or 0, options.classPowerBgA or 0.35)
                 bar.bg:SetShown(options.classPowerBackgroundShown ~= false)
             end
+            if bar.border then
+                bar.border:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
+                bar.border:Show()
+            end
 
             if index > numActive then
                 bar:SetValue(0)
@@ -424,6 +435,9 @@ function ClassPower.ApplyLayout(frame, options)
 
             bar:Show()
         else
+            if bar.border then
+                bar.border:Hide()
+            end
             bar:Hide()
         end
     end

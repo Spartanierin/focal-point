@@ -29,6 +29,25 @@ local function IsMissingDebugSuppressed(frame)
     return FocalPoint and FocalPoint._suppressMissingUnitUntil and now <= FocalPoint._suppressMissingUnitUntil
 end
 
+local function QueueTargetRecoveryRefreshes(frame, reason)
+    if not frame or frame.unit ~= "target" or not State.QueueRefresh then
+        return
+    end
+
+    local now = GetTime and GetTime() or 0
+    local cooldownUntil = tonumber(frame._targetRecoveryQueuedUntil) or 0
+    if now <= cooldownUntil then
+        return
+    end
+
+    frame._targetRecoveryQueuedUntil = now + 0.40
+    local refreshReason = reason or "target_recovery"
+
+    for _, delay in ipairs({ 0.10, 0.20, 0.35 }) do
+        State.QueueRefresh(frame, refreshReason, "visibility", nil, delay)
+    end
+end
+
 local function ShouldTreatMissingTargetAsSuspicious(frame)
     if not frame or frame.unit ~= "target" then
         return false
@@ -171,6 +190,7 @@ function Visibility.QueueRefresh(frame)
     if State.QueueRefresh then
         State.QueueRefresh(frame, "visibility", "visibility", nil, 0)
         State.QueueRefresh(frame, "visibility", "visibility", nil, 0.05)
+        QueueTargetRecoveryRefreshes(frame, "visibility_recovery")
         return
     end
 
@@ -261,6 +281,7 @@ function Visibility.HandleMissingUnit(frame)
                     Visibility.ClearFrameVisualState(frame)
                 end
                 frame:Hide()
+                QueueTargetRecoveryRefreshes(frame, "target_missing_transition")
                 return true
             end
         end
@@ -402,6 +423,9 @@ function Visibility.RegisterEvents(owner, frame)
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" or event == "UNIT_TARGET" then
             Visibility.QueueRefresh(currentOwner)
+            if currentOwner.unit == "target" and event == "PLAYER_TARGET_CHANGED" then
+                QueueTargetRecoveryRefreshes(currentOwner, "target_changed_recovery")
+            end
         end
     end)
 

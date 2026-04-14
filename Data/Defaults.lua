@@ -6,7 +6,7 @@ function FocalPoint:GetDefaultDB()
             General = {
                 TagUpdateInterval = 0.125,
                 Separator = "||",
-                ToTSeparator = "»",
+                ToTSeparator = "\194\187",
                 UIScale = 0.7551622418879056,
                 ExpertMode = true,
                 HideBlizzardFrames = true,
@@ -14,12 +14,11 @@ function FocalPoint:GetDefaultDB()
                 MouseEnabled = true,
                 ClampToScreen = true,
                 HideEditorWelcomeTip = false,
+                ActiveThemeId = "default",
             },
-
             Minimap = {
                 hide = false,
             },
-
             TextTemplates = {
                 ["Alt Power"] = "[altpower:cur] / [altpower:max]",
                 ["Class Power"] = "[classpower:cur] / [classpower:max]",
@@ -27,18 +26,17 @@ function FocalPoint:GetDefaultDB()
                 ["Unit Name Target"] = "[name] [status] [status:timer]",
                 ["Dead/Ghost Timer"] = "[dead] [dead:timer]",
                 ["Cast Name"] = "[cast:name]",
-                ["Power"] = "[power:cur:abbr]/[power:max:abbr]",
+                Power = "[power:cur:abbr]/[power:max:abbr]",
                 ["Unit Name Player"] = "[status] [status:timer] [name]",
-                ["Health"] = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+                Health = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
                 ["Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
                 ["Cast Time"] = "[cast:time]",
-                ["Status"] = "[status] [status:timer]",
+                Status = "[status] [status:timer]",
                 ["Dead Target"] = "[dead]",
                 ["Focus Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
                 ["Target Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
-                ["Creature"] = "[creature]",
+                Creature = "[creature]",
             },
-
             Units = {
                 player = {
                     enabled = true,
@@ -50,8 +48,7 @@ function FocalPoint:GetDefaultDB()
                     showInRaid = true,
                     showInArena = true,
                     showInPvp = true,
-
-                    width = 260,
+                    width = 320,
                     height = 65,
                     alpha = 0.9,
                     scale = 1,
@@ -60,9 +57,8 @@ function FocalPoint:GetDefaultDB()
                     point = "CENTER",
                     relativeTo = "UIParent",
                     relativePoint = "CENTER",
-                    x = -270,
-                    y = -290,
-
+                    x = -269.9996948242188,
+                    y = -220.0001220703125,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = false,
@@ -71,19 +67,19 @@ function FocalPoint:GetDefaultDB()
                     classPowerBarHeight = 12,
                     classPowerBarWidth = 100,
                     classPowerBarSpacing = 2,
-                    classPowerBarAnchorTo = "HealthBar",
-                    classPowerBarPoint = "BOTTOMRIGHT",
-                    classPowerBarRelativePoint = "BOTTOMRIGHT",
-                    classPowerBarOffsetX = -5,
-                    classPowerBarOffsetY = 5,
+                    classPowerBarAnchorTo = "Frame",
+                    classPowerBarPoint = "TOPLEFT",
+                    classPowerBarRelativePoint = "TOPLEFT",
+                    classPowerBarOffsetX = 0,
+                    classPowerBarOffsetY = 14,
                     showAlternativePowerBar = true,
                     alternativePowerBarHeight = 20,
-                    alternativePowerBarWidth = 100,
-                    alternativePowerBarAnchorTo = "HealthBar",
+                    alternativePowerBarWidth = 217,
+                    alternativePowerBarAnchorTo = "Frame",
                     alternativePowerBarPoint = "BOTTOMLEFT",
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
-                    alternativePowerBarOffsetX = 5,
-                    alternativePowerBarOffsetY = 5,
+                    alternativePowerBarOffsetX = 0,
+                    alternativePowerBarOffsetY = 0,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -91,54 +87,108 @@ function FocalPoint:GetDefaultDB()
                     castBarRelativePoint = "BOTTOMLEFT",
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
-
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    classPowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    classPowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    alternativePowerBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
-
-                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
-                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
-
-                    healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 0.65 },
-                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
+                    castBarColor = {
+                        1.0,
+                        0.72,
+                        0.18,
+                        1.0,
+                    },
+                    castBarInterruptibleColor = {
+                        0.6,
+                        0.6,
+                        0.6,
+                        1.0,
+                    },
+                    backgroundColor = {
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.3164066076278687,
+                    },
+                    borderColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                    healthColor = {
+                        0.1882353127002716,
+                        0.8000000715255737,
+                        0.7686275243759155,
+                        0.65,
+                    },
+                    healthLowColor = {
+                        1.0,
+                        0.12,
+                        0.12,
+                        0.65,
+                    },
                     healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
+                    healthBackgroundColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.65234375,
+                    },
                     useClassColorHealth = true,
-
-                    powerColor = { 0.8000000715255737, 0.01176470704376698, 0.00, 0.65 },
-                    classPowerColor = { 0.8000000715255737, 0.01176470704376698, 0.00, 0.65 },
+                    powerColor = {
+                        a = 0.7656249403953552,
+                        r = 0.8000000715255737,
+                        [4] = 0.7656249403953552,
+                        g = 0.01176470704376698,
+                        b = 0,
+                    },
+                    classPowerColor = {
+                        0.8196079134941101,
+                        nil,
+                        nil,
+                        1,
+                        a = 1,
+                        r = 0.8196079134941101,
+                        g = 0.01176470704376698,
+                        b = 0,
+                    },
                     powerBackground = true,
-                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
-                    classPowerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
-                    useClassColorPower = false,
+                    powerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
+                    classPowerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
+                    useClassColorPower = true,
                     useReactionColorNpcHealth = false,
-
                     Portrait = {
-                        enabled = false,
-                        placement = "ATTACHED", -- INSIDE / ATTACHED
-                        mode = "2D",            -- 2D / 3D
+                        enabled = true,
+                        placement = "INSIDE",
+                        mode = "2D",
                         size = 60,
                         scale = 1,
-                        padding = 4,            -- nur relevant für INSIDE
-                        insideSide = "RIGHT",   -- LEFT / RIGHT
-                        anchorTo = "Frame",     -- für ATTACHED
+                        padding = 4,
+                        insideSide = "LEFT",
+                        anchorTo = "Frame",
                         point = "RIGHT",
                         relativePoint = "LEFT",
-                        offsetX = -4,
+                        offsetX = -5,
                         offsetY = 0,
                     },
-
                     RaidTargetIcon = {
                         enabled = true,
-                        placement = "INSIDE",   -- INSIDE / ATTACHED
+                        placement = "INSIDE",
                         size = 40,
                         scale = 1,
-                        padding = 0,             -- only relevant for INSIDE
+                        padding = 0,
                         insideSide = "RIGHT",
                         insideAnchorTo = "HealthBar",
                         anchorTo = "Frame",
@@ -147,7 +197,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 98,
                         offsetY = 18,
                     },
-
                     LeaderIcon = {
                         enabled = true,
                         placement = "INSIDE",
@@ -162,7 +211,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 149,
                         offsetY = 35,
                     },
-
                     RoleIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -176,7 +224,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 20,
                         offsetY = 20,
                     },
-
                     CombatIndicator = {
                         enabled = true,
                         effect = "FRAME_OVERLAY",
@@ -191,7 +238,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 3,
                         offsetY = 17,
                     },
-
                     RestingIndicator = {
                         enabled = true,
                         effect = "FRAME_OVERLAY",
@@ -207,7 +253,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 3,
                         offsetY = 0,
                     },
-
                     ReadyCheckIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -221,7 +266,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     Buffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -229,7 +273,7 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMLEFT",
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "LEFT",
                         iconSize = 25,
@@ -252,7 +296,6 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "NEWEST_FIRST",
                     },
-
                     Debuffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -260,12 +303,12 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMRIGHT",
                         relativePoint = "TOPRIGHT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 15,
                         insideAnchorTo = "Frame",
                         insideSide = "RIGHT",
                         iconSize = 25,
                         stackFontScale = 1,
-                        timerFontScale = 1,
+                        timerFontScale = 1.35,
                         spacingX = 3,
                         spacingY = 3,
                         iconsPerRow = 4,
@@ -283,34 +326,38 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "TIME_REMAINING_ASC",
                     },
-
                     Texts = {
                         Name = {
                             enabled = true,
                             tag = "[status] [status:timer] [name]",
-
                             anchorTo = "Frame",
                             point = "TOPRIGHT",
                             relativePoint = "TOPRIGHT",
                             offsetX = 0,
-                            offsetY = 20,
-
+                            offsetY = 18,
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 16,
-                            justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            fontSize = 17,
+                            justifyH = "CENTER",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 2,
                             shadowOffsetY = -2,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Unit Name Player",
                         },
-
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
@@ -318,345 +365,404 @@ function FocalPoint:GetDefaultDB()
                                 dead = "Dead/Ghost Timer",
                                 ghost = "Dead/Ghost Timer",
                             },
-
                             anchorTo = "HealthBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 2,
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 15,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Health",
                         },
-
                         Power = {
                             enabled = true,
                             tag = "[power:cur:abbr]/[power:max:abbr]",
-
                             anchorTo = "PowerBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 2,
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Power",
                         },
-
                         AltPower = {
                             enabled = true,
                             tag = "[altpower:cur] / [altpower:max]",
-
                             anchorTo = "AlternativePowerBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 2,
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
+                            fontSize = 12,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Alt Power",
                         },
-
                         ClassPower = {
-                            enabled = false,
+                            enabled = true,
                             tag = "[classpower:cur] / [classpower:max]",
-
                             anchorTo = "ClassPowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
-                            offsetX = -2,
+                            offsetX = -5,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 12,
+                            fontSize = 10,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Class Power",
                         },
-
                         Level = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "RIGHT",
                             relativePoint = "CENTER",
                             offsetX = -5,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 0.82, 0.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
-
                         Class = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
                             overflowMode = "ELLIPSIS",
-
                             anchorTo = "PowerBar",
-                            point = "RIGHT",
-                            relativePoint = "RIGHT",
-                            offsetX = -5,
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Player Level and Class",
                         },
-
                         Race = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -7,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Status = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "HealthBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -41,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 15,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = 1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         CastName = {
                             enabled = true,
                             tag = "[cast:name]",
-
                             anchorTo = "CastBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Name",
                         },
-
                         CastTime = {
                             enabled = true,
                             tag = "[cast:time]",
-
                             anchorTo = "CastBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Time",
                         },
-
                         Custom1 = {
                             enabled = false,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
-
                             anchorTo = "HealthBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 12,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 15,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "",
                         },
-
                         Custom2 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom3 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
                     },
                 },
-
                 target = {
                     enabled = true,
                     mouseEnabled = true,
@@ -667,8 +773,7 @@ function FocalPoint:GetDefaultDB()
                     showInRaid = true,
                     showInArena = true,
                     showInPvp = true,
-                    
-                    width = 260,
+                    width = 320,
                     height = 65,
                     alpha = 0.9,
                     scale = 1,
@@ -678,7 +783,674 @@ function FocalPoint:GetDefaultDB()
                     relativeTo = "UIParent",
                     relativePoint = "CENTER",
                     x = 270,
-                    y = -290,
+                    y = -220.0000610351563,
+                    showPowerBar = true,
+                    powerBarHeight = 20,
+                    healthBarReverseFill = true,
+                    powerBarReverseFill = true,
+                    showAlternativePowerBar = false,
+                    alternativePowerBarHeight = 5,
+                    alternativePowerBarWidth = 100,
+                    alternativePowerBarAnchorTo = "HealthBar",
+                    alternativePowerBarPoint = "BOTTOMLEFT",
+                    alternativePowerBarRelativePoint = "BOTTOMLEFT",
+                    alternativePowerBarOffsetX = 5,
+                    alternativePowerBarOffsetY = 5,
+                    showCastBar = true,
+                    showCastBarIcon = true,
+                    castBarHeight = 20,
+                    castBarPoint = "BOTTOMLEFT",
+                    castBarRelativePoint = "BOTTOMLEFT",
+                    castBarOffsetX = 0,
+                    castBarOffsetY = -20,
+                    statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    castBarColor = {
+                        1.0,
+                        0.72,
+                        0.18,
+                        1.0,
+                    },
+                    castBarInterruptibleColor = {
+                        0.6,
+                        0.6,
+                        0.6,
+                        1.0,
+                    },
+                    backgroundColor = {
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.3164066076278687,
+                    },
+                    borderColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                    healthColor = {
+                        0.1,
+                        0.8,
+                        0.1,
+                        0.65,
+                    },
+                    healthLowColor = {
+                        1.0,
+                        0.12,
+                        0.12,
+                        0.65,
+                    },
+                    healthBackground = true,
+                    healthBackgroundColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.65234375,
+                    },
+                    useClassColorHealth = true,
+                    powerColor = {
+                        0.2,
+                        0.4,
+                        0.9,
+                        0.65,
+                    },
+                    powerBackground = true,
+                    powerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
+                    useClassColorPower = true,
+                    useReactionColorNpcHealth = true,
+                    Portrait = {
+                        enabled = true,
+                        placement = "INSIDE",
+                        mode = "2D",
+                        size = 60,
+                        scale = 1,
+                        padding = 4,
+                        insideSide = "RIGHT",
+                        anchorTo = "Frame",
+                        point = "LEFT",
+                        relativePoint = "RIGHT",
+                        offsetX = 5,
+                        offsetY = 0,
+                    },
+                    RaidTargetIcon = {
+                        enabled = true,
+                        placement = "INSIDE",
+                        size = 40,
+                        scale = 1,
+                        padding = 0,
+                        insideSide = "LEFT",
+                        insideAnchorTo = "HealthBar",
+                        anchorTo = "HealthBar",
+                        point = "TOPLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 5,
+                        offsetY = 0,
+                    },
+                    LeaderIcon = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        size = 20,
+                        scale = 1,
+                        padding = 2,
+                        insideSide = "LEFT",
+                        anchorTo = "Frame",
+                        point = "TOPLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 0,
+                        offsetY = 40,
+                    },
+                    RoleIcon = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        size = 20,
+                        scale = 1,
+                        padding = 2,
+                        insideSide = "RIGHT",
+                        anchorTo = "Frame",
+                        point = "TOPLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = -20,
+                        offsetY = 20,
+                    },
+                    CombatIndicator = {
+                        enabled = false,
+                        placement = "ATTACHED",
+                        size = 16,
+                        scale = 1,
+                        padding = 2,
+                        insideSide = "RIGHT",
+                        anchorTo = "Frame",
+                        point = "TOPLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 0,
+                        offsetY = 0,
+                        effect = "ICON",
+                    },
+                    RestingIndicator = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        size = 16,
+                        scale = 1,
+                        padding = 2,
+                        insideSide = "LEFT",
+                        anchorTo = "Frame",
+                        point = "TOPLEFT",
+                        relativePoint = "TOP",
+                        offsetX = 0,
+                        offsetY = 0,
+                        effect = "ICON",
+                    },
+                    ReadyCheckIndicator = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        size = 20,
+                        scale = 1,
+                        padding = 2,
+                        insideSide = "RIGHT",
+                        anchorTo = "Frame",
+                        point = "TOPRIGHT",
+                        relativePoint = "TOP",
+                        offsetX = 0,
+                        offsetY = 0,
+                    },
+                    ClassificationIndicator = {
+                        enabled = true,
+                        effect = "PORTRAIT_OVERLAY",
+                    },
+                    Buffs = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        anchorTo = "Frame",
+                        point = "BOTTOMLEFT",
+                        relativePoint = "TOPLEFT",
+                        offsetX = 0,
+                        offsetY = 16,
+                        insideAnchorTo = "Frame",
+                        insideSide = "LEFT",
+                        iconSize = 25,
+                        stackFontScale = 1,
+                        timerFontScale = 1,
+                        spacingX = 3,
+                        spacingY = 3,
+                        iconsPerRow = 4,
+                        maxRows = 0,
+                        growthX = "RIGHT",
+                        growthY = "UP",
+                        showOnlyMine = false,
+                        hidePermanentAuras = true,
+                        hideLongAuras = true,
+                        longAuraThreshold = 300,
+                        showStealableOnly = false,
+                        showDispellableOnly = false,
+                        showBossAuras = true,
+                        showStackText = true,
+                        showTimerText = true,
+                        sortMode = "NEWEST_FIRST",
+                    },
+                    Debuffs = {
+                        enabled = true,
+                        placement = "ATTACHED",
+                        anchorTo = "Frame",
+                        point = "BOTTOMRIGHT",
+                        relativePoint = "TOPRIGHT",
+                        offsetX = 0,
+                        offsetY = 16,
+                        insideAnchorTo = "Frame",
+                        insideSide = "RIGHT",
+                        iconSize = 25,
+                        stackFontScale = 1,
+                        timerFontScale = 1,
+                        spacingX = 3,
+                        spacingY = 3,
+                        iconsPerRow = 4,
+                        maxRows = 0,
+                        growthX = "LEFT",
+                        growthY = "UP",
+                        showOnlyMine = true,
+                        hidePermanentAuras = true,
+                        hideLongAuras = true,
+                        longAuraThreshold = 300,
+                        showStealableOnly = false,
+                        showDispellableOnly = false,
+                        showBossAuras = true,
+                        showStackText = true,
+                        showTimerText = true,
+                        sortMode = "TIME_REMAINING_ASC",
+                    },
+                    Texts = {
+                        Name = {
+                            enabled = true,
+                            tag = "[name] [status] [status:timer]",
+                            anchorTo = "Frame",
+                            point = "TOPLEFT",
+                            relativePoint = "TOPLEFT",
+                            offsetX = 0,
+                            offsetY = 18,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 17,
+                            justifyH = "CENTER",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Unit Name Target",
+                        },
+                        Health = {
+                            enabled = true,
+                            tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
+                            stateTemplates = {
+                                dead = "Dead Target",
+                            },
+                            anchorTo = "HealthBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -2,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 15,
+                            justifyH = "RIGHT",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Health",
+                        },
+                        Power = {
+                            enabled = true,
+                            tag = "[power:cur:abbr]/[power:max:abbr]",
+                            anchorTo = "PowerBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -6,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 12,
+                            justifyH = "RIGHT",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Power",
+                        },
+                        AltPower = {
+                            enabled = true,
+                            tag = "[altpower:cur] / [altpower:max]",
+                            anchorTo = "AlternativePowerBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -2,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 13,
+                            justifyH = "RIGHT",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Alt Power",
+                        },
+                        Level = {
+                            enabled = false,
+                            tag = "",
+                            anchorTo = "PowerBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 0,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 13,
+                            justifyH = "RIGHT",
+                            color = {
+                                1.0,
+                                0.82,
+                                0.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                        Class = {
+                            enabled = false,
+                            tag = "",
+                            anchorTo = "PowerBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 25,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 13,
+                            justifyH = "CENTER",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                        Race = {
+                            enabled = true,
+                            tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
+                            overflowMode = "ELLIPSIS",
+                            anchorTo = "PowerBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 2,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 12,
+                            justifyH = "LEFT",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Target Level and Class",
+                        },
+                        Status = {
+                            enabled = false,
+                            tag = "",
+                            anchorTo = "HealthBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 10,
+                            offsetY = 2,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 22,
+                            justifyH = "LEFT",
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                        CastName = {
+                            enabled = true,
+                            tag = "[cast:name]",
+                            anchorTo = "CastBar",
+                            point = "LEFT",
+                            relativePoint = "LEFT",
+                            offsetX = 4,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "LEFT",
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Cast Name",
+                        },
+                        CastTime = {
+                            enabled = true,
+                            tag = "[cast:time]",
+                            anchorTo = "CastBar",
+                            point = "RIGHT",
+                            relativePoint = "RIGHT",
+                            offsetX = -4,
+                            offsetY = 0,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 10,
+                            justifyH = "RIGHT",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                            templateName = "Cast Time",
+                        },
+                        Custom1 = {
+                            enabled = false,
+                            tag = "",
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -8,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                        Custom2 = {
+                            enabled = false,
+                            tag = "",
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -22,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                        Custom3 = {
+                            enabled = false,
+                            tag = "",
+                            anchorTo = "Frame",
+                            point = "TOP",
+                            relativePoint = "BOTTOM",
+                            offsetX = 0,
+                            offsetY = -36,
+                            font = STANDARD_TEXT_FONT,
+                            fontSize = 11,
+                            justifyH = "CENTER",
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
+                            shadowEnabled = true,
+                            shadowOffsetX = 1,
+                            shadowOffsetY = -1,
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
+                            outline = false,
+                            thickOutline = false,
+                            monochrome = false,
+                        },
+                    },
+                },
+                targettarget = {
+                    enabled = true,
+                    mouseEnabled = true,
+                    clickThrough = false,
+                    clampToScreen = true,
+                    showInSolo = true,
+                    showInParty = true,
+                    showInRaid = true,
+                    showInArena = true,
+                    showInPvp = true,
+                    width = 260,
+                    height = 45,
+                    alpha = 0.9,
+                    scale = 1,
+                    frameLevel = 1,
+                    frameStrata = "MEDIUM",
+                    point = "CENTER",
+                    relativeTo = "UIParent",
+                    relativePoint = "CENTER",
+                    x = 300.000732421875,
+                    y = -50.000244140625,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
@@ -700,603 +1472,68 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
-
-                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
-                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
-
-                    healthColor = { 0.10, 0.80, 0.10, 0.65 },
-                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
-                    healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
-                    useClassColorHealth = true,
-
-                    powerColor = { 0.20, 0.40, 0.90, 0.65 },
-                    powerBackground = true,
-                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
-                    useClassColorPower = true,
-                    useReactionColorNpcHealth = true,
-
-                    Portrait = {
-                        enabled = false,
-                        placement = "INSIDE",   -- INSIDE / ATTACHED
-                        mode = "2D",            -- 2D / 3D
-                        size = 40,
-                        scale = 1,
-                        padding = 4,            -- nur relevant für INSIDE
-                        insideSide = "LEFT",    -- LEFT / RIGHT
-                        anchorTo = "Frame",     -- für ATTACHED
-                        point = "RIGHT",
-                        relativePoint = "LEFT",
-                        offsetX = -4,
-                        offsetY = 0,
-                    },
-
-                    RaidTargetIcon = {
-                        enabled = true,
-                        placement = "INSIDE",   -- INSIDE / ATTACHED
-                        size = 40,
-                        scale = 1,
-                        padding = 0,             -- only relevant for INSIDE
-                        insideSide = "LEFT",    -- LEFT / RIGHT
-                        insideAnchorTo = "HealthBar",
-                        anchorTo = "HealthBar",
-                        point = "TOPLEFT",
-                        relativePoint = "TOPLEFT",
-                        offsetX = 5,
-                        offsetY = 0,
-                    },
-
-                    LeaderIcon = {
-                        enabled = true,
-                        placement = "ATTACHED",
-                        size = 20,
-                        scale = 1,
-                        padding = 2,
-                        insideSide = "LEFT",
-                        anchorTo = "Frame",
-                        point = "TOPLEFT",
-                        relativePoint = "TOPLEFT",
-                        offsetX = 0,
-                        offsetY = 40,
-                    },
-
-                    RoleIcon = {
-                        enabled = true,
-                        placement = "ATTACHED",
-                        size = 20,
-                        scale = 1,
-                        padding = 2,
-                        insideSide = "RIGHT",
-                        anchorTo = "Frame",
-                        point = "TOPLEFT",
-                        relativePoint = "TOPLEFT",
-                        offsetX = -20,
-                        offsetY = 20,
-                    },
-
-                    CombatIndicator = {
-                        enabled = false,
-                        placement = "ATTACHED",
-                        size = 16,
-                        scale = 1,
-                        padding = 2,
-                        insideSide = "RIGHT",
-                        anchorTo = "Frame",
-                        point = "TOPLEFT",
-                        relativePoint = "TOPLEFT",
-                        offsetX = 0,
-                        offsetY = 0,
-                    },
-
-                    RestingIndicator = {
-                        enabled = true,
-                        placement = "ATTACHED",
-                        size = 16,
-                        scale = 1,
-                        padding = 2,
-                        insideSide = "LEFT",
-                        anchorTo = "Frame",
-                        point = "TOPLEFT",
-                        relativePoint = "TOP",
-                        offsetX = 0,
-                        offsetY = 0,
-                    },
-
-                    ReadyCheckIndicator = {
-                        enabled = true,
-                        placement = "ATTACHED",
-                        size = 20,
-                        scale = 1,
-                        padding = 2,
-                        insideSide = "RIGHT",
-                        anchorTo = "Frame",
-                        point = "TOPRIGHT",
-                        relativePoint = "TOP",
-                        offsetX = 0,
-                        offsetY = 0,
-                    },
-
-                    ClassificationIndicator = {
-                        enabled = true,
-                        effect = "PORTRAIT_OVERLAY",
-                    },
-
-                    Buffs = {
-                        enabled = true,
-                        placement = "ATTACHED",
-                        anchorTo = "Frame",
-                        point = "BOTTOMLEFT",
-                        relativePoint = "TOPLEFT",
-                        offsetX = 0,
-                        offsetY = 4,
-                        insideAnchorTo = "Frame",
-                        insideSide = "LEFT",
-                        iconSize = 25,
-                        stackFontScale = 1,
-                        timerFontScale = 1,
-                        spacingX = 3,
-                        spacingY = 3,
-                        iconsPerRow = 4,
-                        maxRows = 0,
-                        growthX = "RIGHT",
-                        growthY = "UP",
-                        showOnlyMine = false,
-                        hidePermanentAuras = true,
-                        hideLongAuras = true,
-                        longAuraThreshold = 300,
-                        showStealableOnly = false,
-                        showDispellableOnly = false,
-                        showBossAuras = true,
-                        showStackText = true,
-                        showTimerText = true,
-                        sortMode = "NEWEST_FIRST",
-                    },
-
-                    Debuffs = {
-                        enabled = true,
-                        placement = "ATTACHED",
-                        anchorTo = "Frame",
-                        point = "BOTTOMRIGHT",
-                        relativePoint = "TOPRIGHT",
-                        offsetX = 0,
-                        offsetY = 4,
-                        insideAnchorTo = "Frame",
-                        insideSide = "RIGHT",
-                        iconSize = 25,
-                        stackFontScale = 1,
-                        timerFontScale = 1,
-                        spacingX = 3,
-                        spacingY = 3,
-                        iconsPerRow = 4,
-                        maxRows = 0,
-                        growthX = "LEFT",
-                        growthY = "UP",
-                        showOnlyMine = true,
-                        hidePermanentAuras = true,
-                        hideLongAuras = true,
-                        longAuraThreshold = 300,
-                        showStealableOnly = false,
-                        showDispellableOnly = false,
-                        showBossAuras = true,
-                        showStackText = true,
-                        showTimerText = true,
-                        sortMode = "TIME_REMAINING_ASC",
-                    },
-
-                    Texts = {
-                        Name = {
-                            enabled = true,
-                            tag = "[name] [status] [status:timer]",
-
-                            anchorTo = "Frame",
-                            point = "TOPLEFT",
-                            relativePoint = "TOPLEFT",
-                            offsetX = 0,
-                            offsetY = 20,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 16,
-                            justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Health = {
-                            enabled = true,
-                            tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
-                            stateTemplates = {
-                                dead = "Dead Target",
-                            },
-
-                            anchorTo = "HealthBar",
-                            point = "RIGHT",
-                            relativePoint = "RIGHT",
-                            offsetX = -2,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 15,
-                            justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Power = {
-                            enabled = true,
-                            tag = "[power:cur:abbr]/[power:max:abbr]",
-
-                            anchorTo = "PowerBar",
-                            point = "RIGHT",
-                            relativePoint = "RIGHT",
-                            offsetX = -6,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 12,
-                            justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        AltPower = {
-                            enabled = true,
-                            tag = "[altpower:cur] / [altpower:max]",
-
-                            anchorTo = "AlternativePowerBar",
-                            point = "RIGHT",
-                            relativePoint = "RIGHT",
-                            offsetX = -2,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
-                            justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Level = {
-                            enabled = false,
-                            tag = "",
-
-                            anchorTo = "PowerBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 0,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
-                            justifyH = "RIGHT",
-
-                            color = { 1.00, 0.82, 0.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Class = {
-                            enabled = false,
-                            tag = "",
-
-                            anchorTo = "PowerBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 25,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 13,
-                            justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Race = {
-                            enabled = true,
-                            tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
-                            overflowMode = "ELLIPSIS",
-
-                            anchorTo = "PowerBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 2,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 12,
-                            justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Status = {
-                            enabled = false,
-                            tag = "",
-
-                            anchorTo = "HealthBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 10,
-                            offsetY = 2,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 22,
-                            justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        CastName = {
-                            enabled = true,
-                            tag = "[cast:name]",
-
-                            anchorTo = "CastBar",
-                            point = "LEFT",
-                            relativePoint = "LEFT",
-                            offsetX = 4,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 11,
-                            justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        CastTime = {
-                            enabled = true,
-                            tag = "[cast:time]",
-
-                            anchorTo = "CastBar",
-                            point = "RIGHT",
-                            relativePoint = "RIGHT",
-                            offsetX = -4,
-                            offsetY = 0,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 10,
-                            justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Custom1 = {
-                            enabled = false,
-                            tag = "",
-
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -8,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 11,
-                            justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Custom2 = {
-                            enabled = false,
-                            tag = "",
-
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -22,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 11,
-                            justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-
-                        Custom3 = {
-                            enabled = false,
-                            tag = "",
-
-                            anchorTo = "Frame",
-                            point = "TOP",
-                            relativePoint = "BOTTOM",
-                            offsetX = 0,
-                            offsetY = -36,
-
-                            font = STANDARD_TEXT_FONT,
-                            fontSize = 11,
-                            justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
-                            shadowEnabled = true,
-                            shadowOffsetX = 1,
-                            shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
-                            outline = false,
-                            thickOutline = false,
-                            monochrome = false,
-                        },
-                    },
-                },
-
-                targettarget = {
-                    enabled = true,
-                    mouseEnabled = true,
-                    clickThrough = false,
-                    clampToScreen = true,
-                    showInSolo = true,
-                    showInParty = true,
-                    showInRaid = true,
-                    showInArena = true,
-                    showInPvp = true,
-
-                    width = 260,
-                    height = 65,
-                    alpha = 0.9,
-                    scale = 1,
-                    frameLevel = 1,
-                    frameStrata = "MEDIUM",
-                    point = "CENTER",
-                    relativeTo = "UIParent",
-                    relativePoint = "CENTER",
-                    x = 327.0003662109375,
-                    y = -149.0000915527344,
-                    showPowerBar = true,
-                    powerBarHeight = 20,
-                    healthBarReverseFill = true,
-                    powerBarReverseFill = true,
-                    showAlternativePowerBar = false,
-                    alternativePowerBarHeight = 5,
-                    alternativePowerBarWidth = 100,
-                    alternativePowerBarAnchorTo = "HealthBar",
-                    alternativePowerBarPoint = "BOTTOMLEFT",
-                    alternativePowerBarRelativePoint = "BOTTOMLEFT",
-                    alternativePowerBarOffsetX = 5,
-                    alternativePowerBarOffsetY = 5,
-                    showCastBar = true,
-                    showCastBarIcon = true,
-                    castBarHeight = 20,
-                    castBarPoint = "BOTTOMLEFT",
-                    castBarRelativePoint = "BOTTOMLEFT",
-                    castBarOffsetX = 0,
-                    castBarOffsetY = -20,
-                    statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
-
-                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
-                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
-
-                    healthColor = { 0.10, 0.80, 0.10, 0.65 },
-                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
+                    castBarColor = {
+                        1.0,
+                        0.72,
+                        0.18,
+                        1.0,
+                    },
+                    castBarInterruptibleColor = {
+                        0.6,
+                        0.6,
+                        0.6,
+                        1.0,
+                    },
+                    backgroundColor = {
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.3164066076278687,
+                    },
+                    borderColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                    healthColor = {
+                        0.1,
+                        0.8,
+                        0.1,
+                        0.65,
+                    },
+                    healthLowColor = {
+                        1.0,
+                        0.12,
+                        0.12,
+                        0.65,
+                    },
                     healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
+                    healthBackgroundColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.65234375,
+                    },
                     useClassColorHealth = true,
-
-                    powerColor = { 0.20, 0.40, 0.90, 0.65 },
+                    powerColor = {
+                        0.2,
+                        0.4,
+                        0.9,
+                        0.65,
+                    },
                     powerBackground = true,
-                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
+                    powerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
-
                     Portrait = {
                         enabled = false,
                         placement = "INSIDE",
@@ -1311,7 +1548,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -4,
                         offsetY = 0,
                     },
-
                     RaidTargetIcon = {
                         enabled = true,
                         placement = "INSIDE",
@@ -1326,7 +1562,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 5,
                         offsetY = 0,
                     },
-
                     LeaderIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1340,7 +1575,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 40,
                     },
-
                     RoleIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1354,7 +1588,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -20,
                         offsetY = 20,
                     },
-
                     CombatIndicator = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -1367,8 +1600,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     RestingIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1381,8 +1614,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     ReadyCheckIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1396,12 +1629,10 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     ClassificationIndicator = {
                         enabled = false,
                         effect = "PORTRAIT_OVERLAY",
                     },
-
                     Buffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1409,10 +1640,10 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMLEFT",
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "LEFT",
-                        iconSize = 25,
+                        iconSize = 20,
                         stackFontScale = 1,
                         timerFontScale = 1,
                         spacingX = 3,
@@ -1432,7 +1663,6 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "NEWEST_FIRST",
                     },
-
                     Debuffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1440,10 +1670,10 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMRIGHT",
                         relativePoint = "TOPRIGHT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "RIGHT",
-                        iconSize = 25,
+                        iconSize = 20,
                         stackFontScale = 1,
                         timerFontScale = 1,
                         spacingX = 3,
@@ -1463,345 +1693,404 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "TIME_REMAINING_ASC",
                     },
-
                     Texts = {
                         Name = {
                             enabled = true,
                             tag = "[name] [status] [status:timer]",
-
                             anchorTo = "Frame",
                             point = "TOPLEFT",
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 20,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 16,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Unit Name Target",
                         },
-
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
                             },
-
                             anchorTo = "HealthBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 15,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Health",
                         },
-
                         Power = {
                             enabled = true,
                             tag = "[power:cur:abbr]/[power:max:abbr]",
-
                             anchorTo = "PowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Power",
                         },
-
                         AltPower = {
                             enabled = true,
                             tag = "[altpower:cur] / [altpower:max]",
-
                             anchorTo = "AlternativePowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Alt Power",
                         },
-
                         Level = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 0.82, 0.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Class = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Race = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
                             overflowMode = "ELLIPSIS",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Target Level and Class",
                         },
-
                         Status = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "HealthBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 22,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         CastName = {
                             enabled = true,
                             tag = "[cast:name]",
-
                             anchorTo = "CastBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Name",
                         },
-
                         CastTime = {
                             enabled = true,
                             tag = "[cast:time]",
-
                             anchorTo = "CastBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Time",
                         },
-
                         Custom1 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom2 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom3 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
@@ -1818,7 +2107,6 @@ function FocalPoint:GetDefaultDB()
                     showInRaid = true,
                     showInArena = true,
                     showInPvp = true,
-
                     width = 260,
                     height = 65,
                     alpha = 0.9,
@@ -1828,8 +2116,8 @@ function FocalPoint:GetDefaultDB()
                     point = "CENTER",
                     relativeTo = "UIParent",
                     relativePoint = "CENTER",
-                    x = 0,
-                    y = -120,
+                    x = 0.0008544921875,
+                    y = -40.00070190429688,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
@@ -1854,24 +2142,65 @@ function FocalPoint:GetDefaultDB()
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
-
-                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
-                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
-
-                    healthColor = { 0.10, 0.80, 0.10, 0.65 },
-                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
+                    castBarColor = {
+                        1.0,
+                        0.72,
+                        0.18,
+                        1.0,
+                    },
+                    castBarInterruptibleColor = {
+                        0.6,
+                        0.6,
+                        0.6,
+                        1.0,
+                    },
+                    backgroundColor = {
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.3164066076278687,
+                    },
+                    borderColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                    healthColor = {
+                        0.1,
+                        0.8,
+                        0.1,
+                        0.65,
+                    },
+                    healthLowColor = {
+                        1.0,
+                        0.12,
+                        0.12,
+                        0.65,
+                    },
                     healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
+                    healthBackgroundColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.65234375,
+                    },
                     useClassColorHealth = true,
-
-                    powerColor = { 0.20, 0.40, 0.90, 0.65 },
+                    powerColor = {
+                        0.2,
+                        0.4,
+                        0.9,
+                        0.65,
+                    },
                     powerBackground = true,
-                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
+                    powerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
-
                     Portrait = {
                         enabled = false,
                         placement = "INSIDE",
@@ -1886,7 +2215,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -4,
                         offsetY = 0,
                     },
-
                     RaidTargetIcon = {
                         enabled = true,
                         placement = "INSIDE",
@@ -1901,7 +2229,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 5,
                         offsetY = 0,
                     },
-
                     LeaderIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1915,7 +2242,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 40,
                     },
-
                     RoleIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1929,7 +2255,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -20,
                         offsetY = 20,
                     },
-
                     CombatIndicator = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -1942,8 +2267,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     RestingIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1956,8 +2281,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     ReadyCheckIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1971,12 +2296,10 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     ClassificationIndicator = {
                         enabled = true,
                         effect = "PORTRAIT_OVERLAY",
                     },
-
                     Buffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -1984,7 +2307,7 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMLEFT",
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "LEFT",
                         iconSize = 25,
@@ -2007,7 +2330,6 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "NEWEST_FIRST",
                     },
-
                     Debuffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2015,7 +2337,7 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMRIGHT",
                         relativePoint = "TOPRIGHT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "RIGHT",
                         iconSize = 25,
@@ -2038,345 +2360,404 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "TIME_REMAINING_ASC",
                     },
-
                     Texts = {
                         Name = {
                             enabled = true,
                             tag = "[name] [status] [status:timer]",
-
                             anchorTo = "Frame",
                             point = "TOPLEFT",
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 20,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 16,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Unit Name Target",
                         },
-
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
                             },
-
                             anchorTo = "HealthBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 15,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Health",
                         },
-
                         Power = {
                             enabled = true,
                             tag = "[power:cur:abbr]/[power:max:abbr]",
-
                             anchorTo = "PowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Power",
                         },
-
                         AltPower = {
                             enabled = true,
                             tag = "[altpower:cur] / [altpower:max]",
-
                             anchorTo = "AlternativePowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Alt Power",
                         },
-
                         Level = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 0.82, 0.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Class = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Race = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
                             overflowMode = "ELLIPSIS",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Target Level and Class",
                         },
-
                         Status = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "HealthBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 22,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         CastName = {
                             enabled = true,
                             tag = "[cast:name]",
-
                             anchorTo = "CastBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Name",
                         },
-
                         CastTime = {
                             enabled = true,
                             tag = "[cast:time]",
-
                             anchorTo = "CastBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Time",
                         },
-
                         Custom1 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom2 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom3 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
@@ -2393,9 +2774,8 @@ function FocalPoint:GetDefaultDB()
                     showInRaid = true,
                     showInArena = true,
                     showInPvp = true,
-
-                    width = 260,
-                    height = 65,
+                    width = 200,
+                    height = 45,
                     alpha = 0.9,
                     scale = 1,
                     frameLevel = 1,
@@ -2403,8 +2783,8 @@ function FocalPoint:GetDefaultDB()
                     point = "CENTER",
                     relativeTo = "UIParent",
                     relativePoint = "CENTER",
-                    x = 57,
-                    y = 21,
+                    x = -34.99993896484375,
+                    y = 134.9993286132813,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
@@ -2429,24 +2809,65 @@ function FocalPoint:GetDefaultDB()
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
-
-                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
-                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
-
-                    healthColor = { 0.10, 0.80, 0.10, 0.65 },
-                    healthLowColor = { 1.00, 0.12, 0.12, 0.65 },
+                    castBarColor = {
+                        1.0,
+                        0.72,
+                        0.18,
+                        1.0,
+                    },
+                    castBarInterruptibleColor = {
+                        0.6,
+                        0.6,
+                        0.6,
+                        1.0,
+                    },
+                    backgroundColor = {
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.3164066076278687,
+                    },
+                    borderColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                    healthColor = {
+                        0.1,
+                        0.8,
+                        0.1,
+                        0.65,
+                    },
+                    healthLowColor = {
+                        1.0,
+                        0.12,
+                        0.12,
+                        0.65,
+                    },
                     healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
+                    healthBackgroundColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.65234375,
+                    },
                     useClassColorHealth = true,
-
-                    powerColor = { 0.20, 0.40, 0.90, 0.65 },
+                    powerColor = {
+                        0.2,
+                        0.4,
+                        0.9,
+                        0.65,
+                    },
                     powerBackground = true,
-                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
+                    powerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
-
                     Portrait = {
                         enabled = false,
                         placement = "INSIDE",
@@ -2461,7 +2882,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -4,
                         offsetY = 0,
                     },
-
                     RaidTargetIcon = {
                         enabled = true,
                         placement = "INSIDE",
@@ -2476,7 +2896,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 5,
                         offsetY = 0,
                     },
-
                     LeaderIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2490,7 +2909,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 40,
                     },
-
                     RoleIcon = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2504,7 +2922,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -20,
                         offsetY = 20,
                     },
-
                     CombatIndicator = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -2517,8 +2934,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     RestingIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2531,8 +2948,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     ReadyCheckIndicator = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2546,7 +2963,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     Buffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2554,10 +2970,10 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMLEFT",
                         relativePoint = "TOPLEFT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "LEFT",
-                        iconSize = 25,
+                        iconSize = 20,
                         stackFontScale = 1,
                         timerFontScale = 1,
                         spacingX = 3,
@@ -2577,7 +2993,6 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "NEWEST_FIRST",
                     },
-
                     Debuffs = {
                         enabled = true,
                         placement = "ATTACHED",
@@ -2585,10 +3000,10 @@ function FocalPoint:GetDefaultDB()
                         point = "BOTTOMRIGHT",
                         relativePoint = "TOPRIGHT",
                         offsetX = 0,
-                        offsetY = 4,
+                        offsetY = 16,
                         insideAnchorTo = "Frame",
                         insideSide = "RIGHT",
-                        iconSize = 25,
+                        iconSize = 20,
                         stackFontScale = 1,
                         timerFontScale = 1,
                         spacingX = 3,
@@ -2608,346 +3023,404 @@ function FocalPoint:GetDefaultDB()
                         showTimerText = true,
                         sortMode = "TIME_REMAINING_ASC",
                     },
-
                     Texts = {
                         Name = {
                             enabled = true,
                             tag = "[name] [status] [status:timer]",
-
                             anchorTo = "Frame",
                             point = "TOPLEFT",
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 20,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 16,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Unit Name Target",
                         },
-
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
                             },
-
                             anchorTo = "HealthBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 15,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Health",
                         },
-
                         Power = {
                             enabled = true,
                             tag = "[power:cur:abbr]/[power:max:abbr]",
-
                             anchorTo = "PowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Power",
                         },
-
                         AltPower = {
                             enabled = true,
                             tag = "[altpower:cur] / [altpower:max]",
-
                             anchorTo = "AlternativePowerBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Alt Power",
                         },
-
                         Level = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 0.82, 0.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Class = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 13,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Race = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
                             overflowMode = "ELLIPSIS",
-
                             anchorTo = "PowerBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Target Level and Class",
                         },
-
                         Status = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "HealthBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 22,
-
                             justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         CastName = {
                             enabled = true,
                             tag = "[cast:name]",
-
                             anchorTo = "CastBar",
                             point = "LEFT",
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "LEFT",
-
-                            color = { 1.00, 0.82, 0.20, 1.00 },
-
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Name",
                         },
-
                         CastTime = {
                             enabled = true,
                             tag = "[cast:time]",
-
                             anchorTo = "CastBar",
                             point = "RIGHT",
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "RIGHT",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Time",
                         },
-
                         Custom1 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom2 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom3 = {
                             enabled = false,
                             tag = "",
-
                             anchorTo = "Frame",
                             point = "TOP",
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-
-                            color = { 1.00, 1.00, 1.00, 1.00 },
-
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
-
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
@@ -2959,12 +3432,11 @@ function FocalPoint:GetDefaultDB()
                     mouseEnabled = true,
                     clampToScreen = true,
                     clickThrough = false,
-
-                    relativeTo = "FocalPoint_Player",
-                    point = "TOPLEFT",
-                    relativePoint = "TOPLEFT",
-                    x = -100,
-                    y = 150,
+                    relativeTo = "UIParent",
+                    point = "CENTER",
+                    relativePoint = "CENTER",
+                    x = -425.4993896484375,
+                    y = -49.50030517578125,
                     width = 195,
                     height = 50,
                     alpha = 0.85,
@@ -2972,10 +3444,9 @@ function FocalPoint:GetDefaultDB()
                     frameStrata = "MEDIUM",
                     frameLevel = 0,
                     borderInset = 1,
-
                     showPowerBar = true,
                     powerBarHeight = 15,
-                    healthBarReverseFill = false,
+                    healthBarReverseFill = true,
                     powerBarReverseFill = false,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
@@ -2993,32 +3464,73 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = 4,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    castBarColor = { 1.00, 0.72, 0.18, 1.00 },
-                    castBarInterruptibleColor = { 0.60, 0.60, 0.60, 1.00 },
-
-                    backgroundColor = { 0.0784313753247261, 0.0784313753247261, 0.0784313753247261, 0.3164066076278687 },
-                    borderColor = { 0.00, 0.00, 0.00, 0.00 },
-
-                    healthColor = { 0.1882353127002716, 0.8000000715255737, 0.7686275243759155, 1.00 },
-                    healthLowColor = { 1.00, 0.12, 0.12, 1.00 },
+                    castBarColor = {
+                        1.0,
+                        0.72,
+                        0.18,
+                        1.0,
+                    },
+                    castBarInterruptibleColor = {
+                        0.6,
+                        0.6,
+                        0.6,
+                        1.0,
+                    },
+                    backgroundColor = {
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.0784313753247261,
+                        0.3164066076278687,
+                    },
+                    borderColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                    healthColor = {
+                        0.1882353127002716,
+                        0.8000000715255737,
+                        0.7686275243759155,
+                        1.0,
+                    },
+                    healthLowColor = {
+                        1.0,
+                        0.12,
+                        0.12,
+                        1.0,
+                    },
                     healthBackground = true,
-                    healthBackgroundColor = { 0.00, 0.00, 0.00, 0.65234375 },
+                    healthBackgroundColor = {
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.65234375,
+                    },
                     useClassColorHealth = true,
-
-                    powerColor = { 0.8000000715255737, 0.01176470704376698, 0.00, 0.58203125 },
+                    powerColor = {
+                        0.8000000715255737,
+                        0.01176470704376698,
+                        0.0,
+                        0.58203125,
+                    },
                     powerBackground = true,
-                    powerBackgroundColor = { 0.05490196496248245, 0.05882353335618973, 0.05882353335618973, 0.3945313394069672 },
+                    powerBackgroundColor = {
+                        0.05490196496248245,
+                        0.05882353335618973,
+                        0.05882353335618973,
+                        0.3945313394069672,
+                    },
                     useClassColorPower = true,
-
                     Portrait = {
-                        enabled = false,
+                        enabled = true,
                         placement = "INSIDE",
                         mode = "2D",
-                        size = 45,
+                        size = 30,
                         scale = 1,
                         padding = 5,
                         insideSide = "LEFT",
@@ -3028,7 +3540,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = -4,
                         offsetY = 0,
                     },
-
                     RaidTargetIcon = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -3042,7 +3553,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 6,
                     },
-
                     LeaderIcon = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -3056,7 +3566,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     RoleIcon = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -3070,7 +3579,6 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     CombatIndicator = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -3083,8 +3591,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     RestingIndicator = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -3097,8 +3605,8 @@ function FocalPoint:GetDefaultDB()
                         relativePoint = "TOP",
                         offsetX = 0,
                         offsetY = 0,
+                        effect = "ICON",
                     },
-
                     ReadyCheckIndicator = {
                         enabled = false,
                         placement = "ATTACHED",
@@ -3112,12 +3620,10 @@ function FocalPoint:GetDefaultDB()
                         offsetX = 0,
                         offsetY = 0,
                     },
-
                     ClassificationIndicator = {
                         enabled = true,
                         effect = "PORTRAIT_OVERLAY",
                     },
-
                     Texts = {
                         Name = {
                             enabled = true,
@@ -3130,16 +3636,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 14,
                             justifyH = "LEFT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 2,
                             shadowOffsetY = -2,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Unit Name Player",
                         },
-
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
@@ -3151,16 +3667,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "LEFT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Health",
                         },
-
                         Power = {
                             enabled = true,
                             tag = "[power:cur:abbr]/[power:max:abbr]",
@@ -3172,16 +3698,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "LEFT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Power",
                         },
-
                         Level = {
                             enabled = true,
                             tag = "[level]",
@@ -3193,16 +3729,25 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "CENTER",
-                            color = { 1.00, 0.82, 0.00, 1.00 },
+                            color = {
+                                1.0,
+                                0.82,
+                                0.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Race = {
                             enabled = true,
                             tag = "[creature]",
@@ -3214,16 +3759,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "CENTER",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Creature",
                         },
-
                         Status = {
                             enabled = true,
                             tag = "[status] [status:timer]",
@@ -3235,16 +3790,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-                            color = { 1.00, 0.82, 0.20, 1.00 },
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Status",
                         },
-
                         CastName = {
                             enabled = false,
                             tag = "[cast:name]",
@@ -3256,16 +3821,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "LEFT",
-                            color = { 1.00, 0.82, 0.20, 1.00 },
+                            color = {
+                                1.0,
+                                0.82,
+                                0.2,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Name",
                         },
-
                         CastTime = {
                             enabled = false,
                             tag = "[cast:time]",
@@ -3277,16 +3852,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 9,
                             justifyH = "RIGHT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Cast Time",
                         },
-
                         Custom1 = {
                             enabled = false,
                             tag = "",
@@ -3298,16 +3883,25 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom2 = {
                             enabled = false,
                             tag = "",
@@ -3319,16 +3913,25 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Custom3 = {
                             enabled = false,
                             tag = "",
@@ -3340,20 +3943,30 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "CENTER",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
                     },
+                    useReactionColorNpcHealth = false,
                 },
                 boss = {
-                    enabled = false,
-
+                    enabled = true,
                     Texts = {
                         Name = {
                             enabled = true,
@@ -3366,16 +3979,25 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 14,
                             justifyH = "LEFT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 2,
                             shadowOffsetY = -2,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr]",
@@ -3387,16 +4009,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 12,
                             justifyH = "LEFT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Health",
                         },
-
                         Power = {
                             enabled = true,
                             tag = "[power:cur:abbr]",
@@ -3408,16 +4040,26 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 11,
                             justifyH = "LEFT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
+                            templateName = "Power",
                         },
-
                         Class = {
                             enabled = true,
                             tag = "[color:blizz_yellow][level][rc] [creature]",
@@ -3429,25 +4071,71 @@ function FocalPoint:GetDefaultDB()
                             font = STANDARD_TEXT_FONT,
                             fontSize = 10,
                             justifyH = "RIGHT",
-                            color = { 1.00, 1.00, 1.00, 1.00 },
+                            color = {
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0,
+                            },
                             shadowEnabled = true,
                             shadowOffsetX = 1,
                             shadowOffsetY = -1,
-                            shadowColor = { 0, 0, 0, 1 },
+                            shadowColor = {
+                                0,
+                                0,
+                                0,
+                                1,
+                            },
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
                         },
-
-                        Status = { enabled = false },
-                        CastName = { enabled = false },
-                        CastTime = { enabled = false },
-                        AltPower = { enabled = false },
-                        Level = { enabled = false },
-                        Race = { enabled = false },
-                        Custom1 = { enabled = false },
-                        Custom2 = { enabled = false },
-                        Custom3 = { enabled = false },
+                        Status = {
+                            enabled = false,
+                        },
+                        CastName = {
+                            enabled = false,
+                        },
+                        CastTime = {
+                            enabled = false,
+                        },
+                        AltPower = {
+                            enabled = false,
+                        },
+                        Level = {
+                            enabled = false,
+                        },
+                        Race = {
+                            enabled = false,
+                        },
+                        Custom1 = {
+                            enabled = false,
+                        },
+                        Custom2 = {
+                            enabled = false,
+                        },
+                        Custom3 = {
+                            enabled = false,
+                        },
+                    },
+                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    point = "CENTER",
+                    y = 359.9989318847656,
+                    x = 425.00048828125,
+                    relativeTo = "UIParent",
+                    relativePoint = "CENTER",
+                    useClassColorHealth = true,
+                    healthBarReverseFill = false,
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+                    healthLowColor = {
+                        0.6705882549285889,
+                        0,
+                        0.07058823853731155,
+                        1,
+                        a = 1,
+                        b = 0.07058823853731155,
+                        g = 0,
+                        r = 0.6705882549285889,
                     },
                 },
             },

@@ -25,6 +25,7 @@ local POINTS = {
 local INDICATOR_META = {
     Portrait = {
         labelKey = "OPTION_PORTRAIT_ENABLED",
+        dropdownLabelKey = "ELEMENT_PORTRAIT",
         optionKey = "Portrait",
         placementLabel = "OPTION_PORTRAIT_PLACEMENT",
         sizeLabel = "OPTION_PORTRAIT_SIZE",
@@ -38,6 +39,7 @@ local INDICATOR_META = {
     },
     RaidTargetIcon = {
         labelKey = "OPTION_RTM_ENABLED",
+        dropdownLabelKey = "ELEMENT_RAID_TARGET_ICON",
         optionKey = "RaidTargetIcon",
         placementLabel = "OPTION_RTM_PLACEMENT",
         sizeLabel = "OPTION_RTM_SIZE",
@@ -46,6 +48,7 @@ local INDICATOR_META = {
     },
     LeaderIcon = {
         labelKey = "OPTION_LEADER_ICON_ENABLED",
+        dropdownLabelKey = "ELEMENT_LEADER_ICON",
         optionKey = "LeaderIcon",
         placementLabel = "OPTION_LEADER_ICON_PLACEMENT",
         sizeLabel = "OPTION_LEADER_ICON_SIZE",
@@ -54,6 +57,7 @@ local INDICATOR_META = {
     },
     RoleIcon = {
         labelKey = "OPTION_ROLE_ICON_ENABLED",
+        dropdownLabelKey = "ELEMENT_ROLE_ICON",
         optionKey = "RoleIcon",
         placementLabel = "OPTION_ROLE_ICON_PLACEMENT",
         sizeLabel = "OPTION_ROLE_ICON_SIZE",
@@ -62,6 +66,7 @@ local INDICATOR_META = {
     },
     CombatIndicator = {
         labelKey = "OPTION_COMBAT_INDICATOR_ENABLED",
+        dropdownLabelKey = "ELEMENT_COMBAT_INDICATOR",
         optionKey = "CombatIndicator",
         effectLabel = "OPTION_COMBAT_INDICATOR_EFFECT",
         effectListKey = "status",
@@ -72,6 +77,7 @@ local INDICATOR_META = {
     },
     RestingIndicator = {
         labelKey = "OPTION_RESTING_INDICATOR_ENABLED",
+        dropdownLabelKey = "ELEMENT_RESTING_INDICATOR",
         optionKey = "RestingIndicator",
         effectLabel = "OPTION_RESTING_INDICATOR_EFFECT",
         effectListKey = "status",
@@ -85,6 +91,7 @@ local INDICATOR_META = {
     },
     ReadyCheckIndicator = {
         labelKey = "OPTION_READY_CHECK_INDICATOR_ENABLED",
+        dropdownLabelKey = "ELEMENT_READY_CHECK_INDICATOR",
         optionKey = "ReadyCheckIndicator",
         placementLabel = "OPTION_READY_CHECK_INDICATOR_PLACEMENT",
         sizeLabel = "OPTION_READY_CHECK_INDICATOR_SIZE",
@@ -93,6 +100,7 @@ local INDICATOR_META = {
     },
     ClassificationIndicator = {
         labelKey = "OPTION_CLASSIFICATION_INDICATOR_ENABLED",
+        dropdownLabelKey = "ELEMENT_CLASSIFICATION_INDICATOR",
         optionKey = "ClassificationIndicator",
         effectLabel = "OPTION_CLASSIFICATION_INDICATOR_EFFECT",
         classification = true,
@@ -838,7 +846,8 @@ local function BuildIndicatorList(unitKey)
         local meta = INDICATOR_META[indicatorKey]
         local blocked = type(meta.unavailable) == "function" and meta.unavailable(unitKey) or false
         if not blocked then
-            list[indicatorKey] = L[meta.labelKey] or indicatorKey
+            local dropdownLabelKey = meta.dropdownLabelKey or meta.labelKey
+            list[indicatorKey] = L[dropdownLabelKey] or L[meta.labelKey] or indicatorKey
         end
     end
 

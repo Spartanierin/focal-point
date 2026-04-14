@@ -2,6 +2,9 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFramePreview = FocalPoint.UnitFramePreview or {}
 local Preview = FocalPoint.UnitFramePreview
+local Utils = FocalPoint.UnitFrameUtils or {}
+local ToSafeNumberValue = Utils.ToSafeNumberValue
+local FormatDisplayNumber = Utils.FormatDisplayNumber
 
 local TEST_PREVIEW_VALUES = {
     player = {
@@ -420,6 +423,7 @@ local TEST_PREVIEW_AURAS = {
 }
 
 local ALTERNATE_POWER_INDEX = Enum and Enum.PowerType and Enum.PowerType.Alternate or 10
+local MANA_POWER_INDEX = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 
 -- Preview helpers provide stable fake values for test/unlock mode
 -- and encapsulate alternate power lookup for both live and editor states.
@@ -626,6 +630,70 @@ local function GetAlternatePowerBarInfo(unit)
     return barID, barInfo
 end
 
+local function GetManaSecondaryPowerValues(unit)
+    if unit ~= "player" or not UnitPowerMax then
+        return nil, 0, 0, 0
+    end
+
+    local primaryPowerType = UnitPowerType and UnitPowerType(unit) or nil
+    if primaryPowerType == MANA_POWER_INDEX then
+        return nil, 0, 0, 0
+    end
+
+    local maxMana = ToSafeNumberValue(UnitPowerMax(unit, MANA_POWER_INDEX))
+    if maxMana <= 0 then
+        return nil, 0, 0, 0
+    end
+
+    local currentMana = UnitPower and UnitPower(unit, MANA_POWER_INDEX) or 0
+    local currentManaSafe = ToSafeNumberValue(currentMana)
+
+    if UnitPower then
+        local unmodifiedMana = UnitPower(unit, MANA_POWER_INDEX, true)
+        local unmodifiedManaSafe = ToSafeNumberValue(unmodifiedMana)
+        if currentManaSafe <= 0 and unmodifiedManaSafe > 0 then
+            currentMana = unmodifiedMana
+            currentManaSafe = unmodifiedManaSafe
+        end
+    end
+
+    if currentManaSafe <= 0 and maxMana > 0 and not (issecretvalue and issecretvalue(currentMana)) then
+        currentMana = currentManaSafe
+    end
+
+    return MANA_POWER_INDEX, currentMana, maxMana, 0
+end
+
+local function FormatSecondaryPowerDisplayText(rawValue, safeValue)
+    if FormatDisplayNumber then
+        local ok, result = pcall(FormatDisplayNumber, rawValue)
+        if ok and type(result) == "string" then
+            return result
+        end
+    end
+
+    do
+        local ok, result = pcall(tostring, rawValue)
+        if ok and type(result) == "string" then
+            return result
+        end
+    end
+
+    if FormatDisplayNumber then
+        local ok, result = pcall(FormatDisplayNumber, safeValue)
+        if ok and type(result) == "string" then
+            return result
+        end
+    end
+
+    local ok, result = pcall(tostring, safeValue or 0)
+    if ok and type(result) == "string" then
+        return result
+    end
+
+    return "0"
+end
+
 local function IsAlternatePowerVisible(unit, barInfo)
     if type(unit) ~= "string" or unit == "" or type(barInfo) ~= "table" then
         return false
@@ -662,6 +730,11 @@ function Preview.GetSecondaryPowerTypeForUnit(unit)
         return ALTERNATE_POWER_INDEX
     end
 
+    local manaPowerType = GetManaSecondaryPowerValues(unit)
+    if manaPowerType ~= nil then
+        return manaPowerType
+    end
+
     local previewPowerType = GetForcedSecondaryPowerPreviewValues(unit)
     return previewPowerType
 end
@@ -676,7 +749,45 @@ function Preview.GetSecondaryPowerValues(unit)
         return ALTERNATE_POWER_INDEX, currentPower or minPower, maxPower or minPower, minPower
     end
 
+    local manaPowerType, currentMana, maxMana, minMana = GetManaSecondaryPowerValues(unit)
+    if manaPowerType ~= nil then
+        return manaPowerType, currentMana, maxMana, minMana
+    end
+
     return GetForcedSecondaryPowerPreviewValues(unit)
+end
+
+function Preview.GetSecondaryPowerDisplayValues(unit)
+    local powerType, currentValue, maxValue = Preview.GetSecondaryPowerValues(unit)
+    if powerType == nil then
+        return nil, "0", "0", 0, 0, 0
+    end
+
+    local safeMax = ToSafeNumberValue(maxValue)
+    local safeCurrent = ToSafeNumberValue(currentValue)
+    local currentText = FormatSecondaryPowerDisplayText(currentValue, safeCurrent)
+    local maxText = FormatSecondaryPowerDisplayText(maxValue, safeMax)
+
+    if safeCurrent <= 0 and safeMax > 0 and UnitPowerMissing then
+        local missingValue = ToSafeNumberValue(UnitPowerMissing(unit, powerType))
+        if missingValue >= 0 and missingValue <= safeMax then
+            safeCurrent = math.max(0, safeMax - missingValue)
+        end
+    end
+
+    if safeCurrent <= 0 and safeMax > 0 and UnitPowerPercent then
+        local percentValue = ToSafeNumberValue(UnitPowerPercent(unit, powerType, false, CurveConstants and CurveConstants.ScaleTo100))
+        if percentValue > 0 then
+            safeCurrent = math.max(0, math.min(safeMax, math.floor((safeMax * percentValue / 100) + 0.5)))
+        end
+    end
+
+    return powerType,
+        currentText,
+        maxText,
+        safeMax,
+        safeCurrent,
+        safeMax
 end
 
 function Preview.IsIndicatorVisible(frame, indicatorKey)

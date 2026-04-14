@@ -13,8 +13,6 @@ function FocalPoint:SetupSlashCommands()
 
         if msg == "" or msg == "config" then
             FocalPoint:OpenConfig()
-        elseif msg == "test" then
-            FocalPoint:SpawnUnitFrame("player")
         elseif msg == "debug target" then
             FocalPoint.debugTargetVisibility = not FocalPoint.debugTargetVisibility
             if FocalPoint.Info then
@@ -31,7 +29,7 @@ function FocalPoint:SetupSlashCommands()
             end
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp test, /fp debug target, /fp debug runtime, /fp diag")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp diag")
             end
         end
     end

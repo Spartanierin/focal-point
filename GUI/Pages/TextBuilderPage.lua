@@ -90,8 +90,8 @@ local function SetStatus(message)
 end
 
 local function RefreshToolUI()
-    if ns.GUI and ns.GUI.RefreshOptions then
-        ns.GUI:RefreshOptions()
+    if ns.GUI and ns.GUI.RequestRefreshOptions then
+        ns.GUI:RequestRefreshOptions()
     end
 end
 

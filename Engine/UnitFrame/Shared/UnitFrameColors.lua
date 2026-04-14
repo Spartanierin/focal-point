@@ -11,6 +11,25 @@ local ToSafeNumberValue = Utils.ToSafeNumberValue
 -- Color helpers stay side-effect free.
 -- They resolve health and power colors without touching frame state.
 
+local function SafeColorComponent(value, fallback)
+    if type(value) == "number" and not (issecretvalue and issecretvalue(value)) then
+        return value
+    end
+
+    if type(fallback) == "number" and not (issecretvalue and issecretvalue(fallback)) then
+        return fallback
+    end
+
+    return 1
+end
+
+local function SanitizeRGBA(r, g, b, a, fallbackR, fallbackG, fallbackB, fallbackA)
+    return SafeColorComponent(r, fallbackR),
+        SafeColorComponent(g, fallbackG),
+        SafeColorComponent(b, fallbackB),
+        SafeColorComponent(a, fallbackA)
+end
+
 function Colors.IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false
@@ -51,7 +70,16 @@ local function ResolveClassColorByToken(classToken)
         return nil
     end
 
-    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1
+    return SanitizeRGBA(
+        color.r or color[1],
+        color.g or color[2],
+        color.b or color[3],
+        color.a or color[4] or 1,
+        nil,
+        nil,
+        nil,
+        1
+    )
 end
 
 function Colors.GetClassColorForUnit(unit, useReactionForNpc)
@@ -62,7 +90,16 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
     if UnitIsPlayer and UnitIsPlayer(unit) and UnitIsEnemy and IsSafeTrue(UnitIsEnemy("player", unit)) then
         local hostileColor = FACTION_BAR_COLORS and (FACTION_BAR_COLORS[2] or FACTION_BAR_COLORS[1]) or nil
         if hostileColor then
-            return hostileColor.r or hostileColor[1], hostileColor.g or hostileColor[2], hostileColor.b or hostileColor[3], 1
+            return SanitizeRGBA(
+                hostileColor.r or hostileColor[1],
+                hostileColor.g or hostileColor[2],
+                hostileColor.b or hostileColor[3],
+                1,
+                1,
+                0.1,
+                0.1,
+                1
+            )
         end
 
         return 1, 0.1, 0.1, 1
@@ -73,11 +110,29 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
         local color = reaction and FACTION_BAR_COLORS[reaction] or nil
 
         if UnitIsPlayer and UnitIsPlayer(unit) and UnitCanAttack and IsSafeTrue(UnitCanAttack("player", unit)) and color then
-            return color.r or color[1], color.g or color[2], color.b or color[3], 1
+            return SanitizeRGBA(
+                color.r or color[1],
+                color.g or color[2],
+                color.b or color[3],
+                1,
+                1,
+                1,
+                1,
+                1
+            )
         end
 
         if UnitIsPlayer and not UnitIsPlayer(unit) and useReactionForNpc and color then
-            return color.r or color[1], color.g or color[2], color.b or color[3], 1
+            return SanitizeRGBA(
+                color.r or color[1],
+                color.g or color[2],
+                color.b or color[3],
+                1,
+                1,
+                1,
+                1,
+                1
+            )
         end
     end
 
@@ -86,7 +141,7 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
             local _, ownerClassToken = UnitClass("player")
             local ownerR, ownerG, ownerB, ownerA = ResolveClassColorByToken(ownerClassToken)
             if ownerR and ownerG and ownerB then
-                return ownerR, ownerG, ownerB, ownerA or 1
+                return SanitizeRGBA(ownerR, ownerG, ownerB, ownerA or 1, 1, 1, 1, 1)
             end
         end
 
@@ -94,7 +149,16 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
             local reaction = UnitReaction("player", unit)
             local color = reaction and FACTION_BAR_COLORS[reaction] or nil
             if color then
-                return color.r or color[1], color.g or color[2], color.b or color[3], 1
+                return SanitizeRGBA(
+                    color.r or color[1],
+                    color.g or color[2],
+                    color.b or color[3],
+                    1,
+                    1,
+                    1,
+                    1,
+                    1
+                )
             end
         end
 
@@ -120,7 +184,16 @@ function Colors.GetPowerColorForUnit(unit)
         return nil
     end
 
-    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4]
+    return SanitizeRGBA(
+        color.r or color[1],
+        color.g or color[2],
+        color.b or color[3],
+        color.a or color[4],
+        nil,
+        nil,
+        nil,
+        1
+    )
 end
 
 local function BuildCurveColor(r, g, b, a)
@@ -151,7 +224,7 @@ local function ResolveCurveColor(curve, percent, fallbackR, fallbackG, fallbackB
     if color.GetRGBA then
         local r, g, b, a = color:GetRGBA()
         if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-            return r, g, b, type(a) == "number" and a or fallbackA
+            return SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
         end
     end
 
@@ -160,7 +233,7 @@ local function ResolveCurveColor(curve, percent, fallbackR, fallbackG, fallbackB
     local b = color.b or color[3]
     local a = color.a or color[4]
     if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-        return r, g, b, type(a) == "number" and a or fallbackA
+        return SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
     end
 
     return fallbackR, fallbackG, fallbackB, fallbackA
@@ -179,7 +252,8 @@ local function ResolveUnitHealthCurveColor(unit, curve, fallbackR, fallbackG, fa
     if color.GetRGBA then
         local r, g, b, a = color:GetRGBA()
         if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-            return r, g, b, type(a) == "number" and a or fallbackA, true
+            local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
+            return sr, sg, sb, sa, true
         end
     end
 
@@ -188,7 +262,8 @@ local function ResolveUnitHealthCurveColor(unit, curve, fallbackR, fallbackG, fa
     local b = color.b or color[3]
     local a = color.a or color[4]
     if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-        return r, g, b, type(a) == "number" and a or fallbackA, true
+        local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
+        return sr, sg, sb, sa, true
     end
 
     return nil
@@ -208,7 +283,8 @@ local function ResolvePredictionCurveColor(frame, curve, fallbackR, fallbackG, f
     if color.GetRGBA then
         local r, g, b, a = color:GetRGBA()
         if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-            return r, g, b, type(a) == "number" and a or fallbackA, true
+            local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
+            return sr, sg, sb, sa, true
         end
     end
 
@@ -217,7 +293,8 @@ local function ResolvePredictionCurveColor(frame, curve, fallbackR, fallbackG, f
     local b = color.b or color[3]
     local a = color.a or color[4]
     if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-        return r, g, b, type(a) == "number" and a or fallbackA, true
+        local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
+        return sr, sg, sb, sa, true
     end
 
     return nil
@@ -242,6 +319,7 @@ end
 
 function Colors.GetResolvedHealthBarColor(frame, config)
     local healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
+    healthR, healthG, healthB, healthA = SanitizeRGBA(healthR, healthG, healthB, healthA, 0.1, 0.8, 0.1, 1)
 
     if config and config.useClassColorHealth then
         local classR, classG, classB = Colors.GetClassColorForUnit(frame and frame.unit, config.useReactionColorNpcHealth)
@@ -251,6 +329,7 @@ function Colors.GetResolvedHealthBarColor(frame, config)
     end
 
     local lowR, lowG, lowB, lowA = UnpackColor(config and config.healthLowColor, { 1.0, 0.12, 0.12, healthA or 1 })
+    lowR, lowG, lowB, lowA = SanitizeRGBA(lowR, lowG, lowB, lowA, 1.0, 0.12, 0.12, healthA or 1)
 
     if C_CurveUtil and C_CurveUtil.CreateColorCurve then
         local curve = C_CurveUtil.CreateColorCurve()
@@ -272,7 +351,7 @@ function Colors.GetResolvedHealthBarColor(frame, config)
                 healthA
             )
             if resolvedFromPrediction then
-                return resolvedR, resolvedG, resolvedB, resolvedA
+                return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
             end
 
             local percent = GetHealthPercent(
@@ -302,10 +381,10 @@ function Colors.GetResolvedHealthBarColor(frame, config)
             )
 
             if resolvedFromUnit then
-                return resolvedR, resolvedG, resolvedB, resolvedA
+                return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
             end
         end
     end
 
-    return healthR, healthG, healthB, healthA
+    return SanitizeRGBA(healthR, healthG, healthB, healthA, 0.1, 0.8, 0.1, 1)
 end

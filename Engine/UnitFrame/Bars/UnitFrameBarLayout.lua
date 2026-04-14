@@ -4,22 +4,6 @@ FocalPoint.UnitFrameBarLayout = FocalPoint.UnitFrameBarLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout
 local Preview = FocalPoint.UnitFramePreview or {}
 
-local function GetAnchorTarget(frame, anchorTo)
-    if not frame then
-        return nil
-    end
-
-    if anchorTo == "HealthBar" then
-        return frame.Elements and frame.Elements.HealthBar or frame
-    elseif anchorTo == "PowerBar" then
-        return frame.Elements and frame.Elements.PowerBar or frame
-    elseif anchorTo == "CastBar" then
-        return frame.Elements and frame.Elements.CastBar or frame
-    end
-
-    return frame
-end
-
 local function IsPlaceholderUnitEnabled(frame)
     if not frame or not frame.unit then
         return true
@@ -41,6 +25,8 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
     local borderInset = options.borderInset
     local showPowerBar = options.showPowerBar
     local powerBarHeight = options.powerBarHeight
+    local alternativePowerBarVisible = options.alternativePowerBarVisible
+    local alternativePowerBarHeight = options.alternativePowerBarHeight
     local healthBarReverseFill = options.healthBarReverseFill == true
     local powerBarReverseFill = options.powerBarReverseFill == true
     local frameLeftReserve = tonumber(options.frameLeftReserve) or 0
@@ -69,6 +55,9 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         local healthBottomY = borderInset
         if showPowerBar then
             healthBottomY = healthBottomY + powerBarHeight
+        end
+        if alternativePowerBarVisible then
+            healthBottomY = healthBottomY + alternativePowerBarHeight
         end
 
         health:SetPoint("TOPLEFT", frame, "TOPLEFT", healthLeftOffset, -borderInset)
@@ -120,6 +109,9 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
             local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
             local powerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
             local powerBottomOffset = borderInset
+            if alternativePowerBarVisible then
+                powerBottomOffset = powerBottomOffset + alternativePowerBarHeight
+            end
 
             power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
             power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
@@ -146,12 +138,6 @@ function BarLayout.ApplyAlternativePower(frame, options)
     local powerRightReserve = tonumber(options.powerRightReserve) or 0
     local alternativePowerBarVisible = options.alternativePowerBarVisible
     local alternativePowerBarHeight = options.alternativePowerBarHeight
-    local alternativePowerBarWidth = tonumber(options.alternativePowerBarWidth) or 100
-    local alternativePowerBarAnchorTo = options.alternativePowerBarAnchorTo or "HealthBar"
-    local alternativePowerBarPoint = options.alternativePowerBarPoint or "BOTTOMLEFT"
-    local alternativePowerBarRelativePoint = options.alternativePowerBarRelativePoint or "BOTTOMLEFT"
-    local alternativePowerBarOffsetX = tonumber(options.alternativePowerBarOffsetX) or 0
-    local alternativePowerBarOffsetY = tonumber(options.alternativePowerBarOffsetY) or 0
 
     local altPower = frame.Elements.AlternativePowerBar
     local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
@@ -159,7 +145,12 @@ function BarLayout.ApplyAlternativePower(frame, options)
     local altPowerType = options.liveAltPowerType or (frame.LiveValues and frame.LiveValues.altPowerType) or 0
     local altPowerTypeColor = PowerBarColor and PowerBarColor[altPowerType]
     local altPowerR, altPowerG, altPowerB, altPowerA = options.powerR, options.powerG, options.powerB, options.powerA
-    if altPowerTypeColor then
+    if options.altPowerHasCustomColor == true then
+        altPowerR = options.altPowerR
+        altPowerG = options.altPowerG
+        altPowerB = options.altPowerB
+        altPowerA = options.altPowerA
+    elseif altPowerTypeColor then
         altPowerR = altPowerTypeColor.r or altPowerTypeColor[1] or altPowerR
         altPowerG = altPowerTypeColor.g or altPowerTypeColor[2] or altPowerG
         altPowerB = altPowerTypeColor.b or altPowerTypeColor[3] or altPowerB
@@ -167,6 +158,9 @@ function BarLayout.ApplyAlternativePower(frame, options)
 
     altPower:ClearAllPoints()
     altPower:SetStatusBarTexture(options.altPowerTexture)
+    if altPower.SetReverseFill then
+        altPower:SetReverseFill(options.altPowerReverseFill == true)
+    end
     if isPlaceholder then
         if isEnabledPlaceholder then
             altPower:SetStatusBarColor(0.24, 0.28, 0.34, 1)
@@ -189,9 +183,9 @@ function BarLayout.ApplyAlternativePower(frame, options)
                 altPower.bg:SetVertexColor(0.08, 0.10, 0.13, 0.08)
             end
         else
-            altPower.bg:SetVertexColor(options.powerBgR, options.powerBgG, options.powerBgB, options.powerBgA)
+            altPower.bg:SetVertexColor(options.altPowerBgR, options.altPowerBgG, options.altPowerBgB, options.altPowerBgA)
         end
-        altPower.bg:SetShown(alternativePowerBarVisible and options.powerBackgroundShown)
+        altPower.bg:SetShown(alternativePowerBarVisible and options.altPowerBackgroundShown)
     end
 
     if alternativePowerBarVisible then
@@ -202,26 +196,12 @@ function BarLayout.ApplyAlternativePower(frame, options)
         altPower:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
         altPower:SetValue(currentAltPower)
 
-        local anchorParent = GetAnchorTarget(frame, alternativePowerBarAnchorTo) or frame
-        local availableWidth = frame:GetWidth()
-            - ((borderInset or 0) * 2)
-            - frameLeftReserve
-            - frameRightReserve
-            - powerLeftReserve
-            - powerRightReserve
-        local effectiveWidth = math.max(
-            20,
-            math.min(alternativePowerBarWidth, availableWidth > 0 and availableWidth or alternativePowerBarWidth)
-        )
+        local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
+        local powerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
+        local altPowerBottomOffset = borderInset
 
-        altPower:SetWidth(effectiveWidth)
-        altPower:SetPoint(
-            alternativePowerBarPoint,
-            anchorParent,
-            alternativePowerBarRelativePoint,
-            alternativePowerBarOffsetX,
-            alternativePowerBarOffsetY
-        )
+        altPower:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, altPowerBottomOffset)
+        altPower:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, altPowerBottomOffset)
         altPower:SetHeight(alternativePowerBarHeight)
         altPower:Show()
     else

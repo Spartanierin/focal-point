@@ -33,6 +33,12 @@ function Power.GetSecondaryPowerValues(unit)
 end
 
 function Power.GetSecondaryPowerDisplayValues(unit)
+    local preview = FocalPoint.UnitFramePreview or {}
+    if preview.GetSecondaryPowerDisplayValues then
+        local secondaryPowerType, currentText, maxText, maxNumber, currentSafe, maxSafe = preview.GetSecondaryPowerDisplayValues(unit)
+        return secondaryPowerType, currentText, maxText, maxNumber, currentSafe, maxSafe
+    end
+
     local secondaryPowerType, currentValue, maxValue = Power.GetSecondaryPowerValues(unit)
     if secondaryPowerType == nil then
         return nil, "0", "0", 0
@@ -54,5 +60,10 @@ function Power.GetSecondaryPowerDisplayValues(unit)
         maxNumber = 0
     end
 
-    return secondaryPowerType, currentText, maxText, maxNumber
+    local currentNumberOk, currentNumber = pcall(tonumber, currentText)
+    if not currentNumberOk or type(currentNumber) ~= "number" then
+        currentNumber = 0
+    end
+
+    return secondaryPowerType, currentText, maxText, maxNumber, currentNumber, maxNumber
 end

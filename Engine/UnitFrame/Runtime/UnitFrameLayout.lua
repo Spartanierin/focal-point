@@ -17,7 +17,9 @@ end
 
 function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     local width = metrics.width
-    local height = metrics.height
+    local baseHeight = metrics.height
+    local bottomExtensionHeight = tonumber(metrics.bottomExtensionHeight) or 0
+    local height = baseHeight + math.max(0, bottomExtensionHeight)
     local alpha = metrics.alpha
     local scale = metrics.scale
     local frameLevel = metrics.frameLevel
@@ -73,6 +75,19 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
 
     local adjustedX = x * (relativeScale / frameScale)
     local adjustedY = y * (relativeScale / frameScale)
+    local verticalExtensionOffset = 0
+    if bottomExtensionHeight > 0 then
+        local normalizedPoint = type(point) == "string" and point:upper() or "CENTER"
+        local scaledExtension = bottomExtensionHeight * (relativeScale / frameScale)
+
+        if normalizedPoint:find("BOTTOM", 1, true) then
+            verticalExtensionOffset = -scaledExtension
+        elseif not normalizedPoint:find("TOP", 1, true) then
+            verticalExtensionOffset = -(scaledExtension / 2)
+        end
+    end
+
+    adjustedY = adjustedY + verticalExtensionOffset
     local bossIndex = GetBossFrameIndex and GetBossFrameIndex(frame and frame.unit)
     if bossIndex and bossIndex > 1 then
         local stackGap = tonumber(config.bossSpacing) or 10

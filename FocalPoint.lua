@@ -59,12 +59,20 @@ function FocalPoint:Info(message)
     PrintToChat("", message)
 end
 
+function FocalPoint:Print(message)
+    PrintToChat("", message)
+end
+
 function FocalPoint:Warn(message)
     PrintToChat("|cffff7b7b|r ", message)
 end
 
 function FocalPoint:Success(message)
     PrintToChat("|cff72e06a|r ", message)
+end
+
+function FocalPoint:Error(message)
+    PrintToChat("|cffff6060|r ", message)
 end
 
 function FocalPoint:Debug(message)
@@ -993,6 +1001,18 @@ function FocalPointAddon:OnInitialize()
     FocalPoint.LDS = FocalPoint.LDS or LibStub("LibDualSpec-1.0", true)
     if FocalPoint.LDS then
         FocalPoint.LDS:EnhanceDatabase(FocalPoint.db, "FocalPoint")
+    end
+
+    if FocalPoint.db and FocalPoint.db.RegisterCallback then
+        local function HandleProfileRuntimeRefresh()
+            if FocalPoint.RebuildFramesForActiveProfile then
+                FocalPoint:RebuildFramesForActiveProfile()
+            end
+        end
+
+        FocalPoint.db.RegisterCallback(FocalPoint, "OnProfileChanged", HandleProfileRuntimeRefresh)
+        FocalPoint.db.RegisterCallback(FocalPoint, "OnProfileCopied", HandleProfileRuntimeRefresh)
+        FocalPoint.db.RegisterCallback(FocalPoint, "OnProfileReset", HandleProfileRuntimeRefresh)
     end
 
     FocalPoint.TAG_UPDATE_INTERVAL = FocalPoint.db.profile.General.TagUpdateInterval or 0.25

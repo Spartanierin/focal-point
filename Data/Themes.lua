@@ -1769,7 +1769,7 @@ FocalPoint.Themes = {
                 },
                 bars = {
                     showPowerBar = true,
-                    showAlternativePowerBar = true,
+                    showAlternativePowerBar = false,
                     powerBarHeight = 14,
                     alternativePowerBarHeight = 14,
                 },

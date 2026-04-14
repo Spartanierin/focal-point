@@ -65,13 +65,6 @@ function InspectorSidebar.Build(container, state, options)
     textAnchorTargetList.CastBar = textAnchorTargetList.CastBar or (L["BAR_CAST"] or "Cast Bar")
     textAnchorTargetList.AlternativePowerBar = textAnchorTargetList.AlternativePowerBar or (L["BAR_ALT_POWER"] or "Alt Power")
     textAnchorTargetList.ClassPowerBar = textAnchorTargetList.ClassPowerBar or (L["BAR_CLASS_POWER"] or "Class Power")
-    local altPowerAnchorTargetList = {
-        Frame = textAnchorTargetList.Frame or (L["EDITOR_SECTION_FRAME"] or "Frame"),
-        HealthBar = textAnchorTargetList.HealthBar or (L["BAR_HEALTH"] or "Health"),
-        PowerBar = textAnchorTargetList.PowerBar or (L["BAR_POWER"] or "Power"),
-        ClassPowerBar = textAnchorTargetList.ClassPowerBar or (L["BAR_CLASS_POWER"] or "Class Power"),
-        CastBar = textAnchorTargetList.CastBar or (L["BAR_CAST"] or "Cast"),
-    }
     local classPowerAnchorTargetList = {
         Frame = textAnchorTargetList.Frame or (L["EDITOR_SECTION_FRAME"] or "Frame"),
         HealthBar = textAnchorTargetList.HealthBar or (L["BAR_HEALTH"] or "Health"),
@@ -356,35 +349,39 @@ function InspectorSidebar.Build(container, state, options)
             end, unitConfig.showAlternativePowerBar ~= true)
 
             if state.mode == "expert" then
-                AddSlider(altPowerSection, L["OPTION_ALTERNATIVE_POWER_BAR_WIDTH"] or "Alternative Power Width", 40, 260, 1, tonumber(unitConfig.alternativePowerBarWidth) or 100, function(value)
-                    unitConfig.alternativePowerBarWidth = math.floor((value or 0) + 0.5)
+                local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
+                if altPowerReverseFillEnabled == nil then
+                    altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
+                else
+                    altPowerReverseFillEnabled = altPowerReverseFillEnabled == true
+                end
+
+                AddCheckBox(altPowerSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
+                    unitConfig.alternativePowerBarReverseFill = value and true or false
                     NotifyConfigChanged()
                 end, unitConfig.showAlternativePowerBar ~= true)
 
-                AddDropdown(altPowerSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", altPowerAnchorTargetList, unitConfig.alternativePowerBarAnchorTo or "HealthBar", function(value)
-                    unitConfig.alternativePowerBarAnchorTo = value
+                AddColorPicker(altPowerSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
+                    unitConfig.alternativePowerColor = value
                     NotifyConfigChanged()
                 end, unitConfig.showAlternativePowerBar ~= true)
 
-                AddDropdown(altPowerSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig.alternativePowerBarPoint or "BOTTOMLEFT", function(value)
-                    unitConfig.alternativePowerBarPoint = value
-                    NotifyConfigChanged()
+                local altPowerBackgroundEnabled = unitConfig.alternativePowerBackground
+                if altPowerBackgroundEnabled == nil then
+                    altPowerBackgroundEnabled = unitConfig.powerBackground ~= false
+                else
+                    altPowerBackgroundEnabled = altPowerBackgroundEnabled ~= false
+                end
+
+                AddCheckBox(altPowerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", altPowerBackgroundEnabled, function(value)
+                    unitConfig.alternativePowerBackground = value and true or false
+                    NotifySidebarChanged()
                 end, unitConfig.showAlternativePowerBar ~= true)
 
-                AddDropdown(altPowerSection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig.alternativePowerBarRelativePoint or "BOTTOMLEFT", function(value)
-                    unitConfig.alternativePowerBarRelativePoint = value
+                AddColorPicker(altPowerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+                    unitConfig.alternativePowerBackgroundColor = value
                     NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true)
-
-                AddSlider(altPowerSection, L["OPTION_X_OFFSET"] or "X Offset", -200, 200, 1, tonumber(unitConfig.alternativePowerBarOffsetX) or 5, function(value)
-                    unitConfig.alternativePowerBarOffsetX = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true)
-
-                AddSlider(altPowerSection, L["OPTION_Y_OFFSET"] or "Y Offset", -200, 200, 1, tonumber(unitConfig.alternativePowerBarOffsetY) or 5, function(value)
-                    unitConfig.alternativePowerBarOffsetY = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true)
+                end, unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false)
             end
         end
 

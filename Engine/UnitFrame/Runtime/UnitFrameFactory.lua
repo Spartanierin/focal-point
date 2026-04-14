@@ -117,6 +117,16 @@ function Factory.CreateClassPowerBar(frame)
         bg:SetTexture("Interface\\Buttons\\WHITE8X8")
         bar.bg = bg
 
+        local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
+        border:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+        border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+        border:SetFrameLevel(bar:GetFrameLevel() + 1)
+        border:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+        })
+        bar.border = border
+
         holder.Bars[index] = bar
     end
 

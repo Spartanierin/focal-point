@@ -637,10 +637,17 @@ function Update.UpdateElement(frame, key, deps)
         local altPowerType = GetLiveValue and GetLiveValue(frame, "altPowerType", nil) or nil
         local altPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxRaw", 0) or 0) or 0
         local altPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentRaw", 0) or 0) or 0
+        local altPowerVisible = GetLiveValue and GetLiveValue(frame, "altPowerVisible", false) or false
+        local altPowerCurrentSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentSafe", 0) or 0) or 0
+        local altPowerMaxSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxSafe", 0) or 0) or 0
+        local altPowerCurrentText = GetLiveValue and GetLiveValue(frame, "altPowerCurrentText", nil) or nil
+        local altPowerMaxText = GetLiveValue and GetLiveValue(frame, "altPowerMaxText", nil) or nil
         local altPowerAvailable = altPowerType ~= nil and altPowerMaxRaw > 0
         local classPowerVisible = GetLiveValue and GetLiveValue(frame, "classPowerVisible", false) or false
-        local classPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerMaxRaw", 0) or 0) or 0
-        local classPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerCurrentRaw", 0) or 0) or 0
+        local classPowerMaxSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerMaxSafe", 0) or 0) or 0
+        local classPowerCurrentSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerCurrentSafe", 0) or 0) or 0
+        local classPowerCurrentText = GetLiveValue and GetLiveValue(frame, "classPowerCurrentText", nil) or nil
+        local classPowerMaxText = GetLiveValue and GetLiveValue(frame, "classPowerMaxText", nil) or nil
 
         if textRole == "altpower" then
             StopAnimatedNameText(textObject)
@@ -652,6 +659,15 @@ function Update.UpdateElement(frame, key, deps)
 
             if livePowerType ~= nil and liveMaxNumber > 0 then
                 ApplyOverflow(textObject, liveCurrentText .. " / " .. liveMaxText, textConfig.overflowMode)
+                textObject:Show()
+            elseif altPowerVisible and altPowerMaxSafe > 0 then
+                ApplyOverflow(
+                    textObject,
+                    (type(altPowerCurrentText) == "string" and altPowerCurrentText or (FormatNumber and FormatNumber(altPowerCurrentSafe) or altPowerCurrentSafe))
+                        .. " / " ..
+                    (type(altPowerMaxText) == "string" and altPowerMaxText or (FormatNumber and FormatNumber(altPowerMaxSafe) or altPowerMaxSafe)),
+                    textConfig.overflowMode
+                )
                 textObject:Show()
             elseif altPowerAvailable then
                 ApplyOverflow(
@@ -670,10 +686,12 @@ function Update.UpdateElement(frame, key, deps)
             StopAnimatedNameText(textObject)
             textObject:SetTextColor(r, g, b, a)
 
-            if classPowerVisible and classPowerMaxRaw > 0 then
+            if classPowerVisible and classPowerMaxSafe > 0 then
                 ApplyOverflow(
                     textObject,
-                    (FormatNumber and FormatNumber(classPowerCurrentRaw) or classPowerCurrentRaw) .. " / " .. (FormatNumber and FormatNumber(classPowerMaxRaw) or classPowerMaxRaw),
+                    (type(classPowerCurrentText) == "string" and classPowerCurrentText or (FormatNumber and FormatNumber(classPowerCurrentSafe) or classPowerCurrentSafe))
+                        .. " / " ..
+                    (type(classPowerMaxText) == "string" and classPowerMaxText or (FormatNumber and FormatNumber(classPowerMaxSafe) or classPowerMaxSafe)),
                     textConfig.overflowMode
                 )
                 textObject:Show()

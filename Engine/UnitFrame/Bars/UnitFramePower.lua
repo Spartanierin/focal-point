@@ -15,6 +15,7 @@ local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
 local GetSecondaryPowerTypeForUnit = Preview.GetSecondaryPowerTypeForUnit
 local GetSecondaryPowerValues = Preview.GetSecondaryPowerValues
+local GetSecondaryPowerDisplayValues = Preview.GetSecondaryPowerDisplayValues
 
 -- Power helpers keep resource/alt-power value refresh together.
 
@@ -79,15 +80,29 @@ function Power.RefreshUnitBarValues(owner, frame)
         frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
         frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
 
+        local _, altCurrentText, altMaxText, _, altCurrentSafe, altMaxSafe = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(unit) or nil
+        if type(altCurrentText) ~= "string" then
+            altCurrentText = FormatDisplayNumber(currentAltPower)
+        end
+        if type(altMaxText) ~= "string" then
+            altMaxText = FormatDisplayNumber(maxAltPower)
+        end
+        if type(altCurrentSafe) ~= "number" then
+            altCurrentSafe = ToSafeNumberValue(currentAltPower)
+        end
+        if type(altMaxSafe) ~= "number" then
+            altMaxSafe = ToSafeNumberValue(maxAltPower)
+        end
+
         frame.LiveValues.altPowerMinRaw = minAltPower
         frame.LiveValues.altPowerCurrentRaw = currentAltPower
         frame.LiveValues.altPowerMaxRaw = maxAltPower
-        frame.LiveValues.altPowerCurrentText = FormatDisplayNumber(currentAltPower)
-        frame.LiveValues.altPowerMaxText = FormatDisplayNumber(maxAltPower)
+        frame.LiveValues.altPowerCurrentText = altCurrentText
+        frame.LiveValues.altPowerMaxText = altMaxText
         frame.LiveValues.altPowerVisible = showAltPower
         frame.LiveValues.altPowerType = secondaryPowerType
-        frame.LiveValues.altPowerCurrentSafe = ToSafeNumberValue(currentAltPower)
-        frame.LiveValues.altPowerMaxSafe = ToSafeNumberValue(maxAltPower)
+        frame.LiveValues.altPowerCurrentSafe = altCurrentSafe
+        frame.LiveValues.altPowerMaxSafe = altMaxSafe
         frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
         frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
     end
