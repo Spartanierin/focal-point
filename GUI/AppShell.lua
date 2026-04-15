@@ -358,6 +358,81 @@ local function EnsureEditorToolbarContainer(addon)
     return container
 end
 
+function AppShell.EnsureEditorToolbarDraftWindow(addon)
+    if not addon then
+        return nil
+    end
+
+    local window = addon.guiEditorToolbarDraftWindow
+    if window then
+        return window
+    end
+
+    window = AceGUI:Create("Window")
+    window:SetTitle("Toolbar Draft")
+    window:SetLayout("Fill")
+    window:SetWidth(285)
+    window:SetHeight(760)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:ClearAllPoints()
+        window.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        if window.frame.SetFrameStrata then
+            window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
+        end
+        if window.frame.SetClampedToScreen then
+            window.frame:SetClampedToScreen(true)
+        end
+        if window.frame.SetMovable then
+            window.frame:SetMovable(false)
+        end
+        window.frame:EnableMouse(true)
+    end
+
+    if window.content then
+        window.content:ClearAllPoints()
+        window.content:SetPoint("TOPLEFT", window.frame, "TOPLEFT", 0, 0)
+        window.content:SetPoint("BOTTOMRIGHT", window.frame, "BOTTOMRIGHT", 0, 0)
+    end
+
+    addon.guiEditorToolbarDraftWindow = window
+    return window
+end
+
+local function HideDraftWindowChrome(window)
+    if not window or not window.frame then
+        return
+    end
+
+    for _, region in ipairs({ window.frame:GetRegions() }) do
+        if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+            region:Hide()
+            if region.SetAlpha then
+                region:SetAlpha(0)
+            end
+        end
+    end
+
+    if window.titletext and window.titletext.Hide then
+        window.titletext:Hide()
+    end
+
+    if window.closebutton and window.closebutton.Hide then
+        window.closebutton:Hide()
+    end
+
+    if window.statusbg and window.statusbg.Hide then
+        window.statusbg:Hide()
+    end
+
+    if window.statustext and window.statustext.Hide then
+        window.statustext:Hide()
+    end
+end
+
+AppShell.HideDraftWindowChrome = HideDraftWindowChrome
+
 local function EnsureEditorInspectorLayer(addon)
     if not addon then
         return nil
@@ -467,6 +542,7 @@ function AppShell.ClearEditorRuntimeRoles(addon)
     HideEditorPresentationHost(addon)
 
     if addon.guiEditorToolbarHost then
+        addon.guiEditorToolbarHost._focalPointSidebarLayout = nil
         if addon.guiEditorToolbarHost.ReleaseChildren then
             addon.guiEditorToolbarHost:ReleaseChildren()
         end
@@ -474,6 +550,14 @@ function AppShell.ClearEditorRuntimeRoles(addon)
         if addon.guiEditorToolbarHost.frame then
             addon.guiEditorToolbarHost.frame._focalPointEditorRole = nil
         end
+    end
+
+    if addon.guiEditorToolbarContainer then
+        addon.guiEditorToolbarContainer._focalPointSidebarLayout = nil
+    end
+
+    if addon.guiEditorToolbarDraftWindow and addon.guiEditorToolbarDraftWindow.Hide then
+        addon.guiEditorToolbarDraftWindow:Hide()
     end
 
     addon.guiEditorToolbarHost = nil

@@ -465,6 +465,7 @@ end
 
 local function BuildAppSidebar(container)
     local Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ContextSidebar
+    local ToolbarDraft = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ToolbarDraft
     if not Sidebar or not Sidebar.Build then
         Sidebar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Sidebar
     end
@@ -474,6 +475,38 @@ local function BuildAppSidebar(container)
         return
     end
 
+    local function HandleSidebarNavigate(path)
+        if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.PROFILES) then
+            if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenProfilesWindow then
+                FocalPoint.GUIBuilders.OpenProfilesWindow()
+            end
+            return
+        end
+
+        if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TAG_DATABASE) then
+            if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTagDatabaseWindow then
+                FocalPoint.GUIBuilders.OpenTagDatabaseWindow()
+            end
+            return
+        end
+
+        if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TEXT_BUILDER) then
+            if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTextBuilderWindow then
+                FocalPoint.GUIBuilders.OpenTextBuilderWindow()
+            end
+            return
+        end
+
+        local normalizedPath = ResolveDefaultGUIPath(path)
+        FocalPoint.GUI.selectedPath = normalizedPath
+        if FocalPoint.guiTreeStatus then
+            FocalPoint.guiTreeStatus.selected = normalizedPath
+        end
+        if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+            FocalPoint.GUI:RequestRefreshOptions()
+        end
+    end
+
     local selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI and FocalPoint.GUI.selectedPath)
     local shellMode = (AppShell and AppShell.ResolveShellMode and AppShell.ResolveShellMode(FocalPoint, selectedPath)) or "tool"
     local targetContainer = (AppShell and AppShell.GetSidebarBuildHost and AppShell.GetSidebarBuildHost(FocalPoint)) or container
@@ -481,43 +514,14 @@ local function BuildAppSidebar(container)
         return
     end
     if targetContainer ~= container and container and container.ReleaseChildren then
+        container._focalPointSidebarLayout = nil
         container:ReleaseChildren()
     end
 
     Sidebar.Build(targetContainer, EditorState.Get(), {
         shellMode = shellMode,
         currentPath = selectedPath,
-        onNavigate = function(path)
-            if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.PROFILES) then
-                if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenProfilesWindow then
-                    FocalPoint.GUIBuilders.OpenProfilesWindow()
-                end
-                return
-            end
-
-            if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TAG_DATABASE) then
-                if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTagDatabaseWindow then
-                    FocalPoint.GUIBuilders.OpenTagDatabaseWindow()
-                end
-                return
-            end
-
-            if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TEXT_BUILDER) then
-                if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTextBuilderWindow then
-                    FocalPoint.GUIBuilders.OpenTextBuilderWindow()
-                end
-                return
-            end
-
-            local normalizedPath = ResolveDefaultGUIPath(path)
-            FocalPoint.GUI.selectedPath = normalizedPath
-            if FocalPoint.guiTreeStatus then
-                FocalPoint.guiTreeStatus.selected = normalizedPath
-            end
-            if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                FocalPoint.GUI:RequestRefreshOptions()
-            end
-        end,
+        onNavigate = HandleSidebarNavigate,
         onUnitChanged = function(unitKey)
             if EditorState.SetSelectedUnit then
                 EditorState.SetSelectedUnit(unitKey)
@@ -559,6 +563,57 @@ local function BuildAppSidebar(container)
             end
         end,
     })
+
+    if ToolbarDraft and ToolbarDraft.Open and shellMode == "editor" then
+        ToolbarDraft.Open(EditorState.Get(), {
+            currentPath = selectedPath,
+            onNavigate = HandleSidebarNavigate,
+            onUnitChanged = function(unitKey)
+                if EditorState.SetSelectedUnit then
+                    EditorState.SetSelectedUnit(unitKey)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onModeChanged = function(mode)
+                if EditorState.SetMode then
+                    EditorState.SetMode(mode)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onThemeChanged = function(themeId)
+                if EditorState.SetSelectedThemeId then
+                    EditorState.SetSelectedThemeId(themeId)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onThemeApplied = function(themeId)
+                if EditorState.SetSelectedThemeId then
+                    EditorState.SetSelectedThemeId(themeId)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onGlobalChanged = function()
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onClose = function()
+                if FocalPoint.CloseConfig then
+                    FocalPoint:CloseConfig()
+                end
+            end,
+        })
+    elseif ToolbarDraft and ToolbarDraft.Hide then
+        ToolbarDraft.Hide()
+    end
 
     if AppShell and AppShell.LayoutEditorToolbarHost then
         AppShell.LayoutEditorToolbarHost(FocalPoint)

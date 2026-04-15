@@ -89,6 +89,7 @@
     <Script file="GUI/Editor/EditorState.lua"/>
     <Script file="GUI/Editor/EditorController.lua"/>
     <Script file="GUI/Editor/SidebarShared.lua"/>
+    <Script file="GUI/Editor/ToolbarDraft.lua"/>
     <Script file="GUI/Editor/ContextSidebar.lua"/>
     <Script file="GUI/Editor/InspectorSidebar.lua"/>
     <Script file="GUI/Editor/EditorSidebar.lua"/>
@@ -104,6 +105,7 @@
     <Script file="GUI/Layouts/UnitClassificationIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/FormElementDefinitions.lua"/>
     <Script file="GUI/Layouts/ProfileFormLayout.lua"/>
+    <Script file="GUI/Layouts/EditorToolbarLayout.lua"/>
     <Script file="GUI/Layouts/TextBuilderFormLayout.lua"/>
     <Script file="GUI/Layouts/TagDatabaseFormLayout.lua"/>
     <Script file="GUI/GUIBuilders.lua"/>

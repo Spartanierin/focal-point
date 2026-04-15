@@ -7,6 +7,8 @@ local AceGUI = LibStub("AceGUI-3.0")
 local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 
+local INSPECTOR_WIDTH = 261
+
 local function GetEditorPresentationAnchor()
     return ns.guiEditorInspectorLayer or ns.guiEditorPresentationHost or UIParent
 end
@@ -37,7 +39,7 @@ function EditorController.UpdateActiveInspectorGeometry()
         return
     end
 
-    local targetWidth = 285
+    local targetWidth = INSPECTOR_WIDTH
     local targetHeight = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760
 
     if inspectorSidebar.SetWidth then

@@ -141,36 +141,34 @@ function InspectorSidebar.Build(container, state, options)
         })
     end
 
-    local header = AceGUI:Create("Heading")
-    header:SetText(L["EDITOR_SIDEBAR_TITLE"] or "Inspector")
-    header:SetFullWidth(true)
-    container:AddChild(header)
+    local summarySection = CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" })
+    if summarySection then
+        local inspectorSummary = AceGUI:Create("Label")
+        inspectorSummary:SetFullWidth(true)
+        inspectorSummary:SetText(string.format(
+            "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
+            L["EDITOR_UNIT"] or "Unit",
+            ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, state.selectedUnit) or state.selectedUnit,
+            L["EDITOR_MODE"] or "Mode",
+            state.mode == "expert" and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
+        ))
+        if inspectorSummary.label and inspectorSummary.label.SetFont then
+            inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            inspectorSummary.label:SetTextColor(0.66, 0.70, 0.75, 1)
+            inspectorSummary.label:SetShadowOffset(1, -1)
+            inspectorSummary.label:SetShadowColor(0, 0, 0, 0.7)
+        end
+        summarySection:AddChild(inspectorSummary)
 
-    local inspectorSummary = AceGUI:Create("Label")
-    inspectorSummary:SetFullWidth(true)
-    inspectorSummary:SetText(string.format(
-        "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
-        L["EDITOR_UNIT"] or "Unit",
-        ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, state.selectedUnit) or state.selectedUnit,
-        L["EDITOR_MODE"] or "Mode",
-        state.mode == "expert" and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
-    ))
-    if inspectorSummary.label and inspectorSummary.label.SetFont then
-        inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-        inspectorSummary.label:SetTextColor(0.66, 0.70, 0.75, 1)
-        inspectorSummary.label:SetShadowOffset(1, -1)
-        inspectorSummary.label:SetShadowColor(0, 0, 0, 0.7)
+        local inspectorHint = AceGUI:Create("Label")
+        inspectorHint:SetFullWidth(true)
+        inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
+        if inspectorHint.label and inspectorHint.label.SetFont then
+            inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            inspectorHint.label:SetTextColor(0.60, 0.64, 0.69, 1)
+        end
+        summarySection:AddChild(inspectorHint)
     end
-    container:AddChild(inspectorSummary)
-
-    local inspectorHint = AceGUI:Create("Label")
-    inspectorHint:SetFullWidth(true)
-    inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
-    if inspectorHint.label and inspectorHint.label.SetFont then
-        inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 10, "")
-        inspectorHint.label:SetTextColor(0.55, 0.59, 0.64, 1)
-    end
-    container:AddChild(inspectorHint)
 
     AddSpacer(container, 8)
 
@@ -226,7 +224,7 @@ function InspectorSidebar.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, 6)
+    AddSpacer(container, 8)
 
     local healthSection = CreateInspectorSection("health", L["BAR_HEALTH"] or "Health", false)
     if healthSection then
@@ -277,7 +275,7 @@ function InspectorSidebar.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, 6)
+    AddSpacer(container, 8)
 
     local powerSection = CreateInspectorSection("power", L["BAR_POWER"] or "Power", true)
     if powerSection then
@@ -329,7 +327,7 @@ function InspectorSidebar.Build(container, state, options)
     end
 
     if state.selectedUnit == "player" then
-        AddSpacer(container, 6)
+        AddSpacer(container, 8)
 
         local altPowerSection = CreateInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true)
         if altPowerSection then
@@ -385,7 +383,7 @@ function InspectorSidebar.Build(container, state, options)
             end
         end
 
-        AddSpacer(container, 6)
+        AddSpacer(container, 8)
 
         local classPowerSection = CreateInspectorSection("class_power", L["BAR_CLASS_POWER"] or "Class Power", true)
         if classPowerSection then
@@ -528,7 +526,7 @@ function InspectorSidebar.Build(container, state, options)
     end
 
     if state.mode == "expert" then
-        AddSpacer(container, 6)
+        AddSpacer(container, 8)
 
         local positioning = CreateInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true)
         if positioning then
@@ -553,7 +551,7 @@ function InspectorSidebar.Build(container, state, options)
             end)
         end
 
-        AddSpacer(container, 6)
+        AddSpacer(container, 8)
 
         local castPosition = CreateInspectorSection("cast_position", L["EDITOR_SECTION_CAST_POSITION"] or "Cast Bar Position", true)
         if castPosition then
@@ -580,7 +578,7 @@ function InspectorSidebar.Build(container, state, options)
     end
 
     if textConfig then
-        AddSpacer(container, 6)
+        AddSpacer(container, 8)
 
         local textSection = CreateInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true)
         if textSection then

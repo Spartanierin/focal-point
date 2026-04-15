@@ -9,6 +9,12 @@ ns.GUI.Editor.SidebarShared = Shared
 
 local C = ns.Constants
 local L = ns.L or {}
+local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
+
+local ResolveSectionStyle = FormWidgets.ResolveSectionStyle
+local ApplyTextStyle = FormWidgets.ApplyTextStyle
+local StyleDropdownField = FormWidgets.StyleDropdown
+local StyleCheckBoxField = FormWidgets.StyleCheckBox
 
 local POINTS = {
     CENTER = "CENTER",
@@ -128,6 +134,63 @@ local function AddSpacer(container, height)
     spacer:SetAutoAdjustHeight(false)
     spacer:SetHeight(height or 8)
     container:AddChild(spacer)
+    return spacer
+end
+
+local function ResolveLegacySectionStyle(style)
+    if style == "prominent" then
+        return "result_panel"
+    end
+    if style == "muted" then
+        return "status_panel"
+    end
+    return "section_panel"
+end
+
+local function ApplyLegacySectionSkin(frame, style)
+    if not frame then
+        return
+    end
+
+    local resolvedStyle = ResolveSectionStyle and ResolveSectionStyle(ResolveLegacySectionStyle(style)) or nil
+    local border = resolvedStyle and resolvedStyle.border or nil
+    local surface = resolvedStyle and resolvedStyle.surface or nil
+
+    if frame.SetBackdropColor and surface and surface.fill then
+        frame:SetBackdropColor(unpack(surface.fill))
+    end
+    if frame.SetBackdropBorderColor and border and border.color then
+        frame:SetBackdropBorderColor(unpack(border.color))
+    end
+
+    if not frame._fpAccent then
+        local accent = frame:CreateTexture(nil, "ARTWORK")
+        accent:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
+        accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
+        frame._fpAccent = accent
+    end
+
+    if frame._fpAccent and frame._fpAccent.SetColorTexture then
+        local accent = surface and surface.accent
+        frame._fpAccent:SetHeight((accent and accent.thickness) or 1)
+        frame._fpAccent:SetColorTexture(unpack((accent and accent.color) or { 0.83, 0.70, 0.30, 0.26 }))
+    end
+end
+
+local function StyleSidebarLabel(fontString, size, color)
+    if not fontString then
+        return
+    end
+
+    if ApplyTextStyle then
+        ApplyTextStyle(fontString, "label", size or 12, 1)
+    elseif fontString.SetFont then
+        fontString:SetFont(STANDARD_TEXT_FONT, size or 12, "")
+    end
+
+    if color and fontString.SetTextColor then
+        fontString:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
 end
 
 local function CreateSection(container, title, options)
@@ -146,60 +209,12 @@ local function CreateSection(container, title, options)
         local border = group.content and group.content:GetParent()
         local style = options.style or "default"
 
-        if titleText and titleText.SetFont then
-            if style == "prominent" then
-                titleText:SetFont(STANDARD_TEXT_FONT, 13, "")
-                titleText:SetTextColor(0.94, 0.85, 0.46, 1)
-            elseif style == "muted" then
-                titleText:SetFont(STANDARD_TEXT_FONT, 11, "")
-                titleText:SetTextColor(0.63, 0.67, 0.72, 1)
-            else
-                titleText:SetFont(STANDARD_TEXT_FONT, 12, "")
-                titleText:SetTextColor(0.79, 0.83, 0.88, 1)
-            end
+        if titleText then
+            StyleSidebarLabel(titleText, 13, { 0.94, 0.85, 0.46, 1 })
         end
 
         if border then
-            if style == "prominent" then
-                if border.SetBackdropColor then
-                    border:SetBackdropColor(0.10, 0.11, 0.14, 0.52)
-                end
-                if border.SetBackdropBorderColor then
-                    border:SetBackdropBorderColor(0.34, 0.37, 0.42, 0.95)
-                end
-            elseif style == "muted" then
-                if border.SetBackdropColor then
-                    border:SetBackdropColor(0.08, 0.09, 0.11, 0.26)
-                end
-                if border.SetBackdropBorderColor then
-                    border:SetBackdropBorderColor(0.18, 0.20, 0.24, 0.65)
-                end
-            else
-                if border.SetBackdropColor then
-                    border:SetBackdropColor(0.09, 0.10, 0.12, 0.38)
-                end
-                if border.SetBackdropBorderColor then
-                    border:SetBackdropBorderColor(0.24, 0.27, 0.31, 0.85)
-                end
-            end
-
-            if not border._fpAccent then
-                local accent = border:CreateTexture(nil, "ARTWORK")
-                accent:SetPoint("TOPLEFT", border, "TOPLEFT", 1, -1)
-                accent:SetPoint("TOPRIGHT", border, "TOPRIGHT", -1, -1)
-                accent:SetHeight(style == "prominent" and 2 or 1)
-                border._fpAccent = accent
-            end
-
-            if border._fpAccent and border._fpAccent.SetColorTexture then
-                if style == "prominent" then
-                    border._fpAccent:SetColorTexture(0.83, 0.70, 0.30, 0.55)
-                elseif style == "muted" then
-                    border._fpAccent:SetColorTexture(0.30, 0.34, 0.40, 0.35)
-                else
-                    border._fpAccent:SetColorTexture(0.42, 0.46, 0.52, 0.40)
-                end
-            end
+            ApplyLegacySectionSkin(border, style)
         end
 
         return group
@@ -232,37 +247,38 @@ local function CreateSection(container, title, options)
         end
     end)
 
-    if toggle.label and toggle.label.SetFont then
-        toggle.label:SetFont(STANDARD_TEXT_FONT, 13, "")
-        toggle.label:SetJustifyH("LEFT")
-        toggle.label:SetTextColor(0.93, 0.84, 0.42, 1)
+    if toggle.label then
+        StyleSidebarLabel(toggle.label, 13, { 0.93, 0.84, 0.42, 1 })
+        if toggle.label.SetJustifyH then
+            toggle.label:SetJustifyH("LEFT")
+        end
     end
 
     if toggle.frame then
         local bg = toggle.frame:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
-        bg:SetColorTexture(0.13, 0.14, 0.17, 0.84)
+        bg:SetColorTexture(0.10, 0.11, 0.14, 0.82)
         toggle._sectionBg = bg
 
         local leftAccent = toggle.frame:CreateTexture(nil, "ARTWORK")
         leftAccent:SetPoint("TOPLEFT")
         leftAccent:SetPoint("BOTTOMLEFT")
         leftAccent:SetWidth(3)
-        leftAccent:SetColorTexture(0.84, 0.70, 0.27, 0.78)
+        leftAccent:SetColorTexture(0.84, 0.70, 0.27, 0.72)
         toggle._sectionLeftAccent = leftAccent
 
         local topBorder = toggle.frame:CreateTexture(nil, "BORDER")
         topBorder:SetPoint("TOPLEFT", toggle.frame, "TOPLEFT", 3, 0)
         topBorder:SetPoint("TOPRIGHT")
         topBorder:SetHeight(1)
-        topBorder:SetColorTexture(0.25, 0.28, 0.33, 0.95)
+        topBorder:SetColorTexture(0.34, 0.31, 0.22, 0.74)
         toggle._sectionTopBorder = topBorder
 
         local bottomBorder = toggle.frame:CreateTexture(nil, "BORDER")
         bottomBorder:SetPoint("BOTTOMLEFT", toggle.frame, "BOTTOMLEFT", 3, 0)
         bottomBorder:SetPoint("BOTTOMRIGHT")
         bottomBorder:SetHeight(1)
-        bottomBorder:SetColorTexture(0.07, 0.08, 0.10, 0.95)
+        bottomBorder:SetColorTexture(0.05, 0.06, 0.08, 0.92)
         toggle._sectionBottomBorder = bottomBorder
 
         if toggle.SetHighlight then
@@ -283,6 +299,10 @@ local function CreateSection(container, title, options)
     group:SetTitle(" ")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
+    local border = group.content and group.content:GetParent()
+    if border then
+        ApplyLegacySectionSkin(border, "default")
+    end
     container:AddChild(group)
     return group
 end
@@ -451,8 +471,28 @@ local function AddCheckBox(container, label, value, onChanged, disabled)
             onChanged(newValue and true or false)
         end
     end)
+    if StyleCheckBoxField then
+        StyleCheckBoxField(widget, disabled and true or false)
+    end
     container:AddChild(widget)
     return widget
+end
+
+local function ApplyUnitButtonSelection(button, isSelected)
+    if not button then
+        return
+    end
+
+    StyleSidebarButton(button, isSelected and "active" or "secondary")
+    button:SetDisabled(isSelected)
+
+    if button.text and button.text.SetTextColor then
+        if isSelected then
+            button.text:SetTextColor(0.90, 0.82, 0.55, 1)
+        else
+            button.text:SetTextColor(0.88, 0.90, 0.94, 1)
+        end
+    end
 end
 
 local function AddSlider(container, label, minValue, maxValue, step, value, onChanged, disabled)
@@ -467,6 +507,9 @@ local function AddSlider(container, label, minValue, maxValue, step, value, onCh
             onChanged(newValue)
         end
     end)
+    if widget.label then
+        StyleSidebarLabel(widget.label, 12, disabled and { 0.50, 0.50, 0.50, 1 } or { 0.68, 0.70, 0.75, 1 })
+    end
     container:AddChild(widget)
     return widget
 end
@@ -483,6 +526,9 @@ local function AddDropdown(container, label, list, value, onChanged, disabled)
             onChanged(newValue)
         end
     end)
+    if StyleDropdownField then
+        StyleDropdownField(widget, "editor_inset")
+    end
     container:AddChild(widget)
     return widget
 end
@@ -491,6 +537,9 @@ local function AddUnitSelector(container, selectedUnit, onChanged)
     local list = BuildUnitList()
     local columnWidth = 108
     local columnSpacing = 6
+    local handles = {
+        buttons = {},
+    }
 
     local label = AceGUI:Create("Label")
     label:SetFullWidth(true)
@@ -504,11 +553,13 @@ local function AddUnitSelector(container, selectedUnit, onChanged)
         label.label:SetShadowColor(0, 0, 0, 0.65)
     end
     container:AddChild(label)
+    handles.label = label
 
     local grid = AceGUI:Create("SimpleGroup")
     grid:SetFullWidth(true)
     grid:SetLayout("List")
     container:AddChild(grid)
+    handles.grid = grid
 
     for index = 1, #(C.UnitOrder or {}), 2 do
         local row = AceGUI:Create("SimpleGroup")
@@ -532,23 +583,15 @@ local function AddUnitSelector(container, selectedUnit, onChanged)
                 local isSelected = unitKey == selectedUnit
                 button:SetText(list[unitKey] or unitKey)
                 button:SetWidth(columnWidth)
-                StyleSidebarButton(button, isSelected and "active" or "secondary")
-                button:SetDisabled(isSelected)
+                ApplyUnitButtonSelection(button, isSelected)
                 button:SetCallback("OnClick", function()
                     if onChanged then
                         onChanged(unitKey)
                     end
                 end)
 
-                if button.text and button.text.SetTextColor then
-                    if isSelected then
-                        button.text:SetTextColor(0.90, 0.82, 0.55, 1)
-                    else
-                        button.text:SetTextColor(0.88, 0.90, 0.94, 1)
-                    end
-                end
-
                 row:AddChild(button)
+                handles.buttons[unitKey] = button
             else
                 local spacer = AceGUI:Create("Label")
                 spacer:SetText(" ")
@@ -557,6 +600,18 @@ local function AddUnitSelector(container, selectedUnit, onChanged)
                 row:AddChild(spacer)
             end
         end
+    end
+
+    return handles
+end
+
+local function UpdateUnitSelector(handles, selectedUnit)
+    if type(handles) ~= "table" or type(handles.buttons) ~= "table" then
+        return
+    end
+
+    for unitKey, button in pairs(handles.buttons) do
+        ApplyUnitButtonSelection(button, unitKey == selectedUnit)
     end
 end
 
@@ -586,6 +641,9 @@ local function AddColorPicker(container, label, color, hasAlpha, onChanged, disa
 
     widget:SetCallback("OnValueChanged", HandleColorChanged)
     widget:SetCallback("OnValueConfirmed", HandleColorChanged)
+    if widget.label then
+        StyleSidebarLabel(widget.label, 12, disabled and { 0.50, 0.50, 0.50, 1 } or { 0.68, 0.70, 0.75, 1 })
+    end
     container:AddChild(widget)
     return widget
 end
@@ -973,6 +1031,7 @@ Shared.AddCheckBox = AddCheckBox
 Shared.AddSlider = AddSlider
 Shared.AddDropdown = AddDropdown
 Shared.AddUnitSelector = AddUnitSelector
+Shared.UpdateUnitSelector = UpdateUnitSelector
 Shared.AddColorPicker = AddColorPicker
 Shared.BuildTextList = BuildTextList
 Shared.BuildIndicatorList = BuildIndicatorList
