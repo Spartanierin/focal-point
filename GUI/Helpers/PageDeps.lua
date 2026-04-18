@@ -31,6 +31,5 @@ function PageDeps.CreateEditorDeps(config)
         ResetFlowContainer = BuilderUI.ResetFlowContainer,
         GetEditorState = config.GetEditorState,
         BuildScrollableTabContent = config.BuildScrollableTabContent,
-        Sidebar = config.Sidebar,
     }
 end

@@ -8,9 +8,11 @@ local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 
 local INSPECTOR_WIDTH = 261
+local INSPECTOR_OFFSET_X = -16
+local INSPECTOR_OFFSET_Y = -120
 
 local function GetEditorPresentationAnchor()
-    return ns.guiEditorInspectorLayer or ns.guiEditorPresentationHost or UIParent
+    return UIParent
 end
 
 local function GetPersistentInspectorSidebar()
@@ -107,10 +109,12 @@ local function EnsureInspectorSidebar()
         return inspectorSidebar
     end
 
-    inspectorSidebar = AceGUI:Create("SimpleGroup")
-    inspectorSidebar:SetRelativeWidth(1.0)
-    inspectorSidebar:SetHeight(700)
+    inspectorSidebar = AceGUI:Create("Window")
+    inspectorSidebar:SetTitle("Inspector")
+    inspectorSidebar:SetWidth(INSPECTOR_WIDTH)
+    inspectorSidebar:SetHeight((UIParent and UIParent.GetHeight and math.max(760, math.floor(UIParent:GetHeight() - 24))) or 760)
     inspectorSidebar:SetLayout("Fill")
+    inspectorSidebar:EnableResize(false)
     inspectorSidebar._focalPointEditorRole = "editor_inspector"
 
     local inspectorContent = AceGUI:Create("SimpleGroup")
@@ -128,10 +132,19 @@ local function EnsureInspectorSidebar()
         if anchorHost and anchorHost.GetFrameStrata and inspectorSidebar.frame.SetFrameStrata then
             inspectorSidebar.frame:SetFrameStrata(anchorHost:GetFrameStrata())
         elseif inspectorSidebar.frame.SetFrameStrata then
-            inspectorSidebar.frame:SetFrameStrata("DIALOG")
+            inspectorSidebar.frame:SetFrameStrata("FULLSCREEN_DIALOG")
         end
-        if anchorHost and anchorHost.GetFrameLevel and inspectorSidebar.frame.SetFrameLevel then
-            inspectorSidebar.frame:SetFrameLevel((anchorHost:GetFrameLevel() or 0) + 1)
+        if inspectorSidebar.frame.SetToplevel then
+            inspectorSidebar.frame:SetToplevel(true)
+        end
+        if inspectorSidebar.frame.SetClampedToScreen then
+            inspectorSidebar.frame:SetClampedToScreen(true)
+        end
+        if inspectorSidebar.titletext and inspectorSidebar.titletext.Hide then
+            inspectorSidebar.titletext:Hide()
+        end
+        if inspectorSidebar.closebutton and inspectorSidebar.closebutton.Hide then
+            inspectorSidebar.closebutton:Hide()
         end
 
         if not inspectorSidebar._inspectorBg then
@@ -179,7 +192,7 @@ end
 function EditorController.BuildInspector(container, deps)
     local state = deps.GetEditorState()
     local BuildScrollableTabContent = deps.BuildScrollableTabContent
-    local Sidebar = (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.InspectorSidebar) or deps.Sidebar
+    local Sidebar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.InspectorSidebar
     local inspectorSidebar = EnsureInspectorSidebar()
     local inspectorContent = inspectorSidebar and inspectorSidebar._focalPointInspectorContent
     if not inspectorSidebar or not inspectorContent then
@@ -190,6 +203,10 @@ function EditorController.BuildInspector(container, deps)
     local buildSerial = ns.GUI.Editor._inspectorBuildSerial
 
     EditorController.SetActiveInspectorHost(inspectorSidebar)
+
+    if inspectorContent.ReleaseChildren then
+        inspectorContent:ReleaseChildren()
+    end
 
     EditorController.UpdateActiveInspectorGeometry()
     if inspectorSidebar.frame and inspectorSidebar.frame.Show then

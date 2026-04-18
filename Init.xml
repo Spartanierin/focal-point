@@ -90,9 +90,7 @@
     <Script file="GUI/Editor/EditorController.lua"/>
     <Script file="GUI/Editor/SidebarShared.lua"/>
     <Script file="GUI/Editor/ToolbarDraft.lua"/>
-    <Script file="GUI/Editor/ContextSidebar.lua"/>
     <Script file="GUI/Editor/InspectorSidebar.lua"/>
-    <Script file="GUI/Editor/EditorSidebar.lua"/>
     <Script file="GUI/Widgets/ColorPicker.lua"/>
     <Script file="GUI/Widgets/Sliders.lua"/>
     <Script file="GUI/Widgets/Dropdown.lua"/>

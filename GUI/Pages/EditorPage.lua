@@ -25,7 +25,10 @@ function EditorPage.Build(container, deps)
 
     local controller = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Controller
     if controller and controller.BuildInspector then
-        controller.BuildInspector(container, deps)
+        if container and container.ReleaseChildren then
+            container:ReleaseChildren()
+        end
+        controller.BuildInspector(nil, deps)
         return
     end
 end

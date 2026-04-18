@@ -76,13 +76,13 @@ local function ResolveItemText(props)
     return props.text or ""
 end
 
-local function CenterWindow(window)
+local function PositionWindow(window)
     local frame = window and window.frame
     if not frame then
         return
     end
     frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -120)
 end
 
 local function GetDraftWindowHeight()
@@ -110,7 +110,7 @@ local function FocusWindow(window)
         return
     end
     if frame.IsShown and not frame:IsShown() then
-        CenterWindow(window)
+        PositionWindow(window)
     end
     if window.Show then
         window:Show()
@@ -590,7 +590,7 @@ local function CreateWindow(state, options)
         ApplyWindowChrome(window)
     end
     ApplyDraftWindowPresentation(window)
-    CenterWindow(window)
+    PositionWindow(window)
 
     local context = CreateWindowContent(window)
     context.state = state
@@ -612,6 +612,7 @@ function ToolbarDraft.Open(state, options)
     if windowContext and windowContext.window then
         windowContext.window:SetHeight(GetDraftWindowHeight())
         ApplyDraftWindowPresentation(windowContext.window)
+        PositionWindow(windowContext.window)
     end
 
     RefreshWindowState()

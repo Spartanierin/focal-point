@@ -30,34 +30,6 @@ function B.BuildPlaceholderPage(container, title)
     end
 end
 
-local function PrepareWindowHost(container)
-    if not container then
-        return
-    end
-
-    container:ReleaseChildren()
-    container:SetLayout("Fill")
-end
-
-local function OpenWindowFromBuilder(container, page, deps, fallbackTitle)
-    if not page or not page.OpenWindow then
-        B.BuildPlaceholderPage(container, fallbackTitle)
-        return
-    end
-
-    PrepareWindowHost(container)
-    page.OpenWindow(deps)
-end
-
--- Tool builders only keep the host container clean and launch the standalone windows.
-function B.BuildProfilesPage(container)
-    local page = ns.GUI.Pages and ns.GUI.Pages.Profiles
-
-    OpenWindowFromBuilder(container, page, CreateProfilesDeps({
-        GetGUIState = GetGUIState,
-    }), L["NAV_PROFILES"] or "Profiles")
-end
-
 function B.OpenProfilesWindow()
     local page = ns.GUI.Pages and ns.GUI.Pages.Profiles
     if not page or not page.OpenWindow then
@@ -69,14 +41,6 @@ function B.OpenProfilesWindow()
     }))
 end
 
-function B.BuildTagDatabasePage(container)
-    local page = ns.GUI.Pages and ns.GUI.Pages.TagDatabase
-
-    OpenWindowFromBuilder(container, page, CreateTagDatabaseDeps({
-        GetGUIState = GetGUIState,
-    }), L["INFO_TAG_DATABASE_TITLE"] or "Tag Database")
-end
-
 function B.OpenTagDatabaseWindow()
     local page = ns.GUI.Pages and ns.GUI.Pages.TagDatabase
     if not page or not page.OpenWindow then
@@ -86,14 +50,6 @@ function B.OpenTagDatabaseWindow()
     page.OpenWindow(CreateTagDatabaseDeps({
         GetGUIState = GetGUIState,
     }))
-end
-
-function B.BuildTextBuilderPage(container)
-    local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
-
-    OpenWindowFromBuilder(container, page, CreateTextBuilderDeps({
-        GetGUIState = GetGUIState,
-    }), ns.GetLabel(KM.Nav, C.Nav.TEXT_BUILDER))
 end
 
 function B.OpenTextBuilderWindow()
@@ -117,6 +73,5 @@ function B.BuildEditorPage(container)
     page.Build(container, CreateEditorDeps({
         GetEditorState = ns.GUI.Editor and ns.GUI.Editor.State and ns.GUI.Editor.State.Get,
         BuildScrollableTabContent = BuildScrollableTabContent,
-        Sidebar = ns.GUI.Editor and ns.GUI.Editor.Sidebar,
     }))
 end

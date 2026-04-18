@@ -24,7 +24,7 @@ local BuildIndicatorList = Shared.BuildIndicatorList
 local GetFirstIndicatorKey = Shared.GetFirstIndicatorKey
 local BuildAuraList = Shared.BuildAuraList
 local GetFirstAuraKey = Shared.GetFirstAuraKey
-local GetFirstTextId = Shared.GetFirstTextId or Shared.GetFirstTextKey
+local GetFirstTextId = Shared.GetFirstTextId
 
 function InspectorSidebar.Build(container, state, options)
     container:ReleaseChildren()

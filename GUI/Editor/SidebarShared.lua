@@ -335,10 +335,6 @@ local function StyleSidebarButton(button, variant)
     end
 end
 
-local function IsToolPagePath(path)
-    return path == C.Nav.PROFILES or path == C.Nav.TEXT_BUILDER or path == C.Nav.TAG_DATABASE
-end
-
 local function AddActiveSidebarItem(container, text)
     local item = AceGUI:Create("InteractiveLabel")
     item:SetFullWidth(true)
@@ -603,16 +599,6 @@ local function AddUnitSelector(container, selectedUnit, onChanged)
     end
 
     return handles
-end
-
-local function UpdateUnitSelector(handles, selectedUnit)
-    if type(handles) ~= "table" or type(handles.buttons) ~= "table" then
-        return
-    end
-
-    for unitKey, button in pairs(handles.buttons) do
-        ApplyUnitButtonSelection(button, unitKey == selectedUnit)
-    end
 end
 
 local function AddColorPicker(container, label, color, hasAlpha, onChanged, disabled)
@@ -1023,7 +1009,6 @@ Shared.INDICATOR_META = INDICATOR_META
 Shared.AddSpacer = AddSpacer
 Shared.CreateSection = CreateSection
 Shared.StyleSidebarButton = StyleSidebarButton
-Shared.IsToolPagePath = IsToolPagePath
 Shared.AddActiveSidebarItem = AddActiveSidebarItem
 Shared.BuildLocalizedList = BuildLocalizedList
 Shared.CompactSidebarText = CompactSidebarText
@@ -1031,7 +1016,6 @@ Shared.AddCheckBox = AddCheckBox
 Shared.AddSlider = AddSlider
 Shared.AddDropdown = AddDropdown
 Shared.AddUnitSelector = AddUnitSelector
-Shared.UpdateUnitSelector = UpdateUnitSelector
 Shared.AddColorPicker = AddColorPicker
 Shared.BuildTextList = BuildTextList
 Shared.BuildIndicatorList = BuildIndicatorList
@@ -1039,7 +1023,6 @@ Shared.GetFirstIndicatorKey = GetFirstIndicatorKey
 Shared.BuildAuraList = BuildAuraList
 Shared.GetFirstAuraKey = GetFirstAuraKey
 Shared.GetFirstTextId = GetFirstTextId
-Shared.GetFirstTextKey = GetFirstTextId
 Shared.BuildThemeList = BuildThemeList
 Shared.GetFirstThemeId = GetFirstThemeId
 
