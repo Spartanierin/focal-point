@@ -413,10 +413,6 @@ end
     end
 
     local selectedPath = ResolveDefaultGUIPath(FocalPoint.GUI and FocalPoint.GUI.selectedPath)
-    local shellMode = (AppShell and AppShell.ResolveShellMode and AppShell.ResolveShellMode(FocalPoint, selectedPath)) or "tool"
-    if shellMode ~= "editor" then
-        shellMode = "editor"
-    end
     local targetContainer = (AppShell and AppShell.GetSidebarBuildHost and AppShell.GetSidebarBuildHost(FocalPoint)) or container
     if not targetContainer then
         return
@@ -425,61 +421,59 @@ end
         container._focalPointSidebarLayout = nil
         container:ReleaseChildren()
     end
-    if shellMode == "editor" then
-        if targetContainer and targetContainer.ReleaseChildren then
-            targetContainer._focalPointSidebarLayout = nil
-            targetContainer:ReleaseChildren()
-        end
-        if ToolbarDraft and ToolbarDraft.Open then
-            ToolbarDraft.Open(EditorState.Get(), {
-                currentPath = selectedPath,
-                onNavigate = HandleSidebarNavigate,
-                onUnitChanged = function(unitKey)
-                    if EditorState.SetSelectedUnit then
-                        EditorState.SetSelectedUnit(unitKey)
-                    end
-                    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                        FocalPoint.GUI:RequestRefreshOptions()
-                    end
-                end,
-                onModeChanged = function(mode)
-                    if EditorState.SetMode then
-                        EditorState.SetMode(mode)
-                    end
-                    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                        FocalPoint.GUI:RequestRefreshOptions()
-                    end
-                end,
-                onThemeChanged = function(themeId)
-                    if EditorState.SetSelectedThemeId then
-                        EditorState.SetSelectedThemeId(themeId)
-                    end
-                    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                        FocalPoint.GUI:RequestRefreshOptions()
-                    end
-                end,
-                onThemeApplied = function(themeId)
-                    if EditorState.SetSelectedThemeId then
-                        EditorState.SetSelectedThemeId(themeId)
-                    end
-                    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                        FocalPoint.GUI:RequestRefreshOptions()
-                    end
-                end,
-                onGlobalChanged = function()
-                    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                        FocalPoint.GUI:RequestRefreshOptions()
-                    end
-                end,
-                onClose = function()
-                    if FocalPoint.CloseConfig then
-                        FocalPoint:CloseConfig()
-                    end
-                end,
-            })
-        end
-        return
+    if targetContainer and targetContainer.ReleaseChildren then
+        targetContainer._focalPointSidebarLayout = nil
+        targetContainer:ReleaseChildren()
     end
+    if ToolbarDraft and ToolbarDraft.Open then
+        ToolbarDraft.Open(EditorState.Get(), {
+            currentPath = selectedPath,
+            onNavigate = HandleSidebarNavigate,
+            onUnitChanged = function(unitKey)
+                if EditorState.SetSelectedUnit then
+                    EditorState.SetSelectedUnit(unitKey)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onModeChanged = function(mode)
+                if EditorState.SetMode then
+                    EditorState.SetMode(mode)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onThemeChanged = function(themeId)
+                if EditorState.SetSelectedThemeId then
+                    EditorState.SetSelectedThemeId(themeId)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onThemeApplied = function(themeId)
+                if EditorState.SetSelectedThemeId then
+                    EditorState.SetSelectedThemeId(themeId)
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onGlobalChanged = function()
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
+            onClose = function()
+                if FocalPoint.CloseConfig then
+                    FocalPoint:CloseConfig()
+                end
+            end,
+        })
+    end
+    return
 
 end
 
@@ -506,15 +500,6 @@ local function StabilizeRenderedShell(expectedPath, refreshSerial)
     end
 
     UpdateAppShellGeometry()
-
-    if addon.guiRoot and addon.guiRoot.DoLayout then
-        addon.guiRoot:DoLayout()
-    end
-
-    local shell = addon.GUI and addon.GUI.AppShell
-    if shell and shell.LayoutEditorToolbarHost then
-        shell.LayoutEditorToolbarHost(addon)
-    end
 
     local controller = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
     if controller and controller.UpdateActiveInspectorGeometry then
