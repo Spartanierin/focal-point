@@ -499,8 +499,6 @@ local function StabilizeRenderedShell(expectedPath, refreshSerial)
         return
     end
 
-    UpdateAppShellGeometry()
-
     local controller = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
     if controller and controller.UpdateActiveInspectorGeometry then
         controller.UpdateActiveInspectorGeometry()
