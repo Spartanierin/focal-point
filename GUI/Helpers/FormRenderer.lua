@@ -5,8 +5,8 @@ ns.GUI.Helpers = ns.GUI.Helpers or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 
-local FormLayoutRuntime = {}
-ns.GUI.Helpers.FormLayoutRuntime = FormLayoutRuntime
+local FormRenderer = {}
+ns.GUI.Helpers.FormRenderer = FormRenderer
 
 local function IsWidgetGroupKind(sectionKind)
     return type(sectionKind) == "string" and sectionKind:find("widget_group", 1, true) ~= nil
@@ -174,36 +174,36 @@ local function CreateRootContent(host)
     return content
 end
 
-function FormLayoutRuntime.CloneLayoutValue(value)
+function FormRenderer.CloneLayoutValue(value)
     if type(value) ~= "table" then
         return value
     end
 
     local copy = {}
     for key, entry in pairs(value) do
-        copy[key] = FormLayoutRuntime.CloneLayoutValue(entry)
+        copy[key] = FormRenderer.CloneLayoutValue(entry)
     end
     return copy
 end
 
-function FormLayoutRuntime.MergeLayoutValue(target, source)
+function FormRenderer.MergeLayoutValue(target, source)
     if type(source) ~= "table" then
-        return FormLayoutRuntime.CloneLayoutValue(source)
+        return FormRenderer.CloneLayoutValue(source)
     end
 
     target = type(target) == "table" and target or {}
     for key, value in pairs(source) do
         if type(value) == "table" and type(target[key]) == "table" then
-            target[key] = FormLayoutRuntime.MergeLayoutValue(target[key], value)
+            target[key] = FormRenderer.MergeLayoutValue(target[key], value)
         else
-            target[key] = FormLayoutRuntime.CloneLayoutValue(value)
+            target[key] = FormRenderer.CloneLayoutValue(value)
         end
     end
 
     return target
 end
 
-function FormLayoutRuntime.ResolveItemProperties(item)
+function FormRenderer.ResolveItemProperties(item)
     if not item then
         return nil
     end
@@ -213,13 +213,13 @@ function FormLayoutRuntime.ResolveItemProperties(item)
     local itemDefinitions = formElements and formElements.Items and formElements.Items[item.widget] or nil
     local variantDefinition = itemDefinitions and itemDefinitions[item.itemVariant] or nil
 
-    resolved = FormLayoutRuntime.MergeLayoutValue(resolved, variantDefinition)
-    resolved = FormLayoutRuntime.MergeLayoutValue(resolved, item)
+    resolved = FormRenderer.MergeLayoutValue(resolved, variantDefinition)
+    resolved = FormRenderer.MergeLayoutValue(resolved, item)
 
     return resolved
 end
 
-function FormLayoutRuntime.ResolveSectionProperties(definition)
+function FormRenderer.ResolveSectionProperties(definition)
     local props = definition and (definition.properties or definition) or nil
     if not props then
         return nil
@@ -230,8 +230,8 @@ function FormLayoutRuntime.ResolveSectionProperties(definition)
     local typeDefinitions = formElements and formElements.Sections and formElements.Sections[props.type] or nil
     local variantDefinition = typeDefinitions and typeDefinitions[props.variant] or nil
 
-    resolved = FormLayoutRuntime.MergeLayoutValue(resolved, variantDefinition)
-    resolved = FormLayoutRuntime.MergeLayoutValue(resolved, props)
+    resolved = FormRenderer.MergeLayoutValue(resolved, variantDefinition)
+    resolved = FormRenderer.MergeLayoutValue(resolved, props)
     if resolved.sectionRole == nil then
         if resolved.type == "header" then
             resolved.sectionRole = "header"
@@ -302,7 +302,7 @@ function FormLayoutRuntime.ResolveSectionProperties(definition)
     return resolved
 end
 
-function FormLayoutRuntime.BuildSectionChildrenIndex(definitions)
+function FormRenderer.BuildSectionChildrenIndex(definitions)
     local index = {
         __root = {},
     }
@@ -370,12 +370,12 @@ local function ApplyGroupHeightRules(group, props)
     end
 end
 
-function FormLayoutRuntime.CreateLayoutGroup(host, definition)
+function FormRenderer.CreateLayoutGroup(host, definition)
     if not definition then
         return nil
     end
 
-    local props = FormLayoutRuntime.ResolveSectionProperties(definition)
+    local props = FormRenderer.ResolveSectionProperties(definition)
     local function CreateConcreteGroup(groupProps)
         local concreteWidgetType = groupProps.widget or "SimpleGroup"
         local concreteGroup
@@ -415,7 +415,7 @@ function FormLayoutRuntime.CreateLayoutGroup(host, definition)
     local group
     if props.sectionKind == "widget_group" then
         group = CreateVerticalGroup(props.structureSpacing or 6)
-        local bodyProps = FormLayoutRuntime.CloneLayoutValue(props)
+        local bodyProps = FormRenderer.CloneLayoutValue(props)
         bodyProps.sectionKind = "widget_group_body"
         bodyProps.border = false
         bodyProps.padding = nil
@@ -465,9 +465,10 @@ function FormLayoutRuntime.CreateLayoutGroup(host, definition)
         group:SetHeight(1)
     end
     local formWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
-    local applySectionBorder = formWidgets and formWidgets.ApplySectionBorder
-    local applySectionSurface = formWidgets and formWidgets.ApplySectionSurface
-    local applySectionPadding = formWidgets and formWidgets.ApplySectionPadding
+    local formSectionSurfaceRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormSectionSurfaceRenderer
+    local applySectionBorder = formSectionSurfaceRenderer and formSectionSurfaceRenderer.ApplySectionBorder
+    local applySectionSurface = formSectionSurfaceRenderer and formSectionSurfaceRenderer.ApplySectionSurface
+    local applySectionPadding = formSectionSurfaceRenderer and formSectionSurfaceRenderer.ApplySectionPadding
     local resolveSectionStyle = formWidgets and formWidgets.ResolveSectionStyle
     local sectionStyle = resolveSectionStyle and resolveSectionStyle(props.surfaceStyle) or nil
     if applySectionSurface then
@@ -492,11 +493,11 @@ function FormLayoutRuntime.CreateLayoutGroup(host, definition)
     return group
 end
 
-function FormLayoutRuntime.CreateLayoutGroups(host, definitions)
+function FormRenderer.CreateLayoutGroups(host, definitions)
     local groups = {}
 
     for _, definition in ipairs(definitions or {}) do
-        local group = FormLayoutRuntime.CreateLayoutGroup(host, definition)
+        local group = FormRenderer.CreateLayoutGroup(host, definition)
         if group then
             groups[definition.section] = group
         end
@@ -505,12 +506,12 @@ function FormLayoutRuntime.CreateLayoutGroups(host, definitions)
     return groups
 end
 
-function FormLayoutRuntime.BuildLayout(host, definitions, options)
+function FormRenderer.BuildLayout(host, definitions, options)
     options = options or {}
 
-    local groups = FormLayoutRuntime.CreateLayoutGroups(host, definitions)
+    local groups = FormRenderer.CreateLayoutGroups(host, definitions)
     local widgetsById = {}
-    local childIndex = FormLayoutRuntime.BuildSectionChildrenIndex(definitions)
+    local childIndex = FormRenderer.BuildSectionChildrenIndex(definitions)
 
     local function ResolveSectionHost(group, slot)
         if not group then
@@ -538,7 +539,7 @@ function FormLayoutRuntime.BuildLayout(host, definitions, options)
         local targetGroup = ResolveSectionHost(group, "body")
 
         for _, item in ipairs(definition.items) do
-            local props = FormLayoutRuntime.ResolveItemProperties(item)
+            local props = FormRenderer.ResolveItemProperties(item)
             local widget = options.createItemWidget and options.createItemWidget(targetGroup, item, props, options.state, options.context) or nil
             if widget then
                 widget._fpOwnerGroup = targetGroup
@@ -561,7 +562,7 @@ function FormLayoutRuntime.BuildLayout(host, definitions, options)
         local children = childIndex[parentSection or "__root"] or {}
         for _, definition in ipairs(children) do
             local group = groups[definition.section]
-            local props = FormLayoutRuntime.ResolveSectionProperties(definition)
+            local props = FormRenderer.ResolveSectionProperties(definition)
             local targetParent = parent
             if props.widgetGroup and groups[props.widgetGroup] then
                 targetParent = ResolveSectionHost(groups[props.widgetGroup], props.structureSlot)

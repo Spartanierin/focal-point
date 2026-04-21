@@ -274,7 +274,7 @@ But only as orchestration calls such as:
 
 ## GUI Modules
 
-### `GUI/Layouts/UnitAuraLayouts.lua`
+### `GUI/Layouts/UnitAuraDefinition.lua`
 
 **Responsibility**
 

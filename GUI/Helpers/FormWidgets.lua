@@ -106,182 +106,6 @@ local function RequestOwnerRelayout(container)
     end
 end
 
-function FormWidgets.ApplySectionBorder(group, border)
-    if not group or not group.frame then
-        return
-    end
-
-    local frame = group.frame
-    local chromeColors = GetChromeColors()
-    local color = type(border) == "table" and (border.color or FormWidgets.ResolveItemColor(border.colorKey)) or chromeColors.sectionBorder
-
-    if border == false or not color then
-        for _, name in ipairs({
-            "_fpSectionBorderTop",
-            "_fpSectionBorderBottom",
-            "_fpSectionBorderLeft",
-            "_fpSectionBorderRight",
-        }) do
-            if frame[name] and frame[name].Hide then
-                frame[name]:Hide()
-            end
-        end
-        return
-    end
-
-    local thickness = type(border) == "table" and (border.thickness or 1) or 1
-    local inset = type(border) == "table" and (border.inset or 0) or 0
-
-    local function EnsureBorder(name)
-        if not frame[name] then
-            frame[name] = frame:CreateTexture(nil, "BORDER")
-        end
-        frame[name]:SetColorTexture(unpack(color))
-        frame[name]:Show()
-    end
-
-    EnsureBorder("_fpSectionBorderTop")
-    frame._fpSectionBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
-    frame._fpSectionBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -inset, -inset)
-    frame._fpSectionBorderTop:SetHeight(thickness)
-
-    EnsureBorder("_fpSectionBorderBottom")
-    frame._fpSectionBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, inset)
-    frame._fpSectionBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
-    frame._fpSectionBorderBottom:SetHeight(thickness)
-
-    EnsureBorder("_fpSectionBorderLeft")
-    frame._fpSectionBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
-    frame._fpSectionBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, inset)
-    frame._fpSectionBorderLeft:SetWidth(thickness)
-
-    EnsureBorder("_fpSectionBorderRight")
-    frame._fpSectionBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -inset, -inset)
-    frame._fpSectionBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
-    frame._fpSectionBorderRight:SetWidth(thickness)
-end
-
-function FormWidgets.ApplySectionSurface(group, sectionStyle)
-    if not group or not group.frame then
-        return
-    end
-
-    local style = FormWidgets.ResolveSectionStyle(sectionStyle)
-    local surface = style and style.surface or nil
-    local frame = group.frame
-
-    local function HideTexture(name)
-        if frame[name] and frame[name].Hide then
-            frame[name]:Hide()
-        end
-    end
-
-    if not surface then
-        HideTexture("_fpSectionFill")
-        HideTexture("_fpSectionTopShade")
-        HideTexture("_fpSectionBottomShade")
-        HideTexture("_fpSectionAccent")
-        HideTexture("_fpSectionDivider")
-        return
-    end
-
-    local function EnsureTexture(name, layer, subLevel)
-        if not frame[name] then
-            frame[name] = frame:CreateTexture(nil, layer or "BACKGROUND", nil, subLevel or 0)
-        end
-        frame[name]:Show()
-        return frame[name]
-    end
-
-    if surface.fill then
-        local fill = EnsureTexture("_fpSectionFill", "BACKGROUND")
-        fill:SetAllPoints(frame)
-        fill:SetColorTexture(unpack(surface.fill))
-    else
-        HideTexture("_fpSectionFill")
-    end
-
-    if surface.topShade then
-        local topShade = EnsureTexture("_fpSectionTopShade", "ARTWORK")
-        topShade:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
-        topShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
-        topShade:SetHeight(1)
-        topShade:SetColorTexture(unpack(surface.topShade))
-    else
-        HideTexture("_fpSectionTopShade")
-    end
-
-    if surface.bottomShade then
-        local bottomShade = EnsureTexture("_fpSectionBottomShade", "ARTWORK")
-        bottomShade:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 1, 1)
-        bottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
-        bottomShade:SetHeight(1)
-        bottomShade:SetColorTexture(unpack(surface.bottomShade))
-    else
-        HideTexture("_fpSectionBottomShade")
-    end
-
-    if surface.accent then
-        local accent = EnsureTexture("_fpSectionAccent", "BORDER")
-        local edge = surface.accent.edge or "top"
-        local thickness = surface.accent.thickness or 1
-        local insetLeft = surface.accent.insetLeft or 0
-        local insetRight = surface.accent.insetRight or 0
-        accent:ClearAllPoints()
-        if edge == "bottom" then
-            accent:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", insetLeft, 0)
-            accent:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -insetRight, 0)
-        else
-            accent:SetPoint("TOPLEFT", frame, "TOPLEFT", insetLeft, 0)
-            accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insetRight, 0)
-        end
-        accent:SetHeight(thickness)
-        accent:SetColorTexture(unpack(surface.accent.color or {}))
-    else
-        HideTexture("_fpSectionAccent")
-    end
-
-    if surface.divider and surface.divider.mode == "center_vertical" then
-        local divider = EnsureTexture("_fpSectionDivider", "BORDER")
-        local thickness = surface.divider.thickness or 1
-        local insetTop = surface.divider.insetTop or 0
-        local insetBottom = surface.divider.insetBottom or 0
-        divider:ClearAllPoints()
-        divider:SetPoint("TOP", frame, "TOP", 0, -insetTop)
-        divider:SetPoint("BOTTOM", frame, "BOTTOM", 0, insetBottom)
-        divider:SetWidth(thickness)
-        divider:SetColorTexture(unpack(surface.divider.color or {}))
-    else
-        HideTexture("_fpSectionDivider")
-    end
-end
-
-function FormWidgets.ApplySectionPadding(group, padding)
-    if not group or not group.content or group.type == "ScrollFrame" then
-        return
-    end
-
-    local anchor = group.frame
-    local content = group.content
-    local left = 0
-    local right = 0
-    local top = 0
-    local bottom = 0
-
-    if type(padding) == "number" then
-        left, right, top, bottom = padding, padding, padding, padding
-    elseif type(padding) == "table" then
-        left = padding.left or padding.x or 0
-        right = padding.right or padding.x or 0
-        top = padding.top or padding.y or 0
-        bottom = padding.bottom or padding.y or 0
-    end
-
-    content:ClearAllPoints()
-    content:SetPoint("TOPLEFT", anchor, "TOPLEFT", left, -top)
-    content:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -right, bottom)
-end
-
 function FormWidgets.ApplyTextStyle(target, role, size, alpha)
     if not target then
         return
@@ -339,9 +163,9 @@ function FormWidgets.StyleActionButton(button, variant)
     end
 
     local style = FormWidgets.ResolveButtonStyle(variant)
-    local sidebarShared = GetSidebarShared()
-    if sidebarShared and sidebarShared.StyleSidebarButton then
-        sidebarShared.StyleSidebarButton(button, style.sidebarVariant or variant or "primary")
+    local sidebarThemeHelpers = ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers
+    if sidebarThemeHelpers and sidebarThemeHelpers.StyleSidebarButton then
+        sidebarThemeHelpers.StyleSidebarButton(button, style.sidebarVariant or variant or "primary")
     end
 
     button:SetHeight(style.height or 24)
@@ -613,6 +437,141 @@ function FormWidgets.ApplyWindowChrome(window)
             content._fpAccent:SetHeight(1)
         end
         content._fpAccent:SetColorTexture(unpack(chromeColors.accent or {}))
+    end
+end
+
+function FormWidgets.EnsureStandardWindowCloseButton(window)
+    local closeButton = window and window.closebutton
+    if not closeButton then
+        return
+    end
+
+    if closeButton.Show then
+        closeButton:Show()
+    end
+    if closeButton.EnableMouse then
+        closeButton:EnableMouse(true)
+    end
+    if closeButton.GetScript and closeButton.SetScript and not closeButton:GetScript("OnClick") then
+        closeButton:SetScript("OnClick", function(button)
+            local owner = button and button.obj
+            if owner and owner.Hide then
+                owner:Hide()
+            end
+        end)
+    end
+end
+
+function FormWidgets.ApplySidebarChrome(window)
+    if not window or not window.frame then
+        return
+    end
+
+    local chromeColors = GetChromeColors()
+    local frame = window.frame
+    local content = window.content
+
+    HideDefaultWindowChrome(frame)
+
+    if window.titletext then
+        FormWidgets.ApplyTextStyle(window.titletext, "sectionHeader", 15, 1)
+    end
+
+    if not frame._fpSidebarPanelFill then
+        frame._fpSidebarPanelFill = frame:CreateTexture(nil, "ARTWORK")
+        frame._fpSidebarPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+        frame._fpSidebarPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    end
+    frame._fpSidebarPanelFill:SetColorTexture(unpack(chromeColors.panelBackground or {}))
+
+    if not frame._fpSidebarPanelHeaderFill then
+        frame._fpSidebarPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
+        frame._fpSidebarPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+        frame._fpSidebarPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+        frame._fpSidebarPanelHeaderFill:SetHeight(26)
+    end
+    frame._fpSidebarPanelHeaderFill:SetColorTexture(unpack(chromeColors.panelHeader or {}))
+
+    if not frame._fpSidebarPanelTopShade then
+        frame._fpSidebarPanelTopShade = frame:CreateTexture(nil, "ARTWORK")
+        frame._fpSidebarPanelTopShade:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
+        frame._fpSidebarPanelTopShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+        frame._fpSidebarPanelTopShade:SetHeight(1)
+    end
+    frame._fpSidebarPanelTopShade:SetColorTexture(unpack(chromeColors.panelTopShade or {}))
+
+    if not frame._fpSidebarPanelBottomShade then
+        frame._fpSidebarPanelBottomShade = frame:CreateTexture(nil, "ARTWORK")
+        frame._fpSidebarPanelBottomShade:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
+        frame._fpSidebarPanelBottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
+        frame._fpSidebarPanelBottomShade:SetHeight(1)
+    end
+    frame._fpSidebarPanelBottomShade:SetColorTexture(unpack(chromeColors.panelBottomShade or {}))
+
+    local function EnsureBorder(name)
+        if not frame[name] then
+            frame[name] = frame:CreateTexture(nil, "BORDER")
+        end
+        frame[name]:SetColorTexture(unpack(chromeColors.panelBorder or {}))
+        frame[name]:Show()
+    end
+
+    EnsureBorder("_fpSidebarPanelBorderTop")
+    frame._fpSidebarPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+    frame._fpSidebarPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpSidebarPanelBorderTop:SetHeight(1)
+
+    EnsureBorder("_fpSidebarPanelBorderBottom")
+    frame._fpSidebarPanelBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
+    frame._fpSidebarPanelBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    frame._fpSidebarPanelBorderBottom:SetHeight(1)
+
+    EnsureBorder("_fpSidebarPanelBorderLeft")
+    frame._fpSidebarPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+    frame._fpSidebarPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
+    frame._fpSidebarPanelBorderLeft:SetWidth(1)
+
+    EnsureBorder("_fpSidebarPanelBorderRight")
+    frame._fpSidebarPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpSidebarPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    frame._fpSidebarPanelBorderRight:SetWidth(1)
+
+    local function EnsureInnerBorder(name)
+        if not frame[name] then
+            frame[name] = frame:CreateTexture(nil, "BORDER")
+        end
+        frame[name]:SetColorTexture(unpack(chromeColors.panelInnerBorder or chromeColors.sectionBorder or {}))
+        frame[name]:Show()
+    end
+
+    EnsureInnerBorder("_fpSidebarPanelInnerTop")
+    frame._fpSidebarPanelInnerTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
+    frame._fpSidebarPanelInnerTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+    frame._fpSidebarPanelInnerTop:SetHeight(1)
+
+    EnsureInnerBorder("_fpSidebarPanelInnerBottom")
+    frame._fpSidebarPanelInnerBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
+    frame._fpSidebarPanelInnerBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
+    frame._fpSidebarPanelInnerBottom:SetHeight(1)
+
+    EnsureInnerBorder("_fpSidebarPanelInnerLeft")
+    frame._fpSidebarPanelInnerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
+    frame._fpSidebarPanelInnerLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
+    frame._fpSidebarPanelInnerLeft:SetWidth(1)
+
+    EnsureInnerBorder("_fpSidebarPanelInnerRight")
+    frame._fpSidebarPanelInnerRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+    frame._fpSidebarPanelInnerRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
+    frame._fpSidebarPanelInnerRight:SetWidth(1)
+
+    if content then
+        if not content._fpSidebarAccent then
+            content._fpSidebarAccent = content:CreateTexture(nil, "BORDER")
+            content._fpSidebarAccent:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -2)
+            content._fpSidebarAccent:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -2)
+            content._fpSidebarAccent:SetHeight(1)
+        end
+        content._fpSidebarAccent:SetColorTexture(unpack(chromeColors.accent or {}))
     end
 end
 

@@ -8,11 +8,11 @@ local C = ns.Constants
 local KM = ns.KeyMap
 local L = ns.L
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
-local FormLayoutRuntime = ns.GUI.Helpers and ns.GUI.Helpers.FormLayoutRuntime
-local TextBuilderFormLayout = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.Form
+local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
+local TextBuilderDefinition = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.Form
 
-local TextBuilderPage = {}
-ns.GUI.Pages.TextBuilder = TextBuilderPage
+local TextBuilderController = {}
+ns.GUI.Pages.TextBuilder = TextBuilderController
 
 local DEFAULT_TEMPLATE = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%"
 local TEMPLATE_EXAMPLE = DEFAULT_TEMPLATE
@@ -34,6 +34,7 @@ local StyleDropdown = FormWidgets.StyleDropdown
 local StyleEditBox = FormWidgets.StyleEditBox
 local StyleCheckBox = FormWidgets.StyleCheckBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
+local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseButton
 local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
@@ -617,7 +618,7 @@ end
 
 local function CreateWindowContent(window, state)
     local usageCheckboxes = {}
-    local groups, widgets = FormLayoutRuntime.BuildLayout(window, TextBuilderFormLayout, {
+    local groups, widgets = FormRenderer.BuildLayout(window, TextBuilderDefinition, {
         state = state,
         createItemWidget = CreateItemWidget,
         onWidgetCreated = function(widget, group, item)
@@ -857,6 +858,9 @@ local function CreateWindow(state)
     end
 
     ApplyWindowChrome(window)
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
     CenterWindow(window)
 
     local context = CreateWindowContent(window, state)
@@ -872,7 +876,7 @@ local function CreateWindow(state)
     return context
 end
 
-function TextBuilderPage.OpenWindow(deps)
+function TextBuilderController.OpenWindow(deps)
     local state = GetTextBuilderState(deps)
 
     if not windowContext or not windowContext.window or not windowContext.window.frame then
@@ -886,7 +890,7 @@ function TextBuilderPage.OpenWindow(deps)
     FocusWindow(windowContext.window)
 end
 
-function TextBuilderPage.HideWindow()
+function TextBuilderController.HideWindow()
     if not windowContext or not windowContext.window then
         return
     end
@@ -898,4 +902,4 @@ function TextBuilderPage.HideWindow()
     end
 end
 
-return TextBuilderPage
+return TextBuilderController

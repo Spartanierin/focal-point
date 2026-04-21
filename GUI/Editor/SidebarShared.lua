@@ -16,6 +16,10 @@ local ApplyTextStyle = FormWidgets.ApplyTextStyle
 local StyleDropdownField = FormWidgets.StyleDropdown
 local StyleCheckBoxField = FormWidgets.StyleCheckBox
 
+local function GetChromeColors()
+    return ((ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {}).Chrome or {}
+end
+
 local POINTS = {
     CENTER = "CENTER",
     TOP = "TOP",
@@ -121,13 +125,6 @@ local AURA_ORDER = {
     "Debuffs",
 }
 
-local THEME_ORDER = {
-    "default",
-    "classic",
-    "minimal",
-    "modern",
-}
-
 local function AddSpacer(container, height)
     local spacer = AceGUI:Create("SimpleGroup")
     spacer:SetFullWidth(true)
@@ -173,7 +170,8 @@ local function ApplyLegacySectionSkin(frame, style)
     if frame._fpAccent and frame._fpAccent.SetColorTexture then
         local accent = surface and surface.accent
         frame._fpAccent:SetHeight((accent and accent.thickness) or 1)
-        frame._fpAccent:SetColorTexture(unpack((accent and accent.color) or { 0.83, 0.70, 0.30, 0.26 }))
+        local chromeColors = GetChromeColors()
+        frame._fpAccent:SetColorTexture(unpack((accent and accent.color) or chromeColors.sectionAccent or chromeColors.accent or { 0.83, 0.70, 0.30, 0.26 }))
     end
 end
 
@@ -210,7 +208,7 @@ local function CreateSection(container, title, options)
         local style = options.style or "default"
 
         if titleText then
-            StyleSidebarLabel(titleText, 13, { 0.94, 0.85, 0.46, 1 })
+            StyleSidebarLabel(titleText, 13, { 0.89, 0.82, 0.60, 1 })
         end
 
         if border then
@@ -232,7 +230,7 @@ local function CreateSection(container, title, options)
 
     local toggle = AceGUI:Create("InteractiveLabel")
     toggle:SetFullWidth(true)
-    toggle:SetHeight(32)
+    toggle:SetHeight(34)
     toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
     toggle:SetCallback("OnClick", function()
         if stateApi and stateApi.SetSectionCollapsed then
@@ -248,44 +246,51 @@ local function CreateSection(container, title, options)
     end)
 
     if toggle.label then
-        StyleSidebarLabel(toggle.label, 13, { 0.93, 0.84, 0.42, 1 })
+        StyleSidebarLabel(toggle.label, 13, { 0.88, 0.82, 0.62, 1 })
         if toggle.label.SetJustifyH then
             toggle.label:SetJustifyH("LEFT")
         end
     end
 
     if toggle.frame then
+        local chromeColors = GetChromeColors()
         local bg = toggle.frame:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
-        bg:SetColorTexture(0.10, 0.11, 0.14, 0.82)
+        bg:SetColorTexture(unpack(chromeColors.sectionFillStrong or chromeColors.sectionFill or { 0.09, 0.10, 0.12, 0.86 }))
         toggle._sectionBg = bg
 
         local leftAccent = toggle.frame:CreateTexture(nil, "ARTWORK")
         leftAccent:SetPoint("TOPLEFT")
         leftAccent:SetPoint("BOTTOMLEFT")
-        leftAccent:SetWidth(3)
-        leftAccent:SetColorTexture(0.84, 0.70, 0.27, 0.72)
+        leftAccent:SetWidth(2)
+        leftAccent:SetColorTexture(unpack(chromeColors.sectionAccent or chromeColors.accent or { 0.82, 0.69, 0.29, 0.52 }))
         toggle._sectionLeftAccent = leftAccent
 
         local topBorder = toggle.frame:CreateTexture(nil, "BORDER")
         topBorder:SetPoint("TOPLEFT", toggle.frame, "TOPLEFT", 3, 0)
         topBorder:SetPoint("TOPRIGHT")
         topBorder:SetHeight(1)
-        topBorder:SetColorTexture(0.34, 0.31, 0.22, 0.74)
+        topBorder:SetColorTexture(unpack(chromeColors.sectionBorder or chromeColors.panelInnerBorder or { 0.34, 0.31, 0.22, 0.52 }))
         toggle._sectionTopBorder = topBorder
 
         local bottomBorder = toggle.frame:CreateTexture(nil, "BORDER")
-        bottomBorder:SetPoint("BOTTOMLEFT", toggle.frame, "BOTTOMLEFT", 3, 0)
-        bottomBorder:SetPoint("BOTTOMRIGHT")
+        bottomBorder:SetPoint("BOTTOMLEFT", toggle.frame, "BOTTOMLEFT", 3, 1)
+        bottomBorder:SetPoint("BOTTOMRIGHT", toggle.frame, "BOTTOMRIGHT", 0, 1)
         bottomBorder:SetHeight(1)
-        bottomBorder:SetColorTexture(0.05, 0.06, 0.08, 0.92)
+        bottomBorder:SetColorTexture(unpack(chromeColors.panelInnerBorder or chromeColors.sectionBorder or { 0.05, 0.06, 0.08, 0.92 }))
         toggle._sectionBottomBorder = bottomBorder
 
         if toggle.SetHighlight then
             toggle:SetHighlight("Interface\\Buttons\\WHITE8X8")
         end
         if toggle.highlight and toggle.highlight.SetVertexColor then
-            toggle.highlight:SetVertexColor(0.92, 0.82, 0.36, 0.08)
+            local highlightColor = chromeColors.sectionAccent or chromeColors.accent or { 0.90, 0.80, 0.34, 0.05 }
+            toggle.highlight:SetVertexColor(
+                highlightColor[1] or 0.90,
+                highlightColor[2] or 0.80,
+                highlightColor[3] or 0.34,
+                (highlightColor[4] and math.min(highlightColor[4], 0.05)) or 0.05
+            )
         end
     end
 
@@ -305,101 +310,6 @@ local function CreateSection(container, title, options)
     end
     container:AddChild(group)
     return group
-end
-
-local function StyleSidebarButton(button, variant)
-    if not button then
-        return
-    end
-
-    if variant == "active" then
-        button:SetHeight(24)
-    elseif variant == "danger" then
-        button:SetHeight(22)
-    elseif variant == "secondary" then
-        button:SetHeight(22)
-    else
-        button:SetHeight(24)
-    end
-
-    if button.text and button.text.SetTextColor then
-        if variant == "active" then
-            button.text:SetTextColor(0.95, 0.86, 0.54, 1)
-        elseif variant == "danger" then
-            button.text:SetTextColor(0.90, 0.82, 0.82, 1)
-        elseif variant == "secondary" then
-            button.text:SetTextColor(0.82, 0.84, 0.88, 1)
-        else
-            button.text:SetTextColor(0.95, 0.95, 0.95, 1)
-        end
-    end
-end
-
-local function AddActiveSidebarItem(container, text)
-    local item = AceGUI:Create("InteractiveLabel")
-    item:SetFullWidth(true)
-    item:SetHeight(26)
-    item:SetText(text or "")
-    if item.label and item.label.SetFont then
-        item.label:SetFont(STANDARD_TEXT_FONT, 12, "")
-        item.label:SetJustifyH("CENTER")
-        item.label:SetTextColor(0.95, 0.86, 0.54, 1)
-        item.label:SetShadowOffset(1, -1)
-        item.label:SetShadowColor(0, 0, 0, 0.7)
-    end
-
-    if item.frame then
-        local bg = item.frame:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.17, 0.16, 0.12, 0.74)
-        item._bg = bg
-
-        local leftAccent = item.frame:CreateTexture(nil, "ARTWORK")
-        leftAccent:SetPoint("TOPLEFT")
-        leftAccent:SetPoint("BOTTOMLEFT")
-        leftAccent:SetWidth(3)
-        leftAccent:SetColorTexture(0.86, 0.71, 0.28, 0.85)
-        item._leftAccent = leftAccent
-
-        local top = item.frame:CreateTexture(nil, "BORDER")
-        top:SetPoint("TOPLEFT", item.frame, "TOPLEFT", 3, 0)
-        top:SetPoint("TOPRIGHT")
-        top:SetHeight(1)
-        top:SetColorTexture(0.72, 0.60, 0.24, 0.55)
-        item._top = top
-
-        local bottom = item.frame:CreateTexture(nil, "BORDER")
-        bottom:SetPoint("BOTTOMLEFT", item.frame, "BOTTOMLEFT", 3, 0)
-        bottom:SetPoint("BOTTOMRIGHT")
-        bottom:SetHeight(1)
-        bottom:SetColorTexture(0.08, 0.08, 0.09, 0.90)
-        item._bottom = bottom
-
-        local right = item.frame:CreateTexture(nil, "BORDER")
-        right:SetPoint("TOPRIGHT")
-        right:SetPoint("BOTTOMRIGHT")
-        right:SetWidth(1)
-        right:SetColorTexture(0.20, 0.18, 0.12, 0.70)
-        item._right = right
-
-        if item.SetHighlight then
-            item:SetHighlight("Interface\\Buttons\\WHITE8X8")
-        end
-        if item.highlight and item.highlight.SetVertexColor then
-            item.highlight:SetVertexColor(0.92, 0.82, 0.36, 0.06)
-        end
-    end
-
-    container:AddChild(item)
-    return item
-end
-
-local function BuildUnitList()
-    local units = {}
-    for _, unitKey in ipairs(C.UnitOrder or {}) do
-        units[unitKey] = ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, unitKey) or unitKey
-    end
-    return units
 end
 
 local function BuildLocalizedList(sourceList)
@@ -438,24 +348,6 @@ local function NormalizeColor(color, fallback)
     }
 end
 
-local function CompactSidebarText(text, maxLength)
-    if type(text) ~= "string" or text == "" then
-        return ""
-    end
-
-    local firstSentence = text:match("^(.-%.)%s")
-    if firstSentence and firstSentence ~= "" then
-        text = firstSentence
-    end
-
-    maxLength = maxLength or 90
-    if #text <= maxLength then
-        return text
-    end
-
-    return text:sub(1, math.max(0, maxLength - 3)) .. "..."
-end
-
 local function AddCheckBox(container, label, value, onChanged, disabled)
     local widget = AceGUI:Create("CheckBox")
     widget:SetFullWidth(true)
@@ -472,23 +364,6 @@ local function AddCheckBox(container, label, value, onChanged, disabled)
     end
     container:AddChild(widget)
     return widget
-end
-
-local function ApplyUnitButtonSelection(button, isSelected)
-    if not button then
-        return
-    end
-
-    StyleSidebarButton(button, isSelected and "active" or "secondary")
-    button:SetDisabled(isSelected)
-
-    if button.text and button.text.SetTextColor then
-        if isSelected then
-            button.text:SetTextColor(0.90, 0.82, 0.55, 1)
-        else
-            button.text:SetTextColor(0.88, 0.90, 0.94, 1)
-        end
-    end
 end
 
 local function AddSlider(container, label, minValue, maxValue, step, value, onChanged, disabled)
@@ -529,78 +404,6 @@ local function AddDropdown(container, label, list, value, onChanged, disabled)
     return widget
 end
 
-local function AddUnitSelector(container, selectedUnit, onChanged)
-    local list = BuildUnitList()
-    local columnWidth = 108
-    local columnSpacing = 6
-    local handles = {
-        buttons = {},
-    }
-
-    local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
-    label:SetHeight(18)
-    label:SetText(L["EDITOR_UNIT"] or "Unit")
-    if label.label and label.label.SetFont then
-        label.label:SetFont(STANDARD_TEXT_FONT, 12, "")
-        label.label:SetJustifyH("LEFT")
-        label.label:SetTextColor(0.82, 0.84, 0.88, 1)
-        label.label:SetShadowOffset(1, -1)
-        label.label:SetShadowColor(0, 0, 0, 0.65)
-    end
-    container:AddChild(label)
-    handles.label = label
-
-    local grid = AceGUI:Create("SimpleGroup")
-    grid:SetFullWidth(true)
-    grid:SetLayout("List")
-    container:AddChild(grid)
-    handles.grid = grid
-
-    for index = 1, #(C.UnitOrder or {}), 2 do
-        local row = AceGUI:Create("SimpleGroup")
-        row:SetFullWidth(true)
-        row:SetLayout("Table")
-        row:SetUserData("table", {
-            columns = {
-                columnWidth,
-                columnWidth,
-            },
-            space = columnSpacing,
-            spaceH = columnSpacing,
-            spaceV = 0,
-        })
-        grid:AddChild(row)
-
-        for offset = 0, 1 do
-            local unitKey = C.UnitOrder[index + offset]
-            if unitKey then
-                local button = AceGUI:Create("Button")
-                local isSelected = unitKey == selectedUnit
-                button:SetText(list[unitKey] or unitKey)
-                button:SetWidth(columnWidth)
-                ApplyUnitButtonSelection(button, isSelected)
-                button:SetCallback("OnClick", function()
-                    if onChanged then
-                        onChanged(unitKey)
-                    end
-                end)
-
-                row:AddChild(button)
-                handles.buttons[unitKey] = button
-            else
-                local spacer = AceGUI:Create("Label")
-                spacer:SetText(" ")
-                spacer:SetWidth(columnWidth)
-                spacer:SetHeight(24)
-                row:AddChild(spacer)
-            end
-        end
-    end
-
-    return handles
-end
-
 local function AddColorPicker(container, label, color, hasAlpha, onChanged, disabled)
     local widget = AceGUI:Create("ColorPicker")
     local current = NormalizeColor(color)
@@ -632,23 +435,6 @@ local function AddColorPicker(container, label, color, hasAlpha, onChanged, disa
     end
     container:AddChild(widget)
     return widget
-end
-
-local function FormatTextKey(textKey)
-    if type(textKey) ~= "string" or textKey == "" then
-        return "Text"
-    end
-
-    local keyMap = ns.KeyMap and ns.KeyMap.Texts
-    if type(keyMap) == "table" then
-        local labelKey = keyMap[textKey]
-        if type(labelKey) == "string" and type(L[labelKey]) == "string" and L[labelKey] ~= "" then
-            return L[labelKey]
-        end
-    end
-
-    local spaced = textKey:gsub("(%l)(%u)", "%1 %2")
-    return spaced
 end
 
 local function GetFallbackTemplateLabel(textConfig)
@@ -966,56 +752,15 @@ local function GetFirstTextId(textList)
     return firstTextId
 end
 
-local function BuildThemeList(themes)
-    local list = {}
-
-    if type(themes) ~= "table" then
-        return list
-    end
-
-    for _, themeId in ipairs(THEME_ORDER) do
-        local theme = themes[themeId]
-        if type(theme) == "table" then
-            list[themeId] = (theme.labelKey and L[theme.labelKey]) or theme.id or themeId
-        end
-    end
-
-    for themeId, theme in pairs(themes) do
-        if not list[themeId] and type(theme) == "table" then
-            list[themeId] = (theme.labelKey and L[theme.labelKey]) or theme.id or themeId
-        end
-    end
-
-    return list
-end
-
-local function GetFirstThemeId(themeList)
-    for _, themeId in ipairs(THEME_ORDER) do
-        if themeList[themeId] then
-            return themeId
-        end
-    end
-
-    for themeId in pairs(themeList) do
-        return themeId
-    end
-
-    return nil
-end
-
 
 Shared.POINTS = POINTS
 Shared.INDICATOR_META = INDICATOR_META
 Shared.AddSpacer = AddSpacer
 Shared.CreateSection = CreateSection
-Shared.StyleSidebarButton = StyleSidebarButton
-Shared.AddActiveSidebarItem = AddActiveSidebarItem
 Shared.BuildLocalizedList = BuildLocalizedList
-Shared.CompactSidebarText = CompactSidebarText
 Shared.AddCheckBox = AddCheckBox
 Shared.AddSlider = AddSlider
 Shared.AddDropdown = AddDropdown
-Shared.AddUnitSelector = AddUnitSelector
 Shared.AddColorPicker = AddColorPicker
 Shared.BuildTextList = BuildTextList
 Shared.BuildIndicatorList = BuildIndicatorList
@@ -1023,7 +768,5 @@ Shared.GetFirstIndicatorKey = GetFirstIndicatorKey
 Shared.BuildAuraList = BuildAuraList
 Shared.GetFirstAuraKey = GetFirstAuraKey
 Shared.GetFirstTextId = GetFirstTextId
-Shared.BuildThemeList = BuildThemeList
-Shared.GetFirstThemeId = GetFirstThemeId
 
 return Shared

@@ -83,7 +83,7 @@ The codebase still contains a real slot-based text model.
 - [TextBuilderPage.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/Pages/TextBuilderPage.lua)
   - previously chose `Custom1`, `Custom2`, `Custom3` when applying a template to a unit
   - is now being moved toward free text-element ids such as `text_1`
-- [GUI.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/GUI.lua)
+- [GUI.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/GUIMainController.lua)
   - still resolves text configs through `GetTextConfig(unit, textKey)`
 - [TextElementUpdate.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/Engine/Text/Runtime/TextElementUpdate.lua)
   - still contains semantic runtime branching by key such as `Name` and `AltPower`
@@ -352,7 +352,7 @@ The following files are central to this migration:
 - [SidebarShared.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/Editor/SidebarShared.lua)
 - [InspectorSidebar.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/Editor/InspectorSidebar.lua)
 - [TextBuilderPage.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/Pages/TextBuilderPage.lua)
-- [GUI.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/GUI.lua)
+- [GUI.lua](/d:/World%20of%20Warcraft/_retail_/Interface/AddOns/FocalPoint/GUI/GUIMainController.lua)
 
 ### Runtime
 

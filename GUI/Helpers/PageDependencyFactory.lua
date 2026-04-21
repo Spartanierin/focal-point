@@ -3,29 +3,29 @@ local _, ns = ...
 ns.GUI = ns.GUI or {}
 ns.GUI.Helpers = ns.GUI.Helpers or {}
 
-local PageDeps = {}
-ns.GUI.Helpers.PageDeps = PageDeps
+local PageDependencyFactory = {}
+ns.GUI.Helpers.PageDependencyFactory = PageDependencyFactory
 
-function PageDeps.CreateProfilesDeps(config)
+function PageDependencyFactory.CreateProfilesDeps(config)
     return {
         GetGUIState = config.GetGUIState,
     }
 end
 
-function PageDeps.CreateTagDatabaseDeps(config)
+function PageDependencyFactory.CreateTagDatabaseDeps(config)
     return {
         GetGUIState = config.GetGUIState,
     }
 end
 
-function PageDeps.CreateTextBuilderDeps(config)
+function PageDependencyFactory.CreateTextBuilderDeps(config)
     return {
         GetGUIState = config.GetGUIState,
     }
 end
 
-function PageDeps.CreateEditorDeps(config)
-    local BuilderUI = ns.GUI.Helpers.BuilderUI
+function PageDependencyFactory.CreateEditorDeps(config)
+    local BuilderUI = ns.GUI.Helpers.GUIRuntimeHelpers
 
     return {
         ResetFlowContainer = BuilderUI.ResetFlowContainer,

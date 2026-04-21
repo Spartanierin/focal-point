@@ -8,9 +8,9 @@ ns.GUI.Pages.Shared.Placeholder = ns.GUI.Pages.Shared.Placeholder or {}
 local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L
 
-local Page = ns.GUI.Pages.Shared.Placeholder
+local PlaceholderController = ns.GUI.Pages.Shared.Placeholder
 
-function Page.Build(container, title)
+function PlaceholderController.Build(container, title)
     container:ReleaseChildren()
     container:SetLayout("Fill")
 

@@ -2,18 +2,18 @@ local addonName, ns = ...
 
 ns.GUI = ns.GUI or {}
 ns.GUI.Helpers = ns.GUI.Helpers or {}
-ns.GUI.Helpers.BuilderUI = ns.GUI.Helpers.BuilderUI or {}
+ns.GUI.Helpers.GUIRuntimeHelpers = ns.GUI.Helpers.GUIRuntimeHelpers or {}
 
 local C = ns.Constants
 
-local BuilderUI = ns.GUI.Helpers.BuilderUI
+local GUIRuntimeHelpers = ns.GUI.Helpers.GUIRuntimeHelpers
 
-function BuilderUI.ResetFlowContainer(container)
+function GUIRuntimeHelpers.ResetFlowContainer(container)
     container:ReleaseChildren()
     container:SetLayout("Flow")
 end
 
-function BuilderUI.GetAddonVersionText()
+function GUIRuntimeHelpers.GetAddonVersionText()
     local tried = {}
     local addonKeys = {
         addonName,

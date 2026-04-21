@@ -136,6 +136,101 @@ ns.GUI.Layouts.FormElements = {
                 },
             },
         },
+        toolbar_tools_panel = {
+            border = {
+                color = { 0.32, 0.37, 0.46, 0.78 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.08, 0.11, 0.16, 0.78 },
+                topShade = { 1.00, 1.00, 1.00, 0.05 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
+                accent = {
+                    color = { 0.50, 0.67, 0.92, 0.34 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 8,
+                    insetRight = 8,
+                },
+            },
+        },
+        toolbar_workspace_panel = {
+            border = {
+                color = { 0.44, 0.41, 0.28, 0.80 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.12, 0.12, 0.10, 0.72 },
+                topShade = { 1.00, 1.00, 1.00, 0.04 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
+                accent = {
+                    color = { 0.88, 0.76, 0.33, 0.34 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 8,
+                    insetRight = 8,
+                },
+            },
+        },
+        toolbar_editing_panel = {
+            border = {
+                color = { 0.37, 0.44, 0.33, 0.78 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.09, 0.13, 0.10, 0.74 },
+                topShade = { 1.00, 1.00, 1.00, 0.04 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
+                accent = {
+                    color = { 0.52, 0.79, 0.60, 0.28 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 8,
+                    insetRight = 8,
+                },
+            },
+        },
+        toolbar_presets_panel = {
+            border = {
+                color = { 0.43, 0.36, 0.30, 0.78 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.12, 0.10, 0.11, 0.72 },
+                topShade = { 1.00, 1.00, 1.00, 0.04 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
+                accent = {
+                    color = { 0.83, 0.68, 0.49, 0.30 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 8,
+                    insetRight = 8,
+                },
+            },
+        },
+        toolbar_global_panel = {
+            border = {
+                color = { 0.34, 0.39, 0.43, 0.78 },
+                thickness = 1,
+                inset = 0,
+            },
+            surface = {
+                fill = { 0.10, 0.11, 0.13, 0.75 },
+                topShade = { 1.00, 1.00, 1.00, 0.04 },
+                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
+                accent = {
+                    color = { 0.66, 0.72, 0.82, 0.24 },
+                    edge = "top",
+                    thickness = 1,
+                    insetLeft = 8,
+                    insetRight = 8,
+                },
+            },
+        },
         workspace_split = {
             border = false,
             surface = {
@@ -179,6 +274,36 @@ ns.GUI.Layouts.FormElements = {
             pushed = { 0.27, 0.04, 0.04, 0.98 },
             highlight = { 0.56, 0.10, 0.10, 0.98 },
             disabled = { 0.17, 0.08, 0.08, 0.82 },
+        },
+        toolbar_primary = {
+            sidebarVariant = "active",
+            height = 25,
+            textRole = "label",
+            textColor = { 0.97, 0.93, 0.84, 1.00 },
+            normal = { 0.38, 0.30, 0.14, 0.98 },
+            pushed = { 0.28, 0.22, 0.11, 0.98 },
+            highlight = { 0.52, 0.42, 0.20, 0.98 },
+            disabled = { 0.18, 0.15, 0.10, 0.86 },
+        },
+        toolbar_secondary = {
+            sidebarVariant = "secondary",
+            height = 24,
+            textRole = "label",
+            textColor = { 0.89, 0.92, 0.95, 1.00 },
+            normal = { 0.12, 0.16, 0.22, 0.98 },
+            pushed = { 0.09, 0.12, 0.17, 0.98 },
+            highlight = { 0.18, 0.24, 0.32, 0.98 },
+            disabled = { 0.09, 0.11, 0.14, 0.84 },
+        },
+        toolbar_danger = {
+            sidebarVariant = "danger",
+            height = 24,
+            textRole = "danger",
+            textColor = { 0.94, 0.86, 0.86, 1.00 },
+            normal = { 0.35, 0.11, 0.12, 0.98 },
+            pushed = { 0.25, 0.08, 0.09, 0.98 },
+            highlight = { 0.46, 0.15, 0.16, 0.98 },
+            disabled = { 0.16, 0.09, 0.10, 0.84 },
         },
     },
     FieldStyles = {
@@ -670,6 +795,15 @@ ns.GUI.Layouts.FormElements = {
             },
             danger_action = {
                 buttonVariant = "danger",
+            },
+            toolbar_primary_action = {
+                buttonVariant = "toolbar_primary",
+            },
+            toolbar_secondary_action = {
+                buttonVariant = "toolbar_secondary",
+            },
+            toolbar_danger_action = {
+                buttonVariant = "toolbar_danger",
             },
         },
         dropdown = {

@@ -7,11 +7,11 @@ local AceGUI = LibStub("AceGUI-3.0")
 local C = ns.Constants
 local L = ns.L
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
-local FormLayoutRuntime = ns.GUI.Helpers and ns.GUI.Helpers.FormLayoutRuntime
-local ProfileFormLayout = ns.GUI.Layouts and ns.GUI.Layouts.Profile and ns.GUI.Layouts.Profile.Form
+local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
+local ProfilesDefinition = ns.GUI.Layouts and ns.GUI.Layouts.Profile and ns.GUI.Layouts.Profile.Form
 
-local ProfilesPage = {}
-ns.GUI.Pages.Profiles = ProfilesPage
+local ProfilesController = {}
+ns.GUI.Pages.Profiles = ProfilesController
 
 local fallbackRootState = {}
 local windowContext
@@ -20,6 +20,7 @@ local CreateBodyText = FormWidgets.CreateBodyText
 local StyleDropdown = FormWidgets.StyleDropdown
 local StyleEditBox = FormWidgets.StyleEditBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
+local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseButton
 local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
@@ -300,7 +301,7 @@ local function RefreshWindowState()
 end
 
 local function CreateWindowContent(window, state)
-    local groups, widgets = FormLayoutRuntime.BuildLayout(window, ProfileFormLayout, {
+    local groups, widgets = FormRenderer.BuildLayout(window, ProfilesDefinition, {
         state = state,
         createItemWidget = CreateItemWidget,
     })
@@ -494,6 +495,9 @@ local function CreateWindow(state)
     end
 
     ApplyWindowChrome(window)
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
     CenterWindow(window)
 
     local context = CreateWindowContent(window, state)
@@ -509,7 +513,7 @@ local function CreateWindow(state)
     return context
 end
 
-function ProfilesPage.OpenWindow(deps)
+function ProfilesController.OpenWindow(deps)
     local state = GetProfilesState(deps)
 
     if not windowContext or not windowContext.window or not windowContext.window.frame then
@@ -522,7 +526,7 @@ function ProfilesPage.OpenWindow(deps)
     FocusWindow(windowContext.window)
 end
 
-function ProfilesPage.HideWindow()
+function ProfilesController.HideWindow()
     if not windowContext or not windowContext.window then
         return
     end
@@ -534,4 +538,4 @@ function ProfilesPage.HideWindow()
     end
 end
 
-return ProfilesPage
+return ProfilesController

@@ -6,11 +6,11 @@ ns.GUI.Pages = ns.GUI.Pages or {}
 local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
-local FormLayoutRuntime = ns.GUI.Helpers and ns.GUI.Helpers.FormLayoutRuntime
-local TagDatabaseFormLayout = ns.GUI.Layouts and ns.GUI.Layouts.TagDatabase and ns.GUI.Layouts.TagDatabase.Form
+local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
+local TagDatabaseDefinition = ns.GUI.Layouts and ns.GUI.Layouts.TagDatabase and ns.GUI.Layouts.TagDatabase.Form
 
-local TagDatabasePage = {}
-ns.GUI.Pages.TagDatabase = TagDatabasePage
+local TagDatabaseController = {}
+ns.GUI.Pages.TagDatabase = TagDatabaseController
 
 local CATEGORY_ORDER = {
     "INFO_TAG_CATEGORY_FORMAT",
@@ -28,6 +28,7 @@ local CreateBodyText = FormWidgets.CreateBodyText
 local StyleDropdown = FormWidgets.StyleDropdown
 local StyleEditBox = FormWidgets.StyleEditBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
+local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseButton
 local CreateActionButton = FormWidgets.CreateActionButton
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
@@ -166,6 +167,9 @@ local function EnsureCopyDialog()
     end
 
     ApplyWindowChrome(window)
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
     CenterWindow(window)
 
     local intro = CreateBodyText(
@@ -342,7 +346,7 @@ local function RefreshWindowState()
 end
 
 local function CreateWindowContent(window, state)
-    local groups, widgets = FormLayoutRuntime.BuildLayout(window, TagDatabaseFormLayout, {
+    local groups, widgets = FormRenderer.BuildLayout(window, TagDatabaseDefinition, {
         createItemWidget = CreateItemWidget,
     })
     local root = groups.Root
@@ -402,6 +406,9 @@ local function CreateWindow(state)
     end
 
     ApplyWindowChrome(window)
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
     CenterWindow(window)
 
     local context = CreateWindowContent(window, state)
@@ -417,7 +424,7 @@ local function CreateWindow(state)
     return context
 end
 
-function TagDatabasePage.OpenWindow(deps)
+function TagDatabaseController.OpenWindow(deps)
     local state = GetTagDatabaseState(deps)
     local _, grouped, defaultCategory = CollectTagDatabase()
 
@@ -436,7 +443,7 @@ function TagDatabasePage.OpenWindow(deps)
     FocusWindow(windowContext.window)
 end
 
-function TagDatabasePage.HideWindow()
+function TagDatabaseController.HideWindow()
     if not windowContext or not windowContext.window then
         return
     end
@@ -448,4 +455,4 @@ function TagDatabasePage.HideWindow()
     end
 end
 
-return TagDatabasePage
+return TagDatabaseController

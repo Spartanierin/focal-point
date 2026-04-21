@@ -29,8 +29,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 8,
+                bottom = 8,
             },
             widthInfo = {
                 source = "parent",
@@ -79,13 +79,13 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
-            surfaceStyle = "status_panel",
-            spacing = 5,
+            surfaceStyle = "toolbar_tools_panel",
+            spacing = 6,
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 8,
+                bottom = 8,
             },
             widthInfo = {
                 source = "parent",
@@ -99,11 +99,11 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
         items = {
             { id = "toolsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_TOOLS" },
-            { id = "editorButton", widget = "button", itemVariant = "secondary_action", textKey = "NAV_EDITOR" },
-            { id = "profilesButton", widget = "button", itemVariant = "secondary_action", textKey = "NAV_PROFILES" },
-            { id = "textBuilderButton", widget = "button", itemVariant = "secondary_action", textKey = "NAV_TEXT_BUILDER" },
-            { id = "tagDatabaseButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
-            { id = "closeButton", widget = "button", itemVariant = "danger_action", textKey = "CLOSE" },
+            { id = "editorButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_EDITOR" },
+            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_PROFILES" },
+            { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
+            { id = "tagDatabaseButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
+            { id = "closeButton", widget = "button", itemVariant = "toolbar_danger_action", textKey = "CLOSE" },
         },
     },
     {
@@ -113,13 +113,13 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
-            surfaceStyle = "result_panel",
-            spacing = 5,
+            surfaceStyle = "toolbar_workspace_panel",
+            spacing = 6,
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 8,
+                bottom = 8,
             },
             widthInfo = {
                 source = "parent",
@@ -217,8 +217,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "playerButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_PLAYER" },
-            { id = "targetButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_TARGET" },
+            { id = "playerButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_PLAYER" },
+            { id = "targetButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_TARGET" },
         },
     },
     {
@@ -240,8 +240,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "targetTargetButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_TARGETTARGET" },
-            { id = "petButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_PET" },
+            { id = "targetTargetButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_TARGETTARGET" },
+            { id = "petButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_PET" },
         },
     },
     {
@@ -263,8 +263,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "focusButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_FOCUS" },
-            { id = "focusTargetButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_FOCUSTARGET" },
+            { id = "focusButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_FOCUS" },
+            { id = "focusTargetButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_FOCUSTARGET" },
         },
     },
     {
@@ -286,7 +286,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "bossButton", widget = "button", itemVariant = "secondary_action", textKey = "UNIT_BOSS" },
+            { id = "bossButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_BOSS" },
             { id = "bossSpacer", widget = "label", itemVariant = "footer_hint_muted", text = "" },
         },
     },
@@ -357,13 +357,13 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
-            surfaceStyle = "result_panel",
-            spacing = 5,
+            surfaceStyle = "toolbar_editing_panel",
+            spacing = 6,
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 8,
+                bottom = 8,
             },
             widthInfo = {
                 source = "parent",
@@ -377,8 +377,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
         items = {
             { id = "editingTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_PREVIEW" },
-            { id = "demoButton", widget = "button", itemVariant = "primary_action", textKey = "EDITOR_TEST_MODE" },
-            { id = "unlockButton", widget = "button", itemVariant = "primary_action", textKey = "EDITOR_UNLOCK_FRAMES" },
+            { id = "demoButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_TEST_MODE" },
+            { id = "unlockButton", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_UNLOCK_FRAMES" },
             { id = "editingHint", widget = "label", itemVariant = "group_description", textKey = "EDITOR_PREVIEW_HINT", size = 11 },
         },
     },
@@ -389,8 +389,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
-            surfaceStyle = "section_panel",
-            spacing = 5,
+            surfaceStyle = "toolbar_presets_panel",
+            spacing = 4,
             padding = {
                 left = 8,
                 right = 8,
@@ -403,19 +403,17 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 188,
+                min = 152,
                 derivedFrom = "title + intro + dropdown + status + 3 actions + restore hint",
             },
         },
         items = {
             { id = "presetsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_PRESET" },
-            { id = "presetsIntro", widget = "label", itemVariant = "group_description", textKey = "EDITOR_PRESET_INTRO", size = 11 },
             { id = "presetDropdown", widget = "dropdown", itemVariant = "profile_field", labelKey = "EDITOR_PRESET_START" },
             { id = "presetThemeInfo", widget = "label", itemVariant = "footer_hint_muted", text = "", size = 9 },
-            { id = "applyPreset", widget = "button", itemVariant = "primary_action", textKey = "EDITOR_PRESET_APPLY" },
-            { id = "saveCustom", widget = "button", itemVariant = "secondary_action", textKey = "EDITOR_PRESET_SAVE_CUSTOM" },
-            { id = "restoreCustom", widget = "button", itemVariant = "secondary_action", textKey = "EDITOR_PRESET_RESTORE_CUSTOM" },
-            { id = "restoreHint", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_PRESET_RESTORE_HINT", size = 9 },
+            { id = "applyPreset", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_PRESET_APPLY" },
+            { id = "saveCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_SAVE_CUSTOM" },
+            { id = "restoreCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_RESTORE_CUSTOM" },
         },
     },
     {
@@ -425,13 +423,13 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
-            surfaceStyle = "status_panel",
-            spacing = 5,
+            surfaceStyle = "toolbar_global_panel",
+            spacing = 6,
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 8,
+                bottom = 8,
             },
             widthInfo = {
                 source = "parent",

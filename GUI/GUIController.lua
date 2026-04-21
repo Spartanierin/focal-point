@@ -1,7 +1,7 @@
 local addonName, ns = ...
 
-ns.GUIBuilders = ns.GUIBuilders or {}
-local B = ns.GUIBuilders
+ns.GUIController = ns.GUIController or {}
+local B = ns.GUIController
 
 -- This file acts as the GUI orchestrator.
 -- It does not build detailed widget trees itself anymore; instead it routes to
@@ -12,13 +12,13 @@ local KM = ns.KeyMap
 local L = ns.L
 local LayoutHelpers = ns.GUI.Helpers.LayoutHelpers
 local GUIState = ns.GUI.Helpers.GUIState
-local PageDeps = ns.GUI.Helpers.PageDeps
+local PageDependencyFactory = ns.GUI.Helpers.PageDependencyFactory
 
 local GetGUIState = GUIState.GetState
-local CreateProfilesDeps = PageDeps.CreateProfilesDeps
-local CreateTagDatabaseDeps = PageDeps.CreateTagDatabaseDeps
-local CreateTextBuilderDeps = PageDeps.CreateTextBuilderDeps
-local CreateEditorDeps = PageDeps.CreateEditorDeps
+local CreateProfilesDeps = PageDependencyFactory.CreateProfilesDeps
+local CreateTagDatabaseDeps = PageDependencyFactory.CreateTagDatabaseDeps
+local CreateTextBuilderDeps = PageDependencyFactory.CreateTextBuilderDeps
+local CreateEditorDeps = PageDependencyFactory.CreateEditorDeps
 
 local BuildScrollableTabContent = LayoutHelpers.BuildScrollableTabContent
 
@@ -64,14 +64,34 @@ function B.OpenTextBuilderWindow()
 end
 
 function B.BuildEditorPage(container)
-    local page = ns.GUI.Pages and ns.GUI.Pages.Editor
-    if not page or not page.Build then
+    local deps = CreateEditorDeps({
+        GetEditorState = ns.GUI.Editor and ns.GUI.Editor.State and ns.GUI.Editor.State.Get,
+        BuildScrollableTabContent = BuildScrollableTabContent,
+    })
+    if not deps then
         B.BuildPlaceholderPage(container, ns.GetLabel(KM.Nav, C.Nav.EDITOR))
         return
     end
 
-    page.Build(container, CreateEditorDeps({
-        GetEditorState = ns.GUI.Editor and ns.GUI.Editor.State and ns.GUI.Editor.State.Get,
-        BuildScrollableTabContent = BuildScrollableTabContent,
-    }))
+    local controller = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Controller
+    if controller and controller.ReleaseInspector then
+        controller.ReleaseInspector()
+    end
+
+    deps.ResetFlowContainer(container)
+    container._focalPointEditorWorkspaceRole = "editor_workspace"
+
+    if ns and ns.guiEditorWorkspaceHost then
+        ns.guiEditorWorkspaceHost._focalPointEditorRole = "editor_workspace"
+    end
+
+    if controller and controller.BuildInspector then
+        if container and container.ReleaseChildren then
+            container:ReleaseChildren()
+        end
+        controller.BuildInspector(nil, deps)
+        return
+    end
+
+    B.BuildPlaceholderPage(container, ns.GetLabel(KM.Nav, C.Nav.EDITOR))
 end

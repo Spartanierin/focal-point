@@ -1,13 +1,15 @@
-﻿local _, ns = ...
+local _, ns = ...
 
 ns.GUI = ns.GUI or {}
 ns.GUI.Editor = ns.GUI.Editor or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
-local InspectorSidebar = {}
-ns.GUI.Editor.InspectorSidebar = InspectorSidebar
+local InspectorController = {}
+ns.GUI.Editor.Inspector = InspectorController
 
 local L = ns.L or {}
+local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
+local ResolveItemColor = FormWidgets.ResolveItemColor
 local Shared = ns.GUI.Editor.SidebarShared or {}
 
 local POINTS = Shared.POINTS or {}
@@ -26,7 +28,7 @@ local BuildAuraList = Shared.BuildAuraList
 local GetFirstAuraKey = Shared.GetFirstAuraKey
 local GetFirstTextId = Shared.GetFirstTextId
 
-function InspectorSidebar.Build(container, state, options)
+function InspectorController.Build(container, state, options)
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -143,6 +145,8 @@ function InspectorSidebar.Build(container, state, options)
 
     local summarySection = CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" })
     if summarySection then
+        local summaryTextColor = ResolveItemColor and ResolveItemColor("statusMuted") or { 0.66, 0.70, 0.75, 1 }
+        local hintTextColor = ResolveItemColor and ResolveItemColor("description") or { 0.60, 0.64, 0.69, 1 }
         local inspectorSummary = AceGUI:Create("Label")
         inspectorSummary:SetFullWidth(true)
         inspectorSummary:SetText(string.format(
@@ -154,7 +158,12 @@ function InspectorSidebar.Build(container, state, options)
         ))
         if inspectorSummary.label and inspectorSummary.label.SetFont then
             inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-            inspectorSummary.label:SetTextColor(0.66, 0.70, 0.75, 1)
+            inspectorSummary.label:SetTextColor(
+                summaryTextColor[1] or 0.66,
+                summaryTextColor[2] or 0.70,
+                summaryTextColor[3] or 0.75,
+                summaryTextColor[4] or 1
+            )
             inspectorSummary.label:SetShadowOffset(1, -1)
             inspectorSummary.label:SetShadowColor(0, 0, 0, 0.7)
         end
@@ -165,7 +174,12 @@ function InspectorSidebar.Build(container, state, options)
         inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
         if inspectorHint.label and inspectorHint.label.SetFont then
             inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-            inspectorHint.label:SetTextColor(0.60, 0.64, 0.69, 1)
+            inspectorHint.label:SetTextColor(
+                hintTextColor[1] or 0.60,
+                hintTextColor[2] or 0.64,
+                hintTextColor[3] or 0.69,
+                hintTextColor[4] or 1
+            )
         end
         summarySection:AddChild(inspectorHint)
     end
@@ -958,4 +972,5 @@ function InspectorSidebar.Build(container, state, options)
 
 end
 
-return InspectorSidebar
+return InspectorController
+

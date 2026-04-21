@@ -294,6 +294,12 @@ local function EnsureEditorToolbarLayer(addon)
     layer._focalPointEditorRole = "editor_toolbar_layer"
 
     EnsureSidebarSurface(layer, "_editorSidebar")
+    if layer._editorSidebar and layer._editorSidebar.SetColorTexture then
+        layer._editorSidebar:SetColorTexture(0, 0, 0, 0)
+    end
+    if layer._editorSidebarBorder and layer._editorSidebarBorder.SetColorTexture then
+        layer._editorSidebarBorder:SetColorTexture(0, 0, 0, 0)
+    end
 
     addon.guiEditorToolbarLayer = layer
     return layer

@@ -201,17 +201,18 @@ local function ShowEditorWelcomeTip()
     end
 
     local FormWidgets = FocalPoint.GUI and FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormWidgets
+    local FormSectionSurfaceRenderer = FocalPoint.GUI and FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormSectionSurfaceRenderer
     local headingText = (L and L["EDITOR_WELCOME_HEADING"]) or "Welcome to Focal Point"
     local introText = (L and L["EDITOR_WELCOME_INTRO"]) or "Focal Point works as an editor for your unit frames."
     local stepsTitleText = (L and L["EDITOR_WELCOME_STEPS_TITLE"]) or "How to start:"
     local stepsText = (L and L["EDITOR_WELCOME_STEPS"]) or "1. Click Unlock Frames on the left\n2. Pick a tool on the left like Profiles, Text Builder, or Tag Database\n3. Edit the currently selected unit on the right"
     local noteText = (L and L["EDITOR_WELCOME_NOTE"]) or "Unlock Frames makes unit frames visible and movable."
 
-    local tipWindow = AceGUI:Create("Frame")
+    local tipWindow = AceGUI:Create("Window")
     tipWindow:SetTitle((L and L["EDITOR_WELCOME_TITLE"]) or "Quick Start")
     tipWindow:SetLayout("List")
-    tipWindow:SetWidth(560)
-    tipWindow:SetHeight(440)
+    tipWindow:SetWidth(600)
+    tipWindow:SetHeight(470)
     tipWindow:EnableResize(false)
     tipWindow:SetStatusText("")
 
@@ -226,74 +227,93 @@ local function ShowEditorWelcomeTip()
     ArrangeFrameFooter(tipWindow, nil)
     HideWindowCloseButton(tipWindow)
 
+    if tipWindow.frame then
+        local chromePalette = FocalPoint.GUI
+            and FocalPoint.GUI.Layouts
+            and FocalPoint.GUI.Layouts.FormElements
+            and FocalPoint.GUI.Layouts.FormElements.Palette
+            and FocalPoint.GUI.Layouts.FormElements.Palette.Chrome
+        local welcomeAccent = chromePalette and (chromePalette.headerAccent or chromePalette.accent)
+        if not tipWindow.frame._fpWelcomeModalAccent then
+            tipWindow.frame._fpWelcomeModalAccent = tipWindow.frame:CreateTexture(nil, "BORDER")
+            tipWindow.frame._fpWelcomeModalAccent:SetPoint("TOPLEFT", tipWindow.frame, "TOPLEFT", 14, -32)
+            tipWindow.frame._fpWelcomeModalAccent:SetPoint("TOPRIGHT", tipWindow.frame, "TOPRIGHT", -14, -32)
+            tipWindow.frame._fpWelcomeModalAccent:SetHeight(2)
+        end
+        if welcomeAccent then
+            tipWindow.frame._fpWelcomeModalAccent:SetColorTexture(unpack(welcomeAccent))
+            tipWindow.frame._fpWelcomeModalAccent:Show()
+        end
+    end
+
     local content = AceGUI:Create("SimpleGroup")
     content:SetFullWidth(true)
     content:SetFullHeight(true)
     content:SetLayout("List")
-    if FormWidgets and FormWidgets.ApplySectionPadding then
-        FormWidgets.ApplySectionPadding(content, {
-            left = 22,
-            right = 22,
-            top = 20,
-            bottom = 20,
+    if FormSectionSurfaceRenderer and FormSectionSurfaceRenderer.ApplySectionPadding then
+        FormSectionSurfaceRenderer.ApplySectionPadding(content, {
+            left = 26,
+            right = 26,
+            top = 24,
+            bottom = 24,
         })
     end
     tipWindow:AddChild(content)
 
     local heading
     if FormWidgets and FormWidgets.CreateBodyText then
-        heading = FormWidgets.CreateBodyText(headingText, "sectionHeader", 18, nil, nil, true)
+        heading = FormWidgets.CreateBodyText(headingText, "sectionHeader", 20, nil, nil, true)
     else
         heading = AceGUI:Create("Label")
         heading:SetFullWidth(true)
         heading:SetText(headingText)
     end
     content:AddChild(heading)
-    content:AddChild(CreateWelcomeSpacer(16))
+    content:AddChild(CreateWelcomeSpacer(14))
 
     local intro
     if FormWidgets and FormWidgets.CreateBodyText then
-        intro = FormWidgets.CreateBodyText(introText, "description", 15, nil, nil, true)
+        intro = FormWidgets.CreateBodyText(introText, "description", 14, nil, nil, true)
     else
         intro = AceGUI:Create("Label")
         intro:SetFullWidth(true)
         intro:SetText(introText)
     end
     content:AddChild(intro)
-    content:AddChild(CreateWelcomeSpacer(24))
+    content:AddChild(CreateWelcomeSpacer(20))
 
     local stepsTitle
     if FormWidgets and FormWidgets.CreateBodyText then
-        stepsTitle = FormWidgets.CreateBodyText(stepsTitleText, "sectionHeader", 14, nil, nil, true)
+        stepsTitle = FormWidgets.CreateBodyText(stepsTitleText, "sectionHeader", 15, nil, nil, true)
     else
         stepsTitle = AceGUI:Create("Label")
         stepsTitle:SetFullWidth(true)
         stepsTitle:SetText(stepsTitleText)
     end
     content:AddChild(stepsTitle)
-    content:AddChild(CreateWelcomeSpacer(12))
+    content:AddChild(CreateWelcomeSpacer(10))
 
     local steps
     if FormWidgets and FormWidgets.CreateBodyText then
-        steps = FormWidgets.CreateBodyText(stepsText, "description", 14, nil, nil, true)
+        steps = FormWidgets.CreateBodyText(stepsText, "description", 13, nil, nil, true)
     else
         steps = AceGUI:Create("Label")
         steps:SetFullWidth(true)
         steps:SetText(stepsText)
     end
     content:AddChild(steps)
-    content:AddChild(CreateWelcomeSpacer(22))
+    content:AddChild(CreateWelcomeSpacer(20))
 
     local note
     if FormWidgets and FormWidgets.CreateBodyText then
-        note = FormWidgets.CreateBodyText(noteText, "description", 13, nil, nil, true)
+        note = FormWidgets.CreateBodyText(noteText, "description", 12, nil, nil, true)
     else
         note = AceGUI:Create("Label")
         note:SetFullWidth(true)
         note:SetText(noteText)
     end
     content:AddChild(note)
-    content:AddChild(CreateWelcomeSpacer(24))
+    content:AddChild(CreateWelcomeSpacer(20))
 
     local hideCheckbox = AceGUI:Create("CheckBox")
     hideCheckbox:SetFullWidth(true)
@@ -303,7 +323,7 @@ local function ShowEditorWelcomeTip()
         FormWidgets.StyleCheckBox(hideCheckbox, false)
     end
     content:AddChild(hideCheckbox)
-    content:AddChild(CreateWelcomeSpacer(18))
+    content:AddChild(CreateWelcomeSpacer(16))
 
     local confirmButton
     if FormWidgets and FormWidgets.CreateActionButton then
@@ -330,7 +350,7 @@ local C = FocalPoint.Constants
 
 local function RenderPage(container, path)
     local OptionRefresh = FocalPoint.GUI.Helpers.OptionRefresh
-    local EditorPage = FocalPoint.GUI and FocalPoint.GUI.Pages and FocalPoint.GUI.Pages.Editor
+    local EditorController = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Controller
     local AppShell = FocalPoint.GUI and FocalPoint.GUI.AppShell
     local shellMode = (AppShell and AppShell.ResolveShellMode and AppShell.ResolveShellMode(FocalPoint, path)) or "tool"
 
@@ -356,24 +376,24 @@ local function RenderPage(container, path)
         OptionRefresh.ClearStateWidgets()
     end
 
-    if shellMode ~= "editor" and EditorPage and EditorPage.Release then
-        EditorPage.Release()
+    if shellMode ~= "editor" and EditorController and EditorController.ReleaseInspector then
+        EditorController.ReleaseInspector()
     end
 
     if path == C.Nav.EDITOR then
         RenderInShellMode("editor", function(content)
-            FocalPoint.GUIBuilders.BuildEditorPage(content)
+            FocalPoint.GUIController.BuildEditorPage(content)
         end)
         return
     end
 
     RenderInShellMode(shellMode, function(content)
-        FocalPoint.GUIBuilders.BuildPlaceholderPage(content, path or "Unknown")
+        FocalPoint.GUIController.BuildPlaceholderPage(content, path or "Unknown")
     end)
 end
 
     local function BuildAppSidebar(container)
-        local ToolbarDraft = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ToolbarDraft
+local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Toolbar
         local EditorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
         local AppShell = FocalPoint.GUI and FocalPoint.GUI.AppShell
         if not EditorState or not EditorState.Get then
@@ -382,22 +402,22 @@ end
 
     local function HandleSidebarNavigate(path)
         if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.PROFILES) then
-            if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenProfilesWindow then
-                FocalPoint.GUIBuilders.OpenProfilesWindow()
+            if FocalPoint.GUIController and FocalPoint.GUIController.OpenProfilesWindow then
+                FocalPoint.GUIController.OpenProfilesWindow()
             end
             return
         end
 
         if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TAG_DATABASE) then
-            if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTagDatabaseWindow then
-                FocalPoint.GUIBuilders.OpenTagDatabaseWindow()
+            if FocalPoint.GUIController and FocalPoint.GUIController.OpenTagDatabaseWindow then
+                FocalPoint.GUIController.OpenTagDatabaseWindow()
             end
             return
         end
 
         if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TEXT_BUILDER) then
-            if FocalPoint.GUIBuilders and FocalPoint.GUIBuilders.OpenTextBuilderWindow then
-                FocalPoint.GUIBuilders.OpenTextBuilderWindow()
+            if FocalPoint.GUIController and FocalPoint.GUIController.OpenTextBuilderWindow then
+                FocalPoint.GUIController.OpenTextBuilderWindow()
             end
             return
         end
@@ -425,8 +445,8 @@ end
         targetContainer._focalPointSidebarLayout = nil
         targetContainer:ReleaseChildren()
     end
-    if ToolbarDraft and ToolbarDraft.Open then
-        ToolbarDraft.Open(EditorState.Get(), {
+    if Toolbar and Toolbar.Open then
+        Toolbar.Open(EditorState.Get(), {
             currentPath = selectedPath,
             onNavigate = HandleSidebarNavigate,
             onUnitChanged = function(unitKey)
@@ -756,9 +776,9 @@ function FocalPoint:CloseConfig()
         textBuilderPage.HideWindow()
     end
 
-    local toolbarDraft = self.GUI and self.GUI.Editor and self.GUI.Editor.ToolbarDraft
-    if toolbarDraft and toolbarDraft.Hide then
-        toolbarDraft.Hide()
+    local toolbar = self.GUI and self.GUI.Editor and self.GUI.Editor.Toolbar
+    if toolbar and toolbar.Hide then
+        toolbar.Hide()
     end
 
     HideEditorWelcomeTip()
