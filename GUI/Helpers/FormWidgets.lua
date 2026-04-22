@@ -46,6 +46,25 @@ local function SetTextureColor(texture, color)
     end
 end
 
+local FP_MODAL_BUTTON_VISUALS = {
+    primary_action = {
+        height = 24,
+        disabledText = { 0.46, 0.38, 0.28, 1.00 },
+    },
+    secondary = {
+        height = 22,
+        disabledText = { 0.50, 0.55, 0.60, 1.00 },
+    },
+    utility = {
+        height = 22,
+        disabledText = { 0.49, 0.55, 0.61, 1.00 },
+    },
+    danger = {
+        height = 22,
+        disabledText = { 0.62, 0.47, 0.48, 1.00 },
+    },
+}
+
 local function HideDefaultWindowChrome(frame)
     if not frame or frame._fpDefaultChromeHidden then
         return
@@ -77,6 +96,35 @@ end
 
 function FormWidgets.ResolveButtonStyle(variant)
     return GetButtonStyles()[variant or "primary"] or {}
+end
+
+local function ResolveButtonVariantFromRole(variant)
+    local role = variant or "primary"
+    local roles = ns.GUI and ns.GUI.ButtonVisualRole or nil
+
+    local activeRole = (roles and roles.ACTIVE) or "active"
+    local secondaryRole = (roles and roles.SECONDARY) or "secondary"
+    local primaryActionRole = (roles and roles.PRIMARY_ACTION) or "primary_action"
+    local utilityRole = (roles and roles.UTILITY) or "utility"
+    local dangerRole = (roles and roles.DANGER) or "danger"
+
+    if role == primaryActionRole then
+        return "primary"
+    end
+    if role == utilityRole then
+        return "secondary"
+    end
+    if role == secondaryRole then
+        return "secondary"
+    end
+    if role == activeRole then
+        return "primary"
+    end
+    if role == dangerRole then
+        return "danger"
+    end
+
+    return role
 end
 
 function FormWidgets.ResolveFieldStyle(variant)
@@ -162,11 +210,8 @@ function FormWidgets.StyleActionButton(button, variant)
         return
     end
 
-    local style = FormWidgets.ResolveButtonStyle(variant)
-    local sidebarThemeHelpers = ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers
-    if sidebarThemeHelpers and sidebarThemeHelpers.StyleSidebarButton then
-        sidebarThemeHelpers.StyleSidebarButton(button, style.sidebarVariant or variant or "primary")
-    end
+    local resolvedVariant = ResolveButtonVariantFromRole(variant)
+    local style = FormWidgets.ResolveButtonStyle(resolvedVariant)
 
     button:SetHeight(style.height or 24)
 
@@ -188,6 +233,51 @@ function FormWidgets.StyleActionButton(button, variant)
     SetTextureColor(pushed, style.pushed or style.normal)
     SetTextureColor(highlight, style.highlight or style.normal)
     SetTextureColor(disabled, style.disabled or style.normal)
+end
+
+function FormWidgets.ApplyModalActionButtonVisual(button, role)
+    if not button or not button.frame then
+        return
+    end
+
+    local sidebarThemeHelpers = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
+    local ApplyFPButtonVisualCore = sidebarThemeHelpers.ApplyFPButtonVisualCore
+
+    local resolvedRole = ResolveButtonVariantFromRole(role)
+    if resolvedRole == "primary" then
+        resolvedRole = "primary_action"
+    elseif resolvedRole ~= "primary_action" and resolvedRole ~= "secondary" and resolvedRole ~= "utility" and resolvedRole ~= "danger" then
+        resolvedRole = "secondary"
+    end
+
+    button.__fpModalLastRole = resolvedRole
+    local style = FP_MODAL_BUTTON_VISUALS[resolvedRole] or FP_MODAL_BUTTON_VISUALS.secondary
+    if not ApplyFPButtonVisualCore then
+        return
+    end
+
+    local function ReapplyModalVisualOnHover(targetButton)
+        FormWidgets.ApplyModalActionButtonVisual(targetButton, targetButton.__fpModalLastRole or "secondary")
+    end
+
+    ApplyFPButtonVisualCore(button, style, {
+        layerKeys = {
+            bg = "__fpActionVisualBg",
+            border = "__fpActionVisualBorder",
+            accent = "__fpActionVisualAccent",
+        },
+        rolePreset = resolvedRole,
+        selected = (resolvedRole == "primary_action"),
+        preferSelectedWhenDisabled = false,
+        accentVisible = (resolvedRole == "primary_action"),
+        hover = {
+            enabled = true,
+            hookKey = "__fpModalHoverHooked",
+            stateKey = "__fpModalHovered",
+            pressedKey = "__fpModalPressed",
+            onReapply = ReapplyModalVisualOnHover,
+        },
+    })
 end
 
 local function ApplyInsetSurface(frame, style, prefix)

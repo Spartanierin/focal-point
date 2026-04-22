@@ -134,12 +134,23 @@ local function RefreshWindowState(context, deps)
     local nsRef = deps and deps.ns or {}
     local C = deps and deps.C or {}
     local KM = deps and deps.KM or {}
-    local StyleActionButton = deps and deps.StyleActionButton
-    local StyleSidebarButton = deps and deps.StyleSidebarButton
     local StyleCheckBox = deps and deps.StyleCheckBox
     local StyleDropdown = deps and deps.StyleDropdown
     local BuildThemeList = deps and deps.BuildThemeList
     local GetFirstThemeId = deps and deps.GetFirstThemeId
+    local sidebarThemeHelpers = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.EditorSidebarThemeHelpers or {}
+    local SIDEBAR_VISUAL_ROLE = (nsRef.GUI and nsRef.GUI.ButtonVisualRole)
+        or sidebarThemeHelpers.ButtonVisualRole
+        or sidebarThemeHelpers.SIDEBAR_VISUAL_ROLE
+        or {
+            ACTIVE = "active",
+            SECONDARY = "secondary",
+            PRIMARY_ACTION = "primary_action",
+            UTILITY = "utility",
+            QUIET_UTILITY = "quiet_utility",
+            DANGER = "danger",
+        }
+    local ApplySidebarButtonVisual = sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton
     local ThemeService = (deps and deps.ThemeService) or nsRef.ThemeService or {}
     local BuilderUI = (deps and deps.BuilderUI) or (nsRef.GUI and nsRef.GUI.Helpers and nsRef.GUI.Helpers.GUIRuntimeHelpers) or {}
     local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
@@ -199,25 +210,20 @@ local function RefreshWindowState(context, deps)
         local navPath = ResolveConstantPath(C, constantPath)
         local button = context.widgets[widgetId]
         if button then
+            local isActivePath = normalizedCurrent == navPath
             local label = nsRef.GetLabel and nsRef.GetLabel(KM.Nav, navPath) or navPath or ""
             button:SetText(label)
-            if StyleActionButton then
-                StyleActionButton(button, normalizedCurrent == navPath and "toolbar_primary" or "toolbar_secondary")
+            button:SetDisabled(isActivePath)
+            if ApplySidebarButtonVisual then
+                ApplySidebarButtonVisual(button, isActivePath and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
             end
-            if StyleSidebarButton then
-                StyleSidebarButton(button, normalizedCurrent == navPath and "active" or "secondary")
-            end
-            button:SetDisabled(normalizedCurrent == navPath)
         end
     end)
 
     if context.widgets.closeButton then
         context.widgets.closeButton:SetText(CLOSE or "Close")
-        if StyleActionButton then
-            StyleActionButton(context.widgets.closeButton, "toolbar_danger")
-        end
-        if StyleSidebarButton then
-            StyleSidebarButton(context.widgets.closeButton, "danger")
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.closeButton, SIDEBAR_VISUAL_ROLE.QUIET_UTILITY or SIDEBAR_VISUAL_ROLE.UTILITY)
         end
     end
 
@@ -226,8 +232,8 @@ local function RefreshWindowState(context, deps)
         local button = context.widgets[widgetId]
         if button then
             button:SetText(nsRef.GetLabel and nsRef.GetLabel(KM.Units, unitKey) or unitKey or "")
-            if StyleActionButton then
-                StyleActionButton(button, unitKey == state.selectedUnit and "toolbar_primary" or "toolbar_secondary")
+            if ApplySidebarButtonVisual then
+                ApplySidebarButtonVisual(button, unitKey == state.selectedUnit and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
             end
         end
     end)
@@ -242,10 +248,16 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.demoButton then
         context.widgets.demoButton:SetText((nsRef.guiTestModeEnabled and T("GUI_TEST_STOP", "Stop Test", deps)) or T("GUI_TEST_START", "Test", deps))
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.demoButton, SIDEBAR_VISUAL_ROLE.UTILITY)
+        end
     end
 
     if context.widgets.unlockButton then
         context.widgets.unlockButton:SetText((nsRef.framesUnlocked and T("GUI_UNLOCK_STOP", "Lock Frames", deps)) or T("GUI_UNLOCK_START", "Unlock Frames", deps))
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.unlockButton, SIDEBAR_VISUAL_ROLE.PRIMARY_ACTION)
+        end
     end
 
     if context.widgets.editingHint then
@@ -254,6 +266,10 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.presetsIntro then
         context.widgets.presetsIntro:SetText(T("EDITOR_PRESET_CONTEXT_HINT", nil, deps))
+    end
+
+    if context.widgets.returnToEditor and ApplySidebarButtonVisual then
+        ApplySidebarButtonVisual(context.widgets.returnToEditor, SIDEBAR_VISUAL_ROLE.UTILITY)
     end
 
     if context.widgets.presetDropdown then
@@ -281,16 +297,25 @@ local function RefreshWindowState(context, deps)
     if context.widgets.applyPreset then
         context.widgets.applyPreset:SetText(T("THEME_APPLY", T("INFO_GENERAL_THEME_APPLY", "Apply Preset", deps), deps))
         context.widgets.applyPreset:SetDisabled(not selectedThemeId)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.applyPreset, SIDEBAR_VISUAL_ROLE.PRIMARY_ACTION)
+        end
     end
 
     if context.widgets.saveCustom then
         context.widgets.saveCustom:SetText(T("EDITOR_PRESET_SAVE_CUSTOM", "Save Current Layout as My Layout", deps))
         context.widgets.saveCustom:SetDisabled(not ThemeService.CaptureDefaultSnapshot)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.saveCustom, SIDEBAR_VISUAL_ROLE.UTILITY)
+        end
     end
 
     if context.widgets.restoreCustom then
         context.widgets.restoreCustom:SetText(T("EDITOR_PRESET_RESTORE", "Restore Previous Layout", deps))
         context.widgets.restoreCustom:SetDisabled(not (ThemeService.HasRestoreSnapshot and ThemeService.HasRestoreSnapshot() and ThemeService.RestoreSnapshot))
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.restoreCustom, SIDEBAR_VISUAL_ROLE.UTILITY)
+        end
     end
 
     if context.widgets.restoreHint then

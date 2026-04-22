@@ -30,6 +30,7 @@ local StyleEditBox = FormWidgets.StyleEditBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
 local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseButton
 local CreateActionButton = FormWidgets.CreateActionButton
+local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
@@ -269,6 +270,12 @@ local function RefreshWindowState()
     if not windowContext then
         return
     end
+    local function ApplyTagDatabaseButtonVisuals()
+        if not ApplyModalActionButtonVisual or not windowContext.copySelectedTag then
+            return
+        end
+        ApplyModalActionButtonVisual(windowContext.copySelectedTag, "utility")
+    end
 
     local state = windowContext.state
     local tagDatabase, grouped, defaultCategory = CollectTagDatabase()
@@ -312,6 +319,7 @@ local function RefreshWindowState()
         if windowContext.copySelectedTag and windowContext.copySelectedTag.SetDisabled then
             windowContext.copySelectedTag:SetDisabled(true)
         end
+        ApplyTagDatabaseButtonVisuals()
         return
     end
 
@@ -333,6 +341,7 @@ local function RefreshWindowState()
         if windowContext.copySelectedTag and windowContext.copySelectedTag.SetDisabled then
             windowContext.copySelectedTag:SetDisabled(true)
         end
+        ApplyTagDatabaseButtonVisuals()
         return
     end
 
@@ -343,6 +352,7 @@ local function RefreshWindowState()
     if windowContext.copySelectedTag and windowContext.copySelectedTag.SetDisabled then
         windowContext.copySelectedTag:SetDisabled(windowContext.selectedTagText == "")
     end
+    ApplyTagDatabaseButtonVisuals()
 end
 
 local function CreateWindowContent(window, state)

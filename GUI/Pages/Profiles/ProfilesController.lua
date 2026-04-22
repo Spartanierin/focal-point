@@ -22,6 +22,7 @@ local StyleEditBox = FormWidgets.StyleEditBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
 local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseButton
 local CreateActionButton = FormWidgets.CreateActionButton
+local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
@@ -216,6 +217,17 @@ local function RefreshWindowState()
 
     local db = ns.db
     local state = context.state or {}
+    local function ApplyProfilesButtonVisuals()
+        if not ApplyModalActionButtonVisual then
+            return
+        end
+
+        ApplyModalActionButtonVisual(context.activateButton, "primary_action")
+        ApplyModalActionButtonVisual(context.copyButton, "utility")
+        ApplyModalActionButtonVisual(context.createButton, "utility")
+        ApplyModalActionButtonVisual(context.resetButton, "utility")
+        ApplyModalActionButtonVisual(context.deleteButton, "danger")
+    end
 
     if not db then
         context.activeProfileValue:SetText(T("INFO_COMMON_UNAVAILABLE"))
@@ -228,6 +240,7 @@ local function RefreshWindowState()
         context.createButton:SetDisabled(true)
         context.resetButton:SetDisabled(true)
         context.deleteButton:SetDisabled(true)
+        ApplyProfilesButtonVisuals()
         context.sourceState:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.createState:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.maintenanceHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
@@ -265,6 +278,7 @@ local function RefreshWindowState()
     context.deleteButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
     context.resetButton:SetDisabled(currentProfile == nil or currentProfile == "")
     context.createButton:SetDisabled(not hasNewProfileName or newProfileExists)
+    ApplyProfilesButtonVisuals()
 
     if hasSelectedProfile then
         context.sourceState:SetText(string.format(

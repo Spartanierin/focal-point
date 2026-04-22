@@ -207,6 +207,9 @@ local function ShowEditorWelcomeTip()
     local stepsTitleText = (L and L["EDITOR_WELCOME_STEPS_TITLE"]) or "How to start:"
     local stepsText = (L and L["EDITOR_WELCOME_STEPS"]) or "1. Click Unlock Frames on the left\n2. Pick a tool on the left like Profiles, Text Builder, or Tag Database\n3. Edit the currently selected unit on the right"
     local noteText = (L and L["EDITOR_WELCOME_NOTE"]) or "Unlock Frames makes unit frames visible and movable."
+    local WELCOME_GAP_COMPACT = 8
+    local WELCOME_GAP_REGULAR = 12
+    local WELCOME_GAP_SECTION = 16
 
     local tipWindow = AceGUI:Create("Window")
     tipWindow:SetTitle((L and L["EDITOR_WELCOME_TITLE"]) or "Quick Start")
@@ -254,66 +257,66 @@ local function ShowEditorWelcomeTip()
         FormSectionSurfaceRenderer.ApplySectionPadding(content, {
             left = 26,
             right = 26,
-            top = 24,
-            bottom = 24,
+            top = 26,
+            bottom = 22,
         })
     end
     tipWindow:AddChild(content)
 
     local heading
     if FormWidgets and FormWidgets.CreateBodyText then
-        heading = FormWidgets.CreateBodyText(headingText, "sectionHeader", 20, nil, nil, true)
+        heading = FormWidgets.CreateBodyText(headingText, "sectionHeader", 18, nil, nil, true)
     else
         heading = AceGUI:Create("Label")
         heading:SetFullWidth(true)
         heading:SetText(headingText)
     end
     content:AddChild(heading)
-    content:AddChild(CreateWelcomeSpacer(14))
+    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_REGULAR))
 
     local intro
     if FormWidgets and FormWidgets.CreateBodyText then
-        intro = FormWidgets.CreateBodyText(introText, "description", 14, nil, nil, true)
+        intro = FormWidgets.CreateBodyText(introText, "description", 13, nil, nil, true)
     else
         intro = AceGUI:Create("Label")
         intro:SetFullWidth(true)
         intro:SetText(introText)
     end
     content:AddChild(intro)
-    content:AddChild(CreateWelcomeSpacer(20))
+    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_SECTION))
 
     local stepsTitle
     if FormWidgets and FormWidgets.CreateBodyText then
-        stepsTitle = FormWidgets.CreateBodyText(stepsTitleText, "sectionHeader", 15, nil, nil, true)
+        stepsTitle = FormWidgets.CreateBodyText(stepsTitleText, "sectionHeader", 14, nil, nil, true)
     else
         stepsTitle = AceGUI:Create("Label")
         stepsTitle:SetFullWidth(true)
         stepsTitle:SetText(stepsTitleText)
     end
     content:AddChild(stepsTitle)
-    content:AddChild(CreateWelcomeSpacer(10))
+    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_COMPACT))
 
     local steps
     if FormWidgets and FormWidgets.CreateBodyText then
-        steps = FormWidgets.CreateBodyText(stepsText, "description", 13, nil, nil, true)
+        steps = FormWidgets.CreateBodyText(stepsText, "description", 12, nil, nil, true)
     else
         steps = AceGUI:Create("Label")
         steps:SetFullWidth(true)
         steps:SetText(stepsText)
     end
     content:AddChild(steps)
-    content:AddChild(CreateWelcomeSpacer(20))
+    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_SECTION))
 
     local note
     if FormWidgets and FormWidgets.CreateBodyText then
-        note = FormWidgets.CreateBodyText(noteText, "description", 12, nil, nil, true)
+        note = FormWidgets.CreateBodyText(noteText, "description", 11, nil, nil, true)
     else
         note = AceGUI:Create("Label")
         note:SetFullWidth(true)
         note:SetText(noteText)
     end
     content:AddChild(note)
-    content:AddChild(CreateWelcomeSpacer(20))
+    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_REGULAR))
 
     local hideCheckbox = AceGUI:Create("CheckBox")
     hideCheckbox:SetFullWidth(true)
@@ -323,11 +326,14 @@ local function ShowEditorWelcomeTip()
         FormWidgets.StyleCheckBox(hideCheckbox, false)
     end
     content:AddChild(hideCheckbox)
-    content:AddChild(CreateWelcomeSpacer(16))
+    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_REGULAR))
 
     local confirmButton
     if FormWidgets and FormWidgets.CreateActionButton then
         confirmButton = FormWidgets.CreateActionButton((L and L["EDITOR_WELCOME_CONFIRM"]) or "Got it", "primary_action", nil, true)
+        if FormWidgets.ApplyModalActionButtonVisual then
+            FormWidgets.ApplyModalActionButtonVisual(confirmButton, "primary_action")
+        end
     else
         confirmButton = AceGUI:Create("Button")
         confirmButton:SetText((L and L["EDITOR_WELCOME_CONFIRM"]) or "Got it")

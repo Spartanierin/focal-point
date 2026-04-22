@@ -92,7 +92,7 @@ function TextStyles.ApplyFontString(fontString, role, options)
     end
 
     if shadowEnabled and fontString.SetShadowColor then
-        fontString:SetShadowColor(0, 0, 0, 0.75)
+        fontString:SetShadowColor(0, 0, 0, 0.90)
     end
 end
 

@@ -138,16 +138,16 @@ ns.GUI.Layouts.FormElements = {
         },
         toolbar_tools_panel = {
             border = {
-                color = { 0.32, 0.37, 0.46, 0.78 },
+                color = { 0.33, 0.36, 0.40, 0.74 },
                 thickness = 1,
                 inset = 0,
             },
             surface = {
-                fill = { 0.08, 0.11, 0.16, 0.78 },
+                fill = { 0.09, 0.11, 0.14, 0.70 },
                 topShade = { 1.00, 1.00, 1.00, 0.05 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.30 },
                 accent = {
-                    color = { 0.50, 0.67, 0.92, 0.34 },
+                    color = { 0.66, 0.73, 0.82, 0.22 },
                     edge = "top",
                     thickness = 1,
                     insetLeft = 8,
@@ -157,16 +157,16 @@ ns.GUI.Layouts.FormElements = {
         },
         toolbar_workspace_panel = {
             border = {
-                color = { 0.44, 0.41, 0.28, 0.80 },
+                color = { 0.35, 0.37, 0.40, 0.74 },
                 thickness = 1,
                 inset = 0,
             },
             surface = {
-                fill = { 0.12, 0.12, 0.10, 0.72 },
+                fill = { 0.10, 0.11, 0.13, 0.69 },
                 topShade = { 1.00, 1.00, 1.00, 0.04 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.30 },
                 accent = {
-                    color = { 0.88, 0.76, 0.33, 0.34 },
+                    color = { 0.74, 0.72, 0.62, 0.22 },
                     edge = "top",
                     thickness = 1,
                     insetLeft = 8,
@@ -176,16 +176,16 @@ ns.GUI.Layouts.FormElements = {
         },
         toolbar_editing_panel = {
             border = {
-                color = { 0.37, 0.44, 0.33, 0.78 },
+                color = { 0.34, 0.37, 0.39, 0.74 },
                 thickness = 1,
                 inset = 0,
             },
             surface = {
-                fill = { 0.09, 0.13, 0.10, 0.74 },
+                fill = { 0.09, 0.11, 0.12, 0.70 },
                 topShade = { 1.00, 1.00, 1.00, 0.04 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.30 },
                 accent = {
-                    color = { 0.52, 0.79, 0.60, 0.28 },
+                    color = { 0.62, 0.71, 0.66, 0.20 },
                     edge = "top",
                     thickness = 1,
                     insetLeft = 8,
@@ -195,16 +195,16 @@ ns.GUI.Layouts.FormElements = {
         },
         toolbar_presets_panel = {
             border = {
-                color = { 0.43, 0.36, 0.30, 0.78 },
+                color = { 0.35, 0.36, 0.39, 0.74 },
                 thickness = 1,
                 inset = 0,
             },
             surface = {
-                fill = { 0.12, 0.10, 0.11, 0.72 },
+                fill = { 0.10, 0.10, 0.12, 0.69 },
                 topShade = { 1.00, 1.00, 1.00, 0.04 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.30 },
                 accent = {
-                    color = { 0.83, 0.68, 0.49, 0.30 },
+                    color = { 0.72, 0.68, 0.61, 0.20 },
                     edge = "top",
                     thickness = 1,
                     insetLeft = 8,
@@ -214,16 +214,16 @@ ns.GUI.Layouts.FormElements = {
         },
         toolbar_global_panel = {
             border = {
-                color = { 0.34, 0.39, 0.43, 0.78 },
+                color = { 0.34, 0.37, 0.40, 0.74 },
                 thickness = 1,
                 inset = 0,
             },
             surface = {
-                fill = { 0.10, 0.11, 0.13, 0.75 },
+                fill = { 0.10, 0.11, 0.13, 0.70 },
                 topShade = { 1.00, 1.00, 1.00, 0.04 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.30 },
                 accent = {
-                    color = { 0.66, 0.72, 0.82, 0.24 },
+                    color = { 0.64, 0.70, 0.78, 0.20 },
                     edge = "top",
                     thickness = 1,
                     insetLeft = 8,

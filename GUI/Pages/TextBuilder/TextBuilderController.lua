@@ -36,6 +36,7 @@ local StyleCheckBox = FormWidgets.StyleCheckBox
 local ApplyWindowChrome = FormWidgets.ApplyWindowChrome
 local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseButton
 local CreateActionButton = FormWidgets.CreateActionButton
+local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
 
 local function T(key, fallback)
@@ -559,6 +560,17 @@ local function RefreshWindowState()
     if not context then
         return
     end
+    local function ApplyTextBuilderButtonVisuals()
+        if not ApplyModalActionButtonVisual then
+            return
+        end
+
+        ApplyModalActionButtonVisual(context.updateButton, "utility")
+        ApplyModalActionButtonVisual(context.saveButton, "primary_action")
+        ApplyModalActionButtonVisual(context.updateTemplateButton, "utility")
+        ApplyModalActionButtonVisual(context.deleteTemplateButton, "danger")
+        ApplyModalActionButtonVisual(context.applyTemplateButton, "primary_action")
+    end
 
     local hasDB = ns.db and ns.db.profile
     if not hasDB then
@@ -572,6 +584,7 @@ local function RefreshWindowState()
         context.saveButton:SetDisabled(true)
         context.updateTemplateButton:SetDisabled(true)
         context.applyTemplateButton:SetDisabled(true)
+        ApplyTextBuilderButtonVisuals()
         context.libraryHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.usageHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
         for _, checkbox in pairs(context.usageCheckboxes or {}) do
@@ -607,6 +620,7 @@ local function RefreshWindowState()
     context.saveButton:SetDisabled(not hasTemplateName or not hasTemplateText)
     context.updateTemplateButton:SetDisabled(not hasSelectedTemplate or not hasTemplateName or not hasTemplateText)
     context.applyTemplateButton:SetDisabled(not hasTemplateText)
+    ApplyTextBuilderButtonVisuals()
 
     RefreshPreview(context)
     RefreshTemplateUsageState(context)

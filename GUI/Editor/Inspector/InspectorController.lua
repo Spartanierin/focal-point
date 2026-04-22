@@ -2,10 +2,12 @@ local _, ns = ...
 
 ns.GUI = ns.GUI or {}
 ns.GUI.Editor = ns.GUI.Editor or {}
+ns.GUI.Editor.Inspector = ns.GUI.Editor.Inspector or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
-local InspectorController = {}
+local InspectorController = ns.GUI.Editor.Inspector
 ns.GUI.Editor.Inspector = InspectorController
+local InspectorBinding = InspectorController.InspectorBinding or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -27,6 +29,7 @@ local GetFirstIndicatorKey = Shared.GetFirstIndicatorKey
 local BuildAuraList = Shared.BuildAuraList
 local GetFirstAuraKey = Shared.GetFirstAuraKey
 local GetFirstTextId = Shared.GetFirstTextId
+local INSPECTOR_SECTION_SPACING = 10
 
 function InspectorController.Build(container, state, options)
     container:ReleaseChildren()
@@ -134,16 +137,13 @@ function InspectorController.Build(container, state, options)
     end
 
     local function CreateInspectorSection(sectionKey, title, defaultCollapsed)
-        return CreateSection(container, title, {
-            collapsible = true,
-            key = sectionKey,
-            state = state,
-            defaultCollapsed = defaultCollapsed,
-            onToggle = NotifySidebarChanged,
-        })
+        return InspectorBinding.CreateInspectorSection(container, CreateSection, state, sectionKey, title, defaultCollapsed, NotifySidebarChanged)
     end
 
-    local summarySection = CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" })
+    local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
+        CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
+        "prominent"
+    )
     if summarySection then
         local summaryTextColor = ResolveItemColor and ResolveItemColor("statusMuted") or { 0.66, 0.70, 0.75, 1 }
         local hintTextColor = ResolveItemColor and ResolveItemColor("description") or { 0.60, 0.64, 0.69, 1 }
@@ -157,7 +157,7 @@ function InspectorController.Build(container, state, options)
             state.mode == "expert" and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
         ))
         if inspectorSummary.label and inspectorSummary.label.SetFont then
-            inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 12, "")
             inspectorSummary.label:SetTextColor(
                 summaryTextColor[1] or 0.66,
                 summaryTextColor[2] or 0.70,
@@ -173,7 +173,7 @@ function InspectorController.Build(container, state, options)
         inspectorHint:SetFullWidth(true)
         inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
         if inspectorHint.label and inspectorHint.label.SetFont then
-            inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+            inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 10, "")
             inspectorHint.label:SetTextColor(
                 hintTextColor[1] or 0.60,
                 hintTextColor[2] or 0.64,
@@ -184,7 +184,7 @@ function InspectorController.Build(container, state, options)
         summarySection:AddChild(inspectorHint)
     end
 
-    AddSpacer(container, 8)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
     local frameSection = CreateInspectorSection("frame", L["EDITOR_SECTION_FRAME"] or "Frame", false)
     if frameSection then
@@ -238,7 +238,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, 8)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
     local healthSection = CreateInspectorSection("health", L["BAR_HEALTH"] or "Health", false)
     if healthSection then
@@ -289,7 +289,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, 8)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
     local powerSection = CreateInspectorSection("power", L["BAR_POWER"] or "Power", true)
     if powerSection then
@@ -341,7 +341,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if state.selectedUnit == "player" then
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local altPowerSection = CreateInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true)
         if altPowerSection then
@@ -397,7 +397,7 @@ function InspectorController.Build(container, state, options)
             end
         end
 
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local classPowerSection = CreateInspectorSection("class_power", L["BAR_CLASS_POWER"] or "Class Power", true)
         if classPowerSection then
@@ -465,7 +465,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, 8)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
     local castSection = CreateInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true)
     if castSection then
@@ -497,7 +497,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, 8)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
     local visibilitySection = CreateInspectorSection("visibility", L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true)
     if visibilitySection then
@@ -540,7 +540,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if state.mode == "expert" then
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local positioning = CreateInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true)
         if positioning then
@@ -565,7 +565,7 @@ function InspectorController.Build(container, state, options)
             end)
         end
 
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local castPosition = CreateInspectorSection("cast_position", L["EDITOR_SECTION_CAST_POSITION"] or "Cast Bar Position", true)
         if castPosition then
@@ -592,7 +592,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if textConfig then
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local textSection = CreateInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true)
         if textSection then
@@ -695,7 +695,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if indicatorConfig and indicatorMeta then
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local indicatorSection = CreateInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true)
         if indicatorSection then
@@ -801,7 +801,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if type(auraConfig) == "table" then
-        AddSpacer(container, 8)
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
         local auraSection = CreateInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true)
         if auraSection then
