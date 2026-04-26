@@ -1045,6 +1045,15 @@ function UF:ApplyTestValues(frame)
         local minAltPower = previewValues.altPowerMin or 0
         local currentAltPower = previewValues.altPowerCurrent or 72
         local maxAltPower = previewValues.altPowerMax or 100
+        local minAltPowerSafe = ToSafeNumberValue(minAltPower)
+        local currentAltPowerSafe = ToSafeNumberValue(currentAltPower)
+        local maxAltPowerSafe = ToSafeNumberValue(maxAltPower)
+        local maxAltPowerEffective = math.max(maxAltPowerSafe, minAltPowerSafe + 1)
+        if currentAltPowerSafe < minAltPowerSafe then
+            currentAltPowerSafe = minAltPowerSafe
+        elseif currentAltPowerSafe > maxAltPowerEffective then
+            currentAltPowerSafe = maxAltPowerEffective
+        end
 
         frame.LiveValues = frame.LiveValues or {}
         frame.LiveValues.altPowerVisible = true
@@ -1059,8 +1068,8 @@ function UF:ApplyTestValues(frame)
         frame.LiveValues.altPowerCurrentAbbr = ResolveBlizzardAbbreviation(currentAltPower, frame.LiveValues.altPowerCurrentText)
         frame.LiveValues.altPowerMaxAbbr = ResolveBlizzardAbbreviation(maxAltPower, frame.LiveValues.altPowerMaxText)
 
-        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
-        frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPowerSafe, maxAltPowerEffective)
+        frame.Elements.AlternativePowerBar:SetValue(currentAltPowerSafe)
         self:ApplyConfig(frame)
     end
 

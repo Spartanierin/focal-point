@@ -46,8 +46,19 @@ function Power.RefreshUnitBarValues(owner, frame)
             maxPower = UnitPowerMax(unit) or 1
         end
 
-        frame.Elements.PowerBar:SetMinMaxValues(0, maxPower)
-        frame.Elements.PowerBar:SetValue(currentPower)
+        local currentPowerSafe = ToSafeNumberValue(currentPower)
+        local maxPowerSafe = ToSafeNumberValue(maxPower)
+        if maxPowerSafe < 1 then
+            maxPowerSafe = 1
+        end
+        if currentPowerSafe < 0 then
+            currentPowerSafe = 0
+        elseif currentPowerSafe > maxPowerSafe then
+            currentPowerSafe = maxPowerSafe
+        end
+
+        frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerSafe)
+        frame.Elements.PowerBar:SetValue(currentPowerSafe)
 
         frame.LiveValues.powerCurrentRaw = currentPower
         frame.LiveValues.powerMaxRaw = maxPower
@@ -77,8 +88,18 @@ function Power.RefreshUnitBarValues(owner, frame)
             showAltPower = true
         end
 
-        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
-        frame.Elements.AlternativePowerBar:SetValue(currentAltPower)
+        local minAltPowerSafe = ToSafeNumberValue(minAltPower)
+        local currentAltPowerSafe = ToSafeNumberValue(currentAltPower)
+        local maxAltPowerSafe = ToSafeNumberValue(maxAltPower)
+        local maxAltPowerEffective = math.max(maxAltPowerSafe, minAltPowerSafe + 1)
+        if currentAltPowerSafe < minAltPowerSafe then
+            currentAltPowerSafe = minAltPowerSafe
+        elseif currentAltPowerSafe > maxAltPowerEffective then
+            currentAltPowerSafe = maxAltPowerEffective
+        end
+
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPowerSafe, maxAltPowerEffective)
+        frame.Elements.AlternativePowerBar:SetValue(currentAltPowerSafe)
 
         local _, altCurrentText, altMaxText, _, altCurrentSafe, altMaxSafe = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(unit) or nil
         if type(altCurrentText) ~= "string" then
