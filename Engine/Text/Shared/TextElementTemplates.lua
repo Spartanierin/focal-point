@@ -24,6 +24,44 @@ end
 
 Templates.NormalizeTemplateText = NormalizeTemplateText
 
+local function NormalizeResolvedTemplatePart(value, formatNumber)
+    if value == nil then
+        return ""
+    end
+
+    if type(value) == "string" then
+        if issecretvalue and issecretvalue(value) then
+            local okText, textValue = pcall(tostring, value)
+            if okText and type(textValue) == "string" and not (issecretvalue and issecretvalue(textValue)) then
+                return textValue
+            end
+            return ""
+        end
+
+        return value
+    end
+
+    local formatted = formatNumber and formatNumber(value) or value
+    if type(formatted) == "string" then
+        if issecretvalue and issecretvalue(formatted) then
+            local okText, textValue = pcall(tostring, formatted)
+            if okText and type(textValue) == "string" and not (issecretvalue and issecretvalue(textValue)) then
+                return textValue
+            end
+            return ""
+        end
+
+        return formatted
+    end
+
+    local okText, textValue = pcall(tostring, formatted)
+    if okText and type(textValue) == "string" and not (issecretvalue and issecretvalue(textValue)) then
+        return textValue
+    end
+
+    return ""
+end
+
 function Templates.ResolveTextTemplate(frame, unit, template, deps)
     deps = deps or {}
 
@@ -51,7 +89,7 @@ function Templates.ResolveTextTemplate(frame, unit, template, deps)
 
         local resolved = ResolveBasicTag and ResolveBasicTag(frame, unit, token) or nil
         if resolved ~= nil then
-            result[#result + 1] = type(resolved) == "string" and resolved or (FormatNumber and FormatNumber(resolved) or resolved)
+            result[#result + 1] = NormalizeResolvedTemplatePart(resolved, FormatNumber)
         else
             result[#result + 1] = "[" .. token .. "]"
         end

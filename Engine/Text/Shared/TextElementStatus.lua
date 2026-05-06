@@ -180,7 +180,6 @@ function Status.GetResolvedUnitName(unit)
             return fallbackName
         end
     end
-
     return ""
 end
 

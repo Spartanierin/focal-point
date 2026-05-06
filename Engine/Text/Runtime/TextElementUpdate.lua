@@ -7,9 +7,38 @@ local Preview = FocalPoint.UnitFramePreview or {}
 local TextState = FocalPoint.TextElementState or {}
 local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local StopAnimatedNameText
 
 local animatedNameTexts = {}
 local animatedNameTicker = nil
+
+local function SafeSetText(textObject, textValue, preferLastKnownGood)
+    if not textObject or not textObject.SetText then
+        return false
+    end
+
+    local nextValue = type(textValue) == "string" and textValue or ""
+    local ok = xpcall(function()
+        textObject:SetText(nextValue)
+    end, function(message)
+        return tostring(message)
+    end)
+
+    if ok then
+        textObject._focalPointLastKnownText = nextValue
+        return true
+    end
+
+    if preferLastKnownGood and type(textObject._focalPointLastKnownText) == "string" then
+        xpcall(function()
+            textObject:SetText(textObject._focalPointLastKnownText)
+        end, function(message)
+            return tostring(message)
+        end)
+    end
+
+    return false
+end
 
 local function ResolveTextRole(textConfig, key)
     if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
@@ -80,6 +109,13 @@ local function StripTextMarkup(text)
     end
 
     return stripped
+end
+
+local function IsBlankText(value)
+    if type(value) ~= "string" then
+        return true
+    end
+    return value:match("^%s*$") ~= nil
 end
 
 local function SplitUtf8Characters(text)
@@ -262,6 +298,60 @@ local function ApplyClassificationNameLabel(frame, textRole, renderedText, templ
     )
 end
 
+local function EnsureNameFallback(frame, textRole, renderedText)
+    if textRole ~= "name" then
+        return renderedText
+    end
+
+    if not IsBlankText(renderedText) then
+        return renderedText
+    end
+
+    local unit = frame and frame.unit
+    if not unit or not UnitExists or not UnitExists(unit) then
+        return renderedText
+    end
+
+    local resolvedName = Status.GetResolvedUnitName and Status.GetResolvedUnitName(unit) or nil
+    if type(resolvedName) == "string" and resolvedName ~= "" then
+        return resolvedName
+    end
+
+    if UnitName then
+        local unitName = UnitName(unit)
+        if type(unitName) == "string" and unitName ~= "" then
+            return unitName
+        end
+    end
+
+    return renderedText
+end
+
+local function RenderNameTextDirect(frame, textObject, renderedText, textConfig)
+    if not textObject then
+        return
+    end
+
+    StopAnimatedNameText(textObject)
+
+    local finalText = type(renderedText) == "string" and renderedText or ""
+    if finalText == "" then
+        local unit = frame and frame.unit
+        local resolvedName = Status.GetResolvedUnitName and Status.GetResolvedUnitName(unit) or nil
+        if type(resolvedName) == "string" then
+            finalText = resolvedName
+        else
+            finalText = ""
+        end
+    end
+
+    SafeSetText(textObject, finalText, true)
+    if textObject.SetWidth and textConfig and textConfig.overflowMode ~= "NONE" and textObject.FocalPointOverflowWidth and textObject.FocalPointOverflowWidth > 0 then
+        textObject:SetWidth(textObject.FocalPointOverflowWidth)
+    end
+    textObject:Show()
+end
+
 local function BuildAnimatedNameText(rawText, style, now)
     local plainText = StripTextMarkup(rawText)
     if plainText == "" or type(style) ~= "table" then
@@ -358,7 +448,7 @@ local function EnsureAnimatedNameTicker()
     return animatedNameTicker
 end
 
-local function StopAnimatedNameText(textObject)
+StopAnimatedNameText = function(textObject)
     if not textObject then
         return
     end
@@ -529,7 +619,9 @@ local function ApplyOverflow(textObject, renderedText, mode)
     local overflowMode = mode or textObject.FocalPointOverflowMode or "NONE"
     local maxWidth = textObject.FocalPointOverflowWidth or 0
 
-    textObject:SetText(renderedText or "")
+    if not SafeSetText(textObject, renderedText or "", true) then
+        return
+    end
 
     if overflowMode == "NONE" or maxWidth <= 0 then
         return
@@ -573,7 +665,9 @@ local function ApplyOverflow(textObject, renderedText, mode)
 
     for limit = math.max(visibleCount - 1, 0), 0, -1 do
         local candidate = limit > 0 and BuildEllipsisCandidate(tokens, limit) or "..."
-        textObject:SetText(candidate)
+        if not SafeSetText(textObject, candidate, true) then
+            return
+        end
         local candidateWidth = 0
         if textObject.GetStringWidth then
             local okWidth, measuredWidth = pcall(textObject.GetStringWidth, textObject)
@@ -619,14 +713,14 @@ function Update.UpdateElement(frame, key, deps)
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
         if not textConfig or textConfig.enabled == false then
             StopAnimatedNameText(textObject)
-            textObject:SetText("")
+            SafeSetText(textObject, "", false)
             textObject:Hide()
             return
         end
 
         if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
             StopAnimatedNameText(textObject)
-            textObject:SetText("")
+            SafeSetText(textObject, "", false)
             textObject:Hide()
             return
         end
@@ -711,8 +805,14 @@ function Update.UpdateElement(frame, key, deps)
         end
         textObject:SetTextColor(r, g, b, a)
 
+        if textRole == "name" then
+            RenderNameTextDirect(frame, textObject, nil, textConfig)
+            return
+        end
+
         if ApplyDirectTemplate and ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
             local renderedText = textObject:GetText() or ""
+            renderedText = EnsureNameFallback(frame, textRole, renderedText)
             renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
             ApplyOverflow(textObject, renderedText, textConfig.overflowMode)
             ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
@@ -721,6 +821,7 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         local renderedText = ResolveTextTemplate and ResolveTextTemplate(frame, frame.unit, template) or ""
+        renderedText = EnsureNameFallback(frame, textRole, renderedText)
         renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
         ApplyOverflow(
             textObject,
@@ -739,9 +840,18 @@ function Update.UpdateElement(frame, key, deps)
 
     if frame and frame.Texts and frame.Texts[key] then
         local textObject = frame.Texts[key]
-        StopAnimatedNameText(textObject)
-        textObject:SetText("")
-        textObject:Hide()
+        local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
+        local textRole = ResolveTextRole(textConfig, key)
+        if textRole == "name" then
+            RenderNameTextDirect(frame, textObject, nil, textConfig)
+            textObject:Show()
+        else
+            StopAnimatedNameText(textObject)
+            if not SafeSetText(textObject, "", true) then
+                textObject:SetText("")
+            end
+            textObject:Show()
+        end
     end
 
     frame._focalPointTextErrors = frame._focalPointTextErrors or {}

@@ -13,6 +13,18 @@ local L = FocalPoint.L or {}
 -- Use a stable name as the key for LibDBIcon (do not use a localized title).
 local _MINIMAP_ICON_NAME = "FocalPoint"
 
+local function IsConfigVisible()
+    local host = FocalPoint and FocalPoint.guiMainHost
+    local frame = host and (host.frame or host)
+    if not frame then
+        return false
+    end
+    if frame.IsShown then
+        return frame:IsShown()
+    end
+    return true
+end
+
 function FocalPoint:InitMinimapIcon()
     if self.minimapInitialized then
         return
@@ -33,7 +45,13 @@ function FocalPoint:InitMinimapIcon()
             icon = "Interface\\AddOns\\FocalPoint\\Media\\Icon.tga",
             OnClick = function(_, button)
                 if button == "LeftButton" then
-                    FocalPoint:OpenConfig()
+                    if IsConfigVisible() then
+                        if FocalPoint.CloseConfig then
+                            FocalPoint:CloseConfig()
+                        end
+                    else
+                        FocalPoint:OpenConfig()
+                    end
                 elseif button == "RightButton" then
                     if FocalPoint.ToggleFrameLock then
                         FocalPoint:ToggleFrameLock()

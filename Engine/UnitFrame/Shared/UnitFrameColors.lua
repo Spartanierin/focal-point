@@ -87,7 +87,7 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
         return nil
     end
 
-    if UnitIsPlayer and UnitIsPlayer(unit) and UnitIsEnemy and IsSafeTrue(UnitIsEnemy("player", unit)) then
+    local function GetHostileFallbackColor()
         local hostileColor = FACTION_BAR_COLORS and (FACTION_BAR_COLORS[2] or FACTION_BAR_COLORS[1]) or nil
         if hostileColor then
             return SanitizeRGBA(
@@ -103,6 +103,10 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
         end
 
         return 1, 0.1, 0.1, 1
+    end
+
+    if UnitIsPlayer and UnitIsPlayer(unit) and UnitIsEnemy and IsSafeTrue(UnitIsEnemy("player", unit)) then
+        return GetHostileFallbackColor()
     end
 
     if UnitReaction and FACTION_BAR_COLORS then
@@ -143,6 +147,10 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
             if ownerR and ownerG and ownerB then
                 return SanitizeRGBA(ownerR, ownerG, ownerB, ownerA or 1, 1, 1, 1, 1)
             end
+        end
+
+        if type(unit) == "string" and unit:match("^boss%d+$") and UnitCanAttack and IsSafeTrue(UnitCanAttack("player", unit)) then
+            return GetHostileFallbackColor()
         end
 
         if useReactionForNpc and UnitReaction and FACTION_BAR_COLORS then

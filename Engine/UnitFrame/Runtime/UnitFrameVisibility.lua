@@ -73,7 +73,7 @@ end
 
 -- Visibility helpers handle visual cleanup and delayed refresh scheduling.
 
-function Visibility.ClearFrameVisualState(frame)
+function Visibility.ClearFrameVisualState(frame, reason)
     if not frame then
         return
     end
@@ -214,7 +214,7 @@ function Visibility.HandleMissingUnit(frame)
             if State.HandleUnitLost then
                 State.HandleUnitLost(frame, "missing_unit_protected_suppressed")
             else
-                Visibility.ClearFrameVisualState(frame)
+                Visibility.ClearFrameVisualState(frame, "missing_unit_protected_suppressed")
             end
             if frame.SetAlpha then
                 frame:SetAlpha(0)
@@ -235,7 +235,7 @@ function Visibility.HandleMissingUnit(frame)
         if State.HandleUnitLost then
             State.HandleUnitLost(frame, "missing_unit_protected")
         else
-            Visibility.ClearFrameVisualState(frame)
+            Visibility.ClearFrameVisualState(frame, "missing_unit_protected")
         end
         if suspiciousMissingTarget then
             Visibility.QueueRefresh(frame)
@@ -278,7 +278,7 @@ function Visibility.HandleMissingUnit(frame)
                 if State.HandleUnitLost then
                     State.HandleUnitLost(frame, "target_missing_transition")
                 else
-                    Visibility.ClearFrameVisualState(frame)
+                    Visibility.ClearFrameVisualState(frame, "target_missing_transition")
                 end
                 frame:Hide()
                 QueueTargetRecoveryRefreshes(frame, "target_missing_transition")
@@ -294,7 +294,7 @@ function Visibility.HandleMissingUnit(frame)
             if State.HandleUnitLost then
                 State.HandleUnitLost(frame, "missing_unit_suppressed")
             else
-                Visibility.ClearFrameVisualState(frame)
+                Visibility.ClearFrameVisualState(frame, "missing_unit_suppressed")
             end
             if frame.SetAlpha then
                 frame:SetAlpha(0)
@@ -308,7 +308,7 @@ function Visibility.HandleMissingUnit(frame)
         if State.HandleUnitLost then
             State.HandleUnitLost(frame, "missing_unit")
         else
-            Visibility.ClearFrameVisualState(frame)
+            Visibility.ClearFrameVisualState(frame, "missing_unit")
         end
 
         if frame.SetAlpha then

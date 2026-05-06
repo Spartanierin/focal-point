@@ -132,7 +132,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "workspaceTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_WORKSPACE" },
         },
     },
     {
@@ -142,6 +141,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "section",
             variant = "note_stack",
+            spacing = 6,
             border = false,
             padding = {
                 left = 0,
@@ -163,7 +163,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "unitLabel", widget = "label", itemVariant = "group_title", textKey = "EDITOR_UNIT" },
+            { id = "unitLabel", widget = "label", itemVariant = "section_title", textKey = "EDITOR_UNIT" },
         },
     },
     {
@@ -410,7 +410,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         items = {
             { id = "presetsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_PRESET" },
             { id = "presetDropdown", widget = "dropdown", itemVariant = "profile_field", labelKey = "EDITOR_PRESET_START" },
-            { id = "presetThemeInfo", widget = "label", itemVariant = "footer_hint_muted", text = "", size = 9 },
+            { id = "presetThemeInfo", widget = "label", itemVariant = "footer_hint_muted", text = "", size = 11 },
             { id = "applyPreset", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_PRESET_APPLY" },
             { id = "saveCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_SAVE_CUSTOM" },
             { id = "restoreCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_RESTORE_CUSTOM" },
@@ -455,6 +455,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
+            border = false,
             padding = {
                 left = 0,
                 right = 0,

@@ -53,6 +53,31 @@ local function ResolveItemText(props, deps)
     return props.text or ""
 end
 
+local function ResolveLabelRole(props)
+    if not props then
+        return "label"
+    end
+
+    local variant = props.itemVariant
+    if variant == "section_title" or variant == "section_title_large" then
+        return "sectionHeader"
+    end
+    if variant == "group_title" then
+        return "groupTitle"
+    end
+    if variant == "group_description" then
+        return "description"
+    end
+    if variant == "footer_hint_muted" then
+        return "muted"
+    end
+    if variant == "status_value" then
+        return "value"
+    end
+
+    return props.role or "label"
+end
+
 local function IterateWidgetMap(widgetMap, callback)
     if type(widgetMap) ~= "table" or type(callback) ~= "function" then
         return
@@ -77,7 +102,7 @@ local function CreateItemWidget(props, deps)
     if props.widget == "label" then
         local label = CreateBodyText and CreateBodyText(
             ResolveItemText(props, deps),
-            props.role or "label",
+            ResolveLabelRole(props),
             props.size or 12,
             ResolveItemColor and ResolveItemColor(props.colorKey),
             props.width,
@@ -129,6 +154,8 @@ local function RefreshWindowState(context, deps)
         return
     end
 
+    context._suspendCallbacks = true
+
     local state = context.state or {}
     local options = context.options or {}
     local nsRef = deps and deps.ns or {}
@@ -160,6 +187,7 @@ local function RefreshWindowState(context, deps)
     local activeThemeId = generalConfig and generalConfig.ActiveThemeId
     local selectedThemeId = state.selectedThemeId or activeThemeId
     if type(generalConfig) ~= "table" then
+        context._suspendCallbacks = false
         return
     end
 
@@ -200,10 +228,13 @@ local function RefreshWindowState(context, deps)
         context.widgets.globalTitle:SetText(T("EDITOR_CONTEXT_GLOBAL", "Addon", deps))
     end
     if context.widgets.footerNote then
-        context.widgets.footerNote:SetText("Toolbar")
+        context.widgets.footerNote:SetText("")
     end
     if context.widgets.unitLabel then
         context.widgets.unitLabel:SetText(T("EDITOR_UNIT", "Unit", deps))
+    end
+    if context.widgets.workspaceTitle then
+        context.widgets.workspaceTitle:SetText("")
     end
 
     IterateWidgetMap(NAV_WIDGET_IDS, function(widgetId, constantPath)
@@ -354,6 +385,8 @@ local function RefreshWindowState(context, deps)
     if context.scroll and context.scroll.FixScroll then
         context.scroll:FixScroll()
     end
+
+    context._suspendCallbacks = false
 end
 
 local function WireCallbacks(context, deps, refreshFn)
@@ -394,6 +427,9 @@ local function WireCallbacks(context, deps, refreshFn)
 
     if context.widgets.expertMode then
         context.widgets.expertMode:SetCallback("OnValueChanged", function(_, _, value)
+            if context._suspendCallbacks then
+                return
+            end
             if context.options and context.options.onModeChanged then
                 context.options.onModeChanged(value and "expert" or "quick")
             end
@@ -424,6 +460,9 @@ local function WireCallbacks(context, deps, refreshFn)
 
     if context.widgets.presetDropdown then
         context.widgets.presetDropdown:SetCallback("OnValueChanged", function(_, _, value)
+            if context._suspendCallbacks then
+                return
+            end
             context.state.selectedThemeId = value
             if context.options and context.options.onThemeChanged then
                 context.options.onThemeChanged(value)
@@ -497,6 +536,9 @@ local function WireCallbacks(context, deps, refreshFn)
 
     if context.widgets.hideBlizzard then
         context.widgets.hideBlizzard:SetCallback("OnValueChanged", function(_, _, value)
+            if context._suspendCallbacks then
+                return
+            end
             local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
             if type(generalConfig) ~= "table" then
                 return
@@ -518,6 +560,9 @@ local function WireCallbacks(context, deps, refreshFn)
 
     if context.widgets.mouseEnabled then
         context.widgets.mouseEnabled:SetCallback("OnValueChanged", function(_, _, value)
+            if context._suspendCallbacks then
+                return
+            end
             local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
             if type(generalConfig) ~= "table" then
                 return
@@ -536,6 +581,9 @@ local function WireCallbacks(context, deps, refreshFn)
 
     if context.widgets.clickthrough then
         context.widgets.clickthrough:SetCallback("OnValueChanged", function(_, _, value)
+            if context._suspendCallbacks then
+                return
+            end
             local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
             if type(generalConfig) ~= "table" then
                 return

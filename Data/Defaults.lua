@@ -8,7 +8,7 @@ function FocalPoint:GetDefaultDB()
                 Separator = "||",
                 ToTSeparator = "\194\187",
                 UIScale = 0.7551622418879056,
-                ExpertMode = true,
+                ExpertMode = false,
                 HideBlizzardFrames = true,
                 GlobalClickThrough = false,
                 MouseEnabled = true,
@@ -88,8 +88,8 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     classPowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
                     alternativePowerBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
@@ -1726,7 +1726,7 @@ function FocalPoint:GetDefaultDB()
                             templateName = "Unit Name Target",
                         },
                         Health = {
-                            enabled = true,
+                            enabled = false,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
@@ -1737,7 +1737,7 @@ function FocalPoint:GetDefaultDB()
                             offsetX = -2,
                             offsetY = 0,
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 15,
+                            fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
                                 1.0,
@@ -3056,7 +3056,7 @@ function FocalPoint:GetDefaultDB()
                             templateName = "Unit Name Target",
                         },
                         Health = {
-                            enabled = true,
+                            enabled = false,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
@@ -3067,7 +3067,7 @@ function FocalPoint:GetDefaultDB()
                             offsetX = -2,
                             offsetY = 0,
                             font = STANDARD_TEXT_FONT,
-                            fontSize = 15,
+                            fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
                                 1.0,

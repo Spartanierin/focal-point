@@ -19,6 +19,18 @@ local GetSecondaryPowerDisplayValues = Preview.GetSecondaryPowerDisplayValues
 
 -- Power helpers keep resource/alt-power value refresh together.
 
+local function IsSecretValue(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
+local function ResolveBarNumber(rawValue)
+    if type(rawValue) == "number" then
+        return rawValue, IsSecretValue(rawValue)
+    end
+
+    return ToSafeNumberValue(rawValue), false
+end
+
 function Power.RefreshUnitBarValues(owner, frame)
     if not frame or not frame.unit then
         return
@@ -46,19 +58,33 @@ function Power.RefreshUnitBarValues(owner, frame)
             maxPower = UnitPowerMax(unit) or 1
         end
 
-        local currentPowerSafe = ToSafeNumberValue(currentPower)
-        local maxPowerSafe = ToSafeNumberValue(maxPower)
-        if maxPowerSafe < 1 then
-            maxPowerSafe = 1
-        end
-        if currentPowerSafe < 0 then
-            currentPowerSafe = 0
-        elseif currentPowerSafe > maxPowerSafe then
-            currentPowerSafe = maxPowerSafe
+        local currentPowerBarValue, currentPowerIsSecret = ResolveBarNumber(currentPower)
+        local maxPowerBarValue, maxPowerIsSecret = ResolveBarNumber(maxPower)
+
+        if type(maxPowerBarValue) ~= "number" then
+            maxPowerBarValue = 1
+            maxPowerIsSecret = false
         end
 
-        frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerSafe)
-        frame.Elements.PowerBar:SetValue(currentPowerSafe)
+        if not maxPowerIsSecret and maxPowerBarValue < 1 then
+            maxPowerBarValue = 1
+        end
+
+        if type(currentPowerBarValue) ~= "number" then
+            currentPowerBarValue = 0
+            currentPowerIsSecret = false
+        end
+
+        if not currentPowerIsSecret and not maxPowerIsSecret then
+            if currentPowerBarValue < 0 then
+                currentPowerBarValue = 0
+            elseif currentPowerBarValue > maxPowerBarValue then
+                currentPowerBarValue = maxPowerBarValue
+            end
+        end
+
+        frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerBarValue)
+        frame.Elements.PowerBar:SetValue(currentPowerBarValue)
 
         frame.LiveValues.powerCurrentRaw = currentPower
         frame.LiveValues.powerMaxRaw = maxPower
@@ -88,18 +114,29 @@ function Power.RefreshUnitBarValues(owner, frame)
             showAltPower = true
         end
 
-        local minAltPowerSafe = ToSafeNumberValue(minAltPower)
-        local currentAltPowerSafe = ToSafeNumberValue(currentAltPower)
-        local maxAltPowerSafe = ToSafeNumberValue(maxAltPower)
-        local maxAltPowerEffective = math.max(maxAltPowerSafe, minAltPowerSafe + 1)
-        if currentAltPowerSafe < minAltPowerSafe then
-            currentAltPowerSafe = minAltPowerSafe
-        elseif currentAltPowerSafe > maxAltPowerEffective then
-            currentAltPowerSafe = maxAltPowerEffective
+        local minAltPowerBarValue, minAltPowerIsSecret = ResolveBarNumber(minAltPower)
+        local currentAltPowerBarValue, currentAltPowerIsSecret = ResolveBarNumber(currentAltPower)
+        local maxAltPowerBarValue, maxAltPowerIsSecret = ResolveBarNumber(maxAltPower)
+        local maxAltPowerEffective = maxAltPowerBarValue
+
+        if not minAltPowerIsSecret and not maxAltPowerIsSecret then
+            maxAltPowerEffective = math.max(maxAltPowerBarValue, minAltPowerBarValue + 1)
         end
 
-        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPowerSafe, maxAltPowerEffective)
-        frame.Elements.AlternativePowerBar:SetValue(currentAltPowerSafe)
+        if not currentAltPowerIsSecret and not minAltPowerIsSecret then
+            if currentAltPowerBarValue < minAltPowerBarValue then
+                currentAltPowerBarValue = minAltPowerBarValue
+            end
+        end
+
+        if not currentAltPowerIsSecret and not maxAltPowerIsSecret then
+            if currentAltPowerBarValue > maxAltPowerEffective then
+                currentAltPowerBarValue = maxAltPowerEffective
+            end
+        end
+
+        frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPowerBarValue, maxAltPowerEffective)
+        frame.Elements.AlternativePowerBar:SetValue(currentAltPowerBarValue)
 
         local _, altCurrentText, altMaxText, _, altCurrentSafe, altMaxSafe = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(unit) or nil
         if type(altCurrentText) ~= "string" then

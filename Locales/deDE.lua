@@ -1,5 +1,9 @@
 local addonName, ns = ...
 
+if GetLocale and GetLocale() ~= "deDE" then
+    return
+end
+
 ns.L = ns.L or {}
 local L = ns.L
 

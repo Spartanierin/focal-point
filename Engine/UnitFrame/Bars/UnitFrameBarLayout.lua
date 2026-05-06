@@ -18,6 +18,10 @@ local function IsPlaceholderUnitEnabled(frame)
     return type(config) ~= "table" or config.enabled ~= false
 end
 
+local function IsSecretValue(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
 -- Health and power bar layout stays separate from live value refresh so the
 -- main runtime can focus on orchestration.
 
@@ -192,8 +196,17 @@ function BarLayout.ApplyAlternativePower(frame, options)
         local minAltPower = options.liveAltPowerMin or (frame.LiveValues and frame.LiveValues.altPowerMinRaw) or 0
         local currentAltPower = options.liveAltPowerCurrent or (frame.LiveValues and frame.LiveValues.altPowerCurrentRaw) or 0
         local maxAltPower = options.liveAltPowerMax or (frame.LiveValues and frame.LiveValues.altPowerMaxRaw) or 0
+        local maxAltPowerEffective = maxAltPower
 
-        altPower:SetMinMaxValues(minAltPower, math.max(maxAltPower, minAltPower + 1))
+        if type(minAltPower) == "number"
+            and type(maxAltPower) == "number"
+            and not IsSecretValue(minAltPower)
+            and not IsSecretValue(maxAltPower)
+        then
+            maxAltPowerEffective = math.max(maxAltPower, minAltPower + 1)
+        end
+
+        altPower:SetMinMaxValues(minAltPower, maxAltPowerEffective)
         altPower:SetValue(currentAltPower)
 
         local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
