@@ -1,4 +1,4 @@
-local _, FocalPoint = ...
+﻿local _, FocalPoint = ...
 
 function FocalPoint:GetDefaultDB()
     return {
@@ -88,10 +88,10 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    classPowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    alternativePowerBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    classPowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = {
                         1.0,
@@ -806,7 +806,7 @@ function FocalPoint:GetDefaultDB()
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = {
                         1.0,
@@ -1471,9 +1471,9 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = {
                         1.0,
@@ -1726,7 +1726,7 @@ function FocalPoint:GetDefaultDB()
                             templateName = "Unit Name Target",
                         },
                         Health = {
-                            enabled = false,
+                            enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
@@ -2138,9 +2138,9 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = {
                         1.0,
@@ -2805,9 +2805,9 @@ function FocalPoint:GetDefaultDB()
                     castBarOffsetX = 0,
                     castBarOffsetY = -20,
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
+                    healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = {
                         1.0,
@@ -3056,7 +3056,7 @@ function FocalPoint:GetDefaultDB()
                             templateName = "Unit Name Target",
                         },
                         Health = {
-                            enabled = false,
+                            enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
                             stateTemplates = {
                                 dead = "Dead Target",
@@ -3466,7 +3466,7 @@ function FocalPoint:GetDefaultDB()
                     statusBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
                     healthBarTexture = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
                     powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
-                    alternativePowerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     castBarColor = {
                         1.0,
@@ -4118,7 +4118,7 @@ function FocalPoint:GetDefaultDB()
                             enabled = false,
                         },
                     },
-                    powerBarTexture = "Interface\\TargetingFrame\\UI-StatusBar",
+                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga",
                     point = "CENTER",
                     y = 359.9989318847656,
                     x = 425.00048828125,
@@ -4142,3 +4142,6 @@ function FocalPoint:GetDefaultDB()
         },
     }
 end
+
+
+
