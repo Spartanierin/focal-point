@@ -29,6 +29,36 @@ local function IsMissingDebugSuppressed(frame)
     return FocalPoint and FocalPoint._suppressMissingUnitUntil and now <= FocalPoint._suppressMissingUnitUntil
 end
 
+local function ShouldSuppressFramesForSpecialMode()
+    local inPetBattle = C_PetBattles
+        and C_PetBattles.IsInBattle
+        and C_PetBattles.IsInBattle()
+    if inPetBattle then
+        return true, "pet_battle"
+    end
+
+    local hasOverrideActionBar = C_ActionBar
+        and C_ActionBar.HasOverrideActionBar
+        and C_ActionBar.HasOverrideActionBar()
+    if hasOverrideActionBar then
+        return true, "override_action_bar"
+    end
+
+    local hasVehicleActionBar = C_ActionBar
+        and C_ActionBar.HasVehicleActionBar
+        and C_ActionBar.HasVehicleActionBar()
+    if hasVehicleActionBar then
+        return true, "vehicle_action_bar"
+    end
+
+    local hasVehicleUi = UnitHasVehicleUI and UnitHasVehicleUI("player")
+    if hasVehicleUi then
+        return true, "vehicle_ui"
+    end
+
+    return false, nil
+end
+
 local function QueueTargetRecoveryRefreshes(frame, reason)
     if not frame or frame.unit ~= "target" or not State.QueueRefresh then
         return
@@ -204,6 +234,22 @@ function Visibility.HandleMissingUnit(frame)
         return false
     end
 
+    local suppressForSpecialMode, specialModeReason = ShouldSuppressFramesForSpecialMode()
+    if suppressForSpecialMode then
+        if State.HandleUnitLost then
+            State.HandleUnitLost(frame, specialModeReason or "special_mode")
+        else
+            Visibility.ClearFrameVisualState(frame, specialModeReason or "special_mode")
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+        if frame.Hide and not IsProtectedFrameInCombat(frame) then
+            frame:Hide()
+        end
+        return true
+    end
+
     local protectedFrame = frame.IsProtected and frame:IsProtected()
     local shouldHideForMissingUnit = not IsPreviewModeEnabled()
         and frame.unit ~= "player"
@@ -326,7 +372,7 @@ function Visibility.HandleMissingUnit(frame)
 end
 
 function Visibility.RegisterEvents(owner, frame)
-    if not frame or frame.VisibilityEventFrame or frame.unit == "player" then
+    if not frame or frame.VisibilityEventFrame then
         return
     end
 
@@ -342,6 +388,13 @@ function Visibility.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
     eventFrame:RegisterEvent("UNIT_TARGETABLE_CHANGED")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    eventFrame:RegisterEvent("UNIT_ENTERED_VEHICLE")
+    eventFrame:RegisterEvent("UNIT_EXITED_VEHICLE")
+    eventFrame:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
+    eventFrame:RegisterEvent("UPDATE_VEHICLE_ACTIONBAR")
+    eventFrame:RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR")
+    eventFrame:RegisterEvent("PET_BATTLE_OPENING_START")
+    eventFrame:RegisterEvent("PET_BATTLE_CLOSE")
 
     if frame.unit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
@@ -370,6 +423,8 @@ function Visibility.RegisterEvents(owner, frame)
         if event ~= "PLAYER_REGEN_ENABLED"
             and unit
             and unit ~= currentOwner.unit
+            and not (event == "UNIT_ENTERED_VEHICLE" and unit == "player")
+            and not (event == "UNIT_EXITED_VEHICLE" and unit == "player")
             and not (currentOwner.unit == "targettarget" and event == "UNIT_TARGET" and unit == "target")
             and not (currentOwner.unit == "focustarget" and event == "UNIT_TARGET" and unit == "focus")
             and not (currentOwner.unit == "pet" and event == "UNIT_PET" and unit == "player")
