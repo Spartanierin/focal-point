@@ -9,6 +9,28 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.1]
+
+### Added
+
+* Added a release checklist document for safer repeatable release workflow.
+
+### Changed
+
+* Updated default unit-frame textures:
+  * Health bars use Blizzard Raid Bar Fill defaults across all core units.
+  * Resource bar defaults (power/alternative power/class power where applicable) use Healbot texture.
+* Enabled the `Health` text template by default for `targettarget` and `focustarget`.
+
+### Fixed
+
+* Fixed special-mode frame suppression so unit frames are reliably hidden while Pet Battle, Vehicle UI, or Override Action Bar modes are active.
+* Fixed refresh/event handling during vehicle and override transitions so suppression also triggers correctly when entering those modes after login/reload.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.0]
 
 ### Added
