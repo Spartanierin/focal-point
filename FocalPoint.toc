@@ -1,6 +1,6 @@
 ## Title: Focal Point
 ## Interface: 120005
-## Version: 1.0.1
+## Version: 1.0.2
 ## Author: Spartanierin
 ## Notes: Flexible, modular unit frames designed for fast setup and detailed customization.
 
@@ -21,7 +21,7 @@
 ## IconTexture: Interface\AddOns\FocalPoint\Media\icon.tga
 
 ## X-oUF: FocalPoint
-## X-Curse-Project-ID:
+## X-Curse-Project-ID: 1542419
 ## X-Wago-ID:
 
 

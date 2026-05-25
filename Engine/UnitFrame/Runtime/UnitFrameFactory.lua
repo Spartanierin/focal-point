@@ -68,6 +68,12 @@ function Factory.CreateHealthBar(frame)
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
     health.bg = bg
 
+    local absorbOverlay = health:CreateTexture(nil, "OVERLAY", nil, 1)
+    absorbOverlay:SetTexture("Interface\\Buttons\\WHITE8X8")
+    absorbOverlay:SetVertexColor(0.66, 0.86, 1.0, 0.62)
+    absorbOverlay:Hide()
+    health.AbsorbOverlay = absorbOverlay
+
     frame.Elements.HealthBar = health
     frame.health = health
 end

@@ -30,6 +30,136 @@ local function IsPlaceholderUnitEnabled(frame)
     return type(config) ~= "table" or config.enabled ~= false
 end
 
+local function ResolveTotalAbsorb(unit, unitExists, previewValues)
+    if previewValues then
+        local previewAbsorb = previewValues.absorbTotal or previewValues.absorb or 0
+        local absorbSafe = ToSafeNumberValue(previewAbsorb)
+        if absorbSafe < 0 then
+            absorbSafe = 0
+        end
+        return previewAbsorb, absorbSafe
+    end
+
+    if unitExists and UnitGetTotalAbsorbs then
+        local totalAbsorb = UnitGetTotalAbsorbs(unit) or 0
+        local absorbSafe = ToSafeNumberValue(totalAbsorb)
+        if absorbSafe < 0 then
+            absorbSafe = 0
+        end
+        return totalAbsorb, absorbSafe
+    end
+
+    return 0, 0
+end
+
+local function UpdateAbsorbOverlay(frame)
+    if not frame or not frame.Elements or not frame.Elements.HealthBar then
+        return
+    end
+
+    local health = frame.Elements.HealthBar
+    local absorbOverlay = health.AbsorbOverlay
+    if not absorbOverlay then
+        return
+    end
+
+    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
+    if config and config.showAbsorbOverlay == false then
+        absorbOverlay:Hide()
+        return
+    end
+
+    local live = frame.LiveValues or {}
+    local maxHealth = ToSafeNumberValue(live.healthMaxSafe or live.healthMaxRaw)
+    local currentHealth = ToSafeNumberValue(live.healthCurrentSafe or live.healthCurrentRaw)
+    local totalAbsorb = ToSafeNumberValue(live.absorbTotalSafe or live.absorbTotalRaw)
+
+    if maxHealth <= 0 or totalAbsorb <= 0 then
+        absorbOverlay:Hide()
+        return
+    end
+
+    if currentHealth < 0 then
+        currentHealth = 0
+    elseif currentHealth > maxHealth then
+        currentHealth = maxHealth
+    end
+
+    local missingHealth = maxHealth - currentHealth
+    local effectiveAbsorb = totalAbsorb
+    local showFullHealthMarker = false
+    if missingHealth <= 0 then
+        showFullHealthMarker = true
+    else
+        effectiveAbsorb = math.min(totalAbsorb, missingHealth)
+        if effectiveAbsorb <= 0 then
+            absorbOverlay:Hide()
+            return
+        end
+    end
+
+    local barWidth = tonumber(health.GetWidth and health:GetWidth() or 0) or 0
+    if barWidth <= 0 then
+        absorbOverlay:Hide()
+        return
+    end
+
+    local healthFraction = math.max(0, math.min(1, currentHealth / maxHealth))
+    local absorbFraction = math.max(0, math.min(1, effectiveAbsorb / maxHealth))
+    local healthWidth = barWidth * healthFraction
+    local absorbWidth = barWidth * absorbFraction
+
+    if showFullHealthMarker then
+        local markerMaxFraction = 0.35
+        local markerWidth = math.max(2, barWidth * math.min(absorbFraction, markerMaxFraction))
+        absorbWidth = math.min(markerWidth, barWidth)
+    end
+
+    if absorbWidth < 0.5 then
+        absorbOverlay:Hide()
+        return
+    end
+
+    local reverseFill = health.GetReverseFill and health:GetReverseFill() or false
+    local leftOffset
+    local rightOffset
+    if reverseFill then
+        if showFullHealthMarker then
+            leftOffset = 0
+            rightOffset = absorbWidth
+        else
+            local boundary = barWidth - healthWidth
+            leftOffset = boundary - absorbWidth
+            rightOffset = boundary
+        end
+    else
+        if showFullHealthMarker then
+            leftOffset = barWidth - absorbWidth
+            rightOffset = barWidth
+        else
+            leftOffset = healthWidth
+            rightOffset = healthWidth + absorbWidth
+        end
+    end
+
+    if rightOffset < leftOffset then
+        leftOffset, rightOffset = rightOffset, leftOffset
+    end
+    leftOffset = math.max(0, leftOffset)
+    rightOffset = math.min(barWidth, rightOffset)
+    local finalWidth = rightOffset - leftOffset
+    if finalWidth < 0.5 then
+        absorbOverlay:Hide()
+        return
+    end
+
+    absorbOverlay:ClearAllPoints()
+    absorbOverlay:SetPoint("TOPLEFT", health, "TOPLEFT", leftOffset, 0)
+    absorbOverlay:SetPoint("BOTTOMLEFT", health, "BOTTOMLEFT", leftOffset, 0)
+    absorbOverlay:SetWidth(finalWidth)
+    absorbOverlay:Show()
+end
+
 -- Health helpers keep value formatting and health-bar updates together.
 
 function Health.GetCurrentValues(frame)
@@ -77,6 +207,9 @@ function Health.UpdateBarValue(frame)
     local currentHealth, maxHealth = Health.GetCurrentValues(frame)
     frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
     frame.Elements.HealthBar:SetValue(currentHealth)
+    local unitExists = DoesUnitSeemPresent(frame.unit)
+    local previewValues = IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil
+    local absorbTotalRaw, absorbTotalSafe = ResolveTotalAbsorb(frame.unit, unitExists, previewValues)
 
     frame.LiveValues.healthCurrentRaw = currentHealth
     frame.LiveValues.healthMaxRaw = maxHealth
@@ -97,6 +230,12 @@ function Health.UpdateBarValue(frame)
     frame.LiveValues.healthMaxText = FormatDisplayNumber(maxHealth)
     frame.LiveValues.healthCurrentAbbr = ResolveBlizzardAbbreviation(currentHealth, frame.LiveValues.healthCurrentText)
     frame.LiveValues.healthMaxAbbr = ResolveBlizzardAbbreviation(maxHealth, frame.LiveValues.healthMaxText)
+    frame.LiveValues.absorbTotalRaw = absorbTotalRaw
+    frame.LiveValues.absorbTotalSafe = absorbTotalSafe
+    frame.LiveValues.absorbTotalText = FormatDisplayNumber(absorbTotalRaw)
+    frame.LiveValues.absorbTotalAbbr = ResolveBlizzardAbbreviation(absorbTotalRaw, frame.LiveValues.absorbTotalText)
+
+    UpdateAbsorbOverlay(frame)
 end
 
 function Health.UpdateBarColor(frame)
@@ -129,6 +268,7 @@ function Health.UpdateBarColor(frame)
     )
     frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, 1)
     frame.Elements.HealthBar:SetAlpha(healthA or 1)
+    UpdateAbsorbOverlay(frame)
 end
 
 function Health.RefreshBar(owner, frame)
@@ -174,9 +314,13 @@ function Health.RegisterEvents(owner, frame)
     if frame.unit and eventFrame.RegisterUnitEvent then
         eventFrame:RegisterUnitEvent("UNIT_HEALTH", frame.unit)
         eventFrame:RegisterUnitEvent("UNIT_MAXHEALTH", frame.unit)
+        eventFrame:RegisterUnitEvent("UNIT_ABSORB_AMOUNT_CHANGED", frame.unit)
+        eventFrame:RegisterUnitEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED", frame.unit)
     else
         eventFrame:RegisterEvent("UNIT_HEALTH")
         eventFrame:RegisterEvent("UNIT_MAXHEALTH")
+        eventFrame:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED")
+        eventFrame:RegisterEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED")
     end
 
     if frame.unit == "target" then

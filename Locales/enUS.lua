@@ -387,6 +387,7 @@ L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT_DESC"] = "Sets the height of the secondar
 L["OPTION_CLASS_POWER_BAR_WIDTH"] = "Class Power Width"
 L["OPTION_CLASS_POWER_BAR_HEIGHT"] = "Class Power Height"
 L["OPTION_CLASS_POWER_BAR_SPACING"] = "Class Power Spacing"
+L["OPTION_BOSS_FRAME_SPACING"] = "Boss Frame Spacing"
 L["OPTION_CAST_BAR_HEIGHT"] = "Cast Bar Height"
 L["OPTION_CAST_BAR_HEIGHT_DESC"] = "Sets the height of the cast bar."
 L["OPTION_BAR_TEXTURE"] = "Bar Texture"

@@ -3967,6 +3967,7 @@ function FocalPoint:GetDefaultDB()
                 },
                 boss = {
                     enabled = true,
+                    bossSpacing = 10,
                     Texts = {
                         Name = {
                             enabled = true,

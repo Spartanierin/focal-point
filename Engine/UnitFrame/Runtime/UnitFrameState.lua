@@ -56,6 +56,38 @@ local function GetFrameDebugLabel(frame)
     return string.format("frame<%s>", unit)
 end
 
+local function DebugTargetState(frame, label, reason)
+    if not (FocalPoint and FocalPoint.debugTargetVisibility == true) then
+        return
+    end
+    if not (frame and frame.unit == "target") then
+        return
+    end
+
+    local exists = UnitExists and UnitExists("target") or false
+    local guid = UnitGUID and UnitGUID("target") or nil
+    local name = UnitName and UnitName("target") or nil
+    local shown = frame.IsShown and frame:IsShown() or false
+    local alpha = frame.GetAlpha and frame:GetAlpha() or 0
+    local protected = frame.IsProtected and frame:IsProtected() or false
+    local combat = InCombatLockdown and InCombatLockdown() or false
+
+    if FocalPoint.Debug then
+        FocalPoint:Debug(string.format(
+            "[TargetTrace] %s reason=%s combat=%s protected=%s shown=%s alpha=%.2f exists=%s guid=%s name=%s",
+            tostring(label),
+            tostring(reason or "-"),
+            tostring(combat),
+            tostring(protected),
+            tostring(shown),
+            tonumber(alpha) or 0,
+            tostring(exists),
+            tostring(guid ~= nil),
+            tostring(name ~= nil)
+        ))
+    end
+end
+
 local function MergeDirtyScope(dirty, scope)
     if type(dirty) ~= "table" then
         return
@@ -227,6 +259,7 @@ function State.HandleTargetSwap(frame, reason)
         return
     end
 
+    DebugTargetState(frame, "target_swap_start", reason)
     local runtimeState = State.Ensure(frame)
     if runtimeState then
         runtimeState.phase = "stale"
@@ -234,11 +267,28 @@ function State.HandleTargetSwap(frame, reason)
     end
 
     State.ResetDerivedFrameState(frame)
+    DebugTargetState(frame, "after_reset_derived", reason)
     State.ResetAuraRuntimeState(frame)
+    DebugTargetState(frame, "after_reset_auras", reason)
 
     local Visibility = FocalPoint.UnitFrameVisibility or {}
     if Visibility.ClearFrameVisualState then
+        DebugTargetState(frame, "before_clear_visual_state", reason)
+        if frame.unit == "target" and InCombatLockdown and InCombatLockdown() then
+            if runtimeState then
+                runtimeState.phase = "stale"
+                runtimeState.lastReason = reason or "target_swap"
+            end
+            if State.QueueRefresh then
+                State.QueueRefresh(frame, "target_swap_combat_safe", "visibility", { forceFullRefresh = true }, 0)
+                State.QueueRefresh(frame, "target_swap_combat_safe_delayed", "visibility", { forceFullRefresh = true }, 0.10)
+                State.QueueRefresh(frame, "target_swap_combat_safe_delayed", "visibility", { forceFullRefresh = true }, 0.25)
+            end
+            DebugTargetState(frame, "skip_clear_in_combat", reason)
+            return
+        end
         Visibility.ClearFrameVisualState(frame)
+        DebugTargetState(frame, "after_clear_visual_state", reason)
     end
 
     State.DebugLog(frame, "target-swap", tostring(reason or "target_swap"))

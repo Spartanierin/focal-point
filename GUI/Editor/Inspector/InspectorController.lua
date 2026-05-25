@@ -203,6 +203,13 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end)
 
+        if state.selectedUnit == "boss" then
+            AddSlider(frameSection, L["OPTION_BOSS_FRAME_SPACING"] or "Boss Frame Spacing", 0, 40, 1, tonumber(unitConfig.bossSpacing) or 10, function(value)
+                unitConfig.bossSpacing = math.floor((value or 0) + 0.5)
+                NotifyConfigChanged()
+            end)
+        end
+
         AddSlider(frameSection, L["EDITOR_OPTION_SCALE"] or "Scale", 0.5, 1.5, 0.01, tonumber(unitConfig.scale) or 1, function(value)
             unitConfig.scale = tonumber(string.format("%.2f", value or 1)) or 1
             NotifyConfigChanged()

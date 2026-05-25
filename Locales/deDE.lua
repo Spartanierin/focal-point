@@ -401,6 +401,7 @@ L["OPTION_SHOW_CLASS_POWER_BAR_DESC"] = "Zeigt Klassenressourcen wie Seelensplit
 L["OPTION_CLASS_POWER_BAR_WIDTH"] = "Breite Klassenressourcenleiste"
 L["OPTION_CLASS_POWER_BAR_HEIGHT"] = "Hoehe Klassenressourcenleiste"
 L["OPTION_CLASS_POWER_BAR_SPACING"] = "Abstand Klassenressourcenleisten"
+L["OPTION_BOSS_FRAME_SPACING"] = "Abstand Boss-Frames"
 
 -- Visibility / Logic
 L["OPTION_SHOW_CAST_BAR"] = "Zauberbalken anzeigen"

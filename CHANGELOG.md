@@ -9,6 +9,28 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.2]
+
+### Added
+
+* Added first-step absorb runtime support on unit health bars:
+  * A dedicated absorb overlay layer is now created on health bars.
+  * Total absorbs are captured into live values during health refresh.
+  * Absorb update events are wired so overlay updates react to absorb changes.
+* Added demo-preview absorb values so absorb overlays are visible and testable in demo/test mode.
+
+### Changed
+
+* Updated target swap runtime handling in combat to avoid destructive visual clearing on target frames during swap transitions.
+
+### Fixed
+
+* Fixed cases where target frames could disappear or stay visually empty during raid/combat target swaps.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.1]
 
 ### Added
