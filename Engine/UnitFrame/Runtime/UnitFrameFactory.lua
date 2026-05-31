@@ -68,11 +68,22 @@ function Factory.CreateHealthBar(frame)
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
     health.bg = bg
 
-    local absorbOverlay = health:CreateTexture(nil, "OVERLAY", nil, 1)
-    absorbOverlay:SetTexture("Interface\\Buttons\\WHITE8X8")
-    absorbOverlay:SetVertexColor(0.66, 0.86, 1.0, 0.62)
+    local absorbOverlay = CreateFrame("StatusBar", nil, frame)
+    absorbOverlay:SetFrameStrata(frame:GetFrameStrata() or "MEDIUM")
+    absorbOverlay:SetFrameLevel((health:GetFrameLevel() or frame:GetFrameLevel() or 1) + 5)
+    absorbOverlay:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    absorbOverlay:SetStatusBarColor(0.66, 0.86, 1.0, 0.62)
+    absorbOverlay:SetMinMaxValues(0, 1)
+    absorbOverlay:SetValue(0)
     absorbOverlay:Hide()
     health.AbsorbOverlay = absorbOverlay
+
+    local absorbMinMarker = health:CreateTexture(nil, "ARTWORK")
+    absorbMinMarker:SetTexture("Interface\\Buttons\\WHITE8X8")
+    absorbMinMarker:SetSize(2, 1)
+    absorbMinMarker:SetVertexColor(0.66, 0.86, 1.0, 0.95)
+    absorbMinMarker:Hide()
+    health.AbsorbMinMarker = absorbMinMarker
 
     frame.Elements.HealthBar = health
     frame.health = health

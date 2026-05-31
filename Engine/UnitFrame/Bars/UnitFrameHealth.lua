@@ -16,6 +16,17 @@ local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
 
+local function IsSecretValue(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
+local function ResolveAbsorbSafeNumber(rawValue)
+    if rawValue == nil then
+        return 0
+    end
+    return ToSafeNumberValue(rawValue)
+end
+
 local function IsPlaceholderUnitEnabled(frame)
     if not frame or not frame.unit then
         return true
@@ -30,23 +41,69 @@ local function IsPlaceholderUnitEnabled(frame)
     return type(config) ~= "table" or config.enabled ~= false
 end
 
-local function ResolveTotalAbsorb(unit, unitExists, previewValues)
+local function ResolveTotalAbsorb(frame, unit, unitExists, previewValues)
     if previewValues then
         local previewAbsorb = previewValues.absorbTotal or previewValues.absorb or 0
-        local absorbSafe = ToSafeNumberValue(previewAbsorb)
+        local absorbSafe = ResolveAbsorbSafeNumber(previewAbsorb)
         if absorbSafe < 0 then
             absorbSafe = 0
         end
         return previewAbsorb, absorbSafe
     end
 
+    local hpDamageAbsorbRaw = nil
+    local hpDamageAbsorbSafe = 0
+    local hpDamageAbsorbSecret = nil
+    if unitExists and CreateUnitHealPredictionCalculator and UnitGetDetailedHealPrediction then
+        frame.HealthPredictionValues = frame.HealthPredictionValues or CreateUnitHealPredictionCalculator()
+        local values = frame.HealthPredictionValues
+        if values then
+            local updateOk = pcall(UnitGetDetailedHealPrediction, unit, "player", values)
+            if updateOk and values.GetDamageAbsorbs then
+                local absorbOk, damageAbsorbAmount = pcall(values.GetDamageAbsorbs, values)
+                if absorbOk then
+                    hpDamageAbsorbRaw = damageAbsorbAmount
+                    hpDamageAbsorbSecret = IsSecretValue(damageAbsorbAmount)
+                    hpDamageAbsorbSafe = ResolveAbsorbSafeNumber(damageAbsorbAmount)
+                    if hpDamageAbsorbSafe < 0 then
+                        hpDamageAbsorbSafe = 0
+                    end
+                end
+            end
+        end
+    end
+
+    local totalAbsorb = nil
+    local absorbSafe = 0
+    local totalAbsorbSecret = nil
     if unitExists and UnitGetTotalAbsorbs then
-        local totalAbsorb = UnitGetTotalAbsorbs(unit) or 0
-        local absorbSafe = ToSafeNumberValue(totalAbsorb)
+        local rawOk, rawTotalAbsorb = pcall(UnitGetTotalAbsorbs, unit)
+        if not rawOk then
+            rawTotalAbsorb = 0
+        end
+        totalAbsorb = rawTotalAbsorb or 0
+        absorbSafe = ResolveAbsorbSafeNumber(totalAbsorb)
         if absorbSafe < 0 then
             absorbSafe = 0
         end
+        totalAbsorbSecret = IsSecretValue(totalAbsorb)
+        local healAbsorbRaw = nil
+        if UnitGetTotalHealAbsorbs then
+            local healOk, healValue = pcall(UnitGetTotalHealAbsorbs, unit)
+            if healOk then
+                healAbsorbRaw = healValue
+            end
+        end
+    end
+
+    if hpDamageAbsorbSafe > 0 then
+        return hpDamageAbsorbRaw or hpDamageAbsorbSafe, hpDamageAbsorbSafe
+    end
+    if totalAbsorb ~= nil then
         return totalAbsorb, absorbSafe
+    end
+    if hpDamageAbsorbRaw ~= nil then
+        return hpDamageAbsorbRaw, hpDamageAbsorbSafe
     end
 
     return 0, 0
@@ -66,98 +123,82 @@ local function UpdateAbsorbOverlay(frame)
     local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
     if config and config.showAbsorbOverlay == false then
         absorbOverlay:Hide()
+        if health.AbsorbMinMarker then
+            health.AbsorbMinMarker:Hide()
+        end
         return
     end
 
     local live = frame.LiveValues or {}
-    local maxHealth = ToSafeNumberValue(live.healthMaxSafe or live.healthMaxRaw)
-    local currentHealth = ToSafeNumberValue(live.healthCurrentSafe or live.healthCurrentRaw)
-    local totalAbsorb = ToSafeNumberValue(live.absorbTotalSafe or live.absorbTotalRaw)
+    local _, displayedMax = health:GetMinMaxValues()
+    local maxHealthRaw = displayedMax or live.healthMaxRaw
+    local maxHealthSafe = ToSafeNumberValue(live.healthMaxSafe or maxHealthRaw)
+    local totalAbsorbRaw = live.absorbTotalRaw
+    local totalAbsorbSafe = live.absorbTotalSafe
 
-    if maxHealth <= 0 or totalAbsorb <= 0 then
+    if maxHealthRaw == nil then
         absorbOverlay:Hide()
-        return
-    end
-
-    if currentHealth < 0 then
-        currentHealth = 0
-    elseif currentHealth > maxHealth then
-        currentHealth = maxHealth
-    end
-
-    local missingHealth = maxHealth - currentHealth
-    local effectiveAbsorb = totalAbsorb
-    local showFullHealthMarker = false
-    if missingHealth <= 0 then
-        showFullHealthMarker = true
-    else
-        effectiveAbsorb = math.min(totalAbsorb, missingHealth)
-        if effectiveAbsorb <= 0 then
-            absorbOverlay:Hide()
-            return
+        if health.AbsorbMinMarker then
+            health.AbsorbMinMarker:Hide()
         end
+        return
     end
-
-    local barWidth = tonumber(health.GetWidth and health:GetWidth() or 0) or 0
-    if barWidth <= 0 then
+    if not IsSecretValue(maxHealthRaw) and type(maxHealthRaw) == "number" and maxHealthRaw <= 0 then
         absorbOverlay:Hide()
+        if health.AbsorbMinMarker then
+            health.AbsorbMinMarker:Hide()
+        end
         return
     end
 
-    local healthFraction = math.max(0, math.min(1, currentHealth / maxHealth))
-    local absorbFraction = math.max(0, math.min(1, effectiveAbsorb / maxHealth))
-    local healthWidth = barWidth * healthFraction
-    local absorbWidth = barWidth * absorbFraction
-
-    if showFullHealthMarker then
-        local markerMaxFraction = 0.35
-        local markerWidth = math.max(2, barWidth * math.min(absorbFraction, markerMaxFraction))
-        absorbWidth = math.min(markerWidth, barWidth)
-    end
-
-    if absorbWidth < 0.5 then
+    local healthTexture = health.GetStatusBarTexture and health:GetStatusBarTexture() or nil
+    if not healthTexture then
         absorbOverlay:Hide()
+        if health.AbsorbMinMarker then
+            health.AbsorbMinMarker:Hide()
+        end
         return
     end
 
     local reverseFill = health.GetReverseFill and health:GetReverseFill() or false
-    local leftOffset
-    local rightOffset
-    if reverseFill then
-        if showFullHealthMarker then
-            leftOffset = 0
-            rightOffset = absorbWidth
-        else
-            local boundary = barWidth - healthWidth
-            leftOffset = boundary - absorbWidth
-            rightOffset = boundary
-        end
-    else
-        if showFullHealthMarker then
-            leftOffset = barWidth - absorbWidth
-            rightOffset = barWidth
-        else
-            leftOffset = healthWidth
-            rightOffset = healthWidth + absorbWidth
-        end
-    end
-
-    if rightOffset < leftOffset then
-        leftOffset, rightOffset = rightOffset, leftOffset
-    end
-    leftOffset = math.max(0, leftOffset)
-    rightOffset = math.min(barWidth, rightOffset)
-    local finalWidth = rightOffset - leftOffset
-    if finalWidth < 0.5 then
-        absorbOverlay:Hide()
-        return
-    end
-
     absorbOverlay:ClearAllPoints()
-    absorbOverlay:SetPoint("TOPLEFT", health, "TOPLEFT", leftOffset, 0)
-    absorbOverlay:SetPoint("BOTTOMLEFT", health, "BOTTOMLEFT", leftOffset, 0)
-    absorbOverlay:SetWidth(finalWidth)
+    absorbOverlay:SetPoint("TOP", health, "TOP", 0, 0)
+    absorbOverlay:SetPoint("BOTTOM", health, "BOTTOM", 0, 0)
+    absorbOverlay:SetWidth(health:GetWidth())
+    if reverseFill then
+        absorbOverlay:SetPoint("RIGHT", healthTexture, "LEFT", 0, 0)
+        absorbOverlay:SetReverseFill(true)
+    else
+        absorbOverlay:SetPoint("LEFT", healthTexture, "RIGHT", 0, 0)
+        absorbOverlay:SetReverseFill(false)
+    end
+
+    if type(maxHealthRaw) == "number" then
+        absorbOverlay:SetMinMaxValues(0, maxHealthRaw)
+    else
+        absorbOverlay:SetMinMaxValues(0, maxHealthSafe)
+    end
+    absorbOverlay:SetValue(totalAbsorbRaw or totalAbsorbSafe or 0)
     absorbOverlay:Show()
+
+    local marker = health.AbsorbMinMarker
+    if marker then
+        marker:Hide()
+        local overlayValue = totalAbsorbSafe or ToSafeNumberValue(totalAbsorbRaw)
+        if overlayValue and overlayValue > 0 then
+            local overlayTexture = absorbOverlay.GetStatusBarTexture and absorbOverlay:GetStatusBarTexture() or nil
+            local overlayWidth = overlayTexture and overlayTexture.GetWidth and overlayTexture:GetWidth() or 0
+            if overlayWidth > 0 and overlayWidth < 2 then
+                marker:ClearAllPoints()
+                if reverseFill then
+                    marker:SetPoint("RIGHT", healthTexture, "LEFT", 0, 0)
+                else
+                    marker:SetPoint("LEFT", healthTexture, "RIGHT", 0, 0)
+                end
+                marker:Show()
+            end
+        end
+    end
 end
 
 -- Health helpers keep value formatting and health-bar updates together.
@@ -209,8 +250,7 @@ function Health.UpdateBarValue(frame)
     frame.Elements.HealthBar:SetValue(currentHealth)
     local unitExists = DoesUnitSeemPresent(frame.unit)
     local previewValues = IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil
-    local absorbTotalRaw, absorbTotalSafe = ResolveTotalAbsorb(frame.unit, unitExists, previewValues)
-
+    local absorbTotalRaw, absorbTotalSafe = ResolveTotalAbsorb(frame, frame.unit, unitExists, previewValues)
     frame.LiveValues.healthCurrentRaw = currentHealth
     frame.LiveValues.healthMaxRaw = maxHealth
     frame.LiveValues.healthCurrentSafe = ToSafeNumberValue(currentHealth)

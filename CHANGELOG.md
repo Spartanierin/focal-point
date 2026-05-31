@@ -9,6 +9,24 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.3]
+
+### Added
+
+* Added a minimum absorb visibility marker on health bars so very small absorb values remain visible even when the overlay segment is sub-pixel thin.
+
+### Changed
+
+* Removed temporary absorb debug slash output from the normal command surface after absorb validation.
+
+### Fixed
+
+* Fixed absorb overlay visibility edge cases where valid but very small absorb values could appear visually missing.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.2]
 
 ### Added
