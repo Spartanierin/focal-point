@@ -12,6 +12,7 @@ local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
 local MaybeDebugTarget = Presence.MaybeDebugTarget
 local ForceDebugTarget = Presence.ForceDebugTarget
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local ShouldForceFrameVisible = Presence.ShouldForceFrameVisible
 
 local function IsProtectedFrameInCombat(frame)
     return frame
@@ -248,6 +249,16 @@ function Visibility.HandleMissingUnit(frame)
             frame:Hide()
         end
         return true
+    end
+
+    if ShouldForceFrameVisible and ShouldForceFrameVisible(frame) then
+        frame._missingUnitSince = nil
+        return false
+    end
+
+    if IsPreviewModeEnabled() then
+        frame._missingUnitSince = nil
+        return false
     end
 
     local protectedFrame = frame.IsProtected and frame:IsProtected()

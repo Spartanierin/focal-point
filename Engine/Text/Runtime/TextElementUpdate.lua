@@ -736,7 +736,7 @@ function Update.UpdateElement(frame, key, deps)
         local altPowerMaxSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxSafe", 0) or 0) or 0
         local altPowerCurrentText = GetLiveValue and GetLiveValue(frame, "altPowerCurrentText", nil) or nil
         local altPowerMaxText = GetLiveValue and GetLiveValue(frame, "altPowerMaxText", nil) or nil
-        local altPowerAvailable = altPowerType ~= nil and altPowerMaxRaw > 0
+        local altPowerAvailable = altPowerType ~= nil and ToSafeNumber and ToSafeNumber(altPowerMaxRaw) > 0
         local classPowerVisible = GetLiveValue and GetLiveValue(frame, "classPowerVisible", false) or false
         local classPowerMaxSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerMaxSafe", 0) or 0) or 0
         local classPowerCurrentSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerCurrentSafe", 0) or 0) or 0
@@ -747,14 +747,14 @@ function Update.UpdateElement(frame, key, deps)
             StopAnimatedNameText(textObject)
             textObject:SetTextColor(r, g, b, a)
             local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(frame.unit)
-            liveMaxNumber = type(liveMaxNumber) == "number" and liveMaxNumber or 0
+            liveMaxNumber = ToSafeNumber and ToSafeNumber(liveMaxNumber) or 0
             liveCurrentText = type(liveCurrentText) == "string" and liveCurrentText or "0"
             liveMaxText = type(liveMaxText) == "string" and liveMaxText or "0"
 
             if livePowerType ~= nil and liveMaxNumber > 0 then
                 ApplyOverflow(textObject, liveCurrentText .. " / " .. liveMaxText, textConfig.overflowMode)
                 textObject:Show()
-            elseif altPowerVisible and altPowerMaxSafe > 0 then
+            elseif altPowerVisible and (ToSafeNumber and ToSafeNumber(altPowerMaxSafe) or 0) > 0 then
                 ApplyOverflow(
                     textObject,
                     (type(altPowerCurrentText) == "string" and altPowerCurrentText or (FormatNumber and FormatNumber(altPowerCurrentSafe) or altPowerCurrentSafe))
@@ -780,7 +780,7 @@ function Update.UpdateElement(frame, key, deps)
             StopAnimatedNameText(textObject)
             textObject:SetTextColor(r, g, b, a)
 
-            if classPowerVisible and classPowerMaxSafe > 0 then
+            if classPowerVisible and (ToSafeNumber and ToSafeNumber(classPowerMaxSafe) or 0) > 0 then
                 ApplyOverflow(
                     textObject,
                     (type(classPowerCurrentText) == "string" and classPowerCurrentText or (FormatNumber and FormatNumber(classPowerCurrentSafe) or classPowerCurrentSafe))

@@ -8,6 +8,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -188,7 +189,8 @@ local function UpdateAbsorbOverlay(frame)
         if overlayValue and overlayValue > 0 then
             local overlayTexture = absorbOverlay.GetStatusBarTexture and absorbOverlay:GetStatusBarTexture() or nil
             local overlayWidth = overlayTexture and overlayTexture.GetWidth and overlayTexture:GetWidth() or 0
-            if overlayWidth > 0 and overlayWidth < 2 then
+            local overlayWidthSafe = ToSafeNumberValue(overlayWidth)
+            if overlayWidthSafe > 0 and overlayWidthSafe < 2 then
                 marker:ClearAllPoints()
                 if reverseFill then
                     marker:SetPoint("RIGHT", healthTexture, "LEFT", 0, 0)
@@ -210,7 +212,7 @@ function Health.GetCurrentValues(frame)
 
     local unit = frame.unit
     local unitExists = DoesUnitSeemPresent(unit)
-    local previewValues = IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
 
     if previewValues then
         return previewValues.healthCurrent or 100, previewValues.healthMax or 100
@@ -248,8 +250,11 @@ function Health.UpdateBarValue(frame)
     local currentHealth, maxHealth = Health.GetCurrentValues(frame)
     frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
     frame.Elements.HealthBar:SetValue(currentHealth)
+    if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
+        Demo.TouchDebug(frame, "barSmoothingTicks")
+    end
     local unitExists = DoesUnitSeemPresent(frame.unit)
-    local previewValues = IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
     local absorbTotalRaw, absorbTotalSafe = ResolveTotalAbsorb(frame, frame.unit, unitExists, previewValues)
     frame.LiveValues.healthCurrentRaw = currentHealth
     frame.LiveValues.healthMaxRaw = maxHealth

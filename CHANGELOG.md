@@ -9,6 +9,53 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.4]
+
+### Added
+
+* Added a centralized `UnitFrameDemoEnvironment` runtime path to control demo/test/unlock frame behavior from one place.
+* Added `/fpdebugdemo` diagnostics commands for runtime demo inspection (`on`, `off`, `status`, `once`, `reset`).
+* Added runtime demo component isolation toggles for castbar, auras, aura timers, text updates, range fade, bar smoothing, and single-unit demo filtering.
+* Added demo runtime counters and reporting fields for castbar ticks/value updates, aura timer activity, bar smoothing ticks, and range-fade ticks.
+* Added explicit loading/registration of the new demo environment module in runtime initialization.
+* Added custom preset foundation in the existing editor preset workflow:
+  * Save current layout as a custom preset.
+  * Preview selected presets before committing.
+  * Apply previewed preset changes.
+  * Cancel preview and restore the pre-preview state.
+  * Delete saved custom presets.
+* Added a small save dialog (AceGUI window + edit box) to enter a custom preset name when saving.
+* Added automatic duplicate-name handling for custom presets by appending a numeric suffix (for example `Name (2)`).
+* Added custom preset metadata markers (`source`/`type`) and dedicated custom preset IDs for clean separation from built-in themes.
+
+### Changed
+
+* Migrated demo/preview mode decisions in unit-frame runtime modules to the centralized demo environment API.
+* Updated class power and presence demo handling to use the demo environment instead of scattered direct preview/test checks.
+* Migrated preview value and preview aura sources from `UnitFramePreview` into the centralized demo environment while keeping compatibility wrappers.
+* Updated demo visibility handling so missing units are no longer force-hidden while demo visibility is intentionally active.
+* Updated GUI test-mode exit handling to use centralized demo-exit cleanup instead of distributed one-off cleanup paths.
+* Reduced demo debug overhead in normal operation by gating hot-path debug counters behind explicit debug enablement.
+* Reduced runtime guard warning spam so guard warnings are emitted only while relevant debug modes are active.
+* Reworked preset flow in the toolbar to use a safe preview session:
+  * Selecting a preset now previews it.
+  * `Apply` now commits the active preview.
+  * `Cancel` now restores the exact state from before preview started.
+* Moved custom preset storage to `profile.CustomPresets` for cleaner structure and lower risk to general profile settings.
+* Updated preset copy/labels in the editor (EN/DE) for consistent `Save`, `Preview`, `Apply`, `Cancel`, and `Delete` wording.
+
+### Fixed
+
+* Fixed choppy demo castbar playback by running preview cast progress on a dedicated frame-based `OnUpdate` time path.
+* Fixed demo castbar timing drift/restart jitter by using explicit preview start/duration tracking during preview updates.
+* Fixed diagnostic usability by ensuring demo debug output is reachable through addon slash commands without requiring direct global namespace access.
+* Fixed unlock-to-lock cleanup gaps where demo remnants (notably aura and absorb preview leftovers) could remain visible after leaving unlock mode.
+* Fixed a preset-label localization gap (`EDITOR_PRESET_START`) so the preset dropdown label is consistently localized.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.3]
 
 ### Added

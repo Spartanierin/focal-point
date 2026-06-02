@@ -6,6 +6,10 @@ local Presence = FocalPoint.UnitFramePresence
 local Utils = FocalPoint.UnitFrameUtils or {}
 local IsSafeTrue = Utils.IsSafeTrue
 
+local function GetDemoEnvironment()
+    return FocalPoint.UnitFrameDemoEnvironment
+end
+
 -- Presence helpers are intentionally lightweight.
 -- They answer "does this unit appear to exist right now?" and support
 -- target-specific debug output plus preview/test mode checks.
@@ -133,5 +137,11 @@ function Presence.ForceDebugTarget(frame, message, key, cooldown)
 end
 
 function Presence.IsPreviewModeEnabled()
-    return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
+    local demo = GetDemoEnvironment()
+    return demo and demo.IsDemoActive and demo.IsDemoActive() or false
+end
+
+function Presence.ShouldForceFrameVisible(frame)
+    local demo = GetDemoEnvironment()
+    return demo and demo.ShouldForceFrameVisible and demo.ShouldForceFrameVisible(frame) or false
 end

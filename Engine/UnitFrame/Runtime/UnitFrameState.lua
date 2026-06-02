@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameState = FocalPoint.UnitFrameState or {}
 local State = FocalPoint.UnitFrameState
+local Presence = FocalPoint.UnitFramePresence or {}
 
 -- Small runtime-state kernel for controlled refresh orchestration.
 
@@ -20,6 +21,115 @@ end
 
 local function IsRuntimeDebugEnabled()
     return FocalPoint and FocalPoint.debugRuntimeState == true
+end
+
+local function ShouldEmitGuardWarnings()
+    return (FocalPoint and FocalPoint.debugRuntimeState == true)
+        or (FocalPoint and FocalPoint.debugDemoRuntime == true)
+        or (FocalPoint and FocalPoint.debugTargetVisibility == true)
+end
+
+local function IsPreviewTraceActive()
+    if not IsRuntimeDebugEnabled() then
+        return false
+    end
+    local isPreviewModeEnabled = Presence and Presence.IsPreviewModeEnabled
+    return isPreviewModeEnabled and isPreviewModeEnabled() or false
+end
+
+local function TouchDemoRefreshTrace()
+    if not IsPreviewTraceActive() then
+        return nil
+    end
+
+    FocalPoint._demoRefreshTrace = FocalPoint._demoRefreshTrace or {
+        windowStartedAt = 0,
+        queued = 0,
+        committed = 0,
+        reasons = {},
+        scopes = {},
+    }
+
+    local trace = FocalPoint._demoRefreshTrace
+    local now = GetTime and GetTime() or 0
+    if trace.windowStartedAt <= 0 then
+        trace.windowStartedAt = now
+    end
+    return trace, now
+end
+
+local function FlushDemoRefreshTraceIfNeeded()
+    local trace, now = TouchDemoRefreshTrace()
+    if not trace then
+        return
+    end
+
+    if (now - trace.windowStartedAt) < 1.0 then
+        return
+    end
+
+    if FocalPoint and FocalPoint.Debug then
+        local reasonParts = {}
+        for key, value in pairs(trace.reasons or {}) do
+            reasonParts[#reasonParts + 1] = string.format("%s=%d", tostring(key), tonumber(value) or 0)
+        end
+        table.sort(reasonParts)
+
+        local scopeParts = {}
+        for key, value in pairs(trace.scopes or {}) do
+            scopeParts[#scopeParts + 1] = string.format("%s=%d", tostring(key), tonumber(value) or 0)
+        end
+        table.sort(scopeParts)
+
+        FocalPoint:Debug(string.format(
+            "[DemoRefreshTrace] queued=%d committed=%d reasons=[%s] scopes=[%s]",
+            tonumber(trace.queued) or 0,
+            tonumber(trace.committed) or 0,
+            table.concat(reasonParts, ","),
+            table.concat(scopeParts, ",")
+        ))
+    end
+
+    trace.windowStartedAt = now
+    trace.queued = 0
+    trace.committed = 0
+    trace.reasons = {}
+    trace.scopes = {}
+end
+
+local function RecordDemoRefreshQueue(reason, scope)
+    local trace = TouchDemoRefreshTrace()
+    if not trace then
+        return
+    end
+
+    trace.queued = (trace.queued or 0) + 1
+    local reasonKey = tostring(reason or "unknown")
+    trace.reasons[reasonKey] = (trace.reasons[reasonKey] or 0) + 1
+
+    if type(scope) == "string" then
+        local scopeKey = scope ~= "" and scope or "unknown"
+        trace.scopes[scopeKey] = (trace.scopes[scopeKey] or 0) + 1
+    elseif type(scope) == "table" then
+        for _, scopeEntry in ipairs(scope) do
+            if type(scopeEntry) == "string" and scopeEntry ~= "" then
+                trace.scopes[scopeEntry] = (trace.scopes[scopeEntry] or 0) + 1
+            end
+        end
+    else
+        trace.scopes.full = (trace.scopes.full or 0) + 1
+    end
+
+    FlushDemoRefreshTraceIfNeeded()
+end
+
+local function RecordDemoRefreshCommit()
+    local trace = TouchDemoRefreshTrace()
+    if not trace then
+        return
+    end
+    trace.committed = (trace.committed or 0) + 1
+    FlushDemoRefreshTraceIfNeeded()
 end
 
 local function BuildScopeText(scopeTable)
@@ -173,7 +283,7 @@ function State.Guard(frame, key, condition, details)
         end
     end
 
-    if FocalPoint and FocalPoint.Warn then
+    if ShouldEmitGuardWarnings() and FocalPoint and FocalPoint.Warn then
         local label = GetFrameDebugLabel(frame)
         local suffix = (type(details) == "string" and details ~= "") and (" " .. details) or ""
         FocalPoint:Warn(string.format("Runtime-Guard %s %s%s", label, tostring(key or "?"), suffix))
@@ -215,6 +325,8 @@ function State.ResetDerivedFrameState(frame)
     end
 
     frame.LiveValues = WipeTable(frame.LiveValues)
+    -- Legacy compatibility path: frame.TestValues is still cleared here until
+    -- remaining consumers are migrated to runtime/demo snapshot values.
     frame.TestValues = nil
     local TextState = FocalPoint.TextElementState or {}
     if TextState.Reset then
@@ -363,6 +475,7 @@ local function ConsumeRequest(frame, runtimeState)
 end
 
 function State.QueueRefresh(frame, reason, scope, options, delay)
+    RecordDemoRefreshQueue(reason, scope)
     delay = tonumber(delay) or 0
 
     if delay > 0 and C_Timer and C_Timer.After then
@@ -428,6 +541,7 @@ function State.Commit(frame)
     State.DebugLog(frame, "commit-start", string.format("reason=%s scopes=%s token=%s", tostring(request.reason or "-"), BuildScopeText(request.scopes), tostring(request.commitToken or "?")))
     local owner = FocalPoint.UnitFrame
     if owner and owner.Refresh then
+        RecordDemoRefreshCommit()
         owner:Refresh(frame, request)
     end
 

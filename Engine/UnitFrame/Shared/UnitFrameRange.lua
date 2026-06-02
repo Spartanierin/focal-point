@@ -5,6 +5,7 @@ local Range = FocalPoint.UnitFrameRange
 
 local Presence = FocalPoint.UnitFramePresence or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -115,6 +116,9 @@ function Range.EnsureFadeDriver(frame)
 
         local step = math.min(1, (elapsed or 0) * TARGET_RANGE_FADE_SPEED)
         currentAlpha = currentAlpha + (delta * step)
+        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(owner) and Demo.TouchDebug then
+            Demo.TouchDebug(owner, "rangeFadeTicks")
+        end
         owner._rangeCurrentAlpha = currentAlpha
         owner:SetAlpha(currentAlpha)
     end)

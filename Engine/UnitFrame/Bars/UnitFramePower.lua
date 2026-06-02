@@ -7,6 +7,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -38,8 +39,9 @@ function Power.RefreshUnitBarValues(owner, frame)
 
     local unit = frame.unit
     local unitExists = DoesUnitSeemPresent(unit)
-    local previewValues = IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
     frame.LiveValues = frame.LiveValues or {}
+    -- Legacy compatibility write-through for older text/bar readers.
     frame.TestValues = previewValues
 
     if frame.Elements.HealthBar and owner and owner.RefreshHealthBar then
@@ -85,6 +87,9 @@ function Power.RefreshUnitBarValues(owner, frame)
 
         frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerBarValue)
         frame.Elements.PowerBar:SetValue(currentPowerBarValue)
+        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
+            Demo.TouchDebug(frame, "barSmoothingTicks")
+        end
 
         frame.LiveValues.powerCurrentRaw = currentPower
         frame.LiveValues.powerMaxRaw = maxPower
@@ -137,6 +142,9 @@ function Power.RefreshUnitBarValues(owner, frame)
 
         frame.Elements.AlternativePowerBar:SetMinMaxValues(minAltPowerBarValue, maxAltPowerEffective)
         frame.Elements.AlternativePowerBar:SetValue(currentAltPowerBarValue)
+        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
+            Demo.TouchDebug(frame, "barSmoothingTicks")
+        end
 
         local _, altCurrentText, altMaxText, _, altCurrentSafe, altMaxSafe = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(unit) or nil
         if type(altCurrentText) ~= "string" then

@@ -210,8 +210,11 @@ function CastBar.StartPreview(frame)
     end
 
     local now = GetTime and GetTime() or 0
+    local previewDuration = 2.5
     castBar.startTime = now
-    castBar.endTime = now + 2.5
+    castBar.endTime = now + previewDuration
+    castBar.previewStartedAt = now
+    castBar.previewDuration = previewDuration
     castBar.isCasting = true
     castBar.isChannel = false
     castBar.isPreview = true
@@ -220,8 +223,8 @@ function CastBar.StartPreview(frame)
     castBar.canKick = true
     castBar.castID = nil
     castBar.castToken = "preview"
-    castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
-    castBar:SetValue(now + 1.25)
+    castBar:SetMinMaxValues(0, previewDuration)
+    castBar:SetValue(previewDuration * 0.5)
     CastBar.ApplyStateColor(
         castBar,
         castBar.interruptState,
@@ -248,6 +251,10 @@ function CastBar.Stop(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return
+    end
+    local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+    if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and Demo.TouchDebug then
+        Demo.TouchDebug(frame, "castStop")
     end
 
     castBar.isCasting = false

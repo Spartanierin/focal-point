@@ -6,6 +6,7 @@ local ClassPower = FocalPoint.UnitFrameClassPower
 local Factory = FocalPoint.UnitFrameFactory or {}
 local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local GetAnchorTarget = Factory.GetAnchorTarget
 local FormatDisplayNumber = Utils.FormatDisplayNumber
@@ -53,12 +54,6 @@ local PREVIEW_INFO_BY_CLASS = {
     SHAMAN = { current = 6, max = 10, typeId = POWER_ID_MAELSTROM, token = POWER_TOKEN_MAELSTROM },
     WARLOCK = { current = 4, max = 5, typeId = POWER_ID_SOUL_SHARDS, token = POWER_TOKEN_SOUL_SHARDS },
 }
-
-local function GetSelectedEditorUnit()
-    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
-    local state = editorState and editorState.Get and editorState.Get() or nil
-    return state and state.selectedUnit or nil
-end
 
 local function GetPlayerClassToken()
     if UnitClassBase then
@@ -228,11 +223,7 @@ function ClassPower.ShouldForcePreview(unit)
         return false
     end
 
-    if FocalPoint.guiTestModeEnabled then
-        return true
-    end
-
-    return FocalPoint.framesUnlocked and GetSelectedEditorUnit() == "player"
+    return Demo.IsDetailed and Demo.IsDetailed({ unit = "player" }) or false
 end
 
 local function GetPreviewClassPowerInfo()

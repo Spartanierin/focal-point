@@ -5,6 +5,7 @@ local AuraRuntime = FocalPoint.AuraRuntime
 local State = FocalPoint.UnitFrameState or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 -- Public facade for the aura pipeline.
 
@@ -110,8 +111,14 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
         return {}
     end
 
-    local previewAuras = Preview.GetTestAuras and Preview.GetTestAuras(frame, groupKey) or nil
+    local previewAuras = Demo.GetAuras and Demo.GetAuras(frame, groupKey) or nil
+    if previewAuras == nil then
+        previewAuras = Preview.GetTestAuras and Preview.GetTestAuras(frame, groupKey) or nil
+    end
     if previewAuras ~= nil then
+        if Demo.TouchDebug then
+            Demo.TouchDebug(frame, "auraRefresh")
+        end
         return ApplyAuraResult(frame, groupKey, previewAuras, groupConfig)
     end
 
@@ -123,6 +130,24 @@ end
 function AuraRuntime.RefreshAuras(frame, forceFullScan)
     if not frame or not frame.unit then
         return {}
+    end
+
+    if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) then
+        if Demo.IsAurasDisabled and Demo.IsAurasDisabled() then
+            local AuraRenderer = FocalPoint.AuraRenderer or {}
+            if AuraRenderer.ClearGroup then
+                AuraRenderer.ClearGroup(frame, "Buffs")
+                AuraRenderer.ClearGroup(frame, "Debuffs")
+            end
+            return { Buffs = {}, Debuffs = {} }
+        end
+        if Demo.TouchDebug then
+            Demo.TouchDebug(frame, "auraRefresh")
+        end
+        return {
+            Buffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Buffs"),
+            Debuffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Debuffs"),
+        }
     end
 
     local AuraCache = FocalPoint.AuraCache or {}

@@ -7,7 +7,11 @@ local Utils = FocalPoint.TextElementUtils
 -- larger tag and template runtime.
 
 function Utils.IsPreviewModeEnabled()
-    return FocalPoint.guiTestModeEnabled or FocalPoint.framesUnlocked
+    local presence = FocalPoint.UnitFramePresence
+    if presence and presence.IsPreviewModeEnabled then
+        return presence.IsPreviewModeEnabled()
+    end
+    return false
 end
 
 function Utils.UnpackColor(color, fallback)

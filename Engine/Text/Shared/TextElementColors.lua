@@ -7,6 +7,7 @@ local TextUtils = FocalPoint.TextElementUtils or {}
 
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
 local UnpackColor = TextUtils.UnpackColor
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 -- Text color helpers keep color resolution and color-tag formatting separate
 -- from the main token and template runtime.
@@ -38,8 +39,9 @@ local function ResolveClassColorByToken(classToken)
 end
 
 function Colors.GetClassTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        return ResolveClassColorByToken(frame.TestValues.classToken)
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
+    if frame and previewValues and previewValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
+        return ResolveClassColorByToken(previewValues.classToken)
     end
 
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
@@ -83,8 +85,9 @@ function Colors.BuildColorCode(r, g, b, a)
 end
 
 function Colors.GetPowerTextColor(unit, frame)
-    if frame and frame.TestValues and frame.TestValues.powerToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        local previewToken = frame.TestValues.powerToken
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
+    if frame and previewValues and previewValues.powerToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
+        local previewToken = previewValues.powerToken
         local previewColor = PowerBarColor and (PowerBarColor[previewToken] or PowerBarColor[0])
         if previewColor then
             return previewColor.r or previewColor[1], previewColor.g or previewColor[2], previewColor.b or previewColor[3], 1
@@ -113,8 +116,9 @@ function Colors.GetPowerTextColor(unit, frame)
 end
 
 function Colors.GetReactionTextColor(unit, frame)
-    if frame and frame.TestValues and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        local reaction = frame.TestValues.reaction or 5
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
+    if frame and previewValues and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
+        local reaction = previewValues.reaction or 5
         local previewColor = FACTION_BAR_COLORS and FACTION_BAR_COLORS[reaction]
         if previewColor then
             return previewColor.r or previewColor[1], previewColor.g or previewColor[2], previewColor.b or previewColor[3], 1

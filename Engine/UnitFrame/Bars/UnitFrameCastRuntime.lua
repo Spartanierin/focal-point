@@ -6,6 +6,7 @@ local Runtime = FocalPoint.UnitFrameCastRuntime
 local Cast = FocalPoint.UnitFrameCastBar or {}
 local Presence = FocalPoint.UnitFramePresence or {}
 local State = FocalPoint.UnitFrameState or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local ApplyCastBarStateColor = Cast.ApplyStateColor
 local GetActiveCastTiming = Cast.GetActiveTiming
@@ -120,30 +121,59 @@ function Runtime.RegisterEvents(owner, frame)
             return
         end
 
+        local now = GetTime and GetTime() or 0
+        -- Live and preview share this OnUpdate driver. Preview uses its own
+        -- time base (previewStartedAt/previewDuration), while live keeps the
+        -- existing event-driven refresh path.
+        if castBar.isPreview then
+            if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(currentOwner) then
+                if Demo.TouchDebug then
+                    Demo.TouchDebug(currentOwner, "castbarOnUpdateTicks")
+                    Demo.TouchDebug(currentOwner, "castbarPreviewValueUpdates")
+                end
+                if Demo.SetDebugValue then
+                    Demo.SetDebugValue(currentOwner, "castbarPreviewUpdateMode", "preview-onupdate")
+                end
+            end
+            if not IsPreviewModeEnabled() then
+                StopCastBar(currentOwner)
+                return
+            end
+
+            local duration = tonumber(castBar.previewDuration) or 2.5
+            local startedAt = tonumber(castBar.previewStartedAt) or now
+            local elapsedPreview = now - startedAt
+            if elapsedPreview >= duration then
+                castBar.previewStartedAt = now
+                castBar.startTime = now
+                castBar.endTime = now + duration
+                elapsedPreview = 0
+            end
+
+            castBar:SetMinMaxValues(0, duration)
+            castBar:SetValue(elapsedPreview)
+            if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(currentOwner) and Demo.TouchDebug then
+                Demo.TouchDebug(currentOwner, "castbarValueUpdates")
+                if Demo.SetDebugValue then
+                    Demo.SetDebugValue(currentOwner, "castbarPreviewElapsed", elapsedPreview)
+                    Demo.SetDebugValue(currentOwner, "castbarPreviewDuration", duration)
+                end
+            end
+            return
+        end
+
         self.elapsed = (self.elapsed or 0) + elapsed
         if self.elapsed < 0.02 then
             return
         end
 
         self.elapsed = 0
-
-        local now = GetTime and GetTime() or 0
-        if castBar.isPreview then
-            if not IsPreviewModeEnabled() then
-                StopCastBar(currentOwner)
-                return
+        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(currentOwner) and Demo.TouchDebug then
+            Demo.TouchDebug(currentOwner, "castbarOnUpdateTicks")
+            if Demo.SetDebugValue then
+                Demo.SetDebugValue(currentOwner, "castbarPreviewUpdateMode", "live-onupdate")
             end
-
-            if now >= castBar.endTime then
-                castBar.startTime = now
-                castBar.endTime = now + 2.5
-                castBar:SetMinMaxValues(castBar.startTime, castBar.endTime)
-            end
-
-            castBar:SetValue(now)
-            return
         end
-
         owner:RefreshCastBar(currentOwner)
     end)
 

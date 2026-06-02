@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.AuraContainer = FocalPoint.AuraContainer or {}
 local AuraContainer = FocalPoint.AuraContainer
 local State = FocalPoint.UnitFrameState or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 -- Defines the inner aura widget: icon, swipe, stack text, and border.
 
@@ -87,6 +88,19 @@ function AuraContainer.Create(parent)
     if cooldown.GetCountdownFontString then
         frame.CooldownText = cooldown:GetCountdownFontString()
     end
+    cooldown:SetScript("OnUpdate", function(self)
+        local ownerFrame = self:GetParent() and self:GetParent():GetParent() and self:GetParent():GetParent():GetParent() or nil
+        if not ownerFrame then
+            return
+        end
+        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(ownerFrame) and Demo.TouchDebug then
+            Demo.TouchDebug(ownerFrame, "auraCooldownUpdates")
+            local cooldownDuration = self.GetCooldownDuration and self:GetCooldownDuration() or nil
+            if IsGreaterThan(cooldownDuration, 0) then
+                Demo.TouchDebug(ownerFrame, "auraTimerTextUpdates")
+            end
+        end
+    end)
 
     local textOverlay = CreateFrame("Frame", nil, frame)
     textOverlay:SetAllPoints(frame)
@@ -164,8 +178,15 @@ function AuraContainer.ApplyData(container, aura, config)
     end
 
     local cooldownActive = false
+    local disableAuraTimers = Demo.IsAuraTimersDisabled and Demo.IsAuraTimersDisabled() and Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(container:GetParent() and container:GetParent():GetParent() or nil)
     if container.Cooldown then
-        if aura.durationObject and container.Cooldown.SetCooldownFromDurationObject then
+        if disableAuraTimers then
+            if container.Cooldown.SetCooldown then
+                container.Cooldown:SetCooldown(0, 0)
+            end
+            container.Cooldown:Hide()
+            cooldownActive = false
+        elseif aura.durationObject and container.Cooldown.SetCooldownFromDurationObject then
             local ok = pcall(container.Cooldown.SetCooldownFromDurationObject, container.Cooldown, aura.durationObject)
             if ok then
                 container.Cooldown:Show()

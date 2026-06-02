@@ -32,11 +32,21 @@ local function ToInstanceId(value)
     local ok, result = pcall(function()
         return tonumber(value or 0) or 0
     end)
-    if ok and type(result) == "number" then
+    if ok and type(result) == "number" and not (issecretvalue and issecretvalue(result)) then
         return result
     end
 
     return 0
+end
+
+local function ToSafeNumber(value, fallback)
+    local ok, result = pcall(function()
+        return tonumber(value)
+    end)
+    if ok and type(result) == "number" and not (issecretvalue and issecretvalue(result)) then
+        return result
+    end
+    return fallback or 0
 end
 
 local function StampAura(aura, source)
@@ -54,7 +64,7 @@ local function ShouldKeepMissingEventAura(aura, now)
         return false
     end
 
-    local seenAt = tonumber(aura._cacheSeenAt or 0) or 0
+    local seenAt = ToSafeNumber(aura._cacheSeenAt, 0)
     if seenAt <= 0 then
         return false
     end
@@ -157,12 +167,12 @@ function AuraCache.MarkRefreshApplied(frame, groupKey, counts)
     local rootState = GetRootState(frame)
     counts = type(counts) == "table" and counts or {}
 
-    groupState.phase = (tonumber(counts.sorted or 0) or 0) > 0 and "rendered" or "empty_valid"
+    groupState.phase = ToSafeNumber(counts.sorted, 0) > 0 and "rendered" or "empty_valid"
     groupState.lastReason = rootState.lastReason
-    groupState.rawCount = tonumber(counts.raw or 0) or 0
-    groupState.visibleCount = tonumber(counts.visible or 0) or 0
-    groupState.sortedCount = tonumber(counts.sorted or 0) or 0
-    groupState.renderedCount = tonumber(counts.rendered or counts.sorted or 0) or 0
+    groupState.rawCount = ToSafeNumber(counts.raw, 0)
+    groupState.visibleCount = ToSafeNumber(counts.visible, 0)
+    groupState.sortedCount = ToSafeNumber(counts.sorted, 0)
+    groupState.renderedCount = ToSafeNumber(counts.rendered or counts.sorted, 0)
 
     rootState.phase = "cache_ready"
     rootState.pendingReconcile = false
@@ -239,7 +249,7 @@ function AuraCache.SyncFromScans(frame, unit, scansByGroup)
     rootState.lastRefreshMode = "fullscan"
     rootState.lastReason = "fullscan"
     rootState.pendingReconcile = false
-    rootState.version = (tonumber(rootState.version) or 0) + 1
+    rootState.version = ToSafeNumber(rootState.version, 0) + 1
     Log(frame, "cache-sync", string.format("mode=fullscan ids=%d", CountKeys(scannedById)))
 
     return root.allById
@@ -303,7 +313,7 @@ function AuraCache.ReconcileEventAuras(frame, unit)
         rootState.phase = "cache_ready"
         rootState.lastRefreshMode = "reconcile"
         rootState.lastReason = "reconcile"
-        rootState.version = (tonumber(rootState.version) or 0) + 1
+        rootState.version = ToSafeNumber(rootState.version, 0) + 1
         Log(frame, "cache-reconcile", "changed=true")
     end
 
@@ -419,7 +429,7 @@ function AuraCache.ApplyUpdate(frame, unit, updateInfo)
     rootState.lastReason = "UNIT_AURA"
     rootState.pendingReconcile = AuraCache.HasUnknownEventAuras(frame)
     if changed then
-        rootState.version = (tonumber(rootState.version) or 0) + 1
+        rootState.version = ToSafeNumber(rootState.version, 0) + 1
     end
     Log(frame, "cache-update", string.format("changed=%s pendingReconcile=%s", tostring(changed), tostring(rootState.pendingReconcile == true)))
 

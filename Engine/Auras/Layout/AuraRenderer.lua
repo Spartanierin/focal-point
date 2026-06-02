@@ -94,6 +94,7 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
     if not frame or not frame.Elements then
         return
     end
+    local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
     local groupFrame = frame.Elements[groupKey]
     if not groupFrame or not config or config.enabled == false then
@@ -145,6 +146,9 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
     end
 
     groupFrame:Show()
+    if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and Demo.TouchDebug then
+        Demo.TouchDebug(frame, "auraRender")
+    end
     groupFrame.RuntimeState = groupFrame.RuntimeState or {}
     groupFrame.RuntimeState.phase = "rendered"
     groupFrame.RuntimeState.renderedCount = metrics.shownCount
@@ -159,8 +163,17 @@ function AuraRenderer.ClearGroup(frame, groupKey)
     if not frame or not frame.Elements or not frame.Elements[groupKey] then
         return
     end
+    local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
     local groupFrame = frame.Elements[groupKey]
+    groupFrame.RuntimeState = groupFrame.RuntimeState or {}
+    if groupFrame.RuntimeState.phase == "empty_valid"
+        and (tonumber(groupFrame.RuntimeState.renderedCount) or 0) == 0
+        and (not groupFrame.IsShown or not groupFrame:IsShown())
+    then
+        return
+    end
+
     if groupFrame.pool then
         for _, container in ipairs(groupFrame.pool) do
             local AuraContainer = GetAuraContainer()
@@ -170,10 +183,12 @@ function AuraRenderer.ClearGroup(frame, groupKey)
         end
     end
 
-    groupFrame.RuntimeState = groupFrame.RuntimeState or {}
     groupFrame.RuntimeState.phase = "empty_valid"
     groupFrame.RuntimeState.renderedCount = 0
     groupFrame.RuntimeState.lastReason = "clear"
+    if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and Demo.TouchDebug then
+        Demo.TouchDebug(frame, "auraClear")
+    end
     groupFrame:Hide()
 end
 

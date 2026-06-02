@@ -1073,14 +1073,27 @@ function UF:ApplyTestValues(frame)
         self:ApplyConfig(frame)
     end
 
-    if IsPreviewModeEnabled() then
-        if IsDetailedPreviewEnabled and IsDetailedPreviewEnabled(frame) then
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    local shouldRunPreviewCast = IsPreviewModeEnabled() and IsDetailedPreviewEnabled and IsDetailedPreviewEnabled(frame)
+
+    if shouldRunPreviewCast then
+        frame._fpPreviewCastState = frame._fpPreviewCastState or "off"
+        if frame._fpPreviewCastState ~= "preview_running" then
             StartCastBarPreview(frame)
-        else
-            StopCastBar(frame)
+            frame._fpPreviewCastState = "preview_running"
+        elseif not (castBar and castBar.isPreview and castBar.isCasting) then
+            StartCastBarPreview(frame)
+            frame._fpPreviewCastState = "preview_running"
         end
     else
-        StartCastBar(frame)
+        if frame._fpPreviewCastState == "preview_running" then
+            StopCastBar(frame)
+            frame._fpPreviewCastState = "off"
+        end
+
+        if not IsPreviewModeEnabled() then
+            StartCastBar(frame)
+        end
     end
 
     if self.ApplyTestTextValues then

@@ -28,9 +28,11 @@ function BasicTags.Resolve(frame, unit, token, deps)
     local GetResolvedUnitName = deps.GetResolvedUnitName
     local IsSafeTrue = deps.IsSafeTrue
     local ResolveToken = deps.ResolveToken
+    local demo = FocalPoint.UnitFrameDemoEnvironment or {}
+    local previewValues = (demo.GetUnitValues and demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
 
-    if IsPreviewModeEnabled and IsPreviewModeEnabled() and frame and frame.TestValues then
-        local preview = frame.TestValues
+    if IsPreviewModeEnabled and IsPreviewModeEnabled() and frame and previewValues then
+        local preview = previewValues
 
         if token == "name" then
             return preview.name or ""

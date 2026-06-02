@@ -602,6 +602,10 @@ function FocalPoint:ToggleFrameLock()
         end
         self:Info("Unit frames unlocked. Drag with left mouse button.")
     else
+        local demo = self.UnitFrameDemoEnvironment or nil
+        if demo and demo.ExitTestMode then
+            demo.ExitTestMode("frames-lock-on")
+        end
         self:ClearAllMoveOverlays()
         self:UpdateAllFrameDragStates()
         self:RefreshEditorSelectionVisuals()

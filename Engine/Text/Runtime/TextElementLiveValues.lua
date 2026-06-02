@@ -7,6 +7,7 @@ local TextUtils = FocalPoint.TextElementUtils or {}
 local TextStatus = FocalPoint.TextElementStatus or {}
 local TextPower = FocalPoint.TextElementPower or {}
 local TextState = FocalPoint.TextElementState or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
 local FormatNumber = TextUtils.FormatNumber
@@ -32,8 +33,9 @@ function LiveValues.Refresh(frame)
 
     frame.LiveValues = frame.LiveValues or {}
 
-    if IsPreviewModeEnabled() and frame.TestValues then
-        local preview = frame.TestValues
+    local demoValues = Demo.GetUnitValues and Demo.GetUnitValues(frame) or nil
+    if demoValues or (IsPreviewModeEnabled() and frame.TestValues) then
+        local preview = demoValues or frame.TestValues
         local healthCurrent = preview.healthCurrent or 100
         local healthMax = preview.healthMax or 100
         local powerCurrent = preview.powerCurrent or 65
@@ -47,7 +49,9 @@ function LiveValues.Refresh(frame)
         frame.LiveValues.healthMaxText = FormatNumber(healthMax)
         frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
         frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
-        frame.LiveValues.healthPercentValue = healthMax > 0 and math.floor((healthCurrent / healthMax) * 100) or 0
+        local healthCurrentSafe = ToSafeNumber(healthCurrent)
+        local healthMaxSafe = ToSafeNumber(healthMax)
+        frame.LiveValues.healthPercentValue = healthMaxSafe > 0 and math.floor((healthCurrentSafe / healthMaxSafe) * 100) or 0
         frame.LiveValues.healthPercentText = FormatInteger(frame.LiveValues.healthPercentValue)
         frame.LiveValues.healthCurrentRaw = healthCurrent
         frame.LiveValues.healthMaxRaw = healthMax
@@ -60,7 +64,9 @@ function LiveValues.Refresh(frame)
         frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
         frame.LiveValues.powerCurrentRaw = powerCurrent
         frame.LiveValues.powerMaxRaw = powerMax
-        frame.LiveValues.powerPercentValue = powerMax > 0 and math.floor((powerCurrent / powerMax) * 100) or 0
+        local powerCurrentSafe = ToSafeNumber(powerCurrent)
+        local powerMaxSafe = ToSafeNumber(powerMax)
+        frame.LiveValues.powerPercentValue = powerMaxSafe > 0 and math.floor((powerCurrentSafe / powerMaxSafe) * 100) or 0
         frame.LiveValues.powerPercentText = FormatInteger(frame.LiveValues.powerPercentValue)
 
         frame.LiveValues.altPowerCurrent = altPowerCurrent
