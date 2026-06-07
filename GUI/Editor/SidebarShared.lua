@@ -232,6 +232,12 @@ local function CreateSection(container, title, options)
     toggle:SetFullWidth(true)
     toggle:SetHeight(34)
     toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
+    if toggle.SetUserData then
+        toggle:SetUserData("focalPointSectionKey", sectionKey)
+    end
+    if toggle.frame then
+        toggle.frame._focalPointSectionKey = sectionKey
+    end
     toggle:SetCallback("OnClick", function()
         if stateApi and stateApi.SetSectionCollapsed then
             stateApi.SetSectionCollapsed(sectionKey, not collapsed)
@@ -241,7 +247,7 @@ local function CreateSection(container, title, options)
         end
 
         if options.onToggle then
-            options.onToggle()
+            options.onToggle(sectionKey)
         end
     end)
 

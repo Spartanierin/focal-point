@@ -214,18 +214,51 @@ function EditorController.BuildInspector(container, deps)
         return inspectorContent.children[1]
     end
 
-    local function CaptureSidebarScroll()
+    local GetClampedSidebarScrollValue
+
+    local function FindSectionWidget(scrollWidget, sectionKey)
+        if type(sectionKey) ~= "string" or sectionKey == "" or not scrollWidget or type(scrollWidget.children) ~= "table" then
+            return nil
+        end
+
+        for _, child in ipairs(scrollWidget.children) do
+            if child and child.GetUserData and child:GetUserData("focalPointSectionKey") == sectionKey then
+                return child
+            end
+        end
+
+        return nil
+    end
+
+    local function CaptureSidebarScroll(anchorSectionKey)
         local scrollWidget = GetScrollWidget()
         if not scrollWidget then
             return
         end
 
+        if type(anchorSectionKey) == "string" and anchorSectionKey ~= "" then
+            state.editorSidebarScroll.anchorSectionKey = anchorSectionKey
+            local sectionWidget = FindSectionWidget(scrollWidget, anchorSectionKey)
+            if sectionWidget and sectionWidget.frame and scrollWidget.frame and sectionWidget.frame.GetTop and scrollWidget.frame.GetTop then
+                local visibleTop = scrollWidget.frame:GetTop()
+                local sectionTop = sectionWidget.frame:GetTop()
+                if visibleTop and sectionTop then
+                    state.editorSidebarScroll.anchorOffset = visibleTop - sectionTop
+                end
+            end
+        else
+            state.editorSidebarScroll.anchorSectionKey = nil
+            state.editorSidebarScroll.anchorOffset = nil
+        end
+
+        if scrollWidget.scrollbar and scrollWidget.scrollbar.GetValue then
+            state.editorSidebarScroll.scrollvalue = scrollWidget.scrollbar:GetValue() or state.editorSidebarScroll.scrollvalue or 0
+        end
+
         local status = scrollWidget.status or scrollWidget.localstatus
         if status then
-            if status.scrollvalue ~= nil then
+            if state.editorSidebarScroll.scrollvalue == nil and status.scrollvalue ~= nil then
                 state.editorSidebarScroll.scrollvalue = status.scrollvalue
-            elseif scrollWidget.scrollbar and scrollWidget.scrollbar.GetValue then
-                state.editorSidebarScroll.scrollvalue = scrollWidget.scrollbar:GetValue() or state.editorSidebarScroll.scrollvalue or 0
             end
 
             if status.offset ~= nil then
@@ -233,10 +266,62 @@ function EditorController.BuildInspector(container, deps)
             end
             return
         end
+    end
 
-        if scrollWidget.scrollbar and scrollWidget.scrollbar.GetValue then
-            state.editorSidebarScroll.scrollvalue = scrollWidget.scrollbar:GetValue() or state.editorSidebarScroll.scrollvalue or 0
+    local function ApplySidebarSectionAnchor(scrollWidget)
+        local sectionKey = state.editorSidebarScroll.anchorSectionKey
+        if type(sectionKey) ~= "string" or sectionKey == "" then
+            return
         end
+
+        local sectionWidget = FindSectionWidget(scrollWidget, sectionKey)
+        if not sectionWidget or not sectionWidget.frame or not scrollWidget.frame or not sectionWidget.frame.GetTop or not scrollWidget.frame.GetTop then
+            return
+        end
+
+        local visibleTop = scrollWidget.frame:GetTop()
+        local sectionTop = sectionWidget.frame:GetTop()
+        if not visibleTop or not sectionTop then
+            return
+        end
+
+        local currentDelta = visibleTop - sectionTop
+        local targetDelta = tonumber(state.editorSidebarScroll.anchorOffset) or currentDelta
+        local scrollValue = GetClampedSidebarScrollValue(scrollWidget) + (currentDelta - targetDelta)
+
+        if scrollWidget.scrollbar and scrollWidget.scrollbar.GetMinMaxValues then
+            local minValue, maxValue = scrollWidget.scrollbar:GetMinMaxValues()
+            minValue = tonumber(minValue) or 0
+            maxValue = tonumber(maxValue) or scrollValue
+            if scrollValue < minValue then
+                scrollValue = minValue
+            elseif scrollValue > maxValue then
+                scrollValue = maxValue
+            end
+        end
+
+        state.editorSidebarScroll.scrollvalue = scrollValue
+    end
+
+    GetClampedSidebarScrollValue = function(scrollWidget)
+        local value = tonumber(state.editorSidebarScroll.scrollvalue) or 0
+        if not scrollWidget or not scrollWidget.scrollbar or not scrollWidget.scrollbar.GetMinMaxValues then
+            return value
+        end
+
+        local minValue, maxValue = scrollWidget.scrollbar:GetMinMaxValues()
+        minValue = tonumber(minValue) or 0
+        maxValue = tonumber(maxValue) or value
+
+        if value < minValue then
+            return minValue
+        end
+
+        if value > maxValue then
+            return maxValue
+        end
+
+        return value
     end
 
     local function RestoreSidebarScroll()
@@ -245,26 +330,44 @@ function EditorController.BuildInspector(container, deps)
             return
         end
 
+        ApplySidebarSectionAnchor(scrollWidget)
+
+        local scrollValue = GetClampedSidebarScrollValue(scrollWidget)
+        state.editorSidebarScroll.scrollvalue = scrollValue
+
         local status = scrollWidget.status or scrollWidget.localstatus
         if status then
-            if state.editorSidebarScroll.scrollvalue ~= nil then
-                status.scrollvalue = state.editorSidebarScroll.scrollvalue
-            end
-            if state.editorSidebarScroll.offset ~= nil then
-                status.offset = state.editorSidebarScroll.offset
-            end
+            status.scrollvalue = scrollValue
+            status.offset = nil
         end
 
-        if scrollWidget.SetScroll and state.editorSidebarScroll.scrollvalue ~= nil then
-            scrollWidget:SetScroll(state.editorSidebarScroll.scrollvalue)
+        if scrollWidget.SetScroll then
+            scrollWidget:SetScroll(scrollValue)
         end
 
-        if scrollWidget.scrollbar and scrollWidget.scrollbar.SetValue and state.editorSidebarScroll.scrollvalue ~= nil then
-            scrollWidget.scrollbar:SetValue(state.editorSidebarScroll.scrollvalue)
+        if scrollWidget.scrollbar and scrollWidget.scrollbar.SetValue then
+            scrollWidget.scrollbar:SetValue(scrollValue)
         end
 
         if scrollWidget.FixScroll then
             scrollWidget:FixScroll()
+        end
+    end
+
+    local function ScheduleSidebarScrollRestore(buildSerial)
+        if not C_Timer or not C_Timer.After then
+            return
+        end
+
+        local restoreDelays = { 0, 0.05, 0.15 }
+        for _, delay in ipairs(restoreDelays) do
+            C_Timer.After(delay, function()
+                if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
+                    and EditorController.GetActiveInspectorHost() == inspector
+                then
+                    RestoreSidebarScroll()
+                end
+            end)
         end
     end
 
@@ -281,8 +384,8 @@ function EditorController.BuildInspector(container, deps)
     end
 
     local RebuildSidebar
-    RebuildSidebar = function()
-        CaptureSidebarScroll()
+    RebuildSidebar = function(anchorSectionKey)
+        CaptureSidebarScroll(anchorSectionKey)
 
         if BuildScrollableTabContent then
             BuildScrollableTabContent(inspectorContent, state.editorSidebarScroll, function(content)
@@ -290,29 +393,14 @@ function EditorController.BuildInspector(container, deps)
                     onConfigChanged = function()
                         RefreshLiveUnit(state.selectedUnit)
                     end,
-                    onSidebarChanged = function()
+                    onSidebarChanged = function(sectionKey)
                         RefreshLiveUnit(state.selectedUnit)
-                        RebuildSidebar()
+                        RebuildSidebar(sectionKey)
                     end,
                 })
             end)
             RestoreSidebarScroll()
-            if C_Timer and C_Timer.After then
-                C_Timer.After(0, function()
-                    if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
-                        and EditorController.GetActiveInspectorHost() == inspector
-                    then
-                        RestoreSidebarScroll()
-                    end
-                end)
-                C_Timer.After(0.05, function()
-                    if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
-                        and EditorController.GetActiveInspectorHost() == inspector
-                    then
-                        RestoreSidebarScroll()
-                    end
-                end)
-            end
+            ScheduleSidebarScrollRestore(buildSerial)
             return
         end
 
@@ -320,28 +408,13 @@ function EditorController.BuildInspector(container, deps)
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
             end,
-            onSidebarChanged = function()
+            onSidebarChanged = function(sectionKey)
                 RefreshLiveUnit(state.selectedUnit)
-                RebuildSidebar()
+                RebuildSidebar(sectionKey)
             end,
         })
         RestoreSidebarScroll()
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0, function()
-                if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
-                    and EditorController.GetActiveInspectorHost() == inspector
-                then
-                    RestoreSidebarScroll()
-                end
-            end)
-            C_Timer.After(0.05, function()
-                if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
-                    and EditorController.GetActiveInspectorHost() == inspector
-                then
-                    RestoreSidebarScroll()
-                end
-            end)
-        end
+        ScheduleSidebarScrollRestore(buildSerial)
     end
 
     RebuildSidebar()

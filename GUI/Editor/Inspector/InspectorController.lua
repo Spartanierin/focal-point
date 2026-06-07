@@ -128,9 +128,9 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    local function NotifySidebarChanged()
+    local function NotifySidebarChanged(sectionKey)
         if options.onSidebarChanged then
-            options.onSidebarChanged()
+            options.onSidebarChanged(sectionKey)
         else
             NotifyConfigChanged()
         end
@@ -256,13 +256,13 @@ function InspectorController.Build(container, state, options)
 
         AddCheckBox(healthSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
             unitConfig.useClassColorHealth = value and true or false
-            NotifySidebarChanged()
+            NotifyConfigChanged()
         end)
 
         if state.mode == "expert" then
             AddCheckBox(healthSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
                 unitConfig.useReactionColorNpcHealth = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end)
 
             AddCheckBox(healthSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
@@ -286,7 +286,7 @@ function InspectorController.Build(container, state, options)
         if state.mode == "expert" then
             AddCheckBox(healthSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
                 unitConfig.healthBackground = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end)
 
             AddColorPicker(healthSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
@@ -319,7 +319,7 @@ function InspectorController.Build(container, state, options)
 
         AddCheckBox(powerSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorPower == true, function(value)
             unitConfig.useClassColorPower = value and true or false
-            NotifySidebarChanged()
+            NotifyConfigChanged()
         end, unitConfig.showPowerBar == false)
 
         if state.mode == "expert" then
@@ -337,7 +337,7 @@ function InspectorController.Build(container, state, options)
         if state.mode == "expert" then
             AddCheckBox(powerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
                 unitConfig.powerBackground = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end, unitConfig.showPowerBar == false)
 
             AddColorPicker(powerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.powerBackgroundColor, true, function(value)
@@ -394,7 +394,7 @@ function InspectorController.Build(container, state, options)
 
                 AddCheckBox(altPowerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", altPowerBackgroundEnabled, function(value)
                     unitConfig.alternativePowerBackground = value and true or false
-                    NotifySidebarChanged()
+                    NotifyConfigChanged()
                 end, unitConfig.showAlternativePowerBar ~= true)
 
                 AddColorPicker(altPowerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
@@ -536,7 +536,7 @@ function InspectorController.Build(container, state, options)
         if state.mode == "expert" then
             AddCheckBox(visibilitySection, L["OPTION_MOUSE_ENABLED"] or "Mouse Enabled", unitConfig.mouseEnabled ~= false, function(value)
                 unitConfig.mouseEnabled = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end)
 
             AddCheckBox(visibilitySection, L["OPTION_CLICK_THROUGH"] or "Click Through", unitConfig.clickThrough == true, function(value)
@@ -607,7 +607,7 @@ function InspectorController.Build(container, state, options)
             AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", textList, selectedTextId, function(value)
                 state.selectedTextId = value
                 state.selectedTextKey = value
-                NotifySidebarChanged()
+                NotifySidebarChanged("texts")
             end)
 
             local templateSummary = AceGUI:Create("Label")
@@ -624,7 +624,7 @@ function InspectorController.Build(container, state, options)
 
             AddCheckBox(textSection, L["OPTION_ENABLED"] or "Enabled", textConfig.enabled ~= false, function(value)
                 textConfig.enabled = value and true or false
-                NotifySidebarChanged()
+                NotifySidebarChanged("texts")
             end)
 
         if state.mode == "quick" then
@@ -709,12 +709,12 @@ function InspectorController.Build(container, state, options)
 
             AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", indicatorList, selectedIndicatorKey, function(value)
                 state.selectedIndicatorKey = value
-                NotifySidebarChanged()
+                NotifySidebarChanged("indicators")
             end)
 
             AddCheckBox(indicatorSection, L[indicatorMeta.labelKey] or "Enabled", indicatorConfig.enabled ~= false, function(value)
                 indicatorConfig.enabled = value and true or false
-                NotifySidebarChanged()
+                NotifySidebarChanged("indicators")
             end)
 
         if indicatorMeta.classification then
@@ -736,7 +736,7 @@ function InspectorController.Build(container, state, options)
             if not useOverlayEffect then
                 AddDropdown(indicatorSection, L[indicatorMeta.placementLabel] or "Placement", portraitPlacementList, indicatorConfig.placement or "ATTACHED", function(value)
                     indicatorConfig.placement = value
-                    NotifySidebarChanged()
+                    NotifySidebarChanged("indicators")
                 end, indicatorConfig.enabled == false)
 
                 if state.mode == "expert" and indicatorMeta.supportsMode then
@@ -815,17 +815,17 @@ function InspectorController.Build(container, state, options)
 
             AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", auraList, selectedAuraKey, function(value)
                 state.selectedAuraKey = value
-                NotifySidebarChanged()
+                NotifySidebarChanged("auras")
             end)
 
             AddCheckBox(auraSection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
                 auraConfig.enabled = value and true or false
-                NotifySidebarChanged()
+                NotifySidebarChanged("auras")
             end)
 
         AddDropdown(auraSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", auraPlacementList, auraConfig.placement or "ATTACHED", function(value)
             auraConfig.placement = value
-            NotifySidebarChanged()
+            NotifySidebarChanged("auras")
         end, auraConfig.enabled == false)
 
         AddSlider(auraSection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
@@ -906,7 +906,7 @@ function InspectorController.Build(container, state, options)
 
             AddCheckBox(auraSection, L["OPTION_AURA_HIDE_LONG"] or "Hide Long Auras", auraConfig.hideLongAuras == true, function(value)
                 auraConfig.hideLongAuras = value and true or false
-                NotifySidebarChanged()
+                NotifySidebarChanged("auras")
             end, auraConfig.enabled == false)
 
             AddSlider(auraSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
