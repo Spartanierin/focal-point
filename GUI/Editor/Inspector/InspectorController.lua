@@ -302,7 +302,7 @@ function InspectorController.Build(container, state, options)
     if powerSection then
         AddCheckBox(powerSection, L["EDITOR_OPTION_SHOW_POWER"] or "Show Power Bar", unitConfig.showPowerBar ~= false, function(value)
             unitConfig.showPowerBar = value and true or false
-            NotifySidebarChanged()
+            NotifyConfigChanged()
         end)
 
         AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.powerBarTexture, function(value)
@@ -354,7 +354,7 @@ function InspectorController.Build(container, state, options)
         if altPowerSection then
             AddCheckBox(altPowerSection, L["OPTION_SHOW_ALTERNATIVE_POWER_BAR"] or "Show Alternative Power Bar", unitConfig.showAlternativePowerBar == true, function(value)
                 unitConfig.showAlternativePowerBar = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end)
 
             AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture, function(value)
@@ -410,7 +410,7 @@ function InspectorController.Build(container, state, options)
         if classPowerSection then
             AddCheckBox(classPowerSection, L["OPTION_SHOW_CLASS_POWER_BAR"] or "Show Class Power Bar", unitConfig.showClassPowerBar == true, function(value)
                 unitConfig.showClassPowerBar = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end)
 
             AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture, function(value)
@@ -478,7 +478,7 @@ function InspectorController.Build(container, state, options)
     if castSection then
         AddCheckBox(castSection, L["OPTION_SHOW_CAST_BAR"] or "Show Cast Bar", unitConfig.showCastBar ~= false, function(value)
             unitConfig.showCastBar = value and true or false
-            NotifySidebarChanged()
+            NotifyConfigChanged()
         end)
 
         AddCheckBox(castSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
@@ -690,7 +690,7 @@ function InspectorController.Build(container, state, options)
 
             AddCheckBox(textSection, L["OPTION_FONT_SHADOW"] or "Shadow", textConfig.shadowEnabled ~= false, function(value)
                 textConfig.shadowEnabled = value and true or false
-                NotifySidebarChanged()
+                NotifyConfigChanged()
             end, textConfig.enabled == false)
 
             AddColorPicker(textSection, L["OPTION_SHADOW_COLOR"] or "Shadow Color", textConfig.shadowColor, true, function(value)
