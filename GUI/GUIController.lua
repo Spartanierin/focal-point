@@ -81,6 +81,12 @@ function B.BuildEditorPage(container)
     deps.ResetFlowContainer(container)
     container._focalPointEditorWorkspaceRole = "editor_workspace"
 
+    local generalConfig = ns.db and ns.db.profile and ns.db.profile.General
+    local editorStateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
+    if type(generalConfig) == "table" and editorStateApi and editorStateApi.SetMode then
+        editorStateApi.SetMode(generalConfig.ExpertMode ~= false and "expert" or "quick")
+    end
+
     if ns and ns.guiEditorWorkspaceHost then
         ns.guiEditorWorkspaceHost._focalPointEditorRole = "editor_workspace"
     end

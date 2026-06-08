@@ -14,6 +14,7 @@ ns.GUI.Layouts.UnitBars.Lists = {
         ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp"] = "VALUE_TEXTURE_BETTER_BLIZZARD",
         ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\Gradient.png"] = "VALUE_TEXTURE_GRADIENT",
         ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\Healbot.tga"] = "VALUE_TEXTURE_HEALBOT",
+        ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"] = "VALUE_TEXTURE_SHADOW1",
     },
     anchorPoints = {
         TOPLEFT = "VALUE_ANCHOR_TOPLEFT",

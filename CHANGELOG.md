@@ -9,6 +9,29 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.5]
+
+### Added
+
+* Added the `Shadow1` bar texture to the media selection lists so it can be chosen in the inspector.
+
+### Changed
+
+* Reworked inspector section expand/collapse handling to rebuild only the affected section instead of rebuilding the full inspector.
+* Extended the local inspector rebuild path to cover section-local selection and structure updates where possible, while keeping `Unit` and `Quick/Expert` mode changes on full rebuilds.
+* Improved inspector scroll retention logic so visible section anchors are preserved more reliably during the remaining full rebuild paths.
+* Updated the default player `LeaderIcon` placement to the new attached top-right layout.
+
+### Fixed
+
+* Fixed large inspector scroll jumps when opening or closing grouped sections such as text elements, indicators, and aura settings.
+* Fixed inspector refresh behavior so section-local changes like text element, indicator, and aura-block selection can update without forcing the full inspector back to the top.
+* Fixed an editor startup state mismatch where saved `Expert Mode` could be enabled after reload while the inspector still opened in `Quick Mode` until toggled manually.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.4]
 
 ### Added

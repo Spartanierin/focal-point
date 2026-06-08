@@ -231,26 +231,18 @@ local function CreateSection(container, title, options)
     local toggle = AceGUI:Create("InteractiveLabel")
     toggle:SetFullWidth(true)
     toggle:SetHeight(34)
-    toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
+    local function UpdateToggleText()
+        toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
+    end
+    UpdateToggleText()
     if toggle.SetUserData then
         toggle:SetUserData("focalPointSectionKey", sectionKey)
+        toggle:SetUserData("focalPointSectionRole", "header")
     end
     if toggle.frame then
         toggle.frame._focalPointSectionKey = sectionKey
+        toggle.frame._focalPointSectionRole = "header"
     end
-    toggle:SetCallback("OnClick", function()
-        if stateApi and stateApi.SetSectionCollapsed then
-            stateApi.SetSectionCollapsed(sectionKey, not collapsed)
-        elseif state then
-            state.collapsedSections = state.collapsedSections or {}
-            state.collapsedSections[sectionKey] = not collapsed
-        end
-
-        if options.onToggle then
-            options.onToggle(sectionKey)
-        end
-    end)
-
     if toggle.label then
         StyleSidebarLabel(toggle.label, 13, { 0.88, 0.82, 0.62, 1 })
         if toggle.label.SetJustifyH then
@@ -302,6 +294,94 @@ local function CreateSection(container, title, options)
 
     container:AddChild(toggle)
 
+    if options.localContentBuilder then
+        local host = AceGUI:Create("SimpleGroup")
+        host:SetFullWidth(true)
+        host:SetLayout("Flow")
+        container:AddChild(host)
+
+        local currentGroup = nil
+
+        local function CreateContentGroup()
+            local group = AceGUI:Create("InlineGroup")
+            group:SetTitle(" ")
+            group:SetFullWidth(true)
+            group:SetLayout("Flow")
+            if group.SetUserData then
+                group:SetUserData("focalPointSectionKey", sectionKey)
+                group:SetUserData("focalPointSectionRole", "content")
+            end
+            if group.frame then
+                group.frame._focalPointSectionKey = sectionKey
+                group.frame._focalPointSectionRole = "content"
+            end
+            local border = group.content and group.content:GetParent()
+            if border then
+                ApplyLegacySectionSkin(border, "default")
+            end
+            return group
+        end
+
+        local function RebuildLocalContent()
+            host:ReleaseChildren()
+            currentGroup = nil
+
+            if collapsed then
+                if host.SetHeight then
+                    host:SetHeight(1)
+                end
+                return
+            end
+
+            if host.SetHeight then
+                host:SetHeight(0)
+            end
+
+            currentGroup = CreateContentGroup()
+            currentGroup._focalPointRequestRebuild = function()
+                RebuildLocalContent()
+                if options.layoutRefresh then
+                    options.layoutRefresh()
+                end
+            end
+            host:AddChild(currentGroup)
+            options.localContentBuilder(currentGroup)
+        end
+
+        toggle:SetCallback("OnClick", function()
+            collapsed = not collapsed
+            if stateApi and stateApi.SetSectionCollapsed then
+                stateApi.SetSectionCollapsed(sectionKey, collapsed)
+            elseif state then
+                state.collapsedSections = state.collapsedSections or {}
+                state.collapsedSections[sectionKey] = collapsed
+            end
+
+            UpdateToggleText()
+            RebuildLocalContent()
+
+            if options.layoutRefresh then
+                options.layoutRefresh()
+            end
+        end)
+
+        RebuildLocalContent()
+        return currentGroup
+    end
+
+    toggle:SetCallback("OnClick", function()
+        if stateApi and stateApi.SetSectionCollapsed then
+            stateApi.SetSectionCollapsed(sectionKey, not collapsed)
+        elseif state then
+            state.collapsedSections = state.collapsedSections or {}
+            state.collapsedSections[sectionKey] = not collapsed
+        end
+
+        if options.onToggle then
+            options.onToggle(sectionKey)
+        end
+    end)
+
     if collapsed then
         return nil
     end
@@ -310,6 +390,14 @@ local function CreateSection(container, title, options)
     group:SetTitle(" ")
     group:SetFullWidth(true)
     group:SetLayout("Flow")
+    if group.SetUserData then
+        group:SetUserData("focalPointSectionKey", sectionKey)
+        group:SetUserData("focalPointSectionRole", "content")
+    end
+    if group.frame then
+        group.frame._focalPointSectionKey = sectionKey
+        group.frame._focalPointSectionRole = "content"
+    end
     local border = group.content and group.content:GetParent()
     if border then
         ApplyLegacySectionSkin(border, "default")
@@ -354,7 +442,20 @@ local function NormalizeColor(color, fallback)
     }
 end
 
-local function AddCheckBox(container, label, value, onChanged, disabled)
+local function ApplyAnchorMetadata(widget, anchorKey)
+    if type(anchorKey) ~= "string" or anchorKey == "" or not widget then
+        return
+    end
+
+    if widget.SetUserData then
+        widget:SetUserData("focalPointAnchorKey", anchorKey)
+    end
+    if widget.frame then
+        widget.frame._focalPointAnchorKey = anchorKey
+    end
+end
+
+local function AddCheckBox(container, label, value, onChanged, disabled, anchorKey)
     local widget = AceGUI:Create("CheckBox")
     widget:SetFullWidth(true)
     widget:SetLabel(label)
@@ -368,11 +469,12 @@ local function AddCheckBox(container, label, value, onChanged, disabled)
     if StyleCheckBoxField then
         StyleCheckBoxField(widget, disabled and true or false)
     end
+    ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)
     return widget
 end
 
-local function AddSlider(container, label, minValue, maxValue, step, value, onChanged, disabled)
+local function AddSlider(container, label, minValue, maxValue, step, value, onChanged, disabled, anchorKey)
     local widget = AceGUI:Create("Slider")
     widget:SetFullWidth(true)
     widget:SetLabel(label)
@@ -387,11 +489,12 @@ local function AddSlider(container, label, minValue, maxValue, step, value, onCh
     if widget.label then
         StyleSidebarLabel(widget.label, 12, disabled and { 0.50, 0.50, 0.50, 1 } or { 0.68, 0.70, 0.75, 1 })
     end
+    ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)
     return widget
 end
 
-local function AddDropdown(container, label, list, value, onChanged, disabled)
+local function AddDropdown(container, label, list, value, onChanged, disabled, anchorKey)
     local widget = AceGUI:Create("Dropdown")
     widget:SetFullWidth(true)
     widget:SetLabel(label)
@@ -406,11 +509,12 @@ local function AddDropdown(container, label, list, value, onChanged, disabled)
     if StyleDropdownField then
         StyleDropdownField(widget, "editor_inset")
     end
+    ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)
     return widget
 end
 
-local function AddColorPicker(container, label, color, hasAlpha, onChanged, disabled)
+local function AddColorPicker(container, label, color, hasAlpha, onChanged, disabled, anchorKey)
     local widget = AceGUI:Create("ColorPicker")
     local current = NormalizeColor(color)
     widget:SetFullWidth(true)
@@ -439,6 +543,7 @@ local function AddColorPicker(container, label, color, hasAlpha, onChanged, disa
     if widget.label then
         StyleSidebarLabel(widget.label, 12, disabled and { 0.50, 0.50, 0.50, 1 } or { 0.68, 0.70, 0.75, 1 })
     end
+    ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)
     return widget
 end

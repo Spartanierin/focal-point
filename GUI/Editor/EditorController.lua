@@ -216,40 +216,148 @@ function EditorController.BuildInspector(container, deps)
 
     local GetClampedSidebarScrollValue
 
-    local function FindSectionWidget(scrollWidget, sectionKey)
+    local function FindSectionWidget(scrollWidget, sectionKey, sectionRole)
         if type(sectionKey) ~= "string" or sectionKey == "" or not scrollWidget or type(scrollWidget.children) ~= "table" then
             return nil
         end
 
         for _, child in ipairs(scrollWidget.children) do
             if child and child.GetUserData and child:GetUserData("focalPointSectionKey") == sectionKey then
-                return child
+                if sectionRole == nil or child:GetUserData("focalPointSectionRole") == sectionRole then
+                    return child
+                end
+            end
+        end
+
+        if sectionRole ~= nil then
+            for _, child in ipairs(scrollWidget.children) do
+                if child and child.GetUserData and child:GetUserData("focalPointSectionKey") == sectionKey then
+                    return child
+                end
             end
         end
 
         return nil
     end
 
-    local function CaptureSidebarScroll(anchorSectionKey)
+    local function GetVisibleAnchorCandidate(scrollWidget, child, visibleTop, visibleBottom)
+        if not child or not child.GetUserData or not child.frame or not child.frame.IsShown or not child.frame:IsShown()
+            or not child.frame.GetTop or not child.frame.GetBottom
+        then
+            return nil
+        end
+
+        local sectionKey = child:GetUserData("focalPointSectionKey")
+        local sectionRole = child:GetUserData("focalPointSectionRole") or "header"
+        if type(sectionKey) ~= "string" or sectionKey == "" then
+            return nil
+        end
+
+        local top = child.frame:GetTop()
+        local bottom = child.frame:GetBottom()
+        if not top or not bottom or bottom > visibleTop or top < visibleBottom then
+            return nil
+        end
+
+        local offset = visibleTop - top
+        return {
+            sectionKey = sectionKey,
+            sectionRole = sectionRole,
+            offset = offset,
+            distance = math.abs(offset),
+        }
+    end
+
+    local function GetVisibleChildAnchorCandidate(contentWidget, visibleTop, visibleBottom)
+        if not contentWidget or type(contentWidget.children) ~= "table" then
+            return nil
+        end
+
+        local bestCandidate
+        for index, child in ipairs(contentWidget.children) do
+            if child and child.frame and child.frame.IsShown and child.frame:IsShown()
+                and child.frame.GetTop and child.frame.GetBottom
+            then
+                local top = child.frame:GetTop()
+                local bottom = child.frame:GetBottom()
+                if top and bottom and bottom <= visibleTop and top >= visibleBottom then
+                    local offset = visibleTop - top
+                    local candidate = {
+                        sectionKey = contentWidget:GetUserData("focalPointSectionKey"),
+                        sectionRole = "child",
+                        childIndex = index,
+                        anchorKey = child.GetUserData and child:GetUserData("focalPointAnchorKey") or nil,
+                        offset = offset,
+                        distance = math.abs(offset),
+                    }
+                    if not bestCandidate or candidate.distance < bestCandidate.distance then
+                        bestCandidate = candidate
+                    end
+                end
+            end
+        end
+
+        return bestCandidate
+    end
+
+    local function CaptureVisibleSectionAnchor(scrollWidget)
+        if not scrollWidget or not scrollWidget.frame or type(scrollWidget.children) ~= "table"
+            or not scrollWidget.frame.GetTop or not scrollWidget.frame.GetBottom
+        then
+            state.editorSidebarScroll.visibleAnchorSectionKey = nil
+            state.editorSidebarScroll.visibleAnchorRole = nil
+            state.editorSidebarScroll.visibleAnchorChildIndex = nil
+            state.editorSidebarScroll.visibleAnchorChildKey = nil
+            state.editorSidebarScroll.visibleAnchorOffset = nil
+            return
+        end
+
+        local visibleTop = scrollWidget.frame:GetTop()
+        local visibleBottom = scrollWidget.frame:GetBottom()
+        if not visibleTop or not visibleBottom then
+            state.editorSidebarScroll.visibleAnchorSectionKey = nil
+            state.editorSidebarScroll.visibleAnchorRole = nil
+            state.editorSidebarScroll.visibleAnchorChildIndex = nil
+            state.editorSidebarScroll.visibleAnchorChildKey = nil
+            state.editorSidebarScroll.visibleAnchorOffset = nil
+            return
+        end
+
+        local bestCandidate
+        for _, child in ipairs(scrollWidget.children) do
+            local candidate = GetVisibleAnchorCandidate(scrollWidget, child, visibleTop, visibleBottom)
+            if candidate then
+                if candidate.sectionRole == "content" then
+                    local childCandidate = GetVisibleChildAnchorCandidate(child, visibleTop, visibleBottom)
+                    if childCandidate then
+                        candidate = childCandidate
+                    end
+                end
+
+                if not bestCandidate
+                    or candidate.distance < bestCandidate.distance
+                    or (candidate.distance == bestCandidate.distance and candidate.sectionRole == "child" and bestCandidate.sectionRole ~= "child")
+                    or (candidate.distance == bestCandidate.distance and candidate.sectionRole == "content" and bestCandidate.sectionRole == "header")
+                then
+                    bestCandidate = candidate
+                end
+            end
+        end
+
+        state.editorSidebarScroll.visibleAnchorSectionKey = bestCandidate and bestCandidate.sectionKey or nil
+        state.editorSidebarScroll.visibleAnchorRole = bestCandidate and bestCandidate.sectionRole or nil
+        state.editorSidebarScroll.visibleAnchorChildIndex = bestCandidate and bestCandidate.childIndex or nil
+        state.editorSidebarScroll.visibleAnchorChildKey = bestCandidate and bestCandidate.anchorKey or nil
+        state.editorSidebarScroll.visibleAnchorOffset = bestCandidate and bestCandidate.offset or nil
+    end
+
+    local function CaptureSidebarScroll()
         local scrollWidget = GetScrollWidget()
         if not scrollWidget then
             return
         end
 
-        if type(anchorSectionKey) == "string" and anchorSectionKey ~= "" then
-            state.editorSidebarScroll.anchorSectionKey = anchorSectionKey
-            local sectionWidget = FindSectionWidget(scrollWidget, anchorSectionKey)
-            if sectionWidget and sectionWidget.frame and scrollWidget.frame and sectionWidget.frame.GetTop and scrollWidget.frame.GetTop then
-                local visibleTop = scrollWidget.frame:GetTop()
-                local sectionTop = sectionWidget.frame:GetTop()
-                if visibleTop and sectionTop then
-                    state.editorSidebarScroll.anchorOffset = visibleTop - sectionTop
-                end
-            end
-        else
-            state.editorSidebarScroll.anchorSectionKey = nil
-            state.editorSidebarScroll.anchorOffset = nil
-        end
+        CaptureVisibleSectionAnchor(scrollWidget)
 
         if scrollWidget.scrollbar and scrollWidget.scrollbar.GetValue then
             state.editorSidebarScroll.scrollvalue = scrollWidget.scrollbar:GetValue() or state.editorSidebarScroll.scrollvalue or 0
@@ -268,39 +376,65 @@ function EditorController.BuildInspector(container, deps)
         end
     end
 
-    local function ApplySidebarSectionAnchor(scrollWidget)
-        local sectionKey = state.editorSidebarScroll.anchorSectionKey
-        if type(sectionKey) ~= "string" or sectionKey == "" then
-            return
+    local function ApplyVisibleSectionAnchor(scrollWidget)
+        local sectionKey = state.editorSidebarScroll.visibleAnchorSectionKey
+        local sectionRole = state.editorSidebarScroll.visibleAnchorRole
+        local childIndex = state.editorSidebarScroll.visibleAnchorChildIndex
+        local childKey = state.editorSidebarScroll.visibleAnchorChildKey
+        if type(sectionKey) ~= "string" or sectionKey == "" or not scrollWidget or not scrollWidget.frame
+            or not scrollWidget.frame.GetTop
+        then
+            return false
         end
 
-        local sectionWidget = FindSectionWidget(scrollWidget, sectionKey)
-        if not sectionWidget or not sectionWidget.frame or not scrollWidget.frame or not sectionWidget.frame.GetTop or not scrollWidget.frame.GetTop then
-            return
+        local sectionWidget
+        if sectionRole == "child" then
+            local contentWidget = FindSectionWidget(scrollWidget, sectionKey, "content")
+            if contentWidget and type(contentWidget.children) == "table" then
+                if type(childKey) == "string" and childKey ~= "" then
+                    for _, child in ipairs(contentWidget.children) do
+                        if child and child.GetUserData and child:GetUserData("focalPointAnchorKey") == childKey then
+                            sectionWidget = child
+                            break
+                        end
+                    end
+                end
+
+                if (not sectionWidget or not sectionWidget.frame or not sectionWidget.frame.GetTop) and type(childIndex) == "number" then
+                    sectionWidget = contentWidget.children[childIndex]
+                end
+            end
+
+            if not sectionWidget or not sectionWidget.frame or not sectionWidget.frame.GetTop then
+                sectionWidget = FindSectionWidget(scrollWidget, sectionKey, "content")
+            end
+
+            if not sectionWidget or not sectionWidget.frame or not sectionWidget.frame.GetTop then
+                sectionWidget = FindSectionWidget(scrollWidget, sectionKey, "header")
+            end
+        else
+            sectionWidget = FindSectionWidget(scrollWidget, sectionKey, sectionRole)
+        end
+
+        if not sectionWidget or not sectionWidget.frame or not sectionWidget.frame.GetTop then
+            return false
         end
 
         local visibleTop = scrollWidget.frame:GetTop()
-        local sectionTop = sectionWidget.frame:GetTop()
-        if not visibleTop or not sectionTop then
-            return
+        local anchorTop = sectionWidget.frame:GetTop()
+        if not visibleTop or not anchorTop then
+            return false
         end
 
-        local currentDelta = visibleTop - sectionTop
-        local targetDelta = tonumber(state.editorSidebarScroll.anchorOffset) or currentDelta
-        local scrollValue = GetClampedSidebarScrollValue(scrollWidget) + (currentDelta - targetDelta)
-
-        if scrollWidget.scrollbar and scrollWidget.scrollbar.GetMinMaxValues then
-            local minValue, maxValue = scrollWidget.scrollbar:GetMinMaxValues()
-            minValue = tonumber(minValue) or 0
-            maxValue = tonumber(maxValue) or scrollValue
-            if scrollValue < minValue then
-                scrollValue = minValue
-            elseif scrollValue > maxValue then
-                scrollValue = maxValue
-            end
+        local currentScroll = GetClampedSidebarScrollValue(scrollWidget)
+        local currentOffset = visibleTop - anchorTop
+        local targetOffset = tonumber(state.editorSidebarScroll.visibleAnchorOffset)
+        if not targetOffset then
+            return false
         end
 
-        state.editorSidebarScroll.scrollvalue = scrollValue
+        state.editorSidebarScroll.scrollvalue = currentScroll + (currentOffset - targetOffset)
+        return true
     end
 
     GetClampedSidebarScrollValue = function(scrollWidget)
@@ -330,7 +464,7 @@ function EditorController.BuildInspector(container, deps)
             return
         end
 
-        ApplySidebarSectionAnchor(scrollWidget)
+        ApplyVisibleSectionAnchor(scrollWidget)
 
         local scrollValue = GetClampedSidebarScrollValue(scrollWidget)
         state.editorSidebarScroll.scrollvalue = scrollValue
@@ -384,8 +518,8 @@ function EditorController.BuildInspector(container, deps)
     end
 
     local RebuildSidebar
-    RebuildSidebar = function(anchorSectionKey)
-        CaptureSidebarScroll(anchorSectionKey)
+    RebuildSidebar = function()
+        CaptureSidebarScroll()
 
         if BuildScrollableTabContent then
             BuildScrollableTabContent(inspectorContent, state.editorSidebarScroll, function(content)
@@ -393,9 +527,9 @@ function EditorController.BuildInspector(container, deps)
                     onConfigChanged = function()
                         RefreshLiveUnit(state.selectedUnit)
                     end,
-                    onSidebarChanged = function(sectionKey)
+                    onSidebarChanged = function()
                         RefreshLiveUnit(state.selectedUnit)
-                        RebuildSidebar(sectionKey)
+                        RebuildSidebar()
                     end,
                 })
             end)
@@ -408,9 +542,9 @@ function EditorController.BuildInspector(container, deps)
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
             end,
-            onSidebarChanged = function(sectionKey)
+            onSidebarChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
-                RebuildSidebar(sectionKey)
+                RebuildSidebar()
             end,
         })
         RestoreSidebarScroll()

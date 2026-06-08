@@ -122,6 +122,52 @@ function InspectorController.Build(container, state, options)
     end
     local auraConfig = unitConfig[selectedAuraKey]
 
+    local function ResolveTextContext()
+        local currentSelectedTextId = state.selectedTextId or state.selectedTextKey
+        if not textList[currentSelectedTextId] then
+            currentSelectedTextId = GetFirstTextId(textList)
+            state.selectedTextId = currentSelectedTextId
+            state.selectedTextKey = currentSelectedTextId
+        end
+
+        local currentTextConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[currentSelectedTextId] or nil
+        local currentLinkedTemplateName = currentTextConfig and currentTextConfig.templateName or nil
+        if (type(currentLinkedTemplateName) ~= "string" or currentLinkedTemplateName == "")
+            and currentTextConfig and type(currentTextConfig.stateTemplates) == "table"
+        then
+            for _, stateTemplateName in pairs(currentTextConfig.stateTemplates) do
+                if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
+                    currentLinkedTemplateName = stateTemplateName
+                    break
+                end
+            end
+        end
+
+        return currentSelectedTextId, currentTextConfig, currentLinkedTemplateName
+    end
+
+    local function ResolveIndicatorContext()
+        local currentSelectedIndicatorKey = state.selectedIndicatorKey
+        if not indicatorList[currentSelectedIndicatorKey] then
+            currentSelectedIndicatorKey = GetFirstIndicatorKey(indicatorList)
+            state.selectedIndicatorKey = currentSelectedIndicatorKey
+        end
+
+        local currentIndicatorMeta = INDICATOR_META[currentSelectedIndicatorKey]
+        local currentIndicatorConfig = currentIndicatorMeta and unitConfig[currentIndicatorMeta.optionKey] or nil
+        return currentSelectedIndicatorKey, currentIndicatorMeta, currentIndicatorConfig
+    end
+
+    local function ResolveAuraContext()
+        local currentSelectedAuraKey = state.selectedAuraKey
+        if not auraList[currentSelectedAuraKey] then
+            currentSelectedAuraKey = GetFirstAuraKey(auraList)
+            state.selectedAuraKey = currentSelectedAuraKey
+        end
+
+        return currentSelectedAuraKey, unitConfig[currentSelectedAuraKey]
+    end
+
     local function NotifyConfigChanged()
         if options.onConfigChanged then
             options.onConfigChanged()
@@ -136,8 +182,56 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    local function CreateInspectorSection(sectionKey, title, defaultCollapsed)
-        return InspectorBinding.CreateInspectorSection(container, CreateSection, state, sectionKey, title, defaultCollapsed, NotifySidebarChanged)
+    local function RebuildLocalSection(section)
+        if section and section._focalPointRequestRebuild then
+            section._focalPointRequestRebuild()
+            return true
+        end
+        return false
+    end
+
+    local function NotifyConfigChangedAndRebuildSection(section, fallbackSectionKey)
+        NotifyConfigChanged()
+        if not RebuildLocalSection(section) and fallbackSectionKey then
+            NotifySidebarChanged(fallbackSectionKey)
+        end
+    end
+
+    local function RefreshInspectorLayout()
+        if container and container.DoLayout then
+            container:DoLayout()
+        end
+        if container and container.FixScroll then
+            container:FixScroll()
+        end
+        local parent = container and container.parent or nil
+        if parent and parent.DoLayout then
+            parent:DoLayout()
+        end
+        if parent and parent.FixScroll then
+            parent:FixScroll()
+        end
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function()
+                if container and container.DoLayout then
+                    container:DoLayout()
+                end
+                if container and container.FixScroll then
+                    container:FixScroll()
+                end
+                local delayedParent = container and container.parent or nil
+                if delayedParent and delayedParent.DoLayout then
+                    delayedParent:DoLayout()
+                end
+                if delayedParent and delayedParent.FixScroll then
+                    delayedParent:FixScroll()
+                end
+            end)
+        end
+    end
+
+    local function CreateInspectorSection(sectionKey, title, defaultCollapsed, sectionOptions)
+        return InspectorBinding.CreateInspectorSection(container, CreateSection, state, sectionKey, title, defaultCollapsed, NotifySidebarChanged, sectionOptions)
     end
 
     local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
@@ -184,10 +278,11 @@ function InspectorController.Build(container, state, options)
         summarySection:AddChild(inspectorHint)
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    local function BuildFrameSectionContent(frameSection)
+        if not frameSection then
+            return
+        end
 
-    local frameSection = CreateInspectorSection("frame", L["EDITOR_SECTION_FRAME"] or "Frame", false)
-    if frameSection then
         AddCheckBox(frameSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
             unitConfig.enabled = value and true or false
             NotifyConfigChanged()
@@ -230,9 +325,7 @@ function InspectorController.Build(container, state, options)
                 unitConfig.borderColor = value
                 NotifyConfigChanged()
             end)
-        end
 
-        if state.mode == "expert" then
             AddDropdown(frameSection, L["OPTION_FRAME_STRATA"] or "Frame Strata", frameStrataList, unitConfig.frameStrata or "MEDIUM", function(value)
                 unitConfig.frameStrata = value
                 NotifyConfigChanged()
@@ -246,9 +339,16 @@ function InspectorController.Build(container, state, options)
     end
 
     AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("frame", L["EDITOR_SECTION_FRAME"] or "Frame", false, {
+        localContentBuilder = BuildFrameSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
-    local healthSection = CreateInspectorSection("health", L["BAR_HEALTH"] or "Health", false)
-    if healthSection then
+    local function BuildHealthSectionContent(healthSection)
+        if not healthSection then
+            return
+        end
+
         AddDropdown(healthSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.healthBarTexture, function(value)
             unitConfig.healthBarTexture = value
             NotifyConfigChanged()
@@ -256,13 +356,13 @@ function InspectorController.Build(container, state, options)
 
         AddCheckBox(healthSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
             unitConfig.useClassColorHealth = value and true or false
-            NotifyConfigChanged()
+            NotifyConfigChangedAndRebuildSection(healthSection)
         end)
 
         if state.mode == "expert" then
             AddCheckBox(healthSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
                 unitConfig.useReactionColorNpcHealth = value and true or false
-                NotifyConfigChanged()
+                NotifyConfigChangedAndRebuildSection(healthSection)
             end)
 
             AddCheckBox(healthSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
@@ -286,7 +386,7 @@ function InspectorController.Build(container, state, options)
         if state.mode == "expert" then
             AddCheckBox(healthSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
                 unitConfig.healthBackground = value and true or false
-                NotifyConfigChanged()
+                NotifyConfigChangedAndRebuildSection(healthSection)
             end)
 
             AddColorPicker(healthSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
@@ -297,12 +397,19 @@ function InspectorController.Build(container, state, options)
     end
 
     AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
+        localContentBuilder = BuildHealthSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
-    local powerSection = CreateInspectorSection("power", L["BAR_POWER"] or "Power", true)
-    if powerSection then
+    local function BuildPowerSectionContent(powerSection)
+        if not powerSection then
+            return
+        end
+
         AddCheckBox(powerSection, L["EDITOR_OPTION_SHOW_POWER"] or "Show Power Bar", unitConfig.showPowerBar ~= false, function(value)
             unitConfig.showPowerBar = value and true or false
-            NotifyConfigChanged()
+            NotifyConfigChangedAndRebuildSection(powerSection)
         end)
 
         AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.powerBarTexture, function(value)
@@ -319,7 +426,7 @@ function InspectorController.Build(container, state, options)
 
         AddCheckBox(powerSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorPower == true, function(value)
             unitConfig.useClassColorPower = value and true or false
-            NotifyConfigChanged()
+            NotifyConfigChangedAndRebuildSection(powerSection)
         end, unitConfig.showPowerBar == false)
 
         if state.mode == "expert" then
@@ -337,7 +444,7 @@ function InspectorController.Build(container, state, options)
         if state.mode == "expert" then
             AddCheckBox(powerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
                 unitConfig.powerBackground = value and true or false
-                NotifyConfigChanged()
+                NotifyConfigChangedAndRebuildSection(powerSection)
             end, unitConfig.showPowerBar == false)
 
             AddColorPicker(powerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.powerBackgroundColor, true, function(value)
@@ -347,138 +454,159 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    if state.selectedUnit == "player" then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("power", L["BAR_POWER"] or "Power", true, {
+        localContentBuilder = BuildPowerSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
-        local altPowerSection = CreateInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true)
-        if altPowerSection then
-            AddCheckBox(altPowerSection, L["OPTION_SHOW_ALTERNATIVE_POWER_BAR"] or "Show Alternative Power Bar", unitConfig.showAlternativePowerBar == true, function(value)
-                unitConfig.showAlternativePowerBar = value and true or false
-                NotifyConfigChanged()
-            end)
-
-            AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture, function(value)
-                unitConfig.alternativePowerBarTexture = value
-                NotifyConfigChanged()
-            end, unitConfig.showAlternativePowerBar ~= true)
-
-            AddSlider(altPowerSection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
-                unitConfig.alternativePowerBarHeight = math.floor((value or 0) + 0.5)
-                NotifyConfigChanged()
-            end, unitConfig.showAlternativePowerBar ~= true)
-
-            if state.mode == "expert" then
-                local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
-                if altPowerReverseFillEnabled == nil then
-                    altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
-                else
-                    altPowerReverseFillEnabled = altPowerReverseFillEnabled == true
-                end
-
-                AddCheckBox(altPowerSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
-                    unitConfig.alternativePowerBarReverseFill = value and true or false
-                    NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true)
-
-                AddColorPicker(altPowerSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
-                    unitConfig.alternativePowerColor = value
-                    NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true)
-
-                local altPowerBackgroundEnabled = unitConfig.alternativePowerBackground
-                if altPowerBackgroundEnabled == nil then
-                    altPowerBackgroundEnabled = unitConfig.powerBackground ~= false
-                else
-                    altPowerBackgroundEnabled = altPowerBackgroundEnabled ~= false
-                end
-
-                AddCheckBox(altPowerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", altPowerBackgroundEnabled, function(value)
-                    unitConfig.alternativePowerBackground = value and true or false
-                    NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true)
-
-                AddColorPicker(altPowerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
-                    unitConfig.alternativePowerBackgroundColor = value
-                    NotifyConfigChanged()
-                end, unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false)
-            end
+    local function BuildAltPowerSectionContent(altPowerSection)
+        if not altPowerSection or state.selectedUnit ~= "player" then
+            return
         end
 
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        AddCheckBox(altPowerSection, L["OPTION_SHOW_ALTERNATIVE_POWER_BAR"] or "Show Alternative Power Bar", unitConfig.showAlternativePowerBar == true, function(value)
+            unitConfig.showAlternativePowerBar = value and true or false
+            NotifyConfigChangedAndRebuildSection(altPowerSection)
+        end)
 
-        local classPowerSection = CreateInspectorSection("class_power", L["BAR_CLASS_POWER"] or "Class Power", true)
-        if classPowerSection then
-            AddCheckBox(classPowerSection, L["OPTION_SHOW_CLASS_POWER_BAR"] or "Show Class Power Bar", unitConfig.showClassPowerBar == true, function(value)
-                unitConfig.showClassPowerBar = value and true or false
-                NotifyConfigChanged()
-            end)
+        AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture, function(value)
+            unitConfig.alternativePowerBarTexture = value
+            NotifyConfigChanged()
+        end, unitConfig.showAlternativePowerBar ~= true)
 
-            AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture, function(value)
-                unitConfig.classPowerBarTexture = value
-                NotifyConfigChanged()
-            end, unitConfig.showClassPowerBar ~= true)
+        AddSlider(altPowerSection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+            unitConfig.alternativePowerBarHeight = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end, unitConfig.showAlternativePowerBar ~= true)
 
-            AddColorPicker(classPowerSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
-                unitConfig.classPowerColor = value
-                NotifyConfigChanged()
-            end, unitConfig.showClassPowerBar ~= true)
-
-            AddColorPicker(classPowerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
-                unitConfig.classPowerBackgroundColor = value
-                NotifyConfigChanged()
-            end, unitConfig.showClassPowerBar ~= true)
-
-            AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Class Power Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
-                unitConfig.classPowerBarHeight = math.floor((value or 0) + 0.5)
-                NotifyConfigChanged()
-            end, unitConfig.showClassPowerBar ~= true)
-
-            if state.mode == "expert" then
-                AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Class Power Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
-                    unitConfig.classPowerBarWidth = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
-
-                AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
-                    unitConfig.classPowerBarSpacing = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
-
-                AddDropdown(classPowerSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", classPowerAnchorTargetList, unitConfig.classPowerBarAnchorTo or "HealthBar", function(value)
-                    unitConfig.classPowerBarAnchorTo = value
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
-
-                AddDropdown(classPowerSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig.classPowerBarPoint or "BOTTOMRIGHT", function(value)
-                    unitConfig.classPowerBarPoint = value
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
-
-                AddDropdown(classPowerSection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig.classPowerBarRelativePoint or "BOTTOMRIGHT", function(value)
-                    unitConfig.classPowerBarRelativePoint = value
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
-
-                AddSlider(classPowerSection, L["OPTION_X_OFFSET"] or "X Offset", -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
-                    unitConfig.classPowerBarOffsetX = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
-
-                AddSlider(classPowerSection, L["OPTION_Y_OFFSET"] or "Y Offset", -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
-                    unitConfig.classPowerBarOffsetY = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, unitConfig.showClassPowerBar ~= true)
+        if state.mode == "expert" then
+            local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
+            if altPowerReverseFillEnabled == nil then
+                altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
+            else
+                altPowerReverseFillEnabled = altPowerReverseFillEnabled == true
             end
+
+            AddCheckBox(altPowerSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
+                unitConfig.alternativePowerBarReverseFill = value and true or false
+                NotifyConfigChanged()
+            end, unitConfig.showAlternativePowerBar ~= true)
+
+            AddColorPicker(altPowerSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
+                unitConfig.alternativePowerColor = value
+                NotifyConfigChanged()
+            end, unitConfig.showAlternativePowerBar ~= true)
+
+            local altPowerBackgroundEnabled = unitConfig.alternativePowerBackground
+            if altPowerBackgroundEnabled == nil then
+                altPowerBackgroundEnabled = unitConfig.powerBackground ~= false
+            else
+                altPowerBackgroundEnabled = altPowerBackgroundEnabled ~= false
+            end
+
+            AddCheckBox(altPowerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", altPowerBackgroundEnabled, function(value)
+                unitConfig.alternativePowerBackground = value and true or false
+                NotifyConfigChangedAndRebuildSection(altPowerSection)
+            end, unitConfig.showAlternativePowerBar ~= true)
+
+            AddColorPicker(altPowerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+                unitConfig.alternativePowerBackgroundColor = value
+                NotifyConfigChanged()
+            end, unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false)
         end
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    local function BuildClassPowerSectionContent(classPowerSection)
+        if not classPowerSection or state.selectedUnit ~= "player" then
+            return
+        end
 
-    local castSection = CreateInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true)
-    if castSection then
+        AddCheckBox(classPowerSection, L["OPTION_SHOW_CLASS_POWER_BAR"] or "Show Class Power Bar", unitConfig.showClassPowerBar == true, function(value)
+            unitConfig.showClassPowerBar = value and true or false
+            NotifyConfigChangedAndRebuildSection(classPowerSection)
+        end)
+
+        AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture, function(value)
+            unitConfig.classPowerBarTexture = value
+            NotifyConfigChanged()
+        end, unitConfig.showClassPowerBar ~= true)
+
+        AddColorPicker(classPowerSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
+            unitConfig.classPowerColor = value
+            NotifyConfigChanged()
+        end, unitConfig.showClassPowerBar ~= true)
+
+        AddColorPicker(classPowerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+            unitConfig.classPowerBackgroundColor = value
+            NotifyConfigChanged()
+        end, unitConfig.showClassPowerBar ~= true)
+
+        AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Class Power Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+            unitConfig.classPowerBarHeight = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end, unitConfig.showClassPowerBar ~= true)
+
+        if state.mode == "expert" then
+            AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Class Power Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
+                unitConfig.classPowerBarWidth = math.floor((value or 0) + 0.5)
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+
+            AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
+                unitConfig.classPowerBarSpacing = math.floor((value or 0) + 0.5)
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+
+            AddDropdown(classPowerSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", classPowerAnchorTargetList, unitConfig.classPowerBarAnchorTo or "HealthBar", function(value)
+                unitConfig.classPowerBarAnchorTo = value
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+
+            AddDropdown(classPowerSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig.classPowerBarPoint or "BOTTOMRIGHT", function(value)
+                unitConfig.classPowerBarPoint = value
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+
+            AddDropdown(classPowerSection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig.classPowerBarRelativePoint or "BOTTOMRIGHT", function(value)
+                unitConfig.classPowerBarRelativePoint = value
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+
+            AddSlider(classPowerSection, L["OPTION_X_OFFSET"] or "X Offset", -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                unitConfig.classPowerBarOffsetX = math.floor((value or 0) + 0.5)
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+
+            AddSlider(classPowerSection, L["OPTION_Y_OFFSET"] or "Y Offset", -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                unitConfig.classPowerBarOffsetY = math.floor((value or 0) + 0.5)
+                NotifyConfigChanged()
+            end, unitConfig.showClassPowerBar ~= true)
+        end
+    end
+
+    if state.selectedUnit == "player" then
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        CreateInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true, {
+            localContentBuilder = BuildAltPowerSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        CreateInspectorSection("class_power", L["BAR_CLASS_POWER"] or "Class Power", true, {
+            localContentBuilder = BuildClassPowerSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+    end
+
+    local function BuildCastSectionContent(castSection)
+        if not castSection then
+            return
+        end
+
         AddCheckBox(castSection, L["OPTION_SHOW_CAST_BAR"] or "Show Cast Bar", unitConfig.showCastBar ~= false, function(value)
             unitConfig.showCastBar = value and true or false
-            NotifyConfigChanged()
+            NotifyConfigChangedAndRebuildSection(castSection)
         end)
 
         AddCheckBox(castSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
@@ -505,9 +633,16 @@ function InspectorController.Build(container, state, options)
     end
 
     AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true, {
+        localContentBuilder = BuildCastSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
-    local visibilitySection = CreateInspectorSection("visibility", L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true)
-    if visibilitySection then
+    local function BuildVisibilitySectionContent(visibilitySection)
+        if not visibilitySection then
+            return
+        end
+
         AddCheckBox(visibilitySection, L["OPTION_SHOW_IN_SOLO"] or "Show in Solo", unitConfig.showInSolo ~= false, function(value)
             unitConfig.showInSolo = value and true or false
             NotifyConfigChanged()
@@ -536,7 +671,7 @@ function InspectorController.Build(container, state, options)
         if state.mode == "expert" then
             AddCheckBox(visibilitySection, L["OPTION_MOUSE_ENABLED"] or "Mouse Enabled", unitConfig.mouseEnabled ~= false, function(value)
                 unitConfig.mouseEnabled = value and true or false
-                NotifyConfigChanged()
+                NotifyConfigChangedAndRebuildSection(visibilitySection)
             end)
 
             AddCheckBox(visibilitySection, L["OPTION_CLICK_THROUGH"] or "Click Through", unitConfig.clickThrough == true, function(value)
@@ -546,69 +681,89 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    if state.mode == "expert" then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("visibility", L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true, {
+        localContentBuilder = BuildVisibilitySectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
-        local positioning = CreateInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true)
-        if positioning then
-            AddDropdown(positioning, L["EDITOR_OPTION_POINT"] or "Anchor From", POINTS, unitConfig.point or "CENTER", function(value)
-                unitConfig.point = value
-                NotifyConfigChanged()
-            end)
-
-            AddDropdown(positioning, L["EDITOR_OPTION_RELATIVE_POINT"] or "Anchor To", POINTS, unitConfig.relativePoint or "CENTER", function(value)
-                unitConfig.relativePoint = value
-                NotifyConfigChanged()
-            end)
-
-            AddSlider(positioning, L["EDITOR_OPTION_X"] or "X Offset", -800, 800, 1, tonumber(unitConfig.x) or 0, function(value)
-                unitConfig.x = math.floor((value or 0) + 0.5)
-                NotifyConfigChanged()
-            end)
-
-            AddSlider(positioning, L["EDITOR_OPTION_Y"] or "Y Offset", -800, 800, 1, tonumber(unitConfig.y) or 0, function(value)
-                unitConfig.y = math.floor((value or 0) + 0.5)
-                NotifyConfigChanged()
-            end)
+    local function BuildPositioningSectionContent(positioning)
+        if not positioning or state.mode ~= "expert" then
+            return
         end
 
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        AddDropdown(positioning, L["EDITOR_OPTION_POINT"] or "Anchor From", POINTS, unitConfig.point or "CENTER", function(value)
+            unitConfig.point = value
+            NotifyConfigChanged()
+        end)
 
-        local castPosition = CreateInspectorSection("cast_position", L["EDITOR_SECTION_CAST_POSITION"] or "Cast Bar Position", true)
-        if castPosition then
-            AddDropdown(castPosition, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig.castBarPoint or "BOTTOMLEFT", function(value)
-                unitConfig.castBarPoint = value
-                NotifyConfigChanged()
-            end)
+        AddDropdown(positioning, L["EDITOR_OPTION_RELATIVE_POINT"] or "Anchor To", POINTS, unitConfig.relativePoint or "CENTER", function(value)
+            unitConfig.relativePoint = value
+            NotifyConfigChanged()
+        end)
 
-            AddDropdown(castPosition, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig.castBarRelativePoint or "TOPLEFT", function(value)
-                unitConfig.castBarRelativePoint = value
-                NotifyConfigChanged()
-            end)
+        AddSlider(positioning, L["EDITOR_OPTION_X"] or "X Offset", -800, 800, 1, tonumber(unitConfig.x) or 0, function(value)
+            unitConfig.x = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end)
 
-            AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
-                unitConfig.castBarOffsetX = math.floor((value or 0) + 0.5)
-                NotifyConfigChanged()
-            end)
-
-            AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
-                unitConfig.castBarOffsetY = math.floor((value or 0) + 0.5)
-                NotifyConfigChanged()
-            end)
-        end
+        AddSlider(positioning, L["EDITOR_OPTION_Y"] or "Y Offset", -800, 800, 1, tonumber(unitConfig.y) or 0, function(value)
+            unitConfig.y = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end)
     end
 
-    if textConfig then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    local function BuildCastPositionSectionContent(castPosition)
+        if not castPosition or state.mode ~= "expert" then
+            return
+        end
 
-        local textSection = CreateInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true)
-        if textSection then
+        AddDropdown(castPosition, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig.castBarPoint or "BOTTOMLEFT", function(value)
+            unitConfig.castBarPoint = value
+            NotifyConfigChanged()
+        end)
+
+        AddDropdown(castPosition, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig.castBarRelativePoint or "TOPLEFT", function(value)
+            unitConfig.castBarRelativePoint = value
+            NotifyConfigChanged()
+        end)
+
+        AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
+            unitConfig.castBarOffsetX = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end)
+
+        AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
+            unitConfig.castBarOffsetY = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end)
+    end
+
+    if state.mode == "expert" then
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        CreateInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true, {
+            localContentBuilder = BuildPositioningSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        CreateInspectorSection("cast_position", L["EDITOR_SECTION_CAST_POSITION"] or "Cast Bar Position", true, {
+            localContentBuilder = BuildCastPositionSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+    end
+
+    local function BuildTextSectionContent(textSection)
+        local selectedTextId, textConfig, linkedTemplateName = ResolveTextContext()
+        if not textSection or not textConfig then
+            return
+        end
 
             AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", textList, selectedTextId, function(value)
                 state.selectedTextId = value
                 state.selectedTextKey = value
-                NotifySidebarChanged("texts")
-            end)
+                RebuildLocalSection(textSection)
+            end, nil, "text_element")
 
             local templateSummary = AceGUI:Create("Label")
             templateSummary:SetFullWidth(true)
@@ -624,357 +779,389 @@ function InspectorController.Build(container, state, options)
 
             AddCheckBox(textSection, L["OPTION_ENABLED"] or "Enabled", textConfig.enabled ~= false, function(value)
                 textConfig.enabled = value and true or false
-                NotifySidebarChanged("texts")
-            end)
+                NotifyConfigChangedAndRebuildSection(textSection, "texts")
+            end, nil, "text_enabled")
 
         if state.mode == "quick" then
             AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
                 textConfig.fontSize = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_font_size")
 
             AddColorPicker(textSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
                 textConfig.color = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_color")
         else
             AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontList, textConfig.font or STANDARD_TEXT_FONT, function(value)
                 textConfig.font = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_font")
 
             AddDropdown(textSection, L["OPTION_FONT_STYLE"] or "Font Style", fontStyleList, textConfig.fontStyle or "NONE", function(value)
                 textConfig.fontStyle = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_font_style")
 
             AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
                 textConfig.fontSize = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_font_size")
 
             AddDropdown(textSection, L["OPTION_JUSTIFY_H"] or "Justify", justifyList, textConfig.justifyH or "CENTER", function(value)
                 textConfig.justifyH = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_justify")
 
             AddDropdown(textSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", textAnchorTargetList, textConfig.anchorTo or "Frame", function(value)
                 textConfig.anchorTo = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_anchor_to")
 
             AddDropdown(textSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", textAnchorPointList, textConfig.point or "CENTER", function(value)
                 textConfig.point = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_point")
 
             AddDropdown(textSection, L["OPTION_ANCHOR_TO"] or "Anchor To", textAnchorPointList, textConfig.relativePoint or "CENTER", function(value)
                 textConfig.relativePoint = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_relative_point")
 
             AddSlider(textSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
                 textConfig.offsetX = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_offset_x")
 
             AddSlider(textSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
                 textConfig.offsetY = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_offset_y")
 
             AddDropdown(textSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", overflowList, textConfig.overflowMode or "NONE", function(value)
                 textConfig.overflowMode = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_overflow")
 
             AddCheckBox(textSection, L["OPTION_FONT_SHADOW"] or "Shadow", textConfig.shadowEnabled ~= false, function(value)
                 textConfig.shadowEnabled = value and true or false
                 NotifyConfigChanged()
-            end, textConfig.enabled == false)
+            end, textConfig.enabled == false, "text_shadow")
 
             AddColorPicker(textSection, L["OPTION_SHADOW_COLOR"] or "Shadow Color", textConfig.shadowColor, true, function(value)
                 textConfig.shadowColor = value
                 NotifyConfigChanged()
-            end, textConfig.enabled == false or textConfig.shadowEnabled == false)
-        end
+            end, textConfig.enabled == false or textConfig.shadowEnabled == false, "text_shadow_color")
         end
     end
 
-    if indicatorConfig and indicatorMeta then
+    if select(2, ResolveTextContext()) then
         AddSpacer(container, INSPECTOR_SECTION_SPACING)
 
-        local indicatorSection = CreateInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true)
-        if indicatorSection then
+        CreateInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true, {
+            localContentBuilder = BuildTextSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+    end
 
-            AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", indicatorList, selectedIndicatorKey, function(value)
-                state.selectedIndicatorKey = value
-                NotifySidebarChanged("indicators")
-            end)
+    local function BuildIndicatorSectionContent(indicatorSection)
+        local selectedIndicatorKey, indicatorMeta, indicatorConfig = ResolveIndicatorContext()
+        if not indicatorSection or type(indicatorConfig) ~= "table" or type(indicatorMeta) ~= "table" then
+            return
+        end
 
-            AddCheckBox(indicatorSection, L[indicatorMeta.labelKey] or "Enabled", indicatorConfig.enabled ~= false, function(value)
-                indicatorConfig.enabled = value and true or false
-                NotifySidebarChanged("indicators")
-            end)
+        AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", indicatorList, selectedIndicatorKey, function(value)
+            state.selectedIndicatorKey = value
+            RebuildLocalSection(indicatorSection)
+        end)
+
+        AddCheckBox(indicatorSection, L[indicatorMeta.labelKey] or "Enabled", indicatorConfig.enabled ~= false, function(value)
+            indicatorConfig.enabled = value and true or false
+            NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
+        end)
 
         if indicatorMeta.classification then
             AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", classificationEffectList, indicatorConfig.effect or "PORTRAIT_OVERLAY", function(value)
                 indicatorConfig.effect = value
                 NotifyConfigChanged()
             end, indicatorConfig.enabled == false)
-        else
-            local effect = indicatorConfig.effect or "ICON"
-            if indicatorMeta.effectListKey == "status" then
-                AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", statusIndicatorEffectList, effect, function(value)
-                    indicatorConfig.effect = value
-                    NotifyConfigChanged()
-                end, indicatorConfig.enabled == false)
-            end
-
-            local useOverlayEffect = indicatorMeta.effectListKey == "status" and effect == "FRAME_OVERLAY"
-
-            if not useOverlayEffect then
-                AddDropdown(indicatorSection, L[indicatorMeta.placementLabel] or "Placement", portraitPlacementList, indicatorConfig.placement or "ATTACHED", function(value)
-                    indicatorConfig.placement = value
-                    NotifySidebarChanged("indicators")
-                end, indicatorConfig.enabled == false)
-
-                if state.mode == "expert" and indicatorMeta.supportsMode then
-                    AddDropdown(indicatorSection, L[indicatorMeta.modeLabel] or "Mode", portraitModeList, indicatorConfig.mode or "2D", function(value)
-                        indicatorConfig.mode = value
-                        NotifyConfigChanged()
-                    end, indicatorConfig.enabled == false)
-                end
-
-                AddSlider(indicatorSection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
-                    indicatorConfig.size = math.floor((value or 0) + 0.5)
-                    NotifyConfigChanged()
-                end, indicatorConfig.enabled == false)
-
-                if state.mode == "expert" then
-                    AddSlider(indicatorSection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
-                        indicatorConfig.scale = tonumber(string.format("%.2f", value or 1)) or 1
-                        NotifyConfigChanged()
-                    end, indicatorConfig.enabled == false)
-
-                    local placement = indicatorConfig.placement or "ATTACHED"
-                    local inside = placement == "INSIDE"
-
-                    if inside then
-                        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.insideAnchorTo or "Frame", function(value)
-                            indicatorConfig.insideAnchorTo = value
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-
-                        AddDropdown(indicatorSection, L[indicatorMeta.insideSideLabel] or (L["OPTION_INSIDE_SIDE"] or "Inside Side"), portraitInsideSideList, indicatorConfig.insideSide or "LEFT", function(value)
-                            indicatorConfig.insideSide = value
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-
-                        AddSlider(indicatorSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
-                            indicatorConfig.padding = math.floor((value or 0) + 0.5)
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-                    else
-                        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.anchorTo or "Frame", function(value)
-                            indicatorConfig.anchorTo = value
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-
-                        AddDropdown(indicatorSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, indicatorConfig.point or "TOP", function(value)
-                            indicatorConfig.point = value
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-
-                        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, indicatorConfig.relativePoint or "TOP", function(value)
-                            indicatorConfig.relativePoint = value
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-
-                        AddSlider(indicatorSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
-                            indicatorConfig.offsetX = math.floor((value or 0) + 0.5)
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-
-                        AddSlider(indicatorSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
-                            indicatorConfig.offsetY = math.floor((value or 0) + 0.5)
-                            NotifyConfigChanged()
-                        end, indicatorConfig.enabled == false)
-                    end
-                end
-            end
+            return
         end
+
+        local effect = indicatorConfig.effect or "ICON"
+        if indicatorMeta.effectListKey == "status" then
+            AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", statusIndicatorEffectList, effect, function(value)
+                indicatorConfig.effect = value
+                NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
+            end, indicatorConfig.enabled == false)
+        end
+
+        local useOverlayEffect = indicatorMeta.effectListKey == "status" and effect == "FRAME_OVERLAY"
+        if useOverlayEffect then
+            return
+        end
+
+        AddDropdown(indicatorSection, L[indicatorMeta.placementLabel] or "Placement", portraitPlacementList, indicatorConfig.placement or "ATTACHED", function(value)
+            indicatorConfig.placement = value
+            NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
+        end, indicatorConfig.enabled == false)
+
+        if state.mode == "expert" and indicatorMeta.supportsMode then
+            AddDropdown(indicatorSection, L[indicatorMeta.modeLabel] or "Mode", portraitModeList, indicatorConfig.mode or "2D", function(value)
+                indicatorConfig.mode = value
+                NotifyConfigChanged()
+            end, indicatorConfig.enabled == false)
+        end
+
+        AddSlider(indicatorSection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
+            indicatorConfig.size = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+
+        if state.mode ~= "expert" then
+            return
+        end
+
+        AddSlider(indicatorSection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+            indicatorConfig.scale = tonumber(string.format("%.2f", value or 1)) or 1
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+
+        local placement = indicatorConfig.placement or "ATTACHED"
+        local inside = placement == "INSIDE"
+
+        if inside then
+            AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.insideAnchorTo or "Frame", function(value)
+                indicatorConfig.insideAnchorTo = value
+                NotifyConfigChanged()
+            end, indicatorConfig.enabled == false)
+
+            AddDropdown(indicatorSection, L[indicatorMeta.insideSideLabel] or (L["OPTION_INSIDE_SIDE"] or "Inside Side"), portraitInsideSideList, indicatorConfig.insideSide or "LEFT", function(value)
+                indicatorConfig.insideSide = value
+                NotifyConfigChanged()
+            end, indicatorConfig.enabled == false)
+
+            AddSlider(indicatorSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
+                indicatorConfig.padding = math.floor((value or 0) + 0.5)
+                NotifyConfigChanged()
+            end, indicatorConfig.enabled == false)
+            return
+        end
+
+        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.anchorTo or "Frame", function(value)
+            indicatorConfig.anchorTo = value
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+
+        AddDropdown(indicatorSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, indicatorConfig.point or "TOP", function(value)
+            indicatorConfig.point = value
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+
+        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, indicatorConfig.relativePoint or "TOP", function(value)
+            indicatorConfig.relativePoint = value
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+
+        AddSlider(indicatorSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
+            indicatorConfig.offsetX = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+
+        AddSlider(indicatorSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
+            indicatorConfig.offsetY = math.floor((value or 0) + 0.5)
+            NotifyConfigChanged()
+        end, indicatorConfig.enabled == false)
+    end
+
+    do
+        local _, indicatorMeta, indicatorConfig = ResolveIndicatorContext()
+        if indicatorConfig and indicatorMeta then
+            AddSpacer(container, INSPECTOR_SECTION_SPACING)
+
+            CreateInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true, {
+                localContentBuilder = BuildIndicatorSectionContent,
+                layoutRefresh = RefreshInspectorLayout,
+            })
         end
     end
 
-    if type(auraConfig) == "table" then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-
-        local auraSection = CreateInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true)
-        if auraSection then
+    local function BuildAuraSectionContent(auraSection)
+        local selectedAuraKey, auraConfig = ResolveAuraContext()
+        if not auraSection or type(auraConfig) ~= "table" then
+            return
+        end
 
             AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", auraList, selectedAuraKey, function(value)
                 state.selectedAuraKey = value
-                NotifySidebarChanged("auras")
-            end)
+                RebuildLocalSection(auraSection)
+            end, nil, "aura_block")
 
             AddCheckBox(auraSection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
                 auraConfig.enabled = value and true or false
-                NotifySidebarChanged("auras")
-            end)
+                NotifyConfigChangedAndRebuildSection(auraSection, "auras")
+            end, nil, "aura_enabled")
 
         AddDropdown(auraSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", auraPlacementList, auraConfig.placement or "ATTACHED", function(value)
             auraConfig.placement = value
-            NotifySidebarChanged("auras")
-        end, auraConfig.enabled == false)
+            NotifyConfigChangedAndRebuildSection(auraSection, "auras")
+        end, auraConfig.enabled == false, "aura_placement")
 
         AddSlider(auraSection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
             auraConfig.iconSize = math.floor((value or 0) + 0.5)
             NotifyConfigChanged()
-        end, auraConfig.enabled == false)
+        end, auraConfig.enabled == false, "aura_icon_size")
 
         AddSlider(auraSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, 1, tonumber(auraConfig.iconsPerRow) or 5, function(value)
             auraConfig.iconsPerRow = math.floor((value or 0) + 0.5)
             NotifyConfigChanged()
-        end, auraConfig.enabled == false)
+        end, auraConfig.enabled == false, "aura_icons_per_row")
 
         AddSlider(auraSection, L["OPTION_AURA_MAX_ROWS"] or "Maximum Rows", 0, 10, 1, tonumber(auraConfig.maxRows) or 0, function(value)
             auraConfig.maxRows = math.floor((value or 0) + 0.5)
             NotifyConfigChanged()
-        end, auraConfig.enabled == false)
+        end, auraConfig.enabled == false, "aura_max_rows")
 
         if state.mode == "quick" then
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
                 auraConfig.showStackText = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_show_stacks")
 
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
                 auraConfig.showTimerText = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_show_timer")
         else
             AddSlider(auraSection, L["OPTION_AURA_SPACING_X"] or "Spacing X", 0, 20, 1, tonumber(auraConfig.spacingX) or 3, function(value)
                 auraConfig.spacingX = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_spacing_x")
 
             AddSlider(auraSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, 1, tonumber(auraConfig.spacingY) or 3, function(value)
                 auraConfig.spacingY = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_spacing_y")
 
             AddDropdown(auraSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", auraGrowthXList, auraConfig.growthX or "RIGHT", function(value)
                 auraConfig.growthX = value
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_growth_x")
 
             AddDropdown(auraSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", auraGrowthYList, auraConfig.growthY or "DOWN", function(value)
                 auraConfig.growthY = value
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_growth_y")
 
             AddDropdown(auraSection, L["OPTION_AURA_SORT_MODE"] or "Sort Mode", auraSortModeList, auraConfig.sortMode or "NEWEST_FIRST", function(value)
                 auraConfig.sortMode = value
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_sort_mode")
 
             AddSlider(auraSection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
                 auraConfig.stackFontScale = tonumber(string.format("%.2f", value or 1)) or 1
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_stack_font_scale")
 
             AddSlider(auraSection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
                 auraConfig.timerFontScale = tonumber(string.format("%.2f", value or 1)) or 1
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_timer_font_scale")
 
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_ONLY_MINE"] or "Only My Auras", auraConfig.showOnlyMine == true, function(value)
                 auraConfig.showOnlyMine = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_show_only_mine")
 
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_BOSS"] or "Force Boss Auras", auraConfig.showBossAuras ~= false, function(value)
                 auraConfig.showBossAuras = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_show_boss")
 
             AddCheckBox(auraSection, L["OPTION_AURA_HIDE_PERMANENT"] or "Hide Permanent Auras", auraConfig.hidePermanentAuras == true, function(value)
                 auraConfig.hidePermanentAuras = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_hide_permanent")
 
             AddCheckBox(auraSection, L["OPTION_AURA_HIDE_LONG"] or "Hide Long Auras", auraConfig.hideLongAuras == true, function(value)
                 auraConfig.hideLongAuras = value and true or false
-                NotifySidebarChanged("auras")
-            end, auraConfig.enabled == false)
+                NotifyConfigChangedAndRebuildSection(auraSection, "auras")
+            end, auraConfig.enabled == false, "aura_hide_long")
 
             AddSlider(auraSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
                 auraConfig.longAuraThreshold = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false or auraConfig.hideLongAuras ~= true)
+            end, auraConfig.enabled == false or auraConfig.hideLongAuras ~= true, "aura_long_threshold")
 
             if selectedAuraKey == "Buffs" then
                 AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STEALABLE_ONLY"] or "Only Stealable Buffs", auraConfig.showStealableOnly == true, function(value)
                     auraConfig.showStealableOnly = value and true or false
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_show_stealable_only")
             else
                 AddCheckBox(auraSection, L["OPTION_AURA_SHOW_DISPELLABLE_ONLY"] or "Only Dispellable Debuffs", auraConfig.showDispellableOnly == true, function(value)
                     auraConfig.showDispellableOnly = value and true or false
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_show_dispellable_only")
             end
 
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
                 auraConfig.showStackText = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_show_stacks")
 
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
                 auraConfig.showTimerText = value and true or false
                 NotifyConfigChanged()
-            end, auraConfig.enabled == false)
+            end, auraConfig.enabled == false, "aura_show_timer")
 
             local inside = (auraConfig.placement or "ATTACHED") == "INSIDE"
             if inside then
                 AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.insideAnchorTo or "Frame", function(value)
                     auraConfig.insideAnchorTo = value
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_inside_anchor_to")
 
                 AddDropdown(auraSection, L["OPTION_INSIDE_SIDE"] or "Inside Side", auraInsideSideList, auraConfig.insideSide or "LEFT", function(value)
                     auraConfig.insideSide = value
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_inside_side")
             else
                 AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.anchorTo or "Frame", function(value)
                     auraConfig.anchorTo = value
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_anchor_to")
 
                 AddDropdown(auraSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", auraAnchorPointList, auraConfig.point or "BOTTOMLEFT", function(value)
                     auraConfig.point = value
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_point")
 
                 AddDropdown(auraSection, L["OPTION_ANCHOR_TO"] or "Anchor To", auraAnchorPointList, auraConfig.relativePoint or "TOPLEFT", function(value)
                     auraConfig.relativePoint = value
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_relative_point")
 
                 AddSlider(auraSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
                     auraConfig.offsetX = math.floor((value or 0) + 0.5)
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_offset_x")
 
                 AddSlider(auraSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
                     auraConfig.offsetY = math.floor((value or 0) + 0.5)
                     NotifyConfigChanged()
-                end, auraConfig.enabled == false)
+                end, auraConfig.enabled == false, "aura_offset_y")
             end
         end
-        end
+    end
+
+    if type(select(2, ResolveAuraContext())) == "table" then
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+
+        CreateInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true, {
+            localContentBuilder = BuildAuraSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
     end
 
 end

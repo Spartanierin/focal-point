@@ -51,13 +51,22 @@ function InspectorBinding.ApplyInspectorSectionStructure(section, style)
     return section
 end
 
-function InspectorBinding.CreateInspectorSection(container, createSection, state, sectionKey, title, defaultCollapsed, onToggle)
+function InspectorBinding.CreateInspectorSection(container, createSection, state, sectionKey, title, defaultCollapsed, onToggle, extraOptions)
+    local sectionOptions = extraOptions or {}
+    sectionOptions.collapsible = true
+    sectionOptions.key = sectionKey
+    sectionOptions.state = state
+    sectionOptions.defaultCollapsed = defaultCollapsed
+    sectionOptions.onToggle = onToggle
+
     return InspectorBinding.ApplyInspectorSectionStructure(createSection(container, title, {
         collapsible = true,
         key = sectionKey,
         state = state,
         defaultCollapsed = defaultCollapsed,
         onToggle = onToggle,
+        localContentBuilder = sectionOptions.localContentBuilder,
+        layoutRefresh = sectionOptions.layoutRefresh,
     }), "default")
 end
 
