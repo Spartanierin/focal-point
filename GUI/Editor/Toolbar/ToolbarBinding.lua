@@ -207,7 +207,10 @@ local function RefreshWindowState(context, deps)
     local normalizedCurrent = options.currentPath or (nsRef.GUI and nsRef.GUI.selectedPath) or ResolveConstantPath(C, { "Nav", "EDITOR" })
 
     if context.widgets.brandLine then
-        context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  |cff6fd2ff%s|r", logoPath, T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)))
+        local skins = nsRef.GUI and nsRef.GUI.Skins or nil
+        local addonName = T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)
+        local brandTitle = skins and skins.GetBrandTitle and skins.GetBrandTitle(addonName) or addonName
+        context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  %s", logoPath, brandTitle))
     end
     if context.widgets.versionLine then
         context.widgets.versionLine:SetText(string.format("|cffd8c27a%s|r  |cff4cff88%s|r", T("INFO_VERSION", "Version", deps), versionText))

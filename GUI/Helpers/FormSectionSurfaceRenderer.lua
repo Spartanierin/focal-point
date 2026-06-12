@@ -6,8 +6,17 @@ ns.GUI.Helpers = ns.GUI.Helpers or {}
 local FormSectionSurfaceRenderer = {}
 ns.GUI.Helpers.FormSectionSurfaceRenderer = FormSectionSurfaceRenderer
 
-local function GetFormPalette()
+local function GetLayoutFormPalette()
     return (ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {}
+end
+
+local function GetFormPalette()
+    local fallback = GetLayoutFormPalette()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    if skins and skins.GetFormPalette then
+        return skins.GetFormPalette(fallback) or fallback
+    end
+    return fallback
 end
 
 local function GetChromeColors()

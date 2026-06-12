@@ -9,6 +9,36 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.7]
+
+### Added
+
+* Added the first internal GUI skin registry for toolbar and inspector styling foundations.
+
+### Changed
+
+* Routed central GUI text colors, form chrome colors, and editor button visuals through the active skin while keeping the default appearance unchanged.
+* Updated editor header branding to match the new Focal Point logo colors.
+* Updated the default editor skin to better match the new Focal Point logo and brand colors.
+* Refined editor button color hierarchy so inactive buttons stay neutral while orange emphasizes interactive and active states.
+* Refined the default editor skin so Focal Point orange is used as a focused accent rather than a dominant button fill.
+* Updated the default editor button texture to use `shadow1.png`.
+* Updated editor button texture coordinates so `shadow1.png` uses the full texture area.
+* Calmed editor button backgrounds and texture tinting to improve label contrast without outlines.
+
+### Fixed
+
+* Fixed the editor toolbar brand title so the visible `Focal Point` header renders as white/orange instead of the previous blue text.
+* Fixed editor button texture tinting so darker skin fill colors are no longer overwritten by the source texture color.
+* Improved editor button texture visibility by rendering the skin texture as a separate overlay above the dark fill.
+* Increased editor button texture overlay visibility so `shadow1.png` is easier to perceive.
+* Improved editor button text readability by keeping button labels above the texture overlay with a stronger dark shadow.
+* Improved editor button label contrast with a near-black text shadow.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.6]
 
 ### Added

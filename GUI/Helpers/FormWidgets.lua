@@ -8,8 +8,17 @@ local AceGUI = LibStub("AceGUI-3.0")
 local FormWidgets = {}
 ns.GUI.Helpers.FormWidgets = FormWidgets
 
-local function GetFormPalette()
+local function GetLayoutFormPalette()
     return (ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {}
+end
+
+local function GetFormPalette()
+    local fallback = GetLayoutFormPalette()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    if skins and skins.GetFormPalette then
+        return skins.GetFormPalette(fallback) or fallback
+    end
+    return fallback
 end
 
 local function GetChromeColors()
@@ -263,6 +272,7 @@ function FormWidgets.ApplyModalActionButtonVisual(button, role)
     ApplyFPButtonVisualCore(button, style, {
         layerKeys = {
             bg = "__fpActionVisualBg",
+            texture = "__fpActionVisualTexture",
             border = "__fpActionVisualBorder",
             accent = "__fpActionVisualAccent",
         },

@@ -231,11 +231,13 @@ local function ShowEditorWelcomeTip()
     HideWindowCloseButton(tipWindow)
 
     if tipWindow.frame then
-        local chromePalette = FocalPoint.GUI
+        local fallbackPalette = FocalPoint.GUI
             and FocalPoint.GUI.Layouts
             and FocalPoint.GUI.Layouts.FormElements
             and FocalPoint.GUI.Layouts.FormElements.Palette
-            and FocalPoint.GUI.Layouts.FormElements.Palette.Chrome
+        local skins = FocalPoint.GUI and FocalPoint.GUI.Skins or nil
+        local palette = skins and skins.GetFormPalette and skins.GetFormPalette(fallbackPalette) or fallbackPalette
+        local chromePalette = palette and palette.Chrome
         local welcomeAccent = chromePalette and (chromePalette.headerAccent or chromePalette.accent)
         if not tipWindow.frame._fpWelcomeModalAccent then
             tipWindow.frame._fpWelcomeModalAccent = tipWindow.frame:CreateTexture(nil, "BORDER")

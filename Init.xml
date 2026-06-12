@@ -76,6 +76,7 @@
     <Script file="Engine/Auras/Layout/AuraRenderer.lua"/>
     <Script file="Engine/Auras/Runtime/AuraRuntime.lua"/>
 
+    <Script file="GUI/GUISkin.lua"/>
     <Script file="GUI/Helpers/OptionPaths.lua"/>
     <Script file="GUI/Helpers/OptionValues.lua"/>
     <Script file="GUI/Helpers/OptionRefresh.lua"/>

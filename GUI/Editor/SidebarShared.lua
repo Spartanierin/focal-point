@@ -17,7 +17,10 @@ local StyleDropdownField = FormWidgets.StyleDropdown
 local StyleCheckBoxField = FormWidgets.StyleCheckBox
 
 local function GetChromeColors()
-    return ((ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {}).Chrome or {}
+    local fallback = ((ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {})
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    local palette = skins and skins.GetFormPalette and skins.GetFormPalette(fallback) or fallback
+    return palette.Chrome or {}
 end
 
 local POINTS = {

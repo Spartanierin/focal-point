@@ -45,7 +45,12 @@ TextStyles.TextColors = {
 }
 
 local function GetRole(role)
-    return TextStyles.TextColors[role] or TextStyles.TextColors.label
+    local fallback = TextStyles.TextColors[role] or TextStyles.TextColors.label
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    if skins and skins.GetTextColor then
+        return skins.GetTextColor(role, fallback) or fallback
+    end
+    return fallback
 end
 
 function TextStyles.Get(role)
@@ -75,8 +80,10 @@ function TextStyles.ApplyFontString(fontString, role, options)
 
     if fontString.SetFont then
         local currentFont, currentSize, currentFlags = fontString:GetFont()
+        local skins = ns.GUI and ns.GUI.Skins or nil
+        local defaultFont = skins and skins.GetDefaultFont and skins.GetDefaultFont(STANDARD_TEXT_FONT) or STANDARD_TEXT_FONT
         fontString:SetFont(
-            opts.font or currentFont or STANDARD_TEXT_FONT,
+            opts.font or currentFont or defaultFont,
             opts.size or currentSize or 12,
             opts.flags or currentFlags or ""
         )

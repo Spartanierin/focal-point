@@ -132,6 +132,7 @@ local SIDEBAR_ROLE_TO_VARIANT = {
 
 local SIDEBAR_LAYER_KEYS = {
     bg = "__fpSidebarVisualBg",
+    texture = "__fpSidebarVisualTexture",
     border = "__fpSidebarVisualBorder",
     accent = "__fpSidebarSelectedAccent",
 }
@@ -150,14 +151,20 @@ local function EnsureFPButtonVisualLayers(button, layerKeys)
         button[keys.bg]:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
     end
 
+    if keys.texture and not button[keys.texture] then
+        button[keys.texture] = frame:CreateTexture(nil, "ARTWORK", nil, 3)
+        button[keys.texture]:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2)
+        button[keys.texture]:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+    end
+
     if not button[keys.border] then
-        button[keys.border] = frame:CreateTexture(nil, "BORDER", nil, 3)
+        button[keys.border] = frame:CreateTexture(nil, "BORDER", nil, 4)
         button[keys.border]:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
         button[keys.border]:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
     end
 
     if not button[keys.accent] then
-        button[keys.accent] = frame:CreateTexture(nil, "ARTWORK", nil, 4)
+        button[keys.accent] = frame:CreateTexture(nil, "ARTWORK", nil, 5)
         button[keys.accent]:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2)
         button[keys.accent]:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -2)
         button[keys.accent]:SetHeight(1)
@@ -253,6 +260,20 @@ local function ApplyTint(color, tint)
     }
 end
 
+local function GetEditorButtonVisuals()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    local fallback = {
+        states = FP_BUTTON_STATE_VISUALS,
+        closeStates = FP_CLOSE_STATE_VISUALS,
+        texture = FP_BUTTON_BG_TEXTURE,
+        texCoord = FP_BUTTON_BG_TEX_COORD,
+    }
+    if skins and skins.GetEditorButtonVisuals then
+        return skins.GetEditorButtonVisuals(fallback) or fallback
+    end
+    return fallback
+end
+
 local function ResolveVisualState(isDisabled, isPressed, isHovered, isSelected, preferSelectedWhenDisabled)
     if isDisabled and not (isSelected and preferSelectedWhenDisabled) then
         return "disabled"
@@ -271,8 +292,11 @@ end
 
 local function ResolveStateVisual(rolePresetKey, stateName)
     local rolePreset = FP_BUTTON_ROLE_PRESETS[rolePresetKey] or {}
-    local closeState = FP_CLOSE_STATE_VISUALS[stateName]
-    local base = (rolePreset.closeOverride and closeState) or FP_BUTTON_STATE_VISUALS[stateName] or FP_BUTTON_STATE_VISUALS.normal
+    local editorButtonVisuals = GetEditorButtonVisuals()
+    local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
+    local closeStates = editorButtonVisuals.closeStates or FP_CLOSE_STATE_VISUALS
+    local closeState = closeStates[stateName]
+    local base = (rolePreset.closeOverride and closeState) or states[stateName] or states.normal
     local visual = {
         fill = base.fill,
         border = base.border,
@@ -290,7 +314,7 @@ local function ResolveStateVisual(rolePresetKey, stateName)
     end
 
     if stateName == "disabled" then
-        visual.text = FP_BUTTON_STATE_VISUALS.disabled.text
+        visual.text = states.disabled.text
     end
 
     return visual
@@ -373,10 +397,12 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     local isSelected = opts.selected == true or rolePreset.selected == true
     local stateName = ResolveVisualState(isDisabled, pressed, hovered, isSelected, opts.preferSelectedWhenDisabled == true)
     local stateVisual = ResolveStateVisual(rolePresetKey, stateName)
+    local editorButtonVisuals = GetEditorButtonVisuals()
+    local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
 
     local effectiveStyle = {
         height = style.height,
-        disabledText = style.disabledText or FP_BUTTON_STATE_VISUALS.disabled.text,
+        disabledText = style.disabledText or states.disabled.text,
         fill = stateVisual.fill,
         border = stateVisual.border,
         accent = stateVisual.accent,
@@ -386,7 +412,10 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     button:SetHeight(effectiveStyle.height or 22)
     NeutralizeTemplateTextures(frame)
 
-    ApplyColorTexture(button[layerKeys.bg], effectiveStyle.fill, FP_BUTTON_BG_TEXTURE, FP_BUTTON_BG_TEX_COORD)
+    ApplyColorTexture(button[layerKeys.bg], effectiveStyle.fill)
+    if layerKeys.texture then
+        ApplyColorTexture(button[layerKeys.texture], { 0.03, 0.04, 0.05, 0.36 }, editorButtonVisuals.texture, editorButtonVisuals.texCoord)
+    end
     ApplyColorTexture(button[layerKeys.border], effectiveStyle.border)
     ApplyColorTexture(button[layerKeys.accent], effectiveStyle.accent)
 
@@ -401,17 +430,25 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     end
 
     local bg = button[layerKeys.bg]
+    local bgTexture = layerKeys.texture and button[layerKeys.texture] or nil
     local border = button[layerKeys.border]
     if isDisabled then
         if bg and bg.SetVertexColor then
             bg:SetVertexColor(0.78, 0.78, 0.78, 0.84)
+        end
+        if bgTexture and bgTexture.SetVertexColor then
+            bgTexture:SetVertexColor(0.78, 0.78, 0.78, 0.12)
         end
         if border and border.SetVertexColor then
             border:SetVertexColor(0.78, 0.78, 0.78, 0.82)
         end
     else
         if bg and bg.SetVertexColor then
-            bg:SetVertexColor(1, 1, 1, 1)
+            local fill = effectiveStyle.fill or { 1, 1, 1, 1 }
+            bg:SetVertexColor(fill[1] or 1, fill[2] or 1, fill[3] or 1, fill[4] or 1)
+        end
+        if bgTexture and bgTexture.SetVertexColor then
+            bgTexture:SetVertexColor(0.03, 0.04, 0.05, 0.36)
         end
         if border and border.SetVertexColor then
             border:SetVertexColor(1, 1, 1, 1)
@@ -419,9 +456,24 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     end
 
     if button.text and button.text.SetTextColor then
+        if button.text.SetDrawLayer then
+            button.text:SetDrawLayer("OVERLAY", 1)
+        end
+        if button.text.GetFont and button.text.SetFont then
+            local font, size = button.text:GetFont()
+            if font then
+                button.text:SetFont(font, size or 12, "")
+            end
+        end
+        if button.text.SetShadowOffset then
+            button.text:SetShadowOffset(1, -1)
+        end
+        if button.text.SetShadowColor then
+            button.text:SetShadowColor(0, 0, 0, 0.98)
+        end
         local textColor = effectiveStyle.text
         if isDisabled then
-            textColor = FP_BUTTON_STATE_VISUALS.disabled.text
+            textColor = states.disabled.text
         end
         if textColor then
             button.text:SetTextColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1, textColor[4] or 1)
@@ -449,9 +501,11 @@ function EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, variant)
     button.__fpSidebarLastRole = variant or "secondary"
 
     local visualRole = SIDEBAR_ROLE_TO_VARIANT[button.__fpSidebarLastRole] or "secondary"
+    local editorButtonVisuals = GetEditorButtonVisuals()
+    local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
     local style = {
         height = (visualRole == "active" or visualRole == "primary_action") and 24 or 22,
-        disabledText = FP_BUTTON_STATE_VISUALS.disabled.text,
+        disabledText = states.disabled.text,
     }
     if EditorSidebarThemeHelpers.ApplyFPButtonVisualCore then
         EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, {
