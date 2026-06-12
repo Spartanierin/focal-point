@@ -178,6 +178,15 @@ local function GetGroupFilter(groupKey)
     return "HELPFUL", true, false
 end
 
+local function IsMidnightClient()
+    if not GetBuildInfo then
+        return false
+    end
+
+    local ok, version, build, date, interfaceVersion = pcall(GetBuildInfo)
+    return ok and (tonumber(interfaceVersion) or 0) >= 120000
+end
+
 local function GetAuraInstanceId(rawAura)
     if type(rawAura) ~= "table" then
         return 0
@@ -526,6 +535,12 @@ function AuraScan.CollectUnitAuras(unit, groupKey)
 
             return auraList
         end
+    end
+
+    -- Legacy compatibility for pre-Midnight clients only. Focal Point 1.0.6
+    -- targets Midnight, where C_UnitAuras is expected and this path stays off.
+    if IsMidnightClient() then
+        return auraList
     end
 
     local index = 1

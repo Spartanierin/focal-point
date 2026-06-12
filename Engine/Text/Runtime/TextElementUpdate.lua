@@ -4,6 +4,7 @@ FocalPoint.TextElementUpdate = FocalPoint.TextElementUpdate or {}
 
 local Update = FocalPoint.TextElementUpdate
 local Preview = FocalPoint.UnitFramePreview or {}
+local Presence = FocalPoint.UnitFramePresence or {}
 local TextState = FocalPoint.TextElementState or {}
 local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
@@ -116,6 +117,24 @@ local function IsBlankText(value)
         return true
     end
     return value:match("^%s*$") ~= nil
+end
+
+local function ShouldSuppressTextForMissingUnit(frame)
+    local unit = frame and frame.unit
+    if not unit or unit == "player" then
+        return false
+    end
+
+    if Presence.IsPreviewModeEnabled and Presence.IsPreviewModeEnabled() then
+        return false
+    end
+
+    local doesUnitSeemPresent = Presence.DoesUnitSeemPresent
+    if not doesUnitSeemPresent then
+        return false
+    end
+
+    return not doesUnitSeemPresent(unit)
 end
 
 local function SplitUtf8Characters(text)
@@ -719,6 +738,13 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
+            StopAnimatedNameText(textObject)
+            SafeSetText(textObject, "", false)
+            textObject:Hide()
+            return
+        end
+
+        if ShouldSuppressTextForMissingUnit(frame) then
             StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()

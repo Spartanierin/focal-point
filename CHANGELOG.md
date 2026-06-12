@@ -9,6 +9,31 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.6]
+
+### Added
+
+* Added initial boss-frame aura defaults so `Buffs` and `Debuffs` can be configured and rendered on boss units.
+
+### Changed
+
+* Added conservative boss aura defaults with a compact one-row attached layout, keeping `Debuffs` enabled by default and `Buffs` available but disabled by default.
+* Clarified demo debug slash commands as intentional runtime-only support diagnostics.
+* Restricted the legacy `UnitAura` aura scan fallback to pre-Midnight compatibility only.
+
+### Fixed
+
+* Fixed an unlock-editor-close cleanup gap where demo remnants could remain visible after closing the editor while frames were still unlocked.
+* Removed normal-release aura cooldown debug `OnUpdate` overhead; aura cooldown debug counters now attach only while demo debug diagnostics are active.
+* Fixed a raid-combat target visibility issue where the protected target frame could remain hidden after short target-loss transitions during an encounter.
+* Fixed stale literal text separators remaining visible on unit frames after the live unit temporarily disappeared.
+* Improved combat target-swap recovery by resynchronizing target bars, texts, auras, and castbar state with a forced aura full scan.
+* Reduced combat target-swap refresh overhead by making live refreshes respect dirty scopes and avoiding layout/config work for targeted combat resyncs.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.5]
 
 ### Added

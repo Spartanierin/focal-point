@@ -5,6 +5,12 @@ local Factory = FocalPoint.UnitFrameFactory
 
 -- Factory helpers create the base frame and the core status bar elements.
 
+local function ShouldUseUnitWatch(unit)
+    -- Target can briefly disappear during encounters. If UnitWatch hides the
+    -- protected target root in combat, normal refresh code cannot show it again.
+    return unit ~= "player" and unit ~= "target"
+end
+
 function Factory.GetAnchorTarget(frame, anchorTo)
     if anchorTo == "HealthBar" then
         return frame.Elements.HealthBar or frame
@@ -40,7 +46,7 @@ function Factory.CreateBaseFrame(unit, config)
     frame:SetAttribute("*type2", "togglemenu")
     frame:SetAttribute("toggleForVehicle", true)
 
-    if unit ~= "player" and RegisterUnitWatch then
+    if ShouldUseUnitWatch(unit) and RegisterUnitWatch then
         RegisterUnitWatch(frame)
         frame._unitWatchRegistered = true
     end

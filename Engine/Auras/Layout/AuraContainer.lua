@@ -88,19 +88,7 @@ function AuraContainer.Create(parent)
     if cooldown.GetCountdownFontString then
         frame.CooldownText = cooldown:GetCountdownFontString()
     end
-    cooldown:SetScript("OnUpdate", function(self)
-        local ownerFrame = self:GetParent() and self:GetParent():GetParent() and self:GetParent():GetParent():GetParent() or nil
-        if not ownerFrame then
-            return
-        end
-        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(ownerFrame) and Demo.TouchDebug then
-            Demo.TouchDebug(ownerFrame, "auraCooldownUpdates")
-            local cooldownDuration = self.GetCooldownDuration and self:GetCooldownDuration() or nil
-            if IsGreaterThan(cooldownDuration, 0) then
-                Demo.TouchDebug(ownerFrame, "auraTimerTextUpdates")
-            end
-        end
-    end)
+    cooldown:SetScript("OnUpdate", nil)
 
     local textOverlay = CreateFrame("Frame", nil, frame)
     textOverlay:SetAllPoints(frame)
@@ -214,12 +202,31 @@ function AuraContainer.ApplyData(container, aura, config)
     end
 
     container:SetScript("OnUpdate", nil)
+    if container.Cooldown then
+        container.Cooldown:SetScript("OnUpdate", nil)
+    end
 
     local showTimerText = config and config.showTimerText
     if showTimerText == nil then
         showTimerText = true
     end
     SetCooldownCountdownVisibility(container, showTimerText and cooldownActive)
+
+    local ownerFrame = container:GetParent() and container:GetParent():GetParent() or nil
+    if cooldownActive
+        and Demo.IsDebugEnabled and Demo.IsDebugEnabled()
+        and Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(ownerFrame)
+        and container.Cooldown
+        and Demo.TouchDebug
+    then
+        container.Cooldown:SetScript("OnUpdate", function(self)
+            Demo.TouchDebug(ownerFrame, "auraCooldownUpdates")
+            local cooldownDuration = self.GetCooldownDuration and self:GetCooldownDuration() or nil
+            if IsGreaterThan(cooldownDuration, 0) then
+                Demo.TouchDebug(ownerFrame, "auraTimerTextUpdates")
+            end
+        end)
+    end
 
     container:Show()
 
@@ -242,6 +249,7 @@ function AuraContainer.Clear(container)
             container.Cooldown:SetCooldown(0, 0)
         end
         SetCooldownCountdownVisibility(container, false)
+        container.Cooldown:SetScript("OnUpdate", nil)
         container.Cooldown:Hide()
     end
 

@@ -152,6 +152,9 @@ local function BuildScopeText(scopeTable)
     return table.concat(ordered, ",")
 end
 
+local TARGET_COMBAT_SWAP_SCOPES = { "visibility", "bars", "texts", "auras", "castbar" }
+local TARGET_COMBAT_SWAP_OPTIONS = { forceAuraFullScan = true }
+
 local function GetFrameDebugLabel(frame)
     if not frame then
         return "frame=?"
@@ -392,9 +395,8 @@ function State.HandleTargetSwap(frame, reason)
                 runtimeState.lastReason = reason or "target_swap"
             end
             if State.QueueRefresh then
-                State.QueueRefresh(frame, "target_swap_combat_safe", "visibility", { forceFullRefresh = true }, 0)
-                State.QueueRefresh(frame, "target_swap_combat_safe_delayed", "visibility", { forceFullRefresh = true }, 0.10)
-                State.QueueRefresh(frame, "target_swap_combat_safe_delayed", "visibility", { forceFullRefresh = true }, 0.25)
+                State.QueueRefresh(frame, "target_swap_combat_resync", TARGET_COMBAT_SWAP_SCOPES, TARGET_COMBAT_SWAP_OPTIONS, 0)
+                State.QueueRefresh(frame, "target_swap_combat_resync_delayed", TARGET_COMBAT_SWAP_SCOPES, TARGET_COMBAT_SWAP_OPTIONS, 0.10)
             end
             DebugTargetState(frame, "skip_clear_in_combat", reason)
             return

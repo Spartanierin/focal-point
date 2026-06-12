@@ -1,5 +1,9 @@
 local _, FocalPoint = ...
 
+-- These commands are intentional support diagnostics for live troubleshooting.
+-- They are runtime-only flags, never SavedVariables, and are off unless a user
+-- explicitly enables them in chat.
+
 local function DemoDebugMessage(text)
     local message = "[FP DemoDebug] " .. tostring(text or "")
     if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
@@ -163,7 +167,7 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp diag, /fp debugdemo on|off|status|once|reset|on reset")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset")
             end
         end
     end
@@ -203,7 +207,7 @@ function FocalPoint:SetupSlashCommands()
         elseif msg:match("^only%s+") then
             ApplyOnlyUnit(msg:match("^only%s+(%S+)$"))
         else
-            DemoDebugMessage("usage: /fpdebugdemo on|off|status|once|reset|on reset|castbar on/off|auras on/off|auratimers on/off|texts on/off|rangefade on/off|smoothing on/off|only <unit|none>")
+            DemoDebugMessage("support diagnostics usage: /fpdebugdemo on|off|status|once|reset|on reset|castbar on/off|auras on/off|auratimers on/off|texts on/off|rangefade on/off|smoothing on/off|only <unit|none>")
         end
     end
 

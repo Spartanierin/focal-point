@@ -22,6 +22,20 @@ local function IsProtectedFrameInCombat(frame)
         and InCombatLockdown()
 end
 
+local function HideFrameIfSafe(frame)
+    if not (frame and frame.Hide) then
+        return false
+    end
+    if frame.unit == "target" then
+        return false
+    end
+    if IsProtectedFrameInCombat(frame) then
+        return false
+    end
+    frame:Hide()
+    return true
+end
+
 local function IsMissingDebugSuppressed(frame)
     local now = GetTime and GetTime() or 0
     if frame and frame._suppressMissingUnitDebugUntil and now <= frame._suppressMissingUnitDebugUntil then
@@ -245,9 +259,7 @@ function Visibility.HandleMissingUnit(frame)
         if frame.SetAlpha then
             frame:SetAlpha(0)
         end
-        if frame.Hide and not IsProtectedFrameInCombat(frame) then
-            frame:Hide()
-        end
+        HideFrameIfSafe(frame)
         return true
     end
 
@@ -266,6 +278,20 @@ function Visibility.HandleMissingUnit(frame)
         and frame.unit ~= "player"
         and (not DoesUnitSeemPresent(frame.unit))
 
+    if shouldHideForMissingUnit then
+        if frame.unit == "target" and frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+        if not IsProtectedFrameInCombat(frame) then
+            if frame.EnableMouse then
+                frame:EnableMouse(false)
+            end
+            if frame.SetMouseClickEnabled then
+                frame:SetMouseClickEnabled(false)
+            end
+        end
+    end
+
     if shouldHideForMissingUnit and protectedFrame then
         if IsMissingDebugSuppressed(frame) then
             if State.HandleUnitLost then
@@ -276,9 +302,7 @@ function Visibility.HandleMissingUnit(frame)
             if frame.SetAlpha then
                 frame:SetAlpha(0)
             end
-            if frame.Hide and not IsProtectedFrameInCombat(frame) then
-                frame:Hide()
-            end
+            HideFrameIfSafe(frame)
             return true
         end
 
@@ -297,20 +321,11 @@ function Visibility.HandleMissingUnit(frame)
         if suspiciousMissingTarget then
             Visibility.QueueRefresh(frame)
         end
-        if not IsProtectedFrameInCombat(frame) and frame.Hide then
-            frame:Hide()
-        end
+        HideFrameIfSafe(frame)
         return true
     end
 
     if shouldHideForMissingUnit then
-        if frame.EnableMouse then
-            frame:EnableMouse(false)
-        end
-        if frame.SetMouseClickEnabled then
-            frame:SetMouseClickEnabled(false)
-        end
-
         frame._missingUnitSince = frame._missingUnitSince or (GetTime and GetTime() or 0)
 
         if frame.unit == "target" then
@@ -337,7 +352,7 @@ function Visibility.HandleMissingUnit(frame)
                 else
                     Visibility.ClearFrameVisualState(frame, "target_missing_transition")
                 end
-                frame:Hide()
+                HideFrameIfSafe(frame)
                 QueueTargetRecoveryRefreshes(frame, "target_missing_transition")
                 return true
             end
@@ -356,9 +371,7 @@ function Visibility.HandleMissingUnit(frame)
             if frame.SetAlpha then
                 frame:SetAlpha(0)
             end
-            if frame.Hide then
-                frame:Hide()
-            end
+            HideFrameIfSafe(frame)
             return true
         end
 
@@ -372,10 +385,12 @@ function Visibility.HandleMissingUnit(frame)
             frame:SetAlpha(0)
         end
 
+        local didHide = HideFrameIfSafe(frame)
         if not IsMissingDebugSuppressed(frame) then
-            MaybeDebugTarget(frame, "Target-Frame wird jetzt verborgen")
+            MaybeDebugTarget(frame, didHide
+                and "Target-Frame wird jetzt verborgen"
+                or "Target-Inhalt wird ausgeblendet; Root bleibt fuer Combat-Recovery sichtbar")
         end
-        frame:Hide()
         return true
     end
 

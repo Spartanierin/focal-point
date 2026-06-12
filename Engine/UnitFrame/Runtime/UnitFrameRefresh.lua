@@ -11,13 +11,24 @@ local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
 end
 
+local function ShouldUseUnitWatch(frame)
+    local unit = frame and frame.unit
+    -- Target visibility is managed by Focal Point directly. Letting UnitWatch
+    -- hide the secure target root during combat can leave it hidden until combat
+    -- ends, even after PLAYER_TARGET_CHANGED reports a valid target again.
+    return unit ~= "player" and unit ~= "target"
+end
+
 local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
-    if not frame or frame.unit == "player" then
+    if not frame then
         return
     end
 
-    if previewOutsideCombat then
-        if frame._unitWatchRegistered and UnregisterUnitWatch then
+    if not ShouldUseUnitWatch(frame) or previewOutsideCombat then
+        if frame._unitWatchRegistered
+            and UnregisterUnitWatch
+            and not (IsProtectedRoot(frame) and InCombatLockdown and InCombatLockdown())
+        then
             UnregisterUnitWatch(frame)
             frame._unitWatchRegistered = false
         end
@@ -28,6 +39,16 @@ local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
         RegisterUnitWatch(frame)
         frame._unitWatchRegistered = true
     end
+end
+
+local function HasScope(refreshRequest, scope)
+    local scopes = refreshRequest and refreshRequest.scopes
+    return type(scopes) == "table" and scopes[scope] == true
+end
+
+local function IsScopedRefresh(refreshRequest)
+    local scopes = refreshRequest and refreshRequest.scopes
+    return type(scopes) == "table" and next(scopes) ~= nil and refreshRequest.forceFullRefresh ~= true
 end
 
 -- Refresh orchestration keeps the normal live-update path together so the
@@ -93,24 +114,41 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         return
     end
 
-    owner:RefreshUnitBarValues(frame)
-    owner:ApplyConfig(frame)
-    owner:ApplyTestValues(frame)
+    local scopedRefresh = IsScopedRefresh(refreshRequest)
+    local needsFull = not scopedRefresh
+    local needsLayout = needsFull or HasScope(refreshRequest, "layout")
+    local needsBars = needsFull or HasScope(refreshRequest, "bars")
+    local needsTexts = needsFull or HasScope(refreshRequest, "texts")
+    local needsAuras = needsFull or HasScope(refreshRequest, "auras")
+    local needsCastbar = needsFull or HasScope(refreshRequest, "castbar")
+    local needsVisibility = needsFull or HasScope(refreshRequest, "visibility")
 
-    if owner.RefreshCastBar then
+    if needsBars and owner.RefreshUnitBarValues then
+        owner:RefreshUnitBarValues(frame)
+    end
+    if needsLayout and owner.ApplyConfig then
+        owner:ApplyConfig(frame)
+    end
+    if needsFull and owner.ApplyTestValues then
+        owner:ApplyTestValues(frame)
+    end
+
+    if needsCastbar and owner.RefreshCastBar then
         owner:RefreshCastBar(frame)
     end
-    if owner.RefreshLiveValues then
+    if needsTexts and owner.RefreshLiveValues then
         owner:RefreshLiveValues(frame)
     end
-    if owner.RefreshAuras then
+    if needsAuras and owner.RefreshAuras then
         owner:RefreshAuras(frame, refreshRequest and refreshRequest.forceAuraFullScan == true)
     end
-    if owner.UpdateTextElements then
+    if needsTexts and owner.UpdateTextElements then
         owner:UpdateTextElements(frame)
     end
 
-    owner:ApplyRangeFade(frame)
+    if needsVisibility and owner.ApplyRangeFade then
+        owner:ApplyRangeFade(frame)
+    end
 
     local protectedRoot = IsProtectedRoot(frame)
     local previewOutsideCombat = IsPreviewModeEnabled

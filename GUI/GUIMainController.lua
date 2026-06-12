@@ -754,6 +754,10 @@ function FocalPoint:CloseConfig()
 
     if self.framesUnlocked then
         self.framesUnlocked = false
+        local demo = self.UnitFrameDemoEnvironment or nil
+        if demo and demo.ExitTestMode then
+            demo.ExitTestMode("config-close-lock")
+        end
         if self.ClearAllMoveOverlays then
             self:ClearAllMoveOverlays()
         end

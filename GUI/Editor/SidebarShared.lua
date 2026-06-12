@@ -64,6 +64,9 @@ local INDICATOR_META = {
         sizeLabel = "OPTION_LEADER_ICON_SIZE",
         scaleLabel = "OPTION_LEADER_ICON_SCALE",
         insideSideLabel = "OPTION_INSIDE_SIDE",
+        unavailable = function(unitKey)
+            return unitKey == "boss"
+        end,
     },
     RoleIcon = {
         labelKey = "OPTION_ROLE_ICON_ENABLED",
@@ -73,6 +76,9 @@ local INDICATOR_META = {
         sizeLabel = "OPTION_ROLE_ICON_SIZE",
         scaleLabel = "OPTION_ROLE_ICON_SCALE",
         insideSideLabel = "OPTION_INSIDE_SIDE",
+        unavailable = function(unitKey)
+            return unitKey == "boss"
+        end,
     },
     CombatIndicator = {
         labelKey = "OPTION_COMBAT_INDICATOR_ENABLED",
@@ -84,6 +90,9 @@ local INDICATOR_META = {
         sizeLabel = "OPTION_COMBAT_INDICATOR_SIZE",
         scaleLabel = "OPTION_COMBAT_INDICATOR_SCALE",
         insideSideLabel = "OPTION_INSIDE_SIDE",
+        unavailable = function(unitKey)
+            return unitKey == "boss"
+        end,
     },
     RestingIndicator = {
         labelKey = "OPTION_RESTING_INDICATOR_ENABLED",
@@ -107,6 +116,9 @@ local INDICATOR_META = {
         sizeLabel = "OPTION_READY_CHECK_INDICATOR_SIZE",
         scaleLabel = "OPTION_READY_CHECK_INDICATOR_SCALE",
         insideSideLabel = "OPTION_INSIDE_SIDE",
+        unavailable = function(unitKey)
+            return unitKey == "boss"
+        end,
     },
     ClassificationIndicator = {
         labelKey = "OPTION_CLASSIFICATION_INDICATOR_ENABLED",

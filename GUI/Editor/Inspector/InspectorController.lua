@@ -155,6 +155,12 @@ function InspectorController.Build(container, state, options)
 
         local currentIndicatorMeta = INDICATOR_META[currentSelectedIndicatorKey]
         local currentIndicatorConfig = currentIndicatorMeta and unitConfig[currentIndicatorMeta.optionKey] or nil
+        if not currentIndicatorConfig and state.selectedUnit == "boss" and indicatorList.RaidTargetIcon then
+            currentSelectedIndicatorKey = "RaidTargetIcon"
+            state.selectedIndicatorKey = currentSelectedIndicatorKey
+            currentIndicatorMeta = INDICATOR_META[currentSelectedIndicatorKey]
+            currentIndicatorConfig = currentIndicatorMeta and unitConfig[currentIndicatorMeta.optionKey] or nil
+        end
         return currentSelectedIndicatorKey, currentIndicatorMeta, currentIndicatorConfig
     end
 
