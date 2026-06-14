@@ -458,11 +458,13 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
             currentPath = selectedPath,
             onNavigate = HandleSidebarNavigate,
             onUnitChanged = function(unitKey)
-                if EditorState.SetSelectedUnit then
+                if FocalPoint.SelectEditorUnit then
+                    FocalPoint:SelectEditorUnit(unitKey)
+                elseif EditorState.SetSelectedUnit then
                     EditorState.SetSelectedUnit(unitKey)
-                end
-                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                    FocalPoint.GUI:RequestRefreshOptions()
+                    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                        FocalPoint.GUI:RequestRefreshOptions()
+                    end
                 end
             end,
             onModeChanged = function(mode)
@@ -739,6 +741,27 @@ function FocalPoint:CloseConfig()
     end
 
     self._closingConfig = true
+
+    local contextMenu = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.FrameContextMenu
+    if contextMenu and contextMenu.Hide then
+        contextMenu.Hide()
+    end
+
+    local resizeHandles = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.FrameResizeHandles
+    if resizeHandles and resizeHandles.CancelAll then
+        resizeHandles.CancelAll()
+    end
+
+    local snapLines = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.FrameSnapLines
+    if snapLines and snapLines.Hide then
+        snapLines.Hide()
+    end
 
     local controller = self.GUI and self.GUI.Editor and self.GUI.Editor.Controller
     if controller and controller.ReleaseInspector then

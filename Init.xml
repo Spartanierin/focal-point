@@ -91,6 +91,9 @@
     <Script file="GUI/AppShell.lua"/>
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
+    <Script file="GUI/Editor/FrameContextMenu.lua"/>
+    <Script file="GUI/Editor/FrameResizeHandles.lua"/>
+    <Script file="GUI/Editor/FrameSnapLines.lua"/>
     <Script file="GUI/Editor/EditorController.lua"/>
     <Script file="GUI/Editor/SidebarShared.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>

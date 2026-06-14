@@ -263,6 +263,73 @@ local function EnsureEditorSelectionHooks(frame)
     frame._focalPointEditorSelectHooked = true
 end
 
+local function EnsureEditorContextMenuHooks(frame)
+    if not frame then
+        return
+    end
+
+    local contextMenu = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameContextMenu
+    if not contextMenu then
+        return
+    end
+
+    if contextMenu.AttachFrame then
+        contextMenu.AttachFrame(frame)
+    end
+    if contextMenu.AttachOverlay and frame.MoveOverlay then
+        contextMenu.AttachOverlay(frame, frame.MoveOverlay)
+    end
+end
+
+local function UpdateEditorResizeHandle(frame)
+    local resizeHandles = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameResizeHandles
+    if resizeHandles and resizeHandles.UpdateFrame then
+        resizeHandles.UpdateFrame(frame)
+    end
+end
+
+local function HideEditorResizeHandle(frame)
+    local resizeHandles = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameResizeHandles
+    if resizeHandles and resizeHandles.HideFrame then
+        resizeHandles.HideFrame(frame)
+    end
+end
+
+local function CancelEditorResize()
+    local resizeHandles = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameResizeHandles
+    if resizeHandles and resizeHandles.CancelAll then
+        resizeHandles.CancelAll()
+    end
+end
+
+local function ApplyEditorSnapLines(frame, x, y)
+    local snapLines = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameSnapLines
+    if snapLines and snapLines.Apply then
+        return snapLines.Apply(frame, x, y)
+    end
+
+    return x, y
+end
+
+local function HideEditorSnapLines()
+    local snapLines = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameSnapLines
+    if snapLines and snapLines.Hide then
+        snapLines.Hide()
+    end
+end
+
 local UpdateMoveOverlay
 
 local function GetFrameCenterOffsets(frame)
@@ -327,7 +394,12 @@ UpdateMoveOverlay = function(frame)
         return
     end
 
-    local x, y = GetFrameCenterOffsets(frame)
+    local unitConfig = GetUnitConfig(frame.unit)
+    local x = unitConfig and unitConfig.x
+    local y = unitConfig and unitConfig.y
+    if x == nil or y == nil then
+        x, y = GetFrameCenterOffsets(frame)
+    end
 
     x = math.floor((tonumber(x) or 0) + 0.5)
     y = math.floor((tonumber(y) or 0) + 0.5)
@@ -425,8 +497,12 @@ local function BeginFrameDrag(frame)
         currentX = (currentX or 0) / scale
         currentY = (currentY or 0) / scale
 
-        unitConfig.x = dragState.startX + (currentX - dragState.cursorX)
-        unitConfig.y = dragState.startY + (currentY - dragState.cursorY)
+        local nextX = dragState.startX + (currentX - dragState.cursorX)
+        local nextY = dragState.startY + (currentY - dragState.cursorY)
+        nextX, nextY = ApplyEditorSnapLines(movingFrame, nextX, nextY)
+
+        unitConfig.x = nextX
+        unitConfig.y = nextY
         if movingFrame.unit and movingFrame.unit:match("^boss%d+$") then
             ApplyBossStackPositions()
         else
@@ -452,6 +528,7 @@ local function EndFrameDrag(frame)
         FocalPoint:ApplyStoredFramePosition(frame)
         UpdateMoveOverlay(frame)
     end
+    HideEditorSnapLines()
 
     UpdateMoveOverlayVisuals(frame)
 end
@@ -464,6 +541,7 @@ function FocalPoint:UpdateFrameDragState(frame)
     EnsureEditorSelectionHooks(frame)
 
     local overlay = EnsureMoveOverlay(frame)
+    EnsureEditorContextMenuHooks(frame)
     frame:SetMovable(self.framesUnlocked == true)
     frame:SetClampedToScreen(true)
 
@@ -485,6 +563,7 @@ function FocalPoint:UpdateFrameDragState(frame)
             end)
             overlay:Show()
             UpdateMoveOverlay(frame)
+            UpdateEditorResizeHandle(frame)
         end
         frame:RegisterForDrag("LeftButton")
         frame:SetScript("OnDragStart", function(target)
@@ -504,12 +583,14 @@ function FocalPoint:UpdateFrameDragState(frame)
             overlay:SetScript("OnDragStop", nil)
             overlay:EnableMouse(false)
             overlay:Hide()
+            HideEditorResizeHandle(frame)
         end
         frame:RegisterForDrag()
         frame:SetScript("OnDragStart", nil)
         frame:SetScript("OnDragStop", nil)
         frame:SetScript("OnUpdate", nil)
         frame._focalPointDragState = nil
+        HideEditorSnapLines()
     end
 
     UpdateSelectionOverlay(frame)
@@ -538,6 +619,7 @@ function FocalPoint:ClearAllMoveOverlays()
             frame:RegisterForDrag()
             frame:SetScript("OnDragStart", nil)
             frame:SetScript("OnDragStop", nil)
+            HideEditorSnapLines()
 
             local overlay = frame.MoveOverlay
             if overlay then
@@ -547,6 +629,7 @@ function FocalPoint:ClearAllMoveOverlays()
                 overlay:EnableMouse(false)
                 overlay:Hide()
             end
+            HideEditorResizeHandle(frame)
 
             local selectionOverlay = frame.SelectionOverlay
             if selectionOverlay then
@@ -563,7 +646,11 @@ function FocalPoint:RefreshEditorSelectionVisuals()
 
     for _, frame in pairs(self.frames) do
         UpdateSelectionOverlay(frame)
-        UpdateMoveOverlayVisuals(frame)
+        if frame and frame.MoveOverlay and frame.MoveOverlay.Coords then
+            UpdateMoveOverlay(frame)
+        else
+            UpdateMoveOverlayVisuals(frame)
+        end
     end
 end
 
@@ -602,6 +689,16 @@ function FocalPoint:ToggleFrameLock()
         end
         self:Info("Unit frames unlocked. Drag with left mouse button.")
     else
+        CancelEditorResize()
+        HideEditorSnapLines()
+
+        local contextMenu = self.GUI
+            and self.GUI.Editor
+            and self.GUI.Editor.FrameContextMenu
+        if contextMenu and contextMenu.Hide then
+            contextMenu.Hide()
+        end
+
         local demo = self.UnitFrameDemoEnvironment or nil
         if demo and demo.ExitTestMode then
             demo.ExitTestMode("frames-lock-on")

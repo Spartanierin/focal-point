@@ -9,6 +9,36 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.8]
+
+### Added
+
+* Added an editor-only right-click context menu for unlocked unit frames.
+* Added quick frame actions for copying/pasting size, copying/pasting position, and resetting size or position.
+* Added mouse resize handles for unlocked unit frames.
+* Added live frame size preview while dragging resize handles.
+* Added basic Snap Lines while moving unlocked unit frames.
+* Added snapping to screen center and nearby editable frame positions.
+* Added temporary guide lines to help align frames visually.
+
+### Changed
+
+* Localized editor frame context menu labels and status messages.
+* Normalized German localization text to proper UTF-8 umlauts instead of ASCII transliterations.
+* Resized frame dimensions are committed through the existing editor configuration path.
+
+### Fixed
+
+* Fixed toolbar unit selection so it uses the same editor selection and demo-frame refresh path as clicking a unit frame directly.
+* Fixed resize handles so starting a resize on an inactive unit first selects that unit through the central editor selection path.
+* Fixed the frame context menu so right-clicking the same frame again closes the menu.
+* Fixed unlocked frame coordinate overlays so they show the stored positioning offsets used by the inspector.
+* Fixed context menu position paste/reset so the stored position is applied to the visible frame immediately.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.7]
 
 ### Added
