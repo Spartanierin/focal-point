@@ -351,8 +351,15 @@ local function ApplyGroupHeightRules(group, props)
         group:SetHeight(initialHeight)
     end
 
-    local originalLayoutFinished = group.LayoutFinished
+    local originalLayoutFinished = group._fpOriginalLayoutFinished or group.LayoutFinished
     if type(originalLayoutFinished) ~= "function" then
+        return
+    end
+
+    group._fpOriginalLayoutFinished = originalLayoutFinished
+    group._fpLayoutPaddingHeight = paddingHeight
+    group._fpLayoutMinHeight = hasMinHeight and minHeight or nil
+    if group._fpHeightRulesHooked then
         return
     end
 
@@ -361,13 +368,15 @@ local function ApplyGroupHeightRules(group, props)
             return originalLayoutFinished(self, width, height)
         end
 
-        local resolvedHeight = (height or 0) + paddingHeight
-        if hasMinHeight and resolvedHeight < minHeight then
-            resolvedHeight = minHeight
+        local resolvedHeight = (height or 0) + (self._fpLayoutPaddingHeight or 0)
+        local currentMinHeight = self._fpLayoutMinHeight
+        if currentMinHeight and resolvedHeight < currentMinHeight then
+            resolvedHeight = currentMinHeight
         end
 
         return originalLayoutFinished(self, width, resolvedHeight)
     end
+    group._fpHeightRulesHooked = true
 end
 
 function FormRenderer.CreateLayoutGroup(host, definition)

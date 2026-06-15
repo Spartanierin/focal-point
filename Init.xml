@@ -17,6 +17,7 @@
     <Script file="Data/Themes.lua"/>
     <Script file="Engine/Localization.lua"/>
     <Script file="Services/ThemeService.lua"/>
+    <Script file="Services/ProfileTransfer.lua"/>
 
     <Script file="Engine/Core.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFrameUtils.lua"/>

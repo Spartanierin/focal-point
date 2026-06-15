@@ -8,13 +8,18 @@ local C = ns.Constants
 local L = ns.L
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
-local ProfilesDefinition = ns.GUI.Layouts and ns.GUI.Layouts.Profile and ns.GUI.Layouts.Profile.Form
+local ProfilesLayouts = ns.GUI.Layouts and ns.GUI.Layouts.Profile or {}
+local ProfilesDefinition = ProfilesLayouts.Form
 
 local ProfilesController = {}
 ns.GUI.Pages.Profiles = ProfilesController
 
 local fallbackRootState = {}
 local windowContext
+local exportDialogContext
+local importDialogContext
+local overwriteDialogContext
+local profileWindowHiddenForTransfer = false
 
 local CreateBodyText = FormWidgets.CreateBodyText
 local StyleDropdown = FormWidgets.StyleDropdown
@@ -24,6 +29,7 @@ local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseBut
 local CreateActionButton = FormWidgets.CreateActionButton
 local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
+local RefreshWindowState
 
 local function T(key, fallback)
     return (L and L[key]) or fallback or ""
@@ -120,6 +126,286 @@ local function FocusWindow(window)
     end
 end
 
+local function HideProfileWindowForTransfer()
+    if not windowContext or not windowContext.window or not windowContext.window.Hide then
+        return
+    end
+
+    profileWindowHiddenForTransfer = true
+    windowContext.window:Hide()
+end
+
+local function RestoreProfileWindowAfterTransfer()
+    if not profileWindowHiddenForTransfer then
+        return
+    end
+
+    profileWindowHiddenForTransfer = false
+    if not windowContext or not windowContext.window then
+        return
+    end
+
+    RefreshWindowState()
+    FocusWindow(windowContext.window)
+end
+
+local function FocusTransferEditBox(editBox)
+    if not editBox then
+        return
+    end
+
+    if editBox.SetFocus then
+        editBox:SetFocus()
+    end
+    if editBox.HighlightText then
+        editBox:HighlightText()
+    end
+
+    local input = editBox.editBox or editBox.editbox
+    if input then
+        if input.SetFocus then
+            input:SetFocus()
+        end
+        if input.HighlightText then
+            input:HighlightText()
+        end
+    end
+end
+
+local function QueueFocusTransferEditBox(editBox)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            FocusTransferEditBox(editBox)
+        end)
+        return
+    end
+
+    FocusTransferEditBox(editBox)
+end
+
+local CreateItemWidget
+
+local function CreateTransferItemWidget(group, item, props, state)
+    if not props or not props.widget then
+        return nil
+    end
+
+    if props.widget == "multilineeditbox" then
+        local editBox = AceGUI:Create("MultiLineEditBox")
+        editBox:SetLabel(props.hideLabel and "" or T(props.labelKey))
+        if props.fullWidth ~= false then
+            editBox:SetFullWidth(true)
+        end
+        editBox:SetNumLines(props.numLines or 8)
+        if props.disableButton ~= false then
+            editBox:DisableButton(true)
+        end
+        editBox:SetText(props.stateKey and state and state[props.stateKey] or props.text or "")
+        StyleEditBox(editBox, props.fieldVariant or "editor_inset")
+        return editBox
+    end
+
+    return CreateItemWidget(group, item, props, state)
+end
+
+local function ApplyLayoutDialogState(context, state)
+    if not context or type(state) ~= "table" then
+        return
+    end
+
+    if context.editBox and state.transferText ~= nil then
+        context.editBox:SetText(state.transferText or "")
+    end
+    if context.profileNameEdit and state.profileName ~= nil then
+        context.profileNameEdit:SetText(state.profileName or "")
+    end
+    if context.statusText and state.statusText ~= nil then
+        context.statusText:SetText(state.statusText or "")
+    end
+    if context.widgets and context.widgets.message and state.message ~= nil then
+        context.widgets.message:SetText(state.message or "")
+    end
+end
+
+local function WireLayoutDialogActions(context, options)
+    if not context then
+        return
+    end
+
+    options = options or {}
+    if ApplyModalActionButtonVisual then
+        local buttonRoles = options.buttonRoles or {}
+        if context.selectAllButton then
+            ApplyModalActionButtonVisual(context.selectAllButton, buttonRoles.selectAllButton or "utility")
+        end
+        if context.okButton then
+            ApplyModalActionButtonVisual(context.okButton, buttonRoles.okButton or "primary_action")
+        end
+        if context.overwriteButton then
+            ApplyModalActionButtonVisual(context.overwriteButton, buttonRoles.overwriteButton or "danger")
+        end
+        if context.cancelButton then
+            ApplyModalActionButtonVisual(context.cancelButton, buttonRoles.cancelButton or "utility")
+        end
+    end
+
+    if context.selectAllButton then
+        context.selectAllButton:SetCallback("OnClick", function()
+            FocusTransferEditBox(context.editBox)
+        end)
+    end
+
+    if context.okButton then
+        context.okButton:SetCallback("OnClick", function()
+            local shouldClose = true
+            if type(options.onOk) == "function" then
+                local importString = context.editBox and context.editBox:GetText() or ""
+                local profileName = context.profileNameEdit and context.profileNameEdit:GetText() or nil
+                shouldClose = options.onOk(importString, profileName) ~= false
+            end
+            if shouldClose and context.window and context.window.Hide then
+                context.window:Hide()
+            end
+        end)
+    end
+
+    if context.cancelButton then
+        context.cancelButton:SetCallback("OnClick", function()
+            if context.window and context.window.Hide then
+                context.window:Hide()
+            end
+        end)
+    end
+end
+
+local function OpenLayoutDialog(existingContext, layoutDefinition, options)
+    options = options or {}
+
+    if existingContext and existingContext.window and existingContext.window.frame then
+        existingContext.window:SetTitle(options.title or "")
+        existingContext.window:SetWidth(options.windowWidth or 620)
+        existingContext.window:SetHeight(options.windowHeight or 410)
+        existingContext.window:SetCallback("OnClose", options.restoreProfileOnClose and RestoreProfileWindowAfterTransfer or nil)
+        ApplyLayoutDialogState(existingContext, options.state)
+        WireLayoutDialogActions(existingContext, options)
+        FocusWindow(existingContext.window)
+        if options.autoSelectText then
+            QueueFocusTransferEditBox(existingContext.editBox)
+        end
+        return existingContext
+    end
+
+    local window = AceGUI:Create("Window")
+    window:SetTitle(options.title or "")
+    window:SetLayout("Fill")
+    window:SetWidth(options.windowWidth or 620)
+    window:SetHeight(options.windowHeight or 410)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+    end
+    window:SetCallback("OnClose", options.restoreProfileOnClose and RestoreProfileWindowAfterTransfer or nil)
+
+    ApplyWindowChrome(window)
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
+    CenterWindow(window)
+
+    local groups, widgets = FormRenderer.BuildLayout(window, layoutDefinition, {
+        state = options.state or {},
+        createItemWidget = options.createItemWidget or CreateTransferItemWidget,
+    })
+
+    local context = {
+        window = window,
+        groups = groups,
+        widgets = widgets,
+        editBox = widgets.transferText,
+        profileNameEdit = widgets.profileNameEdit,
+        statusText = widgets.statusText,
+        okButton = widgets.okButton,
+        selectAllButton = widgets.selectAllButton,
+        overwriteButton = widgets.overwriteButton,
+        cancelButton = widgets.cancelButton,
+    }
+
+    WireLayoutDialogActions(context, options)
+
+    FocusWindow(window)
+    if options.autoSelectText then
+        QueueFocusTransferEditBox(context.editBox)
+    end
+
+    return context
+end
+
+local function SetTransferDialogStatus(context, message)
+    if context and context.statusText and context.statusText.SetText then
+        context.statusText:SetText(message or "")
+    end
+    SetStatus(message)
+end
+
+local function SyncImportProfileNameFromString(context)
+    if not context or not context.editBox or not context.profileNameEdit then
+        return
+    end
+
+    local transfer = ns.ProfileTransfer
+    if not transfer or not transfer.GetProfileNameFromString then
+        return
+    end
+
+    local suggestedProfileName = transfer.GetProfileNameFromString(context.editBox:GetText() or "")
+    if not suggestedProfileName or suggestedProfileName == "" then
+        return
+    end
+
+    local currentProfileName = Trim(context.profileNameEdit:GetText() or "")
+    local previousSuggestion = context.importSuggestedProfileName or ""
+    if context.profileNameUserEdited and currentProfileName ~= "" and currentProfileName ~= previousSuggestion then
+        return
+    end
+
+    context.suspendProfileNameCallback = true
+    context.profileNameEdit:SetText(suggestedProfileName)
+    context.suspendProfileNameCallback = false
+    context.importSuggestedProfileName = suggestedProfileName
+    context.profileNameUserEdited = false
+end
+
+local function OpenOverwriteConfirmDialog(profileName, onConfirm)
+    overwriteDialogContext = OpenLayoutDialog(overwriteDialogContext, ProfilesLayouts.TransferOverwriteConfirm, {
+        title = T("INFO_PROFILES_IMPORT_OVERWRITE_TITLE", "Overwrite Profile"),
+        windowWidth = 460,
+        windowHeight = 230,
+        state = {
+            message = string.format(T("INFO_PROFILES_IMPORT_OVERWRITE_PROMPT", "Profile \"%s\" already exists. Overwrite it?"), profileName),
+        },
+    })
+
+    if overwriteDialogContext and overwriteDialogContext.overwriteButton then
+        overwriteDialogContext.overwriteButton:SetCallback("OnClick", function()
+            if overwriteDialogContext.window and overwriteDialogContext.window.Hide then
+                overwriteDialogContext.window:Hide()
+            end
+            if type(onConfirm) == "function" then
+                onConfirm()
+            end
+        end)
+    end
+
+    if overwriteDialogContext and overwriteDialogContext.cancelButton then
+        overwriteDialogContext.cancelButton:SetCallback("OnClick", function()
+            if overwriteDialogContext.window and overwriteDialogContext.window.Hide then
+                overwriteDialogContext.window:Hide()
+            end
+        end)
+    end
+end
+
 local function ResolveItemText(item)
     if not item then
         return ""
@@ -132,14 +418,14 @@ local function ResolveItemText(item)
     return item.text or ""
 end
 
-local function CreateItemWidget(group, item, props, state)
+function CreateItemWidget(group, item, props, state)
     if not props or not props.widget then
         return nil
     end
 
     if props.widget == "label" then
         local label = CreateBodyText(
-            ResolveItemText(props),
+            props.stateKey and state and state[props.stateKey] or ResolveItemText(props),
             props.role or "label",
             props.size or 12,
             ResolveItemColor(props.colorKey),
@@ -209,7 +495,7 @@ local function SyncDropdownValue(context, value)
     context.suspendProfileCallbacks = false
 end
 
-local function RefreshWindowState()
+function RefreshWindowState()
     local context = windowContext
     if not context then
         return
@@ -225,6 +511,8 @@ local function RefreshWindowState()
         ApplyModalActionButtonVisual(context.activateButton, "primary_action")
         ApplyModalActionButtonVisual(context.copyButton, "utility")
         ApplyModalActionButtonVisual(context.createButton, "utility")
+        ApplyModalActionButtonVisual(context.exportButton, "utility")
+        ApplyModalActionButtonVisual(context.importButton, "utility")
         ApplyModalActionButtonVisual(context.resetButton, "utility")
         ApplyModalActionButtonVisual(context.deleteButton, "danger")
     end
@@ -238,6 +526,8 @@ local function RefreshWindowState()
         context.activateButton:SetDisabled(true)
         context.copyButton:SetDisabled(true)
         context.createButton:SetDisabled(true)
+        context.exportButton:SetDisabled(true)
+        context.importButton:SetDisabled(true)
         context.resetButton:SetDisabled(true)
         context.deleteButton:SetDisabled(true)
         ApplyProfilesButtonVisuals()
@@ -275,6 +565,8 @@ local function RefreshWindowState()
 
     context.activateButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
     context.copyButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
+    context.exportButton:SetDisabled(false)
+    context.importButton:SetDisabled(false)
     context.deleteButton:SetDisabled(not hasSelectedProfile or sameAsCurrent)
     context.resetButton:SetDisabled(currentProfile == nil or currentProfile == "")
     context.createButton:SetDisabled(not hasNewProfileName or newProfileExists)
@@ -333,6 +625,8 @@ local function CreateWindowContent(window, state)
         copyButton = widgets.copyButton,
         createButton = widgets.createButton,
         createState = widgets.createState,
+        exportButton = widgets.exportButton,
+        importButton = widgets.importButton,
         resetButton = widgets.resetButton,
         deleteButton = widgets.deleteButton,
         sourceState = widgets.sourceState,
@@ -429,6 +723,120 @@ local function WireWindowCallbacks(context)
         RefreshProfileUI()
         RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_COPIED")) .. " " .. profileName)
+    end)
+
+    context.exportButton:SetCallback("OnClick", function()
+        local transfer = ns.ProfileTransfer
+        if not transfer or not transfer.ExportCurrentProfile then
+            SetStatus(T("INFO_PROFILES_EXPORT_UNAVAILABLE", "Profile export is not available."))
+            return
+        end
+
+        local exportString = transfer.ExportCurrentProfile(ns.db)
+        if not exportString then
+            SetStatus(T("INFO_PROFILES_EXPORT_FAILED", "Profile export failed."))
+            return
+        end
+
+        HideProfileWindowForTransfer()
+        exportDialogContext = OpenLayoutDialog(exportDialogContext, ProfilesLayouts.TransferExport, {
+            title = T("INFO_PROFILES_EXPORT_TITLE", "Export Profile"),
+            windowWidth = 760,
+            windowHeight = 380,
+            state = {
+                transferText = exportString,
+            },
+            buttonRoles = {
+                selectAllButton = "primary_action",
+                okButton = "utility",
+            },
+            autoSelectText = true,
+            restoreProfileOnClose = true,
+        })
+        SetStatus(T("INFO_PROFILES_EXPORT_READY", "Profile export string created."))
+    end)
+
+    context.importButton:SetCallback("OnClick", function()
+        local function CompleteImport(profileName)
+            context.state.selectedProfile = profileName
+            context.state.newProfileName = ""
+            RebuildFramesForProfile()
+            RefreshProfileUI()
+            RefreshWindowState()
+            SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_DONE", "Profile \"%s\" was imported."), profileName))
+        end
+
+        HideProfileWindowForTransfer()
+        importDialogContext = OpenLayoutDialog(
+            importDialogContext,
+            ProfilesLayouts.TransferImport,
+            {
+                title = T("INFO_PROFILES_IMPORT_TITLE", "Import Profile"),
+                windowWidth = 620,
+                windowHeight = 400,
+                state = {
+                    transferText = "",
+                    profileName = "",
+                },
+                buttonRoles = {
+                    okButton = "primary_action",
+                    cancelButton = "utility",
+                },
+                restoreProfileOnClose = true,
+                onOk = function(importString, targetProfileName)
+                    local transfer = ns.ProfileTransfer
+                    if not transfer or not transfer.ImportProfileString then
+                        SetTransferDialogStatus(importDialogContext, T("INFO_PROFILES_IMPORT_UNAVAILABLE", "Profile import is not available."))
+                        return false
+                    end
+
+                    local ok, profileName, errorCode, existingProfileName = pcall(transfer.ImportProfileString, ns.db, importString, targetProfileName)
+                    if not ok then
+                        SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_FAILED_DETAIL", "Profile import failed: %s"), tostring(profileName)))
+                        return false
+                    end
+                    if errorCode == "profile-exists" then
+                        SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_EXISTS", "Profile \"%s\" already exists."), existingProfileName or targetProfileName or ""))
+                        OpenOverwriteConfirmDialog(existingProfileName or targetProfileName or "", function()
+                            local overwriteOk, overwrittenProfileName, overwriteErrorCode = pcall(transfer.ImportProfileString, ns.db, importString, targetProfileName, { overwrite = true })
+                            if not overwriteOk or not overwrittenProfileName then
+                                SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_FAILED_DETAIL", "Profile import failed: %s"), tostring(overwriteErrorCode or overwrittenProfileName)))
+                                return
+                            end
+
+                            if importDialogContext and importDialogContext.window and importDialogContext.window.Hide then
+                                importDialogContext.window:Hide()
+                            end
+                            CompleteImport(overwrittenProfileName)
+                        end)
+                        return false
+                    end
+                    if not profileName then
+                        SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_FAILED_DETAIL", "Profile import failed: %s"), tostring(errorCode or "unknown")))
+                        return false
+                    end
+
+                    CompleteImport(profileName)
+                    return true
+                end,
+            }
+        )
+
+        if importDialogContext and importDialogContext.profileNameEdit then
+            importDialogContext.profileNameUserEdited = false
+            importDialogContext.importSuggestedProfileName = ""
+            importDialogContext.profileNameEdit:SetCallback("OnTextChanged", function()
+                if importDialogContext.suspendProfileNameCallback then
+                    return
+                end
+                importDialogContext.profileNameUserEdited = true
+            end)
+        end
+        if importDialogContext and importDialogContext.editBox then
+            importDialogContext.editBox:SetCallback("OnTextChanged", function()
+                SyncImportProfileNameFromString(importDialogContext)
+            end)
+        end
     end)
 
     context.deleteButton:SetCallback("OnClick", function()
@@ -541,6 +949,16 @@ function ProfilesController.OpenWindow(deps)
 end
 
 function ProfilesController.HideWindow()
+    if exportDialogContext and exportDialogContext.window and exportDialogContext.window.Hide then
+        exportDialogContext.window:Hide()
+    end
+    if importDialogContext and importDialogContext.window and importDialogContext.window.Hide then
+        importDialogContext.window:Hide()
+    end
+    if overwriteDialogContext and overwriteDialogContext.window and overwriteDialogContext.window.Hide then
+        overwriteDialogContext.window:Hide()
+    end
+
     if not windowContext or not windowContext.window then
         return
     end

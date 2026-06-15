@@ -486,6 +486,16 @@ ns.GUI.Layouts.FormElements = {
                     min = 180,
                 },
             },
+            transfer_body = {
+                widget = "SimpleGroup",
+                layout = "VerticalGroup",
+                spacing = 6,
+                fullWidth = true,
+                heightInfo = {
+                    source = "content",
+                    min = 1,
+                },
+            },
         },
         column_container = {
             wide_dual_column = {
@@ -583,6 +593,29 @@ ns.GUI.Layouts.FormElements = {
                 fullWidth = true,
                 layoutTable = {
                     columns = {
+                        { weight = 1 },
+                        { weight = 1 },
+                        { weight = 1 },
+                    },
+                    spaceH = 12,
+                    spaceV = 0,
+                    align = "TOPLEFT",
+                    alignV = "start",
+                    alignH = "start",
+                },
+                heightInfo = {
+                    source = "content",
+                    min = 32,
+                },
+            },
+            four_button = {
+                widget = "SimpleGroup",
+                layout = "SimpleGroup",
+                layoutMode = "Table",
+                fullWidth = true,
+                layoutTable = {
+                    columns = {
+                        { weight = 1 },
                         { weight = 1 },
                         { weight = 1 },
                         { weight = 1 },
@@ -837,6 +870,14 @@ ns.GUI.Layouts.FormElements = {
                 fullWidth = true,
                 disableButton = true,
                 fieldVariant = "editor_inset",
+            },
+        },
+        multilineeditbox = {
+            profile_transfer_box = {
+                fullWidth = true,
+                disableButton = true,
+                fieldVariant = "editor_inset",
+                numLines = 8,
             },
         },
         checkbox = {

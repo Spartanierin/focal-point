@@ -9,6 +9,31 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.9]
+
+### Added
+
+* Added profile import/export support on the Profiles tool page.
+* Added polished profile transfer dialogs for exporting copyable profile strings and importing them as new profiles.
+* Added import profile naming, overwrite confirmation, and visible import status/error handling.
+
+### Changed
+
+* Changed profile exports to use a compact defaults-diff transfer format instead of serialized profile table data.
+* Reduced export string length by using schema-indexed values and shortened Focal Point media texture references.
+* Refined profile transfer window behavior so the Profiles page is temporarily hidden while export/import dialogs are open.
+* Unified profile import/export dialog layouts with the same declarative layout system used by the Profiles and Text Builder pages.
+
+### Fixed
+
+* Fixed profile import creation so imported profiles are reliably materialized in the AceDB profile store.
+* Fixed import parsing edge cases caused by WoW edit-box pipe escaping.
+* Fixed profile transfer dialogs so repeated export/import openings keep stable layout sizing and avoid AceGUI reparenting errors.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.8]
 
 ### Added

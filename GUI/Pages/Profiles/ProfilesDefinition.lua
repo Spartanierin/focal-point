@@ -38,8 +38,8 @@ ns.GUI.Layouts.Profile.Form = {
             padding = {
                 left = 12,
                 right = 12,
-                top = 10,
-                bottom = 16,
+                top = 8,
+                bottom = 10,
             },
             widthInfo = {
                 source = "parent",
@@ -65,8 +65,12 @@ ns.GUI.Layouts.Profile.Form = {
             padding = {
                 left = 10,
                 right = 10,
-                top = 6,
-                bottom = 6,
+                top = 5,
+                bottom = 5,
+            },
+            heightInfo = {
+                source = "content",
+                min = 64,
             },
             widthInfo = {
                 source = "parent",
@@ -256,7 +260,7 @@ ns.GUI.Layouts.Profile.Form = {
                 },
             },
             type = "action_row",
-            variant = "dual_button",
+            variant = "four_button",
             padding = {
                 left = 8,
                 right = 8,
@@ -271,10 +275,12 @@ ns.GUI.Layouts.Profile.Form = {
             heightInfo = {
                 source = "content",
                 min = 32,
-                derivedFrom = "single action row: resetButton + deleteButton",
+                derivedFrom = "action row: exportButton + importButton + resetButton + deleteButton",
             },
         },
         items = {
+            { id = "exportButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_PROFILES_EXPORT" },
+            { id = "importButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_PROFILES_IMPORT" },
             { id = "resetButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_RESET" },
             { id = "deleteButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_DELETE_SHORT" },
         },
@@ -307,6 +313,267 @@ ns.GUI.Layouts.Profile.Form = {
         },
         items = {
             { id = "maintenanceHint", widget = "label", itemVariant = "footer_hint_muted", text = "" },
+        },
+    },
+}
+
+ns.GUI.Layouts.Profile.TransferExport = {
+    {
+        section = "Root",
+        properties = {
+            sectionKind = "root",
+            type = "stack_block",
+            variant = "window_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 8,
+                bottom = 10,
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Header",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "header",
+            variant = "page_header",
+            surfaceStyle = "page_header",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 5,
+                bottom = 5,
+            },
+            heightInfo = {
+                source = "content",
+                min = 64,
+            },
+        },
+        items = {
+            { id = "title", widget = "label", itemVariant = "section_title_large", textKey = "INFO_PROFILES_EXPORT_HEADING" },
+            { id = "intro", widget = "label", itemVariant = "page_intro_soft", textKey = "INFO_PROFILES_EXPORT_DESC" },
+        },
+    },
+    {
+        section = "ExportBody",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "section",
+            variant = "transfer_body",
+            surfaceStyle = "section_panel",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 6,
+                bottom = 6,
+            },
+        },
+        items = {
+            { id = "exportStringTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_EXPORT_STRING" },
+            { id = "transferText", widget = "multilineeditbox", itemVariant = "profile_transfer_box", labelKey = "INFO_PROFILES_EXPORT_STRING", stateKey = "transferText", numLines = 9, hideLabel = true },
+        },
+    },
+    {
+        section = "ActionRow",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "dual_button",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            gapBefore = 6,
+            heightInfo = {
+                source = "content",
+                min = 32,
+            },
+        },
+        items = {
+            { id = "selectAllButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_PROFILES_EXPORT_SELECT_STRING" },
+            { id = "okButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CLOSE" },
+        },
+    },
+}
+
+ns.GUI.Layouts.Profile.TransferImport = {
+    {
+        section = "Root",
+        properties = {
+            sectionKind = "root",
+            type = "stack_block",
+            variant = "window_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 8,
+                bottom = 10,
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Header",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "header",
+            variant = "page_header",
+            surfaceStyle = "page_header",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 5,
+                bottom = 5,
+            },
+            heightInfo = {
+                source = "content",
+                min = 64,
+            },
+        },
+        items = {
+            { id = "title", widget = "label", itemVariant = "section_title_large", textKey = "INFO_PROFILES_IMPORT_HEADING" },
+            { id = "intro", widget = "label", itemVariant = "page_intro_soft", textKey = "INFO_PROFILES_IMPORT_DESC" },
+        },
+    },
+    {
+        section = "ImportBody",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "section",
+            variant = "transfer_body",
+            surfaceStyle = "section_panel",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 6,
+                bottom = 6,
+            },
+        },
+        items = {
+            { id = "importStringTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_IMPORT_STRING" },
+            { id = "transferText", widget = "multilineeditbox", itemVariant = "profile_transfer_box", labelKey = "INFO_PROFILES_IMPORT_STRING", stateKey = "transferText", numLines = 8, hideLabel = true },
+            { id = "profileNameEdit", widget = "editbox", itemVariant = "profile_field", labelKey = "INFO_PROFILES_IMPORT_PROFILE_NAME", stateKey = "profileName" },
+        },
+    },
+    {
+        section = "ActionRow",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "dual_button",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            gapBefore = 6,
+            heightInfo = {
+                source = "content",
+                min = 32,
+            },
+        },
+        items = {
+            { id = "okButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_COMMON_OK" },
+            { id = "cancelButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CLOSE" },
+        },
+    },
+    {
+        section = "BottomHint",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "info_block",
+            variant = "note_text",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 3,
+                bottom = 3,
+            },
+            heightInfo = {
+                source = "content",
+                min = 20,
+            },
+        },
+        items = {
+            { id = "statusText", widget = "label", itemVariant = "footer_hint_muted", text = "" },
+        },
+    },
+}
+
+ns.GUI.Layouts.Profile.TransferOverwriteConfirm = {
+    {
+        section = "Root",
+        properties = {
+            sectionKind = "root",
+            type = "stack_block",
+            variant = "window_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 10,
+                bottom = 14,
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Message",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            surfaceStyle = "status_panel",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            heightInfo = {
+                source = "content",
+                min = 120,
+            },
+        },
+        items = {
+            { id = "title", widget = "label", itemVariant = "section_title_large", textKey = "INFO_PROFILES_IMPORT_OVERWRITE_TITLE" },
+            { id = "message", widget = "label", itemVariant = "description_text_body", stateKey = "message" },
+        },
+    },
+    {
+        section = "ActionRow",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "dual_button",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            gapBefore = 8,
+            heightInfo = {
+                source = "content",
+                min = 32,
+            },
+        },
+        items = {
+            { id = "overwriteButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_IMPORT_OVERWRITE_CONFIRM" },
+            { id = "cancelButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CANCEL" },
         },
     },
 }
