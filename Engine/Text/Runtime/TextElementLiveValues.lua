@@ -18,6 +18,58 @@ local GetSecondaryPowerTypeForUnit = TextPower.GetSecondaryPowerTypeForUnit
 local GetSecondaryPowerValues = TextPower.GetSecondaryPowerValues
 local GetSecondaryPowerDisplayValues = TextPower.GetSecondaryPowerDisplayValues
 
+local function IsSecretValue(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
+local function ToKnownNumber(value)
+    if value == nil or IsSecretValue(value) then
+        return nil
+    end
+
+    if type(value) == "number" then
+        return value
+    end
+
+    local ok, numberValue = pcall(tonumber, value)
+    if ok and type(numberValue) == "number" and not IsSecretValue(numberValue) then
+        return numberValue
+    end
+
+    return nil
+end
+
+local function GetSafeUnitPowerPercent(unit, powerType)
+    if not UnitPowerPercent then
+        return nil
+    end
+
+    local ok, percent = pcall(UnitPowerPercent, unit, powerType, false, CurveConstants and CurveConstants.ScaleTo100)
+    if not ok then
+        return nil
+    end
+
+    return ToKnownNumber(percent)
+end
+
+local function GetRenderableUnitPowerPercent(unit)
+    if not UnitPowerPercent then
+        return nil, nil
+    end
+
+    local ok, percent = pcall(UnitPowerPercent, unit, nil, true, CurveConstants and CurveConstants.ScaleTo100)
+    if not ok then
+        return nil, nil
+    end
+
+    local okFormat, formatted = pcall(FormatInteger, percent)
+    if okFormat then
+        return percent, formatted
+    end
+
+    return percent, nil
+end
+
 -- Builds the live text value cache that all token resolvers read from.
 function LiveValues.Refresh(frame)
     if not frame or not frame.unit then
@@ -93,6 +145,7 @@ function LiveValues.Refresh(frame)
     local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
     local powerCurrent = UnitPower and UnitPower(unit) or 0
     local powerMax = UnitPowerMax and UnitPowerMax(unit) or 0
+    local powerType = UnitPowerType and UnitPowerType(unit) or nil
     local altPowerCurrent = 0
     local altPowerMax = 0
     local healthBar = frame.Elements and frame.Elements.HealthBar
@@ -170,11 +223,20 @@ function LiveValues.Refresh(frame)
     if frame.LiveValues.powerMaxSafe <= 0 then
         frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
     end
-    frame.LiveValues.powerPercentValue = 0
-    if frame.LiveValues.powerMaxSafe > 0 and frame.LiveValues.powerCurrentSafe >= 0 then
-        frame.LiveValues.powerPercentValue = math.floor((frame.LiveValues.powerCurrentSafe / frame.LiveValues.powerMaxSafe) * 100)
+    -- Midnight can mark power values as secret. Treat untrusted values as
+    -- unknown instead of collapsing them to 0%, which would be misleading.
+    local powerPercentRaw, powerPercentText = GetRenderableUnitPowerPercent(unit)
+    local powerPercentValue = ToKnownNumber(powerPercentRaw) or GetSafeUnitPowerPercent(unit, powerType)
+    if powerPercentValue == nil then
+        local knownPowerCurrent = ToKnownNumber(powerBarCurrent) or ToKnownNumber(powerCurrent)
+        local knownPowerMax = ToKnownNumber(powerBarMax) or ToKnownNumber(powerMax)
+        if knownPowerCurrent and knownPowerMax and knownPowerMax > 0 then
+            powerPercentValue = math.floor((knownPowerCurrent / knownPowerMax) * 100)
+            powerPercentText = FormatInteger(powerPercentValue)
+        end
     end
-    frame.LiveValues.powerPercentText = FormatInteger(frame.LiveValues.powerPercentValue)
+    frame.LiveValues.powerPercentValue = powerPercentValue
+    frame.LiveValues.powerPercentText = powerPercentText or (powerPercentValue ~= nil and FormatInteger(powerPercentValue) or "--")
 
     local altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
     local altPowerMaxSafe = ToSafeNumber(altPowerMax)
