@@ -378,6 +378,17 @@ function State.HandleUnitLost(frame, reason)
             State.DebugLog(frame, "unit-lost-skip-existing-focustarget", tostring(reason or "unit_lost"))
             return
         end
+        if type(frame.unit) == "string"
+            and frame.unit:match("^boss%d+$")
+            and UnitExists
+            and UnitExists(frame.unit)
+        then
+            frame._missingUnitSince = nil
+            frame._targetRecoveryQueuedUntil = nil
+            frame._protectedMissingTargetRecoveryQueued = nil
+            State.DebugLog(frame, "unit-lost-skip-existing-boss", tostring(reason or "unit_lost"))
+            return
+        end
         Visibility.ClearFrameVisualState(frame)
     end
 
