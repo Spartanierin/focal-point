@@ -401,6 +401,14 @@ function State.HandleTargetSwap(frame, reason)
             DebugTargetState(frame, "skip_clear_in_combat", reason)
             return
         end
+        if frame.unit == "target" and UnitExists and UnitExists("target") then
+            frame._missingUnitSince = nil
+            frame._targetRecoveryQueuedUntil = nil
+            frame._protectedMissingTargetRecoveryQueued = nil
+            DebugTargetState(frame, "skip_clear_existing_target", reason)
+            State.DebugLog(frame, "target-swap", tostring(reason or "target_swap"))
+            return
+        end
         Visibility.ClearFrameVisualState(frame)
         DebugTargetState(frame, "after_clear_visual_state", reason)
     end
