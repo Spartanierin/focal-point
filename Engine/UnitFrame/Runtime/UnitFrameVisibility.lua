@@ -496,6 +496,21 @@ function Visibility.RegisterEvents(owner, frame)
                 ), "event_target_changed", 0.50)
             end
         end
+        if event == "INSTANCE_ENCOUNTER_ENGAGE_UNIT"
+            and type(currentOwner.unit) == "string"
+            and currentOwner.unit:match("^boss%d+$")
+        then
+            if State.QueueRefresh then
+                local inCombat = InCombatLockdown and InCombatLockdown()
+                local scopes = inCombat
+                    and { "visibility", "bars", "texts", "auras" }
+                    or { "visibility", "bars", "texts", "auras", "layout" }
+                State.QueueRefresh(currentOwner, event, scopes)
+            else
+                owner:Refresh(currentOwner)
+            end
+            return
+        end
         if State.QueueRefresh then
             State.QueueRefresh(currentOwner, event, "visibility")
         else
