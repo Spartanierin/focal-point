@@ -9,6 +9,20 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.11]
+
+### Fixed
+
+* Improved target, targettarget, and focustarget stability by avoiding destructive visual clears when the underlying unit still exists.
+* Prevented existing target-like frames from being cleared through missing-unit recovery paths during transient unit-state changes.
+* Prevented existing boss frames from being destructively cleared when boss units are still present.
+* Improved boss frame initialization on encounter engage by queuing content refreshes for visibility, bars, texts, and auras.
+* Avoided forcing protected-combat layout changes during boss encounter engage refreshes.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.10]
 
 ### Changed
