@@ -9,6 +9,21 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.10]
+
+### Changed
+
+* Kept the release branch on the proven 1.0.9 runtime baseline while the experimental 1.1.0 runtime refactor remains isolated for further stabilization.
+
+### Fixed
+
+* Fixed `[power:perc]` text rendering for Midnight protected/secret power values so renderable protected values no longer collapse to an incorrect `0%`.
+* Fixed protected power percent fallback handling so unresolvable values use a neutral fallback instead of a misleading numeric value.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.9]
 
 ### Added
