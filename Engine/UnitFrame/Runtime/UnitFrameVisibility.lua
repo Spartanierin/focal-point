@@ -118,6 +118,76 @@ end
 
 -- Visibility helpers handle visual cleanup and delayed refresh scheduling.
 
+function Visibility.ClearFrameContentValuesOnly(frame, reason)
+    if not frame then
+        return
+    end
+
+    if frame.Texts then
+        for _, textObject in pairs(frame.Texts) do
+            if textObject and textObject.SetText then
+                textObject:SetText("")
+            end
+        end
+    end
+
+    if frame.LiveValues then
+        wipe(frame.LiveValues)
+    end
+    frame.TestValues = nil
+
+    if frame.Elements then
+        local health = frame.Elements.HealthBar
+        if health then
+            health:SetMinMaxValues(0, 1)
+            health:SetValue(0)
+            if health.AbsorbOverlay then
+                health.AbsorbOverlay:SetMinMaxValues(0, 1)
+                health.AbsorbOverlay:SetValue(0)
+            end
+        end
+
+        local power = frame.Elements.PowerBar
+        if power then
+            power:SetMinMaxValues(0, 1)
+            power:SetValue(0)
+        end
+
+        local classPower = frame.Elements.ClassPowerBar
+        if classPower then
+            for index = 1, #(classPower.Bars or {}) do
+                local bar = classPower.Bars[index]
+                if bar then
+                    bar:SetMinMaxValues(0, 1)
+                    bar:SetValue(0)
+                end
+            end
+        end
+
+        local altPower = frame.Elements.AlternativePowerBar
+        if altPower then
+            altPower:SetMinMaxValues(0, 1)
+            altPower:SetValue(0)
+        end
+
+        local castBar = frame.Elements.CastBar
+        if castBar then
+            castBar.isCasting = false
+            castBar.isChannel = false
+            castBar.isPreview = false
+            castBar.interruptState = "UNKNOWN"
+            castBar.isInterruptible = false
+            castBar.canKick = false
+            castBar.startTime = 0
+            castBar.endTime = 0
+            castBar.castID = nil
+            castBar.castToken = nil
+            castBar:SetMinMaxValues(0, 1)
+            castBar:SetValue(0)
+        end
+    end
+end
+
 function Visibility.ClearFrameVisualState(frame, reason)
     if not frame then
         return
