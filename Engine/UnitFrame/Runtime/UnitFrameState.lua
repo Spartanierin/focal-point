@@ -357,6 +357,27 @@ function State.HandleUnitLost(frame, reason)
 
     local Visibility = FocalPoint.UnitFrameVisibility or {}
     if Visibility.ClearFrameVisualState then
+        if frame.unit == "target" and UnitExists and UnitExists("target") then
+            frame._missingUnitSince = nil
+            frame._targetRecoveryQueuedUntil = nil
+            frame._protectedMissingTargetRecoveryQueued = nil
+            State.DebugLog(frame, "unit-lost-skip-existing-target", tostring(reason or "unit_lost"))
+            return
+        end
+        if frame.unit == "targettarget" and UnitExists and UnitExists("targettarget") then
+            frame._missingUnitSince = nil
+            frame._targetRecoveryQueuedUntil = nil
+            frame._protectedMissingTargetRecoveryQueued = nil
+            State.DebugLog(frame, "unit-lost-skip-existing-targettarget", tostring(reason or "unit_lost"))
+            return
+        end
+        if frame.unit == "focustarget" and UnitExists and UnitExists("focustarget") then
+            frame._missingUnitSince = nil
+            frame._targetRecoveryQueuedUntil = nil
+            frame._protectedMissingTargetRecoveryQueued = nil
+            State.DebugLog(frame, "unit-lost-skip-existing-focustarget", tostring(reason or "unit_lost"))
+            return
+        end
         Visibility.ClearFrameVisualState(frame)
     end
 
