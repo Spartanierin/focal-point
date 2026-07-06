@@ -389,7 +389,11 @@ function State.HandleUnitLost(frame, reason)
             State.DebugLog(frame, "unit-lost-skip-existing-boss", tostring(reason or "unit_lost"))
             return
         end
-        Visibility.ClearFrameVisualState(frame)
+        if reason == "target_missing_transition" and Visibility.ClearFrameContentValuesOnly then
+            Visibility.ClearFrameContentValuesOnly(frame, reason)
+        else
+            Visibility.ClearFrameVisualState(frame)
+        end
     end
 
     local runtimeState = State.Ensure(frame)
