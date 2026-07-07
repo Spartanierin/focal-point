@@ -553,6 +553,13 @@ function UF:ApplyConfig(frame)
     then
         layoutAlpha = 0
     end
+    if frame.unit == "targettarget"
+        and not IsPreviewModeEnabled()
+        and UnitExists
+        and not UnitExists("targettarget")
+    then
+        layoutAlpha = 0
+    end
 
     if not protectedInCombat then
         ApplyBaseFrameLayout(self, frame, config, {
