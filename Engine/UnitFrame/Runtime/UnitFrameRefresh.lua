@@ -158,7 +158,12 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
 
     SyncPreviewUnitWatch(frame, previewOutsideCombat)
 
-    if not protectedRoot or previewOutsideCombat or outsideCombat then
+    local skipShowForAbsentTarget = frame.unit == "target"
+        and not previewOutsideCombat
+        and UnitExists
+        and not UnitExists("target")
+
+    if (not protectedRoot or previewOutsideCombat or outsideCombat) and not skipShowForAbsentTarget then
         frame:Show()
     end
 
