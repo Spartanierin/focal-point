@@ -9,6 +9,24 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.12]
+
+### Added
+
+* Nothing yet.
+
+### Changed
+
+* Nothing yet.
+
+### Fixed
+
+* Nothing yet.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.11]
 
 ### Fixed
