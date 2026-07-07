@@ -560,6 +560,13 @@ function UF:ApplyConfig(frame)
     then
         layoutAlpha = 0
     end
+    if frame.unit == "focustarget"
+        and not IsPreviewModeEnabled()
+        and UnitExists
+        and not UnitExists("focustarget")
+    then
+        layoutAlpha = 0
+    end
 
     if not protectedInCombat then
         ApplyBaseFrameLayout(self, frame, config, {
