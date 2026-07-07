@@ -389,7 +389,12 @@ function State.HandleUnitLost(frame, reason)
             State.DebugLog(frame, "unit-lost-skip-existing-boss", tostring(reason or "unit_lost"))
             return
         end
-        if reason == "target_missing_transition" and Visibility.ClearFrameContentValuesOnly then
+        local protectedCombatMissing = reason == "missing_unit_protected"
+            and frame.IsProtected
+            and frame:IsProtected()
+            and InCombatLockdown
+            and InCombatLockdown()
+        if (reason == "target_missing_transition" or protectedCombatMissing) and Visibility.ClearFrameContentValuesOnly then
             Visibility.ClearFrameContentValuesOnly(frame, reason)
         else
             Visibility.ClearFrameVisualState(frame)
