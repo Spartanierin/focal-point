@@ -1024,6 +1024,20 @@ function UF:ApplyRangeFade(frame)
         return
     end
 
+    if frame.unit == "focustarget"
+        and not IsPreviewModeEnabled()
+        and UnitExists
+        and not UnitExists("focustarget")
+    then
+        frame._rangeCurrentAlpha = 0
+        frame._rangeTargetAlpha = 0
+        if frame.RangeFadeDriver then
+            frame.RangeFadeDriver:Hide()
+        end
+        frame:SetAlpha(0)
+        return
+    end
+
     local config = frame.config or GetUnitDB(frame.unit)
     local baseAlpha = (config and config.alpha) or 1
     local rangeMultiplier = GetRangeFadeMultiplier(frame)
