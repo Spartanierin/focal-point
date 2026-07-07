@@ -170,11 +170,17 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         and not previewOutsideCombat
         and UnitExists
         and not UnitExists("focustarget")
+    local skipShowForAbsentBoss = type(frame.unit) == "string"
+        and frame.unit:match("^boss%d+$")
+        and not previewOutsideCombat
+        and UnitExists
+        and not UnitExists(frame.unit)
 
     if (not protectedRoot or previewOutsideCombat or outsideCombat)
         and not skipShowForAbsentTarget
         and not skipShowForAbsentTargetTarget
         and not skipShowForAbsentFocusTarget
+        and not skipShowForAbsentBoss
     then
         frame:Show()
     end
