@@ -567,6 +567,14 @@ function UF:ApplyConfig(frame)
     then
         layoutAlpha = 0
     end
+    if type(frame.unit) == "string"
+        and frame.unit:match("^boss%d+$")
+        and not IsPreviewModeEnabled()
+        and UnitExists
+        and not UnitExists(frame.unit)
+    then
+        layoutAlpha = 0
+    end
 
     if not protectedInCombat then
         ApplyBaseFrameLayout(self, frame, config, {
