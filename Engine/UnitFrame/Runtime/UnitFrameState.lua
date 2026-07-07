@@ -394,7 +394,15 @@ function State.HandleUnitLost(frame, reason)
             and frame:IsProtected()
             and InCombatLockdown
             and InCombatLockdown()
-        if (reason == "target_missing_transition" or protectedCombatMissing) and Visibility.ClearFrameContentValuesOnly then
+        local bossMissingUnit = type(frame.unit) == "string"
+            and frame.unit:match("^boss%d+$")
+            and (
+                reason == "missing_unit"
+                or reason == "missing_unit_protected"
+                or reason == "missing_unit_suppressed"
+                or reason == "missing_unit_protected_suppressed"
+            )
+        if (reason == "target_missing_transition" or protectedCombatMissing or bossMissingUnit) and Visibility.ClearFrameContentValuesOnly then
             Visibility.ClearFrameContentValuesOnly(frame, reason)
         else
             Visibility.ClearFrameVisualState(frame)
