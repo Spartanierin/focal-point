@@ -545,12 +545,21 @@ function UF:ApplyConfig(frame)
         alternativePowerBarReverseFill = powerBarReverseFill
     end
 
+    local layoutAlpha = alpha
+    if frame.unit == "target"
+        and not IsPreviewModeEnabled()
+        and UnitExists
+        and not UnitExists("target")
+    then
+        layoutAlpha = 0
+    end
+
     if not protectedInCombat then
         ApplyBaseFrameLayout(self, frame, config, {
             width = width,
             height = height,
             bottomExtensionHeight = bottomExtensionHeight,
-            alpha = alpha,
+            alpha = layoutAlpha,
             scale = scale,
             frameLevel = frameLevel,
             frameStrata = frameStrata,
