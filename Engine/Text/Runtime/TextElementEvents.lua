@@ -69,9 +69,11 @@ function Events.Register(frame, deps)
     elseif frame.unit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
+        eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
     elseif frame.unit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
+        eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
     elseif frame.unit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
     elseif frame.unit == "pet" then
@@ -128,6 +130,13 @@ function Events.Register(frame, deps)
                 end
             end
             QueueTextCommit(event, "texts")
+            return
+        end
+
+        if event == "UNIT_NAME_UPDATE" then
+            if (owner.unit == "targettarget" or owner.unit == "focustarget") and unit == owner.unit then
+                QueueTextCommit(event, "texts")
+            end
             return
         end
 
