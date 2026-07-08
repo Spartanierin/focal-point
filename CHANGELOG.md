@@ -11,17 +11,20 @@ This changelog uses the following categories:
 
 ## [1.0.12]
 
-### Added
-
-* Nothing yet.
-
 ### Changed
 
-* Nothing yet.
+* Missing-unit handling now uses safer soft-clear behavior for protected combat and boss frame states.
+* Root visibility and alpha handling is now more consistent across Target, Target of Target, Focus Target, and boss frames.
 
 ### Fixed
 
-* Nothing yet.
+* Improved target frame stability during rapid target changes and combat transitions.
+* Fixed cases where absent Target, Target of Target, and Focus Target frames could briefly reappear due to visibility refreshes.
+* Fixed cases where range fade could restore alpha on absent target-like frames.
+* Fixed layout refreshes applying normal frame alpha to absent target-like frames.
+* Improved boss frame stability during encounter start, phase changes, and encounter end.
+* Fixed absent boss frames being shown or receiving visible alpha from refresh, range fade, or layout paths.
+* Reduced cases where protected combat missing-unit handling could destructively clear frame visuals.
 
 ### Removed
 
