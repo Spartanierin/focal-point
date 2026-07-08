@@ -31,6 +31,15 @@ function BasicTags.Resolve(frame, unit, token, deps)
     local demo = FocalPoint.UnitFrameDemoEnvironment or {}
     local previewValues = (demo.GetUnitValues and demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
 
+    local function IsCastTextAllowed()
+        local castBar = frame and frame.Elements and frame.Elements.CastBar
+        return frame
+            and frame.config
+            and frame.config.showCastBar ~= false
+            and castBar
+            and (castBar.isCasting == true or castBar.isPreview == true)
+    end
+
     if IsPreviewModeEnabled and IsPreviewModeEnabled() and frame and previewValues then
         local preview = previewValues
 
@@ -127,10 +136,16 @@ function BasicTags.Resolve(frame, unit, token, deps)
         end
 
         if token == "cast:name" then
+            if not IsCastTextAllowed() then
+                return ""
+            end
             return preview.castName or ""
         end
 
         if token == "cast:time" then
+            if not IsCastTextAllowed() then
+                return ""
+            end
             local castBar = frame.Elements and frame.Elements.CastBar
             local now = GetTime and GetTime() or 0
             if castBar and castBar.isCasting and type(castBar.endTime) == "number" and FormatTimeValue then
@@ -388,6 +403,10 @@ function BasicTags.Resolve(frame, unit, token, deps)
     end
 
     if token == "cast:name" then
+        if not IsCastTextAllowed() then
+            return ""
+        end
+
         if not unit then
             return ""
         end
@@ -414,6 +433,10 @@ function BasicTags.Resolve(frame, unit, token, deps)
     end
 
     if token == "cast:time" then
+        if not IsCastTextAllowed() then
+            return ""
+        end
+
         if not unit then
             return ""
         end

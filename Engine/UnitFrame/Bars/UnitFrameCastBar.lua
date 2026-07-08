@@ -13,6 +13,78 @@ local ResolveInterruptState = Utils.ResolveInterruptState
 -- Cast bar helpers keep timing/state logic together so runtime refresh code
 -- can stay focused on orchestration.
 
+local function ResolveTextRole(textConfig, key)
+    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
+        return textConfig.role
+    end
+
+    if key == "CastName" then
+        return "cast_name"
+    elseif key == "CastTime" then
+        return "cast_time"
+    end
+
+    return nil
+end
+
+local function TemplateContainsCastToken(template)
+    return type(template) == "string" and template:find("%[cast:", 1, false) ~= nil
+end
+
+local function IsCastbarTextElement(frame, key, textConfig)
+    local role = ResolveTextRole(textConfig, key)
+    if role == "cast_name" or role == "cast_time" then
+        return true
+    end
+
+    if key == "CastName" or key == "CastTime" then
+        return true
+    end
+
+    if type(textConfig) == "table" and textConfig.anchorTo == "CastBar" then
+        return true
+    end
+
+    if type(textConfig) == "table"
+        and (TemplateContainsCastToken(textConfig.template)
+            or TemplateContainsCastToken(textConfig.deadTemplate)
+            or TemplateContainsCastToken(textConfig.ghostTemplate))
+    then
+        return true
+    end
+
+    return false
+end
+
+function CastBar.ClearVisuals(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    if not castBar then
+        return
+    end
+
+    castBar:SetMinMaxValues(0, 1)
+    castBar:SetValue(0)
+
+    if castBar.icon then
+        castBar.icon:SetTexture(nil)
+        castBar.icon:Hide()
+    end
+
+    if frame.Texts and frame.config and frame.config.Texts then
+        for key, textObject in pairs(frame.Texts) do
+            local textConfig = frame.config.Texts[key]
+            if IsCastbarTextElement(frame, key, textConfig) then
+                if textObject.SetText then
+                    textObject:SetText("")
+                end
+                if textObject.Hide then
+                    textObject:Hide()
+                end
+            end
+        end
+    end
+end
+
 function CastBar.ApplyStateColor(castBar, interruptState, baseColor, interruptibleColor)
     if not castBar then
         return
@@ -267,10 +339,7 @@ function CastBar.Stop(frame)
     castBar.endTime = 0
     castBar.castID = nil
     castBar.castToken = nil
-    if castBar.icon then
-        castBar.icon:SetTexture(nil)
-        castBar.icon:Hide()
-    end
+    CastBar.ClearVisuals(frame)
     castBar:Hide()
 end
 
@@ -355,6 +424,7 @@ function CastBar.ApplyLayout(frame, options)
     end
 
     if not showCastBar or not castBar.isCasting then
+        CastBar.ClearVisuals(frame)
         castBar:Hide()
     end
 end

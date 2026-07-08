@@ -65,6 +65,36 @@ local function ResolveTextRole(textConfig, key)
     return nil
 end
 
+local function TemplateContainsCastToken(template)
+    return type(template) == "string"
+        and (template:find("%[cast:name%]") ~= nil or template:find("%[cast:time%]") ~= nil)
+end
+
+local function IsCastBoundTextElement(frame, key, textConfig, template, textRole)
+    if textRole == "cast_name" or textRole == "cast_time" then
+        return true
+    end
+
+    if key == "CastName" or key == "CastTime" then
+        return true
+    end
+
+    if type(textConfig) == "table" and textConfig.anchorTo == "CastBar" then
+        return true
+    end
+
+    return TemplateContainsCastToken(template)
+end
+
+local function IsCastTextAllowed(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    return frame
+        and frame.config
+        and frame.config.showCastBar ~= false
+        and castBar
+        and (castBar.isCasting == true or castBar.isPreview == true)
+end
+
 local function GetClassificationIndicatorEffect(frame)
     local unit = frame and frame.unit
     local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
@@ -754,6 +784,14 @@ function Update.UpdateElement(frame, key, deps)
         local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
         local textRole = ResolveTextRole(textConfig, key)
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
+
+        if IsCastBoundTextElement(frame, key, textConfig, template, textRole) and not IsCastTextAllowed(frame) then
+            StopAnimatedNameText(textObject)
+            SafeSetText(textObject, "", false)
+            textObject:Hide()
+            return
+        end
+
         local altPowerType = GetLiveValue and GetLiveValue(frame, "altPowerType", nil) or nil
         local altPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxRaw", 0) or 0) or 0
         local altPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentRaw", 0) or 0) or 0

@@ -176,6 +176,9 @@ function Visibility.ClearFrameContentValuesOnly(frame, reason)
             castBar.castToken = nil
             castBar:SetMinMaxValues(0, 1)
             castBar:SetValue(0)
+            if Cast.ClearVisuals then
+                Cast.ClearVisuals(frame)
+            end
         end
     end
 end
