@@ -4,6 +4,42 @@ FocalPoint.TextElementDirectTemplate = FocalPoint.TextElementDirectTemplate or {
 
 local DirectTemplate = FocalPoint.TextElementDirectTemplate
 
+local function IsSecretValue(value)
+    return issecretvalue and issecretvalue(value)
+end
+
+local function IsEmptyTokenArgument(value)
+    if value == nil then
+        return true
+    end
+    if IsSecretValue(value) then
+        return false
+    end
+    if type(value) == "string" then
+        return value == ""
+    end
+
+    return false
+end
+
+local function WouldRenderOnlySeparators(template, formatArgs)
+    local hasRenderableArgument = false
+    for i = 1, #formatArgs do
+        if not IsEmptyTokenArgument(formatArgs[i]) then
+            hasRenderableArgument = true
+            break
+        end
+    end
+    if hasRenderableArgument then
+        return false
+    end
+
+    local staticText = template:gsub("%[[^%]]+%]", "")
+    staticText = staticText:gsub("%s+", "")
+
+    return staticText == "" or staticText:match("^[%/%-%:%(%)%[%]%%]+$") ~= nil
+end
+
 -- Applies simple bracket-token templates through SetFormattedText so the
 -- caller can keep layout concerns separate from token resolution.
 function DirectTemplate.Apply(frame, textObject, unit, template, fallbackColor, deps)
@@ -53,6 +89,10 @@ function DirectTemplate.Apply(frame, textObject, unit, template, fallbackColor, 
     end
 
     formatString = formatString:gsub("%[([^%]]+)%]", "%%s")
+    if WouldRenderOnlySeparators(template, formatArgs) then
+        return true
+    end
+
     local ok = pcall(function()
         textObject:SetFormattedText(formatString, unpack(formatArgs))
     end)
