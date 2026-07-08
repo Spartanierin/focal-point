@@ -123,14 +123,6 @@ function Visibility.ClearFrameContentValuesOnly(frame, reason)
         return
     end
 
-    if frame.Texts then
-        for _, textObject in pairs(frame.Texts) do
-            if textObject and textObject.SetText then
-                textObject:SetText("")
-            end
-        end
-    end
-
     if frame.LiveValues then
         wipe(frame.LiveValues)
     end
