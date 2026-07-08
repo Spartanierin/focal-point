@@ -9,6 +9,19 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.13]
+
+### Fixed
+
+* Improved text refresh reliability for Target of Target and Focus Target when derived unit names become available shortly after target or focus changes.
+* Prevented transient soft-clear recovery paths from directly clearing text objects, keeping text ownership inside the text runtime.
+* Fixed composite text templates such as `[power:cur]/[power:max]` briefly rendering separator-only output like `/` during rapid unit changes.
+* Added shared text value safety helpers as groundwork for safer handling of Midnight protected/secret text values.
+
+### Removed
+
+* Nothing.
+
 ## [1.0.12]
 
 ### Changed
