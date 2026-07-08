@@ -97,6 +97,48 @@ function Utils.FormatTextValue(value)
     return Utils.FormatInteger(value)
 end
 
+function Utils.IsSecret(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
+function Utils.AsSafeNumber(value)
+    if type(value) == "number" and not Utils.IsSecret(value) then
+        return value
+    end
+
+    return nil
+end
+
+function Utils.FormatRenderableInteger(value, fallback)
+    local ok, formatted = pcall(Utils.FormatInteger, value)
+    if ok then
+        return formatted
+    end
+
+    return fallback
+end
+
+function Utils.FormatRenderableNumber(value, fallback)
+    local ok, formatted = pcall(Utils.FormatNumber, value)
+    if ok then
+        return formatted
+    end
+
+    return fallback
+end
+
+function Utils.AsRenderableText(value, fallback)
+    if value == nil then
+        return fallback
+    end
+
+    if type(value) == "string" then
+        return value
+    end
+
+    return fallback
+end
+
 function Utils.FormatTimeValue(value)
     if type(value) ~= "number" then
         return ""
