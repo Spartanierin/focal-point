@@ -16,6 +16,7 @@ This changelog uses the following categories:
 * Improved text refresh reliability for Target of Target and Focus Target when derived unit names become available shortly after target or focus changes.
 * Prevented transient soft-clear recovery paths from directly clearing text objects, keeping text ownership inside the text runtime.
 * Fixed composite text templates such as `[power:cur]/[power:max]` briefly rendering separator-only output like `/` during rapid unit changes.
+* Fixed stale castbar name and timer texts remaining visible after casts end, fail, interrupt, or when the castbar is disabled.
 * Added shared text value safety helpers as groundwork for safer handling of Midnight protected/secret text values.
 
 ### Removed
