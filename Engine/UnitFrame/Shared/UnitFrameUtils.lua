@@ -230,13 +230,49 @@ local function NormalizeUnitTexts(unitConfig)
     end
 end
 
-function Utils.GetUnitDB(unit)
+function Utils.GetProfileDB()
     local db = FocalPoint.db
-    if not db or not db.profile or not db.profile.Units then
+    if not db or type(db.profile) ~= "table" then
         return nil
     end
 
-    local unitConfig = db.profile.Units[Utils.NormalizeConfigUnitKey(unit)]
+    return db.profile
+end
+
+function Utils.GetUnitsDB()
+    local profile = Utils.GetProfileDB()
+    if not profile or type(profile.Units) ~= "table" then
+        return nil
+    end
+
+    return profile.Units
+end
+
+function Utils.GetGeneralDB()
+    local profile = Utils.GetProfileDB()
+    if not profile or type(profile.General) ~= "table" then
+        return nil
+    end
+
+    return profile.General
+end
+
+function Utils.GetTextTemplatesDB()
+    local profile = Utils.GetProfileDB()
+    if not profile or type(profile.TextTemplates) ~= "table" then
+        return nil
+    end
+
+    return profile.TextTemplates
+end
+
+function Utils.GetUnitDB(unit)
+    local units = Utils.GetUnitsDB()
+    if not units then
+        return nil
+    end
+
+    local unitConfig = units[Utils.NormalizeConfigUnitKey(unit)]
     if type(unitConfig) == "table" then
         NormalizeUnitTexts(unitConfig)
     end

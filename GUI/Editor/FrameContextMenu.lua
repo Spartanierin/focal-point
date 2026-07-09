@@ -106,7 +106,7 @@ local function GetUnitKey(frame)
     return frame.unit
 end
 
-local function GetUnitConfig(frame)
+local function ResolveUnitConfig(frame)
     local unitKey = GetUnitKey(frame)
     if not unitKey then
         return nil, nil
@@ -117,10 +117,7 @@ local function GetUnitConfig(frame)
         return utils.GetUnitDB(unitKey), unitKey
     end
 
-    return FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.Units
-        and FocalPoint.db.profile.Units[unitKey], unitKey
+    return nil, unitKey
 end
 
 local function GetDefaultUnitConfig(unitKey)
@@ -184,7 +181,7 @@ local function SelectFrame(frame)
 end
 
 local function CopySize(frame)
-    local config, unitKey = GetUnitConfig(frame)
+    local config, unitKey = ResolveUnitConfig(frame)
     if type(config) ~= "table" then
         return
     end
@@ -207,7 +204,7 @@ local function PasteSize(frame)
         return
     end
 
-    local config, unitKey = GetUnitConfig(frame)
+    local config, unitKey = ResolveUnitConfig(frame)
     if type(config) ~= "table" then
         return
     end
@@ -225,7 +222,7 @@ local function PasteSize(frame)
 end
 
 local function CopyPosition(frame)
-    local config, unitKey = GetUnitConfig(frame)
+    local config, unitKey = ResolveUnitConfig(frame)
     if type(config) ~= "table" then
         return
     end
@@ -251,7 +248,7 @@ local function PastePosition(frame)
         return
     end
 
-    local config, unitKey = GetUnitConfig(frame)
+    local config, unitKey = ResolveUnitConfig(frame)
     if type(config) ~= "table" then
         return
     end
@@ -274,7 +271,7 @@ local function ResetSize(frame)
         return
     end
 
-    local config, unitKey = GetUnitConfig(frame)
+    local config, unitKey = ResolveUnitConfig(frame)
     local defaults = GetDefaultUnitConfig(unitKey)
     if type(config) ~= "table" or type(defaults) ~= "table" then
         return
@@ -292,7 +289,7 @@ local function ResetPosition(frame)
         return
     end
 
-    local config, unitKey = GetUnitConfig(frame)
+    local config, unitKey = ResolveUnitConfig(frame)
     local defaults = GetDefaultUnitConfig(unitKey)
     if type(config) ~= "table" or type(defaults) ~= "table" then
         return
