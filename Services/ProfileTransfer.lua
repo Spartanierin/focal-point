@@ -320,7 +320,22 @@ local function DecodeProfilePath(encodedPath)
     return path, #path > 0
 end
 
+local function IsTransientProfileTransferPath(path)
+    if type(path) ~= "table" or #path < 2 then
+        return false
+    end
+
+    -- Internal theme/restore snapshots are not user configuration. Exporting them
+    -- massively inflates profile strings and is not required to restore a profile.
+    return path[1] == "General"
+        and (path[2] == "_CustomThemeSnapshot" or path[2] == "_ThemeRestoreState")
+end
+
 local function BuildProfileLeafEntriesRecursive(value, path, entries, schemaPathSet)
+    if IsTransientProfileTransferPath(path) then
+        return
+    end
+
     if type(value) ~= "table" then
         local encodedPath = EncodeProfilePath(path)
         local encodedValue = EncodeValue(value)
