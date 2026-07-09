@@ -4,7 +4,7 @@ local ProfileTransfer = {}
 FocalPoint.ProfileTransfer = ProfileTransfer
 
 local EXPORT_PREFIX = "FocalPointProfile:6:"
-local SCHEMA_VERSION = 6
+local SCHEMA_VERSION = 7
 local MIN_SUPPORTED_SCHEMA_VERSION = 4
 local HEADER_SEPARATOR = "~"
 local BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -261,6 +261,134 @@ local function BuildTextTemplateRecords(templates)
     return table.concat(records, ";")
 end
 
+local function EscapePathKey(value)
+    return EscapeText(value):gsub(",", "%%2C")
+end
+
+local function UnescapePathKey(value)
+    return UnescapeText((value or ""):gsub("%%2C", ","))
+end
+
+local function EncodePathSegment(key)
+    local keyType = type(key)
+    if keyType == "string" then
+        return "s" .. EscapePathKey(key)
+    end
+    if keyType == "number" then
+        return "n" .. tostring(key)
+    end
+    return nil
+end
+
+local function DecodePathSegment(segment)
+    if type(segment) ~= "string" or segment == "" then
+        return nil, false
+    end
+
+    local keyType = segment:sub(1, 1)
+    local payload = segment:sub(2)
+    if keyType == "s" then
+        return UnescapePathKey(payload), true
+    end
+    if keyType == "n" then
+        local numberKey = tonumber(payload)
+        if numberKey ~= nil then
+            return numberKey, true
+        end
+    end
+    return nil, false
+end
+
+local function EncodeProfilePath(path)
+    if type(path) ~= "table" or #path == 0 then
+        return nil
+    end
+
+    local encodedPath = {}
+    for index = 1, #path do
+        local segment = EncodePathSegment(path[index])
+        if not segment then
+            return nil
+        end
+        encodedPath[#encodedPath + 1] = segment
+    end
+
+    return table.concat(encodedPath, ",")
+end
+
+local function DecodeProfilePath(encodedPath)
+    if type(encodedPath) ~= "string" or encodedPath == "" then
+        return nil, false
+    end
+
+    local path = {}
+    for segment in encodedPath:gmatch("[^,]+") do
+        local key, ok = DecodePathSegment(segment)
+        if not ok then
+            return nil, false
+        end
+        path[#path + 1] = key
+    end
+
+    return path, #path > 0
+end
+
+local function BuildProfileLeafRecordsRecursive(value, path, records)
+    if type(value) ~= "table" then
+        local encodedPath = EncodeProfilePath(path)
+        local encodedValue = EncodeValue(value)
+        if encodedPath and encodedValue then
+            records[#records + 1] = encodedPath .. ":" .. encodedValue
+        end
+        return
+    end
+
+    local keys = {}
+    for key in pairs(value) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys, SortKeys)
+
+    for _, key in ipairs(keys) do
+        path[#path + 1] = key
+        BuildProfileLeafRecordsRecursive(value[key], path, records)
+        path[#path] = nil
+    end
+end
+
+local function BuildProfileLeafRecords(profile)
+    if type(profile) ~= "table" then
+        return ""
+    end
+
+    local records = {}
+    BuildProfileLeafRecordsRecursive(profile, {}, records)
+    return table.concat(records, ";")
+end
+
+local function ApplyProfileLeafRecords(profile, payload)
+    if type(profile) ~= "table" or type(payload) ~= "string" or payload == "" then
+        return true
+    end
+
+    for record in payload:gmatch("[^;]+") do
+        local separator = record:find(":", 1, true)
+        if not separator then
+            return false
+        end
+
+        local path, pathOk = DecodeProfilePath(record:sub(1, separator - 1))
+        local value, valueOk = DecodeValue(record:sub(separator + 1))
+        if not pathOk or not valueOk then
+            return false
+        end
+
+        SetValueAtPath(profile, path, value)
+    end
+
+    return true
+end
+
 local function ApplyTextTemplateRecords(profile, payload)
     if type(profile) ~= "table" or type(payload) ~= "string" or payload == "" then
         return true
@@ -338,17 +466,20 @@ local function ParseTransferPayload(payload)
     end
 
     local fourthSeparator = payload:find(separator, thirdSeparator + 1, true)
+    local fifthSeparator = fourthSeparator and payload:find(separator, fourthSeparator + 1, true) or nil
 
     return {
         profileName = payload:sub(1, firstSeparator - 1),
         schemaVersion = payload:sub(firstSeparator + 1, secondSeparator - 1),
         schemaCount = payload:sub(secondSeparator + 1, thirdSeparator - 1),
         data = fourthSeparator and payload:sub(thirdSeparator + 1, fourthSeparator - 1) or payload:sub(thirdSeparator + 1),
-        textTemplates = fourthSeparator and payload:sub(fourthSeparator + 1) or nil,
+        textTemplates = fourthSeparator and (fifthSeparator and payload:sub(fourthSeparator + 1, fifthSeparator - 1) or payload:sub(fourthSeparator + 1)) or nil,
+        profileLeaves = fifthSeparator and payload:sub(fifthSeparator + 1) or nil,
         firstSeparator = firstSeparator,
         secondSeparator = secondSeparator,
         thirdSeparator = thirdSeparator,
         fourthSeparator = fourthSeparator,
+        fifthSeparator = fifthSeparator,
         separator = separator,
     }
 end
@@ -436,6 +567,7 @@ function ProfileTransfer.ExportCurrentProfile(db)
     local schema = BuildDefaultSchema(defaultProfile)
     local records = BuildSchemaRecords(db.profile, schema)
     local textTemplateRecords = BuildTextTemplateRecords(db.profile.TextTemplates)
+    local profileLeafRecords = BuildProfileLeafRecords(db.profile)
     local profileName = db.GetCurrentProfile and db:GetCurrentProfile() or "Profile"
 
     return EXPORT_PREFIX
@@ -448,6 +580,8 @@ function ProfileTransfer.ExportCurrentProfile(db)
         .. table.concat(records, ";")
         .. HEADER_SEPARATOR
         .. textTemplateRecords
+        .. HEADER_SEPARATOR
+        .. profileLeafRecords
 end
 
 function ProfileTransfer.GetProfileNameFromString(exportString)
@@ -531,6 +665,13 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
     if not ApplyTextTemplateRecords(validationProfile, parts.textTemplates) then
         return nil, "invalid-text-templates"
     end
+    local validationFullProfile = nil
+    if parts.profileLeaves ~= nil then
+        validationFullProfile = {}
+        if not ApplyProfileLeafRecords(validationFullProfile, parts.profileLeaves) then
+            return nil, "invalid-full-profile"
+        end
+    end
 
     local requestedProfileName = NormalizeProfileName(profileNameOverride)
     if requestedProfileName == "Imported Profile" and Trim(profileNameOverride) == "" then
@@ -558,8 +699,13 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
     if type(db.profile) ~= "table" then
         return nil, "profile-create-failed"
     end
+
     ApplySchemaRecords(db.profile, schema, parts.data)
     ApplyTextTemplateRecords(db.profile, parts.textTemplates)
+
+    if validationFullProfile then
+        ApplyProfileLeafRecords(db.profile, parts.profileLeaves)
+    end
 
     return requestedProfileName
 end
