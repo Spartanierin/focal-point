@@ -237,6 +237,55 @@ local function BuildSchemaRecords(currentProfile, schema)
     return records
 end
 
+local function BuildTextTemplateRecords(templates)
+    if type(templates) ~= "table" then
+        return ""
+    end
+
+    local keys = {}
+    for templateName, templateValue in pairs(templates) do
+        if type(templateName) == "string" and templateName ~= "" and type(templateValue) == "string" then
+            keys[#keys + 1] = templateName
+        end
+    end
+    table.sort(keys, SortKeys)
+
+    local records = {}
+    for _, templateName in ipairs(keys) do
+        local encodedValue = EncodeValue(templates[templateName])
+        if encodedValue then
+            records[#records + 1] = EscapeText(templateName) .. ":" .. encodedValue
+        end
+    end
+
+    return table.concat(records, ";")
+end
+
+local function ApplyTextTemplateRecords(profile, payload)
+    if type(profile) ~= "table" or type(payload) ~= "string" or payload == "" then
+        return true
+    end
+
+    profile.TextTemplates = profile.TextTemplates or {}
+
+    for record in payload:gmatch("[^;]+") do
+        local separator = record:find(":", 1, true)
+        if not separator then
+            return false
+        end
+
+        local templateName = UnescapeText(record:sub(1, separator - 1))
+        local templateValue, ok = DecodeValue(record:sub(separator + 1))
+        if templateName == "" or not ok or type(templateValue) ~= "string" then
+            return false
+        end
+
+        profile.TextTemplates[templateName] = templateValue
+    end
+
+    return true
+end
+
 local function ApplySchemaRecords(profile, schema, payload)
     if type(profile) ~= "table" or type(payload) ~= "string" or payload == "" then
         return true
@@ -288,14 +337,18 @@ local function ParseTransferPayload(payload)
         return nil
     end
 
+    local fourthSeparator = payload:find(separator, thirdSeparator + 1, true)
+
     return {
         profileName = payload:sub(1, firstSeparator - 1),
         schemaVersion = payload:sub(firstSeparator + 1, secondSeparator - 1),
         schemaCount = payload:sub(secondSeparator + 1, thirdSeparator - 1),
-        data = payload:sub(thirdSeparator + 1),
+        data = fourthSeparator and payload:sub(thirdSeparator + 1, fourthSeparator - 1) or payload:sub(thirdSeparator + 1),
+        textTemplates = fourthSeparator and payload:sub(fourthSeparator + 1) or nil,
         firstSeparator = firstSeparator,
         secondSeparator = secondSeparator,
         thirdSeparator = thirdSeparator,
+        fourthSeparator = fourthSeparator,
         separator = separator,
     }
 end
@@ -382,6 +435,7 @@ function ProfileTransfer.ExportCurrentProfile(db)
 
     local schema = BuildDefaultSchema(defaultProfile)
     local records = BuildSchemaRecords(db.profile, schema)
+    local textTemplateRecords = BuildTextTemplateRecords(db.profile.TextTemplates)
     local profileName = db.GetCurrentProfile and db:GetCurrentProfile() or "Profile"
 
     return EXPORT_PREFIX
@@ -392,6 +446,8 @@ function ProfileTransfer.ExportCurrentProfile(db)
         .. ToBase36(#schema)
         .. HEADER_SEPARATOR
         .. table.concat(records, ";")
+        .. HEADER_SEPARATOR
+        .. textTemplateRecords
 end
 
 function ProfileTransfer.GetProfileNameFromString(exportString)
@@ -472,6 +528,9 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
     if not ApplySchemaRecords(validationProfile, schema, parts.data) then
         return nil, "invalid-profile"
     end
+    if not ApplyTextTemplateRecords(validationProfile, parts.textTemplates) then
+        return nil, "invalid-text-templates"
+    end
 
     local requestedProfileName = NormalizeProfileName(profileNameOverride)
     if requestedProfileName == "Imported Profile" and Trim(profileNameOverride) == "" then
@@ -500,6 +559,7 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
         return nil, "profile-create-failed"
     end
     ApplySchemaRecords(db.profile, schema, parts.data)
+    ApplyTextTemplateRecords(db.profile, parts.textTemplates)
 
     return requestedProfileName
 end
