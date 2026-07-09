@@ -237,30 +237,6 @@ local function BuildSchemaRecords(currentProfile, schema)
     return records
 end
 
-local function BuildTextTemplateRecords(templates)
-    if type(templates) ~= "table" then
-        return ""
-    end
-
-    local keys = {}
-    for templateName, templateValue in pairs(templates) do
-        if type(templateName) == "string" and templateName ~= "" and type(templateValue) == "string" then
-            keys[#keys + 1] = templateName
-        end
-    end
-    table.sort(keys, SortKeys)
-
-    local records = {}
-    for _, templateName in ipairs(keys) do
-        local encodedValue = EncodeValue(templates[templateName])
-        if encodedValue then
-            records[#records + 1] = EscapeText(templateName) .. ":" .. encodedValue
-        end
-    end
-
-    return table.concat(records, ";")
-end
-
 local function EscapePathKey(value)
     return EscapeText(value):gsub(",", "%%2C")
 end
@@ -316,6 +292,17 @@ local function EncodeProfilePath(path)
     return table.concat(encodedPath, ",")
 end
 
+local function BuildSchemaPathSet(schema)
+    local pathSet = {}
+    for _, entry in ipairs(schema or {}) do
+        local encodedPath = EncodeProfilePath(entry.path)
+        if encodedPath then
+            pathSet[encodedPath] = true
+        end
+    end
+    return pathSet
+end
+
 local function DecodeProfilePath(encodedPath)
     if type(encodedPath) ~= "string" or encodedPath == "" then
         return nil, false
@@ -333,11 +320,11 @@ local function DecodeProfilePath(encodedPath)
     return path, #path > 0
 end
 
-local function BuildProfileLeafRecordsRecursive(value, path, records)
+local function BuildProfileLeafRecordsRecursive(value, path, records, schemaPathSet)
     if type(value) ~= "table" then
         local encodedPath = EncodeProfilePath(path)
         local encodedValue = EncodeValue(value)
-        if encodedPath and encodedValue then
+        if encodedPath and encodedValue and (type(schemaPathSet) ~= "table" or not schemaPathSet[encodedPath]) then
             records[#records + 1] = encodedPath .. ":" .. encodedValue
         end
         return
@@ -351,18 +338,18 @@ local function BuildProfileLeafRecordsRecursive(value, path, records)
 
     for _, key in ipairs(keys) do
         path[#path + 1] = key
-        BuildProfileLeafRecordsRecursive(value[key], path, records)
+        BuildProfileLeafRecordsRecursive(value[key], path, records, schemaPathSet)
         path[#path] = nil
     end
 end
 
-local function BuildProfileLeafRecords(profile)
+local function BuildProfileLeafRecords(profile, schemaPathSet)
     if type(profile) ~= "table" then
         return ""
     end
 
     local records = {}
-    BuildProfileLeafRecordsRecursive(profile, {}, records)
+    BuildProfileLeafRecordsRecursive(profile, {}, records, schemaPathSet)
     return table.concat(records, ";")
 end
 
@@ -566,8 +553,8 @@ function ProfileTransfer.ExportCurrentProfile(db)
 
     local schema = BuildDefaultSchema(defaultProfile)
     local records = BuildSchemaRecords(db.profile, schema)
-    local textTemplateRecords = BuildTextTemplateRecords(db.profile.TextTemplates)
-    local profileLeafRecords = BuildProfileLeafRecords(db.profile)
+    local schemaPathSet = BuildSchemaPathSet(schema)
+    local extraProfileLeafRecords = BuildProfileLeafRecords(db.profile, schemaPathSet)
     local profileName = db.GetCurrentProfile and db:GetCurrentProfile() or "Profile"
 
     return EXPORT_PREFIX
@@ -579,9 +566,9 @@ function ProfileTransfer.ExportCurrentProfile(db)
         .. HEADER_SEPARATOR
         .. table.concat(records, ";")
         .. HEADER_SEPARATOR
-        .. textTemplateRecords
+        .. ""
         .. HEADER_SEPARATOR
-        .. profileLeafRecords
+        .. extraProfileLeafRecords
 end
 
 function ProfileTransfer.GetProfileNameFromString(exportString)
