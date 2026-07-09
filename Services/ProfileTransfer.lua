@@ -843,22 +843,23 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
         return nil, "missing-profile-store"
     end
 
-    profileStore[requestedProfileName] = {}
+    local importedProfile = {}
+    ApplySchemaRecords(importedProfile, schema, parts.data)
+    ApplyTextTemplateRecords(importedProfile, parts.textTemplates)
+
+    if validationFullProfile then
+        ApplyProfileLeafRecords(importedProfile, parts.profileLeaves)
+    end
+
+    profileStore[requestedProfileName] = importedProfile
     if currentProfileName == requestedProfileName then
-        db.profile = nil
+        db.profile = importedProfile
     else
         db:SetProfile(requestedProfileName)
     end
 
     if type(db.profile) ~= "table" then
         return nil, "profile-create-failed"
-    end
-
-    ApplySchemaRecords(db.profile, schema, parts.data)
-    ApplyTextTemplateRecords(db.profile, parts.textTemplates)
-
-    if validationFullProfile then
-        ApplyProfileLeafRecords(db.profile, parts.profileLeaves)
     end
 
     return requestedProfileName
