@@ -320,12 +320,15 @@ local function DecodeProfilePath(encodedPath)
     return path, #path > 0
 end
 
-local function BuildProfileLeafRecordsRecursive(value, path, records, schemaPathSet)
+local function BuildProfileLeafEntriesRecursive(value, path, entries, schemaPathSet)
     if type(value) ~= "table" then
         local encodedPath = EncodeProfilePath(path)
         local encodedValue = EncodeValue(value)
         if encodedPath and encodedValue and (type(schemaPathSet) ~= "table" or not schemaPathSet[encodedPath]) then
-            records[#records + 1] = encodedPath .. ":" .. encodedValue
+            entries[#entries + 1] = {
+                path = CopyPath(path),
+                value = encodedValue,
+            }
         end
         return
     end
@@ -338,9 +341,60 @@ local function BuildProfileLeafRecordsRecursive(value, path, records, schemaPath
 
     for _, key in ipairs(keys) do
         path[#path + 1] = key
-        BuildProfileLeafRecordsRecursive(value[key], path, records, schemaPathSet)
+        BuildProfileLeafEntriesRecursive(value[key], path, entries, schemaPathSet)
         path[#path] = nil
     end
+end
+
+local function BuildProfileLeafDictionary(entries)
+    local keySet = {}
+    for _, entry in ipairs(entries or {}) do
+        for _, key in ipairs(entry.path or {}) do
+            if type(key) == "string" then
+                keySet[key] = true
+            end
+        end
+    end
+
+    local keys = {}
+    for key in pairs(keySet) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys, SortKeys)
+
+    local keyIndex = {}
+    local encodedKeys = {}
+    for index, key in ipairs(keys) do
+        keyIndex[key] = index
+        encodedKeys[#encodedKeys + 1] = EscapePathKey(key)
+    end
+
+    return keyIndex, table.concat(encodedKeys, ";")
+end
+
+local function EncodeCompactProfilePath(path, keyIndex)
+    if type(path) ~= "table" or #path == 0 or type(keyIndex) ~= "table" then
+        return nil
+    end
+
+    local encodedPath = {}
+    for index = 1, #path do
+        local key = path[index]
+        local keyType = type(key)
+        if keyType == "string" then
+            local dictionaryIndex = keyIndex[key]
+            if not dictionaryIndex then
+                return nil
+            end
+            encodedPath[#encodedPath + 1] = "k" .. ToBase36(dictionaryIndex)
+        elseif keyType == "number" then
+            encodedPath[#encodedPath + 1] = "n" .. tostring(key)
+        else
+            return nil
+        end
+    end
+
+    return table.concat(encodedPath, ",")
 end
 
 local function BuildProfileLeafRecords(profile, schemaPathSet)
@@ -348,17 +402,103 @@ local function BuildProfileLeafRecords(profile, schemaPathSet)
         return ""
     end
 
+    local entries = {}
+    BuildProfileLeafEntriesRecursive(profile, {}, entries, schemaPathSet)
+    if #entries == 0 then
+        return ""
+    end
+
+    local keyIndex, dictionaryPayload = BuildProfileLeafDictionary(entries)
     local records = {}
-    BuildProfileLeafRecordsRecursive(profile, {}, records, schemaPathSet)
-    return table.concat(records, ";")
+    for _, entry in ipairs(entries) do
+        local encodedPath = EncodeCompactProfilePath(entry.path, keyIndex)
+        if encodedPath then
+            records[#records + 1] = encodedPath .. ":" .. entry.value
+        end
+    end
+
+    if #records == 0 then
+        return ""
+    end
+
+    -- D marks the compact dictionary format. Legacy unmarked extra leaves remain importable.
+    return "D" .. dictionaryPayload .. HEADER_SEPARATOR .. table.concat(records, ";")
 end
 
-local function ApplyProfileLeafRecords(profile, payload)
+local function DecodeCompactProfilePath(encodedPath, dictionary)
+    if type(encodedPath) ~= "string" or encodedPath == "" or type(dictionary) ~= "table" then
+        return nil, false
+    end
+
+    local path = {}
+    for segment in encodedPath:gmatch("[^,]+") do
+        local keyType = segment:sub(1, 1)
+        local payload = segment:sub(2)
+        if keyType == "k" then
+            local dictionaryIndex = FromBase36(payload)
+            local key = dictionaryIndex and dictionary[dictionaryIndex] or nil
+            if type(key) ~= "string" then
+                return nil, false
+            end
+            path[#path + 1] = key
+        elseif keyType == "n" then
+            local numberKey = tonumber(payload)
+            if numberKey == nil then
+                return nil, false
+            end
+            path[#path + 1] = numberKey
+        else
+            return nil, false
+        end
+    end
+
+    return path, #path > 0
+end
+
+local function ApplyCompactProfileLeafRecords(profile, payload)
     if type(profile) ~= "table" or type(payload) ~= "string" or payload == "" then
         return true
     end
 
+    local dictionarySeparator = payload:find(HEADER_SEPARATOR, 2, true)
+    if not dictionarySeparator then
+        return false
+    end
+
+    local dictionary = {}
+    local dictionaryPayload = payload:sub(2, dictionarySeparator - 1)
+    if dictionaryPayload ~= "" then
+        for encodedKey in dictionaryPayload:gmatch("[^;]+") do
+            dictionary[#dictionary + 1] = UnescapePathKey(encodedKey)
+        end
+    end
+
+    local recordsPayload = payload:sub(dictionarySeparator + 1)
+    for record in recordsPayload:gmatch("[^;]+") do
+        local separator = record:find(":", 1, true)
+        if not separator then
+            return false
+        end
+
+        local path, pathOk = DecodeCompactProfilePath(record:sub(1, separator - 1), dictionary)
+        local value, valueOk = DecodeValue(record:sub(separator + 1))
+        if not pathOk or not valueOk then
+            return false
+        end
+
+        SetValueAtPath(profile, path, value)
+    end
+
+    return true
+end
+
+local function ApplyLegacyProfileLeafRecords(profile, payload)
+    local records = {}
     for record in payload:gmatch("[^;]+") do
+        records[#records + 1] = record
+    end
+
+    for _, record in ipairs(records) do
         local separator = record:find(":", 1, true)
         if not separator then
             return false
@@ -374,6 +514,18 @@ local function ApplyProfileLeafRecords(profile, payload)
     end
 
     return true
+end
+
+local function ApplyProfileLeafRecords(profile, payload)
+    if type(profile) ~= "table" or type(payload) ~= "string" or payload == "" then
+        return true
+    end
+
+    if payload:sub(1, 1) == "D" then
+        return ApplyCompactProfileLeafRecords(profile, payload)
+    end
+
+    return ApplyLegacyProfileLeafRecords(profile, payload)
 end
 
 local function ApplyTextTemplateRecords(profile, payload)
