@@ -9,6 +9,12 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.14] - Unreleased
+
+### Changed
+
+* Started the 1.0.14 development cycle from the published 1.0.13 stability baseline.
+
 ## [1.0.13]
 
 ### Fixed
