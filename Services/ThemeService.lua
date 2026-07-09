@@ -32,6 +32,11 @@ local SECTION_MAP = {
         alpha = "alpha",
         scale = "scale",
         bossSpacing = "bossSpacing",
+        point = "point",
+        relativeTo = "relativeTo",
+        relativePoint = "relativePoint",
+        x = "x",
+        y = "y",
         backgroundColor = "backgroundColor",
         borderColor = "borderColor",
         healthColor = "healthColor",
@@ -179,6 +184,80 @@ local function ApplyAuras(unitConfig, auras)
         unitConfig[key] = unitConfig[key] or {}
         if type(auraConfig) == "table" then
             MergeInto(unitConfig[key], auraConfig)
+        end
+    end
+end
+
+local function BuildClassicCollisionName(templateName, templateValue, templates)
+    local baseName = tostring(templateName or "")
+    local candidate = baseName .. " (Classic)"
+    local suffix = 2
+
+    while templates[candidate] ~= nil do
+        if templates[candidate] == templateValue then
+            return candidate
+        end
+
+        candidate = baseName .. " (Classic " .. tostring(suffix) .. ")"
+        suffix = suffix + 1
+    end
+
+    return candidate
+end
+
+local function InstallThemeTextTemplates(profile, theme)
+    local themeTemplates = theme and theme.textTemplates
+    if type(profile) ~= "table" or type(themeTemplates) ~= "table" then
+        return nil
+    end
+
+    profile.TextTemplates = profile.TextTemplates or {}
+    local profileTemplates = profile.TextTemplates
+    local templateNameMap = {}
+
+    for templateName, templateValue in pairs(themeTemplates) do
+        if type(templateName) == "string" and templateName ~= "" and type(templateValue) == "string" then
+            local existingValue = profileTemplates[templateName]
+            if existingValue == nil then
+                profileTemplates[templateName] = templateValue
+                templateNameMap[templateName] = templateName
+            elseif existingValue == templateValue then
+                templateNameMap[templateName] = templateName
+            else
+                local collisionName = BuildClassicCollisionName(templateName, templateValue, profileTemplates)
+                if profileTemplates[collisionName] == nil then
+                    profileTemplates[collisionName] = templateValue
+                end
+                templateNameMap[templateName] = collisionName
+            end
+        end
+    end
+
+    return templateNameMap
+end
+
+local function RemapTextTemplateReference(templateNameMap, templateName)
+    if type(templateNameMap) ~= "table" or type(templateName) ~= "string" or templateName == "" then
+        return templateName
+    end
+
+    return templateNameMap[templateName] or templateName
+end
+
+local function RemapThemeUnitTextTemplates(unitTheme, templateNameMap)
+    if type(unitTheme) ~= "table" or type(unitTheme.texts) ~= "table" or type(templateNameMap) ~= "table" then
+        return
+    end
+
+    for _, textConfig in pairs(unitTheme.texts) do
+        if type(textConfig) == "table" then
+            textConfig.templateName = RemapTextTemplateReference(templateNameMap, textConfig.templateName)
+
+            if type(textConfig.stateTemplates) == "table" then
+                for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
+                    textConfig.stateTemplates[stateKey] = RemapTextTemplateReference(templateNameMap, stateTemplateName)
+                end
+            end
         end
     end
 end
@@ -434,6 +513,7 @@ function ThemeService.ApplyTheme(themeId)
     end
     local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()
     local defaultUnits = defaults and defaults.profile and defaults.profile.Units
+    local templateNameMap = InstallThemeTextTemplates(profile, theme)
 
     if type(theme.global) == "table" then
         profile.General = profile.General or {}
@@ -443,14 +523,18 @@ function ThemeService.ApplyTheme(themeId)
     if theme.applyDefaults and type(defaultUnits) == "table" then
         for unitKey, defaultUnit in pairs(defaultUnits) do
             if type(defaultUnit) == "table" and type(profile.Units[unitKey]) == "table" then
-                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, profile.Units[unitKey], theme.units and theme.units[unitKey], defaultUnits)
+                local unitTheme = CloneValue(theme.units and theme.units[unitKey])
+                RemapThemeUnitTextTemplates(unitTheme, templateNameMap)
+                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, profile.Units[unitKey], unitTheme, defaultUnits)
             end
         end
     else
         for unitKey, unitTheme in pairs(theme.units or {}) do
             local unitConfig = profile.Units[unitKey]
             if type(unitConfig) == "table" and type(unitTheme) == "table" then
-                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, unitConfig, unitTheme, defaultUnits)
+                local resolvedUnitTheme = CloneValue(unitTheme)
+                RemapThemeUnitTextTemplates(resolvedUnitTheme, templateNameMap)
+                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, unitConfig, resolvedUnitTheme, defaultUnits)
             end
         end
     end
