@@ -288,10 +288,18 @@ function Health.UpdateBarColor(frame)
         return
     end
 
+    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
+
     if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
         local isEnabled = IsPlaceholderUnitEnabled(frame)
-        if isEnabled then
-            frame.Elements.HealthBar:SetStatusBarColor(0.34, 0.40, 0.48, 0.92)
+        if isEnabled and config then
+            local healthR, healthG, healthB = GetResolvedHealthBarColor(
+                frame,
+                config,
+                frame.LiveValues and frame.LiveValues.healthCurrentRaw,
+                frame.LiveValues and frame.LiveValues.healthMaxRaw
+            )
+            frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, 1)
             frame.Elements.HealthBar:SetAlpha(0.78)
         else
             frame.Elements.HealthBar:SetStatusBarColor(0.34, 0.40, 0.48, 0.28)
@@ -300,7 +308,6 @@ function Health.UpdateBarColor(frame)
         return
     end
 
-    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
     if not config then
         return
     end
