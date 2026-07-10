@@ -31,6 +31,7 @@ This changelog uses the following categories:
 * Fixed profile switching leaving editor and inspector state out of sync with the newly active profile.
 * Fixed custom health colors being overridden by fallback/default color paths during later health refreshes.
 * Fixed active placeholder health bars using neutral placeholder tint instead of configured health colors.
+* Fixed text elements anchored to disabled Power, Alternative Power, or Class Power bars continuing to render after their owning bar was disabled.
 
 ## [1.0.13]
 
