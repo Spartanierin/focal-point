@@ -9,6 +9,13 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.14b]
+
+### Fixed
+
+* Fixed additional Midnight secret-value Lua errors in class and classification text/runtime paths.
+* Hardened unsafe `UnitClass` and `UnitClassification` checks used by text elements and classification styling.
+
 ## [1.0.14a]
 
 ### Fixed
