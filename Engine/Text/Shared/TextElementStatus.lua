@@ -11,16 +11,25 @@ local IsSafeTrue = TextUtils.IsSafeTrue
 -- larger tag and template runtime.
 
 function Status.GetLocalizedClassName(classToken)
-    if type(classToken) ~= "string" or classToken == "" then
+    if type(classToken) ~= "string" then
         return nil
     end
 
-    classToken = classToken:upper()
+    local ok, normalizedToken = pcall(function()
+        if classToken == "" then
+            return nil
+        end
+
+        return classToken:upper()
+    end)
+    if not ok or not normalizedToken then
+        return nil
+    end
 
     return
-        (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classToken]) or
-        (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[classToken]) or
-        classToken
+        (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[normalizedToken]) or
+        (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[normalizedToken]) or
+        normalizedToken
 end
 
 function Status.GetClassificationText(unit)

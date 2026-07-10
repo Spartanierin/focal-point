@@ -12,12 +12,29 @@ local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 -- Text color helpers keep color resolution and color-tag formatting separate
 -- from the main token and template runtime.
 
-local function ResolveClassColorByToken(classToken)
-    if type(classToken) == "string" then
-        classToken = classToken:upper()
+local function NormalizeClassTokenForLookup(classToken)
+    if type(classToken) ~= "string" then
+        return nil
     end
 
-    if not classToken or classToken == "" then
+    local ok, normalized = pcall(function()
+        if classToken == "" then
+            return nil
+        end
+
+        return classToken:upper()
+    end)
+
+    if ok then
+        return normalized
+    end
+
+    return nil
+end
+
+local function ResolveClassColorByToken(classToken)
+    classToken = NormalizeClassTokenForLookup(classToken)
+    if not classToken then
         return nil
     end
 

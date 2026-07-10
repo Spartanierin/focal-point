@@ -31,6 +31,30 @@ function BasicTags.Resolve(frame, unit, token, deps)
     local demo = FocalPoint.UnitFrameDemoEnvironment or {}
     local previewValues = (demo.GetUnitValues and demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
 
+    local function CanUseTextValue(value)
+        if type(value) ~= "string" then
+            return false
+        end
+
+        local ok, hasValue = pcall(function()
+            return value ~= ""
+        end)
+        return (ok and hasValue) or not ok
+    end
+
+    local function ResolveLocalizedClassName(classToken)
+        if not GetLocalizedClassName then
+            return nil
+        end
+
+        local ok, localized = pcall(GetLocalizedClassName, classToken)
+        if ok and CanUseTextValue(localized) then
+            return localized
+        end
+
+        return nil
+    end
+
     local function IsCastTextAllowed()
         local castBar = frame and frame.Elements and frame.Elements.CastBar
         return frame
@@ -190,18 +214,18 @@ function BasicTags.Resolve(frame, unit, token, deps)
     if token == "class" then
         if unit and UnitClass then
             local className, classToken = UnitClass(unit)
-            if UnitIsPlayer and UnitIsPlayer(unit) and type(className) == "string" and className ~= "" then
+            if UnitIsPlayer and UnitIsPlayer(unit) and CanUseTextValue(className) then
                 return className
             end
 
             if not UnitIsPlayer or not UnitIsPlayer(unit) then
-                local localized = GetLocalizedClassName and GetLocalizedClassName(classToken)
+                local localized = ResolveLocalizedClassName(classToken)
 
-                if type(localized) == "string" and localized ~= "" then
+                if CanUseTextValue(localized) then
                     return localized
                 end
 
-                if type(classToken) == "string" and classToken ~= "" then
+                if CanUseTextValue(classToken) then
                     return classToken
                 end
             end
