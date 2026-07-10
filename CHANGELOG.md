@@ -15,6 +15,7 @@ This changelog uses the following categories:
 
 * Added bundled text template support for built-in presets, allowing presets to install required text templates safely when applied.
 * Added shared unit configuration access helpers as a small step toward more consistent profile and unit configuration reads.
+* Added a read-only active profile text template usage scanner to support safer template diagnostics in the editor.
 
 ### Changed
 
@@ -33,6 +34,7 @@ This changelog uses the following categories:
 * Fixed active placeholder health bars using neutral placeholder tint instead of configured health colors.
 * Fixed text elements anchored to disabled Power, Alternative Power, or Class Power bars continuing to render after their owning bar was disabled.
 * Fixed old text elements remaining visible and overlapping new text layouts after profile or preset changes.
+* Fixed missing text template references being hard to identify by showing a read-only warning in the Inspector when a selected text element references templates that are not installed in the active profile.
 
 ## [1.0.13]
 
