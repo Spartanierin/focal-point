@@ -95,6 +95,28 @@ local function IsCastTextAllowed(frame)
         and (castBar.isCasting == true or castBar.isPreview == true)
 end
 
+local function IsTextOwnerAllowed(frame, textConfig)
+    if type(textConfig) ~= "table" then
+        return true
+    end
+
+    local config = frame and frame.config
+    if type(config) ~= "table" then
+        return true
+    end
+
+    local anchorTo = textConfig.anchorTo
+    if anchorTo == "PowerBar" then
+        return config.showPowerBar ~= false
+    elseif anchorTo == "AlternativePowerBar" then
+        return config.showAlternativePowerBar ~= false
+    elseif anchorTo == "ClassPowerBar" then
+        return config.showClassPowerBar ~= false
+    end
+
+    return true
+end
+
 local function GetClassificationIndicatorEffect(frame)
     local unit = frame and frame.unit
     local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
@@ -786,6 +808,13 @@ function Update.UpdateElement(frame, key, deps)
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
 
         if IsCastBoundTextElement(frame, key, textConfig, template, textRole) and not IsCastTextAllowed(frame) then
+            StopAnimatedNameText(textObject)
+            SafeSetText(textObject, "", false)
+            textObject:Hide()
+            return
+        end
+
+        if not IsTextOwnerAllowed(frame, textConfig) then
             StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()
