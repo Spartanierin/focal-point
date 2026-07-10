@@ -48,6 +48,37 @@ local function HasConfiguredColor(color)
         and IsConfiguredColorComponent(color.b or color[3] or color["3"])
 end
 
+local function UnpackConfiguredColor(color, fallback)
+    if type(color) ~= "table" then
+        return UnpackColor(color, fallback)
+    end
+
+    -- SavedVariables can retain stale numeric color keys. Named r/g/b/a
+    -- fields are the authoritative custom color written by the editor/theme.
+    local r = color.r
+    if r == nil then
+        r = color[1] or color["1"]
+    end
+
+    local g = color.g
+    if g == nil then
+        g = color[2] or color["2"]
+    end
+
+    local b = color.b
+    if b == nil then
+        b = color[3] or color["3"]
+    end
+
+    local a = color.a
+    if a == nil then
+        a = color[4] or color["4"]
+    end
+
+    local fallbackR, fallbackG, fallbackB, fallbackA = UnpackColor(fallback)
+    return SanitizeRGBA(r, g, b, a, fallbackR, fallbackG, fallbackB, fallbackA)
+end
+
 function Colors.IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false
@@ -347,7 +378,12 @@ function Colors.GetResolvedHealthBarColor(frame, config)
     local hasCustomHealthColor = config
         and config.useClassColorHealth == false
         and HasConfiguredColor(config.healthColor)
-    local healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
+    local healthR, healthG, healthB, healthA
+    if hasCustomHealthColor then
+        healthR, healthG, healthB, healthA = UnpackConfiguredColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
+    else
+        healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
+    end
     healthR, healthG, healthB, healthA = SanitizeRGBA(healthR, healthG, healthB, healthA, 0.1, 0.8, 0.1, 1)
 
     if config and config.useClassColorHealth then
