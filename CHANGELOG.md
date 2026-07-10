@@ -11,9 +11,26 @@ This changelog uses the following categories:
 
 ## [1.0.14] - Unreleased
 
+### Added
+
+* Added bundled text template support for built-in presets, allowing presets to install required text templates safely when applied.
+* Added shared unit configuration access helpers as a small step toward more consistent profile and unit configuration reads.
+
 ### Changed
 
-* Started the 1.0.14 development cycle from the published 1.0.13 stability baseline.
+* Updated the built-in Classic preset with its latest layout, bar, media, aura, indicator, and text template configuration.
+* Improved profile transfer to preserve dynamic profile data that is not represented in the default profile schema.
+* Reduced profile export size by storing only compact extra profile data instead of duplicating full profile payloads.
+* Excluded transient internal theme snapshot state from profile exports to keep transfer strings compact and focused on user configuration.
+* Improved editor unlock placeholder visuals so enabled frames keep their actual bar colors visible.
+
+### Fixed
+
+* Fixed profile export/import losing dynamic settings such as custom health colors, text template references, state templates, and preset-installed text templates.
+* Fixed profile imports not immediately refreshing visible unit frames with the imported configuration.
+* Fixed profile switching leaving editor and inspector state out of sync with the newly active profile.
+* Fixed custom health colors being overridden by fallback/default color paths during later health refreshes.
+* Fixed active placeholder health bars using neutral placeholder tint instead of configured health colors.
 
 ## [1.0.13]
 
