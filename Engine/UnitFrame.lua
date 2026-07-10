@@ -1504,6 +1504,97 @@ function FocalPoint:RebuildFramesForActiveProfile()
     end
 end
 
+local function GetActiveProfileUnitConfig(addon, unitKey)
+    local profile = addon and addon.db and addon.db.profile
+    local units = profile and profile.Units
+    if type(units) ~= "table" or type(unitKey) ~= "string" or unitKey == "" then
+        return nil
+    end
+
+    return units[unitKey]
+end
+
+local function ValidateEditorSelectionForProfile(addon)
+    local editorStateApi = addon
+        and addon.GUI
+        and addon.GUI.Editor
+        and addon.GUI.Editor.State
+    local state = editorStateApi and editorStateApi.Get and editorStateApi.Get()
+    local profile = addon and addon.db and addon.db.profile
+    if type(state) ~= "table" or type(profile) ~= "table" then
+        return
+    end
+
+    local general = profile.General or {}
+    if editorStateApi.SetMode then
+        editorStateApi.SetMode(general.ExpertMode ~= false and "expert" or "quick")
+    else
+        state.mode = general.ExpertMode ~= false and "expert" or "quick"
+    end
+
+    local activeThemeId = general.ActiveThemeId
+    if type(activeThemeId) ~= "string" or activeThemeId == "" then
+        activeThemeId = "default"
+    end
+    if editorStateApi.SetSelectedThemeId then
+        editorStateApi.SetSelectedThemeId(activeThemeId)
+    else
+        state.selectedThemeId = activeThemeId
+    end
+
+    local selectedUnit = state.selectedUnit
+    if type(GetActiveProfileUnitConfig(addon, selectedUnit)) ~= "table" then
+        selectedUnit = "player"
+        if editorStateApi.SetSelectedUnit then
+            editorStateApi.SetSelectedUnit(selectedUnit)
+        else
+            state.selectedUnit = selectedUnit
+        end
+    end
+
+    local unitConfig = GetActiveProfileUnitConfig(addon, selectedUnit)
+    local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+    local selectedTextId = state.selectedTextId or state.selectedTextKey
+    if type(texts) ~= "table" or type(texts[selectedTextId]) ~= "table" then
+        state.selectedTextId = nil
+        state.selectedTextKey = nil
+    end
+
+    local selectedIndicatorKey = state.selectedIndicatorKey
+    if selectedIndicatorKey == nil or type(selectedIndicatorKey) ~= "string" or selectedIndicatorKey == "" then
+        state.selectedIndicatorKey = "Portrait"
+    elseif type(unitConfig) == "table" and selectedIndicatorKey ~= "Portrait" and type(unitConfig[selectedIndicatorKey]) ~= "table" then
+        state.selectedIndicatorKey = "Portrait"
+    end
+
+    local selectedAuraKey = state.selectedAuraKey
+    if type(unitConfig) ~= "table" or type(unitConfig[selectedAuraKey]) ~= "table" then
+        if type(unitConfig) == "table" and type(unitConfig.Buffs) == "table" then
+            state.selectedAuraKey = "Buffs"
+        elseif type(unitConfig) == "table" and type(unitConfig.Debuffs) == "table" then
+            state.selectedAuraKey = "Debuffs"
+        else
+            state.selectedAuraKey = nil
+        end
+    end
+end
+
+function FocalPoint:HandleActiveProfileChanged(reason)
+    ValidateEditorSelectionForProfile(self)
+
+    if self.RebuildFramesForActiveProfile then
+        self:RebuildFramesForActiveProfile()
+    end
+
+    if self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
+    end
+
+    if self.GUI and self.GUI.RequestRefreshOptions then
+        self.GUI:RequestRefreshOptions()
+    end
+end
+
 function FocalPoint:RefreshUnitFrame(unit)
     if unit == "boss" then
         if self.EnsureBossFrames then

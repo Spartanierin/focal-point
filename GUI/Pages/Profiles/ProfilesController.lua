@@ -73,9 +73,22 @@ local function RefreshProfileUI()
     end
 end
 
-local function RebuildFramesForProfile()
-    if ns.RebuildFramesForActiveProfile then
+local function SyncActiveProfile(reason)
+    if ns.HandleActiveProfileChanged then
+        ns:HandleActiveProfileChanged(reason or "profiles-ui-sync")
+    elseif ns.RebuildFramesForActiveProfile then
         ns:RebuildFramesForActiveProfile()
+    end
+end
+
+local function SetProfileAndLetCallbackSync(db, profileName, reason)
+    local previousProfileName = db and db.GetCurrentProfile and db:GetCurrentProfile() or nil
+    db:SetProfile(profileName)
+
+    -- AceDB fires OnProfileChanged for real profile switches. If the requested
+    -- profile is already active, run the same central sync path explicitly.
+    if previousProfileName == profileName then
+        SyncActiveProfile(reason)
     end
 end
 
@@ -694,9 +707,8 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        db:SetProfile(profileName)
+        SetProfileAndLetCallbackSync(db, profileName, "profiles-activate-current")
         context.state.selectedProfile = profileName
-        RebuildFramesForProfile()
         RefreshProfileUI()
         RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_ACTIVATED")) .. " " .. profileName)
@@ -719,7 +731,7 @@ local function WireWindowCallbacks(context)
         end
 
         db:CopyProfile(profileName)
-        RebuildFramesForProfile()
+        SyncActiveProfile("profiles-copy")
         RefreshProfileUI()
         RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_COPIED")) .. " " .. profileName)
@@ -757,10 +769,12 @@ local function WireWindowCallbacks(context)
     end)
 
     context.importButton:SetCallback("OnClick", function()
-        local function CompleteImport(profileName)
+        local function CompleteImport(profileName, previousProfileName)
             context.state.selectedProfile = profileName
             context.state.newProfileName = ""
-            RebuildFramesForProfile()
+            if previousProfileName == profileName then
+                SyncActiveProfile("profiles-import-current")
+            end
             RefreshProfileUI()
             RefreshWindowState()
             SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_DONE", "Profile \"%s\" was imported."), profileName))
@@ -790,6 +804,7 @@ local function WireWindowCallbacks(context)
                         return false
                     end
 
+                    local previousProfileName = ns.db and ns.db.GetCurrentProfile and ns.db:GetCurrentProfile() or nil
                     local ok, profileName, errorCode, existingProfileName = pcall(transfer.ImportProfileString, ns.db, importString, targetProfileName)
                     if not ok then
                         SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_FAILED_DETAIL", "Profile import failed: %s"), tostring(profileName)))
@@ -798,6 +813,7 @@ local function WireWindowCallbacks(context)
                     if errorCode == "profile-exists" then
                         SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_EXISTS", "Profile \"%s\" already exists."), existingProfileName or targetProfileName or ""))
                         OpenOverwriteConfirmDialog(existingProfileName or targetProfileName or "", function()
+                            local overwritePreviousProfileName = ns.db and ns.db.GetCurrentProfile and ns.db:GetCurrentProfile() or nil
                             local overwriteOk, overwrittenProfileName, overwriteErrorCode = pcall(transfer.ImportProfileString, ns.db, importString, targetProfileName, { overwrite = true })
                             if not overwriteOk or not overwrittenProfileName then
                                 SetTransferDialogStatus(importDialogContext, string.format(T("INFO_PROFILES_IMPORT_FAILED_DETAIL", "Profile import failed: %s"), tostring(overwriteErrorCode or overwrittenProfileName)))
@@ -807,7 +823,7 @@ local function WireWindowCallbacks(context)
                             if importDialogContext and importDialogContext.window and importDialogContext.window.Hide then
                                 importDialogContext.window:Hide()
                             end
-                            CompleteImport(overwrittenProfileName)
+                            CompleteImport(overwrittenProfileName, overwritePreviousProfileName)
                         end)
                         return false
                     end
@@ -816,7 +832,7 @@ local function WireWindowCallbacks(context)
                         return false
                     end
 
-                    CompleteImport(profileName)
+                    CompleteImport(profileName, previousProfileName)
                     return true
                 end,
             }
@@ -869,7 +885,7 @@ local function WireWindowCallbacks(context)
         end
 
         db:ResetProfile()
-        RebuildFramesForProfile()
+        SyncActiveProfile("profiles-reset")
         RefreshProfileUI()
         RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_RESET")) .. " " .. currentProfile)
@@ -894,10 +910,9 @@ local function WireWindowCallbacks(context)
             end
         end
 
-        db:SetProfile(profileName)
+        SetProfileAndLetCallbackSync(db, profileName, "profiles-create-current")
         context.state.selectedProfile = profileName
         context.state.newProfileName = ""
-        RebuildFramesForProfile()
         RefreshProfileUI()
         RefreshWindowState()
         SetStatus((T("INFO_PROFILES_STATUS_CREATED")) .. " " .. profileName)

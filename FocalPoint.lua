@@ -1005,7 +1005,9 @@ function FocalPointAddon:OnInitialize()
 
     if FocalPoint.db and FocalPoint.db.RegisterCallback then
         local function HandleProfileRuntimeRefresh()
-            if FocalPoint.RebuildFramesForActiveProfile then
+            if FocalPoint.HandleActiveProfileChanged then
+                FocalPoint:HandleActiveProfileChanged("ace-profile-changed")
+            elseif FocalPoint.RebuildFramesForActiveProfile then
                 FocalPoint:RebuildFramesForActiveProfile()
             end
         end
