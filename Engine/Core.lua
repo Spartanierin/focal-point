@@ -185,8 +185,9 @@ local function UpdateMoveOverlayVisuals(frame)
 
     if isPlaceholder then
         if isEnabled then
-            overlay:SetBackdropColor(0.05, 0.06, 0.08, 0.72)
-            overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.82)
+            -- Enabled frames should keep their real bar colors visible while unlocked.
+            overlay:SetBackdropColor(0.05, 0.06, 0.08, 0)
+            overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.46)
         else
             overlay:SetBackdropColor(0.05, 0.06, 0.08, 0.18)
             overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.24)
