@@ -32,6 +32,7 @@ This changelog uses the following categories:
 * Fixed custom health colors being overridden by fallback/default color paths during later health refreshes.
 * Fixed active placeholder health bars using neutral placeholder tint instead of configured health colors.
 * Fixed text elements anchored to disabled Power, Alternative Power, or Class Power bars continuing to render after their owning bar was disabled.
+* Fixed old text elements remaining visible and overlapping new text layouts after profile or preset changes.
 
 ## [1.0.13]
 
