@@ -9,6 +9,13 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.14a]
+
+### Fixed
+
+* Fixed a Midnight secret-value Lua error in name/status text handling for units such as Target of Target.
+* Replaced an unsafe Blizzard `GetUnitName` text status path with a safer fallback.
+
 ## [1.0.14]
 
 ### Added
