@@ -147,14 +147,6 @@ function Status.GetResolvedUnitName(unit)
         return ""
     end
 
-    if GetUnitName then
-        local fullName = GetUnitName(unit, true)
-        local resolvedName = TryUseResolvedName(fullName)
-        if resolvedName then
-            return resolvedName
-        end
-    end
-
     if UnitName then
         local unitName = UnitName(unit)
         local resolvedName = TryUseResolvedName(unitName)

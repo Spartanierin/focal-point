@@ -384,14 +384,29 @@ local function EnsureNameFallback(frame, textRole, renderedText)
     end
 
     local resolvedName = Status.GetResolvedUnitName and Status.GetResolvedUnitName(unit) or nil
-    if type(resolvedName) == "string" and resolvedName ~= "" then
-        return resolvedName
+    if type(resolvedName) == "string" then
+        local ok, hasName = pcall(function()
+            return resolvedName ~= ""
+        end)
+        if ok and hasName then
+            return resolvedName
+        elseif not ok then
+            -- Secret strings can still be renderable; avoid comparing them.
+            return resolvedName
+        end
     end
 
     if UnitName then
         local unitName = UnitName(unit)
-        if type(unitName) == "string" and unitName ~= "" then
-            return unitName
+        if type(unitName) == "string" then
+            local ok, hasName = pcall(function()
+                return unitName ~= ""
+            end)
+            if ok and hasName then
+                return unitName
+            elseif not ok then
+                return unitName
+            end
         end
     end
 
