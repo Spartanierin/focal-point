@@ -996,15 +996,38 @@ function UF:ApplyConfig(frame)
     })
 
     -- Texts
+    local newTexts = config.Texts or {}
+    frame.Texts = frame.Texts or {}
+    frame.Tags = frame.Tags or {}
+
+    local staleTextKeys = {}
+    for key in pairs(frame.Texts) do
+        if newTexts[key] == nil then
+            staleTextKeys[#staleTextKeys + 1] = key
+        end
+    end
+
+    for _, key in ipairs(staleTextKeys) do
+        if self.UpdateTextElement then
+            self:UpdateTextElement(frame, key)
+        elseif frame.Texts[key] then
+            frame.Texts[key]:SetText("")
+            frame.Texts[key]:Hide()
+        end
+        frame.Texts[key] = nil
+        frame.Tags[key] = nil
+        if frame._focalPointTextErrors then
+            frame._focalPointTextErrors[key] = nil
+        end
+    end
+
     if config.Texts then
-        for key, textConfig in pairs(config.Texts) do
+        for key, textConfig in pairs(newTexts) do
             if textConfig
                 and textConfig.enabled ~= false
-                and (not frame.Texts or not frame.Texts[key])
+                and not frame.Texts[key]
                 and self.CreateTextElement
             then
-                frame.Texts = frame.Texts or {}
-                frame.Tags = frame.Tags or {}
                 self:CreateTextElement(frame, key, textConfig)
             end
             self:ApplyTextElementConfig(frame, key, frame.Texts[key], textConfig)
