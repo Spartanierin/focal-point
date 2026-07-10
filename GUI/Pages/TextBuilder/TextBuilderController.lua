@@ -254,23 +254,18 @@ local function GetTemplateUsageCounts(templateName)
         return usage
     end
 
-    local units = ns.db and ns.db.profile and ns.db.profile.Units or {}
-    for unitKey, unitConfig in pairs(units or {}) do
-        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
-        if type(texts) == "table" and usage[unitKey] ~= nil then
-            for _, textConfig in pairs(texts) do
-                if type(textConfig) == "table" then
-                    if textConfig.templateName == templateName then
-                        usage[unitKey] = usage[unitKey] + 1
-                    elseif type(textConfig.stateTemplates) == "table" then
-                        for _, stateTemplateName in pairs(textConfig.stateTemplates) do
-                            if stateTemplateName == templateName then
-                                usage[unitKey] = usage[unitKey] + 1
-                                break
-                            end
-                        end
-                    end
-                end
+    local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.ScanActiveProfileTemplateAssignments
+    if not scanner then
+        return usage
+    end
+
+    local countedTextElements = {}
+    for _, entry in ipairs(scanner(ns.db) or {}) do
+        if entry.templateName == templateName and usage[entry.unit] ~= nil then
+            local textKey = tostring(entry.unit or "") .. "\001" .. tostring(entry.textId or "")
+            if not countedTextElements[textKey] then
+                usage[entry.unit] = usage[entry.unit] + 1
+                countedTextElements[textKey] = true
             end
         end
     end
