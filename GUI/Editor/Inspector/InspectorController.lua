@@ -146,6 +146,35 @@ function InspectorController.Build(container, state, options)
         return currentSelectedTextId, currentTextConfig, currentLinkedTemplateName
     end
 
+    local function BuildMissingTemplateMessages(textId)
+        local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.ScanActiveProfileTemplateAssignments
+        if type(scanner) ~= "function" or textId == nil then
+            return {}
+        end
+
+        local primaryMissing = nil
+        local missingStates = {}
+        for _, entry in ipairs(scanner(ns.db) or {}) do
+            if entry.unit == state.selectedUnit and entry.textId == textId and entry.isMissing then
+                if entry.isPrimary then
+                    primaryMissing = entry.templateName
+                elseif entry.isState then
+                    missingStates[#missingStates + 1] = string.format("%s -> %s", tostring(entry.stateKey or "?"), tostring(entry.templateName or "?"))
+                end
+            end
+        end
+
+        local messages = {}
+        if type(primaryMissing) == "string" and primaryMissing ~= "" then
+            messages[#messages + 1] = string.format("Template \"%s\" is not installed in the active profile.", primaryMissing)
+        end
+        if #missingStates > 0 then
+            table.sort(missingStates)
+            messages[#messages + 1] = "Missing state templates: " .. table.concat(missingStates, ", ")
+        end
+        return messages
+    end
+
     local function ResolveIndicatorContext()
         local currentSelectedIndicatorKey = state.selectedIndicatorKey
         if not indicatorList[currentSelectedIndicatorKey] then
@@ -782,6 +811,18 @@ function InspectorController.Build(container, state, options)
                 templateSummary.label:SetTextColor(0.55, 0.59, 0.64, 1)
             end
             textSection:AddChild(templateSummary)
+
+            local missingTemplateMessages = BuildMissingTemplateMessages(selectedTextId)
+            if #missingTemplateMessages > 0 then
+                local missingTemplateWarning = AceGUI:Create("Label")
+                missingTemplateWarning:SetFullWidth(true)
+                missingTemplateWarning:SetText(table.concat(missingTemplateMessages, "\n"))
+                if missingTemplateWarning.label and missingTemplateWarning.label.SetFont then
+                    missingTemplateWarning.label:SetFont(STANDARD_TEXT_FONT, 10, "")
+                    missingTemplateWarning.label:SetTextColor(1.00, 0.72, 0.28, 1)
+                end
+                textSection:AddChild(missingTemplateWarning)
+            end
 
             AddCheckBox(textSection, L["OPTION_ENABLED"] or "Enabled", textConfig.enabled ~= false, function(value)
                 textConfig.enabled = value and true or false
