@@ -32,13 +32,42 @@ function Status.GetLocalizedClassName(classToken)
         normalizedToken
 end
 
-function Status.GetClassificationText(unit)
+function Status.GetUnitClassificationKind(unit)
     if not unit or not UnitClassification then
-        return ""
+        return nil
     end
 
-    local classification = UnitClassification(unit)
-    if type(classification) ~= "string" or classification == "" or classification == "normal" then
+    local ok, kind = pcall(function()
+        local classification = UnitClassification(unit)
+        if type(classification) ~= "string" or classification == "" or classification == "normal" then
+            return nil
+        end
+
+        if classification == "worldboss" then
+            return "worldboss"
+        elseif classification == "elite" then
+            return "elite"
+        elseif classification == "rareelite" then
+            return "rareelite"
+        elseif classification == "rare" then
+            return "rare"
+        elseif classification == "trivial" then
+            return "trivial"
+        end
+
+        return nil
+    end)
+
+    if ok then
+        return kind
+    end
+
+    return nil
+end
+
+function Status.GetClassificationText(unit)
+    local classification = Status.GetUnitClassificationKind(unit)
+    if not classification then
         return ""
     end
 

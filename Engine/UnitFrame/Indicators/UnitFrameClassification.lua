@@ -55,18 +55,49 @@ local function GetPreviewClassification(frame)
     return PREVIEW_CLASSIFICATION_BY_UNIT[frame.unit or ""]
 end
 
+local function ResolveSafeClassificationKind(unit)
+    local Status = FocalPoint.TextElementStatus
+    if Status and Status.GetUnitClassificationKind then
+        return Status.GetUnitClassificationKind(unit)
+    end
+
+    if not unit or not UnitClassification then
+        return nil
+    end
+
+    local ok, kind = pcall(function()
+        local classification = UnitClassification(unit)
+        if type(classification) ~= "string" or classification == "" or classification == "normal" or classification == "trivial" then
+            return nil
+        end
+
+        if classification == "rare" then
+            return "rare"
+        elseif classification == "elite" then
+            return "elite"
+        elseif classification == "rareelite" then
+            return "rareelite"
+        elseif classification == "worldboss" then
+            return "worldboss"
+        end
+
+        return nil
+    end)
+
+    if ok then
+        return kind
+    end
+
+    return nil
+end
+
 local function GetLiveClassification(frame)
     local unit = frame and frame.unit
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClassification then
         return nil
     end
 
-    local classification = UnitClassification(unit)
-    if type(classification) ~= "string" or classification == "" or classification == "normal" or classification == "trivial" then
-        return nil
-    end
-
-    return classification
+    return ResolveSafeClassificationKind(unit)
 end
 
 local function GetClassificationStyle(classification)

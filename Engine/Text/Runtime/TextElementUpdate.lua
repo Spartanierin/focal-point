@@ -264,11 +264,7 @@ local function ToColorCode(r, g, b)
 end
 
 local function GetClassificationLabelStyle(unit)
-    if not unit or not UnitClassification then
-        return nil
-    end
-
-    local classification = UnitClassification(unit)
+    local classification = Status.GetUnitClassificationKind and Status.GetUnitClassificationKind(unit) or nil
     if classification == "rare" then
         return {
             label = Status.GetClassificationText and Status.GetClassificationText(unit) or "Rare",
@@ -290,11 +286,7 @@ local function GetClassificationLabelStyle(unit)
 end
 
 local function GetClassificationAnimationStyle(unit)
-    if not unit or not UnitClassification then
-        return nil
-    end
-
-    local classification = UnitClassification(unit)
+    local classification = Status.GetUnitClassificationKind and Status.GetUnitClassificationKind(unit) or nil
     if classification == "rare" then
         return {
             speed = 1.2,
