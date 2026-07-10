@@ -30,6 +30,24 @@ local function SanitizeRGBA(r, g, b, a, fallbackR, fallbackG, fallbackB, fallbac
         SafeColorComponent(a, fallbackA)
 end
 
+local function IsConfiguredColorComponent(value)
+    if issecretvalue and issecretvalue(value) then
+        return false
+    end
+
+    return type(value) == "number"
+end
+
+local function HasConfiguredColor(color)
+    if type(color) ~= "table" then
+        return false
+    end
+
+    return IsConfiguredColorComponent(color.r or color[1] or color["1"])
+        and IsConfiguredColorComponent(color.g or color[2] or color["2"])
+        and IsConfiguredColorComponent(color.b or color[3] or color["3"])
+end
+
 function Colors.IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false
@@ -326,6 +344,9 @@ local function GetHealthPercent(currentHealth, maxHealth)
 end
 
 function Colors.GetResolvedHealthBarColor(frame, config)
+    local hasCustomHealthColor = config
+        and config.useClassColorHealth == false
+        and HasConfiguredColor(config.healthColor)
     local healthR, healthG, healthB, healthA = UnpackColor(config and config.healthColor, { 0.1, 0.8, 0.1, 1 })
     healthR, healthG, healthB, healthA = SanitizeRGBA(healthR, healthG, healthB, healthA, 0.1, 0.8, 0.1, 1)
 
@@ -350,16 +371,19 @@ function Colors.GetResolvedHealthBarColor(frame, config)
             curve:AddPoint(0.75, BuildCurveColor(1.0, 0.84, 0.18, math.max(lowA or 1, healthA or 1)))
             curve:AddPoint(1, BuildCurveColor(healthR, healthG, healthB, healthA))
 
-            local resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction = ResolvePredictionCurveColor(
-                frame,
-                curve,
-                healthR,
-                healthG,
-                healthB,
-                healthA
-            )
-            if resolvedFromPrediction then
-                return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
+            local resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction
+            if not hasCustomHealthColor then
+                resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction = ResolvePredictionCurveColor(
+                    frame,
+                    curve,
+                    healthR,
+                    healthG,
+                    healthB,
+                    healthA
+                )
+                if resolvedFromPrediction then
+                    return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
+                end
             end
 
             local percent = GetHealthPercent(
@@ -379,14 +403,16 @@ function Colors.GetResolvedHealthBarColor(frame, config)
             end
 
             local resolvedFromUnit
-            resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromUnit = ResolveUnitHealthCurveColor(
-                frame and frame.unit,
-                curve,
-                healthR,
-                healthG,
-                healthB,
-                healthA
-            )
+            if not hasCustomHealthColor then
+                resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromUnit = ResolveUnitHealthCurveColor(
+                    frame and frame.unit,
+                    curve,
+                    healthR,
+                    healthG,
+                    healthB,
+                    healthA
+                )
+            end
 
             if resolvedFromUnit then
                 return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
