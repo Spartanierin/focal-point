@@ -9,6 +9,24 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.15]
+
+### Added
+
+* Added profile-aware text template source and copy support in the editor as groundwork for safer cross-profile text template handling.
+
+### Changed
+
+* Improved unlock-mode placeholder handling so non-selected unit frames use a more consistent neutral placeholder presentation.
+* Increased unlock placeholder overlay opacity and normalized placeholder alpha so placeholder labels and backgrounds appear more consistent across units with different frame alpha settings.
+
+### Fixed
+
+* Fixed disabled unit frames disappearing from the unlock editor, allowing them to remain visible and reactivatable while frames are unlocked.
+* Fixed disabled unit frames remaining visible or reappearing in live mode after target-related events such as `PLAYER_TARGET_CHANGED` or `UNIT_TARGET`.
+* Fixed enabled-state changes in the Inspector using only a local refresh instead of synchronizing the unit frame lifecycle.
+* Fixed disabled unlocked units being routed through the hard-hide path instead of the editor placeholder path.
+
 ## [1.0.14b]
 
 ### Fixed
