@@ -4,6 +4,7 @@ FocalPoint.UnitFrameVisibility = FocalPoint.UnitFrameVisibility or {}
 local Visibility = FocalPoint.UnitFrameVisibility
 
 local Cast = FocalPoint.UnitFrameCastBar or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local Presence = FocalPoint.UnitFramePresence or {}
 local State = FocalPoint.UnitFrameState or {}
 
@@ -323,6 +324,27 @@ function Visibility.HandleMissingUnit(frame)
         end
         if frame.SetAlpha then
             frame:SetAlpha(0)
+        end
+        HideFrameIfSafe(frame)
+        return true
+    end
+
+    if IsPreviewModeEnabled()
+        and Demo.IsFrameUnitEnabled
+        and not Demo.IsFrameUnitEnabled(frame)
+    then
+        frame._missingUnitSince = nil
+        if Visibility.ClearFrameContentValuesOnly then
+            Visibility.ClearFrameContentValuesOnly(frame, "preview-disabled-unit")
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+        if frame.EnableMouse then
+            frame:EnableMouse(false)
+        end
+        if frame.SetMouseClickEnabled then
+            frame:SetMouseClickEnabled(false)
         end
         HideFrameIfSafe(frame)
         return true

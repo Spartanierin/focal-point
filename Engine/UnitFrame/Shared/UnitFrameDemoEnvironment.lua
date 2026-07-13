@@ -461,6 +461,26 @@ local function IsSelectedEditorFrame(frame)
     return frame.unit == selectedUnit
 end
 
+function Demo.IsFrameUnitEnabled(frame)
+    local unit = frame and frame.unit
+    if type(unit) ~= "string" or unit == "" then
+        return false
+    end
+
+    local units = Utils.GetUnitsDB and Utils.GetUnitsDB() or nil
+    if type(units) ~= "table" then
+        return true
+    end
+
+    local configKey = Utils.NormalizeConfigUnitKey and Utils.NormalizeConfigUnitKey(unit) or unit
+    local config = units[configKey]
+    if type(config) ~= "table" then
+        return true
+    end
+
+    return config.enabled ~= false
+end
+
 function Demo.ShouldProcessFrame(frame)
     if not frame or not frame.unit then
         return false
@@ -550,6 +570,9 @@ function Demo.ResolveMode(frame, caller)
     local hasFrame = frame and frame.unit
     if FocalPoint.guiTestModeEnabled == true then
         if hasFrame then
+            if not Demo.IsFrameUnitEnabled(frame) then
+                return "disabled", "demo-disabled-unit"
+            end
             return "detailed", "global-demo-detailed"
         end
         return "live", "live-invalid-frame"
@@ -558,6 +581,9 @@ function Demo.ResolveMode(frame, caller)
     if FocalPoint.framesUnlocked == true then
         if not hasFrame then
             return "live", "live-invalid-frame"
+        end
+        if not Demo.IsFrameUnitEnabled(frame) then
+            return "disabled", "unlock-disabled-unit"
         end
         if IsSelectedEditorFrame(frame) then
             return "detailed", "unlock-selected-detailed"
@@ -614,6 +640,10 @@ function Demo.ShouldForceFrameVisible(frame)
         return false
     end
 
+    if not Demo.IsFrameUnitEnabled(frame) then
+        return false
+    end
+
     return Demo.IsFrameInDemoMode(frame)
 end
 
@@ -627,6 +657,9 @@ function Demo.GetUnitValues(frame, mode)
     end
 
     mode = mode or Demo.GetCommittedMode(frame)
+    if mode == "disabled" or not Demo.IsFrameUnitEnabled(frame) then
+        return nil
+    end
     if mode == "detailed" then
         return Demo.GetDetailedValuesForUnit(frame.unit)
     end
@@ -888,6 +921,37 @@ end
 
 function Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason)
     mode = mode or Demo.ResolveMode(frame, "snapshot")
+    if mode == "disabled" then
+        local state = GetRuntimeState(frame)
+        if state then
+            state.mode = "disabled"
+            state.auras = {}
+            state.castbarStarted = false
+            state.castbarConfigSignature = nil
+            state.firstLiveObservedAt = nil
+        end
+        frame.TestValues = nil
+        local visibility = FocalPoint and FocalPoint.UnitFrameVisibility or nil
+        if visibility and visibility.ClearFrameContentValuesOnly then
+            visibility.ClearFrameContentValuesOnly(frame, modeReason or "demo-disabled-unit")
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+        if frame.EnableMouse then
+            frame:EnableMouse(false)
+        end
+        if frame.SetMouseClickEnabled then
+            frame:SetMouseClickEnabled(false)
+        end
+        local protectedRoot = frame.IsProtected and frame:IsProtected()
+        local inCombat = InCombatLockdown and InCombatLockdown()
+        if frame.Hide and not (protectedRoot and inCombat) then
+            frame:Hide()
+        end
+        return true
+    end
+
     if mode == "live" and not Demo.IsDemoActive() then
         Demo.CleanupFrameRuntime(frame, "mode-live")
         return false

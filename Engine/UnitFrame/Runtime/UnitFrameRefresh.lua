@@ -74,6 +74,12 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
 
     local demoApplied = Demo.ApplyFrameSnapshot and Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason) or false
     if demoApplied then
+        if mode == "disabled" then
+            if Demo.ReportDebug then
+                Demo.ReportDebug(frame)
+            end
+            return
+        end
         if Demo.ShouldProcessFrame and not Demo.ShouldProcessFrame(frame) then
             if frame.Hide then
                 frame:Hide()
