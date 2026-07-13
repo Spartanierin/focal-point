@@ -28,6 +28,7 @@ local UNIT_KEYS = C.UnitOrder or {
 
 local fallbackRootState = {}
 local windowContext
+local RefreshWindowState
 
 local CreateBodyText = FormWidgets.CreateBodyText
 local StyleDropdown = FormWidgets.StyleDropdown
@@ -60,6 +61,100 @@ local function NormalizeTemplateInput(value)
     return type(value) == "string" and value or ""
 end
 
+local function GetCurrentProfileName()
+    local library = ns.TextTemplateLibrary
+    if library and library.GetCurrentProfileName then
+        return library.GetCurrentProfileName(ns.db)
+    end
+
+    local db = ns.db
+    if db and type(db.GetCurrentProfile) == "function" then
+        local ok, profileName = pcall(db.GetCurrentProfile, db)
+        if ok and type(profileName) == "string" and profileName ~= "" then
+            return profileName
+        end
+    end
+
+    return nil
+end
+
+local function GetActiveProfileTemplates()
+    local profileName = GetCurrentProfileName()
+    local library = ns.TextTemplateLibrary
+    if library and library.GetProfileTemplates then
+        return library.GetProfileTemplates(ns.db, profileName), profileName
+    end
+
+    local profile = ns.db and ns.db.profile
+    local templates = profile and type(profile.TextTemplates) == "table" and profile.TextTemplates or {}
+    return templates, profileName
+end
+
+local function ResetApplyUnits(state)
+    state.applyUnits = {}
+    for index, unitKey in ipairs(UNIT_KEYS) do
+        state.applyUnits[unitKey] = index == 1
+    end
+end
+
+local function ClearTemplateSelection(state)
+    state.selectedTemplate = ""
+    state.templateName = ""
+    state.template = DEFAULT_TEMPLATE
+    state.selectedTemplateProfileName = state.activeProfileName
+    ResetApplyUnits(state)
+end
+
+local function ReconcileTextBuilderProfileContext(state)
+    if type(state) ~= "table" then
+        return false
+    end
+
+    local currentProfileName = GetCurrentProfileName()
+    if type(currentProfileName) ~= "string" or currentProfileName == "" then
+        currentProfileName = nil
+    end
+
+    local previousProfileName = state.activeProfileName
+    local previousSelectedTemplate = state.selectedTemplate
+    local profileChanged = previousProfileName ~= nil and previousProfileName ~= currentProfileName
+    local selectionProfileMismatch = type(previousSelectedTemplate) == "string"
+        and previousSelectedTemplate ~= ""
+        and state.selectedTemplateProfileName ~= nil
+        and state.selectedTemplateProfileName ~= currentProfileName
+
+    if previousProfileName == nil then
+        state.activeProfileName = currentProfileName
+        if state.selectedTemplateProfileName == nil then
+            state.selectedTemplateProfileName = currentProfileName
+        end
+        return false
+    end
+
+    if not profileChanged and not selectionProfileMismatch then
+        return false
+    end
+
+    local templates = GetActiveProfileTemplates()
+    state.activeProfileName = currentProfileName
+    state.selectedTemplateProfileName = currentProfileName
+    state._profileContextChanged = true
+
+    if type(previousSelectedTemplate) == "string"
+        and previousSelectedTemplate ~= ""
+        and type(templates[previousSelectedTemplate]) == "string"
+    then
+        state.selectedTemplate = previousSelectedTemplate
+        state.templateName = previousSelectedTemplate
+        state.template = NormalizeTemplateInput(templates[previousSelectedTemplate])
+        ResetApplyUnits(state)
+        return true
+    end
+
+    ClearTemplateSelection(state)
+    return true
+end
+
 local function GetTextBuilderState(deps)
     local rootState = (deps and deps.GetGUIState and deps.GetGUIState()) or fallbackRootState
     rootState.textBuilder = rootState.textBuilder or {}
@@ -74,6 +169,12 @@ local function GetTextBuilderState(deps)
     if type(state.selectedTemplate) ~= "string" then
         state.selectedTemplate = ""
     end
+    if type(state.activeProfileName) ~= "string" then
+        state.activeProfileName = GetCurrentProfileName()
+    end
+    if type(state.selectedTemplateProfileName) ~= "string" then
+        state.selectedTemplateProfileName = state.activeProfileName
+    end
 
     state.applyUnits = state.applyUnits or {}
     for index, unitKey in ipairs(UNIT_KEYS) do
@@ -82,6 +183,7 @@ local function GetTextBuilderState(deps)
         end
     end
 
+    ReconcileTextBuilderProfileContext(state)
     return state
 end
 
@@ -98,6 +200,10 @@ local function RefreshToolUI()
 end
 
 local function GetTemplates()
+    return GetActiveProfileTemplates()
+end
+
+local function GetWritableTemplates()
     if not ns.db or not ns.db.profile then
         return {}
     end
@@ -550,11 +656,28 @@ local function ApplyTemplateToTextElement(context)
     RefreshTemplateUsageState(context)
 end
 
-local function RefreshWindowState()
+local function EnsureWritableProfileContext(context)
+    if not context or type(context.state) ~= "table" then
+        return false
+    end
+
+    if ReconcileTextBuilderProfileContext(context.state) then
+        if RefreshWindowState then
+            RefreshWindowState()
+        end
+        return false
+    end
+
+    return context.state.activeProfileName == GetCurrentProfileName()
+end
+
+RefreshWindowState = function()
     local context = windowContext
     if not context then
         return
     end
+    local profileContextChanged = ReconcileTextBuilderProfileContext(context.state)
+
     local function ApplyTextBuilderButtonVisuals()
         if not ApplyModalActionButtonVisual then
             return
@@ -610,6 +733,10 @@ local function RefreshWindowState()
     local hasTemplateText = Trim(context.templateEdit:GetText() or "") ~= ""
 
     SyncTemplateSelectWidget(context)
+    if profileContextChanged or context.state._profileContextChanged then
+        SyncDesiredTemplateUsage(context)
+        context.state._profileContextChanged = nil
+    end
 
     context.deleteTemplateButton:SetDisabled(not hasSelectedTemplate)
     context.saveButton:SetDisabled(not hasTemplateName or not hasTemplateText)
@@ -753,6 +880,7 @@ local function WireWindowCallbacks(context)
         local selectedTemplate = GetTemplates()[selectedName]
 
         context.state.selectedTemplate = selectedName
+        context.state.selectedTemplateProfileName = context.state.activeProfileName
         context.state.templateName = selectedName
         context.state.template = type(selectedTemplate) == "string" and NormalizeTemplateInput(selectedTemplate) or context.state.template
 
@@ -772,7 +900,11 @@ local function WireWindowCallbacks(context)
     end)
 
     context.saveButton:SetCallback("OnClick", function()
-        local templates = GetTemplates()
+        if not EnsureWritableProfileContext(context) then
+            return
+        end
+
+        local templates = GetWritableTemplates()
         local name = Trim(context.templateNameEdit:GetText() or "")
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
@@ -783,6 +915,7 @@ local function WireWindowCallbacks(context)
 
         templates[name] = template
         context.state.selectedTemplate = name
+        context.state.selectedTemplateProfileName = context.state.activeProfileName
         context.state.templateName = name
         context.state.template = template
         RefreshTemplateDropdown(context)
@@ -791,7 +924,11 @@ local function WireWindowCallbacks(context)
     end)
 
     context.updateTemplateButton:SetCallback("OnClick", function()
-        local templates = GetTemplates()
+        if not EnsureWritableProfileContext(context) then
+            return
+        end
+
+        local templates = GetWritableTemplates()
         local selectedName = context.state.selectedTemplate or ""
         local updatedName = Trim(context.templateNameEdit:GetText() or "")
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
@@ -816,6 +953,7 @@ local function WireWindowCallbacks(context)
             templates[selectedName] = nil
             RenameTemplateReferences(selectedName, updatedName)
             context.state.selectedTemplate = updatedName
+            context.state.selectedTemplateProfileName = context.state.activeProfileName
             context.state.templateName = updatedName
             context.state.template = template
             RefreshTemplateDropdown(context)
@@ -827,13 +965,18 @@ local function WireWindowCallbacks(context)
         templates[selectedName] = template
         context.state.template = template
         context.state.templateName = selectedName
+        context.state.selectedTemplateProfileName = context.state.activeProfileName
         RefreshTemplateDropdown(context)
         RefreshWindowState()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName)
     end)
 
     context.deleteTemplateButton:SetCallback("OnClick", function()
-        local templates = GetTemplates()
+        if not EnsureWritableProfileContext(context) then
+            return
+        end
+
+        local templates = GetWritableTemplates()
         local selectedName = context.state.selectedTemplate or ""
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
@@ -843,6 +986,7 @@ local function WireWindowCallbacks(context)
 
         templates[selectedName] = nil
         context.state.selectedTemplate = ""
+        context.state.selectedTemplateProfileName = context.state.activeProfileName
         context.state.templateName = ""
         RefreshTemplateDropdown(context)
         RefreshWindowState()
@@ -850,6 +994,10 @@ local function WireWindowCallbacks(context)
     end)
 
     context.applyTemplateButton:SetCallback("OnClick", function()
+        if not EnsureWritableProfileContext(context) then
+            return
+        end
+
         ApplyTemplateToTextElement(context)
     end)
 end
@@ -909,6 +1057,10 @@ function TextBuilderController.HideWindow()
     elseif windowContext.window.frame and windowContext.window.frame.Hide then
         windowContext.window.frame:Hide()
     end
+end
+
+function TextBuilderController.RefreshWindowState()
+    RefreshWindowState()
 end
 
 return TextBuilderController

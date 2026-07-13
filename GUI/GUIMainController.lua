@@ -599,6 +599,10 @@ function FocalPoint.GUI:RefreshOptions()
             BuildAppSidebar(addon.guiAppSidebar)
         end
         RenderPage(addon.guiContentHost, selectedPath)
+        local textBuilderPage = addon.GUI and addon.GUI.Pages and addon.GUI.Pages.TextBuilder
+        if textBuilderPage and textBuilderPage.RefreshWindowState then
+            textBuilderPage.RefreshWindowState()
+        end
         StabilizeRenderedShell(selectedPath, refreshSerial)
 
         if C_Timer and C_Timer.After then
