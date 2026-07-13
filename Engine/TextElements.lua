@@ -473,47 +473,13 @@ local function HasActiveCast(unit)
     return false
 end
 
-local function ResolveTextRole(textConfig, key)
-    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
-        return textConfig.role
-    end
-
-    if key == "Name" then
-        return "name"
-    elseif key == "AltPower" then
-        return "altpower"
-    elseif key == "ClassPower" then
-        return "classpower"
-    elseif key == "CastName" then
-        return "cast_name"
-    elseif key == "CastTime" then
-        return "cast_time"
-    elseif key == "Class" then
-        return "class"
-    elseif key == "Level" then
-        return "level"
-    end
-
-    return nil
-end
-
 local function FindTextKeyByRole(frame, role, legacyKey)
     if not frame or not frame.config or not frame.config.Texts then
         return nil
     end
 
-    for textKey, textConfig in pairs(frame.config.Texts) do
-        local textRole = ResolveTextRole(textConfig, textKey)
-        if textRole == role then
-            return textKey
-        end
-    end
-
-    if legacyKey and type(frame.config.Texts[legacyKey]) == "table" then
-        return legacyKey
-    end
-
-    return nil
+    local Roles = FocalPoint.TextElementRoles or {}
+    return Roles.FindTextKeyByRole and Roles.FindTextKeyByRole(frame.config.Texts, role, legacyKey) or nil
 end
 
 -- Checks whether the current frame actually uses a CastTime text element.

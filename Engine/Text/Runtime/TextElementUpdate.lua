@@ -8,6 +8,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local TextState = FocalPoint.TextElementState or {}
 local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local Roles = FocalPoint.TextElementRoles or {}
 local StopAnimatedNameText
 
 local animatedNameTexts = {}
@@ -41,37 +42,13 @@ local function SafeSetText(textObject, textValue, preferLastKnownGood)
     return false
 end
 
-local function ResolveTextRole(textConfig, key)
-    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
-        return textConfig.role
-    end
-
-    if key == "Name" then
-        return "name"
-    elseif key == "AltPower" then
-        return "altpower"
-    elseif key == "ClassPower" then
-        return "classpower"
-    elseif key == "CastName" then
-        return "cast_name"
-    elseif key == "CastTime" then
-        return "cast_time"
-    elseif key == "Class" then
-        return "class"
-    elseif key == "Level" then
-        return "level"
-    end
-
-    return nil
-end
-
 local function TemplateContainsCastToken(template)
     return type(template) == "string"
         and (template:find("%[cast:name%]") ~= nil or template:find("%[cast:time%]") ~= nil)
 end
 
 local function IsCastBoundTextElement(frame, key, textConfig, template, textRole)
-    if textRole == "cast_name" or textRole == "cast_time" then
+    if Roles.IsCastRole and Roles.IsCastRole(textRole) then
         return true
     end
 
@@ -811,7 +788,7 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
-        local textRole = ResolveTextRole(textConfig, key)
+        local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
 
         if IsCastBoundTextElement(frame, key, textConfig, template, textRole) and not IsCastTextAllowed(frame) then
@@ -941,7 +918,7 @@ function Update.UpdateElement(frame, key, deps)
     if frame and frame.Texts and frame.Texts[key] then
         local textObject = frame.Texts[key]
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
-        local textRole = ResolveTextRole(textConfig, key)
+        local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
         if textRole == "name" then
             RenderNameTextDirect(frame, textObject, nil, textConfig)
             textObject:Show()

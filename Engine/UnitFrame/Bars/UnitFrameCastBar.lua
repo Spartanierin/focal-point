@@ -6,6 +6,7 @@ local CastBar = FocalPoint.UnitFrameCastBar
 local Assets = FocalPoint.UnitFrameAssets or {}
 local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
+local Roles = FocalPoint.TextElementRoles or {}
 
 local UnpackColor = Utils.UnpackColor
 local ResolveInterruptState = Utils.ResolveInterruptState
@@ -13,27 +14,13 @@ local ResolveInterruptState = Utils.ResolveInterruptState
 -- Cast bar helpers keep timing/state logic together so runtime refresh code
 -- can stay focused on orchestration.
 
-local function ResolveTextRole(textConfig, key)
-    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
-        return textConfig.role
-    end
-
-    if key == "CastName" then
-        return "cast_name"
-    elseif key == "CastTime" then
-        return "cast_time"
-    end
-
-    return nil
-end
-
 local function TemplateContainsCastToken(template)
     return type(template) == "string" and template:find("%[cast:", 1, false) ~= nil
 end
 
 local function IsCastbarTextElement(frame, key, textConfig)
-    local role = ResolveTextRole(textConfig, key)
-    if role == "cast_name" or role == "cast_time" then
+    local role = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
+    if Roles.IsCastRole and Roles.IsCastRole(role) then
         return true
     end
 

@@ -3,33 +3,10 @@ local _, FocalPoint = ...
 FocalPoint.TextElementApply = FocalPoint.TextElementApply or {}
 
 local Apply = FocalPoint.TextElementApply
+local Roles = FocalPoint.TextElementRoles or {}
 
 -- Applies layout and style settings to text elements while leaving template
 -- and live update logic in their dedicated modules.
-local function ResolveTextRole(textConfig, key)
-    if type(textConfig) == "table" and type(textConfig.role) == "string" and textConfig.role ~= "" then
-        return textConfig.role
-    end
-
-    if key == "Name" then
-        return "name"
-    elseif key == "AltPower" then
-        return "altpower"
-    elseif key == "ClassPower" then
-        return "classpower"
-    elseif key == "CastName" then
-        return "cast_name"
-    elseif key == "CastTime" then
-        return "cast_time"
-    elseif key == "Class" then
-        return "class"
-    elseif key == "Level" then
-        return "level"
-    end
-
-    return nil
-end
-
 local function ResolveOverflowWidth(key, textConfig, anchorParent)
     if not textConfig then
         return 0
@@ -41,7 +18,7 @@ local function ResolveOverflowWidth(key, textConfig, anchorParent)
     local relativePoint = textConfig.relativePoint or "CENTER"
     local overflowMode = textConfig.overflowMode or "NONE"
     local anchorWidth = anchorParent and anchorParent.GetWidth and anchorParent:GetWidth() or 0
-    local textRole = ResolveTextRole(textConfig, key)
+    local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
 
     if anchorTo == "CastBar" and anchorWidth > 0 then
         if textRole == "cast_time" then
@@ -98,7 +75,7 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     local fontSize = textConfig.fontSize or 12
     local fontFlags = BuildFontFlags and BuildFontFlags(textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
-    local textRole = ResolveTextRole(textConfig, key)
+    local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
 
     local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
     local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
