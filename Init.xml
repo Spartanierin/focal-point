@@ -58,6 +58,7 @@
     <Script file="Engine/Text/Shared/TextElementBasicTags.lua"/>
     <Script file="Engine/Text/Shared/TextElementTokenResolver.lua"/>
     <Script file="Engine/Text/Shared/TextElementTemplates.lua"/>
+    <Script file="Engine/Text/Shared/TextTemplateLibrary.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateUsage.lua"/>
     <Script file="Engine/Text/Shared/TextElementDirectTemplate.lua"/>
     <Script file="Engine/Text/Runtime/TextElementFactory.lua"/>
