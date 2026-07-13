@@ -159,6 +159,30 @@ function Library.GetProfileTemplates(db, profileName)
     return profile.TextTemplates
 end
 
+function Library.GetProfileTemplateEntry(db, profileName, templateName)
+    if type(profileName) ~= "string" or profileName == "" or type(templateName) ~= "string" or templateName == "" then
+        return nil
+    end
+
+    db = db or FocalPoint.db
+    local templates = Library.GetProfileTemplates(db, profileName)
+    local templateValue = templates[templateName]
+    if type(templateValue) ~= "string" then
+        return nil
+    end
+
+    return {
+        sourceType = "profile",
+        sourceId = profileName,
+        sourceLabel = profileName,
+        profileName = profileName,
+        templateName = templateName,
+        templateValue = templateValue,
+        readOnly = false,
+        isActiveProfile = profileName == Library.GetCurrentProfileName(db),
+    }
+end
+
 function Library.ListProfileTemplateEntries(db)
     db = db or FocalPoint.db
     local entries = {}
@@ -226,6 +250,42 @@ function Library.ListIntegratedTemplateDefinitions()
     end
 
     return entries
+end
+
+function Library.FindTemplateEntry(db, selection)
+    if type(selection) ~= "table" then
+        return nil
+    end
+
+    local sourceType = selection.sourceType
+    local sourceId = selection.sourceId
+    local templateName = selection.templateName
+    if type(sourceType) ~= "string" or sourceType == "" or type(templateName) ~= "string" or templateName == "" then
+        return nil
+    end
+
+    if sourceType == "profile" then
+        return Library.GetProfileTemplateEntry(db, selection.profileName or sourceId, templateName)
+    end
+
+    if sourceType == "default" then
+        for _, entry in ipairs(Library.ListDefaultTemplateDefinitions()) do
+            if entry.sourceId == sourceId and entry.templateName == templateName then
+                return entry
+            end
+        end
+        return nil
+    end
+
+    if sourceType == "preset" then
+        for _, entry in ipairs(Library.ListPresetTemplateDefinitions()) do
+            if entry.sourceId == sourceId and entry.templateName == templateName then
+                return entry
+            end
+        end
+    end
+
+    return nil
 end
 
 return Library

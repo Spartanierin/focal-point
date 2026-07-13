@@ -90,6 +90,88 @@ local function GetActiveProfileTemplates()
     return templates, profileName
 end
 
+local function GetProfileTemplateEntry(profileName, templateName)
+    local library = ns.TextTemplateLibrary
+    if library and library.GetProfileTemplateEntry then
+        return library.GetProfileTemplateEntry(ns.db, profileName, templateName)
+    end
+
+    local templates = GetActiveProfileTemplates()
+    local templateValue = type(templates) == "table" and templates[templateName] or nil
+    if type(profileName) ~= "string" or profileName == "" or type(templateName) ~= "string" or templateName == "" or type(templateValue) ~= "string" then
+        return nil
+    end
+
+    return {
+        sourceType = "profile",
+        sourceId = profileName,
+        profileName = profileName,
+        templateName = templateName,
+        templateValue = templateValue,
+        readOnly = false,
+    }
+end
+
+local function BuildTemplateSelection(entry)
+    if type(entry) ~= "table"
+        or type(entry.sourceType) ~= "string"
+        or entry.sourceType == ""
+        or type(entry.sourceId) ~= "string"
+        or entry.sourceId == ""
+        or type(entry.templateName) ~= "string"
+        or entry.templateName == ""
+    then
+        return nil
+    end
+
+    local selection = {
+        sourceType = entry.sourceType,
+        sourceId = entry.sourceId,
+        templateName = entry.templateName,
+    }
+
+    if type(entry.profileName) == "string" and entry.profileName ~= "" then
+        selection.profileName = entry.profileName
+    end
+    if type(entry.themeId) == "string" and entry.themeId ~= "" then
+        selection.themeId = entry.themeId
+    end
+    if entry.readOnly ~= nil then
+        selection.readOnly = entry.readOnly and true or false
+    end
+
+    return selection
+end
+
+local function ResolveTemplateSelection(selection)
+    if type(selection) ~= "table" then
+        return nil
+    end
+
+    local library = ns.TextTemplateLibrary
+    if library and library.FindTemplateEntry then
+        return library.FindTemplateEntry(ns.db, selection)
+    end
+
+    if selection.sourceType == "profile" then
+        return GetProfileTemplateEntry(selection.profileName or selection.sourceId, selection.templateName)
+    end
+
+    return nil
+end
+
+local function IsSameTemplateSelection(left, right)
+    if type(left) ~= "table" or type(right) ~= "table" then
+        return false
+    end
+
+    return left.sourceType == right.sourceType
+        and left.sourceId == right.sourceId
+        and left.profileName == right.profileName
+        and left.themeId == right.themeId
+        and left.templateName == right.templateName
+end
+
 local function ResetApplyUnits(state)
     state.applyUnits = {}
     for index, unitKey in ipairs(UNIT_KEYS) do
@@ -98,11 +180,57 @@ local function ResetApplyUnits(state)
 end
 
 local function ClearTemplateSelection(state)
+    state.selectedTemplateEntry = nil
     state.selectedTemplate = ""
     state.templateName = ""
     state.template = DEFAULT_TEMPLATE
     state.selectedTemplateProfileName = state.activeProfileName
     ResetApplyUnits(state)
+end
+
+local function SetTemplateSelection(state, entry)
+    if type(state) ~= "table" or type(entry) ~= "table" then
+        return false
+    end
+
+    local selection = BuildTemplateSelection(entry)
+    if not selection then
+        ClearTemplateSelection(state)
+        return false
+    end
+
+    state.selectedTemplateEntry = selection
+    state.selectedTemplate = entry.templateName
+    state.selectedTemplateProfileName = entry.profileName or state.activeProfileName
+    state.templateName = entry.templateName
+    state.template = NormalizeTemplateInput(entry.templateValue)
+    return true
+end
+
+local function GetSelectedTemplateEntry(state)
+    if type(state) ~= "table" then
+        return nil
+    end
+
+    local entry = ResolveTemplateSelection(state.selectedTemplateEntry)
+    if entry then
+        return entry
+    end
+
+    if type(state.selectedTemplate) == "string" and state.selectedTemplate ~= "" then
+        return GetProfileTemplateEntry(state.activeProfileName, state.selectedTemplate)
+    end
+
+    return nil
+end
+
+local function GetSelectedTemplateName(state)
+    local entry = GetSelectedTemplateEntry(state)
+    if entry and type(entry.templateName) == "string" then
+        return entry.templateName
+    end
+
+    return type(state) == "table" and state.selectedTemplate or ""
 end
 
 local function ReconcileTextBuilderProfileContext(state)
@@ -116,39 +244,48 @@ local function ReconcileTextBuilderProfileContext(state)
     end
 
     local previousProfileName = state.activeProfileName
-    local previousSelectedTemplate = state.selectedTemplate
+    local previousEntry = GetSelectedTemplateEntry(state)
+    local previousSelectedTemplate = previousEntry and previousEntry.templateName or state.selectedTemplate
     local profileChanged = previousProfileName ~= nil and previousProfileName ~= currentProfileName
     local selectionProfileMismatch = type(previousSelectedTemplate) == "string"
         and previousSelectedTemplate ~= ""
-        and state.selectedTemplateProfileName ~= nil
-        and state.selectedTemplateProfileName ~= currentProfileName
+        and previousEntry ~= nil
+        and previousEntry.sourceType == "profile"
+        and previousEntry.profileName ~= currentProfileName
 
     if previousProfileName == nil then
         state.activeProfileName = currentProfileName
         if state.selectedTemplateProfileName == nil then
             state.selectedTemplateProfileName = currentProfileName
         end
+        if previousEntry then
+            SetTemplateSelection(state, previousEntry)
+        end
         return false
     end
 
     if not profileChanged and not selectionProfileMismatch then
+        if previousEntry then
+            SetTemplateSelection(state, previousEntry)
+        elseif type(state.selectedTemplateEntry) == "table" or (type(state.selectedTemplate) == "string" and state.selectedTemplate ~= "") then
+            ClearTemplateSelection(state)
+        end
         return false
     end
 
-    local templates = GetActiveProfileTemplates()
     state.activeProfileName = currentProfileName
     state.selectedTemplateProfileName = currentProfileName
     state._profileContextChanged = true
 
     if type(previousSelectedTemplate) == "string"
         and previousSelectedTemplate ~= ""
-        and type(templates[previousSelectedTemplate]) == "string"
     then
-        state.selectedTemplate = previousSelectedTemplate
-        state.templateName = previousSelectedTemplate
-        state.template = NormalizeTemplateInput(templates[previousSelectedTemplate])
-        ResetApplyUnits(state)
-        return true
+        local replacementEntry = GetProfileTemplateEntry(currentProfileName, previousSelectedTemplate)
+        if replacementEntry then
+            SetTemplateSelection(state, replacementEntry)
+            ResetApplyUnits(state)
+            return true
+        end
     end
 
     ClearTemplateSelection(state)
@@ -168,6 +305,14 @@ local function GetTextBuilderState(deps)
     end
     if type(state.selectedTemplate) ~= "string" then
         state.selectedTemplate = ""
+    end
+    if type(state.selectedTemplateEntry) ~= "table" and state.selectedTemplate ~= "" then
+        state.selectedTemplateEntry = BuildTemplateSelection({
+            sourceType = "profile",
+            sourceId = state.selectedTemplateProfileName or state.activeProfileName or GetCurrentProfileName() or "",
+            profileName = state.selectedTemplateProfileName or state.activeProfileName or GetCurrentProfileName(),
+            templateName = state.selectedTemplate,
+        })
     end
     if type(state.activeProfileName) ~= "string" then
         state.activeProfileName = GetCurrentProfileName()
@@ -380,7 +525,7 @@ local function GetTemplateUsageCounts(templateName)
 end
 
 local function SyncDesiredTemplateUsage(context)
-    local selectedTemplateName = context.state.selectedTemplate or ""
+    local selectedTemplateName = GetSelectedTemplateName(context.state)
     local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
 
     context.state.applyUnits = context.state.applyUnits or {}
@@ -538,7 +683,7 @@ local function RefreshPreview(context)
 end
 
 local function RefreshTemplateUsageState(context)
-    local selectedTemplateName = context.state.selectedTemplate or ""
+    local selectedTemplateName = GetSelectedTemplateName(context.state)
     local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
 
     for unitKey, checkbox in pairs(context.usageCheckboxes or {}) do
@@ -582,7 +727,8 @@ local function ApplyTemplateToTextElement(context)
 
     local templates = GetTemplates()
     local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
-    local selectedTemplateName = context.state.selectedTemplate or ""
+    local selectedEntry = GetSelectedTemplateEntry(context.state)
+    local selectedTemplateName = selectedEntry and selectedEntry.templateName or ""
     local linkedTemplateName = ""
     local unitsToAdd = {}
     local unitsToRemove = {}
@@ -669,6 +815,29 @@ local function EnsureWritableProfileContext(context)
     end
 
     return context.state.activeProfileName == GetCurrentProfileName()
+end
+
+local function ResolveWritableProfileSelection(context)
+    if not EnsureWritableProfileContext(context) then
+        return nil
+    end
+
+    local entry = GetSelectedTemplateEntry(context.state)
+    local currentProfileName = GetCurrentProfileName()
+    if not entry
+        or entry.sourceType ~= "profile"
+        or entry.profileName ~= currentProfileName
+        or entry.readOnly
+    then
+        ClearTemplateSelection(context.state)
+        if RefreshWindowState then
+            RefreshWindowState()
+        end
+        return nil
+    end
+
+    SetTemplateSelection(context.state, entry)
+    return entry
 end
 
 RefreshWindowState = function()
@@ -795,7 +964,7 @@ local function WireWindowCallbacks(context)
 
     for unitKey, checkbox in pairs(context.usageCheckboxes or {}) do
         checkbox:SetCallback("OnValueChanged", function(widget, _, value)
-            local selectedTemplateName = context.state.selectedTemplate or ""
+            local selectedTemplateName = GetSelectedTemplateName(context.state)
             if selectedTemplateName == "" then
                 widget:SetValue(false)
                 return
@@ -877,22 +1046,20 @@ local function WireWindowCallbacks(context)
         end
 
         local selectedName = value or ""
-        local selectedTemplate = GetTemplates()[selectedName]
-
-        context.state.selectedTemplate = selectedName
-        context.state.selectedTemplateProfileName = context.state.activeProfileName
-        context.state.templateName = selectedName
-        context.state.template = type(selectedTemplate) == "string" and NormalizeTemplateInput(selectedTemplate) or context.state.template
+        local selectedEntry = GetProfileTemplateEntry(GetCurrentProfileName(), selectedName)
+        if selectedEntry then
+            SetTemplateSelection(context.state, selectedEntry)
+        else
+            ClearTemplateSelection(context.state)
+        end
 
         context.suspendTemplateNameCallbacks = true
-        context.templateNameEdit:SetText(selectedName)
+        context.templateNameEdit:SetText(context.state.templateName or "")
         context.suspendTemplateNameCallbacks = false
 
-        if type(selectedTemplate) == "string" then
-            context.suspendTemplateEditCallbacks = true
-            context.templateEdit:SetText(NormalizeTemplateInput(selectedTemplate))
-            context.suspendTemplateEditCallbacks = false
-        end
+        context.suspendTemplateEditCallbacks = true
+        context.templateEdit:SetText(context.state.template or "")
+        context.suspendTemplateEditCallbacks = false
 
         SyncDesiredTemplateUsage(context)
         RefreshPreview(context)
@@ -914,22 +1081,26 @@ local function WireWindowCallbacks(context)
         end
 
         templates[name] = template
-        context.state.selectedTemplate = name
-        context.state.selectedTemplateProfileName = context.state.activeProfileName
-        context.state.templateName = name
-        context.state.template = template
+        SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, name) or {
+            sourceType = "profile",
+            sourceId = context.state.activeProfileName,
+            profileName = context.state.activeProfileName,
+            templateName = name,
+            templateValue = template,
+        })
         RefreshTemplateDropdown(context)
         RefreshWindowState()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name)
     end)
 
     context.updateTemplateButton:SetCallback("OnClick", function()
-        if not EnsureWritableProfileContext(context) then
+        local selectedEntry = ResolveWritableProfileSelection(context)
+        if not selectedEntry then
             return
         end
 
         local templates = GetWritableTemplates()
-        local selectedName = context.state.selectedTemplate or ""
+        local selectedName = selectedEntry.templateName
         local updatedName = Trim(context.templateNameEdit:GetText() or "")
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
@@ -952,10 +1123,13 @@ local function WireWindowCallbacks(context)
             templates[updatedName] = template
             templates[selectedName] = nil
             RenameTemplateReferences(selectedName, updatedName)
-            context.state.selectedTemplate = updatedName
-            context.state.selectedTemplateProfileName = context.state.activeProfileName
-            context.state.templateName = updatedName
-            context.state.template = template
+            SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, updatedName) or {
+                sourceType = "profile",
+                sourceId = context.state.activeProfileName,
+                profileName = context.state.activeProfileName,
+                templateName = updatedName,
+                templateValue = template,
+            })
             RefreshTemplateDropdown(context)
             RefreshWindowState()
             SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. updatedName)
@@ -963,21 +1137,26 @@ local function WireWindowCallbacks(context)
         end
 
         templates[selectedName] = template
-        context.state.template = template
-        context.state.templateName = selectedName
-        context.state.selectedTemplateProfileName = context.state.activeProfileName
+        SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, selectedName) or {
+            sourceType = "profile",
+            sourceId = context.state.activeProfileName,
+            profileName = context.state.activeProfileName,
+            templateName = selectedName,
+            templateValue = template,
+        })
         RefreshTemplateDropdown(context)
         RefreshWindowState()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName)
     end)
 
     context.deleteTemplateButton:SetCallback("OnClick", function()
-        if not EnsureWritableProfileContext(context) then
+        local selectedEntry = ResolveWritableProfileSelection(context)
+        if not selectedEntry then
             return
         end
 
         local templates = GetWritableTemplates()
-        local selectedName = context.state.selectedTemplate or ""
+        local selectedName = selectedEntry.templateName
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
             SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
@@ -985,9 +1164,7 @@ local function WireWindowCallbacks(context)
         end
 
         templates[selectedName] = nil
-        context.state.selectedTemplate = ""
-        context.state.selectedTemplateProfileName = context.state.activeProfileName
-        context.state.templateName = ""
+        ClearTemplateSelection(context.state)
         RefreshTemplateDropdown(context)
         RefreshWindowState()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. selectedName)
