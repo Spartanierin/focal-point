@@ -665,16 +665,16 @@ function FocalPoint:ToggleFrameLock()
             local config = GetUnitConfig(unit)
 
             if unit == "boss" then
-                if type(config) == "table" and config.enabled ~= false then
+                if type(config) == "table" then
                     for bossIndex = 1, 5 do
                         local bossUnit = "boss" .. bossIndex
                         if not self.frames[bossUnit] then
-                            self:SpawnUnitFrame(bossUnit)
+                            self:SpawnUnitFrame(bossUnit, { allowDisabledForUnlock = true })
                         end
                     end
                 end
-            elseif type(config) == "table" and config.enabled ~= false and not self.frames[unit] then
-                self:SpawnUnitFrame(unit)
+            elseif type(config) == "table" and not self.frames[unit] then
+                self:SpawnUnitFrame(unit, { allowDisabledForUnlock = true })
             end
         end
     end

@@ -1228,9 +1228,10 @@ function UF:RegisterClassPowerEvents(frame)
     return ClassPower.RegisterEvents(self, frame)
 end
 
-function UF:Build(unit)
+function UF:Build(unit, options)
+    options = options or {}
     local config = GetUnitDB(unit)
-    if not config or config.enabled == false then
+    if not config or (config.enabled == false and not options.allowDisabledForUnlock) then
         return nil
     end
 
@@ -1329,12 +1330,13 @@ local function ExpandActiveProfileUnits(owner)
     local orderedUnits = {}
     local activeUnits = {}
     local unitOrder = owner and owner.Constants and owner.Constants.UnitOrder or {}
+    local includeDisabledForUnlock = owner and owner.framesUnlocked == true
 
     for _, unitKey in ipairs(unitOrder or {}) do
         local unitConfig = GetUnitDB(unitKey)
         local enabled = type(unitConfig) == "table" and unitConfig.enabled ~= false
 
-        if enabled then
+        if enabled or (includeDisabledForUnlock and type(unitConfig) == "table") then
             if unitKey == "boss" then
                 for bossIndex = 1, 5 do
                     local bossUnit = "boss" .. bossIndex
@@ -1402,7 +1404,8 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
     return frame
 end
 
-function FocalPoint:SpawnUnitFrame(unit)
+function FocalPoint:SpawnUnitFrame(unit, options)
+    options = options or {}
     self.frames = self.frames or {}
     self.framePool = self.framePool or {}
     self.spawnDiagnostics = self.spawnDiagnostics or {}
@@ -1434,7 +1437,7 @@ function FocalPoint:SpawnUnitFrame(unit)
     end
 
     local buildOk, frameOrError = xpcall(function()
-        return UF:Build(unit)
+        return UF:Build(unit, options)
     end, function(err)
         return tostring(err)
     end)
@@ -1458,8 +1461,8 @@ function FocalPoint:SpawnUnitFrame(unit)
         self.spawnDiagnostics[unit] = {
             ok = true,
             hasConfig = true,
-            enabled = true,
-            reason = "spawned",
+            enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            reason = type(unitDB) == "table" and unitDB.enabled == false and options.allowDisabledForUnlock and "spawned_editor_disabled" or "spawned",
         }
     else
         local reason = "UF:Build returned nil unexpectedly"
@@ -1518,7 +1521,7 @@ function FocalPoint:RebuildFramesForActiveProfile()
             self.frames[unit] = recycledFrame
             self:RefreshUnitFrame(unit)
         elseif self.SpawnUnitFrame then
-            self:SpawnUnitFrame(unit)
+            self:SpawnUnitFrame(unit, { allowDisabledForUnlock = self.framesUnlocked == true })
         end
     end
 
