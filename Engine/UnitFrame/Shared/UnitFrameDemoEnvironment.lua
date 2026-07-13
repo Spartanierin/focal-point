@@ -7,8 +7,25 @@ local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
 
+local PLACEHOLDER_COLORS = {
+    barR = 0.24,
+    barG = 0.28,
+    barB = 0.34,
+    barA = 0.62,
+    disabledBarA = 0.18,
+    bgR = 0.08,
+    bgG = 0.10,
+    bgB = 0.13,
+    bgA = 0.30,
+    disabledBgA = 0.10,
+}
+
 function Demo.IsDebugEnabled()
     return FocalPoint and FocalPoint.debugDemoRuntime == true
+end
+
+function Demo.GetPlaceholderColors()
+    return PLACEHOLDER_COLORS
 end
 
 local function EnsureDemoDebug(frame)

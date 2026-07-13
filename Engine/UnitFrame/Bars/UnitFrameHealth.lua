@@ -121,6 +121,14 @@ local function UpdateAbsorbOverlay(frame)
         return
     end
 
+    if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
+        absorbOverlay:Hide()
+        if health.AbsorbMinMarker then
+            health.AbsorbMinMarker:Hide()
+        end
+        return
+    end
+
     local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
     if config and config.showAbsorbOverlay == false then
         absorbOverlay:Hide()
@@ -291,19 +299,14 @@ function Health.UpdateBarColor(frame)
     local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
 
     if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
+        local colors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
         local isEnabled = IsPlaceholderUnitEnabled(frame)
-        if isEnabled and config then
-            local healthR, healthG, healthB = GetResolvedHealthBarColor(
-                frame,
-                config,
-                frame.LiveValues and frame.LiveValues.healthCurrentRaw,
-                frame.LiveValues and frame.LiveValues.healthMaxRaw
-            )
-            frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, 1)
-            frame.Elements.HealthBar:SetAlpha(0.78)
+        if isEnabled then
+            frame.Elements.HealthBar:SetStatusBarColor(colors.barR or 0.24, colors.barG or 0.28, colors.barB or 0.34, 1)
+            frame.Elements.HealthBar:SetAlpha(colors.barA or 0.62)
         else
-            frame.Elements.HealthBar:SetStatusBarColor(0.34, 0.40, 0.48, 0.28)
-            frame.Elements.HealthBar:SetAlpha(0.22)
+            frame.Elements.HealthBar:SetStatusBarColor(colors.barR or 0.24, colors.barG or 0.28, colors.barB or 0.34, 1)
+            frame.Elements.HealthBar:SetAlpha(colors.disabledBarA or 0.18)
         end
         return
     end

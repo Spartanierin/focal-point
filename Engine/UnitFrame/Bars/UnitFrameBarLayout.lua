@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameBarLayout = FocalPoint.UnitFrameBarLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 
 local function IsPlaceholderUnitEnabled(frame)
@@ -39,6 +40,9 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
     local healthRightReserve = tonumber(options.healthRightReserve) or 0
     local powerLeftReserve = tonumber(options.powerLeftReserve) or 0
     local powerRightReserve = tonumber(options.powerRightReserve) or 0
+    local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
+    local isEnabledPlaceholder = isPlaceholder and IsPlaceholderUnitEnabled(frame)
+    local placeholderColors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
 
     if frame.Elements.HealthBar then
         local health = frame.Elements.HealthBar
@@ -50,7 +54,15 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
 
         if health.bg then
             health.bg:SetTexture(options.healthTexture)
-            health.bg:SetVertexColor(options.healthBgR, options.healthBgG, options.healthBgB, options.healthBgA)
+            if isPlaceholder then
+                if isEnabledPlaceholder then
+                    health.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.bgA or 0.30)
+                else
+                    health.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.disabledBgA or 0.10)
+                end
+            else
+                health.bg:SetVertexColor(options.healthBgR, options.healthBgG, options.healthBgB, options.healthBgA)
+            end
             health.bg:SetShown(options.healthBackgroundShown)
         end
 
@@ -75,8 +87,6 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
 
     if frame.Elements.PowerBar then
         local power = frame.Elements.PowerBar
-        local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
-        local isEnabledPlaceholder = isPlaceholder and IsPlaceholderUnitEnabled(frame)
         power:ClearAllPoints()
         power:SetStatusBarTexture(options.powerTexture)
         if power.SetReverseFill then
@@ -84,11 +94,11 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         end
         if isPlaceholder then
             if isEnabledPlaceholder then
-                power:SetStatusBarColor(0.24, 0.28, 0.34, 1)
-                power:SetAlpha(0.62)
+                power:SetStatusBarColor(placeholderColors.barR or 0.24, placeholderColors.barG or 0.28, placeholderColors.barB or 0.34, 1)
+                power:SetAlpha(placeholderColors.barA or 0.62)
             else
-                power:SetStatusBarColor(0.24, 0.28, 0.34, 0.26)
-                power:SetAlpha(0.18)
+                power:SetStatusBarColor(placeholderColors.barR or 0.24, placeholderColors.barG or 0.28, placeholderColors.barB or 0.34, 1)
+                power:SetAlpha(placeholderColors.disabledBarA or 0.18)
             end
         else
             power:SetStatusBarColor(options.powerR, options.powerG, options.powerB, 1)
@@ -99,9 +109,9 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
             power.bg:SetTexture(options.powerTexture)
             if isPlaceholder then
                 if isEnabledPlaceholder then
-                    power.bg:SetVertexColor(0.08, 0.10, 0.13, 0.30)
+                    power.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.bgA or 0.30)
                 else
-                    power.bg:SetVertexColor(0.08, 0.10, 0.13, 0.10)
+                    power.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.disabledBgA or 0.10)
                 end
             else
                 power.bg:SetVertexColor(options.powerBgR, options.powerBgG, options.powerBgB, options.powerBgA)
@@ -146,6 +156,7 @@ function BarLayout.ApplyAlternativePower(frame, options)
     local altPower = frame.Elements.AlternativePowerBar
     local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
     local isEnabledPlaceholder = isPlaceholder and IsPlaceholderUnitEnabled(frame)
+    local placeholderColors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
     local altPowerType = options.liveAltPowerType or (frame.LiveValues and frame.LiveValues.altPowerType) or 0
     local altPowerTypeColor = PowerBarColor and PowerBarColor[altPowerType]
     local altPowerR, altPowerG, altPowerB, altPowerA = options.powerR, options.powerG, options.powerB, options.powerA
@@ -167,11 +178,11 @@ function BarLayout.ApplyAlternativePower(frame, options)
     end
     if isPlaceholder then
         if isEnabledPlaceholder then
-            altPower:SetStatusBarColor(0.24, 0.28, 0.34, 1)
-            altPower:SetAlpha(0.55)
+            altPower:SetStatusBarColor(placeholderColors.barR or 0.24, placeholderColors.barG or 0.28, placeholderColors.barB or 0.34, 1)
+            altPower:SetAlpha(placeholderColors.barA or 0.62)
         else
-            altPower:SetStatusBarColor(0.24, 0.28, 0.34, 0.24)
-            altPower:SetAlpha(0.16)
+            altPower:SetStatusBarColor(placeholderColors.barR or 0.24, placeholderColors.barG or 0.28, placeholderColors.barB or 0.34, 1)
+            altPower:SetAlpha(placeholderColors.disabledBarA or 0.18)
         end
     else
         altPower:SetStatusBarColor(altPowerR, altPowerG, altPowerB, 1)
@@ -182,9 +193,9 @@ function BarLayout.ApplyAlternativePower(frame, options)
         altPower.bg:SetTexture(options.altPowerTexture)
         if isPlaceholder then
             if isEnabledPlaceholder then
-                altPower.bg:SetVertexColor(0.08, 0.10, 0.13, 0.24)
+                altPower.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.bgA or 0.30)
             else
-                altPower.bg:SetVertexColor(0.08, 0.10, 0.13, 0.08)
+                altPower.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.disabledBgA or 0.10)
             end
         else
             altPower.bg:SetVertexColor(options.altPowerBgR, options.altPowerBgG, options.altPowerBgB, options.altPowerBgA)

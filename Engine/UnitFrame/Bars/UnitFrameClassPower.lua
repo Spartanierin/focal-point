@@ -362,6 +362,8 @@ function ClassPower.ApplyLayout(frame, options)
     local height = math.max(4, tonumber(options.classPowerBarHeight) or 12)
     local spacing = math.max(0, tonumber(options.classPowerBarSpacing) or 2)
     local anchorParent = GetAnchorTarget and GetAnchorTarget(frame, options.classPowerBarAnchorTo) or frame
+    local isPlaceholder = Demo.IsPlaceholder and Demo.IsPlaceholder(frame)
+    local placeholderColors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
 
     holder:SetSize(width, height)
     holder:SetPoint(
@@ -375,15 +377,22 @@ function ClassPower.ApplyLayout(frame, options)
 
     local maxValue = math.max(1, math.floor((options.liveClassPowerMax or 0) + 0.5))
     local currentValue = tonumber(options.liveClassPowerCurrent) or 0
-    local r, g, b = GetClassPowerColor(
-        {
-            typeId = options.liveClassPowerType,
-            token = options.liveClassPowerToken,
-        },
-        options.classPowerR,
-        options.classPowerG,
-        options.classPowerB
-    )
+    local r, g, b
+    if isPlaceholder then
+        r = placeholderColors.barR or 0.24
+        g = placeholderColors.barG or 0.28
+        b = placeholderColors.barB or 0.34
+    else
+        r, g, b = GetClassPowerColor(
+            {
+                typeId = options.liveClassPowerType,
+                token = options.liveClassPowerToken,
+            },
+            options.classPowerR,
+            options.classPowerG,
+            options.classPowerB
+        )
+    end
 
     local usableWidth = width - ((maxValue - 1) * spacing)
     local segmentWidth = maxValue > 0 and (usableWidth / maxValue) or usableWidth
@@ -407,10 +416,14 @@ function ClassPower.ApplyLayout(frame, options)
             bar:SetWidth(segmentWidth)
             bar:SetHeight(height)
             bar:SetStatusBarTexture(options.classPowerTexture)
-            bar:SetStatusBarColor(r or 1, g or 1, b or 1, options.classPowerA or 1)
+            bar:SetStatusBarColor(r or 1, g or 1, b or 1, isPlaceholder and (placeholderColors.barA or 0.62) or (options.classPowerA or 1))
             if bar.bg then
                 bar.bg:SetTexture(options.classPowerTexture)
-                bar.bg:SetVertexColor(options.classPowerBgR or 0, options.classPowerBgG or 0, options.classPowerBgB or 0, options.classPowerBgA or 0.35)
+                if isPlaceholder then
+                    bar.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.bgA or 0.30)
+                else
+                    bar.bg:SetVertexColor(options.classPowerBgR or 0, options.classPowerBgG or 0, options.classPowerBgB or 0, options.classPowerBgA or 0.35)
+                end
                 bar.bg:SetShown(options.classPowerBackgroundShown ~= false)
             end
             if bar.border then
