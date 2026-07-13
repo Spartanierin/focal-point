@@ -65,16 +65,13 @@ local function AddUsage(usages, profileName, templates, unitKey, textId, textCon
     }
 end
 
-function Usage.ScanActiveProfileTemplateAssignments(db)
-    db = db or FocalPoint.db
-    local profile = db and db.profile
+function Usage.ScanProfileTemplateAssignments(profile, profileName)
     if type(profile) ~= "table" then
         return {}
     end
 
     local templates = type(profile.TextTemplates) == "table" and profile.TextTemplates or {}
     local units = type(profile.Units) == "table" and profile.Units or {}
-    local profileName = GetProfileName(db)
     local usages = {}
 
     for _, unitKey in ipairs(SortedKeys(units)) do
@@ -107,6 +104,13 @@ function Usage.ScanActiveProfileTemplateAssignments(db)
     end
 
     return usages
+end
+
+function Usage.ScanActiveProfileTemplateAssignments(db)
+    db = db or FocalPoint.db
+    local profile = db and db.profile
+    local profileName = GetProfileName(db)
+    return Usage.ScanProfileTemplateAssignments(profile, profileName)
 end
 
 Usage.GetActiveProfileTemplateUsages = Usage.ScanActiveProfileTemplateAssignments
