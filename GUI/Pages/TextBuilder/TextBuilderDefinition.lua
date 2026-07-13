@@ -212,6 +212,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
         items = {
             { id = "templateSelect", widget = "dropdown", itemVariant = "builder_field", labelKey = "INFO_TEXT_BUILDER_SAVED_TEMPLATES" },
+            { id = "templateOwnerLabel", widget = "label", itemVariant = "section_description", text = " " },
         },
     },
     {

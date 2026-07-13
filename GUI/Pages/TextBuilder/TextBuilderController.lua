@@ -29,6 +29,7 @@ local UNIT_KEYS = C.UnitOrder or {
 local fallbackRootState = {}
 local windowContext
 local RefreshWindowState
+local GetSelectedTemplateEntry
 
 local CreateBodyText = FormWidgets.CreateBodyText
 local StyleDropdown = FormWidgets.StyleDropdown
@@ -90,6 +91,34 @@ local function GetActiveProfileTemplates()
     return templates, profileName
 end
 
+local function ListProfileTemplateEntries()
+    local library = ns.TextTemplateLibrary
+    if library and library.ListProfileTemplateEntries then
+        return library.ListProfileTemplateEntries(ns.db)
+    end
+
+    local templates, profileName = GetActiveProfileTemplates()
+    local entries = {}
+    for templateName, templateValue in pairs(templates or {}) do
+        if type(templateName) == "string" and type(templateValue) == "string" then
+            entries[#entries + 1] = {
+                sourceType = "profile",
+                sourceId = profileName,
+                sourceLabel = profileName,
+                profileName = profileName,
+                templateName = templateName,
+                templateValue = templateValue,
+                readOnly = false,
+                isActiveProfile = true,
+            }
+        end
+    end
+    table.sort(entries, function(left, right)
+        return tostring(left.templateName or "") < tostring(right.templateName or "")
+    end)
+    return entries
+end
+
 local function GetProfileTemplateEntry(profileName, templateName)
     local library = ns.TextTemplateLibrary
     if library and library.GetProfileTemplateEntry then
@@ -110,6 +139,61 @@ local function GetProfileTemplateEntry(profileName, templateName)
         templateValue = templateValue,
         readOnly = false,
     }
+end
+
+local function BuildTemplateEntryKey(entry)
+    local library = ns.TextTemplateLibrary
+    if library and library.BuildTemplateEntryKey then
+        return library.BuildTemplateEntryKey(entry)
+    end
+
+    if type(entry) ~= "table" or type(entry.sourceType) ~= "string" or type(entry.sourceId) ~= "string" or type(entry.templateName) ~= "string" then
+        return nil
+    end
+
+    return table.concat({
+        entry.sourceType,
+        entry.sourceId,
+        entry.profileName or "",
+        entry.themeId or "",
+        entry.templateName,
+    }, "\031")
+end
+
+local function ResolveTemplateEntryKey(key)
+    local library = ns.TextTemplateLibrary
+    if library and library.FindTemplateEntryByKey then
+        return library.FindTemplateEntryByKey(ns.db, key)
+    end
+
+    return nil
+end
+
+local function FormatTemplateEntryLabel(entry)
+    if type(entry) ~= "table" then
+        return ""
+    end
+
+    local profileName = entry.profileName or entry.sourceLabel or entry.sourceId or ""
+    if entry.isActiveProfile then
+        return string.format("[Current] %s - %s", tostring(profileName), tostring(entry.templateName or ""))
+    end
+
+    return string.format("%s - %s", tostring(profileName), tostring(entry.templateName or ""))
+end
+
+local function FormatTemplateOwnerText(state)
+    local entry = GetSelectedTemplateEntry(state)
+    if not entry or entry.sourceType ~= "profile" then
+        return " "
+    end
+
+    local profileName = entry.profileName or entry.sourceLabel or entry.sourceId or ""
+    if profileName == GetCurrentProfileName() then
+        return string.format("Profile: %s (Current)", tostring(profileName))
+    end
+
+    return string.format("Profile: %s", tostring(profileName))
 end
 
 local function BuildTemplateSelection(entry)
@@ -188,6 +272,22 @@ local function ClearTemplateSelection(state)
     ResetApplyUnits(state)
 end
 
+local function GetSelectedTemplateKey(state)
+    local entry = GetSelectedTemplateEntry(state)
+    return entry and BuildTemplateEntryKey(entry) or nil
+end
+
+local function CanEditTemplateEntry(entry)
+    return type(entry) == "table"
+        and entry.sourceType == "profile"
+        and entry.profileName == GetCurrentProfileName()
+        and not entry.readOnly
+end
+
+local function CanEditSelectedTemplate(context)
+    return context and CanEditTemplateEntry(GetSelectedTemplateEntry(context.state))
+end
+
 local function SetTemplateSelection(state, entry)
     if type(state) ~= "table" or type(entry) ~= "table" then
         return false
@@ -207,7 +307,7 @@ local function SetTemplateSelection(state, entry)
     return true
 end
 
-local function GetSelectedTemplateEntry(state)
+GetSelectedTemplateEntry = function(state)
     if type(state) ~= "table" then
         return nil
     end
@@ -218,7 +318,7 @@ local function GetSelectedTemplateEntry(state)
     end
 
     if type(state.selectedTemplate) == "string" and state.selectedTemplate ~= "" then
-        return GetProfileTemplateEntry(state.activeProfileName, state.selectedTemplate)
+        return GetProfileTemplateEntry(state.selectedTemplateProfileName or state.activeProfileName, state.selectedTemplate)
     end
 
     return nil
@@ -245,13 +345,7 @@ local function ReconcileTextBuilderProfileContext(state)
 
     local previousProfileName = state.activeProfileName
     local previousEntry = GetSelectedTemplateEntry(state)
-    local previousSelectedTemplate = previousEntry and previousEntry.templateName or state.selectedTemplate
     local profileChanged = previousProfileName ~= nil and previousProfileName ~= currentProfileName
-    local selectionProfileMismatch = type(previousSelectedTemplate) == "string"
-        and previousSelectedTemplate ~= ""
-        and previousEntry ~= nil
-        and previousEntry.sourceType == "profile"
-        and previousEntry.profileName ~= currentProfileName
 
     if previousProfileName == nil then
         state.activeProfileName = currentProfileName
@@ -264,7 +358,7 @@ local function ReconcileTextBuilderProfileContext(state)
         return false
     end
 
-    if not profileChanged and not selectionProfileMismatch then
+    if not profileChanged then
         if previousEntry then
             SetTemplateSelection(state, previousEntry)
         elseif type(state.selectedTemplateEntry) == "table" or (type(state.selectedTemplate) == "string" and state.selectedTemplate ~= "") then
@@ -274,18 +368,12 @@ local function ReconcileTextBuilderProfileContext(state)
     end
 
     state.activeProfileName = currentProfileName
-    state.selectedTemplateProfileName = currentProfileName
     state._profileContextChanged = true
 
-    if type(previousSelectedTemplate) == "string"
-        and previousSelectedTemplate ~= ""
-    then
-        local replacementEntry = GetProfileTemplateEntry(currentProfileName, previousSelectedTemplate)
-        if replacementEntry then
-            SetTemplateSelection(state, replacementEntry)
-            ResetApplyUnits(state)
-            return true
-        end
+    if previousEntry then
+        SetTemplateSelection(state, previousEntry)
+        ResetApplyUnits(state)
+        return true
     end
 
     ClearTemplateSelection(state)
@@ -495,7 +583,7 @@ local function SyncEditBoxText(context, widget, value, flagName)
     context[flagName] = false
 end
 
-local function GetTemplateUsageCounts(templateName)
+local function GetTemplateUsageCounts(templateName, profileName)
     local usage = {}
     for _, unitKey in ipairs(UNIT_KEYS) do
         usage[unitKey] = 0
@@ -505,13 +593,18 @@ local function GetTemplateUsageCounts(templateName)
         return usage
     end
 
-    local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.ScanActiveProfileTemplateAssignments
+    local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.ScanProfileTemplateAssignments
     if not scanner then
+        return usage
+    end
+    local library = ns.TextTemplateLibrary
+    local profile = library and library.GetProfileByName and library.GetProfileByName(ns.db, profileName) or nil
+    if type(profile) ~= "table" then
         return usage
     end
 
     local countedTextElements = {}
-    for _, entry in ipairs(scanner(ns.db) or {}) do
+    for _, entry in ipairs(scanner(profile, profileName) or {}) do
         if entry.templateName == templateName and usage[entry.unit] ~= nil then
             local textKey = tostring(entry.unit or "") .. "\001" .. tostring(entry.textId or "")
             if not countedTextElements[textKey] then
@@ -525,8 +618,9 @@ local function GetTemplateUsageCounts(templateName)
 end
 
 local function SyncDesiredTemplateUsage(context)
-    local selectedTemplateName = GetSelectedTemplateName(context.state)
-    local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
+    local selectedEntry = GetSelectedTemplateEntry(context.state)
+    local selectedTemplateName = selectedEntry and selectedEntry.templateName or ""
+    local usageCounts = GetTemplateUsageCounts(selectedTemplateName, selectedEntry and selectedEntry.profileName or nil)
 
     context.state.applyUnits = context.state.applyUnits or {}
     for _, unitKey in ipairs(UNIT_KEYS) do
@@ -683,8 +777,10 @@ local function RefreshPreview(context)
 end
 
 local function RefreshTemplateUsageState(context)
-    local selectedTemplateName = GetSelectedTemplateName(context.state)
-    local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
+    local selectedEntry = GetSelectedTemplateEntry(context.state)
+    local selectedTemplateName = selectedEntry and selectedEntry.templateName or ""
+    local canEdit = CanEditSelectedTemplate(context)
+    local usageCounts = GetTemplateUsageCounts(selectedTemplateName, selectedEntry and selectedEntry.profileName or nil)
 
     for unitKey, checkbox in pairs(context.usageCheckboxes or {}) do
         local count = usageCounts[unitKey] or 0
@@ -695,20 +791,25 @@ local function RefreshTemplateUsageState(context)
 
         checkbox:SetLabel(label)
         checkbox:SetValue(context.state.applyUnits and context.state.applyUnits[unitKey] == true)
-        checkbox:SetDisabled(selectedTemplateName == "")
-        StyleCheckBox(checkbox, selectedTemplateName == "")
+        checkbox:SetDisabled(selectedTemplateName == "" or not canEdit)
+        StyleCheckBox(checkbox, selectedTemplateName == "" or not canEdit)
     end
 end
 
 local function SyncTemplateSelectWidget(context)
     local list = {}
-    for name in pairs(GetTemplates()) do
-        list[name] = name
+    local order = {}
+    for _, entry in ipairs(ListProfileTemplateEntries()) do
+        local key = BuildTemplateEntryKey(entry)
+        if key then
+            list[key] = FormatTemplateEntryLabel(entry)
+            order[#order + 1] = key
+        end
     end
 
-    context.templateSelect:SetList(list)
+    context.templateSelect:SetList(list, order)
     context.suspendTemplateSelectCallbacks = true
-    context.templateSelect:SetValue(context.state.selectedTemplate ~= "" and context.state.selectedTemplate or nil)
+    context.templateSelect:SetValue(GetSelectedTemplateKey(context.state))
     context.suspendTemplateSelectCallbacks = false
 end
 
@@ -732,7 +833,7 @@ local function ApplyTemplateToTextElement(context)
     local linkedTemplateName = ""
     local unitsToAdd = {}
     local unitsToRemove = {}
-    local usageCounts = GetTemplateUsageCounts(selectedTemplateName)
+    local usageCounts = GetTemplateUsageCounts(selectedTemplateName, selectedEntry and selectedEntry.profileName or nil)
 
     if type(templates[selectedTemplateName]) == "string" and templates[selectedTemplateName] == template then
         linkedTemplateName = selectedTemplateName
@@ -900,6 +1001,7 @@ RefreshWindowState = function()
     local hasSelectedTemplate = type(context.state.selectedTemplate) == "string" and context.state.selectedTemplate ~= ""
     local hasTemplateName = Trim(context.templateNameEdit:GetText() or "") ~= ""
     local hasTemplateText = Trim(context.templateEdit:GetText() or "") ~= ""
+    local canEditSelectedTemplate = CanEditSelectedTemplate(context)
 
     SyncTemplateSelectWidget(context)
     if profileContextChanged or context.state._profileContextChanged then
@@ -907,10 +1009,14 @@ RefreshWindowState = function()
         context.state._profileContextChanged = nil
     end
 
-    context.deleteTemplateButton:SetDisabled(not hasSelectedTemplate)
+    if context.templateOwnerLabel then
+        context.templateOwnerLabel:SetText(FormatTemplateOwnerText(context.state))
+    end
+
+    context.deleteTemplateButton:SetDisabled(not hasSelectedTemplate or not canEditSelectedTemplate)
     context.saveButton:SetDisabled(not hasTemplateName or not hasTemplateText)
-    context.updateTemplateButton:SetDisabled(not hasSelectedTemplate or not hasTemplateName or not hasTemplateText)
-    context.applyTemplateButton:SetDisabled(not hasTemplateText)
+    context.updateTemplateButton:SetDisabled(not hasSelectedTemplate or not hasTemplateName or not hasTemplateText or not canEditSelectedTemplate)
+    context.applyTemplateButton:SetDisabled(not hasTemplateText or not canEditSelectedTemplate)
     ApplyTextBuilderButtonVisuals()
 
     RefreshPreview(context)
@@ -943,6 +1049,7 @@ local function CreateWindowContent(window, state)
         updateButton = widgets.updateButton,
         previewValue = widgets.previewValue,
         templateSelect = widgets.templateSelect,
+        templateOwnerLabel = widgets.templateOwnerLabel,
         templateNameEdit = widgets.templateNameEdit,
         deleteTemplateButton = widgets.deleteTemplateButton,
         saveButton = widgets.saveButton,
@@ -964,6 +1071,11 @@ local function WireWindowCallbacks(context)
 
     for unitKey, checkbox in pairs(context.usageCheckboxes or {}) do
         checkbox:SetCallback("OnValueChanged", function(widget, _, value)
+            if not CanEditSelectedTemplate(context) then
+                widget:SetValue(context.state.applyUnits and context.state.applyUnits[unitKey] == true)
+                return
+            end
+
             local selectedTemplateName = GetSelectedTemplateName(context.state)
             if selectedTemplateName == "" then
                 widget:SetValue(false)
@@ -1045,8 +1157,7 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        local selectedName = value or ""
-        local selectedEntry = GetProfileTemplateEntry(GetCurrentProfileName(), selectedName)
+        local selectedEntry = ResolveTemplateEntryKey(value)
         if selectedEntry then
             SetTemplateSelection(context.state, selectedEntry)
         else
@@ -1171,7 +1282,7 @@ local function WireWindowCallbacks(context)
     end)
 
     context.applyTemplateButton:SetCallback("OnClick", function()
-        if not EnsureWritableProfileContext(context) then
+        if not ResolveWritableProfileSelection(context) then
             return
         end
 

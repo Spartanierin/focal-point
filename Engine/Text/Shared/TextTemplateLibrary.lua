@@ -62,6 +62,20 @@ local function AddTemplateEntries(entries, templates, baseEntry)
     end
 end
 
+local function EscapeKeyPart(value)
+    value = tostring(value or "")
+    value = value:gsub("%%", "%%25")
+    value = value:gsub("\031", "%%1F")
+    return value
+end
+
+local function UnescapeKeyPart(value)
+    value = tostring(value or "")
+    value = value:gsub("%%1F", "\031")
+    value = value:gsub("%%25", "%%")
+    return value
+end
+
 function Library.GetCurrentProfileName(db)
     db = db or FocalPoint.db
     if not db or type(db.GetCurrentProfile) ~= "function" then
@@ -250,6 +264,71 @@ function Library.ListIntegratedTemplateDefinitions()
     end
 
     return entries
+end
+
+function Library.BuildTemplateEntryKey(entry)
+    if type(entry) ~= "table"
+        or type(entry.sourceType) ~= "string"
+        or entry.sourceType == ""
+        or type(entry.sourceId) ~= "string"
+        or entry.sourceId == ""
+        or type(entry.templateName) ~= "string"
+        or entry.templateName == ""
+    then
+        return nil
+    end
+
+    local profileName = type(entry.profileName) == "string" and entry.profileName or ""
+    local themeId = type(entry.themeId) == "string" and entry.themeId or ""
+    return table.concat({
+        EscapeKeyPart(entry.sourceType),
+        EscapeKeyPart(entry.sourceId),
+        EscapeKeyPart(profileName),
+        EscapeKeyPart(themeId),
+        EscapeKeyPart(entry.templateName),
+    }, "\031")
+end
+
+function Library.ParseTemplateEntryKey(key)
+    if type(key) ~= "string" or key == "" then
+        return nil
+    end
+
+    local parts = {}
+    for part in key:gmatch("([^\031]*)\031?") do
+        parts[#parts + 1] = UnescapeKeyPart(part)
+        if #parts == 5 then
+            break
+        end
+    end
+
+    if #parts ~= 5 or parts[1] == "" or parts[2] == "" or parts[5] == "" then
+        return nil
+    end
+
+    local selection = {
+        sourceType = parts[1],
+        sourceId = parts[2],
+        templateName = parts[5],
+    }
+
+    if parts[3] ~= "" then
+        selection.profileName = parts[3]
+    end
+    if parts[4] ~= "" then
+        selection.themeId = parts[4]
+    end
+
+    return selection
+end
+
+function Library.FindTemplateEntryByKey(db, key)
+    local selection = Library.ParseTemplateEntryKey(key)
+    if not selection then
+        return nil
+    end
+
+    return Library.FindTemplateEntry(db, selection)
 end
 
 function Library.FindTemplateEntry(db, selection)
