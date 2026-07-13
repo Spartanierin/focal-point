@@ -17,6 +17,7 @@ local TextUpdate = FocalPoint.TextElementUpdate or {}
 local TextEvents = FocalPoint.TextElementEvents or {}
 local TextApply = FocalPoint.TextElementApply or {}
 local TextLiveValues = FocalPoint.TextElementLiveValues or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
 -- Shared utility aliases.
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
@@ -508,6 +509,10 @@ end
 local function ResolveConfiguredTemplate(frame, textConfig)
     return ResolveConfiguredTemplateShared(frame, textConfig, {
         GetLiveValue = GetLiveValue,
+        GetTemplate = function(templateName)
+            local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
+            return type(templates) == "table" and templates[templateName] or nil
+        end,
     })
 end
 

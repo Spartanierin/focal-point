@@ -28,6 +28,7 @@
     <Script file="Engine/UnitFrame/Shared/UnitFrameDemoEnvironment.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFramePreview.lua"/>
     <Script file="Engine/Text/Shared/TextElementRoles.lua"/>
+    <Script file="Engine/Text/Shared/TextTemplateResolver.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameCastBar.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameCastRuntime.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameState.lua"/>
