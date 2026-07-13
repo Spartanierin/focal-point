@@ -1297,6 +1297,27 @@ function UF:Refresh(frame, refreshRequest)
     if not config then
         return
     end
+    if config.enabled == false and not (FocalPoint and FocalPoint.framesUnlocked == true) then
+        if ClearFrameVisualState then
+            ClearFrameVisualState(frame, "disabled_live_refresh")
+        end
+        if frame.EnableMouse then
+            frame:EnableMouse(false)
+        end
+        if frame.SetMouseClickEnabled then
+            pcall(frame.SetMouseClickEnabled, frame, false)
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+        if frame.Hide and not IsProtectedFrameInCombat(frame) then
+            frame:Hide()
+        end
+        if StateRuntime.SetPhase then
+            StateRuntime.SetPhase(frame, "disabled")
+        end
+        return
+    end
 
     if StateRuntime.Ensure then
         StateRuntime.Ensure(frame)
