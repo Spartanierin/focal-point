@@ -59,6 +59,561 @@ local function ResolveTargetTemplateName(templates, templateName, templateValue)
     end
 end
 
+local function Result(ok, fields)
+    fields = fields or {}
+    fields.ok = ok and true or false
+    if fields.success == nil then
+        fields.success = fields.ok
+    end
+    return fields
+end
+
+local function IsNonEmptyString(value)
+    return type(value) == "string" and value ~= ""
+end
+
+local function GetTemplatesFromContext(context)
+    if type(context) ~= "table" or type(context.GetTemplates) ~= "function" then
+        return nil
+    end
+
+    local ok, templates = pcall(context.GetTemplates)
+    if ok and type(templates) == "table" then
+        return templates
+    end
+
+    return nil
+end
+
+local function GetUnitsFromContext(context)
+    if type(context) ~= "table" then
+        return nil
+    end
+
+    if type(context.GetUnits) == "function" then
+        local ok, units = pcall(context.GetUnits)
+        if ok and type(units) == "table" then
+            return units
+        end
+    end
+
+    return nil
+end
+
+local function GetUnitConfigFromContext(context, unitKey)
+    if type(context) ~= "table" or not IsNonEmptyString(unitKey) then
+        return nil
+    end
+
+    if type(context.GetUnitConfig) == "function" then
+        local ok, unitConfig = pcall(context.GetUnitConfig, unitKey)
+        if ok and type(unitConfig) == "table" then
+            return unitConfig
+        end
+        return nil
+    end
+
+    local units = GetUnitsFromContext(context)
+    local unitConfig = units and units[unitKey] or nil
+    return type(unitConfig) == "table" and unitConfig or nil
+end
+
+local function GetTextConfig(context, unitKey, textKey)
+    local unitConfig = GetUnitConfigFromContext(context, unitKey)
+    local texts = unitConfig and unitConfig.Texts or nil
+    local textConfig = type(texts) == "table" and texts[textKey] or nil
+    return type(textConfig) == "table" and textConfig or nil, texts, unitConfig
+end
+
+local function IsDynamicTextKey(textKey)
+    return type(textKey) == "string" and (textKey:match("^text_%d+$") ~= nil or textKey:match("^Custom%d+$") ~= nil)
+end
+
+local function HasNonEmptyStateTemplates(stateTemplates)
+    if type(stateTemplates) ~= "table" then
+        return false
+    end
+
+    for _, templateName in pairs(stateTemplates) do
+        if IsNonEmptyString(templateName) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function RemoveTemplateReferencesFromTextConfig(textConfig, templateName)
+    if type(textConfig) ~= "table" or not IsNonEmptyString(templateName) then
+        return false
+    end
+
+    local changed = false
+    if textConfig.templateName == templateName then
+        textConfig.templateName = ""
+        changed = true
+    end
+
+    if type(textConfig.stateTemplates) == "table" then
+        for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
+            if stateTemplateName == templateName then
+                textConfig.stateTemplates[stateKey] = ""
+                changed = true
+            end
+        end
+    end
+
+    return changed
+end
+
+local function HasIndependentTextContent(textConfig)
+    if type(textConfig) ~= "table" then
+        return false
+    end
+
+    if IsNonEmptyString(textConfig.templateName) or HasNonEmptyStateTemplates(textConfig.stateTemplates) then
+        return true
+    end
+
+    if IsNonEmptyString(textConfig.tag) then
+        return true
+    end
+
+    return false
+end
+
+local function ShouldRemoveGeneratedTextElement(textKey, textConfig, removedTemplateText)
+    if not IsDynamicTextKey(textKey) or type(textConfig) ~= "table" then
+        return false
+    end
+
+    if IsNonEmptyString(textConfig.templateName) or HasNonEmptyStateTemplates(textConfig.stateTemplates) then
+        return false
+    end
+
+    return not IsNonEmptyString(textConfig.tag) or textConfig.tag == removedTemplateText
+end
+
+function Mutations.BuildTextElementConfig(template, linkedTemplateName)
+    return {
+        enabled = true,
+        tag = template or "",
+        templateName = linkedTemplateName or "",
+        font = STANDARD_TEXT_FONT,
+        fontStyle = "NONE",
+        fontSize = 12,
+        justifyH = "CENTER",
+        anchorTo = "HealthBar",
+        point = "CENTER",
+        relativePoint = "CENTER",
+        offsetX = 0,
+        offsetY = 0,
+        overflowMode = "NONE",
+        shadowEnabled = true,
+        shadowColor = { 0, 0, 0, 1 },
+        shadowOffsetX = 1,
+        shadowOffsetY = -1,
+        color = { 1, 1, 1, 1 },
+    }
+end
+
+function Mutations.GetNextTextKey(context, unitKey)
+    local unitConfig = GetUnitConfigFromContext(context, unitKey)
+    local texts = unitConfig and unitConfig.Texts or nil
+    local maxIndex = 0
+
+    if type(texts) == "table" then
+        for textId in pairs(texts) do
+            if type(textId) == "string" then
+                local numericId = tonumber(textId:match("^text_(%d+)$"))
+                if numericId and numericId > maxIndex then
+                    maxIndex = numericId
+                end
+            end
+        end
+    end
+
+    local nextIndex = maxIndex + 1
+    local candidateId = string.format("text_%d", nextIndex)
+    while type(texts) == "table" and texts[candidateId] ~= nil do
+        nextIndex = nextIndex + 1
+        candidateId = string.format("text_%d", nextIndex)
+    end
+
+    return candidateId
+end
+
+local function ValidateTemplateName(templateName)
+    if not IsNonEmptyString(templateName) then
+        return false
+    end
+    return true
+end
+
+local function ValidateTemplateText(templateText)
+    return type(templateText) == "string"
+end
+
+local function ForEachTemplateReference(context, templateName, callback)
+    local units = GetUnitsFromContext(context)
+    if type(units) ~= "table" or not IsNonEmptyString(templateName) then
+        return 0
+    end
+
+    local affected = 0
+    for unitKey, unitConfig in pairs(units) do
+        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+        if type(texts) == "table" then
+            for textKey, textConfig in pairs(texts) do
+                if type(textConfig) == "table" then
+                    if textConfig.templateName == templateName then
+                        affected = affected + 1
+                        if callback then
+                            callback(unitKey, textKey, textConfig, "templateName")
+                        end
+                    end
+
+                    if type(textConfig.stateTemplates) == "table" then
+                        for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
+                            if stateTemplateName == templateName then
+                                affected = affected + 1
+                                if callback then
+                                    callback(unitKey, textKey, textConfig, "stateTemplates", stateKey)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return affected
+end
+
+function Mutations.CountTemplateReferences(context, templateName)
+    return ForEachTemplateReference(context, templateName, nil)
+end
+
+function Mutations.CreateProfileContext(profile)
+    if type(profile) ~= "table" then
+        return nil
+    end
+
+    return {
+        GetTemplates = function()
+            profile.TextTemplates = type(profile.TextTemplates) == "table" and profile.TextTemplates or {}
+            return profile.TextTemplates
+        end,
+        GetUnits = function()
+            return type(profile.Units) == "table" and profile.Units or nil
+        end,
+        GetUnitConfig = function(unitKey)
+            return type(profile.Units) == "table" and profile.Units[unitKey] or nil
+        end,
+    }
+end
+
+function Mutations.CreateTemplate(context, templateName, templateText)
+    if not ValidateTemplateName(templateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+    if not ValidateTemplateText(templateText) then
+        return Result(false, { errorCode = "invalid_template_text" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if templates[templateName] ~= nil then
+        return Result(false, { errorCode = "template_name_exists", templateName = templateName })
+    end
+
+    templates[templateName] = templateText
+    return Result(true, { templateName = templateName, changed = true })
+end
+
+function Mutations.UpdateTemplate(context, templateName, templateText)
+    if not ValidateTemplateName(templateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+    if not ValidateTemplateText(templateText) then
+        return Result(false, { errorCode = "invalid_template_text" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if type(templates[templateName]) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = templateName })
+    end
+
+    local changed = templates[templateName] ~= templateText
+    templates[templateName] = templateText
+    return Result(true, { templateName = templateName, changed = changed })
+end
+
+function Mutations.RenameTemplate(context, oldName, newName, templateText)
+    if not ValidateTemplateName(oldName) or not ValidateTemplateName(newName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+    if templateText ~= nil and not ValidateTemplateText(templateText) then
+        return Result(false, { errorCode = "invalid_template_text" })
+    end
+    if oldName == newName then
+        return Result(true, { templateName = oldName, changed = false, affectedReferences = 0 })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if type(templates[oldName]) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = oldName })
+    end
+    if templates[newName] ~= nil then
+        return Result(false, { errorCode = "template_name_exists", templateName = newName })
+    end
+
+    local references = {}
+    local affected = ForEachTemplateReference(context, oldName, function(unitKey, textKey, textConfig, field, stateKey)
+        references[#references + 1] = {
+            textConfig = textConfig,
+            field = field,
+            stateKey = stateKey,
+        }
+    end)
+
+    templates[newName] = templateText ~= nil and templateText or templates[oldName]
+    templates[oldName] = nil
+    for _, reference in ipairs(references) do
+        if reference.field == "templateName" then
+            reference.textConfig.templateName = newName
+        elseif reference.field == "stateTemplates" and type(reference.textConfig.stateTemplates) == "table" then
+            reference.textConfig.stateTemplates[reference.stateKey] = newName
+        end
+    end
+
+    return Result(true, { templateName = newName, oldName = oldName, changed = true, affectedReferences = affected })
+end
+
+function Mutations.DeleteTemplate(context, templateName)
+    if not ValidateTemplateName(templateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if type(templates[templateName]) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = templateName })
+    end
+
+    local affected = ForEachTemplateReference(context, templateName, nil)
+    if affected > 0 then
+        return Result(false, { errorCode = "template_in_use", templateName = templateName, affectedReferences = affected })
+    end
+
+    templates[templateName] = nil
+    return Result(true, { templateName = templateName, changed = true, affectedReferences = 0 })
+end
+
+function Mutations.CopyTemplate(sourceContext, targetContext, sourceName, targetName)
+    if not ValidateTemplateName(sourceName) or not ValidateTemplateName(targetName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local sourceTemplates = GetTemplatesFromContext(sourceContext)
+    local targetTemplates = GetTemplatesFromContext(targetContext)
+    if type(sourceTemplates) ~= "table" or type(targetTemplates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local templateText = sourceTemplates[sourceName]
+    if type(templateText) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = sourceName })
+    end
+    if targetTemplates[targetName] ~= nil then
+        return Result(false, { errorCode = "template_name_exists", templateName = targetName })
+    end
+
+    targetTemplates[targetName] = templateText
+    return Result(true, { sourceName = sourceName, templateName = targetName, templateValue = templateText, changed = true })
+end
+
+function Mutations.AssignTemplate(context, unitKey, textKey, templateName)
+    if not ValidateTemplateName(templateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if type(templates[templateName]) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = templateName })
+    end
+
+    local textConfig, _, unitConfig = GetTextConfig(context, unitKey, textKey)
+    if not unitConfig then
+        return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
+    end
+    if not textConfig then
+        return Result(false, { errorCode = "text_element_not_found", unitKey = unitKey, textKey = textKey })
+    end
+
+    local changed = textConfig.templateName ~= templateName
+    textConfig.templateName = templateName
+    return Result(true, { templateName = templateName, unitKey = unitKey, textKey = textKey, changed = changed })
+end
+
+function Mutations.UnassignTemplate(context, unitKey, textKey)
+    local textConfig, _, unitConfig = GetTextConfig(context, unitKey, textKey)
+    if not unitConfig then
+        return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
+    end
+    if not textConfig then
+        return Result(false, { errorCode = "text_element_not_found", unitKey = unitKey, textKey = textKey })
+    end
+
+    local changed = textConfig.templateName ~= nil and textConfig.templateName ~= ""
+    textConfig.templateName = ""
+    return Result(true, { unitKey = unitKey, textKey = textKey, changed = changed })
+end
+
+function Mutations.AssignStateTemplate(context, unitKey, textKey, stateKey, templateName)
+    if not IsNonEmptyString(stateKey) then
+        return Result(false, { errorCode = "state_key_invalid" })
+    end
+    if not ValidateTemplateName(templateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if type(templates[templateName]) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = templateName })
+    end
+
+    local textConfig, _, unitConfig = GetTextConfig(context, unitKey, textKey)
+    if not unitConfig then
+        return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
+    end
+    if not textConfig then
+        return Result(false, { errorCode = "text_element_not_found", unitKey = unitKey, textKey = textKey })
+    end
+
+    textConfig.stateTemplates = type(textConfig.stateTemplates) == "table" and textConfig.stateTemplates or {}
+    local changed = textConfig.stateTemplates[stateKey] ~= templateName
+    textConfig.stateTemplates[stateKey] = templateName
+    return Result(true, { templateName = templateName, unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = changed })
+end
+
+function Mutations.UnassignStateTemplate(context, unitKey, textKey, stateKey)
+    if not IsNonEmptyString(stateKey) then
+        return Result(false, { errorCode = "state_key_invalid" })
+    end
+
+    local textConfig, _, unitConfig = GetTextConfig(context, unitKey, textKey)
+    if not unitConfig then
+        return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
+    end
+    if not textConfig then
+        return Result(false, { errorCode = "text_element_not_found", unitKey = unitKey, textKey = textKey })
+    end
+    if type(textConfig.stateTemplates) ~= "table" then
+        return Result(true, { unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = false })
+    end
+
+    local changed = textConfig.stateTemplates[stateKey] ~= nil and textConfig.stateTemplates[stateKey] ~= ""
+    textConfig.stateTemplates[stateKey] = nil
+    if next(textConfig.stateTemplates) == nil then
+        textConfig.stateTemplates = nil
+    end
+    return Result(true, { unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = changed })
+end
+
+function Mutations.ApplyTemplateToUnits(context, options)
+    if type(options) ~= "table" or not ValidateTemplateName(options.selectedTemplateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if type(templates[options.selectedTemplateName]) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = options.selectedTemplateName })
+    end
+    local selectedTemplateText = templates[options.selectedTemplateName]
+
+    local appliedUnits = {}
+    local removedUnits = {}
+
+    for _, unitKey in ipairs(type(options.unitsToAdd) == "table" and options.unitsToAdd or {}) do
+        local unitConfig = GetUnitConfigFromContext(context, unitKey)
+        if type(unitConfig) == "table" then
+            unitConfig.Texts = unitConfig.Texts or {}
+            local textKey = type(context.GetNextTextKey) == "function" and context.GetNextTextKey(unitKey) or Mutations.GetNextTextKey(context, unitKey)
+            local textConfig = type(context.CreateTextConfig) == "function"
+                and context.CreateTextConfig(unitKey, options.templateText or "", options.linkedTemplateName or "")
+                or Mutations.BuildTextElementConfig(options.templateText or "", options.linkedTemplateName or "")
+            if IsNonEmptyString(textKey) and type(textConfig) == "table" then
+                unitConfig.Texts[textKey] = textConfig
+                appliedUnits[#appliedUnits + 1] = unitKey
+            end
+        end
+    end
+
+    for _, unitKey in ipairs(type(options.unitsToRemove) == "table" and options.unitsToRemove or {}) do
+        local unitConfig = GetUnitConfigFromContext(context, unitKey)
+        local texts = unitConfig and unitConfig.Texts or nil
+        local unitChanged = false
+        if type(texts) == "table" then
+            for textId, textConfig in pairs(texts) do
+                if type(textConfig) == "table" then
+                    local matched = textConfig.templateName == options.selectedTemplateName
+                    if not matched and type(textConfig.stateTemplates) == "table" then
+                        for _, stateTemplateName in pairs(textConfig.stateTemplates) do
+                            if stateTemplateName == options.selectedTemplateName then
+                                matched = true
+                                break
+                            end
+                        end
+                    end
+
+                    if matched then
+                        RemoveTemplateReferencesFromTextConfig(textConfig, options.selectedTemplateName)
+
+                        if ShouldRemoveGeneratedTextElement(textId, textConfig, selectedTemplateText) then
+                            texts[textId] = nil
+                        elseif not HasIndependentTextContent(textConfig) then
+                            textConfig.enabled = false
+                        end
+                        unitChanged = true
+                    end
+                end
+            end
+        end
+        if unitChanged then
+            removedUnits[#removedUnits + 1] = unitKey
+        end
+    end
+
+    return Result(true, {
+        templateName = options.selectedTemplateName,
+        linkedTemplateName = options.linkedTemplateName,
+        appliedUnits = appliedUnits,
+        removedUnits = removedUnits,
+        changed = #appliedUnits > 0 or #removedUnits > 0,
+    })
+end
+
 function Mutations.CopyTemplateEntryToProfile(db, sourceEntry, targetProfileName)
     db = db or FocalPoint.db
     if type(sourceEntry) ~= "table" or sourceEntry.sourceType ~= "profile" then

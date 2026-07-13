@@ -10,6 +10,7 @@ local L = ns.L
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
 local TextBuilderDefinition = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.Form
+local TextTemplateMutations = ns.TextTemplateMutations or {}
 
 local TextBuilderController = {}
 ns.GUI.Pages.TextBuilder = TextBuilderController
@@ -445,13 +446,25 @@ local function GetTemplates()
     return GetActiveProfileTemplates()
 end
 
-local function GetWritableTemplates()
-    if not ns.db or not ns.db.profile then
-        return {}
+local function FormatMutationError(result)
+    local errorCode = type(result) == "table" and result.errorCode or "unknown"
+    if errorCode == "invalid_template_name" then
+        return T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED")
+    elseif errorCode == "invalid_template_text" then
+        return "Template text is invalid."
+    elseif errorCode == "template_name_exists" then
+        return (T("INFO_TEXT_BUILDER_STATUS_NAME_EXISTS")) .. " " .. tostring(result and result.templateName or "")
+    elseif errorCode == "template_not_found" then
+        return T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE")
+    elseif errorCode == "template_in_use" then
+        return string.format("Template is still used by %d text reference(s).", tonumber(result and result.affectedReferences) or 0)
+    elseif errorCode == "unit_not_found" then
+        return "Unit configuration was not found."
+    elseif errorCode == "text_element_not_found" then
+        return "Text element was not found."
     end
 
-    ns.db.profile.TextTemplates = ns.db.profile.TextTemplates or {}
-    return ns.db.profile.TextTemplates
+    return "Template operation failed: " .. tostring(errorCode)
 end
 
 local function CenterWindow(window)
@@ -637,137 +650,8 @@ local function SyncDesiredTemplateUsage(context)
     end
 end
 
-local function UnlinkTemplateFromUnit(unitKey, templateName)
-    local unitConfig = ns.db and ns.db.profile and ns.db.profile.Units and ns.db.profile.Units[unitKey]
-    local texts = unitConfig and unitConfig.Texts
-    local changed = false
-
-    if type(texts) ~= "table" then
-        return false
-    end
-
-    for textId, textConfig in pairs(texts) do
-        if type(textConfig) == "table" then
-            local matched = textConfig.templateName == templateName
-            if not matched and type(textConfig.stateTemplates) == "table" then
-                for _, stateTemplateName in pairs(textConfig.stateTemplates) do
-                    if stateTemplateName == templateName then
-                        matched = true
-                        break
-                    end
-                end
-            end
-
-            if matched then
-                if type(textId) == "string" and (textId:match("^text_%d+$") or textId:match("^Custom%d+$")) then
-                    texts[textId] = nil
-                    changed = true
-                else
-                    textConfig.templateName = ""
-                end
-
-                if texts[textId] ~= nil and type(textConfig.stateTemplates) == "table" then
-                    for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
-                        if stateTemplateName == templateName then
-                            textConfig.stateTemplates[stateKey] = ""
-                        end
-                    end
-                end
-
-                if texts[textId] ~= nil
-                    and (textConfig.templateName == nil or textConfig.templateName == "")
-                    and (type(textConfig.stateTemplates) ~= "table" or next(textConfig.stateTemplates) == nil)
-                then
-                    if type(textId) == "string" and textId:match("^text_%d+$") then
-                        texts[textId] = nil
-                    else
-                        textConfig.enabled = false
-                    end
-                end
-
-                changed = true
-            end
-        end
-    end
-
-    return changed
-end
-
-local function RenameTemplateReferences(oldName, newName)
-    if oldName == "" or newName == "" or oldName == newName then
-        return
-    end
-
-    local units = ns.db and ns.db.profile and ns.db.profile.Units or {}
-    for _, unitConfig in pairs(units or {}) do
-        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
-        if type(texts) == "table" then
-            for _, textConfig in pairs(texts) do
-                if type(textConfig) == "table" then
-                    if textConfig.templateName == oldName then
-                        textConfig.templateName = newName
-                    end
-
-                    if type(textConfig.stateTemplates) == "table" then
-                        for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
-                            if stateTemplateName == oldName then
-                                textConfig.stateTemplates[stateKey] = newName
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
-local function BuildNewTextElementConfig(template, linkedTemplateName)
-    return {
-        enabled = true,
-        tag = template or "",
-        templateName = linkedTemplateName or "",
-        font = STANDARD_TEXT_FONT,
-        fontStyle = "NONE",
-        fontSize = 12,
-        justifyH = "CENTER",
-        anchorTo = "HealthBar",
-        point = "CENTER",
-        relativePoint = "CENTER",
-        offsetX = 0,
-        offsetY = 0,
-        overflowMode = "NONE",
-        shadowEnabled = true,
-        shadowColor = { 0, 0, 0, 1 },
-        shadowOffsetX = 1,
-        shadowOffsetY = -1,
-        color = { 1, 1, 1, 1 },
-    }
-end
-
-local function GetNextTextElementId(unitKey)
-    local optionValues = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.OptionValues
-    local texts = optionValues and optionValues.Get and optionValues.Get({ "Units", unitKey, "Texts" }, {}) or {}
-    local maxIndex = 0
-
-    if type(texts) == "table" then
-        for textId in pairs(texts) do
-            if type(textId) == "string" then
-                local numericId = tonumber(textId:match("^text_(%d+)$"))
-                if numericId and numericId > maxIndex then
-                    maxIndex = numericId
-                end
-            end
-        end
-    end
-
-    local nextIndex = maxIndex + 1
-    local candidateId = string.format("text_%d", nextIndex)
-    while type(texts) == "table" and texts[candidateId] ~= nil do
-        nextIndex = nextIndex + 1
-        candidateId = string.format("text_%d", nextIndex)
-    end
-
-    return candidateId
+local function BuildMutationContext()
+    return TextTemplateMutations.CreateProfileContext and TextTemplateMutations.CreateProfileContext(ns.db and ns.db.profile) or {}
 end
 
 local function RefreshPreview(context)
@@ -829,9 +713,8 @@ local function RefreshTemplateDropdown(context)
 end
 
 local function ApplyTemplateToTextElement(context)
-    local optionValues = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.OptionValues
     local optionRefresh = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.OptionRefresh
-    if not optionValues or not optionValues.Set then
+    if not TextTemplateMutations or not TextTemplateMutations.ApplyTemplateToUnits then
         return
     end
 
@@ -869,20 +752,26 @@ local function ApplyTemplateToTextElement(context)
         return
     end
 
-    local appliedEntries = {}
-    local removedEntries = {}
+    local result = TextTemplateMutations.ApplyTemplateToUnits(BuildMutationContext(), {
+        selectedTemplateName = selectedTemplateName,
+        linkedTemplateName = linkedTemplateName,
+        templateText = template,
+        unitsToAdd = unitsToAdd,
+        unitsToRemove = unitsToRemove,
+    })
+    if type(result) ~= "table" or not result.ok then
+        SetStatus(FormatMutationError(result))
+        return
+    end
 
-    for _, unitKey in ipairs(unitsToAdd) do
-        local textId = GetNextTextElementId(unitKey)
-        local newTextConfig = BuildNewTextElementConfig(template, linkedTemplateName)
-        optionValues.Set({ "Units", unitKey, "Texts", textId }, newTextConfig)
+    local appliedEntries = {}
+    for _, unitKey in ipairs(result.appliedUnits or {}) do
         appliedEntries[#appliedEntries + 1] = ns.GetLabel and ns.GetLabel(KM.Units, unitKey) or unitKey
     end
 
-    for _, unitKey in ipairs(unitsToRemove) do
-        if UnlinkTemplateFromUnit(unitKey, selectedTemplateName) then
-            removedEntries[#removedEntries + 1] = ns.GetLabel and ns.GetLabel(KM.Units, unitKey) or unitKey
-        end
+    local removedEntries = {}
+    for _, unitKey in ipairs(result.removedUnits or {}) do
+        removedEntries[#removedEntries + 1] = ns.GetLabel and ns.GetLabel(KM.Units, unitKey) or unitKey
     end
 
     if optionRefresh and optionRefresh.Live then
@@ -1196,7 +1085,6 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        local templates = GetWritableTemplates()
         local name = Trim(context.templateNameEdit:GetText() or "")
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
@@ -1205,7 +1093,12 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        templates[name] = template
+        local result = TextTemplateMutations.CreateTemplate and TextTemplateMutations.CreateTemplate(BuildMutationContext(), name, template)
+        if type(result) ~= "table" or not result.ok then
+            SetStatus(FormatMutationError(result))
+            return
+        end
+
         SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, name) or {
             sourceType = "profile",
             sourceId = context.state.activeProfileName,
@@ -1260,10 +1153,10 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        local templates = GetWritableTemplates()
         local selectedName = selectedEntry.templateName
         local updatedName = Trim(context.templateNameEdit:GetText() or "")
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
+        local templates = GetTemplates()
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
             SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
@@ -1275,15 +1168,13 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        if updatedName ~= selectedName and type(templates[updatedName]) == "string" then
-            SetStatus((T("INFO_TEXT_BUILDER_STATUS_NAME_EXISTS")) .. " " .. updatedName)
-            return
-        end
-
         if updatedName ~= selectedName then
-            templates[updatedName] = template
-            templates[selectedName] = nil
-            RenameTemplateReferences(selectedName, updatedName)
+            local renameResult = TextTemplateMutations.RenameTemplate and TextTemplateMutations.RenameTemplate(BuildMutationContext(), selectedName, updatedName, template)
+            if type(renameResult) ~= "table" or not renameResult.ok then
+                SetStatus(FormatMutationError(renameResult))
+                return
+            end
+
             SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, updatedName) or {
                 sourceType = "profile",
                 sourceId = context.state.activeProfileName,
@@ -1297,7 +1188,12 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        templates[selectedName] = template
+        local updateResult = TextTemplateMutations.UpdateTemplate and TextTemplateMutations.UpdateTemplate(BuildMutationContext(), selectedName, template)
+        if type(updateResult) ~= "table" or not updateResult.ok then
+            SetStatus(FormatMutationError(updateResult))
+            return
+        end
+
         SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, selectedName) or {
             sourceType = "profile",
             sourceId = context.state.activeProfileName,
@@ -1316,15 +1212,20 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        local templates = GetWritableTemplates()
         local selectedName = selectedEntry.templateName
+        local templates = GetTemplates()
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
             SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
             return
         end
 
-        templates[selectedName] = nil
+        local result = TextTemplateMutations.DeleteTemplate and TextTemplateMutations.DeleteTemplate(BuildMutationContext(), selectedName)
+        if type(result) ~= "table" or not result.ok then
+            SetStatus(FormatMutationError(result))
+            return
+        end
+
         ClearTemplateSelection(context.state)
         RefreshTemplateDropdown(context)
         RefreshWindowState()
