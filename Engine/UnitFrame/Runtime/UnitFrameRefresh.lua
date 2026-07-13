@@ -102,6 +102,14 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         if not (Demo.IsRangeFadeDisabled and Demo.IsRangeFadeDisabled()) then
             owner:ApplyRangeFade(frame)
         end
+        if mode == "placeholder"
+            and FocalPoint
+            and FocalPoint.framesUnlocked == true
+            and FocalPoint.guiTestModeEnabled ~= true
+            and frame.SetAlpha
+        then
+            frame:SetAlpha(1)
+        end
 
         local protectedRoot = IsProtectedRoot(frame)
         local previewOutsideCombat = IsPreviewModeEnabled
