@@ -517,6 +517,14 @@ function EditorController.BuildInspector(container, deps)
         end
     end
 
+    local function SyncUnitFrameLifecycle()
+        if ns.RebuildFramesForActiveProfile then
+            ns:RebuildFramesForActiveProfile()
+        else
+            RefreshLiveUnit(state.selectedUnit)
+        end
+    end
+
     local RebuildSidebar
     RebuildSidebar = function()
         CaptureSidebarScroll()
@@ -526,6 +534,9 @@ function EditorController.BuildInspector(container, deps)
                 Inspector.Build(content, state, {
                     onConfigChanged = function()
                         RefreshLiveUnit(state.selectedUnit)
+                    end,
+                    onUnitEnabledChanged = function()
+                        SyncUnitFrameLifecycle()
                     end,
                     onSidebarChanged = function()
                         RefreshLiveUnit(state.selectedUnit)
@@ -541,6 +552,9 @@ function EditorController.BuildInspector(container, deps)
         Inspector.Build(inspector, state, {
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
+            end,
+            onUnitEnabledChanged = function()
+                SyncUnitFrameLifecycle()
             end,
             onSidebarChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
