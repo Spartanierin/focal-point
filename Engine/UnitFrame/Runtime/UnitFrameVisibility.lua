@@ -332,6 +332,7 @@ function Visibility.HandleMissingUnit(frame)
     if IsPreviewModeEnabled()
         and Demo.IsFrameUnitEnabled
         and not Demo.IsFrameUnitEnabled(frame)
+        and not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true)
     then
         frame._missingUnitSince = nil
         if Visibility.ClearFrameContentValuesOnly then

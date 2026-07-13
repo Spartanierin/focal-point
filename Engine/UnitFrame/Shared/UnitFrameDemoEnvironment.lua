@@ -600,7 +600,7 @@ function Demo.ResolveMode(frame, caller)
             return "live", "live-invalid-frame"
         end
         if not Demo.IsFrameUnitEnabled(frame) then
-            return "disabled", "unlock-disabled-unit"
+            return "placeholder", "unlock-disabled-placeholder"
         end
         if IsSelectedEditorFrame(frame) then
             return "detailed", "unlock-selected-detailed"
@@ -658,6 +658,9 @@ function Demo.ShouldForceFrameVisible(frame)
     end
 
     if not Demo.IsFrameUnitEnabled(frame) then
+        if FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true then
+            return true
+        end
         return false
     end
 
