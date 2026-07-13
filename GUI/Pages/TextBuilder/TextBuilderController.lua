@@ -288,6 +288,15 @@ local function CanEditSelectedTemplate(context)
     return context and CanEditTemplateEntry(GetSelectedTemplateEntry(context.state))
 end
 
+local function CanCopySelectedTemplate(context)
+    local entry = context and GetSelectedTemplateEntry(context.state) or nil
+    return type(entry) == "table"
+        and entry.sourceType == "profile"
+        and type(entry.profileName) == "string"
+        and entry.profileName ~= ""
+        and entry.profileName ~= GetCurrentProfileName()
+end
+
 local function SetTemplateSelection(state, entry)
     if type(state) ~= "table" or type(entry) ~= "table" then
         return false
@@ -955,6 +964,7 @@ RefreshWindowState = function()
 
         ApplyModalActionButtonVisual(context.updateButton, "utility")
         ApplyModalActionButtonVisual(context.saveButton, "primary_action")
+        ApplyModalActionButtonVisual(context.copyTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.updateTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.deleteTemplateButton, "danger")
         ApplyModalActionButtonVisual(context.applyTemplateButton, "primary_action")
@@ -970,6 +980,7 @@ RefreshWindowState = function()
         context.templateNameEdit:SetDisabled(true)
         context.deleteTemplateButton:SetDisabled(true)
         context.saveButton:SetDisabled(true)
+        context.copyTemplateButton:SetDisabled(true)
         context.updateTemplateButton:SetDisabled(true)
         context.applyTemplateButton:SetDisabled(true)
         ApplyTextBuilderButtonVisuals()
@@ -1002,6 +1013,7 @@ RefreshWindowState = function()
     local hasTemplateName = Trim(context.templateNameEdit:GetText() or "") ~= ""
     local hasTemplateText = Trim(context.templateEdit:GetText() or "") ~= ""
     local canEditSelectedTemplate = CanEditSelectedTemplate(context)
+    local canCopySelectedTemplate = CanCopySelectedTemplate(context)
 
     SyncTemplateSelectWidget(context)
     if profileContextChanged or context.state._profileContextChanged then
@@ -1015,6 +1027,7 @@ RefreshWindowState = function()
 
     context.deleteTemplateButton:SetDisabled(not hasSelectedTemplate or not canEditSelectedTemplate)
     context.saveButton:SetDisabled(not hasTemplateName or not hasTemplateText)
+    context.copyTemplateButton:SetDisabled(not canCopySelectedTemplate)
     context.updateTemplateButton:SetDisabled(not hasSelectedTemplate or not hasTemplateName or not hasTemplateText or not canEditSelectedTemplate)
     context.applyTemplateButton:SetDisabled(not hasTemplateText or not canEditSelectedTemplate)
     ApplyTextBuilderButtonVisuals()
@@ -1053,6 +1066,7 @@ local function CreateWindowContent(window, state)
         templateNameEdit = widgets.templateNameEdit,
         deleteTemplateButton = widgets.deleteTemplateButton,
         saveButton = widgets.saveButton,
+        copyTemplateButton = widgets.copyTemplateButton,
         updateTemplateButton = widgets.updateTemplateButton,
         libraryHint = widgets.libraryHint,
         usageHint = widgets.usageHint,
@@ -1202,6 +1216,42 @@ local function WireWindowCallbacks(context)
         RefreshTemplateDropdown(context)
         RefreshWindowState()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name)
+    end)
+
+    context.copyTemplateButton:SetCallback("OnClick", function()
+        if not CanCopySelectedTemplate(context) then
+            RefreshWindowState()
+            SetStatus("Select a template from another profile to copy.")
+            return
+        end
+
+        local mutations = ns.TextTemplateMutations
+        if not mutations or not mutations.CopyTemplateEntryToProfile then
+            SetStatus("Template copy is not available.")
+            return
+        end
+
+        local sourceEntry = GetSelectedTemplateEntry(context.state)
+        local result = mutations.CopyTemplateEntryToProfile(ns.db, sourceEntry, GetCurrentProfileName())
+        if type(result) ~= "table" or not result.success then
+            SetStatus("Template copy failed: " .. tostring(result and result.reason or "unknown"))
+            RefreshWindowState()
+            return
+        end
+
+        local targetEntry = GetProfileTemplateEntry(result.targetProfileName, result.targetTemplateName)
+        if targetEntry then
+            SetTemplateSelection(context.state, targetEntry)
+        end
+
+        RefreshTemplateDropdown(context)
+        RefreshWindowState()
+
+        if result.reusedExisting then
+            SetStatus("An identical template already exists in the current profile and was selected.")
+        else
+            SetStatus("Template copied to current profile as \"" .. tostring(result.targetTemplateName or "") .. "\".")
+        end
     end)
 
     context.updateTemplateButton:SetCallback("OnClick", function()

@@ -275,11 +275,12 @@ ns.GUI.Layouts.TextBuilder.Form = {
             heightInfo = {
                 source = "content",
                 min = 32,
-                derivedFrom = "saveButton + updateTemplateButton + deleteTemplateButton",
+                derivedFrom = "saveButton + copyTemplateButton + updateTemplateButton + deleteTemplateButton",
             },
         },
         items = {
             { id = "saveButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_SAVE" },
+            { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", text = "Copy to Current Profile" },
             { id = "updateTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_UPDATE" },
             { id = "deleteTemplateButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_TEXT_BUILDER_DELETE" },
         },
