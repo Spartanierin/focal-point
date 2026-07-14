@@ -48,6 +48,20 @@ local function T(key, fallback)
     return (L and L[key]) or fallback or ""
 end
 
+local STATUS_COLORS = {
+    info = { 0.84, 0.87, 0.92, 1.00 },
+    success = { 0.66, 0.90, 0.58, 1.00 },
+    warning = { 1.00, 0.82, 0.42, 1.00 },
+    error = { 1.00, 0.52, 0.48, 1.00 },
+}
+
+local function NormalizeStatusKind(statusKind)
+    if statusKind == "success" or statusKind == "warning" or statusKind == "error" then
+        return statusKind
+    end
+    return "info"
+end
+
 local function Trim(value)
     if type(value) ~= "string" then
         return ""
@@ -510,11 +524,23 @@ local function GetTextBuilderState(deps)
     return state
 end
 
-local function SetStatus(message)
+local function ApplyStatusVisual(statusWidget, statusKind)
+    local color = STATUS_COLORS[NormalizeStatusKind(statusKind)] or STATUS_COLORS.info
+    local label = statusWidget and statusWidget.label
+    if label and label.SetTextColor then
+        label:SetTextColor(color[1], color[2], color[3], color[4])
+    end
+    if label and label.SetJustifyH then
+        label:SetJustifyH("LEFT")
+    end
+end
+
+local function SetStatus(message, statusKind)
     if ns.GUI and ns.GUI.SetStatusText then
         ns.GUI:SetStatusText(message)
     end
     if windowContext and windowContext.libraryHint and windowContext.libraryHint.SetText then
+        ApplyStatusVisual(windowContext.libraryHint, statusKind)
         windowContext.libraryHint:SetText(message or "")
     end
 end
@@ -542,14 +568,14 @@ local function FormatMutationError(result)
     elseif errorCode == "invalid_context" then
         return T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID")
     elseif errorCode == "template_in_use" then
-        return string.format("Template is still used by %d text reference(s).", tonumber(result and result.affectedReferences) or 0)
+        return T("INFO_TEXT_BUILDER_STATUS_TEMPLATE_IN_USE")
     elseif errorCode == "unit_not_found" then
-        return "Unit configuration was not found."
+        return T("INFO_TEXT_BUILDER_STATUS_UNIT_NOT_FOUND")
     elseif errorCode == "text_element_not_found" then
-        return "Text element was not found."
+        return T("INFO_TEXT_BUILDER_STATUS_TEXT_ELEMENT_NOT_FOUND")
     end
 
-    return "Template operation failed: " .. tostring(errorCode)
+    return T("INFO_TEXT_BUILDER_STATUS_OPERATION_FAILED")
 end
 
 local function CenterWindow(window)
@@ -886,7 +912,7 @@ end
 
 local function OpenDeleteTemplateConfirmDialog(templateName)
     if type(templateName) ~= "string" or templateName == "" then
-        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"), "warning")
         return
     end
 
@@ -912,13 +938,13 @@ local function OpenDeleteTemplateConfirmDialog(templateName)
 
             local templates = GetTemplates()
             if type(templates[confirmedTemplateName]) ~= "string" then
-                SetStatus(FormatMutationError({ errorCode = "template_not_found", templateName = confirmedTemplateName }))
+                SetStatus(FormatMutationError({ errorCode = "template_not_found", templateName = confirmedTemplateName }), "error")
                 return
             end
 
             local result = TextTemplateMutations.DeleteTemplate and TextTemplateMutations.DeleteTemplate(BuildMutationContext(), confirmedTemplateName)
             if type(result) ~= "table" or not result.ok then
-                SetStatus(FormatMutationError(result))
+                SetStatus(FormatMutationError(result), "error")
                 return
             end
 
@@ -927,7 +953,7 @@ local function OpenDeleteTemplateConfirmDialog(templateName)
                 RefreshTemplateDropdown(windowContext)
                 RefreshWindowState()
             end
-            SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. confirmedTemplateName)
+            SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. confirmedTemplateName, "success")
         end)
     end
 
@@ -976,7 +1002,7 @@ local function ApplyTemplateToTextElement(context)
     end
 
     if #unitsToAdd == 0 and #unitsToRemove == 0 then
-        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT"))
+        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT"), "warning")
         return
     end
 
@@ -988,7 +1014,7 @@ local function ApplyTemplateToTextElement(context)
         unitsToRemove = unitsToRemove,
     })
     if type(result) ~= "table" or not result.ok then
-        SetStatus(FormatMutationError(result))
+        SetStatus(FormatMutationError(result), "error")
         return
     end
 
@@ -1024,7 +1050,7 @@ local function ApplyTemplateToTextElement(context)
         statusText = T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT")
     end
 
-    SetStatus(statusText)
+    SetStatus(statusText, statusText == T("INFO_TEXT_BUILDER_STATUS_SELECT_UNIT") and "warning" or "success")
     SyncDesiredTemplateUsage(context)
     RefreshTemplateUsageState(context)
 end
@@ -1103,7 +1129,7 @@ RefreshWindowState = function()
         context.updateTemplateButton:SetDisabled(true)
         context.applyTemplateButton:SetDisabled(true)
         ApplyTextBuilderButtonVisuals()
-        context.libraryHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        SetStatus(T("INFO_COMMON_UNAVAILABLE"), "error")
         if context.usageHint then
             context.usageHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
         end
@@ -1127,7 +1153,7 @@ RefreshWindowState = function()
     context.templateNameEdit:SetDisabled(false)
     SyncEditBoxText(context, context.templateNameEdit, context.state.templateName or "", "suspendTemplateNameCallbacks")
 
-    context.libraryHint:SetText(T("INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT"))
+    SetStatus(T("INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT"), "info")
     if context.usageHint then
         context.usageHint:SetText(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT"))
     end
@@ -1350,7 +1376,7 @@ local function WireWindowCallbacks(context)
         RefreshPreview(context)
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus(T("INFO_TEXT_BUILDER_STATUS_NEW_DRAFT"))
+        SetStatus(T("INFO_TEXT_BUILDER_STATUS_NEW_DRAFT"), "info")
     end)
 
     context.saveButton:SetCallback("OnClick", function()
@@ -1363,18 +1389,18 @@ local function WireWindowCallbacks(context)
         local mode = ResolvePrimarySaveMode(context)
 
         if name == "" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"), "error")
             return
         end
         if Trim(template) == "" then
-            SetStatus(FormatMutationError({ errorCode = "invalid_template_text" }))
+            SetStatus(FormatMutationError({ errorCode = "invalid_template_text" }), "error")
             return
         end
 
         if mode == "create" then
             local result = TextTemplateMutations.CreateTemplate and TextTemplateMutations.CreateTemplate(BuildMutationContext(), name, template)
             if type(result) ~= "table" or not result.ok then
-                SetStatus(FormatMutationError(result))
+                SetStatus(FormatMutationError(result), "error")
                 return
             end
 
@@ -1387,32 +1413,32 @@ local function WireWindowCallbacks(context)
             })
             RefreshTemplateDropdown(context)
             RefreshWindowState()
-            SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name)
+            SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name, "success")
             return
         end
 
         if mode ~= "update" then
             RefreshWindowState()
-            SetStatus("Copy this display to the current profile before saving changes.")
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_TO_CURRENT_FIRST"), "warning")
             return
         end
 
         local selectedEntry = GetSelectedTemplateEntry(context.state)
         if not CanEditTemplateEntry(selectedEntry) then
             RefreshWindowState()
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"), "warning")
             return
         end
         if not IsSelectedTemplateDirty(context) then
             RefreshWindowState()
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NO_CHANGES"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NO_CHANGES"), "warning")
             return
         end
 
         local selectedName = selectedEntry.templateName
         local updateResult = TextTemplateMutations.UpdateTemplate and TextTemplateMutations.UpdateTemplate(BuildMutationContext(), selectedName, template)
         if type(updateResult) ~= "table" or not updateResult.ok then
-            SetStatus(FormatMutationError(updateResult))
+            SetStatus(FormatMutationError(updateResult), "error")
             return
         end
 
@@ -1425,27 +1451,27 @@ local function WireWindowCallbacks(context)
         })
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName, "success")
     end)
 
     context.copyTemplateButton:SetCallback("OnClick", function()
         if not CanCopySelectedTemplate(context) then
             RefreshWindowState()
-            SetStatus("Select a template from another profile to copy.")
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_SELECT_OTHER"), "warning")
             return
         end
 
         local mutations = ns.TextTemplateMutations
         if not mutations or not mutations.CopyTemplateEntryToProfile then
-            SetStatus("Template copy is not available.")
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_UNAVAILABLE"), "error")
             return
         end
 
         local sourceEntry = GetSelectedTemplateEntry(context.state)
         local result = mutations.CopyTemplateEntryToProfile(ns.db, sourceEntry, GetCurrentProfileName())
         if type(result) ~= "table" or not result.success then
-            SetStatus("Template copy failed: " .. tostring(result and result.reason or "unknown"))
             RefreshWindowState()
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_FAILED"), "error")
             return
         end
 
@@ -1458,9 +1484,9 @@ local function WireWindowCallbacks(context)
         RefreshWindowState()
 
         if result.reusedExisting then
-            SetStatus("An identical template already exists in the current profile and was selected.")
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_REUSED"), "success")
         else
-            SetStatus("Template copied to current profile as \"" .. tostring(result.targetTemplateName or "") .. "\".")
+            SetStatus(string.format(T("INFO_TEXT_BUILDER_STATUS_COPY_SUCCESS"), tostring(result.targetTemplateName or "")), "success")
         end
     end)
 
@@ -1472,7 +1498,7 @@ local function WireWindowCallbacks(context)
         local selectedEntry = GetSelectedTemplateEntry(context.state)
         if not CanEditTemplateEntry(selectedEntry) then
             RefreshWindowState()
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"), "warning")
             return
         end
 
@@ -1482,24 +1508,24 @@ local function WireWindowCallbacks(context)
         local draft = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"), "warning")
             return
         end
 
         if updatedName == "" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"), "error")
             return
         end
 
         if updatedName == selectedName then
             RefreshWindowState()
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NO_CHANGES"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NO_CHANGES"), "warning")
             return
         end
 
         local renameResult = TextTemplateMutations.RenameTemplate and TextTemplateMutations.RenameTemplate(BuildMutationContext(), selectedName, updatedName)
         if type(renameResult) ~= "table" or not renameResult.ok then
-            SetStatus(FormatMutationError(renameResult))
+            SetStatus(FormatMutationError(renameResult), "error")
             return
         end
 
@@ -1513,7 +1539,7 @@ local function WireWindowCallbacks(context)
         context.state.template = draft
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_RENAMED")) .. " " .. selectedName .. " -> " .. updatedName)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_RENAMED")) .. " " .. selectedName .. " -> " .. updatedName, "success")
     end)
 
     context.deleteTemplateButton:SetCallback("OnClick", function()
@@ -1526,7 +1552,7 @@ local function WireWindowCallbacks(context)
         local templates = GetTemplates()
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"), "warning")
             return
         end
 

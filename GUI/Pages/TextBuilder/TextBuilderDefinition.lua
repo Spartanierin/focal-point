@@ -365,12 +365,12 @@ ns.GUI.Layouts.TextBuilder.Form = {
             },
             heightInfo = {
                 source = "content",
-                min = 20,
+                min = 38,
                 derivedFrom = "libraryHint label",
             },
         },
         items = {
-            { id = "libraryHint", widget = "label", itemVariant = "footer_hint_muted", textKey = "INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT" },
+            { id = "libraryHint", widget = "label", itemVariant = "footer_hint_muted", role = "label", size = 12, colorKey = "hint", justifyH = "LEFT", textKey = "INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT" },
         },
     },
     {
