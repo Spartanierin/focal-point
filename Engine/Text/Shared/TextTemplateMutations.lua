@@ -166,6 +166,30 @@ local function RemoveTemplateReferencesFromTextConfig(textConfig, templateName)
     return changed
 end
 
+local function RemovePrimaryTemplateReference(textConfig, templateName)
+    if type(textConfig) ~= "table" or not IsNonEmptyString(templateName) or textConfig.templateName ~= templateName then
+        return false
+    end
+
+    textConfig.templateName = ""
+    return true
+end
+
+local function RemoveStateTemplateReference(textConfig, stateKey, templateName)
+    if type(textConfig) ~= "table" or not IsNonEmptyString(stateKey) or type(textConfig.stateTemplates) ~= "table" then
+        return false
+    end
+    if not IsNonEmptyString(templateName) or textConfig.stateTemplates[stateKey] ~= templateName then
+        return false
+    end
+
+    textConfig.stateTemplates[stateKey] = nil
+    if next(textConfig.stateTemplates) == nil then
+        textConfig.stateTemplates = nil
+    end
+    return true
+end
+
 local function HasIndependentTextContent(textConfig)
     if type(textConfig) ~= "table" then
         return false
@@ -192,6 +216,43 @@ local function ShouldRemoveGeneratedTextElement(textKey, textConfig, removedTemp
     end
 
     return not IsNonEmptyString(textConfig.tag) or textConfig.tag == removedTemplateText
+end
+
+local function CleanupUnassignedTextElement(texts, textKey, textConfig, removedTemplateText)
+    if type(texts) ~= "table" or type(textConfig) ~= "table" then
+        return false, nil
+    end
+
+    if ShouldRemoveGeneratedTextElement(textKey, textConfig, removedTemplateText) then
+        texts[textKey] = nil
+        return true, "removed"
+    end
+
+    if not HasIndependentTextContent(textConfig) then
+        local changed = textConfig.enabled ~= false
+        textConfig.enabled = false
+        return changed, "disabled"
+    end
+
+    return false, nil
+end
+
+local function RemoveTemplateReferenceAndCleanup(texts, textKey, textConfig, templateName, removedTemplateText, removeMode, stateKey)
+    local removedReference = false
+    if removeMode == "primary" then
+        removedReference = RemovePrimaryTemplateReference(textConfig, templateName)
+    elseif removeMode == "state" then
+        removedReference = RemoveStateTemplateReference(textConfig, stateKey, templateName)
+    else
+        removedReference = RemoveTemplateReferencesFromTextConfig(textConfig, templateName)
+    end
+
+    if not removedReference then
+        return false, nil
+    end
+
+    local _, cleanupAction = CleanupUnassignedTextElement(texts, textKey, textConfig, removedTemplateText)
+    return true, cleanupAction
 end
 
 function Mutations.BuildTextElementConfig(template, linkedTemplateName)
@@ -468,7 +529,7 @@ function Mutations.AssignTemplate(context, unitKey, textKey, templateName)
 end
 
 function Mutations.UnassignTemplate(context, unitKey, textKey)
-    local textConfig, _, unitConfig = GetTextConfig(context, unitKey, textKey)
+    local textConfig, texts, unitConfig = GetTextConfig(context, unitKey, textKey)
     if not unitConfig then
         return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
     end
@@ -476,9 +537,21 @@ function Mutations.UnassignTemplate(context, unitKey, textKey)
         return Result(false, { errorCode = "text_element_not_found", unitKey = unitKey, textKey = textKey })
     end
 
-    local changed = textConfig.templateName ~= nil and textConfig.templateName ~= ""
-    textConfig.templateName = ""
-    return Result(true, { unitKey = unitKey, textKey = textKey, changed = changed })
+    local templateName = textConfig.templateName
+    if not IsNonEmptyString(templateName) then
+        return Result(true, { unitKey = unitKey, textKey = textKey, changed = false })
+    end
+
+    local templates = GetTemplatesFromContext(context) or {}
+    local templateText = templates[templateName]
+    local changed, cleanupAction = RemoveTemplateReferenceAndCleanup(texts, textKey, textConfig, templateName, templateText, "primary")
+    return Result(true, {
+        templateName = templateName,
+        unitKey = unitKey,
+        textKey = textKey,
+        changed = changed,
+        cleanupAction = cleanupAction,
+    })
 end
 
 function Mutations.AssignStateTemplate(context, unitKey, textKey, stateKey, templateName)
@@ -516,7 +589,7 @@ function Mutations.UnassignStateTemplate(context, unitKey, textKey, stateKey)
         return Result(false, { errorCode = "state_key_invalid" })
     end
 
-    local textConfig, _, unitConfig = GetTextConfig(context, unitKey, textKey)
+    local textConfig, texts, unitConfig = GetTextConfig(context, unitKey, textKey)
     if not unitConfig then
         return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
     end
@@ -527,12 +600,27 @@ function Mutations.UnassignStateTemplate(context, unitKey, textKey, stateKey)
         return Result(true, { unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = false })
     end
 
-    local changed = textConfig.stateTemplates[stateKey] ~= nil and textConfig.stateTemplates[stateKey] ~= ""
-    textConfig.stateTemplates[stateKey] = nil
-    if next(textConfig.stateTemplates) == nil then
-        textConfig.stateTemplates = nil
+    local templateName = textConfig.stateTemplates[stateKey]
+    if not IsNonEmptyString(templateName) then
+        local changed = textConfig.stateTemplates[stateKey] ~= nil
+        textConfig.stateTemplates[stateKey] = nil
+        if next(textConfig.stateTemplates) == nil then
+            textConfig.stateTemplates = nil
+        end
+        return Result(true, { unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = changed })
     end
-    return Result(true, { unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = changed })
+
+    local templates = GetTemplatesFromContext(context) or {}
+    local templateText = templates[templateName]
+    local changed, cleanupAction = RemoveTemplateReferenceAndCleanup(texts, textKey, textConfig, templateName, templateText, "state", stateKey)
+    return Result(true, {
+        templateName = templateName,
+        unitKey = unitKey,
+        textKey = textKey,
+        stateKey = stateKey,
+        changed = changed,
+        cleanupAction = cleanupAction,
+    })
 end
 
 function Mutations.ApplyTemplateToUnits(context, options)
@@ -585,13 +673,7 @@ function Mutations.ApplyTemplateToUnits(context, options)
                     end
 
                     if matched then
-                        RemoveTemplateReferencesFromTextConfig(textConfig, options.selectedTemplateName)
-
-                        if ShouldRemoveGeneratedTextElement(textId, textConfig, selectedTemplateText) then
-                            texts[textId] = nil
-                        elseif not HasIndependentTextContent(textConfig) then
-                            textConfig.enabled = false
-                        end
+                        RemoveTemplateReferenceAndCleanup(texts, textId, textConfig, options.selectedTemplateName, selectedTemplateText, "all")
                         unitChanged = true
                     end
                 end
