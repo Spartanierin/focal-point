@@ -342,7 +342,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
             },
         },
         items = {
-            { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", text = "Copy to Current Profile", fullWidth = true },
+            { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_COPY_TO_CURRENT_PROFILE", fullWidth = true },
         },
     },
     {

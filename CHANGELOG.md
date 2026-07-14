@@ -9,6 +9,29 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.16]
+
+### Added
+
+* Added safer text template usage and validation support to help the editor detect invalid, missing, or unused template references more consistently.
+* Added a delete confirmation flow for saved text displays to reduce accidental template removal.
+
+### Changed
+
+* Reworked the Text Builder workflow so creating, editing, renaming, copying, assigning, and deleting saved displays gives clearer feedback.
+* Improved the Text Builder layout by combining the editor and preview area, reducing vertical clutter, and keeping assignment controls easier to reach.
+* Improved Text Builder status feedback with clearer success, warning, error, and informational messages.
+* Centralized text role, template resolution, usage, validation, and mutation behavior for more predictable text template handling.
+
+### Fixed
+
+* Fixed typed Text Builder edits being reset by ordinary UI refreshes.
+* Fixed failed create actions appearing to do nothing when a saved display name already existed.
+* Fixed saved display rename, delete, usage counting, and validation paths using inconsistent template reference logic.
+* Fixed generated text elements remaining visible after their template assignment was removed.
+* Fixed copied inline tag content from generated text elements continuing to render as zombie text after unassigning a template.
+* Fixed template unassign cleanup so manual inline text and remaining state-template references are preserved.
+
 ## [1.0.15]
 
 ### Added
