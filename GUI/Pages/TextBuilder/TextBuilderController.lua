@@ -1104,7 +1104,9 @@ RefreshWindowState = function()
         context.applyTemplateButton:SetDisabled(true)
         ApplyTextBuilderButtonVisuals()
         context.libraryHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
-        context.usageHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        if context.usageHint then
+            context.usageHint:SetText(T("INFO_COMMON_UNAVAILABLE"))
+        end
         for _, checkbox in pairs(context.usageCheckboxes or {}) do
             checkbox:SetDisabled(true)
             checkbox:SetValue(false)
@@ -1126,7 +1128,9 @@ RefreshWindowState = function()
     SyncEditBoxText(context, context.templateNameEdit, context.state.templateName or "", "suspendTemplateNameCallbacks")
 
     context.libraryHint:SetText(T("INFO_TEXT_BUILDER_LIBRARY_HINT_SHORT"))
-    context.usageHint:SetText(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT"))
+    if context.usageHint then
+        context.usageHint:SetText(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT"))
+    end
 
     local hasSelectedTemplate = type(context.state.selectedTemplate) == "string" and context.state.selectedTemplate ~= ""
     local hasTemplateName = Trim(context.templateNameEdit:GetText() or "") ~= ""

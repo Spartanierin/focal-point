@@ -77,9 +77,44 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
     },
     {
-        section = "Template",
+        section = "TemplatePreview",
         properties = {
             parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "column_container",
+            variant = "compact_dual_column",
+            padding = {
+                left = 0,
+                right = 0,
+                top = 0,
+                bottom = 0,
+            },
+            layoutTable = {
+                columns = {
+                    { weight = 7 },
+                    { weight = 3 },
+                },
+                spaceH = 14,
+                spaceV = 0,
+                align = "TOPLEFT",
+                alignV = "start",
+                alignH = "start",
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 92,
+                derivedFrom = "max(Template.heightInfo, Preview.heightInfo)",
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Template",
+        properties = {
+            parentSection = "TemplatePreview",
             sectionKind = "section",
             type = "section",
             variant = "compact_input_stack",
@@ -87,15 +122,15 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 5,
+                bottom = 5,
             },
             widthInfo = {
                 source = "parent",
             },
             heightInfo = {
                 source = "content",
-                min = 64,
+                min = 78,
                 derivedFrom = "section title + example + editBox + updateButton + spacing",
             },
         },
@@ -109,7 +144,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
     {
         section = "Preview",
         properties = {
-            parentSection = "Root",
+            parentSection = "TemplatePreview",
             sectionKind = "section",
             type = "section",
             variant = "result_stack",
@@ -117,22 +152,21 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 5,
+                bottom = 5,
             },
             widthInfo = {
                 source = "parent",
             },
             heightInfo = {
                 source = "content",
-                min = 68,
-                derivedFrom = "section title + previewValue + previewHint + spacing",
+                min = 78,
+                derivedFrom = "section title + previewValue",
             },
         },
         items = {
             { id = "previewTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TEXT_BUILDER_PREVIEW" },
             { id = "previewValue", widget = "label", itemVariant = "result_value_hero", text = " " },
-            { id = "previewHint", widget = "label", itemVariant = "preview_hint_subtle", textKey = "INFO_TEXT_BUILDER_PREVIEW_HINT_SHORT" },
         },
     },
     {
@@ -146,8 +180,8 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 5,
+                bottom = 5,
             },
             widthInfo = {
                 source = "parent",
@@ -155,12 +189,11 @@ ns.GUI.Layouts.TextBuilder.Form = {
             heightInfo = {
                 source = "content",
                 min = 1,
-                derivedFrom = "section title + hint + TemplatesColumns + Actions + TemplatesNote + spacing",
+                derivedFrom = "section title + TemplatesColumns + Actions + CopyAction + TemplatesNote + spacing",
             },
         },
         items = {
             { id = "templatesTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TEXT_BUILDER_TEMPLATES" },
-            { id = "templatesHint", widget = "label", itemVariant = "section_description", textKey = "INFO_TEXT_BUILDER_TEMPLATES_HINT_SHORT" },
         },
     },
     {
@@ -174,8 +207,8 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 4,
                 right = 4,
-                top = 4,
-                bottom = 4,
+                top = 3,
+                bottom = 3,
             },
             widthInfo = {
                 source = "parent",
@@ -198,8 +231,8 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 4,
                 right = 4,
-                top = 4,
-                bottom = 4,
+                top = 3,
+                bottom = 3,
             },
             widthInfo = {
                 source = "parent",
@@ -225,8 +258,8 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 4,
                 right = 4,
-                top = 4,
-                bottom = 4,
+                top = 3,
+                bottom = 3,
             },
             widthInfo = {
                 source = "parent",
@@ -246,6 +279,35 @@ ns.GUI.Layouts.TextBuilder.Form = {
         properties = {
             parentSection = "Templates",
             sectionKind = "widget_group",
+            type = "action_row",
+            variant = "four_button",
+            padding = {
+                left = 4,
+                right = 4,
+                top = 1,
+                bottom = 1,
+            },
+            widthInfo = {
+                source = "parent",
+            },
+            heightInfo = {
+                source = "content",
+                min = 32,
+                derivedFrom = "newTemplateButton + saveButton + updateTemplateButton + deleteTemplateButton",
+            },
+        },
+        items = {
+            { id = "newTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_NEW_TEMPLATE" },
+            { id = "saveButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_CREATE_TEMPLATE" },
+            { id = "updateTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_RENAME_TEMPLATE" },
+            { id = "deleteTemplateButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_TEXT_BUILDER_DELETE" },
+        },
+    },
+    {
+        section = "CopyAction",
+        properties = {
+            parentSection = "Templates",
+            sectionKind = "widget_group",
             structure = {
                 header = {
                     present = true,
@@ -253,7 +315,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
                 },
                 body = {
                     present = true,
-                    section = "Actions",
+                    section = "CopyAction",
                 },
                 footer = {
                     present = true,
@@ -262,28 +324,25 @@ ns.GUI.Layouts.TextBuilder.Form = {
                 },
             },
             type = "action_row",
-            variant = "triple_button",
+            variant = "single_button",
+            gapBefore = 2,
             padding = {
                 left = 4,
                 right = 4,
-                top = 2,
-                bottom = 2,
+                top = 1,
+                bottom = 1,
             },
             widthInfo = {
                 source = "parent",
             },
             heightInfo = {
                 source = "content",
-                min = 32,
-                derivedFrom = "newTemplateButton + saveButton + copyTemplateButton + updateTemplateButton + deleteTemplateButton",
+                min = 26,
+                derivedFrom = "copyTemplateButton",
             },
         },
         items = {
-            { id = "newTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_NEW_TEMPLATE" },
-            { id = "saveButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_CREATE_TEMPLATE" },
-            { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", text = "Copy to Current Profile" },
-            { id = "updateTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_RENAME_TEMPLATE" },
-            { id = "deleteTemplateButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_TEXT_BUILDER_DELETE" },
+            { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", text = "Copy to Current Profile", fullWidth = true },
         },
     },
     {
@@ -292,14 +351,14 @@ ns.GUI.Layouts.TextBuilder.Form = {
             parentSection = "Templates",
             sectionKind = "widget_group_footer",
             structureSlot = "footer",
-            widgetGroup = "Actions",
+            widgetGroup = "CopyAction",
             type = "info_block",
             variant = "note_text",
             padding = {
                 left = 6,
                 right = 6,
-                top = 2,
-                bottom = 2,
+                top = 1,
+                bottom = 1,
             },
             widthInfo = {
                 source = "parent",
@@ -325,21 +384,20 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 8,
                 right = 8,
-                top = 6,
-                bottom = 6,
+                top = 5,
+                bottom = 5,
             },
             widthInfo = {
                 source = "parent",
             },
             heightInfo = {
                 source = "content",
-                min = 96,
-                derivedFrom = "section title + usageHint + usageLead + UsageColumns + ApplyRow + spacing",
+                min = 82,
+                derivedFrom = "section title + usageLead + UsageColumns + ApplyRow + spacing",
             },
         },
         items = {
             { id = "usageTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TEXT_BUILDER_TEMPLATE_USAGE" },
-            { id = "usageHint", widget = "label", itemVariant = "section_description", textKey = "INFO_TEXT_BUILDER_TEMPLATE_USAGE_HINT_SHORT" },
             { id = "usageLead", widget = "label", itemVariant = "usage_label", textKey = "INFO_TEXT_BUILDER_USAGE_LEAD" },
         },
     },
@@ -353,8 +411,8 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 4,
                 right = 4,
-                top = 4,
-                bottom = 4,
+                top = 3,
+                bottom = 3,
             },
             widthInfo = {
                 source = "parent",
@@ -386,8 +444,8 @@ ns.GUI.Layouts.TextBuilder.Form = {
             padding = {
                 left = 4,
                 right = 4,
-                top = 4,
-                bottom = 4,
+                top = 3,
+                bottom = 3,
             },
             widthInfo = {
                 source = "parent",
