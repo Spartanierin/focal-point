@@ -275,13 +275,14 @@ ns.GUI.Layouts.TextBuilder.Form = {
             heightInfo = {
                 source = "content",
                 min = 32,
-                derivedFrom = "saveButton + copyTemplateButton + updateTemplateButton + deleteTemplateButton",
+                derivedFrom = "newTemplateButton + saveButton + copyTemplateButton + updateTemplateButton + deleteTemplateButton",
             },
         },
         items = {
-            { id = "saveButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_SAVE" },
+            { id = "newTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_NEW_TEMPLATE" },
+            { id = "saveButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_CREATE_TEMPLATE" },
             { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", text = "Copy to Current Profile" },
-            { id = "updateTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_UPDATE" },
+            { id = "updateTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_RENAME_TEMPLATE" },
             { id = "deleteTemplateButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_TEXT_BUILDER_DELETE" },
         },
     },
@@ -399,6 +400,72 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
         items = {
             { id = "applyTemplateButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_TEXT_BUILDER_APPLY_TEMPLATE", fullWidth = true },
+        },
+    },
+}
+
+ns.GUI.Layouts.TextBuilder.DeleteConfirm = {
+    {
+        section = "Root",
+        properties = {
+            sectionKind = "root",
+            type = "stack_block",
+            variant = "window_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 10,
+                bottom = 14,
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Message",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            surfaceStyle = "status_panel",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            heightInfo = {
+                source = "content",
+                min = 100,
+            },
+        },
+        items = {
+            { id = "title", widget = "label", itemVariant = "section_title_large", textKey = "INFO_TEXT_BUILDER_DELETE_CONFIRM_TITLE" },
+            { id = "message", widget = "label", itemVariant = "description_text_body", stateKey = "message" },
+        },
+    },
+    {
+        section = "ActionRow",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "dual_button",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            gapBefore = 8,
+            heightInfo = {
+                source = "content",
+                min = 32,
+            },
+        },
+        items = {
+            { id = "deleteConfirmButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_TEXT_BUILDER_DELETE_CONFIRM_BUTTON" },
+            { id = "cancelButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CANCEL" },
         },
     },
 }

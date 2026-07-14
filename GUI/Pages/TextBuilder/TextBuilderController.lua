@@ -9,7 +9,8 @@ local KM = ns.KeyMap
 local L = ns.L
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
-local TextBuilderDefinition = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.Form
+local TextBuilderLayouts = ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder or {}
+local TextBuilderDefinition = TextBuilderLayouts.Form
 local TextTemplateMutations = ns.TextTemplateMutations or {}
 
 local TextBuilderController = {}
@@ -29,6 +30,7 @@ local UNIT_KEYS = C.UnitOrder or {
 
 local fallbackRootState = {}
 local windowContext
+local deleteDialogContext
 local RefreshWindowState
 local GetSelectedTemplateEntry
 
@@ -298,6 +300,67 @@ local function CanCopySelectedTemplate(context)
         and entry.profileName ~= GetCurrentProfileName()
 end
 
+local function GetCurrentEditorTemplate(context)
+    if not context then
+        return ""
+    end
+
+    if context.templateEdit and context.templateEdit.GetText then
+        return NormalizeTemplateInput(context.templateEdit:GetText() or "")
+    end
+
+    return NormalizeTemplateInput(context.state and context.state.template or "")
+end
+
+local function GetCurrentEditorTemplateName(context)
+    if not context then
+        return ""
+    end
+
+    if context.templateNameEdit and context.templateNameEdit.GetText then
+        return Trim(context.templateNameEdit:GetText() or "")
+    end
+
+    return Trim(context.state and context.state.templateName or "")
+end
+
+local function GetStoredSelectedTemplateText(context)
+    local entry = context and GetSelectedTemplateEntry(context.state) or nil
+    if type(entry) ~= "table" or type(entry.templateValue) ~= "string" then
+        return nil
+    end
+
+    return NormalizeTemplateInput(entry.templateValue)
+end
+
+local function IsSelectedTemplateDirty(context)
+    local storedTemplate = GetStoredSelectedTemplateText(context)
+    if storedTemplate == nil then
+        return false
+    end
+
+    return GetCurrentEditorTemplate(context) ~= storedTemplate
+end
+
+local function ResolvePrimarySaveMode(context)
+    local entry = context and GetSelectedTemplateEntry(context.state) or nil
+    if not entry then
+        return "create"
+    end
+
+    if CanEditTemplateEntry(entry) then
+        return "update"
+    end
+
+    return "readOnly"
+end
+
+local function SetButtonText(button, text)
+    if button and button.SetText then
+        button:SetText(text or "")
+    end
+end
+
 local function SetTemplateSelection(state, entry)
     if type(state) ~= "table" or type(entry) ~= "table" then
         return false
@@ -314,6 +377,23 @@ local function SetTemplateSelection(state, entry)
     state.selectedTemplateProfileName = entry.profileName or state.activeProfileName
     state.templateName = entry.templateName
     state.template = NormalizeTemplateInput(entry.templateValue)
+    return true
+end
+
+local function SetTemplateSelectionIdentity(state, entry)
+    if type(state) ~= "table" or type(entry) ~= "table" then
+        return false
+    end
+
+    local selection = BuildTemplateSelection(entry)
+    if not selection then
+        ClearTemplateSelection(state)
+        return false
+    end
+
+    state.selectedTemplateEntry = selection
+    state.selectedTemplate = entry.templateName
+    state.selectedTemplateProfileName = entry.profileName or state.activeProfileName
     return true
 end
 
@@ -370,7 +450,7 @@ local function ReconcileTextBuilderProfileContext(state)
 
     if not profileChanged then
         if previousEntry then
-            SetTemplateSelection(state, previousEntry)
+            SetTemplateSelectionIdentity(state, previousEntry)
         elseif type(state.selectedTemplateEntry) == "table" or (type(state.selectedTemplate) == "string" and state.selectedTemplate ~= "") then
             ClearTemplateSelection(state)
         end
@@ -434,6 +514,9 @@ local function SetStatus(message)
     if ns.GUI and ns.GUI.SetStatusText then
         ns.GUI:SetStatusText(message)
     end
+    if windowContext and windowContext.libraryHint and windowContext.libraryHint.SetText then
+        windowContext.libraryHint:SetText(message or "")
+    end
 end
 
 local function RefreshToolUI()
@@ -451,11 +534,13 @@ local function FormatMutationError(result)
     if errorCode == "invalid_template_name" then
         return T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED")
     elseif errorCode == "invalid_template_text" then
-        return "Template text is invalid."
+        return T("INFO_TEXT_BUILDER_STATUS_TEMPLATE_TEXT_INVALID")
     elseif errorCode == "template_name_exists" then
-        return (T("INFO_TEXT_BUILDER_STATUS_NAME_EXISTS")) .. " " .. tostring(result and result.templateName or "")
+        return T("INFO_TEXT_BUILDER_STATUS_NAME_EXISTS")
     elseif errorCode == "template_not_found" then
         return T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE")
+    elseif errorCode == "invalid_context" then
+        return T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID")
     elseif errorCode == "template_in_use" then
         return string.format("Template is still used by %d text reference(s).", tonumber(result and result.affectedReferences) or 0)
     elseif errorCode == "unit_not_found" then
@@ -522,8 +607,12 @@ local function CreateItemWidget(group, item, props, state)
     end
 
     if props.widget == "label" or props.widget == "computed_label" then
+        local text = ResolveItemText(props)
+        if props.stateKey and state and state[props.stateKey] ~= nil then
+            text = state[props.stateKey]
+        end
         local label = CreateBodyText(
-            ResolveItemText(props),
+            text,
             props.role or "label",
             props.size or 12,
             ResolveItemColor(props.colorKey),
@@ -603,6 +692,88 @@ local function SyncEditBoxText(context, widget, value, flagName)
     context[flagName] = true
     widget:SetText(targetValue)
     context[flagName] = false
+end
+
+local function ApplyDialogState(context, state)
+    if not context or type(state) ~= "table" then
+        return
+    end
+
+    if context.widgets then
+        for widgetId, widget in pairs(context.widgets) do
+            local value = state[widgetId]
+            if value ~= nil and widget and widget.SetText then
+                widget:SetText(value)
+            end
+        end
+    end
+end
+
+local function EnableDialogEscapeClose(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    if frame.EnableKeyboard then
+        frame:EnableKeyboard(true)
+    end
+    if frame.SetScript then
+        frame:SetScript("OnKeyDown", function(_, key)
+            if key == "ESCAPE" and window.Hide then
+                window:Hide()
+            end
+        end)
+    end
+end
+
+local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, options)
+    options = options or {}
+
+    if existingContext and existingContext.window and existingContext.window.frame then
+        existingContext.window:SetTitle(options.title or "")
+        existingContext.window:SetWidth(options.windowWidth or 420)
+        existingContext.window:SetHeight(options.windowHeight or 210)
+        existingContext.window:SetCallback("OnClose", nil)
+        ApplyDialogState(existingContext, options.state)
+        EnableDialogEscapeClose(existingContext.window)
+        FocusWindow(existingContext.window)
+        return existingContext
+    end
+
+    local window = AceGUI:Create("Window")
+    window:SetTitle(options.title or "")
+    window:SetLayout("Fill")
+    window:SetWidth(options.windowWidth or 420)
+    window:SetHeight(options.windowHeight or 210)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+    end
+
+    ApplyWindowChrome(window)
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
+    EnableDialogEscapeClose(window)
+    CenterWindow(window)
+
+    local groups, widgets = FormRenderer.BuildLayout(window, layoutDefinition, {
+        state = options.state or {},
+        createItemWidget = CreateItemWidget,
+    })
+
+    local context = {
+        window = window,
+        groups = groups,
+        widgets = widgets,
+        deleteConfirmButton = widgets.deleteConfirmButton,
+        cancelButton = widgets.cancelButton,
+    }
+
+    FocusWindow(window)
+    return context
 end
 
 local function GetTemplateUsageCounts(templateName, profileName)
@@ -710,6 +881,62 @@ local function RefreshTemplateDropdown(context)
     SyncTemplateSelectWidget(context)
     SyncDesiredTemplateUsage(context)
     RefreshTemplateUsageState(context)
+end
+
+local function OpenDeleteTemplateConfirmDialog(templateName)
+    if type(templateName) ~= "string" or templateName == "" then
+        SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+        return
+    end
+
+    local confirmedTemplateName = templateName
+    deleteDialogContext = OpenTextBuilderLayoutDialog(deleteDialogContext, TextBuilderLayouts.DeleteConfirm, {
+        title = T("INFO_TEXT_BUILDER_DELETE_CONFIRM_TITLE"),
+        windowWidth = 420,
+        windowHeight = 210,
+        state = {
+            message = string.format(T("INFO_TEXT_BUILDER_DELETE_CONFIRM_PROMPT"), confirmedTemplateName),
+        },
+    })
+
+    if deleteDialogContext and deleteDialogContext.deleteConfirmButton then
+        deleteDialogContext.deleteConfirmButton:SetDisabled(false)
+        deleteDialogContext.deleteConfirmButton:SetCallback("OnClick", function(widget)
+            if widget and widget.SetDisabled then
+                widget:SetDisabled(true)
+            end
+            if deleteDialogContext.window and deleteDialogContext.window.Hide then
+                deleteDialogContext.window:Hide()
+            end
+
+            local templates = GetTemplates()
+            if type(templates[confirmedTemplateName]) ~= "string" then
+                SetStatus(FormatMutationError({ errorCode = "template_not_found", templateName = confirmedTemplateName }))
+                return
+            end
+
+            local result = TextTemplateMutations.DeleteTemplate and TextTemplateMutations.DeleteTemplate(BuildMutationContext(), confirmedTemplateName)
+            if type(result) ~= "table" or not result.ok then
+                SetStatus(FormatMutationError(result))
+                return
+            end
+
+            if windowContext then
+                ClearTemplateSelection(windowContext.state)
+                RefreshTemplateDropdown(windowContext)
+                RefreshWindowState()
+            end
+            SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. confirmedTemplateName)
+        end)
+    end
+
+    if deleteDialogContext and deleteDialogContext.cancelButton then
+        deleteDialogContext.cancelButton:SetCallback("OnClick", function()
+            if deleteDialogContext.window and deleteDialogContext.window.Hide then
+                deleteDialogContext.window:Hide()
+            end
+        end)
+    end
 end
 
 local function ApplyTemplateToTextElement(context)
@@ -852,6 +1079,7 @@ RefreshWindowState = function()
         end
 
         ApplyModalActionButtonVisual(context.updateButton, "utility")
+        ApplyModalActionButtonVisual(context.newTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.saveButton, "primary_action")
         ApplyModalActionButtonVisual(context.copyTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.updateTemplateButton, "utility")
@@ -867,6 +1095,7 @@ RefreshWindowState = function()
         context.templateSelect:SetList({})
         context.templateSelect:SetDisabled(true)
         context.templateNameEdit:SetDisabled(true)
+        context.newTemplateButton:SetDisabled(true)
         context.deleteTemplateButton:SetDisabled(true)
         context.saveButton:SetDisabled(true)
         context.copyTemplateButton:SetDisabled(true)
@@ -903,6 +1132,12 @@ RefreshWindowState = function()
     local hasTemplateText = Trim(context.templateEdit:GetText() or "") ~= ""
     local canEditSelectedTemplate = CanEditSelectedTemplate(context)
     local canCopySelectedTemplate = CanCopySelectedTemplate(context)
+    local saveMode = ResolvePrimarySaveMode(context)
+    local selectedEntry = GetSelectedTemplateEntry(context.state)
+    local selectedName = selectedEntry and selectedEntry.templateName or ""
+    local currentName = GetCurrentEditorTemplateName(context)
+    local isDirty = IsSelectedTemplateDirty(context)
+    local isRenameCandidate = canEditSelectedTemplate and currentName ~= "" and selectedName ~= "" and currentName ~= selectedName
 
     SyncTemplateSelectWidget(context)
     if profileContextChanged or context.state._profileContextChanged then
@@ -914,10 +1149,18 @@ RefreshWindowState = function()
         context.templateOwnerLabel:SetText(FormatTemplateOwnerText(context.state))
     end
 
+    SetButtonText(context.saveButton, saveMode == "update" and T("INFO_TEXT_BUILDER_SAVE_CHANGES") or T("INFO_TEXT_BUILDER_CREATE_TEMPLATE"))
+    SetButtonText(context.updateTemplateButton, T("INFO_TEXT_BUILDER_RENAME_TEMPLATE"))
+
+    context.newTemplateButton:SetDisabled(false)
     context.deleteTemplateButton:SetDisabled(not hasSelectedTemplate or not canEditSelectedTemplate)
-    context.saveButton:SetDisabled(not hasTemplateName or not hasTemplateText)
+    context.saveButton:SetDisabled(
+        (saveMode == "create" and (not hasTemplateName or not hasTemplateText))
+        or (saveMode == "update" and (not hasTemplateText or not canEditSelectedTemplate or not isDirty))
+        or saveMode == "readOnly"
+    )
     context.copyTemplateButton:SetDisabled(not canCopySelectedTemplate)
-    context.updateTemplateButton:SetDisabled(not hasSelectedTemplate or not hasTemplateName or not hasTemplateText or not canEditSelectedTemplate)
+    context.updateTemplateButton:SetDisabled(not isRenameCandidate)
     context.applyTemplateButton:SetDisabled(not hasTemplateText or not canEditSelectedTemplate)
     ApplyTextBuilderButtonVisuals()
 
@@ -953,6 +1196,7 @@ local function CreateWindowContent(window, state)
         templateSelect = widgets.templateSelect,
         templateOwnerLabel = widgets.templateOwnerLabel,
         templateNameEdit = widgets.templateNameEdit,
+        newTemplateButton = widgets.newTemplateButton,
         deleteTemplateButton = widgets.deleteTemplateButton,
         saveButton = widgets.saveButton,
         copyTemplateButton = widgets.copyTemplateButton,
@@ -1080,6 +1324,30 @@ local function WireWindowCallbacks(context)
         RefreshWindowState()
     end)
 
+    context.newTemplateButton:SetCallback("OnClick", function()
+        ClearTemplateSelection(context.state)
+        context.state.templateName = ""
+        context.state.template = ""
+
+        context.suspendTemplateSelectCallbacks = true
+        context.templateSelect:SetValue(nil)
+        context.suspendTemplateSelectCallbacks = false
+
+        context.suspendTemplateNameCallbacks = true
+        context.templateNameEdit:SetText("")
+        context.suspendTemplateNameCallbacks = false
+
+        context.suspendTemplateEditCallbacks = true
+        context.templateEdit:SetText("")
+        context.suspendTemplateEditCallbacks = false
+
+        SyncDesiredTemplateUsage(context)
+        RefreshPreview(context)
+        RefreshTemplateDropdown(context)
+        RefreshWindowState()
+        SetStatus(T("INFO_TEXT_BUILDER_STATUS_NEW_DRAFT"))
+    end)
+
     context.saveButton:SetCallback("OnClick", function()
         if not EnsureWritableProfileContext(context) then
             return
@@ -1087,28 +1355,72 @@ local function WireWindowCallbacks(context)
 
         local name = Trim(context.templateNameEdit:GetText() or "")
         local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
+        local mode = ResolvePrimarySaveMode(context)
 
         if name == "" then
             SetStatus(T("INFO_TEXT_BUILDER_STATUS_NAME_REQUIRED"))
             return
         end
-
-        local result = TextTemplateMutations.CreateTemplate and TextTemplateMutations.CreateTemplate(BuildMutationContext(), name, template)
-        if type(result) ~= "table" or not result.ok then
-            SetStatus(FormatMutationError(result))
+        if Trim(template) == "" then
+            SetStatus(FormatMutationError({ errorCode = "invalid_template_text" }))
             return
         end
 
-        SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, name) or {
+        if mode == "create" then
+            local result = TextTemplateMutations.CreateTemplate and TextTemplateMutations.CreateTemplate(BuildMutationContext(), name, template)
+            if type(result) ~= "table" or not result.ok then
+                SetStatus(FormatMutationError(result))
+                return
+            end
+
+            SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, name) or {
+                sourceType = "profile",
+                sourceId = context.state.activeProfileName,
+                profileName = context.state.activeProfileName,
+                templateName = name,
+                templateValue = template,
+            })
+            RefreshTemplateDropdown(context)
+            RefreshWindowState()
+            SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name)
+            return
+        end
+
+        if mode ~= "update" then
+            RefreshWindowState()
+            SetStatus("Copy this display to the current profile before saving changes.")
+            return
+        end
+
+        local selectedEntry = GetSelectedTemplateEntry(context.state)
+        if not CanEditTemplateEntry(selectedEntry) then
+            RefreshWindowState()
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
+            return
+        end
+        if not IsSelectedTemplateDirty(context) then
+            RefreshWindowState()
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NO_CHANGES"))
+            return
+        end
+
+        local selectedName = selectedEntry.templateName
+        local updateResult = TextTemplateMutations.UpdateTemplate and TextTemplateMutations.UpdateTemplate(BuildMutationContext(), selectedName, template)
+        if type(updateResult) ~= "table" or not updateResult.ok then
+            SetStatus(FormatMutationError(updateResult))
+            return
+        end
+
+        SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, selectedName) or {
             sourceType = "profile",
             sourceId = context.state.activeProfileName,
             profileName = context.state.activeProfileName,
-            templateName = name,
+            templateName = selectedName,
             templateValue = template,
         })
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName)
     end)
 
     context.copyTemplateButton:SetCallback("OnClick", function()
@@ -1148,15 +1460,21 @@ local function WireWindowCallbacks(context)
     end)
 
     context.updateTemplateButton:SetCallback("OnClick", function()
-        local selectedEntry = ResolveWritableProfileSelection(context)
-        if not selectedEntry then
+        if not EnsureWritableProfileContext(context) then
+            return
+        end
+
+        local selectedEntry = GetSelectedTemplateEntry(context.state)
+        if not CanEditTemplateEntry(selectedEntry) then
+            RefreshWindowState()
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
             return
         end
 
         local selectedName = selectedEntry.templateName
         local updatedName = Trim(context.templateNameEdit:GetText() or "")
-        local template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
         local templates = GetTemplates()
+        local draft = NormalizeTemplateInput(context.templateEdit:GetText() or "")
 
         if selectedName == "" or type(templates[selectedName]) ~= "string" then
             SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"))
@@ -1168,42 +1486,29 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        if updatedName ~= selectedName then
-            local renameResult = TextTemplateMutations.RenameTemplate and TextTemplateMutations.RenameTemplate(BuildMutationContext(), selectedName, updatedName, template)
-            if type(renameResult) ~= "table" or not renameResult.ok then
-                SetStatus(FormatMutationError(renameResult))
-                return
-            end
-
-            SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, updatedName) or {
-                sourceType = "profile",
-                sourceId = context.state.activeProfileName,
-                profileName = context.state.activeProfileName,
-                templateName = updatedName,
-                templateValue = template,
-            })
-            RefreshTemplateDropdown(context)
+        if updatedName == selectedName then
             RefreshWindowState()
-            SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. updatedName)
+            SetStatus(T("INFO_TEXT_BUILDER_STATUS_NO_CHANGES"))
             return
         end
 
-        local updateResult = TextTemplateMutations.UpdateTemplate and TextTemplateMutations.UpdateTemplate(BuildMutationContext(), selectedName, template)
-        if type(updateResult) ~= "table" or not updateResult.ok then
-            SetStatus(FormatMutationError(updateResult))
+        local renameResult = TextTemplateMutations.RenameTemplate and TextTemplateMutations.RenameTemplate(BuildMutationContext(), selectedName, updatedName)
+        if type(renameResult) ~= "table" or not renameResult.ok then
+            SetStatus(FormatMutationError(renameResult))
             return
         end
 
-        SetTemplateSelection(context.state, GetProfileTemplateEntry(context.state.activeProfileName, selectedName) or {
+        SetTemplateSelectionIdentity(context.state, GetProfileTemplateEntry(context.state.activeProfileName, updatedName) or {
             sourceType = "profile",
             sourceId = context.state.activeProfileName,
             profileName = context.state.activeProfileName,
-            templateName = selectedName,
-            templateValue = template,
+            templateName = updatedName,
         })
+        context.state.templateName = updatedName
+        context.state.template = draft
         RefreshTemplateDropdown(context)
         RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName)
+        SetStatus((T("INFO_TEXT_BUILDER_STATUS_RENAMED")) .. " " .. selectedName .. " -> " .. updatedName)
     end)
 
     context.deleteTemplateButton:SetCallback("OnClick", function()
@@ -1220,16 +1525,7 @@ local function WireWindowCallbacks(context)
             return
         end
 
-        local result = TextTemplateMutations.DeleteTemplate and TextTemplateMutations.DeleteTemplate(BuildMutationContext(), selectedName)
-        if type(result) ~= "table" or not result.ok then
-            SetStatus(FormatMutationError(result))
-            return
-        end
-
-        ClearTemplateSelection(context.state)
-        RefreshTemplateDropdown(context)
-        RefreshWindowState()
-        SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. selectedName)
+        OpenDeleteTemplateConfirmDialog(selectedName)
     end)
 
     context.applyTemplateButton:SetCallback("OnClick", function()
@@ -1287,6 +1583,10 @@ function TextBuilderController.OpenWindow(deps)
 end
 
 function TextBuilderController.HideWindow()
+    if deleteDialogContext and deleteDialogContext.window and deleteDialogContext.window.Hide then
+        deleteDialogContext.window:Hide()
+    end
+
     if not windowContext or not windowContext.window then
         return
     end
