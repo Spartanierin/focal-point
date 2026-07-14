@@ -255,43 +255,37 @@ local function ValidateTemplateText(templateText)
 end
 
 local function ForEachTemplateReference(context, templateName, callback)
-    local units = GetUnitsFromContext(context)
-    if type(units) ~= "table" or not IsNonEmptyString(templateName) then
+    local usage = FocalPoint.TextTemplateUsage
+    local references = usage and usage.FindReferences and usage.FindReferences(context, templateName) or {}
+    if type(references) ~= "table" then
         return 0
     end
 
-    local affected = 0
-    for unitKey, unitConfig in pairs(units) do
-        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
-        if type(texts) == "table" then
-            for textKey, textConfig in pairs(texts) do
-                if type(textConfig) == "table" then
-                    if textConfig.templateName == templateName then
-                        affected = affected + 1
-                        if callback then
-                            callback(unitKey, textKey, textConfig, "templateName")
-                        end
-                    end
-
-                    if type(textConfig.stateTemplates) == "table" then
-                        for stateKey, stateTemplateName in pairs(textConfig.stateTemplates) do
-                            if stateTemplateName == templateName then
-                                affected = affected + 1
-                                if callback then
-                                    callback(unitKey, textKey, textConfig, "stateTemplates", stateKey)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
+    local processed = 0
+    local unresolved = 0
+    for _, reference in ipairs(references) do
+        local textConfig = GetTextConfig(context, reference.unitKey, reference.textKey)
+        if callback and type(textConfig) == "table" then
+            local field = reference.referenceKind == "state" and "stateTemplates" or "templateName"
+            callback(reference.unitKey, reference.textKey, textConfig, field, reference.stateKey)
+            processed = processed + 1
+        elseif callback then
+            unresolved = unresolved + 1
         end
     end
 
-    return affected
+    if callback then
+        return processed, unresolved
+    end
+    return #references, 0
 end
 
 function Mutations.CountTemplateReferences(context, templateName)
+    local usage = FocalPoint.TextTemplateUsage
+    if usage and usage.CountReferences then
+        return usage.CountReferences(context, templateName)
+    end
+
     return ForEachTemplateReference(context, templateName, nil)
 end
 
@@ -378,13 +372,16 @@ function Mutations.RenameTemplate(context, oldName, newName, templateText)
     end
 
     local references = {}
-    local affected = ForEachTemplateReference(context, oldName, function(unitKey, textKey, textConfig, field, stateKey)
+    local affected, unresolved = ForEachTemplateReference(context, oldName, function(unitKey, textKey, textConfig, field, stateKey)
         references[#references + 1] = {
             textConfig = textConfig,
             field = field,
             stateKey = stateKey,
         }
     end)
+    if unresolved and unresolved > 0 then
+        return Result(false, { errorCode = "invalid_context", templateName = oldName })
+    end
 
     templates[newName] = templateText ~= nil and templateText or templates[oldName]
     templates[oldName] = nil

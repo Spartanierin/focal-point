@@ -786,8 +786,8 @@ local function GetTemplateUsageCounts(templateName, profileName)
         return usage
     end
 
-    local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.ScanProfileTemplateAssignments
-    if not scanner then
+    local usageApi = ns.TextTemplateUsage
+    if not usageApi or not usageApi.CreateProfileContext or not usageApi.GetTemplateUsage then
         return usage
     end
     local library = ns.TextTemplateLibrary
@@ -796,12 +796,13 @@ local function GetTemplateUsageCounts(templateName, profileName)
         return usage
     end
 
+    local usageResult = usageApi.GetTemplateUsage(usageApi.CreateProfileContext(profile, profileName), templateName)
     local countedTextElements = {}
-    for _, entry in ipairs(scanner(profile, profileName) or {}) do
-        if entry.templateName == templateName and usage[entry.unit] ~= nil then
-            local textKey = tostring(entry.unit or "") .. "\001" .. tostring(entry.textId or "")
+    for _, entry in ipairs(type(usageResult) == "table" and usageResult.references or {}) do
+        if entry.templateName == templateName and usage[entry.unitKey] ~= nil then
+            local textKey = tostring(entry.unitKey or "") .. "\001" .. tostring(entry.textKey or "")
             if not countedTextElements[textKey] then
-                usage[entry.unit] = usage[entry.unit] + 1
+                usage[entry.unitKey] = usage[entry.unitKey] + 1
                 countedTextElements[textKey] = true
             end
         end
