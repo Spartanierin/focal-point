@@ -850,14 +850,25 @@ local function BuildAuraList(unitConfig)
 end
 
 local function GetFirstAuraKey(auraList)
+    if type(auraList) ~= "table" then
+        return "Buffs"
+    end
+
     for _, auraKey in ipairs(AURA_ORDER) do
         if auraList[auraKey] then
             return auraKey
         end
     end
 
+    local remainingAuraKeys = {}
     for auraKey in pairs(auraList) do
-        return auraKey
+        if type(auraKey) == "string" and auraList[auraKey] ~= nil then
+            remainingAuraKeys[#remainingAuraKeys + 1] = auraKey
+        end
+    end
+    table.sort(remainingAuraKeys)
+    if remainingAuraKeys[1] then
+        return remainingAuraKeys[1]
     end
 
     return "Buffs"
