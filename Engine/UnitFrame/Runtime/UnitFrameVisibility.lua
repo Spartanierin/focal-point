@@ -75,6 +75,197 @@ local function ShouldSuppressFramesForSpecialMode()
     return false, nil
 end
 
+local function ResolveEditorSelectedUnit()
+    local editorState = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.State
+    local state = editorState and editorState.Get and editorState.Get()
+    local selectedUnit = state and state.selectedUnit
+    if type(selectedUnit) == "string" and selectedUnit ~= "" then
+        return selectedUnit
+    end
+    return nil
+end
+
+local function IsSelectedEditorFrame(frame)
+    if not frame or type(frame.unit) ~= "string" then
+        return false
+    end
+
+    local selectedUnit = ResolveEditorSelectedUnit()
+    if not selectedUnit then
+        return false
+    end
+
+    if selectedUnit == "boss" then
+        return frame.unit:match("^boss%d+$") ~= nil
+    end
+
+    return frame.unit == selectedUnit
+end
+
+local function ResolveModeReadOnly(frame)
+    if not frame or not frame.unit then
+        return "live", "live-invalid-frame"
+    end
+
+    if FocalPoint and FocalPoint.guiTestModeEnabled == true then
+        if Demo.IsFrameUnitEnabled and not Demo.IsFrameUnitEnabled(frame) then
+            return "disabled", "demo-disabled-unit"
+        end
+        return "detailed", "global-demo-detailed"
+    end
+
+    if FocalPoint and FocalPoint.framesUnlocked == true then
+        if Demo.IsFrameUnitEnabled and not Demo.IsFrameUnitEnabled(frame) then
+            return "placeholder", "unlock-disabled-placeholder"
+        end
+        if IsSelectedEditorFrame(frame) then
+            return "detailed", "unlock-selected-detailed"
+        end
+        return "placeholder", "unlock-placeholder"
+    end
+
+    return "live", "live-no-demo"
+end
+
+local function IsRecoveryCandidate(unit, protectedRoot, inCombat)
+    if unit == "target" or unit == "targettarget" or unit == "focustarget" then
+        return true
+    end
+    return protectedRoot == true and inCombat == true
+end
+
+function Visibility.ResolveRootDecision(frame, reason, options)
+    options = type(options) == "table" and options or {}
+
+    local unit = frame and frame.unit or nil
+    local protectedRoot = frame
+        and frame.IsProtected
+        and frame:IsProtected()
+        or false
+    local inCombat = InCombatLockdown and InCombatLockdown() or false
+    local canHideRoot = frame ~= nil
+        and frame.Hide ~= nil
+        and not (protectedRoot and inCombat)
+    local previewEnabled = FocalPoint
+        and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true)
+        or false
+    local previewOutsideCombat = previewEnabled and not inCombat
+    local canShowRoot = frame ~= nil
+        and frame.Show ~= nil
+        and (not protectedRoot or previewOutsideCombat or not inCombat)
+
+    local decision = {
+        visible = false,
+        reason = "invalid-frame",
+        inputReason = reason,
+
+        unit = unit,
+        unitPresent = false,
+
+        mode = "live",
+        modeReason = "invalid-frame",
+        previewEnabled = previewEnabled,
+        forceVisible = false,
+        specialModeActive = false,
+        specialModeReason = nil,
+
+        protectedRoot = protectedRoot,
+        inCombat = inCombat,
+        canShowRoot = canShowRoot,
+        canHideRoot = canHideRoot,
+        hideSuppressedByPolicy = unit == "target",
+
+        shouldAlphaZero = false,
+        shouldDisableMouse = false,
+        shouldQueueRecovery = false,
+    }
+
+    if not frame or type(unit) ~= "string" or unit == "" then
+        decision.shouldDisableMouse = frame ~= nil
+        return decision
+    end
+
+    local mode, modeReason = options.mode, options.modeReason
+    if type(mode) ~= "string" or mode == "" then
+        mode, modeReason = ResolveModeReadOnly(frame)
+    end
+    decision.mode = mode
+    decision.modeReason = modeReason
+
+    local unitPresent
+    if type(options.unitPresent) == "boolean" then
+        unitPresent = options.unitPresent
+    elseif unit == "player" then
+        unitPresent = true
+    elseif DoesUnitSeemPresent then
+        unitPresent = DoesUnitSeemPresent(unit) == true
+    else
+        unitPresent = UnitExists and UnitExists(unit) and true or false
+    end
+    decision.unitPresent = unitPresent
+
+    local specialModeActive, specialModeReason
+    if type(options.specialModeActive) == "boolean" then
+        specialModeActive = options.specialModeActive
+        specialModeReason = options.specialModeReason
+    else
+        specialModeActive, specialModeReason = ShouldSuppressFramesForSpecialMode()
+    end
+    decision.specialModeActive = specialModeActive == true
+    decision.specialModeReason = specialModeReason
+
+    if mode == "disabled" then
+        decision.reason = "preview-disabled"
+        decision.shouldAlphaZero = true
+        decision.shouldDisableMouse = true
+        return decision
+    end
+
+    if mode == "live" and Demo.IsFrameUnitEnabled and not Demo.IsFrameUnitEnabled(frame) then
+        decision.reason = "unit-disabled"
+        decision.shouldAlphaZero = true
+        decision.shouldDisableMouse = true
+        return decision
+    end
+
+    if decision.specialModeActive then
+        decision.reason = "special-mode"
+        decision.shouldAlphaZero = true
+        decision.shouldDisableMouse = true
+        decision.shouldQueueRecovery = protectedRoot and inCombat or false
+        return decision
+    end
+
+    if mode == "detailed" or mode == "placeholder" then
+        decision.visible = true
+        decision.forceVisible = true
+        decision.reason = mode == "placeholder" and "unlock-placeholder" or "demo-detailed"
+        return decision
+    end
+
+    if Demo.ShouldProcessFrame and not Demo.ShouldProcessFrame(frame) then
+        decision.reason = "demo-filtered"
+        decision.shouldAlphaZero = true
+        decision.shouldDisableMouse = true
+        return decision
+    end
+
+    if unitPresent then
+        decision.visible = true
+        decision.reason = "live-present"
+        return decision
+    end
+
+    decision.reason = "missing-unit"
+    decision.shouldAlphaZero = true
+    decision.shouldDisableMouse = true
+    decision.shouldQueueRecovery = IsRecoveryCandidate(unit, protectedRoot, inCombat)
+    return decision
+end
+
 local function QueueTargetRecoveryRefreshes(frame, reason)
     if not frame or frame.unit ~= "target" or not State.QueueRefresh then
         return
