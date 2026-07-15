@@ -8,6 +8,7 @@ local InspectorContext = {}
 FocalPoint.InspectorContext = InspectorContext
 FocalPoint.GUI.Editor.Inspector.Context = InspectorContext
 local EditorMode = FocalPoint.EditorMode or (FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode) or {}
+local InspectorTextSelection = FocalPoint.InspectorTextSelection or (FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.TextSelection) or {}
 
 local function ResolveLinkedTemplateName(textConfig)
     if type(textConfig) ~= "table" then
@@ -147,19 +148,22 @@ end
 
 function InspectorContext.GetTextSelection(context)
     if type(context) ~= "table" then
-        return nil, nil, nil
+        return nil, nil, nil, nil
     end
 
-    local state = context.state
-    local textList = context.textList or {}
-    local selectedTextId = type(state) == "table" and (state.selectedTextId or state.selectedTextKey) or nil
-    if not textList[selectedTextId] and type(context.getFirstTextId) == "function" then
-        selectedTextId = context.getFirstTextId(textList)
+    local result = context.textSelection
+    if type(result) ~= "table" and type(InspectorTextSelection.Resolve) == "function" then
+        result = InspectorTextSelection.Resolve({
+            state = context.state,
+            textList = context.textList,
+            unitConfig = context.unitConfig,
+            getFirstTextId = context.getFirstTextId,
+        })
     end
 
-    local texts = type(context.unitConfig) == "table" and context.unitConfig.Texts or nil
-    local textConfig = type(texts) == "table" and texts[selectedTextId] or nil
-    return selectedTextId, textConfig, ResolveLinkedTemplateName(textConfig)
+    local selectedTextId = type(result) == "table" and result.effectiveTextKey or nil
+    local textConfig = type(result) == "table" and result.textConfig or nil
+    return selectedTextId, textConfig, ResolveLinkedTemplateName(textConfig), result
 end
 
 function InspectorContext.GetIndicatorSelection(context)
@@ -228,6 +232,14 @@ function InspectorContext.Create(options)
 
     context.unitConfig = ResolveUnitConfig(context, unitKey)
     context.textList = ResolveTextList(context, unitKey, context.unitConfig)
+    if type(InspectorTextSelection.Resolve) == "function" then
+        context.textSelection = InspectorTextSelection.Resolve({
+            state = state,
+            textList = context.textList,
+            unitConfig = context.unitConfig,
+            getFirstTextId = context.getFirstTextId,
+        })
+    end
     context.indicatorList = ResolveIndicatorList(context, unitKey, context.unitConfig)
     context.auraList = ResolveAuraList(context, unitKey, context.unitConfig)
 

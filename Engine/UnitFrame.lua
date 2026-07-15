@@ -1600,8 +1600,18 @@ local function ValidateEditorSelectionForProfile(addon)
 
     local unitConfig = GetActiveProfileUnitConfig(addon, selectedUnit)
     local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
-    local selectedTextId = state.selectedTextId or state.selectedTextKey
-    if type(texts) ~= "table" or type(texts[selectedTextId]) ~= "table" then
+    local textSelection = addon.InspectorTextSelection or (addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Inspector and addon.GUI.Editor.Inspector.TextSelection)
+    local shared = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.SidebarShared or nil
+    local textList = shared and shared.BuildTextList and shared.BuildTextList(texts) or nil
+    local resolvedText = textSelection and textSelection.Resolve and textSelection.Resolve({
+        state = state,
+        textList = textList,
+        unitConfig = unitConfig,
+        getFirstTextId = shared and shared.GetFirstTextId,
+    }) or nil
+    if resolvedText and resolvedText.effectiveTextKey and textSelection.Set then
+        textSelection.Set(state, resolvedText.effectiveTextKey, textList)
+    elseif type(texts) ~= "table" or type(texts[state.selectedTextId or state.selectedTextKey]) ~= "table" then
         state.selectedTextId = nil
         state.selectedTextKey = nil
     end

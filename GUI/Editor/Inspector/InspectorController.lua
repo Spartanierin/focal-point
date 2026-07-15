@@ -9,6 +9,7 @@ local InspectorController = ns.GUI.Editor.Inspector
 ns.GUI.Editor.Inspector = InspectorController
 local InspectorBinding = InspectorController.InspectorBinding or {}
 local InspectorContext = ns.InspectorContext or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Context) or {}
+local InspectorTextSelection = ns.InspectorTextSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.TextSelection) or {}
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 
@@ -114,16 +115,25 @@ function InspectorController.Build(container, state, options)
         return
     end
 
-    local textList = InspectorContext.GetTextList and InspectorContext.GetTextList(inspectorContext) or {}
     local indicatorList = InspectorContext.GetIndicatorList and InspectorContext.GetIndicatorList(inspectorContext) or {}
     local auraList = InspectorContext.GetAuraList and InspectorContext.GetAuraList(inspectorContext) or {}
 
     local function ResolveTextContext()
-        if InspectorContext.GetTextSelection then
-            return InspectorContext.GetTextSelection(inspectorContext)
+        local currentTextList = BuildTextList(type(unitConfig) == "table" and unitConfig.Texts or nil)
+        if type(InspectorTextSelection.Resolve) == "function" and InspectorContext.GetTextSelection then
+            local result = InspectorTextSelection.Resolve({
+                state = state,
+                textList = currentTextList,
+                unitConfig = unitConfig,
+                getFirstTextId = GetFirstTextId,
+            })
+            local selectedTextId, textConfig, linkedTemplateName = InspectorContext.GetTextSelection({
+                textSelection = result,
+            })
+            return selectedTextId, textConfig, linkedTemplateName, result, currentTextList
         end
 
-        return nil, nil, nil
+        return nil, nil, nil, nil, currentTextList
     end
 
     local function BuildMissingTemplateMessages(textId)
@@ -768,15 +778,18 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildTextSectionContent(textSection)
-        local selectedTextId, textConfig, linkedTemplateName = ResolveTextContext()
+        local selectedTextId, textConfig, linkedTemplateName, _, currentTextList = ResolveTextContext()
         if not textSection or not textConfig then
             return
         end
 
-            AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", textList, selectedTextId, function(value)
-                state.selectedTextId = value
-                state.selectedTextKey = value
-                RebuildLocalSection(textSection)
+            AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", currentTextList, selectedTextId, function(value)
+                local result = type(InspectorTextSelection.Set) == "function"
+                    and InspectorTextSelection.Set(state, value, currentTextList)
+                    or nil
+                if result and result.ok and result.changed then
+                    RebuildLocalSection(textSection)
+                end
             end, nil, "text_element")
 
             local templateSummary = AceGUI:Create("Label")
