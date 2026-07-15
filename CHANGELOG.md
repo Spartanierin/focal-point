@@ -9,6 +9,28 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.17]
+
+### Added
+
+* Added shared Inspector selection handling for text elements, indicators, and aura blocks to keep editor selections more predictable during local updates.
+* Added clearer Inspector feedback when a selected unit, text element, indicator, or aura block is no longer available.
+
+### Changed
+
+* Improved Inspector stability by separating read-only context, simple field changes, refresh decisions, and editor mode state.
+* Improved Quick and Expert mode synchronization across profile changes and reloads.
+* Made local Inspector section rebuilds resolve the current text, indicator, and aura selections instead of reusing stale snapshots.
+* Aligned Inspector section refresh keys with the sections registered by the editor.
+
+### Fixed
+
+* Fixed text element, indicator, and aura block selections becoming inconsistent after local Inspector updates.
+* Fixed Inspector selections jumping or falling back unexpectedly after enabling, disabling, or editing selected elements.
+* Fixed profile changes potentially leaving Inspector selection state out of sync with the active profile.
+* Fixed aura block fallback selection using a non-deterministic order for additional aura keys.
+* Fixed failed Inspector changes appearing to do nothing when the selected configuration was no longer available.
+
 ## [1.0.16]
 
 ### Added
