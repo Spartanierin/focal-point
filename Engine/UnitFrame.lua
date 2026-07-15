@@ -1616,11 +1616,25 @@ local function ValidateEditorSelectionForProfile(addon)
         state.selectedTextKey = nil
     end
 
-    local selectedIndicatorKey = state.selectedIndicatorKey
-    if selectedIndicatorKey == nil or type(selectedIndicatorKey) ~= "string" or selectedIndicatorKey == "" then
-        state.selectedIndicatorKey = "Portrait"
-    elseif type(unitConfig) == "table" and selectedIndicatorKey ~= "Portrait" and type(unitConfig[selectedIndicatorKey]) ~= "table" then
-        state.selectedIndicatorKey = "Portrait"
+    local indicatorSelection = addon.InspectorIndicatorSelection or (addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Inspector and addon.GUI.Editor.Inspector.IndicatorSelection)
+    local indicatorList = shared and shared.BuildIndicatorList and shared.BuildIndicatorList(selectedUnit) or nil
+    local resolvedIndicator = indicatorSelection and indicatorSelection.Resolve and indicatorSelection.Resolve({
+        state = state,
+        indicatorList = indicatorList,
+        indicatorMeta = shared and shared.INDICATOR_META,
+        unitConfig = unitConfig,
+        unitKey = selectedUnit,
+        getFirstIndicatorKey = shared and shared.GetFirstIndicatorKey,
+    }) or nil
+    if resolvedIndicator and resolvedIndicator.effectiveIndicatorKey and indicatorSelection.Set then
+        indicatorSelection.Set(state, resolvedIndicator.effectiveIndicatorKey, indicatorList)
+    else
+        local selectedIndicatorKey = state.selectedIndicatorKey
+        if selectedIndicatorKey == nil or type(selectedIndicatorKey) ~= "string" or selectedIndicatorKey == "" then
+            state.selectedIndicatorKey = "Portrait"
+        elseif type(unitConfig) == "table" and selectedIndicatorKey ~= "Portrait" and type(unitConfig[selectedIndicatorKey]) ~= "table" then
+            state.selectedIndicatorKey = "Portrait"
+        end
     end
 
     local selectedAuraKey = state.selectedAuraKey

@@ -9,6 +9,7 @@ FocalPoint.InspectorContext = InspectorContext
 FocalPoint.GUI.Editor.Inspector.Context = InspectorContext
 local EditorMode = FocalPoint.EditorMode or (FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode) or {}
 local InspectorTextSelection = FocalPoint.InspectorTextSelection or (FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.TextSelection) or {}
+local InspectorIndicatorSelection = FocalPoint.InspectorIndicatorSelection or (FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.IndicatorSelection) or {}
 
 local function ResolveLinkedTemplateName(textConfig)
     if type(textConfig) ~= "table" then
@@ -168,26 +169,25 @@ end
 
 function InspectorContext.GetIndicatorSelection(context)
     if type(context) ~= "table" then
-        return nil, nil, nil
+        return nil, nil, nil, nil
     end
 
-    local state = context.state
-    local indicatorList = context.indicatorList or {}
-    local selectedIndicatorKey = type(state) == "table" and state.selectedIndicatorKey or nil
-    if not indicatorList[selectedIndicatorKey] and type(context.getFirstIndicatorKey) == "function" then
-        selectedIndicatorKey = context.getFirstIndicatorKey(indicatorList)
+    local result = context.indicatorSelection
+    if type(result) ~= "table" and type(InspectorIndicatorSelection.Resolve) == "function" then
+        result = InspectorIndicatorSelection.Resolve({
+            state = context.state,
+            indicatorList = context.indicatorList,
+            indicatorMeta = context.indicatorMeta,
+            unitConfig = context.unitConfig,
+            unitKey = context.unitKey,
+            getFirstIndicatorKey = context.getFirstIndicatorKey,
+        })
     end
 
-    local indicatorMeta = type(context.indicatorMeta) == "table" and context.indicatorMeta[selectedIndicatorKey] or nil
-    local indicatorConfig = indicatorMeta and type(context.unitConfig) == "table" and context.unitConfig[indicatorMeta.optionKey] or nil
-
-    if not indicatorConfig and context.unitKey == "boss" and indicatorList.RaidTargetIcon then
-        selectedIndicatorKey = "RaidTargetIcon"
-        indicatorMeta = type(context.indicatorMeta) == "table" and context.indicatorMeta[selectedIndicatorKey] or nil
-        indicatorConfig = indicatorMeta and type(context.unitConfig) == "table" and context.unitConfig[indicatorMeta.optionKey] or nil
-    end
-
-    return selectedIndicatorKey, indicatorMeta, indicatorConfig
+    local selectedIndicatorKey = type(result) == "table" and result.effectiveIndicatorKey or nil
+    local indicatorMeta = type(result) == "table" and result.indicatorMetaEntry or nil
+    local indicatorConfig = type(result) == "table" and result.indicatorConfig or nil
+    return selectedIndicatorKey, indicatorMeta, indicatorConfig, result
 end
 
 function InspectorContext.GetAuraSelection(context)
@@ -241,6 +241,16 @@ function InspectorContext.Create(options)
         })
     end
     context.indicatorList = ResolveIndicatorList(context, unitKey, context.unitConfig)
+    if type(InspectorIndicatorSelection.Resolve) == "function" then
+        context.indicatorSelection = InspectorIndicatorSelection.Resolve({
+            state = state,
+            indicatorList = context.indicatorList,
+            indicatorMeta = context.indicatorMeta,
+            unitConfig = context.unitConfig,
+            unitKey = unitKey,
+            getFirstIndicatorKey = context.getFirstIndicatorKey,
+        })
+    end
     context.auraList = ResolveAuraList(context, unitKey, context.unitConfig)
 
     context.selectedTextId, context.textConfig, context.linkedTemplateName = InspectorContext.GetTextSelection(context)

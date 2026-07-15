@@ -10,6 +10,7 @@ ns.GUI.Editor.Inspector = InspectorController
 local InspectorBinding = InspectorController.InspectorBinding or {}
 local InspectorContext = ns.InspectorContext or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Context) or {}
 local InspectorTextSelection = ns.InspectorTextSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.TextSelection) or {}
+local InspectorIndicatorSelection = ns.InspectorIndicatorSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.IndicatorSelection) or {}
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 
@@ -115,7 +116,6 @@ function InspectorController.Build(container, state, options)
         return
     end
 
-    local indicatorList = InspectorContext.GetIndicatorList and InspectorContext.GetIndicatorList(inspectorContext) or {}
     local auraList = InspectorContext.GetAuraList and InspectorContext.GetAuraList(inspectorContext) or {}
 
     local function ResolveTextContext()
@@ -166,11 +166,23 @@ function InspectorController.Build(container, state, options)
     end
 
     local function ResolveIndicatorContext()
-        if InspectorContext.GetIndicatorSelection then
-            return InspectorContext.GetIndicatorSelection(inspectorContext)
+        local currentIndicatorList = type(BuildIndicatorList) == "function" and BuildIndicatorList(selectedUnit) or {}
+        if type(InspectorIndicatorSelection.Resolve) == "function" and InspectorContext.GetIndicatorSelection then
+            local result = InspectorIndicatorSelection.Resolve({
+                state = state,
+                indicatorList = currentIndicatorList,
+                indicatorMeta = INDICATOR_META,
+                unitConfig = unitConfig,
+                unitKey = selectedUnit,
+                getFirstIndicatorKey = GetFirstIndicatorKey,
+            })
+            local selectedIndicatorKey, indicatorMeta, indicatorConfig = InspectorContext.GetIndicatorSelection({
+                indicatorSelection = result,
+            })
+            return selectedIndicatorKey, indicatorMeta, indicatorConfig, result, currentIndicatorList
         end
 
-        return nil, nil, nil
+        return nil, nil, nil, nil, currentIndicatorList
     end
 
     local function ResolveAuraContext()
@@ -889,14 +901,18 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildIndicatorSectionContent(indicatorSection)
-        local selectedIndicatorKey, indicatorMeta, indicatorConfig = ResolveIndicatorContext()
+        local selectedIndicatorKey, indicatorMeta, indicatorConfig, _, currentIndicatorList = ResolveIndicatorContext()
         if not indicatorSection or type(indicatorConfig) ~= "table" or type(indicatorMeta) ~= "table" then
             return
         end
 
-        AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", indicatorList, selectedIndicatorKey, function(value)
-            state.selectedIndicatorKey = value
-            RebuildLocalSection(indicatorSection)
+        AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", currentIndicatorList, selectedIndicatorKey, function(value)
+            local result = type(InspectorIndicatorSelection.Set) == "function"
+                and InspectorIndicatorSelection.Set(state, value, currentIndicatorList)
+                or nil
+            if result and result.ok and result.changed then
+                RebuildLocalSection(indicatorSection)
+            end
         end)
 
         AddCheckBox(indicatorSection, L[indicatorMeta.labelKey] or "Enabled", indicatorConfig.enabled ~= false, function(value)

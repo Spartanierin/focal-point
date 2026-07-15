@@ -107,6 +107,7 @@
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarController.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorTextSelection.lua"/>
+    <Script file="GUI/Editor/Inspector/InspectorIndicatorSelection.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorContext.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorMutations.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorRefreshPolicy.lua"/>
