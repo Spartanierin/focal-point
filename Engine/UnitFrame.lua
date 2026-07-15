@@ -1637,12 +1637,17 @@ local function ValidateEditorSelectionForProfile(addon)
         end
     end
 
-    local selectedAuraKey = state.selectedAuraKey
-    if type(unitConfig) ~= "table" or type(unitConfig[selectedAuraKey]) ~= "table" then
-        if type(unitConfig) == "table" and type(unitConfig.Buffs) == "table" then
-            state.selectedAuraKey = "Buffs"
-        elseif type(unitConfig) == "table" and type(unitConfig.Debuffs) == "table" then
-            state.selectedAuraKey = "Debuffs"
+    local auraSelection = addon.InspectorAuraSelection or (addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Inspector and addon.GUI.Editor.Inspector.AuraSelection)
+    local auraList = shared and shared.BuildAuraList and shared.BuildAuraList(unitConfig) or nil
+    local resolvedAura = auraSelection and auraSelection.Resolve and auraSelection.Resolve({
+        state = state,
+        auraList = auraList,
+        unitConfig = unitConfig,
+        getFirstAuraKey = shared and shared.GetFirstAuraKey,
+    }) or nil
+    if resolvedAura and auraSelection and auraSelection.Set then
+        if resolvedAura.effectiveAuraKey then
+            auraSelection.Set(state, resolvedAura.effectiveAuraKey, auraList)
         else
             state.selectedAuraKey = nil
         end

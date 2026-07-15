@@ -11,6 +11,7 @@ local InspectorBinding = InspectorController.InspectorBinding or {}
 local InspectorContext = ns.InspectorContext or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Context) or {}
 local InspectorTextSelection = ns.InspectorTextSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.TextSelection) or {}
 local InspectorIndicatorSelection = ns.InspectorIndicatorSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.IndicatorSelection) or {}
+local InspectorAuraSelection = ns.InspectorAuraSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.AuraSelection) or {}
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 
@@ -116,8 +117,6 @@ function InspectorController.Build(container, state, options)
         return
     end
 
-    local auraList = InspectorContext.GetAuraList and InspectorContext.GetAuraList(inspectorContext) or {}
-
     local function ResolveTextContext()
         local currentTextList = BuildTextList(type(unitConfig) == "table" and unitConfig.Texts or nil)
         if type(InspectorTextSelection.Resolve) == "function" and InspectorContext.GetTextSelection then
@@ -186,11 +185,21 @@ function InspectorController.Build(container, state, options)
     end
 
     local function ResolveAuraContext()
-        if InspectorContext.GetAuraSelection then
-            return InspectorContext.GetAuraSelection(inspectorContext)
+        local currentAuraList = type(BuildAuraList) == "function" and BuildAuraList(unitConfig) or {}
+        if type(InspectorAuraSelection.Resolve) == "function" and InspectorContext.GetAuraSelection then
+            local result = InspectorAuraSelection.Resolve({
+                state = state,
+                auraList = currentAuraList,
+                unitConfig = unitConfig,
+                getFirstAuraKey = GetFirstAuraKey,
+            })
+            local selectedAuraKey, auraConfig = InspectorContext.GetAuraSelection({
+                auraSelection = result,
+            })
+            return selectedAuraKey, auraConfig, result, currentAuraList
         end
 
-        return nil, nil
+        return nil, nil, nil, currentAuraList
     end
 
     local function NotifyConfigChanged()
@@ -1014,19 +1023,23 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildAuraSectionContent(auraSection)
-        local selectedAuraKey, auraConfig = ResolveAuraContext()
+        local selectedAuraKey, auraConfig, _, currentAuraList = ResolveAuraContext()
         if not auraSection or type(auraConfig) ~= "table" then
             return
         end
 
-            AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", auraList, selectedAuraKey, function(value)
-                state.selectedAuraKey = value
+        AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", currentAuraList, selectedAuraKey, function(value)
+            local result = type(InspectorAuraSelection.Set) == "function"
+                and InspectorAuraSelection.Set(state, value, currentAuraList)
+                or nil
+            if result and result.ok and result.changed then
                 RebuildLocalSection(auraSection)
-            end, nil, "aura_block")
+            end
+        end, nil, "aura_block")
 
-            AddCheckBox(auraSection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
-                SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
-            end, nil, "aura_enabled")
+        AddCheckBox(auraSection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
+            SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
+        end, nil, "aura_enabled")
 
         AddDropdown(auraSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", auraPlacementList, auraConfig.placement or "ATTACHED", function(value)
             SetAuraField(selectedAuraKey, "placement", value, auraSection)

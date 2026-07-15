@@ -10,6 +10,7 @@ FocalPoint.GUI.Editor.Inspector.Context = InspectorContext
 local EditorMode = FocalPoint.EditorMode or (FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode) or {}
 local InspectorTextSelection = FocalPoint.InspectorTextSelection or (FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.TextSelection) or {}
 local InspectorIndicatorSelection = FocalPoint.InspectorIndicatorSelection or (FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.IndicatorSelection) or {}
+local InspectorAuraSelection = FocalPoint.InspectorAuraSelection or (FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.AuraSelection) or {}
 
 local function ResolveLinkedTemplateName(textConfig)
     if type(textConfig) ~= "table" then
@@ -192,18 +193,22 @@ end
 
 function InspectorContext.GetAuraSelection(context)
     if type(context) ~= "table" then
-        return nil, nil
+        return nil, nil, nil
     end
 
-    local state = context.state
-    local auraList = context.auraList or {}
-    local selectedAuraKey = type(state) == "table" and state.selectedAuraKey or nil
-    if not auraList[selectedAuraKey] and type(context.getFirstAuraKey) == "function" then
-        selectedAuraKey = context.getFirstAuraKey(auraList)
+    local result = context.auraSelection
+    if type(result) ~= "table" and type(InspectorAuraSelection.Resolve) == "function" then
+        result = InspectorAuraSelection.Resolve({
+            state = context.state,
+            auraList = context.auraList,
+            unitConfig = context.unitConfig,
+            getFirstAuraKey = context.getFirstAuraKey,
+        })
     end
 
-    local auraConfig = type(context.unitConfig) == "table" and context.unitConfig[selectedAuraKey] or nil
-    return selectedAuraKey, auraConfig
+    local selectedAuraKey = type(result) == "table" and result.effectiveAuraKey or nil
+    local auraConfig = type(result) == "table" and result.auraConfig or nil
+    return selectedAuraKey, auraConfig, result
 end
 
 function InspectorContext.Create(options)
@@ -252,10 +257,21 @@ function InspectorContext.Create(options)
         })
     end
     context.auraList = ResolveAuraList(context, unitKey, context.unitConfig)
+    if type(InspectorAuraSelection.Resolve) == "function" then
+        context.auraSelection = InspectorAuraSelection.Resolve({
+            state = state,
+            auraList = context.auraList,
+            unitConfig = context.unitConfig,
+            getFirstAuraKey = context.getFirstAuraKey,
+        })
+    end
 
     context.selectedTextId, context.textConfig, context.linkedTemplateName = InspectorContext.GetTextSelection(context)
     context.selectedIndicatorKey, context.indicatorMetaEntry, context.indicatorConfig = InspectorContext.GetIndicatorSelection(context)
-    context.selectedAuraKey, context.auraConfig = InspectorContext.GetAuraSelection(context)
+    context.selectedAuraKey, context.auraConfig, context.auraSelection = InspectorContext.GetAuraSelection(context)
+    context.storedAuraKey = type(context.auraSelection) == "table" and context.auraSelection.storedAuraKey or nil
+    context.effectiveAuraKey = type(context.auraSelection) == "table" and context.auraSelection.effectiveAuraKey or nil
+    context.usedAuraFallback = type(context.auraSelection) == "table" and context.auraSelection.usedFallback or false
 
     return context
 end
