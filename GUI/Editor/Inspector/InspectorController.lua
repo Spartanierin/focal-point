@@ -256,7 +256,33 @@ function InspectorController.Build(container, state, options)
         NotifyConfigChanged()
     end
 
+    local function ResolveMutationErrorMessage(result)
+        local errorCode = type(result) == "table" and result.errorCode or nil
+        if errorCode == "unit_config_not_found" then
+            return L["EDITOR_INSPECTOR_ERROR_UNIT_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "text_config_not_found" then
+            return L["EDITOR_INSPECTOR_ERROR_TEXT_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "indicator_config_not_found" then
+            return L["EDITOR_INSPECTOR_ERROR_INDICATOR_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "aura_config_not_found" then
+            return L["EDITOR_INSPECTOR_ERROR_AURA_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        end
+
+        return L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+    end
+
+    local function ReportMutationError(result)
+        if ns.GUI and type(ns.GUI.SetStatusText) == "function" then
+            ns.GUI:SetStatusText(ResolveMutationErrorMessage(result))
+        end
+    end
+
     local function ApplyMutation(targetKind, fieldName, result, section, fallbackNotify)
+        if result and result.ok == false then
+            ReportMutationError(result)
+            return result
+        end
+
         if not (result and result.ok and result.changed) then
             return result
         end
