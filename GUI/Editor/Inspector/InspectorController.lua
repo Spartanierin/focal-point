@@ -8,6 +8,7 @@ local AceGUI = LibStub("AceGUI-3.0")
 local InspectorController = ns.GUI.Editor.Inspector
 ns.GUI.Editor.Inspector = InspectorController
 local InspectorBinding = InspectorController.InspectorBinding or {}
+local InspectorContext = ns.InspectorContext or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Context) or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -78,7 +79,30 @@ function InspectorController.Build(container, state, options)
         CastBar = textAnchorTargetList.CastBar or (L["BAR_CAST"] or "Cast"),
     }
 
-    local unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(state.selectedUnit)
+    local inspectorContext = InspectorContext.Create and InspectorContext.Create({
+        state = state,
+        getUnitConfig = function(unitKey)
+            return ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
+        end,
+        buildTextList = function(_, currentUnitConfig)
+            return BuildTextList(type(currentUnitConfig) == "table" and currentUnitConfig.Texts or nil)
+        end,
+        getFirstTextId = GetFirstTextId,
+        buildIndicatorList = function(unitKey)
+            return BuildIndicatorList(unitKey)
+        end,
+        getFirstIndicatorKey = GetFirstIndicatorKey,
+        indicatorMeta = INDICATOR_META,
+        buildAuraList = function(_, currentUnitConfig)
+            return BuildAuraList(currentUnitConfig)
+        end,
+        getFirstAuraKey = GetFirstAuraKey,
+    }) or {}
+
+    local isQuick = inspectorContext.isQuick == true
+    local isExpert = inspectorContext.isExpert == true
+    local selectedUnit = inspectorContext.unitKey
+    local unitConfig = inspectorContext.unitConfig
     if type(unitConfig) ~= "table" then
         local label = AceGUI:Create("Label")
         label:SetFullWidth(true)
@@ -87,63 +111,16 @@ function InspectorController.Build(container, state, options)
         return
     end
 
-    local textList = BuildTextList(unitConfig.Texts)
-    local selectedTextId = state.selectedTextId or state.selectedTextKey
-    if not textList[selectedTextId] then
-        selectedTextId = GetFirstTextId(textList)
-        state.selectedTextId = selectedTextId
-        state.selectedTextKey = selectedTextId
-    end
-
-    local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[selectedTextId] or nil
-    local linkedTemplateName = textConfig and textConfig.templateName or nil
-    if (type(linkedTemplateName) ~= "string" or linkedTemplateName == "") and textConfig and type(textConfig.stateTemplates) == "table" then
-        for _, stateTemplateName in pairs(textConfig.stateTemplates) do
-            if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
-                linkedTemplateName = stateTemplateName
-                break
-            end
-        end
-    end
-    local indicatorList = BuildIndicatorList(state.selectedUnit)
-    local selectedIndicatorKey = state.selectedIndicatorKey
-    if not indicatorList[selectedIndicatorKey] then
-        selectedIndicatorKey = GetFirstIndicatorKey(indicatorList)
-        state.selectedIndicatorKey = selectedIndicatorKey
-    end
-
-    local indicatorMeta = INDICATOR_META[selectedIndicatorKey]
-    local indicatorConfig = indicatorMeta and unitConfig[indicatorMeta.optionKey] or nil
-    local auraList = BuildAuraList(unitConfig)
-    local selectedAuraKey = state.selectedAuraKey
-    if not auraList[selectedAuraKey] then
-        selectedAuraKey = GetFirstAuraKey(auraList)
-        state.selectedAuraKey = selectedAuraKey
-    end
-    local auraConfig = unitConfig[selectedAuraKey]
+    local textList = InspectorContext.GetTextList and InspectorContext.GetTextList(inspectorContext) or {}
+    local indicatorList = InspectorContext.GetIndicatorList and InspectorContext.GetIndicatorList(inspectorContext) or {}
+    local auraList = InspectorContext.GetAuraList and InspectorContext.GetAuraList(inspectorContext) or {}
 
     local function ResolveTextContext()
-        local currentSelectedTextId = state.selectedTextId or state.selectedTextKey
-        if not textList[currentSelectedTextId] then
-            currentSelectedTextId = GetFirstTextId(textList)
-            state.selectedTextId = currentSelectedTextId
-            state.selectedTextKey = currentSelectedTextId
+        if InspectorContext.GetTextSelection then
+            return InspectorContext.GetTextSelection(inspectorContext)
         end
 
-        local currentTextConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[currentSelectedTextId] or nil
-        local currentLinkedTemplateName = currentTextConfig and currentTextConfig.templateName or nil
-        if (type(currentLinkedTemplateName) ~= "string" or currentLinkedTemplateName == "")
-            and currentTextConfig and type(currentTextConfig.stateTemplates) == "table"
-        then
-            for _, stateTemplateName in pairs(currentTextConfig.stateTemplates) do
-                if type(stateTemplateName) == "string" and stateTemplateName ~= "" then
-                    currentLinkedTemplateName = stateTemplateName
-                    break
-                end
-            end
-        end
-
-        return currentSelectedTextId, currentTextConfig, currentLinkedTemplateName
+        return nil, nil, nil
     end
 
     local function BuildMissingTemplateMessages(textId)
@@ -155,7 +132,7 @@ function InspectorController.Build(container, state, options)
         local primaryMissing = nil
         local missingStates = {}
         for _, entry in ipairs(scanner(ns.db) or {}) do
-            if entry.unit == state.selectedUnit and entry.textId == textId and entry.isMissing then
+            if entry.unit == selectedUnit and entry.textId == textId and entry.isMissing then
                 if entry.isPrimary then
                     primaryMissing = entry.templateName
                 elseif entry.isState then
@@ -176,31 +153,19 @@ function InspectorController.Build(container, state, options)
     end
 
     local function ResolveIndicatorContext()
-        local currentSelectedIndicatorKey = state.selectedIndicatorKey
-        if not indicatorList[currentSelectedIndicatorKey] then
-            currentSelectedIndicatorKey = GetFirstIndicatorKey(indicatorList)
-            state.selectedIndicatorKey = currentSelectedIndicatorKey
+        if InspectorContext.GetIndicatorSelection then
+            return InspectorContext.GetIndicatorSelection(inspectorContext)
         end
 
-        local currentIndicatorMeta = INDICATOR_META[currentSelectedIndicatorKey]
-        local currentIndicatorConfig = currentIndicatorMeta and unitConfig[currentIndicatorMeta.optionKey] or nil
-        if not currentIndicatorConfig and state.selectedUnit == "boss" and indicatorList.RaidTargetIcon then
-            currentSelectedIndicatorKey = "RaidTargetIcon"
-            state.selectedIndicatorKey = currentSelectedIndicatorKey
-            currentIndicatorMeta = INDICATOR_META[currentSelectedIndicatorKey]
-            currentIndicatorConfig = currentIndicatorMeta and unitConfig[currentIndicatorMeta.optionKey] or nil
-        end
-        return currentSelectedIndicatorKey, currentIndicatorMeta, currentIndicatorConfig
+        return nil, nil, nil
     end
 
     local function ResolveAuraContext()
-        local currentSelectedAuraKey = state.selectedAuraKey
-        if not auraList[currentSelectedAuraKey] then
-            currentSelectedAuraKey = GetFirstAuraKey(auraList)
-            state.selectedAuraKey = currentSelectedAuraKey
+        if InspectorContext.GetAuraSelection then
+            return InspectorContext.GetAuraSelection(inspectorContext)
         end
 
-        return currentSelectedAuraKey, unitConfig[currentSelectedAuraKey]
+        return nil, nil
     end
 
     local function NotifyConfigChanged()
@@ -289,9 +254,9 @@ function InspectorController.Build(container, state, options)
         inspectorSummary:SetText(string.format(
             "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
             L["EDITOR_UNIT"] or "Unit",
-            ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, state.selectedUnit) or state.selectedUnit,
+            ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, selectedUnit) or selectedUnit,
             L["EDITOR_MODE"] or "Mode",
-            state.mode == "expert" and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
+            isExpert and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
         ))
         if inspectorSummary.label and inspectorSummary.label.SetFont then
             inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 12, "")
@@ -346,7 +311,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end)
 
-        if state.selectedUnit == "boss" then
+        if selectedUnit == "boss" then
             AddSlider(frameSection, L["OPTION_BOSS_FRAME_SPACING"] or "Boss Frame Spacing", 0, 40, 1, tonumber(unitConfig.bossSpacing) or 10, function(value)
                 unitConfig.bossSpacing = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
@@ -368,7 +333,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddColorPicker(frameSection, L["OPTION_BORDER_COLOR"] or "Border Color", unitConfig.borderColor, true, function(value)
                 unitConfig.borderColor = value
                 NotifyConfigChanged()
@@ -407,7 +372,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChangedAndRebuildSection(healthSection)
         end)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddCheckBox(healthSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
                 unitConfig.useReactionColorNpcHealth = value and true or false
                 NotifyConfigChangedAndRebuildSection(healthSection)
@@ -419,7 +384,7 @@ function InspectorController.Build(container, state, options)
             end)
         end
 
-        if state.mode == "quick" or unitConfig.useClassColorHealth ~= true then
+        if isQuick or unitConfig.useClassColorHealth ~= true then
             AddColorPicker(healthSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
                 unitConfig.healthColor = value
                 NotifyConfigChanged()
@@ -431,7 +396,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddCheckBox(healthSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
                 unitConfig.healthBackground = value and true or false
                 NotifyConfigChangedAndRebuildSection(healthSection)
@@ -465,7 +430,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, unitConfig.showPowerBar == false)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddSlider(powerSection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
                 unitConfig.powerBarHeight = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
@@ -477,7 +442,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChangedAndRebuildSection(powerSection)
         end, unitConfig.showPowerBar == false)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddCheckBox(powerSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
                 unitConfig.powerBarReverseFill = value and true or false
                 NotifyConfigChanged()
@@ -489,7 +454,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddCheckBox(powerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
                 unitConfig.powerBackground = value and true or false
                 NotifyConfigChangedAndRebuildSection(powerSection)
@@ -509,7 +474,7 @@ function InspectorController.Build(container, state, options)
     })
 
     local function BuildAltPowerSectionContent(altPowerSection)
-        if not altPowerSection or state.selectedUnit ~= "player" then
+        if not altPowerSection or selectedUnit ~= "player" then
             return
         end
 
@@ -528,7 +493,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, unitConfig.showAlternativePowerBar ~= true)
 
-        if state.mode == "expert" then
+        if isExpert then
             local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
             if altPowerReverseFillEnabled == nil then
                 altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
@@ -566,7 +531,7 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildClassPowerSectionContent(classPowerSection)
-        if not classPowerSection or state.selectedUnit ~= "player" then
+        if not classPowerSection or selectedUnit ~= "player" then
             return
         end
 
@@ -595,7 +560,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, unitConfig.showClassPowerBar ~= true)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddSlider(classPowerSection, L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Class Power Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
                 unitConfig.classPowerBarWidth = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
@@ -633,7 +598,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    if state.selectedUnit == "player" then
+    if selectedUnit == "player" then
         AddSpacer(container, INSPECTOR_SECTION_SPACING)
         CreateInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true, {
             localContentBuilder = BuildAltPowerSectionContent,
@@ -667,7 +632,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, unitConfig.showCastBar == false)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.castBarTexture, function(value)
                 unitConfig.castBarTexture = value
                 NotifyConfigChanged()
@@ -716,7 +681,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end)
 
-        if state.mode == "expert" then
+        if isExpert then
             AddCheckBox(visibilitySection, L["OPTION_MOUSE_ENABLED"] or "Mouse Enabled", unitConfig.mouseEnabled ~= false, function(value)
                 unitConfig.mouseEnabled = value and true or false
                 NotifyConfigChangedAndRebuildSection(visibilitySection)
@@ -736,7 +701,7 @@ function InspectorController.Build(container, state, options)
     })
 
     local function BuildPositioningSectionContent(positioning)
-        if not positioning or state.mode ~= "expert" then
+        if not positioning or not isExpert then
             return
         end
 
@@ -762,7 +727,7 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildCastPositionSectionContent(castPosition)
-        if not castPosition or state.mode ~= "expert" then
+        if not castPosition or not isExpert then
             return
         end
 
@@ -787,7 +752,7 @@ function InspectorController.Build(container, state, options)
         end)
     end
 
-    if state.mode == "expert" then
+    if isExpert then
         AddSpacer(container, INSPECTOR_SECTION_SPACING)
         CreateInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true, {
             localContentBuilder = BuildPositioningSectionContent,
@@ -842,7 +807,7 @@ function InspectorController.Build(container, state, options)
                 NotifyConfigChangedAndRebuildSection(textSection, "texts")
             end, nil, "text_enabled")
 
-        if state.mode == "quick" then
+        if isQuick then
             AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
                 textConfig.fontSize = math.floor((value or 0) + 0.5)
                 NotifyConfigChanged()
@@ -966,7 +931,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
         end, indicatorConfig.enabled == false)
 
-        if state.mode == "expert" and indicatorMeta.supportsMode then
+        if isExpert and indicatorMeta.supportsMode then
             AddDropdown(indicatorSection, L[indicatorMeta.modeLabel] or "Mode", portraitModeList, indicatorConfig.mode or "2D", function(value)
                 indicatorConfig.mode = value
                 NotifyConfigChanged()
@@ -978,7 +943,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, indicatorConfig.enabled == false)
 
-        if state.mode ~= "expert" then
+        if not isExpert then
             return
         end
 
@@ -1082,7 +1047,7 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChanged()
         end, auraConfig.enabled == false, "aura_max_rows")
 
-        if state.mode == "quick" then
+        if isQuick then
             AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
                 auraConfig.showStackText = value and true or false
                 NotifyConfigChanged()

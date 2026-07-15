@@ -105,6 +105,7 @@
     <Script file="GUI/Editor/SidebarShared.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarController.lua"/>
+    <Script file="GUI/Editor/Inspector/InspectorContext.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorBinding.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorController.lua"/>
     <Script file="GUI/Widgets/ColorPickerWidget.lua"/>
