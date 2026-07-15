@@ -83,8 +83,12 @@ function B.BuildEditorPage(container)
 
     local generalConfig = ns.db and ns.db.profile and ns.db.profile.General
     local editorStateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
-    if type(generalConfig) == "table" and editorStateApi and editorStateApi.SetMode then
-        editorStateApi.SetMode(generalConfig.ExpertMode ~= false and "expert" or "quick")
+    local editorMode = ns.EditorMode or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Mode)
+    if type(generalConfig) == "table" and editorStateApi then
+        local state = editorStateApi.Get and editorStateApi.Get()
+        if editorMode and editorMode.SyncStateFromProfile then
+            editorMode.SyncStateFromProfile(state, ns.db and ns.db.profile)
+        end
     end
 
     if ns and ns.guiEditorWorkspaceHost then

@@ -11,6 +11,7 @@ ns.GUI.Editor.SidebarGeometry = ns.GUI.Editor.SidebarGeometry or {
 
 local EditorState = {}
 ns.GUI.Editor.State = EditorState
+local EditorMode = ns.EditorMode or (ns.GUI.Editor and ns.GUI.Editor.Mode) or {}
 
 local state = {
     selectedUnit = "player",
@@ -36,11 +37,7 @@ function EditorState.SetSelectedUnit(unitKey)
 end
 
 function EditorState.SetMode(mode)
-    if mode ~= "expert" then
-        mode = "quick"
-    end
-
-    state.mode = mode
+    state.mode = type(EditorMode.Normalize) == "function" and EditorMode.Normalize(mode) or "quick"
 end
 
 function EditorState.SetSelectedThemeId(themeId)

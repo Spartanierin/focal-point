@@ -468,12 +468,9 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                 end
             end,
             onModeChanged = function(mode)
-                if EditorState.SetMode then
-                    EditorState.SetMode(mode)
-                end
-                local generalConfig = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
-                if type(generalConfig) == "table" then
-                    generalConfig.ExpertMode = (mode == "expert")
+                local editorMode = FocalPoint.EditorMode or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode)
+                if editorMode and editorMode.Set then
+                    editorMode.Set(EditorState.Get and EditorState.Get(), FocalPoint.db and FocalPoint.db.profile, mode)
                 end
                 if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
                     FocalPoint.GUI:RequestRefreshOptions()

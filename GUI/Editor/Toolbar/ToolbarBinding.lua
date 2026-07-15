@@ -43,6 +43,15 @@ local function T(key, fallback, deps)
     return (type(key) == "string" and L[key]) or fallback or ""
 end
 
+local function ResolveEditorMode(state, profile)
+    local editorMode = ns.EditorMode or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Mode)
+    if editorMode and editorMode.Resolve then
+        return editorMode.Resolve(state, profile)
+    end
+
+    return "quick"
+end
+
 local function ResolveItemText(props, deps)
     if not props then
         return ""
@@ -190,6 +199,8 @@ local function RefreshWindowState(context, deps)
         context._suspendCallbacks = false
         return
     end
+    local activeEditorMode = ResolveEditorMode(state, nsRef.db and nsRef.db.profile)
+    local isExpertMode = activeEditorMode == "expert"
 
     if ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot() then
         themeList[customThemeId] = T("THEME_CUSTOM", "My Layout", deps)
@@ -274,7 +285,7 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.expertMode then
         context.widgets.expertMode:SetLabel(T("OPTION_EXPERT_MODE", "Expert Mode", deps))
-        context.widgets.expertMode:SetValue(generalConfig.ExpertMode ~= false)
+        context.widgets.expertMode:SetValue(isExpertMode)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.expertMode, false)
         end
@@ -367,7 +378,7 @@ local function RefreshWindowState(context, deps)
     if context.widgets.mouseEnabled then
         context.widgets.mouseEnabled:SetLabel(T("OPTION_MOUSE_ENABLED", "Mouse Enabled", deps))
         context.widgets.mouseEnabled:SetValue(generalConfig.MouseEnabled ~= false)
-        context.widgets.mouseEnabled:SetDisabled(generalConfig.ExpertMode == false)
+        context.widgets.mouseEnabled:SetDisabled(not isExpertMode)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.mouseEnabled, false)
         end
@@ -376,7 +387,7 @@ local function RefreshWindowState(context, deps)
     if context.widgets.clickthrough then
         context.widgets.clickthrough:SetLabel(T("OPTION_GLOBAL_CLICKTHROUGH", "Global Click Through", deps))
         context.widgets.clickthrough:SetValue(generalConfig.GlobalClickThrough == true)
-        context.widgets.clickthrough:SetDisabled(generalConfig.ExpertMode == false)
+        context.widgets.clickthrough:SetDisabled(not isExpertMode)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.clickthrough, false)
         end

@@ -7,10 +7,7 @@ FocalPoint.GUI.Editor.Inspector = FocalPoint.GUI.Editor.Inspector or {}
 local InspectorContext = {}
 FocalPoint.InspectorContext = InspectorContext
 FocalPoint.GUI.Editor.Inspector.Context = InspectorContext
-
-local function NormalizeMode(mode)
-    return mode == "expert" and "expert" or "quick"
-end
+local EditorMode = FocalPoint.EditorMode or (FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode) or {}
 
 local function ResolveLinkedTemplateName(textConfig)
     if type(textConfig) ~= "table" then
@@ -115,10 +112,16 @@ function InspectorContext.GetMode(context)
 end
 
 function InspectorContext.IsQuick(context)
+    if EditorMode.IsQuick then
+        return EditorMode.IsQuick(context)
+    end
     return context and context.isQuick == true or false
 end
 
 function InspectorContext.IsExpert(context)
+    if EditorMode.IsExpert then
+        return EditorMode.IsExpert(context)
+    end
     return context and context.isExpert == true or false
 end
 
@@ -203,7 +206,7 @@ function InspectorContext.Create(options)
     options = type(options) == "table" and options or {}
 
     local state = options.state
-    local mode = NormalizeMode(type(state) == "table" and state.mode or nil)
+    local mode = EditorMode.Resolve and EditorMode.Resolve(state, options.profile) or "quick"
     local unitKey = ResolveUnitKey(state)
     local context = {
         state = state,

@@ -1572,13 +1572,12 @@ local function ValidateEditorSelectionForProfile(addon)
         return
     end
 
-    local general = profile.General or {}
-    if editorStateApi.SetMode then
-        editorStateApi.SetMode(general.ExpertMode ~= false and "expert" or "quick")
-    else
-        state.mode = general.ExpertMode ~= false and "expert" or "quick"
+    local editorMode = addon.EditorMode or (addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Mode)
+    if editorMode and editorMode.SyncStateFromProfile then
+        editorMode.SyncStateFromProfile(state, profile)
     end
 
+    local general = profile.General or {}
     local activeThemeId = general.ActiveThemeId
     if type(activeThemeId) ~= "string" or activeThemeId == "" then
         activeThemeId = "default"

@@ -97,6 +97,7 @@
     <Script file="GUI/Helpers/FormRenderer.lua"/>
     <Script file="GUI/AppShell.lua"/>
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
+    <Script file="GUI/Editor/EditorMode.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
     <Script file="GUI/Editor/FrameContextMenu.lua"/>
     <Script file="GUI/Editor/FrameResizeHandles.lua"/>
@@ -106,6 +107,8 @@
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarController.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorContext.lua"/>
+    <Script file="GUI/Editor/Inspector/InspectorMutations.lua"/>
+    <Script file="GUI/Editor/Inspector/InspectorRefreshPolicy.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorBinding.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorController.lua"/>
     <Script file="GUI/Widgets/ColorPickerWidget.lua"/>
