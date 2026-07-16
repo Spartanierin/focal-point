@@ -13,6 +13,15 @@ local function DemoDebugMessage(text)
     print(message)
 end
 
+local function VisibilityDebugMessage(text)
+    local message = "[FP VisibilityDebug] " .. tostring(text or "")
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(message)
+        return
+    end
+    print(message)
+end
+
 local function CountKnownFrames()
     local count = 0
     local frames = FocalPoint and FocalPoint.frames or nil
@@ -99,6 +108,75 @@ local function DemoToggleStatus()
     ))
 end
 
+local function GetVisibilityDebugApi()
+    return FocalPoint and FocalPoint.UnitFrameVisibility or nil
+end
+
+local function ReportVisibilityDebugStatus()
+    local Visibility = GetVisibilityDebugApi()
+    local status = Visibility and Visibility.GetDecisionDebugStatus and Visibility.GetDecisionDebugStatus() or nil
+    if not status then
+        VisibilityDebugMessage("status unavailable")
+        return
+    end
+    VisibilityDebugMessage(string.format(
+        "enabled=%s comparisons=%d mismatches=%d recent=%d",
+        tostring(status.enabled == true),
+        tonumber(status.totalComparisons) or 0,
+        tonumber(status.totalMismatches) or 0,
+        tonumber(status.recentCount) or 0
+    ))
+end
+
+local function ReportVisibilityDebugSummary()
+    local Visibility = GetVisibilityDebugApi()
+    local lines = Visibility and Visibility.BuildDecisionDebugReport and Visibility.BuildDecisionDebugReport() or nil
+    if type(lines) ~= "table" then
+        VisibilityDebugMessage("report unavailable")
+        return
+    end
+    for _, line in ipairs(lines) do
+        VisibilityDebugMessage(line)
+    end
+end
+
+local function ResetVisibilityDebug()
+    local Visibility = GetVisibilityDebugApi()
+    if Visibility and Visibility.ResetDecisionDebug then
+        Visibility.ResetDecisionDebug()
+        VisibilityDebugMessage("reset")
+    else
+        VisibilityDebugMessage("reset unavailable")
+    end
+end
+
+local function SetVisibilityDebugEnabled(enabled)
+    local Visibility = GetVisibilityDebugApi()
+    if Visibility and Visibility.SetDecisionDebugEnabled then
+        Visibility.SetDecisionDebugEnabled(enabled == true)
+        VisibilityDebugMessage("enabled=" .. tostring(enabled == true))
+    else
+        VisibilityDebugMessage("toggle unavailable")
+    end
+end
+
+local function HandleVisibilityDebugCommand(msg)
+    msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if msg == "on" then
+        SetVisibilityDebugEnabled(true)
+    elseif msg == "off" then
+        SetVisibilityDebugEnabled(false)
+    elseif msg == "reset" then
+        ResetVisibilityDebug()
+    elseif msg == "report" then
+        ReportVisibilityDebugSummary()
+    elseif msg == "status" or msg == "" then
+        ReportVisibilityDebugStatus()
+    else
+        VisibilityDebugMessage("usage: /fpdebugvisibility on|off|reset|status|report")
+    end
+end
+
 function FocalPoint:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
@@ -107,6 +185,7 @@ function FocalPoint:SetupSlashCommands()
     SLASH_FOCALPOINT1 = "/focalpoint"
     SLASH_FOCALPOINT2 = "/fp"
     SLASH_FPDEBUGDEMO1 = "/fpdebugdemo"
+    SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
     FocalPoint.debugDemoDisableCastbar = FocalPoint.debugDemoDisableCastbar == true
     FocalPoint.debugDemoDisableAuras = FocalPoint.debugDemoDisableAuras == true
     FocalPoint.debugDemoDisableAuraTimers = FocalPoint.debugDemoDisableAuraTimers == true
@@ -133,6 +212,10 @@ function FocalPoint:SetupSlashCommands()
             if FocalPoint.DumpRuntimeDiagnostics then
                 FocalPoint:DumpRuntimeDiagnostics()
             end
+        elseif msg == "debug visibility" then
+            HandleVisibilityDebugCommand("status")
+        elseif msg:match("^debug visibility%s+") then
+            HandleVisibilityDebugCommand(msg:match("^debug visibility%s+(.+)$"))
         elseif msg == "debugdemo on" then
             FocalPoint.debugDemoRuntime = true
             DemoDebugMessage("enabled=true")
@@ -167,9 +250,13 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report")
             end
         end
+    end
+
+    SlashCmdList["FPDEBUGVISIBILITY"] = function(msg)
+        HandleVisibilityDebugCommand(msg)
     end
 
     SlashCmdList["FPDEBUGDEMO"] = function(msg)

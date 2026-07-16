@@ -14,6 +14,8 @@ local MaybeDebugTarget = Presence.MaybeDebugTarget
 local ForceDebugTarget = Presence.ForceDebugTarget
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local ShouldForceFrameVisible = Presence.ShouldForceFrameVisible
+local IsBossRuntimeUnit
+local ShouldTreatMissingTargetAsSuspicious
 
 local function IsProtectedFrameInCombat(frame)
     return frame
@@ -130,13 +132,6 @@ local function ResolveModeReadOnly(frame)
     return "live", "live-no-demo"
 end
 
-local function IsRecoveryCandidate(unit, protectedRoot, inCombat)
-    if unit == "target" or unit == "targettarget" or unit == "focustarget" then
-        return true
-    end
-    return protectedRoot == true and inCombat == true
-end
-
 function Visibility.ResolveRootDecision(frame, reason, options)
     options = type(options) == "table" and options or {}
 
@@ -178,9 +173,14 @@ function Visibility.ResolveRootDecision(frame, reason, options)
         canHideRoot = canHideRoot,
         hideSuppressedByPolicy = unit == "target",
 
+        shouldShowRoot = false,
+        shouldHideRoot = false,
+        shouldSoftClear = false,
+        shouldHardClear = false,
         shouldAlphaZero = false,
         shouldDisableMouse = false,
         shouldQueueRecovery = false,
+        shouldNotifyUnitLost = false,
     }
 
     if not frame or type(unit) ~= "string" or unit == "" then
@@ -219,8 +219,10 @@ function Visibility.ResolveRootDecision(frame, reason, options)
 
     if mode == "disabled" then
         decision.reason = "preview-disabled"
+        decision.shouldSoftClear = true
         decision.shouldAlphaZero = true
         decision.shouldDisableMouse = true
+        decision.shouldHideRoot = canHideRoot and not decision.hideSuppressedByPolicy
         return decision
     end
 
@@ -233,9 +235,10 @@ function Visibility.ResolveRootDecision(frame, reason, options)
 
     if decision.specialModeActive then
         decision.reason = "special-mode"
+        decision.shouldHardClear = true
         decision.shouldAlphaZero = true
-        decision.shouldDisableMouse = true
-        decision.shouldQueueRecovery = protectedRoot and inCombat or false
+        decision.shouldHideRoot = canHideRoot and not decision.hideSuppressedByPolicy
+        decision.shouldNotifyUnitLost = true
         return decision
     end
 
@@ -243,6 +246,7 @@ function Visibility.ResolveRootDecision(frame, reason, options)
         decision.visible = true
         decision.forceVisible = true
         decision.reason = mode == "placeholder" and "unlock-placeholder" or "demo-detailed"
+        decision.shouldShowRoot = true
         return decision
     end
 
@@ -256,14 +260,449 @@ function Visibility.ResolveRootDecision(frame, reason, options)
     if unitPresent then
         decision.visible = true
         decision.reason = "live-present"
+        decision.shouldShowRoot = true
         return decision
     end
 
-    decision.reason = "missing-unit"
+    local protectedCombat = protectedRoot and inCombat
+    local suppressed = IsMissingDebugSuppressed(frame)
+
+    decision.shouldAlphaZero = unit == "target"
+    decision.shouldDisableMouse = not protectedCombat
+    decision.shouldHideRoot = canHideRoot and not decision.hideSuppressedByPolicy
+    decision.shouldNotifyUnitLost = true
+
+    if protectedRoot then
+        decision.reason = suppressed and "missing-unit-protected-suppressed" or "missing-unit-protected"
+        decision.shouldSoftClear = protectedCombat or IsBossRuntimeUnit(unit)
+        decision.shouldHardClear = not decision.shouldSoftClear
+        decision.shouldAlphaZero = decision.shouldAlphaZero or suppressed
+        decision.shouldQueueRecovery = ShouldTreatMissingTargetAsSuspicious
+            and ShouldTreatMissingTargetAsSuspicious(frame)
+            or false
+        return decision
+    end
+
+    if unit == "target" then
+        local now = GetTime and GetTime() or 0
+        local missingSince = frame and frame._missingUnitSince or nil
+        local elapsedMissing = now - (missingSince or now)
+        if elapsedMissing < 0.35 then
+            decision.reason = "target-missing-transition"
+            decision.shouldSoftClear = true
+            decision.shouldQueueRecovery = true
+            return decision
+        end
+    end
+
+    decision.reason = suppressed and "missing-unit-suppressed" or "missing-unit"
+    decision.shouldSoftClear = IsBossRuntimeUnit(unit)
+    decision.shouldHardClear = not decision.shouldSoftClear
     decision.shouldAlphaZero = true
-    decision.shouldDisableMouse = true
-    decision.shouldQueueRecovery = IsRecoveryCandidate(unit, protectedRoot, inCombat)
     return decision
+end
+
+local MAX_DECISION_DEBUG_MISMATCHES = 20
+
+IsBossRuntimeUnit = function(unit)
+    return type(unit) == "string" and unit:match("^boss%d+$") ~= nil
+end
+
+local function WouldHideRoot(frame)
+    if not (frame and frame.Hide) then
+        return false
+    end
+    if frame.unit == "target" then
+        return false
+    end
+    if IsProtectedFrameInCombat(frame) then
+        return false
+    end
+    return true
+end
+
+local function ResolveLegacyMissingUnitOutcome(frame)
+    local unit = frame and frame.unit or nil
+    local protectedRoot = frame
+        and frame.IsProtected
+        and frame:IsProtected()
+        or false
+    local inCombat = InCombatLockdown and InCombatLockdown() or false
+    local previewEnabled = IsPreviewModeEnabled and IsPreviewModeEnabled() or false
+    local unitPresent = unit == "player"
+        or (DoesUnitSeemPresent and DoesUnitSeemPresent(unit) == true)
+        or false
+
+    local outcome = {
+        handled = false,
+        outcome = "not-handled",
+        unit = unit,
+        unitPresent = unitPresent,
+        specialMode = false,
+        specialModeReason = nil,
+        previewEnabled = previewEnabled,
+        forceVisible = false,
+        protectedRoot = protectedRoot,
+        inCombat = inCombat,
+        wouldSoftClear = false,
+        wouldHardClear = false,
+        wouldAlphaZero = false,
+        wouldDisableMouse = false,
+        wouldHideRoot = false,
+        wouldQueueRecovery = false,
+        wouldNotifyUnitLost = false,
+    }
+
+    local suppressForSpecialMode, specialModeReason = ShouldSuppressFramesForSpecialMode()
+    if suppressForSpecialMode then
+        outcome.handled = true
+        outcome.outcome = "special-mode"
+        outcome.specialMode = true
+        outcome.specialModeReason = specialModeReason or "special_mode"
+        outcome.wouldHardClear = true
+        outcome.wouldAlphaZero = true
+        outcome.wouldHideRoot = WouldHideRoot(frame)
+        outcome.wouldNotifyUnitLost = true
+        return outcome
+    end
+
+    if previewEnabled
+        and Demo.IsFrameUnitEnabled
+        and not Demo.IsFrameUnitEnabled(frame)
+        and not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true)
+    then
+        outcome.handled = true
+        outcome.outcome = "preview-disabled"
+        outcome.wouldSoftClear = true
+        outcome.wouldAlphaZero = true
+        outcome.wouldDisableMouse = true
+        outcome.wouldHideRoot = WouldHideRoot(frame)
+        return outcome
+    end
+
+    if ShouldForceFrameVisible and ShouldForceFrameVisible(frame) then
+        outcome.outcome = "force-visible"
+        outcome.forceVisible = true
+        return outcome
+    end
+
+    if previewEnabled then
+        outcome.outcome = "preview"
+        return outcome
+    end
+
+    local shouldHideForMissingUnit = unit ~= "player" and not unitPresent
+    if not shouldHideForMissingUnit then
+        outcome.outcome = "present"
+        return outcome
+    end
+
+    outcome.handled = true
+    outcome.outcome = "missing-unit"
+    outcome.wouldAlphaZero = unit == "target"
+    outcome.wouldDisableMouse = not (protectedRoot and inCombat)
+    outcome.wouldHideRoot = WouldHideRoot(frame)
+
+    if protectedRoot then
+        outcome.outcome = IsMissingDebugSuppressed(frame)
+            and "missing-unit-protected-suppressed"
+            or "missing-unit-protected"
+        outcome.wouldNotifyUnitLost = true
+        outcome.wouldAlphaZero = outcome.wouldAlphaZero or IsMissingDebugSuppressed(frame)
+        outcome.wouldSoftClear = (protectedRoot and inCombat) or IsBossRuntimeUnit(unit)
+        outcome.wouldHardClear = not outcome.wouldSoftClear
+        outcome.wouldQueueRecovery = ShouldTreatMissingTargetAsSuspicious
+            and ShouldTreatMissingTargetAsSuspicious(frame)
+            or false
+        return outcome
+    end
+
+    if unit == "target" then
+        local now = GetTime and GetTime() or 0
+        local missingSince = frame and frame._missingUnitSince or nil
+        local elapsedMissing = now - (missingSince or now)
+        if elapsedMissing < 0.35 then
+            outcome.outcome = "target-missing-transition"
+            outcome.wouldSoftClear = true
+            outcome.wouldHardClear = false
+            outcome.wouldNotifyUnitLost = true
+            outcome.wouldQueueRecovery = true
+            return outcome
+        end
+    end
+
+    if IsMissingDebugSuppressed(frame) then
+        outcome.outcome = "missing-unit-suppressed"
+    end
+
+    outcome.wouldNotifyUnitLost = true
+    outcome.wouldAlphaZero = true
+    outcome.wouldSoftClear = IsBossRuntimeUnit(unit)
+    outcome.wouldHardClear = not outcome.wouldSoftClear
+    return outcome
+end
+
+local function EnsureDecisionDebugState()
+    FocalPoint.VisibilityDecisionDebug = FocalPoint.VisibilityDecisionDebug or {
+        enabled = false,
+        totalComparisons = 0,
+        totalMismatches = 0,
+        mismatchesByUnit = {},
+        mismatchesByReason = {},
+        mismatchesByField = {},
+        matchesByUnit = {},
+        recentMismatches = {},
+        lastMismatch = nil,
+    }
+    return FocalPoint.VisibilityDecisionDebug
+end
+
+local function WipeDecisionDebugMap(map)
+    if type(map) ~= "table" then
+        return {}
+    end
+    for key in pairs(map) do
+        map[key] = nil
+    end
+    return map
+end
+
+function Visibility.ResetDecisionDebug()
+    local state = EnsureDecisionDebugState()
+    state.totalComparisons = 0
+    state.totalMismatches = 0
+    state.mismatchesByUnit = WipeDecisionDebugMap(state.mismatchesByUnit)
+    state.mismatchesByReason = WipeDecisionDebugMap(state.mismatchesByReason)
+    state.mismatchesByField = WipeDecisionDebugMap(state.mismatchesByField)
+    state.matchesByUnit = WipeDecisionDebugMap(state.matchesByUnit)
+    state.recentMismatches = WipeDecisionDebugMap(state.recentMismatches)
+    state.lastMismatch = nil
+    return state
+end
+
+function Visibility.SetDecisionDebugEnabled(enabled)
+    local state = EnsureDecisionDebugState()
+    state.enabled = enabled == true
+    return state.enabled
+end
+
+function Visibility.IsDecisionDebugEnabled()
+    local state = FocalPoint and FocalPoint.VisibilityDecisionDebug
+    return state and state.enabled == true or false
+end
+
+local function BumpCounter(map, key)
+    key = tostring(key or "unknown")
+    map[key] = (tonumber(map[key]) or 0) + 1
+end
+
+local function BuildMismatch(field, legacyValue, decisionValue)
+    if legacyValue == decisionValue then
+        return nil
+    end
+    return {
+        field = field,
+        legacyValue = legacyValue,
+        decisionValue = decisionValue,
+    }
+end
+
+local function CompareLegacyToDecision(legacy, decision)
+    local mismatches = {}
+    local ignoredAliasFields = {}
+    local function Add(field, legacyValue, decisionValue)
+        local mismatch = BuildMismatch(field, legacyValue, decisionValue)
+        if mismatch then
+            mismatches[#mismatches + 1] = mismatch
+        end
+    end
+    local function Ignore(field, legacyValue, decisionValue)
+        if legacyValue ~= decisionValue then
+            ignoredAliasFields[#ignoredAliasFields + 1] = {
+                field = field,
+                legacyValue = legacyValue,
+                decisionValue = decisionValue,
+            }
+        end
+    end
+
+    local legacyMissing = legacy.outcome == "missing-unit"
+        or legacy.outcome == "missing-unit-suppressed"
+        or legacy.outcome == "missing-unit-protected"
+        or legacy.outcome == "missing-unit-protected-suppressed"
+        or legacy.outcome == "target-missing-transition"
+    local decisionMissing = decision.reason == "missing-unit"
+        or decision.reason == "missing-unit-suppressed"
+        or decision.reason == "missing-unit-protected"
+        or decision.reason == "missing-unit-protected-suppressed"
+        or decision.reason == "target-missing-transition"
+
+    Add("missing", legacyMissing, decisionMissing)
+    Add("forceVisible", legacy.forceVisible == true, decision.forceVisible == true)
+    Add("specialMode", legacy.specialMode == true, decision.reason == "special-mode")
+    Add("previewDisabled", legacy.outcome == "preview-disabled", decision.reason == "preview-disabled")
+    Add("shouldSoftClear", legacy.wouldSoftClear == true, decision.shouldSoftClear == true)
+    Add("shouldHardClear", legacy.wouldHardClear == true, decision.shouldHardClear == true)
+    Add("shouldAlphaZero", legacy.wouldAlphaZero == true, decision.shouldAlphaZero == true)
+    Add("shouldDisableMouse", legacy.wouldDisableMouse == true, decision.shouldDisableMouse == true)
+    Add("shouldHideRoot", legacy.wouldHideRoot == true, decision.shouldHideRoot == true)
+    Add("shouldQueueRecovery", legacy.wouldQueueRecovery == true, decision.shouldQueueRecovery == true)
+    Add("shouldNotifyUnitLost", legacy.wouldNotifyUnitLost == true, decision.shouldNotifyUnitLost == true)
+
+    Ignore("reason", legacy.outcome, decision.reason)
+
+    return mismatches, ignoredAliasFields
+end
+
+local function RecordDecisionDebugComparison(frame)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return
+    end
+
+    local state = EnsureDecisionDebugState()
+    local legacy = ResolveLegacyMissingUnitOutcome(frame)
+    local decision = Visibility.ResolveRootDecision(frame, "handle-missing-unit-shadow")
+    local mismatches, ignoredAliasFields = CompareLegacyToDecision(legacy, decision)
+    local unit = tostring(legacy.unit or decision.unit or "unknown")
+
+    state.totalComparisons = (tonumber(state.totalComparisons) or 0) + 1
+
+    if #mismatches == 0 then
+        BumpCounter(state.matchesByUnit, unit)
+        return
+    end
+
+    state.totalMismatches = (tonumber(state.totalMismatches) or 0) + 1
+    BumpCounter(state.mismatchesByUnit, unit)
+    BumpCounter(state.mismatchesByReason, tostring(legacy.outcome or "?") .. "->" .. tostring(decision.reason or "?"))
+
+    for _, mismatch in ipairs(mismatches) do
+        BumpCounter(state.mismatchesByField, mismatch.field)
+    end
+
+    local entry = {
+        unit = unit,
+        legacyOutcome = legacy.outcome,
+        decisionReason = decision.reason,
+        combat = legacy.inCombat == true,
+        protected = legacy.protectedRoot == true,
+        mode = decision.mode,
+        modeReason = decision.modeReason,
+        mismatches = mismatches,
+        ignoredAliasFields = ignoredAliasFields,
+    }
+
+    state.lastMismatch = entry
+    local recent = state.recentMismatches
+    recent[#recent + 1] = entry
+    while #recent > MAX_DECISION_DEBUG_MISMATCHES do
+        table.remove(recent, 1)
+    end
+end
+
+local function AppendSortedCounters(lines, title, map)
+    lines[#lines + 1] = title
+    local entries = {}
+    for key, value in pairs(map or {}) do
+        entries[#entries + 1] = { key = tostring(key), value = tonumber(value) or 0 }
+    end
+    table.sort(entries, function(a, b)
+        if a.value == b.value then
+            return a.key < b.key
+        end
+        return a.value > b.value
+    end)
+    if #entries == 0 then
+        lines[#lines + 1] = "  none"
+        return
+    end
+    for _, entry in ipairs(entries) do
+        lines[#lines + 1] = string.format("  %s: %d", entry.key, entry.value)
+    end
+end
+
+local function FormatMismatchList(entry)
+    local parts = {}
+    for _, mismatch in ipairs(entry and entry.mismatches or {}) do
+        parts[#parts + 1] = string.format(
+            "%s=%s/%s",
+            tostring(mismatch.field),
+            tostring(mismatch.legacyValue),
+            tostring(mismatch.decisionValue)
+        )
+    end
+    return table.concat(parts, ",")
+end
+
+local function FormatIgnoredAliasList(entry)
+    local parts = {}
+    for _, field in ipairs(entry and entry.ignoredAliasFields or {}) do
+        parts[#parts + 1] = string.format(
+            "%s=%s/%s",
+            tostring(field.field),
+            tostring(field.legacyValue),
+            tostring(field.decisionValue)
+        )
+    end
+    if #parts == 0 then
+        return "none"
+    end
+    return table.concat(parts, ",")
+end
+
+function Visibility.GetDecisionDebugStatus()
+    local state = EnsureDecisionDebugState()
+    return {
+        enabled = state.enabled == true,
+        totalComparisons = tonumber(state.totalComparisons) or 0,
+        totalMismatches = tonumber(state.totalMismatches) or 0,
+        recentCount = #(state.recentMismatches or {}),
+    }
+end
+
+function Visibility.BuildDecisionDebugReport()
+    local state = EnsureDecisionDebugState()
+    local totalComparisons = tonumber(state.totalComparisons) or 0
+    local totalMismatches = tonumber(state.totalMismatches) or 0
+    local mismatchRate = totalComparisons > 0
+        and ((totalMismatches / totalComparisons) * 100)
+        or 0
+    local lines = {
+        "Visibility shadow report",
+        string.format("Enabled: %s", tostring(state.enabled == true)),
+        string.format("Comparisons: %d", totalComparisons),
+        string.format("Mismatches: %d", totalMismatches),
+        string.format("Mismatch rate: %.2f%%", mismatchRate),
+        "",
+    }
+
+    AppendSortedCounters(lines, "By unit:", state.mismatchesByUnit)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By reason:", state.mismatchesByReason)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By field:", state.mismatchesByField)
+
+    local last = state.lastMismatch
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Last mismatch:"
+    if last then
+        lines[#lines + 1] = string.format(
+            "  unit=%s legacy=%s decision=%s combat=%s protected=%s mode=%s/%s",
+            tostring(last.unit),
+            tostring(last.legacyOutcome),
+            tostring(last.decisionReason),
+            tostring(last.combat),
+            tostring(last.protected),
+            tostring(last.mode),
+            tostring(last.modeReason)
+        )
+        lines[#lines + 1] = "  comparedFields=" .. FormatMismatchList(last)
+        lines[#lines + 1] = "  ignoredAliasFields=" .. FormatIgnoredAliasList(last)
+    else
+        lines[#lines + 1] = "  none"
+    end
+
+    return lines
 end
 
 local function QueueTargetRecoveryRefreshes(frame, reason)
@@ -285,7 +724,7 @@ local function QueueTargetRecoveryRefreshes(frame, reason)
     end
 end
 
-local function ShouldTreatMissingTargetAsSuspicious(frame)
+ShouldTreatMissingTargetAsSuspicious = function(frame)
     if not frame or frame.unit ~= "target" then
         return false
     end
@@ -504,6 +943,10 @@ end
 function Visibility.HandleMissingUnit(frame)
     if not frame then
         return false
+    end
+
+    if Visibility.IsDecisionDebugEnabled() then
+        RecordDecisionDebugComparison(frame)
     end
 
     local suppressForSpecialMode, specialModeReason = ShouldSuppressFramesForSpecialMode()
