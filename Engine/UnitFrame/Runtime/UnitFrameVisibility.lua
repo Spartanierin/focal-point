@@ -368,7 +368,12 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
     local configAlpha = ResolveConfigAlpha(frame, options)
     local rangeMultiplier = ResolveRangeMultiplier(frame, options)
     local rangeAlpha = configAlpha * rangeMultiplier
-    local missingUnitAlphaGuard = IsMissingUnitAlphaGuardActive(frame)
+    local missingUnitAlphaGuard
+    if type(options.missingUnitAlphaGuard) == "boolean" then
+        missingUnitAlphaGuard = options.missingUnitAlphaGuard
+    else
+        missingUnitAlphaGuard = IsMissingUnitAlphaGuardActive(frame)
+    end
     local disabledLive = rootDecision and rootDecision.reason == "unit-disabled" or false
     local previewDisabled = rootDecision and rootDecision.reason == "preview-disabled" or false
     local specialMode = rootDecision and rootDecision.reason == "special-mode" or false

@@ -194,22 +194,36 @@ local function AddAlphaMismatch(mismatches, field, legacyValue, decisionValue)
     }
 end
 
-local function RecordRootAlphaRangeFadeShadow(frame, legacy)
+local function ResolveRootAlphaRangeFadeDecision(frame, context)
+    context = context or {}
+    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
+        return nil
+    end
+    return Visibility.ResolveRootAlphaDecision(frame, {
+        source = "range-fade",
+        config = context.config,
+        configAlpha = context.configAlpha,
+        rangeMultiplier = context.rangeMultiplier,
+        rangeDriverActive = context.rangeDriverActive == true,
+        missingUnitAlphaGuard = context.missingUnitGuard == true,
+    })
+end
+
+local function GetResolvedRangeFadeAlpha(decision, fallbackAlpha)
+    if type(decision) == "table"
+        and decision.writesImmediately == true
+        and type(decision.finalAlpha) == "number"
+    then
+        return decision.finalAlpha
+    end
+    return fallbackAlpha
+end
+
+local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     local state = FocalPoint.RootAlphaDebug
     if not (state and state.enabled == true) then
         return
     end
-    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
-        return
-    end
-
-    local decision = Visibility.ResolveRootAlphaDecision(frame, {
-        source = "range-fade",
-        config = legacy.config,
-        configAlpha = legacy.configAlpha,
-        rangeMultiplier = legacy.rangeMultiplier,
-        rangeDriverActive = legacy.rangeDriverActive == true,
-    })
     if type(decision) ~= "table" then
         return
     end
@@ -281,17 +295,13 @@ local function IsLaterOverriddenByPlaceholder(frame)
     return mode == "placeholder"
 end
 
-local function RecordRootAlphaRangeFadeMissingShadow(frame, reason)
-    local state = FocalPoint.RootAlphaDebug
-    if not (state and state.enabled == true) then
-        return
-    end
+local function ResolveRootAlphaRangeFadeMissing(frame)
     local config = frame and (frame.config or GetUnitDB(frame.unit)) or nil
     local configAlpha = (config and config.alpha) or 1
-    RecordRootAlphaRangeFadeShadow(frame, {
+    local legacy = {
         writesImmediately = true,
         alpha = 0,
-        reason = reason or "range-missing-unit",
+        reason = "range-missing-unit",
         config = config,
         configAlpha = configAlpha,
         rangeMultiplier = 1,
@@ -299,7 +309,8 @@ local function RecordRootAlphaRangeFadeMissingShadow(frame, reason)
         rangeDriverActive = false,
         requiresRangeContext = false,
         laterOverriddenByPlaceholder = false,
-    })
+    }
+    return legacy, ResolveRootAlphaRangeFadeDecision(frame, legacy)
 end
 
 function UF.SetRootAlphaDebugEnabled(enabled)
@@ -1316,8 +1327,9 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
-        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
-        frame:SetAlpha(0)
+        local legacy, alphaDecision = ResolveRootAlphaRangeFadeMissing(frame)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, 0))
         return
     end
 
@@ -1331,8 +1343,9 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
-        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
-        frame:SetAlpha(0)
+        local legacy, alphaDecision = ResolveRootAlphaRangeFadeMissing(frame)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, 0))
         return
     end
 
@@ -1346,8 +1359,9 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
-        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
-        frame:SetAlpha(0)
+        local legacy, alphaDecision = ResolveRootAlphaRangeFadeMissing(frame)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, 0))
         return
     end
 
@@ -1362,8 +1376,9 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
-        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
-        frame:SetAlpha(0)
+        local legacy, alphaDecision = ResolveRootAlphaRangeFadeMissing(frame)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, 0))
         return
     end
 
@@ -1376,7 +1391,7 @@ function UF:ApplyRangeFade(frame)
     if frame.unit ~= "target" or not frame:IsShown() then
         frame._rangeCurrentAlpha = targetAlpha
         frame._rangeTargetAlpha = targetAlpha
-        RecordRootAlphaRangeFadeShadow(frame, {
+        local legacy = {
             writesImmediately = true,
             alpha = targetAlpha,
             reason = "range-fade",
@@ -1387,8 +1402,10 @@ function UF:ApplyRangeFade(frame)
             rangeDriverActive = false,
             requiresRangeContext = false,
             laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
-        })
-        frame:SetAlpha(targetAlpha)
+        }
+        local alphaDecision = ResolveRootAlphaRangeFadeDecision(frame, legacy)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, targetAlpha))
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
@@ -1398,7 +1415,7 @@ function UF:ApplyRangeFade(frame)
     frame._rangeTargetAlpha = targetAlpha
     if type(frame._rangeCurrentAlpha) ~= "number" then
         frame._rangeCurrentAlpha = targetAlpha
-        RecordRootAlphaRangeFadeShadow(frame, {
+        local legacy = {
             writesImmediately = true,
             alpha = targetAlpha,
             reason = "range-fade",
@@ -1409,8 +1426,10 @@ function UF:ApplyRangeFade(frame)
             rangeDriverActive = false,
             requiresRangeContext = false,
             laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
-        })
-        frame:SetAlpha(targetAlpha)
+        }
+        local alphaDecision = ResolveRootAlphaRangeFadeDecision(frame, legacy)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, targetAlpha))
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
@@ -1420,7 +1439,7 @@ function UF:ApplyRangeFade(frame)
     local driver = EnsureRangeFadeDriver(frame)
     if not driver then
         frame._rangeCurrentAlpha = targetAlpha
-        RecordRootAlphaRangeFadeShadow(frame, {
+        local legacy = {
             writesImmediately = true,
             alpha = targetAlpha,
             reason = "range-fade",
@@ -1431,14 +1450,16 @@ function UF:ApplyRangeFade(frame)
             rangeDriverActive = false,
             requiresRangeContext = false,
             laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
-        })
-        frame:SetAlpha(targetAlpha)
+        }
+        local alphaDecision = ResolveRootAlphaRangeFadeDecision(frame, legacy)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, targetAlpha))
         return
     end
 
     if math.abs(frame._rangeCurrentAlpha - targetAlpha) < 0.01 then
         frame._rangeCurrentAlpha = targetAlpha
-        RecordRootAlphaRangeFadeShadow(frame, {
+        local legacy = {
             writesImmediately = true,
             alpha = targetAlpha,
             reason = "range-fade",
@@ -1449,13 +1470,15 @@ function UF:ApplyRangeFade(frame)
             rangeDriverActive = false,
             requiresRangeContext = false,
             laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
-        })
-        frame:SetAlpha(targetAlpha)
+        }
+        local alphaDecision = ResolveRootAlphaRangeFadeDecision(frame, legacy)
+        RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, targetAlpha))
         driver:Hide()
         return
     end
 
-    RecordRootAlphaRangeFadeShadow(frame, {
+    local legacy = {
         writesImmediately = false,
         alpha = nil,
         reason = "range-driver-active",
@@ -1466,7 +1489,9 @@ function UF:ApplyRangeFade(frame)
         rangeDriverActive = true,
         requiresRangeContext = true,
         laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
-    })
+    }
+    local alphaDecision = ResolveRootAlphaRangeFadeDecision(frame, legacy)
+    RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
     driver:Show()
 end
 
