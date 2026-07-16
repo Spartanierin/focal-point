@@ -123,6 +123,271 @@ local function IsProtectedFrameInCombat(frame)
         and InCombatLockdown()
 end
 
+local ROOT_ALPHA_EPSILON = 0.0001
+local ROOT_ALPHA_MAX_MISMATCH_DETAILS = 20
+
+local function EnsureRootAlphaDebugState()
+    FocalPoint.RootAlphaDebug = FocalPoint.RootAlphaDebug or {
+        enabled = false,
+        totalComparisons = 0,
+        totalMismatches = 0,
+        mismatchesByUnit = {},
+        mismatchesByReason = {},
+        mismatchesByField = {},
+        matchesByReason = {},
+        comparisonsByBranch = {},
+        recentMismatches = {},
+        lastMismatch = nil,
+    }
+    return FocalPoint.RootAlphaDebug
+end
+
+local function ResetRootAlphaDebugState()
+    FocalPoint.RootAlphaDebug = {
+        enabled = FocalPoint.RootAlphaDebug and FocalPoint.RootAlphaDebug.enabled == true or false,
+        totalComparisons = 0,
+        totalMismatches = 0,
+        mismatchesByUnit = {},
+        mismatchesByReason = {},
+        mismatchesByField = {},
+        matchesByReason = {},
+        comparisonsByBranch = {},
+        recentMismatches = {},
+        lastMismatch = nil,
+    }
+    return FocalPoint.RootAlphaDebug
+end
+
+local function BumpAlphaCounter(map, key)
+    key = tostring(key or "unknown")
+    map[key] = (tonumber(map[key]) or 0) + 1
+end
+
+local function AlphaNumbersMatch(left, right)
+    if left == nil or right == nil then
+        return left == right
+    end
+    if type(left) ~= "number" or type(right) ~= "number" then
+        return left == right
+    end
+    return math.abs(left - right) <= ROOT_ALPHA_EPSILON
+end
+
+local function AlphaReasonsMatch(legacyReason, decisionReason)
+    if legacyReason == decisionReason then
+        return true
+    end
+    if legacyReason == "range-fade" and decisionReason == "config" then
+        return true
+    end
+    if legacyReason == "range-driver-active" and decisionReason == "range-fade-target" then
+        return true
+    end
+    return false
+end
+
+local function AddAlphaMismatch(mismatches, field, legacyValue, decisionValue)
+    mismatches[#mismatches + 1] = {
+        field = field,
+        legacyValue = legacyValue,
+        decisionValue = decisionValue,
+    }
+end
+
+local function RecordRootAlphaRangeFadeShadow(frame, legacy)
+    local state = FocalPoint.RootAlphaDebug
+    if not (state and state.enabled == true) then
+        return
+    end
+    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
+        return
+    end
+
+    local decision = Visibility.ResolveRootAlphaDecision(frame, {
+        source = "range-fade",
+        config = legacy.config,
+        configAlpha = legacy.configAlpha,
+        rangeMultiplier = legacy.rangeMultiplier,
+        rangeDriverActive = legacy.rangeDriverActive == true,
+    })
+    if type(decision) ~= "table" then
+        return
+    end
+
+    local reason = legacy.reason or "unknown"
+    state.totalComparisons = (tonumber(state.totalComparisons) or 0) + 1
+    BumpAlphaCounter(state.comparisonsByBranch, reason)
+
+    local mismatches = {}
+    if legacy.writesImmediately ~= decision.writesImmediately then
+        AddAlphaMismatch(mismatches, "writesImmediately", legacy.writesImmediately, decision.writesImmediately)
+    end
+    if legacy.writesImmediately and not AlphaNumbersMatch(legacy.alpha, decision.finalAlpha) then
+        AddAlphaMismatch(mismatches, "alpha", legacy.alpha, decision.finalAlpha)
+    end
+    if not AlphaNumbersMatch(legacy.configAlpha, decision.configAlpha) then
+        AddAlphaMismatch(mismatches, "configAlpha", legacy.configAlpha, decision.configAlpha)
+    end
+    if not AlphaNumbersMatch(legacy.rangeMultiplier, decision.rangeMultiplier) then
+        AddAlphaMismatch(mismatches, "rangeMultiplier", legacy.rangeMultiplier, decision.rangeMultiplier)
+    end
+    if legacy.missingUnitGuard ~= decision.missingUnitAlphaGuard then
+        AddAlphaMismatch(mismatches, "missingUnitAlphaGuard", legacy.missingUnitGuard, decision.missingUnitAlphaGuard)
+    end
+    if legacy.requiresRangeContext ~= decision.requiresRangeContext then
+        AddAlphaMismatch(mismatches, "requiresRangeContext", legacy.requiresRangeContext, decision.requiresRangeContext)
+    end
+    if not AlphaReasonsMatch(reason, decision.winningSource) then
+        AddAlphaMismatch(mismatches, "reason", reason, decision.winningSource)
+    end
+
+    if #mismatches == 0 then
+        BumpAlphaCounter(state.matchesByReason, reason)
+        return
+    end
+
+    state.totalMismatches = (tonumber(state.totalMismatches) or 0) + 1
+    BumpAlphaCounter(state.mismatchesByUnit, frame and frame.unit or "unknown")
+    BumpAlphaCounter(state.mismatchesByReason, reason)
+    for _, mismatch in ipairs(mismatches) do
+        BumpAlphaCounter(state.mismatchesByField, mismatch.field)
+    end
+
+    local detail = {
+        unit = frame and frame.unit or nil,
+        legacyReason = reason,
+        decisionSource = decision.winningSource,
+        legacyAlpha = legacy.alpha,
+        decisionAlpha = decision.finalAlpha,
+        targetAlpha = decision.targetAlpha,
+        configAlpha = legacy.configAlpha,
+        rangeMultiplier = legacy.rangeMultiplier,
+        driverActive = legacy.rangeDriverActive == true,
+        laterOverriddenByPlaceholder = legacy.laterOverriddenByPlaceholder == true,
+        mismatches = mismatches,
+    }
+    state.lastMismatch = detail
+    if #state.recentMismatches < ROOT_ALPHA_MAX_MISMATCH_DETAILS then
+        state.recentMismatches[#state.recentMismatches + 1] = detail
+    end
+end
+
+local function IsLaterOverriddenByPlaceholder(frame)
+    if not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true) then
+        return false
+    end
+    local Demo = FocalPoint.UnitFrameDemoEnvironment or nil
+    local mode = Demo and Demo.ResolveMode and Demo.ResolveMode(frame, "alpha-shadow") or nil
+    return mode == "placeholder"
+end
+
+local function RecordRootAlphaRangeFadeMissingShadow(frame, reason)
+    local state = FocalPoint.RootAlphaDebug
+    if not (state and state.enabled == true) then
+        return
+    end
+    local config = frame and (frame.config or GetUnitDB(frame.unit)) or nil
+    local configAlpha = (config and config.alpha) or 1
+    RecordRootAlphaRangeFadeShadow(frame, {
+        writesImmediately = true,
+        alpha = 0,
+        reason = reason or "range-missing-unit",
+        config = config,
+        configAlpha = configAlpha,
+        rangeMultiplier = 1,
+        missingUnitGuard = true,
+        rangeDriverActive = false,
+        requiresRangeContext = false,
+        laterOverriddenByPlaceholder = false,
+    })
+end
+
+function UF.SetRootAlphaDebugEnabled(enabled)
+    local state = EnsureRootAlphaDebugState()
+    state.enabled = enabled == true
+end
+
+function UF.ResetRootAlphaDebug()
+    ResetRootAlphaDebugState()
+end
+
+function UF.GetRootAlphaDebugStatus()
+    local state = EnsureRootAlphaDebugState()
+    return {
+        enabled = state.enabled == true,
+        totalComparisons = tonumber(state.totalComparisons) or 0,
+        totalMismatches = tonumber(state.totalMismatches) or 0,
+        recentCount = #state.recentMismatches,
+    }
+end
+
+local function AppendSortedAlphaCounters(lines, title, map)
+    lines[#lines + 1] = title
+    local entries = {}
+    for key, value in pairs(map or {}) do
+        entries[#entries + 1] = { key = tostring(key), value = tonumber(value) or 0 }
+    end
+    table.sort(entries, function(left, right)
+        if left.value ~= right.value then
+            return left.value > right.value
+        end
+        return left.key < right.key
+    end)
+    if #entries == 0 then
+        lines[#lines + 1] = "  none"
+        return
+    end
+    for _, entry in ipairs(entries) do
+        lines[#lines + 1] = string.format("  %s: %d", entry.key, entry.value)
+    end
+end
+
+local function FormatAlphaValue(value)
+    if type(value) == "number" then
+        return string.format("%.4f", value)
+    end
+    return tostring(value)
+end
+
+function UF.BuildRootAlphaDebugReport()
+    local state = EnsureRootAlphaDebugState()
+    local total = tonumber(state.totalComparisons) or 0
+    local mismatches = tonumber(state.totalMismatches) or 0
+    local rate = total > 0 and (mismatches / total) * 100 or 0
+    local lines = {
+        "Root alpha range-fade shadow report",
+        string.format("Enabled: %s", tostring(state.enabled == true)),
+        string.format("Comparisons: %d", total),
+        string.format("Mismatches: %d", mismatches),
+        string.format("Mismatch rate: %.2f%%", rate),
+        string.format("Tolerance: %.4f", ROOT_ALPHA_EPSILON),
+    }
+    AppendSortedAlphaCounters(lines, "By branch:", state.comparisonsByBranch)
+    AppendSortedAlphaCounters(lines, "Matches by reason:", state.matchesByReason)
+    AppendSortedAlphaCounters(lines, "Mismatches by unit:", state.mismatchesByUnit)
+    AppendSortedAlphaCounters(lines, "Mismatches by reason:", state.mismatchesByReason)
+    AppendSortedAlphaCounters(lines, "Mismatches by field:", state.mismatchesByField)
+
+    if state.lastMismatch then
+        local item = state.lastMismatch
+        lines[#lines + 1] = string.format(
+            "Last mismatch: unit=%s legacyReason=%s decisionSource=%s legacyAlpha=%s decisionAlpha=%s targetAlpha=%s configAlpha=%s rangeMultiplier=%s driverActive=%s laterOverriddenByPlaceholder=%s",
+            tostring(item.unit),
+            tostring(item.legacyReason),
+            tostring(item.decisionSource),
+            FormatAlphaValue(item.legacyAlpha),
+            FormatAlphaValue(item.decisionAlpha),
+            FormatAlphaValue(item.targetAlpha),
+            FormatAlphaValue(item.configAlpha),
+            FormatAlphaValue(item.rangeMultiplier),
+            tostring(item.driverActive == true),
+            tostring(item.laterOverriddenByPlaceholder == true)
+        )
+    end
+
+    return lines
+end
+
 -- Health and bar coordination wrappers
 function UF:UpdateHealthBarValue(frame)
     return Health.UpdateBarValue(frame)
@@ -1051,6 +1316,7 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
+        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
         frame:SetAlpha(0)
         return
     end
@@ -1065,6 +1331,7 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
+        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
         frame:SetAlpha(0)
         return
     end
@@ -1079,6 +1346,7 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
+        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
         frame:SetAlpha(0)
         return
     end
@@ -1094,6 +1362,7 @@ function UF:ApplyRangeFade(frame)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
         end
+        RecordRootAlphaRangeFadeMissingShadow(frame, "range-missing-unit")
         frame:SetAlpha(0)
         return
     end
@@ -1102,10 +1371,23 @@ function UF:ApplyRangeFade(frame)
     local baseAlpha = (config and config.alpha) or 1
     local rangeMultiplier = GetRangeFadeMultiplier(frame)
     local targetAlpha = baseAlpha * rangeMultiplier
+    local laterOverriddenByPlaceholder = IsLaterOverriddenByPlaceholder(frame)
 
     if frame.unit ~= "target" or not frame:IsShown() then
         frame._rangeCurrentAlpha = targetAlpha
         frame._rangeTargetAlpha = targetAlpha
+        RecordRootAlphaRangeFadeShadow(frame, {
+            writesImmediately = true,
+            alpha = targetAlpha,
+            reason = "range-fade",
+            config = config,
+            configAlpha = baseAlpha,
+            rangeMultiplier = rangeMultiplier,
+            missingUnitGuard = false,
+            rangeDriverActive = false,
+            requiresRangeContext = false,
+            laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
+        })
         frame:SetAlpha(targetAlpha)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
@@ -1116,6 +1398,18 @@ function UF:ApplyRangeFade(frame)
     frame._rangeTargetAlpha = targetAlpha
     if type(frame._rangeCurrentAlpha) ~= "number" then
         frame._rangeCurrentAlpha = targetAlpha
+        RecordRootAlphaRangeFadeShadow(frame, {
+            writesImmediately = true,
+            alpha = targetAlpha,
+            reason = "range-fade",
+            config = config,
+            configAlpha = baseAlpha,
+            rangeMultiplier = rangeMultiplier,
+            missingUnitGuard = false,
+            rangeDriverActive = false,
+            requiresRangeContext = false,
+            laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
+        })
         frame:SetAlpha(targetAlpha)
         if frame.RangeFadeDriver then
             frame.RangeFadeDriver:Hide()
@@ -1126,17 +1420,53 @@ function UF:ApplyRangeFade(frame)
     local driver = EnsureRangeFadeDriver(frame)
     if not driver then
         frame._rangeCurrentAlpha = targetAlpha
+        RecordRootAlphaRangeFadeShadow(frame, {
+            writesImmediately = true,
+            alpha = targetAlpha,
+            reason = "range-fade",
+            config = config,
+            configAlpha = baseAlpha,
+            rangeMultiplier = rangeMultiplier,
+            missingUnitGuard = false,
+            rangeDriverActive = false,
+            requiresRangeContext = false,
+            laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
+        })
         frame:SetAlpha(targetAlpha)
         return
     end
 
     if math.abs(frame._rangeCurrentAlpha - targetAlpha) < 0.01 then
         frame._rangeCurrentAlpha = targetAlpha
+        RecordRootAlphaRangeFadeShadow(frame, {
+            writesImmediately = true,
+            alpha = targetAlpha,
+            reason = "range-fade",
+            config = config,
+            configAlpha = baseAlpha,
+            rangeMultiplier = rangeMultiplier,
+            missingUnitGuard = false,
+            rangeDriverActive = false,
+            requiresRangeContext = false,
+            laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
+        })
         frame:SetAlpha(targetAlpha)
         driver:Hide()
         return
     end
 
+    RecordRootAlphaRangeFadeShadow(frame, {
+        writesImmediately = false,
+        alpha = nil,
+        reason = "range-driver-active",
+        config = config,
+        configAlpha = baseAlpha,
+        rangeMultiplier = rangeMultiplier,
+        missingUnitGuard = false,
+        rangeDriverActive = true,
+        requiresRangeContext = true,
+        laterOverriddenByPlaceholder = laterOverriddenByPlaceholder,
+    })
     driver:Show()
 end
 

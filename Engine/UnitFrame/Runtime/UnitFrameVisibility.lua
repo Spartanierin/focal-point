@@ -377,11 +377,16 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
         and FocalPoint
         and FocalPoint.framesUnlocked == true
         and FocalPoint.guiTestModeEnabled ~= true
-    local rangeDriverActive = frame
-        and frame.RangeFadeDriver
-        and frame.RangeFadeDriver.IsShown
-        and frame.RangeFadeDriver:IsShown()
-        or false
+    local rangeDriverActive
+    if type(options.rangeDriverActive) == "boolean" then
+        rangeDriverActive = options.rangeDriverActive
+    else
+        rangeDriverActive = frame
+            and frame.RangeFadeDriver
+            and frame.RangeFadeDriver.IsShown
+            and frame.RangeFadeDriver:IsShown()
+            or false
+    end
     local overrideAlpha = nil
     local winningSource = "config"
     local reason = rootDecision and rootDecision.reason or "invalid-frame"
@@ -467,13 +472,14 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
     end
 
     local finalAlpha = overrideAlpha
-    if finalAlpha == nil then
+    if finalAlpha == nil and writesImmediately then
         finalAlpha = rangeAlpha
     end
 
     return {
         alpha = finalAlpha,
         finalAlpha = finalAlpha,
+        targetAlpha = rangeAlpha,
         baseAlpha = configAlpha,
         configAlpha = configAlpha,
         rangeMultiplier = rangeMultiplier,
