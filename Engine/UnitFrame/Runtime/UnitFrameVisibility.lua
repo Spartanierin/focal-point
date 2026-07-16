@@ -242,6 +242,14 @@ function Visibility.ResolveRootDecision(frame, reason, options)
         return decision
     end
 
+    if ShouldForceFrameVisible and ShouldForceFrameVisible(frame) then
+        decision.visible = true
+        decision.forceVisible = true
+        decision.reason = "forced-visible"
+        decision.shouldShowRoot = true
+        return decision
+    end
+
     if mode == "detailed" or mode == "placeholder" then
         decision.visible = true
         decision.forceVisible = true
@@ -554,14 +562,16 @@ local function CompareLegacyToDecision(legacy, decision)
     return mismatches, ignoredAliasFields
 end
 
-local function RecordDecisionDebugComparison(frame)
+local function RecordDecisionDebugComparison(frame, decision)
     if not Visibility.IsDecisionDebugEnabled() then
+        return
+    end
+    if not decision then
         return
     end
 
     local state = EnsureDecisionDebugState()
     local legacy = ResolveLegacyMissingUnitOutcome(frame)
-    local decision = Visibility.ResolveRootDecision(frame, "handle-missing-unit-shadow")
     local mismatches, ignoredAliasFields = CompareLegacyToDecision(legacy, decision)
     local unit = tostring(legacy.unit or decision.unit or "unknown")
 
@@ -945,16 +955,17 @@ function Visibility.HandleMissingUnit(frame)
         return false
     end
 
+    local decision = Visibility.ResolveRootDecision(frame, "handle-missing-unit")
+
     if Visibility.IsDecisionDebugEnabled() then
-        RecordDecisionDebugComparison(frame)
+        RecordDecisionDebugComparison(frame, decision)
     end
 
-    local suppressForSpecialMode, specialModeReason = ShouldSuppressFramesForSpecialMode()
-    if suppressForSpecialMode then
+    if decision.specialModeActive then
         if State.HandleUnitLost then
-            State.HandleUnitLost(frame, specialModeReason or "special_mode")
+            State.HandleUnitLost(frame, decision.specialModeReason or "special_mode")
         else
-            Visibility.ClearFrameVisualState(frame, specialModeReason or "special_mode")
+            Visibility.ClearFrameVisualState(frame, decision.specialModeReason or "special_mode")
         end
         if frame.SetAlpha then
             frame:SetAlpha(0)
@@ -963,7 +974,7 @@ function Visibility.HandleMissingUnit(frame)
         return true
     end
 
-    if IsPreviewModeEnabled()
+    if decision.previewEnabled
         and Demo.IsFrameUnitEnabled
         and not Demo.IsFrameUnitEnabled(frame)
         and not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true)
@@ -985,26 +996,27 @@ function Visibility.HandleMissingUnit(frame)
         return true
     end
 
-    if ShouldForceFrameVisible and ShouldForceFrameVisible(frame) then
+    if decision.forceVisible then
         frame._missingUnitSince = nil
         return false
     end
 
-    if IsPreviewModeEnabled() then
+    if decision.previewEnabled then
         frame._missingUnitSince = nil
         return false
     end
 
-    local protectedFrame = frame.IsProtected and frame:IsProtected()
-    local shouldHideForMissingUnit = not IsPreviewModeEnabled()
+    local protectedFrame = decision.protectedRoot
+    local protectedInCombat = decision.protectedRoot and decision.inCombat
+    local shouldHideForMissingUnit = not decision.previewEnabled
         and frame.unit ~= "player"
-        and (not DoesUnitSeemPresent(frame.unit))
+        and not decision.unitPresent
 
     if shouldHideForMissingUnit then
         if frame.unit == "target" and frame.SetAlpha then
             frame:SetAlpha(0)
         end
-        if not IsProtectedFrameInCombat(frame) then
+        if not protectedInCombat then
             if frame.EnableMouse then
                 frame:EnableMouse(false)
             end
@@ -1031,7 +1043,7 @@ function Visibility.HandleMissingUnit(frame)
         local suspiciousMissingTarget = ShouldTreatMissingTargetAsSuspicious(frame)
 
         if suspiciousMissingTarget then
-            ForceDebugTarget(frame, IsProtectedFrameInCombat(frame)
+            ForceDebugTarget(frame, protectedInCombat
                 and "Missing target during combat: clearing content, secure root unchanged"
                 or "Missing target: clearing content, secure root unchanged", "missing_target", 2.0)
         end
