@@ -46,6 +46,36 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     -- missing-unit pipeline. Keeping presence checks out of base layout avoids
     -- a second hide path with slightly different timing during target swaps.
     local shouldBeShown = config.enabled ~= false
+    local protectedRoot = IsProtectedRoot(frame)
+    local inCombat = InCombatLockdown and InCombatLockdown() or false
+    local layoutReason = "layout-config"
+    if config.enabled == false then
+        layoutReason = "layout-disabled"
+    elseif protectedRoot and inCombat then
+        layoutReason = "layout-protected-combat"
+    end
+
+    if FocalPoint.RootAlphaDebug
+        and FocalPoint.RootAlphaDebug.enabled == true
+        and FocalPoint.UnitFrame
+        and FocalPoint.UnitFrame.RecordRootAlphaLayoutShadow
+    then
+        FocalPoint.UnitFrame.RecordRootAlphaLayoutShadow(frame, {
+            alpha = alpha,
+            baseAlpha = alpha,
+            configAlpha = alpha,
+            reason = layoutReason,
+            config = config,
+            enabled = shouldBeShown,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            setShownAttempted = not protectedRoot,
+            setShownValue = protectedRoot and nil or shouldBeShown,
+            laterOverriddenByPlaceholder = FocalPoint.framesUnlocked == true
+                and FocalPoint.guiTestModeEnabled ~= true,
+            shouldForceZero = false,
+        })
+    end
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
@@ -53,7 +83,7 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     frame:SetScale(scale)
     frame:SetFrameLevel(frameLevel)
     frame:SetFrameStrata(frameStrata)
-    if not IsProtectedRoot(frame) then
+    if not protectedRoot then
         frame:SetShown(shouldBeShown)
     end
     frame:EnableMouse(mouseEnabled ~= false)

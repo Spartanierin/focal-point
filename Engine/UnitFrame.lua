@@ -134,7 +134,9 @@ local function EnsureRootAlphaDebugState()
         mismatchesByUnit = {},
         mismatchesByReason = {},
         mismatchesByField = {},
+        mismatchesByCallsite = {},
         matchesByReason = {},
+        comparisonsByCallsite = {},
         comparisonsByBranch = {},
         recentMismatches = {},
         lastMismatch = nil,
@@ -150,7 +152,9 @@ local function ResetRootAlphaDebugState()
         mismatchesByUnit = {},
         mismatchesByReason = {},
         mismatchesByField = {},
+        mismatchesByCallsite = {},
         matchesByReason = {},
+        comparisonsByCallsite = {},
         comparisonsByBranch = {},
         recentMismatches = {},
         lastMismatch = nil,
@@ -181,6 +185,15 @@ local function AlphaReasonsMatch(legacyReason, decisionReason)
         return true
     end
     if legacyReason == "range-driver-active" and decisionReason == "range-fade-target" then
+        return true
+    end
+    if legacyReason == "layout-config" and decisionReason == "config" then
+        return true
+    end
+    if legacyReason == "layout-disabled" and decisionReason == "config" then
+        return true
+    end
+    if legacyReason == "layout-protected-combat" and decisionReason == "config" then
         return true
     end
     return false
@@ -229,7 +242,9 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     end
 
     local reason = legacy.reason or "unknown"
+    local callsite = legacy.callsite or "range-fade"
     state.totalComparisons = (tonumber(state.totalComparisons) or 0) + 1
+    BumpAlphaCounter(state.comparisonsByCallsite, callsite)
     BumpAlphaCounter(state.comparisonsByBranch, reason)
 
     local mismatches = {}
@@ -242,8 +257,14 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     if not AlphaNumbersMatch(legacy.configAlpha, decision.configAlpha) then
         AddAlphaMismatch(mismatches, "configAlpha", legacy.configAlpha, decision.configAlpha)
     end
+    if legacy.baseAlpha ~= nil and not AlphaNumbersMatch(legacy.baseAlpha, decision.baseAlpha) then
+        AddAlphaMismatch(mismatches, "baseAlpha", legacy.baseAlpha, decision.baseAlpha)
+    end
     if not AlphaNumbersMatch(legacy.rangeMultiplier, decision.rangeMultiplier) then
         AddAlphaMismatch(mismatches, "rangeMultiplier", legacy.rangeMultiplier, decision.rangeMultiplier)
+    end
+    if legacy.shouldForceZero ~= nil and legacy.shouldForceZero ~= decision.shouldForceZero then
+        AddAlphaMismatch(mismatches, "shouldForceZero", legacy.shouldForceZero, decision.shouldForceZero)
     end
     if legacy.missingUnitGuard ~= decision.missingUnitAlphaGuard then
         AddAlphaMismatch(mismatches, "missingUnitAlphaGuard", legacy.missingUnitGuard, decision.missingUnitAlphaGuard)
@@ -262,6 +283,7 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
 
     state.totalMismatches = (tonumber(state.totalMismatches) or 0) + 1
     BumpAlphaCounter(state.mismatchesByUnit, frame and frame.unit or "unknown")
+    BumpAlphaCounter(state.mismatchesByCallsite, callsite)
     BumpAlphaCounter(state.mismatchesByReason, reason)
     for _, mismatch in ipairs(mismatches) do
         BumpAlphaCounter(state.mismatchesByField, mismatch.field)
@@ -269,6 +291,7 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
 
     local detail = {
         unit = frame and frame.unit or nil,
+        callsite = callsite,
         legacyReason = reason,
         decisionSource = decision.winningSource,
         legacyAlpha = legacy.alpha,
@@ -284,6 +307,35 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     if #state.recentMismatches < ROOT_ALPHA_MAX_MISMATCH_DETAILS then
         state.recentMismatches[#state.recentMismatches + 1] = detail
     end
+end
+
+function UF.RecordRootAlphaLayoutShadow(frame, legacy)
+    local state = FocalPoint.RootAlphaDebug
+    if not (state and state.enabled == true) then
+        return
+    end
+    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
+        return
+    end
+    legacy = type(legacy) == "table" and legacy or {}
+    legacy.callsite = "layout"
+    legacy.writesImmediately = true
+    legacy.missingUnitGuard = false
+    legacy.requiresRangeContext = false
+    legacy.rangeDriverActive = false
+    legacy.rangeMultiplier = 1
+    legacy.configAlpha = legacy.configAlpha or legacy.alpha
+    legacy.baseAlpha = legacy.baseAlpha or legacy.configAlpha
+    legacy.shouldForceZero = legacy.shouldForceZero == true
+
+    local decision = Visibility.ResolveRootAlphaDecision(frame, {
+        source = "layout",
+        config = legacy.config,
+        configAlpha = legacy.configAlpha,
+        missingUnitAlphaGuard = false,
+        rangeMultiplier = 1,
+    })
+    RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
 end
 
 local function IsLaterOverriddenByPlaceholder(frame)
@@ -302,6 +354,7 @@ local function ResolveRootAlphaRangeFadeMissing(frame)
         writesImmediately = true,
         alpha = 0,
         reason = "range-missing-unit",
+        callsite = "range-fade",
         config = config,
         configAlpha = configAlpha,
         rangeMultiplier = 1,
@@ -366,24 +419,37 @@ function UF.BuildRootAlphaDebugReport()
     local mismatches = tonumber(state.totalMismatches) or 0
     local rate = total > 0 and (mismatches / total) * 100 or 0
     local lines = {
-        "Root alpha range-fade shadow report",
+        "Root alpha shadow report",
         string.format("Enabled: %s", tostring(state.enabled == true)),
         string.format("Comparisons: %d", total),
         string.format("Mismatches: %d", mismatches),
         string.format("Mismatch rate: %.2f%%", rate),
+        string.format(
+            "Layout: comparisons=%d mismatches=%d",
+            tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite.layout) or 0,
+            tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite.layout) or 0
+        ),
+        string.format(
+            "Range Fade: comparisons=%d mismatches=%d",
+            tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite["range-fade"]) or 0,
+            tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite["range-fade"]) or 0
+        ),
         string.format("Tolerance: %.4f", ROOT_ALPHA_EPSILON),
     }
     AppendSortedAlphaCounters(lines, "By branch:", state.comparisonsByBranch)
+    AppendSortedAlphaCounters(lines, "By callsite:", state.comparisonsByCallsite)
     AppendSortedAlphaCounters(lines, "Matches by reason:", state.matchesByReason)
     AppendSortedAlphaCounters(lines, "Mismatches by unit:", state.mismatchesByUnit)
+    AppendSortedAlphaCounters(lines, "Mismatches by callsite:", state.mismatchesByCallsite)
     AppendSortedAlphaCounters(lines, "Mismatches by reason:", state.mismatchesByReason)
     AppendSortedAlphaCounters(lines, "Mismatches by field:", state.mismatchesByField)
 
     if state.lastMismatch then
         local item = state.lastMismatch
         lines[#lines + 1] = string.format(
-            "Last mismatch: unit=%s legacyReason=%s decisionSource=%s legacyAlpha=%s decisionAlpha=%s targetAlpha=%s configAlpha=%s rangeMultiplier=%s driverActive=%s laterOverriddenByPlaceholder=%s",
+            "Last mismatch: unit=%s callsite=%s legacyReason=%s decisionSource=%s legacyAlpha=%s decisionAlpha=%s targetAlpha=%s configAlpha=%s rangeMultiplier=%s driverActive=%s laterOverriddenByPlaceholder=%s",
             tostring(item.unit),
+            tostring(item.callsite),
             tostring(item.legacyReason),
             tostring(item.decisionSource),
             FormatAlphaValue(item.legacyAlpha),
