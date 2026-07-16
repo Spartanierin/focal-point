@@ -4,6 +4,7 @@ FocalPoint.UnitFrameRefresh = FocalPoint.UnitFrameRefresh or {}
 local Refresh = FocalPoint.UnitFrameRefresh
 local Presence = FocalPoint.UnitFramePresence or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local UnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 
@@ -12,11 +13,7 @@ local function IsProtectedRoot(frame)
 end
 
 local function ShouldUseUnitWatch(frame)
-    local unit = frame and frame.unit
-    -- Target visibility is managed by Focal Point directly. Letting UnitWatch
-    -- hide the secure target root during combat can leave it hidden until combat
-    -- ends, even after PLAYER_TARGET_CHANGED reports a valid target again.
-    return unit ~= "player" and unit ~= "target"
+    return UnitWatchPolicy.ShouldUse and UnitWatchPolicy.ShouldUse(frame) or false
 end
 
 local function SyncPreviewUnitWatch(frame, previewOutsideCombat)

@@ -2,13 +2,12 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameFactory = FocalPoint.UnitFrameFactory or {}
 local Factory = FocalPoint.UnitFrameFactory
+local UnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
 
 -- Factory helpers create the base frame and the core status bar elements.
 
 local function ShouldUseUnitWatch(unit)
-    -- Target can briefly disappear during encounters. If UnitWatch hides the
-    -- protected target root in combat, normal refresh code cannot show it again.
-    return unit ~= "player" and unit ~= "target"
+    return UnitWatchPolicy.ShouldUse and UnitWatchPolicy.ShouldUse(unit) or false
 end
 
 function Factory.GetAnchorTarget(frame, anchorTo)
