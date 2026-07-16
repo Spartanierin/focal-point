@@ -5,11 +5,23 @@ local Refresh = FocalPoint.UnitFrameRefresh
 local Presence = FocalPoint.UnitFramePresence or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local UnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
+local Visibility = FocalPoint.UnitFrameVisibility or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
+end
+
+local function ResolveDecisionAlpha(decision, fallback)
+    if decision
+        and decision.writesImmediately == true
+        and type(decision.finalAlpha) == "number"
+    then
+        return decision.finalAlpha
+    end
+
+    return fallback
 end
 
 local function ShouldUseUnitWatch(frame)
@@ -187,6 +199,17 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             and FocalPoint.guiTestModeEnabled ~= true
             and frame.SetAlpha
         then
+            local alphaDecision = Visibility.ResolveRootAlphaDecision
+                and Visibility.ResolveRootAlphaDecision(frame, {
+                    source = "refresh-placeholder",
+                    rangeMultiplier = 1,
+                    missingUnitAlphaGuard = false,
+                    visibilityOptions = {
+                        mode = mode,
+                        modeReason = modeReason,
+                    },
+                })
+                or nil
             if FocalPoint.RootAlphaDebug
                 and FocalPoint.RootAlphaDebug.enabled == true
                 and FocalPoint.UnitFrame
@@ -200,9 +223,9 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
                     mode = mode,
                     modeReason = modeReason,
                     laterOverriddenByPlaceholder = true,
-                })
+                }, alphaDecision)
             end
-            frame:SetAlpha(1)
+            frame:SetAlpha(ResolveDecisionAlpha(alphaDecision, 1))
         end
 
         local protectedRoot = IsProtectedRoot(frame)

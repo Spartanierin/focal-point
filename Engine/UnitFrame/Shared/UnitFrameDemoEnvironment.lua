@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameDemoEnvironment = FocalPoint.UnitFrameDemoEnvironment or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment
 local Utils = FocalPoint.UnitFrameUtils or {}
+local Visibility = FocalPoint.UnitFrameVisibility or {}
 local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
@@ -26,6 +27,17 @@ end
 
 function Demo.GetPlaceholderColors()
     return PLACEHOLDER_COLORS
+end
+
+local function ResolveDecisionAlpha(decision, fallback)
+    if decision
+        and decision.writesImmediately == true
+        and type(decision.finalAlpha) == "number"
+    then
+        return decision.finalAlpha
+    end
+
+    return fallback
 end
 
 local function EnsureDemoDebug(frame)
@@ -956,6 +968,17 @@ function Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason)
             visibility.ClearFrameContentValuesOnly(frame, modeReason or "demo-disabled-unit")
         end
         if frame.SetAlpha then
+            local alphaDecision = Visibility.ResolveRootAlphaDecision
+                and Visibility.ResolveRootAlphaDecision(frame, {
+                    source = "demo-snapshot",
+                    rangeMultiplier = 1,
+                    missingUnitAlphaGuard = false,
+                    visibilityOptions = {
+                        mode = mode,
+                        modeReason = modeReason,
+                    },
+                })
+                or nil
             if FocalPoint.RootAlphaDebug
                 and FocalPoint.RootAlphaDebug.enabled == true
                 and FocalPoint.UnitFrame
@@ -968,9 +991,9 @@ function Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason)
                     shouldForceZero = true,
                     mode = mode,
                     modeReason = modeReason,
-                })
+                }, alphaDecision)
             end
-            frame:SetAlpha(0)
+            frame:SetAlpha(ResolveDecisionAlpha(alphaDecision, 0))
         end
         if frame.EnableMouse then
             frame:EnableMouse(false)

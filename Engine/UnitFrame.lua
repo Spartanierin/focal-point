@@ -177,6 +177,17 @@ local function AlphaNumbersMatch(left, right)
     return math.abs(left - right) <= ROOT_ALPHA_EPSILON
 end
 
+local function ResolveDecisionAlpha(decision, fallback)
+    if decision
+        and decision.writesImmediately == true
+        and type(decision.finalAlpha) == "number"
+    then
+        return decision.finalAlpha
+    end
+
+    return fallback
+end
+
 local function AlphaReasonsMatch(legacyReason, decisionReason)
     if legacyReason == decisionReason then
         return true
@@ -209,6 +220,13 @@ local function AlphaReasonsMatch(legacyReason, decisionReason)
         return true
     end
     return false
+end
+
+local function IsRootAlphaOverrideCallsite(callsite)
+    return callsite == "refresh-placeholder"
+        or callsite == "demo-snapshot"
+        or callsite == "disabled-live"
+        or callsite == "deactivate"
 end
 
 local function AddAlphaMismatch(mismatches, field, legacyValue, decisionValue)
@@ -255,6 +273,7 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
 
     local reason = legacy.reason or "unknown"
     local callsite = legacy.callsite or "range-fade"
+    local isOverrideCallsite = IsRootAlphaOverrideCallsite(callsite)
     state.totalComparisons = (tonumber(state.totalComparisons) or 0) + 1
     BumpAlphaCounter(state.comparisonsByCallsite, callsite)
     BumpAlphaCounter(state.comparisonsByBranch, reason)
@@ -266,10 +285,10 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     if legacy.writesImmediately and not AlphaNumbersMatch(legacy.alpha, decision.finalAlpha) then
         AddAlphaMismatch(mismatches, "alpha", legacy.alpha, decision.finalAlpha)
     end
-    if not AlphaNumbersMatch(legacy.configAlpha, decision.configAlpha) then
+    if not isOverrideCallsite and not AlphaNumbersMatch(legacy.configAlpha, decision.configAlpha) then
         AddAlphaMismatch(mismatches, "configAlpha", legacy.configAlpha, decision.configAlpha)
     end
-    if legacy.baseAlpha ~= nil and not AlphaNumbersMatch(legacy.baseAlpha, decision.baseAlpha) then
+    if not isOverrideCallsite and legacy.baseAlpha ~= nil and not AlphaNumbersMatch(legacy.baseAlpha, decision.baseAlpha) then
         AddAlphaMismatch(mismatches, "baseAlpha", legacy.baseAlpha, decision.baseAlpha)
     end
     if not AlphaNumbersMatch(legacy.rangeMultiplier, decision.rangeMultiplier) then
@@ -333,12 +352,12 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     end
 end
 
-function UF.RecordRootAlphaOverrideShadow(frame, legacy)
+function UF.RecordRootAlphaOverrideShadow(frame, legacy, decision)
     local state = FocalPoint.RootAlphaDebug
     if not (state and state.enabled == true) then
         return
     end
-    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
+    if not decision and not (Visibility and Visibility.ResolveRootAlphaDecision) then
         return
     end
 
@@ -353,7 +372,7 @@ function UF.RecordRootAlphaOverrideShadow(frame, legacy)
     legacy.overrideAlpha = legacy.alpha
     legacy.shouldForceZero = legacy.shouldForceZero == true
 
-    local decision = Visibility.ResolveRootAlphaDecision(frame, {
+    decision = decision or Visibility.ResolveRootAlphaDecision(frame, {
         source = legacy.callsite,
         config = legacy.config,
         configAlpha = legacy.configAlpha,
@@ -1799,6 +1818,15 @@ function UF:Refresh(frame, refreshRequest)
             pcall(frame.SetMouseClickEnabled, frame, false)
         end
         if frame.SetAlpha then
+            local alphaDecision = Visibility.ResolveRootAlphaDecision
+                and Visibility.ResolveRootAlphaDecision(frame, {
+                    source = "disabled-live",
+                    config = config,
+                    rangeMultiplier = 1,
+                    missingUnitAlphaGuard = false,
+                    disabled = true,
+                })
+                or nil
             if FocalPoint.RootAlphaDebug
                 and FocalPoint.RootAlphaDebug.enabled == true
                 and FocalPoint.UnitFrame
@@ -1811,9 +1839,9 @@ function UF:Refresh(frame, refreshRequest)
                     shouldForceZero = true,
                     disabled = true,
                     config = config,
-                })
+                }, alphaDecision)
             end
-            frame:SetAlpha(0)
+            frame:SetAlpha(ResolveDecisionAlpha(alphaDecision, 0))
         end
         if frame.Hide and not IsProtectedFrameInCombat(frame) then
             frame:Hide()
@@ -1914,6 +1942,14 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
         pcall(frame.SetMouseClickEnabled, frame, false)
     end
     if frame.SetAlpha then
+        local alphaDecision = Visibility.ResolveRootAlphaDecision
+            and Visibility.ResolveRootAlphaDecision(frame, {
+                source = "deactivate",
+                rangeMultiplier = 1,
+                missingUnitAlphaGuard = false,
+                deactivated = true,
+            })
+            or nil
         if FocalPoint.RootAlphaDebug
             and FocalPoint.RootAlphaDebug.enabled == true
             and FocalPoint.UnitFrame
@@ -1925,9 +1961,9 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
                 alpha = 0,
                 shouldForceZero = true,
                 deactivated = true,
-            })
+            }, alphaDecision)
         end
-        frame:SetAlpha(0)
+        frame:SetAlpha(ResolveDecisionAlpha(alphaDecision, 0))
     end
     if frame.Hide then
         frame:Hide()
