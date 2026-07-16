@@ -55,6 +55,24 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
         layoutReason = "layout-protected-combat"
     end
 
+    local alphaDecision = FocalPoint.UnitFrameVisibility
+        and FocalPoint.UnitFrameVisibility.ResolveRootAlphaDecision
+        and FocalPoint.UnitFrameVisibility.ResolveRootAlphaDecision(frame, {
+            source = "layout",
+            config = config,
+            configAlpha = alpha,
+            missingUnitAlphaGuard = false,
+            rangeMultiplier = 1,
+        })
+        or nil
+    local resolvedAlpha = alpha
+    if type(alphaDecision) == "table"
+        and alphaDecision.writesImmediately == true
+        and type(alphaDecision.finalAlpha) == "number"
+    then
+        resolvedAlpha = alphaDecision.finalAlpha
+    end
+
     if FocalPoint.RootAlphaDebug
         and FocalPoint.RootAlphaDebug.enabled == true
         and FocalPoint.UnitFrame
@@ -74,12 +92,12 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
             laterOverriddenByPlaceholder = FocalPoint.framesUnlocked == true
                 and FocalPoint.guiTestModeEnabled ~= true,
             shouldForceZero = false,
-        })
+        }, alphaDecision)
     end
 
     frame:ClearAllPoints()
     frame:SetSize(width, height)
-    frame:SetAlpha(alpha)
+    frame:SetAlpha(resolvedAlpha)
     frame:SetScale(scale)
     frame:SetFrameLevel(frameLevel)
     frame:SetFrameStrata(frameStrata)

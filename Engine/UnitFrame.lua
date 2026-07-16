@@ -309,12 +309,9 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     end
 end
 
-function UF.RecordRootAlphaLayoutShadow(frame, legacy)
+function UF.RecordRootAlphaLayoutShadow(frame, legacy, decision)
     local state = FocalPoint.RootAlphaDebug
     if not (state and state.enabled == true) then
-        return
-    end
-    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
         return
     end
     legacy = type(legacy) == "table" and legacy or {}
@@ -328,13 +325,6 @@ function UF.RecordRootAlphaLayoutShadow(frame, legacy)
     legacy.baseAlpha = legacy.baseAlpha or legacy.configAlpha
     legacy.shouldForceZero = legacy.shouldForceZero == true
 
-    local decision = Visibility.ResolveRootAlphaDecision(frame, {
-        source = "layout",
-        config = legacy.config,
-        configAlpha = legacy.configAlpha,
-        missingUnitAlphaGuard = false,
-        rangeMultiplier = 1,
-    })
     RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
 end
 
