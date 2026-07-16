@@ -310,6 +310,208 @@ function Visibility.ResolveRootDecision(frame, reason, options)
     return decision
 end
 
+local function ResolveConfigAlpha(frame, options)
+    if type(options.configAlpha) == "number" then
+        return options.configAlpha
+    end
+
+    local config = type(options.config) == "table" and options.config or frame and frame.config
+    if type(config) == "table" and type(config.alpha) == "number" then
+        return config.alpha
+    end
+
+    return 1
+end
+
+local function ResolveRangeMultiplier(frame, options)
+    if type(options.rangeMultiplier) == "number" then
+        return options.rangeMultiplier
+    end
+
+    local range = FocalPoint and FocalPoint.UnitFrameRange or nil
+    if range and range.GetFadeMultiplier then
+        return range.GetFadeMultiplier(frame)
+    end
+
+    return 1
+end
+
+local function IsMissingUnitAlphaGuardActive(frame)
+    local unit = frame and frame.unit
+    if IsPreviewModeEnabled and IsPreviewModeEnabled() then
+        return false
+    end
+    if not (UnitExists and type(unit) == "string") then
+        return false
+    end
+
+    if unit == "target" or unit == "targettarget" or unit == "focustarget" then
+        return not UnitExists(unit)
+    end
+
+    if unit:match("^boss%d+$") then
+        return not UnitExists(unit)
+    end
+
+    return false
+end
+
+-- Passive read-only model for future root-alpha centralization. This function
+-- intentionally does not call SetAlpha, Show, Hide, UnitWatch, refresh, or state mutation.
+function Visibility.ResolveRootAlphaDecision(frame, options)
+    options = type(options) == "table" and options or {}
+
+    local source = type(options.source) == "string" and options.source or "composed"
+    local rootDecision = type(options.rootDecision) == "table"
+        and options.rootDecision
+        or Visibility.ResolveRootDecision(frame, options.visibilityReason or "root-alpha", options.visibilityOptions)
+    local configAlpha = ResolveConfigAlpha(frame, options)
+    local rangeMultiplier = ResolveRangeMultiplier(frame, options)
+    local rangeAlpha = configAlpha * rangeMultiplier
+    local missingUnitAlphaGuard = IsMissingUnitAlphaGuardActive(frame)
+    local disabledLive = rootDecision and rootDecision.reason == "unit-disabled" or false
+    local previewDisabled = rootDecision and rootDecision.reason == "preview-disabled" or false
+    local specialMode = rootDecision and rootDecision.reason == "special-mode" or false
+    local isPlaceholder = rootDecision and rootDecision.mode == "placeholder" or false
+    local placeholderAlphaOverride = isPlaceholder
+        and FocalPoint
+        and FocalPoint.framesUnlocked == true
+        and FocalPoint.guiTestModeEnabled ~= true
+    local rangeDriverActive = frame
+        and frame.RangeFadeDriver
+        and frame.RangeFadeDriver.IsShown
+        and frame.RangeFadeDriver:IsShown()
+        or false
+    local overrideAlpha = nil
+    local winningSource = "config"
+    local reason = rootDecision and rootDecision.reason or "invalid-frame"
+    local writesImmediately = true
+    local requiresRangeContext = false
+
+    if source == "layout" or source == "apply-config-layout" then
+        if missingUnitAlphaGuard then
+            overrideAlpha = 0
+            winningSource = "layout-missing-unit"
+        else
+            winningSource = "config"
+        end
+    elseif source == "range-fade" or source == "apply-range-fade" then
+        if missingUnitAlphaGuard then
+            overrideAlpha = 0
+            winningSource = "range-missing-unit"
+        elseif frame and frame.unit == "target" and frame.IsShown and frame:IsShown() and rangeDriverActive then
+            writesImmediately = false
+            requiresRangeContext = true
+            winningSource = "range-fade-target"
+        elseif rangeMultiplier ~= 1 then
+            winningSource = "range-fade"
+        else
+            winningSource = "config"
+        end
+    elseif source == "range-driver" then
+        if type(options.currentAlpha) == "number" then
+            overrideAlpha = options.currentAlpha
+        elseif frame and type(frame._rangeCurrentAlpha) == "number" then
+            overrideAlpha = frame._rangeCurrentAlpha
+        else
+            overrideAlpha = rangeAlpha
+            requiresRangeContext = true
+        end
+        winningSource = "range-driver"
+    elseif source == "refresh-placeholder" then
+        if placeholderAlphaOverride then
+            overrideAlpha = 1
+            winningSource = "unlock-placeholder"
+        else
+            writesImmediately = false
+            winningSource = "no-placeholder-alpha-write"
+        end
+    elseif source == "demo-snapshot" then
+        if previewDisabled then
+            overrideAlpha = 0
+            winningSource = "preview-disabled"
+        else
+            writesImmediately = false
+            winningSource = "no-demo-alpha-write"
+        end
+    elseif source == "visibility" or source == "handle-missing-unit" then
+        if rootDecision and rootDecision.shouldAlphaZero then
+            overrideAlpha = 0
+            winningSource = reason or "alpha-zero"
+        else
+            writesImmediately = false
+            winningSource = "no-visibility-alpha-write"
+        end
+    elseif source == "disabled-live" then
+        if disabledLive then
+            overrideAlpha = 0
+            winningSource = "unit-disabled"
+        else
+            writesImmediately = false
+            winningSource = "no-disabled-live-alpha-write"
+        end
+    elseif source == "deactivate" then
+        overrideAlpha = 0
+        winningSource = "deactivated"
+    elseif options.deactivated == true then
+        overrideAlpha = 0
+        winningSource = "deactivated"
+    elseif disabledLive or previewDisabled or specialMode or (rootDecision and rootDecision.shouldAlphaZero) then
+        overrideAlpha = 0
+        winningSource = reason or "alpha-zero"
+    elseif placeholderAlphaOverride then
+        overrideAlpha = 1
+        winningSource = "unlock-placeholder"
+    elseif rangeMultiplier ~= 1 then
+        winningSource = "range-fade"
+    end
+
+    local finalAlpha = overrideAlpha
+    if finalAlpha == nil then
+        finalAlpha = rangeAlpha
+    end
+
+    return {
+        alpha = finalAlpha,
+        finalAlpha = finalAlpha,
+        baseAlpha = configAlpha,
+        configAlpha = configAlpha,
+        rangeMultiplier = rangeMultiplier,
+        rangeAlpha = rangeAlpha,
+        overrideAlpha = overrideAlpha,
+        source = source,
+        writesImmediately = writesImmediately,
+        requiresRangeContext = requiresRangeContext,
+        rangeDriverActive = rangeDriverActive,
+        missingUnitAlphaGuard = missingUnitAlphaGuard,
+
+        reason = reason,
+        winningSource = winningSource,
+        visibilityReason = reason,
+        unit = rootDecision and rootDecision.unit or frame and frame.unit or nil,
+        unitPresent = rootDecision and rootDecision.unitPresent == true or false,
+        mode = rootDecision and rootDecision.mode or "live",
+        modeReason = rootDecision and rootDecision.modeReason or nil,
+        forceVisible = rootDecision and rootDecision.forceVisible == true or false,
+        disabled = rootDecision and rootDecision.reason == "unit-disabled" or false,
+        deactivated = options.deactivated == true,
+        specialModeActive = rootDecision and rootDecision.specialModeActive == true or false,
+        shouldForceZero = overrideAlpha == 0,
+
+        sources = {
+            config = configAlpha,
+            rangeFade = rangeAlpha,
+            missingUnit = rootDecision and rootDecision.reason == "missing-unit" and 0 or nil,
+            specialMode = rootDecision and rootDecision.reason == "special-mode" and 0 or nil,
+            previewDisabled = rootDecision and rootDecision.reason == "preview-disabled" and 0 or nil,
+            unitDisabled = rootDecision and rootDecision.reason == "unit-disabled" and 0 or nil,
+            demoDetailed = rootDecision and rootDecision.mode == "detailed" and rangeAlpha or nil,
+            unlockPlaceholder = rootDecision and rootDecision.mode == "placeholder" and 1 or nil,
+            deactivated = options.deactivated == true and 0 or nil,
+        },
+    }
+end
+
 local MAX_DECISION_DEBUG_MISMATCHES = 20
 
 IsBossRuntimeUnit = function(unit)
