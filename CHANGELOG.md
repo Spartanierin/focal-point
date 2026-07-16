@@ -9,6 +9,23 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.18]
+
+### Changed
+
+* Improved unit-frame visibility handling across live, unlock, and preview states.
+* Improved consistency of UnitWatch handling so frame creation and refresh paths use the same eligibility rules.
+* Improved unit-frame state transitions when units appear, disappear, are disabled, or are reused from the frame pool.
+* Centralized root alpha handling for layout, range fade, unlock placeholders, disabled preview states, disabled live frames, and frame deactivation.
+* Improved internal visibility, UnitWatch, and alpha diagnostics for troubleshooting without changing normal runtime behavior.
+
+### Fixed
+
+* Fixed several edge cases where missing or changing units could be handled inconsistently between visibility and refresh paths.
+* Improved Target, Target of Target, Focus Target, pet, and boss frame refresh stability during unit changes.
+* Reduced the risk of competing alpha writers producing inconsistent frame opacity in live, unlock, preview, disabled, and deactivation states.
+* Kept safe legacy fallbacks for centralized runtime decisions so frames continue to use the previous behavior if a decision cannot be resolved.
+
 ## [1.0.17]
 
 ### Added
