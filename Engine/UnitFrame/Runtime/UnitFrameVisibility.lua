@@ -666,6 +666,240 @@ local function ResolveLegacyMissingUnitOutcome(frame)
     return outcome
 end
 
+local function ResolveUnitLostClearAction(frame, reason, context)
+    context = type(context) == "table" and context or {}
+
+    if reason == "target_missing_transition" then
+        return "content-only"
+    end
+
+    local unit = context.unit or frame and frame.unit
+    local protectedRoot
+    if type(context.protectedRoot) == "boolean" then
+        protectedRoot = context.protectedRoot
+    else
+        protectedRoot = frame
+            and frame.IsProtected
+            and frame:IsProtected()
+            or false
+    end
+
+    local inCombat
+    if type(context.inCombat) == "boolean" then
+        inCombat = context.inCombat
+    else
+        inCombat = InCombatLockdown and InCombatLockdown() or false
+    end
+
+    local protectedCombatMissing = reason == "missing_unit_protected"
+        and protectedRoot
+        and inCombat
+    local bossMissingUnit = IsBossRuntimeUnit
+        and IsBossRuntimeUnit(unit)
+        and (
+            reason == "missing_unit"
+            or reason == "missing_unit_protected"
+            or reason == "missing_unit_suppressed"
+            or reason == "missing_unit_protected_suppressed"
+        )
+
+    if protectedCombatMissing or bossMissingUnit then
+        return "content-only"
+    end
+
+    return "hard"
+end
+
+local function BuildMissingUnitActionPlan(frame, rootDecision, branchReason, options)
+    options = type(options) == "table" and options or {}
+    rootDecision = type(rootDecision) == "table"
+        and rootDecision
+        or Visibility.ResolveRootDecision(frame, options.visibilityReason or "root-action-plan", options.visibilityOptions)
+
+    local unit = rootDecision and rootDecision.unit or frame and frame.unit or nil
+    local protectedRoot = rootDecision and rootDecision.protectedRoot == true or false
+    local inCombat = rootDecision and rootDecision.inCombat == true or false
+    local protectedInCombat = protectedRoot and inCombat
+    local unitPresent = rootDecision and rootDecision.unitPresent == true or false
+    local previewActive = rootDecision and rootDecision.previewEnabled == true or false
+    local forceVisible = rootDecision and rootDecision.forceVisible == true or false
+    local specialModeActive = rootDecision and rootDecision.specialModeActive == true or false
+    local canHideRoot = rootDecision and rootDecision.canHideRoot == true or false
+    local missingSuppressed = options.missingSuppressed
+    if type(missingSuppressed) ~= "boolean" then
+        missingSuppressed = IsMissingDebugSuppressed(frame)
+    end
+
+    return {
+        reason = branchReason or "not-handled",
+        decisionReason = rootDecision and rootDecision.reason or "invalid-frame",
+        rootDecision = rootDecision,
+
+        clearAction = "none",
+        alphaAction = "keep",
+        mouseAction = "keep",
+        rootAction = "keep",
+        stateAction = "none",
+        recoveryAction = "none",
+
+        shouldReturn = false,
+
+        unit = unit,
+        unitPresent = unitPresent,
+        mode = rootDecision and rootDecision.mode or "live",
+        previewActive = previewActive,
+        forceVisible = forceVisible,
+        specialModeActive = specialModeActive,
+        protectedRoot = protectedRoot,
+        inCombat = inCombat,
+        canHideRoot = canHideRoot,
+        missingSuppressed = missingSuppressed,
+        targetTransition = false,
+        protectedInCombat = protectedInCombat,
+    }
+end
+
+-- Passive read-only model for the current HandleMissingUnit legacy semantics.
+-- This function intentionally does not call SetAlpha, Show, Hide, SetShown,
+-- mouse mutators, clear helpers, State, refresh/recovery queues, or UnitWatch.
+function Visibility.ResolveRootActionPlan(frame, options)
+    options = type(options) == "table" and options or {}
+    if not frame then
+        return nil, "invalid-frame"
+    end
+
+    local decision = type(options.rootDecision) == "table"
+        and options.rootDecision
+        or Visibility.ResolveRootDecision(frame, options.visibilityReason or "handle-missing-unit", options.visibilityOptions)
+    local plan = BuildMissingUnitActionPlan(frame, decision, "not-handled", options)
+
+    if decision.specialModeActive then
+        plan.reason = decision.specialModeReason or "special_mode"
+        plan.clearAction = ResolveUnitLostClearAction(frame, plan.reason, plan)
+        plan.alphaAction = "zero"
+        plan.rootAction = "hide-if-safe"
+        plan.stateAction = "unit-lost"
+        plan.shouldReturn = true
+        return plan
+    end
+
+    if decision.previewEnabled
+        and Demo.IsFrameUnitEnabled
+        and not Demo.IsFrameUnitEnabled(frame)
+        and not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true)
+    then
+        plan.reason = "preview-disabled-unit"
+        plan.clearAction = "content-only"
+        plan.alphaAction = "zero"
+        plan.mouseAction = "disable"
+        plan.rootAction = "hide-if-safe"
+        plan.stateAction = "clear-missing"
+        plan.shouldReturn = true
+        return plan
+    end
+
+    if decision.forceVisible then
+        plan.reason = "force-visible"
+        plan.stateAction = "clear-missing"
+        return plan
+    end
+
+    if decision.previewEnabled then
+        plan.reason = "preview-active"
+        plan.stateAction = "clear-missing"
+        return plan
+    end
+
+    local shouldHideForMissingUnit = not decision.previewEnabled
+        and frame.unit ~= "player"
+        and not decision.unitPresent
+
+    if shouldHideForMissingUnit then
+        if frame.unit == "target" then
+            plan.alphaAction = "zero"
+        end
+        if not plan.protectedInCombat then
+            plan.mouseAction = "disable"
+        end
+    else
+        plan.reason = "unit-present"
+        plan.stateAction = "clear-missing"
+        return plan
+    end
+
+    if shouldHideForMissingUnit and decision.protectedRoot then
+        if plan.missingSuppressed then
+            plan.reason = "missing_unit_protected_suppressed"
+            plan.clearAction = ResolveUnitLostClearAction(frame, plan.reason, plan)
+            plan.alphaAction = "zero"
+            plan.rootAction = "hide-if-safe"
+            plan.stateAction = "unit-lost"
+            plan.shouldReturn = true
+            return plan
+        end
+
+        local suspiciousMissingTarget
+        if type(options.suspiciousMissingTarget) == "boolean" then
+            suspiciousMissingTarget = options.suspiciousMissingTarget
+        else
+            suspiciousMissingTarget = ShouldTreatMissingTargetAsSuspicious
+                and ShouldTreatMissingTargetAsSuspicious(frame)
+                or false
+        end
+
+        plan.reason = "missing_unit_protected"
+        plan.clearAction = ResolveUnitLostClearAction(frame, plan.reason, plan)
+        plan.rootAction = "hide-if-safe"
+        plan.stateAction = "unit-lost"
+        plan.recoveryAction = suspiciousMissingTarget and "queue-refresh" or "none"
+        plan.suspiciousMissingTarget = suspiciousMissingTarget
+        plan.shouldReturn = true
+        return plan
+    end
+
+    if shouldHideForMissingUnit and frame.unit == "target" then
+        local now = tonumber(options.now) or (GetTime and GetTime() or 0)
+        local missingSince = tonumber(options.missingSince or frame._missingUnitSince) or now
+        local elapsedMissing = now - missingSince
+
+        if elapsedMissing < 0.35 then
+            plan.reason = "target_missing_transition"
+            plan.clearAction = ResolveUnitLostClearAction(frame, plan.reason, plan)
+            plan.rootAction = "hide-if-safe"
+            plan.stateAction = "unit-lost"
+            plan.recoveryAction = "queue-target-recovery"
+            plan.targetTransition = true
+            plan.elapsedMissing = elapsedMissing
+            plan.shouldReturn = true
+            return plan
+        end
+
+        plan.elapsedMissing = elapsedMissing
+    end
+
+    if shouldHideForMissingUnit then
+        if plan.missingSuppressed then
+            plan.reason = "missing_unit_suppressed"
+            plan.clearAction = ResolveUnitLostClearAction(frame, plan.reason, plan)
+            plan.alphaAction = "zero"
+            plan.rootAction = "hide-if-safe"
+            plan.stateAction = "unit-lost"
+            plan.shouldReturn = true
+            return plan
+        end
+
+        plan.reason = "missing_unit"
+        plan.clearAction = ResolveUnitLostClearAction(frame, plan.reason, plan)
+        plan.alphaAction = "zero"
+        plan.rootAction = "hide-if-safe"
+        plan.stateAction = "unit-lost"
+        plan.shouldReturn = true
+        return plan
+    end
+
+    return plan
+end
+
 local function EnsureDecisionDebugState()
     FocalPoint.VisibilityDecisionDebug = FocalPoint.VisibilityDecisionDebug or {
         enabled = false,
