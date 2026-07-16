@@ -80,43 +80,43 @@ local function ResolveLegacySyncAction(frame, previewOutsideCombat)
     return legacy
 end
 
-local function MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat)
+local function MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat, decision)
     if not (UnitWatchPolicy.IsSyncDebugEnabled and UnitWatchPolicy.IsSyncDebugEnabled()) then
         return
     end
-    if not (UnitWatchPolicy.ResolveSync and UnitWatchPolicy.RecordSyncComparison) then
+    if not (decision and UnitWatchPolicy.RecordSyncComparison) then
         return
     end
 
     local legacy = ResolveLegacySyncAction(frame, previewOutsideCombat)
-    local decision = UnitWatchPolicy.ResolveSync(frame, {
-        previewOutsideCombat = previewOutsideCombat == true,
-    })
     UnitWatchPolicy.RecordSyncComparison(legacy, decision)
 end
 
 local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
     if not frame then
-        MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat)
         return
     end
 
-    MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat)
+    local decision = UnitWatchPolicy.ResolveSync and UnitWatchPolicy.ResolveSync(frame, {
+        previewOutsideCombat = previewOutsideCombat == true,
+    }) or nil
 
-    if not ShouldUseUnitWatch(frame) or previewOutsideCombat then
-        if frame._unitWatchRegistered
-            and UnregisterUnitWatch
-            and not (IsProtectedRoot(frame) and InCombatLockdown and InCombatLockdown())
-        then
-            UnregisterUnitWatch(frame)
-            frame._unitWatchRegistered = false
-        end
+    MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat, decision)
+
+    if not decision then
         return
     end
 
-    if frame._unitWatchRegistered == false and RegisterUnitWatch then
+    if decision.action == "unregister" then
+        UnregisterUnitWatch(frame)
+        frame._unitWatchRegistered = false
+        return
+    end
+
+    if decision.action == "register" then
         RegisterUnitWatch(frame)
         frame._unitWatchRegistered = true
+        return
     end
 end
 
