@@ -187,6 +187,21 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             and FocalPoint.guiTestModeEnabled ~= true
             and frame.SetAlpha
         then
+            if FocalPoint.RootAlphaDebug
+                and FocalPoint.RootAlphaDebug.enabled == true
+                and FocalPoint.UnitFrame
+                and FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow
+            then
+                FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow(frame, {
+                    callsite = "refresh-placeholder",
+                    reason = "unlock-placeholder",
+                    alpha = 1,
+                    shouldForceZero = false,
+                    mode = mode,
+                    modeReason = modeReason,
+                    laterOverriddenByPlaceholder = true,
+                })
+            end
             frame:SetAlpha(1)
         end
 

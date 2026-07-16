@@ -375,6 +375,9 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
         missingUnitAlphaGuard = IsMissingUnitAlphaGuardActive(frame)
     end
     local disabledLive = rootDecision and rootDecision.reason == "unit-disabled" or false
+    if source == "disabled-live" and type(options.disabled) == "boolean" then
+        disabledLive = options.disabled
+    end
     local previewDisabled = rootDecision and rootDecision.reason == "preview-disabled" or false
     local specialMode = rootDecision and rootDecision.reason == "special-mode" or false
     local isPlaceholder = rootDecision and rootDecision.mode == "placeholder" or false
@@ -504,7 +507,7 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
         mode = rootDecision and rootDecision.mode or "live",
         modeReason = rootDecision and rootDecision.modeReason or nil,
         forceVisible = rootDecision and rootDecision.forceVisible == true or false,
-        disabled = rootDecision and rootDecision.reason == "unit-disabled" or false,
+        disabled = disabledLive,
         deactivated = options.deactivated == true,
         specialModeActive = rootDecision and rootDecision.specialModeActive == true or false,
         shouldForceZero = overrideAlpha == 0,
@@ -515,7 +518,7 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
             missingUnit = rootDecision and rootDecision.reason == "missing-unit" and 0 or nil,
             specialMode = rootDecision and rootDecision.reason == "special-mode" and 0 or nil,
             previewDisabled = rootDecision and rootDecision.reason == "preview-disabled" and 0 or nil,
-            unitDisabled = rootDecision and rootDecision.reason == "unit-disabled" and 0 or nil,
+            unitDisabled = disabledLive and 0 or nil,
             demoDetailed = rootDecision and rootDecision.mode == "detailed" and rangeAlpha or nil,
             unlockPlaceholder = rootDecision and rootDecision.mode == "placeholder" and 1 or nil,
             deactivated = options.deactivated == true and 0 or nil,

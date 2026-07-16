@@ -956,6 +956,20 @@ function Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason)
             visibility.ClearFrameContentValuesOnly(frame, modeReason or "demo-disabled-unit")
         end
         if frame.SetAlpha then
+            if FocalPoint.RootAlphaDebug
+                and FocalPoint.RootAlphaDebug.enabled == true
+                and FocalPoint.UnitFrame
+                and FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow
+            then
+                FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow(frame, {
+                    callsite = "demo-snapshot",
+                    reason = "preview-disabled",
+                    alpha = 0,
+                    shouldForceZero = true,
+                    mode = mode,
+                    modeReason = modeReason,
+                })
+            end
             frame:SetAlpha(0)
         end
         if frame.EnableMouse then

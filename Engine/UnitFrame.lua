@@ -196,6 +196,18 @@ local function AlphaReasonsMatch(legacyReason, decisionReason)
     if legacyReason == "layout-protected-combat" and decisionReason == "config" then
         return true
     end
+    if legacyReason == "unlock-placeholder" and decisionReason == "unlock-placeholder" then
+        return true
+    end
+    if legacyReason == "preview-disabled" and decisionReason == "preview-disabled" then
+        return true
+    end
+    if legacyReason == "unit-disabled-live" and decisionReason == "unit-disabled" then
+        return true
+    end
+    if legacyReason == "deactivated" and decisionReason == "deactivated" then
+        return true
+    end
     return false
 end
 
@@ -272,6 +284,18 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     if legacy.requiresRangeContext ~= decision.requiresRangeContext then
         AddAlphaMismatch(mismatches, "requiresRangeContext", legacy.requiresRangeContext, decision.requiresRangeContext)
     end
+    if legacy.overrideAlpha ~= nil and not AlphaNumbersMatch(legacy.overrideAlpha, decision.overrideAlpha) then
+        AddAlphaMismatch(mismatches, "overrideAlpha", legacy.overrideAlpha, decision.overrideAlpha)
+    end
+    if legacy.disabled ~= nil and legacy.disabled ~= decision.disabled then
+        AddAlphaMismatch(mismatches, "disabled", legacy.disabled, decision.disabled)
+    end
+    if legacy.deactivated ~= nil and legacy.deactivated ~= decision.deactivated then
+        AddAlphaMismatch(mismatches, "deactivated", legacy.deactivated, decision.deactivated)
+    end
+    if legacy.mode ~= nil and legacy.mode ~= decision.mode then
+        AddAlphaMismatch(mismatches, "mode", legacy.mode, decision.mode)
+    end
     if not AlphaReasonsMatch(reason, decision.winningSource) then
         AddAlphaMismatch(mismatches, "reason", reason, decision.winningSource)
     end
@@ -307,6 +331,42 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     if #state.recentMismatches < ROOT_ALPHA_MAX_MISMATCH_DETAILS then
         state.recentMismatches[#state.recentMismatches + 1] = detail
     end
+end
+
+function UF.RecordRootAlphaOverrideShadow(frame, legacy)
+    local state = FocalPoint.RootAlphaDebug
+    if not (state and state.enabled == true) then
+        return
+    end
+    if not (Visibility and Visibility.ResolveRootAlphaDecision) then
+        return
+    end
+
+    legacy = type(legacy) == "table" and legacy or {}
+    legacy.writesImmediately = true
+    legacy.missingUnitGuard = false
+    legacy.requiresRangeContext = false
+    legacy.rangeDriverActive = false
+    legacy.rangeMultiplier = 1
+    legacy.configAlpha = legacy.configAlpha or 1
+    legacy.baseAlpha = legacy.baseAlpha or legacy.configAlpha
+    legacy.overrideAlpha = legacy.alpha
+    legacy.shouldForceZero = legacy.shouldForceZero == true
+
+    local decision = Visibility.ResolveRootAlphaDecision(frame, {
+        source = legacy.callsite,
+        config = legacy.config,
+        configAlpha = legacy.configAlpha,
+        rangeMultiplier = 1,
+        missingUnitAlphaGuard = false,
+        disabled = legacy.disabled == true,
+        deactivated = legacy.deactivated == true,
+        visibilityOptions = {
+            mode = legacy.mode,
+            modeReason = legacy.modeReason,
+        },
+    })
+    RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
 end
 
 function UF.RecordRootAlphaLayoutShadow(frame, legacy, decision)
@@ -423,6 +483,26 @@ function UF.BuildRootAlphaDebugReport()
             "Range Fade: comparisons=%d mismatches=%d",
             tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite["range-fade"]) or 0,
             tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite["range-fade"]) or 0
+        ),
+        string.format(
+            "Refresh Placeholder: comparisons=%d mismatches=%d",
+            tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite["refresh-placeholder"]) or 0,
+            tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite["refresh-placeholder"]) or 0
+        ),
+        string.format(
+            "Demo Snapshot: comparisons=%d mismatches=%d",
+            tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite["demo-snapshot"]) or 0,
+            tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite["demo-snapshot"]) or 0
+        ),
+        string.format(
+            "Disabled Live: comparisons=%d mismatches=%d",
+            tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite["disabled-live"]) or 0,
+            tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite["disabled-live"]) or 0
+        ),
+        string.format(
+            "Deactivate: comparisons=%d mismatches=%d",
+            tonumber(state.comparisonsByCallsite and state.comparisonsByCallsite.deactivate) or 0,
+            tonumber(state.mismatchesByCallsite and state.mismatchesByCallsite.deactivate) or 0
         ),
         string.format("Tolerance: %.4f", ROOT_ALPHA_EPSILON),
     }
@@ -1719,6 +1799,20 @@ function UF:Refresh(frame, refreshRequest)
             pcall(frame.SetMouseClickEnabled, frame, false)
         end
         if frame.SetAlpha then
+            if FocalPoint.RootAlphaDebug
+                and FocalPoint.RootAlphaDebug.enabled == true
+                and FocalPoint.UnitFrame
+                and FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow
+            then
+                FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow(frame, {
+                    callsite = "disabled-live",
+                    reason = "unit-disabled-live",
+                    alpha = 0,
+                    shouldForceZero = true,
+                    disabled = true,
+                    config = config,
+                })
+            end
             frame:SetAlpha(0)
         end
         if frame.Hide and not IsProtectedFrameInCombat(frame) then
@@ -1820,6 +1914,19 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
         pcall(frame.SetMouseClickEnabled, frame, false)
     end
     if frame.SetAlpha then
+        if FocalPoint.RootAlphaDebug
+            and FocalPoint.RootAlphaDebug.enabled == true
+            and FocalPoint.UnitFrame
+            and FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow
+        then
+            FocalPoint.UnitFrame.RecordRootAlphaOverrideShadow(frame, {
+                callsite = "deactivate",
+                reason = "deactivated",
+                alpha = 0,
+                shouldForceZero = true,
+                deactivated = true,
+            })
+        end
         frame:SetAlpha(0)
     end
     if frame.Hide then
