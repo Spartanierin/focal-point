@@ -26,6 +26,7 @@
     <Script file="Engine/UnitFrame/Shared/UnitFrameColors.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFrameAssets.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFrameDemoEnvironment.lua"/>
+    <Script file="Engine/UnitFrame/Shared/UnitFrameUnitWatchPolicy.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFramePreview.lua"/>
     <Script file="Engine/Text/Shared/TextElementRoles.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateResolver.lua"/>
