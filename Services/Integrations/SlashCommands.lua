@@ -22,6 +22,15 @@ local function VisibilityDebugMessage(text)
     print(message)
 end
 
+local function UnitWatchDebugMessage(text)
+    local message = "[FP UnitWatchDebug] " .. tostring(text or "")
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(message)
+        return
+    end
+    print(message)
+end
+
 local function CountKnownFrames()
     local count = 0
     local frames = FocalPoint and FocalPoint.frames or nil
@@ -177,6 +186,75 @@ local function HandleVisibilityDebugCommand(msg)
     end
 end
 
+local function GetUnitWatchDebugApi()
+    return FocalPoint and FocalPoint.UnitFrameUnitWatchPolicy or nil
+end
+
+local function ReportUnitWatchDebugStatus()
+    local Policy = GetUnitWatchDebugApi()
+    local status = Policy and Policy.GetSyncDebugStatus and Policy.GetSyncDebugStatus() or nil
+    if not status then
+        UnitWatchDebugMessage("status unavailable")
+        return
+    end
+    UnitWatchDebugMessage(string.format(
+        "enabled=%s comparisons=%d mismatches=%d recent=%d",
+        tostring(status.enabled == true),
+        tonumber(status.totalComparisons) or 0,
+        tonumber(status.totalMismatches) or 0,
+        tonumber(status.recentCount) or 0
+    ))
+end
+
+local function ReportUnitWatchDebugSummary()
+    local Policy = GetUnitWatchDebugApi()
+    local lines = Policy and Policy.BuildSyncDebugReport and Policy.BuildSyncDebugReport() or nil
+    if type(lines) ~= "table" then
+        UnitWatchDebugMessage("report unavailable")
+        return
+    end
+    for _, line in ipairs(lines) do
+        UnitWatchDebugMessage(line)
+    end
+end
+
+local function ResetUnitWatchDebug()
+    local Policy = GetUnitWatchDebugApi()
+    if Policy and Policy.ResetSyncDebug then
+        Policy.ResetSyncDebug()
+        UnitWatchDebugMessage("reset")
+    else
+        UnitWatchDebugMessage("reset unavailable")
+    end
+end
+
+local function SetUnitWatchDebugEnabled(enabled)
+    local Policy = GetUnitWatchDebugApi()
+    if Policy and Policy.SetSyncDebugEnabled then
+        Policy.SetSyncDebugEnabled(enabled == true)
+        UnitWatchDebugMessage("enabled=" .. tostring(enabled == true))
+    else
+        UnitWatchDebugMessage("toggle unavailable")
+    end
+end
+
+local function HandleUnitWatchDebugCommand(msg)
+    msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if msg == "on" then
+        SetUnitWatchDebugEnabled(true)
+    elseif msg == "off" then
+        SetUnitWatchDebugEnabled(false)
+    elseif msg == "reset" then
+        ResetUnitWatchDebug()
+    elseif msg == "report" then
+        ReportUnitWatchDebugSummary()
+    elseif msg == "status" or msg == "" then
+        ReportUnitWatchDebugStatus()
+    else
+        UnitWatchDebugMessage("usage: /fpdebugunitwatch on|off|reset|status|report")
+    end
+end
+
 function FocalPoint:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
@@ -186,6 +264,7 @@ function FocalPoint:SetupSlashCommands()
     SLASH_FOCALPOINT2 = "/fp"
     SLASH_FPDEBUGDEMO1 = "/fpdebugdemo"
     SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
+    SLASH_FPDEBUGUNITWATCH1 = "/fpdebugunitwatch"
     FocalPoint.debugDemoDisableCastbar = FocalPoint.debugDemoDisableCastbar == true
     FocalPoint.debugDemoDisableAuras = FocalPoint.debugDemoDisableAuras == true
     FocalPoint.debugDemoDisableAuraTimers = FocalPoint.debugDemoDisableAuraTimers == true
@@ -216,6 +295,10 @@ function FocalPoint:SetupSlashCommands()
             HandleVisibilityDebugCommand("status")
         elseif msg:match("^debug visibility%s+") then
             HandleVisibilityDebugCommand(msg:match("^debug visibility%s+(.+)$"))
+        elseif msg == "debug unitwatch" then
+            HandleUnitWatchDebugCommand("status")
+        elseif msg:match("^debug unitwatch%s+") then
+            HandleUnitWatchDebugCommand(msg:match("^debug unitwatch%s+(.+)$"))
         elseif msg == "debugdemo on" then
             FocalPoint.debugDemoRuntime = true
             DemoDebugMessage("enabled=true")
@@ -250,9 +333,13 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report, /fpdebugunitwatch on|off|reset|status|report")
             end
         end
+    end
+
+    SlashCmdList["FPDEBUGUNITWATCH"] = function(msg)
+        HandleUnitWatchDebugCommand(msg)
     end
 
     SlashCmdList["FPDEBUGVISIBILITY"] = function(msg)

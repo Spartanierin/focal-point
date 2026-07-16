@@ -16,10 +16,92 @@ local function ShouldUseUnitWatch(frame)
     return UnitWatchPolicy.ShouldUse and UnitWatchPolicy.ShouldUse(frame) or false
 end
 
-local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
+local function ResolveLegacySyncAction(frame, previewOutsideCombat)
     if not frame then
+        return {
+            action = "none",
+            reason = "invalid-frame",
+        }
+    end
+
+    local shouldUse = ShouldUseUnitWatch(frame)
+    local isRegisteredBefore = frame._unitWatchRegistered and true or false
+    local registeredState = frame._unitWatchRegistered
+    local protectedCombat = IsProtectedRoot(frame) and InCombatLockdown and InCombatLockdown()
+    local legacy = {
+        action = "none",
+        reason = "no-action",
+        unit = frame.unit,
+        shouldUse = shouldUse,
+        previewOutsideCombat = previewOutsideCombat == true,
+        isRegisteredBefore = isRegisteredBefore,
+        isRegisteredAfter = registeredState,
+        protectedRoot = IsProtectedRoot(frame) == true,
+        inCombat = InCombatLockdown and InCombatLockdown() or false,
+    }
+
+    if not shouldUse or previewOutsideCombat then
+        if frame._unitWatchRegistered then
+            if not UnregisterUnitWatch then
+                legacy.action = "blocked"
+                legacy.reason = "unregister-unavailable"
+            elseif protectedCombat then
+                legacy.action = "blocked"
+                legacy.reason = "unregister-protected-combat"
+            else
+                legacy.action = "unregister"
+                legacy.reason = shouldUse and "preview-outside-combat" or "unitwatch-not-used"
+                legacy.isRegisteredAfter = false
+            end
+        else
+            legacy.reason = shouldUse and "preview-outside-combat-not-registered" or "unitwatch-not-used"
+        end
+        return legacy
+    end
+
+    if frame._unitWatchRegistered == false then
+        if RegisterUnitWatch then
+            legacy.action = "register"
+            legacy.reason = "unitwatch-register"
+            legacy.isRegisteredAfter = true
+        else
+            legacy.action = "blocked"
+            legacy.reason = "register-unavailable"
+        end
+        return legacy
+    end
+
+    if frame._unitWatchRegistered then
+        legacy.action = "keep"
+        legacy.reason = "already-registered"
+    else
+        legacy.reason = "registration-state-unknown"
+    end
+    return legacy
+end
+
+local function MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat)
+    if not (UnitWatchPolicy.IsSyncDebugEnabled and UnitWatchPolicy.IsSyncDebugEnabled()) then
         return
     end
+    if not (UnitWatchPolicy.ResolveSync and UnitWatchPolicy.RecordSyncComparison) then
+        return
+    end
+
+    local legacy = ResolveLegacySyncAction(frame, previewOutsideCombat)
+    local decision = UnitWatchPolicy.ResolveSync(frame, {
+        previewOutsideCombat = previewOutsideCombat == true,
+    })
+    UnitWatchPolicy.RecordSyncComparison(legacy, decision)
+end
+
+local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
+    if not frame then
+        MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat)
+        return
+    end
+
+    MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat)
 
     if not ShouldUseUnitWatch(frame) or previewOutsideCombat then
         if frame._unitWatchRegistered
