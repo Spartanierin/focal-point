@@ -1569,6 +1569,28 @@ local function IsRootActionPlanValue(plan, expectedReason, expected)
         and plan.shouldReturn == expected.shouldReturn
 end
 
+local function IsMissingUnitProtectedActionPlanValue(plan, expected)
+    if not IsRootActionPlanValue(plan, "missing_unit_protected", expected) then
+        return false
+    end
+    if plan.stateReason ~= "missing_unit_protected" then
+        return false
+    end
+    if plan.stateClearMode ~= expected.clearAction then
+        return false
+    end
+    if plan.rootActionPossible ~= expected.rootActionPossible then
+        return false
+    end
+    if plan.recoveryAction == "queue-refresh" and plan.recoveryReason ~= "visibility" then
+        return false
+    end
+    if plan.recoveryAction ~= "none" and plan.recoveryAction ~= "queue-refresh" then
+        return false
+    end
+    return true
+end
+
 local function ApplyRootActionPlan(frame, plan)
     if not frame or type(plan) ~= "table" then
         return false
@@ -1624,6 +1646,37 @@ local function ApplyRootActionPlan(frame, plan)
         return false
     end
 
+    return true
+end
+
+local function ApplyMissingUnitProtectedActionPlan(frame, plan)
+    if not frame or type(plan) ~= "table" then
+        return false
+    end
+    if plan.reason ~= "missing_unit_protected" then
+        return false
+    end
+    if plan.stateAction ~= "unit-lost" or plan.stateReason ~= "missing_unit_protected" then
+        return false
+    end
+    if plan.recoveryAction ~= "none" and plan.recoveryAction ~= "queue-refresh" then
+        return false
+    end
+    if plan.recoveryAction == "queue-refresh" and plan.recoveryReason ~= "visibility" then
+        return false
+    end
+
+    if State.HandleUnitLost then
+        State.HandleUnitLost(frame, "missing_unit_protected")
+    else
+        Visibility.ClearFrameVisualState(frame, "missing_unit_protected")
+    end
+
+    if plan.recoveryAction == "queue-refresh" then
+        Visibility.QueueRefresh(frame)
+    end
+
+    HideFrameIfSafe(frame)
     return true
 end
 
@@ -2283,6 +2336,45 @@ function Visibility.HandleMissingUnit(frame)
                 and "Missing target during combat: clearing content, secure root unchanged"
                 or "Missing target: clearing content, secure root unchanged", "missing_target", 2.0)
         end
+
+        local expected = {
+            clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected", {
+                unit = frame.unit,
+                protectedRoot = protectedFrame,
+                inCombat = decision.inCombat,
+            }),
+            alphaAction = frame.unit == "target" and "zero" or "keep",
+            mouseAction = protectedInCombat and "keep" or "disable",
+            rootAction = "hide-if-safe",
+            stateAction = "unit-lost",
+            recoveryAction = suspiciousMissingTarget and "queue-refresh" or "none",
+            rootActionPossible = WouldHideRoot(frame),
+            shouldReturn = true,
+        }
+        local plan = ResolveRootActionPlanOnce({
+            missingSuppressed = false,
+            suspiciousMissingTarget = suspiciousMissingTarget,
+        })
+        if IsMissingUnitProtectedActionPlanValue(plan, expected)
+            and ApplyMissingUnitProtectedActionPlan(frame, plan)
+        then
+            RecordRootActionTrace("missing_unit_protected", {
+                clearAction = expected.clearAction,
+                alphaAction = expected.alphaAction,
+                mouseAction = expected.mouseAction,
+                rootAction = "hide-if-safe",
+                stateAction = "unit-lost",
+                recoveryAction = expected.recoveryAction,
+                legacyRecoveryReason = suspiciousMissingTarget and "visibility" or nil,
+                suspiciousMissingTarget = suspiciousMissingTarget,
+                shouldReturn = true,
+            }, {
+                missingSuppressed = false,
+                suspiciousMissingTarget = suspiciousMissingTarget,
+            })
+            return true
+        end
+
         if State.HandleUnitLost then
             State.HandleUnitLost(frame, "missing_unit_protected")
         else
