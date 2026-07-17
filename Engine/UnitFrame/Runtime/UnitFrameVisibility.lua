@@ -769,6 +769,11 @@ local function BuildMissingUnitActionPlan(frame, rootDecision, branchReason, opt
         targetTransition = false,
         suspiciousMissingTarget = false,
         protectedInCombat = protectedInCombat,
+        rootActionPossible = WouldHideRoot(frame),
+        stateReason = nil,
+        stateClearMode = nil,
+        stateUnitPresentGuard = false,
+        recoveryReason = nil,
     }
 end
 
@@ -792,6 +797,9 @@ function Visibility.ResolveRootActionPlan(frame, options)
         plan.alphaAction = "zero"
         plan.rootAction = "hide-if-safe"
         plan.stateAction = "unit-lost"
+        plan.stateReason = plan.reason
+        plan.stateClearMode = plan.clearAction
+        plan.stateUnitPresentGuard = true
         plan.shouldReturn = true
         return plan
     end
@@ -847,6 +855,9 @@ function Visibility.ResolveRootActionPlan(frame, options)
             plan.alphaAction = "zero"
             plan.rootAction = "hide-if-safe"
             plan.stateAction = "unit-lost"
+            plan.stateReason = plan.reason
+            plan.stateClearMode = plan.clearAction
+            plan.stateUnitPresentGuard = true
             plan.shouldReturn = true
             return plan
         end
@@ -865,7 +876,11 @@ function Visibility.ResolveRootActionPlan(frame, options)
         plan.rootAction = "hide-if-safe"
         plan.stateAction = "unit-lost"
         plan.recoveryAction = suspiciousMissingTarget and "queue-refresh" or "none"
+        plan.recoveryReason = suspiciousMissingTarget and "visibility" or nil
         plan.suspiciousMissingTarget = suspiciousMissingTarget
+        plan.stateReason = plan.reason
+        plan.stateClearMode = plan.clearAction
+        plan.stateUnitPresentGuard = true
         plan.shouldReturn = true
         return plan
     end
@@ -881,8 +896,12 @@ function Visibility.ResolveRootActionPlan(frame, options)
             plan.rootAction = "hide-if-safe"
             plan.stateAction = "unit-lost"
             plan.recoveryAction = "queue-target-recovery"
+            plan.recoveryReason = "target_missing_transition"
             plan.targetTransition = true
             plan.elapsedMissing = elapsedMissing
+            plan.stateReason = plan.reason
+            plan.stateClearMode = plan.clearAction
+            plan.stateUnitPresentGuard = true
             plan.shouldReturn = true
             return plan
         end
@@ -897,6 +916,9 @@ function Visibility.ResolveRootActionPlan(frame, options)
             plan.alphaAction = "zero"
             plan.rootAction = "hide-if-safe"
             plan.stateAction = "unit-lost"
+            plan.stateReason = plan.reason
+            plan.stateClearMode = plan.clearAction
+            plan.stateUnitPresentGuard = true
             plan.shouldReturn = true
             return plan
         end
@@ -906,6 +928,9 @@ function Visibility.ResolveRootActionPlan(frame, options)
         plan.alphaAction = "zero"
         plan.rootAction = "hide-if-safe"
         plan.stateAction = "unit-lost"
+        plan.stateReason = plan.reason
+        plan.stateClearMode = plan.clearAction
+        plan.stateUnitPresentGuard = true
         plan.shouldReturn = true
         return plan
     end
@@ -932,6 +957,14 @@ local function EnsureDecisionDebugState()
         rootActionPlanMatchesByBranch = {},
         rootActionPlanRecentMismatches = {},
         rootActionPlanLastMismatch = nil,
+        criticalProfileComparisons = 0,
+        criticalProfileMismatches = 0,
+        criticalProfileComparisonsByBranch = {},
+        criticalProfileMismatchesByBranch = {},
+        criticalProfileMismatchesByField = {},
+        criticalProfileMatchesByProfile = {},
+        criticalProfileRecentMismatches = {},
+        criticalProfileLastMismatch = nil,
     }
     return FocalPoint.VisibilityDecisionDebug
 end
@@ -944,6 +977,13 @@ local function EnsureRootActionDebugState(state)
     state.rootActionPlanMismatchesByUnit = state.rootActionPlanMismatchesByUnit or {}
     state.rootActionPlanMatchesByBranch = state.rootActionPlanMatchesByBranch or {}
     state.rootActionPlanRecentMismatches = state.rootActionPlanRecentMismatches or {}
+    state.criticalProfileComparisons = tonumber(state.criticalProfileComparisons) or 0
+    state.criticalProfileMismatches = tonumber(state.criticalProfileMismatches) or 0
+    state.criticalProfileComparisonsByBranch = state.criticalProfileComparisonsByBranch or {}
+    state.criticalProfileMismatchesByBranch = state.criticalProfileMismatchesByBranch or {}
+    state.criticalProfileMismatchesByField = state.criticalProfileMismatchesByField or {}
+    state.criticalProfileMatchesByProfile = state.criticalProfileMatchesByProfile or {}
+    state.criticalProfileRecentMismatches = state.criticalProfileRecentMismatches or {}
     return state
 end
 
@@ -976,6 +1016,14 @@ function Visibility.ResetDecisionDebug()
     state.rootActionPlanMatchesByBranch = WipeDecisionDebugMap(state.rootActionPlanMatchesByBranch)
     state.rootActionPlanRecentMismatches = WipeDecisionDebugMap(state.rootActionPlanRecentMismatches)
     state.rootActionPlanLastMismatch = nil
+    state.criticalProfileComparisons = 0
+    state.criticalProfileMismatches = 0
+    state.criticalProfileComparisonsByBranch = WipeDecisionDebugMap(state.criticalProfileComparisonsByBranch)
+    state.criticalProfileMismatchesByBranch = WipeDecisionDebugMap(state.criticalProfileMismatchesByBranch)
+    state.criticalProfileMismatchesByField = WipeDecisionDebugMap(state.criticalProfileMismatchesByField)
+    state.criticalProfileMatchesByProfile = WipeDecisionDebugMap(state.criticalProfileMatchesByProfile)
+    state.criticalProfileRecentMismatches = WipeDecisionDebugMap(state.criticalProfileRecentMismatches)
+    state.criticalProfileLastMismatch = nil
     return state
 end
 
@@ -1047,6 +1095,16 @@ local function BuildLegacyRootActionTrace(frame, branch, values)
         missingSuppressed = values.missingSuppressed == true,
         targetTransition = values.targetTransition == true,
         suspiciousMissingTarget = values.suspiciousMissingTarget == true,
+        legacyClearRequested = values.legacyClearRequested or values.clearAction or "none",
+        legacyAlphaRequested = values.legacyAlphaRequested or values.alphaAction or "keep",
+        legacyMouseRequested = values.legacyMouseRequested or values.mouseAction or "keep",
+        legacyRootActionRequested = values.legacyRootActionRequested or values.rootAction or "keep",
+        legacyStateRequested = values.legacyStateRequested or values.stateAction or "none",
+        legacyRecoveryRequested = values.legacyRecoveryRequested or values.recoveryAction or "none",
+        legacyCanHideRoot = values.legacyCanHideRoot == true,
+        legacyProtectedInCombat = values.legacyProtectedInCombat == true,
+        legacyClearMode = values.legacyClearMode or values.clearAction or "none",
+        legacyRecoveryReason = values.legacyRecoveryReason,
     }
 end
 
@@ -1070,6 +1128,16 @@ local function BuildLegacyRootActionTraceFromPlan(frame, plan, branch, values)
         missingSuppressed = plan and plan.missingSuppressed == true or false,
         targetTransition = values.targetTransition or plan and plan.targetTransition == true or false,
         suspiciousMissingTarget = values.suspiciousMissingTarget or plan and plan.suspiciousMissingTarget == true or false,
+        legacyClearRequested = values.legacyClearRequested,
+        legacyAlphaRequested = values.legacyAlphaRequested,
+        legacyMouseRequested = values.legacyMouseRequested,
+        legacyRootActionRequested = values.legacyRootActionRequested,
+        legacyStateRequested = values.legacyStateRequested,
+        legacyRecoveryRequested = values.legacyRecoveryRequested,
+        legacyCanHideRoot = values.legacyCanHideRoot or plan and plan.rootActionPossible == true or false,
+        legacyProtectedInCombat = values.legacyProtectedInCombat or plan and plan.protectedInCombat == true or false,
+        legacyClearMode = values.legacyClearMode,
+        legacyRecoveryReason = values.legacyRecoveryReason,
     })
 end
 
@@ -1125,6 +1193,128 @@ local function CompareLegacyToRootActionPlan(legacy, plan)
     end
 
     return mismatches, legacyReason, planReason
+end
+
+local CRITICAL_PROFILE_ORDER = {
+    "protected-target-missing",
+    "protected-target-missing-in-combat",
+    "protected-boss-missing",
+    "target-transition",
+    "missing-suppressed",
+    "normal-missing-final",
+}
+
+local CRITICAL_BRANCHES = {
+    missing_unit_protected = true,
+    missing_unit_protected_suppressed = true,
+    target_missing_transition = true,
+    missing_unit_suppressed = true,
+    missing_unit = true,
+}
+
+local function IsCriticalRootActionBranch(branch)
+    local normalized = NormalizeRootActionReason(branch)
+    return CRITICAL_BRANCHES[normalized] == true
+end
+
+local function ResolveCriticalProfile(legacy, plan)
+    local branch = NormalizeRootActionReason(legacy and legacy.branch)
+    local unit = legacy and legacy.unit or plan and plan.unit
+    local isBoss = IsBossRuntimeUnit and IsBossRuntimeUnit(unit) or false
+
+    if branch == "target_missing_transition" then
+        return "target-transition"
+    end
+
+    if branch == "missing_unit_protected" or branch == "missing_unit_protected_suppressed" then
+        if isBoss then
+            return "protected-boss-missing"
+        end
+        if unit == "target" and ((legacy and legacy.inCombat == true) or (plan and plan.inCombat == true)) then
+            return "protected-target-missing-in-combat"
+        end
+        if unit == "target" then
+            return "protected-target-missing"
+        end
+        return "protected-missing"
+    end
+
+    if branch == "missing_unit_suppressed" then
+        return "missing-suppressed"
+    end
+
+    if branch == "missing_unit" then
+        return "normal-missing-final"
+    end
+
+    return nil
+end
+
+local function ResolveExpectedCriticalClearMode(legacy)
+    if not legacy then
+        return "none"
+    end
+    if legacy.branch == "target_missing_transition" then
+        return "content-only"
+    end
+    if legacy.protectedRoot and legacy.inCombat and legacy.branch == "missing_unit_protected" then
+        return "content-only"
+    end
+    if IsBossRuntimeUnit and IsBossRuntimeUnit(legacy.unit) then
+        return "content-only"
+    end
+    return "hard"
+end
+
+local CRITICAL_COMPARE_FIELDS = {
+    { key = "clearAction", planKey = "clearAction", label = "clearAction" },
+    { key = "alphaAction", planKey = "alphaAction", label = "alphaAction" },
+    { key = "mouseAction", planKey = "mouseAction", label = "mouseAction" },
+    { key = "rootAction", planKey = "rootAction", label = "rootAction" },
+    { key = "stateAction", planKey = "stateAction", label = "stateAction" },
+    { key = "recoveryAction", planKey = "recoveryAction", label = "recoveryAction" },
+    { key = "shouldReturn", planKey = "shouldReturn", label = "shouldReturn", boolean = true },
+    { key = "legacyClearMode", planKey = "stateClearMode", label = "clearMode" },
+    { key = "legacyRecoveryReason", planKey = "recoveryReason", label = "recoveryReason" },
+    { key = "legacyCanHideRoot", planKey = "rootActionPossible", label = "canHideRoot", boolean = true },
+    { key = "legacyProtectedInCombat", planKey = "protectedInCombat", label = "protectedInCombat", boolean = true },
+}
+
+local function CompareCriticalProfile(legacy, plan)
+    if not IsCriticalRootActionBranch(legacy and legacy.branch) then
+        return nil
+    end
+
+    local mismatches = {}
+    local profile = ResolveCriticalProfile(legacy, plan) or "unknown-critical"
+    local expectedClearMode = ResolveExpectedCriticalClearMode(legacy)
+    legacy.legacyClearMode = legacy.legacyClearMode or expectedClearMode
+
+    if plan and plan.stateClearMode ~= nil and plan.stateClearMode ~= expectedClearMode then
+        mismatches[#mismatches + 1] = {
+            field = "expectedClearMode",
+            legacyValue = expectedClearMode,
+            planValue = plan.stateClearMode,
+        }
+    end
+
+    for _, field in ipairs(CRITICAL_COMPARE_FIELDS) do
+        local legacyValue = NormalizeRootActionCompareValue(field, legacy and legacy[field.key])
+        local planValue = NormalizeRootActionCompareValue(field, plan and plan[field.planKey])
+        if legacyValue ~= planValue then
+            mismatches[#mismatches + 1] = {
+                field = field.label,
+                legacyValue = legacyValue,
+                planValue = planValue,
+            }
+        end
+    end
+
+    return {
+        profile = profile,
+        branch = NormalizeRootActionReason(legacy and legacy.branch),
+        mismatches = mismatches,
+    }
 end
 
 local function BuildMismatch(field, legacyValue, decisionValue)
@@ -1256,6 +1446,30 @@ local function FormatRootActionMismatchList(entry)
     return table.concat(parts, ",")
 end
 
+local function AppendCriticalProfileCoverage(lines, state)
+    lines[#lines + 1] = "Critical Profile coverage:"
+    for _, profile in ipairs(CRITICAL_PROFILE_ORDER) do
+        local count = tonumber(state.criticalProfileMatchesByProfile and state.criticalProfileMatchesByProfile[profile]) or 0
+        lines[#lines + 1] = string.format("  %s: %d", profile, count)
+    end
+end
+
+local function FormatCriticalMismatchList(entry)
+    local parts = {}
+    for _, mismatch in ipairs(entry and entry.mismatches or {}) do
+        parts[#parts + 1] = string.format(
+            "%s=%s/%s",
+            tostring(mismatch.field),
+            tostring(mismatch.legacyValue),
+            tostring(mismatch.planValue)
+        )
+    end
+    if #parts == 0 then
+        return "none"
+    end
+    return table.concat(parts, ",")
+end
+
 local function RecordRootActionPlanComparison(frame, plan, legacy)
     if not Visibility.IsDecisionDebugEnabled() then
         return
@@ -1269,6 +1483,36 @@ local function RecordRootActionPlanComparison(frame, plan, legacy)
     local unit = tostring(legacy.unit or plan.unit or "unknown")
 
     state.rootActionPlanComparisons = (tonumber(state.rootActionPlanComparisons) or 0) + 1
+
+    local critical = CompareCriticalProfile(legacy, plan)
+    if critical then
+        state.criticalProfileComparisons = (tonumber(state.criticalProfileComparisons) or 0) + 1
+        BumpCounter(state.criticalProfileComparisonsByBranch, critical.branch)
+        if #critical.mismatches == 0 then
+            BumpCounter(state.criticalProfileMatchesByProfile, critical.profile)
+        else
+            state.criticalProfileMismatches = (tonumber(state.criticalProfileMismatches) or 0) + 1
+            BumpCounter(state.criticalProfileMismatchesByBranch, critical.branch)
+            for _, mismatch in ipairs(critical.mismatches) do
+                BumpCounter(state.criticalProfileMismatchesByField, mismatch.field)
+            end
+
+            local criticalEntry = {
+                unit = unit,
+                profile = critical.profile,
+                branch = critical.branch,
+                legacy = legacy,
+                plan = plan,
+                mismatches = critical.mismatches,
+            }
+            state.criticalProfileLastMismatch = criticalEntry
+            local criticalRecent = state.criticalProfileRecentMismatches
+            criticalRecent[#criticalRecent + 1] = criticalEntry
+            while #criticalRecent > MAX_ROOT_ACTION_PLAN_MISMATCHES do
+                table.remove(criticalRecent, 1)
+            end
+        end
+    end
 
     if #mismatches == 0 then
         BumpCounter(state.rootActionPlanMatchesByBranch, legacyReason)
@@ -1442,6 +1686,8 @@ function Visibility.GetDecisionDebugStatus()
         totalMismatches = tonumber(state.totalMismatches) or 0,
         rootActionPlanComparisons = tonumber(state.rootActionPlanComparisons) or 0,
         rootActionPlanMismatches = tonumber(state.rootActionPlanMismatches) or 0,
+        criticalProfileComparisons = tonumber(state.criticalProfileComparisons) or 0,
+        criticalProfileMismatches = tonumber(state.criticalProfileMismatches) or 0,
         recentCount = #(state.recentMismatches or {}),
     }
 end
@@ -1453,11 +1699,16 @@ function Visibility.BuildDecisionDebugReport()
     local totalMismatches = tonumber(state.totalMismatches) or 0
     local rootActionComparisons = tonumber(state.rootActionPlanComparisons) or 0
     local rootActionMismatches = tonumber(state.rootActionPlanMismatches) or 0
+    local criticalProfileComparisons = tonumber(state.criticalProfileComparisons) or 0
+    local criticalProfileMismatches = tonumber(state.criticalProfileMismatches) or 0
     local mismatchRate = totalComparisons > 0
         and ((totalMismatches / totalComparisons) * 100)
         or 0
     local rootActionMismatchRate = rootActionComparisons > 0
         and ((rootActionMismatches / rootActionComparisons) * 100)
+        or 0
+    local criticalProfileMismatchRate = criticalProfileComparisons > 0
+        and ((criticalProfileMismatches / criticalProfileComparisons) * 100)
         or 0
     local lines = {
         "Visibility shadow report",
@@ -1545,6 +1796,40 @@ function Visibility.BuildDecisionDebugReport()
             tostring(rootLast.plan and rootLast.plan.shouldReturn)
         )
         lines[#lines + 1] = "  comparedFields=" .. FormatRootActionMismatchList(rootLast)
+    else
+        lines[#lines + 1] = "  none"
+    end
+
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Critical Profile comparisons"
+    lines[#lines + 1] = string.format("Comparisons: %d", criticalProfileComparisons)
+    lines[#lines + 1] = string.format("Mismatches: %d", criticalProfileMismatches)
+    lines[#lines + 1] = string.format("Mismatch rate: %.2f%%", criticalProfileMismatchRate)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Critical Profile comparisons by branch:", state.criticalProfileComparisonsByBranch)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Critical Profile mismatches by branch:", state.criticalProfileMismatchesByBranch)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Critical Profile mismatches by field:", state.criticalProfileMismatchesByField)
+    lines[#lines + 1] = ""
+    AppendCriticalProfileCoverage(lines, state)
+
+    local criticalLast = state.criticalProfileLastMismatch
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Last Critical Profile mismatch:"
+    if criticalLast then
+        lines[#lines + 1] = string.format(
+            "  unit=%s profile=%s branch=%s protected=%s combat=%s clearMode=%s recovery=%s/%s",
+            tostring(criticalLast.unit),
+            tostring(criticalLast.profile),
+            tostring(criticalLast.branch),
+            tostring(criticalLast.legacy and criticalLast.legacy.protectedRoot),
+            tostring(criticalLast.legacy and criticalLast.legacy.inCombat),
+            tostring(criticalLast.legacy and criticalLast.legacy.legacyClearMode),
+            tostring(criticalLast.legacy and criticalLast.legacy.legacyRecoveryRequested),
+            tostring(criticalLast.legacy and criticalLast.legacy.legacyRecoveryReason)
+        )
+        lines[#lines + 1] = "  comparedFields=" .. FormatCriticalMismatchList(criticalLast)
     else
         lines[#lines + 1] = "  none"
     end
@@ -2014,6 +2299,7 @@ function Visibility.HandleMissingUnit(frame)
             rootAction = "hide-if-safe",
             stateAction = "unit-lost",
             recoveryAction = suspiciousMissingTarget and "queue-refresh" or "none",
+            legacyRecoveryReason = suspiciousMissingTarget and "visibility" or nil,
             suspiciousMissingTarget = suspiciousMissingTarget,
             shouldReturn = true,
         }, {
@@ -2059,6 +2345,7 @@ function Visibility.HandleMissingUnit(frame)
                     rootAction = "hide-if-safe",
                     stateAction = "unit-lost",
                     recoveryAction = "queue-target-recovery",
+                    legacyRecoveryReason = "target_missing_transition",
                     targetTransition = true,
                     shouldReturn = true,
                 }, {
