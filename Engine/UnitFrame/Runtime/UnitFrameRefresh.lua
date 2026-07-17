@@ -8,6 +8,7 @@ local UnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
 local Visibility = FocalPoint.UnitFrameVisibility or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
+local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
@@ -142,6 +143,70 @@ local function IsScopedRefresh(refreshRequest)
     return type(scopes) == "table" and next(scopes) ~= nil and refreshRequest.forceFullRefresh ~= true
 end
 
+local function IsRootShowDebugEnabled()
+    return Visibility.IsDecisionDebugEnabled and Visibility.IsDecisionDebugEnabled()
+end
+
+local function ResolveRefreshUnitPresent(frame, fallback)
+    if type(fallback) == "boolean" then
+        return fallback
+    end
+    local unit = frame and frame.unit
+    if unit == "player" then
+        return true
+    end
+    if DoesUnitSeemPresent and type(unit) == "string" and unit ~= "" then
+        return DoesUnitSeemPresent(unit) == true
+    end
+    if UnitExists and type(unit) == "string" and unit ~= "" then
+        return UnitExists(unit) and true or false
+    end
+    return false
+end
+
+local function BuildRootShowLegacyTrace(frame, values)
+    values = type(values) == "table" and values or {}
+    return {
+        branch = values.branch or "unknown",
+        action = values.action or "keep",
+        reason = values.reason or values.branch or "unknown",
+        shouldShow = values.shouldShow == true,
+        shouldSkipShow = values.shouldSkipShow == true,
+
+        unit = values.unit or frame and frame.unit or nil,
+        mode = values.mode,
+        modeReason = values.modeReason,
+        previewActive = values.previewActive == true,
+        previewOutsideCombat = values.previewOutsideCombat == true,
+        unitPresent = values.unitPresent == true,
+        protectedRoot = values.protectedRoot == true,
+        inCombat = values.inCombat == true,
+        canCallShow = values.canCallShow == true,
+        missingHandled = values.missingHandled == true,
+        refreshApplyReached = values.refreshApplyReached ~= false,
+
+        absentTargetGuard = values.absentTargetGuard == true,
+        absentTargetTargetGuard = values.absentTargetTargetGuard == true,
+        absentFocusTargetGuard = values.absentFocusTargetGuard == true,
+        absentBossGuard = values.absentBossGuard == true,
+    }
+end
+
+local function RecordRootShowDecisionShadow(frame, legacyValues, decisionOptions)
+    if not IsRootShowDebugEnabled() then
+        return
+    end
+    if not (Visibility.ResolveRootShowDecision and Visibility.RecordRootShowDecisionComparison) then
+        return
+    end
+
+    legacyValues = type(legacyValues) == "table" and legacyValues or {}
+    decisionOptions = type(decisionOptions) == "table" and decisionOptions or {}
+    local legacy = BuildRootShowLegacyTrace(frame, legacyValues)
+    local decision = Visibility.ResolveRootShowDecision(frame, decisionOptions)
+    Visibility.RecordRootShowDecisionComparison(frame, legacy, decision)
+end
+
 -- Refresh orchestration keeps the normal live-update path together so the
 -- main unit-frame runtime only handles guards and high-level delegation.
 
@@ -166,12 +231,68 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     local demoApplied = Demo.ApplyFrameSnapshot and Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason) or false
     if demoApplied then
         if mode == "disabled" then
+            local protectedRoot = IsProtectedRoot(frame)
+            local inCombat = InCombatLockdown and InCombatLockdown() or false
+            local previewOutsideCombat = IsPreviewModeEnabled
+                and IsPreviewModeEnabled()
+                and not inCombat
+                or false
+            local unitPresent = ResolveRefreshUnitPresent(frame)
+            RecordRootShowDecisionShadow(frame, {
+                branch = "demo-disabled-return",
+                action = "keep",
+                reason = "demo-disabled-return",
+                mode = mode,
+                modeReason = modeReason,
+                previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+                previewOutsideCombat = previewOutsideCombat,
+                unitPresent = unitPresent,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                canCallShow = frame.Show ~= nil and (not protectedRoot or previewOutsideCombat or not inCombat),
+            }, {
+                config = config,
+                mode = mode,
+                modeReason = modeReason,
+                previewOutsideCombat = previewOutsideCombat,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                unitPresent = unitPresent,
+            })
             if Demo.ReportDebug then
                 Demo.ReportDebug(frame)
             end
             return
         end
         if Demo.ShouldProcessFrame and not Demo.ShouldProcessFrame(frame) then
+            local protectedRoot = IsProtectedRoot(frame)
+            local inCombat = InCombatLockdown and InCombatLockdown() or false
+            local previewOutsideCombat = IsPreviewModeEnabled
+                and IsPreviewModeEnabled()
+                and not inCombat
+                or false
+            local unitPresent = ResolveRefreshUnitPresent(frame)
+            RecordRootShowDecisionShadow(frame, {
+                branch = "demo-filtered-return",
+                action = "keep",
+                reason = "demo-filtered-return",
+                mode = mode,
+                modeReason = modeReason,
+                previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+                previewOutsideCombat = previewOutsideCombat,
+                unitPresent = unitPresent,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                canCallShow = frame.Show ~= nil and (not protectedRoot or previewOutsideCombat or not inCombat),
+            }, {
+                config = config,
+                mode = mode,
+                modeReason = modeReason,
+                previewOutsideCombat = previewOutsideCombat,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                unitPresent = unitPresent,
+            })
             if frame.Hide then
                 frame:Hide()
             end
@@ -233,11 +354,58 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             and IsPreviewModeEnabled()
             and not (InCombatLockdown and InCombatLockdown())
         local outsideCombat = not (InCombatLockdown and InCombatLockdown())
+        local inCombat = not outsideCombat
 
         SyncPreviewUnitWatch(frame, previewOutsideCombat)
 
         if not protectedRoot or previewOutsideCombat or outsideCombat then
+            local unitPresent = ResolveRefreshUnitPresent(frame)
+            RecordRootShowDecisionShadow(frame, {
+                branch = mode == "placeholder" and "preview-placeholder" or "preview-detailed",
+                action = "show",
+                reason = mode == "placeholder" and "preview-placeholder-show" or "preview-detailed-show",
+                shouldShow = true,
+                mode = mode,
+                modeReason = modeReason,
+                previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+                previewOutsideCombat = previewOutsideCombat,
+                unitPresent = unitPresent,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                canCallShow = true,
+            }, {
+                config = config,
+                mode = mode,
+                modeReason = modeReason,
+                previewOutsideCombat = previewOutsideCombat,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                unitPresent = unitPresent,
+            })
             frame:Show()
+        else
+            local unitPresent = ResolveRefreshUnitPresent(frame)
+            RecordRootShowDecisionShadow(frame, {
+                branch = "protected-combat-keep",
+                action = "keep",
+                reason = "preview-protected-combat-keep",
+                mode = mode,
+                modeReason = modeReason,
+                previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+                previewOutsideCombat = previewOutsideCombat,
+                unitPresent = unitPresent,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                canCallShow = false,
+            }, {
+                config = config,
+                mode = mode,
+                modeReason = modeReason,
+                previewOutsideCombat = previewOutsideCombat,
+                protectedRoot = protectedRoot,
+                inCombat = inCombat,
+                unitPresent = unitPresent,
+            })
         end
         if Demo.ReportDebug then
             Demo.ReportDebug(frame)
@@ -286,6 +454,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         and IsPreviewModeEnabled()
         and not (InCombatLockdown and InCombatLockdown())
     local outsideCombat = not (InCombatLockdown and InCombatLockdown())
+    local inCombat = not outsideCombat
 
     SyncPreviewUnitWatch(frame, previewOutsideCombat)
 
@@ -306,6 +475,49 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         and not previewOutsideCombat
         and UnitExists
         and not UnitExists(frame.unit)
+    local canCallShow = not protectedRoot or previewOutsideCombat or outsideCombat
+    local unitPresent = ResolveRefreshUnitPresent(frame)
+
+    if skipShowForAbsentTarget
+        or skipShowForAbsentTargetTarget
+        or skipShowForAbsentFocusTarget
+        or skipShowForAbsentBoss
+    then
+        local branch = "absent-target"
+        if skipShowForAbsentTargetTarget then
+            branch = "absent-targettarget"
+        elseif skipShowForAbsentFocusTarget then
+            branch = "absent-focustarget"
+        elseif skipShowForAbsentBoss then
+            branch = "absent-boss"
+        end
+        RecordRootShowDecisionShadow(frame, {
+            branch = branch,
+            action = "skip-show",
+            reason = branch,
+            shouldSkipShow = true,
+            mode = mode,
+            modeReason = modeReason,
+            previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+            previewOutsideCombat = previewOutsideCombat,
+            unitPresent = unitPresent,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            canCallShow = canCallShow,
+            absentTargetGuard = skipShowForAbsentTarget,
+            absentTargetTargetGuard = skipShowForAbsentTargetTarget,
+            absentFocusTargetGuard = skipShowForAbsentFocusTarget,
+            absentBossGuard = skipShowForAbsentBoss,
+        }, {
+            config = config,
+            mode = mode,
+            modeReason = modeReason,
+            previewOutsideCombat = previewOutsideCombat,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            unitPresent = unitPresent,
+        })
+    end
 
     if (not protectedRoot or previewOutsideCombat or outsideCombat)
         and not skipShowForAbsentTarget
@@ -313,7 +525,63 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         and not skipShowForAbsentFocusTarget
         and not skipShowForAbsentBoss
     then
+        RecordRootShowDecisionShadow(frame, {
+            branch = unitPresent and "live-present" or "live-local-show",
+            action = "show",
+            reason = unitPresent and "live-present-show" or "live-local-show",
+            shouldShow = true,
+            mode = mode,
+            modeReason = modeReason,
+            previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+            previewOutsideCombat = previewOutsideCombat,
+            unitPresent = unitPresent,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            canCallShow = canCallShow,
+            absentTargetGuard = skipShowForAbsentTarget,
+            absentTargetTargetGuard = skipShowForAbsentTargetTarget,
+            absentFocusTargetGuard = skipShowForAbsentFocusTarget,
+            absentBossGuard = skipShowForAbsentBoss,
+        }, {
+            config = config,
+            mode = mode,
+            modeReason = modeReason,
+            previewOutsideCombat = previewOutsideCombat,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            unitPresent = unitPresent,
+        })
         frame:Show()
+    elseif not skipShowForAbsentTarget
+        and not skipShowForAbsentTargetTarget
+        and not skipShowForAbsentFocusTarget
+        and not skipShowForAbsentBoss
+    then
+        RecordRootShowDecisionShadow(frame, {
+            branch = "protected-combat-keep",
+            action = "keep",
+            reason = "live-protected-combat-keep",
+            mode = mode,
+            modeReason = modeReason,
+            previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+            previewOutsideCombat = previewOutsideCombat,
+            unitPresent = unitPresent,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            canCallShow = canCallShow,
+            absentTargetGuard = skipShowForAbsentTarget,
+            absentTargetTargetGuard = skipShowForAbsentTargetTarget,
+            absentFocusTargetGuard = skipShowForAbsentFocusTarget,
+            absentBossGuard = skipShowForAbsentBoss,
+        }, {
+            config = config,
+            mode = mode,
+            modeReason = modeReason,
+            previewOutsideCombat = previewOutsideCombat,
+            protectedRoot = protectedRoot,
+            inCombat = inCombat,
+            unitPresent = unitPresent,
+        })
     end
 
     if Demo.ReportDebug then

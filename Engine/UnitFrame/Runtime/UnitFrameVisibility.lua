@@ -436,13 +436,13 @@ function Visibility.ResolveRootShowDecision(frame, options)
         return decision
     end
 
-    if config.enabled == false and not (FocalPoint and FocalPoint.framesUnlocked == true) then
-        decision.reason = "disabled-live-return"
+    if mode == "disabled" then
+        decision.reason = "demo-disabled-return"
         return decision
     end
 
-    if mode == "disabled" then
-        decision.reason = "demo-disabled-return"
+    if config.enabled == false and not (FocalPoint and FocalPoint.framesUnlocked == true) then
+        decision.reason = "disabled-live-return"
         return decision
     end
 
@@ -1177,6 +1177,16 @@ local function EnsureDecisionDebugState()
         criticalProfileMatchesByProfile = {},
         criticalProfileRecentMismatches = {},
         criticalProfileLastMismatch = nil,
+        rootShowDecisionComparisons = 0,
+        rootShowDecisionMismatches = 0,
+        rootShowDecisionMismatchesByAction = {},
+        rootShowDecisionMismatchesByReason = {},
+        rootShowDecisionMismatchesByField = {},
+        rootShowDecisionMismatchesByUnit = {},
+        rootShowDecisionComparisonsByBranch = {},
+        rootShowDecisionMatchesByBranch = {},
+        rootShowDecisionRecentMismatches = {},
+        rootShowDecisionLastMismatch = nil,
     }
     return FocalPoint.VisibilityDecisionDebug
 end
@@ -1196,6 +1206,15 @@ local function EnsureRootActionDebugState(state)
     state.criticalProfileMismatchesByField = state.criticalProfileMismatchesByField or {}
     state.criticalProfileMatchesByProfile = state.criticalProfileMatchesByProfile or {}
     state.criticalProfileRecentMismatches = state.criticalProfileRecentMismatches or {}
+    state.rootShowDecisionComparisons = tonumber(state.rootShowDecisionComparisons) or 0
+    state.rootShowDecisionMismatches = tonumber(state.rootShowDecisionMismatches) or 0
+    state.rootShowDecisionMismatchesByAction = state.rootShowDecisionMismatchesByAction or {}
+    state.rootShowDecisionMismatchesByReason = state.rootShowDecisionMismatchesByReason or {}
+    state.rootShowDecisionMismatchesByField = state.rootShowDecisionMismatchesByField or {}
+    state.rootShowDecisionMismatchesByUnit = state.rootShowDecisionMismatchesByUnit or {}
+    state.rootShowDecisionComparisonsByBranch = state.rootShowDecisionComparisonsByBranch or {}
+    state.rootShowDecisionMatchesByBranch = state.rootShowDecisionMatchesByBranch or {}
+    state.rootShowDecisionRecentMismatches = state.rootShowDecisionRecentMismatches or {}
     return state
 end
 
@@ -1236,6 +1255,16 @@ function Visibility.ResetDecisionDebug()
     state.criticalProfileMatchesByProfile = WipeDecisionDebugMap(state.criticalProfileMatchesByProfile)
     state.criticalProfileRecentMismatches = WipeDecisionDebugMap(state.criticalProfileRecentMismatches)
     state.criticalProfileLastMismatch = nil
+    state.rootShowDecisionComparisons = 0
+    state.rootShowDecisionMismatches = 0
+    state.rootShowDecisionMismatchesByAction = WipeDecisionDebugMap(state.rootShowDecisionMismatchesByAction)
+    state.rootShowDecisionMismatchesByReason = WipeDecisionDebugMap(state.rootShowDecisionMismatchesByReason)
+    state.rootShowDecisionMismatchesByField = WipeDecisionDebugMap(state.rootShowDecisionMismatchesByField)
+    state.rootShowDecisionMismatchesByUnit = WipeDecisionDebugMap(state.rootShowDecisionMismatchesByUnit)
+    state.rootShowDecisionComparisonsByBranch = WipeDecisionDebugMap(state.rootShowDecisionComparisonsByBranch)
+    state.rootShowDecisionMatchesByBranch = WipeDecisionDebugMap(state.rootShowDecisionMatchesByBranch)
+    state.rootShowDecisionRecentMismatches = WipeDecisionDebugMap(state.rootShowDecisionRecentMismatches)
+    state.rootShowDecisionLastMismatch = nil
     return state
 end
 
@@ -1253,6 +1282,97 @@ end
 local function BumpCounter(map, key)
     key = tostring(key or "unknown")
     map[key] = (tonumber(map[key]) or 0) + 1
+end
+
+local ROOT_SHOW_REASON_ALIASES = {
+    ["live-present"] = "live-present-show",
+    ["live-present-show"] = "live-present-show",
+    ["live-local-show"] = "live-local-show",
+    ["preview-detailed"] = "preview-detailed-show",
+    ["preview-detailed-show"] = "preview-detailed-show",
+    ["unlock-selected-detailed"] = "preview-detailed-show",
+    ["global-demo-detailed"] = "preview-detailed-show",
+    ["preview-placeholder"] = "preview-placeholder-show",
+    ["preview-placeholder-show"] = "preview-placeholder-show",
+    ["unlock-placeholder"] = "preview-placeholder-show",
+    ["unlock-disabled-placeholder"] = "preview-placeholder-show",
+    ["absent-target"] = "absent-target",
+    ["absent-targettarget"] = "absent-targettarget",
+    ["absent-focustarget"] = "absent-focustarget",
+    ["absent-boss"] = "absent-boss",
+    ["protected-combat-keep"] = "protected-combat-keep",
+    ["live-protected-combat-keep"] = "protected-combat-keep",
+    ["preview-protected-combat-keep"] = "protected-combat-keep",
+    ["demo-disabled-return"] = "demo-disabled-return",
+    ["demo-filtered-return"] = "demo-filtered-return",
+    ["missing-handled-return"] = "missing-handled-return",
+    ["disabled-live-return"] = "disabled-live-return",
+    ["invalid-frame"] = "invalid-frame",
+    ["invalid-config"] = "invalid-config",
+    ["refresh-not-reached"] = "refresh-not-reached",
+}
+
+local ROOT_SHOW_BRANCH_ORDER = {
+    "preview-detailed",
+    "preview-placeholder",
+    "live-present",
+    "absent-target",
+    "absent-targettarget",
+    "absent-focustarget",
+    "absent-boss",
+    "protected-combat-keep",
+    "demo-disabled-return",
+    "demo-filtered-return",
+}
+
+local function NormalizeRootShowReason(reason)
+    local value = tostring(reason or "unknown")
+    return ROOT_SHOW_REASON_ALIASES[value] or value
+end
+
+local ROOT_SHOW_COMPARE_FIELDS = {
+    { key = "action", label = "action" },
+    { key = "reason", label = "reason", reason = true },
+    { key = "shouldShow", label = "shouldShow", boolean = true },
+    { key = "shouldSkipShow", label = "shouldSkipShow", boolean = true },
+    { key = "mode", label = "mode" },
+    { key = "previewActive", label = "previewActive", boolean = true },
+    { key = "unitPresent", label = "unitPresent", boolean = true },
+    { key = "protectedRoot", label = "protectedRoot", boolean = true },
+    { key = "inCombat", label = "inCombat", boolean = true },
+    { key = "absentTargetGuard", label = "absentTargetGuard", boolean = true },
+    { key = "absentTargetTargetGuard", label = "absentTargetTargetGuard", boolean = true },
+    { key = "absentFocusTargetGuard", label = "absentFocusTargetGuard", boolean = true },
+    { key = "absentBossGuard", label = "absentBossGuard", boolean = true },
+    { key = "canCallShow", label = "canCallShow", boolean = true },
+    { key = "missingHandled", label = "missingHandled", boolean = true },
+    { key = "refreshApplyReached", label = "refreshApplyReached", boolean = true },
+}
+
+local function NormalizeRootShowCompareValue(field, value)
+    if field and field.reason == true then
+        return NormalizeRootShowReason(value)
+    end
+    if field and field.boolean == true then
+        return value == true
+    end
+    return value
+end
+
+local function CompareLegacyToRootShowDecision(legacy, decision)
+    local mismatches = {}
+    for _, field in ipairs(ROOT_SHOW_COMPARE_FIELDS) do
+        local legacyValue = NormalizeRootShowCompareValue(field, legacy and legacy[field.key])
+        local decisionValue = NormalizeRootShowCompareValue(field, decision and decision[field.key])
+        if legacyValue ~= decisionValue then
+            mismatches[#mismatches + 1] = {
+                field = field.label,
+                legacyValue = legacy and legacy[field.key],
+                decisionValue = decision and decision[field.key],
+            }
+        end
+    end
+    return mismatches
 end
 
 local ROOT_ACTION_REASON_ALIASES = {
@@ -1666,6 +1786,14 @@ local function AppendCriticalProfileCoverage(lines, state)
     end
 end
 
+local function AppendRootShowBranchCoverage(lines, state)
+    lines[#lines + 1] = "Root Show Decision comparisons by branch:"
+    for _, branch in ipairs(ROOT_SHOW_BRANCH_ORDER) do
+        local count = tonumber(state.rootShowDecisionComparisonsByBranch and state.rootShowDecisionComparisonsByBranch[branch]) or 0
+        lines[#lines + 1] = string.format("  %s: %d", branch, count)
+    end
+end
+
 local function FormatCriticalMismatchList(entry)
     local parts = {}
     for _, mismatch in ipairs(entry and entry.mismatches or {}) do
@@ -1758,6 +1886,66 @@ local function RecordRootActionPlanComparison(frame, plan, legacy)
     local recent = state.rootActionPlanRecentMismatches
     recent[#recent + 1] = entry
     while #recent > MAX_ROOT_ACTION_PLAN_MISMATCHES do
+        table.remove(recent, 1)
+    end
+end
+
+function Visibility.RecordRootShowDecisionComparison(frame, legacy, decision)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return
+    end
+    if not legacy or not decision then
+        return
+    end
+
+    local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
+    local mismatches = CompareLegacyToRootShowDecision(legacy, decision)
+    local unit = tostring(legacy.unit or decision.unit or frame and frame.unit or "unknown")
+    local legacyBranch = tostring(legacy.branch or legacy.reason or "unknown")
+    local legacyReason = NormalizeRootShowReason(legacy.reason or legacy.branch)
+    local decisionReason = NormalizeRootShowReason(decision.reason)
+
+    state.rootShowDecisionComparisons = (tonumber(state.rootShowDecisionComparisons) or 0) + 1
+    BumpCounter(state.rootShowDecisionComparisonsByBranch, legacyBranch)
+
+    if #mismatches == 0 then
+        BumpCounter(state.rootShowDecisionMatchesByBranch, legacyBranch)
+        return
+    end
+
+    state.rootShowDecisionMismatches = (tonumber(state.rootShowDecisionMismatches) or 0) + 1
+    BumpCounter(state.rootShowDecisionMismatchesByAction, tostring(legacy.action or "?") .. "->" .. tostring(decision.action or "?"))
+    BumpCounter(state.rootShowDecisionMismatchesByReason, legacyReason .. "->" .. decisionReason)
+    BumpCounter(state.rootShowDecisionMismatchesByUnit, unit)
+    for _, mismatch in ipairs(mismatches) do
+        BumpCounter(state.rootShowDecisionMismatchesByField, mismatch.field)
+    end
+
+    local entry = {
+        unit = unit,
+        legacyBranch = legacyBranch,
+        legacyReason = legacy.reason,
+        decisionReason = decision.reason,
+        legacyAction = legacy.action,
+        decisionAction = decision.action,
+        legacyShow = legacy.shouldShow == true,
+        decisionShow = decision.shouldShow == true,
+        legacySkipShow = legacy.shouldSkipShow == true,
+        decisionSkipShow = decision.shouldSkipShow == true,
+        mode = decision.mode or legacy.mode,
+        preview = decision.previewActive == true,
+        unitPresent = decision.unitPresent == true,
+        protected = decision.protectedRoot == true,
+        combat = decision.inCombat == true,
+        legacy = legacy,
+        decision = decision,
+        mismatches = mismatches,
+    }
+
+    state.rootShowDecisionLastMismatch = entry
+    local recent = state.rootShowDecisionRecentMismatches
+    recent[#recent + 1] = entry
+    while #recent > MAX_DECISION_DEBUG_MISMATCHES do
         table.remove(recent, 1)
     end
 end
@@ -1942,6 +2130,22 @@ local function FormatIgnoredAliasList(entry)
     return table.concat(parts, ",")
 end
 
+local function FormatRootShowMismatchList(entry)
+    local parts = {}
+    for _, mismatch in ipairs(entry and entry.mismatches or {}) do
+        parts[#parts + 1] = string.format(
+            "%s=%s/%s",
+            tostring(mismatch.field),
+            tostring(mismatch.legacyValue),
+            tostring(mismatch.decisionValue)
+        )
+    end
+    if #parts == 0 then
+        return "none"
+    end
+    return table.concat(parts, ",")
+end
+
 function Visibility.GetDecisionDebugStatus()
     local state = EnsureDecisionDebugState()
     EnsureRootActionDebugState(state)
@@ -1953,6 +2157,8 @@ function Visibility.GetDecisionDebugStatus()
         rootActionPlanMismatches = tonumber(state.rootActionPlanMismatches) or 0,
         criticalProfileComparisons = tonumber(state.criticalProfileComparisons) or 0,
         criticalProfileMismatches = tonumber(state.criticalProfileMismatches) or 0,
+        rootShowDecisionComparisons = tonumber(state.rootShowDecisionComparisons) or 0,
+        rootShowDecisionMismatches = tonumber(state.rootShowDecisionMismatches) or 0,
         recentCount = #(state.recentMismatches or {}),
     }
 end
@@ -1966,6 +2172,8 @@ function Visibility.BuildDecisionDebugReport()
     local rootActionMismatches = tonumber(state.rootActionPlanMismatches) or 0
     local criticalProfileComparisons = tonumber(state.criticalProfileComparisons) or 0
     local criticalProfileMismatches = tonumber(state.criticalProfileMismatches) or 0
+    local rootShowComparisons = tonumber(state.rootShowDecisionComparisons) or 0
+    local rootShowMismatches = tonumber(state.rootShowDecisionMismatches) or 0
     local mismatchRate = totalComparisons > 0
         and ((totalMismatches / totalComparisons) * 100)
         or 0
@@ -1974,6 +2182,9 @@ function Visibility.BuildDecisionDebugReport()
         or 0
     local criticalProfileMismatchRate = criticalProfileComparisons > 0
         and ((criticalProfileMismatches / criticalProfileComparisons) * 100)
+        or 0
+    local rootShowMismatchRate = rootShowComparisons > 0
+        and ((rootShowMismatches / rootShowComparisons) * 100)
         or 0
     local lines = {
         "Visibility shadow report",
@@ -2097,6 +2308,80 @@ function Visibility.BuildDecisionDebugReport()
         lines[#lines + 1] = "  comparedFields=" .. FormatCriticalMismatchList(criticalLast)
     else
         lines[#lines + 1] = "  none"
+    end
+
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Root Show Decision comparisons"
+    lines[#lines + 1] = string.format("Comparisons: %d", rootShowComparisons)
+    lines[#lines + 1] = string.format("Mismatches: %d", rootShowMismatches)
+    lines[#lines + 1] = string.format("Mismatch rate: %.2f%%", rootShowMismatchRate)
+    lines[#lines + 1] = ""
+    AppendRootShowBranchCoverage(lines, state)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Show Decision mismatches by action:", state.rootShowDecisionMismatchesByAction)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Show Decision mismatches by reason:", state.rootShowDecisionMismatchesByReason)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Show Decision mismatches by field:", state.rootShowDecisionMismatchesByField)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Show Decision mismatches by unit:", state.rootShowDecisionMismatchesByUnit)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Show Decision matches by branch:", state.rootShowDecisionMatchesByBranch)
+
+    local rootShowLast = state.rootShowDecisionLastMismatch
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Last Root Show Decision mismatch:"
+    if rootShowLast then
+        lines[#lines + 1] = string.format(
+            "  unit=%s legacyBranch=%s decisionReason=%s legacyAction=%s decisionAction=%s legacyShow=%s decisionShow=%s mode=%s preview=%s unitPresent=%s protected=%s combat=%s",
+            tostring(rootShowLast.unit),
+            tostring(rootShowLast.legacyBranch),
+            tostring(rootShowLast.decisionReason),
+            tostring(rootShowLast.legacyAction),
+            tostring(rootShowLast.decisionAction),
+            tostring(rootShowLast.legacyShow),
+            tostring(rootShowLast.decisionShow),
+            tostring(rootShowLast.mode),
+            tostring(rootShowLast.preview),
+            tostring(rootShowLast.unitPresent),
+            tostring(rootShowLast.protected),
+            tostring(rootShowLast.combat)
+        )
+        lines[#lines + 1] = string.format(
+            "  absent target=%s/%s targettarget=%s/%s focustarget=%s/%s boss=%s/%s",
+            tostring(rootShowLast.legacy and rootShowLast.legacy.absentTargetGuard),
+            tostring(rootShowLast.decision and rootShowLast.decision.absentTargetGuard),
+            tostring(rootShowLast.legacy and rootShowLast.legacy.absentTargetTargetGuard),
+            tostring(rootShowLast.decision and rootShowLast.decision.absentTargetTargetGuard),
+            tostring(rootShowLast.legacy and rootShowLast.legacy.absentFocusTargetGuard),
+            tostring(rootShowLast.decision and rootShowLast.decision.absentFocusTargetGuard),
+            tostring(rootShowLast.legacy and rootShowLast.legacy.absentBossGuard),
+            tostring(rootShowLast.decision and rootShowLast.decision.absentBossGuard)
+        )
+        lines[#lines + 1] = "  comparedFields=" .. FormatRootShowMismatchList(rootShowLast)
+    else
+        lines[#lines + 1] = "  none"
+    end
+
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Recent Root Show Decision mismatches:"
+    local recentRootShow = state.rootShowDecisionRecentMismatches or {}
+    if #recentRootShow == 0 then
+        lines[#lines + 1] = "  none"
+    else
+        for index, entry in ipairs(recentRootShow) do
+            lines[#lines + 1] = string.format(
+                "  %d. unit=%s legacyBranch=%s legacyAction=%s decisionAction=%s reason=%s/%s fields=%s",
+                index,
+                tostring(entry.unit),
+                tostring(entry.legacyBranch),
+                tostring(entry.legacyAction),
+                tostring(entry.decisionAction),
+                tostring(entry.legacyReason),
+                tostring(entry.decisionReason),
+                FormatRootShowMismatchList(entry)
+            )
+        end
     end
 
     return lines
