@@ -1306,6 +1306,83 @@ local function RecordRootActionPlanComparison(frame, plan, legacy)
     end
 end
 
+local function IsRootActionPlanValue(plan, expectedReason, expected)
+    if type(plan) ~= "table" or type(expected) ~= "table" then
+        return false
+    end
+
+    local planReason = NormalizeRootActionReason(plan.reason, plan.specialModeActive)
+    if planReason ~= expectedReason then
+        return false
+    end
+
+    return plan.clearAction == expected.clearAction
+        and plan.alphaAction == expected.alphaAction
+        and plan.mouseAction == expected.mouseAction
+        and plan.rootAction == expected.rootAction
+        and plan.stateAction == expected.stateAction
+        and plan.recoveryAction == expected.recoveryAction
+        and plan.shouldReturn == expected.shouldReturn
+end
+
+local function ApplyRootActionPlan(frame, plan)
+    if not frame or type(plan) ~= "table" then
+        return false
+    end
+    if plan.recoveryAction ~= "none" then
+        return false
+    end
+
+    if plan.stateAction == "clear-missing" then
+        frame._missingUnitSince = nil
+    elseif plan.stateAction == "unit-lost" then
+        if State.HandleUnitLost then
+            State.HandleUnitLost(frame, plan.reason or "unit_lost")
+        else
+            Visibility.ClearFrameVisualState(frame, plan.reason or "unit_lost")
+        end
+    elseif plan.stateAction ~= "none" then
+        return false
+    end
+
+    if plan.clearAction == "content-only" then
+        if Visibility.ClearFrameContentValuesOnly then
+            Visibility.ClearFrameContentValuesOnly(frame, plan.reason)
+        end
+    elseif plan.clearAction == "hard" then
+        -- Hard clear for unit-lost branches is performed by State.HandleUnitLost above.
+    elseif plan.clearAction ~= "none" then
+        return false
+    end
+
+    if plan.alphaAction == "zero" then
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+    elseif plan.alphaAction ~= "keep" then
+        return false
+    end
+
+    if plan.mouseAction == "disable" then
+        if frame.EnableMouse then
+            frame:EnableMouse(false)
+        end
+        if frame.SetMouseClickEnabled then
+            frame:SetMouseClickEnabled(false)
+        end
+    elseif plan.mouseAction ~= "keep" then
+        return false
+    end
+
+    if plan.rootAction == "hide-if-safe" then
+        HideFrameIfSafe(frame)
+    elseif plan.rootAction ~= "keep" then
+        return false
+    end
+
+    return true
+end
+
 local function AppendSortedCounters(lines, title, map)
     lines[#lines + 1] = title
     local entries = {}
@@ -1723,10 +1800,7 @@ function Visibility.HandleMissingUnit(frame)
     if debugEnabled then
         RecordDecisionDebugComparison(frame, decision)
     end
-    local function ResolveRootActionPlanForTrace(planOptions)
-        if not debugEnabled then
-            return nil
-        end
+    local function ResolveRootActionPlanOnce(planOptions)
         if not rootActionPlanResolved then
             planOptions = type(planOptions) == "table" and planOptions or {}
             planOptions.rootDecision = planOptions.rootDecision or decision
@@ -1739,12 +1813,33 @@ function Visibility.HandleMissingUnit(frame)
         if not debugEnabled then
             return
         end
-        local plan = ResolveRootActionPlanForTrace(planOptions)
+        local plan = ResolveRootActionPlanOnce(planOptions)
         local legacy = BuildLegacyRootActionTraceFromPlan(frame, plan, branch, values)
         RecordRootActionPlanComparison(frame, rootActionPlan, legacy)
     end
 
     if decision.specialModeActive then
+        local expected = {
+            clearAction = "hard",
+            alphaAction = "zero",
+            mouseAction = "keep",
+            rootAction = "hide-if-safe",
+            stateAction = "unit-lost",
+            recoveryAction = "none",
+            shouldReturn = true,
+        }
+        local plan = ResolveRootActionPlanOnce()
+        if IsRootActionPlanValue(plan, "special_mode", expected) and ApplyRootActionPlan(frame, plan) then
+            RecordRootActionTrace(decision.specialModeReason or "special_mode", {
+                clearAction = ResolveUnitLostClearAction(frame, decision.specialModeReason or "special_mode", plan),
+                alphaAction = "zero",
+                rootAction = "hide-if-safe",
+                stateAction = "unit-lost",
+                shouldReturn = true,
+            })
+            return true
+        end
+
         if State.HandleUnitLost then
             State.HandleUnitLost(frame, decision.specialModeReason or "special_mode")
         else
@@ -1755,7 +1850,7 @@ function Visibility.HandleMissingUnit(frame)
         end
         HideFrameIfSafe(frame)
         RecordRootActionTrace(decision.specialModeReason or "special_mode", {
-            clearAction = ResolveUnitLostClearAction(frame, decision.specialModeReason or "special_mode", rootActionPlan),
+            clearAction = ResolveUnitLostClearAction(frame, decision.specialModeReason or "special_mode", plan),
             alphaAction = "zero",
             rootAction = "hide-if-safe",
             stateAction = "unit-lost",
@@ -1769,6 +1864,28 @@ function Visibility.HandleMissingUnit(frame)
         and not Demo.IsFrameUnitEnabled(frame)
         and not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true)
     then
+        local expected = {
+            clearAction = "content-only",
+            alphaAction = "zero",
+            mouseAction = "disable",
+            rootAction = "hide-if-safe",
+            stateAction = "clear-missing",
+            recoveryAction = "none",
+            shouldReturn = true,
+        }
+        local plan = ResolveRootActionPlanOnce()
+        if IsRootActionPlanValue(plan, "preview_disabled", expected) and ApplyRootActionPlan(frame, plan) then
+            RecordRootActionTrace("preview-disabled-unit", {
+                clearAction = "content-only",
+                alphaAction = "zero",
+                mouseAction = "disable",
+                rootAction = "hide-if-safe",
+                stateAction = "clear-missing",
+                shouldReturn = true,
+            })
+            return true
+        end
+
         frame._missingUnitSince = nil
         if Visibility.ClearFrameContentValuesOnly then
             Visibility.ClearFrameContentValuesOnly(frame, "preview-disabled-unit")
@@ -1795,6 +1912,24 @@ function Visibility.HandleMissingUnit(frame)
     end
 
     if decision.forceVisible then
+        local expected = {
+            clearAction = "none",
+            alphaAction = "keep",
+            mouseAction = "keep",
+            rootAction = "keep",
+            stateAction = "clear-missing",
+            recoveryAction = "none",
+            shouldReturn = false,
+        }
+        local plan = ResolveRootActionPlanOnce()
+        if IsRootActionPlanValue(plan, "force_visible", expected) and ApplyRootActionPlan(frame, plan) then
+            RecordRootActionTrace("force-visible", {
+                stateAction = "clear-missing",
+                shouldReturn = false,
+            })
+            return false
+        end
+
         frame._missingUnitSince = nil
         RecordRootActionTrace("force-visible", {
             stateAction = "clear-missing",
@@ -1988,6 +2123,26 @@ function Visibility.HandleMissingUnit(frame)
             missingSuppressed = false,
         })
         return true
+    end
+
+    do
+        local expected = {
+            clearAction = "none",
+            alphaAction = "keep",
+            mouseAction = "keep",
+            rootAction = "keep",
+            stateAction = "clear-missing",
+            recoveryAction = "none",
+            shouldReturn = false,
+        }
+        local plan = ResolveRootActionPlanOnce()
+        if IsRootActionPlanValue(plan, "unit_present", expected) and ApplyRootActionPlan(frame, plan) then
+            RecordRootActionTrace("unit-present", {
+                stateAction = "clear-missing",
+                shouldReturn = false,
+            })
+            return false
+        end
     end
 
     RecordRootActionTrace("unit-present", {
