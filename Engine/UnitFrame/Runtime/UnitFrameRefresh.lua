@@ -192,19 +192,68 @@ local function BuildRootShowLegacyTrace(frame, values)
     }
 end
 
-local function RecordRootShowDecisionShadow(frame, legacyValues, decisionOptions)
-    if not IsRootShowDebugEnabled() then
-        return
+local function RecordRootShowDecisionShadow(frame, legacyValues, decisionOptions, forceResolve)
+    local debugEnabled = IsRootShowDebugEnabled()
+    if not debugEnabled and forceResolve ~= true then
+        return nil
     end
-    if not (Visibility.ResolveRootShowDecision and Visibility.RecordRootShowDecisionComparison) then
-        return
+    if not Visibility.ResolveRootShowDecision then
+        return nil
     end
 
-    legacyValues = type(legacyValues) == "table" and legacyValues or {}
     decisionOptions = type(decisionOptions) == "table" and decisionOptions or {}
-    local legacy = BuildRootShowLegacyTrace(frame, legacyValues)
     local decision = Visibility.ResolveRootShowDecision(frame, decisionOptions)
-    Visibility.RecordRootShowDecisionComparison(frame, legacy, decision)
+
+    if debugEnabled and Visibility.RecordRootShowDecisionComparison then
+        legacyValues = type(legacyValues) == "table" and legacyValues or {}
+        local legacy = BuildRootShowLegacyTrace(frame, legacyValues)
+        Visibility.RecordRootShowDecisionComparison(frame, legacy, decision)
+    end
+
+    return decision
+end
+
+local function NormalizeRootShowDecisionReason(reason)
+    if reason == "live-protected-combat-keep"
+        or reason == "preview-protected-combat-keep"
+    then
+        return "protected-combat-keep"
+    end
+    return reason
+end
+
+local function IsValidatedPreviewShowDecision(decision, mode, reason)
+    return decision
+        and decision.action == "show"
+        and decision.reason == reason
+        and decision.shouldShow == true
+        and decision.shouldSkipShow == false
+        and decision.previewActive == true
+        and decision.mode == mode
+        and decision.canCallShow == true
+end
+
+local function IsValidatedLivePresentShowDecision(decision)
+    return decision
+        and decision.action == "show"
+        and decision.reason == "live-present-show"
+        and decision.shouldShow == true
+        and decision.shouldSkipShow == false
+        and decision.previewActive == false
+        and decision.unitPresent == true
+        and decision.mode == "live"
+        and decision.canCallShow == true
+end
+
+local function IsValidatedProtectedCombatKeepDecision(decision)
+    return decision
+        and decision.action == "keep"
+        and NormalizeRootShowDecisionReason(decision.reason) == "protected-combat-keep"
+        and decision.shouldShow == false
+        and decision.shouldSkipShow == false
+        and decision.protectedRoot == true
+        and decision.inCombat == true
+        and decision.canCallShow == false
 end
 
 -- Refresh orchestration keeps the normal live-update path together so the
@@ -360,7 +409,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
 
         if not protectedRoot or previewOutsideCombat or outsideCombat then
             local unitPresent = ResolveRefreshUnitPresent(frame)
-            RecordRootShowDecisionShadow(frame, {
+            local showDecision = RecordRootShowDecisionShadow(frame, {
                 branch = mode == "placeholder" and "preview-placeholder" or "preview-detailed",
                 action = "show",
                 reason = mode == "placeholder" and "preview-placeholder-show" or "preview-detailed-show",
@@ -381,11 +430,18 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
                 protectedRoot = protectedRoot,
                 inCombat = inCombat,
                 unitPresent = unitPresent,
-            })
-            frame:Show()
+            }, true)
+            local expectedReason = mode == "placeholder" and "preview-placeholder-show" or "preview-detailed-show"
+            local shouldShowRoot = true
+            if IsValidatedPreviewShowDecision(showDecision, mode, expectedReason) then
+                shouldShowRoot = showDecision.shouldShow == true
+            end
+            if shouldShowRoot then
+                frame:Show()
+            end
         else
             local unitPresent = ResolveRefreshUnitPresent(frame)
-            RecordRootShowDecisionShadow(frame, {
+            local showDecision = RecordRootShowDecisionShadow(frame, {
                 branch = "protected-combat-keep",
                 action = "keep",
                 reason = "preview-protected-combat-keep",
@@ -405,7 +461,12 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
                 protectedRoot = protectedRoot,
                 inCombat = inCombat,
                 unitPresent = unitPresent,
-            })
+            }, true)
+            if IsValidatedProtectedCombatKeepDecision(showDecision) then
+                -- Decision validated the existing protected-combat keep behavior.
+            else
+                -- Legacy fallback: protected-combat keep also performs no root show.
+            end
         end
         if Demo.ReportDebug then
             Demo.ReportDebug(frame)
@@ -525,7 +586,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         and not skipShowForAbsentFocusTarget
         and not skipShowForAbsentBoss
     then
-        RecordRootShowDecisionShadow(frame, {
+        local showDecision = RecordRootShowDecisionShadow(frame, {
             branch = unitPresent and "live-present" or "live-local-show",
             action = "show",
             reason = unitPresent and "live-present-show" or "live-local-show",
@@ -550,14 +611,20 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             protectedRoot = protectedRoot,
             inCombat = inCombat,
             unitPresent = unitPresent,
-        })
-        frame:Show()
+        }, true)
+        local shouldShowRoot = true
+        if IsValidatedLivePresentShowDecision(showDecision) then
+            shouldShowRoot = showDecision.shouldShow == true
+        end
+        if shouldShowRoot then
+            frame:Show()
+        end
     elseif not skipShowForAbsentTarget
         and not skipShowForAbsentTargetTarget
         and not skipShowForAbsentFocusTarget
         and not skipShowForAbsentBoss
     then
-        RecordRootShowDecisionShadow(frame, {
+        local showDecision = RecordRootShowDecisionShadow(frame, {
             branch = "protected-combat-keep",
             action = "keep",
             reason = "live-protected-combat-keep",
@@ -581,7 +648,12 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             protectedRoot = protectedRoot,
             inCombat = inCombat,
             unitPresent = unitPresent,
-        })
+        }, true)
+        if IsValidatedProtectedCombatKeepDecision(showDecision) then
+            -- Decision validated the existing protected-combat keep behavior.
+        else
+            -- Legacy fallback: protected-combat keep also performs no root show.
+        end
     end
 
     if Demo.ReportDebug then
