@@ -527,6 +527,7 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
 end
 
 local MAX_DECISION_DEBUG_MISMATCHES = 20
+local MAX_ROOT_ACTION_PLAN_MISMATCHES = 20
 
 IsBossRuntimeUnit = function(unit)
     return type(unit) == "string" and unit:match("^boss%d+$") ~= nil
@@ -601,6 +602,17 @@ local function ResolveLegacyMissingUnitOutcome(frame)
         outcome.wouldAlphaZero = true
         outcome.wouldDisableMouse = true
         outcome.wouldHideRoot = WouldHideRoot(frame)
+        return outcome
+    end
+
+    if not previewEnabled
+        and Demo.IsFrameUnitEnabled
+        and not Demo.IsFrameUnitEnabled(frame)
+    then
+        outcome.handled = true
+        outcome.outcome = "unit-disabled"
+        outcome.wouldAlphaZero = true
+        outcome.wouldDisableMouse = true
         return outcome
     end
 
@@ -755,6 +767,7 @@ local function BuildMissingUnitActionPlan(frame, rootDecision, branchReason, opt
         canHideRoot = canHideRoot,
         missingSuppressed = missingSuppressed,
         targetTransition = false,
+        suspiciousMissingTarget = false,
         protectedInCombat = protectedInCombat,
     }
 end
@@ -911,8 +924,27 @@ local function EnsureDecisionDebugState()
         matchesByUnit = {},
         recentMismatches = {},
         lastMismatch = nil,
+        rootActionPlanComparisons = 0,
+        rootActionPlanMismatches = 0,
+        rootActionPlanMismatchesByBranch = {},
+        rootActionPlanMismatchesByField = {},
+        rootActionPlanMismatchesByUnit = {},
+        rootActionPlanMatchesByBranch = {},
+        rootActionPlanRecentMismatches = {},
+        rootActionPlanLastMismatch = nil,
     }
     return FocalPoint.VisibilityDecisionDebug
+end
+
+local function EnsureRootActionDebugState(state)
+    state.rootActionPlanComparisons = tonumber(state.rootActionPlanComparisons) or 0
+    state.rootActionPlanMismatches = tonumber(state.rootActionPlanMismatches) or 0
+    state.rootActionPlanMismatchesByBranch = state.rootActionPlanMismatchesByBranch or {}
+    state.rootActionPlanMismatchesByField = state.rootActionPlanMismatchesByField or {}
+    state.rootActionPlanMismatchesByUnit = state.rootActionPlanMismatchesByUnit or {}
+    state.rootActionPlanMatchesByBranch = state.rootActionPlanMatchesByBranch or {}
+    state.rootActionPlanRecentMismatches = state.rootActionPlanRecentMismatches or {}
+    return state
 end
 
 local function WipeDecisionDebugMap(map)
@@ -935,6 +967,15 @@ function Visibility.ResetDecisionDebug()
     state.matchesByUnit = WipeDecisionDebugMap(state.matchesByUnit)
     state.recentMismatches = WipeDecisionDebugMap(state.recentMismatches)
     state.lastMismatch = nil
+    EnsureRootActionDebugState(state)
+    state.rootActionPlanComparisons = 0
+    state.rootActionPlanMismatches = 0
+    state.rootActionPlanMismatchesByBranch = WipeDecisionDebugMap(state.rootActionPlanMismatchesByBranch)
+    state.rootActionPlanMismatchesByField = WipeDecisionDebugMap(state.rootActionPlanMismatchesByField)
+    state.rootActionPlanMismatchesByUnit = WipeDecisionDebugMap(state.rootActionPlanMismatchesByUnit)
+    state.rootActionPlanMatchesByBranch = WipeDecisionDebugMap(state.rootActionPlanMatchesByBranch)
+    state.rootActionPlanRecentMismatches = WipeDecisionDebugMap(state.rootActionPlanRecentMismatches)
+    state.rootActionPlanLastMismatch = nil
     return state
 end
 
@@ -952,6 +993,138 @@ end
 local function BumpCounter(map, key)
     key = tostring(key or "unknown")
     map[key] = (tonumber(map[key]) or 0) + 1
+end
+
+local ROOT_ACTION_REASON_ALIASES = {
+    ["target-missing-transition"] = "target_missing_transition",
+    ["missing-target-transition"] = "target_missing_transition",
+    ["preview-disabled"] = "preview_disabled",
+    ["preview-disabled-unit"] = "preview_disabled",
+    ["disabled-preview"] = "preview_disabled",
+    ["force-visible"] = "force_visible",
+    ["forced-visible"] = "force_visible",
+    ["preview-active"] = "preview_active",
+    ["unit-present"] = "unit_present",
+    ["live-present"] = "unit_present",
+    ["missing-unit"] = "missing_unit",
+    ["missing_unit"] = "missing_unit",
+    ["missing-unit-suppressed"] = "missing_unit_suppressed",
+    ["missing_unit_suppressed"] = "missing_unit_suppressed",
+    ["missing-unit-protected"] = "missing_unit_protected",
+    ["missing_unit_protected"] = "missing_unit_protected",
+    ["missing-unit-protected-suppressed"] = "missing_unit_protected_suppressed",
+    ["missing_unit_protected_suppressed"] = "missing_unit_protected_suppressed",
+    ["special-mode"] = "special_mode",
+    ["special_mode"] = "special_mode",
+}
+
+local function NormalizeRootActionReason(reason, specialModeActive)
+    local value = tostring(reason or "unknown")
+    if specialModeActive == true then
+        return "special_mode"
+    end
+    return ROOT_ACTION_REASON_ALIASES[value] or value
+end
+
+local function BuildLegacyRootActionTrace(frame, branch, values)
+    values = type(values) == "table" and values or {}
+    return {
+        branch = branch or "not-handled",
+        clearAction = values.clearAction or "none",
+        alphaAction = values.alphaAction or "keep",
+        mouseAction = values.mouseAction or "keep",
+        rootAction = values.rootAction or "keep",
+        stateAction = values.stateAction or "none",
+        recoveryAction = values.recoveryAction or "none",
+        shouldReturn = values.shouldReturn == true,
+        unit = values.unit or frame and frame.unit or nil,
+        unitPresent = values.unitPresent == true,
+        previewActive = values.previewActive == true,
+        forceVisible = values.forceVisible == true,
+        specialModeActive = values.specialModeActive == true,
+        protectedRoot = values.protectedRoot == true,
+        inCombat = values.inCombat == true,
+        missingSuppressed = values.missingSuppressed == true,
+        targetTransition = values.targetTransition == true,
+        suspiciousMissingTarget = values.suspiciousMissingTarget == true,
+    }
+end
+
+local function BuildLegacyRootActionTraceFromPlan(frame, plan, branch, values)
+    values = type(values) == "table" and values or {}
+    return BuildLegacyRootActionTrace(frame, branch, {
+        clearAction = values.clearAction,
+        alphaAction = values.alphaAction,
+        mouseAction = values.mouseAction,
+        rootAction = values.rootAction,
+        stateAction = values.stateAction,
+        recoveryAction = values.recoveryAction,
+        shouldReturn = values.shouldReturn,
+        unit = plan and plan.unit or nil,
+        unitPresent = plan and plan.unitPresent == true or false,
+        previewActive = plan and plan.previewActive == true or false,
+        forceVisible = plan and plan.forceVisible == true or false,
+        specialModeActive = plan and plan.specialModeActive == true or false,
+        protectedRoot = plan and plan.protectedRoot == true or false,
+        inCombat = plan and plan.inCombat == true or false,
+        missingSuppressed = plan and plan.missingSuppressed == true or false,
+        targetTransition = values.targetTransition or plan and plan.targetTransition == true or false,
+        suspiciousMissingTarget = values.suspiciousMissingTarget or plan and plan.suspiciousMissingTarget == true or false,
+    })
+end
+
+local ROOT_ACTION_COMPARE_FIELDS = {
+    { key = "clearAction", label = "clearAction" },
+    { key = "alphaAction", label = "alphaAction" },
+    { key = "mouseAction", label = "mouseAction" },
+    { key = "rootAction", label = "rootAction" },
+    { key = "stateAction", label = "stateAction" },
+    { key = "recoveryAction", label = "recoveryAction" },
+    { key = "shouldReturn", label = "shouldReturn", boolean = true },
+    { key = "unitPresent", label = "unitPresent", boolean = true },
+    { key = "previewActive", label = "previewActive", boolean = true },
+    { key = "forceVisible", label = "forceVisible", boolean = true },
+    { key = "specialModeActive", label = "specialModeActive", boolean = true },
+    { key = "protectedRoot", label = "protectedRoot", boolean = true },
+    { key = "inCombat", label = "inCombat", boolean = true },
+    { key = "missingSuppressed", label = "missingSuppressed", boolean = true },
+    { key = "targetTransition", label = "targetTransition", boolean = true },
+    { key = "suspiciousMissingTarget", label = "suspiciousMissingTarget", boolean = true },
+}
+
+local function NormalizeRootActionCompareValue(field, value)
+    if field and field.boolean == true then
+        return value == true
+    end
+    return value
+end
+
+local function CompareLegacyToRootActionPlan(legacy, plan)
+    local mismatches = {}
+    local legacyReason = NormalizeRootActionReason(legacy and legacy.branch, legacy and legacy.specialModeActive)
+    local planReason = NormalizeRootActionReason(plan and plan.reason, plan and plan.specialModeActive)
+
+    if legacyReason ~= planReason then
+        mismatches[#mismatches + 1] = {
+            field = "reason",
+            legacyValue = legacy and legacy.branch,
+            planValue = plan and plan.reason,
+        }
+    end
+
+    for _, field in ipairs(ROOT_ACTION_COMPARE_FIELDS) do
+        local legacyValue = NormalizeRootActionCompareValue(field, legacy and legacy[field.key])
+        local planValue = NormalizeRootActionCompareValue(field, plan and plan[field.key])
+        if legacyValue ~= planValue then
+            mismatches[#mismatches + 1] = {
+                field = field.label,
+                legacyValue = legacyValue,
+                planValue = planValue,
+            }
+        end
+    end
+
+    return mismatches, legacyReason, planReason
 end
 
 local function BuildMismatch(field, legacyValue, decisionValue)
@@ -994,9 +1167,16 @@ local function CompareLegacyToDecision(legacy, decision)
         or decision.reason == "missing-unit-protected"
         or decision.reason == "missing-unit-protected-suppressed"
         or decision.reason == "target-missing-transition"
+    local legacyPreview = legacy.outcome == "preview"
+    local decisionPreview = decision.mode == "detailed"
+        or decision.mode == "placeholder"
+        or decision.reason == "unlock-placeholder"
+        or decision.reason == "demo-detailed"
 
     Add("missing", legacyMissing, decisionMissing)
-    Add("forceVisible", legacy.forceVisible == true, decision.forceVisible == true)
+    if not (legacyPreview and decisionPreview) then
+        Add("forceVisible", legacy.forceVisible == true, decision.forceVisible == true)
+    end
     Add("specialMode", legacy.specialMode == true, decision.reason == "special-mode")
     Add("previewDisabled", legacy.outcome == "preview-disabled", decision.reason == "preview-disabled")
     Add("shouldSoftClear", legacy.wouldSoftClear == true, decision.shouldSoftClear == true)
@@ -1060,6 +1240,72 @@ local function RecordDecisionDebugComparison(frame, decision)
     end
 end
 
+local function FormatRootActionMismatchList(entry)
+    local parts = {}
+    for _, mismatch in ipairs(entry and entry.mismatches or {}) do
+        parts[#parts + 1] = string.format(
+            "%s=%s/%s",
+            tostring(mismatch.field),
+            tostring(mismatch.legacyValue),
+            tostring(mismatch.planValue)
+        )
+    end
+    if #parts == 0 then
+        return "none"
+    end
+    return table.concat(parts, ",")
+end
+
+local function RecordRootActionPlanComparison(frame, plan, legacy)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return
+    end
+    if not plan or not legacy then
+        return
+    end
+
+    local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
+    local mismatches, legacyReason, planReason = CompareLegacyToRootActionPlan(legacy, plan)
+    local unit = tostring(legacy.unit or plan.unit or "unknown")
+
+    state.rootActionPlanComparisons = (tonumber(state.rootActionPlanComparisons) or 0) + 1
+
+    if #mismatches == 0 then
+        BumpCounter(state.rootActionPlanMatchesByBranch, legacyReason)
+        return
+    end
+
+    state.rootActionPlanMismatches = (tonumber(state.rootActionPlanMismatches) or 0) + 1
+    BumpCounter(state.rootActionPlanMismatchesByBranch, legacyReason .. "->" .. planReason)
+    BumpCounter(state.rootActionPlanMismatchesByUnit, unit)
+    for _, mismatch in ipairs(mismatches) do
+        BumpCounter(state.rootActionPlanMismatchesByField, mismatch.field)
+    end
+
+    local entry = {
+        unit = unit,
+        legacyBranch = legacy.branch,
+        planReason = plan.reason,
+        legacyReason = legacyReason,
+        normalizedPlanReason = planReason,
+        combat = legacy.inCombat == true,
+        protected = legacy.protectedRoot == true,
+        preview = legacy.previewActive == true,
+        missingSuppressed = legacy.missingSuppressed == true,
+        targetTransition = legacy.targetTransition == true,
+        legacy = legacy,
+        plan = plan,
+        mismatches = mismatches,
+    }
+
+    state.rootActionPlanLastMismatch = entry
+    local recent = state.rootActionPlanRecentMismatches
+    recent[#recent + 1] = entry
+    while #recent > MAX_ROOT_ACTION_PLAN_MISMATCHES do
+        table.remove(recent, 1)
+    end
+end
+
 local function AppendSortedCounters(lines, title, map)
     lines[#lines + 1] = title
     local entries = {}
@@ -1112,20 +1358,29 @@ end
 
 function Visibility.GetDecisionDebugStatus()
     local state = EnsureDecisionDebugState()
+    EnsureRootActionDebugState(state)
     return {
         enabled = state.enabled == true,
         totalComparisons = tonumber(state.totalComparisons) or 0,
         totalMismatches = tonumber(state.totalMismatches) or 0,
+        rootActionPlanComparisons = tonumber(state.rootActionPlanComparisons) or 0,
+        rootActionPlanMismatches = tonumber(state.rootActionPlanMismatches) or 0,
         recentCount = #(state.recentMismatches or {}),
     }
 end
 
 function Visibility.BuildDecisionDebugReport()
     local state = EnsureDecisionDebugState()
+    EnsureRootActionDebugState(state)
     local totalComparisons = tonumber(state.totalComparisons) or 0
     local totalMismatches = tonumber(state.totalMismatches) or 0
+    local rootActionComparisons = tonumber(state.rootActionPlanComparisons) or 0
+    local rootActionMismatches = tonumber(state.rootActionPlanMismatches) or 0
     local mismatchRate = totalComparisons > 0
         and ((totalMismatches / totalComparisons) * 100)
+        or 0
+    local rootActionMismatchRate = rootActionComparisons > 0
+        and ((rootActionMismatches / rootActionComparisons) * 100)
         or 0
     local lines = {
         "Visibility shadow report",
@@ -1158,6 +1413,61 @@ function Visibility.BuildDecisionDebugReport()
         )
         lines[#lines + 1] = "  comparedFields=" .. FormatMismatchList(last)
         lines[#lines + 1] = "  ignoredAliasFields=" .. FormatIgnoredAliasList(last)
+    else
+        lines[#lines + 1] = "  none"
+    end
+
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Root Action Plan comparisons"
+    lines[#lines + 1] = string.format("Comparisons: %d", rootActionComparisons)
+    lines[#lines + 1] = string.format("Mismatches: %d", rootActionMismatches)
+    lines[#lines + 1] = string.format("Mismatch rate: %.2f%%", rootActionMismatchRate)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Action Plan mismatches by branch:", state.rootActionPlanMismatchesByBranch)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Action Plan mismatches by field:", state.rootActionPlanMismatchesByField)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Action Plan mismatches by unit:", state.rootActionPlanMismatchesByUnit)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "Root Action Plan matches by branch:", state.rootActionPlanMatchesByBranch)
+
+    local rootLast = state.rootActionPlanLastMismatch
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Last Root Action Plan mismatch:"
+    if rootLast then
+        lines[#lines + 1] = string.format(
+            "  unit=%s legacyBranch=%s planReason=%s protected=%s combat=%s preview=%s missingSuppressed=%s targetTransition=%s suspiciousMissingTarget=%s",
+            tostring(rootLast.unit),
+            tostring(rootLast.legacyBranch),
+            tostring(rootLast.planReason),
+            tostring(rootLast.protected),
+            tostring(rootLast.combat),
+            tostring(rootLast.preview),
+            tostring(rootLast.missingSuppressed),
+            tostring(rootLast.targetTransition),
+            tostring(rootLast.legacy and rootLast.legacy.suspiciousMissingTarget)
+        )
+        lines[#lines + 1] = string.format(
+            "  legacy clear=%s alpha=%s mouse=%s root=%s state=%s recovery=%s return=%s",
+            tostring(rootLast.legacy and rootLast.legacy.clearAction),
+            tostring(rootLast.legacy and rootLast.legacy.alphaAction),
+            tostring(rootLast.legacy and rootLast.legacy.mouseAction),
+            tostring(rootLast.legacy and rootLast.legacy.rootAction),
+            tostring(rootLast.legacy and rootLast.legacy.stateAction),
+            tostring(rootLast.legacy and rootLast.legacy.recoveryAction),
+            tostring(rootLast.legacy and rootLast.legacy.shouldReturn)
+        )
+        lines[#lines + 1] = string.format(
+            "  plan   clear=%s alpha=%s mouse=%s root=%s state=%s recovery=%s return=%s",
+            tostring(rootLast.plan and rootLast.plan.clearAction),
+            tostring(rootLast.plan and rootLast.plan.alphaAction),
+            tostring(rootLast.plan and rootLast.plan.mouseAction),
+            tostring(rootLast.plan and rootLast.plan.rootAction),
+            tostring(rootLast.plan and rootLast.plan.stateAction),
+            tostring(rootLast.plan and rootLast.plan.recoveryAction),
+            tostring(rootLast.plan and rootLast.plan.shouldReturn)
+        )
+        lines[#lines + 1] = "  comparedFields=" .. FormatRootActionMismatchList(rootLast)
     else
         lines[#lines + 1] = "  none"
     end
@@ -1406,9 +1716,32 @@ function Visibility.HandleMissingUnit(frame)
     end
 
     local decision = Visibility.ResolveRootDecision(frame, "handle-missing-unit")
+    local debugEnabled = Visibility.IsDecisionDebugEnabled()
+    local rootActionPlan
+    local rootActionPlanResolved = false
 
-    if Visibility.IsDecisionDebugEnabled() then
+    if debugEnabled then
         RecordDecisionDebugComparison(frame, decision)
+    end
+    local function ResolveRootActionPlanForTrace(planOptions)
+        if not debugEnabled then
+            return nil
+        end
+        if not rootActionPlanResolved then
+            planOptions = type(planOptions) == "table" and planOptions or {}
+            planOptions.rootDecision = planOptions.rootDecision or decision
+            rootActionPlan = Visibility.ResolveRootActionPlan(frame, planOptions)
+            rootActionPlanResolved = true
+        end
+        return rootActionPlan
+    end
+    local function RecordRootActionTrace(branch, values, planOptions)
+        if not debugEnabled then
+            return
+        end
+        local plan = ResolveRootActionPlanForTrace(planOptions)
+        local legacy = BuildLegacyRootActionTraceFromPlan(frame, plan, branch, values)
+        RecordRootActionPlanComparison(frame, rootActionPlan, legacy)
     end
 
     if decision.specialModeActive then
@@ -1421,6 +1754,13 @@ function Visibility.HandleMissingUnit(frame)
             frame:SetAlpha(0)
         end
         HideFrameIfSafe(frame)
+        RecordRootActionTrace(decision.specialModeReason or "special_mode", {
+            clearAction = ResolveUnitLostClearAction(frame, decision.specialModeReason or "special_mode", rootActionPlan),
+            alphaAction = "zero",
+            rootAction = "hide-if-safe",
+            stateAction = "unit-lost",
+            shouldReturn = true,
+        })
         return true
     end
 
@@ -1443,16 +1783,32 @@ function Visibility.HandleMissingUnit(frame)
             frame:SetMouseClickEnabled(false)
         end
         HideFrameIfSafe(frame)
+        RecordRootActionTrace("preview-disabled-unit", {
+            clearAction = "content-only",
+            alphaAction = "zero",
+            mouseAction = "disable",
+            rootAction = "hide-if-safe",
+            stateAction = "clear-missing",
+            shouldReturn = true,
+        })
         return true
     end
 
     if decision.forceVisible then
         frame._missingUnitSince = nil
+        RecordRootActionTrace("force-visible", {
+            stateAction = "clear-missing",
+            shouldReturn = false,
+        })
         return false
     end
 
     if decision.previewEnabled then
         frame._missingUnitSince = nil
+        RecordRootActionTrace("preview-active", {
+            stateAction = "clear-missing",
+            shouldReturn = false,
+        })
         return false
     end
 
@@ -1487,6 +1843,16 @@ function Visibility.HandleMissingUnit(frame)
                 frame:SetAlpha(0)
             end
             HideFrameIfSafe(frame)
+            RecordRootActionTrace("missing_unit_protected_suppressed", {
+                clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected_suppressed", rootActionPlan),
+                alphaAction = "zero",
+                mouseAction = protectedInCombat and "keep" or "disable",
+                rootAction = "hide-if-safe",
+                stateAction = "unit-lost",
+                shouldReturn = true,
+            }, {
+                missingSuppressed = true,
+            })
             return true
         end
 
@@ -1506,6 +1872,19 @@ function Visibility.HandleMissingUnit(frame)
             Visibility.QueueRefresh(frame)
         end
         HideFrameIfSafe(frame)
+        RecordRootActionTrace("missing_unit_protected", {
+            clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected", rootActionPlan),
+            alphaAction = frame.unit == "target" and "zero" or "keep",
+            mouseAction = protectedInCombat and "keep" or "disable",
+            rootAction = "hide-if-safe",
+            stateAction = "unit-lost",
+            recoveryAction = suspiciousMissingTarget and "queue-refresh" or "none",
+            suspiciousMissingTarget = suspiciousMissingTarget,
+            shouldReturn = true,
+        }, {
+            missingSuppressed = false,
+            suspiciousMissingTarget = suspiciousMissingTarget,
+        })
         return true
     end
 
@@ -1538,6 +1917,19 @@ function Visibility.HandleMissingUnit(frame)
                 end
                 HideFrameIfSafe(frame)
                 QueueTargetRecoveryRefreshes(frame, "target_missing_transition")
+                RecordRootActionTrace("target_missing_transition", {
+                    clearAction = "content-only",
+                    alphaAction = "zero",
+                    mouseAction = "disable",
+                    rootAction = "hide-if-safe",
+                    stateAction = "unit-lost",
+                    recoveryAction = "queue-target-recovery",
+                    targetTransition = true,
+                    shouldReturn = true,
+                }, {
+                    missingSince = frame._missingUnitSince,
+                    now = now,
+                })
                 return true
             end
         end
@@ -1556,6 +1948,16 @@ function Visibility.HandleMissingUnit(frame)
                 frame:SetAlpha(0)
             end
             HideFrameIfSafe(frame)
+            RecordRootActionTrace("missing_unit_suppressed", {
+                clearAction = ResolveUnitLostClearAction(frame, "missing_unit_suppressed", rootActionPlan),
+                alphaAction = "zero",
+                mouseAction = "disable",
+                rootAction = "hide-if-safe",
+                stateAction = "unit-lost",
+                shouldReturn = true,
+            }, {
+                missingSuppressed = true,
+            })
             return true
         end
 
@@ -1575,9 +1977,23 @@ function Visibility.HandleMissingUnit(frame)
                 and "Target-Frame wird jetzt verborgen"
                 or "Target-Inhalt wird ausgeblendet; Root bleibt fuer Combat-Recovery sichtbar")
         end
+        RecordRootActionTrace("missing_unit", {
+            clearAction = ResolveUnitLostClearAction(frame, "missing_unit", rootActionPlan),
+            alphaAction = "zero",
+            mouseAction = "disable",
+            rootAction = "hide-if-safe",
+            stateAction = "unit-lost",
+            shouldReturn = true,
+        }, {
+            missingSuppressed = false,
+        })
         return true
     end
 
+    RecordRootActionTrace("unit-present", {
+        stateAction = "clear-missing",
+        shouldReturn = false,
+    })
     return false
 end
 
