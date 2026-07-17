@@ -310,6 +310,218 @@ function Visibility.ResolveRootDecision(frame, reason, options)
     return decision
 end
 
+-- Passive read-only model for the local root-show semantics in UnitFrameRefresh.Apply.
+-- This function intentionally does not call Show, Hide, SetAlpha, UnitWatch, refresh, or state mutation.
+function Visibility.ResolveRootShowDecision(frame, options)
+    options = type(options) == "table" and options or {}
+
+    local unit = frame and frame.unit or nil
+    local config = type(options.config) == "table" and options.config or frame and frame.config or nil
+    local configEnabled = nil
+    if config ~= nil then
+        configEnabled = config.enabled ~= false
+    end
+    local protectedRoot
+    if type(options.protectedRoot) == "boolean" then
+        protectedRoot = options.protectedRoot
+    else
+        protectedRoot = frame
+            and frame.IsProtected
+            and frame:IsProtected()
+            or false
+    end
+    local inCombat
+    if type(options.inCombat) == "boolean" then
+        inCombat = options.inCombat
+    else
+        inCombat = InCombatLockdown and InCombatLockdown() or false
+    end
+    local previewActive = FocalPoint
+        and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true)
+        or false
+    local previewOutsideCombat
+    if type(options.previewOutsideCombat) == "boolean" then
+        previewOutsideCombat = options.previewOutsideCombat
+    else
+        previewOutsideCombat = IsPreviewModeEnabled
+            and IsPreviewModeEnabled()
+            and not inCombat
+            or false
+    end
+    local outsideCombat = not inCombat
+    local canCallShow = frame ~= nil
+        and frame.Show ~= nil
+        and (not protectedRoot or previewOutsideCombat or outsideCombat)
+
+    local mode, modeReason = options.mode, options.modeReason
+    if type(mode) ~= "string" or mode == "" then
+        mode, modeReason = ResolveModeReadOnly(frame)
+    end
+
+    local rootDecision = options.rootDecision
+    if rootDecision == nil and frame ~= nil then
+        rootDecision = Visibility.ResolveRootDecision(frame, "root-show", {
+            config = config,
+            mode = mode,
+            modeReason = modeReason,
+            unitPresent = options.unitPresent,
+        })
+    end
+
+    local unitPresent
+    if type(options.unitPresent) == "boolean" then
+        unitPresent = options.unitPresent
+    elseif unit == "player" then
+        unitPresent = true
+    elseif DoesUnitSeemPresent and type(unit) == "string" and unit ~= "" then
+        unitPresent = DoesUnitSeemPresent(unit) == true
+    elseif UnitExists and type(unit) == "string" and unit ~= "" then
+        unitPresent = UnitExists(unit) and true or false
+    else
+        unitPresent = false
+    end
+
+    local shouldProcessFrame = true
+    if Demo.ShouldProcessFrame and frame ~= nil then
+        shouldProcessFrame = Demo.ShouldProcessFrame(frame) == true
+    end
+
+    local decision = {
+        action = "keep",
+        reason = "invalid-frame",
+        shouldShow = false,
+        shouldSkipShow = false,
+
+        unit = unit,
+        mode = mode,
+        modeReason = modeReason,
+        previewActive = previewActive == true,
+        previewOutsideCombat = previewOutsideCombat == true,
+        unitPresent = unitPresent == true,
+        protectedRoot = protectedRoot == true,
+        inCombat = inCombat == true,
+        outsideCombat = outsideCombat == true,
+        canCallShow = canCallShow == true,
+        configEnabled = configEnabled,
+        shouldProcessFrame = shouldProcessFrame == true,
+        refreshApplyReached = options.refreshApplyReached ~= false,
+        missingHandled = options.missingHandled == true,
+
+        absentTargetGuard = false,
+        absentTargetTargetGuard = false,
+        absentFocusTargetGuard = false,
+        absentDerivedGuard = false,
+        absentBossGuard = false,
+
+        rootDecisionReason = rootDecision and rootDecision.reason or nil,
+        rootDecisionVisible = rootDecision and rootDecision.visible == true or false,
+    }
+
+    if not frame or type(unit) ~= "string" or unit == "" then
+        return decision
+    end
+
+    if options.refreshApplyReached == false then
+        decision.reason = "refresh-not-reached"
+        return decision
+    end
+
+    if not config then
+        decision.reason = "invalid-config"
+        return decision
+    end
+
+    if options.missingHandled == true then
+        decision.reason = "missing-handled-return"
+        return decision
+    end
+
+    if config.enabled == false and not (FocalPoint and FocalPoint.framesUnlocked == true) then
+        decision.reason = "disabled-live-return"
+        return decision
+    end
+
+    if mode == "disabled" then
+        decision.reason = "demo-disabled-return"
+        return decision
+    end
+
+    if mode == "detailed" or mode == "placeholder" then
+        if not shouldProcessFrame then
+            decision.reason = "demo-filtered-return"
+            return decision
+        end
+        if canCallShow then
+            decision.action = "show"
+            decision.reason = mode == "placeholder" and "preview-placeholder-show" or "preview-detailed-show"
+            decision.shouldShow = true
+            return decision
+        end
+        decision.reason = "preview-protected-combat-keep"
+        return decision
+    end
+
+    local hasUnitExists = UnitExists ~= nil
+    local skipShowForAbsentTarget = unit == "target"
+        and not previewOutsideCombat
+        and hasUnitExists
+        and not UnitExists("target")
+    local skipShowForAbsentTargetTarget = unit == "targettarget"
+        and not previewOutsideCombat
+        and hasUnitExists
+        and not UnitExists("targettarget")
+    local skipShowForAbsentFocusTarget = unit == "focustarget"
+        and not previewOutsideCombat
+        and hasUnitExists
+        and not UnitExists("focustarget")
+    local skipShowForAbsentBoss = unit:match("^boss%d+$") ~= nil
+        and not previewOutsideCombat
+        and hasUnitExists
+        and not UnitExists(unit)
+
+    decision.absentTargetGuard = skipShowForAbsentTarget == true
+    decision.absentTargetTargetGuard = skipShowForAbsentTargetTarget == true
+    decision.absentFocusTargetGuard = skipShowForAbsentFocusTarget == true
+    decision.absentDerivedGuard = skipShowForAbsentTargetTarget == true
+        or skipShowForAbsentFocusTarget == true
+    decision.absentBossGuard = skipShowForAbsentBoss == true
+
+    if skipShowForAbsentTarget then
+        decision.action = "skip-show"
+        decision.reason = "absent-target"
+        decision.shouldSkipShow = true
+        return decision
+    end
+    if skipShowForAbsentTargetTarget then
+        decision.action = "skip-show"
+        decision.reason = "absent-targettarget"
+        decision.shouldSkipShow = true
+        return decision
+    end
+    if skipShowForAbsentFocusTarget then
+        decision.action = "skip-show"
+        decision.reason = "absent-focustarget"
+        decision.shouldSkipShow = true
+        return decision
+    end
+    if skipShowForAbsentBoss then
+        decision.action = "skip-show"
+        decision.reason = "absent-boss"
+        decision.shouldSkipShow = true
+        return decision
+    end
+
+    if canCallShow then
+        decision.action = "show"
+        decision.reason = unitPresent and "live-present-show" or "live-local-show"
+        decision.shouldShow = true
+        return decision
+    end
+
+    decision.reason = "live-protected-combat-keep"
+    return decision
+end
+
 local function ResolveConfigAlpha(frame, options)
     if type(options.configAlpha) == "number" then
         return options.configAlpha
