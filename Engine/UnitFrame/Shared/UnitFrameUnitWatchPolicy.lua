@@ -173,7 +173,7 @@ local function ResolveSyncAction(result)
         return result
     end
 
-    if result.registeredState == false then
+    if result.registeredState ~= true then
         if result.canRegisterNow then
             result.action = "register"
             result.reason = "unitwatch-register"

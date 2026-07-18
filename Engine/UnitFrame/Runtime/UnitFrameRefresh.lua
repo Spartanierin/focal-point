@@ -9,6 +9,7 @@ local Visibility = FocalPoint.UnitFrameVisibility or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
+local RestoreLivePresentAlpha
 
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
@@ -23,6 +24,129 @@ local function ResolveDecisionAlpha(decision, fallback)
     end
 
     return fallback
+end
+
+local function IsVisibilityRecoveryUnit(unit)
+    return UnitWatchPolicy.ShouldUse and UnitWatchPolicy.ShouldUse(unit) or false
+end
+
+local function ClearPendingVisibilityIntent(frame, reason)
+    if frame and frame._focalPointPendingVisibilityIntent then
+        frame._focalPointPendingVisibilityIntent = nil
+        frame._focalPointPendingVisibilityClearedReason = reason or "resolved"
+    end
+end
+
+local function MarkPendingUnitWatchLiveReentry(frame, reason)
+    if frame and IsVisibilityRecoveryUnit(frame.unit) then
+        frame._focalPointPendingUnitWatchLiveReentry = {
+            reason = reason or "live-reentry",
+            createdAt = GetTime and GetTime() or 0,
+        }
+    end
+end
+
+local function ClearPendingUnitWatchLiveReentry(frame, reason)
+    if frame and frame._focalPointPendingUnitWatchLiveReentry then
+        frame._focalPointPendingUnitWatchLiveReentry = nil
+        frame._focalPointPendingUnitWatchLiveReentryClearedReason = reason or "resolved"
+    end
+end
+
+local function IsVisibilityEndStateRecovered(frame)
+    if not (frame and IsVisibilityRecoveryUnit(frame.unit)) then
+        return false
+    end
+    if frame.config and frame.config.enabled == false then
+        return false
+    end
+    if not (UnitExists and UnitExists(frame.unit)) then
+        return false
+    end
+    local shown = frame.IsShown and frame:IsShown() == true or false
+    local alpha = tonumber(frame.GetAlpha and frame:GetAlpha() or nil)
+    local unitWatchOwned = frame._unitWatchRegistered == true
+    return (shown or unitWatchOwned) and alpha ~= nil and alpha > 0
+end
+
+local function ClearRecoveredVisibilityIntent(frame, reason)
+    if IsVisibilityEndStateRecovered(frame) then
+        ClearPendingVisibilityIntent(frame, reason)
+        return true
+    end
+    return false
+end
+
+local function ReconcilePendingVisibilityIntent(frame, mode)
+    if not (frame and frame._focalPointPendingVisibilityIntent) then
+        return
+    end
+    if mode ~= "live" then
+        ClearPendingVisibilityIntent(frame, "mode-" .. tostring(mode or "unknown"))
+        return
+    end
+    if frame.config and frame.config.enabled == false then
+        ClearPendingVisibilityIntent(frame, "unit-disabled")
+        ClearPendingUnitWatchLiveReentry(frame, "unit-disabled")
+        return
+    end
+    if not (UnitExists and UnitExists(frame.unit)) then
+        ClearPendingVisibilityIntent(frame, "unit-absent")
+    end
+    ClearRecoveredVisibilityIntent(frame, "end-state-recovered")
+end
+
+local function MarkPendingVisibilityIntent(frame, reason, refreshRequest, mode)
+    if not (frame and IsVisibilityRecoveryUnit(frame.unit)) then
+        return false
+    end
+    if mode ~= "live" then
+        return false
+    end
+    if frame.config and frame.config.enabled == false then
+        return false
+    end
+    if not (UnitExists and UnitExists(frame.unit)) then
+        return false
+    end
+    if frame.IsShown and frame:IsShown() then
+        return false
+    end
+    if frame._unitWatchRegistered == true then
+        return false
+    end
+    if not (IsProtectedRoot(frame) and InCombatLockdown and InCombatLockdown()) then
+        return false
+    end
+
+    frame._focalPointPendingVisibilityIntent = {
+        reason = reason or "protected-combat",
+        refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+        createdAt = GetTime and GetTime() or 0,
+    }
+    return true
+end
+
+RestoreLivePresentAlpha = function(owner, frame, mode)
+    if not (owner and owner.ApplyRangeFade and frame and IsVisibilityRecoveryUnit(frame.unit)) then
+        return false
+    end
+    if mode ~= "live" then
+        return false
+    end
+    if frame.config and frame.config.enabled == false then
+        return false
+    end
+    if not (UnitExists and UnitExists(frame.unit)) then
+        return false
+    end
+    local alpha = tonumber(frame.GetAlpha and frame:GetAlpha() or nil)
+    if alpha == nil or alpha > 0 then
+        return false
+    end
+
+    owner:ApplyRangeFade(frame)
+    return true
 end
 
 local function ShouldUseUnitWatch(frame)
@@ -72,7 +196,7 @@ local function ResolveLegacySyncAction(frame, previewOutsideCombat)
         return legacy
     end
 
-    if frame._unitWatchRegistered == false then
+    if frame._unitWatchRegistered ~= true then
         if RegisterUnitWatch then
             legacy.action = "register"
             legacy.reason = "unitwatch-register"
@@ -123,15 +247,48 @@ local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
     if decision.action == "unregister" then
         UnregisterUnitWatch(frame)
         frame._unitWatchRegistered = false
+        ClearPendingUnitWatchLiveReentry(frame, "unitwatch-unregistered")
         return decision
     end
 
     if decision.action == "register" then
         RegisterUnitWatch(frame)
         frame._unitWatchRegistered = true
+        ClearPendingUnitWatchLiveReentry(frame, "unitwatch-registered")
         return decision
     end
 
+    return decision
+end
+
+function Refresh.SyncLiveUnitWatchReentry(owner, frame, reason)
+    if not (frame and IsVisibilityRecoveryUnit(frame.unit)) then
+        return nil
+    end
+    if frame.config and frame.config.enabled == false then
+        ClearPendingUnitWatchLiveReentry(frame, "unit-disabled")
+        ClearPendingVisibilityIntent(frame, "unit-disabled")
+        return nil
+    end
+    if FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) then
+        return nil
+    end
+    if InCombatLockdown and InCombatLockdown() then
+        MarkPendingUnitWatchLiveReentry(frame, reason or "live-reentry-combat")
+        return nil
+    end
+
+    local decision = SyncPreviewUnitWatch(frame, false)
+    if decision and decision.action == "blocked" then
+        MarkPendingUnitWatchLiveReentry(frame, decision.reason or reason or "live-reentry-blocked")
+        return decision
+    end
+
+    RestoreLivePresentAlpha(owner, frame, "live")
+    if frame._unitWatchRegistered == true then
+        ClearPendingUnitWatchLiveReentry(frame, "live-reentry-registered")
+    end
+    ClearRecoveredVisibilityIntent(frame, "live-reentry-recovered")
     return decision
 end
 
@@ -264,6 +421,39 @@ local function RecordCombatTransition(frame, event, stage, values)
     end
 end
 
+local function RecordBlockedIntent(frame, values)
+    if Visibility.RecordBlockedRootIntent then
+        Visibility.RecordBlockedRootIntent(frame, values)
+    end
+end
+
+local function RecordBlockedUnitWatchIntent(frame, decision, refreshRequest, mode)
+    if not (decision and decision.action == "blocked") then
+        return
+    end
+
+    local intent = nil
+    if decision.reason == "register-protected-combat" or decision.reason == "register-unavailable" then
+        intent = "register-unitwatch"
+    elseif decision.reason == "unregister-protected-combat" or decision.reason == "unregister-unavailable" then
+        intent = "unregister-unitwatch"
+    end
+    if not intent then
+        return
+    end
+
+    RecordBlockedIntent(frame, {
+        intent = intent,
+        source = "unitwatch-sync",
+        reason = decision.reason,
+        refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+        mode = mode,
+        unitWatchRegistered = frame and frame._unitWatchRegistered == true,
+        protected = decision.protectedRoot == true,
+        inCombat = decision.inCombat == true,
+    })
+end
+
 -- Refresh orchestration keeps the normal live-update path together so the
 -- main unit-frame runtime only handles guards and high-level delegation.
 
@@ -284,6 +474,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     if Demo.CommitMode then
         Demo.CommitMode(frame, mode, modeReason)
     end
+    ReconcilePendingVisibilityIntent(frame, mode)
 
     local demoApplied = Demo.ApplyFrameSnapshot and Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason) or false
     if demoApplied then
@@ -415,6 +606,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
 
         local unitWatchRegisteredBefore = frame._unitWatchRegistered == true
         local unitWatchDecision = SyncPreviewUnitWatch(frame, previewOutsideCombat)
+        RecordBlockedUnitWatchIntent(frame, unitWatchDecision, refreshRequest, mode)
         RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "unitwatch-sync", {
             config = config,
             mode = mode,
@@ -469,6 +661,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             end
             if shouldShowRoot then
                 frame:Show()
+                ClearRecoveredVisibilityIntent(frame, "preview-show")
             end
             RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
                 config = config,
@@ -516,6 +709,25 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
                 canCallShow = false,
                 shouldShow = false,
             })
+            local rootShown = frame.IsShown and frame:IsShown() or false
+            if unitPresent == true and protectedRoot == true and inCombat == true and rootShown == false then
+                MarkPendingVisibilityIntent(frame, "preview-protected-combat-keep", refreshRequest, mode)
+                RecordBlockedIntent(frame, {
+                    intent = "show-root",
+                    source = "root-show",
+                    reason = "protected-combat",
+                    refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+                    mode = mode,
+                    exists = unitPresent == true,
+                    shown = rootShown,
+                    alpha = frame.GetAlpha and frame:GetAlpha() or nil,
+                    protected = protectedRoot == true,
+                    inCombat = inCombat == true,
+                    unitWatchRegistered = frame._unitWatchRegistered == true,
+                    rootShowAction = "keep",
+                    rootShowReason = "preview-protected-combat-keep",
+                })
+            end
             if IsValidatedProtectedCombatKeepDecision(showDecision) then
                 -- Decision validated the existing protected-combat keep behavior.
             else
@@ -585,6 +797,8 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
 
     local unitWatchRegisteredBefore = frame._unitWatchRegistered == true
     local unitWatchDecision = SyncPreviewUnitWatch(frame, previewOutsideCombat)
+    RestoreLivePresentAlpha(owner, frame, mode)
+    RecordBlockedUnitWatchIntent(frame, unitWatchDecision, refreshRequest, mode)
     RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "unitwatch-sync", {
         config = config,
         mode = mode,
@@ -734,6 +948,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         end
         if shouldShowRoot then
             frame:Show()
+            ClearRecoveredVisibilityIntent(frame, "live-show")
         end
         RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
             config = config,
@@ -788,11 +1003,31 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             canCallShow = canCallShow,
             shouldShow = false,
         })
+        local rootShown = frame.IsShown and frame:IsShown() or false
+        if unitPresent == true and protectedRoot == true and inCombat == true and rootShown == false then
+            MarkPendingVisibilityIntent(frame, "live-protected-combat-keep", refreshRequest, mode)
+            RecordBlockedIntent(frame, {
+                intent = "show-root",
+                source = "root-show",
+                reason = "protected-combat",
+                refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+                mode = mode,
+                exists = unitPresent == true,
+                shown = rootShown,
+                alpha = frame.GetAlpha and frame:GetAlpha() or nil,
+                protected = protectedRoot == true,
+                inCombat = inCombat == true,
+                unitWatchRegistered = frame._unitWatchRegistered == true,
+                rootShowAction = "keep",
+                rootShowReason = "live-protected-combat-keep",
+            })
+        end
         if IsValidatedProtectedCombatKeepDecision(showDecision) then
             -- Decision validated the existing protected-combat keep behavior.
         else
             -- Legacy fallback: protected-combat keep also performs no root show.
         end
+        ClearRecoveredVisibilityIntent(frame, "live-recovered")
         RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
             config = config,
             mode = mode,

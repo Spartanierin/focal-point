@@ -155,12 +155,18 @@ local function ReportVisibilityDebugStatus()
         return
     end
     VisibilityDebugMessage(string.format(
-        "enabled=%s comparisons=%d mismatches=%d invariants=%d/%d recent=%d",
+        "enabled=%s comparisons=%d mismatches=%d invariants=%d/%d blocked=%d/%d/%d/%d policy=%d ignored=%d recent=%d",
         tostring(status.enabled == true),
         tonumber(status.totalComparisons) or 0,
         tonumber(status.totalMismatches) or 0,
         tonumber(status.endStateInvariantChecks) or 0,
         tonumber(status.endStateInvariantViolations) or 0,
+        tonumber(status.blockedIntentObserved) or 0,
+        tonumber(status.blockedIntentResolved) or 0,
+        tonumber(status.blockedIntentExpired) or 0,
+        tonumber(status.blockedIntentStillPending) or 0,
+        tonumber(status.blockedIntentPolicySuppressed) or 0,
+        tonumber(status.blockedIntentIgnoredNoOp) or 0,
         tonumber(status.recentCount) or 0
     ))
 end
@@ -194,6 +200,18 @@ local function ReportVisibilityInvariantSummary()
     local lines = Visibility and Visibility.BuildEndStateInvariantReport and Visibility.BuildEndStateInvariantReport() or nil
     if type(lines) ~= "table" then
         VisibilityDebugMessage("invariant report unavailable")
+        return
+    end
+    for _, line in ipairs(lines) do
+        VisibilityDebugMessage(line)
+    end
+end
+
+local function ReportVisibilityBlockedIntents()
+    local Visibility = GetVisibilityDebugApi()
+    local lines = Visibility and Visibility.BuildBlockedIntentReport and Visibility.BuildBlockedIntentReport() or nil
+    if type(lines) ~= "table" then
+        VisibilityDebugMessage("blocked intent report unavailable")
         return
     end
     for _, line in ipairs(lines) do
@@ -235,10 +253,12 @@ local function HandleVisibilityDebugCommand(msg)
         ReportVisibilityTransitionTrace()
     elseif msg == "invariants" or msg == "invariantreport" then
         ReportVisibilityInvariantSummary()
+    elseif msg == "blocked" or msg == "blockedintents" then
+        ReportVisibilityBlockedIntents()
     elseif msg == "status" or msg == "" then
         ReportVisibilityDebugStatus()
     else
-        VisibilityDebugMessage("usage: /fpdebugvisibility on|off|reset|status|report|transitions|invariants")
+        VisibilityDebugMessage("usage: /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked")
     end
 end
 
@@ -519,7 +539,7 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report")
             end
         end
     end

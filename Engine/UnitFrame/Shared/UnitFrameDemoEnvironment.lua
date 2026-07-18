@@ -1446,6 +1446,8 @@ function Demo.ExitTestMode(reason)
     end
 
     local visibility = FocalPoint and FocalPoint.UnitFrameVisibility or nil
+    local refreshRuntime = FocalPoint and FocalPoint.UnitFrameRefresh or nil
+    local unitFrameRuntime = FocalPoint and FocalPoint.UnitFrame or nil
     local castRuntime = FocalPoint and FocalPoint.UnitFrameCastBar or nil
     local hiddenCount = 0
     local stillVisibleMissingCount = 0
@@ -1473,6 +1475,10 @@ function Demo.ExitTestMode(reason)
             local state = GetRuntimeState(frame)
             state.mode = "live"
             state.firstLiveObservedAt = nil
+
+            if refreshRuntime and refreshRuntime.SyncLiveUnitWatchReentry then
+                refreshRuntime.SyncLiveUnitWatchReentry(unitFrameRuntime, frame, exitReason)
+            end
 
             if castRuntime and castRuntime.Stop then
                 castRuntime.Stop(frame)

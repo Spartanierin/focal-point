@@ -22,6 +22,9 @@ local COMBAT_TRANSITION_EVENTS = {
 local END_STATE_INVARIANT_RECENT_LIMIT = 30
 local END_STATE_INVARIANT_CHECK_LIMIT = 100
 local END_STATE_INVARIANT_REPORT_LIMIT = 20
+local BLOCKED_INTENT_HISTORY_LIMIT = 100
+local BLOCKED_INTENT_RECENT_LIMIT = 30
+local BLOCKED_INTENT_REPORT_LIMIT = 20
 local END_STATE_INVARIANT_UNITS = {
     target = true,
     targettarget = true,
@@ -238,9 +241,37 @@ local function HideFrameIfSafe(frame)
         return false
     end
     if frame.unit == "target" then
+        if Visibility.RecordBlockedRootIntent then
+            Visibility.RecordBlockedRootIntent(frame, {
+                intent = "hide-root",
+                source = "hide-if-safe",
+                reason = "target-hide-suppressed",
+                mode = "live",
+                exists = UnitExists and UnitExists(frame.unit) or false,
+                shown = frame.IsShown and frame:IsShown() or false,
+                alpha = frame.GetAlpha and frame:GetAlpha() or nil,
+                protected = frame.IsProtected and frame:IsProtected() or false,
+                inCombat = InCombatLockdown and InCombatLockdown() or false,
+                unitWatchRegistered = frame._unitWatchRegistered == true,
+            })
+        end
         return false
     end
     if IsProtectedFrameInCombat(frame) then
+        if Visibility.RecordBlockedRootIntent then
+            Visibility.RecordBlockedRootIntent(frame, {
+                intent = "hide-root",
+                source = "hide-if-safe",
+                reason = "hide-protected-combat",
+                mode = "live",
+                exists = UnitExists and UnitExists(frame.unit) or false,
+                shown = frame.IsShown and frame:IsShown() or false,
+                alpha = frame.GetAlpha and frame:GetAlpha() or nil,
+                protected = true,
+                inCombat = true,
+                unitWatchRegistered = frame._unitWatchRegistered == true,
+            })
+        end
         return false
     end
     frame:Hide()
@@ -1404,6 +1435,24 @@ local function EnsureDecisionDebugState()
         endStateInvariantRecentChecks = {},
         endStateInvariantRecent = {},
         endStateInvariantFirstNotified = false,
+        blockedIntentNextId = 1,
+        blockedIntentObserved = 0,
+        blockedIntentResolved = 0,
+        blockedIntentExpired = 0,
+        blockedIntentPolicySuppressed = 0,
+        blockedIntentIgnoredNoOp = 0,
+        blockedIntentStillPending = 0,
+        blockedIntentOpen = {},
+        blockedIntentHistory = {},
+        blockedIntentRecentResolved = {},
+        blockedIntentRecentExpired = {},
+        blockedIntentRecentStillPending = {},
+        blockedIntentByIntent = {},
+        blockedIntentByUnit = {},
+        blockedIntentBySource = {},
+        blockedIntentByCombat = {},
+        blockedIntentBySuppressedReason = {},
+        blockedIntentMaxObservations = 0,
     }
     return FocalPoint.VisibilityDecisionDebug
 end
@@ -1443,6 +1492,24 @@ local function EnsureRootActionDebugState(state)
     state.endStateInvariantRecentChecks = state.endStateInvariantRecentChecks or {}
     state.endStateInvariantRecent = state.endStateInvariantRecent or {}
     state.endStateInvariantFirstNotified = state.endStateInvariantFirstNotified == true
+    state.blockedIntentNextId = tonumber(state.blockedIntentNextId) or 1
+    state.blockedIntentObserved = tonumber(state.blockedIntentObserved) or 0
+    state.blockedIntentResolved = tonumber(state.blockedIntentResolved) or 0
+    state.blockedIntentExpired = tonumber(state.blockedIntentExpired) or 0
+    state.blockedIntentPolicySuppressed = tonumber(state.blockedIntentPolicySuppressed) or 0
+    state.blockedIntentIgnoredNoOp = tonumber(state.blockedIntentIgnoredNoOp) or 0
+    state.blockedIntentStillPending = tonumber(state.blockedIntentStillPending) or 0
+    state.blockedIntentOpen = state.blockedIntentOpen or {}
+    state.blockedIntentHistory = state.blockedIntentHistory or {}
+    state.blockedIntentRecentResolved = state.blockedIntentRecentResolved or {}
+    state.blockedIntentRecentExpired = state.blockedIntentRecentExpired or {}
+    state.blockedIntentRecentStillPending = state.blockedIntentRecentStillPending or {}
+    state.blockedIntentByIntent = state.blockedIntentByIntent or {}
+    state.blockedIntentByUnit = state.blockedIntentByUnit or {}
+    state.blockedIntentBySource = state.blockedIntentBySource or {}
+    state.blockedIntentByCombat = state.blockedIntentByCombat or {}
+    state.blockedIntentBySuppressedReason = state.blockedIntentBySuppressedReason or {}
+    state.blockedIntentMaxObservations = tonumber(state.blockedIntentMaxObservations) or 0
     return state
 end
 
@@ -1504,6 +1571,24 @@ function Visibility.ResetDecisionDebug()
     state.endStateInvariantRecentChecks = WipeDecisionDebugMap(state.endStateInvariantRecentChecks)
     state.endStateInvariantRecent = WipeDecisionDebugMap(state.endStateInvariantRecent)
     state.endStateInvariantFirstNotified = false
+    state.blockedIntentNextId = 1
+    state.blockedIntentObserved = 0
+    state.blockedIntentResolved = 0
+    state.blockedIntentExpired = 0
+    state.blockedIntentPolicySuppressed = 0
+    state.blockedIntentIgnoredNoOp = 0
+    state.blockedIntentStillPending = 0
+    state.blockedIntentOpen = WipeDecisionDebugMap(state.blockedIntentOpen)
+    state.blockedIntentHistory = WipeDecisionDebugMap(state.blockedIntentHistory)
+    state.blockedIntentRecentResolved = WipeDecisionDebugMap(state.blockedIntentRecentResolved)
+    state.blockedIntentRecentExpired = WipeDecisionDebugMap(state.blockedIntentRecentExpired)
+    state.blockedIntentRecentStillPending = WipeDecisionDebugMap(state.blockedIntentRecentStillPending)
+    state.blockedIntentByIntent = WipeDecisionDebugMap(state.blockedIntentByIntent)
+    state.blockedIntentByUnit = WipeDecisionDebugMap(state.blockedIntentByUnit)
+    state.blockedIntentBySource = WipeDecisionDebugMap(state.blockedIntentBySource)
+    state.blockedIntentByCombat = WipeDecisionDebugMap(state.blockedIntentByCombat)
+    state.blockedIntentBySuppressedReason = WipeDecisionDebugMap(state.blockedIntentBySuppressedReason)
+    state.blockedIntentMaxObservations = 0
     return state
 end
 
@@ -1684,6 +1769,38 @@ local function ResolveInvariantMode(frame, context)
     return ResolveModeReadOnly(frame)
 end
 
+local function GetActivePreviewExitReason(frame, mode)
+    if mode ~= "live" then
+        return nil
+    end
+
+    local demoDebug = frame and frame.FocalPointDemoDebug
+    local exitCount = tonumber(demoDebug and demoDebug.testModeExitCount)
+    if not exitCount or exitCount <= 0 then
+        return nil
+    end
+
+    if tonumber(demoDebug._visibilityPreviewExitConsumedCount) == exitCount then
+        return nil
+    end
+
+    return demoDebug.testModeExitReason or "unknown", exitCount
+end
+
+local function MarkPreviewExitChecked(frame, result)
+    if not result or result.mode ~= "live" then
+        return
+    end
+
+    local demoDebug = frame and frame.FocalPointDemoDebug
+    local exitCount = tonumber(demoDebug and demoDebug.testModeExitCount)
+    if not exitCount or exitCount <= 0 then
+        return
+    end
+
+    demoDebug._visibilityPreviewExitConsumedCount = exitCount
+end
+
 local function BuildInvariantResult(frame, context)
     context = type(context) == "table" and context or {}
     local unit = frame and frame.unit or nil
@@ -1699,6 +1816,7 @@ local function BuildInvariantResult(frame, context)
     local unitWatchResponsible = IsUnitWatchResponsible(frame, unitWatchRegistered, mode, protectedRoot, inCombat)
     local activeRuntimeFrame = IsActiveRuntimeFrame(frame)
     local pooled = IsPooledFrame(frame)
+    local previewExitReason, previewExitCount = GetActivePreviewExitReason(frame, mode)
 
     local rootDecision = Visibility.ResolveRootDecision and Visibility.ResolveRootDecision(frame, "end-state-invariant", {
         config = config,
@@ -1748,6 +1866,7 @@ local function BuildInvariantResult(frame, context)
         refreshReason = context.refreshReason,
         refreshScopes = context.refreshScopes,
         checkPoint = context.checkPoint,
+        previewExitCount = previewExitCount,
     }
 
     if not frame or not IsEndStateInvariantUnit(unit) then
@@ -1795,10 +1914,10 @@ local function BuildInvariantResult(frame, context)
         else
             result.violation = "live-present-hidden"
         end
-        local demoDebug = frame and frame.FocalPointDemoDebug
-        if demoDebug and tonumber(demoDebug.testModeExitCount) and tonumber(demoDebug.testModeExitCount) > 0 then
+        if previewExitReason then
             result.violation = "preview-exit-stale"
-            result.previewExitReason = demoDebug.testModeExitReason
+            result.previewExitReason = previewExitReason
+            result.previewExitKind = "hidden"
         end
         return result
     end
@@ -1814,10 +1933,10 @@ local function BuildInvariantResult(frame, context)
         end
         result.ok = false
         result.violation = "live-present-alpha-zero"
-        local demoDebug = frame and frame.FocalPointDemoDebug
-        if demoDebug and tonumber(demoDebug.testModeExitCount) and tonumber(demoDebug.testModeExitCount) > 0 then
+        if previewExitReason then
             result.violation = "preview-exit-stale"
-            result.previewExitReason = demoDebug.testModeExitReason
+            result.previewExitReason = previewExitReason
+            result.previewExitKind = "alpha-zero"
         end
         return result
     end
@@ -1858,6 +1977,18 @@ function Visibility.RecordEndStateInvariant(frame, context)
         checkPoint = result.checkPoint,
     }, END_STATE_INVARIANT_CHECK_LIMIT)
 
+    if Visibility.ReconcileBlockedRootIntents then
+        Visibility.ReconcileBlockedRootIntents(frame, {
+            config = context and context.config,
+            refreshReason = result.refreshReason,
+            checkPoint = result.checkPoint,
+            mode = result.mode,
+            modeReason = result.modeReason,
+        })
+    end
+
+    MarkPreviewExitChecked(frame, result)
+
     if not result or result.ok ~= false then
         return result
     end
@@ -1887,7 +2018,459 @@ function Visibility.RecordEndStateInvariant(frame, context)
         previewExitReason = result.previewExitReason,
     }, END_STATE_INVARIANT_RECENT_LIMIT)
 
+    if Visibility.RecordBlockedRootIntent then
+        if result.violation == "live-present-alpha-zero"
+            or (
+                result.violation == "preview-exit-stale"
+                and result.previewExitKind == "alpha-zero"
+                and type(result.alpha) == "number"
+                and result.alpha <= 0
+            )
+        then
+            Visibility.RecordBlockedRootIntent(frame, {
+                intent = "restore-alpha",
+                source = "end-state-invariant",
+                reason = result.violation,
+                refreshReason = result.refreshReason,
+                mode = result.mode,
+                exists = result.exists,
+                shown = result.shown,
+                alpha = result.alpha,
+                protected = result.protected,
+                inCombat = result.inCombat,
+                unitWatchRegistered = result.unitWatchRegistered,
+                unitWatchResponsible = result.unitWatchResponsible,
+                rootDecisionReason = result.rootDecisionReason,
+                rootShowReason = result.rootShowReason,
+                rootAlphaReason = result.rootAlphaReason,
+            })
+        elseif result.violation == "live-present-hidden"
+            or result.violation == "derived-present-no-owner"
+            or result.violation == "boss-present-no-owner"
+            or (
+                result.violation == "preview-exit-stale"
+                and result.previewExitKind == "hidden"
+            )
+        then
+            Visibility.RecordBlockedRootIntent(frame, {
+                intent = "show-root",
+                source = "end-state-invariant",
+                reason = result.violation,
+                refreshReason = result.refreshReason,
+                mode = result.mode,
+                exists = result.exists,
+                shown = result.shown,
+                alpha = result.alpha,
+                protected = result.protected,
+                inCombat = result.inCombat,
+                unitWatchRegistered = result.unitWatchRegistered,
+                unitWatchResponsible = result.unitWatchResponsible,
+                rootDecisionReason = result.rootDecisionReason,
+                rootShowReason = result.rootShowReason,
+                rootAlphaReason = result.rootAlphaReason,
+            })
+        end
+    end
+
     return result
+end
+
+local function BuildBlockedIntentKey(unit, intent, source)
+    return table.concat({
+        tostring(unit or "unknown"),
+        tostring(intent or "unknown"),
+        tostring(source or "unknown"),
+    }, "|")
+end
+
+local function CopyBlockedIntentSnapshot(entry, stateName, extra)
+    extra = type(extra) == "table" and extra or {}
+    return {
+        id = entry and entry.id or nil,
+        timestamp = GetTime and GetTime() or 0,
+        unit = entry and entry.unit or nil,
+        intent = entry and entry.intent or nil,
+        state = stateName,
+        reason = entry and entry.reason or nil,
+        source = entry and entry.source or nil,
+        event = entry and entry.event or nil,
+        refreshReason = extra.refreshReason or entry and entry.refreshReason or nil,
+        firstSeen = entry and entry.firstSeen or nil,
+        lastSeen = entry and entry.lastSeen or nil,
+        observations = entry and entry.observations or 0,
+        combat = extra.inCombat ~= nil and extra.inCombat == true or entry and entry.inCombat == true,
+        exists = extra.exists ~= nil and extra.exists == true or entry and entry.exists == true,
+        shown = extra.shown ~= nil and extra.shown == true or entry and entry.shown == true,
+        alpha = extra.alpha ~= nil and extra.alpha or entry and entry.alpha or nil,
+        protected = extra.protected ~= nil and extra.protected == true or entry and entry.protected == true,
+        unitWatchRegistered = extra.unitWatchRegistered ~= nil
+            and extra.unitWatchRegistered == true
+            or entry and entry.unitWatchRegistered == true,
+        unitWatchResponsible = extra.unitWatchResponsible ~= nil
+            and extra.unitWatchResponsible == true
+            or entry and entry.unitWatchResponsible == true,
+        rootDecisionReason = extra.rootDecisionReason or entry and entry.rootDecisionReason or nil,
+        rootActionReason = extra.rootActionReason or entry and entry.rootActionReason or nil,
+        rootShowAction = extra.rootShowAction or entry and entry.rootShowAction or nil,
+        rootShowReason = extra.rootShowReason or entry and entry.rootShowReason or nil,
+        rootAlphaReason = extra.rootAlphaReason or entry and entry.rootAlphaReason or nil,
+        statePhase = extra.statePhase or entry and entry.statePhase or nil,
+        resolutionReason = extra.resolutionReason,
+        expiredReason = extra.expiredReason,
+    }
+end
+
+local function ResolveBlockedIntentFrameState(frame, context)
+    context = type(context) == "table" and context or {}
+    local unit = context.unit or frame and frame.unit or nil
+    local mode, modeReason = ResolveInvariantMode(frame, context)
+    local exists = SafeUnitExists(unit)
+    local shown = SafeFrameShown(frame)
+    local alpha = SafeFrameAlpha(frame)
+    local protectedRoot = frame and frame.IsProtected and frame:IsProtected() or false
+    local inCombat = InCombatLockdown and InCombatLockdown() or false
+    local unitWatchRegistered = frame and frame._unitWatchRegistered == true or false
+    local unitWatchResponsible = IsUnitWatchResponsible(frame, unitWatchRegistered, mode, protectedRoot, inCombat)
+    local config = type(context.config) == "table" and context.config or frame and frame.config or nil
+    local configEnabled = type(config) ~= "table" or config.enabled ~= false
+    local rootDecision = Visibility.ResolveRootDecision and Visibility.ResolveRootDecision(frame, "blocked-intent", {
+        config = config,
+        mode = mode,
+        modeReason = modeReason,
+        unitPresent = exists,
+    }) or nil
+    local rootAlphaDecision = Visibility.ResolveRootAlphaDecision and Visibility.ResolveRootAlphaDecision(frame, {
+        source = "blocked-intent",
+        config = config,
+        rangeMultiplier = 1,
+        missingUnitAlphaGuard = false,
+        visibilityOptions = {
+            mode = mode,
+            modeReason = modeReason,
+            unitPresent = exists,
+        },
+    }) or nil
+
+    return {
+        unit = unit,
+        mode = mode,
+        modeReason = modeReason,
+        exists = exists,
+        shown = shown,
+        alpha = alpha,
+        protected = protectedRoot == true,
+        inCombat = inCombat == true,
+        unitWatchRegistered = unitWatchRegistered,
+        unitWatchResponsible = unitWatchResponsible,
+        configEnabled = configEnabled,
+        activeRuntimeFrame = IsActiveRuntimeFrame(frame),
+        pooled = IsPooledFrame(frame),
+        rootDecisionReason = rootDecision and rootDecision.reason or nil,
+        rootAlphaReason = rootAlphaDecision and (rootAlphaDecision.winningSource or rootAlphaDecision.reason) or nil,
+        statePhase = ResolveTraceStatePhase(frame),
+    }
+end
+
+local function IsBlockedVisibilityIntentRecovered(current)
+    if not current then
+        return false
+    end
+    if current.exists ~= true or current.configEnabled == false or current.mode ~= "live" then
+        return false
+    end
+    if type(current.alpha) ~= "number" or current.alpha <= 0 then
+        return false
+    end
+    return current.shown == true or current.unitWatchResponsible == true
+end
+
+local function ResolveBlockedIntentFinalState(entry, frame, context)
+    local current = ResolveBlockedIntentFrameState(frame, context)
+
+    if not current.activeRuntimeFrame or current.pooled then
+        return "expired", "inactive-frame", current
+    end
+    if current.configEnabled == false then
+        return "expired", "unit-disabled", current
+    end
+    if current.mode == "placeholder" or current.mode == "detailed" or current.mode == "disabled" then
+        return "expired", "mode-" .. tostring(current.mode), current
+    end
+
+    if entry.intent == "show-root" then
+        if current.exists ~= true then
+            return "expired", "unit-absent", current
+        end
+        if IsBlockedVisibilityIntentRecovered(current) then
+            return "resolved", current.shown and "shown-alpha-restored" or "unitwatch-responsible-alpha-restored", current
+        end
+    elseif entry.intent == "hide-root" then
+        if current.shown == false then
+            return "resolved", "hidden", current
+        end
+    elseif entry.intent == "register-unitwatch" then
+        if current.exists ~= true then
+            return "expired", "unit-absent", current
+        end
+        if IsBlockedVisibilityIntentRecovered(current) then
+            return "resolved", "unitwatch-registered-alpha-restored", current
+        end
+    elseif entry.intent == "unregister-unitwatch" then
+        if current.unitWatchRegistered ~= true then
+            return "resolved", "unitwatch-unregistered", current
+        end
+    elseif entry.intent == "restore-alpha" then
+        if current.exists ~= true then
+            return "expired", "unit-absent", current
+        end
+        if type(current.alpha) == "number" and current.alpha > 0 then
+            return "resolved", "alpha-restored", current
+        end
+    elseif entry.intent == "apply-layout" then
+        if current.exists ~= true then
+            return "expired", "unit-absent", current
+        end
+        if current.inCombat ~= true then
+            return "resolved", "left-combat", current
+        end
+    elseif current.exists ~= true then
+        return "expired", "unit-absent", current
+    end
+
+    if entry.seenRegen == true and tonumber(entry.observations) and tonumber(entry.observations) >= 2 then
+        return "still-pending", "post-combat-reobserved", current
+    end
+    return "observed", "still-relevant", current
+end
+
+local function ResolveFrameForBlockedIntent(unit)
+    local frames = FocalPoint and FocalPoint.frames or nil
+    if type(frames) == "table" and type(unit) == "string" then
+        return frames[unit]
+    end
+    return nil
+end
+
+local function FinalizeBlockedIntent(state, key, entry, finalState, reason, current)
+    state.blockedIntentOpen[key] = nil
+    entry.state = finalState
+    entry.finalReason = reason
+    entry.resolvedAt = finalState == "resolved" and (GetTime and GetTime() or 0) or entry.resolvedAt
+    entry.expiredAt = finalState == "expired" and (GetTime and GetTime() or 0) or entry.expiredAt
+
+    local snapshot = CopyBlockedIntentSnapshot(entry, finalState, {
+        resolutionReason = finalState == "resolved" and reason or nil,
+        expiredReason = finalState == "expired" and reason or nil,
+        exists = current and current.exists,
+        shown = current and current.shown,
+        alpha = current and current.alpha,
+        inCombat = current and current.inCombat,
+        protected = current and current.protected,
+        unitWatchRegistered = current and current.unitWatchRegistered,
+        unitWatchResponsible = current and current.unitWatchResponsible,
+        rootDecisionReason = current and current.rootDecisionReason,
+        rootAlphaReason = current and current.rootAlphaReason,
+        statePhase = current and current.statePhase,
+    })
+
+    if finalState == "resolved" then
+        state.blockedIntentResolved = (tonumber(state.blockedIntentResolved) or 0) + 1
+        AppendRingEntry(state.blockedIntentRecentResolved, snapshot, BLOCKED_INTENT_RECENT_LIMIT)
+    elseif finalState == "expired" then
+        state.blockedIntentExpired = (tonumber(state.blockedIntentExpired) or 0) + 1
+        AppendRingEntry(state.blockedIntentRecentExpired, snapshot, BLOCKED_INTENT_RECENT_LIMIT)
+    end
+end
+
+local function UpdateBlockedIntentLifecycleForUnit(state, unit, context)
+    if type(state.blockedIntentOpen) ~= "table" or type(unit) ~= "string" then
+        return
+    end
+
+    for key, entry in pairs(state.blockedIntentOpen) do
+        if entry and entry.unit == unit then
+            if context
+                and (context.event == "PLAYER_REGEN_ENABLED" or context.refreshReason == "PLAYER_REGEN_ENABLED")
+            then
+                entry.seenRegen = true
+            end
+            local frame = ResolveFrameForBlockedIntent(unit)
+            local finalState, reason, current = ResolveBlockedIntentFinalState(entry, frame, context)
+            if finalState == "resolved" or finalState == "expired" then
+                FinalizeBlockedIntent(state, key, entry, finalState, reason, current)
+            elseif finalState == "still-pending" and entry.state ~= "still-pending" then
+                entry.state = "still-pending"
+                entry.stillPendingAt = GetTime and GetTime() or 0
+                entry.stillPendingReason = reason
+                state.blockedIntentStillPending = (tonumber(state.blockedIntentStillPending) or 0) + 1
+                AppendRingEntry(
+                    state.blockedIntentRecentStillPending,
+                    CopyBlockedIntentSnapshot(entry, "still-pending", {
+                        resolutionReason = reason,
+                        exists = current and current.exists,
+                        shown = current and current.shown,
+                        alpha = current and current.alpha,
+                        inCombat = current and current.inCombat,
+                        protected = current and current.protected,
+                        unitWatchRegistered = current and current.unitWatchRegistered,
+                        unitWatchResponsible = current and current.unitWatchResponsible,
+                        rootDecisionReason = current and current.rootDecisionReason,
+                        rootAlphaReason = current and current.rootAlphaReason,
+                        statePhase = current and current.statePhase,
+                    }),
+                    BLOCKED_INTENT_RECENT_LIMIT
+                )
+            end
+        end
+    end
+end
+
+local function SuppressBlockedIntentObservation(state, reason, policySuppressed)
+    if policySuppressed == true then
+        state.blockedIntentPolicySuppressed = (tonumber(state.blockedIntentPolicySuppressed) or 0) + 1
+    else
+        state.blockedIntentIgnoredNoOp = (tonumber(state.blockedIntentIgnoredNoOp) or 0) + 1
+    end
+    BumpCounter(state.blockedIntentBySuppressedReason, reason)
+end
+
+local function ShouldSuppressBlockedIntentObservation(unit, intent, source, reason, current)
+    if intent == "hide-root" and unit == "target" and reason == "target-hide-suppressed" then
+        if current and current.exists == false and type(current.alpha) == "number" and current.alpha <= 0 then
+            return true, "target-hide-resolved-by-alpha", true
+        end
+        return true, "target-hide-policy", true
+    end
+
+    if intent == "show-root" then
+        if current and current.shown == true then
+            return true, "already-shown", false
+        end
+        if current and current.unitWatchResponsible == true then
+            return true, "unitwatch-responsible", false
+        end
+    elseif intent == "restore-alpha" then
+        if current and type(current.alpha) == "number" and current.alpha > 0 then
+            return true, "alpha-already-restored", false
+        end
+    elseif intent == "hide-root" then
+        if current and current.shown == false then
+            return true, "already-hidden", false
+        end
+    end
+
+    return false, nil, false
+end
+
+function Visibility.RecordBlockedRootIntent(frame, values)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return nil
+    end
+
+    values = type(values) == "table" and values or {}
+    local unit = values.unit or frame and frame.unit or nil
+    if not IsEndStateInvariantUnit(unit) then
+        return nil
+    end
+
+    local intent = tostring(values.intent or "")
+    if intent == "" then
+        return nil
+    end
+
+    local source = tostring(values.source or "unknown")
+    local key = BuildBlockedIntentKey(unit, intent, source)
+    local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
+    local now = GetTime and GetTime() or 0
+    local entry = state.blockedIntentOpen[key]
+    local current = ResolveBlockedIntentFrameState(frame, values)
+    local shouldSuppress, suppressReason, policySuppressed = ShouldSuppressBlockedIntentObservation(
+        unit,
+        intent,
+        source,
+        values.reason,
+        current
+    )
+    if shouldSuppress then
+        SuppressBlockedIntentObservation(state, suppressReason, policySuppressed)
+        UpdateBlockedIntentLifecycleForUnit(state, unit, values)
+        return nil
+    end
+
+    if entry then
+        entry.state = entry.state == "still-pending" and "still-pending" or "reobserved"
+        entry.lastSeen = now
+        entry.observations = (tonumber(entry.observations) or 0) + 1
+        entry.reason = values.reason or entry.reason
+        entry.event = values.event or entry.event
+        entry.refreshReason = values.refreshReason or entry.refreshReason
+    else
+        entry = {
+            id = state.blockedIntentNextId,
+            key = key,
+            unit = unit,
+            intent = intent,
+            state = "observed",
+            reason = values.reason,
+            source = source,
+            event = values.event,
+            refreshReason = values.refreshReason,
+            firstSeen = now,
+            lastSeen = now,
+            observations = 1,
+        }
+        state.blockedIntentNextId = (tonumber(state.blockedIntentNextId) or 1) + 1
+        state.blockedIntentOpen[key] = entry
+        state.blockedIntentObserved = (tonumber(state.blockedIntentObserved) or 0) + 1
+        BumpCounter(state.blockedIntentByIntent, intent)
+        BumpCounter(state.blockedIntentByUnit, unit)
+        BumpCounter(state.blockedIntentBySource, source)
+    end
+
+    entry.mode = values.mode or current.mode
+    entry.exists = values.exists ~= nil and values.exists == true or current.exists == true
+    entry.shown = values.shown ~= nil and values.shown == true or current.shown == true
+    entry.alpha = values.alpha ~= nil and values.alpha or current.alpha
+    entry.protected = values.protected ~= nil and values.protected == true or current.protected == true
+    entry.inCombat = values.inCombat ~= nil and values.inCombat == true or current.inCombat == true
+    entry.unitWatchRegistered = values.unitWatchRegistered ~= nil
+        and values.unitWatchRegistered == true
+        or current.unitWatchRegistered == true
+    entry.unitWatchResponsible = values.unitWatchResponsible ~= nil
+        and values.unitWatchResponsible == true
+        or current.unitWatchResponsible == true
+    entry.rootDecisionReason = values.rootDecisionReason or current.rootDecisionReason
+    entry.rootActionReason = values.rootActionReason or entry.rootActionReason
+    entry.rootShowAction = values.rootShowAction or entry.rootShowAction
+    entry.rootShowReason = values.rootShowReason or entry.rootShowReason
+    entry.rootAlphaReason = values.rootAlphaReason or current.rootAlphaReason
+    entry.statePhase = values.statePhase or current.statePhase
+    entry.seenRegen = entry.seenRegen
+        or values.event == "PLAYER_REGEN_ENABLED"
+        or values.refreshReason == "PLAYER_REGEN_ENABLED"
+    state.blockedIntentMaxObservations = math.max(
+        tonumber(state.blockedIntentMaxObservations) or 0,
+        tonumber(entry.observations) or 0
+    )
+    BumpCounter(state.blockedIntentByCombat, entry.inCombat and "combat" or "no-combat")
+    AppendRingEntry(state.blockedIntentHistory, CopyBlockedIntentSnapshot(entry, entry.state), BLOCKED_INTENT_HISTORY_LIMIT)
+
+    UpdateBlockedIntentLifecycleForUnit(state, unit, values)
+    return entry
+end
+
+function Visibility.ReconcileBlockedRootIntents(frame, context)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return
+    end
+
+    local unit = frame and frame.unit or context and context.unit or nil
+    if not IsEndStateInvariantUnit(unit) then
+        return
+    end
+
+    local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
+    UpdateBlockedIntentLifecycleForUnit(state, unit, context)
 end
 
 local ROOT_SHOW_REASON_ALIASES = {
@@ -2767,6 +3350,12 @@ function Visibility.GetDecisionDebugStatus()
         rootShowDecisionMismatches = tonumber(state.rootShowDecisionMismatches) or 0,
         endStateInvariantChecks = tonumber(state.endStateInvariantChecks) or 0,
         endStateInvariantViolations = tonumber(state.endStateInvariantViolations) or 0,
+        blockedIntentObserved = tonumber(state.blockedIntentObserved) or 0,
+        blockedIntentResolved = tonumber(state.blockedIntentResolved) or 0,
+        blockedIntentExpired = tonumber(state.blockedIntentExpired) or 0,
+        blockedIntentPolicySuppressed = tonumber(state.blockedIntentPolicySuppressed) or 0,
+        blockedIntentIgnoredNoOp = tonumber(state.blockedIntentIgnoredNoOp) or 0,
+        blockedIntentStillPending = tonumber(state.blockedIntentStillPending) or 0,
         recentCount = #(state.recentMismatches or {}),
     }
 end
@@ -2916,6 +3505,103 @@ function Visibility.BuildEndStateInvariantReport()
     for index = startIndex, #recent do
         lines[#lines + 1] = FormatInvariantEntry(recent[index])
     end
+    return lines
+end
+
+local function FormatBlockedIntentEntry(entry)
+    return string.format(
+        "  id=%s unit=%s intent=%s state=%s reason=%s firstSeen=%s lastSeen=%s observations=%s combat=%s exists=%s shown=%s alpha=%s unitWatch=%s unitWatchResponsible=%s rootShow=%s/%s rootDecision=%s rootAlpha=%s refreshReason=%s",
+        FormatTraceValue(entry and entry.id),
+        FormatTraceValue(entry and entry.unit),
+        FormatTraceValue(entry and entry.intent),
+        FormatTraceValue(entry and entry.state),
+        FormatTraceValue(entry and entry.reason),
+        FormatTraceNumber(entry and entry.firstSeen, 3),
+        FormatTraceNumber(entry and entry.lastSeen, 3),
+        FormatTraceValue(entry and entry.observations),
+        FormatTraceBool(entry and entry.combat),
+        FormatTraceBool(entry and entry.exists),
+        FormatTraceBool(entry and entry.shown),
+        FormatTraceNumber(entry and entry.alpha, 3),
+        FormatTraceBool(entry and entry.unitWatchRegistered),
+        FormatTraceBool(entry and entry.unitWatchResponsible),
+        FormatTraceValue(entry and entry.rootShowAction),
+        FormatTraceValue(entry and entry.rootShowReason),
+        FormatTraceValue(entry and entry.rootDecisionReason),
+        FormatTraceValue(entry and entry.rootAlphaReason),
+        FormatTraceValue(entry and entry.refreshReason)
+    )
+end
+
+local function AppendBlockedIntentEntries(lines, title, entries, limit)
+    lines[#lines + 1] = title
+    if type(entries) ~= "table" or next(entries) == nil then
+        lines[#lines + 1] = "  none"
+        return
+    end
+
+    local ordered = {}
+    for _, entry in pairs(entries) do
+        if type(entry) == "table" then
+            ordered[#ordered + 1] = entry
+        end
+    end
+    table.sort(ordered, function(a, b)
+        local aTime = tonumber(a.lastSeen or a.timestamp) or 0
+        local bTime = tonumber(b.lastSeen or b.timestamp) or 0
+        if aTime == bTime then
+            return tostring(a.id or "") < tostring(b.id or "")
+        end
+        return aTime > bTime
+    end)
+
+    local maxEntries = math.min(#ordered, tonumber(limit) or BLOCKED_INTENT_REPORT_LIMIT)
+    for index = 1, maxEntries do
+        lines[#lines + 1] = FormatBlockedIntentEntry(ordered[index])
+    end
+end
+
+function Visibility.BuildBlockedIntentReport()
+    local state = EnsureDecisionDebugState()
+    EnsureRootActionDebugState(state)
+    local openCount = 0
+    for _, entry in pairs(state.blockedIntentOpen or {}) do
+        if type(entry) == "table" then
+            openCount = openCount + 1
+        end
+    end
+
+    local lines = {
+        "UnitFrame Blocked Intent Report",
+        string.format("enabled=%s", tostring(state.enabled == true)),
+        string.format("observed=%d", tonumber(state.blockedIntentObserved) or 0),
+        string.format("resolved=%d", tonumber(state.blockedIntentResolved) or 0),
+        string.format("expired=%d", tonumber(state.blockedIntentExpired) or 0),
+        string.format("policy-suppressed=%d", tonumber(state.blockedIntentPolicySuppressed) or 0),
+        string.format("ignored-no-op=%d", tonumber(state.blockedIntentIgnoredNoOp) or 0),
+        string.format("still-pending=%d", tonumber(state.blockedIntentStillPending) or 0),
+        string.format("open=%d", openCount),
+        string.format("maxObservations=%d", tonumber(state.blockedIntentMaxObservations) or 0),
+        "",
+    }
+
+    AppendSortedCounters(lines, "By intent:", state.blockedIntentByIntent)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By unit:", state.blockedIntentByUnit)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By source:", state.blockedIntentBySource)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By combat state:", state.blockedIntentByCombat)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By suppressed reason:", state.blockedIntentBySuppressedReason)
+    lines[#lines + 1] = ""
+    AppendBlockedIntentEntries(lines, "Open intents:", state.blockedIntentOpen, BLOCKED_INTENT_REPORT_LIMIT)
+    lines[#lines + 1] = ""
+    AppendBlockedIntentEntries(lines, "Recent still-pending:", state.blockedIntentRecentStillPending, BLOCKED_INTENT_RECENT_LIMIT)
+    lines[#lines + 1] = ""
+    AppendBlockedIntentEntries(lines, "Recent resolved:", state.blockedIntentRecentResolved, BLOCKED_INTENT_RECENT_LIMIT)
+    lines[#lines + 1] = ""
+    AppendBlockedIntentEntries(lines, "Recent expired:", state.blockedIntentRecentExpired, BLOCKED_INTENT_RECENT_LIMIT)
     return lines
 end
 
@@ -3160,6 +3846,19 @@ local function QueueTargetRecoveryRefreshes(frame, reason)
     for _, delay in ipairs({ 0.10, 0.20, 0.35 }) do
         State.QueueRefresh(frame, refreshReason, "visibility", nil, delay)
     end
+end
+
+local function IsPendingUnitWatchVisibilityRecovery(frame)
+    local unitWatchPolicy = FocalPoint and FocalPoint.UnitFrameUnitWatchPolicy or nil
+    return frame
+        and type(frame.unit) == "string"
+        and unitWatchPolicy
+        and unitWatchPolicy.ShouldUse
+        and unitWatchPolicy.ShouldUse(frame) == true
+        and (
+            frame._focalPointPendingVisibilityIntent ~= nil
+            or frame._focalPointPendingUnitWatchLiveReentry ~= nil
+        )
 end
 
 ShouldTreatMissingTargetAsSuspicious = function(frame)
@@ -3897,8 +4596,44 @@ function Visibility.RegisterEvents(owner, frame)
                 local scopes = inCombat
                     and { "visibility", "bars", "texts", "auras" }
                     or { "visibility", "bars", "texts", "auras", "layout" }
+                if inCombat and Visibility.RecordBlockedRootIntent then
+                    Visibility.RecordBlockedRootIntent(currentOwner, {
+                        intent = "apply-layout",
+                        source = "boss-engage-event",
+                        reason = "layout-scope-skipped-in-combat",
+                        event = event,
+                        refreshReason = event,
+                        refreshScopes = scopes,
+                        mode = "live",
+                        exists = UnitExists and UnitExists(currentOwner.unit) or false,
+                        shown = currentOwner.IsShown and currentOwner:IsShown() or false,
+                        alpha = currentOwner.GetAlpha and currentOwner:GetAlpha() or nil,
+                        protected = currentOwner.IsProtected and currentOwner:IsProtected() or false,
+                        inCombat = true,
+                        unitWatchRegistered = currentOwner._unitWatchRegistered == true,
+                    })
+                end
                 State.QueueRefresh(currentOwner, event, scopes)
             else
+                owner:Refresh(currentOwner)
+            end
+            return
+        end
+        if event == "PLAYER_REGEN_ENABLED" and IsPendingUnitWatchVisibilityRecovery(currentOwner) then
+            local refreshRuntime = FocalPoint and FocalPoint.UnitFrameRefresh or nil
+            local didSync = false
+            if refreshRuntime and refreshRuntime.SyncLiveUnitWatchReentry then
+                didSync = refreshRuntime.SyncLiveUnitWatchReentry(owner, currentOwner, "regen-live-reentry") ~= nil
+            end
+            if State.QueueRefresh then
+                State.QueueRefresh(currentOwner, "unitwatch_visibility_recovery", {
+                    "visibility",
+                    "bars",
+                    "texts",
+                    "auras",
+                    "layout",
+                })
+            elseif not didSync then
                 owner:Refresh(currentOwner)
             end
             return

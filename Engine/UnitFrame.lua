@@ -1996,6 +1996,10 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
         UnregisterUnitWatch(frame)
         frame._unitWatchRegistered = false
     end
+    frame._focalPointPendingVisibilityIntent = nil
+    frame._focalPointPendingVisibilityClearedReason = "deactivate"
+    frame._focalPointPendingUnitWatchLiveReentry = nil
+    frame._focalPointPendingUnitWatchLiveReentryClearedReason = "deactivate"
 
     if ClearFrameVisualState then
         ClearFrameVisualState(frame)
