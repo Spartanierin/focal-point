@@ -9,6 +9,25 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.19]
+
+### Changed
+
+* Improved unit-frame visibility handling across live, unlock, preview, and combat states.
+* Improved missing-unit handling so root-frame actions are applied more consistently while preserving safe fallback behavior.
+* Improved preview and live frame show behavior for selected, placeholder, present, and protected combat states.
+* Improved protected-frame handling when frames cannot safely be shown or hidden during combat.
+* Improved cleanup when leaving test, preview, or unlock states so missing frames are more reliably cleared.
+* Extended internal runtime diagnostics for visibility, root-frame actions, root-show behavior, and test-mode cleanup without changing normal gameplay behavior.
+
+### Fixed
+
+* Reduced the risk of conflicting root-frame actions during missing-unit, preview, live, and protected combat updates.
+* Improved handling of missing targets, derived units, pets, and boss frames.
+* Improved behavior when protected frames need to remain stable during combat instead of being shown or hidden unsafely.
+* Preserved safe legacy fallbacks when a centralized runtime decision cannot be applied.
+* Improved cleanup of missing frames when leaving preview or unlock states.
+
 ## [1.0.18]
 
 ### Changed
