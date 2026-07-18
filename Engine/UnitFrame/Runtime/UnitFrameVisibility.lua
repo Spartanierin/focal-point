@@ -8,6 +8,18 @@ local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local Presence = FocalPoint.UnitFramePresence or {}
 local State = FocalPoint.UnitFrameState or {}
 
+local COMBAT_TRANSITION_TRACE_LIMIT = 100
+local COMBAT_TRANSITION_SUSPICIOUS_REPORT_LIMIT = 20
+local COMBAT_TRANSITION_RECENT_REPORT_LIMIT = 30
+local COMBAT_TRANSITION_EVENTS = {
+    PLAYER_TARGET_CHANGED = true,
+    INSTANCE_ENCOUNTER_ENGAGE_UNIT = true,
+    ENCOUNTER_START = true,
+    UNIT_TARGET = true,
+    PLAYER_REGEN_DISABLED = true,
+    PLAYER_REGEN_ENABLED = true,
+}
+
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
 local MaybeDebugTarget = Presence.MaybeDebugTarget
@@ -23,6 +35,185 @@ local function IsProtectedFrameInCombat(frame)
         and frame:IsProtected()
         and InCombatLockdown
         and InCombatLockdown()
+end
+
+local function IsCombatTransitionUnit(unit)
+    return unit == "target"
+        or (type(unit) == "string" and unit:match("^boss%d+$") ~= nil)
+end
+
+local function FormatTraceBool(value)
+    if value == nil then
+        return "nil"
+    end
+    return tostring(value == true)
+end
+
+local function FormatTraceNumber(value, decimals)
+    local number = tonumber(value)
+    if not number then
+        return "nil"
+    end
+    return string.format("%." .. tostring(decimals or 3) .. "f", number)
+end
+
+local function FormatTraceValue(value)
+    if value == nil then
+        return "nil"
+    end
+    return tostring(value)
+end
+
+local function NormalizeTraceScopes(scopes)
+    if type(scopes) ~= "table" then
+        return scopes ~= nil and tostring(scopes) or "nil"
+    end
+
+    local parts = {}
+    for key, enabled in pairs(scopes) do
+        if enabled == true then
+            parts[#parts + 1] = tostring(key)
+        elseif type(key) == "number" and type(enabled) == "string" and enabled ~= "" then
+            parts[#parts + 1] = enabled
+        end
+    end
+    table.sort(parts)
+    if #parts == 0 then
+        return "none"
+    end
+    return table.concat(parts, ",")
+end
+
+local function ResolveTraceUnitExists(unit)
+    if unit == "player" then
+        return true
+    end
+    if UnitExists and type(unit) == "string" and unit ~= "" then
+        return UnitExists(unit) and true or false
+    end
+    return false
+end
+
+local function ResolveTraceFrameShown(frame)
+    if frame and frame.IsShown then
+        return frame:IsShown() == true
+    end
+    return nil
+end
+
+local function ResolveTraceFrameAlpha(frame)
+    if frame and frame.GetAlpha then
+        return tonumber(frame:GetAlpha())
+    end
+    return nil
+end
+
+local function ResolveTraceProtected(frame)
+    if frame and frame.IsProtected then
+        return frame:IsProtected() == true
+    end
+    return false
+end
+
+local function ResolveTraceStatePhase(frame)
+    local runtimeState = frame and frame.FocalPointRuntimeState
+    return runtimeState and runtimeState.phase or nil
+end
+
+local function ResolveTraceMissingSince(frame)
+    local runtimeState = frame and frame.FocalPointRuntimeState
+    return runtimeState and runtimeState.missingSince or nil
+end
+
+local function ResolveTraceMode(frame, overrideMode)
+    if type(overrideMode) == "string" and overrideMode ~= "" then
+        return overrideMode
+    end
+    local runtimeState = frame and frame.FocalPointRuntimeState
+    return runtimeState and runtimeState.mode or nil
+end
+
+local function ResolveTraceConfigEnabled(frame, config)
+    config = type(config) == "table" and config or frame and frame.config or nil
+    if type(config) == "table" then
+        return config.enabled ~= false
+    end
+    return nil
+end
+
+local function ResolveTraceRootDecisionReason(frame, values)
+    if type(values.rootDecisionReason) == "string" then
+        return values.rootDecisionReason
+    end
+    local rootDecision = values.rootDecision
+    if not rootDecision and values.captureRoot == true and frame and Visibility.ResolveRootDecision then
+        rootDecision = Visibility.ResolveRootDecision(frame, values.rootDecisionSource or "combat-transition-trace", {
+            config = values.config,
+            mode = values.mode,
+            modeReason = values.modeReason,
+            unitPresent = values.unitPresent,
+        })
+    end
+    return rootDecision and rootDecision.reason or nil
+end
+
+local function ResolveTraceRootActionPlanReason(frame, values)
+    if type(values.rootActionPlanReason) == "string" then
+        return values.rootActionPlanReason
+    end
+    local rootActionPlan = values.rootActionPlan
+    if not rootActionPlan and values.captureRoot == true and frame and Visibility.ResolveRootActionPlan then
+        rootActionPlan = Visibility.ResolveRootActionPlan(frame, {
+            config = values.config,
+            mode = values.mode,
+            modeReason = values.modeReason,
+            unitPresent = values.unitPresent,
+        })
+    end
+    return rootActionPlan and rootActionPlan.reason or nil
+end
+
+local function ResolveTraceAbsentGuard(values)
+    if values.absentGuard ~= nil then
+        return values.absentGuard == true
+    end
+    local showDecision = values.rootShowDecision
+    return showDecision
+        and (
+            showDecision.absentTargetGuard == true
+            or showDecision.absentTargetTargetGuard == true
+            or showDecision.absentFocusTargetGuard == true
+            or showDecision.absentBossGuard == true
+        )
+        or false
+end
+
+local function IsTraceEntrySuspicious(entry)
+    if not entry or entry.stage ~= "refresh-exit" then
+        return false
+    end
+    if entry.UnitExists == true
+        and entry.frameExists == true
+        and (entry.shown == false or tonumber(entry.alpha) == 0)
+    then
+        return true
+    end
+    if type(entry.unit) == "string"
+        and entry.unit:match("^boss%d+$")
+        and entry.UnitExists == true
+        and entry.unitWatchRegistered == false
+        and entry.inCombat == true
+    then
+        return true
+    end
+    return false
+end
+
+local function AppendRingEntry(buffer, entry, limit)
+    buffer[#buffer + 1] = entry
+    while #buffer > limit do
+        table.remove(buffer, 1)
+    end
 end
 
 local function HideFrameIfSafe(frame)
@@ -1215,6 +1406,8 @@ local function EnsureRootActionDebugState(state)
     state.rootShowDecisionComparisonsByBranch = state.rootShowDecisionComparisonsByBranch or {}
     state.rootShowDecisionMatchesByBranch = state.rootShowDecisionMatchesByBranch or {}
     state.rootShowDecisionRecentMismatches = state.rootShowDecisionRecentMismatches or {}
+    state.combatTransitionTrace = state.combatTransitionTrace or {}
+    state.combatTransitionSuspicious = state.combatTransitionSuspicious or {}
     return state
 end
 
@@ -1265,6 +1458,8 @@ function Visibility.ResetDecisionDebug()
     state.rootShowDecisionMatchesByBranch = WipeDecisionDebugMap(state.rootShowDecisionMatchesByBranch)
     state.rootShowDecisionRecentMismatches = WipeDecisionDebugMap(state.rootShowDecisionRecentMismatches)
     state.rootShowDecisionLastMismatch = nil
+    state.combatTransitionTrace = WipeDecisionDebugMap(state.combatTransitionTrace)
+    state.combatTransitionSuspicious = WipeDecisionDebugMap(state.combatTransitionSuspicious)
     return state
 end
 
@@ -1277,6 +1472,73 @@ end
 function Visibility.IsDecisionDebugEnabled()
     local state = FocalPoint and FocalPoint.VisibilityDecisionDebug
     return state and state.enabled == true or false
+end
+
+function Visibility.RecordCombatTransition(frame, event, stage, values)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return nil
+    end
+
+    values = type(values) == "table" and values or {}
+    local unit = values.unit or frame and frame.unit or nil
+    if not IsCombatTransitionUnit(unit) then
+        return nil
+    end
+    if stage == "event-received"
+        and type(event) == "string"
+        and event ~= ""
+        and not COMBAT_TRANSITION_EVENTS[event]
+    then
+        return nil
+    end
+
+    local rootShowDecision = values.rootShowDecision
+    local unitWatchDecision = values.unitWatchDecision
+    local entry = {
+        timestamp = GetTime and GetTime() or 0,
+        event = event,
+        stage = stage or "unknown",
+        unit = unit,
+        frameUnit = frame and frame.unit or nil,
+        UnitExists = ResolveTraceUnitExists(unit),
+        frameExists = frame ~= nil,
+        shown = ResolveTraceFrameShown(frame),
+        alpha = ResolveTraceFrameAlpha(frame),
+        protected = ResolveTraceProtected(frame),
+        inCombat = InCombatLockdown and InCombatLockdown() == true or false,
+        mode = ResolveTraceMode(frame, values.mode),
+        configEnabled = ResolveTraceConfigEnabled(frame, values.config),
+        rootDecisionReason = ResolveTraceRootDecisionReason(frame, values),
+        rootActionPlanReason = ResolveTraceRootActionPlanReason(frame, values),
+        rootShowAction = values.rootShowAction or rootShowDecision and rootShowDecision.action or nil,
+        rootShowReason = values.rootShowReason or rootShowDecision and rootShowDecision.reason or nil,
+        absentGuard = ResolveTraceAbsentGuard(values),
+        unitWatchRegistered = frame and frame._unitWatchRegistered == true or false,
+        unitWatchDecisionAction = values.unitWatchDecisionAction or unitWatchDecision and unitWatchDecision.action or nil,
+        unitWatchDecisionReason = values.unitWatchDecisionReason or unitWatchDecision and unitWatchDecision.reason or nil,
+        refreshReason = values.refreshReason,
+        refreshScopes = NormalizeTraceScopes(values.refreshScopes),
+        statePhase = values.statePhase or ResolveTraceStatePhase(frame),
+        missingSince = values.missingSince or ResolveTraceMissingSince(frame),
+        canCallShow = values.canCallShow,
+        shouldShow = values.shouldShow,
+        shouldSkipShow = values.shouldSkipShow,
+        showAttempted = values.showAttempted == true,
+        missingHandled = values.missingHandled,
+        registeredBefore = values.registeredBefore,
+        registeredAfter = values.registeredAfter,
+        canRegisterNow = values.canRegisterNow,
+        canUnregisterNow = values.canUnregisterNow,
+        eventUnit = values.eventUnit,
+    }
+
+    local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
+    entry.suspicious = IsTraceEntrySuspicious(entry)
+    AppendRingEntry(state.combatTransitionTrace, entry, COMBAT_TRANSITION_TRACE_LIMIT)
+    if entry.suspicious then
+        AppendRingEntry(state.combatTransitionSuspicious, entry, COMBAT_TRANSITION_TRACE_LIMIT)
+    end
+    return entry
 end
 
 local function BumpCounter(map, key)
@@ -2161,6 +2423,94 @@ function Visibility.GetDecisionDebugStatus()
         rootShowDecisionMismatches = tonumber(state.rootShowDecisionMismatches) or 0,
         recentCount = #(state.recentMismatches or {}),
     }
+end
+
+local function FormatCombatTransitionEntry(entry)
+    local rootShow = "nil"
+    if entry.rootShowAction ~= nil or entry.rootShowReason ~= nil then
+        rootShow = string.format("%s/%s", FormatTraceValue(entry.rootShowAction), FormatTraceValue(entry.rootShowReason))
+    end
+    local unitWatchDecision = "nil"
+    if entry.unitWatchDecisionAction ~= nil or entry.unitWatchDecisionReason ~= nil then
+        unitWatchDecision = string.format(
+            "%s/%s",
+            FormatTraceValue(entry.unitWatchDecisionAction),
+            FormatTraceValue(entry.unitWatchDecisionReason)
+        )
+    end
+
+    local suffix = entry.suspicious and " SUSPICIOUS" or ""
+    return string.format(
+        "  t=%s event=%s stage=%s unit=%s exists=%s frameExists=%s shown=%s alpha=%s protected=%s combat=%s mode=%s rootDecision=%s rootAction=%s rootShow=%s absentGuard=%s unitWatch=%s unitWatchDecision=%s refreshReason=%s refreshScopes=%s statePhase=%s missingSince=%s canCallShow=%s shouldShow=%s shouldSkipShow=%s frameUnit=%s%s",
+        FormatTraceNumber(entry.timestamp, 3),
+        FormatTraceValue(entry.event),
+        FormatTraceValue(entry.stage),
+        FormatTraceValue(entry.unit),
+        FormatTraceBool(entry.UnitExists),
+        FormatTraceBool(entry.frameExists),
+        FormatTraceBool(entry.shown),
+        FormatTraceNumber(entry.alpha, 3),
+        FormatTraceBool(entry.protected),
+        FormatTraceBool(entry.inCombat),
+        FormatTraceValue(entry.mode),
+        FormatTraceValue(entry.rootDecisionReason),
+        FormatTraceValue(entry.rootActionPlanReason),
+        rootShow,
+        FormatTraceBool(entry.absentGuard),
+        FormatTraceBool(entry.unitWatchRegistered),
+        unitWatchDecision,
+        FormatTraceValue(entry.refreshReason),
+        FormatTraceValue(entry.refreshScopes),
+        FormatTraceValue(entry.statePhase),
+        FormatTraceNumber(entry.missingSince, 3),
+        FormatTraceBool(entry.canCallShow),
+        FormatTraceBool(entry.shouldShow),
+        FormatTraceBool(entry.shouldSkipShow),
+        FormatTraceValue(entry.frameUnit),
+        suffix
+    )
+end
+
+local function AppendRecentCombatTransitions(lines, title, entries, limit)
+    lines[#lines + 1] = title
+    if type(entries) ~= "table" or #entries == 0 then
+        lines[#lines + 1] = "  none"
+        return
+    end
+
+    local startIndex = math.max(1, #entries - limit + 1)
+    for index = startIndex, #entries do
+        lines[#lines + 1] = FormatCombatTransitionEntry(entries[index])
+    end
+end
+
+function Visibility.BuildCombatTransitionReport()
+    local state = EnsureDecisionDebugState()
+    EnsureRootActionDebugState(state)
+    local trace = state.combatTransitionTrace or {}
+    local suspicious = state.combatTransitionSuspicious or {}
+    local lines = {
+        "Combat transition trace",
+        string.format("Enabled: %s", tostring(state.enabled == true)),
+        string.format("Entries: %d", #trace),
+        string.format("Suspicious entries: %d", #suspicious),
+        "",
+    }
+
+    AppendRecentCombatTransitions(
+        lines,
+        "Recent suspicious transitions:",
+        suspicious,
+        COMBAT_TRANSITION_SUSPICIOUS_REPORT_LIMIT
+    )
+    lines[#lines + 1] = ""
+    AppendRecentCombatTransitions(
+        lines,
+        "Recent target/boss transitions:",
+        trace,
+        COMBAT_TRANSITION_RECENT_REPORT_LIMIT
+    )
+    return lines
 end
 
 function Visibility.BuildDecisionDebugReport()
@@ -3092,6 +3442,11 @@ function Visibility.RegisterEvents(owner, frame)
         if event == "UNIT_PET" and unit ~= "player" then
             return
         end
+
+        Visibility.RecordCombatTransition(currentOwner, event, "event-received", {
+            eventUnit = unit,
+            refreshReason = event,
+        })
 
         if (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" or event == "UNIT_TARGET")
             and State.HandleTargetSwap

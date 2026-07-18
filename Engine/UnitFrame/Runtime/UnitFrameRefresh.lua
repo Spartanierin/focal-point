@@ -107,7 +107,7 @@ end
 
 local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
     if not frame then
-        return
+        return nil
     end
 
     local decision = UnitWatchPolicy.ResolveSync and UnitWatchPolicy.ResolveSync(frame, {
@@ -117,20 +117,22 @@ local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
     MaybeRecordUnitWatchSyncDebug(frame, previewOutsideCombat, decision)
 
     if not decision then
-        return
+        return nil
     end
 
     if decision.action == "unregister" then
         UnregisterUnitWatch(frame)
         frame._unitWatchRegistered = false
-        return
+        return decision
     end
 
     if decision.action == "register" then
         RegisterUnitWatch(frame)
         frame._unitWatchRegistered = true
-        return
+        return decision
     end
+
+    return decision
 end
 
 local function HasScope(refreshRequest, scope)
@@ -254,6 +256,12 @@ local function IsValidatedProtectedCombatKeepDecision(decision)
         and decision.protectedRoot == true
         and decision.inCombat == true
         and decision.canCallShow == false
+end
+
+local function RecordCombatTransition(frame, event, stage, values)
+    if Visibility.RecordCombatTransition then
+        Visibility.RecordCombatTransition(frame, event, stage, values)
+    end
 end
 
 -- Refresh orchestration keeps the normal live-update path together so the
@@ -405,7 +413,19 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         local outsideCombat = not (InCombatLockdown and InCombatLockdown())
         local inCombat = not outsideCombat
 
-        SyncPreviewUnitWatch(frame, previewOutsideCombat)
+        local unitWatchRegisteredBefore = frame._unitWatchRegistered == true
+        local unitWatchDecision = SyncPreviewUnitWatch(frame, previewOutsideCombat)
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "unitwatch-sync", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            unitWatchDecision = unitWatchDecision,
+            registeredBefore = unitWatchRegisteredBefore,
+            registeredAfter = frame._unitWatchRegistered == true,
+            canRegisterNow = unitWatchDecision and unitWatchDecision.canRegisterNow,
+            canUnregisterNow = unitWatchDecision and unitWatchDecision.canUnregisterNow,
+        })
 
         if not protectedRoot or previewOutsideCombat or outsideCombat then
             local unitPresent = ResolveRefreshUnitPresent(frame)
@@ -432,6 +452,17 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
                 unitPresent = unitPresent,
             }, true)
             local expectedReason = mode == "placeholder" and "preview-placeholder-show" or "preview-detailed-show"
+            RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "before-root-show", {
+                config = config,
+                mode = mode,
+                refreshReason = refreshRequest and refreshRequest.reason or nil,
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                rootShowDecision = showDecision,
+                rootShowAction = "show",
+                rootShowReason = expectedReason,
+                canCallShow = true,
+                shouldShow = true,
+            })
             local shouldShowRoot = true
             if IsValidatedPreviewShowDecision(showDecision, mode, expectedReason) then
                 shouldShowRoot = showDecision.shouldShow == true
@@ -439,6 +470,18 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             if shouldShowRoot then
                 frame:Show()
             end
+            RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
+                config = config,
+                mode = mode,
+                refreshReason = refreshRequest and refreshRequest.reason or nil,
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                rootShowDecision = showDecision,
+                rootShowAction = "show",
+                rootShowReason = expectedReason,
+                canCallShow = true,
+                shouldShow = shouldShowRoot == true,
+                showAttempted = shouldShowRoot == true,
+            })
         else
             local unitPresent = ResolveRefreshUnitPresent(frame)
             local showDecision = RecordRootShowDecisionShadow(frame, {
@@ -462,11 +505,34 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
                 inCombat = inCombat,
                 unitPresent = unitPresent,
             }, true)
+            RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "before-root-show", {
+                config = config,
+                mode = mode,
+                refreshReason = refreshRequest and refreshRequest.reason or nil,
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                rootShowDecision = showDecision,
+                rootShowAction = "keep",
+                rootShowReason = "preview-protected-combat-keep",
+                canCallShow = false,
+                shouldShow = false,
+            })
             if IsValidatedProtectedCombatKeepDecision(showDecision) then
                 -- Decision validated the existing protected-combat keep behavior.
             else
                 -- Legacy fallback: protected-combat keep also performs no root show.
             end
+            RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
+                config = config,
+                mode = mode,
+                refreshReason = refreshRequest and refreshRequest.reason or nil,
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                rootShowDecision = showDecision,
+                rootShowAction = "keep",
+                rootShowReason = "preview-protected-combat-keep",
+                canCallShow = false,
+                shouldShow = false,
+                showAttempted = false,
+            })
         end
         if Demo.ReportDebug then
             Demo.ReportDebug(frame)
@@ -517,7 +583,19 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     local outsideCombat = not (InCombatLockdown and InCombatLockdown())
     local inCombat = not outsideCombat
 
-    SyncPreviewUnitWatch(frame, previewOutsideCombat)
+    local unitWatchRegisteredBefore = frame._unitWatchRegistered == true
+    local unitWatchDecision = SyncPreviewUnitWatch(frame, previewOutsideCombat)
+    RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "unitwatch-sync", {
+        config = config,
+        mode = mode,
+        refreshReason = refreshRequest and refreshRequest.reason or nil,
+        refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+        unitWatchDecision = unitWatchDecision,
+        registeredBefore = unitWatchRegisteredBefore,
+        registeredAfter = frame._unitWatchRegistered == true,
+        canRegisterNow = unitWatchDecision and unitWatchDecision.canRegisterNow,
+        canUnregisterNow = unitWatchDecision and unitWatchDecision.canUnregisterNow,
+    })
 
     local skipShowForAbsentTarget = frame.unit == "target"
         and not previewOutsideCombat
@@ -552,7 +630,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         elseif skipShowForAbsentBoss then
             branch = "absent-boss"
         end
-        RecordRootShowDecisionShadow(frame, {
+        local showDecision = RecordRootShowDecisionShadow(frame, {
             branch = branch,
             action = "skip-show",
             reason = branch,
@@ -577,6 +655,33 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             protectedRoot = protectedRoot,
             inCombat = inCombat,
             unitPresent = unitPresent,
+        })
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "before-root-show", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            rootShowDecision = showDecision,
+            rootShowAction = "skip-show",
+            rootShowReason = branch,
+            absentGuard = true,
+            canCallShow = canCallShow,
+            shouldShow = false,
+            shouldSkipShow = true,
+        })
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            rootShowDecision = showDecision,
+            rootShowAction = "skip-show",
+            rootShowReason = branch,
+            absentGuard = true,
+            canCallShow = canCallShow,
+            shouldShow = false,
+            shouldSkipShow = true,
+            showAttempted = false,
         })
     end
 
@@ -612,6 +717,17 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             inCombat = inCombat,
             unitPresent = unitPresent,
         }, true)
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "before-root-show", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            rootShowDecision = showDecision,
+            rootShowAction = "show",
+            rootShowReason = unitPresent and "live-present-show" or "live-local-show",
+            canCallShow = canCallShow,
+            shouldShow = true,
+        })
         local shouldShowRoot = true
         if IsValidatedLivePresentShowDecision(showDecision) then
             shouldShowRoot = showDecision.shouldShow == true
@@ -619,6 +735,18 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         if shouldShowRoot then
             frame:Show()
         end
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            rootShowDecision = showDecision,
+            rootShowAction = "show",
+            rootShowReason = unitPresent and "live-present-show" or "live-local-show",
+            canCallShow = canCallShow,
+            shouldShow = shouldShowRoot == true,
+            showAttempted = shouldShowRoot == true,
+        })
     elseif not skipShowForAbsentTarget
         and not skipShowForAbsentTargetTarget
         and not skipShowForAbsentFocusTarget
@@ -649,11 +777,34 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             inCombat = inCombat,
             unitPresent = unitPresent,
         }, true)
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "before-root-show", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            rootShowDecision = showDecision,
+            rootShowAction = "keep",
+            rootShowReason = "live-protected-combat-keep",
+            canCallShow = canCallShow,
+            shouldShow = false,
+        })
         if IsValidatedProtectedCombatKeepDecision(showDecision) then
             -- Decision validated the existing protected-combat keep behavior.
         else
             -- Legacy fallback: protected-combat keep also performs no root show.
         end
+        RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-root-show", {
+            config = config,
+            mode = mode,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            rootShowDecision = showDecision,
+            rootShowAction = "keep",
+            rootShowReason = "live-protected-combat-keep",
+            canCallShow = canCallShow,
+            shouldShow = false,
+            showAttempted = false,
+        })
     end
 
     if Demo.ReportDebug then

@@ -1807,6 +1807,15 @@ function UF:Refresh(frame, refreshRequest)
     if not config then
         return
     end
+    if Visibility.RecordCombatTransition then
+        Visibility.RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "refresh-enter", {
+            config = config,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            captureRoot = true,
+            rootDecisionSource = "refresh-enter",
+        })
+    end
     if config.enabled == false and not (FocalPoint and FocalPoint.framesUnlocked == true) then
         if ClearFrameVisualState then
             ClearFrameVisualState(frame, "disabled_live_refresh")
@@ -1849,6 +1858,15 @@ function UF:Refresh(frame, refreshRequest)
         if StateRuntime.SetPhase then
             StateRuntime.SetPhase(frame, "disabled")
         end
+        if Visibility.RecordCombatTransition then
+            Visibility.RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "refresh-exit", {
+                config = config,
+                refreshReason = refreshRequest and refreshRequest.reason or nil,
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                captureRoot = true,
+                rootDecisionSource = "disabled-live-refresh-exit",
+            })
+        end
         return
     end
 
@@ -1859,9 +1877,30 @@ function UF:Refresh(frame, refreshRequest)
         StateRuntime.SetPhase(frame, "bound")
     end
 
-    if HandleMissingUnit(frame) then
+    local missingHandled = HandleMissingUnit(frame)
+    if Visibility.RecordCombatTransition then
+        Visibility.RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "after-missing-handler", {
+            config = config,
+            missingHandled = missingHandled == true,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            captureRoot = true,
+            rootDecisionSource = "after-missing-handler",
+        })
+    end
+    if missingHandled then
         if StateRuntime.SetPhase then
             StateRuntime.SetPhase(frame, "empty_valid")
+        end
+        if Visibility.RecordCombatTransition then
+            Visibility.RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "refresh-exit", {
+                config = config,
+                missingHandled = true,
+                refreshReason = refreshRequest and refreshRequest.reason or nil,
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                captureRoot = true,
+                rootDecisionSource = "missing-handler-refresh-exit",
+            })
         end
         return
     end
@@ -1877,6 +1916,15 @@ function UF:Refresh(frame, refreshRequest)
     if StateRuntime.SetPhase then
         local shown = frame.IsShown and frame:IsShown()
         StateRuntime.SetPhase(frame, shown and "visible" or "bound")
+    end
+    if Visibility.RecordCombatTransition then
+        Visibility.RecordCombatTransition(frame, refreshRequest and refreshRequest.reason or "refresh", "refresh-exit", {
+            config = config,
+            refreshReason = refreshRequest and refreshRequest.reason or nil,
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            captureRoot = true,
+            rootDecisionSource = "refresh-exit",
+        })
     end
 end
 

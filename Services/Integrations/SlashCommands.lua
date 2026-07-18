@@ -166,6 +166,18 @@ local function ReportVisibilityDebugSummary()
     end
 end
 
+local function ReportVisibilityTransitionTrace()
+    local Visibility = GetVisibilityDebugApi()
+    local lines = Visibility and Visibility.BuildCombatTransitionReport and Visibility.BuildCombatTransitionReport() or nil
+    if type(lines) ~= "table" then
+        VisibilityDebugMessage("transition report unavailable")
+        return
+    end
+    for _, line in ipairs(lines) do
+        VisibilityDebugMessage(line)
+    end
+end
+
 local function ResetVisibilityDebug()
     local Visibility = GetVisibilityDebugApi()
     if Visibility and Visibility.ResetDecisionDebug then
@@ -196,10 +208,12 @@ local function HandleVisibilityDebugCommand(msg)
         ResetVisibilityDebug()
     elseif msg == "report" then
         ReportVisibilityDebugSummary()
+    elseif msg == "transitions" then
+        ReportVisibilityTransitionTrace()
     elseif msg == "status" or msg == "" then
         ReportVisibilityDebugStatus()
     else
-        VisibilityDebugMessage("usage: /fpdebugvisibility on|off|reset|status|report")
+        VisibilityDebugMessage("usage: /fpdebugvisibility on|off|reset|status|report|transitions")
     end
 end
 
@@ -424,7 +438,7 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report")
             end
         end
     end
