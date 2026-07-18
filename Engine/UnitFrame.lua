@@ -1867,6 +1867,14 @@ function UF:Refresh(frame, refreshRequest)
                 rootDecisionSource = "disabled-live-refresh-exit",
             })
         end
+        if Visibility.RecordEndStateInvariant then
+            Visibility.RecordEndStateInvariant(frame, {
+                config = config,
+                refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                checkPoint = "disabled-live-refresh-exit",
+            })
+        end
         return
     end
 
@@ -1902,6 +1910,14 @@ function UF:Refresh(frame, refreshRequest)
                 rootDecisionSource = "missing-handler-refresh-exit",
             })
         end
+        if Visibility.RecordEndStateInvariant then
+            Visibility.RecordEndStateInvariant(frame, {
+                config = config,
+                refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+                refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+                checkPoint = "missing-handler-refresh-exit",
+            })
+        end
         return
     end
 
@@ -1924,6 +1940,14 @@ function UF:Refresh(frame, refreshRequest)
             refreshScopes = refreshRequest and refreshRequest.scopes or nil,
             captureRoot = true,
             rootDecisionSource = "refresh-exit",
+        })
+    end
+    if Visibility.RecordEndStateInvariant then
+        Visibility.RecordEndStateInvariant(frame, {
+            config = config,
+            refreshReason = refreshRequest and refreshRequest.reason or "refresh",
+            refreshScopes = refreshRequest and refreshRequest.scopes or nil,
+            checkPoint = "refresh-exit",
         })
     end
 end

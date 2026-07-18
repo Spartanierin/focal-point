@@ -19,6 +19,23 @@ local COMBAT_TRANSITION_EVENTS = {
     PLAYER_REGEN_DISABLED = true,
     PLAYER_REGEN_ENABLED = true,
 }
+local END_STATE_INVARIANT_RECENT_LIMIT = 30
+local END_STATE_INVARIANT_CHECK_LIMIT = 100
+local END_STATE_INVARIANT_REPORT_LIMIT = 20
+local END_STATE_INVARIANT_UNITS = {
+    target = true,
+    targettarget = true,
+    focus = true,
+    focustarget = true,
+    boss1 = true,
+    boss2 = true,
+    boss3 = true,
+    boss4 = true,
+    boss5 = true,
+    pet = true,
+    companion = true,
+    player = true,
+}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local GetTargetPresenceSnapshot = Presence.GetTargetPresenceSnapshot
@@ -1378,6 +1395,15 @@ local function EnsureDecisionDebugState()
         rootShowDecisionMatchesByBranch = {},
         rootShowDecisionRecentMismatches = {},
         rootShowDecisionLastMismatch = nil,
+        endStateInvariantChecks = 0,
+        endStateInvariantViolations = 0,
+        endStateInvariantByViolation = {},
+        endStateInvariantByUnit = {},
+        endStateInvariantByMode = {},
+        endStateInvariantByCombat = {},
+        endStateInvariantRecentChecks = {},
+        endStateInvariantRecent = {},
+        endStateInvariantFirstNotified = false,
     }
     return FocalPoint.VisibilityDecisionDebug
 end
@@ -1408,6 +1434,15 @@ local function EnsureRootActionDebugState(state)
     state.rootShowDecisionRecentMismatches = state.rootShowDecisionRecentMismatches or {}
     state.combatTransitionTrace = state.combatTransitionTrace or {}
     state.combatTransitionSuspicious = state.combatTransitionSuspicious or {}
+    state.endStateInvariantChecks = tonumber(state.endStateInvariantChecks) or 0
+    state.endStateInvariantViolations = tonumber(state.endStateInvariantViolations) or 0
+    state.endStateInvariantByViolation = state.endStateInvariantByViolation or {}
+    state.endStateInvariantByUnit = state.endStateInvariantByUnit or {}
+    state.endStateInvariantByMode = state.endStateInvariantByMode or {}
+    state.endStateInvariantByCombat = state.endStateInvariantByCombat or {}
+    state.endStateInvariantRecentChecks = state.endStateInvariantRecentChecks or {}
+    state.endStateInvariantRecent = state.endStateInvariantRecent or {}
+    state.endStateInvariantFirstNotified = state.endStateInvariantFirstNotified == true
     return state
 end
 
@@ -1460,6 +1495,15 @@ function Visibility.ResetDecisionDebug()
     state.rootShowDecisionLastMismatch = nil
     state.combatTransitionTrace = WipeDecisionDebugMap(state.combatTransitionTrace)
     state.combatTransitionSuspicious = WipeDecisionDebugMap(state.combatTransitionSuspicious)
+    state.endStateInvariantChecks = 0
+    state.endStateInvariantViolations = 0
+    state.endStateInvariantByViolation = WipeDecisionDebugMap(state.endStateInvariantByViolation)
+    state.endStateInvariantByUnit = WipeDecisionDebugMap(state.endStateInvariantByUnit)
+    state.endStateInvariantByMode = WipeDecisionDebugMap(state.endStateInvariantByMode)
+    state.endStateInvariantByCombat = WipeDecisionDebugMap(state.endStateInvariantByCombat)
+    state.endStateInvariantRecentChecks = WipeDecisionDebugMap(state.endStateInvariantRecentChecks)
+    state.endStateInvariantRecent = WipeDecisionDebugMap(state.endStateInvariantRecent)
+    state.endStateInvariantFirstNotified = false
     return state
 end
 
@@ -1544,6 +1588,306 @@ end
 local function BumpCounter(map, key)
     key = tostring(key or "unknown")
     map[key] = (tonumber(map[key]) or 0) + 1
+end
+
+local function IsEndStateInvariantUnit(unit)
+    return type(unit) == "string" and END_STATE_INVARIANT_UNITS[unit] == true
+end
+
+local function SafeUnitExists(unit)
+    if unit == "player" then
+        return true
+    end
+    if not (UnitExists and type(unit) == "string" and unit ~= "") then
+        return false
+    end
+    local ok, exists = pcall(UnitExists, unit)
+    return ok and exists == true or false
+end
+
+local function SafeFrameShown(frame)
+    if not (frame and frame.IsShown) then
+        return false
+    end
+    local ok, shown = pcall(frame.IsShown, frame)
+    return ok and shown == true or false
+end
+
+local function SafeFrameAlpha(frame)
+    if not (frame and frame.GetAlpha) then
+        return nil
+    end
+    local ok, alpha = pcall(frame.GetAlpha, frame)
+    if not ok then
+        return nil
+    end
+    return tonumber(alpha)
+end
+
+local function IsActiveRuntimeFrame(frame)
+    local unit = frame and frame.unit
+    local frames = FocalPoint and FocalPoint.frames or nil
+    return type(frames) == "table" and type(unit) == "string" and frames[unit] == frame
+end
+
+local function IsPooledFrame(frame)
+    local unit = frame and frame.unit
+    local pool = FocalPoint and FocalPoint.framePool or nil
+    return type(pool) == "table" and type(unit) == "string" and pool[unit] == frame
+end
+
+local function IsConfiguredAlphaZero(config)
+    return type(config) == "table" and tonumber(config.alpha) ~= nil and tonumber(config.alpha) <= 0
+end
+
+local function IsIntentionalRangeAlphaZero(frame, alphaDecision)
+    if alphaDecision and alphaDecision.winningSource == "range-fade" and tonumber(alphaDecision.finalAlpha) == 0 then
+        return true
+    end
+    if tonumber(frame and frame._rangeTargetAlpha) == 0 then
+        return true
+    end
+    if tonumber(frame and frame._rangeCurrentAlpha) == 0
+        and frame
+        and frame.RangeFadeDriver
+        and frame.RangeFadeDriver.IsShown
+        and frame.RangeFadeDriver:IsShown()
+    then
+        return true
+    end
+    return false
+end
+
+local function IsUnitWatchResponsible(frame, unitWatchRegistered, mode, protectedRoot, inCombat)
+    if unitWatchRegistered ~= true then
+        return false
+    end
+    local UnitWatchPolicy = FocalPoint and FocalPoint.UnitFrameUnitWatchPolicy or nil
+    if not (UnitWatchPolicy and UnitWatchPolicy.Resolve) then
+        return false
+    end
+
+    local resolved = UnitWatchPolicy.Resolve(frame, {
+        mode = mode,
+        protectedRoot = protectedRoot == true,
+        inCombat = inCombat == true,
+        previewActive = FocalPoint and (FocalPoint.guiTestModeEnabled == true or FocalPoint.framesUnlocked == true) or false,
+    })
+    return resolved and resolved.shouldUse == true or false
+end
+
+local function ResolveInvariantMode(frame, context)
+    context = type(context) == "table" and context or {}
+    if type(context.mode) == "string" and context.mode ~= "" then
+        return context.mode, context.modeReason
+    end
+    return ResolveModeReadOnly(frame)
+end
+
+local function BuildInvariantResult(frame, context)
+    context = type(context) == "table" and context or {}
+    local unit = frame and frame.unit or nil
+    local config = type(context.config) == "table" and context.config or frame and frame.config or nil
+    local mode, modeReason = ResolveInvariantMode(frame, context)
+    local configEnabled = type(config) ~= "table" or config.enabled ~= false
+    local exists = SafeUnitExists(unit)
+    local shown = SafeFrameShown(frame)
+    local alpha = SafeFrameAlpha(frame)
+    local protectedRoot = frame and frame.IsProtected and frame:IsProtected() or false
+    local inCombat = InCombatLockdown and InCombatLockdown() or false
+    local unitWatchRegistered = frame and frame._unitWatchRegistered == true or false
+    local unitWatchResponsible = IsUnitWatchResponsible(frame, unitWatchRegistered, mode, protectedRoot, inCombat)
+    local activeRuntimeFrame = IsActiveRuntimeFrame(frame)
+    local pooled = IsPooledFrame(frame)
+
+    local rootDecision = Visibility.ResolveRootDecision and Visibility.ResolveRootDecision(frame, "end-state-invariant", {
+        config = config,
+        mode = mode,
+        modeReason = modeReason,
+        unitPresent = exists,
+    }) or nil
+    local rootShowDecision = Visibility.ResolveRootShowDecision and Visibility.ResolveRootShowDecision(frame, {
+        config = config,
+        mode = mode,
+        modeReason = modeReason,
+        unitPresent = exists,
+        rootDecision = rootDecision,
+    }) or nil
+    local rootAlphaDecision = Visibility.ResolveRootAlphaDecision and Visibility.ResolveRootAlphaDecision(frame, {
+        source = "end-state-invariant",
+        config = config,
+        rangeMultiplier = 1,
+        missingUnitAlphaGuard = false,
+        visibilityOptions = {
+            mode = mode,
+            modeReason = modeReason,
+            unitPresent = exists,
+        },
+    }) or nil
+
+    local result = {
+        ok = true,
+        violation = nil,
+        unit = unit,
+        mode = mode,
+        modeReason = modeReason,
+        exists = exists,
+        shown = shown,
+        alpha = alpha,
+        configEnabled = configEnabled,
+        configuredAlpha = type(config) == "table" and tonumber(config.alpha) or nil,
+        unitWatchRegistered = unitWatchRegistered,
+        unitWatchResponsible = unitWatchResponsible,
+        protected = protectedRoot == true,
+        inCombat = inCombat == true,
+        activeRuntimeFrame = activeRuntimeFrame == true,
+        pooled = pooled == true,
+        rootDecisionReason = rootDecision and rootDecision.reason or nil,
+        rootShowReason = rootShowDecision and rootShowDecision.reason or nil,
+        rootAlphaReason = rootAlphaDecision and (rootAlphaDecision.winningSource or rootAlphaDecision.reason) or nil,
+        refreshReason = context.refreshReason,
+        refreshScopes = context.refreshScopes,
+        checkPoint = context.checkPoint,
+    }
+
+    if not frame or not IsEndStateInvariantUnit(unit) then
+        result.skipped = "out-of-scope"
+        return result
+    end
+    if not activeRuntimeFrame or pooled then
+        result.skipped = pooled and "pooled" or "inactive-frame"
+        return result
+    end
+    if mode == "disabled" then
+        result.skipped = "demo-disabled"
+        return result
+    end
+    if mode == "placeholder" or mode == "detailed" then
+        result.skipped = "preview"
+        return result
+    end
+    if not exists then
+        result.skipped = "unit-absent"
+        return result
+    end
+
+    if mode == "live" and configEnabled == false and shown == true then
+        result.ok = false
+        result.violation = "disabled-visible"
+        return result
+    end
+
+    if mode ~= "live" or configEnabled ~= true then
+        result.skipped = "not-live-enabled"
+        return result
+    end
+
+    if shown == false and unitWatchResponsible == false then
+        result.ok = false
+        if unit == "targettarget" or unit == "focustarget" then
+            result.violation = "derived-present-no-owner"
+        elseif IsBossRuntimeUnit and IsBossRuntimeUnit(unit)
+            and inCombat
+            and protectedRoot
+            and unitWatchRegistered == false
+        then
+            result.violation = "boss-present-no-owner"
+        else
+            result.violation = "live-present-hidden"
+        end
+        local demoDebug = frame and frame.FocalPointDemoDebug
+        if demoDebug and tonumber(demoDebug.testModeExitCount) and tonumber(demoDebug.testModeExitCount) > 0 then
+            result.violation = "preview-exit-stale"
+            result.previewExitReason = demoDebug.testModeExitReason
+        end
+        return result
+    end
+
+    if alpha ~= nil and alpha <= 0 then
+        if IsConfiguredAlphaZero(config) then
+            result.skipped = "configured-alpha-zero"
+            return result
+        end
+        if IsIntentionalRangeAlphaZero(frame, rootAlphaDecision) then
+            result.skipped = "range-alpha-zero"
+            return result
+        end
+        result.ok = false
+        result.violation = "live-present-alpha-zero"
+        local demoDebug = frame and frame.FocalPointDemoDebug
+        if demoDebug and tonumber(demoDebug.testModeExitCount) and tonumber(demoDebug.testModeExitCount) > 0 then
+            result.violation = "preview-exit-stale"
+            result.previewExitReason = demoDebug.testModeExitReason
+        end
+        return result
+    end
+
+    return result
+end
+
+function Visibility.EvaluateEndStateInvariant(frame, context)
+    return BuildInvariantResult(frame, context)
+end
+
+function Visibility.RecordEndStateInvariant(frame, context)
+    if not Visibility.IsDecisionDebugEnabled() then
+        return nil
+    end
+
+    local result = Visibility.EvaluateEndStateInvariant(frame, context)
+    if not result or result.skipped == "out-of-scope" then
+        return result
+    end
+
+    local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
+    state.endStateInvariantChecks = (tonumber(state.endStateInvariantChecks) or 0) + 1
+    BumpCounter(state.endStateInvariantByMode, result and result.mode or "unknown")
+    BumpCounter(state.endStateInvariantByCombat, result and result.inCombat and "combat" or "no-combat")
+    AppendRingEntry(state.endStateInvariantRecentChecks, {
+        timestamp = GetTime and GetTime() or 0,
+        unit = result.unit,
+        ok = result.ok == true,
+        violation = result.violation,
+        skipped = result.skipped,
+        mode = result.mode,
+        exists = result.exists == true,
+        shown = result.shown == true,
+        alpha = result.alpha,
+        combat = result.inCombat == true,
+        refreshReason = result.refreshReason,
+        checkPoint = result.checkPoint,
+    }, END_STATE_INVARIANT_CHECK_LIMIT)
+
+    if not result or result.ok ~= false then
+        return result
+    end
+
+    state.endStateInvariantViolations = (tonumber(state.endStateInvariantViolations) or 0) + 1
+    BumpCounter(state.endStateInvariantByViolation, result.violation)
+    BumpCounter(state.endStateInvariantByUnit, result.unit)
+    AppendRingEntry(state.endStateInvariantRecent, {
+        timestamp = GetTime and GetTime() or 0,
+        unit = result.unit,
+        violation = result.violation,
+        exists = result.exists == true,
+        shown = result.shown == true,
+        alpha = result.alpha,
+        combat = result.inCombat == true,
+        protected = result.protected == true,
+        mode = result.mode,
+        configEnabled = result.configEnabled == true,
+        configuredAlpha = result.configuredAlpha,
+        unitWatchRegistered = result.unitWatchRegistered == true,
+        unitWatchResponsible = result.unitWatchResponsible == true,
+        rootDecisionReason = result.rootDecisionReason,
+        rootShowReason = result.rootShowReason,
+        rootAlphaReason = result.rootAlphaReason,
+        refreshReason = result.refreshReason,
+        checkPoint = result.checkPoint,
+        previewExitReason = result.previewExitReason,
+    }, END_STATE_INVARIANT_RECENT_LIMIT)
+
+    return result
 end
 
 local ROOT_SHOW_REASON_ALIASES = {
@@ -2421,6 +2765,8 @@ function Visibility.GetDecisionDebugStatus()
         criticalProfileMismatches = tonumber(state.criticalProfileMismatches) or 0,
         rootShowDecisionComparisons = tonumber(state.rootShowDecisionComparisons) or 0,
         rootShowDecisionMismatches = tonumber(state.rootShowDecisionMismatches) or 0,
+        endStateInvariantChecks = tonumber(state.endStateInvariantChecks) or 0,
+        endStateInvariantViolations = tonumber(state.endStateInvariantViolations) or 0,
         recentCount = #(state.recentMismatches or {}),
     }
 end
@@ -2510,6 +2856,66 @@ function Visibility.BuildCombatTransitionReport()
         trace,
         COMBAT_TRANSITION_RECENT_REPORT_LIMIT
     )
+    return lines
+end
+
+local function FormatInvariantEntry(entry)
+    return string.format(
+        "  t=%s unit=%s violation=%s exists=%s shown=%s alpha=%s combat=%s protected=%s mode=%s configEnabled=%s unitWatch=%s unitWatchResponsible=%s rootDecision=%s rootShow=%s rootAlpha=%s refreshReason=%s check=%s previewExit=%s",
+        FormatTraceNumber(entry and entry.timestamp, 3),
+        FormatTraceValue(entry and entry.unit),
+        FormatTraceValue(entry and entry.violation),
+        FormatTraceBool(entry and entry.exists),
+        FormatTraceBool(entry and entry.shown),
+        FormatTraceNumber(entry and entry.alpha, 3),
+        FormatTraceBool(entry and entry.combat),
+        FormatTraceBool(entry and entry.protected),
+        FormatTraceValue(entry and entry.mode),
+        FormatTraceBool(entry and entry.configEnabled),
+        FormatTraceBool(entry and entry.unitWatchRegistered),
+        FormatTraceBool(entry and entry.unitWatchResponsible),
+        FormatTraceValue(entry and entry.rootDecisionReason),
+        FormatTraceValue(entry and entry.rootShowReason),
+        FormatTraceValue(entry and entry.rootAlphaReason),
+        FormatTraceValue(entry and entry.refreshReason),
+        FormatTraceValue(entry and entry.checkPoint),
+        FormatTraceValue(entry and entry.previewExitReason)
+    )
+end
+
+function Visibility.BuildEndStateInvariantReport()
+    local state = EnsureDecisionDebugState()
+    EnsureRootActionDebugState(state)
+    local checks = tonumber(state.endStateInvariantChecks) or 0
+    local violations = tonumber(state.endStateInvariantViolations) or 0
+    local recent = state.endStateInvariantRecent or {}
+    local lines = {
+        "UnitFrame End-State Invariant Report",
+        string.format("enabled=%s", tostring(state.enabled == true)),
+        string.format("checks=%d", checks),
+        string.format("violations=%d", violations),
+        "",
+    }
+
+    AppendSortedCounters(lines, "By violation:", state.endStateInvariantByViolation)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By unit:", state.endStateInvariantByUnit)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By mode:", state.endStateInvariantByMode)
+    lines[#lines + 1] = ""
+    AppendSortedCounters(lines, "By combat state:", state.endStateInvariantByCombat)
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Recent violations:"
+
+    if #recent == 0 then
+        lines[#lines + 1] = "  none"
+        return lines
+    end
+
+    local startIndex = math.max(1, #recent - END_STATE_INVARIANT_REPORT_LIMIT + 1)
+    for index = startIndex, #recent do
+        lines[#lines + 1] = FormatInvariantEntry(recent[index])
+    end
     return lines
 end
 
