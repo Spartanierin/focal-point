@@ -21,6 +21,29 @@ local PLACEHOLDER_COLORS = {
     disabledBgA = 0.10,
 }
 
+local EXIT_TRACE_DETAIL_LIMIT = 20
+local EXIT_TRACE_RESULT_ORDER = {
+    "present-after-handle",
+    "missing-alpha-only",
+    "missing-alpha-and-hide",
+    "missing-hide-skipped-combat",
+    "missing-still-visible",
+}
+local EXIT_TRACE_UNIT_ORDER = {
+    "target",
+    "targettarget",
+    "focus",
+    "focustarget",
+    "pet",
+    "boss1-boss5",
+}
+local EXIT_TRACE_CLEANUP_ORDER = {
+    "target-exit-cleanup",
+    "boss-exit-cleanup",
+    "derived-exit-cleanup",
+    "pet-exit-cleanup",
+}
+
 function Demo.IsDebugEnabled()
     return FocalPoint and FocalPoint.debugDemoRuntime == true
 end
@@ -101,6 +124,165 @@ local function EnsureDemoDebug(frame)
     return frame.FocalPointDemoDebug
 end
 
+local function EnsureExitTraceDebug()
+    FocalPoint.DemoExitTestModeTrace = FocalPoint.DemoExitTestModeTrace or {
+        comparisons = 0,
+        byResult = {},
+        byUnit = {},
+        byReason = {},
+        byCleanup = {},
+        handleMissingResult = {},
+        additionalAlphaZeroWrites = 0,
+        additionalHideAttempts = 0,
+        hideSkippedByCombat = 0,
+        stillVisibleMissingAfterExit = 0,
+        recent = {},
+    }
+    return FocalPoint.DemoExitTestModeTrace
+end
+
+local function ResetExitTraceDebug()
+    FocalPoint.DemoExitTestModeTrace = nil
+    EnsureExitTraceDebug()
+end
+
+local function IncrementCounter(bucket, key)
+    if type(bucket) ~= "table" then
+        return
+    end
+    key = tostring(key or "unknown")
+    bucket[key] = (tonumber(bucket[key]) or 0) + 1
+end
+
+local function IsBossUnit(unit)
+    return type(unit) == "string" and unit:match("^boss%d+$") ~= nil
+end
+
+local function IsDerivedUnit(unit)
+    return unit == "targettarget" or unit == "focustarget"
+end
+
+local function ResolveExitTraceUnitBucket(unit)
+    if unit == "target" or unit == "targettarget" or unit == "focus" or unit == "focustarget" or unit == "pet" then
+        return unit
+    end
+    if IsBossUnit(unit) then
+        return "boss1-boss5"
+    end
+    return tostring(unit or "unknown")
+end
+
+local function ResolveExitTraceResult(trace)
+    if trace.existsAfterHandle == true then
+        return "present-after-handle"
+    end
+    if trace.exitHideSkippedCombat == true then
+        return "missing-hide-skipped-combat"
+    end
+    if trace.exitSetAlphaZero == true and trace.exitHideAttempted == true then
+        return "missing-alpha-and-hide"
+    end
+    if trace.exitSetAlphaZero == true then
+        return "missing-alpha-only"
+    end
+    return "missing-still-visible"
+end
+
+local function FormatTraceAlpha(value)
+    if type(value) == "number" then
+        return string.format("%.3f", value)
+    end
+    return "n/a"
+end
+
+local function AppendCounterLine(lines, label, bucket, order)
+    local parts = {}
+    local seen = {}
+    for _, key in ipairs(order or {}) do
+        seen[key] = true
+        parts[#parts + 1] = string.format("%s=%d", key, tonumber(bucket and bucket[key]) or 0)
+    end
+    local extraKeys = {}
+    if type(bucket) == "table" then
+        for key in pairs(bucket) do
+            if not seen[key] then
+                extraKeys[#extraKeys + 1] = key
+            end
+        end
+    end
+    table.sort(extraKeys)
+    for _, key in ipairs(extraKeys) do
+        parts[#parts + 1] = string.format("%s=%d", tostring(key), tonumber(bucket[key]) or 0)
+    end
+    lines[#lines + 1] = string.format("%s: %s", label, (#parts > 0 and table.concat(parts, " ") or "-"))
+end
+
+local function RecordExitTestModeTrace(trace)
+    if not Demo.IsDebugEnabled() or type(trace) ~= "table" then
+        return
+    end
+
+    local state = EnsureExitTraceDebug()
+    local result = ResolveExitTraceResult(trace)
+    trace.result = result
+    state.comparisons = (tonumber(state.comparisons) or 0) + 1
+    IncrementCounter(state.byResult, result)
+    IncrementCounter(state.byUnit, ResolveExitTraceUnitBucket(trace.unit))
+    IncrementCounter(state.byReason, trace.reason)
+    IncrementCounter(state.handleMissingResult, tostring(trace.handleMissingResult == true))
+
+    if trace.wasTarget == true then
+        IncrementCounter(state.byCleanup, "target-exit-cleanup")
+    end
+    if trace.wasBoss == true then
+        IncrementCounter(state.byCleanup, "boss-exit-cleanup")
+    end
+    if trace.wasDerived == true then
+        IncrementCounter(state.byCleanup, "derived-exit-cleanup")
+    end
+    if trace.wasPet == true then
+        IncrementCounter(state.byCleanup, "pet-exit-cleanup")
+    end
+    if trace.exitSetAlphaZero == true then
+        state.additionalAlphaZeroWrites = (tonumber(state.additionalAlphaZeroWrites) or 0) + 1
+    end
+    if trace.exitHideAttempted == true then
+        state.additionalHideAttempts = (tonumber(state.additionalHideAttempts) or 0) + 1
+    end
+    if trace.exitHideSkippedCombat == true then
+        state.hideSkippedByCombat = (tonumber(state.hideSkippedByCombat) or 0) + 1
+    end
+    if trace.existsAfterHandle ~= true and trace.shownAfterExit == true then
+        state.stillVisibleMissingAfterExit = (tonumber(state.stillVisibleMissingAfterExit) or 0) + 1
+    end
+
+    local detail = string.format(
+        "detail unit=%s reason=%s result=%s handleMissingResult=%s existsAfterHandle=%s shownAfterHandle=%s exitSetAlphaZero=%s exitHideAttempted=%s exitHideSkippedCombat=%s shownAfterExit=%s protectedRoot=%s inCombat=%s wasTarget=%s wasBoss=%s wasDerived=%s wasPet=%s alphaBeforeExitFallback=%s alphaAfterExitFallback=%s",
+        tostring(trace.unit or "?"),
+        tostring(trace.reason or "unknown"),
+        tostring(result),
+        tostring(trace.handleMissingResult == true),
+        tostring(trace.existsAfterHandle == true),
+        tostring(trace.shownAfterHandle == true),
+        tostring(trace.exitSetAlphaZero == true),
+        tostring(trace.exitHideAttempted == true),
+        tostring(trace.exitHideSkippedCombat == true),
+        tostring(trace.shownAfterExit == true),
+        tostring(trace.protectedRoot == true),
+        tostring(trace.inCombat == true),
+        tostring(trace.wasTarget == true),
+        tostring(trace.wasBoss == true),
+        tostring(trace.wasDerived == true),
+        tostring(trace.wasPet == true),
+        FormatTraceAlpha(trace.alphaBeforeExitFallback),
+        FormatTraceAlpha(trace.alphaAfterExitFallback)
+    )
+    state.recent[#state.recent + 1] = detail
+    while #state.recent > EXIT_TRACE_DETAIL_LIMIT do
+        table.remove(state.recent, 1)
+    end
+end
+
 function Demo.TouchDebug(frame, key)
     if not Demo.IsDebugEnabled() then
         return
@@ -134,6 +316,7 @@ end
 function Demo.ResetAllDebug()
     local frames = FocalPoint and FocalPoint.frames or nil
     if type(frames) ~= "table" then
+        ResetExitTraceDebug()
         return 0
     end
     local count = 0
@@ -143,7 +326,31 @@ function Demo.ResetAllDebug()
             count = count + 1
         end
     end
+    ResetExitTraceDebug()
     return count
+end
+
+function Demo.BuildExitTestModeTraceReport()
+    local state = EnsureExitTraceDebug()
+    local lines = {}
+    lines[#lines + 1] = "ExitTestMode trace"
+    lines[#lines + 1] = string.format("Comparisons: %d", tonumber(state.comparisons) or 0)
+    AppendCounterLine(lines, "By result", state.byResult, EXIT_TRACE_RESULT_ORDER)
+    AppendCounterLine(lines, "By unit", state.byUnit, EXIT_TRACE_UNIT_ORDER)
+    AppendCounterLine(lines, "By reason", state.byReason, nil)
+    AppendCounterLine(lines, "HandleMissingResult", state.handleMissingResult, { "true", "false" })
+    AppendCounterLine(lines, "Unit cleanup buckets", state.byCleanup, EXIT_TRACE_CLEANUP_ORDER)
+    lines[#lines + 1] = string.format("Additional alpha zero writes: %d", tonumber(state.additionalAlphaZeroWrites) or 0)
+    lines[#lines + 1] = string.format("Additional hide attempts: %d", tonumber(state.additionalHideAttempts) or 0)
+    lines[#lines + 1] = string.format("Hide skipped by combat: %d", tonumber(state.hideSkippedByCombat) or 0)
+    lines[#lines + 1] = string.format("Still visible missing after exit: %d", tonumber(state.stillVisibleMissingAfterExit) or 0)
+    lines[#lines + 1] = string.format("Detail cases: %d/%d", #(state.recent or {}), EXIT_TRACE_DETAIL_LIMIT)
+
+    for _, detail in ipairs(state.recent or {}) do
+        lines[#lines + 1] = detail
+    end
+
+    return lines
 end
 
 function Demo.ReportDebug(frame)
@@ -1273,24 +1480,36 @@ function Demo.ExitTestMode(reason)
 
             frame.TestValues = nil
 
+            local handleMissingResult = false
             if visibility and visibility.HandleMissingUnit then
-                visibility.HandleMissingUnit(frame)
+                handleMissingResult = visibility.HandleMissingUnit(frame) == true
             end
 
             local exists = (unit == "player") or (UnitExists and UnitExists(unit))
             local shown = frame.IsShown and frame:IsShown() or false
+            local shownAfterHandle = shown
+            local exitSetAlphaZero = false
+            local exitHideAttempted = false
+            local exitHideSkippedCombat = false
+            local protectedRoot = frame.IsProtected and frame:IsProtected() or false
+            local alphaBeforeExitFallback = frame.GetAlpha and frame:GetAlpha() or nil
             if (not exists) and unit ~= "player" then
                 if frame.SetAlpha then
+                    exitSetAlphaZero = true
                     frame:SetAlpha(0)
                 end
                 if frame.Hide and not inCombat then
+                    exitHideAttempted = true
                     frame:Hide()
+                elseif frame.Hide and inCombat then
+                    exitHideSkippedCombat = true
                 end
                 shown = frame.IsShown and frame:IsShown() or false
                 if d then
                     d.missingUnitAfterExit = true
                 end
             end
+            local alphaAfterExitFallback = frame.GetAlpha and frame:GetAlpha() or nil
 
             if d then
                 d.hiddenOnExit = (not shown)
@@ -1301,6 +1520,25 @@ function Demo.ExitTestMode(reason)
             if (not exists) and shown and unit ~= "player" then
                 stillVisibleMissingCount = stillVisibleMissingCount + 1
             end
+            RecordExitTestModeTrace({
+                unit = unit,
+                reason = exitReason,
+                handleMissingResult = handleMissingResult,
+                existsAfterHandle = exists == true,
+                shownAfterHandle = shownAfterHandle == true,
+                exitSetAlphaZero = exitSetAlphaZero,
+                exitHideAttempted = exitHideAttempted,
+                exitHideSkippedCombat = exitHideSkippedCombat,
+                shownAfterExit = shown == true,
+                protectedRoot = protectedRoot == true,
+                inCombat = inCombat == true,
+                wasTarget = unit == "target",
+                wasBoss = IsBossUnit(unit),
+                wasDerived = IsDerivedUnit(unit),
+                wasPet = unit == "pet",
+                alphaBeforeExitFallback = alphaBeforeExitFallback,
+                alphaAfterExitFallback = alphaAfterExitFallback,
+            })
         end
     end
 

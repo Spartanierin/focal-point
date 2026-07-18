@@ -68,6 +68,14 @@ local function ReportDemoDebugOnce()
             end
         end
     end
+    if Demo and Demo.BuildExitTestModeTraceReport then
+        local traceLines = Demo.BuildExitTestModeTraceReport()
+        if type(traceLines) == "table" then
+            for _, line in ipairs(traceLines) do
+                DemoDebugMessage(line)
+            end
+        end
+    end
     DemoDebugMessage(string.format("once reports=%d", reported))
 end
 
