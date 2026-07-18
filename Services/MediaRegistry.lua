@@ -26,6 +26,21 @@ local pathReferencesByType = {}
 local defaultReferences = {
     [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_REFERENCE,
 }
+local debugState = {
+    enabled = false,
+    totalComparisons = 0,
+    legacyCompatibleComparisons = 0,
+    legacyCompatibleMismatches = 0,
+    newReferenceObservations = 0,
+    invalidReferences = 0,
+    fallbackUses = 0,
+    byReferenceKind = {},
+    byMediaField = {},
+    bySource = {},
+    details = {},
+    lastMismatch = nil,
+}
+local MAX_DEBUG_DETAILS = 20
 
 local function Trim(value)
     if type(value) ~= "string" then
@@ -220,6 +235,93 @@ local function BuildLegacyEntry(parsedReference)
     }
 end
 
+local function IncrementCounter(bucket, key)
+    key = tostring(key or "unknown")
+    bucket[key] = (bucket[key] or 0) + 1
+end
+
+local function ResetDebugState()
+    debugState.totalComparisons = 0
+    debugState.legacyCompatibleComparisons = 0
+    debugState.legacyCompatibleMismatches = 0
+    debugState.newReferenceObservations = 0
+    debugState.invalidReferences = 0
+    debugState.fallbackUses = 0
+    debugState.byReferenceKind = {}
+    debugState.byMediaField = {}
+    debugState.bySource = {}
+    debugState.details = {}
+    debugState.lastMismatch = nil
+end
+
+local function ClassifyReference(reference, mediaType)
+    local parsed, reason = ParseReference(reference, mediaType)
+    if not parsed then
+        if type(reference) ~= "string" or reference == "" then
+            return "nil/default", nil, reason
+        end
+        return "invalid", nil, reason
+    end
+
+    if parsed.kind == "builtin" then
+        return "fp-id", parsed
+    end
+    if parsed.kind == "external" then
+        return "lsm-id", parsed
+    end
+    if parsed.kind == "legacy" then
+        if type(reference) == "string" and reference:match("^path:") then
+            return "path-id", parsed
+        end
+        return "direct-path", parsed
+    end
+
+    return "invalid", parsed, reason
+end
+
+local function IsLegacyCompatibleKind(kind)
+    return kind == "direct-path" or kind == "nil/default"
+end
+
+local function GetSafePath(value)
+    if type(value) == "string" and value ~= "" then
+        return value
+    end
+
+    return DEFAULT_STATUSBAR_PATH
+end
+
+local function AddDebugDetail(detail)
+    if #debugState.details >= MAX_DEBUG_DETAILS then
+        return
+    end
+
+    debugState.details[#debugState.details + 1] = detail
+end
+
+local function FormatBool(value)
+    return value and "true" or "false"
+end
+
+local function AppendSortedCounters(lines, title, counters)
+    lines[#lines + 1] = title
+
+    local keys = {}
+    for key in pairs(counters or {}) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+
+    if #keys == 0 then
+        lines[#lines + 1] = "  none"
+        return
+    end
+
+    for _, key in ipairs(keys) do
+        lines[#lines + 1] = string.format("  %s=%d", tostring(key), tonumber(counters[key]) or 0)
+    end
+end
+
 function MediaRegistry.RegisterBuiltin(mediaType, id, name, path, options)
     mediaType = EnsureType(mediaType)
     id = Trim(id)
@@ -401,6 +503,134 @@ end
 function MediaRegistry.Refresh()
     -- Passive placeholder for future providers such as LibSharedMedia.
     return true
+end
+
+function MediaRegistry.SetDebugEnabled(enabled)
+    debugState.enabled = enabled == true
+    return debugState.enabled
+end
+
+function MediaRegistry.IsDebugEnabled()
+    return debugState.enabled == true
+end
+
+function MediaRegistry.ResetDebug()
+    ResetDebugState()
+end
+
+function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context)
+    if debugState.enabled ~= true then
+        return
+    end
+
+    local mediaType = MEDIA_TYPE_STATUSBAR
+    local referenceKind, parsedReference, parseReason = ClassifyReference(reference, mediaType)
+    local legacyEffectivePath = GetSafePath(legacyPath)
+    local originalEntry = MediaRegistry.GetEntry(reference, mediaType)
+    local registryPath, registryEntry = MediaRegistry.Resolve(reference, mediaType, DEFAULT_STATUSBAR_REFERENCE)
+    local registryEffectivePath = registryPath or DEFAULT_STATUSBAR_PATH
+    local registryAvailable = originalEntry and originalEntry.available == true or false
+    local source = originalEntry and originalEntry.source or "Fallback"
+    local field = type(context) == "table" and context.field or "unknown"
+    local usedFallback = not (originalEntry
+        and originalEntry.available == true
+        and type(originalEntry.path) == "string"
+        and originalEntry.path ~= ""
+        and originalEntry.path == registryEffectivePath)
+    local legacyUsedFallback = legacyEffectivePath == DEFAULT_STATUSBAR_PATH and not (type(reference) == "string" and reference ~= "")
+    local isLegacyCompatible = IsLegacyCompatibleKind(referenceKind)
+    local isMismatch = isLegacyCompatible and legacyEffectivePath ~= registryEffectivePath
+
+    debugState.totalComparisons = debugState.totalComparisons + 1
+    IncrementCounter(debugState.byReferenceKind, referenceKind)
+    IncrementCounter(debugState.byMediaField, field)
+    IncrementCounter(debugState.bySource, source)
+
+    if isLegacyCompatible then
+        debugState.legacyCompatibleComparisons = debugState.legacyCompatibleComparisons + 1
+        if isMismatch then
+            debugState.legacyCompatibleMismatches = debugState.legacyCompatibleMismatches + 1
+        end
+    elseif referenceKind == "fp-id" or referenceKind == "lsm-id" or referenceKind == "path-id" then
+        debugState.newReferenceObservations = debugState.newReferenceObservations + 1
+    else
+        debugState.invalidReferences = debugState.invalidReferences + 1
+    end
+
+    if usedFallback then
+        debugState.fallbackUses = debugState.fallbackUses + 1
+    end
+
+    local detail = {
+        reference = tostring(reference),
+        kind = referenceKind,
+        field = field,
+        legacyPath = legacyEffectivePath,
+        registryPath = registryEffectivePath,
+        legacyFallback = legacyUsedFallback,
+        registryFallback = usedFallback,
+        registryAvailable = registryAvailable,
+        source = source,
+        reason = parseReason,
+        mismatch = isMismatch,
+    }
+
+    if isMismatch then
+        debugState.lastMismatch = detail
+    end
+
+    AddDebugDetail(detail)
+end
+
+function MediaRegistry.BuildDebugReport()
+    local lines = {
+        "Media Registry shadow report",
+        string.format("enabled=%s", FormatBool(debugState.enabled == true)),
+        string.format("Comparisons=%d", tonumber(debugState.totalComparisons) or 0),
+        string.format("Legacy-compatible comparisons=%d", tonumber(debugState.legacyCompatibleComparisons) or 0),
+        string.format("Legacy-compatible mismatches=%d", tonumber(debugState.legacyCompatibleMismatches) or 0),
+        string.format("New reference observations=%d", tonumber(debugState.newReferenceObservations) or 0),
+        string.format("Invalid references=%d", tonumber(debugState.invalidReferences) or 0),
+        string.format("Fallback uses=%d", tonumber(debugState.fallbackUses) or 0),
+    }
+
+    AppendSortedCounters(lines, "By reference kind", debugState.byReferenceKind)
+    AppendSortedCounters(lines, "By media field", debugState.byMediaField)
+    AppendSortedCounters(lines, "By source", debugState.bySource)
+
+    if debugState.lastMismatch then
+        local detail = debugState.lastMismatch
+        lines[#lines + 1] = string.format(
+            "Last mismatch kind=%s field=%s reference=%s legacy=%s registry=%s",
+            tostring(detail.kind),
+            tostring(detail.field),
+            tostring(detail.reference),
+            tostring(detail.legacyPath),
+            tostring(detail.registryPath)
+        )
+    else
+        lines[#lines + 1] = "Last mismatch=none"
+    end
+
+    lines[#lines + 1] = string.format("Details=%d/%d", #debugState.details, MAX_DEBUG_DETAILS)
+    for index, detail in ipairs(debugState.details) do
+        lines[#lines + 1] = string.format(
+            "%02d kind=%s field=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s reference=%s legacy=%s registry=%s",
+            index,
+            tostring(detail.kind),
+            tostring(detail.field),
+            tostring(detail.source),
+            FormatBool(detail.registryAvailable),
+            FormatBool(detail.legacyFallback),
+            FormatBool(detail.registryFallback),
+            FormatBool(detail.mismatch),
+            tostring(detail.reference),
+            tostring(detail.legacyPath),
+            tostring(detail.registryPath)
+        )
+    end
+
+    return lines
 end
 
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "blizzard-default", "Blizzard Default", DEFAULT_STATUSBAR_PATH, {

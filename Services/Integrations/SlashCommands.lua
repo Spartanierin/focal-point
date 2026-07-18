@@ -40,6 +40,15 @@ local function AlphaDebugMessage(text)
     print(message)
 end
 
+local function MediaDebugMessage(text)
+    local message = "[FP MediaDebug] " .. tostring(text or "")
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(message)
+        return
+    end
+    print(message)
+end
+
 local function CountKnownFrames()
     local count = 0
     local frames = FocalPoint and FocalPoint.frames or nil
@@ -355,6 +364,57 @@ local function HandleAlphaDebugCommand(msg)
     end
 end
 
+local function GetMediaDebugApi()
+    return FocalPoint and FocalPoint.MediaRegistry or nil
+end
+
+local function ReportMediaDebug()
+    local Registry = GetMediaDebugApi()
+    local lines = Registry and Registry.BuildDebugReport and Registry.BuildDebugReport() or nil
+    if type(lines) ~= "table" then
+        MediaDebugMessage("report unavailable")
+        return
+    end
+    for _, line in ipairs(lines) do
+        MediaDebugMessage(line)
+    end
+end
+
+local function ResetMediaDebug()
+    local Registry = GetMediaDebugApi()
+    if Registry and Registry.ResetDebug then
+        Registry.ResetDebug()
+        MediaDebugMessage("reset")
+    else
+        MediaDebugMessage("reset unavailable")
+    end
+end
+
+local function SetMediaDebugEnabled(enabled)
+    local Registry = GetMediaDebugApi()
+    if Registry and Registry.SetDebugEnabled then
+        Registry.SetDebugEnabled(enabled == true)
+        MediaDebugMessage("enabled=" .. tostring(enabled == true))
+    else
+        MediaDebugMessage("toggle unavailable")
+    end
+end
+
+local function HandleMediaDebugCommand(msg)
+    msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if msg == "on" then
+        SetMediaDebugEnabled(true)
+    elseif msg == "off" then
+        SetMediaDebugEnabled(false)
+    elseif msg == "reset" then
+        ResetMediaDebug()
+    elseif msg == "report" or msg == "status" or msg == "" then
+        ReportMediaDebug()
+    else
+        MediaDebugMessage("usage: /fpdebugmedia on|off|reset|report")
+    end
+end
+
 function FocalPoint:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
@@ -366,6 +426,7 @@ function FocalPoint:SetupSlashCommands()
     SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
     SLASH_FPDEBUGUNITWATCH1 = "/fpdebugunitwatch"
     SLASH_FPDEBUGALPHA1 = "/fpdebugalpha"
+    SLASH_FPDEBUGMEDIA1 = "/fpdebugmedia"
     FocalPoint.debugDemoDisableCastbar = FocalPoint.debugDemoDisableCastbar == true
     FocalPoint.debugDemoDisableAuras = FocalPoint.debugDemoDisableAuras == true
     FocalPoint.debugDemoDisableAuraTimers = FocalPoint.debugDemoDisableAuraTimers == true
@@ -404,6 +465,10 @@ function FocalPoint:SetupSlashCommands()
             HandleAlphaDebugCommand("status")
         elseif msg:match("^debug alpha%s+") then
             HandleAlphaDebugCommand(msg:match("^debug alpha%s+(.+)$"))
+        elseif msg == "debug media" then
+            HandleMediaDebugCommand("status")
+        elseif msg:match("^debug media%s+") then
+            HandleMediaDebugCommand(msg:match("^debug media%s+(.+)$"))
         elseif msg == "debugdemo on" then
             FocalPoint.debugDemoRuntime = true
             DemoDebugMessage("enabled=true")
@@ -438,9 +503,13 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report")
             end
         end
+    end
+
+    SlashCmdList["FPDEBUGMEDIA"] = function(msg)
+        HandleMediaDebugCommand(msg)
     end
 
     SlashCmdList["FPDEBUGALPHA"] = function(msg)

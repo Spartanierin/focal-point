@@ -6,11 +6,19 @@ local Assets = FocalPoint.UnitFrameAssets
 -- Asset helpers resolve texture and font inputs into safe defaults.
 
 function Assets.GetStatusBarTexture(path)
+    local resolvedPath
     if type(path) == "string" and path ~= "" then
-        return path
+        resolvedPath = path
+    else
+        resolvedPath = "Interface\\TargetingFrame\\UI-StatusBar"
     end
 
-    return "Interface\\TargetingFrame\\UI-StatusBar"
+    local MediaRegistry = FocalPoint.MediaRegistry
+    if MediaRegistry and MediaRegistry.RecordStatusBarShadow then
+        MediaRegistry.RecordStatusBarShadow(path, resolvedPath)
+    end
+
+    return resolvedPath
 end
 
 function Assets.GetFontPath(path)
