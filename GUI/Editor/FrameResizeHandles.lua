@@ -83,6 +83,25 @@ local function IsEditorUnlocked()
         and FocalPoint:IsEditorActive()
 end
 
+local function IsPrimaryEditorFrame(frame)
+    if not frame or type(frame.unit) ~= "string" then
+        return false
+    end
+
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    local state = editorState and editorState.Get and editorState.Get() or nil
+    local primaryUnit = editorState and editorState.GetPrimaryUnit and editorState.GetPrimaryUnit() or (state and state.selectedUnit)
+    if type(primaryUnit) ~= "string" or primaryUnit == "" then
+        return false
+    end
+
+    if primaryUnit == "boss" then
+        return frame.unit:match("^boss%d+$") ~= nil
+    end
+
+    return NormalizeUnitKey(frame.unit) == primaryUnit
+end
+
 local function IsCombatLocked()
     return InCombatLockdown and InCombatLockdown()
 end
@@ -385,7 +404,7 @@ function FrameResizeHandles.UpdateFrame(frame)
     handle:SetFrameLevel((overlay.GetFrameLevel and overlay:GetFrameLevel() or 1) + 20)
     UpdateHandleVisual(handle)
 
-    if IsEditorUnlocked() and not IsCombatLocked() then
+    if IsEditorUnlocked() and not IsCombatLocked() and IsPrimaryEditorFrame(frame) then
         handle:Show()
     else
         handle:Hide()

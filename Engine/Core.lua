@@ -121,15 +121,20 @@ local function EnsureSelectionOverlay(frame)
     return overlay
 end
 
-local function IsSelectedEditorFrame(frame)
-    if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
-        return false
+local function NormalizeEditorSelectionUnit(unitKey)
+    if type(unitKey) ~= "string" or unitKey == "" then
+        return nil
     end
 
-    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
-    local state = editorState and editorState.Get and editorState.Get() or nil
-    local selectedUnit = editorState and editorState.GetPrimaryUnit and editorState.GetPrimaryUnit() or (state and state.selectedUnit)
-    if type(selectedUnit) ~= "string" or selectedUnit == "" then
+    if unitKey:match("^boss%d+$") then
+        return "boss"
+    end
+
+    return unitKey
+end
+
+local function FrameMatchesSelectionUnit(frame, selectedUnit)
+    if not frame or not frame.unit or type(selectedUnit) ~= "string" or selectedUnit == "" then
         return false
     end
 
@@ -137,7 +142,35 @@ local function IsSelectedEditorFrame(frame)
         return frame.unit:match("^boss%d+$") ~= nil
     end
 
-    return frame.unit == selectedUnit
+    return NormalizeEditorSelectionUnit(frame.unit) == selectedUnit
+end
+
+local function IsPrimaryEditorFrame(frame)
+    if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+        return false
+    end
+
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    local state = editorState and editorState.Get and editorState.Get() or nil
+    local primaryUnit = editorState and editorState.GetPrimaryUnit and editorState.GetPrimaryUnit() or (state and state.selectedUnit)
+    return FrameMatchesSelectionUnit(frame, primaryUnit)
+end
+
+local function IsSelectedEditorFrame(frame)
+    if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+        return false
+    end
+
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    if editorState and editorState.IsUnitSelected then
+        return editorState.IsUnitSelected(NormalizeEditorSelectionUnit(frame.unit))
+    end
+
+    return IsPrimaryEditorFrame(frame)
+end
+
+local function IsSecondaryEditorFrame(frame)
+    return IsSelectedEditorFrame(frame) and not IsPrimaryEditorFrame(frame)
 end
 
 local function UpdateSelectionOverlay(frame)
@@ -151,9 +184,15 @@ local function UpdateSelectionOverlay(frame)
     end
 
     overlay:SetFrameStrata(frame:GetFrameStrata())
-    overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 30, (frame.MoveOverlay and frame.MoveOverlay:GetFrameLevel() - 5) or (frame:GetFrameLevel() + 30)))
+    overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 45, (frame.MoveOverlay and frame.MoveOverlay:GetFrameLevel() + 5) or (frame:GetFrameLevel() + 45)))
 
-    if IsSelectedEditorFrame(frame) then
+    if IsPrimaryEditorFrame(frame) then
+        overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.14)
+        overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 1.00)
+        overlay:Show()
+    elseif IsSecondaryEditorFrame(frame) then
+        overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.04)
+        overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.58)
         overlay:Show()
     else
         overlay:Hide()
@@ -169,7 +208,8 @@ local function UpdateMoveOverlayVisuals(frame)
     local coords = overlay.Coords
     local accent = overlay.Accent
     local placeholderLabel = overlay.PlaceholderLabel
-    local isSelected = IsSelectedEditorFrame(frame)
+    local isSelected = IsPrimaryEditorFrame(frame)
+    local isSecondary = IsSecondaryEditorFrame(frame)
     local isDragging = frame._focalPointDragState ~= nil
     local isPlaceholder = FocalPoint.framesUnlocked
         and not FocalPoint.guiTestModeEnabled
@@ -184,7 +224,15 @@ local function UpdateMoveOverlayVisuals(frame)
     local isEnabled = type(unitConfig) ~= "table" or unitConfig.enabled ~= false
 
     if isPlaceholder then
-        if isEnabled then
+        if isSecondary then
+            if isEnabled then
+                overlay:SetBackdropColor(0.18, 0.15, 0.08, 0.94)
+                overlay:SetBackdropBorderColor(0.54, 0.43, 0.17, 0.58)
+            else
+                overlay:SetBackdropColor(0.13, 0.10, 0.05, 0.88)
+                overlay:SetBackdropBorderColor(0.54, 0.43, 0.17, 0.34)
+            end
+        elseif isEnabled then
             overlay:SetBackdropColor(0.11, 0.13, 0.16, 0.94)
             overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.46)
         else
@@ -684,6 +732,7 @@ function FocalPoint:RefreshEditorSelectionVisuals()
 
     for _, frame in pairs(self.frames) do
         UpdateSelectionOverlay(frame)
+        UpdateEditorResizeHandle(frame)
         if frame and frame.MoveOverlay and frame.MoveOverlay.Coords then
             UpdateMoveOverlay(frame)
         else
