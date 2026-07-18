@@ -62,10 +62,10 @@ FocalPoint.Themes = {
                 },
                 bars = {
                     alternativePowerBarHeight = 15,
-                    alternativePowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_button_simple3d_gray_normal_256x32.png",
+                    alternativePowerBarTexture = TEXTURE_SIMPLE_GRAY,
                     castBarTexture = TEXTURE_SIMPLE_GRAY,
                     classPowerBarHeight = 15,
-                    classPowerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_button_simple3d_gray_normal_256x32.png",
+                    classPowerBarTexture = TEXTURE_SIMPLE_GRAY,
                     powerBarHeight = 30,
                     showCastBarIcon = false,
                 },

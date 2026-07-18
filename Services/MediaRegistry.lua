@@ -690,10 +690,4 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "shadow1", "Shadow 1", "Inte
     verified = true,
 })
 
-MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "simple-3d-gray", "Focal Point Simple 3D Gray", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_button_simple3d_gray_normal_256x32.png", {
-    available = false,
-    sortName = "focal point simple 3d gray",
-    verified = true,
-})
-
 return MediaRegistry
