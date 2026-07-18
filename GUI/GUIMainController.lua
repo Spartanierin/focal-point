@@ -57,7 +57,9 @@ local function ResolveDefaultGUIPath(path)
     local unitKey = type(path) == "string" and string.match(path, "^units%.([^.]+)$") or nil
     if unitKey then
         local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
-        if editorState and editorState.SetSelectedUnit then
+        if editorState and editorState.SetPrimaryUnit then
+            editorState.SetPrimaryUnit(unitKey)
+        elseif editorState and editorState.SetSelectedUnit then
             editorState.SetSelectedUnit(unitKey)
         end
         return FocalPoint.Constants.Nav.EDITOR
@@ -639,16 +641,22 @@ function FocalPoint:IsEditorActive()
     return ResolveDefaultGUIPath(self.GUI and self.GUI.selectedPath) == self.Constants.Nav.EDITOR
 end
 
-function FocalPoint:SelectEditorUnit(unit)
+function FocalPoint:SelectEditorUnit(unit, options)
     if type(unit) ~= "string" or unit == "" then
         return
     end
 
     local previousUnit = nil
+    local previousUnits = {}
     local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
     if editorState and editorState.Get then
         local currentState = editorState.Get()
         previousUnit = currentState and currentState.selectedUnit or nil
+        if editorState.GetSelectedUnits then
+            previousUnits = editorState.GetSelectedUnits()
+        elseif previousUnit then
+            previousUnits = { previousUnit }
+        end
     end
 
     local selectedUnit = unit
@@ -656,7 +664,12 @@ function FocalPoint:SelectEditorUnit(unit)
         selectedUnit = "boss"
     end
 
-    if editorState and editorState.SetSelectedUnit then
+    local toggleSelection = type(options) == "table" and options.toggle == true
+    if toggleSelection and editorState and editorState.ToggleUnitSelection then
+        selectedUnit = editorState.ToggleUnitSelection(selectedUnit)
+    elseif editorState and editorState.SetSingleSelection then
+        selectedUnit = editorState.SetSingleSelection(selectedUnit)
+    elseif editorState and editorState.SetSelectedUnit then
         editorState.SetSelectedUnit(selectedUnit)
     end
 
@@ -677,11 +690,23 @@ function FocalPoint:SelectEditorUnit(unit)
     if (self.framesUnlocked or self.guiTestModeEnabled) and self.RefreshAllFrames then
         self:RefreshAllFrames()
     else
-        if previousUnit and self.RefreshUnitFrame then
-            self:RefreshUnitFrame(previousUnit)
+        local refreshUnits = {}
+        for _, unitKey in ipairs(previousUnits) do
+            if type(unitKey) == "string" and unitKey ~= "" then
+                refreshUnits[unitKey] = true
+            end
         end
-        if selectedUnit and self.RefreshUnitFrame then
-            self:RefreshUnitFrame(selectedUnit)
+        if previousUnit then
+            refreshUnits[previousUnit] = true
+        end
+        if selectedUnit then
+            refreshUnits[selectedUnit] = true
+        end
+
+        if self.RefreshUnitFrame then
+            for unitKey in pairs(refreshUnits) do
+                self:RefreshUnitFrame(unitKey)
+            end
         end
     end
 

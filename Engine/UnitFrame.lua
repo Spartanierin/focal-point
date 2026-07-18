@@ -2219,12 +2219,18 @@ local function ValidateEditorSelectionForProfile(addon)
     end
 
     local selectedUnit = state.selectedUnit
-    if type(GetActiveProfileUnitConfig(addon, selectedUnit)) ~= "table" then
+    local function IsValidProfileUnit(unitKey)
+        return type(GetActiveProfileUnitConfig(addon, unitKey)) == "table"
+    end
+
+    if editorStateApi.ValidateSelection then
+        selectedUnit = editorStateApi.ValidateSelection(IsValidProfileUnit)
+    elseif not IsValidProfileUnit(selectedUnit) then
         selectedUnit = "player"
-        if editorStateApi.SetSelectedUnit then
-            editorStateApi.SetSelectedUnit(selectedUnit)
-        else
-            state.selectedUnit = selectedUnit
+        if editorStateApi.SetSingleSelection then
+            selectedUnit = editorStateApi.SetSingleSelection(selectedUnit) or selectedUnit
+        elseif editorStateApi.SetSelectedUnit then
+            selectedUnit = editorStateApi.SetSelectedUnit(selectedUnit) or selectedUnit
         end
     end
 

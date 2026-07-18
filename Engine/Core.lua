@@ -128,7 +128,7 @@ local function IsSelectedEditorFrame(frame)
 
     local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
     local state = editorState and editorState.Get and editorState.Get() or nil
-    local selectedUnit = state and state.selectedUnit
+    local selectedUnit = editorState and editorState.GetPrimaryUnit and editorState.GetPrimaryUnit() or (state and state.selectedUnit)
     if type(selectedUnit) ~= "string" or selectedUnit == "" then
         return false
     end
@@ -228,35 +228,73 @@ local function UpdateMoveOverlayVisuals(frame)
     end
 end
 
+local selectionClickSerial = 0
+
+local function IsControlModifierDown()
+    return IsControlKeyDown and IsControlKeyDown() == true
+end
+
+local function BeginEditorFrameSelectionClick(frame, button)
+    if not frame or button ~= "LeftButton" then
+        return
+    end
+
+    selectionClickSerial = selectionClickSerial + 1
+    frame._focalPointSelectionClick = {
+        serial = selectionClickSerial,
+        ctrl = IsControlModifierDown(),
+        handled = false,
+    }
+end
+
+local function CompleteEditorFrameSelectionClick(frame, button)
+    if not frame or button ~= "LeftButton" then
+        return
+    end
+
+    if not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+        return
+    end
+
+    local clickState = frame._focalPointSelectionClick
+    if type(clickState) ~= "table" then
+        BeginEditorFrameSelectionClick(frame, button)
+        clickState = frame._focalPointSelectionClick
+    end
+
+    if type(clickState) ~= "table" or clickState.handled == true then
+        return
+    end
+    clickState.handled = true
+
+    if FocalPoint.SelectEditorUnit and frame.unit then
+        FocalPoint:SelectEditorUnit(frame.unit, {
+            toggle = FocalPoint.framesUnlocked == true and clickState.ctrl == true,
+        })
+    end
+end
+
 local function EnsureEditorSelectionHooks(frame)
     if not frame or frame._focalPointEditorSelectHooked then
         return
     end
 
-    local function HandleSelection()
-        if not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
-            return
-        end
-
-        if FocalPoint.SelectEditorUnit and frame.unit then
-            FocalPoint:SelectEditorUnit(frame.unit)
-        end
-    end
-
     if frame.HookScript then
+        frame:HookScript("OnMouseDown", function(_, button)
+            BeginEditorFrameSelectionClick(frame, button)
+        end)
         frame:HookScript("OnMouseUp", function(_, button)
-            if button == "LeftButton" then
-                HandleSelection()
-            end
+            CompleteEditorFrameSelectionClick(frame, button)
         end)
     end
 
     local overlay = EnsureMoveOverlay(frame)
     if overlay and overlay.HookScript then
+        overlay:HookScript("OnMouseDown", function(_, button)
+            BeginEditorFrameSelectionClick(frame, button)
+        end)
         overlay:HookScript("OnMouseUp", function(_, button)
-            if button == "LeftButton" then
-                HandleSelection()
-            end
+            CompleteEditorFrameSelectionClick(frame, button)
         end)
     end
 
@@ -702,6 +740,12 @@ function FocalPoint:ToggleFrameLock()
         local demo = self.UnitFrameDemoEnvironment or nil
         if demo and demo.ExitTestMode then
             demo.ExitTestMode("frames-lock-on")
+        end
+        local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
+        if editorState and editorState.ClearSelection then
+            editorState.ClearSelection("player")
+        elseif editorState and editorState.SetSelectedUnit then
+            editorState.SetSelectedUnit("player")
         end
         self:ClearAllMoveOverlays()
         self:UpdateAllFrameDragStates()

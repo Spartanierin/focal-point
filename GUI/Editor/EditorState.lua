@@ -12,9 +12,43 @@ ns.GUI.Editor.SidebarGeometry = ns.GUI.Editor.SidebarGeometry or {
 local EditorState = {}
 ns.GUI.Editor.State = EditorState
 local EditorMode = ns.EditorMode or (ns.GUI.Editor and ns.GUI.Editor.Mode) or {}
+local Constants = ns.Constants or {}
+
+local DEFAULT_UNIT = "player"
+
+local function NormalizeUnitKey(unitKey)
+    if type(unitKey) ~= "string" or unitKey == "" then
+        return nil
+    end
+
+    if unitKey:match("^boss%d+$") then
+        return "boss"
+    end
+
+    return unitKey
+end
+
+local function BuildUnitOrderIndex()
+    local index = {}
+    local unitOrder = Constants.UnitOrder or {}
+    for order, unitKey in ipairs(unitOrder) do
+        local normalizedUnit = NormalizeUnitKey(unitKey)
+        if normalizedUnit and index[normalizedUnit] == nil then
+            index[normalizedUnit] = order
+        end
+    end
+
+    return index
+end
+
+local UNIT_ORDER_INDEX = BuildUnitOrderIndex()
 
 local state = {
+    primaryUnit = DEFAULT_UNIT,
     selectedUnit = "player",
+    selectedUnits = {
+        [DEFAULT_UNIT] = true,
+    },
     mode = "quick",
     selectedThemeId = "classic",
     selectedTextId = nil,
@@ -24,16 +58,183 @@ local state = {
     collapsedSections = {},
 }
 
+local function EnsureSelectedUnits()
+    if type(state.selectedUnits) ~= "table" then
+        state.selectedUnits = {}
+    end
+
+    return state.selectedUnits
+end
+
+local function CompareUnitKeys(left, right)
+    local leftOrder = UNIT_ORDER_INDEX[left]
+    local rightOrder = UNIT_ORDER_INDEX[right]
+
+    if leftOrder and rightOrder and leftOrder ~= rightOrder then
+        return leftOrder < rightOrder
+    end
+
+    if leftOrder then
+        return true
+    end
+
+    if rightOrder then
+        return false
+    end
+
+    return tostring(left) < tostring(right)
+end
+
+local function GetSortedSelectedUnits()
+    local selectedUnits = EnsureSelectedUnits()
+    local units = {}
+    local seen = {}
+    for unitKey, selected in pairs(selectedUnits) do
+        local normalizedUnit = NormalizeUnitKey(unitKey)
+        if selected == true and normalizedUnit and not seen[normalizedUnit] then
+            seen[normalizedUnit] = true
+            units[#units + 1] = normalizedUnit
+        end
+    end
+
+    table.sort(units, CompareUnitKeys)
+    return units
+end
+
+local function SyncSelectionAlias(primaryUnit)
+    local normalizedUnit = NormalizeUnitKey(primaryUnit)
+    state.primaryUnit = normalizedUnit
+    state.selectedUnit = normalizedUnit
+end
+
+local function PickPrimaryUnit(preferredUnit)
+    local selectedUnits = EnsureSelectedUnits()
+    local normalizedPreferred = NormalizeUnitKey(preferredUnit)
+    if normalizedPreferred and selectedUnits[normalizedPreferred] == true then
+        return normalizedPreferred
+    end
+
+    local currentPrimary = NormalizeUnitKey(state.primaryUnit or state.selectedUnit)
+    if currentPrimary and selectedUnits[currentPrimary] == true then
+        return currentPrimary
+    end
+
+    local units = GetSortedSelectedUnits()
+    return units[1]
+end
+
 function EditorState.Get()
     return state
 end
 
-function EditorState.SetSelectedUnit(unitKey)
-    if type(unitKey) ~= "string" or unitKey == "" then
-        return
+function EditorState.GetPrimaryUnit()
+    return NormalizeUnitKey(state.primaryUnit or state.selectedUnit)
+end
+
+function EditorState.GetSelectedUnits()
+    return GetSortedSelectedUnits()
+end
+
+function EditorState.GetSelectedUnitCount()
+    return #GetSortedSelectedUnits()
+end
+
+function EditorState.IsUnitSelected(unitKey)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    if not normalizedUnit then
+        return false
     end
 
-    state.selectedUnit = unitKey
+    local selectedUnits = EnsureSelectedUnits()
+    return selectedUnits[normalizedUnit] == true
+end
+
+function EditorState.SetSingleSelection(unitKey)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    if not normalizedUnit then
+        return nil
+    end
+
+    state.selectedUnits = {
+        [normalizedUnit] = true,
+    }
+    SyncSelectionAlias(normalizedUnit)
+    return normalizedUnit
+end
+
+function EditorState.SetPrimaryUnit(unitKey)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    if not normalizedUnit then
+        return nil
+    end
+
+    local selectedUnits = EnsureSelectedUnits()
+    selectedUnits[normalizedUnit] = true
+    SyncSelectionAlias(normalizedUnit)
+    return normalizedUnit
+end
+
+function EditorState.SetSelectedUnit(unitKey)
+    return EditorState.SetSingleSelection(unitKey)
+end
+
+function EditorState.ToggleUnitSelection(unitKey)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    if not normalizedUnit then
+        return nil
+    end
+
+    local selectedUnits = EnsureSelectedUnits()
+    if selectedUnits[normalizedUnit] == true then
+        selectedUnits[normalizedUnit] = nil
+        SyncSelectionAlias(PickPrimaryUnit())
+    else
+        selectedUnits[normalizedUnit] = true
+        SyncSelectionAlias(normalizedUnit)
+    end
+
+    return state.selectedUnit
+end
+
+function EditorState.ClearSelection(fallbackUnit)
+    state.selectedUnits = {}
+
+    local normalizedFallback = NormalizeUnitKey(fallbackUnit)
+    if normalizedFallback then
+        state.selectedUnits[normalizedFallback] = true
+        SyncSelectionAlias(normalizedFallback)
+    else
+        SyncSelectionAlias(nil)
+    end
+end
+
+function EditorState.ValidateSelection(validUnitPredicate)
+    local predicate = type(validUnitPredicate) == "function" and validUnitPredicate or function(unitKey)
+        return NormalizeUnitKey(unitKey) ~= nil
+    end
+    local function isValid(unitKey)
+        local ok, result = pcall(predicate, unitKey)
+        return ok and result == true
+    end
+
+    local selectedUnits = EnsureSelectedUnits()
+    local validatedUnits = {}
+    for unitKey, selected in pairs(selectedUnits) do
+        local normalizedUnit = NormalizeUnitKey(unitKey)
+        if selected == true and normalizedUnit and isValid(normalizedUnit) then
+            validatedUnits[normalizedUnit] = true
+        end
+    end
+
+    state.selectedUnits = validatedUnits
+    local primaryUnit = PickPrimaryUnit(state.primaryUnit or state.selectedUnit)
+    if not primaryUnit and isValid(DEFAULT_UNIT) then
+        state.selectedUnits[DEFAULT_UNIT] = true
+        primaryUnit = DEFAULT_UNIT
+    end
+
+    SyncSelectionAlias(primaryUnit)
+    return primaryUnit
 end
 
 function EditorState.SetMode(mode)
