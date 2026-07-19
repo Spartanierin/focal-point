@@ -9,6 +9,29 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.20]
+
+### Added
+
+* Added Ctrl-click multiselect support while unit frames are unlocked.
+* Added clear primary and secondary selection states for selected unit frames.
+* Added support for moving multiple selected unit frames together while preserving their relative positions.
+
+### Improved
+
+* Improved UnitWatch synchronization when returning from Unlock or Test Mode to live gameplay.
+* Improved combat-safe recovery for boss and derived unit frames.
+* Improved target frame handling so the frame remains ready for targets that appear while combat is already in progress.
+* Improved unlock-mode selection and drag behavior for more reliable layout editing.
+
+### Fixed
+
+* Fixed several rare visibility edge cases where boss, Target of Target, Focus Target, or Target frames could remain hidden after specific combinations of preview mode, target changes, instance transitions, and protected combat.
+* Fixed UnitWatch-capable frames not always being restored before entering combat after Unlock or Test Mode.
+* Fixed Target frames remaining hidden when joining an encounter that was already in progress.
+* Fixed duplicate click handling that could make Ctrl-multiselect unreliable or require repeated clicks.
+* Fixed secondary selections being difficult to identify in Unlock Mode.
+
 ## [1.0.19]
 
 ### Changed
