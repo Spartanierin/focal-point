@@ -236,11 +236,46 @@ local function AppendRingEntry(buffer, entry, limit)
     end
 end
 
-local function HideFrameIfSafe(frame)
+local TARGET_ROOT_PREARM_REASONS = {
+    missing_unit = true,
+    missing_unit_suppressed = true,
+    missing_unit_protected = true,
+    missing_unit_protected_suppressed = true,
+    target_missing_transition = true,
+}
+
+local function ShouldPrearmTargetRoot(frame, options)
+    if not (frame and frame.unit == "target") then
+        return false
+    end
+    local reason = type(options) == "table" and options.reason or nil
+    if not TARGET_ROOT_PREARM_REASONS[reason] then
+        return false
+    end
+    local config = frame.config
+    if type(config) == "table" and config.enabled == false then
+        return false
+    end
+    if FocalPoint and (FocalPoint.framesUnlocked == true or FocalPoint.guiTestModeEnabled == true) then
+        return false
+    end
+    return frame.Show ~= nil and not IsProtectedFrameInCombat(frame)
+end
+
+local function PrearmTargetRootIfSafe(frame, options)
+    if not ShouldPrearmTargetRoot(frame, options) then
+        return false
+    end
+    frame:Show()
+    return true
+end
+
+local function HideFrameIfSafe(frame, options)
     if not (frame and frame.Hide) then
         return false
     end
     if frame.unit == "target" then
+        local prearmed = PrearmTargetRootIfSafe(frame, options)
         if Visibility.RecordBlockedRootIntent then
             Visibility.RecordBlockedRootIntent(frame, {
                 intent = "hide-root",
@@ -253,6 +288,7 @@ local function HideFrameIfSafe(frame)
                 protected = frame.IsProtected and frame:IsProtected() or false,
                 inCombat = InCombatLockdown and InCombatLockdown() or false,
                 unitWatchRegistered = frame._unitWatchRegistered == true,
+                targetRootPrearmed = prearmed == true,
             })
         end
         return false
@@ -1885,7 +1921,7 @@ local function BuildInvariantResult(frame, context)
         result.skipped = "preview"
         return result
     end
-    if not exists then
+    if not exists and unit ~= "target" then
         result.skipped = "unit-absent"
         return result
     end
@@ -1903,7 +1939,9 @@ local function BuildInvariantResult(frame, context)
 
     if shown == false and unitWatchResponsible == false then
         result.ok = false
-        if unit == "targettarget" or unit == "focustarget" then
+        if unit == "target" then
+            result.violation = "target-root-hidden-while-active"
+        elseif unit == "targettarget" or unit == "focustarget" then
             result.violation = "derived-present-no-owner"
         elseif IsBossRuntimeUnit and IsBossRuntimeUnit(unit)
             and inCombat
@@ -1919,6 +1957,11 @@ local function BuildInvariantResult(frame, context)
             result.previewExitReason = previewExitReason
             result.previewExitKind = "hidden"
         end
+        return result
+    end
+
+    if unit == "target" and not exists then
+        result.skipped = "target-absent-root-armed"
         return result
     end
 
@@ -3230,7 +3273,10 @@ local function ApplyRootActionPlan(frame, plan)
     end
 
     if plan.rootAction == "hide-if-safe" then
-        HideFrameIfSafe(frame)
+        HideFrameIfSafe(frame, {
+            reason = plan.reason,
+            source = "root-action-plan",
+        })
     elseif plan.rootAction ~= "keep" then
         return false
     end
@@ -3265,7 +3311,10 @@ local function ApplyMissingUnitProtectedActionPlan(frame, plan)
         Visibility.QueueRefresh(frame)
     end
 
-    HideFrameIfSafe(frame)
+    HideFrameIfSafe(frame, {
+        reason = plan.reason,
+        source = "missing-unit-protected-plan",
+    })
     return true
 end
 
@@ -4138,7 +4187,10 @@ function Visibility.HandleMissingUnit(frame)
         if frame.SetAlpha then
             frame:SetAlpha(0)
         end
-        HideFrameIfSafe(frame)
+        HideFrameIfSafe(frame, {
+            reason = decision.specialModeReason or "special_mode",
+            source = "special-mode",
+        })
         RecordRootActionTrace(decision.specialModeReason or "special_mode", {
             clearAction = ResolveUnitLostClearAction(frame, decision.specialModeReason or "special_mode", plan),
             alphaAction = "zero",
@@ -4189,7 +4241,10 @@ function Visibility.HandleMissingUnit(frame)
         if frame.SetMouseClickEnabled then
             frame:SetMouseClickEnabled(false)
         end
-        HideFrameIfSafe(frame)
+        HideFrameIfSafe(frame, {
+            reason = "preview-disabled-unit",
+            source = "preview-disabled-unit",
+        })
         RecordRootActionTrace("preview-disabled-unit", {
             clearAction = "content-only",
             alphaAction = "zero",
@@ -4267,7 +4322,10 @@ function Visibility.HandleMissingUnit(frame)
             if frame.SetAlpha then
                 frame:SetAlpha(0)
             end
-            HideFrameIfSafe(frame)
+            HideFrameIfSafe(frame, {
+                reason = "missing_unit_protected_suppressed",
+                source = "missing-unit-protected-suppressed",
+            })
             RecordRootActionTrace("missing_unit_protected_suppressed", {
                 clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected_suppressed", rootActionPlan),
                 alphaAction = "zero",
@@ -4335,7 +4393,10 @@ function Visibility.HandleMissingUnit(frame)
         if suspiciousMissingTarget then
             Visibility.QueueRefresh(frame)
         end
-        HideFrameIfSafe(frame)
+        HideFrameIfSafe(frame, {
+            reason = "missing_unit_protected",
+            source = "missing-unit-protected",
+        })
         RecordRootActionTrace("missing_unit_protected", {
             clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected", rootActionPlan),
             alphaAction = frame.unit == "target" and "zero" or "keep",
@@ -4380,7 +4441,10 @@ function Visibility.HandleMissingUnit(frame)
                 else
                     Visibility.ClearFrameVisualState(frame, "target_missing_transition")
                 end
-                HideFrameIfSafe(frame)
+                HideFrameIfSafe(frame, {
+                    reason = "target_missing_transition",
+                    source = "target-missing-transition",
+                })
                 QueueTargetRecoveryRefreshes(frame, "target_missing_transition")
                 RecordRootActionTrace("target_missing_transition", {
                     clearAction = "content-only",
@@ -4413,7 +4477,10 @@ function Visibility.HandleMissingUnit(frame)
             if frame.SetAlpha then
                 frame:SetAlpha(0)
             end
-            HideFrameIfSafe(frame)
+            HideFrameIfSafe(frame, {
+                reason = "missing_unit_suppressed",
+                source = "missing-unit-suppressed",
+            })
             RecordRootActionTrace("missing_unit_suppressed", {
                 clearAction = ResolveUnitLostClearAction(frame, "missing_unit_suppressed", rootActionPlan),
                 alphaAction = "zero",
@@ -4437,7 +4504,10 @@ function Visibility.HandleMissingUnit(frame)
             frame:SetAlpha(0)
         end
 
-        local didHide = HideFrameIfSafe(frame)
+        local didHide = HideFrameIfSafe(frame, {
+            reason = "missing_unit",
+            source = "missing-unit",
+        })
         if not IsMissingDebugSuppressed(frame) then
             MaybeDebugTarget(frame, didHide
                 and "Target-Frame wird jetzt verborgen"
