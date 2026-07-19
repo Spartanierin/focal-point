@@ -417,6 +417,69 @@ local function HideEditorSnapLines()
 end
 
 local UpdateMoveOverlay
+local EndFrameDrag
+
+local function GetEditorStateApi()
+    return FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State or nil
+end
+
+local function ResolveFrameForSelectionUnit(unitKey, draggedFrame)
+    local normalizedUnit = NormalizeEditorSelectionUnit(unitKey)
+    if not normalizedUnit then
+        return nil
+    end
+
+    if normalizedUnit == "boss" then
+        if draggedFrame and draggedFrame.unit and draggedFrame.unit:match("^boss%d+$") then
+            return draggedFrame
+        end
+
+        if FocalPoint.frames then
+            for bossIndex = 1, 5 do
+                local bossFrame = FocalPoint.frames["boss" .. bossIndex]
+                if bossFrame then
+                    return bossFrame
+                end
+            end
+        end
+    end
+
+    return FocalPoint.frames and FocalPoint.frames[normalizedUnit] or nil
+end
+
+local function ResolveSelectedDragUnits(draggedFrame)
+    local draggedUnit = NormalizeEditorSelectionUnit(draggedFrame and draggedFrame.unit)
+    if not draggedUnit then
+        return {}
+    end
+
+    local editorState = GetEditorStateApi()
+    local isSelected = editorState
+        and editorState.IsUnitSelected
+        and editorState.IsUnitSelected(draggedUnit)
+
+    if isSelected then
+        if editorState.SetPrimaryUnit then
+            editorState.SetPrimaryUnit(draggedUnit)
+        end
+        if editorState.GetSelectedUnits then
+            return editorState.GetSelectedUnits()
+        end
+    elseif editorState and editorState.SetSingleSelection then
+        editorState.SetSingleSelection(draggedUnit)
+    elseif editorState and editorState.SetSelectedUnit then
+        editorState.SetSelectedUnit(draggedUnit)
+    end
+
+    return { draggedUnit }
+end
+
+local function MarkSelectionClickHandled(frame)
+    local clickState = frame and frame._focalPointSelectionClick
+    if type(clickState) == "table" then
+        clickState.handled = true
+    end
+end
 
 local function GetFrameCenterOffsets(frame)
     if not frame then
@@ -547,9 +610,20 @@ local function BeginFrameDrag(frame)
         return
     end
 
+    if InCombatLockdown and InCombatLockdown() then
+        return
+    end
+
+    MarkSelectionClickHandled(frame)
+
     local unitConfig = GetUnitConfig(frame.unit)
     if not unitConfig then
         return
+    end
+
+    local selectedUnits = ResolveSelectedDragUnits(frame)
+    if FocalPoint.RefreshEditorSelectionVisuals then
+        FocalPoint:RefreshEditorSelectionVisuals()
     end
 
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
@@ -566,16 +640,42 @@ local function BeginFrameDrag(frame)
     unitConfig.x = startX
     unitConfig.y = startY
 
+    local startPositions = {}
+    for _, unitKey in ipairs(selectedUnits) do
+        local normalizedUnit = NormalizeEditorSelectionUnit(unitKey)
+        local selectedFrame = ResolveFrameForSelectionUnit(normalizedUnit, frame)
+        local selectedConfig = GetUnitConfig(normalizedUnit)
+        if normalizedUnit and selectedFrame and selectedConfig then
+            local selectedX, selectedY = GetFrameCenterOffsets(selectedFrame)
+            selectedY = selectedY + GetBossStackOffset(selectedFrame, selectedConfig)
+            selectedConfig.point = "CENTER"
+            selectedConfig.relativePoint = "CENTER"
+            selectedConfig.relativeTo = "UIParent"
+            selectedConfig.x = selectedX
+            selectedConfig.y = selectedY
+            startPositions[normalizedUnit] = {
+                x = tonumber(selectedX) or 0,
+                y = tonumber(selectedY) or 0,
+            }
+        end
+    end
+
     frame._focalPointDragState = {
         cursorX = (cursorX or 0) / scale,
         cursorY = (cursorY or 0) / scale,
         startX = tonumber(startX) or 0,
         startY = tonumber(startY) or 0,
+        selectedUnits = selectedUnits,
+        startPositions = startPositions,
     }
 
     frame:SetScript("OnUpdate", function(movingFrame)
         local dragState = movingFrame._focalPointDragState
         if not dragState then
+            return
+        end
+        if InCombatLockdown and InCombatLockdown() then
+            EndFrameDrag(movingFrame, false)
             return
         end
 
@@ -587,36 +687,85 @@ local function BeginFrameDrag(frame)
         local nextY = dragState.startY + (currentY - dragState.cursorY)
         nextX, nextY = ApplyEditorSnapLines(movingFrame, nextX, nextY)
 
-        unitConfig.x = nextX
-        unitConfig.y = nextY
-        if movingFrame.unit and movingFrame.unit:match("^boss%d+$") then
-            ApplyBossStackPositions()
-        else
-            FocalPoint:ApplyStoredFramePosition(movingFrame)
-            UpdateMoveOverlay(movingFrame)
+        local deltaX = nextX - dragState.startX
+        local deltaY = nextY - dragState.startY
+        for unitKey, startPosition in pairs(dragState.startPositions or {}) do
+            local selectedConfig = GetUnitConfig(unitKey)
+            local selectedFrame = ResolveFrameForSelectionUnit(unitKey, movingFrame)
+            if selectedConfig and selectedFrame then
+                selectedConfig.x = (tonumber(startPosition.x) or 0) + deltaX
+                selectedConfig.y = (tonumber(startPosition.y) or 0) + deltaY
+                if unitKey == "boss" then
+                    ApplyBossStackPositions()
+                else
+                    FocalPoint:ApplyStoredFramePosition(selectedFrame)
+                    UpdateMoveOverlay(selectedFrame)
+                end
+            end
         end
     end)
 
     UpdateMoveOverlayVisuals(frame)
 end
 
-local function EndFrameDrag(frame)
+EndFrameDrag = function(frame, commit)
     if not frame then
         return
     end
 
+    commit = commit ~= false
+    local dragState = frame._focalPointDragState
     frame._focalPointDragState = nil
     frame:SetScript("OnUpdate", nil)
-    SaveFramePosition(frame)
-    if frame.unit and frame.unit:match("^boss%d+$") then
-        ApplyBossStackPositions()
-    else
-        FocalPoint:ApplyStoredFramePosition(frame)
-        UpdateMoveOverlay(frame)
+
+    if dragState and type(dragState.startPositions) == "table" then
+        if not commit then
+            for unitKey, startPosition in pairs(dragState.startPositions) do
+                local selectedConfig = GetUnitConfig(unitKey)
+                local selectedFrame = ResolveFrameForSelectionUnit(unitKey, frame)
+                if selectedConfig and selectedFrame then
+                    selectedConfig.x = tonumber(startPosition.x) or 0
+                    selectedConfig.y = tonumber(startPosition.y) or 0
+                    if unitKey == "boss" then
+                        ApplyBossStackPositions()
+                    else
+                        FocalPoint:ApplyStoredFramePosition(selectedFrame)
+                        UpdateMoveOverlay(selectedFrame)
+                    end
+                end
+            end
+        end
+    end
+
+    if commit and dragState and type(dragState.startPositions) == "table" then
+        for unitKey in pairs(dragState.startPositions) do
+            local selectedFrame = ResolveFrameForSelectionUnit(unitKey, frame)
+            if selectedFrame then
+                SaveFramePosition(selectedFrame)
+                if unitKey == "boss" then
+                    ApplyBossStackPositions()
+                else
+                    FocalPoint:ApplyStoredFramePosition(selectedFrame)
+                    UpdateMoveOverlay(selectedFrame)
+                end
+            end
+        end
+    elseif commit then
+        SaveFramePosition(frame)
+        if frame.unit and frame.unit:match("^boss%d+$") then
+            ApplyBossStackPositions()
+        else
+            FocalPoint:ApplyStoredFramePosition(frame)
+            UpdateMoveOverlay(frame)
+        end
     end
     HideEditorSnapLines()
 
-    UpdateMoveOverlayVisuals(frame)
+    if FocalPoint.RefreshEditorSelectionVisuals then
+        FocalPoint:RefreshEditorSelectionVisuals()
+    else
+        UpdateMoveOverlayVisuals(frame)
+    end
 end
 
 function FocalPoint:UpdateFrameDragState(frame)
@@ -700,8 +849,12 @@ function FocalPoint:ClearAllMoveOverlays()
 
     for _, frame in pairs(self.frames) do
         if frame then
-            frame._focalPointDragState = nil
-            frame:SetScript("OnUpdate", nil)
+            if frame._focalPointDragState and EndFrameDrag then
+                EndFrameDrag(frame, false)
+            else
+                frame._focalPointDragState = nil
+                frame:SetScript("OnUpdate", nil)
+            end
             frame:RegisterForDrag()
             frame:SetScript("OnDragStart", nil)
             frame:SetScript("OnDragStop", nil)
