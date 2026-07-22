@@ -221,6 +221,50 @@ local function PrintResetFailure(kind, result)
     PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_RESET_FAILED", "Could not reset the selected unit frames."))
 end
 
+local function IsAlignSelectionAvailable(menu)
+    if not IsFrameUnitSelected(menu and menu.targetFrame) then
+        return false
+    end
+
+    local editorState = GetEditorStateApi()
+    if not (editorState
+        and editorState.GetSelectedUnitCount
+        and editorState.GetPrimaryUnit
+        and editorState.IsUnitSelected)
+    then
+        return false
+    end
+
+    local selectedCount = tonumber(editorState.GetSelectedUnitCount()) or 0
+    local primaryUnit = editorState.GetPrimaryUnit()
+    return selectedCount >= 2
+        and type(primaryUnit) == "string"
+        and primaryUnit ~= ""
+        and editorState.IsUnitSelected(primaryUnit) == true
+end
+
+local function PrintAlignFailure(result)
+    local reason = result and result.reason
+    if reason == "combat" then
+        PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_ALIGN_COMBAT", "Cannot align selected frames during combat."))
+        return
+    end
+
+    PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_ALIGN_FAILED", "Could not align the selected unit frames."))
+end
+
+local function AlignSelected(mode)
+    local mutations = GetFrameMutations()
+    if not (mutations and mutations.AlignSelectedUnits) then
+        return
+    end
+
+    local result = mutations.AlignSelectedUnits(mode)
+    if not (result and result.ok == true) then
+        PrintAlignFailure(result)
+    end
+end
+
 local function CopySize(frame)
     local config, unitKey = ResolveUnitConfig(frame)
     if type(config) ~= "table" then
@@ -370,13 +414,43 @@ local function GetResetPositionTooltip(menu)
     return T("EDITOR_CONTEXT_MENU_RESET_POSITION_TOOLTIP", "Resets the position of this unit frame.")
 end
 
+local function GetAlignTooltip()
+    return T("EDITOR_CONTEXT_MENU_ALIGN_TOOLTIP", "Aligns secondary selected unit frames to the primary selection.")
+end
+
+local function HideTooltip()
+    if GameTooltip then
+        GameTooltip:Hide()
+    end
+end
+
+local function IsMouseOverMenu(menu)
+    if not menu then
+        return false
+    end
+
+    if menu.IsMouseOver and menu:IsMouseOver() then
+        return true
+    end
+
+    return MouseIsOver and MouseIsOver(menu) == true
+end
+
+local function CloseMenu(menu)
+    menu = menu or FrameContextMenu.menu
+    HideTooltip()
+    if menu and menu.Hide then
+        menu:Hide()
+    end
+end
+
 local function EnsureMenu()
     if FrameContextMenu.menu then
         return FrameContextMenu.menu
     end
 
     local menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    menu:SetSize(178, 154)
+    menu:SetSize(214, 315)
     menu:SetFrameStrata("FULLSCREEN_DIALOG")
     menu:SetClampedToScreen(true)
     menu:EnableMouse(true)
@@ -402,7 +476,15 @@ local function EnsureMenu()
         { text = T("EDITOR_CONTEXT_MENU_PASTE_POSITION", "Paste position"), action = PastePosition, enabled = function() return clipboard.position ~= nil end },
         { text = GetResetSizeLabel, tooltip = GetResetSizeTooltip, action = ResetSize, preserveSelection = true },
         { text = GetResetPositionLabel, tooltip = GetResetPositionTooltip, action = ResetPosition, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_SELECTED", "Align selected"), enabled = function() return false end },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_LEFT", "Align left"), tooltip = GetAlignTooltip, action = function() AlignSelected("left") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_RIGHT", "Align right"), tooltip = GetAlignTooltip, action = function() AlignSelected("right") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_TOP", "Align top"), tooltip = GetAlignTooltip, action = function() AlignSelected("top") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_BOTTOM", "Align bottom"), tooltip = GetAlignTooltip, action = function() AlignSelected("bottom") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_HORIZONTAL_CENTER", "Align horizontal center"), tooltip = GetAlignTooltip, action = function() AlignSelected("horizontalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_ALIGN_VERTICAL_CENTER", "Align vertical center"), tooltip = GetAlignTooltip, action = function() AlignSelected("verticalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
     }
+    menu:SetSize(214, 12 + (#items * 23))
 
     for index, item in ipairs(items) do
         local hoverAccent = GetSkinButtonColor("hover", "accent", { 0.918, 0.459, 0.000, 0.18 })
@@ -433,14 +515,13 @@ local function EnsureMenu()
             end
 
             local targetFrame = menu.targetFrame
-            if GameTooltip then
-                GameTooltip:Hide()
-            end
-            menu:Hide()
+            CloseMenu(menu)
             if not self.item.preserveSelection then
                 SelectFrame(targetFrame)
             end
-            self.item.action(targetFrame)
+            if self.item.action then
+                self.item.action(targetFrame)
+            end
         end)
 
         button:SetScript("OnEnter", function(self)
@@ -461,15 +542,30 @@ local function EnsureMenu()
         end)
 
         button:SetScript("OnLeave", function()
-            if GameTooltip then
-                GameTooltip:Hide()
-            end
+            HideTooltip()
         end)
 
         buttons[#buttons + 1] = button
     end
 
+    menu:SetScript("OnShow", function(self)
+        self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    end)
+
+    menu:SetScript("OnEvent", function(self, event, button)
+        if event ~= "GLOBAL_MOUSE_DOWN" or button ~= "LeftButton" then
+            return
+        end
+        if IsMouseOverMenu(self) then
+            return
+        end
+
+        CloseMenu(self)
+    end)
+
     menu:SetScript("OnHide", function(self)
+        self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
+        HideTooltip()
         self.targetFrame = nil
     end)
 
@@ -489,7 +585,7 @@ local function UpdateMenuButtons(menu)
             text = text(menu)
         end
         if type(item.enabled) == "function" then
-            enabled = item.enabled() and true or false
+            enabled = item.enabled(menu) and true or false
         end
 
         button._enabled = enabled
@@ -529,10 +625,7 @@ function FrameContextMenu.ShowForFrame(frame)
 end
 
 function FrameContextMenu.Hide()
-    local menu = FrameContextMenu.menu
-    if menu and menu.Hide then
-        menu:Hide()
-    end
+    CloseMenu()
 end
 
 local function AttachMouseUpHook(owner, frame)

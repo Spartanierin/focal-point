@@ -8,6 +8,14 @@ FocalPoint.GUI.Editor.FrameMutations = Mutations
 
 local POSITION_KEYS = { "point", "relativeTo", "relativePoint", "x", "y" }
 local SIZE_KEYS = { "width", "height" }
+local ALIGN_MODES = {
+    left = true,
+    right = true,
+    top = true,
+    bottom = true,
+    horizontalCenter = true,
+    verticalCenter = true,
+}
 
 local function CopyValue(value)
     if type(value) == "table" then
@@ -155,6 +163,232 @@ local function RefreshUnits(units)
     if FocalPoint.RefreshEditorSelectionVisuals then
         FocalPoint:RefreshEditorSelectionVisuals()
     end
+
+    local snapLines = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameSnapLines
+    if snapLines and snapLines.Hide then
+        snapLines.Hide()
+    end
+end
+
+local function GetSelectedUnits()
+    local editorState = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.State
+        or nil
+
+    if editorState and editorState.GetSelectedUnits then
+        return editorState.GetSelectedUnits()
+    end
+
+    return {}
+end
+
+local function GetPrimaryUnit()
+    local editorState = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.State
+        or nil
+
+    if editorState and editorState.GetPrimaryUnit then
+        return NormalizeUnitKey(editorState.GetPrimaryUnit())
+    end
+
+    return nil
+end
+
+local function ResolveFrameForUnit(unitKey)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    if not normalizedUnit or not FocalPoint.frames then
+        return nil
+    end
+
+    if normalizedUnit == "boss" then
+        local fallbackFrame = nil
+        for bossIndex = 1, 5 do
+            local bossFrame = FocalPoint.frames["boss" .. bossIndex]
+            if bossFrame then
+                fallbackFrame = fallbackFrame or bossFrame
+                if bossFrame.IsShown and bossFrame:IsShown() then
+                    return bossFrame
+                end
+            end
+        end
+        return fallbackFrame
+    end
+
+    return FocalPoint.frames[normalizedUnit]
+end
+
+local function IsFiniteNumber(value)
+    return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+end
+
+local function ReadFrameGeometry(frame)
+    if not frame
+        or not frame.GetLeft
+        or not frame.GetRight
+        or not frame.GetTop
+        or not frame.GetBottom
+        or not frame.GetCenter
+        or not frame.GetWidth
+        or not frame.GetHeight
+    then
+        return nil
+    end
+
+    local okLeft, left = pcall(frame.GetLeft, frame)
+    local okRight, right = pcall(frame.GetRight, frame)
+    local okTop, top = pcall(frame.GetTop, frame)
+    local okBottom, bottom = pcall(frame.GetBottom, frame)
+    local okCenter, centerX, centerY = pcall(frame.GetCenter, frame)
+    local okWidth, width = pcall(frame.GetWidth, frame)
+    local okHeight, height = pcall(frame.GetHeight, frame)
+    if not (okLeft and okRight and okTop and okBottom and okCenter and okWidth and okHeight) then
+        return nil
+    end
+
+    if not (IsFiniteNumber(left)
+        and IsFiniteNumber(right)
+        and IsFiniteNumber(top)
+        and IsFiniteNumber(bottom)
+        and IsFiniteNumber(centerX)
+        and IsFiniteNumber(centerY)
+        and IsFiniteNumber(width)
+        and IsFiniteNumber(height))
+    then
+        return nil
+    end
+
+    return {
+        left = left,
+        right = right,
+        top = top,
+        bottom = bottom,
+        centerX = centerX,
+        centerY = centerY,
+        width = width,
+        height = height,
+    }
+end
+
+local function GetAlignmentDelta(primaryGeometry, secondaryGeometry, mode)
+    if mode == "left" then
+        return primaryGeometry.left - secondaryGeometry.left, 0
+    elseif mode == "right" then
+        return primaryGeometry.right - secondaryGeometry.right, 0
+    elseif mode == "top" then
+        return 0, primaryGeometry.top - secondaryGeometry.top
+    elseif mode == "bottom" then
+        return 0, primaryGeometry.bottom - secondaryGeometry.bottom
+    elseif mode == "horizontalCenter" then
+        return primaryGeometry.centerX - secondaryGeometry.centerX, 0
+    elseif mode == "verticalCenter" then
+        return 0, primaryGeometry.centerY - secondaryGeometry.centerY
+    end
+
+    return nil, nil
+end
+
+local function SetFrameCenter(frame, centerX, centerY)
+    if not (frame and frame.ClearAllPoints and frame.SetPoint and UIParent) then
+        return false
+    end
+
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", centerX, centerY)
+    return true
+end
+
+local function ValidateAlignment(units, primaryUnit, mode)
+    if not ALIGN_MODES[mode] then
+        return nil, "invalid_mode"
+    end
+    if not FocalPoint.SaveFramePosition then
+        return nil, "position_helper_unavailable"
+    end
+
+    local normalizedUnits = NormalizeUnits(units)
+    local normalizedPrimary = NormalizeUnitKey(primaryUnit)
+    if #normalizedUnits < 2 or not normalizedPrimary then
+        return nil, "invalid_selection", normalizedUnits
+    end
+
+    local primarySelected = false
+    for _, unitKey in ipairs(normalizedUnits) do
+        if unitKey == normalizedPrimary then
+            primarySelected = true
+            break
+        end
+    end
+    if not primarySelected then
+        return nil, "invalid_primary", normalizedUnits
+    end
+
+    local primaryFrame = ResolveFrameForUnit(normalizedPrimary)
+    local primaryGeometry = ReadFrameGeometry(primaryFrame)
+    if not primaryGeometry then
+        return nil, "geometry_unavailable", normalizedUnits
+    end
+
+    local entries = {}
+    for _, unitKey in ipairs(normalizedUnits) do
+        if unitKey ~= normalizedPrimary then
+            local config = GetUnitConfig(unitKey)
+            if type(config) ~= "table" then
+                return nil, "invalid_unit", normalizedUnits
+            end
+
+            local frame = ResolveFrameForUnit(unitKey)
+            local geometry = ReadFrameGeometry(frame)
+            if not geometry or not (frame.ClearAllPoints and frame.SetPoint and UIParent) then
+                return nil, "geometry_unavailable", normalizedUnits
+            end
+
+            local deltaX, deltaY = GetAlignmentDelta(primaryGeometry, geometry, mode)
+            if not (IsFiniteNumber(deltaX) and IsFiniteNumber(deltaY)) then
+                return nil, "geometry_unavailable", normalizedUnits
+            end
+
+            entries[#entries + 1] = {
+                unit = unitKey,
+                frame = frame,
+                centerX = geometry.centerX + deltaX,
+                centerY = geometry.centerY + deltaY,
+            }
+        end
+    end
+
+    if #entries == 0 then
+        return nil, "invalid_selection", normalizedUnits
+    end
+
+    return {
+        units = normalizedUnits,
+        primaryUnit = normalizedPrimary,
+        entries = entries,
+    }
+end
+
+local function AlignEntries(alignment)
+    local refreshedUnits = {}
+    local seen = {}
+
+    for _, entry in ipairs(alignment.entries) do
+        if not SetFrameCenter(entry.frame, entry.centerX, entry.centerY) then
+            return nil, "geometry_unavailable"
+        end
+
+        FocalPoint.SaveFramePosition(entry.frame)
+
+        if not seen[entry.unit] then
+            seen[entry.unit] = true
+            refreshedUnits[#refreshedUnits + 1] = entry.unit
+        end
+    end
+
+    return refreshedUnits
 end
 
 local function ResetEntries(entries, keys)
@@ -216,6 +450,53 @@ end
 
 function Mutations.ResetUnitsSize(units)
     return ResetUnits(units, SIZE_KEYS)
+end
+
+function Mutations.AlignUnits(units, primaryUnit, mode)
+    if IsWriteBlockedInCombat() then
+        return {
+            ok = false,
+            reason = "combat",
+            units = NormalizeUnits(units),
+            primaryUnit = NormalizeUnitKey(primaryUnit),
+            count = 0,
+        }
+    end
+
+    local alignment, reason, normalizedUnits = ValidateAlignment(units, primaryUnit, mode)
+    if not alignment then
+        return {
+            ok = false,
+            reason = reason,
+            units = normalizedUnits or NormalizeUnits(units),
+            primaryUnit = NormalizeUnitKey(primaryUnit),
+            count = 0,
+        }
+    end
+
+    local refreshedUnits, applyReason = AlignEntries(alignment)
+    if not refreshedUnits then
+        return {
+            ok = false,
+            reason = applyReason or "alignment_failed",
+            units = alignment.units,
+            primaryUnit = alignment.primaryUnit,
+            count = 0,
+        }
+    end
+
+    RefreshUnits(refreshedUnits)
+
+    return {
+        ok = true,
+        units = refreshedUnits,
+        primaryUnit = alignment.primaryUnit,
+        count = #refreshedUnits,
+    }
+end
+
+function Mutations.AlignSelectedUnits(mode)
+    return Mutations.AlignUnits(GetSelectedUnits(), GetPrimaryUnit(), mode)
 end
 
 return Mutations

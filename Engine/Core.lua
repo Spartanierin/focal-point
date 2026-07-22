@@ -576,6 +576,8 @@ local function SaveFramePosition(frame)
     unitConfig.y = y + bossStackOffset
 end
 
+FocalPoint.SaveFramePosition = SaveFramePosition
+
 function FocalPoint:ApplyStoredFramePosition(frame)
     if not frame or not frame.unit then
         return
