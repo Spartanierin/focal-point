@@ -120,26 +120,6 @@ local function ResolveUnitConfig(frame)
     return nil, unitKey
 end
 
-local function GetDefaultUnitConfig(unitKey)
-    if type(unitKey) ~= "string" or unitKey == "" or not FocalPoint.GetDefaultDB then
-        return nil
-    end
-
-    local defaults = FocalPoint:GetDefaultDB()
-    return defaults
-        and defaults.profile
-        and defaults.profile.Units
-        and defaults.profile.Units[unitKey]
-end
-
-local function CopyValue(value)
-    if type(value) == "table" then
-        return CopyTable and CopyTable(value) or value
-    end
-
-    return value
-end
-
 local function IsEditorUnlocked()
     return FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
@@ -178,6 +158,67 @@ local function SelectFrame(frame)
     if FocalPoint.SelectEditorUnit and frame and frame.unit then
         FocalPoint:SelectEditorUnit(frame.unit)
     end
+end
+
+local function GetEditorStateApi()
+    return FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.State
+        or nil
+end
+
+local function GetFrameMutations()
+    return FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameMutations
+        or nil
+end
+
+local function IsFrameUnitSelected(frame)
+    local unitKey = GetUnitKey(frame)
+    local editorState = GetEditorStateApi()
+    return unitKey ~= nil
+        and editorState
+        and editorState.IsUnitSelected
+        and editorState.IsUnitSelected(unitKey) == true
+end
+
+local function GetSelectedResetUnits(frame)
+    local unitKey = GetUnitKey(frame)
+    if not unitKey then
+        return {}, false
+    end
+
+    local editorState = GetEditorStateApi()
+    if not (editorState and editorState.GetSelectedUnits and editorState.GetSelectedUnitCount) then
+        return { unitKey }, false
+    end
+
+    local selectedCount = tonumber(editorState.GetSelectedUnitCount()) or 0
+    if selectedCount > 1 and IsFrameUnitSelected(frame) then
+        return editorState.GetSelectedUnits(), true
+    end
+
+    return { unitKey }, false
+end
+
+local function GetSelectedResetCount(frame)
+    local units, isBatch = GetSelectedResetUnits(frame)
+    return isBatch and #units or 1
+end
+
+local function PrintResetFailure(kind, result)
+    local reason = result and result.reason
+    if reason == "combat" then
+        if kind == "size" then
+            PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_RESET_SIZE_COMBAT", "Cannot reset frame size during combat."))
+        else
+            PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_RESET_POSITION_COMBAT", "Cannot reset frame position during combat."))
+        end
+        return
+    end
+
+    PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_RESET_FAILED", "Could not reset the selected unit frames."))
 end
 
 local function CopySize(frame)
@@ -266,45 +307,67 @@ local function PastePosition(frame)
 end
 
 local function ResetSize(frame)
-    if IsWriteBlockedInCombat() then
-        PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_RESET_SIZE_COMBAT", "cannot reset frame size during combat."))
+    local mutations = GetFrameMutations()
+    if not (mutations and mutations.ResetUnitsSize) then
         return
     end
 
-    local config, unitKey = ResolveUnitConfig(frame)
-    local defaults = GetDefaultUnitConfig(unitKey)
-    if type(config) ~= "table" or type(defaults) ~= "table" then
-        return
+    local units, isBatch = GetSelectedResetUnits(frame)
+    if not isBatch then
+        SelectFrame(frame)
     end
-
-    config.width = CopyValue(defaults.width)
-    config.height = CopyValue(defaults.height)
-
-    RefreshEditorForUnit(unitKey)
+    local result = mutations.ResetUnitsSize(units)
+    if not (result and result.ok == true) then
+        PrintResetFailure("size", result)
+    end
 end
 
 local function ResetPosition(frame)
-    if IsWriteBlockedInCombat() then
-        PrintMessage(T("EDITOR_CONTEXT_MENU_STATUS_RESET_POSITION_COMBAT", "cannot reset frame position during combat."))
+    local mutations = GetFrameMutations()
+    if not (mutations and mutations.ResetUnitsPosition) then
         return
     end
 
-    local config, unitKey = ResolveUnitConfig(frame)
-    local defaults = GetDefaultUnitConfig(unitKey)
-    if type(config) ~= "table" or type(defaults) ~= "table" then
-        return
+    local units, isBatch = GetSelectedResetUnits(frame)
+    if not isBatch then
+        SelectFrame(frame)
     end
+    local result = mutations.ResetUnitsPosition(units)
+    if not (result and result.ok == true) then
+        PrintResetFailure("position", result)
+    end
+end
 
-    for _, key in ipairs({ "point", "relativeTo", "relativePoint", "x", "y" }) do
-        if defaults[key] ~= nil then
-            config[key] = CopyValue(defaults[key])
-        end
+local function GetResetSizeLabel(menu)
+    local count = GetSelectedResetCount(menu and menu.targetFrame)
+    if count > 1 then
+        return string.format(T("EDITOR_CONTEXT_MENU_RESET_SIZE_MULTI", "Reset sizes (%d)"), count)
     end
+    return T("EDITOR_CONTEXT_MENU_RESET_SIZE", "Reset size")
+end
 
-    if FocalPoint.ApplyStoredFramePosition then
-        FocalPoint:ApplyStoredFramePosition(frame)
+local function GetResetPositionLabel(menu)
+    local count = GetSelectedResetCount(menu and menu.targetFrame)
+    if count > 1 then
+        return string.format(T("EDITOR_CONTEXT_MENU_RESET_POSITION_MULTI", "Reset positions (%d)"), count)
     end
-    RefreshEditorForUnit(unitKey)
+    return T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position")
+end
+
+local function GetResetSizeTooltip(menu)
+    local count = GetSelectedResetCount(menu and menu.targetFrame)
+    if count > 1 then
+        return T("EDITOR_CONTEXT_MENU_RESET_SIZE_TOOLTIP_MULTI", "Resets the size of all selected unit frames.")
+    end
+    return T("EDITOR_CONTEXT_MENU_RESET_SIZE_TOOLTIP", "Resets the size of this unit frame.")
+end
+
+local function GetResetPositionTooltip(menu)
+    local count = GetSelectedResetCount(menu and menu.targetFrame)
+    if count > 1 then
+        return T("EDITOR_CONTEXT_MENU_RESET_POSITION_TOOLTIP_MULTI", "Resets the position of all selected unit frames.")
+    end
+    return T("EDITOR_CONTEXT_MENU_RESET_POSITION_TOOLTIP", "Resets the position of this unit frame.")
 end
 
 local function EnsureMenu()
@@ -337,8 +400,8 @@ local function EnsureMenu()
         { text = T("EDITOR_CONTEXT_MENU_PASTE_SIZE", "Paste size"), action = PasteSize, enabled = function() return clipboard.size ~= nil end },
         { text = T("EDITOR_CONTEXT_MENU_COPY_POSITION", "Copy position"), action = CopyPosition },
         { text = T("EDITOR_CONTEXT_MENU_PASTE_POSITION", "Paste position"), action = PastePosition, enabled = function() return clipboard.position ~= nil end },
-        { text = T("EDITOR_CONTEXT_MENU_RESET_SIZE", "Reset size"), action = ResetSize },
-        { text = T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position"), action = ResetPosition },
+        { text = GetResetSizeLabel, tooltip = GetResetSizeTooltip, action = ResetSize, preserveSelection = true },
+        { text = GetResetPositionLabel, tooltip = GetResetPositionTooltip, action = ResetPosition, preserveSelection = true },
     }
 
     for index, item in ipairs(items) do
@@ -355,7 +418,11 @@ local function EnsureMenu()
         local label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         label:SetPoint("LEFT", button, "LEFT", 8, 0)
         label:SetJustifyH("LEFT")
-        label:SetText(item.text)
+        local initialText = item.text
+        if type(initialText) == "function" then
+            initialText = initialText(menu)
+        end
+        label:SetText(initialText)
         SetTextColor(label, normalText)
         button.label = label
         button.item = item
@@ -366,9 +433,37 @@ local function EnsureMenu()
             end
 
             local targetFrame = menu.targetFrame
+            if GameTooltip then
+                GameTooltip:Hide()
+            end
             menu:Hide()
-            SelectFrame(targetFrame)
+            if not self.item.preserveSelection then
+                SelectFrame(targetFrame)
+            end
             self.item.action(targetFrame)
+        end)
+
+        button:SetScript("OnEnter", function(self)
+            local item = self.item
+            local tooltip = item and item.tooltip
+            if type(tooltip) == "function" then
+                tooltip = tooltip(menu)
+            end
+            if type(tooltip) ~= "string" or tooltip == "" or not GameTooltip then
+                return
+            end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if GameTooltip.ClearLines then
+                GameTooltip:ClearLines()
+            end
+            GameTooltip:AddLine(tooltip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+
+        button:SetScript("OnLeave", function()
+            if GameTooltip then
+                GameTooltip:Hide()
+            end
         end)
 
         buttons[#buttons + 1] = button
@@ -389,11 +484,16 @@ local function UpdateMenuButtons(menu)
     for _, button in ipairs(menu.buttons or {}) do
         local item = button.item
         local enabled = true
+        local text = item and item.text or ""
+        if type(text) == "function" then
+            text = text(menu)
+        end
         if type(item.enabled) == "function" then
             enabled = item.enabled() and true or false
         end
 
         button._enabled = enabled
+        button.label:SetText(text)
         if enabled then
             SetTextColor(button.label, normalText)
             button:Enable()
