@@ -1,6 +1,6 @@
 ## Title: Focal Point
 ## Interface: 120007
-## Version: 1.0.20
+## Version: 1.0.21
 ## Author: Spartanierin
 ## Notes: Flexible, modular unit frames designed for fast setup and detailed customization.
 

@@ -9,6 +9,20 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.21]
+
+### Added
+
+* Added multi-selection reset actions for frame positions and sizes.
+* Added six multi-selection alignment actions: align left, right, top, bottom, center horizontally, and center vertically.
+* Added support for using the primary selection as the fixed alignment anchor.
+
+### Improved
+
+* Improved batch editing so selected frames keep their selection state after reset or alignment actions.
+* Improved multi-selection safety by blocking batch changes during combat without applying partial updates.
+* Improved the frame context menu with helpful tooltips and automatic closing when clicking outside the menu.
+
 ## [1.0.20]
 
 ### Added
