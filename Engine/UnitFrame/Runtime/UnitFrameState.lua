@@ -554,9 +554,20 @@ function State.QueueRefresh(frame, reason, scope, options, delay)
     delay = tonumber(delay) or 0
 
     if delay > 0 and C_Timer and C_Timer.After then
+        local lifecycle = FocalPoint and FocalPoint.UnitFrameLifecycleDiagnostics or nil
+        local marker = lifecycle and lifecycle.MarkDelayedRefresh and lifecycle.MarkDelayedRefresh(frame, reason, scope, delay) or nil
         C_Timer.After(delay, function()
             if frame then
+                local currentLifecycle = FocalPoint and FocalPoint.UnitFrameLifecycleDiagnostics or nil
+                if currentLifecycle and currentLifecycle.RecordDelayedRefreshFired then
+                    currentLifecycle.RecordDelayedRefreshFired(frame, marker)
+                end
                 State.QueueRefresh(frame, reason, scope, options, 0)
+            else
+                local currentLifecycle = FocalPoint and FocalPoint.UnitFrameLifecycleDiagnostics or nil
+                if currentLifecycle and currentLifecycle.RecordDelayedRefreshSkipped then
+                    currentLifecycle.RecordDelayedRefreshSkipped(frame, marker, "missing-frame")
+                end
             end
         end)
         return true

@@ -34,6 +34,7 @@
     <Script file="Engine/UnitFrame/Bars/UnitFrameCastBar.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameCastRuntime.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameState.lua"/>
+    <Script file="Engine/UnitFrame/Runtime/UnitFrameLifecycleDiagnostics.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameVisibility.lua"/>
     <Script file="Engine/UnitFrame/Runtime/UnitFrameInsideLayout.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameIndicators.lua"/>

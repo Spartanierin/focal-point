@@ -64,6 +64,10 @@ local function QueueUnknownAuraReconcile(owner, refreshFunc)
 
     for _, delay in ipairs(delays) do
         C_Timer.After(delay, function()
+            local lifecycle = FocalPoint and FocalPoint.UnitFrameLifecycleDiagnostics or nil
+            if lifecycle and lifecycle.RecordAuraReconcile then
+                lifecycle.RecordAuraReconcile(owner, "aura-reconcile-fired", "unknown-event-auras")
+            end
             if not owner or not owner.config or owner._auraReconcileToken ~= token then
                 return
             end

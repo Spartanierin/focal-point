@@ -15,6 +15,7 @@ local Health = FocalPoint.UnitFrameHealth or {}
 local BuildRuntime = FocalPoint.UnitFrameBuild or {}
 local RefreshRuntime = FocalPoint.UnitFrameRefresh or {}
 local StateRuntime = FocalPoint.UnitFrameState or {}
+local LifecycleDiagnostics = FocalPoint.UnitFrameLifecycleDiagnostics or {}
 local InsideLayout = FocalPoint.UnitFrameInsideLayout or {}
 local Layout = FocalPoint.UnitFrameLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout or {}
@@ -1768,6 +1769,9 @@ function UF:Build(unit, options)
     if not frame then
         error(string.format("Build step failed for %s [CreateBaseFrame]: returned nil", tostring(unit)))
     end
+    if LifecycleDiagnostics.Record then
+        LifecycleDiagnostics.Record("build", frame, { unit = unit, reason = "build" })
+    end
     if StateRuntime.Ensure then
         RunBuildStep("StateRuntime.Ensure", function()
             StateRuntime.Ensure(frame)
@@ -1991,6 +1995,9 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
     if not frame then
         return nil
     end
+    if LifecycleDiagnostics.Record then
+        LifecycleDiagnostics.Record("deactivate-enter", frame, { unit = unit, reason = preserveForReuse and "preserve" or "remove" })
+    end
 
     if frame._unitWatchRegistered and UnregisterUnitWatch then
         UnregisterUnitWatch(frame)
@@ -2048,8 +2055,14 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
     self.frames[unit] = nil
     if preserveForReuse then
         self.framePool[unit] = frame
+        if LifecycleDiagnostics.Record then
+            LifecycleDiagnostics.Record("pool", frame, { unit = unit, reason = "deactivate" })
+        end
     else
         self.framePool[unit] = nil
+    end
+    if LifecycleDiagnostics.CheckDeactivateExit then
+        LifecycleDiagnostics.CheckDeactivateExit(frame, unit, preserveForReuse and "pooled" or "removed")
     end
 
     return frame
@@ -2069,12 +2082,18 @@ function FocalPoint:SpawnUnitFrame(unit, options)
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
             reason = "active_reused",
         }
+        if LifecycleDiagnostics.Record then
+            LifecycleDiagnostics.Record("activate", self.frames[unit], { unit = unit, reason = "active_reused" })
+        end
         self:RefreshUnitFrame(unit)
         return self.frames[unit]
     end
 
     if self.framePool[unit] then
         local recycledFrame = self.framePool[unit]
+        if LifecycleDiagnostics.Record then
+            LifecycleDiagnostics.Record("reuse-enter", recycledFrame, { unit = unit, reason = "spawn-pooled" })
+        end
         self.framePool[unit] = nil
         self.frames[unit] = recycledFrame
         self.spawnDiagnostics[unit] = {
@@ -2084,6 +2103,9 @@ function FocalPoint:SpawnUnitFrame(unit, options)
             reason = "pooled_reused",
         }
         self:RefreshUnitFrame(unit)
+        if LifecycleDiagnostics.CheckReuseExit then
+            LifecycleDiagnostics.CheckReuseExit(recycledFrame, unit, "spawn-pooled")
+        end
         return recycledFrame
     end
 
@@ -2109,6 +2131,9 @@ function FocalPoint:SpawnUnitFrame(unit, options)
     local frame = frameOrError
     if frame then
         self.frames[unit] = frame
+        if LifecycleDiagnostics.Record then
+            LifecycleDiagnostics.Record("activate", frame, { unit = unit, reason = "spawned" })
+        end
         self.spawnDiagnostics[unit] = {
             ok = true,
             hasConfig = true,
@@ -2165,12 +2190,21 @@ function FocalPoint:RebuildFramesForActiveProfile()
 
     for _, unit in ipairs(orderedUnits) do
         if self.frames[unit] then
+            if LifecycleDiagnostics.Record then
+                LifecycleDiagnostics.Record("activate", self.frames[unit], { unit = unit, reason = "rebuild-active" })
+            end
             self:RefreshUnitFrame(unit)
         elseif self.framePool[unit] then
             local recycledFrame = self.framePool[unit]
+            if LifecycleDiagnostics.Record then
+                LifecycleDiagnostics.Record("reuse-enter", recycledFrame, { unit = unit, reason = "rebuild-pooled" })
+            end
             self.framePool[unit] = nil
             self.frames[unit] = recycledFrame
             self:RefreshUnitFrame(unit)
+            if LifecycleDiagnostics.CheckReuseExit then
+                LifecycleDiagnostics.CheckReuseExit(recycledFrame, unit, "rebuild-pooled")
+            end
         elseif self.SpawnUnitFrame then
             self:SpawnUnitFrame(unit, { allowDisabledForUnlock = self.framesUnlocked == true })
         end

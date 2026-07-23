@@ -49,6 +49,15 @@ local function MediaDebugMessage(text)
     print(message)
 end
 
+local function LifecycleDebugMessage(text)
+    local message = "[FP LifecycleDebug] " .. tostring(text or "")
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(message)
+        return
+    end
+    print(message)
+end
+
 local function CountKnownFrames()
     local count = 0
     local frames = FocalPoint and FocalPoint.frames or nil
@@ -451,6 +460,74 @@ local function HandleMediaDebugCommand(msg)
     end
 end
 
+local function GetLifecycleDebugApi()
+    return FocalPoint and FocalPoint.UnitFrameLifecycleDiagnostics or nil
+end
+
+local function ReportLifecycleDebugStatus()
+    local Lifecycle = GetLifecycleDebugApi()
+    local status = Lifecycle and Lifecycle.GetStatus and Lifecycle.GetStatus() or nil
+    if not status then
+        LifecycleDebugMessage("status unavailable")
+        return
+    end
+    LifecycleDebugMessage(string.format(
+        "enabled=%s entries=%d warnings=%d",
+        tostring(status.enabled == true),
+        tonumber(status.entries) or 0,
+        tonumber(status.warnings) or 0
+    ))
+end
+
+local function ReportLifecycleDebugSummary()
+    local Lifecycle = GetLifecycleDebugApi()
+    local lines = Lifecycle and Lifecycle.BuildReport and Lifecycle.BuildReport() or nil
+    if type(lines) ~= "table" then
+        LifecycleDebugMessage("report unavailable")
+        return
+    end
+    for _, line in ipairs(lines) do
+        LifecycleDebugMessage(line)
+    end
+end
+
+local function ResetLifecycleDebug()
+    local Lifecycle = GetLifecycleDebugApi()
+    if Lifecycle and Lifecycle.Reset then
+        Lifecycle.Reset()
+        LifecycleDebugMessage("clear")
+    else
+        LifecycleDebugMessage("clear unavailable")
+    end
+end
+
+local function SetLifecycleDebugEnabled(enabled)
+    local Lifecycle = GetLifecycleDebugApi()
+    if Lifecycle and Lifecycle.SetEnabled then
+        Lifecycle.SetEnabled(enabled == true)
+        LifecycleDebugMessage("enabled=" .. tostring(enabled == true))
+    else
+        LifecycleDebugMessage("toggle unavailable")
+    end
+end
+
+local function HandleLifecycleDebugCommand(msg)
+    msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if msg == "on" then
+        SetLifecycleDebugEnabled(true)
+    elseif msg == "off" then
+        SetLifecycleDebugEnabled(false)
+    elseif msg == "clear" or msg == "reset" then
+        ResetLifecycleDebug()
+    elseif msg == "report" then
+        ReportLifecycleDebugSummary()
+    elseif msg == "status" or msg == "" then
+        ReportLifecycleDebugStatus()
+    else
+        LifecycleDebugMessage("usage: /fpdebuglifecycle on|off|status|report|clear")
+    end
+end
+
 function FocalPoint:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
@@ -463,6 +540,7 @@ function FocalPoint:SetupSlashCommands()
     SLASH_FPDEBUGUNITWATCH1 = "/fpdebugunitwatch"
     SLASH_FPDEBUGALPHA1 = "/fpdebugalpha"
     SLASH_FPDEBUGMEDIA1 = "/fpdebugmedia"
+    SLASH_FPDEBUGLIFECYCLE1 = "/fpdebuglifecycle"
     FocalPoint.debugDemoDisableCastbar = FocalPoint.debugDemoDisableCastbar == true
     FocalPoint.debugDemoDisableAuras = FocalPoint.debugDemoDisableAuras == true
     FocalPoint.debugDemoDisableAuraTimers = FocalPoint.debugDemoDisableAuraTimers == true
@@ -505,6 +583,10 @@ function FocalPoint:SetupSlashCommands()
             HandleMediaDebugCommand("status")
         elseif msg:match("^debug media%s+") then
             HandleMediaDebugCommand(msg:match("^debug media%s+(.+)$"))
+        elseif msg == "debug lifecycle" then
+            HandleLifecycleDebugCommand("status")
+        elseif msg:match("^debug lifecycle%s+") then
+            HandleLifecycleDebugCommand(msg:match("^debug lifecycle%s+(.+)$"))
         elseif msg == "debugdemo on" then
             FocalPoint.debugDemoRuntime = true
             DemoDebugMessage("enabled=true")
@@ -539,9 +621,13 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report, /fpdebuglifecycle on|off|status|report|clear")
             end
         end
+    end
+
+    SlashCmdList["FPDEBUGLIFECYCLE"] = function(msg)
+        HandleLifecycleDebugCommand(msg)
     end
 
     SlashCmdList["FPDEBUGMEDIA"] = function(msg)
