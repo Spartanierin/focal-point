@@ -387,6 +387,52 @@ local function HideEditorResizeHandle(frame)
     end
 end
 
+local function GetEditorInteractionMode()
+    return FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+        or nil
+end
+
+local function IsEditorFrameMode()
+    local interactionMode = GetEditorInteractionMode()
+    if interactionMode and interactionMode.IsFrameMode then
+        return interactionMode.IsFrameMode()
+    end
+
+    return FocalPoint.framesUnlocked == true
+        and FocalPoint.IsEditorActive
+        and FocalPoint:IsEditorActive()
+        and not (InCombatLockdown and InCombatLockdown() == true)
+end
+
+local function SyncEditorInteractionMode()
+    local interactionMode = GetEditorInteractionMode()
+    if interactionMode and interactionMode.SyncShiftState then
+        interactionMode.SyncShiftState()
+    elseif interactionMode and interactionMode.Refresh then
+        interactionMode.Refresh(true)
+    end
+end
+
+local function UpdateTextEditorOverlay(frame)
+    local overlay = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.TextEditorOverlay
+    if overlay and overlay.UpdateFrame then
+        overlay.UpdateFrame(frame)
+    end
+end
+
+local function HideTextEditorOverlay(frame)
+    local overlay = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.TextEditorOverlay
+    if overlay and overlay.HideFrame then
+        overlay.HideFrame(frame)
+    end
+end
+
 local function CancelEditorResize()
     local resizeHandles = FocalPoint.GUI
         and FocalPoint.GUI.Editor
@@ -779,40 +825,61 @@ function FocalPoint:UpdateFrameDragState(frame)
 
     local overlay = EnsureMoveOverlay(frame)
     EnsureEditorContextMenuHooks(frame)
-    frame:SetMovable(self.framesUnlocked == true)
+    local frameMode = IsEditorFrameMode()
+    frame:SetMovable(self.framesUnlocked == true and frameMode)
     frame:SetClampedToScreen(true)
 
     if self.framesUnlocked then
         if overlay then
             overlay:SetFrameStrata(frame:GetFrameStrata())
             overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 40, (frame.Elements and frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 20) or (frame:GetFrameLevel() + 40)))
-            overlay:EnableMouse(true)
-            overlay:RegisterForDrag("LeftButton")
-            overlay:SetScript("OnDragStart", function()
-                if not FocalPoint.framesUnlocked then
+            overlay:EnableMouse(frameMode)
+            if frameMode then
+                overlay:RegisterForDrag("LeftButton")
+                overlay:SetScript("OnDragStart", function()
+                    if not FocalPoint.framesUnlocked or not IsEditorFrameMode() then
+                        return
+                    end
+
+                    BeginFrameDrag(frame)
+                end)
+                overlay:SetScript("OnDragStop", function()
+                    EndFrameDrag(frame)
+                end)
+            else
+                overlay:RegisterForDrag()
+                overlay:SetScript("OnDragStart", nil)
+                overlay:SetScript("OnDragStop", nil)
+                if frame._focalPointDragState then
+                    EndFrameDrag(frame, false)
+                end
+                HideEditorSnapLines()
+            end
+            overlay:Show()
+            UpdateMoveOverlay(frame)
+            if frameMode then
+                UpdateEditorResizeHandle(frame)
+            else
+                HideEditorResizeHandle(frame)
+            end
+        end
+        if frameMode then
+            frame:RegisterForDrag("LeftButton")
+            frame:SetScript("OnDragStart", function(target)
+                if not FocalPoint.framesUnlocked or not IsEditorFrameMode() then
                     return
                 end
 
-                BeginFrameDrag(frame)
+                BeginFrameDrag(target)
             end)
-            overlay:SetScript("OnDragStop", function()
-                EndFrameDrag(frame)
+            frame:SetScript("OnDragStop", function(target)
+                EndFrameDrag(target)
             end)
-            overlay:Show()
-            UpdateMoveOverlay(frame)
-            UpdateEditorResizeHandle(frame)
+        else
+            frame:RegisterForDrag()
+            frame:SetScript("OnDragStart", nil)
+            frame:SetScript("OnDragStop", nil)
         end
-        frame:RegisterForDrag("LeftButton")
-        frame:SetScript("OnDragStart", function(target)
-            if not FocalPoint.framesUnlocked then
-                return
-            end
-
-            BeginFrameDrag(target)
-        end)
-        frame:SetScript("OnDragStop", function(target)
-            EndFrameDrag(target)
-        end)
     else
         if overlay then
             overlay:RegisterForDrag()
@@ -828,10 +895,12 @@ function FocalPoint:UpdateFrameDragState(frame)
         frame:SetScript("OnUpdate", nil)
         frame._focalPointDragState = nil
         HideEditorSnapLines()
+        HideTextEditorOverlay(frame)
     end
 
     UpdateSelectionOverlay(frame)
     UpdateMoveOverlayVisuals(frame)
+    UpdateTextEditorOverlay(frame)
 end
 
 function FocalPoint:UpdateAllFrameDragStates()
@@ -876,7 +945,16 @@ function FocalPoint:ClearAllMoveOverlays()
             if selectionOverlay then
                 selectionOverlay:Hide()
             end
+            HideTextEditorOverlay(frame)
         end
+    end
+end
+
+function FocalPoint:RefreshEditorInteractionVisuals()
+    if self.UpdateAllFrameDragStates then
+        self:UpdateAllFrameDragStates()
+    elseif self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
     end
 end
 
@@ -893,11 +971,13 @@ function FocalPoint:RefreshEditorSelectionVisuals()
         else
             UpdateMoveOverlayVisuals(frame)
         end
+        UpdateTextEditorOverlay(frame)
     end
 end
 
 function FocalPoint:ToggleFrameLock()
     self.framesUnlocked = not self.framesUnlocked
+    SyncEditorInteractionMode()
 
     if self.framesUnlocked and self.SpawnUnitFrame then
         local unitOrder = self.Constants and self.Constants.UnitOrder or {}

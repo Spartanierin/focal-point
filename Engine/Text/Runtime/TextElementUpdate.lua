@@ -957,4 +957,12 @@ function Update.UpdateAll(frame, deps)
     if TextState.MarkRenderApplied then
         TextState.MarkRenderApplied(frame)
     end
+
+    local textEditorOverlay = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.TextEditorOverlay
+    if textEditorOverlay and textEditorOverlay.UpdateFrame then
+        textEditorOverlay.UpdateFrame(frame)
+    end
 end

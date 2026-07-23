@@ -83,6 +83,17 @@ local function IsEditorUnlocked()
         and FocalPoint:IsEditorActive()
 end
 
+local function IsEditorFrameMode()
+    local interactionMode = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    if interactionMode and interactionMode.IsFrameMode then
+        return interactionMode.IsFrameMode()
+    end
+
+    return IsEditorUnlocked() and not IsCombatLocked()
+end
+
 local function IsPrimaryEditorFrame(frame)
     if not frame or type(frame.unit) ~= "string" then
         return false
@@ -404,7 +415,7 @@ function FrameResizeHandles.UpdateFrame(frame)
     handle:SetFrameLevel((overlay.GetFrameLevel and overlay:GetFrameLevel() or 1) + 20)
     UpdateHandleVisual(handle)
 
-    if IsEditorUnlocked() and not IsCombatLocked() and IsPrimaryEditorFrame(frame) then
+    if IsEditorFrameMode() and not IsCombatLocked() and IsPrimaryEditorFrame(frame) then
         handle:Show()
     else
         handle:Hide()

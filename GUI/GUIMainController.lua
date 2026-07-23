@@ -665,8 +665,11 @@ function FocalPoint:SelectEditorUnit(unit, options)
     end
 
     local toggleSelection = type(options) == "table" and options.toggle == true
+    local preserveSelection = type(options) == "table" and options.preserveSelection == true
     if toggleSelection and editorState and editorState.ToggleUnitSelection then
         selectedUnit = editorState.ToggleUnitSelection(selectedUnit)
+    elseif preserveSelection and editorState and editorState.SetPrimaryUnit then
+        selectedUnit = editorState.SetPrimaryUnit(selectedUnit)
     elseif editorState and editorState.SetSingleSelection then
         selectedUnit = editorState.SetSingleSelection(selectedUnit)
     elseif editorState and editorState.SetSelectedUnit then

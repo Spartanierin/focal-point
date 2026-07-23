@@ -53,6 +53,8 @@ local state = {
     selectedThemeId = "classic",
     selectedTextId = nil,
     selectedTextKey = nil,
+    selectedTextElementUnit = nil,
+    selectedTextElementId = nil,
     selectedIndicatorKey = "Portrait",
     selectedAuraKey = "Buffs",
     collapsedSections = {},
@@ -198,6 +200,7 @@ end
 
 function EditorState.ClearSelection(fallbackUnit)
     state.selectedUnits = {}
+    EditorState.ClearSelectedTextElement()
 
     local normalizedFallback = NormalizeUnitKey(fallbackUnit)
     if normalizedFallback then
@@ -260,6 +263,43 @@ end
 
 function EditorState.SetSelectedTextKey(textKey)
     EditorState.SetSelectedTextId(textKey)
+end
+
+function EditorState.SetSelectedTextElement(unitKey, textElementId)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    if not normalizedUnit or type(textElementId) ~= "string" or textElementId == "" then
+        return nil
+    end
+
+    state.selectedTextElementUnit = normalizedUnit
+    state.selectedTextElementId = textElementId
+    state.selectedTextId = textElementId
+    state.selectedTextKey = textElementId
+    return normalizedUnit, textElementId
+end
+
+function EditorState.GetSelectedTextElement()
+    if type(state.selectedTextElementUnit) ~= "string" or state.selectedTextElementUnit == ""
+        or type(state.selectedTextElementId) ~= "string" or state.selectedTextElementId == ""
+    then
+        return nil, nil
+    end
+
+    return state.selectedTextElementUnit, state.selectedTextElementId
+end
+
+function EditorState.ClearSelectedTextElement()
+    state.selectedTextElementUnit = nil
+    state.selectedTextElementId = nil
+end
+
+function EditorState.IsTextElementSelected(unitKey, textElementId)
+    local normalizedUnit = NormalizeUnitKey(unitKey)
+    return normalizedUnit ~= nil
+        and type(textElementId) == "string"
+        and textElementId ~= ""
+        and state.selectedTextElementUnit == normalizedUnit
+        and state.selectedTextElementId == textElementId
 end
 
 function EditorState.SetSelectedIndicatorKey(indicatorKey)

@@ -1465,6 +1465,12 @@ function UF:ApplyConfig(frame)
             self:ApplyTextElementConfig(frame, key, frame.Texts[key], textConfig)
         end
     end
+    local textEditorOverlay = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.TextEditorOverlay
+    if textEditorOverlay and textEditorOverlay.UpdateFrame then
+        textEditorOverlay.UpdateFrame(frame)
+    end
 
 end
 
@@ -2017,6 +2023,12 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
     end
     if frame.MoveOverlay and frame.MoveOverlay.Hide then
         frame.MoveOverlay:Hide()
+    end
+    local textEditorOverlay = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.TextEditorOverlay
+    if textEditorOverlay and textEditorOverlay.HideFrame then
+        textEditorOverlay.HideFrame(frame)
     end
     if frame.EnableMouse then
         frame:EnableMouse(false)

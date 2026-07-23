@@ -102,6 +102,8 @@
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
     <Script file="GUI/Editor/EditorMode.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
+    <Script file="GUI/Editor/EditorInteractionMode.lua"/>
+    <Script file="GUI/Editor/TextEditorOverlay.lua"/>
     <Script file="GUI/Editor/EditorFrameMutations.lua"/>
     <Script file="GUI/Editor/FrameContextMenu.lua"/>
     <Script file="GUI/Editor/FrameResizeHandles.lua"/>

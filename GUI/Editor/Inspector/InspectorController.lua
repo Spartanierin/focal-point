@@ -119,6 +119,17 @@ function InspectorController.Build(container, state, options)
 
     local function ResolveTextContext()
         local currentTextList = BuildTextList(type(unitConfig) == "table" and unitConfig.Texts or nil)
+        local visualTextUnit = state and state.selectedTextElementUnit
+        local visualTextId = state and state.selectedTextElementId
+        if visualTextUnit == selectedUnit
+            and type(visualTextId) == "string"
+            and visualTextId ~= ""
+            and type(unitConfig.Texts) == "table"
+            and type(unitConfig.Texts[visualTextId]) == "table"
+            and currentTextList[visualTextId] == nil
+        then
+            currentTextList[visualTextId] = visualTextId
+        end
         if type(InspectorTextSelection.Resolve) == "function" and InspectorContext.GetTextSelection then
             local result = InspectorTextSelection.Resolve({
                 state = state,
