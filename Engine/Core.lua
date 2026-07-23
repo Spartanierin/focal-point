@@ -956,6 +956,12 @@ function FocalPoint:RefreshEditorInteractionVisuals()
     elseif self.RefreshEditorSelectionVisuals then
         self:RefreshEditorSelectionVisuals()
     end
+
+    if self.frames and self.UnitFrame and self.UnitFrame.UpdateTextElements then
+        for _, frame in pairs(self.frames) do
+            self.UnitFrame:UpdateTextElements(frame)
+        end
+    end
 end
 
 function FocalPoint:RefreshEditorSelectionVisuals()

@@ -910,6 +910,12 @@ local function RefreshTemplateDropdown(context)
     RefreshTemplateUsageState(context)
 end
 
+local function RefreshEditorInteractionPreview()
+    if ns.RefreshEditorInteractionVisuals then
+        ns:RefreshEditorInteractionVisuals()
+    end
+end
+
 local function OpenDeleteTemplateConfirmDialog(templateName)
     if type(templateName) ~= "string" or templateName == "" then
         SetStatus(T("INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"), "warning")
@@ -953,6 +959,7 @@ local function OpenDeleteTemplateConfirmDialog(templateName)
                 RefreshTemplateDropdown(windowContext)
                 RefreshWindowState()
             end
+            RefreshEditorInteractionPreview()
             SetStatus((T("INFO_TEXT_BUILDER_STATUS_DELETED")) .. " " .. confirmedTemplateName, "success")
         end)
     end
@@ -1032,6 +1039,7 @@ local function ApplyTemplateToTextElement(context)
         optionRefresh.Live()
     end
 
+    RefreshEditorInteractionPreview()
     RefreshToolUI()
 
     local statusParts = {}
@@ -1413,6 +1421,7 @@ local function WireWindowCallbacks(context)
             })
             RefreshTemplateDropdown(context)
             RefreshWindowState()
+            RefreshEditorInteractionPreview()
             SetStatus((T("INFO_TEXT_BUILDER_STATUS_SAVED")) .. " " .. name, "success")
             return
         end
@@ -1451,6 +1460,7 @@ local function WireWindowCallbacks(context)
         })
         RefreshTemplateDropdown(context)
         RefreshWindowState()
+        RefreshEditorInteractionPreview()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_UPDATED")) .. " " .. selectedName, "success")
     end)
 
@@ -1482,6 +1492,7 @@ local function WireWindowCallbacks(context)
 
         RefreshTemplateDropdown(context)
         RefreshWindowState()
+        RefreshEditorInteractionPreview()
 
         if result.reusedExisting then
             SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_REUSED"), "success")
@@ -1539,6 +1550,7 @@ local function WireWindowCallbacks(context)
         context.state.template = draft
         RefreshTemplateDropdown(context)
         RefreshWindowState()
+        RefreshEditorInteractionPreview()
         SetStatus((T("INFO_TEXT_BUILDER_STATUS_RENAMED")) .. " " .. selectedName .. " -> " .. updatedName, "success")
     end)
 

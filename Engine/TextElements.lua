@@ -12,6 +12,7 @@ local TextBasicTags = FocalPoint.TextElementBasicTags or {}
 local TextTokenResolver = FocalPoint.TextElementTokenResolver or {}
 local TextTemplates = FocalPoint.TextElementTemplates or {}
 local TextDirectTemplate = FocalPoint.TextElementDirectTemplate or {}
+local TextPreview = FocalPoint.TextElementPreview or {}
 local TextFactory = FocalPoint.TextElementFactory or {}
 local TextUpdate = FocalPoint.TextElementUpdate or {}
 local TextEvents = FocalPoint.TextElementEvents or {}
@@ -59,7 +60,6 @@ local ResolveTokenShared = TextTokenResolver.Resolve
 local ResolveTextTemplateShared = TextTemplates.ResolveTextTemplate
 local TemplateContainsTokenShared = TextTemplates.ContainsToken
 local ResolveConfiguredTemplateShared = TextTemplates.ResolveConfigured
-local BuildTemplatePreviewShared = TextTemplates.BuildPreview
 local NormalizeTemplateTextShared = TextTemplates.NormalizeTemplateText
 local ApplyDirectTemplateShared = TextDirectTemplate.Apply
 local CreateTextElementShared = TextFactory.CreateElement
@@ -388,31 +388,6 @@ function UF:GetTagDatabase()
     return TAG_DATABASE
 end
 
--- Preview builder for the text builder and GUI preview surfaces.
-local function GetTagPreviewFallback(token)
-    local previewFrame = {
-        IsTemplatePreview = true,
-        TestValues = {
-            classToken = "WARRIOR",
-            powerToken = "RAGE",
-            reaction = 5,
-        },
-    }
-
-    local colorToken = ResolveColorTag(previewFrame, "player", token)
-    if type(colorToken) == "string" then
-        return colorToken
-    end
-
-    for _, def in ipairs(TAG_DATABASE) do
-        if def.token == "[" .. token .. "]" then
-            return def.example or "[" .. token .. "]"
-        end
-    end
-
-    return "[" .. token .. "]"
-end
-
 local function ResolveToken(frame, unit, token)
     return ResolveTokenShared(frame, unit, token, {
         IsPreviewModeEnabled = IsPreviewModeEnabled,
@@ -517,9 +492,13 @@ local function ResolveConfiguredTemplate(frame, textConfig)
 end
 
 function UF:BuildTemplatePreview(template, unit)
-    return BuildTemplatePreviewShared(template, {
-        GetTagPreviewFallback = GetTagPreviewFallback,
-    })
+    if TextPreview.BuildTemplatePreview then
+        return TextPreview.BuildTemplatePreview(template, {
+            unit = unit,
+        })
+    end
+
+    return type(template) == "string" and template or ""
 end
 
 -- Public UF facade methods used by the unit-frame runtime.

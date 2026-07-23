@@ -9,6 +9,7 @@ local TextState = FocalPoint.TextElementState or {}
 local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
+local TextPreview = FocalPoint.TextElementPreview or {}
 local StopAnimatedNameText
 
 local animatedNameTexts = {}
@@ -92,6 +93,17 @@ local function IsTextOwnerAllowed(frame, textConfig)
     end
 
     return true
+end
+
+local function IsTextEditPreviewMode()
+    local interactionMode = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    return interactionMode
+        and interactionMode.IsTextMode
+        and interactionMode.IsTextMode()
+        or false
 end
 
 local function GetClassificationIndicatorEffect(frame)
@@ -745,6 +757,27 @@ local function ApplyOverflow(textObject, renderedText, mode)
     end
 end
 
+local function RenderTextEditPreview(frame, key, textObject, textConfig, template, textRole, unpackColor)
+    if not TextPreview.BuildTextElementPreview then
+        return false
+    end
+
+    StopAnimatedNameText(textObject)
+    local r, g, b, a = unpackColor and unpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
+    textObject:SetTextColor(r, g, b, a)
+
+    local previewText = TextPreview.BuildTextElementPreview(textConfig, {
+        frame = frame,
+        unit = frame and frame.unit,
+        textKey = key,
+        textRole = textRole,
+        template = template,
+    })
+    SafeSetText(textObject, previewText, true)
+    textObject:Show()
+    return true
+end
+
 function Update.UpdateElement(frame, key, deps)
     local ok, err = xpcall(function()
         deps = deps or {}
@@ -773,6 +806,15 @@ function Update.UpdateElement(frame, key, deps)
             return
         end
 
+        local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
+        local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
+
+        if IsTextEditPreviewMode()
+            and RenderTextEditPreview(frame, key, textObject, textConfig, template, textRole, UnpackColor)
+        then
+            return
+        end
+
         if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
             StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
@@ -787,8 +829,6 @@ function Update.UpdateElement(frame, key, deps)
             return
         end
 
-        local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
-        local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
 
         if IsCastBoundTextElement(frame, key, textConfig, template, textRole) and not IsCastTextAllowed(frame) then
