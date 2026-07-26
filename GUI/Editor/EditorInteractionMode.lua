@@ -7,7 +7,7 @@ local EditorInteractionMode = {}
 FocalPoint.GUI.Editor.InteractionMode = EditorInteractionMode
 
 local state = {
-    shiftDown = false,
+    shiftKeysDown = {},
     latchedTextMode = false,
     lastMode = nil,
 }
@@ -30,7 +30,7 @@ local function ResolveMode()
     if IsCombatLocked() then
         return "combat-blocked"
     end
-    if state.shiftDown == true or state.latchedTextMode == true then
+    if state.latchedTextMode == true then
         return "text"
     end
     return "frame"
@@ -51,12 +51,26 @@ local function RefreshInteractionVisualsIfChanged(force)
     return mode
 end
 
-local function SetShiftState(isDown)
-    local nextValue = isDown and true or false
-    if state.shiftDown == nextValue then
+local function IsTypingFocusActive()
+    if not GetCurrentKeyBoardFocus then
         return false
     end
-    state.shiftDown = nextValue
+
+    local ok, focus = pcall(GetCurrentKeyBoardFocus)
+    if not ok then
+        return false
+    end
+
+    return focus ~= nil
+end
+
+local function SetShiftKeyState(key, isDown)
+    key = type(key) == "string" and key ~= "" and key or "SHIFT"
+    local nextValue = isDown and true or false
+    if state.shiftKeysDown[key] == nextValue then
+        return false
+    end
+    state.shiftKeysDown[key] = nextValue or nil
     return true
 end
 
@@ -69,15 +83,17 @@ local function IsModifierDownValue(value)
 end
 
 function EditorInteractionMode.SetShiftDown(isDown)
-    local changed = SetShiftState(isDown)
-    if changed then
-        RefreshInteractionVisualsIfChanged(false)
-    end
-    return changed
+    return SetShiftKeyState("SHIFT", isDown)
 end
 
 function EditorInteractionMode.IsShiftDown()
-    return state.shiftDown == true
+    for _, isDown in pairs(state.shiftKeysDown) do
+        if isDown == true then
+            return true
+        end
+    end
+
+    return false
 end
 
 function EditorInteractionMode.SetLatchedTextMode(enabled)
@@ -94,6 +110,28 @@ function EditorInteractionMode.IsLatchedTextMode()
     return state.latchedTextMode == true
 end
 
+function EditorInteractionMode.ToggleTextMode()
+    if not IsEditorUnlocked() or IsCombatLocked() or IsTypingFocusActive() then
+        return false
+    end
+
+    return EditorInteractionMode.SetLatchedTextMode(not state.latchedTextMode)
+end
+
+function EditorInteractionMode.ResetToFrameMode(force)
+    state.shiftKeysDown = {}
+    if state.latchedTextMode ~= false then
+        state.latchedTextMode = false
+        RefreshInteractionVisualsIfChanged(force == true)
+        return true
+    end
+
+    if force then
+        RefreshInteractionVisualsIfChanged(true)
+    end
+    return false
+end
+
 function EditorInteractionMode.Resolve()
     return ResolveMode()
 end
@@ -107,9 +145,6 @@ function EditorInteractionMode.IsTextMode()
 end
 
 function EditorInteractionMode.SyncShiftState()
-    if IsShiftKeyDown then
-        SetShiftState(IsShiftKeyDown() == true)
-    end
     return RefreshInteractionVisualsIfChanged(true)
 end
 
@@ -125,17 +160,18 @@ if eventFrame then
     eventFrame:SetScript("OnEvent", function(_, event, key, down)
         if event == "MODIFIER_STATE_CHANGED" then
             if IsShiftModifierKey(key) then
-                EditorInteractionMode.SetShiftDown(IsModifierDownValue(down))
+                local isDown = IsModifierDownValue(down)
+                local wasShiftDown = EditorInteractionMode.IsShiftDown()
+                local changed = SetShiftKeyState(key, isDown)
+                if isDown and changed and not wasShiftDown then
+                    EditorInteractionMode.ToggleTextMode()
+                end
             end
             return
         end
 
         RefreshInteractionVisualsIfChanged(true)
     end)
-end
-
-if IsShiftKeyDown then
-    state.shiftDown = IsShiftKeyDown() == true
 end
 state.lastMode = ResolveMode()
 

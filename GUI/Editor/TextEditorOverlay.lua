@@ -654,6 +654,12 @@ function TextEditorOverlay.BeginDrag(overlay)
     return true
 end
 
+function TextEditorOverlay.CancelActiveDrag()
+    if activeDragOverlay then
+        EndTextDrag(activeDragOverlay, false)
+    end
+end
+
 function TextEditorOverlay.RefreshAll()
     local frames = FocalPoint and FocalPoint.frames
     if type(frames) ~= "table" then

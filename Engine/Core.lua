@@ -456,6 +456,15 @@ local function SyncEditorInteractionMode()
     end
 end
 
+local function ResetEditorInteractionModeToFrame()
+    local interactionMode = GetEditorInteractionMode()
+    if interactionMode and interactionMode.ResetToFrameMode then
+        interactionMode.ResetToFrameMode(true)
+    else
+        SyncEditorInteractionMode()
+    end
+end
+
 local function UpdateTextEditorOverlay(frame)
     local overlay = FocalPoint.GUI
         and FocalPoint.GUI.Editor
@@ -1080,7 +1089,7 @@ end
 
 function FocalPoint:ToggleFrameLock()
     self.framesUnlocked = not self.framesUnlocked
-    SyncEditorInteractionMode()
+    ResetEditorInteractionModeToFrame()
 
     if self.framesUnlocked and self.SpawnUnitFrame then
         local unitOrder = self.Constants and self.Constants.UnitOrder or {}

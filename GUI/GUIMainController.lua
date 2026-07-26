@@ -808,6 +808,12 @@ function FocalPoint:CloseConfig()
 
     if self.framesUnlocked then
         self.framesUnlocked = false
+        local interactionMode = self.GUI
+            and self.GUI.Editor
+            and self.GUI.Editor.InteractionMode
+        if interactionMode and interactionMode.ResetToFrameMode then
+            interactionMode.ResetToFrameMode(true)
+        end
         local demo = self.UnitFrameDemoEnvironment or nil
         if demo and demo.ExitTestMode then
             demo.ExitTestMode("config-close-lock")
