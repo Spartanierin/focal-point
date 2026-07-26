@@ -60,6 +60,7 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     local ResolveConfiguredTemplate = deps.ResolveConfiguredTemplate
     local TemplateContainsToken = deps.TemplateContainsToken
     local GetClassTextColor = deps.GetClassTextColor
+    local offsetOverride = type(deps.offsetOverride) == "table" and deps.offsetOverride or nil
 
     if not textObject or not textConfig then
         return
@@ -94,8 +95,8 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
         textConfig.point or "CENTER",
         anchorParent,
         textConfig.relativePoint or "CENTER",
-        textConfig.offsetX or 0,
-        textConfig.offsetY or 0
+        offsetOverride and offsetOverride.offsetX or textConfig.offsetX or 0,
+        offsetOverride and offsetOverride.offsetY or textConfig.offsetY or 0
     )
 
     local overflowWidth = ResolveOverflowWidth(key, textConfig, anchorParent)

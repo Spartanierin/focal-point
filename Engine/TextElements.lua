@@ -537,6 +537,10 @@ function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
         ResolveConfiguredTemplate = ResolveConfiguredTemplate,
         TemplateContainsToken = TemplateContainsToken,
         GetClassTextColor = GetClassTextColor,
+        offsetOverride = frame
+            and frame._focalPointTextDragPreviewOffsets
+            and frame._focalPointTextDragPreviewOffsets[key]
+            or nil,
     })
 end
 

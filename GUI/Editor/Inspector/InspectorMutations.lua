@@ -39,6 +39,17 @@ local function SetField(target, fieldName, value, missingCode)
     })
 end
 
+local function NormalizeOffset(value)
+    value = tonumber(value) or 0
+    if value < -100 then
+        value = -100
+    elseif value > 100 then
+        value = 100
+    end
+
+    return math.floor(value + 0.5)
+end
+
 local function GetUnitConfig(context)
     if type(context) ~= "table" or type(context.unitConfig) ~= "table" then
         return nil
@@ -89,6 +100,39 @@ function InspectorMutations.SetTextField(context, textKey, fieldName, value)
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found")
+end
+
+function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local textConfig = GetTextConfig(context, textKey)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+
+    local nextX = NormalizeOffset(offsetX)
+    local nextY = NormalizeOffset(offsetY)
+    local oldX = NormalizeOffset(textConfig.offsetX)
+    local oldY = NormalizeOffset(textConfig.offsetY)
+    local changed = oldX ~= nextX or oldY ~= nextY
+    if changed then
+        textConfig.offsetX = nextX
+        textConfig.offsetY = nextY
+    end
+
+    return Result(true, {
+        changed = changed,
+        oldValue = {
+            offsetX = oldX,
+            offsetY = oldY,
+        },
+        newValue = {
+            offsetX = nextX,
+            offsetY = nextY,
+        },
+    })
 end
 
 function InspectorMutations.SetIndicatorField(context, indicatorKey, fieldName, value)
