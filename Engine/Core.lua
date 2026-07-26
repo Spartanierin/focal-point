@@ -145,6 +145,8 @@ local function FrameMatchesSelectionUnit(frame, selectedUnit)
     return NormalizeEditorSelectionUnit(frame.unit) == selectedUnit
 end
 
+local IsEditorTextMode
+
 local function IsPrimaryEditorFrame(frame)
     if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
         return false
@@ -180,6 +182,21 @@ local function UpdateSelectionOverlay(frame)
 
     local overlay = EnsureSelectionOverlay(frame)
     if not overlay then
+        return
+    end
+
+    if IsEditorTextMode() then
+        if IsPrimaryEditorFrame(frame) then
+            overlay:SetBackdropColor(0, 0, 0, 0)
+            overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.42)
+            overlay:Show()
+        elseif IsSecondaryEditorFrame(frame) then
+            overlay:SetBackdropColor(0, 0, 0, 0)
+            overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.20)
+            overlay:Show()
+        else
+            overlay:Hide()
+        end
         return
     end
 
@@ -222,6 +239,21 @@ local function UpdateMoveOverlayVisuals(frame)
     local placeholderName = preview and preview.name or (frame.unit or "")
     local unitConfig = GetUnitConfig(frame.unit)
     local isEnabled = type(unitConfig) ~= "table" or unitConfig.enabled ~= false
+
+    if IsEditorTextMode() then
+        overlay:SetBackdropColor(0, 0, 0, 0)
+        overlay:SetBackdropBorderColor(0, 0, 0, 0)
+        if accent then
+            accent:Hide()
+        end
+        if placeholderLabel then
+            placeholderLabel:Hide()
+        end
+        if coords then
+            coords:Hide()
+        end
+        return
+    end
 
     if isPlaceholder then
         if isSecondary then
@@ -406,6 +438,15 @@ local function IsEditorFrameMode()
         and not (InCombatLockdown and InCombatLockdown() == true)
 end
 
+IsEditorTextMode = function()
+    local interactionMode = GetEditorInteractionMode()
+    if interactionMode and interactionMode.IsTextMode then
+        return interactionMode.IsTextMode()
+    end
+
+    return false
+end
+
 local function SyncEditorInteractionMode()
     local interactionMode = GetEditorInteractionMode()
     if interactionMode and interactionMode.SyncShiftState then
@@ -421,6 +462,28 @@ local function UpdateTextEditorOverlay(frame)
         and FocalPoint.GUI.Editor.TextEditorOverlay
     if overlay and overlay.UpdateFrame then
         overlay.UpdateFrame(frame)
+    end
+end
+
+local function UpdateTextEditCastPreview(frame)
+    local castBar = FocalPoint.UnitFrameCastBar
+    if not castBar then
+        return
+    end
+
+    if IsEditorTextMode() then
+        if castBar.ApplyTextEditPreview then
+            castBar.ApplyTextEditPreview(frame)
+        end
+        return
+    end
+
+    if castBar.ClearTextEditPreview and castBar.ClearTextEditPreview(frame) then
+        if FocalPoint.RefreshUnitFrame and frame and frame.unit then
+            FocalPoint:RefreshUnitFrame(frame.unit)
+        elseif FocalPoint.UnitFrame and FocalPoint.UnitFrame.RefreshCastBar then
+            FocalPoint.UnitFrame:RefreshCastBar(frame)
+        end
     end
 end
 
@@ -900,6 +963,7 @@ function FocalPoint:UpdateFrameDragState(frame)
 
     UpdateSelectionOverlay(frame)
     UpdateMoveOverlayVisuals(frame)
+    UpdateTextEditCastPreview(frame)
     UpdateTextEditorOverlay(frame)
 end
 
@@ -977,6 +1041,7 @@ function FocalPoint:RefreshEditorSelectionVisuals()
         else
             UpdateMoveOverlayVisuals(frame)
         end
+        UpdateTextEditCastPreview(frame)
         UpdateTextEditorOverlay(frame)
     end
 end

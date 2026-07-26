@@ -26,6 +26,10 @@ function Runtime.Refresh(owner, frame)
         return
     end
 
+    if Cast.IsTextEditMode and Cast.IsTextEditMode() and Cast.ApplyTextEditPreview and Cast.ApplyTextEditPreview(frame) then
+        return
+    end
+
     local unit = frame.unit
     if not unit then
         StopCastBar(frame)
@@ -122,6 +126,11 @@ function Runtime.RegisterEvents(owner, frame)
         end
 
         local now = GetTime and GetTime() or 0
+        if castBar.isTextEditPreview == true then
+            self.elapsed = 0
+            return
+        end
+
         -- Live and preview share this OnUpdate driver. Preview uses its own
         -- time base (previewStartedAt/previewDuration), while live keeps the
         -- existing event-driven refresh path.

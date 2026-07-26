@@ -6,9 +6,17 @@ FocalPoint.GUI.Editor = FocalPoint.GUI.Editor or {}
 local TextEditorOverlay = {}
 FocalPoint.GUI.Editor.TextEditorOverlay = TextEditorOverlay
 
+local TextStatus = FocalPoint.TextElementStatus or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
+
 local HITBOX_WIDTH = 46
 local HITBOX_HEIGHT = 22
-local OVERLAY_FRAME_LEVEL = 90
+local VISUAL_FRAME_LEVEL = 920
+local SELECTED_VISUAL_FRAME_LEVEL = 930
+local CLICK_FRAME_LEVEL = 940
+local SELECTED_CLICK_FRAME_LEVEL = 950
+local VISUAL_PADDING_X = 4
+local VISUAL_PADDING_Y = 4
 
 local function NormalizeUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
@@ -48,6 +56,90 @@ local function GetTextConfig(frame, textKey)
     return texts[textKey]
 end
 
+local function GetActiveProfileTemplate(templateName)
+    if type(templateName) ~= "string" or templateName == "" then
+        return nil
+    end
+
+    local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
+    if type(templates) == "table" then
+        return templates[templateName]
+    end
+
+    return nil
+end
+
+local function IsEditorRenderableText(frame, textKey, textConfig)
+    if TextStatus.IsEditorRenderable then
+        return TextStatus.IsEditorRenderable(textConfig, {
+            textKey = textKey,
+            unitConfig = frame and frame.config,
+            GetTemplate = GetActiveProfileTemplate,
+        })
+    end
+
+    return type(textConfig) == "table" and textConfig.enabled ~= false
+end
+
+local function CreateBorderTextures(owner)
+    local borderTop = owner:CreateTexture(nil, "ARTWORK")
+    borderTop:SetPoint("TOPLEFT", owner, "TOPLEFT")
+    borderTop:SetPoint("TOPRIGHT", owner, "TOPRIGHT")
+    borderTop:SetHeight(1)
+    owner.BorderTop = borderTop
+
+    local borderBottom = owner:CreateTexture(nil, "ARTWORK")
+    borderBottom:SetPoint("BOTTOMLEFT", owner, "BOTTOMLEFT")
+    borderBottom:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT")
+    borderBottom:SetHeight(1)
+    owner.BorderBottom = borderBottom
+
+    local borderLeft = owner:CreateTexture(nil, "ARTWORK")
+    borderLeft:SetPoint("TOPLEFT", owner, "TOPLEFT")
+    borderLeft:SetPoint("BOTTOMLEFT", owner, "BOTTOMLEFT")
+    borderLeft:SetWidth(1)
+    owner.BorderLeft = borderLeft
+
+    local borderRight = owner:CreateTexture(nil, "ARTWORK")
+    borderRight:SetPoint("TOPRIGHT", owner, "TOPRIGHT")
+    borderRight:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT")
+    borderRight:SetWidth(1)
+    owner.BorderRight = borderRight
+end
+
+local function SetBorderStyle(owner, r, g, b, a, thickness)
+    if not owner then
+        return
+    end
+
+    for _, border in ipairs({
+        owner.BorderTop,
+        owner.BorderBottom,
+        owner.BorderLeft,
+        owner.BorderRight,
+    }) do
+        if border and border.SetColorTexture then
+            border:SetColorTexture(r, g, b, a)
+        end
+    end
+
+    thickness = thickness or 1
+    if owner.BorderTop then owner.BorderTop:SetHeight(thickness) end
+    if owner.BorderBottom then owner.BorderBottom:SetHeight(thickness) end
+    if owner.BorderLeft then owner.BorderLeft:SetWidth(thickness) end
+    if owner.BorderRight then owner.BorderRight:SetWidth(thickness) end
+end
+
+local function HasUsableTextObject(textObject)
+    if not textObject or not textObject.GetObjectType then
+        return false
+    end
+    if textObject.IsShown and not textObject:IsShown() then
+        return false
+    end
+    return true
+end
+
 local function EnsureOverlay(frame, textKey)
     if not frame or type(textKey) ~= "string" or textKey == "" then
         return nil
@@ -60,41 +152,20 @@ local function EnsureOverlay(frame, textKey)
     end
 
     overlay = CreateFrame("Button", nil, frame)
-    overlay:SetFrameStrata(frame:GetFrameStrata())
-    overlay:SetFrameLevel(OVERLAY_FRAME_LEVEL)
+    overlay:SetFrameStrata("FULLSCREEN")
+    overlay:SetFrameLevel(CLICK_FRAME_LEVEL)
 
-    local background = overlay:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints(overlay)
-    background:SetColorTexture(0, 0, 0, 0)
-    overlay.Background = background
-
-    local borderTop = overlay:CreateTexture(nil, "ARTWORK")
-    borderTop:SetPoint("TOPLEFT", overlay, "TOPLEFT")
-    borderTop:SetPoint("TOPRIGHT", overlay, "TOPRIGHT")
-    borderTop:SetHeight(1)
-    borderTop:SetColorTexture(1.00, 0.82, 0.24, 0.18)
-    overlay.BorderTop = borderTop
-
-    local borderBottom = overlay:CreateTexture(nil, "ARTWORK")
-    borderBottom:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT")
-    borderBottom:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT")
-    borderBottom:SetHeight(1)
-    borderBottom:SetColorTexture(1.00, 0.82, 0.24, 0.18)
-    overlay.BorderBottom = borderBottom
-
-    local borderLeft = overlay:CreateTexture(nil, "ARTWORK")
-    borderLeft:SetPoint("TOPLEFT", overlay, "TOPLEFT")
-    borderLeft:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT")
-    borderLeft:SetWidth(1)
-    borderLeft:SetColorTexture(1.00, 0.82, 0.24, 0.18)
-    overlay.BorderLeft = borderLeft
-
-    local borderRight = overlay:CreateTexture(nil, "ARTWORK")
-    borderRight:SetPoint("TOPRIGHT", overlay, "TOPRIGHT")
-    borderRight:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT")
-    borderRight:SetWidth(1)
-    borderRight:SetColorTexture(1.00, 0.82, 0.24, 0.18)
-    overlay.BorderRight = borderRight
+    local visualBounds = CreateFrame("Frame", nil, frame)
+    visualBounds:SetFrameStrata("FULLSCREEN")
+    visualBounds:SetFrameLevel(VISUAL_FRAME_LEVEL)
+    visualBounds:EnableMouse(false)
+    visualBounds:Hide()
+    local visualBackground = visualBounds:CreateTexture(nil, "BACKGROUND")
+    visualBackground:SetAllPoints(visualBounds)
+    visualBackground:SetColorTexture(0, 0, 0, 0)
+    visualBounds.Background = visualBackground
+    CreateBorderTextures(visualBounds)
+    overlay.VisualBounds = visualBounds
 
     overlay:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     overlay:SetScript("OnClick", function(self, button)
@@ -121,36 +192,25 @@ local function StyleOverlay(overlay, selected)
         return
     end
 
-    local background = overlay.Background
-    local alpha = selected and 1.00 or 0.18
-    if background and background.SetColorTexture then
-        if selected then
-            background:SetColorTexture(0.98, 0.74, 0.18, 0.10)
-        else
-            background:SetColorTexture(0, 0, 0, 0)
-        end
-    end
-    for _, border in ipairs({
-        overlay.BorderTop,
-        overlay.BorderBottom,
-        overlay.BorderLeft,
-        overlay.BorderRight,
-    }) do
-        if border and border.SetColorTexture then
-            border:SetColorTexture(1.00, 0.82, 0.24, alpha)
-        end
-    end
-
+    local visual = overlay.VisualBounds
     if selected then
-        overlay.BorderTop:SetHeight(2)
-        overlay.BorderBottom:SetHeight(2)
-        overlay.BorderLeft:SetWidth(2)
-        overlay.BorderRight:SetWidth(2)
+        overlay:SetFrameLevel(SELECTED_CLICK_FRAME_LEVEL)
+        if visual then
+            visual:SetFrameLevel(SELECTED_VISUAL_FRAME_LEVEL)
+            if visual.Background then
+                visual.Background:SetColorTexture(0.98, 0.74, 0.18, 0.08)
+            end
+            SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.98, 2)
+        end
     else
-        overlay.BorderTop:SetHeight(1)
-        overlay.BorderBottom:SetHeight(1)
-        overlay.BorderLeft:SetWidth(1)
-        overlay.BorderRight:SetWidth(1)
+        overlay:SetFrameLevel(CLICK_FRAME_LEVEL)
+        if visual then
+            visual:SetFrameLevel(VISUAL_FRAME_LEVEL)
+            if visual.Background then
+                visual.Background:SetColorTexture(0, 0, 0, 0)
+            end
+            SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.30, 1)
+        end
     end
 end
 
@@ -163,6 +223,9 @@ function TextEditorOverlay.HideFrame(frame)
         if overlay and overlay.Hide then
             overlay:Hide()
             overlay:EnableMouse(false)
+            if overlay.VisualBounds and overlay.VisualBounds.Hide then
+                overlay.VisualBounds:Hide()
+            end
         end
     end
 end
@@ -188,15 +251,18 @@ function TextEditorOverlay.UpdateFrame(frame)
     local seen = {}
 
     for textKey, textConfig in pairs(texts) do
-        if type(textKey) == "string" and textKey ~= "" and type(textConfig) == "table" then
+        if type(textKey) == "string"
+            and textKey ~= ""
+            and type(textConfig) == "table"
+            and IsEditorRenderableText(frame, textKey, textConfig)
+        then
             seen[textKey] = true
             local textObject = frame.Texts and frame.Texts[textKey]
             local overlay = EnsureOverlay(frame, textKey)
             if overlay then
                 overlay._focalPointOwnerFrame = frame
                 overlay._focalPointTextKey = textKey
-                overlay:SetFrameStrata(frame:GetFrameStrata())
-                overlay:SetFrameLevel(OVERLAY_FRAME_LEVEL)
+                overlay:SetFrameStrata("FULLSCREEN")
                 overlay:ClearAllPoints()
 
                 overlay:SetSize(HITBOX_WIDTH, HITBOX_HEIGHT)
@@ -206,12 +272,27 @@ function TextEditorOverlay.UpdateFrame(frame)
                     overlay:SetPoint("CENTER", frame, "CENTER", 0, 0)
                 end
 
+                local visual = overlay.VisualBounds
+                if visual then
+                    visual:SetFrameStrata("FULLSCREEN")
+                    visual:ClearAllPoints()
+                    if HasUsableTextObject(textObject) then
+                        visual:SetPoint("TOPLEFT", textObject, "TOPLEFT", -VISUAL_PADDING_X, VISUAL_PADDING_Y)
+                        visual:SetPoint("BOTTOMRIGHT", textObject, "BOTTOMRIGHT", VISUAL_PADDING_X, -VISUAL_PADDING_Y)
+                    else
+                        visual:SetAllPoints(overlay)
+                    end
+                end
+
                 local selected = stateApi
                     and stateApi.IsTextElementSelected
                     and stateApi.IsTextElementSelected(normalizedUnit, textKey)
                     or false
                 StyleOverlay(overlay, selected)
                 overlay:EnableMouse(true)
+                if visual then
+                    visual:Show()
+                end
                 overlay:Show()
             end
         end
@@ -223,6 +304,9 @@ function TextEditorOverlay.UpdateFrame(frame)
             if not seen[textKey] and overlay and overlay.Hide then
                 overlay:Hide()
                 overlay:EnableMouse(false)
+                if overlay.VisualBounds and overlay.VisualBounds.Hide then
+                    overlay.VisualBounds:Hide()
+                end
             end
         end
     end

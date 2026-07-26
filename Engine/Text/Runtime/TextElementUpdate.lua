@@ -106,6 +106,17 @@ local function IsTextEditPreviewMode()
         or false
 end
 
+local function IsTextEditPreviewAvailable(frame, key, textConfig)
+    if Status.IsEditorRenderable then
+        return Status.IsEditorRenderable(textConfig, {
+            textKey = key,
+            unitConfig = frame and frame.config,
+        })
+    end
+
+    return type(textConfig) == "table" and textConfig.enabled ~= false
+end
+
 local function GetClassificationIndicatorEffect(frame)
     local unit = frame and frame.unit
     local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
@@ -809,10 +820,17 @@ function Update.UpdateElement(frame, key, deps)
         local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
         local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
 
-        if IsTextEditPreviewMode()
-            and RenderTextEditPreview(frame, key, textObject, textConfig, template, textRole, UnpackColor)
-        then
-            return
+        if IsTextEditPreviewMode() then
+            if not IsTextEditPreviewAvailable(frame, key, textConfig) then
+                StopAnimatedNameText(textObject)
+                SafeSetText(textObject, "", false)
+                textObject:Hide()
+                return
+            end
+
+            if RenderTextEditPreview(frame, key, textObject, textConfig, template, textRole, UnpackColor) then
+                return
+            end
         end
 
         if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then

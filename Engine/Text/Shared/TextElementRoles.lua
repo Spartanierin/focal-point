@@ -5,8 +5,12 @@ local Roles = FocalPoint.TextElementRoles
 
 local legacyRoleByKey = {
     Name = "name",
+    Health = "health",
+    Power = "power",
     Class = "class",
+    Race = "race",
     Level = "level",
+    Status = "status",
     AltPower = "altpower",
     ClassPower = "classpower",
     CastName = "cast_name",

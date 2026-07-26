@@ -4,11 +4,184 @@ FocalPoint.TextElementStatus = FocalPoint.TextElementStatus or {}
 local Status = FocalPoint.TextElementStatus
 
 local TextUtils = FocalPoint.TextElementUtils or {}
+local Roles = FocalPoint.TextElementRoles or {}
 
 local IsSafeTrue = TextUtils.IsSafeTrue
 
 -- Status/name helpers keep textual unit state resolution separate from the
 -- larger tag and template runtime.
+
+local function IsNonEmptyString(value)
+    return type(value) == "string" and value ~= ""
+end
+
+local function GetEditorTemplateState(templateName, context)
+    if not IsNonEmptyString(templateName) then
+        return nil
+    end
+
+    if type(context) ~= "table" or type(context.GetTemplate) ~= "function" then
+        return "active"
+    end
+
+    local ok, templateText = pcall(context.GetTemplate, templateName)
+    if ok and IsNonEmptyString(templateText) then
+        return "active"
+    end
+
+    return "invalid"
+end
+
+local function GetStateTemplateState(stateTemplates, context)
+    if type(stateTemplates) ~= "table" then
+        return nil
+    end
+
+    local hasReference = false
+    local hasInvalid = false
+    for _, templateName in pairs(stateTemplates) do
+        local templateState = GetEditorTemplateState(templateName, context)
+        if templateState == "active" then
+            return "active"
+        elseif templateState == "invalid" then
+            hasReference = true
+            hasInvalid = true
+        end
+    end
+
+    if hasReference and hasInvalid then
+        return "invalid"
+    end
+
+    return nil
+end
+
+function Status.ResolveOwningComponent(textConfig, context)
+    if type(textConfig) ~= "table" then
+        return "unit"
+    end
+
+    local textKey = type(context) == "table" and context.textKey or nil
+    local role = Roles.Resolve and Roles.Resolve(textKey, textConfig) or nil
+
+    if role == "cast_name" or role == "cast_time" then
+        return "cast"
+    elseif role == "power" then
+        return "power"
+    elseif role == "altpower" then
+        return "altpower"
+    elseif role == "classpower" then
+        return "classpower"
+    elseif role == "health" then
+        return "health"
+    end
+
+    local anchorTo = textConfig.anchorTo
+    if anchorTo == "CastBar" then
+        return "cast"
+    elseif anchorTo == "PowerBar" then
+        return "power"
+    elseif anchorTo == "AlternativePowerBar" then
+        return "altpower"
+    elseif anchorTo == "ClassPowerBar" then
+        return "classpower"
+    elseif anchorTo == "HealthBar" then
+        return "health"
+    end
+
+    return "unit"
+end
+
+local function IsOwningComponentEnabled(component, unitConfig)
+    if type(unitConfig) ~= "table" then
+        return true
+    end
+
+    if component == "cast" then
+        return unitConfig.showCastBar ~= false
+    elseif component == "power" then
+        return unitConfig.showPowerBar ~= false
+    elseif component == "altpower" then
+        return unitConfig.showAlternativePowerBar == true
+    elseif component == "classpower" then
+        return unitConfig.showClassPowerBar == true
+    end
+
+    return true
+end
+
+function Status.ResolveEditorRenderableState(textConfig, context)
+    if type(textConfig) ~= "table" then
+        return "empty-slot"
+    end
+
+    if textConfig.enabled == false then
+        return "inactive"
+    end
+
+    local stateTemplateState = GetStateTemplateState(textConfig.stateTemplates, context)
+    if stateTemplateState then
+        return stateTemplateState
+    end
+
+    local templateState = GetEditorTemplateState(textConfig.templateName, context)
+    if templateState then
+        return templateState
+    end
+
+    if IsNonEmptyString(textConfig.tag) then
+        return "active"
+    end
+
+    local textKey = type(context) == "table" and context.textKey or nil
+    if Roles.Resolve and IsNonEmptyString(Roles.Resolve(textKey, textConfig)) then
+        return "active"
+    end
+
+    return "empty-slot"
+end
+
+function Status.ResolveEditorAvailability(textConfig, context)
+    context = type(context) == "table" and context or {}
+    local unitConfig = context.unitConfig
+
+    if type(unitConfig) == "table" and unitConfig.enabled == false then
+        return {
+            state = "unit-disabled",
+            component = "unit",
+            renderableState = "inactive",
+        }
+    end
+
+    local renderableState = Status.ResolveEditorRenderableState(textConfig, context)
+    if renderableState ~= "active" and renderableState ~= "invalid" then
+        return {
+            state = renderableState,
+            component = "unit",
+            renderableState = renderableState,
+        }
+    end
+
+    local component = Status.ResolveOwningComponent(textConfig, context)
+    if not IsOwningComponentEnabled(component, unitConfig) then
+        return {
+            state = "component-disabled",
+            component = component,
+            renderableState = renderableState,
+        }
+    end
+
+    return {
+        state = renderableState == "invalid" and "invalid" or "available",
+        component = component,
+        renderableState = renderableState,
+    }
+end
+
+function Status.IsEditorRenderable(textConfig, context)
+    local availability = Status.ResolveEditorAvailability(textConfig, context)
+    return availability.state == "available" or availability.state == "invalid"
+end
 
 function Status.GetLocalizedClassName(classToken)
     if type(classToken) ~= "string" then

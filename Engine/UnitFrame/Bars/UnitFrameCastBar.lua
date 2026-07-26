@@ -10,9 +10,26 @@ local Roles = FocalPoint.TextElementRoles or {}
 
 local UnpackColor = Utils.UnpackColor
 local ResolveInterruptState = Utils.ResolveInterruptState
+local TEXT_EDIT_PREVIEW_DURATION = 2.5
 
 -- Cast bar helpers keep timing/state logic together so runtime refresh code
 -- can stay focused on orchestration.
+
+local function IsTextEditMode()
+    local interactionMode = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+
+    return interactionMode
+        and interactionMode.IsTextMode
+        and interactionMode.IsTextMode()
+        or false
+end
+
+function CastBar.IsTextEditMode()
+    return IsTextEditMode()
+end
 
 local function TemplateContainsCastToken(template)
     return type(template) == "string" and template:find("%[cast:", 1, false) ~= nil
@@ -86,6 +103,79 @@ function CastBar.ApplyStateColor(castBar, interruptState, baseColor, interruptib
         castBar:SetStatusBarColor(r, g, b, 1.00)
         castBar:SetAlpha(a or 1.00)
     end
+end
+
+function CastBar.ApplyTextEditPreview(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    if not castBar then
+        return false
+    end
+
+    if frame.config and frame.config.showCastBar == false then
+        castBar.isTextEditPreview = false
+        CastBar.ClearVisuals(frame)
+        castBar:Hide()
+        return false
+    end
+
+    castBar.startTime = 0
+    castBar.endTime = TEXT_EDIT_PREVIEW_DURATION
+    castBar.previewStartedAt = nil
+    castBar.previewDuration = TEXT_EDIT_PREVIEW_DURATION
+    castBar.isCasting = true
+    castBar.isChannel = false
+    castBar.isPreview = true
+    castBar.isTextEditPreview = true
+    castBar.interruptState = "INTERRUPTIBLE"
+    castBar.isInterruptible = true
+    castBar.canKick = true
+    castBar.castID = nil
+    castBar.castToken = "text-edit-preview"
+    castBar:SetMinMaxValues(0, TEXT_EDIT_PREVIEW_DURATION)
+    castBar:SetValue(TEXT_EDIT_PREVIEW_DURATION * 0.5)
+    CastBar.ApplyStateColor(
+        castBar,
+        castBar.interruptState,
+        frame.config and frame.config.castBarColor,
+        frame.config and (frame.config.castBarInterruptibleColor or frame.config.castBarUninterruptibleColor)
+    )
+
+    if castBar.icon then
+        if frame.config and frame.config.showCastBarIcon ~= false then
+            castBar.icon:SetTexture(136048)
+            castBar.icon:Show()
+        else
+            castBar.icon:SetTexture(nil)
+            castBar.icon:Hide()
+        end
+    end
+
+    castBar:Show()
+    return true
+end
+
+function CastBar.ClearTextEditPreview(frame)
+    local castBar = frame and frame.Elements and frame.Elements.CastBar
+    if not castBar or castBar.isTextEditPreview ~= true then
+        return false
+    end
+
+    castBar.isTextEditPreview = false
+    castBar.isCasting = false
+    castBar.isPreview = false
+    castBar.isChannel = false
+    castBar.interruptState = "UNKNOWN"
+    castBar.isInterruptible = false
+    castBar.canKick = false
+    castBar.startTime = 0
+    castBar.endTime = 0
+    castBar.previewStartedAt = nil
+    castBar.previewDuration = nil
+    castBar.castID = nil
+    castBar.castToken = nil
+    CastBar.ClearVisuals(frame)
+    castBar:Hide()
+    return true
 end
 
 function CastBar.GetActiveTiming(unit, castBar)
@@ -221,6 +311,11 @@ function CastBar.Start(frame)
         return
     end
 
+    if IsTextEditMode() then
+        CastBar.ApplyTextEditPreview(frame)
+        return
+    end
+
     local isChannel, startTime, endTime, spellIcon, interruptState, castID, castToken = CastBar.GetActiveTiming(unit, castBar)
 
     if type(startTime) ~= "number" or type(endTime) ~= "number" then
@@ -268,6 +363,11 @@ function CastBar.StartPreview(frame)
         return
     end
 
+    if IsTextEditMode() then
+        CastBar.ApplyTextEditPreview(frame)
+        return
+    end
+
     local now = GetTime and GetTime() or 0
     local previewDuration = 2.5
     castBar.startTime = now
@@ -311,6 +411,12 @@ function CastBar.Stop(frame)
     if not castBar then
         return
     end
+
+    if IsTextEditMode() and frame.config and frame.config.showCastBar ~= false then
+        CastBar.ApplyTextEditPreview(frame)
+        return
+    end
+
     local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
     if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and Demo.TouchDebug then
         Demo.TouchDebug(frame, "castStop")
@@ -319,6 +425,7 @@ function CastBar.Stop(frame)
     castBar.isCasting = false
     castBar.isChannel = false
     castBar.isPreview = false
+    castBar.isTextEditPreview = false
     castBar.interruptState = "UNKNOWN"
     castBar.isInterruptible = false
     castBar.canKick = false
@@ -332,6 +439,11 @@ end
 
 function CastBar.QueueRefresh(frame)
     if not frame then
+        return
+    end
+
+    if IsTextEditMode() then
+        CastBar.ApplyTextEditPreview(frame)
         return
     end
 
@@ -410,7 +522,9 @@ function CastBar.ApplyLayout(frame, options)
         end
     end
 
-    if not showCastBar or not castBar.isCasting then
+    if IsTextEditMode() and showCastBar then
+        CastBar.ApplyTextEditPreview(frame)
+    elseif not showCastBar or not castBar.isCasting then
         CastBar.ClearVisuals(frame)
         castBar:Hide()
     end
