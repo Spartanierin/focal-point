@@ -132,6 +132,15 @@ function AuraRuntime.RefreshAuras(frame, forceFullScan)
         return {}
     end
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("auras", { frame = frame }) == false then
+        local AuraRenderer = FocalPoint.AuraRenderer or {}
+        if AuraRenderer.ClearGroup then
+            AuraRenderer.ClearGroup(frame, "Buffs")
+            AuraRenderer.ClearGroup(frame, "Debuffs")
+        end
+        return { Buffs = {}, Debuffs = {} }
+    end
+
     if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) then
         if Demo.IsAurasDisabled and Demo.IsAurasDisabled() then
             local AuraRenderer = FocalPoint.AuraRenderer or {}

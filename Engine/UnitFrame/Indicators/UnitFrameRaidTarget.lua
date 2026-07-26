@@ -69,6 +69,16 @@ function RaidTarget.Update(owner, frame)
     local rtmConfig = config and config.RaidTargetIcon or nil
     local wasShown = holder.IsShown and holder:IsShown() or false
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false then
+        icon:SetTexture(nil)
+        icon:Hide()
+        holder:Hide()
+        if wasShown then
+            QueueLayoutRefresh(owner, frame)
+        end
+        return
+    end
+
     if not rtmConfig or rtmConfig.enabled == false then
         icon:SetTexture(nil)
         icon:Hide()

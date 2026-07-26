@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameIndicators = FocalPoint.UnitFrameIndicators or {}
 local Indicators = FocalPoint.UnitFrameIndicators
 local State = FocalPoint.UnitFrameState or {}
+local Preview = FocalPoint.UnitFramePreview or {}
 
 -- Shared helper logic for non-portrait overlay indicators such as leader,
 -- role, combat, resting, and ready check.
@@ -78,6 +79,10 @@ end
 
 function Indicators.HandleVisibilityTransition(owner, frame, holder, isVisible, stateKey)
     local wasShown = holder and holder.IsShown and holder:IsShown() or false
+
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
+        isVisible = false
+    end
 
     if not isVisible then
         if holder and holder.Texture then

@@ -478,11 +478,32 @@ local function UpdateTextEditCastPreview(frame)
         return
     end
 
-    if castBar.ClearTextEditPreview and castBar.ClearTextEditPreview(frame) then
+    if castBar.ClearTextEditPreview and castBar.ClearTextEditPreview(frame) and not (frame and frame._fpTextEditPresentationActive) then
         if FocalPoint.RefreshUnitFrame and frame and frame.unit then
             FocalPoint:RefreshUnitFrame(frame.unit)
         elseif FocalPoint.UnitFrame and FocalPoint.UnitFrame.RefreshCastBar then
             FocalPoint.UnitFrame:RefreshCastBar(frame)
+        end
+    end
+end
+
+local function UpdateTextEditPresentation(frame)
+    local unitFrame = FocalPoint.UnitFrame
+    if not unitFrame then
+        return
+    end
+
+    if IsEditorTextMode() then
+        if unitFrame.ApplyTextEditPresentation then
+            unitFrame:ApplyTextEditPresentation(frame)
+        end
+        return
+    end
+
+    if frame and frame._fpTextEditPresentationActive then
+        frame._fpTextEditPresentationActive = nil
+        if FocalPoint.RefreshUnitFrame and frame.unit then
+            FocalPoint:RefreshUnitFrame(frame.unit)
         end
     end
 end
@@ -964,6 +985,7 @@ function FocalPoint:UpdateFrameDragState(frame)
     UpdateSelectionOverlay(frame)
     UpdateMoveOverlayVisuals(frame)
     UpdateTextEditCastPreview(frame)
+    UpdateTextEditPresentation(frame)
     UpdateTextEditorOverlay(frame)
 end
 
@@ -1026,6 +1048,15 @@ function FocalPoint:RefreshEditorInteractionVisuals()
             self.UnitFrame:UpdateTextElements(frame)
         end
     end
+
+    local textEditorOverlay = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.TextEditorOverlay
+    if textEditorOverlay and textEditorOverlay.UpdateFrame and self.frames then
+        for _, frame in pairs(self.frames) do
+            textEditorOverlay.UpdateFrame(frame)
+        end
+    end
 end
 
 function FocalPoint:RefreshEditorSelectionVisuals()
@@ -1042,6 +1073,7 @@ function FocalPoint:RefreshEditorSelectionVisuals()
             UpdateMoveOverlayVisuals(frame)
         end
         UpdateTextEditCastPreview(frame)
+        UpdateTextEditPresentation(frame)
         UpdateTextEditorOverlay(frame)
     end
 end

@@ -27,6 +27,14 @@ function Combat.Update(owner, frame)
     local combatConfig = config and config.CombatIndicator or nil
     local effect = combatConfig and combatConfig.effect or "ICON"
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
+        HandleVisibilityTransition(owner, frame, holder, false, "_combatLayoutRefreshQueued")
+        return
+    end
+
     if not combatConfig or combatConfig.enabled == false then
         if StatusOverlay.Hide then
             StatusOverlay.Hide(holder)

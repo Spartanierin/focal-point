@@ -4,6 +4,7 @@ FocalPoint.UnitFrameClassificationIndicator = FocalPoint.UnitFrameClassification
 local Classification = FocalPoint.UnitFrameClassificationIndicator
 
 local Presence = FocalPoint.UnitFramePresence or {}
+local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -313,6 +314,10 @@ local function HideClassificationElements(frame)
     end
 end
 
+function Classification.Hide(frame)
+    HideClassificationElements(frame)
+end
+
 function Classification.Create(frame)
     local portraitOverlay = CreateFrame("Frame", nil, frame)
     portraitOverlay:SetFrameStrata(frame:GetFrameStrata())
@@ -365,6 +370,11 @@ function Classification.ApplyLayout(frame, options)
 
     local effect = NormalizeEffect(options and options.effect)
     local classification = options and options.classification or nil
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false then
+        HideClassificationElements(frame)
+        return
+    end
+
     local style = GetClassificationStyle(classification)
     if not style or effect == "NONE" or effect == "NAME_GLOW" or effect == "NAME_LABEL" then
         HideClassificationElements(frame)
@@ -394,6 +404,10 @@ function Classification.ApplyLayout(frame, options)
 end
 
 function Classification.GetResolved(frame)
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false then
+        return nil, "NONE"
+    end
+
     local config = frame and frame.config
     local indicatorConfig = config and config.ClassificationIndicator
     if type(indicatorConfig) ~= "table" then

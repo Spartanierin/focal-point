@@ -25,6 +25,11 @@ function Leader.Update(owner, frame)
     local config = frame.config
     local leaderConfig = config and config.LeaderIcon or nil
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
+        HandleVisibilityTransition(owner, frame, holder, false, "_leaderLayoutRefreshQueued")
+        return
+    end
+
     if not leaderConfig or leaderConfig.enabled == false then
         HandleVisibilityTransition(owner, frame, holder, false, "_leaderLayoutRefreshQueued")
         return

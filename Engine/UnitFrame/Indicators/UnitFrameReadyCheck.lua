@@ -25,6 +25,11 @@ function ReadyCheck.Update(owner, frame)
     local config = frame.config
     local readyCheckConfig = config and config.ReadyCheckIndicator or nil
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
+        HandleVisibilityTransition(owner, frame, holder, false, "_readyCheckLayoutRefreshQueued")
+        return
+    end
+
     if not readyCheckConfig or readyCheckConfig.enabled == false then
         HandleVisibilityTransition(owner, frame, holder, false, "_readyCheckLayoutRefreshQueued")
         return

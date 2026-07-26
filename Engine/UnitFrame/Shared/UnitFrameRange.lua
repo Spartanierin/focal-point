@@ -20,6 +20,11 @@ local TARGET_RANGE_FADE_SPEED = 16
 function Range.GetFadeMultiplier(frame)
     local rangeThreshold = tonumber(FocalPoint and FocalPoint.TARGET_RANGE_CHECK_YARDS) or 40
 
+    local preview = FocalPoint.UnitFramePreview or {}
+    if preview.ShouldShowComponent and preview.ShouldShowComponent("distanceRange", { frame = frame }) == false then
+        return 1
+    end
+
     if not frame or frame.unit ~= "target" or IsPreviewModeEnabled() then
         return 1
     end

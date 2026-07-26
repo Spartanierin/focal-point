@@ -733,6 +733,114 @@ function UF:RegisterClassificationIndicatorEvents(frame)
     return RegisterClassificationIndicatorEvents(self, frame)
 end
 
+local function HideTextEditIndicatorHolder(holder)
+    if not holder then
+        return
+    end
+
+    local statusOverlay = FocalPoint.UnitFrameStatusOverlay or {}
+    if statusOverlay.Hide then
+        statusOverlay.Hide(holder)
+    end
+
+    if holder.Texture then
+        holder.Texture:SetTexture(nil)
+        holder.Texture:Hide()
+    end
+
+    holder:Hide()
+end
+
+local function HideTextEditAuras(frame)
+    local auraRenderer = FocalPoint.AuraRenderer or {}
+    if auraRenderer.ClearGroup then
+        auraRenderer.ClearGroup(frame, "Buffs")
+        auraRenderer.ClearGroup(frame, "Debuffs")
+        return
+    end
+
+    if frame and frame.Elements then
+        if frame.Elements.Buffs then
+            frame.Elements.Buffs:Hide()
+        end
+        if frame.Elements.Debuffs then
+            frame.Elements.Debuffs:Hide()
+        end
+    end
+end
+
+local function HideTextEditAbsorbs(frame)
+    local health = frame and frame.Elements and frame.Elements.HealthBar
+    if not health then
+        return
+    end
+
+    if health.AbsorbOverlay then
+        health.AbsorbOverlay:Hide()
+    end
+    if health.AbsorbMinMarker then
+        health.AbsorbMinMarker:Hide()
+    end
+end
+
+function UF:ApplyTextEditPresentation(frame)
+    if not frame then
+        return false
+    end
+
+    if not (Preview.IsTextEditMode and Preview.IsTextEditMode()) then
+        return false
+    end
+
+    local shouldShow = Preview.ShouldShowComponent
+    if not shouldShow or shouldShow("auras", { frame = frame }) == false then
+        HideTextEditAuras(frame)
+    end
+
+    if not shouldShow or shouldShow("absorbs", { frame = frame }) == false then
+        HideTextEditAbsorbs(frame)
+    end
+
+    if not shouldShow or shouldShow("indicators", { frame = frame }) == false then
+        HideTextEditIndicatorHolder(frame.Elements and frame.Elements.LeaderIcon)
+        HideTextEditIndicatorHolder(frame.Elements and frame.Elements.RoleIcon)
+        HideTextEditIndicatorHolder(frame.Elements and frame.Elements.CombatIndicator)
+        HideTextEditIndicatorHolder(frame.Elements and frame.Elements.RestingIndicator)
+        HideTextEditIndicatorHolder(frame.Elements and frame.Elements.ReadyCheckIndicator)
+    end
+
+    if not shouldShow or shouldShow("rareEliteRaid", { frame = frame }) == false then
+        HideTextEditIndicatorHolder(frame.Elements and frame.Elements.RaidTargetIcon)
+        local classification = FocalPoint.UnitFrameClassificationIndicator or {}
+        if classification.Hide then
+            classification.Hide(frame)
+        else
+            if frame.Elements and frame.Elements.ClassificationPortraitOverlay then
+                frame.Elements.ClassificationPortraitOverlay:Hide()
+            end
+            if frame.Elements and frame.Elements.ClassificationCrest then
+                frame.Elements.ClassificationCrest:Hide()
+            end
+        end
+    end
+
+    if not shouldShow or shouldShow("distanceRange", { frame = frame }) == false then
+        local config = frame.config or GetUnitDB(frame.unit)
+        local alpha = (config and config.alpha) or 1
+        frame._rangeCurrentAlpha = alpha
+        frame._rangeTargetAlpha = alpha
+        if frame.RangeFadeDriver then
+            frame.RangeFadeDriver:Hide()
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(alpha)
+        end
+    end
+
+    frame._fpTextEditPresentationActive = true
+    return true
+end
+
 -- Portrait
 function UF:CreatePortrait(frame)
     return CreatePortrait(frame)
@@ -887,14 +995,15 @@ function UF:ApplyConfig(frame)
     local classificationEnabled = classificationConfig.enabled ~= false
     local classificationEffect = classificationConfig.effect or "PORTRAIT_OVERLAY"
     local liveClassification = nil
-    if ClassificationIndicator.GetResolved then
+    local classificationAllowed = not (Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false)
+    if classificationAllowed and ClassificationIndicator.GetResolved then
         local resolvedClassification, resolvedEffect = ClassificationIndicator.GetResolved(frame)
         if resolvedEffect ~= nil then
             classificationEffect = resolvedEffect
         end
         liveClassification = resolvedClassification
     end
-    if not classificationEnabled then
+    if not classificationEnabled or not classificationAllowed then
         classificationEffect = "NONE"
         liveClassification = nil
     end
@@ -1476,6 +1585,18 @@ end
 
 function UF:ApplyRangeFade(frame)
     if not frame then
+        return
+    end
+
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("distanceRange", { frame = frame }) == false then
+        local config = frame.config or GetUnitDB(frame.unit)
+        local alpha = (config and config.alpha) or 1
+        frame._rangeCurrentAlpha = alpha
+        frame._rangeTargetAlpha = alpha
+        if frame.RangeFadeDriver then
+            frame.RangeFadeDriver:Hide()
+        end
+        frame:SetAlpha(alpha)
         return
     end
 

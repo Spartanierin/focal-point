@@ -107,6 +107,27 @@ local function CreateBorderTextures(owner)
     owner.BorderRight = borderRight
 end
 
+local function SetFullBorderVisible(owner, visible)
+    if not owner then
+        return
+    end
+
+    for _, texture in ipairs({
+        owner.BorderTop,
+        owner.BorderBottom,
+        owner.BorderLeft,
+        owner.BorderRight,
+    }) do
+        if texture then
+            if visible and texture.Show then
+                texture:Show()
+            elseif not visible and texture.Hide then
+                texture:Hide()
+            end
+        end
+    end
+end
+
 local function SetBorderStyle(owner, r, g, b, a, thickness)
     if not owner then
         return
@@ -140,6 +161,8 @@ local function HasUsableTextObject(textObject)
     return true
 end
 
+local StyleOverlay
+
 local function EnsureOverlay(frame, textKey)
     if not frame or type(textKey) ~= "string" or textKey == "" then
         return nil
@@ -168,6 +191,14 @@ local function EnsureOverlay(frame, textKey)
     overlay.VisualBounds = visualBounds
 
     overlay:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    overlay:SetScript("OnEnter", function(self)
+        self._focalPointHovered = true
+        StyleOverlay(self, self._focalPointSelected == true, true)
+    end)
+    overlay:SetScript("OnLeave", function(self)
+        self._focalPointHovered = false
+        StyleOverlay(self, self._focalPointSelected == true, false)
+    end)
     overlay:SetScript("OnClick", function(self, button)
         if button == "RightButton" then
             local contextMenu = FocalPoint.GUI
@@ -187,7 +218,7 @@ local function EnsureOverlay(frame, textKey)
     return overlay
 end
 
-local function StyleOverlay(overlay, selected)
+StyleOverlay = function(overlay, selected, hovered)
     if not overlay then
         return
     end
@@ -200,16 +231,30 @@ local function StyleOverlay(overlay, selected)
             if visual.Background then
                 visual.Background:SetColorTexture(0.98, 0.74, 0.18, 0.08)
             end
+            SetFullBorderVisible(visual, true)
             SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.98, 2)
+            visual:Show()
         end
     else
         overlay:SetFrameLevel(CLICK_FRAME_LEVEL)
         if visual then
             visual:SetFrameLevel(VISUAL_FRAME_LEVEL)
             if visual.Background then
-                visual.Background:SetColorTexture(0, 0, 0, 0)
+                if hovered then
+                    visual.Background:SetColorTexture(0.98, 0.74, 0.18, 0.02)
+                else
+                    visual.Background:SetColorTexture(0, 0, 0, 0)
+                end
             end
-            SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.30, 1)
+
+            if hovered then
+                SetFullBorderVisible(visual, true)
+                SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.70, 1)
+                visual:Show()
+            else
+                SetFullBorderVisible(visual, false)
+                visual:Hide()
+            end
         end
     end
 end
@@ -221,6 +266,8 @@ function TextEditorOverlay.HideFrame(frame)
     end
     for _, overlay in pairs(overlays) do
         if overlay and overlay.Hide then
+            overlay._focalPointHovered = false
+            overlay._focalPointSelected = false
             overlay:Hide()
             overlay:EnableMouse(false)
             if overlay.VisualBounds and overlay.VisualBounds.Hide then
@@ -265,10 +312,11 @@ function TextEditorOverlay.UpdateFrame(frame)
                 overlay:SetFrameStrata("FULLSCREEN")
                 overlay:ClearAllPoints()
 
-                overlay:SetSize(HITBOX_WIDTH, HITBOX_HEIGHT)
-                if textObject and textObject.GetObjectType then
-                    overlay:SetPoint("CENTER", textObject, "CENTER", 0, 0)
+                if HasUsableTextObject(textObject) then
+                    overlay:SetPoint("TOPLEFT", textObject, "TOPLEFT", -VISUAL_PADDING_X, VISUAL_PADDING_Y)
+                    overlay:SetPoint("BOTTOMRIGHT", textObject, "BOTTOMRIGHT", VISUAL_PADDING_X, -VISUAL_PADDING_Y)
                 else
+                    overlay:SetSize(HITBOX_WIDTH, HITBOX_HEIGHT)
                     overlay:SetPoint("CENTER", frame, "CENTER", 0, 0)
                 end
 
@@ -288,11 +336,9 @@ function TextEditorOverlay.UpdateFrame(frame)
                     and stateApi.IsTextElementSelected
                     and stateApi.IsTextElementSelected(normalizedUnit, textKey)
                     or false
-                StyleOverlay(overlay, selected)
+                overlay._focalPointSelected = selected == true
+                StyleOverlay(overlay, overlay._focalPointSelected, overlay._focalPointHovered == true)
                 overlay:EnableMouse(true)
-                if visual then
-                    visual:Show()
-                end
                 overlay:Show()
             end
         end
@@ -302,6 +348,8 @@ function TextEditorOverlay.UpdateFrame(frame)
     if type(overlays) == "table" then
         for textKey, overlay in pairs(overlays) do
             if not seen[textKey] and overlay and overlay.Hide then
+                overlay._focalPointHovered = false
+                overlay._focalPointSelected = false
                 overlay:Hide()
                 overlay:EnableMouse(false)
                 if overlay.VisualBounds and overlay.VisualBounds.Hide then

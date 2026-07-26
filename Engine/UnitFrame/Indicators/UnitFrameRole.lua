@@ -24,6 +24,11 @@ function Role.Update(owner, frame)
     local config = frame.config
     local roleConfig = config and config.RoleIcon or nil
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
+        HandleVisibilityTransition(owner, frame, holder, false, "_roleLayoutRefreshQueued")
+        return
+    end
+
     if not roleConfig or roleConfig.enabled == false then
         HandleVisibilityTransition(owner, frame, holder, false, "_roleLayoutRefreshQueued")
         return

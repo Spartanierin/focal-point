@@ -121,6 +121,14 @@ local function UpdateAbsorbOverlay(frame)
         return
     end
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("absorbs", { frame = frame }) == false then
+        absorbOverlay:Hide()
+        if health.AbsorbMinMarker then
+            health.AbsorbMinMarker:Hide()
+        end
+        return
+    end
+
     if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
         absorbOverlay:Hide()
         if health.AbsorbMinMarker then

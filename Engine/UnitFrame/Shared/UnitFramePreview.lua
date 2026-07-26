@@ -12,6 +12,77 @@ local MANA_POWER_INDEX = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 
 -- Preview helpers encapsulate alternate power lookup for both live and editor states.
 
+local STRUCTURAL_COMPONENTS = {
+    background = true,
+    border = true,
+    health = true,
+    power = true,
+    classPower = true,
+    alternativePower = true,
+    portrait = true,
+    castBar = true,
+    texts = true,
+}
+
+local DECORATIVE_COMPONENTS = {
+    auras = true,
+    indicators = true,
+    absorbs = true,
+    rareEliteRaid = true,
+    resting = true,
+    distanceRange = true,
+    statusIcons = true,
+    demoOnlyMarkers = true,
+}
+
+local function IsTextEditMode()
+    local interactionMode = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+
+    return interactionMode
+        and interactionMode.IsTextMode
+        and interactionMode.IsTextMode()
+        or false
+end
+
+function Preview.IsTextEditMode()
+    return IsTextEditMode()
+end
+
+function Preview.ResolveComponentState(componentKey, context)
+    local key = tostring(componentKey or "")
+    local textMode = IsTextEditMode()
+
+    if textMode and DECORATIVE_COMPONENTS[key] then
+        return {
+            visible = false,
+            reason = "text-edit-decorative-hidden",
+            class = "decorative",
+        }
+    end
+
+    if STRUCTURAL_COMPONENTS[key] then
+        return {
+            visible = true,
+            reason = textMode and "text-edit-structural-visible" or "normal-structural",
+            class = "structural",
+        }
+    end
+
+    return {
+        visible = true,
+        reason = textMode and "text-edit-unclassified-visible" or "normal-unclassified",
+        class = "unclassified",
+    }
+end
+
+function Preview.ShouldShowComponent(componentKey, context)
+    local state = Preview.ResolveComponentState(componentKey, context)
+    return not state or state.visible ~= false
+end
+
 function Preview.ShouldForceSecondaryPowerPreview(unit)
     if unit ~= "player" then
         return false

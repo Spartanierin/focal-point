@@ -27,6 +27,14 @@ function Resting.Update(owner, frame)
     local restingConfig = config and config.RestingIndicator or nil
     local effect = restingConfig and restingConfig.effect or "ICON"
 
+    if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
+        HandleVisibilityTransition(owner, frame, holder, false, "_restingLayoutRefreshQueued")
+        return
+    end
+
     if not restingConfig or restingConfig.enabled == false then
         if StatusOverlay.Hide then
             StatusOverlay.Hide(holder)
