@@ -4,6 +4,7 @@ FocalPoint.MediaRegistry = FocalPoint.MediaRegistry or {}
 local MediaRegistry = FocalPoint.MediaRegistry
 
 local MEDIA_TYPE_STATUSBAR = "statusbar"
+local MEDIA_TYPE_FONT = "font"
 local PROVIDER_FOCAL_POINT = "FocalPoint"
 local PROVIDER_BLIZZARD = "Blizzard"
 local PROVIDER_LIB_SHARED_MEDIA = "LibSharedMedia"
@@ -11,6 +12,8 @@ local PROVIDER_PATH = "Path"
 
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_STATUSBAR_PATH = "Interface\\TargetingFrame\\UI-StatusBar"
+local DEFAULT_FONT_REFERENCE = "fp:font:standard"
+local DEFAULT_FONT_PATH = STANDARD_TEXT_FONT
 
 local SOURCE_ORDER = {
     ["Focal Point"] = 1,
@@ -27,6 +30,11 @@ local providers = {}
 local lsmCallbackRegistered = false
 local defaultReferences = {
     [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_REFERENCE,
+    [MEDIA_TYPE_FONT] = DEFAULT_FONT_REFERENCE,
+}
+local fallbackAssets = {
+    [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_PATH,
+    [MEDIA_TYPE_FONT] = DEFAULT_FONT_PATH,
 }
 local debugState = {
     enabled = false,
@@ -130,7 +138,8 @@ local function GetLibSharedMedia()
 end
 
 local function IsLibSharedMediaTypeSupported(mediaType)
-    return NormalizeMediaType(mediaType) == MEDIA_TYPE_STATUSBAR
+    mediaType = NormalizeMediaType(mediaType)
+    return mediaType == MEDIA_TYPE_STATUSBAR or mediaType == MEDIA_TYPE_FONT
 end
 
 local function IsLegacyPath(value)
@@ -405,10 +414,13 @@ local function ListLibSharedMediaKeys(mediaType)
     return keys
 end
 
-local function RefreshLibSharedMediaStatusBars()
-    local mediaType = EnsureType(MEDIA_TYPE_STATUSBAR)
+local function RefreshLibSharedMedia(mediaType)
+    mediaType = EnsureType(mediaType)
     if not mediaType then
         return 0, "invalid_media_type"
+    end
+    if not IsLibSharedMediaTypeSupported(mediaType) then
+        return 0, "unsupported_media_type"
     end
 
     RemoveProviderEntries(PROVIDER_LIB_SHARED_MEDIA, mediaType)
@@ -432,11 +444,12 @@ local function RefreshLibSharedMediaStatusBars()
 end
 
 local function HandleLibSharedMediaRegistered(_, mediaType)
-    if NormalizeMediaType(mediaType) ~= MEDIA_TYPE_STATUSBAR then
+    mediaType = NormalizeMediaType(mediaType)
+    if not IsLibSharedMediaTypeSupported(mediaType) then
         return
     end
 
-    MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
+    MediaRegistry.RefreshProvider("lsm", mediaType)
 end
 
 local function EnsureLibSharedMediaCallback()
@@ -704,6 +717,7 @@ local function BuildResolveResult(reference, mediaType)
         source = nil,
         provider = nil,
         fallbackReference = nil,
+        fallbackAsset = nil,
         fallbackEntry = nil,
     }
 end
@@ -752,8 +766,11 @@ local function ResolveFallback(reference, mediaType, fallbackReference)
         return path, entry, normalizedReference
     end
 
-    if NormalizeMediaType(mediaType) == MEDIA_TYPE_STATUSBAR then
-        return DEFAULT_STATUSBAR_PATH, nil, DEFAULT_STATUSBAR_REFERENCE
+    mediaType = NormalizeMediaType(mediaType)
+    local fallbackAsset = fallbackAssets[mediaType]
+    local defaultReference = MediaRegistry.GetDefault(mediaType)
+    if type(fallbackAsset) == "string" and fallbackAsset ~= "" then
+        return fallbackAsset, nil, defaultReference
     end
 
     return nil, nil, nil
@@ -805,6 +822,7 @@ function MediaRegistry.ResolveReference(reference, mediaType, fallbackReference)
     result.resolvedAsset = fallbackPath
     result.fallbackEntry = fallbackEntry
     result.fallbackReference = fallbackNormalizedReference
+    result.fallbackAsset = fallbackPath
     result.fallbackUsed = fallbackPath ~= nil
     result.reason = parseReason or result.reason or (fallbackPath and "unavailable" or "fallback_missing")
 
@@ -880,6 +898,7 @@ end
 
 function MediaRegistry.Refresh()
     MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
+    MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_FONT)
     return true
 end
 
@@ -1084,6 +1103,46 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "shadow1", "Shadow 1", "Inte
     verified = true,
 })
 
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "standard", "Standard", DEFAULT_FONT_PATH, {
+    source = "Blizzard",
+    provider = PROVIDER_FOCAL_POINT,
+    category = "Blizzard",
+    sortName = "standard",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "arial-narrow", "Arial Narrow", "Fonts\\ARIALN.TTF", {
+    source = "Blizzard",
+    provider = PROVIDER_FOCAL_POINT,
+    category = "Blizzard",
+    sortName = "arial narrow",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "morpheus", "Morpheus", "Fonts\\MORPHEUS.ttf", {
+    source = "Blizzard",
+    provider = PROVIDER_FOCAL_POINT,
+    category = "Blizzard",
+    sortName = "morpheus",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "skurri", "Skurri", "Fonts\\SKURRI.ttf", {
+    source = "Blizzard",
+    provider = PROVIDER_FOCAL_POINT,
+    category = "Blizzard",
+    sortName = "skurri",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "friz-quadrata", "Friz Quadrata", "Fonts\\FRIZQT__.TTF", {
+    source = "Blizzard",
+    provider = PROVIDER_FOCAL_POINT,
+    category = "Blizzard",
+    sortName = "friz quadrata",
+    verified = true,
+})
+
 MediaRegistry.RegisterProvider("lsm", {
     id = "lsm",
     source = "Shared",
@@ -1093,11 +1152,11 @@ MediaRegistry.RegisterProvider("lsm", {
     end,
     Refresh = function(_, mediaType)
         mediaType = NormalizeMediaType(mediaType) or MEDIA_TYPE_STATUSBAR
-        if mediaType ~= MEDIA_TYPE_STATUSBAR then
+        if not IsLibSharedMediaTypeSupported(mediaType) then
             return 0, "unsupported_media_type"
         end
 
-        return RefreshLibSharedMediaStatusBars()
+        return RefreshLibSharedMedia(mediaType)
     end,
     List = function(_, mediaType)
         return ListLibSharedMediaKeys(mediaType)
@@ -1109,5 +1168,6 @@ MediaRegistry.RegisterProvider("lsm", {
 
 EnsureLibSharedMediaCallback()
 MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
+MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_FONT)
 
 return MediaRegistry
