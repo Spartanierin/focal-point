@@ -6,8 +6,8 @@ local function Color(r, g, b, a)
     return { r or 1, g or 1, b or 1, a or 1 }
 end
 
-local TEXTURE_BLIZZARD = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp"
-local TEXTURE_SIMPLE_GRAY = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_simple_gray_256x32.png"
+local TEXTURE_BLIZZARD = "fp:statusbar:better-blizzard"
+local TEXTURE_SIMPLE_GRAY = "fp:statusbar:simple-gray"
 
 FocalPoint.Themes = {
     default = {
@@ -1305,8 +1305,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0, 0, 0, 0),
                     healthBackgroundColor = Color(0, 0, 0, 0.50),
                     powerBackgroundColor = Color(0, 0, 0, 0.30),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = false,
@@ -2034,8 +2034,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0.22, 0.25, 0.31, 0.72),
                     healthBackgroundColor = Color(0.01, 0.02, 0.03, 0.62),
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.50),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2137,8 +2137,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0.22, 0.25, 0.31, 0.72),
                     healthBackgroundColor = Color(0.01, 0.02, 0.03, 0.62),
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.50),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2153,7 +2153,7 @@ FocalPoint.Themes = {
                     showCastBar = true,
                     showCastBarIcon = false,
                     castBarHeight = 16,
-                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    castBarTexture = "fp:statusbar:better-blizzard",
                     castBarColor = Color(1.00, 0.74, 0.24, 1.00),
                     castBarInterruptibleColor = Color(0.68, 0.68, 0.72, 1.00),
                 },
@@ -2273,8 +2273,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0.22, 0.25, 0.31, 0.72),
                     healthBackgroundColor = Color(0.01, 0.02, 0.03, 0.62),
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.50),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2289,7 +2289,7 @@ FocalPoint.Themes = {
                     showCastBar = true,
                     showCastBarIcon = false,
                     castBarHeight = 16,
-                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    castBarTexture = "fp:statusbar:better-blizzard",
                     castBarColor = Color(1.00, 0.74, 0.24, 1.00),
                     castBarInterruptibleColor = Color(0.68, 0.68, 0.72, 1.00),
                 },
@@ -2409,8 +2409,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0.20, 0.23, 0.29, 0.68),
                     healthBackgroundColor = Color(0.01, 0.02, 0.03, 0.58),
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.44),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2425,7 +2425,7 @@ FocalPoint.Themes = {
                     showCastBar = true,
                     showCastBarIcon = false,
                     castBarHeight = 13,
-                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    castBarTexture = "fp:statusbar:better-blizzard",
                     castBarColor = Color(1.00, 0.74, 0.24, 1.00),
                     castBarInterruptibleColor = Color(0.68, 0.68, 0.72, 1.00),
                 },
@@ -2545,8 +2545,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0.20, 0.23, 0.29, 0.68),
                     healthBackgroundColor = Color(0.01, 0.02, 0.03, 0.58),
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.44),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2561,7 +2561,7 @@ FocalPoint.Themes = {
                     showCastBar = true,
                     showCastBarIcon = false,
                     castBarHeight = 13,
-                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    castBarTexture = "fp:statusbar:better-blizzard",
                     castBarColor = Color(1.00, 0.74, 0.24, 1.00),
                     castBarInterruptibleColor = Color(0.68, 0.68, 0.72, 1.00),
                 },
@@ -2681,8 +2681,8 @@ FocalPoint.Themes = {
                     borderColor = Color(0.18, 0.21, 0.27, 0.64),
                     healthBackgroundColor = Color(0.01, 0.02, 0.03, 0.56),
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.42),
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2762,8 +2762,8 @@ FocalPoint.Themes = {
                     powerBackgroundColor = Color(0.03, 0.04, 0.06, 0.46),
                     useClassColorHealth = false,
                     useReactionColorNpcHealth = true,
-                    healthBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
-                    powerBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    healthBarTexture = "fp:statusbar:better-blizzard",
+                    powerBarTexture = "fp:statusbar:better-blizzard",
                 },
                 portrait = {
                     enabled = true,
@@ -2778,7 +2778,7 @@ FocalPoint.Themes = {
                     showCastBar = true,
                     showCastBarIcon = false,
                     castBarHeight = 13,
-                    castBarTexture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                    castBarTexture = "fp:statusbar:better-blizzard",
                     castBarColor = Color(1.00, 0.74, 0.24, 1.00),
                     castBarInterruptibleColor = Color(0.68, 0.68, 0.72, 1.00),
                 },

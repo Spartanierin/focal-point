@@ -72,6 +72,7 @@ local SECTION_MAP = {
         showClassPowerBar = "showClassPowerBar",
         powerBarHeight = "powerBarHeight",
         alternativePowerBarHeight = "alternativePowerBarHeight",
+        alternativePowerBarTexture = "alternativePowerBarTexture",
         classPowerBarHeight = "classPowerBarHeight",
         classPowerBarWidth = "classPowerBarWidth",
         classPowerBarSpacing = "classPowerBarSpacing",
