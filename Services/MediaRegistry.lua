@@ -23,6 +23,7 @@ local SOURCE_ORDER = {
 local entriesByType = {}
 local entriesByReference = {}
 local pathReferencesByType = {}
+local providers = {}
 local defaultReferences = {
     [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_REFERENCE,
 }
@@ -117,6 +118,14 @@ local function EnsureType(mediaType)
     pathReferencesByType[mediaType] = pathReferencesByType[mediaType] or {}
 
     return mediaType
+end
+
+local function GetLibSharedMedia()
+    if not LibStub then
+        return nil
+    end
+
+    return LibStub("LibSharedMedia-3.0", true)
 end
 
 local function IsLegacyPath(value)
@@ -379,6 +388,27 @@ function MediaRegistry.RegisterBuiltin(mediaType, id, name, path, options)
     end
 
     return CopyEntry(entry)
+end
+
+function MediaRegistry.RegisterProvider(providerId, provider)
+    providerId = Trim(providerId):lower()
+    if providerId == "" or type(provider) ~= "table" then
+        return nil, "invalid_provider"
+    end
+
+    local registeredProvider = CopyEntry(provider)
+    registeredProvider.id = registeredProvider.id or providerId
+    providers[providerId] = registeredProvider
+    return CopyEntry(registeredProvider)
+end
+
+function MediaRegistry.GetProvider(providerId)
+    providerId = Trim(providerId):lower()
+    if providerId == "" then
+        return nil
+    end
+
+    return CopyEntry(providers[providerId])
 end
 
 function MediaRegistry.NormalizeReference(value, mediaType)
@@ -824,6 +854,24 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "simple-gray", "Focal Point 
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "shadow1", "Shadow 1", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png", {
     sortName = "shadow 1",
     verified = true,
+})
+
+MediaRegistry.RegisterProvider("lsm", {
+    id = "lsm",
+    source = "Shared",
+    provider = PROVIDER_LIB_SHARED_MEDIA,
+    IsAvailable = function()
+        return GetLibSharedMedia() ~= nil
+    end,
+    Refresh = function()
+        return GetLibSharedMedia() ~= nil
+    end,
+    List = function()
+        return {}
+    end,
+    Resolve = function()
+        return nil
+    end,
 })
 
 return MediaRegistry
