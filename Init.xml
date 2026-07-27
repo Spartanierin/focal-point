@@ -120,6 +120,7 @@
     <Script file="GUI/Editor/Inspector/InspectorMutations.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorRefreshPolicy.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorBinding.lua"/>
+    <Script file="GUI/Editor/Inspector/MediaOptionAdapter.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorController.lua"/>
     <Script file="GUI/Widgets/ColorPickerWidget.lua"/>
     <Script file="GUI/Widgets/SliderWidget.lua"/>

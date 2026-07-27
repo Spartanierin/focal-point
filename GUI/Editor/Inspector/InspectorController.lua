@@ -14,6 +14,7 @@ local InspectorIndicatorSelection = ns.InspectorIndicatorSelection or (ns.GUI.Ed
 local InspectorAuraSelection = ns.InspectorAuraSelection or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.AuraSelection) or {}
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
+local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -98,7 +99,6 @@ function InspectorController.Build(container, state, options)
     local statusIndicatorLayouts = ns.GUI and ns.GUI.Layouts and ns.GUI.Layouts.UnitStatusIndicator or {}
     local auraLayouts = ns.GUI and ns.GUI.Layouts and ns.GUI.Layouts.UnitAuras or {}
 
-    local textureList = BuildLocalizedList(barLayouts.Lists and barLayouts.Lists.textures)
     local barAnchorList = BuildLocalizedList(barLayouts.Lists and barLayouts.Lists.anchorPoints)
     local textAnchorTargetList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.anchorTo)
     local textAnchorPointList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.anchorPoints)
@@ -121,6 +121,18 @@ function InspectorController.Build(container, state, options)
     local auraGrowthXList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthX)
     local auraGrowthYList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthY)
     local auraSortModeList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.sortMode)
+
+    local function BuildStatusBarTextureOptions(currentValue)
+        if MediaOptionAdapter and MediaOptionAdapter.BuildStatusBarDropdown then
+            return MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
+        end
+
+        return {
+            values = {},
+            order = {},
+            value = currentValue,
+        }
+    end
 
     textAnchorTargetList.CastBar = textAnchorTargetList.CastBar or (L["BAR_CAST"] or "Cast Bar")
     textAnchorTargetList.AlternativePowerBar = textAnchorTargetList.AlternativePowerBar or (L["BAR_ALT_POWER"] or "Alt Power")
@@ -566,7 +578,8 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        AddDropdown(healthSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.healthBarTexture, function(value)
+        local healthTextureOptions = BuildStatusBarTextureOptions(unitConfig.healthBarTexture)
+        AddDropdown(healthSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, function(value)
             SetUnitField("healthBarTexture", value)
         end)
 
@@ -620,7 +633,8 @@ function InspectorController.Build(container, state, options)
             SetUnitField("showPowerBar", value and true or false, powerSection)
         end)
 
-        AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.powerBarTexture, function(value)
+        local powerTextureOptions = BuildStatusBarTextureOptions(unitConfig.powerBarTexture)
+        AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, function(value)
             SetUnitField("powerBarTexture", value)
         end, unitConfig.showPowerBar == false)
 
@@ -670,7 +684,9 @@ function InspectorController.Build(container, state, options)
             SetUnitField("showAlternativePowerBar", value and true or false, altPowerSection)
         end)
 
-        AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture, function(value)
+        local alternativePowerTextureValue = unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture
+        local alternativePowerTextureOptions = BuildStatusBarTextureOptions(alternativePowerTextureValue)
+        AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", alternativePowerTextureOptions, alternativePowerTextureOptions.value, function(value)
             SetUnitField("alternativePowerBarTexture", value)
         end, unitConfig.showAlternativePowerBar ~= true)
 
@@ -720,7 +736,9 @@ function InspectorController.Build(container, state, options)
             SetUnitField("showClassPowerBar", value and true or false, classPowerSection)
         end)
 
-        AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture, function(value)
+        local classPowerTextureValue = unitConfig.classPowerBarTexture or unitConfig.powerBarTexture
+        local classPowerTextureOptions = BuildStatusBarTextureOptions(classPowerTextureValue)
+        AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", classPowerTextureOptions, classPowerTextureOptions.value, function(value)
             SetUnitField("classPowerBarTexture", value)
         end, unitConfig.showClassPowerBar ~= true)
 
@@ -799,7 +817,8 @@ function InspectorController.Build(container, state, options)
         end, unitConfig.showCastBar == false)
 
         if isExpert then
-            AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureList, unitConfig.castBarTexture, function(value)
+            local castTextureOptions = BuildStatusBarTextureOptions(unitConfig.castBarTexture)
+            AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", castTextureOptions, castTextureOptions.value, function(value)
                 SetUnitField("castBarTexture", value)
             end, unitConfig.showCastBar == false)
 

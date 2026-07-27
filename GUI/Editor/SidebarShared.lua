@@ -511,9 +511,17 @@ end
 
 local function AddDropdown(container, label, list, value, onChanged, disabled, anchorKey)
     local widget = AceGUI:Create("Dropdown")
+    local dropdownList = list
+    local dropdownOrder
+
+    if type(list) == "table" and type(list.values) == "table" then
+        dropdownList = list.values
+        dropdownOrder = type(list.order) == "table" and list.order or nil
+    end
+
     widget:SetFullWidth(true)
     widget:SetLabel(label)
-    widget:SetList(list)
+    widget:SetList(dropdownList, dropdownOrder)
     widget:SetValue(value)
     widget:SetDisabled(disabled and true or false)
     widget:SetCallback("OnValueChanged", function(_, _, newValue)
