@@ -9,13 +9,15 @@ ns.GUI.Editor.Inspector.MediaOptionAdapter = MediaOptionAdapter
 
 local STATUSBAR = "statusbar"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
+local L = ns.L or {}
 
 local SOURCE_ORDER = {
     Blizzard = 1,
     ["Focal Point"] = 2,
-    External = 3,
+    Shared = 3,
     ["Legacy Path"] = 4,
     Unavailable = 5,
+    External = 6,
 }
 
 local function Trim(value)
@@ -69,19 +71,30 @@ local function GetMissingLabel(reference)
     reference = Trim(reference)
     local key = reference:match("^[^:]+:[^:]+:(.+)$") or reference
     if key == "" then
-        return "Missing Texture"
+        return L["MEDIA_MISSING_TEXTURE"] or "Missing Texture"
     end
 
-    return "Missing: " .. key
+    local format = L["MEDIA_MISSING_TEXTURE_FORMAT"] or "Missing: %s"
+    return string.format(format, key)
 end
 
 local function GetEntryOrder(entry)
     return SOURCE_ORDER[entry and entry.source] or SOURCE_ORDER[entry and entry.category] or 50
 end
 
+local function GetSortLabel(label)
+    return Trim(label):lower()
+end
+
 local function SortItems(left, right)
     if left.order ~= right.order then
         return left.order < right.order
+    end
+
+    local leftSortLabel = left.sortLabel or GetSortLabel(left.label)
+    local rightSortLabel = right.sortLabel or GetSortLabel(right.label)
+    if leftSortLabel ~= rightSortLabel then
+        return leftSortLabel < rightSortLabel
     end
 
     if left.label ~= right.label then
@@ -102,6 +115,7 @@ local function AddItem(items, values, seen, value, label, entry)
     items[#items + 1] = {
         value = value,
         label = label,
+        sortLabel = GetSortLabel(label),
         order = GetEntryOrder(entry),
     }
 end
@@ -174,7 +188,7 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
                 category = "Unavailable",
             })
         else
-            AddItem(items, values, seen, currentValue, GetFilenameLabel(currentValue) or "Custom Texture", {
+            AddItem(items, values, seen, currentValue, GetFilenameLabel(currentValue) or (L["MEDIA_CUSTOM_TEXTURE"] or "Custom Texture"), {
                 source = "Legacy Path",
                 category = "Legacy",
             })
