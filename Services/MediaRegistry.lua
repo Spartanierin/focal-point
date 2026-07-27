@@ -423,32 +423,140 @@ function MediaRegistry.GetDefault(mediaType)
     return defaultReferences[mediaType]
 end
 
-function MediaRegistry.Resolve(reference, mediaType, fallbackReference)
+local function BuildResolveResult(reference, mediaType)
+    return {
+        requestedReference = reference,
+        normalizedReference = nil,
+        mediaType = mediaType,
+        entry = nil,
+        resolvedAsset = nil,
+        available = false,
+        fallbackUsed = false,
+        reason = nil,
+        source = nil,
+        provider = nil,
+        fallbackReference = nil,
+        fallbackEntry = nil,
+    }
+end
+
+local function IsEmptyReference(reference)
+    if reference == nil then
+        return true
+    end
+
+    return type(reference) == "string" and Trim(reference) == ""
+end
+
+local function ResolveAvailableEntry(reference, mediaType)
     local entry = MediaRegistry.GetEntry(reference, mediaType)
-    if entry and entry.available and type(entry.path) == "string" and entry.path ~= "" then
-        return entry.path, entry
+    if entry and entry.available == true and type(entry.path) == "string" and entry.path ~= "" then
+        local normalizedReference = MediaRegistry.NormalizeReference(reference, mediaType)
+        return entry.path, entry, normalizedReference or entry.id
     end
 
-    if fallbackReference and fallbackReference ~= reference then
-        local fallbackPath, fallbackEntry = MediaRegistry.Resolve(fallbackReference, mediaType)
-        if fallbackPath then
-            return fallbackPath, fallbackEntry
+    return nil, entry, nil
+end
+
+local function ResolveFallback(reference, mediaType, fallbackReference)
+    local checked = {}
+
+    local function TryFallback(candidate)
+        if type(candidate) ~= "string" or Trim(candidate) == "" or checked[candidate] then
+            return nil, nil, nil
         end
+
+        checked[candidate] = true
+        if candidate == reference then
+            return nil, nil, nil
+        end
+
+        return ResolveAvailableEntry(candidate, mediaType)
     end
 
-    local defaultReference = MediaRegistry.GetDefault(mediaType)
-    if defaultReference and defaultReference ~= reference and defaultReference ~= fallbackReference then
-        local defaultEntry = MediaRegistry.GetEntry(defaultReference, mediaType)
-        if defaultEntry and defaultEntry.available and type(defaultEntry.path) == "string" and defaultEntry.path ~= "" then
-            return defaultEntry.path, defaultEntry
-        end
+    local path, entry, normalizedReference = TryFallback(fallbackReference)
+    if path then
+        return path, entry, normalizedReference
+    end
+
+    path, entry, normalizedReference = TryFallback(MediaRegistry.GetDefault(mediaType))
+    if path then
+        return path, entry, normalizedReference
     end
 
     if NormalizeMediaType(mediaType) == MEDIA_TYPE_STATUSBAR then
-        return DEFAULT_STATUSBAR_PATH, nil
+        return DEFAULT_STATUSBAR_PATH, nil, DEFAULT_STATUSBAR_REFERENCE
     end
 
-    return nil, entry
+    return nil, nil, nil
+end
+
+function MediaRegistry.ResolveReference(reference, mediaType, fallbackReference)
+    local normalizedType = NormalizeMediaType(mediaType) or MEDIA_TYPE_STATUSBAR
+    local result = BuildResolveResult(reference, normalizedType)
+
+    local invalidInputType = reference ~= nil and type(reference) ~= "string"
+    local parsed, parseReason
+
+    if invalidInputType then
+        parseReason = "invalid_reference"
+    elseif IsEmptyReference(reference) then
+        parseReason = "empty_reference"
+    else
+        parsed, parseReason = ParseReference(reference, normalizedType)
+    end
+
+    if parsed then
+        result.normalizedReference = MediaRegistry.NormalizeReference(reference, normalizedType)
+        local path, entry = ResolveAvailableEntry(reference, normalizedType)
+        result.entry = entry
+
+        if path then
+            result.resolvedAsset = path
+            result.normalizedReference = result.normalizedReference or (entry and entry.id) or parsed.id
+            result.available = true
+            result.source = entry and entry.source or nil
+            result.provider = entry and entry.provider or nil
+            return result
+        end
+
+        if parsed.kind == "external" then
+            parseReason = "unavailable"
+        elseif parsed.kind == "builtin" then
+            parseReason = "invalid_reference"
+        else
+            parseReason = parseReason or "unavailable"
+        end
+    else
+        result.reason = parseReason or "invalid_reference"
+    end
+
+    local fallbackPath, fallbackEntry, fallbackNormalizedReference = ResolveFallback(reference, normalizedType, fallbackReference)
+    result.resolvedAsset = fallbackPath
+    result.fallbackEntry = fallbackEntry
+    result.fallbackReference = fallbackNormalizedReference
+    result.fallbackUsed = fallbackPath ~= nil
+    result.reason = parseReason or result.reason or (fallbackPath and "unavailable" or "fallback_missing")
+
+    if fallbackEntry then
+        result.source = fallbackEntry.source
+        result.provider = fallbackEntry.provider
+    end
+
+    if not fallbackPath and result.reason == nil then
+        result.reason = "fallback_missing"
+    end
+
+    return result
+end
+
+function MediaRegistry.Resolve(reference, mediaType, fallbackReference)
+    local result = MediaRegistry.ResolveReference(reference, mediaType, fallbackReference)
+    if not result then
+        return nil, nil
+    end
+
+    return result.resolvedAsset, result.fallbackEntry or result.entry
 end
 
 function MediaRegistry.IsAvailable(reference, mediaType)
