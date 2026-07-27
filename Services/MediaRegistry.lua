@@ -44,6 +44,7 @@ local debugState = {
     newReferenceObservations = 0,
     invalidReferences = 0,
     fallbackUses = 0,
+    byMediaType = {},
     byReferenceKind = {},
     byMediaField = {},
     byUnit = {},
@@ -491,6 +492,7 @@ local function ResetDebugState()
     debugState.newReferenceObservations = 0
     debugState.invalidReferences = 0
     debugState.fallbackUses = 0
+    debugState.byMediaType = {}
     debugState.byReferenceKind = {}
     debugState.byMediaField = {}
     debugState.byUnit = {}
@@ -501,11 +503,18 @@ local function ResetDebugState()
 end
 
 local function ClassifyReference(reference, mediaType)
+    if reference == nil then
+        return "nil", nil, "empty_reference"
+    end
+    if type(reference) ~= "string" then
+        return "wrong-type", nil, "invalid_reference"
+    end
+    if Trim(reference) == "" then
+        return "empty", nil, "empty_reference"
+    end
+
     local parsed, reason = ParseReference(reference, mediaType)
     if not parsed then
-        if type(reference) ~= "string" or reference == "" then
-            return "nil/default", nil, reason
-        end
         return "invalid", nil, reason
     end
 
@@ -517,7 +526,7 @@ local function ClassifyReference(reference, mediaType)
     end
     if parsed.kind == "legacy" then
         if type(reference) == "string" and reference:match("^path:") then
-            return "path-id", parsed
+            return "path-reference", parsed
         end
         return "direct-path", parsed
     end
@@ -526,15 +535,22 @@ local function ClassifyReference(reference, mediaType)
 end
 
 local function IsLegacyCompatibleKind(kind)
-    return kind == "direct-path" or kind == "nil/default"
+    return kind == "direct-path" or kind == "nil" or kind == "empty" or kind == "wrong-type"
 end
 
-local function GetSafePath(value)
+local function GetSafePath(value, mediaType)
     if type(value) == "string" and value ~= "" then
         return value
     end
 
-    return DEFAULT_STATUSBAR_PATH
+    mediaType = NormalizeMediaType(mediaType) or MEDIA_TYPE_STATUSBAR
+    return fallbackAssets[mediaType] or DEFAULT_STATUSBAR_PATH
+end
+
+local function AreEquivalentAssets(left, right)
+    local leftKey = NormalizePathKey(left)
+    local rightKey = NormalizePathKey(right)
+    return leftKey ~= nil and rightKey ~= nil and leftKey == rightKey
 end
 
 local function AddDebugDetail(detail)
@@ -915,20 +931,20 @@ function MediaRegistry.ResetDebug()
     ResetDebugState()
 end
 
-function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, resolvedResult)
+local function RecordMediaShadow(mediaType, reference, legacyPath, context, resolvedResult, fallbackReference)
     if debugState.enabled ~= true then
         return
     end
 
-    local mediaType = MEDIA_TYPE_STATUSBAR
+    mediaType = NormalizeMediaType(mediaType) or MEDIA_TYPE_STATUSBAR
     local referenceKind, parsedReference, parseReason = ClassifyReference(reference, mediaType)
-    local legacyEffectivePath = GetSafePath(legacyPath)
+    local legacyEffectivePath = GetSafePath(legacyPath, mediaType)
     local originalEntry = MediaRegistry.GetEntry(reference, mediaType)
-    resolvedResult = type(resolvedResult) == "table" and resolvedResult or MediaRegistry.ResolveReference(reference, mediaType, DEFAULT_STATUSBAR_REFERENCE)
+    resolvedResult = type(resolvedResult) == "table" and resolvedResult or MediaRegistry.ResolveReference(reference, mediaType, fallbackReference)
     local registryPath = resolvedResult and resolvedResult.resolvedAsset or nil
     local registryEntry = resolvedResult and (resolvedResult.entry or resolvedResult.fallbackEntry) or nil
-    local registryEffectivePath = registryPath or DEFAULT_STATUSBAR_PATH
-    local registryAvailable = originalEntry and originalEntry.available == true or false
+    local registryEffectivePath = registryPath or GetSafePath(nil, mediaType)
+    local registryAvailable = resolvedResult and resolvedResult.available == true or false
     local source = originalEntry and originalEntry.source or "Fallback"
     local unitKey = NormalizeContextValue(type(context) == "table" and context.unitKey or nil)
     local field = NormalizeContextValue(type(context) == "table" and context.field or nil)
@@ -936,16 +952,13 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, res
     if referenceSourceField == "unknown" then
         referenceSourceField = field
     end
-    local usedFallback = not (originalEntry
-        and originalEntry.available == true
-        and type(originalEntry.path) == "string"
-        and originalEntry.path ~= ""
-        and originalEntry.path == registryEffectivePath)
-    local legacyUsedFallback = legacyEffectivePath == DEFAULT_STATUSBAR_PATH and not (type(reference) == "string" and reference ~= "")
+    local usedFallback = resolvedResult and resolvedResult.fallbackUsed == true or false
+    local legacyUsedFallback = legacyEffectivePath == GetSafePath(nil, mediaType) and not (type(reference) == "string" and reference ~= "")
     local isLegacyCompatible = IsLegacyCompatibleKind(referenceKind)
-    local isMismatch = isLegacyCompatible and legacyEffectivePath ~= registryEffectivePath
+    local isMismatch = isLegacyCompatible and not AreEquivalentAssets(legacyEffectivePath, registryEffectivePath)
 
     debugState.totalComparisons = debugState.totalComparisons + 1
+    IncrementCounter(debugState.byMediaType, mediaType)
     IncrementCounter(debugState.byReferenceKind, referenceKind)
     IncrementCounter(debugState.byMediaField, field)
     IncrementCounter(debugState.byUnit, unitKey)
@@ -957,7 +970,7 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, res
         if isMismatch then
             debugState.legacyCompatibleMismatches = debugState.legacyCompatibleMismatches + 1
         end
-    elseif referenceKind == "fp-id" or referenceKind == "lsm-id" or referenceKind == "path-id" then
+    elseif referenceKind == "fp-id" or referenceKind == "lsm-id" or referenceKind == "path-reference" then
         debugState.newReferenceObservations = debugState.newReferenceObservations + 1
     else
         debugState.invalidReferences = debugState.invalidReferences + 1
@@ -968,6 +981,7 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, res
     end
 
     local detail = {
+        mediaType = mediaType,
         reference = tostring(reference),
         kind = referenceKind,
         unitKey = unitKey,
@@ -981,6 +995,10 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, res
         source = source,
         reason = parseReason,
         mismatch = isMismatch,
+        textKey = type(context) == "table" and context.textKey or nil,
+        textRole = type(context) == "table" and context.textRole or nil,
+        fontSize = type(context) == "table" and context.fontSize or nil,
+        fontFlags = type(context) == "table" and context.fontFlags or nil,
     }
 
     if isMismatch then
@@ -988,6 +1006,14 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, res
     end
 
     AddDebugDetail(detail)
+end
+
+function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, resolvedResult)
+    return RecordMediaShadow(MEDIA_TYPE_STATUSBAR, reference, legacyPath, context, resolvedResult, DEFAULT_STATUSBAR_REFERENCE)
+end
+
+function MediaRegistry.RecordFontShadow(reference, legacyPath, context, resolvedResult)
+    return RecordMediaShadow(MEDIA_TYPE_FONT, reference, legacyPath, context, resolvedResult, DEFAULT_FONT_REFERENCE)
 end
 
 function MediaRegistry.BuildDebugReport()
@@ -1003,6 +1029,7 @@ function MediaRegistry.BuildDebugReport()
     }
 
     AppendSortedCounters(lines, "By reference kind", debugState.byReferenceKind)
+    AppendSortedCounters(lines, "By media type", debugState.byMediaType)
     AppendSortedCounters(lines, "By media field", debugState.byMediaField)
     AppendSortedCounters(lines, "By unit", debugState.byUnit)
     AppendSortedCounters(lines, "By unit and field", debugState.byUnitAndField)
@@ -1011,7 +1038,8 @@ function MediaRegistry.BuildDebugReport()
     if debugState.lastMismatch then
         local detail = debugState.lastMismatch
         lines[#lines + 1] = string.format(
-            "Last mismatch kind=%s unit=%s field=%s reference=%s legacy=%s registry=%s",
+            "Last mismatch media=%s kind=%s unit=%s field=%s reference=%s legacy=%s registry=%s",
+            tostring(detail.mediaType),
             tostring(detail.kind),
             tostring(detail.unitKey),
             tostring(detail.field),
@@ -1026,8 +1054,9 @@ function MediaRegistry.BuildDebugReport()
     lines[#lines + 1] = string.format("Details=%d/%d", #debugState.details, MAX_DEBUG_DETAILS)
     for index, detail in ipairs(debugState.details) do
         lines[#lines + 1] = string.format(
-            "%02d kind=%s unit=%s field=%s sourceField=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s reference=%s legacy=%s registry=%s",
+            "%02d media=%s kind=%s unit=%s field=%s sourceField=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s textKey=%s role=%s fontSize=%s fontFlags=%s reference=%s legacy=%s registry=%s",
             index,
+            tostring(detail.mediaType),
             tostring(detail.kind),
             tostring(detail.unitKey),
             tostring(detail.field),
@@ -1037,6 +1066,10 @@ function MediaRegistry.BuildDebugReport()
             FormatBool(detail.legacyFallback),
             FormatBool(detail.registryFallback),
             FormatBool(detail.mismatch),
+            tostring(detail.textKey or "n/a"),
+            tostring(detail.textRole or "n/a"),
+            tostring(detail.fontSize or "n/a"),
+            tostring(detail.fontFlags or "n/a"),
             tostring(detail.reference),
             tostring(detail.legacyPath),
             tostring(detail.registryPath)

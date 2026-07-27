@@ -50,6 +50,27 @@ local function ResolveOverflowWidth(key, textConfig, anchorParent)
     return math.max(anchorWidth - 12, 24)
 end
 
+local function RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath, fontSize, fontFlags, textRole)
+    local registry = FocalPoint and FocalPoint.MediaRegistry or nil
+    if not (registry and registry.IsDebugEnabled and registry.IsDebugEnabled()) then
+        return
+    end
+    if not (registry.ResolveReference and registry.RecordFontShadow) then
+        return
+    end
+
+    local resolvedResult = registry.ResolveReference(textConfig and textConfig.font or nil, "font")
+    registry.RecordFontShadow(textConfig and textConfig.font or nil, legacyFontPath, {
+        unitKey = frame and frame.unit or nil,
+        field = key or textRole or "font",
+        referenceSourceField = "font",
+        textKey = key,
+        textRole = textRole,
+        fontSize = fontSize,
+        fontFlags = fontFlags,
+    }, resolvedResult)
+end
+
 function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     deps = deps or {}
 
@@ -77,6 +98,7 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     local fontFlags = BuildFontFlags and BuildFontFlags(textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
     local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
+    RecordFontResolutionShadow(frame, key, textConfig, fontPath, fontSize, fontFlags, textRole)
 
     local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
     local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
