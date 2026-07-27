@@ -126,6 +126,16 @@ local function IsEditorUnlocked()
         and FocalPoint:IsEditorActive()
 end
 
+local function IsTextModeActive()
+    local interactionMode = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    return interactionMode
+        and interactionMode.IsTextMode
+        and interactionMode.IsTextMode() == true
+        or false
+end
+
 local function IsWriteBlockedInCombat()
     return InCombatLockdown and InCombatLockdown()
 end
@@ -262,6 +272,115 @@ local function AlignSelected(mode)
     local result = mutations.AlignSelectedUnits(mode)
     if not (result and result.ok == true) then
         PrintAlignFailure(result)
+    end
+end
+
+local function GetInspectorMutations()
+    return FocalPoint.InspectorMutations
+        or (FocalPoint.GUI
+            and FocalPoint.GUI.Editor
+            and FocalPoint.GUI.Editor.Inspector
+            and FocalPoint.GUI.Editor.Inspector.Mutations)
+        or nil
+end
+
+local function GetTextOverlay()
+    return FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.TextEditorOverlay
+        or nil
+end
+
+local function GetTextTarget(menu)
+    if not menu or menu.contextKind ~= "text" then
+        return nil, nil, nil, nil
+    end
+
+    local frame = menu.targetFrame
+    local textKey = menu.targetTextKey
+    if not frame or type(textKey) ~= "string" or textKey == "" then
+        return nil, nil, nil, nil
+    end
+
+    local unitConfig, unitKey = ResolveUnitConfig(frame)
+    if type(unitConfig) ~= "table" or not unitKey then
+        return nil, nil, nil, nil
+    end
+
+    local texts = unitConfig.Texts
+    if type(texts) ~= "table" or type(texts[textKey]) ~= "table" then
+        return nil, nil, nil, nil
+    end
+
+    return frame, textKey, unitConfig, unitKey
+end
+
+local function IsTextTargetSelected(menu)
+    local _, textKey, _, unitKey = GetTextTarget(menu)
+    if not unitKey or not textKey then
+        return false
+    end
+
+    local editorState = GetEditorStateApi()
+    return editorState
+        and editorState.IsTextElementSelected
+        and editorState.IsTextElementSelected(unitKey, textKey) == true
+        or false
+end
+
+local function BuildTextMutationContext(menu)
+    local _, _, unitConfig, unitKey = GetTextTarget(menu)
+    if type(unitConfig) ~= "table" or not unitKey then
+        return nil
+    end
+
+    return {
+        unitConfig = unitConfig,
+        unitKey = unitKey,
+    }
+end
+
+local function IsTextPositionResetAvailable(menu)
+    if IsWriteBlockedInCombat() or not IsEditorUnlocked() or not IsTextModeActive() or not IsTextTargetSelected(menu) then
+        return false
+    end
+
+    local _, textKey = GetTextTarget(menu)
+    local mutations = GetInspectorMutations()
+    local context = BuildTextMutationContext(menu)
+    return mutations
+        and mutations.GetTextPositionDefault
+        and type(mutations.GetTextPositionDefault(context, textKey)) == "table"
+        or false
+end
+
+local function IsTextSizeResetAvailable(menu)
+    if IsWriteBlockedInCombat() or not IsEditorUnlocked() or not IsTextModeActive() or not IsTextTargetSelected(menu) then
+        return false
+    end
+
+    local _, textKey = GetTextTarget(menu)
+    local mutations = GetInspectorMutations()
+    local context = BuildTextMutationContext(menu)
+    return mutations
+        and mutations.GetTextFontSizeDefault
+        and mutations.GetTextFontSizeDefault(context, textKey) ~= nil
+        or false
+end
+
+local function ResetTextPosition(menu)
+    local frame, textKey = GetTextTarget(menu)
+    local overlay = GetTextOverlay()
+    if overlay and overlay.ResetPosition then
+        overlay.ResetPosition(frame, textKey)
+    end
+end
+
+local function ResetTextSize(menu)
+    local frame, textKey = GetTextTarget(menu)
+    local overlay = GetTextOverlay()
+    if overlay and overlay.ResetSize then
+        overlay.ResetSize(frame, textKey)
     end
 end
 
@@ -418,6 +537,14 @@ local function GetAlignTooltip()
     return T("EDITOR_CONTEXT_MENU_ALIGN_TOOLTIP", "Aligns secondary selected unit frames to the primary selection.")
 end
 
+local function GetTextResetPositionTooltip()
+    return T("EDITOR_CONTEXT_MENU_RESET_TEXT_POSITION_TOOLTIP", "Restore this text element's default anchor and offsets.")
+end
+
+local function GetTextResetSizeTooltip()
+    return T("EDITOR_CONTEXT_MENU_RESET_TEXT_SIZE_TOOLTIP", "Restore this text element's default font size.")
+end
+
 local function HideTooltip()
     if GameTooltip then
         GameTooltip:Hide()
@@ -469,7 +596,7 @@ local function EnsureMenu()
     local buttons = {}
     menu.buttons = buttons
 
-    local items = {
+    local frameItems = {
         { text = T("EDITOR_CONTEXT_MENU_COPY_SIZE", "Copy size"), action = CopySize },
         { text = T("EDITOR_CONTEXT_MENU_PASTE_SIZE", "Paste size"), action = PasteSize, enabled = function() return clipboard.size ~= nil end },
         { text = T("EDITOR_CONTEXT_MENU_COPY_POSITION", "Copy position"), action = CopyPosition },
@@ -484,9 +611,15 @@ local function EnsureMenu()
         { text = T("EDITOR_CONTEXT_MENU_ALIGN_HORIZONTAL_CENTER", "Align horizontal center"), tooltip = GetAlignTooltip, action = function() AlignSelected("horizontalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
         { text = T("EDITOR_CONTEXT_MENU_ALIGN_VERTICAL_CENTER", "Align vertical center"), tooltip = GetAlignTooltip, action = function() AlignSelected("verticalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
     }
-    menu:SetSize(214, 12 + (#items * 23))
+    local textItems = {
+        { text = T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position"), tooltip = GetTextResetPositionTooltip, action = ResetTextPosition, enabled = IsTextPositionResetAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_RESET_SIZE", "Reset size"), tooltip = GetTextResetSizeTooltip, action = ResetTextSize, enabled = IsTextSizeResetAvailable, preserveSelection = true },
+    }
+    menu.frameItems = frameItems
+    menu.textItems = textItems
+    menu:SetSize(214, 12 + (#frameItems * 23))
 
-    for index, item in ipairs(items) do
+    for index = 1, math.max(#frameItems, #textItems) do
         local hoverAccent = GetSkinButtonColor("hover", "accent", { 0.918, 0.459, 0.000, 0.18 })
         local normalText = GetSkinButtonColor("normal", "text", { 0.94, 0.96, 0.98, 1 })
         local button = CreateFrame("Button", nil, menu)
@@ -500,27 +633,34 @@ local function EnsureMenu()
         local label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         label:SetPoint("LEFT", button, "LEFT", 8, 0)
         label:SetJustifyH("LEFT")
-        local initialText = item.text
-        if type(initialText) == "function" then
-            initialText = initialText(menu)
-        end
-        label:SetText(initialText)
+        label:SetText("")
         SetTextColor(label, normalText)
         button.label = label
-        button.item = item
 
         button:SetScript("OnClick", function(self)
             if not self._enabled then
                 return
             end
 
+            local item = self.item
             local targetFrame = menu.targetFrame
+            local contextKind = menu.contextKind
+            local targetTextKey = menu.targetTextKey
+            local textMenuContext = {
+                contextKind = contextKind,
+                targetFrame = targetFrame,
+                targetTextKey = targetTextKey,
+            }
             CloseMenu(menu)
-            if not self.item.preserveSelection then
+            if item and not item.preserveSelection then
                 SelectFrame(targetFrame)
             end
-            if self.item.action then
-                self.item.action(targetFrame)
+            if item and item.action then
+                if contextKind == "text" then
+                    item.action(textMenuContext)
+                else
+                    item.action(targetFrame)
+                end
             end
         end)
 
@@ -567,25 +707,46 @@ local function EnsureMenu()
         self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
         HideTooltip()
         self.targetFrame = nil
+        self.targetTextKey = nil
+        self.contextKind = nil
     end)
 
     FrameContextMenu.menu = menu
     return menu
 end
 
+local function GetActiveMenuItems(menu)
+    if menu and menu.contextKind == "text" then
+        return menu.textItems or {}
+    end
+
+    return menu and menu.frameItems or {}
+end
+
 local function UpdateMenuButtons(menu)
     local normalText = GetSkinButtonColor("normal", "text", { 0.94, 0.96, 0.98, 1 })
     local disabledText = GetSkinButtonColor("disabled", "text", { 0.45, 0.48, 0.54, 1 })
+    local items = GetActiveMenuItems(menu)
 
-    for _, button in ipairs(menu.buttons or {}) do
-        local item = button.item
+    for index, button in ipairs(menu.buttons or {}) do
+        local item = items[index]
+        button.item = item
+        if not item then
+            button._enabled = false
+            button:Hide()
+        else
+            button:Show()
+        end
+
         local enabled = true
         local text = item and item.text or ""
         if type(text) == "function" then
             text = text(menu)
         end
-        if type(item.enabled) == "function" then
+        if item and type(item.enabled) == "function" then
             enabled = item.enabled(menu) and true or false
+        elseif not item then
+            enabled = false
         end
 
         button._enabled = enabled
@@ -598,6 +759,8 @@ local function UpdateMenuButtons(menu)
             button:Disable()
         end
     end
+
+    menu:SetSize(214, 12 + (#items * 23))
 end
 
 function FrameContextMenu.ShowForFrame(frame)
@@ -606,12 +769,40 @@ function FrameContextMenu.ShowForFrame(frame)
     end
 
     local menu = EnsureMenu()
-    if menu:IsShown() and menu.targetFrame == frame then
+    if menu:IsShown() and menu.contextKind == "frame" and menu.targetFrame == frame then
         menu:Hide()
         return
     end
 
+    menu.contextKind = "frame"
     menu.targetFrame = frame
+    menu.targetTextKey = nil
+    UpdateMenuButtons(menu)
+
+    local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    local cursorX, cursorY = GetCursorPosition()
+    cursorX = (cursorX or 0) / scale
+    cursorY = (cursorY or 0) / scale
+
+    menu:ClearAllPoints()
+    menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", cursorX + 8, cursorY - 8)
+    menu:Show()
+end
+
+function FrameContextMenu.ShowForText(frame, textKey)
+    if not IsEditorUnlocked() or not IsTextModeActive() or not frame or not frame.unit or type(textKey) ~= "string" or textKey == "" then
+        return
+    end
+
+    local menu = EnsureMenu()
+    if menu:IsShown() and menu.contextKind == "text" and menu.targetFrame == frame and menu.targetTextKey == textKey then
+        menu:Hide()
+        return
+    end
+
+    menu.contextKind = "text"
+    menu.targetFrame = frame
+    menu.targetTextKey = textKey
     UpdateMenuButtons(menu)
 
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1

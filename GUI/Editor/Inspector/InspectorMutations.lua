@@ -52,6 +52,7 @@ end
 
 local MIN_TEXT_FONT_SIZE = 6
 local MAX_TEXT_FONT_SIZE = 32
+local TEXT_POSITION_KEYS = { "anchorTo", "point", "relativePoint", "offsetX", "offsetY" }
 
 local function NormalizeTextFontSize(value)
     value = tonumber(value) or 12
@@ -78,6 +79,65 @@ local TEXT_ANCHOR_POINTS = {
 
 local function IsValidTextAnchorPoint(point)
     return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
+end
+
+local function CopyValue(value)
+    if type(value) == "table" then
+        return CopyTable and CopyTable(value) or value
+    end
+
+    return value
+end
+
+local function NormalizeUnitKey(unitKey)
+    local utils = FocalPoint.UnitFrameUtils
+    if utils and utils.NormalizeConfigUnitKey then
+        return utils.NormalizeConfigUnitKey(unitKey)
+    end
+    if type(unitKey) ~= "string" or unitKey == "" then
+        return nil
+    end
+    if unitKey:match("^boss%d+$") then
+        return "boss"
+    end
+    return unitKey
+end
+
+local function GetDefaultTextConfig(context, textKey)
+    if type(context) ~= "table" or not IsValidFieldName(textKey) or not FocalPoint.GetDefaultDB then
+        return nil
+    end
+
+    local unitKey = NormalizeUnitKey(context.unitKey or context.unit)
+    if not unitKey then
+        return nil
+    end
+
+    local defaults = FocalPoint:GetDefaultDB()
+    return defaults
+        and defaults.profile
+        and defaults.profile.Units
+        and defaults.profile.Units[unitKey]
+        and defaults.profile.Units[unitKey].Texts
+        and defaults.profile.Units[unitKey].Texts[textKey]
+end
+
+local function GetDefaultTextPosition(context, textKey)
+    local defaultText = GetDefaultTextConfig(context, textKey)
+    if type(defaultText) ~= "table" then
+        return nil
+    end
+
+    local defaults = {}
+    local hasPositionDefault = false
+    for _, fieldName in ipairs(TEXT_POSITION_KEYS) do
+        if defaultText[fieldName] ~= nil then
+            defaults[fieldName] = CopyValue(defaultText[fieldName])
+            hasPositionDefault = true
+        end
+    end
+
+    return hasPositionDefault and defaults or nil
 end
 
 local function GetUnitConfig(context)
@@ -187,6 +247,65 @@ function InspectorMutations.SetTextFontSize(context, textKey, fontSize)
         oldValue = oldSize,
         newValue = nextSize,
     })
+end
+
+function InspectorMutations.GetTextPositionDefault(context, textKey)
+    return GetDefaultTextPosition(context, textKey)
+end
+
+function InspectorMutations.GetTextFontSizeDefault(context, textKey)
+    local defaultText = GetDefaultTextConfig(context, textKey)
+    if type(defaultText) ~= "table" or defaultText.fontSize == nil then
+        return nil
+    end
+
+    return NormalizeTextFontSize(defaultText.fontSize)
+end
+
+function InspectorMutations.ResetTextPosition(context, textKey)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local textConfig = GetTextConfig(context, textKey)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+
+    local defaults = GetDefaultTextPosition(context, textKey)
+    if type(defaults) ~= "table" then
+        return Result(false, { errorCode = "text_position_default_not_found" })
+    end
+
+    local changed = false
+    local oldValue = {}
+    local newValue = {}
+    for _, fieldName in ipairs(TEXT_POSITION_KEYS) do
+        if defaults[fieldName] ~= nil then
+            local nextValue = CopyValue(defaults[fieldName])
+            oldValue[fieldName] = textConfig[fieldName]
+            newValue[fieldName] = nextValue
+            if textConfig[fieldName] ~= nextValue then
+                textConfig[fieldName] = nextValue
+                changed = true
+            end
+        end
+    end
+
+    return Result(true, {
+        changed = changed,
+        oldValue = oldValue,
+        newValue = newValue,
+    })
+end
+
+function InspectorMutations.ResetTextFontSize(context, textKey)
+    local defaultFontSize = InspectorMutations.GetTextFontSizeDefault(context, textKey)
+    if defaultFontSize == nil then
+        return Result(false, { errorCode = "text_font_size_default_not_found" })
+    end
+
+    return InspectorMutations.SetTextFontSize(context, textKey, defaultFontSize)
 end
 
 function InspectorMutations.AdjustTextFontSize(context, textKey, delta)

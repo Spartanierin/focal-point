@@ -9,6 +9,36 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.0.22]
+
+### Added
+
+* Added Visual Text Editing for working directly with text elements on unlocked unit frames.
+* Added Frame Mode and Text Mode, with Shift toggling and a visible toolbar mode switch.
+* Added direct text selection, hover highlighting, selected-text outlines, and direct text dragging.
+* Added a visual 3x3 anchor picker for selected text elements.
+* Added mouse wheel font sizing for the selected text element.
+* Added Text Mode context menu actions for resetting a selected text element's position or font size.
+
+### Improved
+
+* Improved Text Mode presentation so non-text preview elements are reduced while editing text.
+* Improved Inspector synchronization so text edits can update without disruptive full-window jumps.
+* Improved text overlay hit areas so editor overlays follow the visible text bounds more reliably.
+* Improved Cast Bar preview behavior in Text Mode with a stable static preview.
+* Improved text visibility handling for disabled units, disabled components, and inactive or empty text slots.
+* Improved the visual anchor picker so it stays collapsed behind a compact anchor button until needed.
+
+### Fixed
+
+* Fixed inactive or empty text slots appearing as editable text overlays.
+* Fixed Cast Bar text flickering while editing text.
+* Fixed stale text overlay bounds after preview refreshes.
+* Fixed duplicate or fixed-position text hitbox artifacts during visual text editing.
+* Fixed a Lua error from the visual anchor picker tooltip.
+* Fixed Text Mode reset actions not immediately applying updated text positions visually.
+* Fixed anchor picker tooltips flickering during text overlay refreshes.
+
 ## [1.0.21]
 
 ### Added

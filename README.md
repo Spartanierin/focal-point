@@ -8,6 +8,7 @@ It is built for players who want custom unit frames that are easy to understand,
 
 * Custom unit frames for common WoW units
 * Clean in-game editor for frame setup and adjustment
+* Visual Text Editing with direct text selection, dragging, anchor picking, and mouse wheel font sizing
 * Precise layout and styling control
 * Built-in presets for quick setup
 * Dedicated tool pages for configuration workflows
