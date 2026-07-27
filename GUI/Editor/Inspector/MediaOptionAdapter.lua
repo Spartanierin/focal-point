@@ -341,7 +341,9 @@ local function BuildMediaDropdown(mediaType, currentValue, defaultReference)
                     )
                 end
             elseif not seen[currentValue] then
-                RemoveItem(items, values, seen, entry.id)
+                if mediaType ~= FONT then
+                    RemoveItem(items, values, seen, entry.id)
+                end
                 AddItem(
                     items,
                     values,
