@@ -36,8 +36,57 @@ local BuildAuraList = Shared.BuildAuraList
 local GetFirstAuraKey = Shared.GetFirstAuraKey
 local GetFirstTextId = Shared.GetFirstTextId
 local INSPECTOR_SECTION_SPACING = 10
+local activeTextFontSizeControl
+
+local function NormalizeInspectorUnitKey(unitKey)
+    if type(unitKey) ~= "string" or unitKey == "" then
+        return nil
+    end
+    if unitKey:match("^boss%d+$") then
+        return "boss"
+    end
+    return unitKey
+end
+
+local function NormalizeInspectorTextFontSize(value)
+    value = tonumber(value) or 12
+    if value < 6 then
+        value = 6
+    elseif value > 32 then
+        value = 32
+    end
+    return math.floor(value + 0.5)
+end
+
+local function RegisterActiveTextFontSizeControl(unitKey, textKey, widget)
+    activeTextFontSizeControl = {
+        unitKey = NormalizeInspectorUnitKey(unitKey),
+        textKey = textKey,
+        widget = widget,
+        suppress = false,
+    }
+end
+
+function InspectorController.SetActiveTextFontSizeValue(unitKey, textKey, value)
+    local control = activeTextFontSizeControl
+    if type(control) ~= "table"
+        or control.unitKey ~= NormalizeInspectorUnitKey(unitKey)
+        or control.textKey ~= textKey
+        or not (control.widget and control.widget.SetValue)
+    then
+        return false
+    end
+
+    control.suppress = true
+    local ok = pcall(function()
+        control.widget:SetValue(NormalizeInspectorTextFontSize(value))
+    end)
+    control.suppress = false
+    return ok == true
+end
 
 function InspectorController.Build(container, state, options)
+    activeTextFontSizeControl = nil
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -322,6 +371,37 @@ function InspectorController.Build(container, state, options)
             return nil
         end
         return ApplyMutation("text", fieldName, InspectorMutations.SetTextField(inspectorContext, textKey, fieldName, value), section, fallbackNotify)
+    end
+
+    local function RefreshTextFontSizeLocally(textKey, newValue)
+        local overlay = ns.GUI
+            and ns.GUI.Editor
+            and ns.GUI.Editor.TextEditorOverlay
+        local refreshed = overlay
+            and overlay.RefreshTextElementByUnit
+            and overlay.RefreshTextElementByUnit(state and state.selectedUnit, textKey)
+            or false
+
+        InspectorController.SetActiveTextFontSizeValue(state and state.selectedUnit, textKey, newValue)
+        if not refreshed then
+            NotifyConfigChanged()
+        end
+    end
+
+    local function SetTextFontSize(textKey, value)
+        if type(InspectorMutations.SetTextFontSize) ~= "function" then
+            return nil
+        end
+
+        local result = InspectorMutations.SetTextFontSize(inspectorContext, textKey, value)
+        if result and result.ok == false then
+            ReportMutationError(result)
+            return result
+        end
+        if result and result.ok and result.changed then
+            RefreshTextFontSizeLocally(textKey, result.newValue)
+        end
+        return result
     end
 
     local function SetIndicatorField(indicatorKey, fieldName, value, section, fallbackNotify)
@@ -879,9 +959,17 @@ function InspectorController.Build(container, state, options)
             end, nil, "text_enabled")
 
         if isQuick then
-            AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
-                SetTextField(selectedTextId, "fontSize", math.floor((value or 0) + 0.5))
+            local fontSizeSlider
+            fontSizeSlider = AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                if activeTextFontSizeControl
+                    and activeTextFontSizeControl.widget == fontSizeSlider
+                    and activeTextFontSizeControl.suppress == true
+                then
+                    return
+                end
+                SetTextFontSize(selectedTextId, value)
             end, textConfig.enabled == false, "text_font_size")
+            RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
 
             AddColorPicker(textSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
                 SetTextField(selectedTextId, "color", value)
@@ -895,9 +983,17 @@ function InspectorController.Build(container, state, options)
                 SetTextField(selectedTextId, "fontStyle", value)
             end, textConfig.enabled == false, "text_font_style")
 
-            AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
-                SetTextField(selectedTextId, "fontSize", math.floor((value or 0) + 0.5))
+            local fontSizeSlider
+            fontSizeSlider = AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                if activeTextFontSizeControl
+                    and activeTextFontSizeControl.widget == fontSizeSlider
+                    and activeTextFontSizeControl.suppress == true
+                then
+                    return
+                end
+                SetTextFontSize(selectedTextId, value)
             end, textConfig.enabled == false, "text_font_size")
+            RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
 
             AddDropdown(textSection, L["OPTION_JUSTIFY_H"] or "Justify", justifyList, textConfig.justifyH or "CENTER", function(value)
                 SetTextField(selectedTextId, "justifyH", value)

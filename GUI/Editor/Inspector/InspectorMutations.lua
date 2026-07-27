@@ -50,6 +50,20 @@ local function NormalizeOffset(value)
     return math.floor(value + 0.5)
 end
 
+local MIN_TEXT_FONT_SIZE = 6
+local MAX_TEXT_FONT_SIZE = 32
+
+local function NormalizeTextFontSize(value)
+    value = tonumber(value) or 12
+    if value < MIN_TEXT_FONT_SIZE then
+        value = MIN_TEXT_FONT_SIZE
+    elseif value > MAX_TEXT_FONT_SIZE then
+        value = MAX_TEXT_FONT_SIZE
+    end
+
+    return math.floor(value + 0.5)
+end
+
 local TEXT_ANCHOR_POINTS = {
     TOPLEFT = true,
     TOP = true,
@@ -149,6 +163,52 @@ function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, of
             offsetY = nextY,
         },
     })
+end
+
+function InspectorMutations.SetTextFontSize(context, textKey, fontSize)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local textConfig = GetTextConfig(context, textKey)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+
+    local nextSize = NormalizeTextFontSize(fontSize)
+    local oldSize = NormalizeTextFontSize(textConfig.fontSize)
+    local changed = oldSize ~= nextSize
+    if changed then
+        textConfig.fontSize = nextSize
+    end
+
+    return Result(true, {
+        changed = changed,
+        oldValue = oldSize,
+        newValue = nextSize,
+    })
+end
+
+function InspectorMutations.AdjustTextFontSize(context, textKey, delta)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local textConfig = GetTextConfig(context, textKey)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+
+    delta = tonumber(delta) or 0
+    if delta > 0 then
+        delta = 1
+    elseif delta < 0 then
+        delta = -1
+    else
+        delta = 0
+    end
+
+    return InspectorMutations.SetTextFontSize(context, textKey, NormalizeTextFontSize(textConfig.fontSize) + delta)
 end
 
 function InspectorMutations.SetTextAnchor(context, textKey, point, relativePoint)

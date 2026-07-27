@@ -300,6 +300,9 @@ local function EnsureAnchorPicker(overlay)
     picker:SetFrameLevel(PICKER_FRAME_LEVEL)
     picker:SetSize(PICKER_SIZE, PICKER_SIZE)
     picker:EnableMouse(true)
+    picker:EnableMouseWheel(true)
+    picker:SetScript("OnMouseWheel", function()
+    end)
     picker:Hide()
 
     local background = picker:CreateTexture(nil, "BACKGROUND")
@@ -324,6 +327,7 @@ local function EnsureAnchorPicker(overlay)
             -(PICKER_PADDING + anchorMeta.row * (PICKER_BUTTON_SIZE + PICKER_GAP))
         )
         button:RegisterForClicks("LeftButtonUp")
+        button:EnableMouseWheel(true)
         button._focalPointAnchorPoint = anchorMeta.key
 
         local buttonBackground = button:CreateTexture(nil, "BACKGROUND")
@@ -365,6 +369,8 @@ local function EnsureAnchorPicker(overlay)
             end
             local owner = picker._focalPointOwnerOverlay
             TextEditorOverlay.SetAnchor(owner and owner._focalPointOwnerFrame, owner and owner._focalPointTextKey, self._focalPointAnchorPoint)
+        end)
+        button:SetScript("OnMouseWheel", function()
         end)
 
         picker.Buttons[#picker.Buttons + 1] = button
@@ -438,6 +444,7 @@ local function EnsureOverlay(frame, textKey)
     overlay.VisualBounds = visualBounds
 
     overlay:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    overlay:EnableMouseWheel(false)
     overlay:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" then
             TextEditorOverlay.BeginDrag(self)
@@ -473,6 +480,9 @@ local function EnsureOverlay(frame, textKey)
         elseif button == "LeftButton" then
             TextEditorOverlay.Select(self._focalPointOwnerFrame, self._focalPointTextKey)
         end
+    end)
+    overlay:SetScript("OnMouseWheel", function(self, delta)
+        TextEditorOverlay.AdjustFontSize(self._focalPointOwnerFrame, self._focalPointTextKey, delta)
     end)
     overlay:SetScript("OnHide", function(self)
         EndTextDrag(self, false)
@@ -591,6 +601,30 @@ local function RefreshAfterTextPositionCommit(frame)
     end
 end
 
+local function RefreshSingleTextElement(frame, textKey)
+    local unitFrame = FocalPoint.UnitFrame
+    local textConfig = GetTextConfig(frame, textKey)
+    local textObject = frame and frame.Texts and frame.Texts[textKey]
+    if unitFrame and unitFrame.ApplyTextElementConfig and textConfig and textObject then
+        unitFrame:ApplyTextElementConfig(frame, textKey, textObject, textConfig)
+    end
+    if unitFrame and unitFrame.UpdateTextElement then
+        unitFrame:UpdateTextElement(frame, textKey)
+    end
+
+    TextEditorOverlay.UpdateFrame(frame)
+end
+
+local function SyncInspectorTextFontSize(unitKey, textKey, fontSize)
+    local inspector = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.Inspector
+    if inspector and inspector.SetActiveTextFontSizeValue then
+        inspector.SetActiveTextFontSizeValue(unitKey, textKey, fontSize)
+    end
+end
+
 local function CommitTextPosition(frame, textKey, offsetX, offsetY)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
     if type(unitConfig) ~= "table" or not normalizedUnit then
@@ -641,6 +675,36 @@ local function CommitTextAnchor(frame, textKey, point, relativePoint)
     ClearPreviewOffset(frame, textKey)
     if result and result.changed then
         RefreshAfterTextPositionCommit(frame)
+    else
+        TextEditorOverlay.UpdateFrame(frame)
+    end
+
+    return true
+end
+
+local function CommitTextFontSizeAdjustment(frame, textKey, delta)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
+    if type(unitConfig) ~= "table" or not normalizedUnit then
+        return false
+    end
+
+    local mutations = FocalPoint.InspectorMutations
+        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
+    if not (mutations and mutations.AdjustTextFontSize) then
+        return false
+    end
+
+    local result = mutations.AdjustTextFontSize({
+        unitConfig = unitConfig,
+    }, textKey, delta)
+    if result and result.ok == false then
+        return false
+    end
+
+    if result and result.changed then
+        ClearPreviewOffset(frame, textKey)
+        RefreshSingleTextElement(frame, textKey)
+        SyncInspectorTextFontSize(normalizedUnit, textKey, result.newValue)
     else
         TextEditorOverlay.UpdateFrame(frame)
     end
@@ -700,6 +764,7 @@ function TextEditorOverlay.HideFrame(frame)
             overlay._focalPointSelected = false
             overlay:Hide()
             overlay:EnableMouse(false)
+            overlay:EnableMouseWheel(false)
             HideAnchorPicker(overlay)
             if overlay.VisualBounds and overlay.VisualBounds.Hide then
                 overlay.VisualBounds:Hide()
@@ -771,6 +836,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                 StyleOverlay(overlay, overlay._focalPointSelected, overlay._focalPointHovered == true)
                 UpdateAnchorPicker(overlay, overlay._focalPointSelected, textConfig)
                 overlay:EnableMouse(true)
+                overlay:EnableMouseWheel(overlay._focalPointSelected == true)
                 overlay:Show()
             end
         end
@@ -785,6 +851,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                 overlay._focalPointSelected = false
                 overlay:Hide()
                 overlay:EnableMouse(false)
+                overlay:EnableMouseWheel(false)
                 HideAnchorPicker(overlay)
                 if overlay.VisualBounds and overlay.VisualBounds.Hide then
                     overlay.VisualBounds:Hide()
@@ -906,6 +973,55 @@ function TextEditorOverlay.SetAnchor(frame, textKey, anchorPoint)
 
     TextEditorOverlay.Select(frame, textKey)
     return CommitTextAnchor(frame, textKey, anchorPoint, anchorPoint)
+end
+
+function TextEditorOverlay.RefreshTextElementByUnit(unitKey, textKey)
+    local frames = FocalPoint and FocalPoint.frames
+    if type(frames) ~= "table" or type(textKey) ~= "string" or textKey == "" then
+        return false
+    end
+
+    local frame = frames[unitKey]
+    if not frame and NormalizeUnitKey(unitKey) == "boss" then
+        for index = 1, 5 do
+            frame = frames["boss" .. index]
+            if frame then
+                break
+            end
+        end
+    end
+    if not frame then
+        return false
+    end
+
+    RefreshSingleTextElement(frame, textKey)
+    return true
+end
+
+function TextEditorOverlay.AdjustFontSize(frame, textKey, delta)
+    if IsCombatLocked() or not IsTextModeActive() or activeDragOverlay then
+        return false
+    end
+    if not frame or type(textKey) ~= "string" or textKey == "" then
+        return false
+    end
+
+    local textConfig = GetTextConfig(frame, textKey)
+    if type(textConfig) ~= "table" or not IsEditorRenderableText(frame, textKey, textConfig) then
+        return false
+    end
+
+    local stateApi = GetEditorStateApi()
+    local normalizedUnit = NormalizeUnitKey(frame.unit)
+    local selected = stateApi
+        and stateApi.IsTextElementSelected
+        and stateApi.IsTextElementSelected(normalizedUnit, textKey)
+        or false
+    if selected ~= true then
+        return false
+    end
+
+    return CommitTextFontSizeAdjustment(frame, textKey, delta)
 end
 
 function TextEditorOverlay.RefreshAll()
