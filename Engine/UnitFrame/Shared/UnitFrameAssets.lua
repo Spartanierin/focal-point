@@ -5,17 +5,27 @@ local Assets = FocalPoint.UnitFrameAssets
 
 -- Asset helpers resolve texture and font inputs into safe defaults.
 
+local DEFAULT_STATUSBAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
+
 function Assets.GetStatusBarTexture(path, context)
-    local resolvedPath
-    if type(path) == "string" and path ~= "" then
-        resolvedPath = path
-    else
-        resolvedPath = "Interface\\TargetingFrame\\UI-StatusBar"
+    local MediaRegistry = FocalPoint.MediaRegistry
+    if not (MediaRegistry and MediaRegistry.ResolveReference) then
+        return DEFAULT_STATUSBAR_TEXTURE
     end
 
-    local MediaRegistry = FocalPoint.MediaRegistry
-    if MediaRegistry and MediaRegistry.RecordStatusBarShadow then
-        MediaRegistry.RecordStatusBarShadow(path, resolvedPath, context)
+    local result = MediaRegistry.ResolveReference(path, "statusbar", DEFAULT_STATUSBAR_REFERENCE)
+    local resolvedPath = result and result.resolvedAsset or DEFAULT_STATUSBAR_TEXTURE
+    if type(resolvedPath) ~= "string" or resolvedPath == "" then
+        resolvedPath = DEFAULT_STATUSBAR_TEXTURE
+    end
+
+    if MediaRegistry.RecordStatusBarShadow
+        and MediaRegistry.IsDebugEnabled
+        and MediaRegistry.IsDebugEnabled()
+    then
+        local legacyPath = type(path) == "string" and path ~= "" and path or DEFAULT_STATUSBAR_TEXTURE
+        MediaRegistry.RecordStatusBarShadow(path, legacyPath, context, result)
     end
 
     return resolvedPath

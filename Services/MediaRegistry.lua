@@ -638,7 +638,7 @@ function MediaRegistry.ResetDebug()
     ResetDebugState()
 end
 
-function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context)
+function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context, resolvedResult)
     if debugState.enabled ~= true then
         return
     end
@@ -647,7 +647,9 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context)
     local referenceKind, parsedReference, parseReason = ClassifyReference(reference, mediaType)
     local legacyEffectivePath = GetSafePath(legacyPath)
     local originalEntry = MediaRegistry.GetEntry(reference, mediaType)
-    local registryPath, registryEntry = MediaRegistry.Resolve(reference, mediaType, DEFAULT_STATUSBAR_REFERENCE)
+    resolvedResult = type(resolvedResult) == "table" and resolvedResult or MediaRegistry.ResolveReference(reference, mediaType, DEFAULT_STATUSBAR_REFERENCE)
+    local registryPath = resolvedResult and resolvedResult.resolvedAsset or nil
+    local registryEntry = resolvedResult and (resolvedResult.entry or resolvedResult.fallbackEntry) or nil
     local registryEffectivePath = registryPath or DEFAULT_STATUSBAR_PATH
     local registryAvailable = originalEntry and originalEntry.available == true or false
     local source = originalEntry and originalEntry.source or "Fallback"
