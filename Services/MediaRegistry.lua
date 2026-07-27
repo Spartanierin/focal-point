@@ -36,6 +36,8 @@ local debugState = {
     fallbackUses = 0,
     byReferenceKind = {},
     byMediaField = {},
+    byUnit = {},
+    byUnitAndField = {},
     bySource = {},
     details = {},
     lastMismatch = nil,
@@ -240,6 +242,14 @@ local function IncrementCounter(bucket, key)
     bucket[key] = (bucket[key] or 0) + 1
 end
 
+local function NormalizeContextValue(value)
+    if type(value) ~= "string" or Trim(value) == "" then
+        return "unknown"
+    end
+
+    return value
+end
+
 local function ResetDebugState()
     debugState.totalComparisons = 0
     debugState.legacyCompatibleComparisons = 0
@@ -249,6 +259,8 @@ local function ResetDebugState()
     debugState.fallbackUses = 0
     debugState.byReferenceKind = {}
     debugState.byMediaField = {}
+    debugState.byUnit = {}
+    debugState.byUnitAndField = {}
     debugState.bySource = {}
     debugState.details = {}
     debugState.lastMismatch = nil
@@ -639,7 +651,12 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context)
     local registryEffectivePath = registryPath or DEFAULT_STATUSBAR_PATH
     local registryAvailable = originalEntry and originalEntry.available == true or false
     local source = originalEntry and originalEntry.source or "Fallback"
-    local field = type(context) == "table" and context.field or "unknown"
+    local unitKey = NormalizeContextValue(type(context) == "table" and context.unitKey or nil)
+    local field = NormalizeContextValue(type(context) == "table" and context.field or nil)
+    local referenceSourceField = NormalizeContextValue(type(context) == "table" and context.referenceSourceField or nil)
+    if referenceSourceField == "unknown" then
+        referenceSourceField = field
+    end
     local usedFallback = not (originalEntry
         and originalEntry.available == true
         and type(originalEntry.path) == "string"
@@ -652,6 +669,8 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context)
     debugState.totalComparisons = debugState.totalComparisons + 1
     IncrementCounter(debugState.byReferenceKind, referenceKind)
     IncrementCounter(debugState.byMediaField, field)
+    IncrementCounter(debugState.byUnit, unitKey)
+    IncrementCounter(debugState.byUnitAndField, unitKey .. "." .. field)
     IncrementCounter(debugState.bySource, source)
 
     if isLegacyCompatible then
@@ -672,7 +691,9 @@ function MediaRegistry.RecordStatusBarShadow(reference, legacyPath, context)
     local detail = {
         reference = tostring(reference),
         kind = referenceKind,
+        unitKey = unitKey,
         field = field,
+        referenceSourceField = referenceSourceField,
         legacyPath = legacyEffectivePath,
         registryPath = registryEffectivePath,
         legacyFallback = legacyUsedFallback,
@@ -704,13 +725,16 @@ function MediaRegistry.BuildDebugReport()
 
     AppendSortedCounters(lines, "By reference kind", debugState.byReferenceKind)
     AppendSortedCounters(lines, "By media field", debugState.byMediaField)
+    AppendSortedCounters(lines, "By unit", debugState.byUnit)
+    AppendSortedCounters(lines, "By unit and field", debugState.byUnitAndField)
     AppendSortedCounters(lines, "By source", debugState.bySource)
 
     if debugState.lastMismatch then
         local detail = debugState.lastMismatch
         lines[#lines + 1] = string.format(
-            "Last mismatch kind=%s field=%s reference=%s legacy=%s registry=%s",
+            "Last mismatch kind=%s unit=%s field=%s reference=%s legacy=%s registry=%s",
             tostring(detail.kind),
+            tostring(detail.unitKey),
             tostring(detail.field),
             tostring(detail.reference),
             tostring(detail.legacyPath),
@@ -723,10 +747,12 @@ function MediaRegistry.BuildDebugReport()
     lines[#lines + 1] = string.format("Details=%d/%d", #debugState.details, MAX_DEBUG_DETAILS)
     for index, detail in ipairs(debugState.details) do
         lines[#lines + 1] = string.format(
-            "%02d kind=%s field=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s reference=%s legacy=%s registry=%s",
+            "%02d kind=%s unit=%s field=%s sourceField=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s reference=%s legacy=%s registry=%s",
             index,
             tostring(detail.kind),
+            tostring(detail.unitKey),
             tostring(detail.field),
+            tostring(detail.referenceSourceField),
             tostring(detail.source),
             FormatBool(detail.registryAvailable),
             FormatBool(detail.legacyFallback),

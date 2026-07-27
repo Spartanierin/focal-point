@@ -116,6 +116,31 @@ local ApplyReserveToArea = InsideLayout.ApplyReserveToArea
 local ApplyVisibleReserve = InsideLayout.ApplyVisibleReserve
 local ApplyVisibleEntryReserves = InsideLayout.ApplyVisibleEntryReserves
 
+local function BuildStatusBarMediaContext(frame, field, referenceSourceField)
+    local MediaRegistry = FocalPoint.MediaRegistry
+    if not (MediaRegistry and MediaRegistry.IsDebugEnabled and MediaRegistry.IsDebugEnabled()) then
+        return nil
+    end
+
+    return {
+        unitKey = type(frame) == "table" and type(frame.unit) == "string" and frame.unit or "unknown",
+        field = field,
+        referenceSourceField = referenceSourceField,
+    }
+end
+
+local function ResolveStatusBarTextureForField(frame, config, field, fallbackField)
+    local reference = config and config[field]
+    local sourceField = field
+
+    if reference == nil and fallbackField then
+        reference = config and config[fallbackField]
+        sourceField = fallbackField
+    end
+
+    return GetStatusBarTexture(reference, BuildStatusBarMediaContext(frame, field, sourceField))
+end
+
 local function IsProtectedFrameInCombat(frame)
     return frame
         and frame.IsProtected
@@ -1067,11 +1092,11 @@ function UF:ApplyConfig(frame)
         end
     end
 
-    local healthTexture = GetStatusBarTexture(config.healthBarTexture)
-    local powerTexture = GetStatusBarTexture(config.powerBarTexture)
-    local castTexture = GetStatusBarTexture(config.castBarTexture)
-    local classPowerTexture = GetStatusBarTexture(config.classPowerBarTexture or config.powerBarTexture)
-    local altPowerTexture = GetStatusBarTexture(config.alternativePowerBarTexture or config.powerBarTexture)
+    local healthTexture = ResolveStatusBarTextureForField(frame, config, "healthBarTexture")
+    local powerTexture = ResolveStatusBarTextureForField(frame, config, "powerBarTexture")
+    local castTexture = ResolveStatusBarTextureForField(frame, config, "castBarTexture")
+    local classPowerTexture = ResolveStatusBarTextureForField(frame, config, "classPowerBarTexture", "powerBarTexture")
+    local altPowerTexture = ResolveStatusBarTextureForField(frame, config, "alternativePowerBarTexture", "powerBarTexture")
     local bottomExtensionHeight = alternativePowerBarVisible and alternativePowerBarHeight or 0
 
     if healthBarReverseFill == nil then
