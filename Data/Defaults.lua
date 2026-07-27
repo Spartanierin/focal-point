@@ -334,7 +334,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPRIGHT",
                             offsetX = 0,
                             offsetY = 18,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 17,
                             justifyH = "CENTER",
                             color = {
@@ -369,7 +369,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 15,
                             justifyH = "LEFT",
                             color = {
@@ -400,7 +400,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -431,7 +431,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -462,7 +462,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -5,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "RIGHT",
                             color = {
@@ -493,7 +493,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "CENTER",
                             offsetX = -5,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "CENTER",
                             color = {
@@ -524,7 +524,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "CENTER",
                             color = {
@@ -555,7 +555,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -7,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "CENTER",
                             color = {
@@ -585,7 +585,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -41,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 15,
                             justifyH = "RIGHT",
                             color = {
@@ -615,7 +615,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -646,7 +646,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "RIGHT",
                             color = {
@@ -677,7 +677,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 12,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 15,
                             justifyH = "LEFT",
                             color = {
@@ -708,7 +708,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -738,7 +738,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -1034,7 +1034,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 18,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 17,
                             justifyH = "CENTER",
                             color = {
@@ -1068,7 +1068,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 15,
                             justifyH = "RIGHT",
                             color = {
@@ -1099,7 +1099,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "RIGHT",
                             color = {
@@ -1130,7 +1130,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -1161,7 +1161,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -1191,7 +1191,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "CENTER",
                             color = {
@@ -1222,7 +1222,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -1253,7 +1253,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 22,
                             justifyH = "LEFT",
                             color = {
@@ -1283,7 +1283,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "LEFT",
                             color = {
@@ -1314,7 +1314,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "RIGHT",
                             color = {
@@ -1345,7 +1345,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -1375,7 +1375,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -1405,7 +1405,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -1701,7 +1701,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 20,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 16,
                             justifyH = "CENTER",
                             color = {
@@ -1735,7 +1735,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -1766,7 +1766,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "RIGHT",
                             color = {
@@ -1797,7 +1797,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -1828,7 +1828,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -1858,7 +1858,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "CENTER",
                             color = {
@@ -1889,7 +1889,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -1920,7 +1920,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 22,
                             justifyH = "LEFT",
                             color = {
@@ -1950,7 +1950,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "LEFT",
                             color = {
@@ -1981,7 +1981,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "RIGHT",
                             color = {
@@ -2012,7 +2012,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -2042,7 +2042,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -2072,7 +2072,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -2368,7 +2368,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 20,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 16,
                             justifyH = "CENTER",
                             color = {
@@ -2402,7 +2402,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 15,
                             justifyH = "RIGHT",
                             color = {
@@ -2433,7 +2433,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "RIGHT",
                             color = {
@@ -2464,7 +2464,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -2495,7 +2495,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -2525,7 +2525,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "CENTER",
                             color = {
@@ -2556,7 +2556,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -2587,7 +2587,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 22,
                             justifyH = "LEFT",
                             color = {
@@ -2617,7 +2617,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "LEFT",
                             color = {
@@ -2648,7 +2648,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "RIGHT",
                             color = {
@@ -2679,7 +2679,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -2709,7 +2709,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -2739,7 +2739,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3031,7 +3031,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPLEFT",
                             offsetX = 0,
                             offsetY = 20,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 16,
                             justifyH = "CENTER",
                             color = {
@@ -3065,7 +3065,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -3096,7 +3096,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -6,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "RIGHT",
                             color = {
@@ -3127,7 +3127,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -3158,7 +3158,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "RIGHT",
                             color = {
@@ -3188,7 +3188,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 25,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 13,
                             justifyH = "CENTER",
                             color = {
@@ -3219,7 +3219,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 2,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -3250,7 +3250,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 10,
                             offsetY = 2,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 22,
                             justifyH = "LEFT",
                             color = {
@@ -3280,7 +3280,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "LEFT",
                             color = {
@@ -3311,7 +3311,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "RIGHT",
                             color = {
@@ -3342,7 +3342,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3372,7 +3372,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3402,7 +3402,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3632,7 +3632,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPRIGHT",
                             offsetX = 0,
                             offsetY = 15,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 14,
                             justifyH = "LEFT",
                             color = {
@@ -3663,7 +3663,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "LEFT",
                             color = {
@@ -3694,7 +3694,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 0,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "LEFT",
                             color = {
@@ -3725,7 +3725,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "CENTER",
                             offsetX = -5,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "CENTER",
                             color = {
@@ -3755,7 +3755,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -5,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "CENTER",
                             color = {
@@ -3786,7 +3786,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "CENTER",
                             offsetX = 75,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3817,7 +3817,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "LEFT",
                             color = {
@@ -3848,7 +3848,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 9,
                             justifyH = "RIGHT",
                             color = {
@@ -3879,7 +3879,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -8,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3909,7 +3909,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -22,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3939,7 +3939,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "BOTTOM",
                             offsetX = 0,
                             offsetY = -36,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "CENTER",
                             color = {
@@ -3977,7 +3977,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "TOPLEFT",
                             offsetX = 4,
                             offsetY = 16,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 14,
                             justifyH = "LEFT",
                             color = {
@@ -4007,7 +4007,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 12,
                             justifyH = "LEFT",
                             color = {
@@ -4038,7 +4038,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "LEFT",
                             offsetX = 4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 11,
                             justifyH = "LEFT",
                             color = {
@@ -4069,7 +4069,7 @@ function FocalPoint:GetDefaultDB()
                             relativePoint = "RIGHT",
                             offsetX = -4,
                             offsetY = 0,
-                            font = STANDARD_TEXT_FONT,
+                            font = "fp:font:standard",
                             fontSize = 10,
                             justifyH = "RIGHT",
                             color = {

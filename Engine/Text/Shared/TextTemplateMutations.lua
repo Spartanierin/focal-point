@@ -260,7 +260,7 @@ function Mutations.BuildTextElementConfig(template, linkedTemplateName)
         enabled = true,
         tag = template or "",
         templateName = linkedTemplateName or "",
-        font = STANDARD_TEXT_FONT,
+        font = "fp:font:standard",
         fontStyle = "NONE",
         fontSize = 12,
         justifyH = "CENTER",
