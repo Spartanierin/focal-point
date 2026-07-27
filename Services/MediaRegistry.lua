@@ -128,6 +128,10 @@ local function GetLibSharedMedia()
     return LibStub("LibSharedMedia-3.0", true)
 end
 
+local function IsLibSharedMediaTypeSupported(mediaType)
+    return NormalizeMediaType(mediaType) == MEDIA_TYPE_STATUSBAR
+end
+
 local function IsLegacyPath(value)
     if type(value) ~= "string" then
         return false
@@ -207,8 +211,8 @@ local function BuildUnavailableEntry(parsedReference)
         return nil
     end
 
-    local source = parsedReference.provider == PROVIDER_LIB_SHARED_MEDIA and "External" or "Unavailable"
-    local category = parsedReference.provider == PROVIDER_LIB_SHARED_MEDIA and "External" or "Unavailable"
+    local source = parsedReference.provider == PROVIDER_LIB_SHARED_MEDIA and "Shared" or "Unavailable"
+    local category = "Unavailable"
 
     return {
         id = parsedReference.id,
@@ -244,6 +248,186 @@ local function BuildLegacyEntry(parsedReference)
         sortName = parsedReference.path:lower(),
         verified = false,
     }
+end
+
+local function BuildSharedMediaEntry(mediaType, key, path)
+    mediaType = NormalizeMediaType(mediaType)
+    key = Trim(key)
+    path = Trim(path)
+    if not mediaType or key == "" or path == "" then
+        return nil
+    end
+
+    return {
+        id = "lsm:" .. mediaType .. ":" .. key,
+        name = key,
+        mediaType = mediaType,
+        source = "Shared",
+        provider = PROVIDER_LIB_SHARED_MEDIA,
+        providerKey = key,
+        path = path,
+        available = true,
+        builtin = false,
+        category = "Shared",
+        sortName = key:lower(),
+        verified = false,
+    }
+end
+
+local function StoreEntry(entry, options)
+    if type(entry) ~= "table" then
+        return nil, "invalid_entry"
+    end
+
+    local mediaType = EnsureType(entry.mediaType)
+    local id = Trim(entry.id)
+    if not mediaType or id == "" then
+        return nil, "invalid_entry"
+    end
+
+    options = type(options) == "table" and options or {}
+    entriesByReference[mediaType][id] = entry
+    entriesByType[mediaType][id] = entry
+
+    local pathKey = NormalizePathKey(entry.path)
+    if pathKey and (options.updatePathMapping == true) then
+        local existingReference = pathReferencesByType[mediaType][pathKey]
+        if not existingReference or options.overwritePathMapping == true then
+            pathReferencesByType[mediaType][pathKey] = id
+        end
+    end
+
+    return CopyEntry(entry)
+end
+
+local function RemoveProviderEntries(providerName, mediaType)
+    mediaType = EnsureType(mediaType)
+    if not mediaType then
+        return 0
+    end
+
+    local removed = 0
+    local removedIds = {}
+    for id, entry in pairs(entriesByReference[mediaType]) do
+        if entry and entry.provider == providerName then
+            entriesByReference[mediaType][id] = nil
+            entriesByType[mediaType][id] = nil
+            removedIds[id] = true
+            removed = removed + 1
+        end
+    end
+
+    for pathKey, referenceId in pairs(pathReferencesByType[mediaType]) do
+        if removedIds[referenceId] then
+            pathReferencesByType[mediaType][pathKey] = nil
+        end
+    end
+
+    return removed
+end
+
+local function SafeLibSharedMediaCall(methodName, ...)
+    local LSM = GetLibSharedMedia()
+    if not LSM or type(LSM[methodName]) ~= "function" then
+        return nil, "provider_unavailable"
+    end
+
+    local ok, result = pcall(LSM[methodName], LSM, ...)
+    if not ok then
+        return nil, "provider_error"
+    end
+
+    return result
+end
+
+local function FetchLibSharedMediaPath(mediaType, key)
+    mediaType = NormalizeMediaType(mediaType)
+    key = Trim(key)
+    if not IsLibSharedMediaTypeSupported(mediaType) or key == "" then
+        return nil, "unavailable"
+    end
+
+    local LSM = GetLibSharedMedia()
+    if not LSM then
+        return nil, "provider_unavailable"
+    end
+
+    if type(LSM.IsValid) == "function" then
+        local ok, valid = pcall(LSM.IsValid, LSM, mediaType, key)
+        if not ok then
+            return nil, "provider_error"
+        end
+        if valid ~= true then
+            return nil, "unavailable"
+        end
+    end
+
+    local ok, path
+    if type(LSM.Fetch) == "function" then
+        ok, path = pcall(LSM.Fetch, LSM, mediaType, key, true)
+    else
+        return nil, "provider_unavailable"
+    end
+
+    if not ok then
+        return nil, "provider_error"
+    end
+
+    path = Trim(path)
+    if path == "" then
+        return nil, "unavailable"
+    end
+
+    return path
+end
+
+local function ListLibSharedMediaKeys(mediaType)
+    mediaType = NormalizeMediaType(mediaType)
+    if not IsLibSharedMediaTypeSupported(mediaType) then
+        return {}
+    end
+
+    local list, reason = SafeLibSharedMediaCall("List", mediaType)
+    if type(list) ~= "table" then
+        return {}, reason
+    end
+
+    local keys = {}
+    for _, key in ipairs(list) do
+        key = Trim(key)
+        if key ~= "" then
+            keys[#keys + 1] = key
+        end
+    end
+
+    table.sort(keys)
+    return keys
+end
+
+local function RefreshLibSharedMediaStatusBars()
+    local mediaType = EnsureType(MEDIA_TYPE_STATUSBAR)
+    if not mediaType then
+        return 0, "invalid_media_type"
+    end
+
+    RemoveProviderEntries(PROVIDER_LIB_SHARED_MEDIA, mediaType)
+
+    local keys, reason = ListLibSharedMediaKeys(mediaType)
+    if #keys == 0 then
+        return 0, reason
+    end
+
+    local added = 0
+    for _, key in ipairs(keys) do
+        local path = FetchLibSharedMediaPath(mediaType, key)
+        local entry = BuildSharedMediaEntry(mediaType, key, path)
+        if entry then
+            StoreEntry(entry, { updatePathMapping = true, overwritePathMapping = false })
+            added = added + 1
+        end
+    end
+
+    return added
 end
 
 local function IncrementCounter(bucket, key)
@@ -411,6 +595,20 @@ function MediaRegistry.GetProvider(providerId)
     return CopyEntry(providers[providerId])
 end
 
+function MediaRegistry.RefreshProvider(providerId, mediaType)
+    providerId = Trim(providerId):lower()
+    if providerId == "" then
+        return nil, "invalid_provider"
+    end
+
+    local provider = providers[providerId]
+    if type(provider) ~= "table" or type(provider.Refresh) ~= "function" then
+        return nil, "provider_unavailable"
+    end
+
+    return provider:Refresh(mediaType)
+end
+
 function MediaRegistry.NormalizeReference(value, mediaType)
     local parsed, reason = ParseReference(value, mediaType)
     if not parsed then
@@ -563,7 +761,9 @@ function MediaRegistry.ResolveReference(reference, mediaType, fallbackReference)
         end
 
         if parsed.kind == "external" then
-            parseReason = "unavailable"
+            local provider = providers.lsm
+            local isProviderAvailable = provider and type(provider.IsAvailable) == "function" and provider:IsAvailable()
+            parseReason = isProviderAvailable and "unavailable" or "provider_unavailable"
         elseif parsed.kind == "builtin" then
             parseReason = "invalid_reference"
         else
@@ -651,7 +851,7 @@ function MediaRegistry.GetSources(mediaType)
 end
 
 function MediaRegistry.Refresh()
-    -- Passive placeholder for future providers such as LibSharedMedia.
+    MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
     return true
 end
 
@@ -863,15 +1063,22 @@ MediaRegistry.RegisterProvider("lsm", {
     IsAvailable = function()
         return GetLibSharedMedia() ~= nil
     end,
-    Refresh = function()
-        return GetLibSharedMedia() ~= nil
+    Refresh = function(_, mediaType)
+        mediaType = NormalizeMediaType(mediaType) or MEDIA_TYPE_STATUSBAR
+        if mediaType ~= MEDIA_TYPE_STATUSBAR then
+            return 0, "unsupported_media_type"
+        end
+
+        return RefreshLibSharedMediaStatusBars()
     end,
-    List = function()
-        return {}
+    List = function(_, mediaType)
+        return ListLibSharedMediaKeys(mediaType)
     end,
-    Resolve = function()
-        return nil
+    Resolve = function(_, mediaType, key)
+        return FetchLibSharedMediaPath(mediaType, key)
     end,
 })
+
+MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
 
 return MediaRegistry
