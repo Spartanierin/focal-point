@@ -489,6 +489,7 @@ L["OPTION_BAR_TEXTURE_DESC"] = "Sets the status bar texture used for the selecte
 L["MEDIA_MISSING_TEXTURE"] = "Missing Texture"
 L["MEDIA_MISSING_TEXTURE_FORMAT"] = "Missing: %s"
 L["MEDIA_CUSTOM_TEXTURE"] = "Custom Texture"
+L["MEDIA_CURRENT_TEXTURE_FORMAT"] = "%s (Current)"
 L["VALUE_OVERFLOW_NONE"] = "None"
 L["VALUE_OVERFLOW_CLIP"] = "Clip"
 L["VALUE_OVERFLOW_ELLIPSIS"] = "Ellipsis"

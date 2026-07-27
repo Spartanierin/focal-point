@@ -762,6 +762,7 @@ L["OPTION_BAR_TEXTURE_DESC"] = "Legt die Statusbar-Textur für den ausgewählten
 L["MEDIA_MISSING_TEXTURE"] = "Fehlende Textur"
 L["MEDIA_MISSING_TEXTURE_FORMAT"] = "Fehlt: %s"
 L["MEDIA_CUSTOM_TEXTURE"] = "Eigene Textur"
+L["MEDIA_CURRENT_TEXTURE_FORMAT"] = "%s (Aktuell)"
 L["VALUE_TEXTURE_BLIZZARD"] = "Blizzard"
 L["VALUE_TEXTURE_RAID_HP_FILL"] = "Blizzard-Raidleiste"
 L["VALUE_TEXTURE_FLAT"] = "Solid"

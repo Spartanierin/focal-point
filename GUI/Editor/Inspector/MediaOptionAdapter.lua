@@ -78,12 +78,27 @@ local function GetMissingLabel(reference)
     return string.format(format, key)
 end
 
+local function GetCurrentLabel(label)
+    label = IsNonEmptyString(label) and label or (L["MEDIA_CUSTOM_TEXTURE"] or "Custom Texture")
+    local format = L["MEDIA_CURRENT_TEXTURE_FORMAT"] or "%s (Current)"
+    return string.format(format, label)
+end
+
 local function GetEntryOrder(entry)
     return SOURCE_ORDER[entry and entry.source] or SOURCE_ORDER[entry and entry.category] or 50
 end
 
 local function GetSortLabel(label)
     return Trim(label):lower()
+end
+
+local function NormalizeAssetPath(path)
+    path = Trim(path)
+    if path == "" then
+        return nil
+    end
+
+    return path:gsub("/", "\\"):lower()
 end
 
 local function SortItems(left, right)
@@ -104,6 +119,26 @@ local function SortItems(left, right)
     return left.value < right.value
 end
 
+local function IsPreferredCandidate(candidate, current)
+    if not current then
+        return true
+    end
+
+    if candidate.order ~= current.order then
+        return candidate.order < current.order
+    end
+
+    if candidate.sortLabel ~= current.sortLabel then
+        return candidate.sortLabel < current.sortLabel
+    end
+
+    if candidate.label ~= current.label then
+        return candidate.label < current.label
+    end
+
+    return candidate.value < current.value
+end
+
 local function AddItem(items, values, seen, value, label, entry)
     if not IsNonEmptyString(value) or seen[value] then
         return
@@ -118,6 +153,48 @@ local function AddItem(items, values, seen, value, label, entry)
         sortLabel = GetSortLabel(label),
         order = GetEntryOrder(entry),
     }
+end
+
+local function AddRegularAvailableEntries(items, values, seen, entries)
+    local preferredByPath = {}
+    local pathOrder = {}
+    local undeduplicated = {}
+
+    for _, entry in ipairs(entries or {}) do
+        local value = entry and entry.id
+        local label = GetDisplayName(entry)
+        if IsNonEmptyString(value) then
+            local candidate = {
+                value = value,
+                label = IsNonEmptyString(label) and label or value,
+                sortLabel = GetSortLabel(label or value),
+                order = GetEntryOrder(entry),
+                entry = entry,
+            }
+            local pathKey = NormalizeAssetPath(entry and entry.path)
+            if pathKey then
+                if not preferredByPath[pathKey] then
+                    pathOrder[#pathOrder + 1] = pathKey
+                end
+                if IsPreferredCandidate(candidate, preferredByPath[pathKey]) then
+                    preferredByPath[pathKey] = candidate
+                end
+            else
+                undeduplicated[#undeduplicated + 1] = candidate
+            end
+        end
+    end
+
+    for _, pathKey in ipairs(pathOrder) do
+        local candidate = preferredByPath[pathKey]
+        if candidate then
+            AddItem(items, values, seen, candidate.value, candidate.label, candidate.entry)
+        end
+    end
+
+    for _, candidate in ipairs(undeduplicated) do
+        AddItem(items, values, seen, candidate.value, candidate.label, candidate.entry)
+    end
 end
 
 local function RemoveItem(items, values, seen, value)
@@ -163,9 +240,7 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
     end
 
     local entries = Registry.GetAvailable(STATUSBAR, { availableOnly = true })
-    for _, entry in ipairs(entries) do
-        AddItem(items, values, seen, entry.id, GetDisplayName(entry), entry)
-    end
+    AddRegularAvailableEntries(items, values, seen, entries)
 
     local hasCurrentValue = IsNonEmptyString(currentValue)
     if hasCurrentValue then
@@ -176,7 +251,7 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
             local label = GetDisplayName(entry) or GetFilenameLabel(result.resolvedAsset) or currentValue
             if IsReferenceId(currentValue) then
                 if not seen[currentValue] then
-                    AddItem(items, values, seen, currentValue, label, entry)
+                    AddItem(items, values, seen, currentValue, GetCurrentLabel(label), entry)
                 end
             elseif not seen[currentValue] then
                 RemoveItem(items, values, seen, entry.id)
