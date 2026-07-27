@@ -980,6 +980,11 @@ local function RecordMediaShadow(mediaType, reference, legacyPath, context, reso
         debugState.fallbackUses = debugState.fallbackUses + 1
     end
 
+    local fontApplied = nil
+    if type(context) == "table" and type(context.fontApplied) == "boolean" then
+        fontApplied = context.fontApplied
+    end
+
     local detail = {
         mediaType = mediaType,
         reference = tostring(reference),
@@ -999,6 +1004,9 @@ local function RecordMediaShadow(mediaType, reference, legacyPath, context, reso
         textRole = type(context) == "table" and context.textRole or nil,
         fontSize = type(context) == "table" and context.fontSize or nil,
         fontFlags = type(context) == "table" and context.fontFlags or nil,
+        runtimePath = type(context) == "table" and context.runtimePath or nil,
+        runtimeFallback = type(context) == "table" and context.runtimeFallback == true or false,
+        fontApplied = fontApplied,
     }
 
     if isMismatch then
@@ -1054,7 +1062,7 @@ function MediaRegistry.BuildDebugReport()
     lines[#lines + 1] = string.format("Details=%d/%d", #debugState.details, MAX_DEBUG_DETAILS)
     for index, detail in ipairs(debugState.details) do
         lines[#lines + 1] = string.format(
-            "%02d media=%s kind=%s unit=%s field=%s sourceField=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s textKey=%s role=%s fontSize=%s fontFlags=%s reference=%s legacy=%s registry=%s",
+            "%02d media=%s kind=%s unit=%s field=%s sourceField=%s source=%s available=%s legacyFallback=%s registryFallback=%s mismatch=%s textKey=%s role=%s fontSize=%s fontFlags=%s fontApplied=%s runtimeFallback=%s reference=%s legacy=%s registry=%s runtime=%s",
             index,
             tostring(detail.mediaType),
             tostring(detail.kind),
@@ -1070,9 +1078,12 @@ function MediaRegistry.BuildDebugReport()
             tostring(detail.textRole or "n/a"),
             tostring(detail.fontSize or "n/a"),
             tostring(detail.fontFlags or "n/a"),
+            tostring(detail.fontApplied == nil and "n/a" or FormatBool(detail.fontApplied)),
+            FormatBool(detail.runtimeFallback),
             tostring(detail.reference),
             tostring(detail.legacyPath),
-            tostring(detail.registryPath)
+            tostring(detail.registryPath),
+            tostring(detail.runtimePath or "n/a")
         )
     end
 

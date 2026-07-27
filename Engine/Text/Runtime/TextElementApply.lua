@@ -50,7 +50,7 @@ local function ResolveOverflowWidth(key, textConfig, anchorParent)
     return math.max(anchorWidth - 12, 24)
 end
 
-local function RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath, fontSize, fontFlags, textRole)
+local function RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath, fontSize, fontFlags, textRole, resolvedResult, runtimePath, runtimeFallback, fontApplied)
     local registry = FocalPoint and FocalPoint.MediaRegistry or nil
     if not (registry and registry.IsDebugEnabled and registry.IsDebugEnabled()) then
         return
@@ -59,7 +59,7 @@ local function RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath
         return
     end
 
-    local resolvedResult = registry.ResolveReference(textConfig and textConfig.font or nil, "font")
+    resolvedResult = type(resolvedResult) == "table" and resolvedResult or registry.ResolveReference(textConfig and textConfig.font or nil, "font")
     registry.RecordFontShadow(textConfig and textConfig.font or nil, legacyFontPath, {
         unitKey = frame and frame.unit or nil,
         field = key or textRole or "font",
@@ -68,7 +68,45 @@ local function RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath
         textRole = textRole,
         fontSize = fontSize,
         fontFlags = fontFlags,
+        runtimePath = runtimePath,
+        runtimeFallback = runtimeFallback,
+        fontApplied = fontApplied,
     }, resolvedResult)
+end
+
+local function IsMediaDebugEnabled()
+    local registry = FocalPoint and FocalPoint.MediaRegistry or nil
+    return registry and registry.IsDebugEnabled and registry.IsDebugEnabled() or false
+end
+
+local function ResolveFontPath(textConfig)
+    local registry = FocalPoint and FocalPoint.MediaRegistry or nil
+    if not (registry and registry.ResolveReference) then
+        return STANDARD_TEXT_FONT, nil
+    end
+
+    local result = registry.ResolveReference(textConfig and textConfig.font or nil, "font")
+    local resolvedPath = result and result.resolvedAsset or nil
+    if type(resolvedPath) == "string" and resolvedPath ~= "" then
+        return resolvedPath, result
+    end
+
+    return STANDARD_TEXT_FONT, result
+end
+
+local function ApplyFontWithFallback(textObject, fontPath, fontSize, fontFlags)
+    local fontFlagsOrNil = fontFlags ~= "" and fontFlags or nil
+    local ok, applied = pcall(textObject.SetFont, textObject, fontPath, fontSize, fontFlagsOrNil)
+    if ok and applied then
+        return true, fontPath, false
+    end
+
+    if fontPath == STANDARD_TEXT_FONT then
+        return false, fontPath, false
+    end
+
+    local fallbackOk, fallbackApplied = pcall(textObject.SetFont, textObject, STANDARD_TEXT_FONT, fontSize, fontFlagsOrNil)
+    return fallbackOk and fallbackApplied == true, STANDARD_TEXT_FONT, true
 end
 
 function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
@@ -93,12 +131,12 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     end
 
     local anchorParent = GetAnchorTarget and GetAnchorTarget(frame, textConfig.anchorTo)
-    local fontPath = GetFontPath and GetFontPath(textConfig.font)
+    local fontPath, fontResolveResult = ResolveFontPath(textConfig)
+    local legacyFontPath = IsMediaDebugEnabled() and GetFontPath and GetFontPath(textConfig.font) or nil
     local fontSize = textConfig.fontSize or 12
     local fontFlags = BuildFontFlags and BuildFontFlags(textConfig)
     local justifyH = textConfig.justifyH or "CENTER"
     local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
-    RecordFontResolutionShadow(frame, key, textConfig, fontPath, fontSize, fontFlags, textRole)
 
     local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
     local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
@@ -135,7 +173,8 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
         textObject:SetNonSpaceWrap(false)
     end
 
-    textObject:SetFont(fontPath, fontSize, fontFlags ~= "" and fontFlags or nil)
+    local fontApplied, runtimeFontPath, runtimeFontFallback = ApplyFontWithFallback(textObject, fontPath, fontSize, fontFlags)
+    RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath, fontSize, fontFlags, textRole, fontResolveResult, runtimeFontPath, runtimeFontFallback, fontApplied)
     textObject:SetTextColor(r, g, b, a)
     textObject:SetJustifyH(justifyH)
 
