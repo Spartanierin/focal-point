@@ -102,7 +102,6 @@ function InspectorController.Build(container, state, options)
     local barAnchorList = BuildLocalizedList(barLayouts.Lists and barLayouts.Lists.anchorPoints)
     local textAnchorTargetList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.anchorTo)
     local textAnchorPointList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.anchorPoints)
-    local fontList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.fonts)
     local fontStyleList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.fontStyles)
     local justifyList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.justifyH)
     local overflowList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.overflowMode)
@@ -125,6 +124,18 @@ function InspectorController.Build(container, state, options)
     local function BuildStatusBarTextureOptions(currentValue)
         if MediaOptionAdapter and MediaOptionAdapter.BuildStatusBarDropdown then
             return MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
+        end
+
+        return {
+            values = {},
+            order = {},
+            value = currentValue,
+        }
+    end
+
+    local function BuildFontOptions(currentValue)
+        if MediaOptionAdapter and MediaOptionAdapter.BuildFontDropdown then
+            return MediaOptionAdapter.BuildFontDropdown(currentValue)
         end
 
         return {
@@ -994,7 +1005,8 @@ function InspectorController.Build(container, state, options)
                 SetTextField(selectedTextId, "color", value)
             end, textConfig.enabled == false, "text_color")
         else
-            AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontList, textConfig.font or STANDARD_TEXT_FONT, function(value)
+            local fontOptions = BuildFontOptions(textConfig.font)
+            AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontOptions, fontOptions.value, function(value)
                 SetTextField(selectedTextId, "font", value)
             end, textConfig.enabled == false, "text_font")
 

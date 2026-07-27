@@ -8,7 +8,9 @@ local MediaOptionAdapter = {}
 ns.GUI.Editor.Inspector.MediaOptionAdapter = MediaOptionAdapter
 
 local STATUSBAR = "statusbar"
+local FONT = "font"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
+local DEFAULT_FONT_REFERENCE = "fp:font:standard"
 local L = ns.L or {}
 
 local SOURCE_ORDER = {
@@ -67,20 +69,35 @@ local function GetFilenameLabel(path)
     return filename ~= "" and filename or path
 end
 
-local function GetMissingLabel(reference)
+local function GetMissingLabel(reference, mediaType)
     reference = Trim(reference)
     local key = reference:match("^[^:]+:[^:]+:(.+)$") or reference
     if key == "" then
+        if mediaType == FONT then
+            return L["MEDIA_MISSING_FONT"] or "Missing Font"
+        end
         return L["MEDIA_MISSING_TEXTURE"] or "Missing Texture"
     end
 
-    local format = L["MEDIA_MISSING_TEXTURE_FORMAT"] or "Missing: %s"
+    local format = mediaType == FONT
+        and (L["MEDIA_MISSING_FONT_FORMAT"] or "Missing: %s")
+        or (L["MEDIA_MISSING_TEXTURE_FORMAT"] or "Missing: %s")
     return string.format(format, key)
 end
 
-local function GetCurrentLabel(label)
-    label = IsNonEmptyString(label) and label or (L["MEDIA_CUSTOM_TEXTURE"] or "Custom Texture")
-    local format = L["MEDIA_CURRENT_TEXTURE_FORMAT"] or "%s (Current)"
+local function GetCustomLabel(mediaType)
+    if mediaType == FONT then
+        return L["MEDIA_CUSTOM_FONT"] or "Custom Font"
+    end
+
+    return L["MEDIA_CUSTOM_TEXTURE"] or "Custom Texture"
+end
+
+local function GetCurrentLabel(label, mediaType)
+    label = IsNonEmptyString(label) and label or GetCustomLabel(mediaType)
+    local format = mediaType == FONT
+        and (L["MEDIA_CURRENT_FONT_FORMAT"] or "%s (Current)")
+        or (L["MEDIA_CURRENT_TEXTURE_FORMAT"] or "%s (Current)")
     return string.format(format, label)
 end
 
@@ -224,7 +241,7 @@ local function BuildOrder(items)
     return order
 end
 
-function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
+local function BuildMediaDropdown(mediaType, currentValue, defaultReference)
     local Registry = ns.MediaRegistry
     local values = {}
     local seen = {}
@@ -239,42 +256,42 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
         }
     end
 
-    local entries = Registry.GetAvailable(STATUSBAR, { availableOnly = true })
+    local entries = Registry.GetAvailable(mediaType, { availableOnly = true })
     AddRegularAvailableEntries(items, values, seen, entries)
 
     local hasCurrentValue = IsNonEmptyString(currentValue)
     if hasCurrentValue then
-        local result = Registry.ResolveReference(currentValue, STATUSBAR, DEFAULT_STATUSBAR_REFERENCE)
-        local entry = Registry.GetEntry(currentValue, STATUSBAR)
+        local result = Registry.ResolveReference(currentValue, mediaType, defaultReference)
+        local entry = Registry.GetEntry(currentValue, mediaType)
 
         if result and result.available == true and type(entry) == "table" then
             local label = GetDisplayName(entry) or GetFilenameLabel(result.resolvedAsset) or currentValue
             if IsReferenceId(currentValue) then
                 if not seen[currentValue] then
-                    AddItem(items, values, seen, currentValue, GetCurrentLabel(label), entry)
+                    AddItem(items, values, seen, currentValue, GetCurrentLabel(label, mediaType), entry)
                 end
             elseif not seen[currentValue] then
                 RemoveItem(items, values, seen, entry.id)
                 AddItem(items, values, seen, currentValue, label, entry)
             end
         elseif IsReferenceId(currentValue) then
-            AddItem(items, values, seen, currentValue, GetMissingLabel(currentValue), {
+            AddItem(items, values, seen, currentValue, GetMissingLabel(currentValue, mediaType), {
                 source = "Unavailable",
                 category = "Unavailable",
             })
         else
-            AddItem(items, values, seen, currentValue, GetFilenameLabel(currentValue) or (L["MEDIA_CUSTOM_TEXTURE"] or "Custom Texture"), {
+            AddItem(items, values, seen, currentValue, GetFilenameLabel(currentValue) or GetCustomLabel(mediaType), {
                 source = "Legacy Path",
                 category = "Legacy",
             })
         end
     else
-        local result = Registry.ResolveReference(currentValue, STATUSBAR, DEFAULT_STATUSBAR_REFERENCE)
+        local result = Registry.ResolveReference(currentValue, mediaType, defaultReference)
         selectedValue = result
             and (result.fallbackReference or (result.fallbackEntry and result.fallbackEntry.id))
-            or DEFAULT_STATUSBAR_REFERENCE
+            or defaultReference
         if IsNonEmptyString(selectedValue) and not seen[selectedValue] then
-            local entry = Registry.GetEntry(selectedValue, STATUSBAR)
+            local entry = Registry.GetEntry(selectedValue, mediaType)
             AddItem(items, values, seen, selectedValue, GetDisplayName(entry) or GetFilenameLabel(selectedValue), entry)
         end
     end
@@ -284,6 +301,14 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
         order = BuildOrder(items),
         value = selectedValue,
     }
+end
+
+function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
+    return BuildMediaDropdown(STATUSBAR, currentValue, DEFAULT_STATUSBAR_REFERENCE)
+end
+
+function MediaOptionAdapter.BuildFontDropdown(currentValue)
+    return BuildMediaDropdown(FONT, currentValue, DEFAULT_FONT_REFERENCE)
 end
 
 return MediaOptionAdapter
