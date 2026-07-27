@@ -50,6 +50,22 @@ local function NormalizeOffset(value)
     return math.floor(value + 0.5)
 end
 
+local TEXT_ANCHOR_POINTS = {
+    TOPLEFT = true,
+    TOP = true,
+    TOPRIGHT = true,
+    LEFT = true,
+    CENTER = true,
+    RIGHT = true,
+    BOTTOMLEFT = true,
+    BOTTOM = true,
+    BOTTOMRIGHT = true,
+}
+
+local function IsValidTextAnchorPoint(point)
+    return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
+end
+
 local function GetUnitConfig(context)
     if type(context) ~= "table" or type(context.unitConfig) ~= "table" then
         return nil
@@ -131,6 +147,40 @@ function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, of
         newValue = {
             offsetX = nextX,
             offsetY = nextY,
+        },
+    })
+end
+
+function InspectorMutations.SetTextAnchor(context, textKey, point, relativePoint)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local textConfig = GetTextConfig(context, textKey)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+    if not IsValidTextAnchorPoint(point) or not IsValidTextAnchorPoint(relativePoint) then
+        return Result(false, { errorCode = "invalid_anchor" })
+    end
+
+    local oldPoint = textConfig.point
+    local oldRelativePoint = textConfig.relativePoint
+    local changed = oldPoint ~= point or oldRelativePoint ~= relativePoint
+    if changed then
+        textConfig.point = point
+        textConfig.relativePoint = relativePoint
+    end
+
+    return Result(true, {
+        changed = changed,
+        oldValue = {
+            point = oldPoint,
+            relativePoint = oldRelativePoint,
+        },
+        newValue = {
+            point = point,
+            relativePoint = relativePoint,
         },
     })
 end
