@@ -371,14 +371,64 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 96,
-                derivedFrom = "section title + preview buttons + preview hint",
+                min = 118,
+                derivedFrom = "section title + preview buttons + interaction mode row + preview hint",
             },
         },
         items = {
             { id = "editingTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_PREVIEW" },
             { id = "demoButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_TEST_MODE" },
             { id = "unlockButton", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_UNLOCK_FRAMES" },
+        },
+    },
+    {
+        section = "InteractionModeRow",
+        properties = {
+            parentSection = "Editing",
+            sectionKind = "section",
+            type = "action_row",
+            variant = "dual_button",
+            border = false,
+            widthInfo = {
+                source = "parent",
+                derivedFrom = "Editing.widthInfo",
+            },
+            heightInfo = {
+                source = "content",
+                min = 1,
+                derivedFrom = "frame/text interaction mode toggle",
+            },
+        },
+        items = {
+            { id = "frameModeButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_INTERACTION_FRAME_MODE" },
+            { id = "textModeButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_INTERACTION_TEXT_MODE" },
+        },
+    },
+    {
+        section = "EditingHint",
+        properties = {
+            parentSection = "Editing",
+            sectionKind = "section",
+            type = "section",
+            variant = "note_stack",
+            border = false,
+            padding = {
+                left = 0,
+                right = 0,
+                top = 0,
+                bottom = 0,
+            },
+            widthInfo = {
+                source = "parent",
+                derivedFrom = "Editing.widthInfo",
+            },
+            heightInfo = {
+                source = "content",
+                min = 1,
+                derivedFrom = "preview hint",
+            },
+        },
+        items = {
             { id = "editingHint", widget = "label", itemVariant = "group_description", textKey = "EDITOR_PREVIEW_HINT", size = 11 },
         },
     },

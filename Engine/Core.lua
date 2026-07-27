@@ -1066,6 +1066,13 @@ function FocalPoint:RefreshEditorInteractionVisuals()
             textEditorOverlay.UpdateFrame(frame)
         end
     end
+
+    local toolbar = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.Toolbar
+    if toolbar and toolbar.RefreshInteractionModeControls then
+        toolbar.RefreshInteractionModeControls()
+    end
 end
 
 function FocalPoint:RefreshEditorSelectionVisuals()

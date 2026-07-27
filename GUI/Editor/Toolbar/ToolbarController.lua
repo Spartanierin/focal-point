@@ -45,6 +45,8 @@ local TOOLBAR_SECTIONS = {
     UnitGridRow4 = true,
     WorkspaceEditorFooter = true,
     Editing = true,
+    InteractionModeRow = true,
+    EditingHint = true,
     Presets = true,
     Global = true,
     Footer = true,
@@ -215,10 +217,20 @@ function ToolbarController.Hide()
         return
     end
 
+    if GameTooltip and GameTooltip.Hide then
+        GameTooltip:Hide()
+    end
+
     if windowContext.window.Hide then
         windowContext.window:Hide()
     elseif windowContext.window.frame and windowContext.window.frame.Hide then
         windowContext.window.frame:Hide()
+    end
+end
+
+function ToolbarController.RefreshInteractionModeControls()
+    if ToolbarBinding and ToolbarBinding.RefreshInteractionModeControls then
+        ToolbarBinding.RefreshInteractionModeControls(windowContext, BuildBindingDeps())
     end
 end
 

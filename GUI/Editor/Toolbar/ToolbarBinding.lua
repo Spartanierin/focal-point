@@ -23,6 +23,11 @@ local UNIT_WIDGET_IDS = {
     bossButton = { "Units", "BOSS" },
 }
 
+local INTERACTION_MODE_BUTTONS = {
+    frame = "frameModeButton",
+    text = "textModeButton",
+}
+
 local function ResolveConstantPath(root, path)
     if type(root) ~= "table" or type(path) ~= "table" then
         return nil
@@ -85,6 +90,51 @@ local function ResolveLabelRole(props)
     end
 
     return props.role or "label"
+end
+
+local function IsCombatLocked()
+    return InCombatLockdown and InCombatLockdown() == true
+end
+
+local function GetInteractionMode(nsRef)
+    return nsRef
+        and nsRef.GUI
+        and nsRef.GUI.Editor
+        and nsRef.GUI.Editor.InteractionMode
+        or nil
+end
+
+local function IsInteractionModeControlDisabled(nsRef)
+    return not (nsRef and nsRef.framesUnlocked == true)
+        or IsCombatLocked()
+        or not (nsRef.IsEditorActive and nsRef:IsEditorActive())
+end
+
+local function AttachInteractionModeTooltip(button, titleKey, fallbackTitle, deps)
+    if not button or not button.frame or button.__fpInteractionModeTooltipHooked then
+        return
+    end
+
+    button.__fpInteractionModeTooltipHooked = true
+    button.frame:HookScript("OnEnter", function(self)
+        local title = T(titleKey, fallbackTitle, deps)
+        if type(title) ~= "string" or title == "" or not GameTooltip then
+            return
+        end
+
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if GameTooltip.ClearLines then
+            GameTooltip:ClearLines()
+        end
+        GameTooltip:AddLine(title, 1, 1, 1, true)
+        GameTooltip:AddLine(T("EDITOR_INTERACTION_MODE_TOOLTIP_SHIFT", "Press Shift to toggle modes.", deps), 0.80, 0.76, 0.66, true)
+        GameTooltip:Show()
+    end)
+    button.frame:HookScript("OnLeave", function()
+        if GameTooltip and GameTooltip.Hide then
+            GameTooltip:Hide()
+        end
+    end)
 end
 
 local function IterateWidgetMap(widgetMap, callback)
@@ -156,6 +206,47 @@ local function CreateItemWidget(props, deps)
     end
 
     return nil
+end
+
+local function RefreshInteractionModeControls(context, deps)
+    if not context or not context.widgets then
+        return
+    end
+
+    local nsRef = deps and deps.ns or {}
+    local sidebarThemeHelpers = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.EditorSidebarThemeHelpers or {}
+    local SIDEBAR_VISUAL_ROLE = (nsRef.GUI and nsRef.GUI.ButtonVisualRole)
+        or sidebarThemeHelpers.ButtonVisualRole
+        or sidebarThemeHelpers.SIDEBAR_VISUAL_ROLE
+        or {
+            ACTIVE = "active",
+            SECONDARY = "secondary",
+        }
+    local ApplySidebarButtonVisual = sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton
+    local interactionMode = GetInteractionMode(nsRef)
+    local isFrameMode = interactionMode and interactionMode.IsFrameMode and interactionMode.IsFrameMode() or false
+    local isTextMode = interactionMode and interactionMode.IsTextMode and interactionMode.IsTextMode() or false
+    local disabled = IsInteractionModeControlDisabled(nsRef)
+    local frameButton = context.widgets[INTERACTION_MODE_BUTTONS.frame]
+    local textButton = context.widgets[INTERACTION_MODE_BUTTONS.text]
+
+    if frameButton then
+        frameButton:SetText(T("EDITOR_INTERACTION_FRAME_MODE", "Frame", deps))
+        frameButton:SetDisabled(disabled)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(frameButton, isFrameMode and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
+        end
+        AttachInteractionModeTooltip(frameButton, "EDITOR_INTERACTION_FRAME_MODE_TOOLTIP", "Edit, move and resize unit frames.", deps)
+    end
+
+    if textButton then
+        textButton:SetText(T("EDITOR_INTERACTION_TEXT_MODE", "Text", deps))
+        textButton:SetDisabled(disabled)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(textButton, isTextMode and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
+        end
+        AttachInteractionModeTooltip(textButton, "EDITOR_INTERACTION_TEXT_MODE_TOOLTIP", "Select, move, anchor and resize text elements.", deps)
+    end
 end
 
 local function RefreshWindowState(context, deps)
@@ -304,6 +395,8 @@ local function RefreshWindowState(context, deps)
             ApplySidebarButtonVisual(context.widgets.unlockButton, SIDEBAR_VISUAL_ROLE.PRIMARY_ACTION)
         end
     end
+
+    RefreshInteractionModeControls(context, deps)
 
     if context.widgets.editingHint then
         context.widgets.editingHint:SetText(T("EDITOR_PREVIEW_INTERACTION_HINT", nil, deps))
@@ -472,6 +565,42 @@ local function WireCallbacks(context, deps, refreshFn)
         end)
     end
 
+    if context.widgets.frameModeButton then
+        context.widgets.frameModeButton:SetCallback("OnClick", function()
+            if IsInteractionModeControlDisabled(nsRef) then
+                return
+            end
+
+            local interactionMode = GetInteractionMode(nsRef)
+            if interactionMode
+                and interactionMode.IsFrameMode
+                and interactionMode.IsFrameMode() then
+                return
+            end
+            if interactionMode and interactionMode.SetLatchedTextMode then
+                interactionMode.SetLatchedTextMode(false)
+            end
+        end)
+    end
+
+    if context.widgets.textModeButton then
+        context.widgets.textModeButton:SetCallback("OnClick", function()
+            if IsInteractionModeControlDisabled(nsRef) then
+                return
+            end
+
+            local interactionMode = GetInteractionMode(nsRef)
+            if interactionMode
+                and interactionMode.IsTextMode
+                and interactionMode.IsTextMode() then
+                return
+            end
+            if interactionMode and interactionMode.SetLatchedTextMode then
+                interactionMode.SetLatchedTextMode(true)
+            end
+        end)
+    end
+
     if context.widgets.presetDropdown then
         context.widgets.presetDropdown:SetCallback("OnValueChanged", function(_, _, value)
             if context._suspendCallbacks then
@@ -616,6 +745,7 @@ local function WireCallbacks(context, deps, refreshFn)
 end
 
 ToolbarBinding.CreateItemWidget = CreateItemWidget
+ToolbarBinding.RefreshInteractionModeControls = RefreshInteractionModeControls
 ToolbarBinding.RefreshWindowState = RefreshWindowState
 ToolbarBinding.WireCallbacks = WireCallbacks
 
