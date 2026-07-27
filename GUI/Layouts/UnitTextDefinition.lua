@@ -6,12 +6,6 @@ ns.GUI.Layouts = ns.GUI.Layouts or {}
 ns.GUI.Layouts.UnitTexts = ns.GUI.Layouts.UnitTexts or {}
 
 ns.GUI.Layouts.UnitTexts.Lists = {
-    fonts = {
-        [STANDARD_TEXT_FONT] = "VALUE_FONT_STANDARD",
-        ["Fonts\\ARIALN.TTF"] = "VALUE_FONT_ARIAL_NARROW",
-        ["Fonts\\MORPHEUS.ttf"] = "VALUE_FONT_MORPHEUS",
-        ["Fonts\\SKURRI.ttf"] = "VALUE_FONT_SKURRI",
-    },
     anchorTo = {
         Frame = "VALUE_ANCHOR_TARGET_FRAME",
         HealthBar = "VALUE_ANCHOR_TARGET_HEALTH_BAR",
