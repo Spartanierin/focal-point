@@ -150,7 +150,7 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
 
     local entries = Registry.GetAvailable(STATUSBAR, { availableOnly = true })
     for _, entry in ipairs(entries) do
-        AddItem(items, values, seen, entry.path, GetDisplayName(entry), entry)
+        AddItem(items, values, seen, entry.id, GetDisplayName(entry), entry)
     end
 
     local hasCurrentValue = IsNonEmptyString(currentValue)
@@ -161,9 +161,11 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
         if result and result.available == true and type(entry) == "table" then
             local label = GetDisplayName(entry) or GetFilenameLabel(result.resolvedAsset) or currentValue
             if IsReferenceId(currentValue) then
-                RemoveItem(items, values, seen, entry.path)
-                AddItem(items, values, seen, currentValue, label, entry)
+                if not seen[currentValue] then
+                    AddItem(items, values, seen, currentValue, label, entry)
+                end
             elseif not seen[currentValue] then
+                RemoveItem(items, values, seen, entry.id)
                 AddItem(items, values, seen, currentValue, label, entry)
             end
         elseif IsReferenceId(currentValue) then
@@ -179,7 +181,9 @@ function MediaOptionAdapter.BuildStatusBarDropdown(currentValue)
         end
     else
         local result = Registry.ResolveReference(currentValue, STATUSBAR, DEFAULT_STATUSBAR_REFERENCE)
-        selectedValue = result and result.resolvedAsset or selectedValue
+        selectedValue = result
+            and (result.fallbackReference or (result.fallbackEntry and result.fallbackEntry.id))
+            or DEFAULT_STATUSBAR_REFERENCE
         if IsNonEmptyString(selectedValue) and not seen[selectedValue] then
             local entry = Registry.GetEntry(selectedValue, STATUSBAR)
             AddItem(items, values, seen, selectedValue, GetDisplayName(entry) or GetFilenameLabel(selectedValue), entry)
