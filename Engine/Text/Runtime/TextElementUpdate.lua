@@ -405,6 +405,29 @@ local function EnsureNameFallback(frame, textRole, renderedText)
     return renderedText
 end
 
+local function ResolveRenderableName(frame, renderedText)
+    if not IsBlankText(renderedText) then
+        return renderedText
+    end
+
+    if Presence.IsPreviewModeEnabled and Presence.IsPreviewModeEnabled() then
+        local demo = FocalPoint.UnitFrameDemoEnvironment or {}
+        local previewValues = (demo.GetUnitValues and demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
+        local previewName = previewValues and previewValues.name or nil
+        if not IsBlankText(previewName) then
+            return previewName
+        end
+    end
+
+    local unit = frame and frame.unit
+    local resolvedName = Status.GetResolvedUnitName and Status.GetResolvedUnitName(unit) or nil
+    if type(resolvedName) == "string" then
+        return resolvedName
+    end
+
+    return ""
+end
+
 local function RenderNameTextDirect(frame, textObject, renderedText, textConfig)
     if not textObject then
         return
@@ -412,16 +435,7 @@ local function RenderNameTextDirect(frame, textObject, renderedText, textConfig)
 
     StopAnimatedNameText(textObject)
 
-    local finalText = type(renderedText) == "string" and renderedText or ""
-    if finalText == "" then
-        local unit = frame and frame.unit
-        local resolvedName = Status.GetResolvedUnitName and Status.GetResolvedUnitName(unit) or nil
-        if type(resolvedName) == "string" then
-            finalText = resolvedName
-        else
-            finalText = ""
-        end
-    end
+    local finalText = ResolveRenderableName(frame, renderedText)
 
     SafeSetText(textObject, finalText, true)
     if textObject.SetWidth and textConfig and textConfig.overflowMode ~= "NONE" and textObject.FocalPointOverflowWidth and textObject.FocalPointOverflowWidth > 0 then

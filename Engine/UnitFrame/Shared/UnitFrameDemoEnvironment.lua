@@ -590,6 +590,12 @@ local TEST_PREVIEW_VALUES = {
     },
 }
 
+local TEST_PREVIEW_NAME_OVERRIDES = {
+    targettarget = "Target of Target",
+    focustarget = "Focus Target's Target",
+    pettarget = "Companion's Target",
+}
+
 local PLACEHOLDER_PREVIEW_VALUES = {
     player = { healthCurrent = 100, healthMax = 100, powerCurrent = 0, powerMax = 100, name = "Player" },
     target = { healthCurrent = 100, healthMax = 100, powerCurrent = 0, powerMax = 100, name = "Target" },
@@ -887,7 +893,23 @@ function Demo.ShouldForceFrameVisible(frame)
 end
 
 function Demo.GetDetailedValuesForUnit(unit)
-    return TEST_PREVIEW_VALUES[unit] or TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+    local values = TEST_PREVIEW_VALUES[unit]
+    if values then
+        return values
+    end
+
+    local nameOverride = TEST_PREVIEW_NAME_OVERRIDES[unit]
+    local fallbackValues = TEST_PREVIEW_VALUES.target or TEST_PREVIEW_VALUES.player
+    if nameOverride and fallbackValues then
+        local result = {}
+        for key, value in pairs(fallbackValues) do
+            result[key] = value
+        end
+        result.name = nameOverride
+        return result
+    end
+
+    return fallbackValues
 end
 
 function Demo.GetUnitValues(frame, mode)
