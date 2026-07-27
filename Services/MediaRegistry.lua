@@ -24,6 +24,7 @@ local entriesByType = {}
 local entriesByReference = {}
 local pathReferencesByType = {}
 local providers = {}
+local lsmCallbackRegistered = false
 local defaultReferences = {
     [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_REFERENCE,
 }
@@ -428,6 +429,33 @@ local function RefreshLibSharedMediaStatusBars()
     end
 
     return added
+end
+
+local function HandleLibSharedMediaRegistered(_, mediaType)
+    if NormalizeMediaType(mediaType) ~= MEDIA_TYPE_STATUSBAR then
+        return
+    end
+
+    MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
+end
+
+local function EnsureLibSharedMediaCallback()
+    if lsmCallbackRegistered then
+        return true
+    end
+
+    local LSM = GetLibSharedMedia()
+    if not LSM or type(LSM.RegisterCallback) ~= "function" then
+        return false, "provider_unavailable"
+    end
+
+    local ok, err = pcall(LSM.RegisterCallback, MediaRegistry, "LibSharedMedia_Registered", HandleLibSharedMediaRegistered)
+    if not ok then
+        return false, tostring(err)
+    end
+
+    lsmCallbackRegistered = true
+    return true
 end
 
 local function IncrementCounter(bucket, key)
@@ -1079,6 +1107,7 @@ MediaRegistry.RegisterProvider("lsm", {
     end,
 })
 
+EnsureLibSharedMediaCallback()
 MediaRegistry.RefreshProvider("lsm", MEDIA_TYPE_STATUSBAR)
 
 return MediaRegistry
