@@ -22,6 +22,14 @@ local SOURCE_ORDER = {
     External = 6,
 }
 
+local SOURCE_LABEL_KEYS = {
+    Blizzard = "MEDIA_SOURCE_BLIZZARD",
+    ["Focal Point"] = "MEDIA_SOURCE_FOCAL_POINT",
+    Shared = "MEDIA_SOURCE_SHARED",
+    ["Legacy Path"] = "MEDIA_SOURCE_LEGACY_PATH",
+    Unavailable = "MEDIA_SOURCE_UNAVAILABLE",
+}
+
 local function Trim(value)
     if type(value) ~= "string" then
         return ""
@@ -101,6 +109,43 @@ local function GetCurrentLabel(label, mediaType)
     return string.format(format, label)
 end
 
+local function GetSourceLabel(source)
+    if not IsNonEmptyString(source) then
+        return nil
+    end
+
+    local key = SOURCE_LABEL_KEYS[source]
+    return (key and L[key]) or source
+end
+
+local function GetEntrySource(entry)
+    if type(entry) ~= "table" then
+        return nil
+    end
+
+    return IsNonEmptyString(entry.source) and entry.source
+        or (IsNonEmptyString(entry.category) and entry.category or nil)
+end
+
+local function FormatFontLabel(label, entry)
+    label = IsNonEmptyString(label) and label or ""
+    local sourceLabel = GetSourceLabel(GetEntrySource(entry))
+    if not IsNonEmptyString(sourceLabel) then
+        return label
+    end
+
+    local format = L["MEDIA_FONT_SOURCE_FORMAT"] or "%s · %s"
+    return string.format(format, sourceLabel, label)
+end
+
+local function FormatOptionLabel(mediaType, label, entry)
+    if mediaType == FONT then
+        return FormatFontLabel(label, entry)
+    end
+
+    return label
+end
+
 local function GetEntryOrder(entry)
     return SOURCE_ORDER[entry and entry.source] or SOURCE_ORDER[entry and entry.category] or 50
 end
@@ -156,7 +201,7 @@ local function IsPreferredCandidate(candidate, current)
     return candidate.value < current.value
 end
 
-local function AddItem(items, values, seen, value, label, entry)
+local function AddItem(items, values, seen, value, label, entry, sortLabel)
     if not IsNonEmptyString(value) or seen[value] then
         return
     end
@@ -167,12 +212,12 @@ local function AddItem(items, values, seen, value, label, entry)
     items[#items + 1] = {
         value = value,
         label = label,
-        sortLabel = GetSortLabel(label),
+        sortLabel = GetSortLabel(sortLabel or label),
         order = GetEntryOrder(entry),
     }
 end
 
-local function AddRegularAvailableEntries(items, values, seen, entries)
+local function AddRegularAvailableEntries(items, values, seen, entries, mediaType)
     local preferredByPath = {}
     local pathOrder = {}
     local undeduplicated = {}
@@ -205,12 +250,28 @@ local function AddRegularAvailableEntries(items, values, seen, entries)
     for _, pathKey in ipairs(pathOrder) do
         local candidate = preferredByPath[pathKey]
         if candidate then
-            AddItem(items, values, seen, candidate.value, candidate.label, candidate.entry)
+            AddItem(
+                items,
+                values,
+                seen,
+                candidate.value,
+                FormatOptionLabel(mediaType, candidate.label, candidate.entry),
+                candidate.entry,
+                candidate.label
+            )
         end
     end
 
     for _, candidate in ipairs(undeduplicated) do
-        AddItem(items, values, seen, candidate.value, candidate.label, candidate.entry)
+        AddItem(
+            items,
+            values,
+            seen,
+            candidate.value,
+            FormatOptionLabel(mediaType, candidate.label, candidate.entry),
+            candidate.entry,
+            candidate.label
+        )
     end
 end
 
@@ -257,7 +318,7 @@ local function BuildMediaDropdown(mediaType, currentValue, defaultReference)
     end
 
     local entries = Registry.GetAvailable(mediaType, { availableOnly = true })
-    AddRegularAvailableEntries(items, values, seen, entries)
+    AddRegularAvailableEntries(items, values, seen, entries, mediaType)
 
     local hasCurrentValue = IsNonEmptyString(currentValue)
     if hasCurrentValue then
@@ -268,22 +329,61 @@ local function BuildMediaDropdown(mediaType, currentValue, defaultReference)
             local label = GetDisplayName(entry) or GetFilenameLabel(result.resolvedAsset) or currentValue
             if IsReferenceId(currentValue) then
                 if not seen[currentValue] then
-                    AddItem(items, values, seen, currentValue, GetCurrentLabel(label, mediaType), entry)
+                    local currentLabel = GetCurrentLabel(label, mediaType)
+                    AddItem(
+                        items,
+                        values,
+                        seen,
+                        currentValue,
+                        FormatOptionLabel(mediaType, currentLabel, entry),
+                        entry,
+                        currentLabel
+                    )
                 end
             elseif not seen[currentValue] then
                 RemoveItem(items, values, seen, entry.id)
-                AddItem(items, values, seen, currentValue, label, entry)
+                AddItem(
+                    items,
+                    values,
+                    seen,
+                    currentValue,
+                    FormatOptionLabel(mediaType, label, entry),
+                    entry,
+                    label
+                )
             end
         elseif IsReferenceId(currentValue) then
-            AddItem(items, values, seen, currentValue, GetMissingLabel(currentValue, mediaType), {
+            local missingLabel = GetMissingLabel(currentValue, mediaType)
+            local missingEntry = {
                 source = "Unavailable",
                 category = "Unavailable",
-            })
+            }
+            AddItem(
+                items,
+                values,
+                seen,
+                currentValue,
+                FormatOptionLabel(mediaType, missingLabel, missingEntry),
+                missingEntry,
+                missingLabel
+            )
         else
-            AddItem(items, values, seen, currentValue, GetFilenameLabel(currentValue) or GetCustomLabel(mediaType), {
+            local legacyLabel = mediaType == FONT
+                and GetCustomLabel(mediaType)
+                or (GetFilenameLabel(currentValue) or GetCustomLabel(mediaType))
+            local legacyEntry = {
                 source = "Legacy Path",
                 category = "Legacy",
-            })
+            }
+            AddItem(
+                items,
+                values,
+                seen,
+                currentValue,
+                FormatOptionLabel(mediaType, legacyLabel, legacyEntry),
+                legacyEntry,
+                legacyLabel
+            )
         end
     else
         local result = Registry.ResolveReference(currentValue, mediaType, defaultReference)
@@ -292,7 +392,16 @@ local function BuildMediaDropdown(mediaType, currentValue, defaultReference)
             or defaultReference
         if IsNonEmptyString(selectedValue) and not seen[selectedValue] then
             local entry = Registry.GetEntry(selectedValue, mediaType)
-            AddItem(items, values, seen, selectedValue, GetDisplayName(entry) or GetFilenameLabel(selectedValue), entry)
+            local label = GetDisplayName(entry) or GetFilenameLabel(selectedValue)
+            AddItem(
+                items,
+                values,
+                seen,
+                selectedValue,
+                FormatOptionLabel(mediaType, label, entry),
+                entry,
+                label
+            )
         end
     end
 
