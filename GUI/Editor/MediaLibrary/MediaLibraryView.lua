@@ -12,6 +12,8 @@ local L = ns.L or {}
 local MediaLibraryView = {}
 ns.GUI.Editor.MediaLibrary.MediaLibraryView = MediaLibraryView
 
+local STATUSBAR = "statusbar"
+
 local SOURCE_ORDER = {
     "all",
     "Blizzard",
@@ -48,9 +50,14 @@ local function ApplyLabelText(widget, role, options)
     end
 end
 
-local function CreateLabel(text, role, size)
+local function CreateLabel(text, role, size, width)
     local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
+    if width then
+        label:SetFullWidth(false)
+        label:SetWidth(width)
+    else
+        label:SetFullWidth(true)
+    end
     label:SetText(text or "")
     ApplyLabelText(label, role or "label", { size = size or 11 })
     return label
@@ -172,6 +179,16 @@ local function SetMetaLabel(label, title, value)
     label:SetText(string.format("%s: %s", title, tostring(value or "")))
 end
 
+local function Shorten(value, limit)
+    value = tostring(value or "")
+    limit = tonumber(limit) or 72
+    if #value <= limit then
+        return value
+    end
+
+    return value:sub(1, math.max(1, limit - 3)) .. "..."
+end
+
 local function BuildStatusText(item)
     if not item then
         return T("MEDIA_LIBRARY_STATUS_NONE", "No media selected")
@@ -192,20 +209,32 @@ end
 local function RefreshMetadata(context)
     local widgets = context and context.widgets or {}
     local item = context and context.state and context.state.selectedItem or nil
+    local isStatusBar = context and context.state and context.state.mediaType == STATUSBAR
 
-    SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"), item and item.label or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
-    SetMetaLabel(widgets.nameLabel, T("MEDIA_LIBRARY_NAME", "Name"), item and item.name or "n/a")
+    SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"), item and Shorten(item.label, 86) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
+    SetMetaLabel(widgets.nameLabel, T("MEDIA_LIBRARY_NAME", "Name"), item and Shorten(item.name, 44) or "n/a")
     SetMetaLabel(widgets.sourceLabel, T("MEDIA_LIBRARY_SOURCE", "Source"), item and GetSourceLabel(item.source) or "n/a")
     SetMetaLabel(widgets.providerLabel, T("MEDIA_LIBRARY_PROVIDER", "Provider"), item and item.provider or "n/a")
-    SetMetaLabel(widgets.valueLabel, T("MEDIA_LIBRARY_VALUE", "Value"), item and item.value or "n/a")
+    SetMetaLabel(widgets.valueLabel, T("MEDIA_LIBRARY_VALUE", "Value"), item and Shorten(item.value, 92) or "n/a")
     SetMetaLabel(widgets.availableLabel, T("MEDIA_LIBRARY_AVAILABLE", "Available"), item and FormatBool(item.available == true) or "n/a")
     SetMetaLabel(widgets.currentLabel, T("MEDIA_LIBRARY_CURRENT", "Current"), item and FormatBool(item.current == true) or "n/a")
     SetMetaLabel(widgets.legacyLabel, T("MEDIA_LIBRARY_LEGACY", "Legacy"), item and FormatBool(item.legacy == true) or "n/a")
     SetMetaLabel(widgets.missingLabel, T("MEDIA_LIBRARY_MISSING", "Missing"), item and FormatBool(item.missing == true) or "n/a")
-    SetMetaLabel(widgets.statusLabel, T("MEDIA_LIBRARY_STATUS", "Status"), BuildStatusText(item))
+    SetMetaLabel(widgets.statusLabel, T("MEDIA_LIBRARY_STATUS", "Status"), item and BuildStatusText(item) or "n/a")
+    SetMetaLabel(widgets.previewStatusLabel, T("MEDIA_LIBRARY_PREVIEW_STATUS", "Preview Status"), isStatusBar and BuildStatusText(item) or "n/a")
+    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), isStatusBar and item and Shorten(item.resolvedAsset, 92) or "n/a")
+    SetMetaLabel(widgets.fallbackUsedLabel, T("MEDIA_LIBRARY_FALLBACK_USED", "Fallback Used"), isStatusBar and item and FormatBool(item.missing == true or item.available ~= true or not item.resolvedAsset) or "n/a")
 
     if widgets.applyButton and widgets.applyButton.SetDisabled then
         widgets.applyButton:SetDisabled(not (item and item.selectable ~= false))
+    end
+
+    local Preview = ns.GUI
+        and ns.GUI.Editor
+        and ns.GUI.Editor.MediaLibrary
+        and ns.GUI.Editor.MediaLibrary.MediaLibraryPreview
+    if Preview and Preview.SetItem and widgets.preview then
+        Preview.SetItem(widgets.preview, item)
     end
 end
 
@@ -263,7 +292,7 @@ function MediaLibraryView.Create(context)
     window:SetTitle(context.state.title or T("MEDIA_LIBRARY_TITLE", "Media Library"))
     window:SetLayout("Fill")
     window:SetWidth(720)
-    window:SetHeight(560)
+    window:SetHeight(660)
     window:EnableResize(false)
 
     if window.frame then
@@ -313,36 +342,48 @@ function MediaLibraryView.Create(context)
     itemScroll:SetHeight(300)
     root:AddChild(itemScroll)
 
+    local Preview = ns.GUI
+        and ns.GUI.Editor
+        and ns.GUI.Editor.MediaLibrary
+        and ns.GUI.Editor.MediaLibrary.MediaLibraryPreview
+    local preview = Preview and Preview.Create and Preview.Create(root) or nil
+
     local metadata = AceGUI:Create("SimpleGroup")
     metadata:SetLayout("Flow")
     metadata:SetFullWidth(true)
-    metadata:SetHeight(120)
+    metadata:SetHeight(112)
     root:AddChild(metadata)
 
+    local primaryWidth = 330
+    local secondaryWidth = 310
     local labels = {
         selectedLabel = CreateLabel("", "highlight", 11),
-        statusLabel = CreateLabel("", "label", 10),
-        sourceLabel = CreateLabel("", "help", 10),
-        providerLabel = CreateLabel("", "help", 10),
-        valueLabel = CreateLabel("", "help", 10),
-        nameLabel = CreateLabel("", "help", 10),
-        availableLabel = CreateLabel("", "help", 10),
-        currentLabel = CreateLabel("", "help", 10),
-        legacyLabel = CreateLabel("", "help", 10),
-        missingLabel = CreateLabel("", "help", 10),
+        nameLabel = CreateLabel("", "label", 10, primaryWidth),
+        sourceLabel = CreateLabel("", "label", 10, secondaryWidth),
+        statusLabel = CreateLabel("", "help", 10, primaryWidth),
+        providerLabel = CreateLabel("", "help", 10, secondaryWidth),
+        currentLabel = CreateLabel("", "help", 10, primaryWidth),
+        legacyLabel = CreateLabel("", "help", 10, 150),
+        missingLabel = CreateLabel("", "help", 10, 160),
+        valueLabel = CreateLabel("", "help", 9),
+        previewStatusLabel = CreateLabel("", "help", 9, primaryWidth),
+        resolvedAssetLabel = CreateLabel("", "help", 9),
+        fallbackUsedLabel = CreateLabel("", "help", 9, secondaryWidth),
     }
 
     for _, key in ipairs({
         "selectedLabel",
-        "statusLabel",
-        "sourceLabel",
-        "providerLabel",
-        "valueLabel",
         "nameLabel",
-        "availableLabel",
+        "sourceLabel",
+        "statusLabel",
+        "providerLabel",
         "currentLabel",
         "legacyLabel",
         "missingLabel",
+        "previewStatusLabel",
+        "fallbackUsedLabel",
+        "valueLabel",
+        "resolvedAssetLabel",
     }) do
         metadata:AddChild(labels[key])
     end
@@ -350,12 +391,12 @@ function MediaLibraryView.Create(context)
     local actions = AceGUI:Create("SimpleGroup")
     actions:SetLayout("Flow")
     actions:SetFullWidth(true)
-    actions:SetHeight(36)
+    actions:SetHeight(34)
     root:AddChild(actions)
 
     local spacer = AceGUI:Create("Label")
     spacer:SetText("")
-    spacer:SetWidth(470)
+    spacer:SetWidth(480)
     actions:AddChild(spacer)
 
     local cancelButton = CreateButton(T("MEDIA_LIBRARY_CANCEL", "Cancel"), "utility", 105)
@@ -371,6 +412,7 @@ function MediaLibraryView.Create(context)
         searchBox = searchBox,
         sourceDropdown = sourceDropdown,
         itemScroll = itemScroll,
+        preview = preview,
         metadata = metadata,
         selectedLabel = labels.selectedLabel,
         statusLabel = labels.statusLabel,
@@ -382,6 +424,9 @@ function MediaLibraryView.Create(context)
         currentLabel = labels.currentLabel,
         legacyLabel = labels.legacyLabel,
         missingLabel = labels.missingLabel,
+        previewStatusLabel = labels.previewStatusLabel,
+        resolvedAssetLabel = labels.resolvedAssetLabel,
+        fallbackUsedLabel = labels.fallbackUsedLabel,
         cancelButton = cancelButton,
         applyButton = applyButton,
     }

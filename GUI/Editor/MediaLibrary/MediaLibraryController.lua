@@ -122,9 +122,11 @@ local function BuildItems()
     state.currentItem = type(result) == "table" and result.currentItem or nil
 
     local selectedValue = state.selectedItem and state.selectedItem.value
-    state.selectedItem = FindItemByValue(state.items, selectedValue)
-        or state.currentItem
-        or FindFirstSelectableItem(state.items)
+    if selectedValue then
+        state.selectedItem = FindItemByValue(state.items, selectedValue) or state.selectedItem
+    else
+        state.selectedItem = state.currentItem or FindFirstSelectableItem(state.items)
+    end
 end
 
 local function Refresh()
