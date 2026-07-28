@@ -38,6 +38,10 @@ local GetFirstAuraKey = Shared.GetFirstAuraKey
 local GetFirstTextId = Shared.GetFirstTextId
 local INSPECTOR_SECTION_SPACING = 10
 local activeTextFontSizeControl
+local MEDIA_TYPE_FONT = "font"
+local MEDIA_TYPE_STATUSBAR = "statusbar"
+local DEFAULT_FONT_REFERENCE = "fp:font:standard"
+local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 
 local function NormalizeInspectorUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
@@ -143,6 +147,77 @@ function InspectorController.Build(container, state, options)
             order = {},
             value = currentValue,
         }
+    end
+
+    local function IsMediaBrowserAvailable()
+        return ns.GUI
+            and ns.GUI.Editor
+            and ns.GUI.Editor.MediaLibrary
+            and type(ns.GUI.Editor.MediaLibrary.Open) == "function"
+    end
+
+    local function AddMediaBrowseButton(section, disabled, onClick)
+        if not section or not IsMediaBrowserAvailable() then
+            return nil
+        end
+
+        local button = AceGUI:Create("Button")
+        button:SetText(L["MEDIA_LIBRARY_BROWSE"] or "Browse...")
+        button:SetFullWidth(false)
+        button:SetWidth(112)
+        button:SetDisabled(disabled and true or false)
+        button:SetCallback("OnClick", function()
+            if disabled or type(onClick) ~= "function" then
+                return
+            end
+            onClick()
+        end)
+        if FormWidgets.ApplyModalActionButtonVisual then
+            FormWidgets.ApplyModalActionButtonVisual(button, "utility")
+        end
+
+        section:AddChild(button)
+        return button
+    end
+
+    local function OpenMediaBrowserForField(options)
+        options = type(options) == "table" and options or {}
+        local MediaLibrary = ns.GUI
+            and ns.GUI.Editor
+            and ns.GUI.Editor.MediaLibrary
+        if not (MediaLibrary and type(MediaLibrary.Open) == "function") then
+            return
+        end
+
+        MediaLibrary.Open({
+            mediaType = options.mediaType,
+            currentValue = type(options.currentValue) == "function" and options.currentValue() or options.currentValue,
+            defaultReference = options.fallbackReference,
+            title = options.title,
+            onApply = function(selectedValue, selectedItem)
+                if type(options.onApply) == "function" then
+                    options.onApply(selectedValue, selectedItem)
+                end
+            end,
+        })
+    end
+
+    local function AddMediaBrowserForField(section, mediaType, currentValue, fallbackReference, title, disabled, onApply)
+        return AddMediaBrowseButton(section, disabled, function()
+            OpenMediaBrowserForField({
+                mediaType = mediaType,
+                currentValue = currentValue,
+                fallbackReference = fallbackReference,
+                title = title,
+                onApply = onApply,
+            })
+        end)
+    end
+
+    local function SyncDropdownToStoredValue(dropdown, value)
+        if dropdown and dropdown.SetValue then
+            dropdown:SetValue(value)
+        end
     end
 
     textAnchorTargetList.CastBar = textAnchorTargetList.CastBar or (L["BAR_CAST"] or "Cast Bar")
@@ -590,9 +665,18 @@ function InspectorController.Build(container, state, options)
         end
 
         local healthTextureOptions = BuildStatusBarTextureOptions(unitConfig.healthBarTexture)
-        AddDropdown(healthSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, function(value)
-            SetUnitField("healthBarTexture", value)
-        end)
+        local healthTextureDropdown
+        local function SetHealthBarTexture(value)
+            local result = SetUnitField("healthBarTexture", value)
+            if not (result and result.ok == false) then
+                SyncDropdownToStoredValue(healthTextureDropdown, unitConfig.healthBarTexture)
+            end
+            return result
+        end
+        healthTextureDropdown = AddDropdown(healthSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
+        AddMediaBrowserForField(healthSection, MEDIA_TYPE_STATUSBAR, function()
+            return unitConfig.healthBarTexture
+        end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
 
         AddCheckBox(healthSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
             SetUnitField("useClassColorHealth", value and true or false, healthSection)
@@ -645,9 +729,18 @@ function InspectorController.Build(container, state, options)
         end)
 
         local powerTextureOptions = BuildStatusBarTextureOptions(unitConfig.powerBarTexture)
-        AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, function(value)
-            SetUnitField("powerBarTexture", value)
-        end, unitConfig.showPowerBar == false)
+        local powerTextureDropdown
+        local function SetPowerBarTexture(value)
+            local result = SetUnitField("powerBarTexture", value)
+            if not (result and result.ok == false) then
+                SyncDropdownToStoredValue(powerTextureDropdown, unitConfig.powerBarTexture)
+            end
+            return result
+        end
+        powerTextureDropdown = AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, SetPowerBarTexture, unitConfig.showPowerBar == false)
+        AddMediaBrowserForField(powerSection, MEDIA_TYPE_STATUSBAR, function()
+            return unitConfig.powerBarTexture
+        end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showPowerBar == false, SetPowerBarTexture)
 
         if isExpert then
             AddSlider(powerSection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
@@ -697,9 +790,18 @@ function InspectorController.Build(container, state, options)
 
         local alternativePowerTextureValue = unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture
         local alternativePowerTextureOptions = BuildStatusBarTextureOptions(alternativePowerTextureValue)
-        AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", alternativePowerTextureOptions, alternativePowerTextureOptions.value, function(value)
-            SetUnitField("alternativePowerBarTexture", value)
-        end, unitConfig.showAlternativePowerBar ~= true)
+        local alternativePowerTextureDropdown
+        local function SetAlternativePowerBarTexture(value)
+            local result = SetUnitField("alternativePowerBarTexture", value)
+            if not (result and result.ok == false) then
+                SyncDropdownToStoredValue(alternativePowerTextureDropdown, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture)
+            end
+            return result
+        end
+        alternativePowerTextureDropdown = AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", alternativePowerTextureOptions, alternativePowerTextureOptions.value, SetAlternativePowerBarTexture, unitConfig.showAlternativePowerBar ~= true)
+        AddMediaBrowserForField(altPowerSection, MEDIA_TYPE_STATUSBAR, function()
+            return unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture
+        end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showAlternativePowerBar ~= true, SetAlternativePowerBarTexture)
 
         AddSlider(altPowerSection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
             SetUnitField("alternativePowerBarHeight", math.floor((value or 0) + 0.5))
@@ -749,9 +851,18 @@ function InspectorController.Build(container, state, options)
 
         local classPowerTextureValue = unitConfig.classPowerBarTexture or unitConfig.powerBarTexture
         local classPowerTextureOptions = BuildStatusBarTextureOptions(classPowerTextureValue)
-        AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", classPowerTextureOptions, classPowerTextureOptions.value, function(value)
-            SetUnitField("classPowerBarTexture", value)
-        end, unitConfig.showClassPowerBar ~= true)
+        local classPowerTextureDropdown
+        local function SetClassPowerBarTexture(value)
+            local result = SetUnitField("classPowerBarTexture", value)
+            if not (result and result.ok == false) then
+                SyncDropdownToStoredValue(classPowerTextureDropdown, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture)
+            end
+            return result
+        end
+        classPowerTextureDropdown = AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", classPowerTextureOptions, classPowerTextureOptions.value, SetClassPowerBarTexture, unitConfig.showClassPowerBar ~= true)
+        AddMediaBrowserForField(classPowerSection, MEDIA_TYPE_STATUSBAR, function()
+            return unitConfig.classPowerBarTexture or unitConfig.powerBarTexture
+        end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showClassPowerBar ~= true, SetClassPowerBarTexture)
 
         AddColorPicker(classPowerSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
             SetUnitField("classPowerColor", value)
@@ -829,9 +940,18 @@ function InspectorController.Build(container, state, options)
 
         if isExpert then
             local castTextureOptions = BuildStatusBarTextureOptions(unitConfig.castBarTexture)
-            AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", castTextureOptions, castTextureOptions.value, function(value)
-                SetUnitField("castBarTexture", value)
-            end, unitConfig.showCastBar == false)
+            local castTextureDropdown
+            local function SetCastBarTexture(value)
+                local result = SetUnitField("castBarTexture", value)
+                if not (result and result.ok == false) then
+                    SyncDropdownToStoredValue(castTextureDropdown, unitConfig.castBarTexture)
+                end
+                return result
+            end
+            castTextureDropdown = AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", castTextureOptions, castTextureOptions.value, SetCastBarTexture, unitConfig.showCastBar == false)
+            AddMediaBrowserForField(castSection, MEDIA_TYPE_STATUSBAR, function()
+                return unitConfig.castBarTexture
+            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
 
             AddSlider(castSection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
                 SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
@@ -1006,9 +1126,18 @@ function InspectorController.Build(container, state, options)
             end, textConfig.enabled == false, "text_color")
         else
             local fontOptions = BuildFontOptions(textConfig.font)
-            AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontOptions, fontOptions.value, function(value)
-                SetTextField(selectedTextId, "font", value)
-            end, textConfig.enabled == false, "text_font")
+            local fontDropdown
+            local function SetTextFont(value)
+                local result = SetTextField(selectedTextId, "font", value)
+                if not (result and result.ok == false) then
+                    SyncDropdownToStoredValue(fontDropdown, textConfig.font)
+                end
+                return result
+            end
+            fontDropdown = AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontOptions, fontOptions.value, SetTextFont, textConfig.enabled == false, "text_font")
+            AddMediaBrowserForField(textSection, MEDIA_TYPE_FONT, function()
+                return textConfig.font
+            end, DEFAULT_FONT_REFERENCE, L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font", textConfig.enabled == false, SetTextFont)
 
             AddDropdown(textSection, L["OPTION_FONT_STYLE"] or "Font Style", fontStyleList, textConfig.fontStyle or "NONE", function(value)
                 SetTextField(selectedTextId, "fontStyle", value)
