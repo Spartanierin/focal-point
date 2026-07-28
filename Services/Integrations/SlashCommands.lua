@@ -445,6 +445,46 @@ local function SetMediaDebugEnabled(enabled)
     end
 end
 
+local function OpenMediaBrowserDebug(mediaType)
+    mediaType = tostring(mediaType or ""):lower()
+    if mediaType ~= "font" and mediaType ~= "statusbar" then
+        MediaDebugMessage("usage: /fpdebugmedia browser font|statusbar")
+        return
+    end
+
+    local MediaLibrary = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.MediaLibrary
+
+    if not (MediaLibrary and MediaLibrary.Open) then
+        MediaDebugMessage("media browser unavailable")
+        return
+    end
+
+    local defaultReference = mediaType == "font" and "fp:font:standard" or "fp:statusbar:blizzard-default"
+    local ok, reason = MediaLibrary.Open({
+        mediaType = mediaType,
+        currentValue = defaultReference,
+        defaultReference = defaultReference,
+        onApply = function(value, item)
+            MediaDebugMessage(string.format(
+                "browser apply media=%s value=%s label=%s",
+                tostring(mediaType),
+                tostring(value),
+                tostring(item and item.label or "n/a")
+            ))
+        end,
+        onCancel = function()
+            MediaDebugMessage("browser cancel")
+        end,
+    })
+
+    if not ok then
+        MediaDebugMessage("browser open failed: " .. tostring(reason))
+    end
+end
+
 local function HandleMediaDebugCommand(msg)
     msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     if msg == "on" then
@@ -453,10 +493,12 @@ local function HandleMediaDebugCommand(msg)
         SetMediaDebugEnabled(false)
     elseif msg == "reset" then
         ResetMediaDebug()
+    elseif msg:match("^browser%s+") then
+        OpenMediaBrowserDebug(msg:match("^browser%s+(%S+)$"))
     elseif msg == "report" or msg == "status" or msg == "" then
         ReportMediaDebug()
     else
-        MediaDebugMessage("usage: /fpdebugmedia on|off|reset|report")
+        MediaDebugMessage("usage: /fpdebugmedia on|off|reset|report|browser font|browser statusbar")
     end
 end
 
@@ -621,7 +663,7 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report, /fpdebuglifecycle on|off|status|report|clear")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report|browser font|browser statusbar, /fpdebuglifecycle on|off|status|report|clear")
             end
         end
     end

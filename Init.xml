@@ -121,6 +121,8 @@
     <Script file="GUI/Editor/Inspector/InspectorRefreshPolicy.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorBinding.lua"/>
     <Script file="GUI/Editor/MediaLibrary/MediaLibraryItems.lua"/>
+    <Script file="GUI/Editor/MediaLibrary/MediaLibraryView.lua"/>
+    <Script file="GUI/Editor/MediaLibrary/MediaLibraryController.lua"/>
     <Script file="GUI/Editor/Inspector/MediaOptionAdapter.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorController.lua"/>
     <Script file="GUI/Widgets/ColorPickerWidget.lua"/>
