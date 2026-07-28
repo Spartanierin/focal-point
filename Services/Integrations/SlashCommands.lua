@@ -423,6 +423,18 @@ local function ReportMediaDebug()
     for _, line in ipairs(lines) do
         MediaDebugMessage(line)
     end
+
+    local Preview = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.MediaLibrary
+        and FocalPoint.GUI.Editor.MediaLibrary.MediaLibraryPreview
+    local previewLines = Preview and Preview.BuildDebugReport and Preview.BuildDebugReport() or nil
+    if type(previewLines) == "table" then
+        for _, line in ipairs(previewLines) do
+            MediaDebugMessage(line)
+        end
+    end
 end
 
 local function ResetMediaDebug()

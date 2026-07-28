@@ -13,6 +13,7 @@ local MediaLibraryView = {}
 ns.GUI.Editor.MediaLibrary.MediaLibraryView = MediaLibraryView
 
 local STATUSBAR = "statusbar"
+local FONT = "font"
 
 local SOURCE_ORDER = {
     "all",
@@ -210,6 +211,7 @@ local function RefreshMetadata(context)
     local widgets = context and context.widgets or {}
     local item = context and context.state and context.state.selectedItem or nil
     local isStatusBar = context and context.state and context.state.mediaType == STATUSBAR
+    local hasPreview = isStatusBar or (context and context.state and context.state.mediaType == FONT)
 
     SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"), item and Shorten(item.label, 86) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
     SetMetaLabel(widgets.nameLabel, T("MEDIA_LIBRARY_NAME", "Name"), item and Shorten(item.name, 44) or "n/a")
@@ -221,9 +223,9 @@ local function RefreshMetadata(context)
     SetMetaLabel(widgets.legacyLabel, T("MEDIA_LIBRARY_LEGACY", "Legacy"), item and FormatBool(item.legacy == true) or "n/a")
     SetMetaLabel(widgets.missingLabel, T("MEDIA_LIBRARY_MISSING", "Missing"), item and FormatBool(item.missing == true) or "n/a")
     SetMetaLabel(widgets.statusLabel, T("MEDIA_LIBRARY_STATUS", "Status"), item and BuildStatusText(item) or "n/a")
-    SetMetaLabel(widgets.previewStatusLabel, T("MEDIA_LIBRARY_PREVIEW_STATUS", "Preview Status"), isStatusBar and BuildStatusText(item) or "n/a")
-    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), isStatusBar and item and Shorten(item.resolvedAsset, 92) or "n/a")
-    SetMetaLabel(widgets.fallbackUsedLabel, T("MEDIA_LIBRARY_FALLBACK_USED", "Fallback Used"), isStatusBar and item and FormatBool(item.missing == true or item.available ~= true or not item.resolvedAsset) or "n/a")
+    SetMetaLabel(widgets.previewStatusLabel, T("MEDIA_LIBRARY_PREVIEW_STATUS", "Preview Status"), hasPreview and BuildStatusText(item) or "n/a")
+    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), hasPreview and item and Shorten(item.resolvedAsset, 92) or "n/a")
+    SetMetaLabel(widgets.fallbackUsedLabel, T("MEDIA_LIBRARY_FALLBACK_USED", "Fallback Used"), hasPreview and item and FormatBool(item.missing == true or item.available ~= true or not item.resolvedAsset) or "n/a")
 
     if widgets.applyButton and widgets.applyButton.SetDisabled then
         widgets.applyButton:SetDisabled(not (item and item.selectable ~= false))
