@@ -153,7 +153,9 @@ local function CreateCallbacks()
             end
             context.state.selectedItem = item
             local View = ns.GUI.Editor.MediaLibrary.MediaLibraryView
-            if View and View.RefreshList then
+            if View and View.RefreshSelection then
+                View.RefreshSelection(context)
+            elseif View and View.RefreshList then
                 View.RefreshList(context)
             end
         end,

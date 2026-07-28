@@ -172,6 +172,22 @@ local function BuildItemRowText(item, selectedItem)
     return prefix .. tostring(item and item.label or "") .. source
 end
 
+local function RefreshItemSelectionMarkers(context)
+    local widgets = context and context.widgets or {}
+    local rows = widgets.itemRows
+    if type(rows) ~= "table" then
+        return false
+    end
+
+    for _, row in ipairs(rows) do
+        if row and row.button and row.button.SetText then
+            row.button:SetText(BuildItemRowText(row.item, context.state and context.state.selectedItem or nil))
+        end
+    end
+
+    return true
+end
+
 local function SetMetaLabel(label, title, value)
     if not label then
         return
@@ -247,6 +263,7 @@ function MediaLibraryView.RefreshList(context)
         return
     end
 
+    widgets.itemRows = {}
     scroll:ReleaseChildren()
 
     local items = context.state and context.state.items or {}
@@ -266,6 +283,23 @@ function MediaLibraryView.RefreshList(context)
             context.callbacks.onSelect(item)
         end)
         scroll:AddChild(button)
+        widgets.itemRows[#widgets.itemRows + 1] = {
+            item = item,
+            button = button,
+        }
+    end
+
+    RefreshMetadata(context)
+end
+
+function MediaLibraryView.RefreshSelection(context)
+    if not context then
+        return
+    end
+
+    if not RefreshItemSelectionMarkers(context) then
+        MediaLibraryView.RefreshList(context)
+        return
     end
 
     RefreshMetadata(context)
