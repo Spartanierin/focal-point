@@ -27,7 +27,6 @@ This changelog uses the following categories:
 * Improved Media Library usability with polished layout, clearer selection states, stable scroll position, and better Apply/Cancel placement.
 * Improved text editing previews so selected text elements, Cast Bar text, disabled text owners, and Inspector changes stay synchronized more reliably.
 * Improved Text Builder and text template validation workflows around usage scanning, missing references, and generated text cleanup.
-* Improved compatibility with World of Warcraft 12.1.0.
 
 ### Changed
 
