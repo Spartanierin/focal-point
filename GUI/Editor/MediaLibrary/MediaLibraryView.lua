@@ -14,6 +14,10 @@ ns.GUI.Editor.MediaLibrary.MediaLibraryView = MediaLibraryView
 
 local STATUSBAR = "statusbar"
 local FONT = "font"
+local ROW_WIDGET_TYPE = "FocalPointMediaLibraryRow"
+local ROW_WIDGET_VERSION = 1
+local ROW_HEIGHT_COMPACT = 28
+local ROW_HEIGHT_BADGED = 38
 
 local SOURCE_ORDER = {
     "all",
@@ -149,27 +153,366 @@ local function BuildSourceDropdown()
     return values, order
 end
 
-local function BuildItemRowText(item, selectedItem)
-    local markers = {}
-    if item == selectedItem then
-        markers[#markers + 1] = T("MEDIA_LIBRARY_MARKER_SELECTED", "Selected")
+local function Shorten(value, limit)
+    value = tostring(value or "")
+    limit = tonumber(limit) or 72
+    if #value <= limit then
+        return value
     end
+
+    return value:sub(1, math.max(1, limit - 3)) .. "..."
+end
+
+local function SetTextureColor(texture, color)
+    if texture and texture.SetColorTexture and color then
+        texture:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+end
+
+local function SetFontColor(fontString, color)
+    if fontString and fontString.SetTextColor and color then
+        fontString:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+end
+
+local function ApplyFontStringStyle(fontString, role, size, color)
+    if TextStyles.ApplyFontString then
+        TextStyles.ApplyFontString(fontString, role or "label", {
+            size = size,
+            alpha = color and color[4] or 1,
+        })
+    elseif fontString and fontString.SetFont then
+        fontString:SetFont(STANDARD_TEXT_FONT, size or 11, "")
+    end
+    SetFontColor(fontString, color)
+end
+
+local function BuildItemBadges(item)
+    local badges = {}
     if item and item.current == true then
-        markers[#markers + 1] = T("MEDIA_LIBRARY_MARKER_CURRENT", "Current")
+        badges[#badges + 1] = T("MEDIA_LIBRARY_MARKER_CURRENT", "Current")
     end
     if item and item.missing == true then
-        markers[#markers + 1] = T("MEDIA_LIBRARY_MARKER_MISSING", "Missing")
+        badges[#badges + 1] = T("MEDIA_LIBRARY_MARKER_MISSING", "Missing")
     elseif item and item.legacy == true then
-        markers[#markers + 1] = T("MEDIA_LIBRARY_MARKER_LEGACY", "Legacy")
+        badges[#badges + 1] = T("MEDIA_LIBRARY_MARKER_LEGACY", "Legacy")
+    elseif item and item.available ~= true then
+        badges[#badges + 1] = T("MEDIA_LIBRARY_STATUS_UNAVAILABLE", "Unavailable")
     end
 
-    local prefix = ""
-    if #markers > 0 then
-        prefix = "[" .. table.concat(markers, "] [") .. "] "
+    if #badges == 0 then
+        return ""
+    end
+    return "[" .. table.concat(badges, "]  [") .. "]"
+end
+
+local function GetItemRowHeight(item)
+    return BuildItemBadges(item) ~= "" and ROW_HEIGHT_BADGED or ROW_HEIGHT_COMPACT
+end
+
+local ROW_COLORS = {
+    fill = { 0.075, 0.085, 0.105, 0.78 },
+    fillHover = { 0.105, 0.118, 0.142, 0.92 },
+    fillSelected = { 0.210, 0.170, 0.082, 0.98 },
+    fillMissing = { 0.105, 0.074, 0.070, 0.84 },
+    border = { 0.22, 0.24, 0.28, 0.46 },
+    borderHover = { 0.36, 0.39, 0.44, 0.72 },
+    borderSelected = { 0.95, 0.76, 0.28, 0.98 },
+    marker = { 1.00, 0.80, 0.24, 1.00 },
+    markerMuted = { 0.58, 0.62, 0.68, 0.34 },
+    name = { 0.93, 0.91, 0.84, 1.00 },
+    nameSelected = { 1.00, 0.98, 0.88, 1.00 },
+    nameDisabled = { 0.54, 0.57, 0.61, 0.95 },
+    source = { 0.64, 0.67, 0.72, 1.00 },
+    sourceSelected = { 0.82, 0.78, 0.64, 1.00 },
+    current = { 0.96, 0.82, 0.38, 1.00 },
+    badge = { 0.75, 0.73, 0.66, 0.95 },
+    warning = { 0.88, 0.58, 0.52, 0.98 },
+}
+
+local function ApplyRowBackdrop(frame, selected, hovered, missing)
+    if not (frame and frame.SetBackdropColor and frame.SetBackdropBorderColor) then
+        return
     end
 
-    local source = item and item.source and ("  -  " .. GetSourceLabel(item.source)) or ""
-    return prefix .. tostring(item and item.label or "") .. source
+    local fill = selected and ROW_COLORS.fillSelected or (hovered and ROW_COLORS.fillHover or (missing and ROW_COLORS.fillMissing or ROW_COLORS.fill))
+    local border = selected and ROW_COLORS.borderSelected or (hovered and ROW_COLORS.borderHover or ROW_COLORS.border)
+    frame:SetBackdropColor(unpack(fill))
+    frame:SetBackdropBorderColor(unpack(border))
+end
+
+local function UpdateRowVisual(widget)
+    local item = widget and widget.item or nil
+    local selected = widget and widget.selected == true
+    local hovered = widget and widget.hovered == true
+    local disabled = widget and widget.disabled == true
+    local missing = item and item.missing == true
+    local badges = BuildItemBadges(item)
+    local hasBadges = badges ~= ""
+    local height = GetItemRowHeight(item)
+
+    ApplyRowBackdrop(widget.frame, selected, hovered, missing)
+
+    local label = item and item.label or ""
+    widget.nameText:SetText(Shorten(label, 58))
+    widget.sourceText:SetText(item and GetSourceLabel(item.source) or "")
+    widget.badgeText:SetText(badges)
+
+    SetTextureColor(widget.marker, selected and ROW_COLORS.marker or ROW_COLORS.markerMuted)
+    widget.marker:SetWidth(selected and 6 or (item and item.current == true and 4 or 2))
+    widget.marker:SetAlpha((selected or item and item.current == true or hovered) and 1 or 0.55)
+
+    SetFontColor(widget.nameText, disabled and ROW_COLORS.nameDisabled or (selected and ROW_COLORS.nameSelected or ROW_COLORS.name))
+    SetFontColor(widget.sourceText, item and item.current == true and ROW_COLORS.current or (selected and ROW_COLORS.sourceSelected or ROW_COLORS.source))
+    SetFontColor(widget.badgeText, item and item.current == true and ROW_COLORS.current or (missing and ROW_COLORS.warning or ROW_COLORS.badge))
+
+    if widget.frame and widget.frame.SetHeight then
+        widget.frame:SetHeight(height)
+    end
+    if widget.SetHeight then
+        widget:SetHeight(height)
+    end
+    if hasBadges then
+        widget.badgeText:Show()
+    else
+        widget.badgeText:Hide()
+    end
+end
+
+local function RegisterMediaLibraryRowWidget()
+    if AceGUI:GetWidgetVersion(ROW_WIDGET_TYPE) and AceGUI:GetWidgetVersion(ROW_WIDGET_TYPE) >= ROW_WIDGET_VERSION then
+        return
+    end
+
+    local methods = {}
+
+    function methods:OnAcquire()
+        self:SetFullWidth(true)
+        self:SetHeight(ROW_HEIGHT_COMPACT)
+        self.item = nil
+        self.selected = false
+        self.hovered = false
+        self.disabled = false
+        if self.frame then
+            self.frame:EnableMouse(true)
+            self.frame:Show()
+        end
+        UpdateRowVisual(self)
+    end
+
+    function methods:OnRelease()
+        self.item = nil
+        self.selected = false
+        self.hovered = false
+        self.disabled = false
+        if self.nameText then
+            self.nameText:SetText("")
+        end
+        if self.sourceText then
+            self.sourceText:SetText("")
+        end
+        if self.badgeText then
+            self.badgeText:SetText("")
+        end
+    end
+
+    function methods:SetItem(item, selectedItem)
+        self.item = item
+        self.selected = item ~= nil and item == selectedItem
+        self.disabled = item and item.selectable == false or false
+        UpdateRowVisual(self)
+    end
+
+    function methods:SetDisabled(disabled)
+        self.disabled = disabled == true
+        UpdateRowVisual(self)
+    end
+
+    local function Constructor()
+        local frame = CreateFrame("Button", nil, UIParent, "BackdropTemplate")
+        frame:Hide()
+        frame:SetHeight(ROW_HEIGHT_COMPACT)
+        frame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+        })
+        frame:SetBackdropColor(unpack(ROW_COLORS.fill))
+        frame:SetBackdropBorderColor(unpack(ROW_COLORS.border))
+
+        local marker = frame:CreateTexture(nil, "ARTWORK")
+        marker:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
+        marker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 1, 1)
+        marker:SetWidth(2)
+        marker:SetColorTexture(unpack(ROW_COLORS.markerMuted))
+
+        local sourceText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        sourceText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -6)
+        sourceText:SetWidth(128)
+        sourceText:SetJustifyH("RIGHT")
+        sourceText:SetWordWrap(false)
+        if sourceText.SetMaxLines then
+            sourceText:SetMaxLines(1)
+        end
+        ApplyFontStringStyle(sourceText, "help", 10, ROW_COLORS.source)
+
+        local nameText = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        nameText:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -5)
+        nameText:SetPoint("TOPRIGHT", sourceText, "TOPLEFT", -10, 0)
+        nameText:SetJustifyH("LEFT")
+        nameText:SetWordWrap(false)
+        if nameText.SetMaxLines then
+            nameText:SetMaxLines(1)
+        end
+        ApplyFontStringStyle(nameText, "label", 11, ROW_COLORS.name)
+
+        local badgeText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        badgeText:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -20)
+        badgeText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -20)
+        badgeText:SetJustifyH("LEFT")
+        badgeText:SetWordWrap(false)
+        if badgeText.SetMaxLines then
+            badgeText:SetMaxLines(1)
+        end
+        ApplyFontStringStyle(badgeText, "help", 9, ROW_COLORS.badge)
+
+        local widget = {
+            frame = frame,
+            type = ROW_WIDGET_TYPE,
+            marker = marker,
+            nameText = nameText,
+            sourceText = sourceText,
+            badgeText = badgeText,
+        }
+        frame.obj = widget
+        frame:SetScript("OnEnter", function(self)
+            local obj = self.obj
+            if obj then
+                obj.hovered = true
+                UpdateRowVisual(obj)
+            end
+        end)
+        frame:SetScript("OnLeave", function(self)
+            local obj = self.obj
+            if obj then
+                obj.hovered = false
+                UpdateRowVisual(obj)
+            end
+        end)
+        frame:SetScript("OnMouseDown", function(self, button)
+            local obj = self.obj
+            if obj and not obj.disabled then
+                obj:Fire("OnClick", button)
+            end
+            AceGUI:ClearFocus()
+        end)
+
+        for method, func in pairs(methods) do
+            widget[method] = func
+        end
+
+        return AceGUI:RegisterAsWidget(widget)
+    end
+
+    AceGUI:RegisterWidgetType(ROW_WIDGET_TYPE, Constructor, ROW_WIDGET_VERSION)
+end
+
+RegisterMediaLibraryRowWidget()
+
+local function FindCurrentRowIndex(rows)
+    if type(rows) ~= "table" then
+        return nil
+    end
+
+    for index, row in ipairs(rows) do
+        if row and row.item and row.item.current == true then
+            return index
+        end
+    end
+
+    return nil
+end
+
+local function CalculateRowOffset(rows, targetIndex)
+    local offset = 0
+    for index, row in ipairs(rows or {}) do
+        if index >= targetIndex then
+            break
+        end
+        offset = offset + GetItemRowHeight(row and row.item or nil)
+    end
+    return offset
+end
+
+local function ScrollRowIntoView(scroll, rows, targetIndex)
+    if not (scroll and rows and targetIndex) then
+        return
+    end
+
+    if scroll.DoLayout then
+        scroll:DoLayout()
+    end
+    if scroll.FixScroll then
+        scroll:FixScroll()
+    end
+
+    local scrollFrame = scroll.scrollframe
+    local content = scroll.content
+    if not (scrollFrame and content and scroll.SetScroll) then
+        return
+    end
+
+    local viewHeight = scrollFrame:GetHeight() or 0
+    local contentHeight = content:GetHeight() or 0
+    if viewHeight <= 0 or contentHeight <= viewHeight then
+        scroll:SetScroll(0)
+        return
+    end
+
+    local rowTop = CalculateRowOffset(rows, targetIndex)
+    local rowHeight = GetItemRowHeight(rows[targetIndex] and rows[targetIndex].item or nil)
+    local rowBottom = rowTop + rowHeight
+    local status = scroll.status or scroll.localstatus or {}
+    local currentOffset = status.offset or 0
+
+    if rowTop >= currentOffset and rowBottom <= currentOffset + viewHeight then
+        return
+    end
+
+    local maxOffset = math.max(0, contentHeight - viewHeight)
+    local targetOffset = math.max(0, math.min(rowTop - 6, maxOffset))
+    local scrollValue = maxOffset > 0 and math.max(0, math.min(1000, (targetOffset / maxOffset) * 1000)) or 0
+
+    if scroll.scrollbar and scroll.scrollbar.SetValue then
+        scroll.scrollbar:SetValue(scrollValue)
+    else
+        scroll:SetScroll(scrollValue)
+    end
+end
+
+local function RequestScrollCurrentIntoView(context)
+    local widgets = context and context.widgets or {}
+    local rows = widgets.itemRows
+    local scroll = widgets.itemScroll
+    local targetIndex = FindCurrentRowIndex(rows)
+    if not targetIndex then
+        return
+    end
+
+    context.mediaLibraryScrollToken = (context.mediaLibraryScrollToken or 0) + 1
+    local token = context.mediaLibraryScrollToken
+    local function apply()
+        if not context or context.mediaLibraryScrollToken ~= token then
+            return
+        end
+        ScrollRowIntoView(scroll, rows, targetIndex)
+    end
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, apply)
+    else
+        apply()
+    end
 end
 
 local function RefreshItemSelectionMarkers(context)
@@ -180,8 +523,8 @@ local function RefreshItemSelectionMarkers(context)
     end
 
     for _, row in ipairs(rows) do
-        if row and row.button and row.button.SetText then
-            row.button:SetText(BuildItemRowText(row.item, context.state and context.state.selectedItem or nil))
+        if row and row.widget and row.widget.SetItem then
+            row.widget:SetItem(row.item, context.state and context.state.selectedItem or nil)
         end
     end
 
@@ -194,16 +537,6 @@ local function SetMetaLabel(label, title, value)
     end
 
     label:SetText(string.format("%s: %s", title, tostring(value or "")))
-end
-
-local function Shorten(value, limit)
-    value = tostring(value or "")
-    limit = tonumber(limit) or 72
-    if #value <= limit then
-        return value
-    end
-
-    return value:sub(1, math.max(1, limit - 3)) .. "..."
 end
 
 local function BuildStatusText(item)
@@ -274,22 +607,24 @@ function MediaLibraryView.RefreshList(context)
     end
 
     for _, item in ipairs(items) do
-        local button = CreateButton(BuildItemRowText(item, context.state.selectedItem), "utility")
-        button:SetDisabled(item.selectable == false)
-        button:SetCallback("OnClick", function()
+        local row = AceGUI:Create(ROW_WIDGET_TYPE)
+        row:SetItem(item, context.state.selectedItem)
+        row:SetDisabled(item.selectable == false)
+        row:SetCallback("OnClick", function()
             if item.selectable == false then
                 return
             end
             context.callbacks.onSelect(item)
         end)
-        scroll:AddChild(button)
+        scroll:AddChild(row)
         widgets.itemRows[#widgets.itemRows + 1] = {
             item = item,
-            button = button,
+            widget = row,
         }
     end
 
     RefreshMetadata(context)
+    RequestScrollCurrentIntoView(context)
 end
 
 function MediaLibraryView.RefreshSelection(context)
