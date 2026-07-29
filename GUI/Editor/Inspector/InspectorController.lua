@@ -149,6 +149,44 @@ function InspectorController.Build(container, state, options)
         }
     end
 
+    local function GetActiveProfileTextTemplates()
+        local profile = ns.db and ns.db.profile or nil
+        local templates = profile and profile.TextTemplates or nil
+        return type(templates) == "table" and templates or {}
+    end
+
+    local function BuildTextStateTemplateOptions(currentValue)
+        local values = {
+            __none = L["TEXT_STATE_TEMPLATE_NONE"] or "None",
+        }
+        local order = { "__none" }
+        local templates = GetActiveProfileTextTemplates()
+        local templateNames = {}
+
+        for templateName, templateValue in pairs(templates) do
+            if type(templateName) == "string" and templateName ~= "" and type(templateValue) == "string" then
+                templateNames[#templateNames + 1] = templateName
+            end
+        end
+
+        table.sort(templateNames)
+        for _, templateName in ipairs(templateNames) do
+            values[templateName] = templateName
+            order[#order + 1] = templateName
+        end
+
+        if type(currentValue) == "string" and currentValue ~= "" and values[currentValue] == nil then
+            values[currentValue] = string.format("%s: %s", L["MEDIA_LIBRARY_MISSING"] or "Missing", currentValue)
+            order[#order + 1] = currentValue
+        end
+
+        return {
+            values = values,
+            order = order,
+            value = (type(currentValue) == "string" and currentValue ~= "") and currentValue or "__none",
+        }
+    end
+
     local function IsMediaBrowserAvailable()
         return ns.GUI
             and ns.GUI.Editor
@@ -420,10 +458,18 @@ function InspectorController.Build(container, state, options)
             return L["EDITOR_INSPECTOR_ERROR_UNIT_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
         elseif errorCode == "text_config_not_found" then
             return L["EDITOR_INSPECTOR_ERROR_TEXT_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "unit_not_found" then
+            return L["EDITOR_INSPECTOR_ERROR_UNIT_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "text_element_not_found" then
+            return L["EDITOR_INSPECTOR_ERROR_TEXT_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
         elseif errorCode == "indicator_config_not_found" then
             return L["EDITOR_INSPECTOR_ERROR_INDICATOR_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
         elseif errorCode == "aura_config_not_found" then
             return L["EDITOR_INSPECTOR_ERROR_AURA_CONFIG_NOT_FOUND"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "template_not_found" then
+            return L["INFO_TEXT_BUILDER_STATUS_SELECT_TEMPLATE"] or L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
+        elseif errorCode == "invalid_template_name" or errorCode == "state_key_invalid" then
+            return L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
         end
 
         return L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"]
@@ -469,6 +515,42 @@ function InspectorController.Build(container, state, options)
             return nil
         end
         return ApplyMutation("text", fieldName, InspectorMutations.SetTextField(inspectorContext, textKey, fieldName, value), section, fallbackNotify)
+    end
+
+    local function SetTextStateTemplate(textKey, stateKey, value, section, dropdown)
+        local result
+        if value == "__none" then
+            result = type(InspectorMutations.UnassignTextStateTemplate) == "function"
+                and InspectorMutations.UnassignTextStateTemplate(inspectorContext, textKey, stateKey)
+                or nil
+        elseif type(GetActiveProfileTextTemplates()[value]) == "string" then
+            result = type(InspectorMutations.AssignTextStateTemplate) == "function"
+                and InspectorMutations.AssignTextStateTemplate(inspectorContext, textKey, stateKey, value)
+                or nil
+        else
+            local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
+            local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
+            SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
+            return { ok = true, changed = false }
+        end
+
+        if result and result.ok == false then
+            ReportMutationError(result)
+            local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
+            local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
+            SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
+            return result
+        end
+
+        if result and result.ok and result.changed then
+            NotifyConfigChangedAndRebuildSection(section, "texts")
+            return result
+        end
+
+        local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
+        local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
+        SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
+        return result
     end
 
     local function RefreshTextFontSizeLocally(textKey, newValue)
@@ -1190,6 +1272,33 @@ function InspectorController.Build(container, state, options)
             AddColorPicker(textSection, L["OPTION_SHADOW_COLOR"] or "Shadow Color", textConfig.shadowColor, true, function(value)
                 SetTextField(selectedTextId, "shadowColor", value)
             end, textConfig.enabled == false or textConfig.shadowEnabled == false, "text_shadow_color")
+
+            if type(InspectorMutations.AssignTextStateTemplate) == "function"
+                and type(InspectorMutations.UnassignTextStateTemplate) == "function"
+            then
+                AddSpacer(textSection, 6)
+                local stateTemplateTitle = AceGUI:Create("Label")
+                stateTemplateTitle:SetFullWidth(true)
+                stateTemplateTitle:SetText(L["TEXT_STATE_TEMPLATES"] or "State Templates")
+                if stateTemplateTitle.label and stateTemplateTitle.label.SetFont then
+                    stateTemplateTitle.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+                    stateTemplateTitle.label:SetTextColor(0.68, 0.70, 0.75, 1)
+                end
+                textSection:AddChild(stateTemplateTitle)
+
+                local stateTemplates = type(textConfig.stateTemplates) == "table" and textConfig.stateTemplates or nil
+                local deadTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.dead or nil)
+                local deadTemplateDropdown
+                deadTemplateDropdown = AddDropdown(textSection, L["TEXT_DEAD_TEMPLATE"] or "Dead Template", deadTemplateOptions, deadTemplateOptions.value, function(value)
+                    SetTextStateTemplate(selectedTextId, "dead", value, textSection, deadTemplateDropdown)
+                end, textConfig.enabled == false, "text_dead_template")
+
+                local ghostTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.ghost or nil)
+                local ghostTemplateDropdown
+                ghostTemplateDropdown = AddDropdown(textSection, L["TEXT_GHOST_TEMPLATE"] or "Ghost Template", ghostTemplateOptions, ghostTemplateOptions.value, function(value)
+                    SetTextStateTemplate(selectedTextId, "ghost", value, textSection, ghostTemplateDropdown)
+                end, textConfig.enabled == false, "text_ghost_template")
+            end
         end
     end
 

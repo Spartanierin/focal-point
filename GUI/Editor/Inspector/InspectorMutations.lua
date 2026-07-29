@@ -192,6 +192,40 @@ function InspectorMutations.SetTextField(context, textKey, fieldName, value)
     return SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found")
 end
 
+local function BuildTextTemplateMutationContext(context)
+    return {
+        GetTemplates = function()
+            local profile = FocalPoint.db and FocalPoint.db.profile or nil
+            return profile and profile.TextTemplates or nil
+        end,
+        GetUnitConfig = function(unitKey)
+            if type(context) == "table" and unitKey == context.unitKey and type(context.unitConfig) == "table" then
+                return context.unitConfig
+            end
+
+            local profile = FocalPoint.db and FocalPoint.db.profile or nil
+            local units = profile and profile.Units or nil
+            return type(units) == "table" and units[unitKey] or nil
+        end,
+    }
+end
+
+function InspectorMutations.AssignTextStateTemplate(context, textKey, stateKey, templateName)
+    local mutations = FocalPoint.TextTemplateMutations
+    if type(context) ~= "table" or type(mutations) ~= "table" or type(mutations.AssignStateTemplate) ~= "function" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return mutations.AssignStateTemplate(BuildTextTemplateMutationContext(context), context.unitKey, textKey, stateKey, templateName)
+end
+
+function InspectorMutations.UnassignTextStateTemplate(context, textKey, stateKey)
+    local mutations = FocalPoint.TextTemplateMutations
+    if type(context) ~= "table" or type(mutations) ~= "table" or type(mutations.UnassignStateTemplate) ~= "function" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return mutations.UnassignStateTemplate(BuildTextTemplateMutationContext(context), context.unitKey, textKey, stateKey)
+end
+
 function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, offsetY)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
