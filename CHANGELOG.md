@@ -9,6 +9,31 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.1.0]
+
+### Added
+
+* Added Visual Text Editing with Text Mode, direct text selection, dragging, anchor picking, mouse wheel font sizing, and text reset actions.
+* Added a Media Library browser for choosing statusbar textures and fonts with search, source filtering, preview, current/selected state, and Apply/Cancel workflow.
+* Added LibSharedMedia support for discovering shared fonts and statusbar textures from other installed addons and media packages.
+* Added stable media registry references for built-in, Blizzard, Focal Point, shared, missing, and legacy media entries.
+* Added Inspector Browse actions for statusbar texture and font fields.
+* Added Expert Mode controls for Dead and Ghost state templates on selected text elements.
+
+### Improved
+
+* Improved Inspector media dropdowns so built-in and shared media choices use a consistent source-aware item model.
+* Improved media previews for statusbar textures and fonts, including clearer source, provider, missing, legacy, fallback, and resolved asset information.
+* Improved Media Library usability with polished layout, clearer selection states, stable scroll position, and better Apply/Cancel placement.
+* Improved text editing previews so selected text elements, Cast Bar text, disabled text owners, and Inspector changes stay synchronized more reliably.
+* Improved Text Builder and text template validation workflows around usage scanning, missing references, and generated text cleanup.
+* Improved compatibility with World of Warcraft 12.1.0.
+
+### Changed
+
+* Changed statusbar texture and font configuration to resolve through the central Media Registry while preserving existing profile values through stable references and fallbacks.
+* Documented third-party shared media ownership and licensing behavior for media discovered through LibSharedMedia.
+
 ## [1.0.22]
 
 ### Added
