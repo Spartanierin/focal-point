@@ -17,3 +17,13 @@ This includes, but is not limited to:
 You may not remove or alter any copyright, attribution, or project identity notices contained in this software.
 
 This software is provided "as is", without warranty of any kind, express or implied. The copyright holder shall not be liable for any claim, damages, or other liability arising from the software or the use of the software.
+
+Third-Party Shared Media
+
+Focal Point can discover and use fonts, textures, and other media that are registered at runtime through LibSharedMedia by other installed World of Warcraft addons or media packages.
+
+These third-party media files are not copied, bundled, redistributed, or licensed as part of Focal Point. They remain provided by their respective addons or media packages and are only available while the corresponding provider is installed and loaded.
+
+All rights, ownership, copyright, trademarks, and other intellectual property rights in such third-party media remain with their respective owners and rights holders. Use of those media remains subject to the licenses, permissions, and terms of the respective providers.
+
+The availability of an item through LibSharedMedia does not imply that Focal Point owns, authors, endorses, or grants any rights to that item.
