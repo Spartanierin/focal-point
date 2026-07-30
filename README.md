@@ -1,18 +1,23 @@
 # Focal Point
 
-Focal Point is a lightweight World of Warcraft unit frame addon with a clean in-game editor, precise layout control, and a structured configuration workflow.
+Focal Point is a dedicated visual in-game editor for designing deeply customized unit frames directly inside World of Warcraft.
 
-It is built for players who want custom unit frames that are easy to understand, visually organized, and flexible to adjust without digging through cluttered menus.
+Keep your UI. Design the frames that belong in it.
+
+Focal Point is built for players who want to keep their existing action bars, nameplates, WeakAuras, raid tools, and other addons while replacing or redesigning only the unit frames that should feel more personal. Instead of configuring everything through detached menus, you work visually in the game world: select frames, move them, resize them, align them, edit text directly on the frame, and browse fonts and textures with live previews.
 
 ## Features
 
-* Custom unit frames for common WoW units
-* Clean in-game editor for frame setup and adjustment
-* Visual Text Editing with direct text selection, dragging, anchor picking, and mouse wheel font sizing
-* Precise layout and styling control
-* Built-in presets for quick setup
-* Dedicated tool pages for configuration workflows
-* Profile support
+* Visual unit frame editing with direct frame selection, movement, resizing, and layout control
+* Multi-selection for moving and aligning several frames together
+* Snap Lines for aligning frames to screen center and nearby editable frames
+* Visual Text Editing with direct text selection, dragging, anchor picking, mouse wheel font sizing, and reset actions
+* Visual Text Builder with reusable text displays and state templates
+* Media Library for browsing, searching, filtering, and previewing fonts and statusbar textures
+* LibSharedMedia and SharedMedia support for fonts and statusbar textures from other installed addons
+* Quick Mode and Expert Mode for different levels of configuration depth
+* Demo and preview states for checking different units, values, indicators, cast bars, auras, and text states
+* Presets, profiles, and profile import/export
 * Minimap button
 * Slash commands for quick access
 * Diagnostic tools for troubleshooting and testing
@@ -42,10 +47,12 @@ Please refer to the `.toc` file for the exact interface version included in this
 ## Getting Started
 
 1. Enter the game and open Focal Point with `/fp`.
-2. Open the editor or configuration interface.
-3. Unlock your frames if needed.
-4. Select the unit you want to adjust.
-5. Apply a preset or fine-tune the layout to your preference.
+2. Unlock frames or open the editor workspace.
+3. Select a unit from the sidebar or directly by clicking its visible frame.
+4. Move, resize, align, and customize the selected frame.
+5. Switch to Text Mode when you want to select, move, anchor, or resize text directly on the frame.
+6. Use Demo Mode and previews to check different states before returning to live play.
+7. Keep the finished layout in your active profile, or use profiles and import/export to share or back it up.
 
 ## Slash Commands
 

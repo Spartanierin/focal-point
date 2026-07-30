@@ -6,6 +6,7 @@ This changelog uses the following categories:
 
 * `Added` for new features
 * `Changed` for behavior, UX, or visual updates
+* `Improved` for refinements to existing features, workflows, or presentation
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 

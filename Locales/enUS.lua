@@ -190,6 +190,8 @@ L["INFO_COMMON_OK"] = "Ok"
 L["INFO_COMMON_CLOSE"] = "Close"
 L["INFO_COMMON_SELECT_ALL"] = "Select All"
 L["INFO_COMMON_CANCEL"] = "Cancel"
+L["INFO_COMMON_UNAVAILABLE"] = "Unavailable"
+L["INFO_THEME_APPLIED"] = "Applied theme:"
 L["INFO_ALTERNATIVE_POWER_BAR_HINT"] = "This bar is only shown when the unit has a supported secondary resource available. If there is no matching second resource, the bar stays hidden."
 -- Units
 L["UNIT_PLAYER"] = "Player"
