@@ -7,12 +7,48 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local Indicators = FocalPoint.UnitFrameIndicators or {}
 local State = FocalPoint.UnitFrameState or {}
+local Utils = FocalPoint.UnitFrameUtils or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local IsSecretValue = Utils.IsSecretValue
 
 -- Role icon runtime keeps role evaluation and event wiring isolated.
+
+local function NormalizeRoleValue(role)
+    if IsSecretValue and IsSecretValue(role) then
+        return nil
+    end
+
+    if type(role) ~= "string" then
+        return nil
+    end
+
+    if role == "TANK" or role == "HEALER" or role == "DAMAGER" then
+        return role
+    end
+
+    return nil
+end
+
+local function ResolveLiveRole(unit)
+    if not unit or type(UnitGroupRolesAssigned) ~= "function" then
+        return nil
+    end
+
+    local ok, role = pcall(UnitGroupRolesAssigned, unit)
+    if not ok then
+        return nil
+    end
+
+    return NormalizeRoleValue(role)
+end
+
+local function ResolvePreviewRole(frame)
+    local preview = Preview.GetTestValues and Preview.GetTestValues(frame) or nil
+    return NormalizeRoleValue(preview and preview.role or nil)
+end
 
 function Role.Update(owner, frame)
     if not frame or not frame.Elements or not frame.Elements.RoleIcon then
@@ -34,11 +70,10 @@ function Role.Update(owner, frame)
         return
     end
 
-    local role = frame.unit and UnitGroupRolesAssigned and UnitGroupRolesAssigned(frame.unit) or nil
+    local role = ResolveLiveRole(frame.unit)
 
-    if (not role or role == "NONE") and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "role") then
-        local preview = Preview.GetTestValues(frame)
-        role = preview and preview.role or nil
+    if not role and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "role") then
+        role = ResolvePreviewRole(frame)
     end
 
     if role == "TANK" then
