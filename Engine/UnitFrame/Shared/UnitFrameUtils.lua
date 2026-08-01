@@ -297,8 +297,20 @@ function Utils.UnpackColor(color, fallback)
     return r, g, b, a
 end
 
+local function IsSecretValue(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
+function Utils.IsSecretValue(value)
+    return IsSecretValue(value)
+end
+
 function Utils.IsSafeTrue(value)
-    return type(value) == "boolean" and not (issecretvalue and issecretvalue(value)) and value
+    if IsSecretValue(value) then
+        return false
+    end
+
+    return type(value) == "boolean" and value or false
 end
 
 function Utils.ResolveInterruptibleState(notInterruptible)
@@ -306,7 +318,7 @@ function Utils.ResolveInterruptibleState(notInterruptible)
 end
 
 function Utils.ResolveInterruptState(notInterruptible)
-    if type(notInterruptible) == "boolean" and not (issecretvalue and issecretvalue(notInterruptible)) then
+    if not IsSecretValue(notInterruptible) and type(notInterruptible) == "boolean" then
         if notInterruptible then
             return "PROTECTED"
         end
@@ -322,14 +334,14 @@ function Utils.ToSafeNumberValue(value)
         return 0
     end
 
-    if type(value) == "number" and not (issecretvalue and issecretvalue(value)) then
+    if not IsSecretValue(value) and type(value) == "number" then
         return value
     end
 
     local textOk, textValue = pcall(tostring, value)
     if textOk and type(textValue) == "string" then
         local numberOk, numberValue = pcall(tonumber, textValue)
-        if numberOk and type(numberValue) == "number" and not (issecretvalue and issecretvalue(numberValue)) then
+        if numberOk and not IsSecretValue(numberValue) and type(numberValue) == "number" then
             return numberValue
         end
     end
@@ -337,7 +349,7 @@ function Utils.ToSafeNumberValue(value)
     local formattedOk, formattedValue = pcall(string.format, "%.0f", value)
     if formattedOk and type(formattedValue) == "string" then
         local numberOk, numberValue = pcall(tonumber, formattedValue)
-        if numberOk and type(numberValue) == "number" and not (issecretvalue and issecretvalue(numberValue)) then
+        if numberOk and not IsSecretValue(numberValue) and type(numberValue) == "number" then
             return numberValue
         end
     end

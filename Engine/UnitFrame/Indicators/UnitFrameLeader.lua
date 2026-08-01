@@ -7,13 +7,44 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local Indicators = FocalPoint.UnitFrameIndicators or {}
 local State = FocalPoint.UnitFrameState or {}
+local Utils = FocalPoint.UnitFrameUtils or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local IsSafeTrue = Utils.IsSafeTrue
 
 -- Leader icon runtime keeps the leader-state evaluation and event wiring
 -- isolated from the rest of the indicator logic.
+
+local function ResolveBooleanApi(api, unit)
+    if type(api) ~= "function" or not unit then
+        return false
+    end
+
+    local ok, value = pcall(api, unit)
+    if not ok then
+        return false
+    end
+
+    return IsSafeTrue and IsSafeTrue(value) or false
+end
+
+local function ResolveLiveLeaderState(unit)
+    if not unit or not UnitExists or not ResolveBooleanApi(UnitExists, unit) then
+        return false
+    end
+
+    if UnitLeadsAnyGroup then
+        return ResolveBooleanApi(UnitLeadsAnyGroup, unit)
+    end
+
+    if UnitIsGroupLeader then
+        return ResolveBooleanApi(UnitIsGroupLeader, unit)
+    end
+
+    return false
+end
 
 function Leader.Update(owner, frame)
     if not frame or not frame.Elements or not frame.Elements.LeaderIcon then
@@ -41,12 +72,8 @@ function Leader.Update(owner, frame)
         isLeader = IsPreviewIndicatorVisible(frame, "leader")
     end
 
-    if not isLeader and frame.unit and UnitExists and UnitExists(frame.unit) then
-        if UnitLeadsAnyGroup then
-            isLeader = UnitLeadsAnyGroup(frame.unit) and true or false
-        elseif UnitIsGroupLeader then
-            isLeader = UnitIsGroupLeader(frame.unit) and true or false
-        end
+    if not isLeader then
+        isLeader = ResolveLiveLeaderState(frame.unit)
     end
 
     if not isLeader then
