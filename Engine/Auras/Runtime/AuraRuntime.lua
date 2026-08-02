@@ -53,8 +53,12 @@ local function SyncFullAuraState(frame, unit)
 
     local scansByGroup = {}
     local hasSuccessfulScan = false
+    local hasManagedGroup = false
 
-    if not (BackendResolver.CanUseManagedPlayerBuffs and BackendResolver.CanUseManagedPlayerBuffs(frame, "Buffs")) then
+    local buffsManaged = BackendResolver.CanUseManagedPlayerGroup and BackendResolver.CanUseManagedPlayerGroup(frame, "Buffs") == true
+    if buffsManaged then
+        hasManagedGroup = true
+    else
         local buffsOk, buffs = AuraScan.CollectUnitAuras(unit, "Buffs")
         if buffsOk then
             scansByGroup.Buffs = buffs or {}
@@ -62,13 +66,22 @@ local function SyncFullAuraState(frame, unit)
         end
     end
 
-    local debuffsOk, debuffs = AuraScan.CollectUnitAuras(unit, "Debuffs")
-    if debuffsOk then
-        scansByGroup.Debuffs = debuffs or {}
-        hasSuccessfulScan = true
+    local debuffsManaged = BackendResolver.CanUseManagedPlayerGroup and BackendResolver.CanUseManagedPlayerGroup(frame, "Debuffs") == true
+    if debuffsManaged then
+        hasManagedGroup = true
+    else
+        local debuffsOk, debuffs = AuraScan.CollectUnitAuras(unit, "Debuffs")
+        if debuffsOk then
+            scansByGroup.Debuffs = debuffs or {}
+            hasSuccessfulScan = true
+        end
     end
 
     if not hasSuccessfulScan then
+        if hasManagedGroup then
+            return true
+        end
+
         RecordAuraDiagnostic({
             unit = unit,
             source = "UNITFRAME_REFRESH",
@@ -241,9 +254,9 @@ function AuraRuntime.BuildAuraContainers(frame)
     end
 
     local BackendResolver = FocalPoint.AuraBackendResolver or {}
-    local groupConfig = GetGroupConfig(frame, "Buffs")
     if BackendResolver.EnsureManagedGroup then
-        BackendResolver.EnsureManagedGroup(frame, "Buffs", groupConfig)
+        BackendResolver.EnsureManagedGroup(frame, "Buffs", GetGroupConfig(frame, "Buffs"))
+        BackendResolver.EnsureManagedGroup(frame, "Debuffs", GetGroupConfig(frame, "Debuffs"))
     end
 
     return nil

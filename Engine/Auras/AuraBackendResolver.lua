@@ -4,14 +4,17 @@ FocalPoint.AuraBackendResolver = FocalPoint.AuraBackendResolver or {}
 local Resolver = FocalPoint.AuraBackendResolver
 
 local MANAGED_UNIT = "player"
-local MANAGED_GROUP = "Buffs"
+local MANAGED_GROUPS = {
+    Buffs = true,
+    Debuffs = true,
+}
 
 local function GetManagedBackend()
     return FocalPoint.ManagedAuraBackend or {}
 end
 
-function Resolver.CanUseManagedPlayerBuffs(frame, groupKey)
-    if not frame or frame.unit ~= MANAGED_UNIT or groupKey ~= MANAGED_GROUP then
+function Resolver.CanUseManagedPlayerGroup(frame, groupKey)
+    if not frame or frame.unit ~= MANAGED_UNIT or MANAGED_GROUPS[groupKey] ~= true then
         return false
     end
 
@@ -26,11 +29,23 @@ function Resolver.CanUseManagedPlayerBuffs(frame, groupKey)
     end
 
     local backend = GetManagedBackend()
-    return backend.IsAvailable and backend.IsAvailable() == true
+    if not (backend.IsAvailable and backend.IsAvailable() == true) then
+        return false
+    end
+
+    if backend.IsGroupAvailable then
+        return backend.IsGroupAvailable(groupKey) == true
+    end
+
+    return true
+end
+
+function Resolver.CanUseManagedPlayerBuffs(frame, groupKey)
+    return groupKey == "Buffs" and Resolver.CanUseManagedPlayerGroup(frame, groupKey) == true
 end
 
 function Resolver.IsManagedGroupActive(frame, groupKey, config)
-    if not Resolver.CanUseManagedPlayerBuffs(frame, groupKey) then
+    if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) then
         return false
     end
 
@@ -43,7 +58,7 @@ function Resolver.IsManagedGroupActive(frame, groupKey, config)
 end
 
 function Resolver.EnsureManagedGroup(frame, groupKey, config)
-    if not Resolver.CanUseManagedPlayerBuffs(frame, groupKey) then
+    if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) then
         return false
     end
 

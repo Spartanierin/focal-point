@@ -68,7 +68,10 @@ function AuraDiagnostics.Record(entry)
         scanClassification = SafeDebugText(entry.scanClassification, "-"),
         decision = SafeDebugText(entry.decision, "-"),
         filterClass = SafeDebugText(entry.filterClass, "-"),
+        backendStatus = SafeDebugText(entry.backendStatus, "-"),
         groupCount = SafeDebugNumber(entry.groupCount),
+        containerCreated = entry.containerCreated == true,
+        groupRegistered = entry.groupRegistered == true,
         safeAuraCount = SafeDebugNumber(entry.safeAuraCount),
         safeUpdatedCount = SafeDebugNumber(entry.safeUpdatedCount),
         safeAddedCount = SafeDebugNumber(entry.safeAddedCount),
@@ -127,7 +130,7 @@ function AuraDiagnostics.BuildReport()
     for index = startIndex, #events do
         local event = events[index]
         lines[#lines + 1] = string.format(
-            "%03d t=%.2f unit=%s group=%s combat=%s source=%s backend=%s filter=%s groups=%d payload=%s scan=%s decision=%s auras=%d added=%d updated=%d removed=%d skipped=%d",
+            "%03d t=%.2f unit=%s group=%s combat=%s source=%s backend=%s status=%s filter=%s groups=%d container=%s registered=%s payload=%s scan=%s decision=%s auras=%d added=%d updated=%d removed=%d skipped=%d",
             index,
             SafeDebugNumber(event.time),
             SafeDebugText(event.unit, "-"),
@@ -135,8 +138,11 @@ function AuraDiagnostics.BuildReport()
             tostring(event.inCombat == true),
             SafeDebugText(event.source, "-"),
             SafeDebugText(event.backend, "-"),
+            SafeDebugText(event.backendStatus, "-"),
             SafeDebugText(event.filterClass, "-"),
             SafeDebugNumber(event.groupCount),
+            tostring(event.containerCreated == true),
+            tostring(event.groupRegistered == true),
             SafeDebugText(event.payloadClassification, "-"),
             SafeDebugText(event.scanClassification, "-"),
             SafeDebugText(event.decision, "-"),

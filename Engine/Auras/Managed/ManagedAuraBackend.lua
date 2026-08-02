@@ -5,15 +5,39 @@ local Managed = FocalPoint.ManagedAuraBackend
 
 local AuraAnchor = FocalPoint.AuraAnchor or {}
 
-local GROUP_KEY = "FocalPointPlayerBuffs"
-local PUBLIC_GROUP_KEY = "Buffs"
 local UNIT = "player"
-local FILTER = "HELPFUL"
 local CONTAINER_TEMPLATE = "CustomAuraContainerTemplate"
 local DEFAULT_MAX_FRAME_COUNT = 40
+local GROUP_DEFINITIONS = {
+    Buffs = {
+        auraGroupKey = "FocalPointPlayerBuffs",
+        filter = "HELPFUL",
+        filterClass = "helpful",
+        stateKey = "PlayerBuffs",
+        elementKey = "ManagedBuffs",
+        label = "BUFFS",
+        color = { 0.1, 0.85, 0.25, 0.28 },
+        textColor = { 0.55, 1, 0.65, 1 },
+    },
+    Debuffs = {
+        auraGroupKey = "FocalPointPlayerDebuffs",
+        filter = "HARMFUL",
+        filterClass = "harmful",
+        stateKey = "PlayerDebuffs",
+        elementKey = "ManagedDebuffs",
+        label = "DEBUFFS",
+        color = { 0.95, 0.12, 0.12, 0.28 },
+        textColor = { 1, 0.55, 0.55, 1 },
+    },
+}
 
-local function RecordDiagnostic(unit, group, decision, groupCount)
+local function GetGroupDefinition(groupKey)
+    return GROUP_DEFINITIONS[groupKey]
+end
+
+local function RecordDiagnostic(unit, group, decision, groupCount, backendStatus, state)
     local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    local definition = GetGroupDefinition(group)
     if AuraDiagnostics and AuraDiagnostics.Record then
         AuraDiagnostics.Record({
             unit = unit,
@@ -21,8 +45,11 @@ local function RecordDiagnostic(unit, group, decision, groupCount)
             source = "AURA_BACKEND",
             backend = "managed",
             decision = decision,
-            filterClass = "helpful",
+            filterClass = definition and definition.filterClass or "-",
+            backendStatus = backendStatus or "unknown",
             groupCount = groupCount or 0,
+            containerCreated = state and state.container ~= nil or false,
+            groupRegistered = state and state.configured == true or false,
         })
     end
 end
@@ -96,6 +123,81 @@ local function ResolveBlockSize(config)
         iconsPerRow
 end
 
+local function IsAuraDebugEnabled()
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    return AuraDiagnostics and AuraDiagnostics.IsEnabled and AuraDiagnostics.IsEnabled() == true
+end
+
+local function HideDebugOverlay(state)
+    if state and state.debugOverlay and state.debugOverlay.Hide then
+        state.debugOverlay:Hide()
+    end
+end
+
+local function EnsureDebugOverlay(container, definition)
+    if not (container and definition) then
+        return nil
+    end
+
+    if not container.FocalPointDebugOverlay then
+        if InCombatLockdown and InCombatLockdown() then
+            return nil
+        end
+
+        local overlay = CreateFrame("Frame", nil, container)
+        overlay:EnableMouse(false)
+        overlay:SetAllPoints(container)
+        overlay:SetFrameLevel((container:GetFrameLevel() or 1) + 50)
+
+        local bg = overlay:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(overlay)
+        overlay.Background = bg
+
+        local label = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("CENTER", overlay, "CENTER", 0, 0)
+        label:SetText(definition.label or "")
+        label:SetJustifyH("CENTER")
+        overlay.Label = label
+
+        container.FocalPointDebugOverlay = overlay
+    end
+
+    return container.FocalPointDebugOverlay
+end
+
+local function UpdateDebugOverlay(state, definition, config)
+    if not (state and state.container and definition) then
+        return
+    end
+
+    if not IsAuraDebugEnabled() then
+        HideDebugOverlay(state)
+        return
+    end
+
+    local overlay = EnsureDebugOverlay(state.container, definition)
+    if not overlay then
+        return
+    end
+
+    local width, height = ResolveBlockSize(config)
+    overlay:SetSize(width, height)
+
+    local color = definition.color or { 1, 1, 1, 0.25 }
+    if overlay.Background then
+        overlay.Background:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 0.25)
+    end
+
+    local textColor = definition.textColor or { 1, 1, 1, 1 }
+    if overlay.Label then
+        overlay.Label:SetText(definition.label or "")
+        overlay.Label:SetTextColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1, textColor[4] or 1)
+    end
+
+    state.debugOverlay = overlay
+    overlay:Show()
+end
+
 local function TryCall(target, methodName, ...)
     local method = target and target[methodName]
     if type(method) ~= "function" then
@@ -156,9 +258,9 @@ local function ConfigureButton(button, config)
     end
 end
 
-local function BuildGroupOptions(config)
+local function BuildGroupOptions(config, definition)
     return {
-        filterString = FILTER,
+        filterString = definition and definition.filter or nil,
         maxFrameCount = ResolveMaxFrameCount(config),
         templateNames = { "CustomAuraButtonTemplate" },
         initializeFrame = function(button)
@@ -204,14 +306,18 @@ local function BuildConfigSignature(config)
     }, "|")
 end
 
-local function AddManagedAuraGroup(container, config)
-    local options = BuildGroupOptions(config)
-    if TryCall(container, "AddAuraGroup", GROUP_KEY, options) then
+local function AddManagedAuraGroup(container, config, definition)
+    if not definition then
+        return false
+    end
+
+    local options = BuildGroupOptions(config, definition)
+    if TryCall(container, "AddAuraGroup", definition.auraGroupKey, options) then
         return true, "options-filterString"
     end
 
-    options = BuildGroupOptions(config)
-    if TryCall(container, "AddAuraGroup", GROUP_KEY, FILTER, options) then
+    options = BuildGroupOptions(config, definition)
+    if TryCall(container, "AddAuraGroup", definition.auraGroupKey, definition.filter, options) then
         return true, "filter-argument"
     end
 
@@ -222,46 +328,56 @@ function Managed.IsAvailable()
     return type(CreateFrame) == "function" and Managed.unavailable ~= true
 end
 
+function Managed.IsGroupAvailable(groupKey)
+    return GetGroupDefinition(groupKey) ~= nil
+        and Managed.IsAvailable()
+        and not (Managed.unavailableGroups and Managed.unavailableGroups[groupKey] == true)
+end
+
 function Managed.IsGroupActive(frame, groupKey)
+    local definition = GetGroupDefinition(groupKey)
     return frame
         and frame.unit == UNIT
-        and groupKey == PUBLIC_GROUP_KEY
+        and definition ~= nil
         and frame.ManagedAuraBackend
-        and frame.ManagedAuraBackend.PlayerBuffs
-        and frame.ManagedAuraBackend.PlayerBuffs.active == true
+        and frame.ManagedAuraBackend[definition.stateKey]
+        and frame.ManagedAuraBackend[definition.stateKey].active == true
 end
 
 function Managed.ClearGroup(frame, groupKey)
-    if not (frame and groupKey == PUBLIC_GROUP_KEY) then
+    local definition = GetGroupDefinition(groupKey)
+    if not (frame and definition) then
         return
     end
 
-    local state = frame.ManagedAuraBackend and frame.ManagedAuraBackend.PlayerBuffs
+    local state = frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
     if state and state.container and state.container.Hide then
         state.container:Hide()
     end
     if state then
         state.active = false
     end
+    HideDebugOverlay(state)
 end
 
 function Managed.EnsureGroup(frame, groupKey, config)
-    if not (frame and frame.unit == UNIT and groupKey == PUBLIC_GROUP_KEY) then
+    local definition = GetGroupDefinition(groupKey)
+    if not (frame and frame.unit == UNIT and definition) then
         return false
     end
 
     frame.ManagedAuraBackend = frame.ManagedAuraBackend or {}
-    local state = frame.ManagedAuraBackend.PlayerBuffs
+    local state = frame.ManagedAuraBackend[definition.stateKey]
     if not state then
         if InCombatLockdown and InCombatLockdown() then
-            RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_unavailable")
+            RecordDiagnostic(UNIT, groupKey, "managed_unavailable", 0, "unavailable", state)
             return true
         end
 
         local container = CreateManagedContainer(frame)
         if not container then
             Managed.unavailable = true
-            RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_unavailable")
+            RecordDiagnostic(UNIT, groupKey, "managed_unavailable", 0, "container_failed", state)
             return false
         end
 
@@ -270,15 +386,21 @@ function Managed.EnsureGroup(frame, groupKey, config)
             configured = false,
             active = false,
         }
-        frame.ManagedAuraBackend.PlayerBuffs = state
+        frame.ManagedAuraBackend[definition.stateKey] = state
         frame.Elements = frame.Elements or {}
-        frame.Elements.ManagedBuffs = container
+        frame.Elements[definition.elementKey] = container
+        state.debugOverlay = EnsureDebugOverlay(container, definition)
+        HideDebugOverlay(state)
     end
 
     local container = state.container
     if not container then
-        RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_unavailable")
+        RecordDiagnostic(UNIT, groupKey, "managed_unavailable", 0, "container_failed", state)
         return false
+    end
+    if not state.debugOverlay and not (InCombatLockdown and InCombatLockdown()) then
+        state.debugOverlay = EnsureDebugOverlay(container, definition)
+        HideDebugOverlay(state)
     end
 
     local signature = BuildConfigSignature(config)
@@ -287,11 +409,11 @@ function Managed.EnsureGroup(frame, groupKey, config)
             if container.Show then
                 container:Show()
             end
-            RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_active")
+            RecordDiagnostic(UNIT, groupKey, "managed_active", 1, "active", state)
             return true
         end
 
-        RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_active")
+        RecordDiagnostic(UNIT, groupKey, "managed_active", state.configured == true and 1 or 0, state.configured == true and "active" or "setup_pending", state)
         return state.configured == true
     end
 
@@ -317,31 +439,33 @@ function Managed.EnsureGroup(frame, groupKey, config)
             if container.Hide then
                 container:Hide()
             end
-            RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_unavailable")
+            RecordDiagnostic(UNIT, groupKey, "managed_unavailable", 0, "unavailable", state)
             return false
         end
     end
 
     if not state.configured then
-        local added, addMode = AddManagedAuraGroup(container, config)
+        local added, addMode = AddManagedAuraGroup(container, config, definition)
         if not added then
-            Managed.unavailable = true
+            Managed.unavailableGroups = Managed.unavailableGroups or {}
+            Managed.unavailableGroups[groupKey] = true
             if container.Hide then
                 container:Hide()
             end
-            RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_unavailable")
+            RecordDiagnostic(UNIT, groupKey, "managed_unavailable", 0, "setup_failed", state)
             return false
         end
         state.configured = true
         state.addMode = addMode
     end
 
-    TryCall(container, "SetAuraGroupLayout", GROUP_KEY, BuildLayoutOptions(config))
+    local layoutOk = TryCall(container, "SetAuraGroupLayout", definition.auraGroupKey, BuildLayoutOptions(config))
 
     state.active = true
     state.signature = signature
     container:Show()
-    RecordDiagnostic(UNIT, PUBLIC_GROUP_KEY, "managed_active", 1)
+    UpdateDebugOverlay(state, definition, config)
+    RecordDiagnostic(UNIT, groupKey, "managed_active", 1, layoutOk and "active" or "layout_failed", state)
     return true
 end
 
@@ -350,10 +474,29 @@ function Managed.RefreshGroup(frame, groupKey, config)
         return false
     end
 
-    local state = frame.ManagedAuraBackend and frame.ManagedAuraBackend.PlayerBuffs
+    local definition = GetGroupDefinition(groupKey)
+    local state = definition and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
     if state and state.container and state.container.Show then
         state.container:Show()
     end
 
     return true
+end
+
+function Managed.RefreshDebugOverlays()
+    local frame = FocalPoint and FocalPoint.frames and FocalPoint.frames.player or nil
+    if not frame or not frame.ManagedAuraBackend then
+        return
+    end
+
+    for groupKey, definition in pairs(GROUP_DEFINITIONS) do
+        local state = frame.ManagedAuraBackend[definition.stateKey]
+        if state and state.container then
+            if IsAuraDebugEnabled() then
+                UpdateDebugOverlay(state, definition, frame.config and frame.config[groupKey])
+            else
+                HideDebugOverlay(state)
+            end
+        end
+    end
 end

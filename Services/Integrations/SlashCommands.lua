@@ -635,6 +635,10 @@ local function ResetAuraDebug()
     local AuraDebug = GetAuraDebugApi()
     if AuraDebug and AuraDebug.Reset then
         AuraDebug.Reset()
+        local ManagedAuraBackend = FocalPoint and FocalPoint.ManagedAuraBackend or nil
+        if ManagedAuraBackend and ManagedAuraBackend.RefreshDebugOverlays then
+            ManagedAuraBackend.RefreshDebugOverlays()
+        end
         AuraDebugMessage("reset")
     else
         AuraDebugMessage("reset unavailable")
@@ -645,6 +649,10 @@ local function SetAuraDebugEnabled(enabled)
     local AuraDebug = GetAuraDebugApi()
     if AuraDebug and AuraDebug.SetEnabled then
         AuraDebug.SetEnabled(enabled == true)
+        local ManagedAuraBackend = FocalPoint and FocalPoint.ManagedAuraBackend or nil
+        if ManagedAuraBackend and ManagedAuraBackend.RefreshDebugOverlays then
+            ManagedAuraBackend.RefreshDebugOverlays()
+        end
         AuraDebugMessage("enabled=" .. tostring(enabled == true))
     else
         AuraDebugMessage("toggle unavailable")
