@@ -4,6 +4,7 @@ FocalPoint.ManagedAuraBackend = FocalPoint.ManagedAuraBackend or {}
 local Managed = FocalPoint.ManagedAuraBackend
 
 local AuraAnchor = FocalPoint.AuraAnchor or {}
+local AuraBlockLayout = FocalPoint.AuraBlockLayout or {}
 
 local CONTAINER_TEMPLATE = "CustomAuraContainerTemplate"
 local DEFAULT_MAX_FRAME_COUNT = 40
@@ -243,6 +244,21 @@ local function ResolveAnchorOffsets(config)
 end
 
 local function ResolveBlockSize(config)
+    if AuraBlockLayout.CalculateMetrics then
+        local layoutConfig = {}
+        for key, value in pairs(config or {}) do
+            layoutConfig[key] = value
+        end
+        layoutConfig.showTimerText = false
+        local metrics = AuraBlockLayout.CalculateMetrics(ResolveMaxFrameCount(config), layoutConfig)
+        return math.max(metrics.blockWidth or 0, 1),
+            math.max(metrics.blockHeight or 0, 1),
+            metrics.iconSize or ToPositiveNumber(config and config.iconSize, 25),
+            metrics.spacingX or ToNonNegativeNumber(config and config.spacingX, 0),
+            metrics.spacingY or ToNonNegativeNumber(config and config.spacingY, 0),
+            metrics.iconsPerRow or math.max(math.floor(tonumber(config and config.iconsPerRow) or 1), 1)
+    end
+
     local iconSize = ToPositiveNumber(config and config.iconSize, 25)
     local spacingX = ToNonNegativeNumber(config and config.spacingX, 0)
     local spacingY = ToNonNegativeNumber(config and config.spacingY, 0)
@@ -263,6 +279,20 @@ end
 local function IsAuraDebugEnabled()
     local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
     return AuraDiagnostics and AuraDiagnostics.IsEnabled and AuraDiagnostics.IsEnabled() == true
+end
+
+local function IncrementManagedCounter(key)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.IncrementManagedCounter then
+        AuraDiagnostics.IncrementManagedCounter(key)
+    end
+end
+
+local function RecordManagedLayout(values)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.RecordManagedLayout then
+        AuraDiagnostics.RecordManagedLayout(values)
+    end
 end
 
 local function HideDebugOverlay(state)
@@ -345,6 +375,61 @@ local function TryCall(target, methodName, ...)
     return ok == true
 end
 
+local function ResolveFlowDirectionX(growthX)
+    if not AnchorUtil or not AnchorUtil.FlowDirection then
+        return nil
+    end
+
+    return growthX == "LEFT" and AnchorUtil.FlowDirection.Left or AnchorUtil.FlowDirection.Right
+end
+
+local function ResolveFlowDirectionY(growthY)
+    if not AnchorUtil or not AnchorUtil.FlowDirection then
+        return nil
+    end
+
+    return growthY == "UP" and AnchorUtil.FlowDirection.Up or AnchorUtil.FlowDirection.Down
+end
+
+local function ResolveFlowAnchorPoint(growthX, growthY)
+    if growthX == "LEFT" and growthY == "UP" then
+        return "BOTTOMRIGHT"
+    elseif growthX == "LEFT" then
+        return "TOPRIGHT"
+    elseif growthY == "UP" then
+        return "BOTTOMLEFT"
+    end
+
+    return "TOPLEFT"
+end
+
+local function ApplyContainerFlowLayout(container, config)
+    if not container then
+        return
+    end
+
+    local width, _height, iconSize, _spacingX, _spacingY, _iconsPerRow = ResolveBlockSize(config)
+    local growthX = config and config.growthX or "RIGHT"
+    local growthY = config and config.growthY or "DOWN"
+    local flowAnchorPoint = ResolveFlowAnchorPoint(growthX, growthY)
+    local horizontal = ResolveFlowDirectionX(growthX)
+    local vertical = ResolveFlowDirectionY(growthY)
+
+    if AnchorUtil and AnchorUtil.FlowLayoutAxis then
+        local axis = (growthY == "UP" or growthY == "DOWN")
+            and AnchorUtil.FlowLayoutAxis.Horizontal
+            or nil
+        if axis then
+            TryCall(container, "SetFlowLayoutAxis", axis)
+        end
+    end
+    TryCall(container, "SetFlowLayoutAnchorPoint", flowAnchorPoint)
+    if horizontal and vertical then
+        TryCall(container, "SetFlowLayoutGrowthDirection", horizontal, vertical)
+    end
+    TryCall(container, "SetFlowLayoutMaximumLineSize", width)
+end
+
 local function CreateManagedContainer(parent)
     if type(CreateFrame) ~= "function" or not parent then
         return nil
@@ -369,6 +454,7 @@ local function ConfigureButton(button, config)
     if not button then
         return
     end
+    IncrementManagedCounter("buttonInitialize")
 
     local iconSize = ToPositiveNumber(config and config.iconSize, 25)
     if button.SetSize then
@@ -407,21 +493,14 @@ local function BuildGroupOptions(config, definition)
 end
 
 local function BuildLayoutOptions(config)
-    local _width, _height, iconSize, spacingX, spacingY, iconsPerRow = ResolveBlockSize(config)
-    local growthX = config and config.growthX or "RIGHT"
-    local growthY = config and config.growthY or "DOWN"
+    local _width, _height, iconSize, spacingX, spacingY = ResolveBlockSize(config)
 
     return {
-        point = "TOPLEFT",
-        relativePoint = "TOPLEFT",
-        offsetX = 0,
-        offsetY = 0,
-        iconSize = iconSize,
-        spacingX = spacingX,
-        spacingY = spacingY,
-        stride = iconsPerRow,
-        directionX = growthX == "LEFT" and -1 or 1,
-        directionY = growthY == "UP" and 1 or -1,
+        elementWidth = iconSize,
+        elementHeight = iconSize,
+        elementSpacingX = spacingX,
+        elementSpacingY = spacingY,
+        lineSpacing = spacingY,
     }
 end
 
@@ -429,6 +508,9 @@ local function BuildConfigSignature(config)
     config = config or {}
     return table.concat({
         tostring(config.enabled ~= false),
+        tostring(config.placement or "ATTACHED"),
+        tostring(config.anchorTo or "Frame"),
+        tostring(config.insideAnchorTo or "Frame"),
         tostring(config.point or "TOPLEFT"),
         tostring(config.relativePoint or config.point or "TOPLEFT"),
         tostring(config.offsetX or 0),
@@ -449,15 +531,20 @@ local function AddManagedAuraGroup(container, config, definition)
     end
 
     local options = BuildGroupOptions(config, definition)
+    IncrementManagedCounter("groupAddAttempt")
     if TryCall(container, "AddAuraGroup", definition.auraGroupKey, options) then
+        IncrementManagedCounter("groupAddSuccess")
         return true, "options-filterString"
     end
 
     options = BuildGroupOptions(config, definition)
+    IncrementManagedCounter("groupAddAttempt")
     if TryCall(container, "AddAuraGroup", definition.auraGroupKey, definition.filter, options) then
+        IncrementManagedCounter("groupAddSuccess")
         return true, "filter-argument"
     end
 
+    IncrementManagedCounter("groupAddFailed")
     return false
 end
 
@@ -546,6 +633,13 @@ function Managed.EnsureGroup(frame, groupKey, config)
     end
 
     local signature = BuildConfigSignature(config)
+    local signatureChanged = state.configured == true and state.signature ~= signature
+    if signatureChanged then
+        IncrementManagedCounter("configSignatureChanged")
+        IncrementManagedCounter("ensureReconfigure")
+    elseif state.configured == true then
+        IncrementManagedCounter("ensureFastPath")
+    end
     if InCombatLockdown and InCombatLockdown() then
         if state.configured and state.active and state.signature == signature then
             if container.Show then
@@ -559,11 +653,24 @@ function Managed.EnsureGroup(frame, groupKey, config)
         return state.configured == true
     end
 
-    local width, height = ResolveBlockSize(config)
+    local width, height, _iconSize, spacingX, spacingY, iconsPerRow = ResolveBlockSize(config)
+    local maxFrameCount = ResolveMaxFrameCount(config)
+    local maxRows = math.max(math.floor(tonumber(config and config.maxRows) or 0), 0)
+    RecordManagedLayout({
+        iconsPerRow = iconsPerRow,
+        maxRows = maxRows,
+        maxFrameCount = maxFrameCount,
+        width = width,
+        height = height,
+        spacingX = spacingX,
+        spacingY = spacingY,
+        errors = 0,
+    })
     container:SetSize(width, height)
     container:SetFrameStrata(frame:GetFrameStrata())
     container:SetFrameLevel(frame:GetFrameLevel() + 25)
     container:ClearAllPoints()
+    ApplyContainerFlowLayout(container, config)
 
     local anchorTarget = AuraAnchor.Resolve and AuraAnchor.Resolve(frame, config, groupKey) or frame
     local offsetX, offsetY = ResolveAnchorOffsets(config)
@@ -601,7 +708,14 @@ function Managed.EnsureGroup(frame, groupKey, config)
         state.addMode = addMode
     end
 
+    TryCall(container, "SetAuraGroupMaxFrameCount", definition.auraGroupKey, maxFrameCount)
+    IncrementManagedCounter("layoutApplyAttempt")
     local layoutOk = TryCall(container, "SetAuraGroupLayout", definition.auraGroupKey, BuildLayoutOptions(config))
+    if layoutOk then
+        IncrementManagedCounter("layoutApplySuccess")
+    else
+        IncrementManagedCounter("layoutApplyFailed")
+    end
 
     state.active = true
     state.signature = signature

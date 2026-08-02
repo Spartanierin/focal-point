@@ -13,6 +13,8 @@ local AuraDiagnostics = FocalPoint.AuraDiagnostics
 AuraDiagnostics.state = AuraDiagnostics.state or {
     enabled = false,
     events = {},
+    managedCounters = {},
+    managedLayout = nil,
 }
 
 local function IsSecret(value)
@@ -48,6 +50,37 @@ function AuraDiagnostics.Reset()
     AuraDiagnostics.state = {
         enabled = AuraDiagnostics.IsEnabled(),
         events = {},
+        managedCounters = {},
+        managedLayout = nil,
+    }
+end
+
+function AuraDiagnostics.IncrementManagedCounter(key)
+    local state = AuraDiagnostics.state
+    if not (state and state.enabled == true) then
+        return
+    end
+
+    key = SafeDebugText(key, "-")
+    state.managedCounters = state.managedCounters or {}
+    state.managedCounters[key] = SafeDebugNumber(state.managedCounters[key]) + 1
+end
+
+function AuraDiagnostics.RecordManagedLayout(values)
+    local state = AuraDiagnostics.state
+    if not (state and state.enabled == true and type(values) == "table") then
+        return
+    end
+
+    state.managedLayout = {
+        iconsPerRow = SafeDebugNumber(values.iconsPerRow),
+        maxRows = SafeDebugNumber(values.maxRows),
+        maxFrameCount = SafeDebugNumber(values.maxFrameCount),
+        width = SafeDebugNumber(values.width),
+        height = SafeDebugNumber(values.height),
+        spacingX = SafeDebugNumber(values.spacingX),
+        spacingY = SafeDebugNumber(values.spacingY),
+        errors = SafeDebugNumber(values.errors),
     }
 end
 
@@ -149,6 +182,34 @@ function AuraDiagnostics.BuildReport()
     AppendCounterLines(lines, "By scan", byScan)
     AppendCounterLines(lines, "By decision", byDecision)
     AppendTextMapLine(lines, "Managed groups", managedStates)
+
+    local managedCounters = state.managedCounters or {}
+    local managedLayout = state.managedLayout or {}
+    lines[#lines + 1] = string.format(
+        "Aura Debug Config: signature=%d reconfigure=%d fastPath=%d layout=%d/%d groupAdd=%d/%d init=%d buttonReconfigure=%d inspector=%d errors=%d",
+        SafeDebugNumber(managedCounters.configSignatureChanged),
+        SafeDebugNumber(managedCounters.ensureReconfigure),
+        SafeDebugNumber(managedCounters.ensureFastPath),
+        SafeDebugNumber(managedCounters.layoutApplySuccess),
+        SafeDebugNumber(managedCounters.layoutApplyAttempt),
+        SafeDebugNumber(managedCounters.groupAddSuccess),
+        SafeDebugNumber(managedCounters.groupAddAttempt),
+        SafeDebugNumber(managedCounters.buttonInitialize),
+        SafeDebugNumber(managedCounters.buttonReconfigure),
+        SafeDebugNumber(managedCounters.inspectorRefresh),
+        SafeDebugNumber(managedCounters.layoutApplyFailed) + SafeDebugNumber(managedCounters.groupAddFailed)
+    )
+    lines[#lines + 1] = string.format(
+        "Aura Debug Layout: row=%d rows=%d max=%d size=%dx%d spacing=%d/%d errors=%d",
+        SafeDebugNumber(managedLayout.iconsPerRow),
+        SafeDebugNumber(managedLayout.maxRows),
+        SafeDebugNumber(managedLayout.maxFrameCount),
+        SafeDebugNumber(managedLayout.width),
+        SafeDebugNumber(managedLayout.height),
+        SafeDebugNumber(managedLayout.spacingX),
+        SafeDebugNumber(managedLayout.spacingY),
+        SafeDebugNumber(managedLayout.errors)
+    )
 
     local startIndex = math.max(1, #events - 19)
     for index = startIndex, #events do

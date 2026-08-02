@@ -60,6 +60,13 @@ function InspectorRefreshPolicy.Resolve(targetKind, fieldName)
         return { scope = "none" }
     end
 
+    if targetKind == "aura" then
+        local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+        if AuraDiagnostics and AuraDiagnostics.IncrementManagedCounter then
+            AuraDiagnostics.IncrementManagedCounter("inspectorRefresh")
+        end
+    end
+
     return CopyPolicy(targetPolicies[fieldName])
 end
 
