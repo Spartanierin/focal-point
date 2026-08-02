@@ -12,6 +12,9 @@ local MANAGED_GROUPS = {
         Buffs = true,
         Debuffs = true,
     },
+    focus = {
+        Buffs = true,
+    },
 }
 
 local function GetManagedBackend()

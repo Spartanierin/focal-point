@@ -52,6 +52,18 @@ local GROUP_DEFINITIONS = {
             textColor = { 1, 0.6, 0.55, 1 },
         },
     },
+    focus = {
+        Buffs = {
+            auraGroupKey = "FocalPointFocusBuffs",
+            filter = "HELPFUL",
+            filterClass = "helpful",
+            stateKey = "FocusBuffs",
+            elementKey = "ManagedFocusBuffs",
+            label = "FOCUS BUFFS",
+            color = { 0.45, 0.35, 1, 0.28 },
+            textColor = { 0.78, 0.72, 1, 1 },
+        },
+    },
 }
 
 local function GetGroupDefinition(unit, groupKey)
