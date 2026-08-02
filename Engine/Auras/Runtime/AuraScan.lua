@@ -100,6 +100,21 @@ local function AppendCounterLines(lines, label, counters)
     lines[#lines + 1] = string.format("%s: %s", label, #parts > 0 and table.concat(parts, ", ") or "-")
 end
 
+local function AppendTextMapLine(lines, label, values)
+    local keys = {}
+    for key in pairs(values) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+
+    local parts = {}
+    for _, key in ipairs(keys) do
+        parts[#parts + 1] = string.format("%s=%s", key, SafeDebugText(values[key], "-"))
+    end
+
+    lines[#lines + 1] = string.format("%s: %s", label, #parts > 0 and table.concat(parts, ", ") or "-")
+end
+
 function AuraDiagnostics.BuildReport()
     local state = AuraDiagnostics.state or {}
     local events = state.events or {}
@@ -112,12 +127,20 @@ function AuraDiagnostics.BuildReport()
     local byPayload = {}
     local byScan = {}
     local byDecision = {}
+    local managedStates = {}
     for _, event in ipairs(events) do
         IncrementCounter(bySource, event.source)
         IncrementCounter(byBackend, event.backend)
         IncrementCounter(byPayload, event.payloadClassification)
         IncrementCounter(byScan, event.scanClassification)
         IncrementCounter(byDecision, event.decision)
+        if event.backend == "managed" then
+            managedStates[string.format("%s/%s", SafeDebugText(event.unit, "-"), SafeDebugText(event.group, "-"))] = string.format(
+                "%s %s",
+                SafeDebugText(event.backendStatus, "-"),
+                SafeDebugText(event.filterClass, "-")
+            )
+        end
     end
 
     AppendCounterLines(lines, "By source", bySource)
@@ -125,6 +148,7 @@ function AuraDiagnostics.BuildReport()
     AppendCounterLines(lines, "By payload", byPayload)
     AppendCounterLines(lines, "By scan", byScan)
     AppendCounterLines(lines, "By decision", byDecision)
+    AppendTextMapLine(lines, "Managed groups", managedStates)
 
     local startIndex = math.max(1, #events - 19)
     for index = startIndex, #events do

@@ -3,10 +3,14 @@ local _, FocalPoint = ...
 FocalPoint.AuraBackendResolver = FocalPoint.AuraBackendResolver or {}
 local Resolver = FocalPoint.AuraBackendResolver
 
-local MANAGED_UNIT = "player"
 local MANAGED_GROUPS = {
-    Buffs = true,
-    Debuffs = true,
+    player = {
+        Buffs = true,
+        Debuffs = true,
+    },
+    target = {
+        Buffs = true,
+    },
 }
 
 local function GetManagedBackend()
@@ -14,7 +18,8 @@ local function GetManagedBackend()
 end
 
 function Resolver.CanUseManagedPlayerGroup(frame, groupKey)
-    if not frame or frame.unit ~= MANAGED_UNIT or MANAGED_GROUPS[groupKey] ~= true then
+    local unitGroups = frame and MANAGED_GROUPS[frame.unit] or nil
+    if not frame or unitGroups == nil or unitGroups[groupKey] ~= true then
         return false
     end
 
@@ -34,7 +39,7 @@ function Resolver.CanUseManagedPlayerGroup(frame, groupKey)
     end
 
     if backend.IsGroupAvailable then
-        return backend.IsGroupAvailable(groupKey) == true
+        return backend.IsGroupAvailable(frame.unit, groupKey) == true
     end
 
     return true
