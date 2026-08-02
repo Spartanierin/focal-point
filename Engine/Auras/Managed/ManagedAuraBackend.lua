@@ -76,6 +76,54 @@ local GROUP_DEFINITIONS = {
     },
 }
 
+local BOSS_BUFF_DEFINITIONS = {
+    boss1 = {
+        auraGroupKey = "FocalPointBoss1Buffs",
+        stateKey = "Boss1Buffs",
+        elementKey = "ManagedBoss1Buffs",
+        label = "BOSS1 BUFFS",
+    },
+    boss2 = {
+        auraGroupKey = "FocalPointBoss2Buffs",
+        stateKey = "Boss2Buffs",
+        elementKey = "ManagedBoss2Buffs",
+        label = "BOSS2 BUFFS",
+    },
+    boss3 = {
+        auraGroupKey = "FocalPointBoss3Buffs",
+        stateKey = "Boss3Buffs",
+        elementKey = "ManagedBoss3Buffs",
+        label = "BOSS3 BUFFS",
+    },
+    boss4 = {
+        auraGroupKey = "FocalPointBoss4Buffs",
+        stateKey = "Boss4Buffs",
+        elementKey = "ManagedBoss4Buffs",
+        label = "BOSS4 BUFFS",
+    },
+    boss5 = {
+        auraGroupKey = "FocalPointBoss5Buffs",
+        stateKey = "Boss5Buffs",
+        elementKey = "ManagedBoss5Buffs",
+        label = "BOSS5 BUFFS",
+    },
+}
+
+for unit, bossDefinition in pairs(BOSS_BUFF_DEFINITIONS) do
+    GROUP_DEFINITIONS[unit] = {
+        Buffs = {
+            auraGroupKey = bossDefinition.auraGroupKey,
+            filter = "HELPFUL",
+            filterClass = "helpful",
+            stateKey = bossDefinition.stateKey,
+            elementKey = bossDefinition.elementKey,
+            label = bossDefinition.label,
+            color = { 0.9, 0.62, 0.18, 0.28 },
+            textColor = { 1, 0.82, 0.5, 1 },
+        },
+    }
+end
+
 local function GetGroupDefinition(unit, groupKey)
     local unitDefinitions = GROUP_DEFINITIONS[unit]
     return unitDefinitions and unitDefinitions[groupKey] or nil
