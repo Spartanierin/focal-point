@@ -58,6 +58,15 @@ local function LifecycleDebugMessage(text)
     print(message)
 end
 
+local function AuraDebugMessage(text)
+    local message = "[FP AuraDebug] " .. tostring(text or "")
+    if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(message)
+        return
+    end
+    print(message)
+end
+
 local function CountKnownFrames()
     local count = 0
     local frames = FocalPoint and FocalPoint.frames or nil
@@ -595,6 +604,70 @@ local function HandleLifecycleDebugCommand(msg)
     end
 end
 
+local function GetAuraDebugApi()
+    return FocalPoint and FocalPoint.AuraDiagnostics or nil
+end
+
+local function ReportAuraDebugStatus()
+    local AuraDebug = GetAuraDebugApi()
+    if not (AuraDebug and AuraDebug.IsEnabled) then
+        AuraDebugMessage("status unavailable")
+        return
+    end
+
+    AuraDebugMessage("enabled=" .. tostring(AuraDebug.IsEnabled() == true))
+end
+
+local function ReportAuraDebugSummary()
+    local AuraDebug = GetAuraDebugApi()
+    local lines = AuraDebug and AuraDebug.BuildReport and AuraDebug.BuildReport() or nil
+    if type(lines) ~= "table" then
+        AuraDebugMessage("report unavailable")
+        return
+    end
+
+    for _, line in ipairs(lines) do
+        AuraDebugMessage(line)
+    end
+end
+
+local function ResetAuraDebug()
+    local AuraDebug = GetAuraDebugApi()
+    if AuraDebug and AuraDebug.Reset then
+        AuraDebug.Reset()
+        AuraDebugMessage("reset")
+    else
+        AuraDebugMessage("reset unavailable")
+    end
+end
+
+local function SetAuraDebugEnabled(enabled)
+    local AuraDebug = GetAuraDebugApi()
+    if AuraDebug and AuraDebug.SetEnabled then
+        AuraDebug.SetEnabled(enabled == true)
+        AuraDebugMessage("enabled=" .. tostring(enabled == true))
+    else
+        AuraDebugMessage("toggle unavailable")
+    end
+end
+
+local function HandleAuraDebugCommand(msg)
+    msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if msg == "on" then
+        SetAuraDebugEnabled(true)
+    elseif msg == "off" then
+        SetAuraDebugEnabled(false)
+    elseif msg == "clear" or msg == "reset" then
+        ResetAuraDebug()
+    elseif msg == "report" then
+        ReportAuraDebugSummary()
+    elseif msg == "status" or msg == "" then
+        ReportAuraDebugStatus()
+    else
+        AuraDebugMessage("usage: /fpdebugaura on|off|status|report|reset")
+    end
+end
+
 function FocalPoint:SetupSlashCommands()
     if self.slashCommandsInitialized then
         return
@@ -608,6 +681,7 @@ function FocalPoint:SetupSlashCommands()
     SLASH_FPDEBUGALPHA1 = "/fpdebugalpha"
     SLASH_FPDEBUGMEDIA1 = "/fpdebugmedia"
     SLASH_FPDEBUGLIFECYCLE1 = "/fpdebuglifecycle"
+    SLASH_FPDEBUGAURA1 = "/fpdebugaura"
     FocalPoint.debugDemoDisableCastbar = FocalPoint.debugDemoDisableCastbar == true
     FocalPoint.debugDemoDisableAuras = FocalPoint.debugDemoDisableAuras == true
     FocalPoint.debugDemoDisableAuraTimers = FocalPoint.debugDemoDisableAuraTimers == true
@@ -654,6 +728,10 @@ function FocalPoint:SetupSlashCommands()
             HandleLifecycleDebugCommand("status")
         elseif msg:match("^debug lifecycle%s+") then
             HandleLifecycleDebugCommand(msg:match("^debug lifecycle%s+(.+)$"))
+        elseif msg == "debug aura" then
+            HandleAuraDebugCommand("status")
+        elseif msg:match("^debug aura%s+") then
+            HandleAuraDebugCommand(msg:match("^debug aura%s+(.+)$"))
         elseif msg == "debugdemo on" then
             FocalPoint.debugDemoRuntime = true
             DemoDebugMessage("enabled=true")
@@ -688,9 +766,13 @@ function FocalPoint:SetupSlashCommands()
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report|browser font|browser statusbar [legacy|missing], /fpdebuglifecycle on|off|status|report|clear")
+                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp debug aura, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report|browser font|browser statusbar [legacy|missing], /fpdebuglifecycle on|off|status|report|clear, /fpdebugaura on|off|status|report|reset")
             end
         end
+    end
+
+    SlashCmdList["FPDEBUGAURA"] = function(msg)
+        HandleAuraDebugCommand(msg)
     end
 
     SlashCmdList["FPDEBUGLIFECYCLE"] = function(msg)

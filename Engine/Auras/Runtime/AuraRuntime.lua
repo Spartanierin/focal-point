@@ -35,20 +35,50 @@ local function GetGroupConfig(frame, groupKey)
     return unitConfig[groupKey]
 end
 
+local function RecordAuraDiagnostic(entry)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.Record then
+        AuraDiagnostics.Record(entry)
+    end
+end
+
 local function SyncFullAuraState(frame, unit)
     local AuraScan = FocalPoint.AuraScan or {}
     local AuraCache = FocalPoint.AuraCache or {}
+    local BackendResolver = FocalPoint.AuraBackendResolver or {}
 
     if not (AuraScan.CollectUnitAuras and AuraCache.SyncFromScans) then
-        return
+        return false
     end
 
-    local scansByGroup = {
-        Buffs = AuraScan.CollectUnitAuras(unit, "Buffs"),
-        Debuffs = AuraScan.CollectUnitAuras(unit, "Debuffs"),
-    }
+    local scansByGroup = {}
+    local hasSuccessfulScan = false
 
-    AuraCache.SyncFromScans(frame, unit, scansByGroup)
+    if not (BackendResolver.CanUseManagedPlayerBuffs and BackendResolver.CanUseManagedPlayerBuffs(frame, "Buffs")) then
+        local buffsOk, buffs = AuraScan.CollectUnitAuras(unit, "Buffs")
+        if buffsOk then
+            scansByGroup.Buffs = buffs or {}
+            hasSuccessfulScan = true
+        end
+    end
+
+    local debuffsOk, debuffs = AuraScan.CollectUnitAuras(unit, "Debuffs")
+    if debuffsOk then
+        scansByGroup.Debuffs = debuffs or {}
+        hasSuccessfulScan = true
+    end
+
+    if not hasSuccessfulScan then
+        RecordAuraDiagnostic({
+            unit = unit,
+            source = "UNITFRAME_REFRESH",
+            scanClassification = "error",
+            decision = "preserve",
+        })
+        return false
+    end
+
+    return AuraCache.SyncFromScans(frame, unit, scansByGroup) ~= false
 end
 
 local function Log(frame, action, details)
@@ -99,9 +129,13 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
 
     local AuraCache = FocalPoint.AuraCache or {}
     local AuraRenderer = FocalPoint.AuraRenderer or {}
+    local BackendResolver = FocalPoint.AuraBackendResolver or {}
 
     local groupConfig = GetGroupConfig(frame, groupKey)
     if not groupConfig or groupConfig.enabled == false then
+        if BackendResolver.ClearManagedGroup then
+            BackendResolver.ClearManagedGroup(frame, groupKey)
+        end
         if AuraCache.ClearGroup then
             AuraCache.ClearGroup(frame, groupKey)
         end
@@ -116,10 +150,20 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
         previewAuras = Preview.GetTestAuras and Preview.GetTestAuras(frame, groupKey) or nil
     end
     if previewAuras ~= nil then
+        if BackendResolver.ClearManagedGroup then
+            BackendResolver.ClearManagedGroup(frame, groupKey)
+        end
         if Demo.TouchDebug then
             Demo.TouchDebug(frame, "auraRefresh")
         end
         return ApplyAuraResult(frame, groupKey, previewAuras, groupConfig)
+    end
+
+    if BackendResolver.RefreshManagedGroup and BackendResolver.RefreshManagedGroup(frame, groupKey, groupConfig) then
+        if AuraRenderer.ClearGroup then
+            AuraRenderer.ClearGroup(frame, groupKey)
+        end
+        return {}
     end
 
     local cacheGroup = AuraCache.GetGroup and AuraCache.GetGroup(frame, groupKey)
@@ -134,6 +178,11 @@ function AuraRuntime.RefreshAuras(frame, forceFullScan)
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("auras", { frame = frame }) == false then
         local AuraRenderer = FocalPoint.AuraRenderer or {}
+        local BackendResolver = FocalPoint.AuraBackendResolver or {}
+        if BackendResolver.ClearManagedGroup then
+            BackendResolver.ClearManagedGroup(frame, "Buffs")
+            BackendResolver.ClearManagedGroup(frame, "Debuffs")
+        end
         if AuraRenderer.ClearGroup then
             AuraRenderer.ClearGroup(frame, "Buffs")
             AuraRenderer.ClearGroup(frame, "Debuffs")
@@ -144,6 +193,11 @@ function AuraRuntime.RefreshAuras(frame, forceFullScan)
     if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) then
         if Demo.IsAurasDisabled and Demo.IsAurasDisabled() then
             local AuraRenderer = FocalPoint.AuraRenderer or {}
+            local BackendResolver = FocalPoint.AuraBackendResolver or {}
+            if BackendResolver.ClearManagedGroup then
+                BackendResolver.ClearManagedGroup(frame, "Buffs")
+                BackendResolver.ClearManagedGroup(frame, "Debuffs")
+            end
             if AuraRenderer.ClearGroup then
                 AuraRenderer.ClearGroup(frame, "Buffs")
                 AuraRenderer.ClearGroup(frame, "Debuffs")
@@ -183,7 +237,13 @@ end
 function AuraRuntime.BuildAuraContainers(frame)
     local AuraRenderer = FocalPoint.AuraRenderer or {}
     if AuraRenderer.Build then
-        return AuraRenderer.Build(frame)
+        AuraRenderer.Build(frame)
+    end
+
+    local BackendResolver = FocalPoint.AuraBackendResolver or {}
+    local groupConfig = GetGroupConfig(frame, "Buffs")
+    if BackendResolver.EnsureManagedGroup then
+        BackendResolver.EnsureManagedGroup(frame, "Buffs", groupConfig)
     end
 
     return nil
@@ -213,6 +273,12 @@ function AuraRuntime.Reset(frame)
     if AuraRenderer.ClearGroup then
         AuraRenderer.ClearGroup(frame, "Buffs")
         AuraRenderer.ClearGroup(frame, "Debuffs")
+    end
+
+    local BackendResolver = FocalPoint.AuraBackendResolver or {}
+    if BackendResolver.ClearManagedGroup then
+        BackendResolver.ClearManagedGroup(frame, "Buffs")
+        BackendResolver.ClearManagedGroup(frame, "Debuffs")
     end
 
     Log(frame, "reset")

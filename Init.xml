@@ -79,12 +79,14 @@
     <Script file="Engine/Auras/Runtime/AuraScan.lua"/>
     <Script file="Engine/Auras/Runtime/AuraFilters.lua"/>
     <Script file="Engine/Auras/Runtime/AuraSorting.lua"/>
+    <Script file="Engine/Auras/AuraBackendResolver.lua"/>
     <Script file="Engine/Auras/Runtime/AuraEvents.lua"/>
     <Script file="Engine/Auras/Runtime/AuraCache.lua"/>
     <Script file="Engine/Auras/Layout/AuraContainer.lua"/>
     <Script file="Engine/Auras/Layout/AuraBlockLayout.lua"/>
     <Script file="Engine/Auras/Layout/AuraAnchor.lua"/>
     <Script file="Engine/Auras/Layout/AuraRenderer.lua"/>
+    <Script file="Engine/Auras/Managed/ManagedAuraBackend.lua"/>
     <Script file="Engine/Auras/Runtime/AuraRuntime.lua"/>
 
     <Script file="GUI/GUISkin.lua"/>

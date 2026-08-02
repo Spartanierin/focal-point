@@ -2,6 +2,155 @@ local _, FocalPoint = ...
 
 FocalPoint.AuraScan = FocalPoint.AuraScan or {}
 local AuraScan = FocalPoint.AuraScan
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local IsSecretValue = UnitUtils.IsSecretValue
+local MAX_AURA_SLOT_PAGES = 64
+local MAX_AURA_INDEX_SCAN = 255
+local MAX_AURA_DEBUG_EVENTS = 120
+
+FocalPoint.AuraDiagnostics = FocalPoint.AuraDiagnostics or {}
+local AuraDiagnostics = FocalPoint.AuraDiagnostics
+AuraDiagnostics.state = AuraDiagnostics.state or {
+    enabled = false,
+    events = {},
+}
+
+local function IsSecret(value)
+    return IsSecretValue and IsSecretValue(value) or false
+end
+
+local function SafeDebugText(value, fallback)
+    if type(value) == "string" and value ~= "" then
+        return value
+    end
+
+    return fallback or "-"
+end
+
+local function SafeDebugNumber(value)
+    return tonumber(value) or 0
+end
+
+local function IncrementCounter(counters, key)
+    key = SafeDebugText(key, "-")
+    counters[key] = (tonumber(counters[key]) or 0) + 1
+end
+
+function AuraDiagnostics.SetEnabled(enabled)
+    AuraDiagnostics.state.enabled = enabled == true
+end
+
+function AuraDiagnostics.IsEnabled()
+    return AuraDiagnostics.state and AuraDiagnostics.state.enabled == true
+end
+
+function AuraDiagnostics.Reset()
+    AuraDiagnostics.state = {
+        enabled = AuraDiagnostics.IsEnabled(),
+        events = {},
+    }
+end
+
+function AuraDiagnostics.Record(entry)
+    local state = AuraDiagnostics.state
+    if not (state and state.enabled == true and type(entry) == "table") then
+        return
+    end
+
+    local event = {
+        time = SafeDebugNumber((GetTime and GetTime()) or 0),
+        unit = SafeDebugText(entry.unit, "-"),
+        group = SafeDebugText(entry.group, "-"),
+        source = SafeDebugText(entry.source, "-"),
+        backend = SafeDebugText(entry.backend, "-"),
+        inCombat = InCombatLockdown and InCombatLockdown() == true or false,
+        payloadClassification = SafeDebugText(entry.payloadClassification, "-"),
+        scanClassification = SafeDebugText(entry.scanClassification, "-"),
+        decision = SafeDebugText(entry.decision, "-"),
+        filterClass = SafeDebugText(entry.filterClass, "-"),
+        groupCount = SafeDebugNumber(entry.groupCount),
+        safeAuraCount = SafeDebugNumber(entry.safeAuraCount),
+        safeUpdatedCount = SafeDebugNumber(entry.safeUpdatedCount),
+        safeAddedCount = SafeDebugNumber(entry.safeAddedCount),
+        safeRemovedCount = SafeDebugNumber(entry.safeRemovedCount),
+        skippedCount = SafeDebugNumber(entry.skippedCount),
+    }
+
+    state.events[#state.events + 1] = event
+    if #state.events > MAX_AURA_DEBUG_EVENTS then
+        table.remove(state.events, 1)
+    end
+end
+
+local function AppendCounterLines(lines, label, counters)
+    local keys = {}
+    for key in pairs(counters) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+
+    local parts = {}
+    for _, key in ipairs(keys) do
+        parts[#parts + 1] = string.format("%s=%d", key, SafeDebugNumber(counters[key]))
+    end
+
+    lines[#lines + 1] = string.format("%s: %s", label, #parts > 0 and table.concat(parts, ", ") or "-")
+end
+
+function AuraDiagnostics.BuildReport()
+    local state = AuraDiagnostics.state or {}
+    local events = state.events or {}
+    local lines = {
+        string.format("Aura diagnostics enabled=%s events=%d/%d", tostring(state.enabled == true), #events, MAX_AURA_DEBUG_EVENTS),
+    }
+
+    local bySource = {}
+    local byBackend = {}
+    local byPayload = {}
+    local byScan = {}
+    local byDecision = {}
+    for _, event in ipairs(events) do
+        IncrementCounter(bySource, event.source)
+        IncrementCounter(byBackend, event.backend)
+        IncrementCounter(byPayload, event.payloadClassification)
+        IncrementCounter(byScan, event.scanClassification)
+        IncrementCounter(byDecision, event.decision)
+    end
+
+    AppendCounterLines(lines, "By source", bySource)
+    AppendCounterLines(lines, "By backend", byBackend)
+    AppendCounterLines(lines, "By payload", byPayload)
+    AppendCounterLines(lines, "By scan", byScan)
+    AppendCounterLines(lines, "By decision", byDecision)
+
+    local startIndex = math.max(1, #events - 19)
+    for index = startIndex, #events do
+        local event = events[index]
+        lines[#lines + 1] = string.format(
+            "%03d t=%.2f unit=%s group=%s combat=%s source=%s backend=%s filter=%s groups=%d payload=%s scan=%s decision=%s auras=%d added=%d updated=%d removed=%d skipped=%d",
+            index,
+            SafeDebugNumber(event.time),
+            SafeDebugText(event.unit, "-"),
+            SafeDebugText(event.group, "-"),
+            tostring(event.inCombat == true),
+            SafeDebugText(event.source, "-"),
+            SafeDebugText(event.backend, "-"),
+            SafeDebugText(event.filterClass, "-"),
+            SafeDebugNumber(event.groupCount),
+            SafeDebugText(event.payloadClassification, "-"),
+            SafeDebugText(event.scanClassification, "-"),
+            SafeDebugText(event.decision, "-"),
+            SafeDebugNumber(event.safeAuraCount),
+            SafeDebugNumber(event.safeAddedCount),
+            SafeDebugNumber(event.safeUpdatedCount),
+            SafeDebugNumber(event.safeRemovedCount),
+            SafeDebugNumber(event.skippedCount)
+        )
+    end
+
+    return lines
+end
+
 local IsSafeTrue = function(value)
     local ok, result = pcall(function()
         return value and true or false
@@ -166,6 +315,100 @@ local ToSafeNumber = function(value)
     end
 
     return 0
+end
+
+local function SafeGetAuraSlots(unit, filterToken, maxSlots, continuationToken)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraSlots) or IsSecret(continuationToken) then
+        return false, nil, nil, "secret"
+    end
+
+    local ok, resultCount, results = pcall(function()
+        local function CaptureReturns(...)
+            local count = select("#", ...)
+            local values = {}
+            for index = 1, count do
+                values[index] = select(index, ...)
+            end
+
+            return count, values
+        end
+
+        return CaptureReturns(C_UnitAuras.GetAuraSlots(unit, filterToken, maxSlots, continuationToken))
+    end)
+    if not ok or type(resultCount) ~= "number" or IsSecret(results) or type(results) ~= "table" then
+        return false, nil, nil, ok and "secret" or "forbidden"
+    end
+
+    for index = 1, resultCount do
+        if IsSecret(results[index]) then
+            return false, nil, nil, "secret"
+        end
+    end
+
+    return true, resultCount, results
+end
+
+local function SafeGetAuraDataBySlot(unit, slot)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataBySlot) or IsSecret(slot) then
+        return false, nil, "secret"
+    end
+
+    local ok, auraData = pcall(C_UnitAuras.GetAuraDataBySlot, unit, slot)
+    if not ok or IsSecret(auraData) then
+        return false, nil, ok and "secret" or "forbidden"
+    end
+
+    if auraData == nil then
+        return true, nil
+    end
+
+    if type(auraData) ~= "table" then
+        return false, nil
+    end
+
+    return true, auraData
+end
+
+local function SafeGetAuraDataByIndex(unit, index, filterToken)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then
+        return false, nil, "error"
+    end
+
+    local ok, auraData = pcall(C_UnitAuras.GetAuraDataByIndex, unit, index, filterToken)
+    if not ok or IsSecret(auraData) then
+        return false, nil, ok and "secret" or "forbidden"
+    end
+
+    if auraData == nil then
+        return true, nil
+    end
+
+    if type(auraData) ~= "table" then
+        return false, nil
+    end
+
+    return true, auraData
+end
+
+local function SafeGetAuraDataByAuraInstanceID(unit, auraInstanceId)
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID) or IsSecret(auraInstanceId) then
+        return false, nil, "secret"
+    end
+
+    local ok, auraData = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, auraInstanceId)
+    if not ok or IsSecret(auraData) then
+        return false, nil, ok and "secret" or "forbidden"
+    end
+
+    if auraData == nil then
+        return true, nil
+    end
+
+    if type(auraData) ~= "table" then
+        return false, nil
+    end
+
+    return true, auraData
 end
 
 -- Normalizes Blizzard/Midnight aura data into FocalPoint-owned aura records.
@@ -497,7 +740,15 @@ end
 function AuraScan.CollectUnitAuras(unit, groupKey)
     local auraList = {}
     if not unit then
-        return auraList
+        AuraDiagnostics.Record({
+            unit = unit,
+            group = groupKey,
+            source = "FULL_REFRESH",
+            scanClassification = "success",
+            decision = "full_commit",
+            safeAuraCount = 0,
+        })
+        return true, auraList
     end
 
     local filterToken, isHelpful, isHarmful = GetGroupFilter(groupKey)
@@ -505,42 +756,120 @@ function AuraScan.CollectUnitAuras(unit, groupKey)
     if C_UnitAuras then
         if C_UnitAuras.GetAuraSlots and C_UnitAuras.GetAuraDataBySlot then
             local continuationToken = nil
+            local pageCount = 0
             repeat
-                local slots = { C_UnitAuras.GetAuraSlots(unit, filterToken, 40, continuationToken) }
+                pageCount = pageCount + 1
+                if pageCount > MAX_AURA_SLOT_PAGES then
+                    AuraDiagnostics.Record({
+                        unit = unit,
+                        group = groupKey,
+                        source = "FULL_REFRESH",
+                        scanClassification = "error",
+                        decision = "preserve",
+                    })
+                    return false, nil
+                end
+
+                local slotsOk, slotResultCount, slots, slotsStatus = SafeGetAuraSlots(unit, filterToken, 40, continuationToken)
+                if not slotsOk then
+                    AuraDiagnostics.Record({
+                        unit = unit,
+                        group = groupKey,
+                        source = "FULL_REFRESH",
+                        scanClassification = slotsStatus or "error",
+                        decision = "preserve",
+                    })
+                    return false, nil
+                end
+
                 continuationToken = slots[1]
 
-                for index = 2, #slots do
-                    local auraData = C_UnitAuras.GetAuraDataBySlot(unit, slots[index])
+                for index = 2, slotResultCount do
+                    local auraDataOk, auraData, auraDataStatus = SafeGetAuraDataBySlot(unit, slots[index])
+                    if not auraDataOk then
+                        AuraDiagnostics.Record({
+                            unit = unit,
+                            group = groupKey,
+                            source = "FULL_REFRESH",
+                            scanClassification = auraDataStatus or "error",
+                            decision = "preserve",
+                            safeAuraCount = #auraList,
+                        })
+                        return false, nil
+                    end
+
                     if auraData then
                         auraList[#auraList + 1] = auraData
                     end
                 end
 
-            until not continuationToken
+            until continuationToken == nil or continuationToken == false
 
-            return auraList
+            AuraDiagnostics.Record({
+                unit = unit,
+                group = groupKey,
+                source = "FULL_REFRESH",
+                scanClassification = "success",
+                decision = "full_commit",
+                safeAuraCount = #auraList,
+            })
+            return true, auraList
         end
 
         if C_UnitAuras.GetAuraDataByIndex then
-            local index = 1
-            while true do
-                local auraData = C_UnitAuras.GetAuraDataByIndex(unit, index, filterToken)
+            for index = 1, MAX_AURA_INDEX_SCAN do
+                local auraDataOk, auraData, auraDataStatus = SafeGetAuraDataByIndex(unit, index, filterToken)
+                if not auraDataOk then
+                    AuraDiagnostics.Record({
+                        unit = unit,
+                        group = groupKey,
+                        source = "FULL_REFRESH",
+                        scanClassification = auraDataStatus or "error",
+                        decision = "preserve",
+                        safeAuraCount = #auraList,
+                    })
+                    return false, nil
+                end
+
                 if not auraData then
-                    break
+                    AuraDiagnostics.Record({
+                        unit = unit,
+                        group = groupKey,
+                        source = "FULL_REFRESH",
+                        scanClassification = "success",
+                        decision = "full_commit",
+                        safeAuraCount = #auraList,
+                    })
+                    return true, auraList
                 end
 
                 auraList[#auraList + 1] = auraData
-                index = index + 1
             end
 
-            return auraList
+            AuraDiagnostics.Record({
+                unit = unit,
+                group = groupKey,
+                source = "FULL_REFRESH",
+                scanClassification = "error",
+                decision = "preserve",
+                safeAuraCount = #auraList,
+            })
+            return false, nil
         end
     end
 
     -- Legacy compatibility for pre-Midnight clients only. Focal Point 1.0.6
     -- targets Midnight, where C_UnitAuras is expected and this path stays off.
     if IsMidnightClient() then
-        return auraList
+        AuraDiagnostics.Record({
+            unit = unit,
+            group = groupKey,
+            source = "FULL_REFRESH",
+            scanClassification = "success",
+            decision = "full_commit",
+            safeAuraCount = 0,
+        })
+        return true, auraList
     end
 
     local index = 1
@@ -554,16 +883,28 @@ function AuraScan.CollectUnitAuras(unit, groupKey)
         index = index + 1
     end
 
-    return auraList
+    AuraDiagnostics.Record({
+        unit = unit,
+        group = groupKey,
+        source = "FULL_REFRESH",
+        scanClassification = "success",
+        decision = "full_commit",
+        safeAuraCount = #auraList,
+    })
+    return true, auraList
+end
+
+function AuraScan.TryGetAuraDataByInstanceID(unit, auraInstanceId)
+    auraInstanceId = ToSafeNumber(auraInstanceId)
+    if ComparePositive(auraInstanceId) ~= true or not (C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID) then
+        return true, nil
+    end
+
+    return SafeGetAuraDataByAuraInstanceID(unit, auraInstanceId)
 end
 
 function AuraScan.GetAuraDataByInstanceID(unit, auraInstanceId)
-    auraInstanceId = ToSafeNumber(auraInstanceId)
-    if ComparePositive(auraInstanceId) ~= true or not (C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID) then
-        return nil
-    end
-
-    local ok, auraData = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, auraInstanceId)
+    local ok, auraData = AuraScan.TryGetAuraDataByInstanceID(unit, auraInstanceId)
     if ok then
         return auraData
     end

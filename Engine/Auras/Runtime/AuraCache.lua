@@ -15,6 +15,13 @@ local function Log(frame, action, details)
     end
 end
 
+local function RecordAuraDiagnostic(entry)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.Record then
+        AuraDiagnostics.Record(entry)
+    end
+end
+
 local function CountKeys(source)
     local count = 0
     if type(source) ~= "table" then
@@ -123,6 +130,20 @@ local function AuraMatchesGroup(aura, groupKey)
     return false
 end
 
+local function AuraMatchesAnyGroup(aura, groupKeys)
+    if type(groupKeys) ~= "table" then
+        return false
+    end
+
+    for groupKey in pairs(groupKeys) do
+        if AuraMatchesGroup(aura, groupKey) then
+            return true
+        end
+    end
+
+    return false
+end
+
 local function NeedsDurationReconcile(aura)
     if type(aura) ~= "table" or aura._cacheSource ~= "EVENT" then
         return false
@@ -201,35 +222,81 @@ function AuraCache.SyncFromScans(frame, unit, scansByGroup)
     local root = GetRoot(frame)
     local rootState = GetRootState(frame)
     local scannedById = {}
+    local scannedGroups = {}
+    local hasCommittedGroup = false
     local now = (GetTime and GetTime()) or 0
 
     for _, groupKey in ipairs(GROUP_KEYS) do
-        local rawAuras = type(scansByGroup[groupKey]) == "table" and scansByGroup[groupKey] or {}
-        local group = AuraCache.GetGroup(frame, groupKey)
-        local groupState = GetGroupState(group)
-        local unkeyed = {}
+        local rawAuras = scansByGroup[groupKey]
+        if type(rawAuras) ~= "table" then
+            -- Missing groups represent failed or unavailable scans. Preserve the
+            -- previous cache for that group instead of committing an empty list.
+        else
+            local groupScannedById = {}
+            local unkeyed = {}
+            local groupScanOk = true
+            local skippedCount = 0
 
-        group.rawAuras = rawAuras
-        root.rawByGroup[groupKey] = rawAuras
-        groupState.phase = "hydrating"
-        groupState.rawCount = #rawAuras
+            if not AuraScan.NormalizeAura then
+                groupScanOk = false
+            else
+                for index, rawAura in ipairs(rawAuras) do
+                    local normalizeOk, aura = pcall(AuraScan.NormalizeAura, rawAura, unit, groupKey, "FULLSCAN")
+                    if not normalizeOk then
+                        skippedCount = skippedCount + 1
+                        aura = nil
+                    elseif aura then
+                        aura.sourceIndex = index
+                        aura.sortKey = index
 
-        for index, rawAura in ipairs(rawAuras) do
-            local aura = AuraScan.NormalizeAura and AuraScan.NormalizeAura(rawAura, unit, groupKey, "FULLSCAN") or nil
-            if aura then
-                aura.sourceIndex = index
-                aura.sortKey = index
-
-                local auraInstanceId = ToInstanceId(aura.auraInstanceId)
-                if auraInstanceId > 0 then
-                    scannedById[auraInstanceId] = StampAura(aura, "FULLSCAN")
-                else
-                    unkeyed[#unkeyed + 1] = StampAura(aura, "FULLSCAN")
+                        local auraInstanceId = ToInstanceId(aura.auraInstanceId)
+                        if auraInstanceId > 0 then
+                            groupScannedById[auraInstanceId] = StampAura(aura, "FULLSCAN")
+                        else
+                            unkeyed[#unkeyed + 1] = StampAura(aura, "FULLSCAN")
+                        end
+                    end
                 end
             end
-        end
 
-        root.unkeyedByGroup[groupKey] = unkeyed
+            if groupScanOk then
+                hasCommittedGroup = true
+                scannedGroups[groupKey] = true
+                local group = AuraCache.GetGroup(frame, groupKey)
+                local groupState = GetGroupState(group)
+
+                group.rawAuras = rawAuras
+                root.rawByGroup[groupKey] = rawAuras
+                groupState.phase = "hydrating"
+                groupState.rawCount = #rawAuras
+
+                for auraInstanceId, aura in pairs(groupScannedById) do
+                    scannedById[auraInstanceId] = aura
+                end
+
+                root.unkeyedByGroup[groupKey] = unkeyed
+
+                RecordAuraDiagnostic({
+                    unit = unit,
+                    group = groupKey,
+                    source = "UNITFRAME_REFRESH",
+                    scanClassification = "success",
+                    decision = "full_commit",
+                    safeAuraCount = #rawAuras,
+                    skippedCount = skippedCount,
+                })
+            end
+        end
+    end
+
+    if not hasCommittedGroup then
+        RecordAuraDiagnostic({
+            unit = unit,
+            source = "UNITFRAME_REFRESH",
+            scanClassification = "error",
+            decision = "preserve",
+        })
+        return false
     end
 
     for auraInstanceId, aura in pairs(scannedById) do
@@ -237,7 +304,7 @@ function AuraCache.SyncFromScans(frame, unit, scansByGroup)
     end
 
     for auraInstanceId, aura in pairs(root.allById) do
-        if not scannedById[auraInstanceId] then
+        if AuraMatchesAnyGroup(aura, scannedGroups) and not scannedById[auraInstanceId] then
             if not ShouldKeepMissingEventAura(aura, now) then
                 root.allById[auraInstanceId] = nil
             end
@@ -295,8 +362,14 @@ function AuraCache.ReconcileEventAuras(frame, unit)
 
     for auraInstanceId, cachedAura in pairs(root.allById) do
         if NeedsDurationReconcile(cachedAura) then
-            local rawAura = AuraScan.GetAuraDataByInstanceID(unit, auraInstanceId)
-            if type(rawAura) == "table" then
+            local rawAuraOk, rawAura = true, nil
+            if AuraScan.TryGetAuraDataByInstanceID then
+                rawAuraOk, rawAura = AuraScan.TryGetAuraDataByInstanceID(unit, auraInstanceId)
+            elseif AuraScan.GetAuraDataByInstanceID then
+                rawAura = AuraScan.GetAuraDataByInstanceID(unit, auraInstanceId)
+            end
+
+            if rawAuraOk and type(rawAura) == "table" then
                 local aura = AuraScan.NormalizeAura(rawAura, unit, nil, "EVENT")
                 if aura then
                     aura.sourceIndex = cachedAura.sourceIndex or aura.sourceIndex or 0
@@ -366,7 +439,16 @@ function AuraCache.ApplyUpdate(frame, unit, updateInfo)
             return false
         end
 
-        if AuraScan.GetAuraDataByInstanceID then
+        if AuraScan.TryGetAuraDataByInstanceID then
+            local resolvedOk, resolvedAura = AuraScan.TryGetAuraDataByInstanceID(unit, auraInstanceId)
+            if not resolvedOk then
+                return false
+            end
+
+            if type(resolvedAura) == "table" then
+                rawAura = resolvedAura
+            end
+        elseif AuraScan.GetAuraDataByInstanceID then
             local resolvedAura = AuraScan.GetAuraDataByInstanceID(unit, auraInstanceId)
             if type(resolvedAura) == "table" then
                 rawAura = resolvedAura

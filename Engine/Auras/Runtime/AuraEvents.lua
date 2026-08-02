@@ -3,6 +3,8 @@ local _, FocalPoint = ...
 FocalPoint.AuraEvents = FocalPoint.AuraEvents or {}
 local AuraEvents = FocalPoint.AuraEvents
 local State = FocalPoint.UnitFrameState or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local IsSecretValue = UnitUtils.IsSecretValue
 
 local function Log(frame, action, details)
     if State.DebugLog then
@@ -11,6 +13,65 @@ local function Log(frame, action, details)
 end
 
 -- Event registration shim for the aura runtime.
+
+local function IsSecret(value)
+    return IsSecretValue and IsSecretValue(value) or false
+end
+
+local function ClassifyAuraUpdateInfo(updateInfo)
+    if IsSecret(updateInfo) then
+        return "secret"
+    end
+
+    if updateInfo == nil then
+        return "incremental", nil
+    end
+
+    if type(updateInfo) ~= "table" then
+        return "invalid"
+    end
+
+    local isFullUpdate = updateInfo.isFullUpdate
+    if IsSecret(isFullUpdate) then
+        return "secret"
+    end
+
+    if type(isFullUpdate) == "boolean" and isFullUpdate == true then
+        return "full", updateInfo
+    end
+
+    local addedAuras = updateInfo.addedAuras
+    if IsSecret(addedAuras) then
+        return "secret"
+    end
+
+    local updatedAuraInstanceIDs = updateInfo.updatedAuraInstanceIDs
+    if IsSecret(updatedAuraInstanceIDs) then
+        return "secret"
+    end
+
+    local removedAuraInstanceIDs = updateInfo.removedAuraInstanceIDs
+    if IsSecret(removedAuraInstanceIDs) then
+        return "secret"
+    end
+
+    return "incremental", updateInfo
+end
+
+local function CountSafeList(list)
+    if type(list) ~= "table" then
+        return 0
+    end
+
+    return #list
+end
+
+local function RecordAuraDiagnostic(entry)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.Record then
+        AuraDiagnostics.Record(entry)
+    end
+end
 
 local function QueueAuraRefresh(owner, refreshFunc, delay, forceFullScan)
     if not owner then
@@ -141,7 +202,31 @@ function AuraEvents.Register(frame, refreshFunc)
 
         if event == "UNIT_AURA" then
             local AuraCache = FocalPoint.AuraCache or {}
-            if updateInfo and updateInfo.isFullUpdate then
+            local auraUpdateKind, safeUpdateInfo = ClassifyAuraUpdateInfo(updateInfo)
+            local payloadClassification = auraUpdateKind == "full" and "normal_full"
+                or auraUpdateKind == "incremental" and "normal_incremental"
+                or auraUpdateKind
+
+            if auraUpdateKind == "secret" or auraUpdateKind == "invalid" then
+                RecordAuraDiagnostic({
+                    unit = owner.unit,
+                    source = "UNIT_AURA",
+                    payloadClassification = payloadClassification,
+                    scanClassification = "not_attempted",
+                    decision = "preserve",
+                })
+                Log(owner, "event", "UNIT_AURA preserve")
+                return
+            end
+
+            if auraUpdateKind == "full" then
+                RecordAuraDiagnostic({
+                    unit = owner.unit,
+                    source = "UNIT_AURA",
+                    payloadClassification = payloadClassification,
+                    scanClassification = "not_attempted",
+                    decision = "full_commit",
+                })
                 BumpReconcileToken(owner)
                 if AuraCache.ClearAll then
                     AuraCache.ClearAll(owner)
@@ -151,8 +236,19 @@ function AuraEvents.Register(frame, refreshFunc)
                 return
             end
 
+            RecordAuraDiagnostic({
+                unit = owner.unit,
+                source = "UNIT_AURA",
+                payloadClassification = payloadClassification,
+                scanClassification = "not_attempted",
+                decision = "incremental_commit",
+                safeAddedCount = safeUpdateInfo and CountSafeList(safeUpdateInfo.addedAuras) or 0,
+                safeUpdatedCount = safeUpdateInfo and CountSafeList(safeUpdateInfo.updatedAuraInstanceIDs) or 0,
+                safeRemovedCount = safeUpdateInfo and CountSafeList(safeUpdateInfo.removedAuraInstanceIDs) or 0,
+            })
+
             if AuraCache.ApplyUpdate then
-                AuraCache.ApplyUpdate(owner, owner.unit, updateInfo)
+                AuraCache.ApplyUpdate(owner, owner.unit, safeUpdateInfo)
             end
 
             Log(owner, "event", "UNIT_AURA incremental")
