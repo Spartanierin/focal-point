@@ -15,6 +15,7 @@ AuraDiagnostics.state = AuraDiagnostics.state or {
     events = {},
     managedCounters = {},
     managedLayout = nil,
+    managedFilter = nil,
 }
 
 local function IsSecret(value)
@@ -52,6 +53,7 @@ function AuraDiagnostics.Reset()
         events = {},
         managedCounters = {},
         managedLayout = nil,
+        managedFilter = nil,
     }
 end
 
@@ -81,6 +83,19 @@ function AuraDiagnostics.RecordManagedLayout(values)
         spacingX = SafeDebugNumber(values.spacingX),
         spacingY = SafeDebugNumber(values.spacingY),
         errors = SafeDebugNumber(values.errors),
+    }
+end
+
+function AuraDiagnostics.RecordManagedFilter(values)
+    local state = AuraDiagnostics.state
+    if not (state and state.enabled == true and type(values) == "table") then
+        return
+    end
+
+    state.managedFilter = {
+        unit = SafeDebugText(values.unit, "-"),
+        group = SafeDebugText(values.group, "-"),
+        showOnlyMine = values.showOnlyMine == true,
     }
 end
 
@@ -185,6 +200,7 @@ function AuraDiagnostics.BuildReport()
 
     local managedCounters = state.managedCounters or {}
     local managedLayout = state.managedLayout or {}
+    local managedFilter = state.managedFilter or {}
     lines[#lines + 1] = string.format(
         "Aura Debug Config: signature=%d reconfigure=%d fastPath=%d layout=%d/%d groupAdd=%d/%d init=%d buttonReconfigure=%d inspector=%d errors=%d",
         SafeDebugNumber(managedCounters.configSignatureChanged),
@@ -198,6 +214,18 @@ function AuraDiagnostics.BuildReport()
         SafeDebugNumber(managedCounters.buttonReconfigure),
         SafeDebugNumber(managedCounters.inspectorRefresh),
         SafeDebugNumber(managedCounters.layoutApplyFailed) + SafeDebugNumber(managedCounters.groupAddFailed)
+    )
+    lines[#lines + 1] = string.format(
+        "Aura Debug Filter: mine=%s last=%s/%s spec=%d apply=%d/%d deferred=%d rebuildRequired=%d errors=%d",
+        tostring(managedFilter.showOnlyMine == true),
+        SafeDebugText(managedFilter.unit, "-"),
+        SafeDebugText(managedFilter.group, "-"),
+        SafeDebugNumber(managedCounters.filterSpecBuild),
+        SafeDebugNumber(managedCounters.filterApplySuccess),
+        SafeDebugNumber(managedCounters.filterApplyAttempt),
+        SafeDebugNumber(managedCounters.filterDeferred),
+        SafeDebugNumber(managedCounters.filterRebuildRequired),
+        SafeDebugNumber(managedCounters.filterApplyFailed)
     )
     lines[#lines + 1] = string.format(
         "Aura Debug Layout: row=%d rows=%d max=%d size=%dx%d spacing=%d/%d errors=%d",

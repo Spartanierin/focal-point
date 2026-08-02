@@ -288,6 +288,40 @@ local function IncrementManagedCounter(key)
     end
 end
 
+local function RecordManagedFilter(values)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.RecordManagedFilter then
+        AuraDiagnostics.RecordManagedFilter(values)
+    end
+end
+
+local function BuildManagedFilterSpec(config, definition, unit, groupKey)
+    local filterString = definition and definition.filter or nil
+    local candidateFilters = {}
+    local showOnlyMine = config and config.showOnlyMine == true or false
+
+    if showOnlyMine then
+        candidateFilters.isFromPlayerOrPlayerPet = true
+    end
+
+    IncrementManagedCounter("filterSpecBuild")
+    RecordManagedFilter({
+        unit = unit,
+        group = groupKey,
+        showOnlyMine = showOnlyMine,
+    })
+
+    return {
+        filterString = filterString,
+        candidateFilters = candidateFilters,
+        showOnlyMine = showOnlyMine,
+        signature = table.concat({
+            tostring(filterString or ""),
+            tostring(showOnlyMine),
+        }, "|"),
+    }
+end
+
 local function RecordManagedLayout(values)
     local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
     if AuraDiagnostics and AuraDiagnostics.RecordManagedLayout then
@@ -481,11 +515,13 @@ local function ConfigureButton(button, config)
     end
 end
 
-local function BuildGroupOptions(config, definition)
+local function BuildGroupOptions(config, definition, filterSpec)
+    filterSpec = filterSpec or BuildManagedFilterSpec(config, definition)
     return {
-        filterString = definition and definition.filter or nil,
+        filterString = filterSpec.filterString,
         maxFrameCount = ResolveMaxFrameCount(config),
         templateNames = { "CustomAuraButtonTemplate" },
+        candidateFilters = filterSpec.candidateFilters,
         initializeFrame = function(button)
             ConfigureButton(button, config)
         end,
@@ -508,6 +544,7 @@ local function BuildConfigSignature(config)
     config = config or {}
     return table.concat({
         tostring(config.enabled ~= false),
+        tostring(config.showOnlyMine == true),
         tostring(config.placement or "ATTACHED"),
         tostring(config.anchorTo or "Frame"),
         tostring(config.insideAnchorTo or "Frame"),
@@ -525,21 +562,38 @@ local function BuildConfigSignature(config)
     }, "|")
 end
 
-local function AddManagedAuraGroup(container, config, definition)
+local function ApplyManagedFilterSpec(container, definition, filterSpec)
+    if not (container and definition and filterSpec) then
+        return false
+    end
+
+    IncrementManagedCounter("filterApplyAttempt")
+    if TryCall(container, "SetAuraGroupCandidateFilters", definition.auraGroupKey, filterSpec.candidateFilters or {}) then
+        IncrementManagedCounter("filterApplySuccess")
+        return true
+    end
+
+    IncrementManagedCounter("filterApplyFailed")
+    IncrementManagedCounter("filterRebuildRequired")
+    return false
+end
+
+local function AddManagedAuraGroup(container, config, definition, filterSpec)
     if not definition then
         return false
     end
 
-    local options = BuildGroupOptions(config, definition)
+    filterSpec = filterSpec or BuildManagedFilterSpec(config, definition)
+    local options = BuildGroupOptions(config, definition, filterSpec)
     IncrementManagedCounter("groupAddAttempt")
     if TryCall(container, "AddAuraGroup", definition.auraGroupKey, options) then
         IncrementManagedCounter("groupAddSuccess")
         return true, "options-filterString"
     end
 
-    options = BuildGroupOptions(config, definition)
+    options = BuildGroupOptions(config, definition, filterSpec)
     IncrementManagedCounter("groupAddAttempt")
-    if TryCall(container, "AddAuraGroup", definition.auraGroupKey, definition.filter, options) then
+    if TryCall(container, "AddAuraGroup", definition.auraGroupKey, filterSpec.filterString, options) then
         IncrementManagedCounter("groupAddSuccess")
         return true, "filter-argument"
     end
@@ -632,6 +686,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         HideDebugOverlay(state)
     end
 
+    local filterSpec = BuildManagedFilterSpec(config, definition, unit, groupKey)
     local signature = BuildConfigSignature(config)
     local signatureChanged = state.configured == true and state.signature ~= signature
     if signatureChanged then
@@ -649,6 +704,11 @@ function Managed.EnsureGroup(frame, groupKey, config)
             return true
         end
 
+        if state.configured and state.filterSignature ~= filterSpec.signature then
+            state.filterDirty = true
+            state.pendingFilterSignature = filterSpec.signature
+            IncrementManagedCounter("filterDeferred")
+        end
         RecordDiagnostic(unit, groupKey, "managed_active", state.configured == true and 1 or 0, state.configured == true and "active" or "setup_pending", state)
         return state.configured == true
     end
@@ -694,7 +754,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
     end
 
     if not state.configured then
-        local added, addMode = AddManagedAuraGroup(container, config, definition)
+        local added, addMode = AddManagedAuraGroup(container, config, definition, filterSpec)
         if not added then
             Managed.unavailableGroups = Managed.unavailableGroups or {}
             Managed.unavailableGroups[unit .. "/" .. groupKey] = true
@@ -706,9 +766,17 @@ function Managed.EnsureGroup(frame, groupKey, config)
         end
         state.configured = true
         state.addMode = addMode
+        state.filterSignature = filterSpec.signature
     end
 
     TryCall(container, "SetAuraGroupMaxFrameCount", definition.auraGroupKey, maxFrameCount)
+    if state.filterDirty == true or state.filterSignature ~= filterSpec.signature then
+        if ApplyManagedFilterSpec(container, definition, filterSpec) then
+            state.filterSignature = filterSpec.signature
+            state.filterDirty = false
+            state.pendingFilterSignature = nil
+        end
+    end
     IncrementManagedCounter("layoutApplyAttempt")
     local layoutOk = TryCall(container, "SetAuraGroupLayout", definition.auraGroupKey, BuildLayoutOptions(config))
     if layoutOk then
