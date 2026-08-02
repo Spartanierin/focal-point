@@ -41,6 +41,16 @@ local GROUP_DEFINITIONS = {
             color = { 0.15, 0.55, 1, 0.28 },
             textColor = { 0.62, 0.82, 1, 1 },
         },
+        Debuffs = {
+            auraGroupKey = "FocalPointTargetDebuffs",
+            filter = "HARMFUL",
+            filterClass = "harmful",
+            stateKey = "TargetDebuffs",
+            elementKey = "ManagedTargetDebuffs",
+            label = "TARGET DEBUFFS",
+            color = { 0.95, 0.22, 0.18, 0.28 },
+            textColor = { 1, 0.6, 0.55, 1 },
+        },
     },
 }
 

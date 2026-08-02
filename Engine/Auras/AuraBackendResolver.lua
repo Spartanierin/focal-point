@@ -10,6 +10,7 @@ local MANAGED_GROUPS = {
     },
     target = {
         Buffs = true,
+        Debuffs = true,
     },
 }
 
