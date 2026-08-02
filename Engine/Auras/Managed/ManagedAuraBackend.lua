@@ -109,6 +109,39 @@ local BOSS_BUFF_DEFINITIONS = {
     },
 }
 
+local BOSS_DEBUFF_DEFINITIONS = {
+    boss1 = {
+        auraGroupKey = "FocalPointBoss1Debuffs",
+        stateKey = "Boss1Debuffs",
+        elementKey = "ManagedBoss1Debuffs",
+        label = "BOSS1 DEBUFFS",
+    },
+    boss2 = {
+        auraGroupKey = "FocalPointBoss2Debuffs",
+        stateKey = "Boss2Debuffs",
+        elementKey = "ManagedBoss2Debuffs",
+        label = "BOSS2 DEBUFFS",
+    },
+    boss3 = {
+        auraGroupKey = "FocalPointBoss3Debuffs",
+        stateKey = "Boss3Debuffs",
+        elementKey = "ManagedBoss3Debuffs",
+        label = "BOSS3 DEBUFFS",
+    },
+    boss4 = {
+        auraGroupKey = "FocalPointBoss4Debuffs",
+        stateKey = "Boss4Debuffs",
+        elementKey = "ManagedBoss4Debuffs",
+        label = "BOSS4 DEBUFFS",
+    },
+    boss5 = {
+        auraGroupKey = "FocalPointBoss5Debuffs",
+        stateKey = "Boss5Debuffs",
+        elementKey = "ManagedBoss5Debuffs",
+        label = "BOSS5 DEBUFFS",
+    },
+}
+
 for unit, bossDefinition in pairs(BOSS_BUFF_DEFINITIONS) do
     GROUP_DEFINITIONS[unit] = {
         Buffs = {
@@ -120,6 +153,16 @@ for unit, bossDefinition in pairs(BOSS_BUFF_DEFINITIONS) do
             label = bossDefinition.label,
             color = { 0.9, 0.62, 0.18, 0.28 },
             textColor = { 1, 0.82, 0.5, 1 },
+        },
+        Debuffs = {
+            auraGroupKey = BOSS_DEBUFF_DEFINITIONS[unit].auraGroupKey,
+            filter = "HARMFUL",
+            filterClass = "harmful",
+            stateKey = BOSS_DEBUFF_DEFINITIONS[unit].stateKey,
+            elementKey = BOSS_DEBUFF_DEFINITIONS[unit].elementKey,
+            label = BOSS_DEBUFF_DEFINITIONS[unit].label,
+            color = { 0.95, 0.18, 0.18, 0.28 },
+            textColor = { 1, 0.58, 0.58, 1 },
         },
     }
 end
