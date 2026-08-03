@@ -216,13 +216,17 @@ function AuraDiagnostics.BuildReport()
         SafeDebugNumber(managedCounters.layoutApplyFailed) + SafeDebugNumber(managedCounters.groupAddFailed)
     )
     lines[#lines + 1] = string.format(
-        "Aura Debug Buttons: init=%d stackApply=%d/%d timerApply=%d/%d errors=%d",
+        "Aura Debug Buttons: init=%d stackApply=%d/%d stackScaleApply=%d/%d timerApply=%d/%d errors=%d",
         SafeDebugNumber(managedCounters.buttonInitialize),
         SafeDebugNumber(managedCounters.buttonStackApplySuccess),
         SafeDebugNumber(managedCounters.buttonStackApplySuccess) + SafeDebugNumber(managedCounters.buttonStackApplyFailed),
+        SafeDebugNumber(managedCounters.buttonStackScaleApplySuccess),
+        SafeDebugNumber(managedCounters.buttonStackScaleApplySuccess) + SafeDebugNumber(managedCounters.buttonStackScaleApplyFailed),
         SafeDebugNumber(managedCounters.buttonTimerApplySuccess),
         SafeDebugNumber(managedCounters.buttonTimerApplySuccess) + SafeDebugNumber(managedCounters.buttonTimerApplyFailed),
-        SafeDebugNumber(managedCounters.buttonStackApplyErrors) + SafeDebugNumber(managedCounters.buttonTimerApplyErrors)
+        SafeDebugNumber(managedCounters.buttonStackApplyErrors)
+            + SafeDebugNumber(managedCounters.buttonStackScaleApplyErrors)
+            + SafeDebugNumber(managedCounters.buttonTimerApplyErrors)
     )
     lines[#lines + 1] = string.format(
         "Aura Debug Filter: mine=%s last=%s/%s spec=%d apply=%d/%d deferred=%d rebuildRequired=%d errors=%d",

@@ -614,6 +614,26 @@ local function ApplyButtonStackText(button, config)
         return
     end
 
+    local iconSize = ToPositiveNumber(config and config.iconSize, 25)
+    local stackFontScale = math.max(tonumber(config and config.stackFontScale) or 1, 0.5)
+    local fontSize = math.max(math.floor((iconSize * 0.54 * stackFontScale) + 0.5), 10)
+    if button.FocalPointApplicationCountText.SetFont then
+        button.FocalPointApplicationCountText:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
+        IncrementManagedCounter("buttonStackScaleApplySuccess")
+    else
+        IncrementManagedCounter("buttonStackScaleApplyFailed")
+        IncrementManagedCounter("buttonStackScaleApplyErrors")
+    end
+    if button.FocalPointApplicationCountText.SetTextColor then
+        button.FocalPointApplicationCountText:SetTextColor(1, 1, 1, 1)
+    end
+    if button.FocalPointApplicationCountText.SetShadowColor then
+        button.FocalPointApplicationCountText:SetShadowColor(0, 0, 0, 1)
+    end
+    if button.FocalPointApplicationCountText.SetShadowOffset then
+        button.FocalPointApplicationCountText:SetShadowOffset(1.5, -1.5)
+    end
+
     local ok = pcall(button.SetApplicationCount, button, button.FocalPointApplicationCountText)
     if ok then
         button.FocalPointApplicationCountText:Show()
@@ -795,6 +815,7 @@ local function BuildConfigSignature(config)
         tostring(config.growthX or "RIGHT"),
         tostring(config.growthY or "DOWN"),
         tostring(config.showStackText ~= false),
+        tostring(config.stackFontScale or 1),
         tostring(config.showTimerText ~= false),
         tostring(config.timerFontScale or 1),
     }, "|")
