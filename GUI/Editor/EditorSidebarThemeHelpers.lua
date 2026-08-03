@@ -290,9 +290,9 @@ local function ResolveVisualState(isDisabled, isPressed, isHovered, isSelected, 
     return "normal"
 end
 
-local function ResolveStateVisual(rolePresetKey, stateName)
+local function ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals)
     local rolePreset = FP_BUTTON_ROLE_PRESETS[rolePresetKey] or {}
-    local editorButtonVisuals = GetEditorButtonVisuals()
+    editorButtonVisuals = editorButtonVisuals or GetEditorButtonVisuals()
     local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
     local closeStates = editorButtonVisuals.closeStates or FP_CLOSE_STATE_VISUALS
     local closeState = closeStates[stateName]
@@ -318,6 +318,38 @@ local function ResolveStateVisual(rolePresetKey, stateName)
     end
 
     return visual
+end
+
+local function GetColorSignature(color)
+    if type(color) ~= "table" then
+        return "-"
+    end
+    return tostring(color[1]) .. "," .. tostring(color[2]) .. "," .. tostring(color[3]) .. "," .. tostring(color[4])
+end
+
+local function GetTexCoordSignature(texCoord)
+    if type(texCoord) ~= "table" then
+        return "-"
+    end
+    return tostring(texCoord[1]) .. "," .. tostring(texCoord[2]) .. "," .. tostring(texCoord[3]) .. "," .. tostring(texCoord[4])
+end
+
+local function BuildButtonVisualCacheKey(rolePresetKey, stateName, effectiveStyle, options, editorButtonVisuals, accentVisible)
+    return table.concat({
+        tostring(rolePresetKey),
+        tostring(stateName),
+        tostring(effectiveStyle and effectiveStyle.height),
+        GetColorSignature(effectiveStyle and effectiveStyle.disabledText),
+        GetColorSignature(effectiveStyle and effectiveStyle.fill),
+        GetColorSignature(effectiveStyle and effectiveStyle.border),
+        GetColorSignature(effectiveStyle and effectiveStyle.accent),
+        GetColorSignature(effectiveStyle and effectiveStyle.text),
+        tostring(options and options.selected == true),
+        tostring(options and options.preferSelectedWhenDisabled == true),
+        tostring(accentVisible == true),
+        tostring(editorButtonVisuals and editorButtonVisuals.texture),
+        GetTexCoordSignature(editorButtonVisuals and editorButtonVisuals.texCoord),
+    }, "|")
 end
 
 local function NeutralizeTemplateTextures(frame)
@@ -396,8 +428,8 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     local rolePreset = FP_BUTTON_ROLE_PRESETS[rolePresetKey] or {}
     local isSelected = opts.selected == true or rolePreset.selected == true
     local stateName = ResolveVisualState(isDisabled, pressed, hovered, isSelected, opts.preferSelectedWhenDisabled == true)
-    local stateVisual = ResolveStateVisual(rolePresetKey, stateName)
     local editorButtonVisuals = GetEditorButtonVisuals()
+    local stateVisual = ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals)
     local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
 
     local effectiveStyle = {
@@ -409,6 +441,13 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
         text = stateVisual.text,
     }
 
+    local accentVisible = opts.accentVisible == true or stateName == "active"
+    local cacheKey = BuildButtonVisualCacheKey(rolePresetKey, stateName, effectiveStyle, opts, editorButtonVisuals, accentVisible)
+    if button.__fpButtonVisualCacheKey == cacheKey then
+        return
+    end
+    button.__fpButtonVisualCacheKey = cacheKey
+
     button:SetHeight(effectiveStyle.height or 22)
     NeutralizeTemplateTextures(frame)
 
@@ -419,7 +458,6 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     ApplyColorTexture(button[layerKeys.border], effectiveStyle.border)
     ApplyColorTexture(button[layerKeys.accent], effectiveStyle.accent)
 
-    local accentVisible = opts.accentVisible == true or stateName == "active"
     local accent = button[layerKeys.accent]
     if accentVisible then
         if accent and accent.Show then
