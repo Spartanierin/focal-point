@@ -17,7 +17,6 @@ AuraDiagnostics.state = AuraDiagnostics.state or {
     managedLayout = nil,
     managedFilter = nil,
     managedSort = nil,
-    managedSortEnumsReported = false,
 }
 
 local function IsSecret(value)
@@ -71,7 +70,6 @@ function AuraDiagnostics.Reset()
         managedLayout = nil,
         managedFilter = nil,
         managedSort = nil,
-        managedSortEnumsReported = false,
     }
 end
 
@@ -196,44 +194,6 @@ local function AppendTextMapLine(lines, label, values)
     lines[#lines + 1] = string.format("%s: %s", label, #parts > 0 and table.concat(parts, ", ") or "-")
 end
 
-local function SafeDebugValue(value)
-    local valueType = type(value)
-    if valueType == "number" or valueType == "boolean" or valueType == "string" then
-        local ok, text = pcall(tostring, value)
-        if ok and type(text) == "string" and text ~= "" then
-            return text
-        end
-    end
-
-    return "-"
-end
-
-local function AppendEnumMapLine(lines, label, values)
-    if type(values) ~= "table" then
-        lines[#lines + 1] = string.format("%s: unavailable", label)
-        return
-    end
-
-    local keys = {}
-    for key, value in pairs(values) do
-        local keyType = type(key)
-        local valueType = type(value)
-        if (keyType == "string" or keyType == "number") and valueType ~= "table" and valueType ~= "function" then
-            keys[#keys + 1] = key
-        end
-    end
-    table.sort(keys, function(left, right)
-        return tostring(left) < tostring(right)
-    end)
-
-    local parts = {}
-    for _, key in ipairs(keys) do
-        parts[#parts + 1] = string.format("%s=%s", SafeDebugValue(key), SafeDebugValue(values[key]))
-    end
-
-    lines[#lines + 1] = string.format("%s: %s", label, #parts > 0 and table.concat(parts, ", ") or "-")
-end
-
 local function ResolveManagedSortMethodAvailability()
     local frames = FocalPoint and FocalPoint.frames or nil
     if type(frames) ~= "table" then
@@ -259,18 +219,15 @@ local function ResolveManagedSortMethodAvailability()
     return foundContainer and "false" or "unavailable"
 end
 
-local function AppendManagedSortEnumDiagnostics(lines, state)
-    if not (state and state.enabled == true) or state.managedSortEnumsReported == true then
+local function AppendManagedSortApiDiagnostics(lines, state)
+    if not (state and state.enabled == true) then
         return
     end
 
-    AppendEnumMapLine(lines, "AuraContainerSortMethod", rawget(_G or {}, "AuraContainerSortMethod"))
-    AppendEnumMapLine(lines, "AuraContainerSortDirection", rawget(_G or {}, "AuraContainerSortDirection"))
     lines[#lines + 1] = string.format(
         "Aura Debug Managed Sort API: SetAuraGroupSortMethod=%s",
         ResolveManagedSortMethodAvailability()
     )
-    state.managedSortEnumsReported = true
 end
 
 function AuraDiagnostics.BuildReport()
@@ -307,7 +264,7 @@ function AuraDiagnostics.BuildReport()
     AppendCounterLines(lines, "By scan", byScan)
     AppendCounterLines(lines, "By decision", byDecision)
     AppendTextMapLine(lines, "Managed groups", managedStates)
-    AppendManagedSortEnumDiagnostics(lines, state)
+    AppendManagedSortApiDiagnostics(lines, state)
 
     local managedCounters = state.managedCounters or {}
     local managedLayout = state.managedLayout or {}
