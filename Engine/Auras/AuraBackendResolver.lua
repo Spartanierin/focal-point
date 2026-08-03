@@ -16,6 +16,9 @@ local MANAGED_GROUPS = {
         Buffs = true,
         Debuffs = true,
     },
+    targettarget = {
+        Buffs = true,
+    },
 }
 
 local BOSS_UNITS = { "boss1", "boss2", "boss3", "boss4", "boss5" }
@@ -114,4 +117,17 @@ function Resolver.ClearManagedGroup(frame, groupKey)
     if backend.ClearGroup then
         backend.ClearGroup(frame, groupKey)
     end
+end
+
+function Resolver.UpdateManagedGroupAuras(frame, groupKey)
+    if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) then
+        return false
+    end
+
+    local backend = GetManagedBackend()
+    if backend.UpdateAllAuras then
+        return backend.UpdateAllAuras(frame, groupKey) == true
+    end
+
+    return false
 end

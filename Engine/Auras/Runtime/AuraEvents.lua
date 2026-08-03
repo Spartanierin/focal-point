@@ -141,6 +141,19 @@ local function QueueUnknownAuraReconcile(owner, refreshFunc)
     end
 end
 
+local function UpdateManagedTargetTargetBuffs(owner)
+    if not (owner and owner.unit == "targettarget") then
+        return false
+    end
+
+    local BackendResolver = FocalPoint and FocalPoint.AuraBackendResolver or nil
+    if not (BackendResolver and BackendResolver.UpdateManagedGroupAuras) then
+        return false
+    end
+
+    return BackendResolver.UpdateManagedGroupAuras(owner, "Buffs") == true
+end
+
 function AuraEvents.Register(frame, refreshFunc)
     if not frame or frame.AuraEventFrame then
         return
@@ -186,6 +199,13 @@ function AuraEvents.Register(frame, refreshFunc)
             if not targetOk and not focusOk then
                 return
             end
+            if targetOk then
+                UpdateManagedTargetTargetBuffs(owner)
+            end
+        end
+
+        if event == "PLAYER_TARGET_CHANGED" and owner.unit == "targettarget" then
+            UpdateManagedTargetTargetBuffs(owner)
         end
 
         if event == "PLAYER_ENTERING_WORLD" then

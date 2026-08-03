@@ -75,6 +75,18 @@ local GROUP_DEFINITIONS = {
             textColor = { 1, 0.62, 0.72, 1 },
         },
     },
+    targettarget = {
+        Buffs = {
+            auraGroupKey = "FocalPointTargetTargetBuffs",
+            filter = "HELPFUL",
+            filterClass = "helpful",
+            stateKey = "TargetTargetBuffs",
+            elementKey = "ManagedTargetTargetBuffs",
+            label = "TOT BUFFS",
+            color = { 0.15, 0.65, 1, 0.24 },
+            textColor = { 0.68, 0.88, 1, 1 },
+        },
+    },
 }
 
 local BOSS_BUFF_DEFINITIONS = {
@@ -171,6 +183,10 @@ end
 local function GetGroupDefinition(unit, groupKey)
     local unitDefinitions = GROUP_DEFINITIONS[unit]
     return unitDefinitions and unitDefinitions[groupKey] or nil
+end
+
+local function IsTargetTargetBuffs(unit, groupKey)
+    return unit == "targettarget" and groupKey == "Buffs"
 end
 
 local function RecordDiagnostic(unit, group, decision, groupCount, backendStatus, state)
@@ -742,7 +758,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         offsetY
     )
 
-    if container.SetUnit then
+    if container.SetUnit and (not IsTargetTargetBuffs(unit, groupKey) or state.configured ~= true) then
         if not TryCall(container, "SetUnit", unit) then
             Managed.unavailable = true
             if container.Hide then
@@ -805,6 +821,41 @@ function Managed.RefreshGroup(frame, groupKey, config)
     end
 
     return true
+end
+
+function Managed.UpdateAllAuras(frame, groupKey)
+    local unit = frame and frame.unit
+    local definition = GetGroupDefinition(unit, groupKey)
+    local state = definition and frame and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
+    local container = state and state.container or nil
+
+    if unit == "targettarget" and groupKey == "Buffs" then
+        IncrementManagedCounter("targetTargetUpdateAllAttempt")
+    end
+
+    if not (container and container.UpdateAllAuras) then
+        if unit == "targettarget" and groupKey == "Buffs" then
+            IncrementManagedCounter("targetTargetUpdateAllFailed")
+            IncrementManagedCounter("targetTargetUpdateAllErrors")
+        end
+        RecordDiagnostic(unit, groupKey, "managed_update_failed", 0, "container_missing", state)
+        return false
+    end
+
+    if TryCall(container, "UpdateAllAuras") then
+        if unit == "targettarget" and groupKey == "Buffs" then
+            IncrementManagedCounter("targetTargetUpdateAllSuccess")
+        end
+        RecordDiagnostic(unit, groupKey, "managed_active", 1, "active", state)
+        return true
+    end
+
+    if unit == "targettarget" and groupKey == "Buffs" then
+        IncrementManagedCounter("targetTargetUpdateAllFailed")
+        IncrementManagedCounter("targetTargetUpdateAllErrors")
+    end
+    RecordDiagnostic(unit, groupKey, "managed_update_failed", 0, "update_failed", state)
+    return false
 end
 
 function Managed.RefreshDebugOverlays()
