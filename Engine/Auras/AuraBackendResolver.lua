@@ -16,6 +16,10 @@ local MANAGED_GROUPS = {
         Buffs = true,
         Debuffs = true,
     },
+    focustarget = {
+        Buffs = true,
+        Debuffs = true,
+    },
     targettarget = {
         Buffs = true,
         Debuffs = true,

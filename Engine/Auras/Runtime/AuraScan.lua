@@ -238,6 +238,16 @@ function AuraDiagnostics.BuildReport()
         SafeDebugNumber(managedCounters.targetTargetUpdateAllErrors)
     )
     lines[#lines + 1] = string.format(
+        "Aura Debug FocusTarget: buffs=%d/%d failed=%d debuffs=%d/%d failed=%d errors=%d",
+        SafeDebugNumber(managedCounters.focusTargetBuffsUpdateAllSuccess),
+        SafeDebugNumber(managedCounters.focusTargetBuffsUpdateAllAttempt),
+        SafeDebugNumber(managedCounters.focusTargetBuffsUpdateAllFailed),
+        SafeDebugNumber(managedCounters.focusTargetDebuffsUpdateAllSuccess),
+        SafeDebugNumber(managedCounters.focusTargetDebuffsUpdateAllAttempt),
+        SafeDebugNumber(managedCounters.focusTargetDebuffsUpdateAllFailed),
+        SafeDebugNumber(managedCounters.focusTargetUpdateAllErrors)
+    )
+    lines[#lines + 1] = string.format(
         "Aura Debug Layout: row=%d rows=%d max=%d size=%dx%d spacing=%d/%d errors=%d",
         SafeDebugNumber(managedLayout.iconsPerRow),
         SafeDebugNumber(managedLayout.maxRows),

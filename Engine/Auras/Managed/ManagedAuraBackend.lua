@@ -75,6 +75,28 @@ local GROUP_DEFINITIONS = {
             textColor = { 1, 0.62, 0.72, 1 },
         },
     },
+    focustarget = {
+        Buffs = {
+            auraGroupKey = "FocalPointFocusTargetBuffs",
+            filter = "HELPFUL",
+            filterClass = "helpful",
+            stateKey = "FocusTargetBuffs",
+            elementKey = "ManagedFocusTargetBuffs",
+            label = "FOCUS TARGET BUFFS",
+            color = { 0.35, 0.55, 1, 0.24 },
+            textColor = { 0.72, 0.84, 1, 1 },
+        },
+        Debuffs = {
+            auraGroupKey = "FocalPointFocusTargetDebuffs",
+            filter = "HARMFUL",
+            filterClass = "harmful",
+            stateKey = "FocusTargetDebuffs",
+            elementKey = "ManagedFocusTargetDebuffs",
+            label = "FOCUS TARGET DEBUFFS",
+            color = { 0.95, 0.22, 0.32, 0.24 },
+            textColor = { 1, 0.6, 0.65, 1 },
+        },
+    },
     targettarget = {
         Buffs = {
             auraGroupKey = "FocalPointTargetTargetBuffs",
@@ -195,16 +217,35 @@ local function GetGroupDefinition(unit, groupKey)
     return unitDefinitions and unitDefinitions[groupKey] or nil
 end
 
-local function IsTargetTargetManagedGroup(unit, groupKey)
-    return unit == "targettarget" and (groupKey == "Buffs" or groupKey == "Debuffs")
+local function IsDerivedManagedGroup(unit, groupKey)
+    return (unit == "targettarget" or unit == "focustarget") and (groupKey == "Buffs" or groupKey == "Debuffs")
 end
 
-local function GetTargetTargetCounterPrefix(groupKey)
+local function GetDerivedCounterPrefix(unit, groupKey)
+    local unitPrefix
+    if unit == "targettarget" then
+        unitPrefix = "targetTarget"
+    elseif unit == "focustarget" then
+        unitPrefix = "focusTarget"
+    else
+        return nil
+    end
+
     if groupKey == "Buffs" then
-        return "targetTargetBuffsUpdateAll"
+        return unitPrefix .. "BuffsUpdateAll"
     end
     if groupKey == "Debuffs" then
-        return "targetTargetDebuffsUpdateAll"
+        return unitPrefix .. "DebuffsUpdateAll"
+    end
+    return nil
+end
+
+local function GetDerivedErrorCounter(unit)
+    if unit == "targettarget" then
+        return "targetTargetUpdateAllErrors"
+    end
+    if unit == "focustarget" then
+        return "focusTargetUpdateAllErrors"
     end
     return nil
 end
@@ -778,7 +819,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         offsetY
     )
 
-    if container.SetUnit and (not IsTargetTargetManagedGroup(unit, groupKey) or state.configured ~= true) then
+    if container.SetUnit and (not IsDerivedManagedGroup(unit, groupKey) or state.configured ~= true) then
         if not TryCall(container, "SetUnit", unit) then
             Managed.unavailable = true
             if container.Hide then
@@ -848,32 +889,33 @@ function Managed.UpdateAllAuras(frame, groupKey)
     local definition = GetGroupDefinition(unit, groupKey)
     local state = definition and frame and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
     local container = state and state.container or nil
-    local targetTargetCounterPrefix = unit == "targettarget" and GetTargetTargetCounterPrefix(groupKey) or nil
+    local derivedCounterPrefix = GetDerivedCounterPrefix(unit, groupKey)
+    local derivedErrorCounter = GetDerivedErrorCounter(unit)
 
-    if targetTargetCounterPrefix then
-        IncrementManagedCounter(targetTargetCounterPrefix .. "Attempt")
+    if derivedCounterPrefix then
+        IncrementManagedCounter(derivedCounterPrefix .. "Attempt")
     end
 
     if not (container and container.UpdateAllAuras) then
-        if targetTargetCounterPrefix then
-            IncrementManagedCounter(targetTargetCounterPrefix .. "Failed")
-            IncrementManagedCounter("targetTargetUpdateAllErrors")
+        if derivedCounterPrefix then
+            IncrementManagedCounter(derivedCounterPrefix .. "Failed")
+            IncrementManagedCounter(derivedErrorCounter)
         end
         RecordDiagnostic(unit, groupKey, "managed_update_failed", 0, "container_missing", state)
         return false
     end
 
     if TryCall(container, "UpdateAllAuras") then
-        if targetTargetCounterPrefix then
-            IncrementManagedCounter(targetTargetCounterPrefix .. "Success")
+        if derivedCounterPrefix then
+            IncrementManagedCounter(derivedCounterPrefix .. "Success")
         end
         RecordDiagnostic(unit, groupKey, "managed_active", 1, "active", state)
         return true
     end
 
-    if targetTargetCounterPrefix then
-        IncrementManagedCounter(targetTargetCounterPrefix .. "Failed")
-        IncrementManagedCounter("targetTargetUpdateAllErrors")
+    if derivedCounterPrefix then
+        IncrementManagedCounter(derivedCounterPrefix .. "Failed")
+        IncrementManagedCounter(derivedErrorCounter)
     end
     RecordDiagnostic(unit, groupKey, "managed_update_failed", 0, "update_failed", state)
     return false

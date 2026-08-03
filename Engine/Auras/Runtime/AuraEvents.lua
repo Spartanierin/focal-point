@@ -157,6 +157,22 @@ local function RefreshManagedTargetTargetGroups(owner)
     return updated
 end
 
+local function RefreshManagedFocusTargetGroups(owner)
+    if not (owner and owner.unit == "focustarget") then
+        return false
+    end
+
+    local BackendResolver = FocalPoint and FocalPoint.AuraBackendResolver or nil
+    if not (BackendResolver and BackendResolver.UpdateManagedGroupAuras) then
+        return false
+    end
+
+    local updated = false
+    updated = BackendResolver.UpdateManagedGroupAuras(owner, "Buffs") == true or updated
+    updated = BackendResolver.UpdateManagedGroupAuras(owner, "Debuffs") == true or updated
+    return updated
+end
+
 function AuraEvents.Register(frame, refreshFunc)
     if not frame or frame.AuraEventFrame then
         return
@@ -205,10 +221,17 @@ function AuraEvents.Register(frame, refreshFunc)
             if targetOk then
                 RefreshManagedTargetTargetGroups(owner)
             end
+            if focusOk then
+                RefreshManagedFocusTargetGroups(owner)
+            end
         end
 
         if event == "PLAYER_TARGET_CHANGED" and owner.unit == "targettarget" then
             RefreshManagedTargetTargetGroups(owner)
+        end
+
+        if event == "PLAYER_FOCUS_CHANGED" and owner.unit == "focustarget" then
+            RefreshManagedFocusTargetGroups(owner)
         end
 
         if event == "PLAYER_ENTERING_WORLD" then
