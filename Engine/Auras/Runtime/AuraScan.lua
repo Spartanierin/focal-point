@@ -112,6 +112,7 @@ function AuraDiagnostics.RecordManagedFilter(values)
         unit = SafeDebugText(values.unit, "-"),
         group = SafeDebugText(values.group, "-"),
         showOnlyMine = values.showOnlyMine == true,
+        option = SafeDebugText(values.option, "-"),
     }
 end
 
@@ -309,13 +310,15 @@ function AuraDiagnostics.BuildReport()
         SafeDebugNumber(managedCounters.sortApplyErrors)
     )
     lines[#lines + 1] = string.format(
-        "Aura Debug Filter: mine=%s last=%s/%s spec=%d apply=%d/%d deferred=%d rebuildRequired=%d errors=%d",
+        "Aura Debug Filter: mine=%s option=%s last=%s/%s spec=%d apply=%d/%d fallback=%d deferred=%d rebuildRequired=%d errors=%d",
         tostring(managedFilter.showOnlyMine == true),
+        SafeDebugText(managedFilter.option, "-"),
         SafeDebugText(managedFilter.unit, "-"),
         SafeDebugText(managedFilter.group, "-"),
         SafeDebugNumber(managedCounters.filterSpecBuild),
         SafeDebugNumber(managedCounters.filterApplySuccess),
         SafeDebugNumber(managedCounters.filterApplyAttempt),
+        0,
         SafeDebugNumber(managedCounters.filterDeferred),
         SafeDebugNumber(managedCounters.filterRebuildRequired),
         SafeDebugNumber(managedCounters.filterApplyFailed)

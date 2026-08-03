@@ -379,9 +379,13 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
     local filterString = definition and definition.filter or nil
     local candidateFilters = {}
     local showOnlyMine = config and config.showOnlyMine == true or false
+    local showStealableOnly = groupKey == "Buffs" and config and config.showStealableOnly == true or false
 
     if showOnlyMine then
         candidateFilters.isFromPlayerOrPlayerPet = true
+    end
+    if showStealableOnly then
+        candidateFilters.isStealable = true
     end
 
     IncrementManagedCounter("filterSpecBuild")
@@ -389,15 +393,18 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
         unit = unit,
         group = groupKey,
         showOnlyMine = showOnlyMine,
+        option = showStealableOnly and "showStealableOnly" or "-",
     })
 
     return {
         filterString = filterString,
         candidateFilters = candidateFilters,
         showOnlyMine = showOnlyMine,
+        showStealableOnly = showStealableOnly,
         signature = table.concat({
             tostring(filterString or ""),
             tostring(showOnlyMine),
+            tostring(showStealableOnly),
         }, "|"),
     }
 end
@@ -866,6 +873,7 @@ local function BuildConfigSignature(config)
     return table.concat({
         tostring(config.enabled ~= false),
         tostring(config.showOnlyMine == true),
+        tostring(config.showStealableOnly == true),
         tostring(config.placement or "ATTACHED"),
         tostring(config.anchorTo or "Frame"),
         tostring(config.insideAnchorTo or "Frame"),
