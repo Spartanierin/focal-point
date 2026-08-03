@@ -155,6 +155,16 @@ end
 local TARGET_COMBAT_SWAP_SCOPES = { "visibility", "bars", "texts", "auras", "castbar" }
 local TARGET_COMBAT_SWAP_OPTIONS = { forceAuraFullScan = true }
 
+local function GetDerivedParentUnit(unit)
+    if unit == "targettarget" then
+        return "target"
+    end
+    if unit == "focustarget" then
+        return "focus"
+    end
+    return nil
+end
+
 local function GetFrameDebugLabel(frame)
     if not frame then
         return "frame=?"
@@ -269,6 +279,34 @@ function State.DebugLog(frame, action, details)
     local label = GetFrameDebugLabel(frame)
     local suffix = (type(details) == "string" and details ~= "") and (" " .. details) or ""
     FocalPoint:Debug(string.format("Runtime %s %s%s", label, tostring(action or "?"), suffix))
+end
+
+local function HandleDerivedUnitTransition(frame, reason, runtimeState)
+    local parentUnit = GetDerivedParentUnit(frame and frame.unit)
+    if not parentUnit then
+        return false
+    end
+
+    if runtimeState then
+        runtimeState.phase = "transitioning"
+        runtimeState.lastReason = reason or "derived_unit_transition"
+    end
+
+    frame._missingUnitSince = nil
+    frame._targetRecoveryQueuedUntil = nil
+    frame._protectedMissingTargetRecoveryQueued = nil
+
+    if State.QueueRefresh then
+        State.QueueRefresh(frame, reason or "derived_unit_transition", TARGET_COMBAT_SWAP_SCOPES, TARGET_COMBAT_SWAP_OPTIONS, 0)
+    end
+
+    State.DebugLog(frame, "derived-transition", string.format(
+        "reason=%s parent=%s unit=%s",
+        tostring(reason or "derived_unit_transition"),
+        tostring(parentUnit),
+        tostring(frame.unit or "?")
+    ))
+    return true
 end
 
 function State.Guard(frame, key, condition, details)
@@ -428,6 +466,10 @@ function State.HandleTargetSwap(frame, reason)
     if runtimeState then
         runtimeState.phase = "stale"
         runtimeState.lastReason = reason or "target_swap"
+    end
+
+    if HandleDerivedUnitTransition(frame, reason, runtimeState) then
+        return
     end
 
     State.ResetDerivedFrameState(frame)
