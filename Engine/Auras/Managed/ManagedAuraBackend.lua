@@ -291,6 +291,25 @@ local function ToNonNegativeNumber(value, fallback)
     return number
 end
 
+local function ResolveManagedMaxDuration(config)
+    if not config then
+        return nil, "nil"
+    end
+
+    if config.hideLongAuras == true then
+        local threshold = ToNonNegativeNumber(config.longAuraThreshold, 300)
+        if threshold > 0 then
+            return threshold, tostring(threshold)
+        end
+    end
+
+    if config.hidePermanentAuras == true then
+        return math.huge, "huge"
+    end
+
+    return nil, "nil"
+end
+
 local function ResolveMaxFrameCount(config)
     local iconsPerRow = math.max(math.floor(tonumber(config and config.iconsPerRow) or 1), 1)
     local maxRows = math.max(math.floor(tonumber(config and config.maxRows) or 0), 0)
@@ -384,6 +403,7 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
     local showOnlyMine = config and config.showOnlyMine == true or false
     local showStealableOnly = groupKey == "Buffs" and config and config.showStealableOnly == true or false
     local useSystemBuffExclusions = groupKey == "Buffs"
+    local maxDuration, maxDurationText = ResolveManagedMaxDuration(config)
 
     if showOnlyMine then
         candidateFilters.isFromPlayerOrPlayerPet = true
@@ -394,6 +414,9 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
     if useSystemBuffExclusions then
         candidateFilters.excludeSpellIDs = SYSTEM_EXCLUDED_MANAGED_BUFF_SPELL_IDS
     end
+    if maxDuration then
+        candidateFilters.maxDuration = maxDuration
+    end
 
     IncrementManagedCounter("filterSpecBuild")
     RecordManagedFilter({
@@ -402,6 +425,7 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
         showOnlyMine = showOnlyMine,
         option = showStealableOnly and "showStealableOnly" or "-",
         systemExcluded = useSystemBuffExclusions and 1 or 0,
+        maxDuration = maxDurationText,
     })
 
     return {
@@ -410,11 +434,13 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
         showOnlyMine = showOnlyMine,
         showStealableOnly = showStealableOnly,
         systemExcluded = useSystemBuffExclusions,
+        maxDuration = maxDuration,
         signature = table.concat({
             tostring(filterString or ""),
             tostring(showOnlyMine),
             tostring(showStealableOnly),
             tostring(useSystemBuffExclusions),
+            tostring(maxDurationText),
         }, "|"),
     }
 end
@@ -884,6 +910,9 @@ local function BuildConfigSignature(config)
         tostring(config.enabled ~= false),
         tostring(config.showOnlyMine == true),
         tostring(config.showStealableOnly == true),
+        tostring(config.hidePermanentAuras == true),
+        tostring(config.hideLongAuras == true),
+        tostring(config.longAuraThreshold or 300),
         tostring(config.placement or "ATTACHED"),
         tostring(config.anchorTo or "Frame"),
         tostring(config.insideAnchorTo or "Frame"),
