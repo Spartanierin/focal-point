@@ -8,6 +8,9 @@ local AuraBlockLayout = FocalPoint.AuraBlockLayout or {}
 
 local CONTAINER_TEMPLATE = "CustomAuraContainerTemplate"
 local DEFAULT_MAX_FRAME_COUNT = 40
+local DEFAULT_SORT_METHOD_VALUE = 0
+local DEFAULT_SORT_DIRECTION_VALUE = 0
+local TryCall
 local GROUP_DEFINITIONS = {
     player = {
         Buffs = {
@@ -406,6 +409,69 @@ local function RecordManagedLayout(values)
     end
 end
 
+local function RecordManagedSort(values)
+    local AuraDiagnostics = FocalPoint and FocalPoint.AuraDiagnostics or nil
+    if AuraDiagnostics and AuraDiagnostics.RecordManagedSort then
+        AuraDiagnostics.RecordManagedSort(values)
+    end
+end
+
+local function ResolveAuraContainerEnumValue(enumName, key, fallback)
+    local enumValues = rawget(_G or {}, enumName)
+    if type(enumValues) ~= "table" then
+        return fallback
+    end
+
+    local value = enumValues[key]
+    return type(value) == "number" and value or fallback
+end
+
+local function ResolveManagedSortSpec(config)
+    local sortMode = config and config.sortMode or "NEWEST_FIRST"
+    local methodName = "Default"
+    local directionName = "Normal"
+
+    if sortMode == "NEWEST_FIRST" then
+        methodName = "AuraInstanceIDOnly"
+        directionName = "Reverse"
+    elseif sortMode == "OLDEST_FIRST" then
+        methodName = "AuraInstanceIDOnly"
+        directionName = "Normal"
+    elseif sortMode == "TIME_REMAINING_ASC" then
+        methodName = "ExpirationOnly"
+        directionName = "Normal"
+    else
+        sortMode = "DEFAULT"
+    end
+
+    return {
+        mode = sortMode,
+        methodName = methodName,
+        directionName = directionName,
+        method = ResolveAuraContainerEnumValue("AuraContainerSortMethod", methodName, DEFAULT_SORT_METHOD_VALUE),
+        direction = ResolveAuraContainerEnumValue("AuraContainerSortDirection", directionName, DEFAULT_SORT_DIRECTION_VALUE),
+        signature = table.concat({ tostring(sortMode), tostring(methodName), tostring(directionName) }, "|"),
+    }
+end
+
+local function ApplyManagedSortMethod(container, definition, config, sortSpec)
+    if not (container and definition) then
+        return false
+    end
+
+    sortSpec = sortSpec or ResolveManagedSortSpec(config)
+    RecordManagedSort(sortSpec)
+    IncrementManagedCounter("sortApplyAttempt")
+    if TryCall(container, "SetAuraGroupSortMethod", definition.auraGroupKey, sortSpec.method, sortSpec.direction) then
+        IncrementManagedCounter("sortApplySuccess")
+        return true
+    end
+
+    IncrementManagedCounter("sortApplyFailed")
+    IncrementManagedCounter("sortApplyErrors")
+    return false
+end
+
 local function HideDebugOverlay(state)
     if state and state.debugOverlay and state.debugOverlay.Hide then
         state.debugOverlay:Hide()
@@ -476,7 +542,7 @@ local function UpdateDebugOverlay(state, definition, config)
     overlay:Show()
 end
 
-local function TryCall(target, methodName, ...)
+function TryCall(target, methodName, ...)
     local method = target and target[methodName]
     if type(method) ~= "function" then
         return false
@@ -818,6 +884,7 @@ local function BuildConfigSignature(config)
         tostring(config.stackFontScale or 1),
         tostring(config.showTimerText ~= false),
         tostring(config.timerFontScale or 1),
+        tostring(config.sortMode or "NEWEST_FIRST"),
     }, "|")
 end
 
@@ -947,6 +1014,8 @@ function Managed.EnsureGroup(frame, groupKey, config)
     end
 
     local filterSpec = BuildManagedFilterSpec(config, definition, unit, groupKey)
+    local sortSpec = ResolveManagedSortSpec(config)
+    RecordManagedSort(sortSpec)
     local signature = BuildConfigSignature(config)
     local signatureChanged = state.configured == true and state.signature ~= signature
     if signatureChanged then
@@ -1033,6 +1102,11 @@ function Managed.EnsureGroup(frame, groupKey, config)
     end
 
     TryCall(container, "SetAuraGroupMaxFrameCount", definition.auraGroupKey, maxFrameCount)
+    if state.sortSignature ~= sortSpec.signature then
+        if ApplyManagedSortMethod(container, definition, config, sortSpec) then
+            state.sortSignature = sortSpec.signature
+        end
+    end
     if state.filterDirty == true or state.filterSignature ~= filterSpec.signature then
         if ApplyManagedFilterSpec(container, definition, filterSpec) then
             state.filterSignature = filterSpec.signature
