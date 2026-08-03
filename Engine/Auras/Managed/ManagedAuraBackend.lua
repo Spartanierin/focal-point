@@ -86,6 +86,16 @@ local GROUP_DEFINITIONS = {
             color = { 0.15, 0.65, 1, 0.24 },
             textColor = { 0.68, 0.88, 1, 1 },
         },
+        Debuffs = {
+            auraGroupKey = "FocalPointTargetTargetDebuffs",
+            filter = "HARMFUL",
+            filterClass = "harmful",
+            stateKey = "TargetTargetDebuffs",
+            elementKey = "ManagedTargetTargetDebuffs",
+            label = "TOT DEBUFFS",
+            color = { 0.95, 0.22, 0.18, 0.24 },
+            textColor = { 1, 0.6, 0.55, 1 },
+        },
     },
 }
 
@@ -185,8 +195,18 @@ local function GetGroupDefinition(unit, groupKey)
     return unitDefinitions and unitDefinitions[groupKey] or nil
 end
 
-local function IsTargetTargetBuffs(unit, groupKey)
-    return unit == "targettarget" and groupKey == "Buffs"
+local function IsTargetTargetManagedGroup(unit, groupKey)
+    return unit == "targettarget" and (groupKey == "Buffs" or groupKey == "Debuffs")
+end
+
+local function GetTargetTargetCounterPrefix(groupKey)
+    if groupKey == "Buffs" then
+        return "targetTargetBuffsUpdateAll"
+    end
+    if groupKey == "Debuffs" then
+        return "targetTargetDebuffsUpdateAll"
+    end
+    return nil
 end
 
 local function RecordDiagnostic(unit, group, decision, groupCount, backendStatus, state)
@@ -758,7 +778,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         offsetY
     )
 
-    if container.SetUnit and (not IsTargetTargetBuffs(unit, groupKey) or state.configured ~= true) then
+    if container.SetUnit and (not IsTargetTargetManagedGroup(unit, groupKey) or state.configured ~= true) then
         if not TryCall(container, "SetUnit", unit) then
             Managed.unavailable = true
             if container.Hide then
@@ -828,14 +848,15 @@ function Managed.UpdateAllAuras(frame, groupKey)
     local definition = GetGroupDefinition(unit, groupKey)
     local state = definition and frame and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
     local container = state and state.container or nil
+    local targetTargetCounterPrefix = unit == "targettarget" and GetTargetTargetCounterPrefix(groupKey) or nil
 
-    if unit == "targettarget" and groupKey == "Buffs" then
-        IncrementManagedCounter("targetTargetUpdateAllAttempt")
+    if targetTargetCounterPrefix then
+        IncrementManagedCounter(targetTargetCounterPrefix .. "Attempt")
     end
 
     if not (container and container.UpdateAllAuras) then
-        if unit == "targettarget" and groupKey == "Buffs" then
-            IncrementManagedCounter("targetTargetUpdateAllFailed")
+        if targetTargetCounterPrefix then
+            IncrementManagedCounter(targetTargetCounterPrefix .. "Failed")
             IncrementManagedCounter("targetTargetUpdateAllErrors")
         end
         RecordDiagnostic(unit, groupKey, "managed_update_failed", 0, "container_missing", state)
@@ -843,15 +864,15 @@ function Managed.UpdateAllAuras(frame, groupKey)
     end
 
     if TryCall(container, "UpdateAllAuras") then
-        if unit == "targettarget" and groupKey == "Buffs" then
-            IncrementManagedCounter("targetTargetUpdateAllSuccess")
+        if targetTargetCounterPrefix then
+            IncrementManagedCounter(targetTargetCounterPrefix .. "Success")
         end
         RecordDiagnostic(unit, groupKey, "managed_active", 1, "active", state)
         return true
     end
 
-    if unit == "targettarget" and groupKey == "Buffs" then
-        IncrementManagedCounter("targetTargetUpdateAllFailed")
+    if targetTargetCounterPrefix then
+        IncrementManagedCounter(targetTargetCounterPrefix .. "Failed")
         IncrementManagedCounter("targetTargetUpdateAllErrors")
     end
     RecordDiagnostic(unit, groupKey, "managed_update_failed", 0, "update_failed", state)

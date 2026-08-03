@@ -141,7 +141,7 @@ local function QueueUnknownAuraReconcile(owner, refreshFunc)
     end
 end
 
-local function UpdateManagedTargetTargetBuffs(owner)
+local function RefreshManagedTargetTargetGroups(owner)
     if not (owner and owner.unit == "targettarget") then
         return false
     end
@@ -151,7 +151,10 @@ local function UpdateManagedTargetTargetBuffs(owner)
         return false
     end
 
-    return BackendResolver.UpdateManagedGroupAuras(owner, "Buffs") == true
+    local updated = false
+    updated = BackendResolver.UpdateManagedGroupAuras(owner, "Buffs") == true or updated
+    updated = BackendResolver.UpdateManagedGroupAuras(owner, "Debuffs") == true or updated
+    return updated
 end
 
 function AuraEvents.Register(frame, refreshFunc)
@@ -200,12 +203,12 @@ function AuraEvents.Register(frame, refreshFunc)
                 return
             end
             if targetOk then
-                UpdateManagedTargetTargetBuffs(owner)
+                RefreshManagedTargetTargetGroups(owner)
             end
         end
 
         if event == "PLAYER_TARGET_CHANGED" and owner.unit == "targettarget" then
-            UpdateManagedTargetTargetBuffs(owner)
+            RefreshManagedTargetTargetGroups(owner)
         end
 
         if event == "PLAYER_ENTERING_WORLD" then

@@ -228,10 +228,13 @@ function AuraDiagnostics.BuildReport()
         SafeDebugNumber(managedCounters.filterApplyFailed)
     )
     lines[#lines + 1] = string.format(
-        "Aura Debug TOT: updateAll=%d/%d failed=%d errors=%d",
-        SafeDebugNumber(managedCounters.targetTargetUpdateAllSuccess),
-        SafeDebugNumber(managedCounters.targetTargetUpdateAllAttempt),
-        SafeDebugNumber(managedCounters.targetTargetUpdateAllFailed),
+        "Aura Debug TOT: buffs=%d/%d failed=%d debuffs=%d/%d failed=%d errors=%d",
+        SafeDebugNumber(managedCounters.targetTargetBuffsUpdateAllSuccess),
+        SafeDebugNumber(managedCounters.targetTargetBuffsUpdateAllAttempt),
+        SafeDebugNumber(managedCounters.targetTargetBuffsUpdateAllFailed),
+        SafeDebugNumber(managedCounters.targetTargetDebuffsUpdateAllSuccess),
+        SafeDebugNumber(managedCounters.targetTargetDebuffsUpdateAllAttempt),
+        SafeDebugNumber(managedCounters.targetTargetDebuffsUpdateAllFailed),
         SafeDebugNumber(managedCounters.targetTargetUpdateAllErrors)
     )
     lines[#lines + 1] = string.format(
