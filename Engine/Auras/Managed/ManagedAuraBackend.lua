@@ -624,6 +624,87 @@ local function ApplyButtonStackText(button, config)
     end
 end
 
+local function ApplyButtonTimerText(button, config)
+    if not button then
+        return
+    end
+
+    if type(button.SetDurationText) ~= "function" then
+        IncrementManagedCounter("buttonTimerApplyFailed")
+        IncrementManagedCounter("buttonTimerApplyErrors")
+        return
+    end
+
+    if config and config.showTimerText == false then
+        local ok = pcall(button.SetDurationText, button, nil)
+        if button.DurationText then
+            button.DurationText:SetText("")
+            button.DurationText:Hide()
+        end
+        if ok then
+            IncrementManagedCounter("buttonTimerApplySuccess")
+        else
+            IncrementManagedCounter("buttonTimerApplyFailed")
+            IncrementManagedCounter("buttonTimerApplyErrors")
+        end
+        return
+    end
+
+    local iconSize = ToPositiveNumber(config and config.iconSize, 25)
+    local timerFontScale = math.max(tonumber(config and config.timerFontScale) or 1, 0.5)
+    local fontSize = math.max(math.floor((iconSize * 0.34 * timerFontScale) + 0.5), 8)
+
+    if not button.DurationText and button.CreateFontString then
+        local text = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+        text:SetPoint("TOP", button, "BOTTOM", 0, -1)
+        text:SetJustifyH("CENTER")
+        text:SetTextColor(1, 1, 1, 1)
+        text:SetShadowColor(0, 0, 0, 1)
+        text:SetShadowOffset(1, -1)
+        button.DurationText = text
+    end
+
+    if not button.DurationText then
+        IncrementManagedCounter("buttonTimerApplyFailed")
+        IncrementManagedCounter("buttonTimerApplyErrors")
+        return
+    end
+
+    if button.DurationText.SetFont then
+        button.DurationText:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
+    end
+    if button.DurationText.SetTextColor then
+        button.DurationText:SetTextColor(1, 1, 1, 1)
+    end
+    if button.DurationText.SetShadowColor then
+        button.DurationText:SetShadowColor(0, 0, 0, 1)
+    end
+    if button.DurationText.SetShadowOffset then
+        button.DurationText:SetShadowOffset(1, -1)
+    end
+    if button.DurationText.ClearAllPoints then
+        button.DurationText:ClearAllPoints()
+    end
+    if button.DurationText.SetPoint then
+        button.DurationText:SetPoint("TOP", button, "BOTTOM", 0, -1)
+    end
+    if button.DurationText.SetJustifyH then
+        button.DurationText:SetJustifyH("CENTER")
+    end
+    if button.DurationText.SetMaxLines then
+        button.DurationText:SetMaxLines(1)
+    end
+
+    local ok = pcall(button.SetDurationText, button, button.DurationText)
+    if ok then
+        button.DurationText:Show()
+        IncrementManagedCounter("buttonTimerApplySuccess")
+    else
+        IncrementManagedCounter("buttonTimerApplyFailed")
+        IncrementManagedCounter("buttonTimerApplyErrors")
+    end
+end
+
 local function ApplyButtonConfig(button, config)
     if not button then
         return
@@ -642,18 +723,8 @@ local function ApplyButtonConfig(button, config)
         pcall(button.SetIcon, button, icon)
     end
 
-    if button.SetDurationText and not button.DurationText and button.CreateFontString then
-        local text = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-        text:SetPoint("TOP", button, "BOTTOM", 0, -1)
-        text:SetJustifyH("CENTER")
-        text:SetTextColor(1, 1, 1, 1)
-        text:SetShadowColor(0, 0, 0, 1)
-        text:SetShadowOffset(1, -1)
-        button.DurationText = text
-        pcall(button.SetDurationText, button, text)
-    end
-
     ApplyButtonStackText(button, config)
+    ApplyButtonTimerText(button, config)
 end
 
 local function ConfigureButton(button, config, state)
@@ -724,6 +795,8 @@ local function BuildConfigSignature(config)
         tostring(config.growthX or "RIGHT"),
         tostring(config.growthY or "DOWN"),
         tostring(config.showStackText ~= false),
+        tostring(config.showTimerText ~= false),
+        tostring(config.timerFontScale or 1),
     }, "|")
 end
 
