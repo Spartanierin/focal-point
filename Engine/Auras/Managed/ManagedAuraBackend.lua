@@ -10,6 +10,9 @@ local CONTAINER_TEMPLATE = "CustomAuraContainerTemplate"
 local DEFAULT_MAX_FRAME_COUNT = 40
 local DEFAULT_SORT_METHOD_VALUE = 0
 local DEFAULT_SORT_DIRECTION_VALUE = 0
+local SYSTEM_EXCLUDED_MANAGED_BUFF_SPELL_IDS = {
+    [404468] = true, -- Flugstil: Statisch
+}
 local TryCall
 local GROUP_DEFINITIONS = {
     player = {
@@ -380,12 +383,16 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
     local candidateFilters = {}
     local showOnlyMine = config and config.showOnlyMine == true or false
     local showStealableOnly = groupKey == "Buffs" and config and config.showStealableOnly == true or false
+    local useSystemBuffExclusions = groupKey == "Buffs"
 
     if showOnlyMine then
         candidateFilters.isFromPlayerOrPlayerPet = true
     end
     if showStealableOnly then
         candidateFilters.isStealable = true
+    end
+    if useSystemBuffExclusions then
+        candidateFilters.excludeSpellIDs = SYSTEM_EXCLUDED_MANAGED_BUFF_SPELL_IDS
     end
 
     IncrementManagedCounter("filterSpecBuild")
@@ -394,6 +401,7 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
         group = groupKey,
         showOnlyMine = showOnlyMine,
         option = showStealableOnly and "showStealableOnly" or "-",
+        systemExcluded = useSystemBuffExclusions and 1 or 0,
     })
 
     return {
@@ -401,10 +409,12 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
         candidateFilters = candidateFilters,
         showOnlyMine = showOnlyMine,
         showStealableOnly = showStealableOnly,
+        systemExcluded = useSystemBuffExclusions,
         signature = table.concat({
             tostring(filterString or ""),
             tostring(showOnlyMine),
             tostring(showStealableOnly),
+            tostring(useSystemBuffExclusions),
         }, "|"),
     }
 end
