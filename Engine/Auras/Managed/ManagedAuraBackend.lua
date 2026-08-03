@@ -561,11 +561,73 @@ local function CreateManagedContainer(parent)
     return container
 end
 
-local function ConfigureButton(button, config)
+local function RegisterManagedButton(state, button)
+    if not (state and button) then
+        return
+    end
+
+    if not state.buttons then
+        state.buttons = setmetatable({}, { __mode = "k" })
+    end
+    state.buttons[button] = true
+end
+
+local function ApplyButtonStackText(button, config)
     if not button then
         return
     end
-    IncrementManagedCounter("buttonInitialize")
+
+    if type(button.SetApplicationCount) ~= "function" then
+        IncrementManagedCounter("buttonStackApplyFailed")
+        IncrementManagedCounter("buttonStackApplyErrors")
+        return
+    end
+
+    if config and config.showStackText == false then
+        local ok = pcall(button.SetApplicationCount, button, nil)
+        if button.FocalPointApplicationCountText then
+            button.FocalPointApplicationCountText:SetText("")
+            button.FocalPointApplicationCountText:Hide()
+        end
+        if ok then
+            IncrementManagedCounter("buttonStackApplySuccess")
+        else
+            IncrementManagedCounter("buttonStackApplyFailed")
+            IncrementManagedCounter("buttonStackApplyErrors")
+        end
+        return
+    end
+
+    if not button.FocalPointApplicationCountText and button.CreateFontString then
+        local text = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+        text:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1, -1)
+        text:SetJustifyH("RIGHT")
+        text:SetTextColor(1, 1, 1, 1)
+        text:SetShadowColor(0, 0, 0, 1)
+        text:SetShadowOffset(1, -1)
+        button.FocalPointApplicationCountText = text
+    end
+
+    if not button.FocalPointApplicationCountText then
+        IncrementManagedCounter("buttonStackApplyFailed")
+        IncrementManagedCounter("buttonStackApplyErrors")
+        return
+    end
+
+    local ok = pcall(button.SetApplicationCount, button, button.FocalPointApplicationCountText)
+    if ok then
+        button.FocalPointApplicationCountText:Show()
+        IncrementManagedCounter("buttonStackApplySuccess")
+    else
+        IncrementManagedCounter("buttonStackApplyFailed")
+        IncrementManagedCounter("buttonStackApplyErrors")
+    end
+end
+
+local function ApplyButtonConfig(button, config)
+    if not button then
+        return
+    end
 
     local iconSize = ToPositiveNumber(config and config.iconSize, 25)
     if button.SetSize then
@@ -590,9 +652,34 @@ local function ConfigureButton(button, config)
         button.DurationText = text
         pcall(button.SetDurationText, button, text)
     end
+
+    ApplyButtonStackText(button, config)
 end
 
-local function BuildGroupOptions(config, definition, filterSpec)
+local function ConfigureButton(button, config, state)
+    if not button then
+        return
+    end
+
+    IncrementManagedCounter("buttonInitialize")
+    RegisterManagedButton(state, button)
+    ApplyButtonConfig(button, config)
+end
+
+local function ReconfigureManagedButtons(state, config)
+    if not (state and type(state.buttons) == "table") then
+        return
+    end
+
+    for button in pairs(state.buttons) do
+        if button then
+            IncrementManagedCounter("buttonReconfigure")
+            ApplyButtonConfig(button, config)
+        end
+    end
+end
+
+local function BuildGroupOptions(config, definition, filterSpec, state)
     filterSpec = filterSpec or BuildManagedFilterSpec(config, definition)
     return {
         filterString = filterSpec.filterString,
@@ -600,7 +687,7 @@ local function BuildGroupOptions(config, definition, filterSpec)
         templateNames = { "CustomAuraButtonTemplate" },
         candidateFilters = filterSpec.candidateFilters,
         initializeFrame = function(button)
-            ConfigureButton(button, config)
+            ConfigureButton(button, config, state)
         end,
     }
 end
@@ -636,6 +723,7 @@ local function BuildConfigSignature(config)
         tostring(config.maxRows or 0),
         tostring(config.growthX or "RIGHT"),
         tostring(config.growthY or "DOWN"),
+        tostring(config.showStackText ~= false),
     }, "|")
 end
 
@@ -655,20 +743,20 @@ local function ApplyManagedFilterSpec(container, definition, filterSpec)
     return false
 end
 
-local function AddManagedAuraGroup(container, config, definition, filterSpec)
+local function AddManagedAuraGroup(container, config, definition, filterSpec, state)
     if not definition then
         return false
     end
 
     filterSpec = filterSpec or BuildManagedFilterSpec(config, definition)
-    local options = BuildGroupOptions(config, definition, filterSpec)
+    local options = BuildGroupOptions(config, definition, filterSpec, state)
     IncrementManagedCounter("groupAddAttempt")
     if TryCall(container, "AddAuraGroup", definition.auraGroupKey, options) then
         IncrementManagedCounter("groupAddSuccess")
         return true, "options-filterString"
     end
 
-    options = BuildGroupOptions(config, definition, filterSpec)
+    options = BuildGroupOptions(config, definition, filterSpec, state)
     IncrementManagedCounter("groupAddAttempt")
     if TryCall(container, "AddAuraGroup", definition.auraGroupKey, filterSpec.filterString, options) then
         IncrementManagedCounter("groupAddSuccess")
@@ -745,6 +833,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
             container = container,
             configured = false,
             active = false,
+            buttons = setmetatable({}, { __mode = "k" }),
         }
         frame.ManagedAuraBackend[definition.stateKey] = state
         frame.Elements = frame.Elements or {}
@@ -831,7 +920,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
     end
 
     if not state.configured then
-        local added, addMode = AddManagedAuraGroup(container, config, definition, filterSpec)
+        local added, addMode = AddManagedAuraGroup(container, config, definition, filterSpec, state)
         if not added then
             Managed.unavailableGroups = Managed.unavailableGroups or {}
             Managed.unavailableGroups[unit .. "/" .. groupKey] = true
@@ -844,6 +933,9 @@ function Managed.EnsureGroup(frame, groupKey, config)
         state.configured = true
         state.addMode = addMode
         state.filterSignature = filterSpec.signature
+    end
+    if signatureChanged then
+        ReconfigureManagedButtons(state, config)
     end
 
     TryCall(container, "SetAuraGroupMaxFrameCount", definition.auraGroupKey, maxFrameCount)

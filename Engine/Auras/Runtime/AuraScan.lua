@@ -216,6 +216,13 @@ function AuraDiagnostics.BuildReport()
         SafeDebugNumber(managedCounters.layoutApplyFailed) + SafeDebugNumber(managedCounters.groupAddFailed)
     )
     lines[#lines + 1] = string.format(
+        "Aura Debug Buttons: init=%d stackApply=%d/%d errors=%d",
+        SafeDebugNumber(managedCounters.buttonInitialize),
+        SafeDebugNumber(managedCounters.buttonStackApplySuccess),
+        SafeDebugNumber(managedCounters.buttonStackApplySuccess) + SafeDebugNumber(managedCounters.buttonStackApplyFailed),
+        SafeDebugNumber(managedCounters.buttonStackApplyErrors)
+    )
+    lines[#lines + 1] = string.format(
         "Aura Debug Filter: mine=%s last=%s/%s spec=%d apply=%d/%d deferred=%d rebuildRequired=%d errors=%d",
         tostring(managedFilter.showOnlyMine == true),
         SafeDebugText(managedFilter.unit, "-"),
