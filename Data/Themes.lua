@@ -1360,7 +1360,7 @@ FocalPoint.Themes = {
                         showStackText = true,
                         showTimerText = true,
                         hidePermanentAuras = true,
-                        hideLongAuras = true,
+                        hideLongAuras = false,
                     },
                     Debuffs = {
                         enabled = true,
@@ -1474,7 +1474,7 @@ FocalPoint.Themes = {
                         showStackText = true,
                         showTimerText = true,
                         hidePermanentAuras = true,
-                        hideLongAuras = true,
+                        hideLongAuras = false,
                     },
                     Debuffs = {
                         enabled = true,
@@ -1588,7 +1588,7 @@ FocalPoint.Themes = {
                         showStackText = true,
                         showTimerText = true,
                         hidePermanentAuras = true,
-                        hideLongAuras = true,
+                        hideLongAuras = false,
                     },
                     Debuffs = {
                         enabled = true,
@@ -1702,7 +1702,7 @@ FocalPoint.Themes = {
                         showStackText = true,
                         showTimerText = true,
                         hidePermanentAuras = true,
-                        hideLongAuras = true,
+                        hideLongAuras = false,
                     },
                     Debuffs = {
                         enabled = true,
@@ -1816,7 +1816,7 @@ FocalPoint.Themes = {
                         showStackText = true,
                         showTimerText = true,
                         hidePermanentAuras = true,
-                        hideLongAuras = true,
+                        hideLongAuras = false,
                     },
                     Debuffs = {
                         enabled = true,
@@ -1999,7 +1999,7 @@ FocalPoint.Themes = {
                         showStackText = true,
                         showTimerText = true,
                         hidePermanentAuras = true,
-                        hideLongAuras = true,
+                        hideLongAuras = false,
                         showBossAuras = true,
                     },
                     Debuffs = {
