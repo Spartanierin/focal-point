@@ -526,7 +526,7 @@ function FocalPoint:GetDefaultDB()
                             offsetY = 0,
                             font = "fp:font:standard",
                             fontSize = 12,
-                            justifyH = "CENTER",
+                            justifyH = "LEFT",
                             color = {
                                 1.0,
                                 1.0,
