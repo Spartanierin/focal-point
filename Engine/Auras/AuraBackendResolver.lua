@@ -38,14 +38,35 @@ local function GetManagedBackend()
     return FocalPoint.ManagedAuraBackend or {}
 end
 
+local function IsEditorAuraMode(frame)
+    if not frame then
+        return false
+    end
+
+    local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+    local isDemoActive = Demo.IsDemoActive and Demo.IsDemoActive() == true or false
+    if Demo.ResolveMode then
+        local mode = Demo.ResolveMode(frame, "aura")
+        if mode and mode ~= "live" then
+            return true
+        end
+        return false
+    end
+
+    if isDemoActive and Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) then
+        return true
+    end
+
+    return isDemoActive and frame.unit ~= nil
+end
+
 function Resolver.CanUseManagedPlayerGroup(frame, groupKey)
     local unitGroups = frame and MANAGED_GROUPS[frame.unit] or nil
     if not frame or unitGroups == nil or unitGroups[groupKey] ~= true then
         return false
     end
 
-    local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
-    if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) then
+    if IsEditorAuraMode(frame) then
         return false
     end
 
@@ -70,6 +91,19 @@ function Resolver.CanUseManagedPlayerBuffs(frame, groupKey)
     return groupKey == "Buffs" and Resolver.CanUseManagedPlayerGroup(frame, groupKey) == true
 end
 
+function Resolver.ShouldUseManagedEditorVisuals(frame, groupKey)
+    local unitGroups = frame and MANAGED_GROUPS[frame.unit] or nil
+    if not frame or unitGroups == nil or unitGroups[groupKey] ~= true then
+        return false
+    end
+    if not IsEditorAuraMode(frame) then
+        return false
+    end
+
+    local backend = GetManagedBackend()
+    return backend.IsAvailable and backend.IsAvailable() == true
+end
+
 function Resolver.IsManagedGroupActive(frame, groupKey, config)
     if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) then
         return false
@@ -85,6 +119,10 @@ end
 
 function Resolver.EnsureManagedGroup(frame, groupKey, config)
     if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) then
+        local backend = GetManagedBackend()
+        if backend.ClearGroup then
+            backend.ClearGroup(frame, groupKey)
+        end
         return false
     end
 

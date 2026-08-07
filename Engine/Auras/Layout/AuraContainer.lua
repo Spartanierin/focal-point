@@ -52,6 +52,38 @@ local function SetCooldownCountdownVisibility(container, shouldShow)
     end
 end
 
+local function GetAuraRemainingSeconds(aura)
+    local expirationTime = ToPlainNumber(aura and aura.expirationTime)
+    if not expirationTime then
+        return nil
+    end
+
+    return math.max(expirationTime - ((GetTime and GetTime()) or 0), 0)
+end
+
+local function ApplyManagedEditorTimerSuffix(container, aura, isEnabled)
+    if not container then
+        return
+    end
+
+    if not isEnabled or not container.CooldownText then
+        container:SetScript("OnUpdate", nil)
+        return
+    end
+
+    container:SetScript("OnUpdate", function(self)
+        local remaining = GetAuraRemainingSeconds(self.AuraData)
+        if not remaining or remaining >= 60 then
+            return
+        end
+
+        local text = self.CooldownText and self.CooldownText:GetText() or nil
+        if type(text) == "string" and text:match("^%d+$") then
+            self.CooldownText:SetText(text .. " s")
+        end
+    end)
+end
+
 function AuraContainer.Create(parent)
     local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     frame:Hide()
@@ -121,6 +153,12 @@ function AuraContainer.ApplyLayout(container, config)
         local stackFontScale = math.max(tonumber(config and config.stackFontScale) or 1, 0.5)
         local fontSize = math.max(math.floor((iconSize * 0.54 * stackFontScale) + 0.5), 10)
         container.CountText:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
+        container.CountText:ClearAllPoints()
+        if config and config._fpUseManagedVisuals == true then
+            container.CountText:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 1, -1)
+        else
+            container.CountText:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -1, 1)
+        end
         container.CountText:SetTextColor(1, 1, 1, 1)
         container.CountText:SetShadowColor(0, 0, 0, 1)
         container.CountText:SetShadowOffset(1.5, -1.5)
@@ -156,7 +194,11 @@ function AuraContainer.ApplyData(container, aura, config)
     end
 
     if container.CountText then
-        if config and config.showStackText and IsGreaterThan(aura.count or 0, 1) then
+        local showStackText = config and config.showStackText
+        if showStackText == nil and config and config._fpUseManagedVisuals == true then
+            showStackText = true
+        end
+        if showStackText and IsGreaterThan(aura.count or 0, 1) then
             container.CountText:SetText(tostring(aura.count))
             container.CountText:Show()
         else
@@ -211,6 +253,11 @@ function AuraContainer.ApplyData(container, aura, config)
         showTimerText = true
     end
     SetCooldownCountdownVisibility(container, showTimerText and cooldownActive)
+    ApplyManagedEditorTimerSuffix(
+        container,
+        aura,
+        config and config._fpUseManagedVisuals == true and showTimerText and cooldownActive
+    )
 
     local ownerFrame = container:GetParent() and container:GetParent():GetParent() or nil
     if cooldownActive

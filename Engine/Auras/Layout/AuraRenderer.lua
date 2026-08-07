@@ -16,6 +16,30 @@ local function GetAuraAnchor()
     return FocalPoint.AuraAnchor or {}
 end
 
+local function CopyConfig(config)
+    local result = {}
+    for key, value in pairs(config or {}) do
+        result[key] = value
+    end
+    return result
+end
+
+local function ResolveRenderConfigs(frame, groupKey, config)
+    local BackendResolver = FocalPoint.AuraBackendResolver or {}
+    if not (BackendResolver.ShouldUseManagedEditorVisuals and BackendResolver.ShouldUseManagedEditorVisuals(frame, groupKey)) then
+        return config, config
+    end
+
+    local renderConfig = CopyConfig(config)
+    renderConfig._fpUseManagedVisuals = true
+
+    local layoutConfig = CopyConfig(config)
+    layoutConfig._fpUseManagedVisuals = true
+    layoutConfig.showTimerText = false
+
+    return renderConfig, layoutConfig
+end
+
 local function ResolveAnchorOffsets(config)
     config = config or {}
 
@@ -103,7 +127,8 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
     end
 
     local AuraBlockLayout = GetAuraBlockLayout()
-    local metrics = AuraBlockLayout.CalculateMetrics and AuraBlockLayout.CalculateMetrics(type(auraList) == "table" and #auraList or 0, config) or {
+    local renderConfig, layoutConfig = ResolveRenderConfigs(frame, groupKey, config)
+    local metrics = AuraBlockLayout.CalculateMetrics and AuraBlockLayout.CalculateMetrics(type(auraList) == "table" and #auraList or 0, layoutConfig) or {
         shownCount = 0,
     }
     if metrics.shownCount <= 0 then
@@ -115,18 +140,18 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
 
     local AuraAnchor = GetAuraAnchor()
     local anchorTarget = AuraAnchor.Resolve and AuraAnchor.Resolve(frame, config, groupKey) or frame
-    local offsetX, offsetY = ResolveAnchorOffsets(config)
+    local offsetX, offsetY = ResolveAnchorOffsets(renderConfig)
     groupFrame:ClearAllPoints()
     groupFrame:SetPoint(
-        config.point or "TOPLEFT",
+        renderConfig.point or "TOPLEFT",
         anchorTarget,
-        config.relativePoint or config.point or "TOPLEFT",
+        renderConfig.relativePoint or renderConfig.point or "TOPLEFT",
         offsetX,
         offsetY
     )
 
     if AuraBlockLayout.Apply then
-        AuraBlockLayout.Apply(groupFrame, auraList, config)
+        AuraBlockLayout.Apply(groupFrame, auraList, layoutConfig)
     end
 
     for index = 1, metrics.shownCount do
@@ -134,7 +159,7 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
         local aura = auraList[index]
         local AuraContainer = GetAuraContainer()
         if AuraContainer.ApplyData then
-            AuraContainer.ApplyData(container, aura, config)
+            AuraContainer.ApplyData(container, aura, renderConfig)
         end
     end
 
