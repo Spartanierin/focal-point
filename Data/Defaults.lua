@@ -4204,7 +4204,7 @@ function FocalPoint:GetDefaultDB()
                         timerFontScale = 1.15,
                         spacingX = 3,
                         spacingY = 2,
-                        iconsPerRow = 6,
+                        iconsPerRow = 4,
                         maxRows = 1,
                         growthX = "LEFT",
                         growthY = "UP",
