@@ -10,6 +10,28 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## [1.1.1]
+
+### Added
+
+* Added WoW 12.1 compatibility for supported unit frames.
+* Added Managed Aura support for supported unit frames, including TargetTarget and FocusTarget buffs and debuffs.
+
+### Improved
+
+* Improved Managed Aura behavior with native filters, sorting, duration filtering, stack text styling, and timer text styling.
+* Improved Demo and Unlock aura previews so they match Managed Aura layout and visual behavior more closely.
+* Improved aura layout handling, including spacing and growth direction behavior.
+* Improved editor responsiveness when opening Focal Point during combat.
+
+### Fixed
+
+* Fixed NPC class text and class-color handling so WoW 12.1 secret class values are handled safely.
+
+### Note
+
+* WoW 12.1 can mark some NPC class information as secret. For affected NPCs, Focal Point may leave class text or class color empty rather than display incorrect data.
+
 ## [1.1.0]
 
 ### Added
