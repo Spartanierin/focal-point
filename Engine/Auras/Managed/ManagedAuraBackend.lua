@@ -3,7 +3,6 @@ local _, FocalPoint = ...
 FocalPoint.ManagedAuraBackend = FocalPoint.ManagedAuraBackend or {}
 local Managed = FocalPoint.ManagedAuraBackend
 
-local AuraAnchor = FocalPoint.AuraAnchor or {}
 local AuraBlockLayout = FocalPoint.AuraBlockLayout or {}
 
 local CONTAINER_TEMPLATE = "CustomAuraContainerTemplate"
@@ -320,45 +319,9 @@ local function ResolveMaxFrameCount(config)
     return DEFAULT_MAX_FRAME_COUNT
 end
 
-local function ResolveAnchorOffsets(config)
-    config = config or {}
-    local offsetX = tonumber(config.offsetX) or 0
-    local offsetY = tonumber(config.offsetY) or 0
-    local placement = config.placement or "ATTACHED"
-
-    if placement ~= "INSIDE" then
-        local blockGapX = tonumber(config.blockGapX)
-        if blockGapX == nil then
-            blockGapX = 4
-        end
-
-        local relativePoint = config.relativePoint or config.point or "TOPLEFT"
-        if type(relativePoint) == "string" then
-            if string.find(relativePoint, "RIGHT", 1, true) then
-                offsetX = offsetX + blockGapX
-            elseif string.find(relativePoint, "LEFT", 1, true) then
-                offsetX = offsetX - blockGapX
-            end
-        end
-    end
-
-    return offsetX, offsetY
-end
-
-local function ResolveBlockSize(config)
+local function ResolveVisualMetrics(config)
     if AuraBlockLayout.CalculateMetrics then
-        local layoutConfig = {}
-        for key, value in pairs(config or {}) do
-            layoutConfig[key] = value
-        end
-        layoutConfig.showTimerText = false
-        local metrics = AuraBlockLayout.CalculateMetrics(ResolveMaxFrameCount(config), layoutConfig)
-        return math.max(metrics.blockWidth or 0, 1),
-            math.max(metrics.blockHeight or 0, 1),
-            metrics.iconSize or ToPositiveNumber(config and config.iconSize, 25),
-            metrics.spacingX or ToNonNegativeNumber(config and config.spacingX, 0),
-            metrics.spacingY or ToNonNegativeNumber(config and config.spacingY, 0),
-            metrics.iconsPerRow or math.max(math.floor(tonumber(config and config.iconsPerRow) or 1), 1)
+        return AuraBlockLayout.CalculateMetrics(ResolveMaxFrameCount(config), config)
     end
 
     local iconSize = ToPositiveNumber(config and config.iconSize, 25)
@@ -370,12 +333,56 @@ local function ResolveBlockSize(config)
     local columns = math.min(shownCount, iconsPerRow)
     local rows = maxRows > 0 and maxRows or math.max(math.ceil(shownCount / iconsPerRow), 1)
 
-    return math.max(columns * iconSize + math.max(columns - 1, 0) * spacingX, 1),
-        math.max(rows * iconSize + math.max(rows - 1, 0) * spacingY, 1),
-        iconSize,
-        spacingX,
-        spacingY,
-        iconsPerRow
+    local blockWidth = math.max(columns * iconSize + math.max(columns - 1, 0) * spacingX, 1)
+    local blockHeight = math.max(rows * iconSize + math.max(rows - 1, 0) * spacingY, 1)
+    return {
+        shownCount = shownCount,
+        columns = columns,
+        rows = rows,
+        blockWidth = blockWidth,
+        blockHeight = blockHeight,
+        iconSize = iconSize,
+        gridWidth = blockWidth,
+        leftOverhang = 0,
+        rightOverhang = 0,
+        rowHeight = iconSize,
+        timerTextHeight = 0,
+        timerVisualWidth = iconSize,
+        spacingX = spacingX,
+        spacingY = spacingY,
+        iconsPerRow = iconsPerRow,
+        maxRows = maxRows,
+    }
+end
+
+local function ResolveBlockSize(config)
+    local metrics = ResolveVisualMetrics(config)
+    return math.max(metrics.blockWidth or 0, 1),
+        math.max(metrics.blockHeight or 0, 1),
+        metrics.iconSize or ToPositiveNumber(config and config.iconSize, 25),
+        metrics.spacingX or ToNonNegativeNumber(config and config.spacingX, 0),
+        metrics.spacingY or ToNonNegativeNumber(config and config.spacingY, 0),
+        metrics.iconsPerRow or math.max(math.floor(tonumber(config and config.iconsPerRow) or 1), 1),
+        metrics
+end
+
+local function ResolveTimerReserve(metrics)
+    return metrics and metrics.timerTextHeight and metrics.timerTextHeight > 0 and (metrics.timerTextHeight + 2) or 0
+end
+
+local function ResolveIconGridHeight(metrics)
+    if not metrics then
+        return 1
+    end
+    return math.max((metrics.blockHeight or 0) - ResolveTimerReserve(metrics), metrics.iconSize or 1, 1)
+end
+
+local function ResolveIconGridWidth(metrics)
+    if not metrics then
+        return 1
+    end
+
+    return math.max(metrics.gridWidth or 0, metrics.iconSize or 1, 1)
 end
 
 local function IsAuraDebugEnabled()
@@ -553,7 +560,8 @@ local function EnsureDebugOverlay(container, definition)
 end
 
 local function UpdateDebugOverlay(state, definition, config)
-    if not (state and state.container and definition) then
+    local visualRoot = state and (state.visualRoot or state.container) or nil
+    if not (visualRoot and definition) then
         return
     end
 
@@ -562,7 +570,7 @@ local function UpdateDebugOverlay(state, definition, config)
         return
     end
 
-    local overlay = EnsureDebugOverlay(state.container, definition)
+    local overlay = EnsureDebugOverlay(visualRoot, definition)
     if not overlay then
         return
     end
@@ -628,7 +636,8 @@ local function ApplyContainerFlowLayout(container, config)
         return
     end
 
-    local width, _height, iconSize, _spacingX, _spacingY, _iconsPerRow = ResolveBlockSize(config)
+    local metrics = select(7, ResolveBlockSize(config))
+    local width = ResolveIconGridWidth(metrics)
     local growthX = config and config.growthX or "RIGHT"
     local growthY = config and config.growthY or "DOWN"
     local flowAnchorPoint = ResolveFlowAnchorPoint(growthX, growthY)
@@ -668,6 +677,17 @@ local function CreateManagedContainer(parent)
     end
 
     return container
+end
+
+local function CreateManagedVisualRoot(parent)
+    if type(CreateFrame) ~= "function" or not parent then
+        return nil
+    end
+
+    local root = CreateFrame("Frame", nil, parent)
+    root:EnableMouse(false)
+    root:Hide()
+    return root
 end
 
 local function RegisterManagedButton(state, button)
@@ -780,8 +800,8 @@ local function ApplyButtonTimerText(button, config)
     end
 
     local iconSize = ToPositiveNumber(config and config.iconSize, 25)
-    local timerFontScale = math.max(tonumber(config and config.timerFontScale) or 1, 0.5)
-    local fontSize = math.max(math.floor((iconSize * 0.34 * timerFontScale) + 0.5), 8)
+    local timerMetrics = AuraBlockLayout.ResolveTimerTextMetrics and AuraBlockLayout.ResolveTimerTextMetrics(config) or {}
+    local fontSize = timerMetrics.fontSize or math.max(math.floor((iconSize * 0.34 * math.max(tonumber(config and config.timerFontScale) or 1, 0.5)) + 0.5), 8)
 
     if not button.DurationText and button.CreateFontString then
         local text = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
@@ -893,15 +913,16 @@ local function BuildGroupOptions(config, definition, filterSpec, state)
 end
 
 local function BuildLayoutOptions(config)
-    local _width, _height, iconSize, spacingX, spacingY = ResolveBlockSize(config)
+    local _width, _height, iconSize, spacingX, spacingY, _iconsPerRow, metrics = ResolveBlockSize(config)
+    local visualLineSpacing = spacingY + ResolveTimerReserve(metrics)
 
     return {
         elementWidth = iconSize,
         elementHeight = iconSize,
         elementSpacing = spacingX,
         elementSpacingX = spacingX,
-        elementSpacingY = spacingY,
-        lineSpacing = spacingY,
+        elementSpacingY = visualLineSpacing,
+        lineSpacing = visualLineSpacing,
     }
 end
 
@@ -1007,6 +1028,9 @@ function Managed.ClearGroup(frame, groupKey)
     end
 
     local state = frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
+    if state and state.visualRoot and state.visualRoot.Hide then
+        state.visualRoot:Hide()
+    end
     if state and state.container and state.container.Hide then
         state.container:Hide()
     end
@@ -1031,7 +1055,8 @@ function Managed.EnsureGroup(frame, groupKey, config)
             return true
         end
 
-        local container = CreateManagedContainer(frame)
+        local visualRoot = CreateManagedVisualRoot(frame)
+        local container = visualRoot and CreateManagedContainer(visualRoot) or nil
         if not container then
             Managed.unavailable = true
             RecordDiagnostic(unit, groupKey, "managed_unavailable", 0, "container_failed", state)
@@ -1039,6 +1064,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         end
 
         state = {
+            visualRoot = visualRoot,
             container = container,
             configured = false,
             active = false,
@@ -1046,18 +1072,19 @@ function Managed.EnsureGroup(frame, groupKey, config)
         }
         frame.ManagedAuraBackend[definition.stateKey] = state
         frame.Elements = frame.Elements or {}
-        frame.Elements[definition.elementKey] = container
-        state.debugOverlay = EnsureDebugOverlay(container, definition)
+        frame.Elements[definition.elementKey] = visualRoot
+        state.debugOverlay = EnsureDebugOverlay(visualRoot, definition)
         HideDebugOverlay(state)
     end
 
     local container = state.container
+    local visualRoot = state.visualRoot or container
     if not container then
         RecordDiagnostic(unit, groupKey, "managed_unavailable", 0, "container_failed", state)
         return false
     end
     if not state.debugOverlay and not (InCombatLockdown and InCombatLockdown()) then
-        state.debugOverlay = EnsureDebugOverlay(container, definition)
+        state.debugOverlay = EnsureDebugOverlay(visualRoot, definition)
         HideDebugOverlay(state)
     end
 
@@ -1074,6 +1101,9 @@ function Managed.EnsureGroup(frame, groupKey, config)
     end
     if InCombatLockdown and InCombatLockdown() then
         if state.configured and state.active and state.signature == signature then
+            if visualRoot.Show then
+                visualRoot:Show()
+            end
             if container.Show then
                 container:Show()
             end
@@ -1090,7 +1120,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         return state.configured == true
     end
 
-    local width, height, _iconSize, spacingX, spacingY, iconsPerRow = ResolveBlockSize(config)
+    local width, height, _iconSize, spacingX, spacingY, iconsPerRow, metrics = ResolveBlockSize(config)
     local maxFrameCount = ResolveMaxFrameCount(config)
     local maxRows = math.max(math.floor(tonumber(config and config.maxRows) or 0), 0)
     RecordManagedLayout({
@@ -1103,25 +1133,37 @@ function Managed.EnsureGroup(frame, groupKey, config)
         spacingY = spacingY,
         errors = 0,
     })
-    container:SetSize(width, height)
-    container:SetFrameStrata(frame:GetFrameStrata())
-    container:SetFrameLevel(frame:GetFrameLevel() + 25)
-    container:ClearAllPoints()
-    ApplyContainerFlowLayout(container, config)
+    visualRoot:SetSize(width, height)
+    visualRoot:SetFrameStrata(frame:GetFrameStrata())
+    visualRoot:SetFrameLevel(frame:GetFrameLevel() + 25)
+    AuraBlockLayout.ApplyAnchor(visualRoot, frame, config, groupKey)
 
-    local anchorTarget = AuraAnchor.Resolve and AuraAnchor.Resolve(frame, config, groupKey) or frame
-    local offsetX, offsetY = ResolveAnchorOffsets(config)
-    container:SetPoint(
-        config and config.point or "TOPLEFT",
-        anchorTarget or frame,
-        config and (config.relativePoint or config.point) or "TOPLEFT",
-        offsetX,
-        offsetY
-    )
+    container:SetSize(ResolveIconGridWidth(metrics), ResolveIconGridHeight(metrics))
+    container:SetFrameStrata(visualRoot:GetFrameStrata())
+    container:SetFrameLevel(visualRoot:GetFrameLevel() + 1)
+    container:ClearAllPoints()
+    local timerReserve = ResolveTimerReserve(metrics)
+    local leftOverhang = metrics and metrics.leftOverhang or 0
+    local rightOverhang = metrics and metrics.rightOverhang or 0
+    local growthX = config and config.growthX or "RIGHT"
+    local growthY = config and config.growthY or "DOWN"
+    if growthX == "LEFT" and growthY == "UP" then
+        container:SetPoint("BOTTOMRIGHT", visualRoot, "BOTTOMRIGHT", -rightOverhang, timerReserve)
+    elseif growthX == "LEFT" then
+        container:SetPoint("TOPRIGHT", visualRoot, "TOPRIGHT", -rightOverhang, 0)
+    elseif growthY == "UP" then
+        container:SetPoint("BOTTOMLEFT", visualRoot, "BOTTOMLEFT", leftOverhang, timerReserve)
+    else
+        container:SetPoint("TOPLEFT", visualRoot, "TOPLEFT", leftOverhang, 0)
+    end
+    ApplyContainerFlowLayout(container, config)
 
     if container.SetUnit and (not IsDerivedManagedGroup(unit, groupKey) or state.configured ~= true) then
         if not TryCall(container, "SetUnit", unit) then
             Managed.unavailable = true
+            if visualRoot.Hide then
+                visualRoot:Hide()
+            end
             if container.Hide then
                 container:Hide()
             end
@@ -1135,6 +1177,9 @@ function Managed.EnsureGroup(frame, groupKey, config)
         if not added then
             Managed.unavailableGroups = Managed.unavailableGroups or {}
             Managed.unavailableGroups[unit .. "/" .. groupKey] = true
+            if visualRoot.Hide then
+                visualRoot:Hide()
+            end
             if container.Hide then
                 container:Hide()
             end
@@ -1172,6 +1217,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
 
     state.active = true
     state.signature = signature
+    visualRoot:Show()
     container:Show()
     UpdateDebugOverlay(state, definition, config)
     RecordDiagnostic(unit, groupKey, "managed_active", 1, layoutOk and "active" or "layout_failed", state)
@@ -1185,6 +1231,9 @@ function Managed.RefreshGroup(frame, groupKey, config)
 
     local definition = GetGroupDefinition(frame and frame.unit, groupKey)
     local state = definition and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
+    if state and state.visualRoot and state.visualRoot.Show then
+        state.visualRoot:Show()
+    end
     if state and state.container and state.container.Show then
         state.container:Show()
     end

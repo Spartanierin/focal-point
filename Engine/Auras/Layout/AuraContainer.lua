@@ -5,6 +5,10 @@ local AuraContainer = FocalPoint.AuraContainer
 local State = FocalPoint.UnitFrameState or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
+local function GetAuraBlockLayout()
+    return FocalPoint.AuraBlockLayout or {}
+end
+
 -- Defines the inner aura widget: icon, swipe, stack text, and border.
 
 local function IsTimedAura(aura)
@@ -165,8 +169,9 @@ function AuraContainer.ApplyLayout(container, config)
     end
 
     if container.CooldownText then
-        local timerFontScale = math.max(tonumber(config and config.timerFontScale) or 1, 0.5)
-        local fontSize = math.max(math.floor((iconSize * 0.34 * timerFontScale) + 0.5), 8)
+        local AuraBlockLayout = GetAuraBlockLayout()
+        local timerMetrics = AuraBlockLayout.ResolveTimerTextMetrics and AuraBlockLayout.ResolveTimerTextMetrics(config) or {}
+        local fontSize = timerMetrics.fontSize or math.max(math.floor((iconSize * 0.34 * math.max(tonumber(config and config.timerFontScale) or 1, 0.5)) + 0.5), 8)
         container.CooldownText:SetFont(STANDARD_TEXT_FONT, fontSize, "OUTLINE")
         container.CooldownText:SetTextColor(1, 1, 1, 1)
         container.CooldownText:SetShadowColor(0, 0, 0, 1)

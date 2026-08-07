@@ -12,10 +12,6 @@ local function GetAuraBlockLayout()
     return FocalPoint.AuraBlockLayout or {}
 end
 
-local function GetAuraAnchor()
-    return FocalPoint.AuraAnchor or {}
-end
-
 local function CopyConfig(config)
     local result = {}
     for key, value in pairs(config or {}) do
@@ -35,35 +31,8 @@ local function ResolveRenderConfigs(frame, groupKey, config)
 
     local layoutConfig = CopyConfig(config)
     layoutConfig._fpUseManagedVisuals = true
-    layoutConfig.showTimerText = false
 
     return renderConfig, layoutConfig
-end
-
-local function ResolveAnchorOffsets(config)
-    config = config or {}
-
-    local offsetX = tonumber(config.offsetX) or 0
-    local offsetY = tonumber(config.offsetY) or 0
-    local placement = config.placement or "ATTACHED"
-
-    if placement ~= "INSIDE" then
-        local blockGapX = tonumber(config.blockGapX)
-        if blockGapX == nil then
-            blockGapX = 4
-        end
-
-        local relativePoint = config.relativePoint or config.point or "TOPLEFT"
-        if type(relativePoint) == "string" then
-            if string.find(relativePoint, "RIGHT", 1, true) then
-                offsetX = offsetX + blockGapX
-            elseif string.find(relativePoint, "LEFT", 1, true) then
-                offsetX = offsetX - blockGapX
-            end
-        end
-    end
-
-    return offsetX, offsetY
 end
 
 -- Maps prepared aura records onto reusable aura containers.
@@ -138,17 +107,9 @@ function AuraRenderer.RenderGroup(frame, groupKey, auraList, config)
 
     AuraRenderer.EnsurePool(groupFrame, metrics.shownCount)
 
-    local AuraAnchor = GetAuraAnchor()
-    local anchorTarget = AuraAnchor.Resolve and AuraAnchor.Resolve(frame, config, groupKey) or frame
-    local offsetX, offsetY = ResolveAnchorOffsets(renderConfig)
-    groupFrame:ClearAllPoints()
-    groupFrame:SetPoint(
-        renderConfig.point or "TOPLEFT",
-        anchorTarget,
-        renderConfig.relativePoint or renderConfig.point or "TOPLEFT",
-        offsetX,
-        offsetY
-    )
+    if AuraBlockLayout.ApplyAnchor then
+        AuraBlockLayout.ApplyAnchor(groupFrame, frame, renderConfig, groupKey)
+    end
 
     if AuraBlockLayout.Apply then
         AuraBlockLayout.Apply(groupFrame, auraList, layoutConfig)
