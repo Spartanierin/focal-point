@@ -12,7 +12,8 @@ function BasicTags.Resolve(frame, unit, token, deps)
     local IsPreviewModeEnabled = deps.IsPreviewModeEnabled
     local FormatTimeValue = deps.FormatTimeValue
     local ResolveColorTag = deps.ResolveColorTag
-    local GetLocalizedClassName = deps.GetLocalizedClassName
+    local ResolveUnitClassIdentity = deps.ResolveUnitClassIdentity
+        or (FocalPoint.TextElementStatus and FocalPoint.TextElementStatus.ResolveUnitClassIdentity)
     local GetClassificationText = deps.GetClassificationText
     local GetCurrentStatusInfo = deps.GetCurrentStatusInfo
     local GetStatusText = deps.GetStatusText
@@ -39,20 +40,7 @@ function BasicTags.Resolve(frame, unit, token, deps)
         local ok, hasValue = pcall(function()
             return value ~= ""
         end)
-        return (ok and hasValue) or not ok
-    end
-
-    local function ResolveLocalizedClassName(classToken)
-        if not GetLocalizedClassName then
-            return nil
-        end
-
-        local ok, localized = pcall(GetLocalizedClassName, classToken)
-        if ok and CanUseTextValue(localized) then
-            return localized
-        end
-
-        return nil
+        return (ok and hasValue == true) or not ok
     end
 
     local function IsCastTextAllowed()
@@ -76,7 +64,8 @@ function BasicTags.Resolve(frame, unit, token, deps)
         end
 
         if token == "class" then
-            return preview.className or (GetLocalizedClassName and GetLocalizedClassName(preview.classToken)) or ""
+            local identity = ResolveUnitClassIdentity and ResolveUnitClassIdentity(unit, frame) or nil
+            return identity and identity.localizedName or ""
         end
 
         if token == "race" then
@@ -212,23 +201,9 @@ function BasicTags.Resolve(frame, unit, token, deps)
     end
 
     if token == "class" then
-        if unit and UnitClass then
-            local className, classToken = UnitClass(unit)
-            if UnitIsPlayer and UnitIsPlayer(unit) and CanUseTextValue(className) then
-                return className
-            end
-
-            if not UnitIsPlayer or not UnitIsPlayer(unit) then
-                local localized = ResolveLocalizedClassName(classToken)
-
-                if CanUseTextValue(localized) then
-                    return localized
-                end
-
-                if CanUseTextValue(classToken) then
-                    return classToken
-                end
-            end
+        local identity = ResolveUnitClassIdentity and ResolveUnitClassIdentity(unit, frame) or nil
+        if identity and CanUseTextValue(identity.localizedName) then
+            return identity.localizedName
         end
 
         return ""

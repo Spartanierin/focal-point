@@ -4,6 +4,7 @@ FocalPoint.TextElementColors = FocalPoint.TextElementColors or {}
 local Colors = FocalPoint.TextElementColors
 
 local TextUtils = FocalPoint.TextElementUtils or {}
+local Status = FocalPoint.TextElementStatus or {}
 
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
 local UnpackColor = TextUtils.UnpackColor
@@ -12,69 +13,25 @@ local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 -- Text color helpers keep color resolution and color-tag formatting separate
 -- from the main token and template runtime.
 
-local function NormalizeClassTokenForLookup(classToken)
-    if type(classToken) ~= "string" then
+function Colors.GetClassTextColor(unit, frame)
+    if not (Status and Status.ResolveUnitClassIdentity) then
         return nil
     end
 
-    local ok, normalized = pcall(function()
-        if classToken == "" then
+    if not unit or not UnitExists or not UnitExists(unit) then
+        local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
+        if not (frame and previewValues and ((IsPreviewModeEnabled and IsPreviewModeEnabled()) or frame.IsTemplatePreview)) then
             return nil
         end
-
-        return classToken:upper()
-    end)
-
-    if ok then
-        return normalized
     end
 
-    return nil
-end
-
-local function ResolveClassColorByToken(classToken)
-    classToken = NormalizeClassTokenForLookup(classToken)
-    if not classToken then
+    local identity = Status.ResolveUnitClassIdentity(unit, frame)
+    local color = identity and identity.color or nil
+    if type(color) ~= "table" then
         return nil
     end
 
-    local color = nil
-
-    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
-        color = CUSTOM_CLASS_COLORS[classToken]
-    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-        color = RAID_CLASS_COLORS[classToken]
-    elseif C_ClassColor and C_ClassColor.GetClassColor then
-        color = C_ClassColor.GetClassColor(classToken)
-    end
-
-    if not color then
-        return nil
-    end
-
-    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1
-end
-
-function Colors.GetClassTextColor(unit, frame)
-    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
-    if frame and previewValues and previewValues.classToken and (IsPreviewModeEnabled() or frame.IsTemplatePreview) then
-        return ResolveClassColorByToken(previewValues.classToken)
-    end
-
-    if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
-        return nil
-    end
-
-    if unit == "pet" then
-        local _, ownerClassToken = UnitClass("player")
-        local ownerR, ownerG, ownerB, ownerA = ResolveClassColorByToken(ownerClassToken)
-        if ownerR and ownerG and ownerB then
-            return ownerR, ownerG, ownerB, ownerA or 1
-        end
-    end
-
-    local _, classToken = UnitClass(unit)
-    return ResolveClassColorByToken(classToken)
+    return color[1], color[2], color[3], color[4] or 1
 end
 
 function Colors.ClampColorComponent(value)
@@ -82,13 +39,21 @@ function Colors.ClampColorComponent(value)
         return 255
     end
 
-    if value < 0 then
-        value = 0
-    elseif value > 1 then
-        value = 1
+    local ok, component = pcall(function()
+        if value < 0 then
+            value = 0
+        elseif value > 1 then
+            value = 1
+        end
+
+        return math.floor((value * 255) + 0.5)
+    end)
+
+    if ok and type(component) == "number" then
+        return component
     end
 
-    return math.floor((value * 255) + 0.5)
+    return 255
 end
 
 function Colors.BuildColorCode(r, g, b, a)
@@ -230,7 +195,7 @@ function Colors.ResolveColorTag(frame, unit, token, fallbackColor)
             if r and g and b then
                 return Colors.BuildColorCode(r, g, b, a)
             end
-            return nil
+            return ""
         end
 
         if colorValue == "blizz_pwr" then
@@ -238,7 +203,7 @@ function Colors.ResolveColorTag(frame, unit, token, fallbackColor)
             if r and g and b then
                 return Colors.BuildColorCode(r, g, b, a)
             end
-            return nil
+            return ""
         end
 
         if colorValue == "reaction" then
@@ -246,7 +211,7 @@ function Colors.ResolveColorTag(frame, unit, token, fallbackColor)
             if r and g and b then
                 return Colors.BuildColorCode(r, g, b, a)
             end
-            return nil
+            return ""
         end
 
         local blizzardKey = colorValue:match("^blizz_(.+)$")
@@ -258,6 +223,8 @@ function Colors.ResolveColorTag(frame, unit, token, fallbackColor)
         if explicitColor then
             return explicitColor
         end
+
+        return ""
     end
 
     local explicitColor = Colors.GetExplicitColorCode(token)

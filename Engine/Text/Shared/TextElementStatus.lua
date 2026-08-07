@@ -5,8 +5,10 @@ local Status = FocalPoint.TextElementStatus
 
 local TextUtils = FocalPoint.TextElementUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local IsSafeTrue = TextUtils.IsSafeTrue
+local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
 
 -- Status/name helpers keep textual unit state resolution separate from the
 -- larger tag and template runtime.
@@ -201,8 +203,109 @@ function Status.GetLocalizedClassName(classToken)
 
     return
         (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[normalizedToken]) or
-        (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[normalizedToken]) or
-        normalizedToken
+        (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[normalizedToken])
+end
+
+function Status.NormalizeClassToken(value)
+    if type(value) ~= "string" then
+        return nil
+    end
+
+    local ok, token = pcall(function()
+        if value == "" then
+            return nil
+        end
+
+        local normalizedValue = value:upper()
+        if
+            (RAID_CLASS_COLORS and RAID_CLASS_COLORS[normalizedValue])
+            or (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[normalizedValue])
+            or (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[normalizedValue])
+            or (LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[normalizedValue])
+        then
+            return normalizedValue
+        end
+
+        return nil
+    end)
+
+    return ok and token or nil
+end
+
+local function TryAddClassCandidate(candidates, value)
+    local token = Status.NormalizeClassToken(value)
+    if token then
+        candidates[#candidates + 1] = token
+    end
+end
+
+local function TryCollectUnitClass(candidates, unit)
+    if not (unit and UnitClass) then
+        return nil, nil
+    end
+
+    local ok, className, classToken = pcall(UnitClass, unit)
+    if not ok then
+        return nil, nil
+    end
+
+    TryAddClassCandidate(candidates, classToken)
+
+    return className, classToken
+end
+
+function Status.ResolveClassColorByToken(classToken)
+    classToken = Status.NormalizeClassToken(classToken)
+    if not classToken then
+        return nil
+    end
+
+    local color = nil
+
+    if CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classToken] then
+        color = CUSTOM_CLASS_COLORS[classToken]
+    elseif RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
+        color = RAID_CLASS_COLORS[classToken]
+    end
+
+    if not color then
+        return nil
+    end
+
+    return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4] or 1
+end
+
+function Status.ResolveUnitClassIdentity(unit, frame)
+    local candidates = {}
+    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (frame and frame.TestValues) or nil
+
+    local rawName, rawToken = TryCollectUnitClass(candidates, unit)
+
+    if frame and previewValues and ((IsPreviewModeEnabled and IsPreviewModeEnabled()) or frame.IsTemplatePreview) then
+        TryAddClassCandidate(candidates, previewValues.classToken)
+        TryAddClassCandidate(candidates, previewValues.className)
+    end
+
+    local token = candidates[1]
+    if not token then
+        return {
+            rawName = rawName,
+            rawToken = rawToken,
+            safe = false,
+        }
+    end
+
+    local localizedName = Status.GetLocalizedClassName(token)
+    local r, g, b, a = Status.ResolveClassColorByToken(token)
+
+    return {
+        token = token,
+        localizedName = localizedName,
+        color = r and g and b and { r, g, b, a or 1 } or nil,
+        rawName = rawName,
+        rawToken = rawToken,
+        safe = true,
+    }
 end
 
 function Status.GetUnitClassificationKind(unit)
