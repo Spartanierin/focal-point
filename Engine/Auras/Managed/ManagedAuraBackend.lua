@@ -898,6 +898,7 @@ local function BuildLayoutOptions(config)
     return {
         elementWidth = iconSize,
         elementHeight = iconSize,
+        elementSpacing = spacingX,
         elementSpacingX = spacingX,
         elementSpacingY = spacingY,
         lineSpacing = spacingY,
