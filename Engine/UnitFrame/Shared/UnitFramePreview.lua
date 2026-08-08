@@ -10,7 +10,7 @@ local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ALTERNATE_POWER_INDEX = Enum and Enum.PowerType and Enum.PowerType.Alternate or 10
 local MANA_POWER_INDEX = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 
--- Preview helpers encapsulate alternate power lookup for both live and editor states.
+-- Compatibility facade for older callers; UnitFrameDemoEnvironment owns mode decisions.
 
 local STRUCTURAL_COMPONENTS = {
     background = true,
@@ -45,6 +45,17 @@ local function IsTextEditMode()
         and interactionMode.IsTextMode
         and interactionMode.IsTextMode()
         or false
+end
+
+local function ResolveDemoModeForUnit(unit, caller)
+    if type(unit) ~= "string" or unit == "" then
+        return "live"
+    end
+    if Demo.ResolveMode then
+        local mode = Demo.ResolveMode({ unit = unit }, caller or "preview")
+        return mode or "live"
+    end
+    return "live"
 end
 
 function Preview.IsTextEditMode()
@@ -95,11 +106,7 @@ function Preview.ShouldForceSecondaryPowerPreview(unit)
         return false
     end
 
-    if FocalPoint.guiTestModeEnabled then
-        return true
-    end
-
-    return FocalPoint.framesUnlocked and Demo.IsDetailed and Demo.IsDetailed({ unit = "player" })
+    return ResolveDemoModeForUnit(unit, "secondaryPower") == "detailed"
 end
 
 function Preview.IsDetailedPreviewEnabled(frame)
