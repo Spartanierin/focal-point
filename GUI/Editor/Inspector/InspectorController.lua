@@ -444,6 +444,10 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChangedAndRebuildSection(section, policy and policy.sectionKey)
             return
         end
+        if scope == "unitEnabled" then
+            NotifyUnitEnabledChanged()
+            return
+        end
         if scope == "sidebar" then
             NotifySidebarChanged(policy and policy.sectionKey)
             return
@@ -685,13 +689,7 @@ function InspectorController.Build(container, state, options)
         end
 
         AddCheckBox(frameSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
-            local wasEnabled = unitConfig.enabled ~= false
-            local isEnabled = value and true or false
-            if wasEnabled == isEnabled then
-                return
-            end
-            unitConfig.enabled = isEnabled
-            NotifyUnitEnabledChanged()
+            SetUnitField("enabled", value and true or false)
         end)
 
         AddSlider(frameSection, L["EDITOR_OPTION_WIDTH"] or "Width", 120, 420, 1, tonumber(unitConfig.width) or 260, function(value)

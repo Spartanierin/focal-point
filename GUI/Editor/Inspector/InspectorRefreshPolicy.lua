@@ -10,6 +10,7 @@ FocalPoint.GUI.Editor.Inspector.RefreshPolicy = InspectorRefreshPolicy
 
 local FIELD_POLICIES = {
     unit = {
+        enabled = { scope = "unitEnabled" },
         useClassColorHealth = { scope = "section", sectionKey = "health" },
         useReactionColorNpcHealth = { scope = "section", sectionKey = "health" },
         healthBackground = { scope = "section", sectionKey = "health" },
