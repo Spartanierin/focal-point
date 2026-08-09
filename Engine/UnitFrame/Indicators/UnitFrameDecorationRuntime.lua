@@ -5,6 +5,8 @@ local Runtime = FocalPoint.UnitFrameDecorationRuntime
 
 local Decoration = FocalPoint.UnitFrameDecoration or {}
 local VisualIndicator = FocalPoint.UnitFrameVisualIndicator or {}
+local MEDIA_TYPE_DECORATION = "decoration"
+local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 
 -- First decoration runtime slice. Persistent product data lives on the unit
 -- config; frame-local test data remains available for isolated diagnostics.
@@ -79,6 +81,18 @@ local function HideStaleEntries(frame, activeIds)
     end
 end
 
+local function ResolveDecorationTexture(reference)
+    local MediaRegistry = FocalPoint.MediaRegistry
+    if MediaRegistry and type(MediaRegistry.ResolveReference) == "function" then
+        local result = MediaRegistry.ResolveReference(reference, MEDIA_TYPE_DECORATION, DEFAULT_DECORATION_REFERENCE)
+        if result and type(result.resolvedAsset) == "string" and result.resolvedAsset ~= "" then
+            return result.resolvedAsset
+        end
+    end
+
+    return type(reference) == "string" and reference ~= "" and reference or nil
+end
+
 function Runtime.GetTestDecorations(frame)
     if not frame or type(frame.FocalPointDecorationTestConfig) ~= "table" then
         return {}
@@ -129,8 +143,9 @@ function Runtime.Apply(frame, decorations, context)
         local texture = holder and holder.Texture or nil
         local target = Decoration.ResolveTarget and Decoration.ResolveTarget(frame, decoration) or nil
         local conditionOk = Decoration.ResolveCondition and Decoration.ResolveCondition(frame, decoration, context) or false
+        local texturePath = ResolveDecorationTexture(decoration.texture)
 
-        if not holder or not visual or not texture or not decoration.enabled or not decoration.texture or not target or not conditionOk then
+        if not holder or not visual or not texture or not decoration.enabled or not texturePath or not target or not conditionOk then
             if holder then
                 VisualIndicator.Hide(holder)
             end
@@ -155,7 +170,7 @@ function Runtime.Apply(frame, decorations, context)
                 holder:SetAlpha(decoration.alpha)
             end
 
-            texture:SetTexture(decoration.texture)
+            texture:SetTexture(texturePath)
             texture:SetTexCoord(0, 1, 0, 1)
             VisualIndicator.Show(holder)
         end

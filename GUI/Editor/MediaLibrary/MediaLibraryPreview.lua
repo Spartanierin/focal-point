@@ -11,8 +11,10 @@ ns.GUI.Editor.MediaLibrary.MediaLibraryPreview = MediaLibraryPreview
 
 local STATUSBAR = "statusbar"
 local FONT = "font"
+local DECORATION = "decoration"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_FONT_REFERENCE = "fp:font:standard"
+local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value:gsub("^%s+", ""):gsub("%s+$", "") ~= ""
@@ -56,6 +58,26 @@ local function ResolveFontAsset(item)
     end
 
     return STANDARD_TEXT_FONT, true
+end
+
+local function ResolveDecorationAsset(item)
+    local Registry = ns.MediaRegistry
+    local fallbackUsed = false
+    local resolvedAsset = item and item.resolvedAsset or nil
+
+    if IsNonEmptyString(resolvedAsset) and not (item and item.missing == true) then
+        return resolvedAsset, fallbackUsed
+    end
+
+    if Registry and Registry.ResolveReference then
+        local result = Registry.ResolveReference(item and item.value or nil, DECORATION, DEFAULT_DECORATION_REFERENCE)
+        if result and IsNonEmptyString(result.resolvedAsset) then
+            fallbackUsed = result.fallbackUsed == true or item == nil or item.missing == true
+            return result.resolvedAsset, fallbackUsed
+        end
+    end
+
+    return "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png", true
 end
 
 local function FormatBool(value)
@@ -133,6 +155,15 @@ function MediaLibraryPreview.SetItem(preview, item)
                 fallbackUsed = fallbackUsed,
             })
             MediaLibraryPreview.lastPreviewDiagnostics = preview.lastFontPreviewDiagnostics
+        end
+        return
+    end
+
+    if item.mediaType == DECORATION then
+        MediaLibraryPreview.lastPreviewDiagnostics = nil
+        local asset, fallbackUsed = ResolveDecorationAsset(item)
+        if preview.SetArtworkPreview then
+            preview:SetArtworkPreview(item, asset, fallbackUsed)
         end
         return
     end

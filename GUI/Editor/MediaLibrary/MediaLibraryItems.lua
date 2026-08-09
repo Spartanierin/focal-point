@@ -9,8 +9,10 @@ ns.GUI.Editor.MediaLibrary.MediaLibraryItems = MediaLibraryItems
 
 local STATUSBAR = "statusbar"
 local FONT = "font"
+local DECORATION = "decoration"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_FONT_REFERENCE = "fp:font:standard"
+local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 local L = ns.L or {}
 
 local SOURCE_ORDER = {
@@ -53,6 +55,9 @@ local function GetDefaultReference(mediaType, explicitDefault)
 
     if mediaType == FONT then
         return DEFAULT_FONT_REFERENCE
+    end
+    if mediaType == DECORATION then
+        return DEFAULT_DECORATION_REFERENCE
     end
 
     return DEFAULT_STATUSBAR_REFERENCE

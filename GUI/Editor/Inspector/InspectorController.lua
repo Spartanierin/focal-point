@@ -40,8 +40,10 @@ local INSPECTOR_SECTION_SPACING = 10
 local activeTextFontSizeControl
 local MEDIA_TYPE_FONT = "font"
 local MEDIA_TYPE_STATUSBAR = "statusbar"
+local MEDIA_TYPE_DECORATION = "decoration"
 local DEFAULT_FONT_REFERENCE = "fp:font:standard"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
+local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 
 local function NormalizeInspectorUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
@@ -125,18 +127,6 @@ function InspectorController.Build(container, state, options)
     local auraGrowthYList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthY)
     local auraSortModeList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.sortMode)
     local decorationId = "primary"
-    local decorationTextureList = {
-        values = {
-            [""] = L["OPTION_NONE"] or "None",
-            ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"] = L["DECORATION_TEXTURE_SOFT_SHADOW"] or "Soft Shadow",
-            ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\checkerbox.tga"] = L["DECORATION_TEXTURE_CHECKERBOX"] or "Checkerbox",
-        },
-        order = {
-            "",
-            "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png",
-            "Interface\\AddOns\\FocalPoint\\Media\\Textures\\checkerbox.tga",
-        },
-    }
     local decorationTargetList = {
         FRAME = L["EDITOR_SECTION_FRAME"] or "Frame",
         PORTRAIT = L["EDITOR_SECTION_PORTRAIT"] or "Portrait",
@@ -150,23 +140,14 @@ function InspectorController.Build(container, state, options)
     }
 
     local function BuildDecorationTextureOptions(currentValue)
-        local values = {}
-        local order = {}
-        for key, label in pairs(decorationTextureList.values) do
-            values[key] = label
-        end
-        for _, key in ipairs(decorationTextureList.order) do
-            order[#order + 1] = key
-        end
-        if type(currentValue) == "string" and currentValue ~= "" and not values[currentValue] then
-            values[currentValue] = string.format("%s: %s", L["MEDIA_LIBRARY_CUSTOM"] or "Custom", currentValue)
-            order[#order + 1] = currentValue
+        if MediaOptionAdapter and MediaOptionAdapter.BuildDecorationDropdown then
+            return MediaOptionAdapter.BuildDecorationDropdown(currentValue)
         end
 
         return {
-            values = values,
-            order = order,
-            value = type(currentValue) == "string" and currentValue or "",
+            values = {},
+            order = {},
+            value = currentValue,
         }
     end
 
@@ -1488,14 +1469,24 @@ function InspectorController.Build(container, state, options)
 
         local disabled = decorationConfig.enabled == false
         local textureOptions = BuildDecorationTextureOptions(decorationConfig.texture)
+        local decorationTextureDropdown
 
         AddCheckBox(decorationSection, L["OPTION_DECORATION_ENABLED"] or "Enable Decoration", decorationConfig.enabled == true, function(value)
             SetDecorationField("enabled", value and true or false, decorationSection)
         end, nil, "decoration_enabled")
 
-        AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, function(value)
-            SetDecorationField("texture", value or "")
-        end, disabled, "decoration_texture")
+        local function SetDecorationTexture(value)
+            local result = SetDecorationField("texture", value or "")
+            if not (result and result.ok == false) then
+                SyncDropdownToStoredValue(decorationTextureDropdown, result and result.newValue or value or "")
+            end
+            return result
+        end
+
+        decorationTextureDropdown = AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, SetDecorationTexture, disabled, "decoration_texture")
+        AddMediaBrowserForField(decorationSection, MEDIA_TYPE_DECORATION, function()
+            return decorationConfig.texture
+        end, DEFAULT_DECORATION_REFERENCE, L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or "Choose Decoration Texture", disabled, SetDecorationTexture)
 
         AddDropdown(decorationSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", decorationTargetList, decorationConfig.target or "FRAME", function(value)
             SetDecorationField("target", value)

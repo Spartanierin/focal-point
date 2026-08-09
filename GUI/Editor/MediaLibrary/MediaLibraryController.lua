@@ -15,6 +15,7 @@ end
 
 local STATUSBAR = "statusbar"
 local FONT = "font"
+local DECORATION = "decoration"
 local L = ns.L or {}
 
 local context
@@ -33,7 +34,7 @@ end
 
 local function NormalizeMediaType(mediaType)
     mediaType = Trim(mediaType):lower()
-    if mediaType == FONT or mediaType == STATUSBAR then
+    if mediaType == FONT or mediaType == STATUSBAR or mediaType == DECORATION then
         return mediaType
     end
     return nil
@@ -45,6 +46,9 @@ local function GetMediaTypeLabel(mediaType)
     end
     if mediaType == STATUSBAR then
         return T("MEDIA_LIBRARY_TYPE_STATUSBAR", "Status Bars")
+    end
+    if mediaType == DECORATION then
+        return T("MEDIA_LIBRARY_TYPE_DECORATION", "Decorations")
     end
     return tostring(mediaType or "")
 end

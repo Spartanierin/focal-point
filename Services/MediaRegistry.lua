@@ -5,6 +5,7 @@ local MediaRegistry = FocalPoint.MediaRegistry
 
 local MEDIA_TYPE_STATUSBAR = "statusbar"
 local MEDIA_TYPE_FONT = "font"
+local MEDIA_TYPE_DECORATION = "decoration"
 local PROVIDER_FOCAL_POINT = "FocalPoint"
 local PROVIDER_BLIZZARD = "Blizzard"
 local PROVIDER_LIB_SHARED_MEDIA = "LibSharedMedia"
@@ -14,6 +15,8 @@ local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_STATUSBAR_PATH = "Interface\\TargetingFrame\\UI-StatusBar"
 local DEFAULT_FONT_REFERENCE = "fp:font:standard"
 local DEFAULT_FONT_PATH = STANDARD_TEXT_FONT
+local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
+local DEFAULT_DECORATION_PATH = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"
 
 local SOURCE_ORDER = {
     ["Focal Point"] = 1,
@@ -31,10 +34,12 @@ local lsmCallbackRegistered = false
 local defaultReferences = {
     [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_REFERENCE,
     [MEDIA_TYPE_FONT] = DEFAULT_FONT_REFERENCE,
+    [MEDIA_TYPE_DECORATION] = DEFAULT_DECORATION_REFERENCE,
 }
 local fallbackAssets = {
     [MEDIA_TYPE_STATUSBAR] = DEFAULT_STATUSBAR_PATH,
     [MEDIA_TYPE_FONT] = DEFAULT_FONT_PATH,
+    [MEDIA_TYPE_DECORATION] = DEFAULT_DECORATION_PATH,
 }
 local debugState = {
     enabled = false,
@@ -1144,6 +1149,21 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "simple-gray", "Focal Point 
 
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "shadow1", "Shadow 1", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png", {
     sortName = "shadow 1",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_DECORATION, "shadow1", "Soft Shadow", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png", {
+    sortName = "soft shadow",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_DECORATION, "checkerbox", "Checkerbox", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\checkerbox.tga", {
+    sortName = "checkerbox",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_DECORATION, "addon-icon", "Focal Point Icon", "Interface\\AddOns\\FocalPoint\\Media\\icon.tga", {
+    sortName = "focal point icon",
     verified = true,
 })
 

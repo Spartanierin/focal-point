@@ -9,8 +9,10 @@ ns.GUI.Editor.Inspector.MediaOptionAdapter = MediaOptionAdapter
 
 local STATUSBAR = "statusbar"
 local FONT = "font"
+local DECORATION = "decoration"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_FONT_REFERENCE = "fp:font:standard"
+local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 
 local function BuildDropdownFromItems(mediaType, currentValue, defaultReference)
     local MediaLibraryItems = ns.GUI
@@ -63,6 +65,10 @@ end
 
 function MediaOptionAdapter.BuildFontDropdown(currentValue)
     return BuildDropdownFromItems(FONT, currentValue, DEFAULT_FONT_REFERENCE)
+end
+
+function MediaOptionAdapter.BuildDecorationDropdown(currentValue)
+    return BuildDropdownFromItems(DECORATION, currentValue, DEFAULT_DECORATION_REFERENCE)
 end
 
 return MediaOptionAdapter

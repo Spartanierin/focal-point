@@ -14,6 +14,7 @@ ns.GUI.Editor.MediaLibrary.MediaLibraryView = MediaLibraryView
 
 local STATUSBAR = "statusbar"
 local FONT = "font"
+local DECORATION = "decoration"
 local ROW_WIDGET_TYPE = "FocalPointMediaLibraryRow"
 local ROW_WIDGET_VERSION = 1
 local ROW_HEIGHT_COMPACT = 28
@@ -738,8 +739,8 @@ end
 local function RefreshMetadata(context)
     local widgets = context and context.widgets or {}
     local item = context and context.state and context.state.selectedItem or nil
-    local isStatusBar = context and context.state and context.state.mediaType == STATUSBAR
-    local hasPreview = isStatusBar or (context and context.state and context.state.mediaType == FONT)
+    local mediaType = context and context.state and context.state.mediaType
+    local hasPreview = mediaType == STATUSBAR or mediaType == FONT or mediaType == DECORATION
 
     SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"), item and Shorten(item.label, 86) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
     SetMetaLabel(widgets.nameLabel, T("MEDIA_LIBRARY_NAME", "Name"), item and Shorten(item.name, 44) or "n/a")

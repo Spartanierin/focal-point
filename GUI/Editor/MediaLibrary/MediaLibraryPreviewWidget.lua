@@ -279,6 +279,12 @@ local function HideFontPreview(self)
     self.fontContainer:Hide()
 end
 
+local function HideArtworkPreview(self)
+    self.artworkTexture:SetTexture(nil)
+    self.artworkTexture:Hide()
+    self.artworkContainer:Hide()
+end
+
 function methods:OnAcquire()
     self.previewGeneration = (self.previewGeneration or 0) + 1
     self:SetFullWidth(true)
@@ -297,6 +303,9 @@ function methods:OnRelease()
     end
     if self.fontText then
         TryApplyFont(self.fontText, STANDARD_TEXT_FONT, PREVIEW_FONT_SIZE, nil)
+    end
+    if self.artworkTexture then
+        pcall(self.artworkTexture.SetTexture, self.artworkTexture, nil)
     end
     self:ClearPreview()
 end
@@ -317,6 +326,7 @@ function methods:ClearPreview(message)
     self.statusBar:SetAlpha(1)
     HideStatusBarPreview(self)
     HideFontPreview(self)
+    HideArtworkPreview(self)
 end
 
 function methods:SetNoPreview(message)
@@ -350,6 +360,7 @@ function methods:SetStatusBarPreview(item, asset, fallbackUsed)
     self.statusBarContainer:SetBackdropBorderColor(0.34, 0.36, 0.40, 0.86)
     self.statusBarContainer:Show()
     HideFontPreview(self)
+    HideArtworkPreview(self)
 
     if self.fallbackUsed then
         self.statusText:SetText(T("MEDIA_LIBRARY_FALLBACK_PREVIEW", "Fallback preview"))
@@ -434,6 +445,7 @@ function methods:SetFontPreview(item, fontPath, options)
     self.title:SetText(T("MEDIA_LIBRARY_PREVIEW", "Preview"))
 
     HideStatusBarPreview(self)
+    HideArtworkPreview(self)
 
     local sampleText = options.sampleText or T("MEDIA_LIBRARY_FONT_SAMPLE_TEXT", "Focal Point Font Preview\nAa Bb Cc 0123456789")
     local fontSize = tonumber(options.fontSize) or PREVIEW_FONT_SIZE
@@ -486,6 +498,40 @@ function methods:SetFontPreview(item, fontPath, options)
     end
 
     ScheduleFontPreviewFinalization(self, generation, detail, sampleText, fontPath, fontSize, fontFlags, retryNeeded)
+end
+
+function methods:SetArtworkPreview(item, asset, fallbackUsed)
+    self.previewGeneration = (self.previewGeneration or 0) + 1
+    self.item = item
+    self.asset = asset
+    self.fallbackUsed = fallbackUsed == true
+    self.lastFontPreviewDiagnostics = nil
+    self.title:SetText(T("MEDIA_LIBRARY_PREVIEW", "Preview"))
+
+    HideStatusBarPreview(self)
+    HideFontPreview(self)
+
+    local applied = false
+    if IsNonEmptyString(asset) then
+        applied = pcall(self.artworkTexture.SetTexture, self.artworkTexture, asset) == true
+    end
+
+    if not applied then
+        self.artworkTexture:SetTexture("Interface\\Buttons\\WHITE8X8")
+        self.fallbackUsed = true
+    end
+
+    self.artworkTexture:SetTexCoord(0, 1, 0, 1)
+    self.artworkTexture:SetVertexColor(1, 1, 1, 1)
+    self.artworkTexture:Show()
+    self.artworkContainer:SetBackdropBorderColor(0.34, 0.36, 0.40, 0.86)
+    self.artworkContainer:Show()
+
+    if self.fallbackUsed then
+        self.statusText:SetText(T("MEDIA_LIBRARY_FALLBACK_PREVIEW", "Fallback preview"))
+    else
+        self.statusText:SetText(T("MEDIA_LIBRARY_PREVIEW_STATUS_READY", "Preview ready"))
+    end
 end
 
 local function Constructor()
@@ -543,6 +589,24 @@ local function Constructor()
     fontText:SetTextColor(0.88, 0.91, 0.96, 1)
     TryApplyFont(fontText, STANDARD_TEXT_FONT, PREVIEW_FONT_SIZE, nil)
 
+    local artworkContainer = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    artworkContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -22)
+    artworkContainer:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -22)
+    artworkContainer:SetHeight(64)
+    artworkContainer:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    artworkContainer:SetBackdropColor(0.035, 0.040, 0.050, 0.96)
+    artworkContainer:SetBackdropBorderColor(0.24, 0.26, 0.30, 0.70)
+
+    local artworkTexture = artworkContainer:CreateTexture(nil, "ARTWORK")
+    artworkTexture:SetPoint("TOP", artworkContainer, "TOP", 0, -8)
+    artworkTexture:SetPoint("BOTTOM", artworkContainer, "BOTTOM", 0, 8)
+    artworkTexture:SetWidth(64)
+    artworkTexture:SetTexCoord(0, 1, 0, 1)
+
     local statusText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     statusText:SetPoint("TOPLEFT", statusBarContainer, "BOTTOMLEFT", 0, -6)
     statusText:SetPoint("TOPRIGHT", statusBarContainer, "BOTTOMRIGHT", 0, -6)
@@ -557,6 +621,8 @@ local function Constructor()
         statusBar = statusBar,
         fontContainer = fontContainer,
         fontText = fontText,
+        artworkContainer = artworkContainer,
+        artworkTexture = artworkTexture,
         statusText = statusText,
     }
     for method, func in pairs(methods) do
