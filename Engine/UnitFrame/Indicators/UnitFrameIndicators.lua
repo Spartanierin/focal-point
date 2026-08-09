@@ -4,6 +4,7 @@ FocalPoint.UnitFrameIndicators = FocalPoint.UnitFrameIndicators or {}
 local Indicators = FocalPoint.UnitFrameIndicators
 local State = FocalPoint.UnitFrameState or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local VisualIndicator = FocalPoint.UnitFrameVisualIndicator or {}
 
 -- Shared helper logic for non-portrait overlay indicators such as leader,
 -- role, combat, resting, and ready check.
@@ -85,11 +86,13 @@ function Indicators.HandleVisibilityTransition(owner, frame, holder, isVisible, 
     end
 
     if not isVisible then
-        if holder and holder.Texture then
-            holder.Texture:SetTexture(nil)
-            holder.Texture:Hide()
-        end
-        if holder then
+        if VisualIndicator.Hide then
+            VisualIndicator.Hide(holder)
+        elseif holder then
+            if holder.Texture then
+                holder.Texture:SetTexture(nil)
+                holder.Texture:Hide()
+            end
             holder:Hide()
         end
         if wasShown then
@@ -98,7 +101,9 @@ function Indicators.HandleVisibilityTransition(owner, frame, holder, isVisible, 
         return false
     end
 
-    if holder then
+    if VisualIndicator.Show then
+        VisualIndicator.Show(holder)
+    elseif holder then
         holder:Show()
         if holder.Texture then
             holder.Texture:Show()
@@ -113,18 +118,9 @@ function Indicators.HandleVisibilityTransition(owner, frame, holder, isVisible, 
 end
 
 function Indicators.CreateHolder(frame, elementKey)
-    local holder = CreateFrame("Frame", nil, frame)
-    holder:SetAllPoints(frame)
-    holder:SetFrameStrata(frame:GetFrameStrata())
-    holder:SetFrameLevel(frame:GetFrameLevel() + 20)
-    holder:Hide()
-
-    local texture = holder:CreateTexture(nil, "OVERLAY", nil, 7)
-    texture:Hide()
-
-    holder.Texture = texture
-    frame.Elements[elementKey] = holder
-    frame[elementKey] = holder
+    if VisualIndicator.CreateHolder then
+        return VisualIndicator.CreateHolder(frame, elementKey)
+    end
 end
 
 function Indicators.ApplyConfig(owner, frame, holder, options)
@@ -132,28 +128,27 @@ function Indicators.ApplyConfig(owner, frame, holder, options)
         return
     end
 
-    local icon = holder.Texture or holder
-
-    holder:ClearAllPoints()
-    holder:SetScale(1)
-    holder:SetFrameStrata(frame:GetFrameStrata())
-    holder:SetFrameLevel(math.max(frame:GetFrameLevel() + 20, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 10) or (frame:GetFrameLevel() + 20)))
-    icon:ClearAllPoints()
-    icon:SetScale(1)
+    local icon = VisualIndicator.ResetHolderVisual and VisualIndicator.ResetHolderVisual(holder, frame) or holder.Texture or holder
 
     if options.enabled then
         if options.customLayout then
-            if icon.SetTexture then
+            if VisualIndicator.HideTexture then
+                VisualIndicator.HideTexture(holder)
+            elseif icon.SetTexture then
                 icon:SetTexture(nil)
+                icon:Hide()
             end
-            icon:Hide()
             options.updateFunc(frame)
             return
         end
 
         local effectiveSize = options.size * options.scale
-        holder:SetSize(effectiveSize, effectiveSize)
-        icon:SetAllPoints(holder)
+        if VisualIndicator.ApplySquareBounds then
+            VisualIndicator.ApplySquareBounds(holder, icon, effectiveSize)
+        else
+            holder:SetSize(effectiveSize, effectiveSize)
+            icon:SetAllPoints(holder)
+        end
 
         if options.placement == "INSIDE" then
             local anchorParent, leftReserve, rightReserve = GetInsideAnchor(frame, options)
@@ -175,9 +170,13 @@ function Indicators.ApplyConfig(owner, frame, holder, options)
 
         options.updateFunc(frame)
     else
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        if VisualIndicator.Hide then
+            VisualIndicator.Hide(holder)
+        else
+            icon:SetTexture(nil)
+            icon:Hide()
+            holder:Hide()
+        end
     end
 end
 
