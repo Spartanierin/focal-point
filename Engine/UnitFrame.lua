@@ -25,6 +25,7 @@ local Portrait = FocalPoint.UnitFramePortrait or {}
 
 -- Indicator modules
 local Indicators = FocalPoint.UnitFrameIndicators or {}
+local DecorationRuntime = FocalPoint.UnitFrameDecorationRuntime or {}
 local RaidTarget = FocalPoint.UnitFrameRaidTarget or {}
 local Leader = FocalPoint.UnitFrameLeader or {}
 local Role = FocalPoint.UnitFrameRole or {}
@@ -77,6 +78,7 @@ local CreateCastBar = Factory.CreateCastBar
 local CreateOverlayIndicatorHolder = Indicators.CreateHolder
 local ApplyOverlayIndicatorConfig = Indicators.ApplyConfig
 local ApplyOverlayIndicatorBatch = Indicators.ApplyBatch
+local ApplyDecorationIndicators = DecorationRuntime.Apply
 local CreatePortrait = Portrait.Create
 local ApplyPortraitLayout = Portrait.ApplyLayout
 local UpdatePortraitTexture = Portrait.UpdateTexture
@@ -1560,6 +1562,12 @@ function UF:ApplyConfig(frame)
         effect = classificationEffect,
         classification = liveClassification,
     })
+
+    if ApplyDecorationIndicators then
+        ApplyDecorationIndicators(frame, nil, {
+            classification = liveClassification,
+        })
+    end
 
     -- Texts
     local newTexts = config.Texts or {}

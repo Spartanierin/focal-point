@@ -39,6 +39,7 @@
     <Script file="Engine/UnitFrame/Runtime/UnitFrameInsideLayout.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameVisualIndicator.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameDecoration.lua"/>
+    <Script file="Engine/UnitFrame/Indicators/UnitFrameDecorationRuntime.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameIndicators.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFrameStatusOverlay.lua"/>
     <Script file="Engine/UnitFrame/Indicators/UnitFramePortrait.lua"/>

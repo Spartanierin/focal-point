@@ -15,6 +15,16 @@ local function ResolveFrameLevel(frame, options)
     return math.max(fallback, healthLevel)
 end
 
+local function NormalizeTextureSubLevel(value)
+    local subLevel = tonumber(value) or 7
+    if subLevel < -8 then
+        return -8
+    elseif subLevel > 7 then
+        return 7
+    end
+    return subLevel
+end
+
 function VisualIndicator.ApplyFrameLayer(holder, frame, options)
     if not holder or not frame then
         return
@@ -35,9 +45,12 @@ function VisualIndicator.CreateHolder(frame, elementKey, options)
     holder:SetAllPoints(frame)
     holder:SetFrameStrata(frame:GetFrameStrata())
     holder:SetFrameLevel(frame:GetFrameLevel() + (tonumber(options.frameLevelOffset) or 20))
+    if holder.EnableMouse then
+        holder:EnableMouse(false)
+    end
     holder:Hide()
 
-    local texture = holder:CreateTexture(nil, options.textureLayer or "OVERLAY", nil, options.textureSubLevel or 7)
+    local texture = holder:CreateTexture(nil, options.textureLayer or "OVERLAY", nil, NormalizeTextureSubLevel(options.textureSubLevel))
     texture:Hide()
 
     holder.Texture = texture
@@ -77,6 +90,31 @@ function VisualIndicator.ApplySquareBounds(holder, visual, size)
     visual:SetAllPoints(holder)
 end
 
+function VisualIndicator.ApplyRectBounds(holder, visual, width, height)
+    if not holder or not visual then
+        return
+    end
+
+    holder:SetSize(width, height)
+    visual:SetAllPoints(holder)
+end
+
+function VisualIndicator.ApplyAnchor(holder, target, point, relativePoint, offsetX, offsetY)
+    if not holder or not target then
+        return
+    end
+
+    holder:SetPoint(point or "CENTER", target, relativePoint or "CENTER", offsetX or 0, offsetY or 0)
+end
+
+function VisualIndicator.ApplyAlpha(holder, alpha)
+    if not holder or not holder.SetAlpha then
+        return
+    end
+
+    holder:SetAlpha(alpha == nil and 1 or alpha)
+end
+
 function VisualIndicator.HideTexture(holder)
     local texture = holder and holder.Texture
     if not texture then
@@ -106,4 +144,3 @@ function VisualIndicator.Show(holder)
         holder.Texture:Show()
     end
 end
-

@@ -35,6 +35,9 @@ local FIELD_POLICIES = {
         placement = { scope = "section", sectionKey = "auras" },
         hideLongAuras = { scope = "section", sectionKey = "auras" },
     },
+    decoration = {
+        enabled = { scope = "section", sectionKey = "decoration" },
+    },
 }
 
 local function CopyPolicy(policy)

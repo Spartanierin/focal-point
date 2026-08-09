@@ -124,6 +124,51 @@ function InspectorController.Build(container, state, options)
     local auraGrowthXList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthX)
     local auraGrowthYList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthY)
     local auraSortModeList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.sortMode)
+    local decorationId = "primary"
+    local decorationTextureList = {
+        values = {
+            [""] = L["OPTION_NONE"] or "None",
+            ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"] = L["DECORATION_TEXTURE_SOFT_SHADOW"] or "Soft Shadow",
+            ["Interface\\AddOns\\FocalPoint\\Media\\Textures\\checkerbox.tga"] = L["DECORATION_TEXTURE_CHECKERBOX"] or "Checkerbox",
+        },
+        order = {
+            "",
+            "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png",
+            "Interface\\AddOns\\FocalPoint\\Media\\Textures\\checkerbox.tga",
+        },
+    }
+    local decorationTargetList = {
+        FRAME = L["EDITOR_SECTION_FRAME"] or "Frame",
+        PORTRAIT = L["EDITOR_SECTION_PORTRAIT"] or "Portrait",
+    }
+    local decorationConditionList = {
+        ALWAYS = L["OPTION_ALWAYS"] or "Always",
+        ELITE = L["CLASSIFICATION_ELITE"] or "Elite",
+        RARE = L["CLASSIFICATION_RARE"] or "Rare",
+        RAREELITE = L["CLASSIFICATION_RAREELITE"] or "Rare-Elite",
+        BOSS = L["CLASSIFICATION_BOSS"] or "Boss",
+    }
+
+    local function BuildDecorationTextureOptions(currentValue)
+        local values = {}
+        local order = {}
+        for key, label in pairs(decorationTextureList.values) do
+            values[key] = label
+        end
+        for _, key in ipairs(decorationTextureList.order) do
+            order[#order + 1] = key
+        end
+        if type(currentValue) == "string" and currentValue ~= "" and not values[currentValue] then
+            values[currentValue] = string.format("%s: %s", L["MEDIA_LIBRARY_CUSTOM"] or "Custom", currentValue)
+            order[#order + 1] = currentValue
+        end
+
+        return {
+            values = values,
+            order = order,
+            value = type(currentValue) == "string" and currentValue or "",
+        }
+    end
 
     local function BuildStatusBarTextureOptions(currentValue)
         if MediaOptionAdapter and MediaOptionAdapter.BuildStatusBarDropdown then
@@ -600,6 +645,13 @@ function InspectorController.Build(container, state, options)
             return nil
         end
         return ApplyMutation("aura", fieldName, InspectorMutations.SetAuraField(inspectorContext, auraKey, fieldName, value), section, fallbackNotify)
+    end
+
+    local function SetDecorationField(fieldName, value, section, fallbackNotify)
+        if type(InspectorMutations.SetDecorationField) ~= "function" then
+            return nil
+        end
+        return ApplyMutation("decoration", fieldName, InspectorMutations.SetDecorationField(inspectorContext, decorationId, fieldName, value), section, fallbackNotify)
     end
 
     local function RefreshInspectorLayout()
@@ -1421,6 +1473,72 @@ function InspectorController.Build(container, state, options)
             })
         end
     end
+
+    local function BuildDecorationSectionContent(decorationSection)
+        if not decorationSection then
+            return
+        end
+
+        local decorationConfig = type(InspectorMutations.GetDecorationConfig) == "function"
+            and InspectorMutations.GetDecorationConfig(inspectorContext, decorationId)
+            or nil
+        if type(decorationConfig) ~= "table" then
+            return
+        end
+
+        local disabled = decorationConfig.enabled == false
+        local textureOptions = BuildDecorationTextureOptions(decorationConfig.texture)
+
+        AddCheckBox(decorationSection, L["OPTION_DECORATION_ENABLED"] or "Enable Decoration", decorationConfig.enabled == true, function(value)
+            SetDecorationField("enabled", value and true or false, decorationSection)
+        end, nil, "decoration_enabled")
+
+        AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, function(value)
+            SetDecorationField("texture", value or "")
+        end, disabled, "decoration_texture")
+
+        AddDropdown(decorationSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", decorationTargetList, decorationConfig.target or "FRAME", function(value)
+            SetDecorationField("target", value)
+        end, disabled, "decoration_target")
+
+        AddSlider(decorationSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+            SetDecorationField("width", math.floor((value or 0) + 0.5))
+        end, disabled, "decoration_width")
+
+        AddSlider(decorationSection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+            SetDecorationField("height", math.floor((value or 0) + 0.5))
+        end, disabled, "decoration_height")
+
+        AddDropdown(decorationSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, decorationConfig.point or "CENTER", function(value)
+            SetDecorationField("point", value)
+        end, disabled, "decoration_point")
+
+        AddDropdown(decorationSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, decorationConfig.relativePoint or "CENTER", function(value)
+            SetDecorationField("relativePoint", value)
+        end, disabled, "decoration_relative_point")
+
+        AddSlider(decorationSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
+            SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
+        end, disabled, "decoration_offset_x")
+
+        AddSlider(decorationSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
+            SetDecorationField("offsetY", math.floor((value or 0) + 0.5))
+        end, disabled, "decoration_offset_y")
+
+        AddSlider(decorationSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
+            SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
+        end, disabled, "decoration_alpha")
+
+        AddDropdown(decorationSection, L["OPTION_CONDITION"] or "Condition", decorationConditionList, decorationConfig.condition or "ALWAYS", function(value)
+            SetDecorationField("condition", value)
+        end, disabled, "decoration_condition")
+    end
+
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("decoration", L["EDITOR_SECTION_DECORATION"] or "Decoration", true, {
+        localContentBuilder = BuildDecorationSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
     local function BuildAuraSectionContent(auraSection)
         local selectedAuraKey, auraConfig, _, currentAuraList = ResolveAuraContext()

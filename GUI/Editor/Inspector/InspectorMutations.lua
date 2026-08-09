@@ -77,6 +77,21 @@ local TEXT_ANCHOR_POINTS = {
     BOTTOMRIGHT = true,
 }
 
+local DECORATION_DEFAULTS = {
+    id = "primary",
+    enabled = false,
+    texture = "",
+    target = "FRAME",
+    point = "CENTER",
+    relativePoint = "CENTER",
+    offsetX = 0,
+    offsetY = 0,
+    width = 64,
+    height = 64,
+    alpha = 1,
+    condition = "ALWAYS",
+}
+
 local function IsValidTextAnchorPoint(point)
     return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
 end
@@ -87,6 +102,15 @@ local function CopyValue(value)
     end
 
     return value
+end
+
+local function CopyDecorationDefaults(decorationId)
+    local defaults = {}
+    for key, value in pairs(DECORATION_DEFAULTS) do
+        defaults[key] = CopyValue(value)
+    end
+    defaults.id = IsValidFieldName(decorationId) and decorationId or DECORATION_DEFAULTS.id
+    return defaults
 end
 
 local function NormalizeUnitKey(unitKey)
@@ -176,6 +200,44 @@ local function GetAuraConfig(context, auraKey)
     end
 
     return unitConfig[auraKey]
+end
+
+local function FindDecorationConfig(decorations, decorationId)
+    if type(decorations) ~= "table" or not IsValidFieldName(decorationId) then
+        return nil
+    end
+
+    for _, decoration in ipairs(decorations) do
+        if type(decoration) == "table" and decoration.id == decorationId then
+            return decoration
+        end
+    end
+
+    return nil
+end
+
+local function GetDecorationConfig(context, decorationId, create)
+    local unitConfig = GetUnitConfig(context)
+    if type(unitConfig) ~= "table" or not IsValidFieldName(decorationId) then
+        return nil
+    end
+
+    local decorations = unitConfig.decorations
+    if type(decorations) ~= "table" then
+        if not create then
+            return nil
+        end
+        decorations = {}
+        unitConfig.decorations = decorations
+    end
+
+    local decoration = FindDecorationConfig(decorations, decorationId)
+    if not decoration and create then
+        decoration = CopyDecorationDefaults(decorationId)
+        decorations[#decorations + 1] = decoration
+    end
+
+    return decoration
 end
 
 function InspectorMutations.SetUnitField(context, fieldName, value)
@@ -410,6 +472,17 @@ function InspectorMutations.SetAuraField(context, auraKey, fieldName, value)
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetAuraConfig(context, auraKey), fieldName, value, "aura_config_not_found")
+end
+
+function InspectorMutations.GetDecorationConfig(context, decorationId)
+    return GetDecorationConfig(context, decorationId, false) or CopyDecorationDefaults(decorationId)
+end
+
+function InspectorMutations.SetDecorationField(context, decorationId, fieldName, value)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetField(GetDecorationConfig(context, decorationId, true), fieldName, value, "decoration_config_not_found")
 end
 
 return InspectorMutations
