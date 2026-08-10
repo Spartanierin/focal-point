@@ -22,14 +22,4 @@ FocalPoint.DecorationManifest = {
         label = "Classic Rareelite Gold Frame",
         file = "fp_classic_RareElite_gold_frame.png",
     },
-    {
-        id = "dragon-gold",
-        label = "Dragon Gold",
-        file = "fp_dragon_gold.png",
-    },
-    {
-        id = "dragon-silver",
-        label = "Dragon Silver",
-        file = "fp_dragon_silver.png",
-    },
 }
