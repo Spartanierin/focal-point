@@ -596,6 +596,19 @@ local TEST_PREVIEW_NAME_OVERRIDES = {
     pettarget = "Companion's Target",
 }
 
+local PREVIEW_CLASSIFICATION_BY_UNIT = {
+    target = "rareelite",
+    targettarget = "elite",
+    focus = "rare",
+    focustarget = "elite",
+    boss = "worldboss",
+    boss1 = "worldboss",
+    boss2 = "worldboss",
+    boss3 = "worldboss",
+    boss4 = "worldboss",
+    boss5 = "worldboss",
+}
+
 local PLACEHOLDER_PREVIEW_VALUES = {
     player = { healthCurrent = 100, healthMax = 100, powerCurrent = 0, powerMax = 100, name = "Player" },
     target = { healthCurrent = 100, healthMax = 100, powerCurrent = 0, powerMax = 100, name = "Target" },
@@ -931,6 +944,34 @@ function Demo.GetUnitValues(frame, mode)
             or PLACEHOLDER_PREVIEW_VALUES.player
     end
     return nil
+end
+
+function Demo.GetPreviewClassificationKind(frame, mode)
+    if not frame or not frame.unit then
+        return nil
+    end
+
+    mode = mode or Demo.GetCommittedMode(frame)
+    if mode == "live" or mode == "disabled" or not Demo.IsFrameUnitEnabled(frame) then
+        return nil
+    end
+
+    return PREVIEW_CLASSIFICATION_BY_UNIT[frame.unit]
+end
+
+function Demo.ShouldBypassDecorationConditions(frame, mode)
+    if not frame or not frame.unit then
+        return false
+    end
+
+    mode = mode or Demo.ResolveMode(frame, "decoration")
+    if mode ~= "detailed" and mode ~= "placeholder" then
+        return false
+    end
+
+    -- Unlock is an editor layout mode: show every enabled decoration so users can
+    -- position and compare condition variants side by side.
+    return FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true
 end
 
 local function BuildPreviewAura(definition, frame, groupKey, index)
@@ -1355,6 +1396,27 @@ function Demo.ShouldApplyConfig(frame, refreshRequest, mode, modeReason)
     end
 
     local config = frame and frame.config or nil
+    local decorationSignatureParts = {}
+    local decorations = config and config.decorations or nil
+    if type(decorations) == "table" then
+        for index, decoration in ipairs(decorations) do
+            decorationSignatureParts[#decorationSignatureParts + 1] = table.concat({
+                tostring(index),
+                tostring(decoration.id or ""),
+                tostring(decoration.enabled ~= false),
+                tostring(decoration.texture or ""),
+                tostring(decoration.target or ""),
+                tostring(decoration.point or ""),
+                tostring(decoration.relativePoint or ""),
+                tostring(decoration.offsetX or ""),
+                tostring(decoration.offsetY or ""),
+                tostring(decoration.width or ""),
+                tostring(decoration.height or ""),
+                tostring(decoration.alpha or ""),
+                tostring(decoration.condition or ""),
+            }, ":")
+        end
+    end
     local signature = table.concat({
         tostring(mode),
         tostring(config and config.width or ""),
@@ -1367,6 +1429,7 @@ function Demo.ShouldApplyConfig(frame, refreshRequest, mode, modeReason)
         tostring(config and config.castBarOffsetX or ""),
         tostring(config and config.castBarOffsetY or ""),
         tostring(config and config.castBarHeight or ""),
+        table.concat(decorationSignatureParts, ";"),
     }, "|")
 
     if state.configApplied ~= true then

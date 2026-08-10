@@ -6,21 +6,9 @@ local Classification = FocalPoint.UnitFrameClassificationIndicator
 local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
+local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
-
-local PREVIEW_CLASSIFICATION_BY_UNIT = {
-    target = "rareelite",
-    targettarget = "elite",
-    focus = "rare",
-    focustarget = "elite",
-    boss = "worldboss",
-    boss1 = "worldboss",
-    boss2 = "worldboss",
-    boss3 = "worldboss",
-    boss4 = "worldboss",
-    boss5 = "worldboss",
-}
 
 local function CreateSolidTexture(parent, layer, subLevel)
     local texture = parent:CreateTexture(nil, layer or "OVERLAY", nil, subLevel or 0)
@@ -53,7 +41,7 @@ local function GetPreviewClassification(frame)
         return nil
     end
 
-    return PREVIEW_CLASSIFICATION_BY_UNIT[frame.unit or ""]
+    return Demo.GetPreviewClassificationKind and Demo.GetPreviewClassificationKind(frame) or nil
 end
 
 local function ResolveSafeClassificationKind(unit)

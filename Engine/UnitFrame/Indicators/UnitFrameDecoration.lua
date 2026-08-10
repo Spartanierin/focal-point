@@ -171,7 +171,7 @@ end
 
 local function ResolveDemoClassification(frame, context)
     local Demo = FocalPoint.UnitFrameDemoEnvironment
-    if type(Demo) ~= "table" or type(Demo.ResolveMode) ~= "function" or type(Demo.GetUnitValues) ~= "function" then
+    if type(Demo) ~= "table" or type(Demo.ResolveMode) ~= "function" then
         return nil
     end
 
@@ -180,9 +180,20 @@ local function ResolveDemoClassification(frame, context)
         return nil
     end
 
-    local values = Demo.GetUnitValues(frame, mode)
-    return NormalizeClassificationKind(values and values.classificationKind)
-        or NormalizeClassificationKind(values and values.classification)
+    if type(Demo.GetPreviewClassificationKind) == "function" then
+        local classification = NormalizeClassificationKind(Demo.GetPreviewClassificationKind(frame, mode))
+        if classification then
+            return classification
+        end
+    end
+
+    if type(Demo.GetUnitValues) == "function" then
+        local values = Demo.GetUnitValues(frame, mode)
+        return NormalizeClassificationKind(values and values.classificationKind)
+            or NormalizeClassificationKind(values and values.classification)
+    end
+
+    return nil
 end
 
 local function ResolveLiveClassification(frame)
@@ -201,6 +212,12 @@ function Decoration.ResolveCondition(frame, decoration, context)
         return true
     end
 
+    local Demo = FocalPoint.UnitFrameDemoEnvironment
+    local mode = context and context.mode or (type(Demo) == "table" and type(Demo.ResolveMode) == "function" and Demo.ResolveMode(frame, "decoration") or nil)
+    if type(Demo) == "table" and type(Demo.ShouldBypassDecorationConditions) == "function" and Demo.ShouldBypassDecorationConditions(frame, mode) then
+        return true
+    end
+
     local classification = ResolveContextClassification(context)
         or ResolveDemoClassification(frame, context)
         or ResolveLiveClassification(frame)
@@ -211,4 +228,3 @@ end
 
 Decoration.ValidTargets = VALID_TARGETS
 Decoration.ValidConditions = VALID_CONDITIONS
-
