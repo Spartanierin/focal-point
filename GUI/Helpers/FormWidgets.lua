@@ -219,6 +219,10 @@ function FormWidgets.StyleActionButton(button, variant)
         return
     end
 
+    if FormWidgets.ResetInspectorButtonState then
+        FormWidgets.ResetInspectorButtonState(button)
+    end
+
     local resolvedVariant = ResolveButtonVariantFromRole(variant)
     local style = FormWidgets.ResolveButtonStyle(resolvedVariant)
 
@@ -244,9 +248,14 @@ function FormWidgets.StyleActionButton(button, variant)
     SetTextureColor(disabled, style.disabled or style.normal)
 end
 
-function FormWidgets.ApplyModalActionButtonVisual(button, role)
+function FormWidgets.ApplyModalActionButtonVisual(button, role, options)
     if not button or not button.frame then
         return
+    end
+
+    options = type(options) == "table" and options or {}
+    if not options.preserveInspectorButtonState and FormWidgets.ResetInspectorButtonState then
+        FormWidgets.ResetInspectorButtonState(button)
     end
 
     local sidebarThemeHelpers = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
@@ -266,7 +275,9 @@ function FormWidgets.ApplyModalActionButtonVisual(button, role)
     end
 
     local function ReapplyModalVisualOnHover(targetButton)
-        FormWidgets.ApplyModalActionButtonVisual(targetButton, targetButton.__fpModalLastRole or "secondary")
+        FormWidgets.ApplyModalActionButtonVisual(targetButton, targetButton.__fpModalLastRole or "secondary", {
+            preserveInspectorButtonState = true,
+        })
     end
 
     ApplyFPButtonVisualCore(button, style, {
@@ -288,6 +299,171 @@ function FormWidgets.ApplyModalActionButtonVisual(button, role)
             onReapply = ReapplyModalVisualOnHover,
         },
     })
+end
+
+local function SetInspectorGlyphColor(frame, hovered)
+    local text = frame and frame.__fpInspectorGlyphText or nil
+    if not text or not text.SetTextColor then
+        return
+    end
+
+    local alpha = frame.__fpInspectorGlyphDisabled and 0.45 or 1
+    if hovered then
+        text:SetTextColor(1, 0.98, 0.82, alpha)
+    else
+        text:SetTextColor(1, 0.95, 0.78, alpha)
+    end
+end
+
+local function EnsureInspectorButtonHooks(button)
+    local frame = button and button.frame or nil
+    if not frame or frame.__fpInspectorButtonHooks then
+        return
+    end
+
+    frame.__fpInspectorButtonHooks = true
+    frame:HookScript("OnEnter", function(self)
+        if self.__fpInspectorTooltip and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine(self.__fpInspectorTooltip, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+        if self.__fpInspectorGlyphActive then
+            SetInspectorGlyphColor(self, true)
+        end
+    end)
+    frame:HookScript("OnLeave", function(self)
+        if self.__fpInspectorTooltip and GameTooltip then
+            GameTooltip:Hide()
+        end
+        if self.__fpInspectorGlyphActive then
+            SetInspectorGlyphColor(self, false)
+        end
+    end)
+    frame:HookScript("OnMouseDown", function(self)
+        local text = self.__fpInspectorGlyphText
+        if self.__fpInspectorGlyphActive and text and text.SetPoint then
+            text:ClearAllPoints()
+            text:SetPoint("CENTER", self, "CENTER", 1, -1)
+        end
+    end)
+    frame:HookScript("OnMouseUp", function(self)
+        local text = self.__fpInspectorGlyphText
+        if self.__fpInspectorGlyphActive and text and text.SetPoint then
+            text:ClearAllPoints()
+            text:SetPoint("CENTER", self, "CENTER", 0, 0)
+        end
+    end)
+end
+
+function FormWidgets.ResetInspectorButtonState(button)
+    local frame = button and button.frame or nil
+    if not frame then
+        return
+    end
+
+    frame.__fpInspectorTooltip = nil
+    frame.__fpInspectorGlyphActive = false
+    frame.__fpInspectorGlyph = nil
+    frame.__fpInspectorGlyphDisabled = false
+
+    local glyphText = frame.__fpInspectorGlyphText
+    if glyphText then
+        glyphText:SetText("")
+        if glyphText.Hide then
+            glyphText:Hide()
+        end
+    end
+    local legacyGlyphText = frame.__fpDecorationGlyphText
+    if legacyGlyphText then
+        legacyGlyphText:SetText("")
+        if legacyGlyphText.Hide then
+            legacyGlyphText:Hide()
+        end
+    end
+    frame.__fpDecorationGlyph = nil
+    frame.__fpDecorationGlyphDisabled = false
+
+    if button.text then
+        if button.text.Show then
+            button.text:Show()
+        end
+        if button.text.SetAlpha then
+            button.text:SetAlpha(1)
+        end
+        if button.text.ClearAllPoints and button.text.SetPoint then
+            button.text:ClearAllPoints()
+            button.text:SetPoint("TOPLEFT", 15, -1)
+            button.text:SetPoint("BOTTOMRIGHT", -15, 1)
+        end
+        if button.text.SetJustifyV then
+            button.text:SetJustifyV("MIDDLE")
+        end
+    end
+end
+
+function FormWidgets.SetInspectorButtonTooltip(button, text)
+    local frame = button and button.frame or nil
+    if not frame then
+        return
+    end
+
+    EnsureInspectorButtonHooks(button)
+    frame.__fpInspectorTooltip = type(text) == "string" and text ~= "" and text or nil
+end
+
+function FormWidgets.ApplyInspectorGlyphButton(button, glyph, disabled)
+    local frame = button and button.frame or nil
+    if not frame then
+        return
+    end
+
+    EnsureInspectorButtonHooks(button)
+
+    if button.text then
+        button.text:SetText("")
+        if button.text.SetAlpha then
+            button.text:SetAlpha(0)
+        end
+        if button.text.Hide then
+            button.text:Hide()
+        end
+    end
+
+    local glyphText = frame.__fpInspectorGlyphText
+    if not glyphText then
+        glyphText = frame:CreateFontString(nil, "OVERLAY")
+        frame.__fpInspectorGlyphText = glyphText
+    end
+
+    glyphText:ClearAllPoints()
+    glyphText:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    if glyphText.SetDrawLayer then
+        glyphText:SetDrawLayer("OVERLAY", 7)
+    end
+    if glyphText.SetFont then
+        glyphText:SetFont(STANDARD_TEXT_FONT, 15, "OUTLINE")
+    end
+    if glyphText.SetJustifyH then
+        glyphText:SetJustifyH("CENTER")
+    end
+    if glyphText.SetJustifyV then
+        glyphText:SetJustifyV("MIDDLE")
+    end
+    if glyphText.SetShadowColor then
+        glyphText:SetShadowColor(0, 0, 0, 0.85)
+    end
+    if glyphText.SetShadowOffset then
+        glyphText:SetShadowOffset(1, -1)
+    end
+
+    frame.__fpInspectorGlyphActive = true
+    frame.__fpInspectorGlyph = glyph or ""
+    frame.__fpInspectorGlyphDisabled = disabled and true or false
+    glyphText:SetText(frame.__fpInspectorGlyph)
+    SetInspectorGlyphColor(frame, false)
+    glyphText:Show()
 end
 
 local function ApplyInsetSurface(frame, style, prefix)

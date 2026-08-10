@@ -280,6 +280,9 @@ function InspectorController.Build(container, state, options)
         end
 
         local button = AceGUI:Create("Button")
+        if FormWidgets.ResetInspectorButtonState then
+            FormWidgets.ResetInspectorButtonState(button)
+        end
         button:SetText(L["MEDIA_LIBRARY_BROWSE"] or "Browse...")
         button:SetFullWidth(false)
         button:SetWidth(112)
@@ -292,6 +295,9 @@ function InspectorController.Build(container, state, options)
         end)
         if FormWidgets.ApplyModalActionButtonVisual then
             FormWidgets.ApplyModalActionButtonVisual(button, "utility")
+        end
+        if FormWidgets.SetInspectorButtonTooltip then
+            FormWidgets.SetInspectorButtonTooltip(button, nil)
         end
 
         section:AddChild(button)
@@ -1524,109 +1530,6 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChangedAndRebuildSection(decorationSection, "decoration")
         end
 
-        local function SetDecorationButtonTooltip(button, text)
-            local frame = button and button.frame or nil
-            if not frame or type(text) ~= "string" or text == "" then
-                return
-            end
-            frame:HookScript("OnEnter", function(self)
-                if GameTooltip then
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:ClearLines()
-                    GameTooltip:AddLine(text, 1, 1, 1, true)
-                    GameTooltip:Show()
-                end
-            end)
-            frame:HookScript("OnLeave", function()
-                if GameTooltip then
-                    GameTooltip:Hide()
-                end
-            end)
-        end
-
-        local function ApplyDecorationButtonGlyph(button, glyph, disabled)
-            local frame = button and button.frame or nil
-            if not frame then
-                return
-            end
-
-            if button.text then
-                button.text:SetText("")
-                if button.text.SetAlpha then
-                    button.text:SetAlpha(0)
-                end
-                if button.text.Hide then
-                    button.text:Hide()
-                end
-            end
-
-            local glyphText = frame.__fpDecorationGlyphText
-            if not glyphText then
-                glyphText = frame:CreateFontString(nil, "OVERLAY")
-                frame.__fpDecorationGlyphText = glyphText
-                glyphText:SetPoint("CENTER", frame, "CENTER", 0, 0)
-            end
-
-            glyphText:ClearAllPoints()
-            glyphText:SetPoint("CENTER", frame, "CENTER", 0, 0)
-            if glyphText.SetDrawLayer then
-                glyphText:SetDrawLayer("OVERLAY", 7)
-            end
-            if glyphText.SetFont then
-                glyphText:SetFont(STANDARD_TEXT_FONT, 15, "OUTLINE")
-            end
-            if glyphText.SetJustifyH then
-                glyphText:SetJustifyH("CENTER")
-            end
-            if glyphText.SetJustifyV then
-                glyphText:SetJustifyV("MIDDLE")
-            end
-            if glyphText.SetShadowColor then
-                glyphText:SetShadowColor(0, 0, 0, 0.85)
-            end
-            if glyphText.SetShadowOffset then
-                glyphText:SetShadowOffset(1, -1)
-            end
-
-            frame.__fpDecorationGlyph = glyph or ""
-            frame.__fpDecorationGlyphDisabled = disabled and true or false
-            glyphText:SetText(frame.__fpDecorationGlyph)
-            glyphText:SetTextColor(1, 0.95, 0.78, frame.__fpDecorationGlyphDisabled and 0.45 or 1)
-            glyphText:Show()
-
-            if not frame.__fpDecorationGlyphHooked then
-                frame.__fpDecorationGlyphHooked = true
-                frame:HookScript("OnEnter", function(self)
-                    local text = self.__fpDecorationGlyphText
-                    if text and text.SetTextColor then
-                        local alpha = self.__fpDecorationGlyphDisabled and 0.45 or 1
-                        text:SetTextColor(1, 0.98, 0.82, alpha)
-                    end
-                end)
-                frame:HookScript("OnLeave", function(self)
-                    local text = self.__fpDecorationGlyphText
-                    if text and text.SetTextColor then
-                        local alpha = self.__fpDecorationGlyphDisabled and 0.45 or 1
-                        text:SetTextColor(1, 0.95, 0.78, alpha)
-                    end
-                end)
-                frame:HookScript("OnMouseDown", function(self)
-                    local text = self.__fpDecorationGlyphText
-                    if text and text.SetPoint then
-                        text:ClearAllPoints()
-                        text:SetPoint("CENTER", self, "CENTER", 1, -1)
-                    end
-                end)
-                frame:HookScript("OnMouseUp", function(self)
-                    local text = self.__fpDecorationGlyphText
-                    if text and text.SetPoint then
-                        text:ClearAllPoints()
-                        text:SetPoint("CENTER", self, "CENTER", 0, 0)
-                    end
-                end)
-            end
-        end
-
         local function ApplyDecorationListMutation(result)
             if result and result.ok == false then
                 ReportMutationError(result)
@@ -1673,6 +1576,9 @@ function InspectorController.Build(container, state, options)
 
         local function AddDecorationActionButton(row, label, disabled, onClick, width, tooltip)
             local button = AceGUI:Create("Button")
+            if FormWidgets and FormWidgets.ResetInspectorButtonState then
+                FormWidgets.ResetInspectorButtonState(button)
+            end
             button:SetText("")
             if width then
                 button:SetWidth(width)
@@ -1685,14 +1591,18 @@ function InspectorController.Build(container, state, options)
             elseif FormWidgets and FormWidgets.StyleActionButton then
                 FormWidgets.StyleActionButton(button, "secondary")
             end
-            ApplyDecorationButtonGlyph(button, label, disabled)
+            if FormWidgets and FormWidgets.ApplyInspectorGlyphButton then
+                FormWidgets.ApplyInspectorGlyphButton(button, label, disabled)
+            end
+            if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
+                FormWidgets.SetInspectorButtonTooltip(button, tooltip)
+            end
             button:SetCallback("OnClick", function()
                 if onClick then
                     onClick()
                 end
             end)
             row:AddChild(button)
-            SetDecorationButtonTooltip(button, tooltip)
             return button
         end
 
