@@ -7,4 +7,9 @@ FocalPoint.DecorationManifest = {
         label = "Dragon Gold",
         file = "fp_dragon_gold.png",
     },
+    {
+        id = "dragon-silver",
+        label = "Dragon Silver",
+        file = "fp_dragon_silver.png",
+    },
 }

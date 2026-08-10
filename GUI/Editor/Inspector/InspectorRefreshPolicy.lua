@@ -36,6 +36,7 @@ local FIELD_POLICIES = {
         hideLongAuras = { scope = "section", sectionKey = "auras" },
     },
     decoration = {
+        __list = { scope = "section", sectionKey = "decoration" },
         enabled = { scope = "section", sectionKey = "decoration" },
     },
 }

@@ -216,6 +216,19 @@ local function FindDecorationConfig(decorations, decorationId)
     return nil
 end
 
+local function EnsureDecorationList(context)
+    local unitConfig = GetUnitConfig(context)
+    if type(unitConfig) ~= "table" then
+        return nil
+    end
+
+    if type(unitConfig.decorations) ~= "table" then
+        unitConfig.decorations = {}
+    end
+
+    return unitConfig.decorations
+end
+
 local function GetDecorationConfig(context, decorationId, create)
     local unitConfig = GetUnitConfig(context)
     if type(unitConfig) ~= "table" or not IsValidFieldName(decorationId) then
@@ -238,6 +251,36 @@ local function GetDecorationConfig(context, decorationId, create)
     end
 
     return decoration
+end
+
+local function BuildDecorationId(decorations)
+    local used = {}
+    if type(decorations) == "table" then
+        for _, decoration in ipairs(decorations) do
+            if type(decoration) == "table" and IsValidFieldName(decoration.id) then
+                used[decoration.id] = true
+            end
+        end
+    end
+
+    local index = 1
+    while used["decoration-" .. index] do
+        index = index + 1
+    end
+    return "decoration-" .. index
+end
+
+local function CopyDecorationConfig(source, decorationId)
+    local copy = {}
+    if type(source) == "table" then
+        for key, value in pairs(source) do
+            copy[key] = CopyValue(value)
+        end
+    else
+        copy = CopyDecorationDefaults(decorationId)
+    end
+    copy.id = decorationId
+    return copy
 end
 
 function InspectorMutations.SetUnitField(context, fieldName, value)
@@ -476,6 +519,81 @@ end
 
 function InspectorMutations.GetDecorationConfig(context, decorationId)
     return GetDecorationConfig(context, decorationId, false) or CopyDecorationDefaults(decorationId)
+end
+
+function InspectorMutations.GetDecorationList(context)
+    local unitConfig = GetUnitConfig(context)
+    return type(unitConfig) == "table" and unitConfig.decorations or nil
+end
+
+function InspectorMutations.AddDecoration(context, initialValues)
+    local decorations = EnsureDecorationList(context)
+    if type(decorations) ~= "table" then
+        return Result(false, { errorCode = "decoration_config_not_found" })
+    end
+
+    local decorationId = BuildDecorationId(decorations)
+    local decoration = CopyDecorationDefaults(decorationId)
+    if type(initialValues) == "table" then
+        for key, value in pairs(initialValues) do
+            if key ~= "id" then
+                decoration[key] = CopyValue(value)
+            end
+        end
+    end
+    decoration.enabled = true
+    decorations[#decorations + 1] = decoration
+
+    return Result(true, {
+        changed = true,
+        newDecorationId = decorationId,
+        newValue = decoration,
+    })
+end
+
+function InspectorMutations.DuplicateDecoration(context, decorationId)
+    local decorations = EnsureDecorationList(context)
+    if type(decorations) ~= "table" then
+        return Result(false, { errorCode = "decoration_config_not_found" })
+    end
+
+    local source = FindDecorationConfig(decorations, decorationId)
+    if type(source) ~= "table" then
+        return Result(false, { errorCode = "decoration_config_not_found" })
+    end
+
+    local newDecorationId = BuildDecorationId(decorations)
+    local copy = CopyDecorationConfig(source, newDecorationId)
+    decorations[#decorations + 1] = copy
+
+    return Result(true, {
+        changed = true,
+        oldDecorationId = decorationId,
+        newDecorationId = newDecorationId,
+        newValue = copy,
+    })
+end
+
+function InspectorMutations.DeleteDecoration(context, decorationId)
+    local decorations = EnsureDecorationList(context)
+    if type(decorations) ~= "table" then
+        return Result(false, { errorCode = "decoration_config_not_found" })
+    end
+
+    for index, decoration in ipairs(decorations) do
+        if type(decoration) == "table" and decoration.id == decorationId then
+            table.remove(decorations, index)
+            local nextDecoration = decorations[index] or decorations[index - 1]
+            return Result(true, {
+                changed = true,
+                oldDecorationId = decorationId,
+                newDecorationId = type(nextDecoration) == "table" and nextDecoration.id or nil,
+                oldValue = decoration,
+            })
+        end
+    end
+
+    return Result(false, { errorCode = "decoration_config_not_found" })
 end
 
 function InspectorMutations.SetDecorationField(context, decorationId, fieldName, value)

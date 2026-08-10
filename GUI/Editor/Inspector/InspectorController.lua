@@ -126,7 +126,6 @@ function InspectorController.Build(container, state, options)
     local auraGrowthXList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthX)
     local auraGrowthYList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthY)
     local auraSortModeList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.sortMode)
-    local decorationId = "primary"
     local decorationTargetList = {
         FRAME = L["EDITOR_SECTION_FRAME"] or "Frame",
         PORTRAIT = L["EDITOR_SECTION_PORTRAIT"] or "Portrait",
@@ -148,6 +147,61 @@ function InspectorController.Build(container, state, options)
             values = {},
             order = {},
             value = currentValue,
+        }
+    end
+
+    local function GetDecorationList(currentInspectorContext, currentUnitConfig)
+        if type(InspectorMutations.GetDecorationList) == "function" then
+            return InspectorMutations.GetDecorationList(currentInspectorContext) or {}
+        end
+        return type(currentUnitConfig) == "table" and type(currentUnitConfig.decorations) == "table" and currentUnitConfig.decorations or {}
+    end
+
+    local function BuildDecorationLabel(decoration, index)
+        local condition = type(decoration) == "table" and decoration.condition or nil
+        local target = type(decoration) == "table" and decoration.target or nil
+        local conditionLabel = decorationConditionList[condition or "ALWAYS"] or condition or (L["OPTION_ALWAYS"] or "Always")
+        local targetLabel = decorationTargetList[target or "FRAME"] or target or (L["EDITOR_SECTION_FRAME"] or "Frame")
+        return string.format("%s %d - %s - %s", L["EDITOR_SECTION_DECORATION"] or "Decoration", index or 1, conditionLabel, targetLabel)
+    end
+
+    local function ResolveSelectedDecoration(currentInspectorContext, currentUnitConfig)
+        local decorations = GetDecorationList(currentInspectorContext, currentUnitConfig)
+        if #decorations == 0 then
+            state.selectedDecorationId = nil
+            return nil, nil, decorations
+        end
+
+        local selectedDecorationId = state.selectedDecorationId
+        local selectedDecoration = nil
+        for _, decoration in ipairs(decorations) do
+            if type(decoration) == "table" and decoration.id == selectedDecorationId then
+                selectedDecoration = decoration
+                break
+            end
+        end
+
+        if not selectedDecoration then
+            selectedDecoration = decorations[1]
+            selectedDecorationId = type(selectedDecoration) == "table" and selectedDecoration.id or nil
+            state.selectedDecorationId = selectedDecorationId
+        end
+
+        return selectedDecorationId, selectedDecoration, decorations
+    end
+
+    local function BuildDecorationSelectorOptions(decorations)
+        local values = {}
+        local order = {}
+        for index, decoration in ipairs(decorations or {}) do
+            if type(decoration) == "table" and type(decoration.id) == "string" and decoration.id ~= "" then
+                values[decoration.id] = BuildDecorationLabel(decoration, index)
+                order[#order + 1] = decoration.id
+            end
+        end
+        return {
+            values = values,
+            order = order,
         }
     end
 
@@ -630,6 +684,10 @@ function InspectorController.Build(container, state, options)
 
     local function SetDecorationField(fieldName, value, section, fallbackNotify)
         if type(InspectorMutations.SetDecorationField) ~= "function" then
+            return nil
+        end
+        local decorationId = state and state.selectedDecorationId
+        if type(decorationId) ~= "string" or decorationId == "" then
             return nil
         end
         return ApplyMutation("decoration", fieldName, InspectorMutations.SetDecorationField(inspectorContext, decorationId, fieldName, value), section, fallbackNotify)
@@ -1460,10 +1518,237 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        local decorationConfig = type(InspectorMutations.GetDecorationConfig) == "function"
-            and InspectorMutations.GetDecorationConfig(inspectorContext, decorationId)
-            or nil
+        local selectedDecorationId, decorationConfig, decorations = ResolveSelectedDecoration(inspectorContext, unitConfig)
+        local decorationSelectorOptions = BuildDecorationSelectorOptions(decorations)
+        local function RebuildDecorationSection()
+            NotifyConfigChangedAndRebuildSection(decorationSection, "decoration")
+        end
+
+        local function SetDecorationButtonTooltip(button, text)
+            local frame = button and button.frame or nil
+            if not frame or type(text) ~= "string" or text == "" then
+                return
+            end
+            frame:HookScript("OnEnter", function(self)
+                if GameTooltip then
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:ClearLines()
+                    GameTooltip:AddLine(text, 1, 1, 1, true)
+                    GameTooltip:Show()
+                end
+            end)
+            frame:HookScript("OnLeave", function()
+                if GameTooltip then
+                    GameTooltip:Hide()
+                end
+            end)
+        end
+
+        local function ApplyDecorationButtonGlyph(button, glyph, disabled)
+            local frame = button and button.frame or nil
+            if not frame then
+                return
+            end
+
+            if button.text then
+                button.text:SetText("")
+                if button.text.SetAlpha then
+                    button.text:SetAlpha(0)
+                end
+                if button.text.Hide then
+                    button.text:Hide()
+                end
+            end
+
+            local glyphText = frame.__fpDecorationGlyphText
+            if not glyphText then
+                glyphText = frame:CreateFontString(nil, "OVERLAY")
+                frame.__fpDecorationGlyphText = glyphText
+                glyphText:SetPoint("CENTER", frame, "CENTER", 0, 0)
+            end
+
+            glyphText:ClearAllPoints()
+            glyphText:SetPoint("CENTER", frame, "CENTER", 0, 0)
+            if glyphText.SetDrawLayer then
+                glyphText:SetDrawLayer("OVERLAY", 7)
+            end
+            if glyphText.SetFont then
+                glyphText:SetFont(STANDARD_TEXT_FONT, 15, "OUTLINE")
+            end
+            if glyphText.SetJustifyH then
+                glyphText:SetJustifyH("CENTER")
+            end
+            if glyphText.SetJustifyV then
+                glyphText:SetJustifyV("MIDDLE")
+            end
+            if glyphText.SetShadowColor then
+                glyphText:SetShadowColor(0, 0, 0, 0.85)
+            end
+            if glyphText.SetShadowOffset then
+                glyphText:SetShadowOffset(1, -1)
+            end
+
+            frame.__fpDecorationGlyph = glyph or ""
+            frame.__fpDecorationGlyphDisabled = disabled and true or false
+            glyphText:SetText(frame.__fpDecorationGlyph)
+            glyphText:SetTextColor(1, 0.95, 0.78, frame.__fpDecorationGlyphDisabled and 0.45 or 1)
+            glyphText:Show()
+
+            if not frame.__fpDecorationGlyphHooked then
+                frame.__fpDecorationGlyphHooked = true
+                frame:HookScript("OnEnter", function(self)
+                    local text = self.__fpDecorationGlyphText
+                    if text and text.SetTextColor then
+                        local alpha = self.__fpDecorationGlyphDisabled and 0.45 or 1
+                        text:SetTextColor(1, 0.98, 0.82, alpha)
+                    end
+                end)
+                frame:HookScript("OnLeave", function(self)
+                    local text = self.__fpDecorationGlyphText
+                    if text and text.SetTextColor then
+                        local alpha = self.__fpDecorationGlyphDisabled and 0.45 or 1
+                        text:SetTextColor(1, 0.95, 0.78, alpha)
+                    end
+                end)
+                frame:HookScript("OnMouseDown", function(self)
+                    local text = self.__fpDecorationGlyphText
+                    if text and text.SetPoint then
+                        text:ClearAllPoints()
+                        text:SetPoint("CENTER", self, "CENTER", 1, -1)
+                    end
+                end)
+                frame:HookScript("OnMouseUp", function(self)
+                    local text = self.__fpDecorationGlyphText
+                    if text and text.SetPoint then
+                        text:ClearAllPoints()
+                        text:SetPoint("CENTER", self, "CENTER", 0, 0)
+                    end
+                end)
+            end
+        end
+
+        local function ApplyDecorationListMutation(result)
+            if result and result.ok == false then
+                ReportMutationError(result)
+                return result
+            end
+            state.selectedDecorationId = result and result.newDecorationId or nil
+            if result and result.ok and result.changed then
+                RebuildDecorationSection()
+            end
+            return result
+        end
+
+        local function AddDecorationWithTexture(texture)
+            if type(InspectorMutations.AddDecoration) ~= "function" then
+                return nil
+            end
+            local initialValues = {}
+            if type(texture) == "string" and texture ~= "" then
+                initialValues.texture = texture
+            end
+            return ApplyDecorationListMutation(InspectorMutations.AddDecoration(inspectorContext, initialValues))
+        end
+
+        local function OpenDecorationBrowserForAdd()
+            OpenMediaBrowserForField({
+                mediaType = MEDIA_TYPE_DECORATION,
+                currentValue = "",
+                fallbackReference = DEFAULT_DECORATION_REFERENCE,
+                title = L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or "Choose Decoration Texture",
+                onApply = function(selectedValue)
+                    if type(selectedValue) == "string" and selectedValue ~= "" then
+                        AddDecorationWithTexture(selectedValue)
+                    end
+                end,
+            })
+        end
+
+        local function DeleteDecoration()
+            if type(InspectorMutations.DeleteDecoration) ~= "function" or not selectedDecorationId then
+                return nil
+            end
+            return ApplyDecorationListMutation(InspectorMutations.DeleteDecoration(inspectorContext, selectedDecorationId))
+        end
+
+        local function AddDecorationActionButton(row, label, disabled, onClick, width, tooltip)
+            local button = AceGUI:Create("Button")
+            button:SetText("")
+            if width then
+                button:SetWidth(width)
+            else
+                button:SetFullWidth(true)
+            end
+            button:SetDisabled(disabled and true or false)
+            if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(button, "utility")
+            elseif FormWidgets and FormWidgets.StyleActionButton then
+                FormWidgets.StyleActionButton(button, "secondary")
+            end
+            ApplyDecorationButtonGlyph(button, label, disabled)
+            button:SetCallback("OnClick", function()
+                if onClick then
+                    onClick()
+                end
+            end)
+            row:AddChild(button)
+            SetDecorationButtonTooltip(button, tooltip)
+            return button
+        end
+
+        if #decorations > 0 then
+            local selectorRow = AceGUI:Create("SimpleGroup")
+            selectorRow:SetFullWidth(true)
+            selectorRow:SetLayout("Flow")
+            decorationSection:AddChild(selectorRow)
+
+            local decorationSelector = AceGUI:Create("Dropdown")
+            decorationSelector:SetFullWidth(true)
+            decorationSelector:SetLabel("")
+            decorationSelector:SetList(decorationSelectorOptions.values, decorationSelectorOptions.order)
+            decorationSelector:SetValue(selectedDecorationId)
+            decorationSelector:SetCallback("OnValueChanged", function(_, _, value)
+                state.selectedDecorationId = value
+                RebuildDecorationSection()
+            end)
+            if FormWidgets and FormWidgets.StyleDropdown then
+                FormWidgets.StyleDropdown(decorationSelector, "editor_inset")
+            end
+            selectorRow:AddChild(decorationSelector)
+
+            local actionRow = AceGUI:Create("SimpleGroup")
+            actionRow:SetFullWidth(true)
+            actionRow:SetLayout("Flow")
+            decorationSection:AddChild(actionRow)
+
+            AddDecorationActionButton(actionRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
+
+            AddDecorationActionButton(actionRow, "-", not decorationConfig, DeleteDecoration, 40, L["OPTION_DECORATION_DELETE"] or "Delete Decoration")
+        else
+            local emptyLabel = AceGUI:Create("Label")
+            emptyLabel:SetFullWidth(true)
+            emptyLabel:SetText("No decorations yet.")
+            decorationSection:AddChild(emptyLabel)
+
+            local emptyRow = AceGUI:Create("SimpleGroup")
+            emptyRow:SetFullWidth(true)
+            emptyRow:SetLayout("Flow")
+            decorationSection:AddChild(emptyRow)
+
+            AddDecorationActionButton(emptyRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
+            return
+        end
+
         if type(decorationConfig) ~= "table" then
+            local emptyLabel = AceGUI:Create("Label")
+            emptyLabel:SetFullWidth(true)
+            emptyLabel:SetText("No decorations yet.")
+            decorationSection:AddChild(emptyLabel)
+            local emptyRow = AceGUI:Create("SimpleGroup")
+            emptyRow:SetFullWidth(true)
+            emptyRow:SetLayout("Flow")
+            decorationSection:AddChild(emptyRow)
+            AddDecorationActionButton(emptyRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
             return
         end
 
