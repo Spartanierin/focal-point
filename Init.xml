@@ -18,6 +18,7 @@
     <Script file="Engine/Localization.lua"/>
     <Script file="Services/ThemeService.lua"/>
     <Script file="Services/ProfileTransfer.lua"/>
+    <Script file="Media/Decorations/DecorationManifest.lua"/>
     <Script file="Services/MediaRegistry.lua"/>
 
     <Script file="Engine/Core.lua"/>

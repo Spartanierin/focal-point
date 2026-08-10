@@ -17,6 +17,7 @@ local DEFAULT_FONT_REFERENCE = "fp:font:standard"
 local DEFAULT_FONT_PATH = STANDARD_TEXT_FONT
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 local DEFAULT_DECORATION_PATH = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"
+local DECORATION_ASSET_ROOT = "Interface\\AddOns\\FocalPoint\\Media\\Decorations\\"
 
 local SOURCE_ORDER = {
     ["Focal Point"] = 1,
@@ -586,6 +587,27 @@ local function AppendSortedCounters(lines, title, counters)
 
     for _, key in ipairs(keys) do
         lines[#lines + 1] = string.format("  %s=%d", tostring(key), tonumber(counters[key]) or 0)
+    end
+end
+
+local function RegisterDecorationManifest()
+    local manifest = FocalPoint.DecorationManifest
+    if type(manifest) ~= "table" then
+        return
+    end
+
+    for _, item in ipairs(manifest) do
+        if type(item) == "table" then
+            local id = Trim(item.id)
+            local label = Trim(item.label)
+            local file = Trim(item.file)
+            if id ~= "" and file ~= "" then
+                MediaRegistry.RegisterBuiltin(MEDIA_TYPE_DECORATION, id, label ~= "" and label or id, DECORATION_ASSET_ROOT .. file, {
+                    sortName = Trim(item.sortName) ~= "" and Trim(item.sortName):lower() or (label ~= "" and label:lower() or id:lower()),
+                    verified = true,
+                })
+            end
+        end
     end
 end
 
@@ -1166,6 +1188,8 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_DECORATION, "addon-icon", "Focal Point 
     sortName = "focal point icon",
     verified = true,
 })
+
+RegisterDecorationManifest()
 
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "standard", "Standard", DEFAULT_FONT_PATH, {
     source = "Blizzard",
