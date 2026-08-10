@@ -1637,7 +1637,7 @@ function InspectorController.Build(container, state, options)
         else
             local emptyLabel = AceGUI:Create("Label")
             emptyLabel:SetFullWidth(true)
-            emptyLabel:SetText("No decorations yet.")
+            emptyLabel:SetText(L["OPTION_DECORATION_EMPTY"] or "No decorations yet.")
             decorationSection:AddChild(emptyLabel)
 
             local emptyRow = AceGUI:Create("SimpleGroup")
@@ -1652,7 +1652,7 @@ function InspectorController.Build(container, state, options)
         if type(decorationConfig) ~= "table" then
             local emptyLabel = AceGUI:Create("Label")
             emptyLabel:SetFullWidth(true)
-            emptyLabel:SetText("No decorations yet.")
+            emptyLabel:SetText(L["OPTION_DECORATION_EMPTY"] or "No decorations yet.")
             decorationSection:AddChild(emptyLabel)
             local emptyRow = AceGUI:Create("SimpleGroup")
             emptyRow:SetFullWidth(true)

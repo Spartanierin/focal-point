@@ -10,6 +10,44 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.1.2
+
+Focal Point 1.1.2 introduces Decorations - a new way to add artwork to your unit frames and portraits.
+
+### Added
+
+* Added decorative artwork for unit frames and portraits.
+* Added support for multiple Decorations on the same unit frame.
+* Added Decoration controls for texture selection, sizing, anchoring, offsets, alpha, and condition-based visibility.
+* Added condition options for Always, Rare, Elite, Rare-Elite, and Boss units.
+* Added Decoration browsing and preview support to the Media Library.
+* Added a setting to show or hide the Focal Point minimap button.
+* Added support for custom Decoration artwork through the generated Decoration manifest.
+
+Custom Decoration artwork workflow:
+
+1. Place supported artwork in:
+   `FocalPoint/Media/Decorations/`
+
+2. Run:
+   `python Tools/generate_decoration_manifest.py`
+
+3. Use `/reload`.
+
+The artwork then appears in the Decoration Media Library without manually editing the Media Registry.
+
+Supported formats:
+`PNG`, `TGA`, `BLP`
+
+### Improved
+
+* Improved Demo mode so it previews classification-based Decorations.
+* Improved Unlock mode so enabled Decorations stay visible for editing.
+
+### Fixed
+
+* Fixed Inspector buttons occasionally inheriting the wrong appearance or action after switching units.
+
 ## [1.1.1]
 
 ### Added
