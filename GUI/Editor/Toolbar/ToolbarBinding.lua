@@ -290,6 +290,7 @@ local function RefreshWindowState(context, deps)
         context._suspendCallbacks = false
         return
     end
+    local minimapConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.Minimap
     local activeEditorMode = ResolveEditorMode(state, nsRef.db and nsRef.db.profile)
     local isExpertMode = activeEditorMode == "expert"
 
@@ -465,6 +466,14 @@ local function RefreshWindowState(context, deps)
         context.widgets.hideBlizzard:SetValue(generalConfig.HideBlizzardFrames == true)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.hideBlizzard, false)
+        end
+    end
+
+    if context.widgets.showMinimapButton then
+        context.widgets.showMinimapButton:SetLabel(T("OPTION_SHOW_MINIMAP_BUTTON", "Show Minimap Button", deps))
+        context.widgets.showMinimapButton:SetValue(not (type(minimapConfig) == "table" and minimapConfig.hide == true))
+        if StyleCheckBox then
+            StyleCheckBox(context.widgets.showMinimapButton, false)
         end
     end
 
@@ -692,6 +701,28 @@ local function WireCallbacks(context, deps, refreshFn)
             end
             if not generalConfig.HideBlizzardFrames and nsRef.Info then
                 nsRef:Info(T("INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES", nil, deps))
+            end
+            if context.options and context.options.onGlobalChanged then
+                context.options.onGlobalChanged()
+            elseif refreshFn then
+                refreshFn()
+            end
+        end)
+    end
+
+    if context.widgets.showMinimapButton then
+        context.widgets.showMinimapButton:SetCallback("OnValueChanged", function(_, _, value)
+            if context._suspendCallbacks then
+                return
+            end
+            if nsRef.SetMinimapButtonVisible then
+                nsRef:SetMinimapButtonVisible(value == true)
+            else
+                local minimapConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.Minimap
+                if type(minimapConfig) ~= "table" then
+                    return
+                end
+                minimapConfig.hide = value ~= true
             end
             if context.options and context.options.onGlobalChanged then
                 context.options.onGlobalChanged()

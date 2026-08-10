@@ -409,6 +409,7 @@ L["OPTION_HEALTH_BAR_ALWAYS_ENABLED_DESC"] = "Der Gesundheitsbalken ist ein Kern
 L["OPTION_HIDE_BLIZZARD_FRAMES"] = "Blizzard-Frames ausblenden"
 L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"] = "Blendet die Standard-Unit-Frames von Blizzard aus, solange Focal Point aktiv ist. Zum Wiederherstellen der Blizzard-Frames ist ein Reload erforderlich."
 L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"] = "Zum Wiederherstellen der Blizzard-Frames ist ein ReloadUI erforderlich."
+L["OPTION_SHOW_MINIMAP_BUTTON"] = "Minimap-Button anzeigen"
 L["OPTION_GLOBAL_CLICKTHROUGH"] = "Globales ClickThrough"
 L["OPTION_GLOBAL_CLICKTHROUGH_DESC"] = "Deaktiviert Mausklicks auf allen Focal-Point-Unit-Frames."
 L["OPTION_MOUSE_ENABLED"] = "Maus aktiviert"

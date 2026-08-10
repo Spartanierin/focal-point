@@ -382,6 +382,7 @@ L["OPTION_HEALTH_BAR_ALWAYS_ENABLED_DESC"] = "The health bar is a core part of t
 L["OPTION_HIDE_BLIZZARD_FRAMES"] = "Hide Blizzard Frames"
 L["OPTION_HIDE_BLIZZARD_FRAMES_DESC"] = "Hides the default Blizzard unit frames while Focal Point is active. Restoring Blizzard frames requires a reload."
 L["INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES"] = "ReloadUI is required to restore Blizzard frames."
+L["OPTION_SHOW_MINIMAP_BUTTON"] = "Show Minimap Button"
 L["OPTION_GLOBAL_CLICKTHROUGH"] = "Global Click Through"
 L["OPTION_GLOBAL_CLICKTHROUGH_DESC"] = "Disables mouse clicks on all Focal Point unit frames."
 L["OPTION_MOUSE_ENABLED"] = "Mouse Enabled"

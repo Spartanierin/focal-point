@@ -25,6 +25,40 @@ local function IsConfigVisible()
     return true
 end
 
+local function EnsureMinimapConfig(addon)
+    if not addon or not addon.db or not addon.db.profile then
+        return nil
+    end
+
+    addon.db.profile.Minimap = type(addon.db.profile.Minimap) == "table" and addon.db.profile.Minimap or {}
+    if addon.db.profile.Minimap.hide == nil then
+        addon.db.profile.Minimap.hide = false
+    end
+    return addon.db.profile.Minimap
+end
+
+function FocalPoint:SetMinimapButtonVisible(visible)
+    local minimapConfig = EnsureMinimapConfig(self)
+    if not minimapConfig then
+        return false
+    end
+
+    minimapConfig.hide = visible == false
+
+    local DBIcon = LibStub("LibDBIcon-1.0", true)
+    if not DBIcon then
+        return false
+    end
+
+    if minimapConfig.hide then
+        DBIcon:Hide(_MINIMAP_ICON_NAME)
+    else
+        DBIcon:Show(_MINIMAP_ICON_NAME)
+    end
+
+    return true
+end
+
 function FocalPoint:InitMinimapIcon()
     if self.minimapInitialized then
         return
@@ -66,6 +100,6 @@ function FocalPoint:InitMinimapIcon()
         })
     end
 
-    DBIcon:Register(_MINIMAP_ICON_NAME, self.launcher, self.db.profile.Minimap)
+    DBIcon:Register(_MINIMAP_ICON_NAME, self.launcher, EnsureMinimapConfig(self))
     self.minimapInitialized = true
 end

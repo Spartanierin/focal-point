@@ -487,13 +487,14 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 92,
-                derivedFrom = "title + 3 checkboxes",
+                min = 116,
+                derivedFrom = "title + 4 checkboxes",
             },
         },
         items = {
             { id = "globalTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_GLOBAL" },
             { id = "hideBlizzard", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_HIDE_BLIZZARD_FRAMES" },
+            { id = "showMinimapButton", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_SHOW_MINIMAP_BUTTON" },
             { id = "mouseEnabled", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_MOUSE_ENABLED" },
             { id = "clickthrough", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_GLOBAL_CLICKTHROUGH" },
         },
