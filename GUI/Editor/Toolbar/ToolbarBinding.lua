@@ -48,7 +48,110 @@ local function T(key, fallback, deps)
     return (type(key) == "string" and L[key]) or fallback or ""
 end
 
-local function ResolveEditorMode(state, profile)
+local ResolveEditorMode
+
+local function ResolveAddon(deps)
+    return (deps and deps.ns) or ns or {}
+end
+
+local function EnsureGeneralConfig(nsRef)
+    local profile = nsRef and nsRef.db and nsRef.db.profile
+    if type(profile) ~= "table" then
+        return nil
+    end
+
+    profile.General = type(profile.General) == "table" and profile.General or {}
+    return profile.General
+end
+
+local function EnsureMinimapConfig(nsRef)
+    local profile = nsRef and nsRef.db and nsRef.db.profile
+    if type(profile) ~= "table" then
+        return nil
+    end
+
+    profile.Minimap = type(profile.Minimap) == "table" and profile.Minimap or {}
+    return profile.Minimap
+end
+
+local function NotifyGlobalChanged(options, refreshFn)
+    if options and options.onGlobalChanged then
+        options.onGlobalChanged()
+    elseif refreshFn then
+        refreshFn()
+    end
+end
+
+local function IsExpertMode(deps, state)
+    local nsRef = ResolveAddon(deps)
+    return ResolveEditorMode(state, nsRef.db and nsRef.db.profile) == "expert"
+end
+
+function ToolbarBinding.GetGlobalOptionValue(optionId, deps)
+    local nsRef = ResolveAddon(deps)
+    local generalConfig = EnsureGeneralConfig(nsRef)
+    if type(generalConfig) ~= "table" then
+        return nil
+    end
+
+    if optionId == "hideBlizzard" then
+        return generalConfig.HideBlizzardFrames == true
+    elseif optionId == "showMinimapButton" then
+        local minimapConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.Minimap
+        return not (type(minimapConfig) == "table" and minimapConfig.hide == true)
+    elseif optionId == "mouseEnabled" then
+        return generalConfig.MouseEnabled ~= false
+    elseif optionId == "clickthrough" then
+        return generalConfig.GlobalClickThrough == true
+    end
+
+    return nil
+end
+
+function ToolbarBinding.ApplyGlobalOptionValue(optionId, value, deps, options)
+    local nsRef = ResolveAddon(deps)
+    local generalConfig = EnsureGeneralConfig(nsRef)
+    if type(generalConfig) ~= "table" then
+        return false
+    end
+
+    if optionId == "hideBlizzard" then
+        generalConfig.HideBlizzardFrames = value and true or false
+        if nsRef.ApplyGeneralSettings then
+            nsRef:ApplyGeneralSettings()
+        end
+        if not generalConfig.HideBlizzardFrames and nsRef.Info then
+            nsRef:Info(T("INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES", nil, deps))
+        end
+    elseif optionId == "showMinimapButton" then
+        if nsRef.SetMinimapButtonVisible then
+            nsRef:SetMinimapButtonVisible(value == true)
+        else
+            local minimapConfig = EnsureMinimapConfig(nsRef)
+            if type(minimapConfig) ~= "table" then
+                return false
+            end
+            minimapConfig.hide = value ~= true
+        end
+    elseif optionId == "mouseEnabled" then
+        generalConfig.MouseEnabled = value and true or false
+        if nsRef.RefreshAllUnitFrames then
+            nsRef:RefreshAllUnitFrames()
+        end
+    elseif optionId == "clickthrough" then
+        generalConfig.GlobalClickThrough = value and true or false
+        if nsRef.RefreshAllUnitFrames then
+            nsRef:RefreshAllUnitFrames()
+        end
+    else
+        return false
+    end
+
+    NotifyGlobalChanged(options, options and options.refreshFn)
+    return true
+end
+
+function ResolveEditorMode(state, profile)
     local editorMode = ns.EditorMode or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Mode)
     if editorMode and editorMode.Resolve then
         return editorMode.Resolve(state, profile)
@@ -290,9 +393,7 @@ local function RefreshWindowState(context, deps)
         context._suspendCallbacks = false
         return
     end
-    local minimapConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.Minimap
-    local activeEditorMode = ResolveEditorMode(state, nsRef.db and nsRef.db.profile)
-    local isExpertMode = activeEditorMode == "expert"
+    local isExpertMode = IsExpertMode(deps, state)
 
     if ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot() then
         themeList[customThemeId] = T("THEME_CUSTOM", "My Layout", deps)
@@ -461,9 +562,16 @@ local function RefreshWindowState(context, deps)
         context.widgets.restoreHint:SetText(T("EDITOR_PRESET_RESTORE_HINT", nil, deps))
     end
 
+    if context.widgets.globalOptions then
+        context.widgets.globalOptions:SetText(T("OPTION_OPTIONS", "Options", deps))
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.globalOptions, SIDEBAR_VISUAL_ROLE.UTILITY)
+        end
+    end
+
     if context.widgets.hideBlizzard then
         context.widgets.hideBlizzard:SetLabel(T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames", deps))
-        context.widgets.hideBlizzard:SetValue(generalConfig.HideBlizzardFrames == true)
+        context.widgets.hideBlizzard:SetValue(ToolbarBinding.GetGlobalOptionValue("hideBlizzard", deps) == true)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.hideBlizzard, false)
         end
@@ -471,7 +579,7 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.showMinimapButton then
         context.widgets.showMinimapButton:SetLabel(T("OPTION_SHOW_MINIMAP_BUTTON", "Show Minimap Button", deps))
-        context.widgets.showMinimapButton:SetValue(not (type(minimapConfig) == "table" and minimapConfig.hide == true))
+        context.widgets.showMinimapButton:SetValue(ToolbarBinding.GetGlobalOptionValue("showMinimapButton", deps) == true)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.showMinimapButton, false)
         end
@@ -479,7 +587,7 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.mouseEnabled then
         context.widgets.mouseEnabled:SetLabel(T("OPTION_MOUSE_ENABLED", "Mouse Enabled", deps))
-        context.widgets.mouseEnabled:SetValue(generalConfig.MouseEnabled ~= false)
+        context.widgets.mouseEnabled:SetValue(ToolbarBinding.GetGlobalOptionValue("mouseEnabled", deps) == true)
         context.widgets.mouseEnabled:SetDisabled(not isExpertMode)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.mouseEnabled, false)
@@ -488,7 +596,7 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.clickthrough then
         context.widgets.clickthrough:SetLabel(T("OPTION_GLOBAL_CLICKTHROUGH", "Global Click Through", deps))
-        context.widgets.clickthrough:SetValue(generalConfig.GlobalClickThrough == true)
+        context.widgets.clickthrough:SetValue(ToolbarBinding.GetGlobalOptionValue("clickthrough", deps) == true)
         context.widgets.clickthrough:SetDisabled(not isExpertMode)
         if StyleCheckBox then
             StyleCheckBox(context.widgets.clickthrough, false)
@@ -691,22 +799,7 @@ local function WireCallbacks(context, deps, refreshFn)
             if context._suspendCallbacks then
                 return
             end
-            local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
-            if type(generalConfig) ~= "table" then
-                return
-            end
-            generalConfig.HideBlizzardFrames = value and true or false
-            if nsRef.ApplyGeneralSettings then
-                nsRef:ApplyGeneralSettings()
-            end
-            if not generalConfig.HideBlizzardFrames and nsRef.Info then
-                nsRef:Info(T("INFO_RELOAD_REQUIRED_BLIZZARD_FRAMES", nil, deps))
-            end
-            if context.options and context.options.onGlobalChanged then
-                context.options.onGlobalChanged()
-            elseif refreshFn then
-                refreshFn()
-            end
+            ToolbarBinding.ApplyGlobalOptionValue("hideBlizzard", value, deps, { onGlobalChanged = context.options and context.options.onGlobalChanged, refreshFn = refreshFn })
         end)
     end
 
@@ -715,19 +808,20 @@ local function WireCallbacks(context, deps, refreshFn)
             if context._suspendCallbacks then
                 return
             end
-            if nsRef.SetMinimapButtonVisible then
-                nsRef:SetMinimapButtonVisible(value == true)
-            else
-                local minimapConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.Minimap
-                if type(minimapConfig) ~= "table" then
-                    return
-                end
-                minimapConfig.hide = value ~= true
+            ToolbarBinding.ApplyGlobalOptionValue("showMinimapButton", value, deps, { onGlobalChanged = context.options and context.options.onGlobalChanged, refreshFn = refreshFn })
+        end)
+    end
+
+    if context.widgets.globalOptions then
+        context.widgets.globalOptions:SetCallback("OnClick", function()
+            if context._suspendCallbacks then
+                return
             end
-            if context.options and context.options.onGlobalChanged then
-                context.options.onGlobalChanged()
-            elseif refreshFn then
-                refreshFn()
+            local optionsDialog = nsRef.GUI
+                and nsRef.GUI.Editor
+                and nsRef.GUI.Editor.OptionsDialog
+            if optionsDialog and optionsDialog.Open then
+                optionsDialog.Open()
             end
         end)
     end
@@ -737,19 +831,7 @@ local function WireCallbacks(context, deps, refreshFn)
             if context._suspendCallbacks then
                 return
             end
-            local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
-            if type(generalConfig) ~= "table" then
-                return
-            end
-            generalConfig.MouseEnabled = value and true or false
-            if nsRef.RefreshAllUnitFrames then
-                nsRef:RefreshAllUnitFrames()
-            end
-            if context.options and context.options.onGlobalChanged then
-                context.options.onGlobalChanged()
-            elseif refreshFn then
-                refreshFn()
-            end
+            ToolbarBinding.ApplyGlobalOptionValue("mouseEnabled", value, deps, { onGlobalChanged = context.options and context.options.onGlobalChanged, refreshFn = refreshFn })
         end)
     end
 
@@ -758,19 +840,7 @@ local function WireCallbacks(context, deps, refreshFn)
             if context._suspendCallbacks then
                 return
             end
-            local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
-            if type(generalConfig) ~= "table" then
-                return
-            end
-            generalConfig.GlobalClickThrough = value and true or false
-            if nsRef.RefreshAllUnitFrames then
-                nsRef:RefreshAllUnitFrames()
-            end
-            if context.options and context.options.onGlobalChanged then
-                context.options.onGlobalChanged()
-            elseif refreshFn then
-                refreshFn()
-            end
+            ToolbarBinding.ApplyGlobalOptionValue("clickthrough", value, deps, { onGlobalChanged = context.options and context.options.onGlobalChanged, refreshFn = refreshFn })
         end)
     end
 end
@@ -779,5 +849,6 @@ ToolbarBinding.CreateItemWidget = CreateItemWidget
 ToolbarBinding.RefreshInteractionModeControls = RefreshInteractionModeControls
 ToolbarBinding.RefreshWindowState = RefreshWindowState
 ToolbarBinding.WireCallbacks = WireCallbacks
+ToolbarBinding.IsExpertMode = IsExpertMode
 
 return ToolbarBinding

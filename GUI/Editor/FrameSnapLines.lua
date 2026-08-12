@@ -39,6 +39,15 @@ local function IsCombatLocked()
     return InCombatLockdown and InCombatLockdown()
 end
 
+local function IsSnappingEnabled()
+    local general = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
+    return not (type(general) == "table" and general.SnappingEnabled == false)
+end
+
+function FrameSnapLines.IsSnappingEnabled()
+    return IsSnappingEnabled()
+end
+
 local function GetFrameCenterOffsets(frame)
     if not frame or not frame.GetCenter or not UIParent or not UIParent.GetCenter then
         return nil, nil
@@ -181,7 +190,7 @@ local function AddFrameCandidates(candidatesX, candidatesY, movingFrame)
 end
 
 function FrameSnapLines.Apply(frame, proposedX, proposedY)
-    if not IsEditorUnlocked() or IsCombatLocked() or not frame then
+    if not IsEditorUnlocked() or IsCombatLocked() or not frame or not IsSnappingEnabled() then
         FrameSnapLines.Hide()
         return proposedX, proposedY
     end
