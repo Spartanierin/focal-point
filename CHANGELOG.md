@@ -10,6 +10,13 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.1.3a
+
+### Fixed
+
+* Fixed player unit frames disappearing during vehicle and quest override states.
+* Vehicle and override action bars no longer cause Focal Point to treat the player frame as unavailable.
+
 ## Focal Point 1.1.3
 
 This update focuses on editor usability and frame resizing.

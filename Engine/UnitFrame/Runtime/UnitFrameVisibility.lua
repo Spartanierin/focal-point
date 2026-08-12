@@ -330,25 +330,6 @@ local function ShouldSuppressFramesForSpecialMode()
         return true, "pet_battle"
     end
 
-    local hasOverrideActionBar = C_ActionBar
-        and C_ActionBar.HasOverrideActionBar
-        and C_ActionBar.HasOverrideActionBar()
-    if hasOverrideActionBar then
-        return true, "override_action_bar"
-    end
-
-    local hasVehicleActionBar = C_ActionBar
-        and C_ActionBar.HasVehicleActionBar
-        and C_ActionBar.HasVehicleActionBar()
-    if hasVehicleActionBar then
-        return true, "vehicle_action_bar"
-    end
-
-    local hasVehicleUi = UnitHasVehicleUI and UnitHasVehicleUI("player")
-    if hasVehicleUi then
-        return true, "vehicle_ui"
-    end
-
     return false, nil
 end
 
