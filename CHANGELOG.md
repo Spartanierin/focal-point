@@ -10,6 +10,25 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.1.3
+
+This update focuses on editor usability and frame resizing.
+
+### Added
+
+* Added a new option to enable or disable editor snapping.
+* Added a compact Focal Point Options window for global editor and addon settings.
+
+### Improved
+
+* When disabled, frames move freely without snapping to the screen center or other editable frames.
+* Global options such as snapping, mouse interaction, click-through behavior, minimap button visibility, and Blizzard frame visibility are now grouped in one place.
+
+### Fixed
+
+* Fixed resizing so a frame keeps the opposite corner in place instead of appearing to pull toward its center.
+* Fixed a position drift that could move frames slightly after finishing a resize.
+
 ## Focal Point 1.1.2
 
 Focal Point 1.1.2 introduces Decorations - a new way to add artwork to your unit frames and portraits.
