@@ -1,5 +1,5 @@
 ## Title: Focal Point
-## Interface: 121000
+## Interface: 120100
 ## Version: 1.1.3a
 ## Author: Spartanierin
 ## Notes: A visual in-game editor for designing deeply customized unit frames.
