@@ -171,6 +171,82 @@ local function ApplyPreviewSize(frame, width, baseHeight, bottomExtension)
     frame:SetSize(width, baseHeight + bottomExtension)
 end
 
+local function GetFrameCenterOffsets(frame)
+    if not frame then
+        return 0, 0
+    end
+
+    if frame.GetCenter and UIParent and UIParent.GetCenter then
+        local frameCenterX, frameCenterY = frame:GetCenter()
+        local parentCenterX, parentCenterY = UIParent:GetCenter()
+        local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+        local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
+
+        if frameCenterX and frameCenterY and parentCenterX and parentCenterY and parentScale ~= 0 then
+            return
+                (frameCenterX - parentCenterX) * (frameScale / parentScale),
+                (frameCenterY - parentCenterY) * (frameScale / parentScale)
+        end
+    end
+
+    if frame.GetPoint then
+        local _, _, _, pointX, pointY = frame:GetPoint(1)
+        return tonumber(pointX) or 0, tonumber(pointY) or 0
+    end
+
+    return 0, 0
+end
+
+local function GetBossStackOffset(frame, unitConfig)
+    if not frame or not frame.unit then
+        return 0
+    end
+
+    local utils = FocalPoint.UnitFrameUtils
+    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame.unit)
+    if not bossIndex or bossIndex <= 1 then
+        return 0
+    end
+
+    local height = frame.GetHeight and frame:GetHeight() or 0
+    local stackGap = type(unitConfig) == "table" and (tonumber(unitConfig.bossSpacing) or 10) or 10
+    return (bossIndex - 1) * ((tonumber(height) or 0) + stackGap)
+end
+
+local function ResolveCenterVerticalExtensionOffset(bottomExtension)
+    bottomExtension = math.max(0, tonumber(bottomExtension) or 0)
+    return -(bottomExtension / 2)
+end
+
+local function ResolveConfigCenter(frame, config, bottomExtension, bossStackOffset)
+    local configX = tonumber(config and config.x)
+    local configY = tonumber(config and config.y)
+    if configX and configY then
+        return configX, configY
+    end
+
+    local actualCenterX, actualCenterY = GetFrameCenterOffsets(frame)
+    local verticalExtensionOffset = ResolveCenterVerticalExtensionOffset(bottomExtension)
+    return actualCenterX, actualCenterY - verticalExtensionOffset + (bossStackOffset or 0)
+end
+
+local function ApplyPreviewGeometry(frame, width, baseHeight, bottomExtension, centerX, centerY, bossStackOffset)
+    ApplyPreviewSize(frame, width, baseHeight, bottomExtension)
+
+    if not (frame and frame.ClearAllPoints and frame.SetPoint and UIParent) then
+        return
+    end
+
+    local verticalExtensionOffset = ResolveCenterVerticalExtensionOffset(bottomExtension)
+    local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
+    local adjustedX = (tonumber(centerX) or 0) * (parentScale / frameScale)
+    local adjustedY = ((tonumber(centerY) or 0) + verticalExtensionOffset - (bossStackOffset or 0)) * (parentScale / frameScale)
+
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", adjustedX, adjustedY)
+end
+
 local function UpdateHandleVisual(handle)
     if not handle then
         return
@@ -248,9 +324,22 @@ local function EndResize(handle, commit)
     if commit and frame and type(config) == "table" and unitKey then
         config.width = state.currentWidth or state.startWidth
         config.height = state.currentHeight or state.startHeight
+        config.point = "CENTER"
+        config.relativePoint = "CENTER"
+        config.relativeTo = "UIParent"
+        config.x = state.currentCenterX or state.startCenterX or config.x or 0
+        config.y = state.currentCenterY or state.startCenterY or config.y or 0
         RefreshEditorForUnit(unitKey)
     elseif frame then
-        ApplyPreviewSize(frame, state.startWidth, state.startHeight, state.bottomExtension)
+        ApplyPreviewGeometry(
+            frame,
+            state.startWidth,
+            state.startHeight,
+            state.bottomExtension,
+            state.startCenterX,
+            state.startCenterY,
+            state.bossStackOffset
+        )
     end
 end
 
@@ -289,6 +378,8 @@ local function BeginResize(handle)
     local visibleHeight = tonumber(frame.GetHeight and frame:GetHeight()) or tonumber(config.height) or MIN_HEIGHT
     local startHeight = Clamp(config.height or visibleHeight, MIN_HEIGHT, MAX_HEIGHT)
     local bottomExtension = math.max(0, visibleHeight - startHeight)
+    local bossStackOffset = GetBossStackOffset(frame, config)
+    local startCenterX, startCenterY = ResolveConfigCenter(frame, config, bottomExtension, bossStackOffset)
 
     handle._resizeState = {
         frame = frame,
@@ -298,8 +389,13 @@ local function BeginResize(handle)
         cursorY = (cursorY or 0) / scale,
         startWidth = startWidth,
         startHeight = startHeight,
+        startCenterX = startCenterX,
+        startCenterY = startCenterY,
         currentWidth = startWidth,
         currentHeight = startHeight,
+        currentCenterX = startCenterX,
+        currentCenterY = startCenterY,
+        bossStackOffset = bossStackOffset,
         bottomExtension = bottomExtension,
     }
     activeHandle = handle
@@ -322,10 +418,14 @@ local function BeginResize(handle)
 
         local newWidth = Clamp(state.startWidth + (currentX - state.cursorX), MIN_WIDTH, MAX_WIDTH)
         local newHeight = Clamp(state.startHeight - (currentY - state.cursorY), MIN_HEIGHT, MAX_HEIGHT)
+        local nextCenterX = state.startCenterX + ((newWidth - state.startWidth) / 2)
+        local nextCenterY = state.startCenterY - ((newHeight - state.startHeight) / 2)
         state.currentWidth = newWidth
         state.currentHeight = newHeight
+        state.currentCenterX = nextCenterX
+        state.currentCenterY = nextCenterY
 
-        ApplyPreviewSize(state.frame, newWidth, newHeight, state.bottomExtension)
+        ApplyPreviewGeometry(state.frame, newWidth, newHeight, state.bottomExtension, nextCenterX, nextCenterY, state.bossStackOffset)
         SetSizeLabel(state.frame, newWidth, newHeight, true)
     end)
 end
