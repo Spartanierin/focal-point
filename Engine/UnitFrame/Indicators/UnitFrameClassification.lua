@@ -29,7 +29,7 @@ local function SetTextureColor(texture, r, g, b, a, blendMode)
 end
 
 local function NormalizeEffect(effect)
-    if effect == "NONE" or effect == "NAME_GLOW" or effect == "NAME_LABEL" or effect == "CORNER_CREST" then
+    if effect == "NONE" or effect == "NAME_LABEL" or effect == "CORNER_CREST" then
         return effect
     end
 
@@ -364,7 +364,7 @@ function Classification.ApplyLayout(frame, options)
     end
 
     local style = GetClassificationStyle(classification)
-    if not style or effect == "NONE" or effect == "NAME_GLOW" or effect == "NAME_LABEL" then
+    if not style or effect == "NONE" or effect == "NAME_LABEL" then
         HideClassificationElements(frame)
         return
     end

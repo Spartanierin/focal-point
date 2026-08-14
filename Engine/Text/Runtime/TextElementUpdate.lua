@@ -10,10 +10,6 @@ local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
 local TextPreview = FocalPoint.TextElementPreview or {}
-local StopAnimatedNameText
-
-local animatedNameTexts = {}
-local animatedNameTicker = nil
 
 local function SafeSetText(textObject, textValue, preferLastKnownGood)
     if not textObject or not textObject.SetText then
@@ -137,33 +133,6 @@ local function GetClassificationIndicatorEffect(frame)
     return indicatorConfig.effect or "PORTRAIT_OVERLAY"
 end
 
-local function IsClassificationNameGlowEnabled(frame)
-    return GetClassificationIndicatorEffect(frame) == "NAME_GLOW"
-end
-
-local function StripTextMarkup(text)
-    if type(text) ~= "string" then
-        return ""
-    end
-
-    local ok, stripped = pcall(function()
-        if text == "" then
-            return ""
-        end
-
-        local value = text:gsub("|c%x%x%x%x%x%x%x%x", "")
-        value = value:gsub("|r", "")
-        value = value:gsub("|T.-|t", "")
-        return value
-    end)
-
-    if not ok or type(stripped) ~= "string" then
-        return ""
-    end
-
-    return stripped
-end
-
 local function IsBlankText(value)
     if type(value) ~= "string" then
         return true
@@ -189,47 +158,6 @@ local function ShouldSuppressTextForMissingUnit(frame)
     return not doesUnitSeemPresent(unit)
 end
 
-local function SplitUtf8Characters(text)
-    local chars = {}
-    if type(text) ~= "string" then
-        return chars
-    end
-
-    local ok, parts = pcall(function()
-        if text == "" then
-            return {}
-        end
-
-        local result = {}
-        local index = 1
-        local length = #text
-
-        while index <= length do
-            local byte = text:byte(index)
-            local charLength = 1
-
-            if byte and byte >= 240 then
-                charLength = 4
-            elseif byte and byte >= 224 then
-                charLength = 3
-            elseif byte and byte >= 192 then
-                charLength = 2
-            end
-
-            result[#result + 1] = text:sub(index, math.min(index + charLength - 1, length))
-            index = index + charLength
-        end
-
-        return result
-    end)
-
-    if not ok or type(parts) ~= "table" then
-        return chars
-    end
-
-    return parts
-end
-
 local function ClampColorComponent(value)
     if type(value) ~= "number" then
         return 0
@@ -244,14 +172,6 @@ local function ClampColorComponent(value)
     end
 
     return value
-end
-
-local function BlendColorStops(colorA, colorB, t)
-    t = ClampColorComponent(t)
-    return
-        colorA[1] + (colorB[1] - colorA[1]) * t,
-        colorA[2] + (colorB[2] - colorA[2]) * t,
-        colorA[3] + (colorB[3] - colorA[3]) * t
 end
 
 local function ToColorCode(r, g, b)
@@ -279,55 +199,6 @@ local function GetClassificationLabelStyle(unit)
         return {
             label = Status.GetClassificationText and Status.GetClassificationText(unit) or "Rare Elite",
             color = { 1.00, 0.88, 0.40 },
-        }
-    end
-
-    return nil
-end
-
-local function GetClassificationAnimationStyle(unit)
-    local classification = Status.GetUnitClassificationKind and Status.GetUnitClassificationKind(unit) or nil
-    if classification == "rare" then
-        return {
-            speed = 1.2,
-            stride = 0.55,
-            sharpness = 2.8,
-            colors = {
-                { 0.26, 0.56, 1.00 },
-                { 0.72, 0.88, 1.00 },
-            },
-            shadowColor = { 0.56, 0.78, 1.00 },
-            shadowSpeed = 1.75,
-            shadowMinAlpha = 0.18,
-            shadowMaxAlpha = 0.72,
-        }
-    elseif classification == "elite" then
-        return {
-            speed = 0.95,
-            stride = 0.48,
-            sharpness = 2.8,
-            colors = {
-                { 0.62, 0.66, 0.74 },
-                { 0.93, 0.95, 1.00 },
-            },
-            shadowColor = { 0.88, 0.90, 0.96 },
-            shadowSpeed = 1.45,
-            shadowMinAlpha = 0.14,
-            shadowMaxAlpha = 0.58,
-        }
-    elseif classification == "rareelite" or classification == "worldboss" then
-        return {
-            speed = 1.1,
-            stride = 0.52,
-            sharpness = 2.6,
-            colors = {
-                { 1.00, 0.76, 0.18 },
-                { 1.00, 0.93, 0.52 },
-            },
-            shadowColor = { 1.00, 0.90, 0.44 },
-            shadowSpeed = 1.60,
-            shadowMinAlpha = 0.22,
-            shadowMaxAlpha = 0.82,
         }
     end
 
@@ -433,184 +304,12 @@ local function RenderNameTextDirect(frame, textObject, renderedText, textConfig)
         return
     end
 
-    StopAnimatedNameText(textObject)
-
     local finalText = ResolveRenderableName(frame, renderedText)
-
     SafeSetText(textObject, finalText, true)
     if textObject.SetWidth and textConfig and textConfig.overflowMode ~= "NONE" and textObject.FocalPointOverflowWidth and textObject.FocalPointOverflowWidth > 0 then
         textObject:SetWidth(textObject.FocalPointOverflowWidth)
     end
     textObject:Show()
-end
-
-local function BuildAnimatedNameText(rawText, style, now)
-    local plainText = StripTextMarkup(rawText)
-    if plainText == "" or type(style) ~= "table" then
-        return plainText
-    end
-
-    local chars = SplitUtf8Characters(plainText)
-    if #chars == 0 then
-        return plainText
-    end
-
-    local parts = {}
-    local speed = style.speed or 1
-    local stride = style.stride or 0.5
-    local sharpness = style.sharpness or 2.4
-    local colorA = style.colors and style.colors[1] or { 1, 1, 1 }
-    local colorB = style.colors and style.colors[2] or { 0.8, 0.8, 0.8 }
-    now = type(now) == "number" and now or 0
-
-    for index, char in ipairs(chars) do
-        if char:match("%s") then
-            parts[#parts + 1] = char
-        else
-            local phase = (now * speed) - ((index - 1) * stride)
-            local wave = (math.sin(phase) + 1) * 0.5
-            wave = math.pow(wave, sharpness)
-            local r, g, b = BlendColorStops(colorA, colorB, wave)
-            parts[#parts + 1] = ToColorCode(r, g, b) .. char .. "|r"
-        end
-    end
-
-    return table.concat(parts)
-end
-
-local function RefreshAnimatedNameText(textObject, entry)
-    if not textObject or not entry then
-        return
-    end
-
-    local okStyled, styledText = pcall(BuildAnimatedNameText, entry.rawText, entry.style, GetTime and GetTime() or 0)
-    if not okStyled or type(styledText) ~= "string" then
-        StopAnimatedNameText(textObject)
-        if entry.rawText ~= nil then
-            textObject:SetText(entry.rawText)
-        end
-        return
-    end
-
-    if styledText ~= entry.lastText then
-        entry.lastText = styledText
-        textObject:SetText(styledText)
-    end
-
-    local style = entry.style or {}
-    local now = GetTime and GetTime() or 0
-    local shadowWave = (math.sin(now * (style.shadowSpeed or 1)) + 1) * 0.5
-    local shadowAlpha = (style.shadowMinAlpha or 0.16) + ((style.shadowMaxAlpha or 0.64) - (style.shadowMinAlpha or 0.16)) * shadowWave
-    local shadowColor = style.shadowColor or { 1, 1, 1 }
-
-    textObject:SetTextColor(entry.baseColor[1] or 1, entry.baseColor[2] or 1, entry.baseColor[3] or 1, entry.baseAlpha or 1)
-    textObject:SetShadowColor(shadowColor[1] or 1, shadowColor[2] or 1, shadowColor[3] or 1, shadowAlpha)
-end
-
-local function EnsureAnimatedNameTicker()
-    if animatedNameTicker then
-        return animatedNameTicker
-    end
-
-    animatedNameTicker = CreateFrame("Frame")
-    animatedNameTicker.elapsed = 0
-    animatedNameTicker:SetScript("OnUpdate", function(self, elapsed)
-        self.elapsed = (self.elapsed or 0) + elapsed
-        if self.elapsed < 0.08 then
-            return
-        end
-
-        self.elapsed = 0
-
-        local hasEntries = false
-        for textObject, entry in pairs(animatedNameTexts) do
-            if textObject and entry and textObject.IsShown and textObject:IsShown() then
-                hasEntries = true
-                RefreshAnimatedNameText(textObject, entry)
-            else
-                animatedNameTexts[textObject] = nil
-            end
-        end
-
-        if not hasEntries then
-            self:Hide()
-        end
-    end)
-    animatedNameTicker:Hide()
-    return animatedNameTicker
-end
-
-StopAnimatedNameText = function(textObject)
-    if not textObject then
-        return
-    end
-
-    local entry = animatedNameTexts[textObject]
-    if entry and entry.baseColor then
-        textObject:SetTextColor(
-            entry.baseColor[1] or 1,
-            entry.baseColor[2] or 1,
-            entry.baseColor[3] or 1,
-            entry.baseAlpha or 1
-        )
-        if entry.rawText ~= nil then
-            textObject:SetText(entry.rawText)
-        end
-        if entry.baseShadowColor then
-            textObject:SetShadowColor(
-                entry.baseShadowColor[1] or 0,
-                entry.baseShadowColor[2] or 0,
-                entry.baseShadowColor[3] or 0,
-                entry.baseShadowColor[4] or 0
-            )
-        end
-    end
-
-    animatedNameTexts[textObject] = nil
-end
-
-local function ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
-    if not textObject then
-        return
-    end
-
-    if textRole ~= "name" then
-        StopAnimatedNameText(textObject)
-        return
-    end
-
-    if InCombatLockdown and InCombatLockdown() then
-        StopAnimatedNameText(textObject)
-        textObject:SetTextColor(r, g, b, a)
-        return
-    end
-
-    local style = frame and frame.unit and IsClassificationNameGlowEnabled(frame) and GetClassificationAnimationStyle(frame.unit) or nil
-    if not style then
-        StopAnimatedNameText(textObject)
-        textObject:SetTextColor(r, g, b, a)
-        return
-    end
-
-    local entry = animatedNameTexts[textObject] or {}
-    entry.rawText = renderedText or ""
-    entry.style = style
-    entry.lastText = nil
-    entry.baseColor = { r or 1, g or 1, b or 1 }
-    entry.baseAlpha = a or 1
-    if textObject.GetShadowColor then
-        local sr, sg, sb, sa = textObject:GetShadowColor()
-        entry.baseShadowColor = { sr or 0, sg or 0, sb or 0, sa or 0 }
-    else
-        entry.baseShadowColor = { 0, 0, 0, 0 }
-    end
-    animatedNameTexts[textObject] = entry
-
-    RefreshAnimatedNameText(textObject, entry)
-    local ticker = EnsureAnimatedNameTicker()
-    if ticker then
-        ticker:Show()
-    end
 end
 
 -- Keeps live text refresh logic together while layout/event wiring remains
@@ -787,7 +486,6 @@ local function RenderTextEditPreview(frame, key, textObject, textConfig, templat
         return false
     end
 
-    StopAnimatedNameText(textObject)
     local r, g, b, a = unpackColor and unpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
     textObject:SetTextColor(r, g, b, a)
 
@@ -825,7 +523,6 @@ function Update.UpdateElement(frame, key, deps)
         local textObject = frame.Texts[key]
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
         if not textConfig or textConfig.enabled == false then
-            StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()
             return
@@ -836,7 +533,6 @@ function Update.UpdateElement(frame, key, deps)
 
         if IsTextEditPreviewMode() then
             if not IsTextEditPreviewAvailable(frame, key, textConfig) then
-                StopAnimatedNameText(textObject)
                 SafeSetText(textObject, "", false)
                 textObject:Hide()
                 return
@@ -848,14 +544,12 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
-            StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()
             return
         end
 
         if ShouldSuppressTextForMissingUnit(frame) then
-            StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()
             return
@@ -864,14 +558,12 @@ function Update.UpdateElement(frame, key, deps)
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
 
         if IsCastBoundTextElement(frame, key, textConfig, template, textRole) and not IsCastTextAllowed(frame) then
-            StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()
             return
         end
 
         if not IsTextOwnerAllowed(frame, textConfig) then
-            StopAnimatedNameText(textObject)
             SafeSetText(textObject, "", false)
             textObject:Hide()
             return
@@ -893,7 +585,6 @@ function Update.UpdateElement(frame, key, deps)
         local classPowerMaxText = GetLiveValue and GetLiveValue(frame, "classPowerMaxText", nil) or nil
 
         if textRole == "altpower" then
-            StopAnimatedNameText(textObject)
             textObject:SetTextColor(r, g, b, a)
             local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(frame.unit)
             liveMaxNumber = ToSafeNumber and ToSafeNumber(liveMaxNumber) or 0
@@ -926,7 +617,6 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         if textRole == "classpower" then
-            StopAnimatedNameText(textObject)
             textObject:SetTextColor(r, g, b, a)
 
             if classPowerVisible and (ToSafeNumber and ToSafeNumber(classPowerMaxSafe) or 0) > 0 then
@@ -959,7 +649,6 @@ function Update.UpdateElement(frame, key, deps)
             renderedText = EnsureNameFallback(frame, textRole, renderedText)
             renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
             ApplyOverflow(textObject, renderedText, textConfig.overflowMode)
-            ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
             textObject:Show()
             return
         end
@@ -972,7 +661,6 @@ function Update.UpdateElement(frame, key, deps)
             renderedText,
             textConfig.overflowMode
         )
-        ApplyAnimatedNameText(frame, textRole, textObject, renderedText, r, g, b, a)
         textObject:Show()
     end, function(message)
         return tostring(message)
@@ -990,7 +678,6 @@ function Update.UpdateElement(frame, key, deps)
             RenderNameTextDirect(frame, textObject, nil, textConfig)
             textObject:Show()
         else
-            StopAnimatedNameText(textObject)
             if not SafeSetText(textObject, "", true) then
                 textObject:SetText("")
             end

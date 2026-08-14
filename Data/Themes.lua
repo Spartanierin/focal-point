@@ -276,7 +276,7 @@ FocalPoint.Themes = {
                 },
                 indicators = {
                     ClassificationIndicator = {
-                        effect = "NAME_GLOW",
+                        effect = "PORTRAIT_OVERLAY",
                     },
                     CombatIndicator = {
                         effect = "FRAME_OVERLAY",
@@ -471,7 +471,7 @@ FocalPoint.Themes = {
                 },
                 indicators = {
                     ClassificationIndicator = {
-                        effect = "NAME_GLOW",
+                        effect = "PORTRAIT_OVERLAY",
                     },
                     CombatIndicator = {
                         effect = "FRAME_OVERLAY",
@@ -657,7 +657,7 @@ FocalPoint.Themes = {
                 },
                 indicators = {
                     ClassificationIndicator = {
-                        effect = "NAME_GLOW",
+                        effect = "PORTRAIT_OVERLAY",
                     },
                     LeaderIcon = {
                         enabled = false,
@@ -837,7 +837,7 @@ FocalPoint.Themes = {
                 },
                 indicators = {
                     ClassificationIndicator = {
-                        effect = "NAME_GLOW",
+                        effect = "PORTRAIT_OVERLAY",
                         enabled = false,
                     },
                     LeaderIcon = {
@@ -1013,7 +1013,7 @@ FocalPoint.Themes = {
                 },
                 indicators = {
                     ClassificationIndicator = {
-                        effect = "NAME_GLOW",
+                        effect = "PORTRAIT_OVERLAY",
                         enabled = false,
                     },
                     CombatIndicator = {
@@ -1143,7 +1143,7 @@ FocalPoint.Themes = {
                 },
                 indicators = {
                     ClassificationIndicator = {
-                        effect = "NAME_GLOW",
+                        effect = "PORTRAIT_OVERLAY",
                     },
                     CombatIndicator = {
                         enabled = true,
@@ -1409,7 +1409,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -1523,7 +1523,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -1637,7 +1637,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -1751,7 +1751,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -1862,7 +1862,7 @@ FocalPoint.Themes = {
                     CombatIndicator = { enabled = false },
                     RestingIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = false },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -1934,7 +1934,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -2163,7 +2163,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = true },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = true, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = true, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -2299,7 +2299,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = true },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = true, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = true, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -2435,7 +2435,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -2571,7 +2571,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -2704,7 +2704,7 @@ FocalPoint.Themes = {
                     CombatIndicator = { enabled = false },
                     RestingIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = false },
-                    ClassificationIndicator = { enabled = false, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = false, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
@@ -2788,7 +2788,7 @@ FocalPoint.Themes = {
                     RoleIcon = { enabled = false },
                     CombatIndicator = { enabled = true },
                     ReadyCheckIndicator = { enabled = true },
-                    ClassificationIndicator = { enabled = true, effect = "NAME_GLOW" },
+                    ClassificationIndicator = { enabled = true, effect = "PORTRAIT_OVERLAY" },
                 },
                 texts = {
                     Name = {
