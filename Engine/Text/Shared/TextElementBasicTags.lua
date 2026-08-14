@@ -27,6 +27,7 @@ function BasicTags.Resolve(frame, unit, token, deps)
     local GetLiveValue = deps.GetLiveValue
     local FormatStatusTimerValue = deps.FormatStatusTimerValue
     local GetResolvedUnitName = deps.GetResolvedUnitName
+    local GetResolvedUnitFullName = deps.GetResolvedUnitFullName
     local IsSafeTrue = deps.IsSafeTrue
     local ResolveToken = deps.ResolveToken
     local demo = FocalPoint.UnitFrameDemoEnvironment or {}
@@ -57,6 +58,10 @@ function BasicTags.Resolve(frame, unit, token, deps)
 
         if token == "name" then
             return preview.name or ""
+        end
+
+        if token == "name:full" then
+            return preview.fullName or preview.name or ""
         end
 
         if token == "level" then
@@ -183,6 +188,10 @@ function BasicTags.Resolve(frame, unit, token, deps)
 
     if token == "name" then
         return GetResolvedUnitName and GetResolvedUnitName(unit) or ""
+    end
+
+    if token == "name:full" then
+        return GetResolvedUnitFullName and GetResolvedUnitFullName(unit) or (GetResolvedUnitName and GetResolvedUnitName(unit) or "")
     end
 
     if token == "level" then

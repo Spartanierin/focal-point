@@ -954,11 +954,6 @@ function Update.UpdateElement(frame, key, deps)
         end
         textObject:SetTextColor(r, g, b, a)
 
-        if textRole == "name" then
-            RenderNameTextDirect(frame, textObject, nil, textConfig)
-            return
-        end
-
         if ApplyDirectTemplate and ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
             local renderedText = textObject:GetText() or ""
             renderedText = EnsureNameFallback(frame, textRole, renderedText)

@@ -43,6 +43,7 @@ local GetRestingText = TextStatus.GetRestingText
 local GetLeaderText = TextStatus.GetLeaderText
 local GetStatusText = TextStatus.GetStatusText
 local GetResolvedUnitName = TextStatus.GetResolvedUnitName
+local GetResolvedUnitFullName = TextStatus.GetResolvedUnitFullName
 local FormatStatusTimerValue = TextStatus.FormatStatusTimerValue
 local GetCurrentStatusInfo = TextStatus.GetCurrentStatusInfo
 
@@ -360,6 +361,7 @@ local TAG_DATABASE = {
     { token = "[cast:name]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_NAME", example = "Frostbolt" },
     { token = "[cast:time]", category = "INFO_TAG_CATEGORY_CAST", description = "INFO_TAG_DESC_CAST_TIME", example = "1.8" },
     { token = "[name]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME", example = "FocalPoint" },
+    { token = "[name:full]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_NAME_FULL", example = "FocalPoint the Undying" },
     { token = "[guild]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_GUILD", example = "Guild Name" },
     { token = "[realm]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_REALM", example = "Lordaeron" },
     { token = "[level]", category = "INFO_TAG_CATEGORY_UNIT", description = "INFO_TAG_DESC_LEVEL", example = "80" },
@@ -417,6 +419,7 @@ local function ResolveBasicTag(frame, unit, token)
         GetLiveValue = GetLiveValue,
         FormatStatusTimerValue = FormatStatusTimerValue,
         GetResolvedUnitName = GetResolvedUnitName,
+        GetResolvedUnitFullName = GetResolvedUnitFullName,
         IsSafeTrue = IsSafeTrue,
         ResolveToken = ResolveToken,
     })

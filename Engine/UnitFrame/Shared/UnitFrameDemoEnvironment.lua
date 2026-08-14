@@ -466,6 +466,7 @@ local TEST_PREVIEW_VALUES = {
         altPowerCurrent = 72,
         altPowerMax = 100,
         name = "Preview Player",
+        fullName = "Preview Player the Example",
         level = 84,
         classToken = "WARRIOR",
         role = "DAMAGER",

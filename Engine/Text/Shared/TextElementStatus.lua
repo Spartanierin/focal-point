@@ -489,6 +489,22 @@ function Status.GetResolvedUnitName(unit)
     return ""
 end
 
+function Status.GetResolvedUnitFullName(unit)
+    if not unit then
+        return ""
+    end
+
+    if UnitPVPName then
+        local pvpName = UnitPVPName(unit)
+        local resolvedName = TryUseResolvedName(pvpName)
+        if resolvedName then
+            return resolvedName
+        end
+    end
+
+    return Status.GetResolvedUnitName(unit)
+end
+
 function Status.FormatStatusTimerValue(seconds)
     local totalSeconds = math.max(0, math.floor(tonumber(seconds) or 0))
     local minutes = math.floor(totalSeconds / 60)
