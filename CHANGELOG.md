@@ -10,6 +10,21 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.1.5
+
+### Added
+
+* Added automatic profile switching by specialization.
+* Added per-specialization profile assignments in the Profiles page.
+* Added an Expert Mode option to show or hide absorb shields.
+* Added absorb shield color customization.
+* Added absorb shield opacity customization.
+
+### Fixed
+
+* Fixed Font Style options not affecting displayed text.
+* Fixed automatic profile switching opening the addon window during specialization changes.
+
 ## Focal Point 1.1.4
 
 ### Added
