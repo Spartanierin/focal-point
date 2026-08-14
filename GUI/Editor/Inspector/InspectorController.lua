@@ -871,6 +871,14 @@ function InspectorController.Build(container, state, options)
             AddCheckBox(healthSection, L["OPTION_SHOW_ABSORB_SHIELDS"] or "Show Absorb Shields", unitConfig.showAbsorbOverlay ~= false, function(value)
                 SetUnitField("showAbsorbOverlay", value and true or false, healthSection)
             end)
+
+            AddColorPicker(healthSection, L["OPTION_ABSORB_COLOR"] or "Absorb Color", unitConfig.absorbOverlayColor or { 0.66, 0.86, 1.0 }, false, function(value)
+                SetUnitField("absorbOverlayColor", value, healthSection)
+            end)
+
+            AddSlider(healthSection, L["OPTION_ABSORB_OPACITY"] or "Absorb Opacity", 0, 1, 0.01, tonumber(unitConfig.absorbOverlayOpacity) or 0.62, function(value)
+                SetUnitField("absorbOverlayOpacity", tonumber(string.format("%.2f", value or 0.62)) or 0.62, healthSection)
+            end)
         end
 
         if isQuick or unitConfig.useClassColorHealth ~= true then

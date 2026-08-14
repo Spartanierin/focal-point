@@ -14,8 +14,12 @@ local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local GetResolvedHealthBarColor = Colors.GetResolvedHealthBarColor
 local ToSafeNumberValue = Utils.ToSafeNumberValue
+local UnpackColor = Utils.UnpackColor
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
+
+local DEFAULT_ABSORB_OVERLAY_COLOR = { 0.66, 0.86, 1.0, 1 }
+local DEFAULT_ABSORB_OVERLAY_OPACITY = 0.62
 
 local function IsSecretValue(value)
     return issecretvalue and issecretvalue(value) or false
@@ -26,6 +30,25 @@ local function ResolveAbsorbSafeNumber(rawValue)
         return 0
     end
     return ToSafeNumberValue(rawValue)
+end
+
+local function ResolveAbsorbOverlayStyle(config)
+    local r, g, b = UnpackColor(config and config.absorbOverlayColor, DEFAULT_ABSORB_OVERLAY_COLOR)
+    local opacity = config and config.absorbOverlayOpacity
+    if IsSecretValue(opacity) then
+        opacity = nil
+    end
+
+    opacity = tonumber(opacity)
+    if opacity == nil then
+        opacity = DEFAULT_ABSORB_OVERLAY_OPACITY
+    elseif opacity < 0 then
+        opacity = 0
+    elseif opacity > 1 then
+        opacity = 1
+    end
+
+    return r, g, b, opacity
 end
 
 local function IsPlaceholderUnitEnabled(frame)
@@ -195,6 +218,7 @@ local function UpdateAbsorbOverlay(frame)
     else
         absorbOverlay:SetMinMaxValues(0, maxHealthSafe)
     end
+    absorbOverlay:SetStatusBarColor(ResolveAbsorbOverlayStyle(config))
     absorbOverlay:SetValue(totalAbsorbRaw or totalAbsorbSafe or 0)
     absorbOverlay:Show()
 

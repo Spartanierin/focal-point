@@ -15,6 +15,8 @@ local FIELD_POLICIES = {
         useReactionColorNpcHealth = { scope = "section", sectionKey = "health" },
         healthBackground = { scope = "section", sectionKey = "health" },
         showAbsorbOverlay = { scope = "section", sectionKey = "health" },
+        absorbOverlayColor = { scope = "section", sectionKey = "health" },
+        absorbOverlayOpacity = { scope = "section", sectionKey = "health" },
         showPowerBar = { scope = "section", sectionKey = "power" },
         useClassColorPower = { scope = "section", sectionKey = "power" },
         powerBackground = { scope = "section", sectionKey = "power" },
