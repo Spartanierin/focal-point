@@ -33,6 +33,11 @@ local function IsSnappingEnabled()
     return not (type(general) == "table" and general.SnappingEnabled == false)
 end
 
+local function IsGridEnabled()
+    local general = GetGeneralConfig()
+    return type(general) == "table" and general.ShowGrid == true
+end
+
 local function GetDeps()
     return {
         ns = FocalPoint,
@@ -85,6 +90,15 @@ local function HideSnapLines()
         and FocalPoint.GUI.Editor.FrameSnapLines
     if snapLines and snapLines.Hide then
         snapLines.Hide()
+    end
+end
+
+local function RefreshUnlockGrid()
+    local grid = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameUnlockGrid
+    if grid and grid.Refresh then
+        grid.Refresh()
     end
 end
 
@@ -254,6 +268,11 @@ function Refresh()
         context.widgets.snappingEnabled:SetValue(IsSnappingEnabled())
         context.suspendCallbacks = false
     end
+    if context.widgets.showGrid then
+        context.suspendCallbacks = true
+        context.widgets.showGrid:SetValue(IsGridEnabled())
+        context.suspendCallbacks = false
+    end
 
     context.suspendCallbacks = true
     if context.widgets.mouseEnabled then
@@ -276,6 +295,23 @@ end
 local function WireCallbacks()
     if not context or not context.widgets then
         return
+    end
+
+    local showGrid = context.widgets.showGrid
+    if showGrid then
+        showGrid:SetCallback("OnValueChanged", function(_, _, value)
+            if context.suspendCallbacks then
+                return
+            end
+            local general = GetGeneralConfig()
+            if type(general) ~= "table" then
+                return
+            end
+
+            general.ShowGrid = value == true
+            RefreshUnlockGrid()
+            Refresh()
+        end)
     end
 
     local snapping = context.widgets.snappingEnabled
@@ -330,7 +366,7 @@ local function CreateWindow()
     window:SetTitle(T("EDITOR_OPTIONS_TITLE", "Focal Point Options"))
     window:SetLayout("Flow")
     window:SetWidth(340)
-    window:SetHeight(304)
+    window:SetHeight(348)
     window:EnableResize(false)
 
     if window.frame then
@@ -353,6 +389,11 @@ local function CreateWindow()
     }
 
     window:AddChild(CreateSectionHeader(T("EDITOR_OPTIONS_SECTION_EDITOR", "Editor")))
+
+    local showGrid = CreateCheckBox(T("OPTION_SHOW_GRID", "Show Grid"), "showGrid")
+    window:AddChild(showGrid)
+    window:AddChild(CreateIndentedDescription(T("OPTION_SHOW_GRID_DESC", "Displays a visual alignment grid while frames are unlocked.")))
+    window:AddChild(CreateSpacer(4))
 
     local snapping = CreateCheckBox(T("OPTION_ENABLE_SNAPPING", "Enable Snapping"), "snappingEnabled")
     window:AddChild(snapping)

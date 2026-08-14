@@ -13,6 +13,7 @@ function FocalPoint:GetDefaultDB()
                 GlobalClickThrough = false,
                 MouseEnabled = true,
                 SnappingEnabled = true,
+                ShowGrid = false,
                 ClampToScreen = true,
                 HideEditorWelcomeTip = false,
                 ActiveThemeId = "default",

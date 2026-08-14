@@ -555,6 +555,15 @@ local function HideEditorSnapLines()
     end
 end
 
+local function RefreshEditorUnlockGrid()
+    local grid = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.FrameUnlockGrid
+    if grid and grid.Refresh then
+        grid.Refresh()
+    end
+end
+
 local UpdateMoveOverlay
 local EndFrameDrag
 
@@ -1123,6 +1132,7 @@ function FocalPoint:ToggleFrameLock()
         if self.RefreshAllFrames then
             self:RefreshAllFrames()
         end
+        RefreshEditorUnlockGrid()
         self:UpdateAllFrameDragStates()
         self:RefreshEditorSelectionVisuals()
         if self.GUI and self.GUI.RequestRefreshOptions then
@@ -1132,6 +1142,7 @@ function FocalPoint:ToggleFrameLock()
     else
         CancelEditorResize()
         HideEditorSnapLines()
+        RefreshEditorUnlockGrid()
 
         local contextMenu = self.GUI
             and self.GUI.Editor

@@ -792,6 +792,13 @@ function FocalPoint:CloseConfig()
         snapLines.Hide()
     end
 
+    local unlockGrid = self.GUI
+        and self.GUI.Editor
+        and self.GUI.Editor.FrameUnlockGrid
+    if unlockGrid and unlockGrid.Hide then
+        unlockGrid.Hide()
+    end
+
     local controller = self.GUI and self.GUI.Editor and self.GUI.Editor.Controller
     if controller and controller.ReleaseInspector then
         controller.ReleaseInspector()
