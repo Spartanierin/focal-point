@@ -40,6 +40,27 @@ end
 
 function Utils.BuildFontFlags(config)
     local flags = {}
+    local fontStyle = type(config) == "table" and config.fontStyle or nil
+
+    if fontStyle == "OUTLINE" then
+        flags[#flags + 1] = "OUTLINE"
+    elseif fontStyle == "THICKOUTLINE" then
+        flags[#flags + 1] = "THICKOUTLINE"
+    elseif fontStyle == "MONOCHROME" then
+        flags[#flags + 1] = "MONOCHROME"
+    elseif fontStyle == "OUTLINE_MONOCHROME" then
+        flags[#flags + 1] = "OUTLINE"
+        flags[#flags + 1] = "MONOCHROME"
+    elseif fontStyle == "THICKOUTLINE_MONOCHROME" then
+        flags[#flags + 1] = "THICKOUTLINE"
+        flags[#flags + 1] = "MONOCHROME"
+    elseif fontStyle ~= nil then
+        return ""
+    end
+
+    if fontStyle ~= nil then
+        return table.concat(flags, ",")
+    end
 
     if config.outline then
         flags[#flags + 1] = "OUTLINE"

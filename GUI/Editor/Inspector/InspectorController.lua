@@ -867,6 +867,10 @@ function InspectorController.Build(container, state, options)
             AddCheckBox(healthSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
                 SetUnitField("healthBarReverseFill", value and true or false)
             end)
+
+            AddCheckBox(healthSection, L["OPTION_SHOW_ABSORB_SHIELDS"] or "Show Absorb Shields", unitConfig.showAbsorbOverlay ~= false, function(value)
+                SetUnitField("showAbsorbOverlay", value and true or false, healthSection)
+            end)
         end
 
         if isQuick or unitConfig.useClassColorHealth ~= true then
