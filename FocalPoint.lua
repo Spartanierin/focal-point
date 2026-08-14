@@ -1005,8 +1005,12 @@ function FocalPointAddon:OnInitialize()
 
     if FocalPoint.db and FocalPoint.db.RegisterCallback then
         local function HandleProfileRuntimeRefresh()
+            local reason = FocalPoint._pendingProfileActivationReason or "ace-profile-changed"
+            local options = FocalPoint._pendingProfileActivationOptions
+            FocalPoint._pendingProfileActivationReason = nil
+            FocalPoint._pendingProfileActivationOptions = nil
             if FocalPoint.HandleActiveProfileChanged then
-                FocalPoint:HandleActiveProfileChanged("ace-profile-changed")
+                FocalPoint:HandleActiveProfileChanged(reason, options)
             elseif FocalPoint.RebuildFramesForActiveProfile then
                 FocalPoint:RebuildFramesForActiveProfile()
             end
@@ -1015,6 +1019,10 @@ function FocalPointAddon:OnInitialize()
         FocalPoint.db.RegisterCallback(FocalPoint, "OnProfileChanged", HandleProfileRuntimeRefresh)
         FocalPoint.db.RegisterCallback(FocalPoint, "OnProfileCopied", HandleProfileRuntimeRefresh)
         FocalPoint.db.RegisterCallback(FocalPoint, "OnProfileReset", HandleProfileRuntimeRefresh)
+    end
+
+    if FocalPoint.ProfileAutomation and FocalPoint.ProfileAutomation.Initialize then
+        FocalPoint.ProfileAutomation.Initialize()
     end
 
     FocalPoint.TAG_UPDATE_INTERVAL = FocalPoint.db.profile.General.TagUpdateInterval or 0.25

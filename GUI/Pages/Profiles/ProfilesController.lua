@@ -29,7 +29,10 @@ local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseBut
 local CreateActionButton = FormWidgets.CreateActionButton
 local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
+local StyleCheckBox = FormWidgets.StyleCheckBox
 local RefreshWindowState
+
+local UNASSIGNED_PROFILE_VALUE = "__fp_profile_automation_unassigned__"
 
 local function T(key, fallback)
     return (L and L[key]) or fallback or ""
@@ -81,7 +84,12 @@ local function SyncActiveProfile(reason)
     end
 end
 
-local function SetProfileAndLetCallbackSync(db, profileName, reason)
+local function SetProfileAndLetCallbackSync(db, profileName, reason, options)
+    if ns.ActivateProfile then
+        ns:ActivateProfile(profileName, reason, options)
+        return
+    end
+
     local previousProfileName = db and db.GetCurrentProfile and db:GetCurrentProfile() or nil
     db:SetProfile(profileName)
 
@@ -89,6 +97,154 @@ local function SetProfileAndLetCallbackSync(db, profileName, reason)
     -- profile is already active, run the same central sync path explicitly.
     if previousProfileName == profileName then
         SyncActiveProfile(reason)
+    end
+end
+
+local function GetProfileAutomation()
+    return ns.ProfileAutomation
+end
+
+local function CreateProfileAutomationBlock(root)
+    local automation = GetProfileAutomation()
+    if not root or not automation then
+        return nil
+    end
+
+    local group = AceGUI:Create("InlineGroup")
+    group:SetTitle(T("INFO_PROFILE_AUTOMATION_TITLE", "Automatic Profile Switching"))
+    group:SetFullWidth(true)
+    group:SetLayout("Flow")
+    root:AddChild(group)
+
+    local enabled = AceGUI:Create("CheckBox")
+    enabled:SetFullWidth(true)
+    enabled:SetLabel(T("INFO_PROFILE_AUTOMATION_ENABLE", "Switch profiles automatically by specialization"))
+    if StyleCheckBox then
+        StyleCheckBox(enabled, false)
+    end
+    group:AddChild(enabled)
+
+    local hint = CreateBodyText(
+        T("INFO_PROFILE_AUTOMATION_HINT", "Unassigned keeps the current profile."),
+        "muted",
+        11,
+        nil,
+        680,
+        true
+    )
+    group:AddChild(hint)
+
+    local rows = {}
+    local specs = automation.GetAvailableSpecs and automation.GetAvailableSpecs() or {}
+    for _, spec in ipairs(specs) do
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Flow")
+        group:AddChild(row)
+
+        local label = CreateBodyText(spec.name or tostring(spec.id), "label", 12, nil, 150, false)
+        row:AddChild(label)
+
+        local dropdown = AceGUI:Create("Dropdown")
+        dropdown:SetWidth(250)
+        dropdown:SetLabel("")
+        StyleDropdown(dropdown, "accented")
+        row:AddChild(dropdown)
+
+        local stateLabel = CreateBodyText("", "muted", 11, nil, 240, false)
+        row:AddChild(stateLabel)
+
+        rows[#rows + 1] = {
+            spec = spec,
+            dropdown = dropdown,
+            stateLabel = stateLabel,
+        }
+    end
+
+    if #rows == 0 then
+        group:AddChild(CreateBodyText(T("INFO_PROFILE_AUTOMATION_NO_SPECS", "No specializations are available yet."), "muted", 11, nil, 680, true))
+    end
+
+    return {
+        group = group,
+        enabled = enabled,
+        rows = rows,
+    }
+end
+
+local function RefreshProfileAutomationBlock(context, profileList)
+    local automation = GetProfileAutomation()
+    local block = context and context.profileAutomation
+    if not automation or not block then
+        return
+    end
+
+    local enabled = automation.IsEnabled and automation.IsEnabled() == true
+    context.suspendAutomationCallbacks = true
+    block.enabled:SetValue(enabled)
+
+    local dropdownList = {
+        [UNASSIGNED_PROFILE_VALUE] = T("INFO_PROFILE_AUTOMATION_UNASSIGNED", "Unassigned"),
+    }
+    for profileName in pairs(profileList or {}) do
+        dropdownList[profileName] = profileName
+    end
+
+    for _, row in ipairs(block.rows or {}) do
+        local specID = row.spec and row.spec.id
+        local assignedProfile = automation.GetAssignedProfile and automation.GetAssignedProfile(specID) or nil
+        local assignedExists = type(assignedProfile) == "string" and assignedProfile ~= "" and profileList and profileList[assignedProfile] ~= nil
+
+        row.dropdown:SetList(dropdownList)
+        row.dropdown:SetDisabled(not enabled)
+        row.dropdown:SetValue(assignedExists and assignedProfile or UNASSIGNED_PROFILE_VALUE)
+
+        if assignedProfile and not assignedExists then
+            row.stateLabel:SetText(string.format(T("INFO_PROFILE_AUTOMATION_MISSING_PROFILE", "Missing profile: %s"), assignedProfile))
+        elseif assignedExists then
+            row.stateLabel:SetText("")
+        else
+            row.stateLabel:SetText(T("INFO_PROFILE_AUTOMATION_KEEP_CURRENT", "Keeps current profile."))
+        end
+    end
+    context.suspendAutomationCallbacks = false
+end
+
+local function WireProfileAutomationBlock(context)
+    local automation = GetProfileAutomation()
+    local block = context and context.profileAutomation
+    if not automation or not block then
+        return
+    end
+
+    block.enabled:SetCallback("OnValueChanged", function(_, _, value)
+        if context.suspendAutomationCallbacks then
+            return
+        end
+        if automation.SetEnabled then
+            automation.SetEnabled(value == true)
+        end
+        if value == true and automation.Apply then
+            automation.Apply("profile-automation-ui-enabled")
+        end
+        RefreshProfileUI()
+        RefreshWindowState()
+    end)
+
+    for _, row in ipairs(block.rows or {}) do
+        row.dropdown:SetCallback("OnValueChanged", function(_, _, value)
+            if context.suspendAutomationCallbacks then
+                return
+            end
+            if automation.SetAssignedProfile then
+                automation.SetAssignedProfile(row.spec and row.spec.id, value ~= UNASSIGNED_PROFILE_VALUE and value or nil)
+            end
+            if automation.IsEnabled and automation.IsEnabled() and automation.Apply then
+                automation.Apply("profile-automation-ui-mapping")
+            end
+            RefreshProfileUI()
+            RefreshWindowState()
+        end)
     end
 end
 
@@ -572,6 +728,7 @@ function RefreshWindowState()
     context.profileSelect:SetList(profileList)
     context.profileSelect:SetDisabled(false)
     SyncDropdownValue(context, selectedProfile)
+    RefreshProfileAutomationBlock(context, profileList)
 
     context.nameEdit:SetDisabled(false)
     SyncNameEditText(context, state.newProfileName or "")
@@ -626,6 +783,7 @@ local function CreateWindowContent(window, state)
     })
 
     local root = groups.Root
+    local profileAutomation = CreateProfileAutomationBlock(root)
 
     return {
         window = window,
@@ -644,8 +802,10 @@ local function CreateWindowContent(window, state)
         deleteButton = widgets.deleteButton,
         sourceState = widgets.sourceState,
         maintenanceHint = widgets.maintenanceHint,
+        profileAutomation = profileAutomation,
         suspendNameCallbacks = false,
         suspendProfileCallbacks = false,
+        suspendAutomationCallbacks = false,
     }
 end
 
@@ -695,6 +855,8 @@ local function WireWindowCallbacks(context)
         context.state.newProfileName = widget:GetText() or ""
         RefreshWindowState()
     end)
+
+    WireProfileAutomationBlock(context)
 
     context.activateButton:SetCallback("OnClick", function()
         local db = ns.db
@@ -867,6 +1029,10 @@ local function WireWindowCallbacks(context)
         end
 
         db:DeleteProfile(profileName, true)
+        local automation = GetProfileAutomation()
+        if automation and automation.ReconcileProfileDeleted then
+            automation.ReconcileProfileDeleted(profileName)
+        end
         context.state.selectedProfile = db:GetCurrentProfile()
         RefreshProfileUI()
         RefreshWindowState()
@@ -910,7 +1076,7 @@ local function WireWindowCallbacks(context)
             end
         end
 
-        SetProfileAndLetCallbackSync(db, profileName, "profiles-create-current")
+        SetProfileAndLetCallbackSync(db, profileName, "profiles-create-current", { allowCreate = true })
         context.state.selectedProfile = profileName
         context.state.newProfileName = ""
         RefreshProfileUI()
@@ -924,7 +1090,7 @@ local function CreateWindow(state)
     window:SetTitle(T("NAV_PROFILES"))
     window:SetLayout("Fill")
     window:SetWidth(760)
-    window:SetHeight(520)
+    window:SetHeight(680)
     window:EnableResize(false)
 
     if window.frame then

@@ -2490,7 +2490,8 @@ local function ValidateEditorSelectionForProfile(addon)
     end
 end
 
-function FocalPoint:HandleActiveProfileChanged(reason)
+function FocalPoint:HandleActiveProfileChanged(reason, options)
+    options = type(options) == "table" and options or {}
     ValidateEditorSelectionForProfile(self)
 
     if self.RebuildFramesForActiveProfile then
@@ -2501,7 +2502,14 @@ function FocalPoint:HandleActiveProfileChanged(reason)
         self:RefreshEditorSelectionVisuals()
     end
 
-    if self.GUI and self.GUI.RequestRefreshOptions then
+    local shouldRefreshGUI = true
+    if options.silent == true then
+        local host = self.guiMainHost
+        local hostFrame = host and (host.frame or host) or nil
+        shouldRefreshGUI = hostFrame and (not hostFrame.IsShown or hostFrame:IsShown()) or false
+    end
+
+    if shouldRefreshGUI and self.GUI and self.GUI.RequestRefreshOptions then
         self.GUI:RequestRefreshOptions()
     end
 end

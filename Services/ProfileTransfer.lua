@@ -854,6 +854,8 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
     profileStore[requestedProfileName] = importedProfile
     if currentProfileName == requestedProfileName then
         db.profile = importedProfile
+    elseif FocalPoint and FocalPoint.ActivateProfile then
+        FocalPoint:ActivateProfile(requestedProfileName, "profiles-import")
     else
         db:SetProfile(requestedProfileName)
     end

@@ -2,6 +2,12 @@
 
 function FocalPoint:GetDefaultDB()
     return {
+        global = {
+            ProfileAutomation = {
+                enabled = false,
+                specProfiles = {},
+            },
+        },
         profile = {
             General = {
                 TagUpdateInterval = 0.125,
