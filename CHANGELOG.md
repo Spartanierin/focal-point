@@ -10,6 +10,22 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.1.4
+
+### Added
+
+* Added `[name:full]` for full character names, including titles when Blizzard provides them.
+* Added an optional alignment grid for Unlock Mode.
+
+### Improved
+
+* Improved text template rendering for unit-name text elements so name text uses the normal template pipeline.
+* Refined the Unlock Mode grid with centered, pixel-aligned square cells.
+
+### Removed
+
+* Removed an old animated target-name color behavior for rare and elite targets.
+
 ## Focal Point 1.1.3a
 
 ### Fixed
