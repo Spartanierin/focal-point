@@ -8,6 +8,7 @@ local TextStatus = FocalPoint.TextElementStatus or {}
 local TextPower = FocalPoint.TextElementPower or {}
 local TextState = FocalPoint.TextElementState or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local Health = FocalPoint.UnitFrameHealth or {}
 
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
 local FormatNumber = TextUtils.FormatNumber
@@ -68,6 +69,35 @@ local function GetRenderableUnitPowerPercent(unit)
     end
 
     return percent, nil
+end
+
+local function EnsureCanonicalHealthLiveValues(frame, unit)
+    local live = frame.LiveValues
+    local currentRaw = live.healthCurrentRaw
+    local maxRaw = live.healthMaxRaw
+    local currentSafe = ToKnownNumber(live.healthCurrentSafe)
+    local maxSafe = ToKnownNumber(live.healthMaxSafe)
+
+    if currentRaw ~= nil and maxRaw ~= nil and currentSafe ~= nil and maxSafe ~= nil and maxSafe > 0 then
+        return currentRaw, maxRaw, currentSafe, maxSafe
+    end
+
+    local currentHealth, maxHealth
+    if Health.GetCurrentValues then
+        currentHealth, maxHealth = Health.GetCurrentValues(frame)
+    else
+        currentHealth = UnitHealth and UnitHealth(unit) or 0
+        maxHealth = UnitHealthMax and UnitHealthMax(unit) or 1
+    end
+
+    currentSafe = ToSafeNumber(currentHealth)
+    maxSafe = ToSafeNumber(maxHealth)
+    live.healthCurrentRaw = currentHealth
+    live.healthMaxRaw = maxHealth
+    live.healthCurrentSafe = currentSafe
+    live.healthMaxSafe = maxSafe
+
+    return currentHealth, maxHealth, currentSafe, maxSafe
 end
 
 -- Builds the live text value cache that all token resolvers read from.
@@ -140,28 +170,19 @@ function LiveValues.Refresh(frame)
     end
 
     local unit = frame.unit
-    local healthCurrent = UnitHealth and UnitHealth(unit) or 0
-    local healthMax = UnitHealthMax and UnitHealthMax(unit) or 0
+    local healthCurrent, healthMax, healthCurrentSafe, healthMaxSafe = EnsureCanonicalHealthLiveValues(frame, unit)
     local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
     local powerCurrent = UnitPower and UnitPower(unit) or 0
     local powerMax = UnitPowerMax and UnitPowerMax(unit) or 0
     local powerType = UnitPowerType and UnitPowerType(unit) or nil
     local altPowerCurrent = 0
     local altPowerMax = 0
-    local healthBar = frame.Elements and frame.Elements.HealthBar
     local powerBar = frame.Elements and frame.Elements.PowerBar
     local alternativePowerBar = frame.Elements and frame.Elements.AlternativePowerBar
-    local healthBarCurrent = healthBar and healthBar.GetValue and healthBar:GetValue() or nil
     local powerBarCurrent = powerBar and powerBar.GetValue and powerBar:GetValue() or nil
     local alternativePowerBarCurrent = alternativePowerBar and alternativePowerBar.GetValue and alternativePowerBar:GetValue() or nil
-    local healthBarMax = nil
     local powerBarMax = nil
     local alternativePowerBarMax = nil
-
-    if healthBar and healthBar.GetMinMaxValues then
-        local _, maxValue = healthBar:GetMinMaxValues()
-        healthBarMax = maxValue
-    end
 
     if powerBar and powerBar.GetMinMaxValues then
         local _, maxValue = powerBar:GetMinMaxValues()
@@ -194,18 +215,10 @@ function LiveValues.Refresh(frame)
     frame.LiveValues.healthMax = healthMax
     frame.LiveValues.healthCurrentText = FormatNumber(healthCurrent)
     frame.LiveValues.healthMaxText = FormatNumber(healthMax)
-    frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthBarCurrent)
-    if frame.LiveValues.healthCurrentSafe <= 0 then
-        frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
-    end
-    frame.LiveValues.healthMaxSafe = ToSafeNumber(healthBarMax)
-    if frame.LiveValues.healthMaxSafe <= 0 then
-        frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
-    end
     frame.LiveValues.healthPercentText = FormatInteger(healthPercent)
     frame.LiveValues.healthPercentValue = 0
-    if frame.LiveValues.healthMaxSafe > 0 and frame.LiveValues.healthCurrentSafe >= 0 then
-        frame.LiveValues.healthPercentValue = math.floor((frame.LiveValues.healthCurrentSafe / frame.LiveValues.healthMaxSafe) * 100)
+    if healthMaxSafe > 0 and healthCurrentSafe >= 0 then
+        frame.LiveValues.healthPercentValue = math.floor((healthCurrentSafe / healthMaxSafe) * 100)
     end
     if frame.LiveValues.healthPercentValue <= 0 then
         frame.LiveValues.healthPercentValue = ToSafeNumber(healthPercent)
