@@ -28,6 +28,16 @@ local INTERACTION_MODE_BUTTONS = {
     text = "textModeButton",
 }
 
+local BUILT_IN_PRESET_ORDER = {
+    "default",
+    "classic",
+    "minimal",
+    "modern",
+}
+
+local CUSTOM_PRESET_ID = "__custom__"
+local createProfileDialog
+
 local function ResolveConstantPath(root, path)
     if type(root) ~= "table" or type(path) ~= "table" then
         return nil
@@ -74,12 +84,326 @@ local function EnsureMinimapConfig(nsRef)
     return profile.Minimap
 end
 
+local function Trim(value)
+    if type(value) ~= "string" then
+        return ""
+    end
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
 local function NotifyGlobalChanged(options, refreshFn)
     if options and options.onGlobalChanged then
         options.onGlobalChanged()
     elseif refreshFn then
         refreshFn()
     end
+end
+
+local function ResolvePresetName(preset, deps)
+    local metadata = type(preset) == "table" and preset.metadata or nil
+    if type(metadata) ~= "table" then
+        return ""
+    end
+    if type(metadata.labelKey) == "string" then
+        local label = T(metadata.labelKey, nil, deps)
+        if label ~= "" then
+            return label
+        end
+    end
+    if type(metadata.name) == "string" and metadata.name ~= "" then
+        return metadata.name
+    end
+    return metadata.id or ""
+end
+
+local function ResolvePresetDescription(preset, fallback, deps)
+    local metadata = type(preset) == "table" and preset.metadata or nil
+    if type(metadata) ~= "table" then
+        return fallback or ""
+    end
+    if type(metadata.descriptionKey) == "string" then
+        local description = T(metadata.descriptionKey, nil, deps)
+        if description ~= "" then
+            return description
+        end
+    end
+    if type(metadata.description) == "string" and metadata.description ~= "" then
+        return metadata.description
+    end
+    return fallback or ""
+end
+
+local function SortByNameThenId(a, b)
+    local leftName = string.lower(a.name or "")
+    local rightName = string.lower(b.name or "")
+    if leftName == rightName then
+        return tostring(a.id or "") < tostring(b.id or "")
+    end
+    return leftName < rightName
+end
+
+local function BuildPresetDropdownList(presets, deps, options)
+    local list = {}
+    local order = {}
+    local seen = {}
+
+    local function addPreset(id, preset)
+        if type(id) ~= "string" or id == "" or seen[id] or type(preset) ~= "table" then
+            return
+        end
+        local name = ResolvePresetName(preset, deps)
+        if name == "" then
+            name = id
+        end
+        list[id] = name
+        order[#order + 1] = id
+        seen[id] = true
+    end
+
+    for _, id in ipairs(BUILT_IN_PRESET_ORDER) do
+        addPreset(id, presets and presets[id])
+    end
+
+    local extraBuiltIns = {}
+    local userPresets = {}
+    for id, preset in pairs(presets or {}) do
+        if not seen[id] then
+            local metadata = type(preset) == "table" and preset.metadata or {}
+            local entry = {
+                id = id,
+                preset = preset,
+                name = ResolvePresetName(preset, deps),
+            }
+            if metadata.source == "user" then
+                userPresets[#userPresets + 1] = entry
+            else
+                extraBuiltIns[#extraBuiltIns + 1] = entry
+            end
+        end
+    end
+
+    table.sort(extraBuiltIns, SortByNameThenId)
+    for _, entry in ipairs(extraBuiltIns) do
+        addPreset(entry.id, entry.preset)
+    end
+
+    table.sort(userPresets, SortByNameThenId)
+    for _, entry in ipairs(userPresets) do
+        addPreset(entry.id, entry.preset)
+    end
+
+    if options and options.includeCustom then
+        list[options.customId or CUSTOM_PRESET_ID] = T("THEME_CUSTOM", "My Layout", deps)
+        order[#order + 1] = options.customId or CUSTOM_PRESET_ID
+    end
+
+    return list, order
+end
+
+local function GetFirstPresetId(order, list)
+    if type(order) == "table" then
+        for _, id in ipairs(order) do
+            if list and list[id] then
+                return id
+            end
+        end
+    end
+    for id in pairs(list or {}) do
+        return id
+    end
+    return nil
+end
+
+local function ResolveCreateProfileError(errorKey, deps)
+    if errorKey == "invalid-profile-name" then
+        return T("PROFILE_NAME_REQUIRED", "Please enter a profile name.", deps)
+    elseif errorKey == "profile-exists" then
+        return T("PROFILE_NAME_EXISTS", "A profile with this name already exists.", deps)
+    elseif errorKey == "preset-not-found" then
+        return T("PRESET_NOT_AVAILABLE", "Preset is no longer available.", deps)
+    elseif errorKey == "combat-blocked" then
+        return T("PROFILE_CREATE_COMBAT_BLOCKED", "Create profiles outside combat.", deps)
+    end
+
+    return T("PROFILE_CREATE_FAILED", "Profile could not be created.", deps)
+end
+
+local function FocusEditBox(editBox)
+    if not editBox then
+        return
+    end
+    if editBox.SetFocus then
+        editBox:SetFocus()
+    end
+    if editBox.HighlightText then
+        editBox:HighlightText()
+    end
+    local input = editBox.editbox or editBox.editBox
+    if input then
+        if input.SetFocus then
+            input:SetFocus()
+        end
+        if input.HighlightText then
+            input:HighlightText()
+        end
+    end
+end
+
+local function OpenCreateProfileDialog(context, deps, refreshFn)
+    local AceGUI = deps and deps.AceGUI
+    local ProfileLayoutService = (deps and deps.ProfileLayoutService) or {}
+    local PresetService = (deps and deps.PresetService) or {}
+    local CreateBodyText = deps and deps.CreateBodyText
+    local CreateActionButton = deps and deps.CreateActionButton
+    local StyleEditBox = deps and deps.StyleEditBox
+    local ApplyWindowChrome = deps and deps.ApplyWindowChrome
+    local EnsureStandardWindowCloseButton = deps and deps.EnsureStandardWindowCloseButton
+    if not AceGUI or not ProfileLayoutService.CreateProfileFromPreset then
+        return
+    end
+
+    local presetId = context and context.state and context.state.selectedThemeId
+    local preset = PresetService.GetPreset and PresetService.GetPreset(presetId) or nil
+    if type(preset) ~= "table" then
+        return
+    end
+
+    if createProfileDialog and createProfileDialog.window and createProfileDialog.window.Hide then
+        createProfileDialog.window:Hide()
+    end
+
+    local presetName = ResolvePresetName(preset, deps)
+    local window = AceGUI:Create("Window")
+    window:SetTitle(T("PRESET_CREATE_PROFILE_TITLE", "Create Profile from Preset", deps))
+    window:SetLayout("List")
+    window:SetWidth(420)
+    window:SetHeight(190)
+    window:EnableResize(false)
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+        window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    end
+    if ApplyWindowChrome then
+        ApplyWindowChrome(window)
+    end
+    if EnsureStandardWindowCloseButton then
+        EnsureStandardWindowCloseButton(window)
+    end
+
+    local hint = CreateBodyText
+        and CreateBodyText(presetName, "description", 12, nil, nil, true)
+        or AceGUI:Create("Label")
+    hint:SetFullWidth(true)
+    hint:SetText(presetName)
+    window:AddChild(hint)
+
+    local nameEdit = AceGUI:Create("EditBox")
+    nameEdit:SetLabel(T("PROFILE_NAME", "Profile Name", deps))
+    nameEdit:SetFullWidth(true)
+    nameEdit:SetText(presetName)
+    if StyleEditBox then
+        StyleEditBox(nameEdit, "editor_inset")
+    end
+    window:AddChild(nameEdit)
+
+    local statusText = CreateBodyText
+        and CreateBodyText("", "description", 11, nil, nil, true)
+        or AceGUI:Create("Label")
+    statusText:SetFullWidth(true)
+    statusText:SetText(" ")
+    window:AddChild(statusText)
+
+    local row = AceGUI:Create("SimpleGroup")
+    row:SetLayout("Flow")
+    row:SetFullWidth(true)
+    window:AddChild(row)
+
+    local createButton = CreateActionButton
+        and CreateActionButton(T("PRESET_CREATE_PROFILE", "Create Profile", deps), "primary_action", 150, false)
+        or AceGUI:Create("Button")
+    createButton:SetText(T("PRESET_CREATE_PROFILE", "Create Profile", deps))
+    createButton:SetWidth(150)
+    row:AddChild(createButton)
+
+    local cancelButton = CreateActionButton
+        and CreateActionButton(T("INFO_COMMON_CANCEL", "Cancel", deps), "utility", 110, false)
+        or AceGUI:Create("Button")
+    cancelButton:SetText(T("INFO_COMMON_CANCEL", "Cancel", deps))
+    cancelButton:SetWidth(110)
+    row:AddChild(cancelButton)
+
+    local function setStatus(message)
+        statusText:SetText(message and message ~= "" and message or " ")
+        if window.DoLayout then
+            window:DoLayout()
+        end
+    end
+
+    local function updateCreateButton()
+        createButton:SetDisabled(Trim(nameEdit:GetText()) == "")
+    end
+
+    local function confirm()
+        local ok, resultOrError = ProfileLayoutService.CreateProfileFromPreset(presetId, nameEdit:GetText(), {
+            reason = "toolbar-create-profile-from-preset",
+        })
+        if ok then
+            if window.Hide then
+                window:Hide()
+            end
+            if context and context.options and context.options.onProfileCreated then
+                context.options.onProfileCreated(resultOrError)
+            elseif context and context.options and context.options.onGlobalChanged then
+                context.options.onGlobalChanged()
+            elseif refreshFn then
+                refreshFn()
+            end
+            return
+        end
+        setStatus(ResolveCreateProfileError(resultOrError, deps))
+        updateCreateButton()
+    end
+
+    nameEdit:SetCallback("OnTextChanged", function()
+        setStatus("")
+        updateCreateButton()
+    end)
+    nameEdit:SetCallback("OnEnterPressed", function()
+        if Trim(nameEdit:GetText()) ~= "" then
+            confirm()
+        end
+    end)
+    createButton:SetCallback("OnClick", confirm)
+    cancelButton:SetCallback("OnClick", function()
+        if window.Hide then
+            window:Hide()
+        end
+    end)
+    window:SetCallback("OnClose", function()
+        createProfileDialog = nil
+    end)
+
+    if window.frame and window.frame.SetScript then
+        window.frame:EnableKeyboard(true)
+        if window.frame.SetPropagateKeyboardInput then
+            window.frame:SetPropagateKeyboardInput(true)
+        end
+        window.frame:SetScript("OnKeyDown", function(_, key)
+            if key == "ESCAPE" and window.Hide then
+                window:Hide()
+            end
+        end)
+    end
+
+    createProfileDialog = {
+        window = window,
+        presetId = presetId,
+    }
+    updateCreateButton()
+    if window.Show then
+        window:Show()
+    end
+    FocusEditBox(nameEdit)
 end
 
 local function IsExpertMode(deps, state)
@@ -366,8 +690,6 @@ local function RefreshWindowState(context, deps)
     local KM = deps and deps.KM or {}
     local StyleCheckBox = deps and deps.StyleCheckBox
     local StyleDropdown = deps and deps.StyleDropdown
-    local BuildThemeList = deps and deps.BuildThemeList
-    local GetFirstThemeId = deps and deps.GetFirstThemeId
     local sidebarThemeHelpers = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.EditorSidebarThemeHelpers or {}
     local SIDEBAR_VISUAL_ROLE = (nsRef.GUI and nsRef.GUI.ButtonVisualRole)
         or sidebarThemeHelpers.ButtonVisualRole
@@ -382,29 +704,34 @@ local function RefreshWindowState(context, deps)
         }
     local ApplySidebarButtonVisual = sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton
     local ThemeService = (deps and deps.ThemeService) or nsRef.ThemeService or {}
+    local PresetService = (deps and deps.PresetService) or nsRef.PresetService or {}
     local BuilderUI = (deps and deps.BuilderUI) or (nsRef.GUI and nsRef.GUI.Helpers and nsRef.GUI.Helpers.GUIRuntimeHelpers) or {}
     local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
-    local themes = ThemeService.GetThemes and ThemeService.GetThemes() or {}
-    local themeList = BuildThemeList and BuildThemeList(themes) or {}
     local customThemeId = ThemeService.GetCustomThemeId and ThemeService.GetCustomThemeId() or "__custom__"
+    local presets = PresetService.ListPresets and PresetService.ListPresets() or {}
+    local presetList, presetOrder = BuildPresetDropdownList(presets, deps, {
+        includeCustom = ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot(),
+        customId = customThemeId,
+    })
     local activeThemeId = generalConfig and generalConfig.ActiveThemeId
-    local selectedThemeId = state.selectedThemeId or activeThemeId
+    local selectedPresetId = state.selectedThemeId or activeThemeId
     if type(generalConfig) ~= "table" then
         context._suspendCallbacks = false
         return
     end
     local isExpertMode = IsExpertMode(deps, state)
 
-    if ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot() then
-        themeList[customThemeId] = T("THEME_CUSTOM", "My Layout", deps)
+    if not presetList[selectedPresetId] then
+        selectedPresetId = activeThemeId
     end
-    if not themeList[selectedThemeId] then
-        selectedThemeId = activeThemeId
+    if not presetList[selectedPresetId] then
+        selectedPresetId = GetFirstPresetId(presetOrder, presetList)
     end
-    if not themeList[selectedThemeId] and GetFirstThemeId then
-        selectedThemeId = GetFirstThemeId(themeList)
-    end
-    state.selectedThemeId = selectedThemeId
+    state.selectedThemeId = selectedPresetId
+    local selectedPreset = PresetService.GetPreset and PresetService.GetPreset(selectedPresetId) or nil
+    local selectedPresetSource = selectedPreset and selectedPreset.metadata and selectedPreset.metadata.source or nil
+    local selectedIsBuiltInPreset = selectedPresetSource == "builtin"
+    local selectedIsCustomLayout = selectedPresetId == customThemeId
 
     local versionText = BuilderUI.GetAddonVersionText and BuilderUI.GetAddonVersionText() or "dev"
     local logoPath = "Interface\\AddOns\\FocalPoint\\Media\\icon.tga"
@@ -514,31 +841,37 @@ local function RefreshWindowState(context, deps)
 
     if context.widgets.presetDropdown then
         context.widgets.presetDropdown:SetLabel(T("EDITOR_PRESET_SELECT", T("THEME_SELECT", "Select Preset", deps), deps))
-        context.widgets.presetDropdown:SetList(themeList)
-        context.widgets.presetDropdown:SetValue(selectedThemeId)
-        context.widgets.presetDropdown:SetDisabled(next(themeList) == nil)
+        context.widgets.presetDropdown:SetList(presetList, presetOrder)
+        context.widgets.presetDropdown:SetValue(selectedPresetId)
+        context.widgets.presetDropdown:SetDisabled(next(presetList) == nil)
         if StyleDropdown then
             StyleDropdown(context.widgets.presetDropdown, "editor_inset")
         end
     end
 
     if context.widgets.presetThemeInfo then
-        local selectedTheme = themes[selectedThemeId]
         local themeDescription
-        if selectedThemeId == customThemeId then
+        if selectedIsCustomLayout then
             themeDescription = T("THEME_CUSTOM_DESC", nil, deps)
         else
-            themeDescription = (selectedTheme and selectedTheme.descriptionKey and T(selectedTheme.descriptionKey, nil, deps))
-                or T("INFO_GENERAL_THEMES_DESC", nil, deps)
+            themeDescription = ResolvePresetDescription(selectedPreset, T("INFO_GENERAL_THEMES_DESC", nil, deps), deps)
         end
         context.widgets.presetThemeInfo:SetText(themeDescription or "")
     end
 
     if context.widgets.applyPreset then
         context.widgets.applyPreset:SetText(T("THEME_APPLY", T("INFO_GENERAL_THEME_APPLY", "Apply Preset", deps), deps))
-        context.widgets.applyPreset:SetDisabled(not selectedThemeId)
+        context.widgets.applyPreset:SetDisabled(not (selectedIsBuiltInPreset or selectedIsCustomLayout))
         if ApplySidebarButtonVisual then
             ApplySidebarButtonVisual(context.widgets.applyPreset, SIDEBAR_VISUAL_ROLE.PRIMARY_ACTION)
+        end
+    end
+
+    if context.widgets.createProfileFromPreset then
+        context.widgets.createProfileFromPreset:SetText(T("PRESET_CREATE_PROFILE", "Create Profile", deps))
+        context.widgets.createProfileFromPreset:SetDisabled(not selectedPreset)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.createProfileFromPreset, SIDEBAR_VISUAL_ROLE.UTILITY)
         end
     end
 
@@ -735,9 +1068,16 @@ local function WireCallbacks(context, deps, refreshFn)
     if context.widgets.applyPreset then
         context.widgets.applyPreset:SetCallback("OnClick", function()
             local ThemeService = (deps and deps.ThemeService) or nsRef.ThemeService or {}
+            local PresetService = (deps and deps.PresetService) or nsRef.PresetService or {}
             local selectedThemeId = context.state and context.state.selectedThemeId
             local customThemeId = ThemeService.GetCustomThemeId and ThemeService.GetCustomThemeId() or "__custom__"
+            local preset = PresetService.GetPreset and PresetService.GetPreset(selectedThemeId) or nil
+            local isBuiltInPreset = preset and preset.metadata and preset.metadata.source == "builtin"
+            local isCustomLayout = selectedThemeId == customThemeId
             if not selectedThemeId or not ThemeService.ApplyTheme then
+                return
+            end
+            if not isBuiltInPreset and not isCustomLayout then
                 return
             end
 
@@ -761,6 +1101,12 @@ local function WireCallbacks(context, deps, refreshFn)
                     refreshFn()
                 end
             end
+        end)
+    end
+
+    if context.widgets.createProfileFromPreset then
+        context.widgets.createProfileFromPreset:SetCallback("OnClick", function()
+            OpenCreateProfileDialog(context, deps, refreshFn)
         end)
     end
 

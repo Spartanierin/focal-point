@@ -25,11 +25,11 @@ local StyleDropdown = FormWidgets and FormWidgets.StyleDropdown
 local StyleActionButton = FormWidgets and FormWidgets.StyleActionButton
 local ResolveItemColor = FormWidgets and FormWidgets.ResolveItemColor
 local ApplySidebarChrome = FormWidgets and FormWidgets.ApplySidebarChrome
+local StyleEditBox = FormWidgets and FormWidgets.StyleEditBox
+local ApplyWindowChrome = FormWidgets and FormWidgets.ApplyWindowChrome
+local EnsureStandardWindowCloseButton = FormWidgets and FormWidgets.EnsureStandardWindowCloseButton
 
 local StyleSidebarButton = EditorSidebarThemeHelpers.StyleSidebarButton
-local BuildThemeList = EditorSidebarThemeHelpers.BuildThemeList
-local GetFirstThemeId = EditorSidebarThemeHelpers.GetFirstThemeId
-
 local windowContext
 
 local TOOLBAR_SECTIONS = {
@@ -60,16 +60,19 @@ local function BuildBindingDeps()
         KM = KM,
         ns = ns,
         ThemeService = ns.ThemeService or {},
+        PresetService = ns.PresetService or {},
+        ProfileLayoutService = ns.ProfileLayoutService or {},
         BuilderUI = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.GUIRuntimeHelpers or {},
         CreateBodyText = CreateBodyText,
         CreateActionButton = CreateActionButton,
         StyleCheckBox = StyleCheckBox,
         StyleDropdown = StyleDropdown,
+        StyleEditBox = StyleEditBox,
         StyleActionButton = StyleActionButton,
         ResolveItemColor = ResolveItemColor,
+        ApplyWindowChrome = ApplyWindowChrome,
+        EnsureStandardWindowCloseButton = EnsureStandardWindowCloseButton,
         StyleSidebarButton = StyleSidebarButton,
-        BuildThemeList = BuildThemeList,
-        GetFirstThemeId = GetFirstThemeId,
     }
 end
 

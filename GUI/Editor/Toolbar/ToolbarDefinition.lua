@@ -453,8 +453,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 152,
-                derivedFrom = "title + intro + dropdown + status + 3 actions + restore hint",
+                min = 178,
+                derivedFrom = "title + intro + dropdown + status + 4 actions + restore hint",
             },
         },
         items = {
@@ -462,6 +462,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             { id = "presetDropdown", widget = "dropdown", itemVariant = "profile_field", labelKey = "EDITOR_PRESET_START" },
             { id = "presetThemeInfo", widget = "label", itemVariant = "footer_hint_muted", text = "", size = 11 },
             { id = "applyPreset", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_PRESET_APPLY" },
+            { id = "createProfileFromPreset", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "PRESET_CREATE_PROFILE" },
             { id = "saveCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_SAVE_CUSTOM" },
             { id = "restoreCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_RESTORE_CUSTOM" },
         },

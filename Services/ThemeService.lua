@@ -344,6 +344,12 @@ function ThemeService.RestoreSnapshot()
 end
 
 function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
+    local PresetService = FocalPoint.PresetService or {}
+    local preset = PresetService.GetPreset and PresetService.GetPreset(themeId) or nil
+    if type(preset) == "table" and type(preset.layout) == "table" and LayoutService.BuildPreviewUnitConfig then
+        return LayoutService.BuildPreviewUnitConfig(preset.layout, unitKey)
+    end
+
     local theme = ThemeService.GetTheme(themeId)
     local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()
     local layout = LegacyThemeAdapter.MaterializePreviewLayout
