@@ -2,6 +2,8 @@ local _, FocalPoint = ...
 
 FocalPoint.ThemeService = FocalPoint.ThemeService or {}
 local ThemeService = FocalPoint.ThemeService
+local LayoutService = FocalPoint.LayoutService or {}
+local LegacyThemeAdapter = FocalPoint.LegacyThemeAdapter or {}
 local themeRestoreState = nil
 local RESTORE_STATE_KEY = "_ThemeRestoreState"
 local CUSTOM_THEME_KEY = "_CustomThemeSnapshot"
@@ -25,68 +27,11 @@ local PRESERVED_UNIT_KEYS = {
     "frameStrata",
 }
 
-local SECTION_MAP = {
-    frame = {
-        width = "width",
-        height = "height",
-        alpha = "alpha",
-        scale = "scale",
-        bossSpacing = "bossSpacing",
-        point = "point",
-        relativeTo = "relativeTo",
-        relativePoint = "relativePoint",
-        x = "x",
-        y = "y",
-        backgroundColor = "backgroundColor",
-        borderColor = "borderColor",
-        healthColor = "healthColor",
-        healthLowColor = "healthLowColor",
-        healthBackgroundColor = "healthBackgroundColor",
-        powerColor = "powerColor",
-        classPowerColor = "classPowerColor",
-        powerBackgroundColor = "powerBackgroundColor",
-        classPowerBackgroundColor = "classPowerBackgroundColor",
-        useClassColorHealth = "useClassColorHealth",
-        useClassColorPower = "useClassColorPower",
-        useReactionColorNpcHealth = "useReactionColorNpcHealth",
-        healthBarTexture = "healthBarTexture",
-        powerBarTexture = "powerBarTexture",
-    },
-    portrait = {
-        enabled = { "Portrait", "enabled" },
-        placement = { "Portrait", "placement" },
-        mode = { "Portrait", "mode" },
-        size = { "Portrait", "size" },
-        scale = { "Portrait", "scale" },
-        padding = { "Portrait", "padding" },
-        insideSide = { "Portrait", "insideSide" },
-        anchorTo = { "Portrait", "anchorTo" },
-        point = { "Portrait", "point" },
-        relativePoint = { "Portrait", "relativePoint" },
-        offsetX = { "Portrait", "offsetX" },
-        offsetY = { "Portrait", "offsetY" },
-    },
-    bars = {
-        showPowerBar = "showPowerBar",
-        showAlternativePowerBar = "showAlternativePowerBar",
-        showClassPowerBar = "showClassPowerBar",
-        powerBarHeight = "powerBarHeight",
-        alternativePowerBarHeight = "alternativePowerBarHeight",
-        alternativePowerBarTexture = "alternativePowerBarTexture",
-        classPowerBarHeight = "classPowerBarHeight",
-        classPowerBarWidth = "classPowerBarWidth",
-        classPowerBarSpacing = "classPowerBarSpacing",
-        classPowerBarTexture = "classPowerBarTexture",
-        showCastBar = "showCastBar",
-        showCastBarIcon = "showCastBarIcon",
-        castBarHeight = "castBarHeight",
-        castBarTexture = "castBarTexture",
-        castBarColor = "castBarColor",
-        castBarInterruptibleColor = "castBarInterruptibleColor",
-    },
-}
-
 local function CloneValue(value)
+    if LayoutService.Clone then
+        return LayoutService.Clone(value)
+    end
+
     if type(value) ~= "table" then
         return value
     end
@@ -103,6 +48,10 @@ local function CloneValue(value)
 end
 
 local function MergeInto(target, source)
+    if LayoutService.MergeInto then
+        return LayoutService.MergeInto(target, source)
+    end
+
     if type(target) ~= "table" or type(source) ~= "table" then
         return
     end
@@ -113,78 +62,6 @@ local function MergeInto(target, source)
             MergeInto(target[key], value)
         else
             target[key] = value
-        end
-    end
-end
-
-local function SetPath(target, path, value)
-    if type(target) ~= "table" or not path then
-        return
-    end
-
-    if type(path) == "string" then
-        target[path] = CloneValue(value)
-        return
-    end
-
-    local node = target
-    for index = 1, #path - 1 do
-        local key = path[index]
-        node[key] = node[key] or {}
-        node = node[key]
-    end
-
-    node[path[#path]] = CloneValue(value)
-end
-
-local function ApplyMappedSection(unitConfig, sectionData, mapping)
-    if type(unitConfig) ~= "table" or type(sectionData) ~= "table" or type(mapping) ~= "table" then
-        return
-    end
-
-    for sourceKey, targetPath in pairs(mapping) do
-        if sectionData[sourceKey] ~= nil then
-            SetPath(unitConfig, targetPath, sectionData[sourceKey])
-        end
-    end
-end
-
-local function ApplyTexts(unitConfig, texts)
-    if type(unitConfig) ~= "table" or type(texts) ~= "table" then
-        return
-    end
-
-    unitConfig.Texts = unitConfig.Texts or {}
-    for key, textConfig in pairs(texts) do
-        unitConfig.Texts[key] = unitConfig.Texts[key] or {}
-        if type(textConfig) == "table" then
-            MergeInto(unitConfig.Texts[key], textConfig)
-        end
-    end
-end
-
-local function ApplyIndicators(unitConfig, indicators)
-    if type(unitConfig) ~= "table" or type(indicators) ~= "table" then
-        return
-    end
-
-    for key, indicatorConfig in pairs(indicators) do
-        unitConfig[key] = unitConfig[key] or {}
-        if type(indicatorConfig) == "table" then
-            MergeInto(unitConfig[key], indicatorConfig)
-        end
-    end
-end
-
-local function ApplyAuras(unitConfig, auras)
-    if type(unitConfig) ~= "table" or type(auras) ~= "table" then
-        return
-    end
-
-    for key, auraConfig in pairs(auras) do
-        unitConfig[key] = unitConfig[key] or {}
-        if type(auraConfig) == "table" then
-            MergeInto(unitConfig[key], auraConfig)
         end
     end
 end
@@ -263,21 +140,6 @@ local function RemapThemeUnitTextTemplates(unitTheme, templateNameMap)
     end
 end
 
-local function ApplyThemeToUnitConfig(unitConfig, unitTheme)
-    if type(unitConfig) ~= "table" or type(unitTheme) ~= "table" then
-        return unitConfig
-    end
-
-    ApplyMappedSection(unitConfig, unitTheme.frame, SECTION_MAP.frame)
-    ApplyMappedSection(unitConfig, unitTheme.portrait, SECTION_MAP.portrait)
-    ApplyMappedSection(unitConfig, unitTheme.bars, SECTION_MAP.bars)
-    ApplyIndicators(unitConfig, unitTheme.indicators)
-    ApplyTexts(unitConfig, unitTheme.texts)
-    ApplyAuras(unitConfig, unitTheme.auras)
-
-    return unitConfig
-end
-
 local function PreserveUnitPlacementAndVisibility(targetConfig, sourceConfig)
     if type(targetConfig) ~= "table" or type(sourceConfig) ~= "table" then
         return
@@ -293,7 +155,10 @@ end
 local function BuildAppliedUnitConfig(unitKey, currentUnitConfig, unitTheme, defaultUnits)
     local baseConfig = CloneValue(defaultUnits and defaultUnits[unitKey]) or {}
     PreserveUnitPlacementAndVisibility(baseConfig, currentUnitConfig)
-    return ApplyThemeToUnitConfig(baseConfig, unitTheme)
+    if LegacyThemeAdapter.MaterializeApplyUnit then
+        return LegacyThemeAdapter.MaterializeApplyUnit(baseConfig, unitTheme)
+    end
+    return baseConfig
 end
 
 local function GetPersistedRestoreState()
@@ -481,18 +346,15 @@ end
 function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
     local theme = ThemeService.GetTheme(themeId)
     local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()
-    local defaultUnits = defaults and defaults.profile and defaults.profile.Units
-    local baseConfig = CloneValue(defaultUnits and defaultUnits[unitKey])
+    local layout = LegacyThemeAdapter.MaterializePreviewLayout
+        and LegacyThemeAdapter.MaterializePreviewLayout(theme, defaults)
+        or nil
 
-    if type(baseConfig) ~= "table" then
-        return nil
+    if LayoutService.BuildPreviewUnitConfig then
+        return LayoutService.BuildPreviewUnitConfig(layout, unitKey)
     end
 
-    if type(theme) ~= "table" then
-        return baseConfig
-    end
-
-    return ApplyThemeToUnitConfig(baseConfig, theme.units and theme.units[unitKey])
+    return nil
 end
 
 function ThemeService.ApplyTheme(themeId)
@@ -521,23 +383,25 @@ function ThemeService.ApplyTheme(themeId)
         MergeInto(profile.General, theme.global)
     end
 
-    if theme.applyDefaults and type(defaultUnits) == "table" then
-        for unitKey, defaultUnit in pairs(defaultUnits) do
-            if type(defaultUnit) == "table" and type(profile.Units[unitKey]) == "table" then
-                local unitTheme = CloneValue(theme.units and theme.units[unitKey])
-                RemapThemeUnitTextTemplates(unitTheme, templateNameMap)
-                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, profile.Units[unitKey], unitTheme, defaultUnits)
-            end
+    local themeUnitKeys = LegacyThemeAdapter.GetThemeUnitKeys
+        and LegacyThemeAdapter.GetThemeUnitKeys(theme, defaultUnits)
+        or {}
+    local layout = {
+        Units = {},
+        TextTemplates = CloneValue(profile.TextTemplates) or {},
+    }
+
+    for _, unitKey in ipairs(themeUnitKeys) do
+        local unitConfig = profile.Units[unitKey]
+        if type(unitConfig) == "table" then
+            local unitTheme = CloneValue(theme.units and theme.units[unitKey])
+            RemapThemeUnitTextTemplates(unitTheme, templateNameMap)
+            layout.Units[unitKey] = BuildAppliedUnitConfig(unitKey, unitConfig, unitTheme, defaultUnits)
         end
-    else
-        for unitKey, unitTheme in pairs(theme.units or {}) do
-            local unitConfig = profile.Units[unitKey]
-            if type(unitConfig) == "table" and type(unitTheme) == "table" then
-                local resolvedUnitTheme = CloneValue(unitTheme)
-                RemapThemeUnitTextTemplates(resolvedUnitTheme, templateNameMap)
-                profile.Units[unitKey] = BuildAppliedUnitConfig(unitKey, unitConfig, resolvedUnitTheme, defaultUnits)
-            end
-        end
+    end
+
+    for unitKey, unitConfig in pairs(layout.Units) do
+        profile.Units[unitKey] = unitConfig
     end
 
     profile.General = profile.General or {}
