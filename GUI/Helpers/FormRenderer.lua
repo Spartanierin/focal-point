@@ -35,8 +35,29 @@ local function RequestRelayout(container)
     end
 end
 
+local function ResetFormRendererState(widget)
+    if not widget then
+        return
+    end
+
+    if widget._fpOriginalLayoutFinished and widget.LayoutFinished ~= widget._fpOriginalLayoutFinished then
+        widget.LayoutFinished = widget._fpOriginalLayoutFinished
+    end
+
+    widget._fpOwnerGroup = nil
+    widget._fpIsGapSpacer = nil
+    widget._fpHeaderHost = nil
+    widget._fpBodyHost = nil
+    widget._fpFooterHost = nil
+    widget._fpHeightRulesHooked = nil
+    widget._fpOriginalLayoutFinished = nil
+    widget._fpLayoutPaddingHeight = nil
+    widget._fpLayoutMinHeight = nil
+end
+
 local function CreateVerticalGroup(spacing)
     local group = AceGUI:Create("SimpleGroup")
+    ResetFormRendererState(group)
     group:SetFullWidth(true)
     group:SetLayout("Table")
     group:SetUserData("table", {
@@ -54,6 +75,7 @@ end
 
 local function CreateTwoColumnGroup(spacing)
     local group = AceGUI:Create("SimpleGroup")
+    ResetFormRendererState(group)
     group:SetFullWidth(true)
     group:SetLayout("Table")
     group:SetUserData("table", {
@@ -72,6 +94,7 @@ end
 
 local function CreateFourColumnGroup(spacing)
     local group = AceGUI:Create("SimpleGroup")
+    ResetFormRendererState(group)
     group:SetFullWidth(true)
     group:SetLayout("Table")
     group:SetUserData("table", {
@@ -92,6 +115,7 @@ end
 
 local function CreateSimpleListGroup()
     local group = AceGUI:Create("SimpleGroup")
+    ResetFormRendererState(group)
     group:SetFullWidth(true)
     group:SetLayout("List")
     return group
@@ -125,6 +149,7 @@ end
 -- The spacer must keep a fixed height, so auto-height is disabled.
 local function CreateSpacer(height)
     local spacer = AceGUI:Create("SimpleGroup")
+    ResetFormRendererState(spacer)
     spacer:SetFullWidth(true)
     spacer:SetLayout("List")
     spacer:SetAutoAdjustHeight(false)
@@ -151,12 +176,14 @@ end
 
 local function CreateRootContent(host)
     local scroll = AceGUI:Create("ScrollFrame")
+    ResetFormRendererState(scroll)
     scroll:SetLayout("Fill")
     scroll:SetFullWidth(true)
     scroll:SetFullHeight(true)
     host:AddChild(scroll)
 
     local content = AceGUI:Create("SimpleGroup")
+    ResetFormRendererState(content)
     content:SetFullWidth(true)
     content:SetLayout("Table")
     content:SetUserData("table", {
@@ -405,6 +432,7 @@ function FormRenderer.CreateLayoutGroup(host, definition)
             concreteGroup = CreateFourColumnGroup(groupProps.spacing)
         elseif groupProps.layout == "SimpleGroup" then
             concreteGroup = AceGUI:Create("SimpleGroup")
+            ResetFormRendererState(concreteGroup)
             concreteGroup:SetLayout(groupProps.layoutMode or "List")
         end
 

@@ -179,7 +179,7 @@ end
 
 function FormWidgets.CreateBodyText(text, role, size, color, width, fullWidth)
     local label = AceGUI:Create("Label")
-    local originalSetText = label.SetText
+    label._fpOwnerGroup = nil
     if type(width) == "number" then
         label:SetWidth(width)
     elseif fullWidth ~= false then
@@ -194,13 +194,24 @@ function FormWidgets.CreateBodyText(text, role, size, color, width, fullWidth)
         label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
     end
 
-    label.SetText = function(self, value)
-        local previousHeight = self.frame and self.frame:GetHeight() or 0
-        originalSetText(self, value)
-        local updatedHeight = self.frame and self.frame:GetHeight() or 0
-        if math.abs(updatedHeight - previousHeight) > 0.5 then
-            RequestOwnerRelayout(self._fpOwnerGroup)
+    if not label._fpOriginalSetText then
+        label._fpOriginalSetText = label.SetText
+    end
+    if not label._fpSetTextRelayoutWrapped then
+        label.SetText = function(self, value)
+            local originalSetText = self._fpOriginalSetText
+            if type(originalSetText) ~= "function" then
+                return
+            end
+
+            local previousHeight = self.frame and self.frame:GetHeight() or 0
+            originalSetText(self, value)
+            local updatedHeight = self.frame and self.frame:GetHeight() or 0
+            if math.abs(updatedHeight - previousHeight) > 0.5 then
+                RequestOwnerRelayout(self._fpOwnerGroup)
+            end
         end
+        label._fpSetTextRelayoutWrapped = true
     end
 
     -- Re-apply the text after styling so AceGUI recalculates the label height
@@ -256,6 +267,10 @@ function FormWidgets.ApplyModalActionButtonVisual(button, role, options)
     options = type(options) == "table" and options or {}
     if not options.preserveInspectorButtonState and FormWidgets.ResetInspectorButtonState then
         FormWidgets.ResetInspectorButtonState(button)
+    end
+    if not options.preserveInspectorButtonState then
+        button.__fpModalHovered = false
+        button.__fpModalPressed = false
     end
 
     local sidebarThemeHelpers = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
