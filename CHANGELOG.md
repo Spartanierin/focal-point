@@ -10,6 +10,49 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.2.0
+
+Layouts & Presets
+
+### Added
+
+* Added a new Layouts workspace with Profiles, Presets, and Automation tabs.
+* Profiles remain the editable layouts actually used in-game.
+* Presets are reusable templates, not permanent bindings.
+* Added the full Presets workflow inside Layouts.
+* Added saving the current profile as a reusable user preset.
+* Added previews for built-in and user presets.
+* Added applying built-in presets to the current profile.
+* Added creating a new profile from any preset.
+* Added renaming user presets.
+* Added deleting user presets with confirmation.
+* Added safe selection fallback after deleting the selected preset.
+* Spec-to-profile automation remains available in its own Layouts tab.
+
+### Changed
+
+* Simplified preset quick access in the toolbar.
+* Moved Create Profile from the toolbar into Layouts -> Presets.
+* Moved preset descriptions out of the compact toolbar and into Layouts -> Presets.
+
+### Improved
+
+* Improved the Layouts window structure and reduced its overall height.
+* Improved preset action spacing and confirmation-dialog presentation.
+
+### Fixed
+
+* Fixed pooled AceGUI widget state that could cause layout drift, repeated relayouts, freezes, or "script ran too long" after repeated tab switching.
+* Fixed padded section width handling so AceGUI layout metrics match the visible inner content width.
+* Fixed toolbar controls occasionally overflowing or overlapping after reloads or UI resizing.
+* Fixed preset dropdown sizing in the toolbar.
+* Fixed a transient health-bar color issue after leaving Demo mode by keeping UnitFrameHealth as the canonical source for health LiveValues.
+
+### Compatibility
+
+* Existing profiles remain compatible.
+* No profile migration is required.
+
 ## Focal Point 1.1.5
 
 ### Added
