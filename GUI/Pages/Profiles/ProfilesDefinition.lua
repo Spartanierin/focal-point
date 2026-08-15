@@ -110,12 +110,13 @@ ns.GUI.Layouts.Profile.Form = {
             heightInfo = {
                 source = "content",
                 min = 1,
-                derivedFrom = "activeProfileLabel + activeProfileValue + spacing",
+                derivedFrom = "activeProfileLabel + activeProfileValue + savePresetButton + spacing",
             },
         },
         items = {
             { id = "activeProfileLabel", widget = "label", itemVariant = "section_title", textKey = "INFO_PROFILES_CURRENT_ACTIVE" },
             { id = "activeProfileValue", widget = "label", itemVariant = "status_value", text = "" },
+            { id = "savePresetButton", widget = "button", itemVariant = "secondary_action", textKey = "PRESET_SAVE_AS" },
         },
     },
     {
@@ -574,6 +575,89 @@ ns.GUI.Layouts.Profile.TransferOverwriteConfirm = {
         items = {
             { id = "overwriteButton", widget = "button", itemVariant = "danger_action", textKey = "INFO_PROFILES_IMPORT_OVERWRITE_CONFIRM" },
             { id = "cancelButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CANCEL" },
+        },
+    },
+}
+
+ns.GUI.Layouts.Profile.SavePreset = {
+    {
+        section = "Root",
+        properties = {
+            sectionKind = "root",
+            type = "stack_block",
+            variant = "window_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 8,
+                bottom = 10,
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Body",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "section",
+            variant = "transfer_body",
+            surfaceStyle = "section_panel",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+        },
+        items = {
+            { id = "profileNameEdit", widget = "editbox", itemVariant = "profile_field", labelKey = "PRESET_NAME", stateKey = "profileName" },
+        },
+    },
+    {
+        section = "ActionRow",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "dual_button",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            gapBefore = 6,
+            heightInfo = {
+                source = "content",
+                min = 32,
+            },
+        },
+        items = {
+            { id = "okButton", widget = "button", itemVariant = "primary_action", textKey = "PRESET_SAVE_AS" },
+            { id = "cancelButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CANCEL" },
+        },
+    },
+    {
+        section = "BottomHint",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "info_block",
+            variant = "note_text",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 3,
+                bottom = 3,
+            },
+            heightInfo = {
+                source = "content",
+                min = 20,
+            },
+        },
+        items = {
+            { id = "statusText", widget = "label", itemVariant = "footer_hint_muted", text = "" },
         },
     },
 }
