@@ -32,8 +32,40 @@ local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
 local StyleCheckBox = FormWidgets.StyleCheckBox
 local RefreshWindowState
+local GetProfileList
 
 local UNASSIGNED_PROFILE_VALUE = "__fp_profile_automation_unassigned__"
+local DEFAULT_LAYOUTS_SUBPAGE = "profiles"
+
+local VALID_LAYOUTS_SUBPAGES = {
+    profiles = true,
+    presets = true,
+    automation = true,
+}
+
+local LAYOUTS_SHELL_SECTIONS = {
+    Root = true,
+    Header = true,
+    Subnav = true,
+    ContentHost = true,
+}
+
+local LAYOUTS_PROFILE_SECTIONS = {
+    ActiveProfile = true,
+    ColumnContainer = true,
+    LeftColumn = true,
+    RightColumn = true,
+    BottomBlock = true,
+    ActionRow = true,
+    BottomHint = true,
+}
+
+local function NormalizeLayoutsSubpage(value)
+    if VALID_LAYOUTS_SUBPAGES[value] then
+        return value
+    end
+    return DEFAULT_LAYOUTS_SUBPAGE
+end
 
 local function T(key, fallback)
     return (L and L[key]) or fallback or ""
@@ -50,8 +82,14 @@ end
 local function GetProfilesState(deps)
     local rootState = (deps and deps.GetGUIState and deps.GetGUIState()) or fallbackRootState
     rootState.profiles = rootState.profiles or {}
+    rootState.layouts = rootState.layouts or {}
 
     local state = rootState.profiles
+    state.layouts = rootState.layouts
+    local activeSubpage = NormalizeLayoutsSubpage(state.layouts.activeSubpage)
+    if state.layouts.activeSubpage ~= activeSubpage then
+        state.layouts.activeSubpage = activeSubpage
+    end
     local db = ns.db
 
     if state.selectedProfile == nil and db and db.GetCurrentProfile then
@@ -128,55 +166,128 @@ local function GetProfileAutomation()
     return ns.ProfileAutomation
 end
 
-local function CreateProfileAutomationBlock(root)
+local function BuildAutomationDropdownList(profileList)
+    local dropdownList = {
+        [UNASSIGNED_PROFILE_VALUE] = T("INFO_PROFILE_AUTOMATION_UNASSIGNED", "Unassigned"),
+    }
+    for profileName in pairs(profileList or {}) do
+        dropdownList[profileName] = profileName
+    end
+    return dropdownList
+end
+
+local function ResolveAutomationRowData(automation, spec, profileList)
+    local specID = spec and spec.id
+    local assignedProfile = automation and automation.GetAssignedProfile and automation.GetAssignedProfile(specID) or nil
+    local assignedExists = type(assignedProfile) == "string" and assignedProfile ~= "" and profileList and profileList[assignedProfile] ~= nil
+    local statusText = ""
+
+    if assignedProfile and not assignedExists then
+        statusText = string.format(T("INFO_PROFILE_AUTOMATION_MISSING_PROFILE", "Missing profile: %s"), assignedProfile)
+    end
+
+    return {
+        spec = spec,
+        assignedProfile = assignedProfile,
+        assignedExists = assignedExists,
+        value = assignedExists and assignedProfile or UNASSIGNED_PROFILE_VALUE,
+        statusText = statusText,
+    }
+end
+
+local function BuildAutomationViewData(profileList)
+    local automation = GetProfileAutomation()
+    if not automation then
+        return nil
+    end
+
+    local data = {
+        enabled = automation.IsEnabled and automation.IsEnabled() == true,
+        dropdownList = BuildAutomationDropdownList(profileList),
+        rows = {},
+    }
+
+    local specs = automation.GetAvailableSpecs and automation.GetAvailableSpecs() or {}
+    for _, spec in ipairs(specs) do
+        data.rows[#data.rows + 1] = ResolveAutomationRowData(automation, spec, profileList)
+    end
+
+    return data
+end
+
+local function CreateProfileAutomationBlock(root, automationData)
     local automation = GetProfileAutomation()
     if not root or not automation then
         return nil
     end
+    automationData = automationData or BuildAutomationViewData({})
 
-    local group = AceGUI:Create("InlineGroup")
-    group:SetTitle(T("INFO_PROFILE_AUTOMATION_TITLE", "Automatic Profile Switching"))
-    group:SetFullWidth(true)
-    group:SetLayout("Flow")
-    root:AddChild(group)
+    local title = CreateBodyText(
+        T("INFO_PROFILE_AUTOMATION_TITLE", "Automatic Profile Switching"),
+        "sectionHeader",
+        13,
+        nil,
+        nil,
+        true
+    )
+    root:AddChild(title)
 
     local enabled = AceGUI:Create("CheckBox")
     enabled:SetFullWidth(true)
     enabled:SetLabel(T("INFO_PROFILE_AUTOMATION_ENABLE", "Switch profiles automatically by specialization"))
+    enabled:SetValue(automationData.enabled)
     if StyleCheckBox then
         StyleCheckBox(enabled, false)
     end
-    group:AddChild(enabled)
+    root:AddChild(enabled)
 
     local hint = CreateBodyText(
         T("INFO_PROFILE_AUTOMATION_HINT", "Unassigned keeps the current profile."),
         "muted",
         11,
         nil,
-        680,
+        nil,
         true
     )
-    group:AddChild(hint)
+    root:AddChild(hint)
 
     local rows = {}
-    local specs = automation.GetAvailableSpecs and automation.GetAvailableSpecs() or {}
-    for _, spec in ipairs(specs) do
-        local row = AceGUI:Create("SimpleGroup")
-        row:SetFullWidth(true)
-        row:SetLayout("Flow")
-        group:AddChild(row)
+    local tableGroup
+    if #(automationData.rows or {}) > 0 then
+        tableGroup = AceGUI:Create("SimpleGroup")
+        tableGroup:SetFullWidth(true)
+        tableGroup:SetLayout("Table")
+        tableGroup:SetUserData("table", {
+            columns = {
+                { width = 170 },
+                { width = 280 },
+                { weight = 1 },
+            },
+            spaceH = 12,
+            spaceV = 0,
+            align = "TOPLEFT",
+            alignV = "start",
+            alignH = "start",
+        })
+    end
 
-        local label = CreateBodyText(spec.name or tostring(spec.id), "label", 12, nil, 150, false)
-        row:AddChild(label)
+    for _, rowData in ipairs(automationData.rows or {}) do
+        local spec = rowData.spec
+
+        local label = CreateBodyText(spec.name or tostring(spec.id), "label", 12, nil, nil, true)
+        tableGroup:AddChild(label)
 
         local dropdown = AceGUI:Create("Dropdown")
-        dropdown:SetWidth(250)
+        dropdown:SetFullWidth(true)
         dropdown:SetLabel("")
+        dropdown:SetList(automationData.dropdownList)
+        dropdown:SetDisabled(not automationData.enabled)
+        dropdown:SetValue(rowData.value)
         StyleDropdown(dropdown, "accented")
-        row:AddChild(dropdown)
+        tableGroup:AddChild(dropdown)
 
-        local stateLabel = CreateBodyText("", "muted", 11, nil, 240, false)
-        row:AddChild(stateLabel)
+        local stateLabel = CreateBodyText(rowData.statusText, "muted", 11, nil, nil, true)
+        tableGroup:AddChild(stateLabel)
 
         rows[#rows + 1] = {
             spec = spec,
@@ -186,14 +297,90 @@ local function CreateProfileAutomationBlock(root)
     end
 
     if #rows == 0 then
-        group:AddChild(CreateBodyText(T("INFO_PROFILE_AUTOMATION_NO_SPECS", "No specializations are available yet."), "muted", 11, nil, 680, true))
+        root:AddChild(CreateBodyText(T("INFO_PROFILE_AUTOMATION_NO_SPECS", "No specializations are available yet."), "muted", 11, nil, nil, true))
+    elseif tableGroup then
+        root:AddChild(tableGroup)
     end
 
     return {
-        group = group,
+        group = tableGroup,
         enabled = enabled,
         rows = rows,
     }
+end
+
+local function BuildLayoutsDefinition(includeSections, options)
+    options = options or {}
+    local result = {}
+    for _, definition in ipairs(ProfilesDefinition or {}) do
+        if includeSections[definition.section] then
+            local entry = options.clone and FormRenderer.CloneLayoutValue(definition) or definition
+            if options.detachContentHost
+                and entry
+                and entry.properties
+                and entry.properties.parentSection == "ContentHost"
+            then
+                entry.properties.parentSection = nil
+            end
+            result[#result + 1] = entry
+        end
+    end
+    return result
+end
+
+local function BuildLayoutsShellDefinition()
+    return BuildLayoutsDefinition(LAYOUTS_SHELL_SECTIONS)
+end
+
+local function BuildProfilesContentDefinition()
+    return BuildLayoutsDefinition(LAYOUTS_PROFILE_SECTIONS, {
+        clone = true,
+        detachContentHost = true,
+    })
+end
+
+local function ApplyLayoutsTabButton(button, label, active)
+    if not button then
+        return
+    end
+
+    button:SetText(label or "")
+    button:SetDisabled(false)
+    if ApplyModalActionButtonVisual then
+        ApplyModalActionButtonVisual(button, active and "primary_action" or "secondary")
+    elseif FormWidgets and FormWidgets.StyleActionButton then
+        FormWidgets.StyleActionButton(button, active and "primary" or "secondary")
+    end
+end
+
+local function RefreshLayoutsSubnav(context)
+    local activeSubpage = NormalizeLayoutsSubpage(context and context.state and context.state.layouts and context.state.layouts.activeSubpage)
+    ApplyLayoutsTabButton(context and context.profilesTabButton, T("LAYOUTS_PROFILES", "Profiles"), activeSubpage == "profiles")
+    ApplyLayoutsTabButton(context and context.presetsTabButton, T("LAYOUTS_PRESETS", "Presets"), activeSubpage == "presets")
+    ApplyLayoutsTabButton(context and context.automationTabButton, T("LAYOUTS_AUTOMATION", "Automation"), activeSubpage == "automation")
+end
+
+local function CreatePresetsPlaceholderBlock(root)
+    if not root then
+        return nil
+    end
+
+    local group = AceGUI:Create("InlineGroup")
+    group:SetTitle(T("LAYOUTS_PRESETS", "Presets"))
+    group:SetFullWidth(true)
+    group:SetLayout("Flow")
+    root:AddChild(group)
+
+    group:AddChild(CreateBodyText(
+        T("LAYOUTS_PRESETS_PLACEHOLDER", "Preset tools are currently available in the Editor toolbar."),
+        "muted",
+        12,
+        nil,
+        680,
+        true
+    ))
+
+    return group
 end
 
 local function RefreshProfileAutomationBlock(context, profileList)
@@ -203,33 +390,28 @@ local function RefreshProfileAutomationBlock(context, profileList)
         return
     end
 
-    local enabled = automation.IsEnabled and automation.IsEnabled() == true
-    context.suspendAutomationCallbacks = true
-    block.enabled:SetValue(enabled)
-
-    local dropdownList = {
-        [UNASSIGNED_PROFILE_VALUE] = T("INFO_PROFILE_AUTOMATION_UNASSIGNED", "Unassigned"),
-    }
-    for profileName in pairs(profileList or {}) do
-        dropdownList[profileName] = profileName
+    local data = BuildAutomationViewData(profileList)
+    if not data then
+        return
     end
 
+    context.suspendAutomationCallbacks = true
+    block.enabled:SetValue(data.enabled)
+
+    local rowsBySpecID = {}
+    for _, rowData in ipairs(data.rows or {}) do
+        if rowData.spec and rowData.spec.id then
+            rowsBySpecID[rowData.spec.id] = rowData
+        end
+    end
     for _, row in ipairs(block.rows or {}) do
         local specID = row.spec and row.spec.id
-        local assignedProfile = automation.GetAssignedProfile and automation.GetAssignedProfile(specID) or nil
-        local assignedExists = type(assignedProfile) == "string" and assignedProfile ~= "" and profileList and profileList[assignedProfile] ~= nil
+        local rowData = rowsBySpecID[specID]
 
-        row.dropdown:SetList(dropdownList)
-        row.dropdown:SetDisabled(not enabled)
-        row.dropdown:SetValue(assignedExists and assignedProfile or UNASSIGNED_PROFILE_VALUE)
-
-        if assignedProfile and not assignedExists then
-            row.stateLabel:SetText(string.format(T("INFO_PROFILE_AUTOMATION_MISSING_PROFILE", "Missing profile: %s"), assignedProfile))
-        elseif assignedExists then
-            row.stateLabel:SetText("")
-        else
-            row.stateLabel:SetText(T("INFO_PROFILE_AUTOMATION_KEEP_CURRENT", "Keeps current profile."))
-        end
+        row.dropdown:SetList(data.dropdownList)
+        row.dropdown:SetDisabled(not data.enabled)
+        row.dropdown:SetValue(rowData and rowData.value or UNASSIGNED_PROFILE_VALUE)
+        row.stateLabel:SetText(rowData and rowData.statusText or "")
     end
     context.suspendAutomationCallbacks = false
 end
@@ -272,7 +454,7 @@ local function WireProfileAutomationBlock(context)
     end
 end
 
-local function GetProfileList(db)
+function GetProfileList(db)
     local list = {}
     if not db or not db.GetProfiles then
         return list
@@ -768,6 +950,84 @@ local function SyncDropdownValue(context, value)
     context.suspendProfileCallbacks = false
 end
 
+local function ClearLayoutsContentRefs(context)
+    if not context then
+        return
+    end
+
+    context.activeProfileValue = nil
+    context.savePresetButton = nil
+    context.profileSelect = nil
+    context.nameEdit = nil
+    context.activateButton = nil
+    context.copyButton = nil
+    context.createButton = nil
+    context.createState = nil
+    context.exportButton = nil
+    context.importButton = nil
+    context.resetButton = nil
+    context.deleteButton = nil
+    context.sourceState = nil
+    context.maintenanceHint = nil
+    context.profileAutomation = nil
+    context.presetsPlaceholder = nil
+    context.suspendNameCallbacks = false
+    context.suspendProfileCallbacks = false
+    context.suspendAutomationCallbacks = false
+end
+
+local function ReleaseLayoutsContent(context)
+    local contentHost = context and context.contentHost
+    if contentHost and contentHost.ReleaseChildren then
+        contentHost:ReleaseChildren()
+    end
+end
+
+local function RenderProfilesSubpage(context)
+    local contentHost = context and context.contentHost
+    if not contentHost then
+        return
+    end
+
+    local _, widgets = FormRenderer.BuildLayout(contentHost, BuildProfilesContentDefinition(), {
+        state = context.state,
+        createItemWidget = CreateItemWidget,
+    })
+
+    context.activeProfileValue = widgets.activeProfileValue
+    context.savePresetButton = widgets.savePresetButton
+    context.profileSelect = widgets.profileSelect
+    context.nameEdit = widgets.nameEdit
+    context.activateButton = widgets.activateButton
+    context.copyButton = widgets.copyButton
+    context.createButton = widgets.createButton
+    context.createState = widgets.createState
+    context.exportButton = widgets.exportButton
+    context.importButton = widgets.importButton
+    context.resetButton = widgets.resetButton
+    context.deleteButton = widgets.deleteButton
+    context.sourceState = widgets.sourceState
+    context.maintenanceHint = widgets.maintenanceHint
+end
+
+local function RenderActiveLayoutsSubpage(context)
+    if not context then
+        return
+    end
+
+    ClearLayoutsContentRefs(context)
+    context.activeSubpage = NormalizeLayoutsSubpage(context.state and context.state.layouts and context.state.layouts.activeSubpage)
+
+    if context.activeSubpage == "profiles" then
+        RenderProfilesSubpage(context)
+    elseif context.activeSubpage == "automation" then
+        local profileList = ns.db and GetProfileList(ns.db) or {}
+        context.profileAutomation = CreateProfileAutomationBlock(context.contentHost, BuildAutomationViewData(profileList))
+    elseif context.activeSubpage == "presets" then
+        context.presetsPlaceholder = CreatePresetsPlaceholderBlock(context.contentHost)
+    end
+end
+
 function RefreshWindowState()
     local context = windowContext
     if not context then
@@ -776,6 +1036,18 @@ function RefreshWindowState()
 
     local db = ns.db
     local state = context.state or {}
+    RefreshLayoutsSubnav(context)
+
+    if context.activeSubpage ~= "profiles" then
+        if context.profileAutomation then
+            RefreshProfileAutomationBlock(context, db and GetProfileList(db) or {})
+        end
+        if context.window and context.window.DoLayout then
+            context.window:DoLayout()
+        end
+        return
+    end
+
     local function ApplyProfilesButtonVisuals()
         if not ApplyModalActionButtonVisual then
             return
@@ -885,41 +1157,76 @@ function RefreshWindowState()
 end
 
 local function CreateWindowContent(window, state)
-    local groups, widgets = FormRenderer.BuildLayout(window, ProfilesDefinition, {
+    local groups, widgets = FormRenderer.BuildLayout(window, BuildLayoutsShellDefinition(), {
         state = state,
         createItemWidget = CreateItemWidget,
     })
 
-    local root = groups.Root
-    local profileAutomation = CreateProfileAutomationBlock(root)
-
-    return {
+    local context = {
         window = window,
         state = state,
-        root = root,
-        activeProfileValue = widgets.activeProfileValue,
-        savePresetButton = widgets.savePresetButton,
-        profileSelect = widgets.profileSelect,
-        nameEdit = widgets.nameEdit,
-        activateButton = widgets.activateButton,
-        copyButton = widgets.copyButton,
-        createButton = widgets.createButton,
-        createState = widgets.createState,
-        exportButton = widgets.exportButton,
-        importButton = widgets.importButton,
-        resetButton = widgets.resetButton,
-        deleteButton = widgets.deleteButton,
-        sourceState = widgets.sourceState,
-        maintenanceHint = widgets.maintenanceHint,
-        profileAutomation = profileAutomation,
+        root = groups.Root,
+        contentHost = groups.ContentHost,
+        activeSubpage = NormalizeLayoutsSubpage(state and state.layouts and state.layouts.activeSubpage),
+        profilesTabButton = widgets.profilesTabButton,
+        presetsTabButton = widgets.presetsTabButton,
+        automationTabButton = widgets.automationTabButton,
         suspendNameCallbacks = false,
         suspendProfileCallbacks = false,
         suspendAutomationCallbacks = false,
+        shellCallbacksWired = false,
     }
+
+    RenderActiveLayoutsSubpage(context)
+    return context
 end
 
 local function WireWindowCallbacks(context)
     if not context then
+        return
+    end
+
+    local function SwitchLayoutsSubpage(subpage)
+        if not context.state or not context.state.layouts then
+            return
+        end
+        subpage = NormalizeLayoutsSubpage(subpage)
+        if context.state.layouts.activeSubpage == subpage then
+            return
+        end
+
+        context.state.layouts.activeSubpage = subpage
+        ReleaseLayoutsContent(context)
+        RenderActiveLayoutsSubpage(context)
+        WireWindowCallbacks(context)
+        RefreshWindowState()
+    end
+
+    if not context.shellCallbacksWired then
+        if context.profilesTabButton then
+            context.profilesTabButton:SetCallback("OnClick", function()
+                SwitchLayoutsSubpage("profiles")
+            end)
+        end
+        if context.presetsTabButton then
+            context.presetsTabButton:SetCallback("OnClick", function()
+                SwitchLayoutsSubpage("presets")
+            end)
+        end
+        if context.automationTabButton then
+            context.automationTabButton:SetCallback("OnClick", function()
+                SwitchLayoutsSubpage("automation")
+            end)
+        end
+        context.shellCallbacksWired = true
+    end
+
+    if context.activeSubpage ~= "profiles" then
+        WireProfileAutomationBlock(context)
+        return
+    end
+
+    if not context.profileSelect or not context.nameEdit then
         return
     end
 
@@ -1200,7 +1507,7 @@ end
 
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
-    window:SetTitle(T("NAV_PROFILES"))
+    window:SetTitle(T("LAYOUTS_TITLE", "Layouts"))
     window:SetLayout("Fill")
     window:SetWidth(760)
     window:SetHeight(720)

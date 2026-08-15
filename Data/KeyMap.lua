@@ -8,7 +8,7 @@ KM.Nav = {
     [C.Nav.EDITOR] = "NAV_EDITOR",
     [C.Nav.TAG_DATABASE] = "NAV_TAG_DATABASE",
     [C.Nav.TEXT_BUILDER] = "NAV_TEXT_BUILDER",
-    [C.Nav.PROFILES] = "NAV_PROFILES",
+    [C.Nav.PROFILES] = "NAV_LAYOUTS",
 }
 
 KM.Units = {

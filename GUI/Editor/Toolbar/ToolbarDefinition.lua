@@ -100,7 +100,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         items = {
             { id = "toolsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_TOOLS" },
             { id = "editorButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_EDITOR" },
-            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_PROFILES" },
+            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUTS" },
             { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
             { id = "tagDatabaseButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
             { id = "closeButton", widget = "button", itemVariant = "toolbar_danger_action", textKey = "CLOSE" },

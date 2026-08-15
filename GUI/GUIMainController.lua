@@ -207,7 +207,7 @@ local function ShowEditorWelcomeTip()
     local headingText = (L and L["EDITOR_WELCOME_HEADING"]) or "Welcome to Focal Point"
     local introText = (L and L["EDITOR_WELCOME_INTRO"]) or "Focal Point works as an editor for your unit frames."
     local stepsTitleText = (L and L["EDITOR_WELCOME_STEPS_TITLE"]) or "How to start:"
-    local stepsText = (L and L["EDITOR_WELCOME_STEPS"]) or "1. Click Unlock Frames on the left\n2. Pick a tool on the left like Profiles, Text Builder, or Tag Database\n3. Edit the currently selected unit on the right"
+    local stepsText = (L and L["EDITOR_WELCOME_STEPS"]) or "1. Click Unlock Frames on the left\n2. Pick a tool on the left like Layouts, Text Builder, or Tag Database\n3. Edit the currently selected unit on the right"
     local noteText = (L and L["EDITOR_WELCOME_NOTE"]) or "Unlock Frames makes unit frames visible and movable."
     local WELCOME_GAP_COMPACT = 8
     local WELCOME_GAP_REGULAR = 12

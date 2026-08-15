@@ -84,14 +84,72 @@ ns.GUI.Layouts.Profile.Form = {
             },
         },
         items = {
-            { id = "title", widget = "label", itemVariant = "page_title_hero", textKey = "NAV_PROFILES" },
-            { id = "intro", widget = "label", itemVariant = "page_intro_soft", textKey = "INFO_PROFILES_DESCRIPTION_SHORT" },
+            { id = "title", widget = "label", itemVariant = "page_title_hero", textKey = "LAYOUTS_TITLE" },
+            { id = "intro", widget = "label", itemVariant = "page_intro_soft", textKey = "LAYOUTS_DESCRIPTION_SHORT" },
         },
+    },
+    {
+        section = "Subnav",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "triple_button",
+            surfaceStyle = "section_panel",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            widthInfo = {
+                source = "parent",
+                value = 736,
+                derivedFrom = "Root.widthInfo.value",
+            },
+            heightInfo = {
+                source = "content",
+                min = 32,
+                derivedFrom = "layouts subnavigation buttons",
+            },
+        },
+        items = {
+            { id = "profilesTabButton", widget = "button", itemVariant = "secondary_action", textKey = "LAYOUTS_PROFILES" },
+            { id = "presetsTabButton", widget = "button", itemVariant = "secondary_action", textKey = "LAYOUTS_PRESETS" },
+            { id = "automationTabButton", widget = "button", itemVariant = "secondary_action", textKey = "LAYOUTS_AUTOMATION" },
+        },
+    },
+    {
+        section = "ContentHost",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            border = false,
+            padding = {
+                left = 0,
+                right = 0,
+                top = 0,
+                bottom = 0,
+            },
+            widthInfo = {
+                source = "parent",
+                value = 736,
+                derivedFrom = "Root.widthInfo.value",
+            },
+            heightInfo = {
+                source = "content",
+                min = 1,
+                derivedFrom = "active Layouts subpage content",
+            },
+        },
+        items = {},
     },
     {
         section = "ActiveProfile",
         properties = {
-            parentSection = "Root",
+            parentSection = "ContentHost",
             sectionKind = "section",
             type = "info_block",
             variant = "key_value",
@@ -122,7 +180,7 @@ ns.GUI.Layouts.Profile.Form = {
     {
         section = "ColumnContainer",
         properties = {
-            parentSection = "Root",
+            parentSection = "ContentHost",
             sectionKind = "widget_group",
             type = "column_container",
             variant = "wide_dual_column",
@@ -214,7 +272,7 @@ ns.GUI.Layouts.Profile.Form = {
     {
         section = "BottomBlock",
         properties = {
-            parentSection = "Root",
+            parentSection = "ContentHost",
             sectionKind = "section",
             type = "stack_block",
             variant = "section_stack",
