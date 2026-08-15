@@ -7,6 +7,7 @@ function FocalPoint:GetDefaultDB()
                 enabled = false,
                 specProfiles = {},
             },
+            UserPresets = {},
         },
         profile = {
             General = {
