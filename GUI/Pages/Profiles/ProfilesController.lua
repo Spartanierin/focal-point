@@ -10,6 +10,7 @@ local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
 local ProfilesLayouts = ns.GUI.Layouts and ns.GUI.Layouts.Profile or {}
 local ProfilesDefinition = ProfilesLayouts.Form
+local LayoutsPresetsController = ns.GUI.Pages and ns.GUI.Pages.LayoutsPresets
 
 local ProfilesController = {}
 ns.GUI.Pages.Profiles = ProfilesController
@@ -32,6 +33,7 @@ local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
 local StyleCheckBox = FormWidgets.StyleCheckBox
 local RefreshWindowState
+local WireWindowCallbacks
 local GetProfileList
 
 local UNASSIGNED_PROFILE_VALUE = "__fp_profile_automation_unassigned__"
@@ -358,29 +360,6 @@ local function RefreshLayoutsSubnav(context)
     ApplyLayoutsTabButton(context and context.profilesTabButton, T("LAYOUTS_PROFILES", "Profiles"), activeSubpage == "profiles")
     ApplyLayoutsTabButton(context and context.presetsTabButton, T("LAYOUTS_PRESETS", "Presets"), activeSubpage == "presets")
     ApplyLayoutsTabButton(context and context.automationTabButton, T("LAYOUTS_AUTOMATION", "Automation"), activeSubpage == "automation")
-end
-
-local function CreatePresetsPlaceholderBlock(root)
-    if not root then
-        return nil
-    end
-
-    local group = AceGUI:Create("InlineGroup")
-    group:SetTitle(T("LAYOUTS_PRESETS", "Presets"))
-    group:SetFullWidth(true)
-    group:SetLayout("Flow")
-    root:AddChild(group)
-
-    group:AddChild(CreateBodyText(
-        T("LAYOUTS_PRESETS_PLACEHOLDER", "Preset tools are currently available in the Editor toolbar."),
-        "muted",
-        12,
-        nil,
-        680,
-        true
-    ))
-
-    return group
 end
 
 local function RefreshProfileAutomationBlock(context, profileList)
@@ -970,7 +949,7 @@ local function ClearLayoutsContentRefs(context)
     context.sourceState = nil
     context.maintenanceHint = nil
     context.profileAutomation = nil
-    context.presetsPlaceholder = nil
+    context.layoutsPresets = nil
     context.suspendNameCallbacks = false
     context.suspendProfileCallbacks = false
     context.suspendAutomationCallbacks = false
@@ -1024,8 +1003,19 @@ local function RenderActiveLayoutsSubpage(context)
         local profileList = ns.db and GetProfileList(ns.db) or {}
         context.profileAutomation = CreateProfileAutomationBlock(context.contentHost, BuildAutomationViewData(profileList))
     elseif context.activeSubpage == "presets" then
-        context.presetsPlaceholder = CreatePresetsPlaceholderBlock(context.contentHost)
+        if LayoutsPresetsController and LayoutsPresetsController.Render then
+            LayoutsPresetsController.Render(context.contentHost, context)
+        end
     end
+end
+
+local function RebuildActiveLayoutsSubpage(context)
+    ReleaseLayoutsContent(context)
+    RenderActiveLayoutsSubpage(context)
+    if WireWindowCallbacks then
+        WireWindowCallbacks(context)
+    end
+    RefreshWindowState()
 end
 
 function RefreshWindowState()
@@ -1041,6 +1031,9 @@ function RefreshWindowState()
     if context.activeSubpage ~= "profiles" then
         if context.profileAutomation then
             RefreshProfileAutomationBlock(context, db and GetProfileList(db) or {})
+        end
+        if context.layoutsPresets and LayoutsPresetsController and LayoutsPresetsController.Refresh then
+            LayoutsPresetsController.Refresh(context)
         end
         if context.window and context.window.DoLayout then
             context.window:DoLayout()
@@ -1181,7 +1174,7 @@ local function CreateWindowContent(window, state)
     return context
 end
 
-local function WireWindowCallbacks(context)
+function WireWindowCallbacks(context)
     if not context then
         return
     end
@@ -1196,10 +1189,7 @@ local function WireWindowCallbacks(context)
         end
 
         context.state.layouts.activeSubpage = subpage
-        ReleaseLayoutsContent(context)
-        RenderActiveLayoutsSubpage(context)
-        WireWindowCallbacks(context)
-        RefreshWindowState()
+        RebuildActiveLayoutsSubpage(context)
     end
 
     if not context.shellCallbacksWired then
@@ -1222,6 +1212,11 @@ local function WireWindowCallbacks(context)
     end
 
     if context.activeSubpage ~= "profiles" then
+        if context.layoutsPresets and LayoutsPresetsController and LayoutsPresetsController.Wire then
+            LayoutsPresetsController.Wire(context, function()
+                RebuildActiveLayoutsSubpage(context)
+            end)
+        end
         WireProfileAutomationBlock(context)
         return
     end

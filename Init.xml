@@ -116,6 +116,7 @@
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
     <Script file="GUI/Editor/EditorMode.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
+    <Script file="GUI/Editor/PresetUI.lua"/>
     <Script file="GUI/Editor/EditorInteractionMode.lua"/>
     <Script file="GUI/Editor/TextEditorOverlay.lua"/>
     <Script file="GUI/Editor/EditorFrameMutations.lua"/>
@@ -158,6 +159,7 @@
     <Script file="GUI/Pages/TextBuilder/TextBuilderDefinition.lua"/>
     <Script file="GUI/Pages/TagDatabase/TagDatabaseDefinition.lua"/>
     <Script file="GUI/GUIController.lua"/>
+    <Script file="GUI/Pages/Profiles/LayoutsPresetsController.lua"/>
     <Script file="GUI/Pages/Profiles/ProfilesController.lua"/>
     <Script file="GUI/Pages/Shared/PlaceholderController.lua"/>
     <Script file="GUI/Pages/TextBuilder/TextBuilderController.lua"/>
