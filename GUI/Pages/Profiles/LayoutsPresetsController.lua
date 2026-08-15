@@ -15,6 +15,13 @@ local CreateBodyText = FormWidgets.CreateBodyText
 local CreateActionButton = FormWidgets.CreateActionButton
 local StyleDropdown = FormWidgets.StyleDropdown
 local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
+local PRESET_DROPDOWN_WIDTH = 400
+local ACTION_GAP_WIDTH = 6
+local PREVIEW_BUTTON_WIDTH = 116
+local APPLY_BUTTON_WIDTH = 126
+local CREATE_PROFILE_BUTTON_WIDTH = 120
+local RENAME_BUTTON_WIDTH = 78
+local DELETE_BUTTON_WIDTH = 72
 
 local function T(key, fallback)
     return (type(key) == "string" and L[key]) or fallback or ""
@@ -34,9 +41,10 @@ local function GetEditorPresetState()
     return nil
 end
 
-local function BuildPresetContext()
+local function BuildPresetContext(ownerContext)
     return {
         state = GetEditorPresetState(),
+        ownerWindow = ownerContext and ownerContext.window or nil,
     }
 end
 
@@ -47,6 +55,7 @@ local function BuildDeps()
         ns = ns,
         ThemeService = ns.ThemeService or {},
         PresetService = ns.PresetService or {},
+        PresetMutations = ns.PresetMutations or {},
         ProfileLayoutService = ns.ProfileLayoutService or {},
         CreateBodyText = CreateBodyText,
         CreateActionButton = CreateActionButton,
@@ -80,13 +89,21 @@ local function AddActionButton(row, text, variant, width)
     return button
 end
 
+local function AddActionGap(row)
+    local spacer = AceGUI:Create("Label")
+    spacer:SetText("")
+    spacer:SetWidth(ACTION_GAP_WIDTH)
+    row:AddChild(spacer)
+    return spacer
+end
+
 function LayoutsPresetsController.Render(root, context)
     if not root or not context then
         return nil
     end
 
     local deps = BuildDeps()
-    local presetContext = BuildPresetContext()
+    local presetContext = BuildPresetContext(context)
     local view = PresetUI.BuildPresetViewData
         and PresetUI.BuildPresetViewData(presetContext.state, deps, {
             includeCustom = false,
@@ -98,7 +115,8 @@ function LayoutsPresetsController.Render(root, context)
     AddText(root, T("EDITOR_PRESET_CONTEXT_HINT", "Presets define the starting layout and visual direction. Every property remains freely editable afterwards."), "muted", 11)
 
     local dropdown = AceGUI:Create("Dropdown")
-    dropdown:SetFullWidth(true)
+    dropdown:SetFullWidth(false)
+    dropdown:SetWidth(PRESET_DROPDOWN_WIDTH)
     dropdown:SetLabel(T("EDITOR_PRESET_SELECT", T("THEME_SELECT", "Select Preset")))
     dropdown:SetList(view.presetList or {}, view.presetOrder)
     dropdown:SetValue(view.selectedPresetId)
@@ -118,12 +136,22 @@ function LayoutsPresetsController.Render(root, context)
     row:SetFullWidth(true)
     root:AddChild(row)
 
-    local previewButton = AddActionButton(row, T("THEME_PREVIEW", "Preview Preset"), "utility", 130)
+    local previewButton = AddActionButton(row, T("THEME_PREVIEW", "Preview Preset"), "utility", PREVIEW_BUTTON_WIDTH)
+    AddActionGap(row)
     local applyButton = nil
     if view.selectedIsBuiltInPreset then
-        applyButton = AddActionButton(row, T("THEME_APPLY", T("INFO_GENERAL_THEME_APPLY", "Apply Preset")), "primary_action", 150)
+        applyButton = AddActionButton(row, T("THEME_APPLY", T("INFO_GENERAL_THEME_APPLY", "Apply Preset")), "primary_action", APPLY_BUTTON_WIDTH)
+        AddActionGap(row)
     end
-    local createProfileButton = AddActionButton(row, T("PRESET_CREATE_PROFILE", "Create Profile"), "utility", 140)
+    local createProfileButton = AddActionButton(row, T("PRESET_CREATE_PROFILE", "Create Profile"), "utility", CREATE_PROFILE_BUTTON_WIDTH)
+    local renameButton = nil
+    local deleteButton = nil
+    if view.selectedIsUserPreset then
+        AddActionGap(row)
+        renameButton = AddActionButton(row, T("PRESET_RENAME", "Rename"), "utility", RENAME_BUTTON_WIDTH)
+        AddActionGap(row)
+        deleteButton = AddActionButton(row, T("PRESET_DELETE", "Delete"), "danger", DELETE_BUTTON_WIDTH)
+    end
 
     context.layoutsPresets = {
         dropdown = dropdown,
@@ -131,6 +159,8 @@ function LayoutsPresetsController.Render(root, context)
         previewButton = previewButton,
         applyButton = applyButton,
         createProfileButton = createProfileButton,
+        renameButton = renameButton,
+        deleteButton = deleteButton,
         view = view,
         deps = deps,
         presetContext = presetContext,
@@ -180,6 +210,18 @@ function LayoutsPresetsController.Refresh(context)
             ApplyModalActionButtonVisual(block.createProfileButton, "utility")
         end
     end
+    if block.renameButton then
+        block.renameButton:SetDisabled(not view.selectedIsUserPreset)
+        if ApplyModalActionButtonVisual then
+            ApplyModalActionButtonVisual(block.renameButton, "utility")
+        end
+    end
+    if block.deleteButton then
+        block.deleteButton:SetDisabled(not view.selectedIsUserPreset)
+        if ApplyModalActionButtonVisual then
+            ApplyModalActionButtonVisual(block.deleteButton, "danger")
+        end
+    end
 end
 
 function LayoutsPresetsController.Wire(context, rerender)
@@ -198,9 +240,11 @@ function LayoutsPresetsController.Wire(context, rerender)
     end)
 
     block.previewButton:SetCallback("OnClick", function()
-        local presetContext = block.presetContext or BuildPresetContext()
+        local presetContext = block.presetContext or BuildPresetContext(context)
         local selectedPresetId = presetContext and presetContext.state and presetContext.state.selectedThemeId
-        if PresetUI.SelectPreset then
+        if PresetUI.PreviewPreset then
+            PresetUI.PreviewPreset(presetContext, selectedPresetId, block.deps, RequestRefreshOptions)
+        elseif PresetUI.SelectPreset then
             PresetUI.SelectPreset(presetContext, selectedPresetId, block.deps, RequestRefreshOptions)
         else
             RequestRefreshOptions()
@@ -210,7 +254,7 @@ function LayoutsPresetsController.Wire(context, rerender)
     if block.applyButton then
         block.applyButton:SetCallback("OnClick", function()
             if PresetUI.ApplyPresetToCurrent then
-                PresetUI.ApplyPresetToCurrent(block.presetContext or BuildPresetContext(), block.deps, RequestRefreshOptions, {
+                PresetUI.ApplyPresetToCurrent(block.presetContext or BuildPresetContext(context), block.deps, RequestRefreshOptions, {
                     allowCustomLayout = false,
                 })
             end
@@ -222,7 +266,7 @@ function LayoutsPresetsController.Wire(context, rerender)
 
     block.createProfileButton:SetCallback("OnClick", function()
         if PresetUI.OpenCreateProfileDialog then
-            PresetUI.OpenCreateProfileDialog(block.presetContext or BuildPresetContext(), block.deps, function()
+            PresetUI.OpenCreateProfileDialog(block.presetContext or BuildPresetContext(context), block.deps, function()
                 RequestRefreshOptions()
                 if type(rerender) == "function" then
                     rerender()
@@ -230,6 +274,32 @@ function LayoutsPresetsController.Wire(context, rerender)
             end)
         end
     end)
+
+    if block.renameButton then
+        block.renameButton:SetCallback("OnClick", function()
+            if PresetUI.OpenRenamePresetDialog then
+                PresetUI.OpenRenamePresetDialog(block.presetContext or BuildPresetContext(context), block.deps, function()
+                    RequestRefreshOptions()
+                    if type(rerender) == "function" then
+                        rerender()
+                    end
+                end)
+            end
+        end)
+    end
+
+    if block.deleteButton then
+        block.deleteButton:SetCallback("OnClick", function()
+            if PresetUI.OpenDeletePresetDialog then
+                PresetUI.OpenDeletePresetDialog(block.presetContext or BuildPresetContext(context), block.deps, function()
+                    RequestRefreshOptions()
+                    if type(rerender) == "function" then
+                        rerender()
+                    end
+                end)
+            end
+        end)
+    end
 end
 
 return LayoutsPresetsController

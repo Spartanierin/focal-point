@@ -125,8 +125,12 @@ end
 local function ResolveSavePresetError(errorCode)
     if errorCode == "invalid-name" then
         return T("PRESET_NAME_REQUIRED", "Please enter a preset name.")
+    elseif errorCode == "name-too-long" then
+        return T("PRESET_NAME_TOO_LONG", "Preset name is too long.")
     elseif errorCode == "duplicate-name" then
         return T("PRESET_NAME_EXISTS", "A preset with this name already exists.")
+    elseif errorCode == "reserved-name" then
+        return T("PRESET_NAME_RESERVED", "This name is reserved for a built-in preset.")
     elseif errorCode == "store-unavailable" then
         return T("PRESET_STORAGE_UNAVAILABLE", "Preset storage is unavailable.")
     end
@@ -1505,7 +1509,7 @@ local function CreateWindow(state)
     window:SetTitle(T("LAYOUTS_TITLE", "Layouts"))
     window:SetLayout("Fill")
     window:SetWidth(760)
-    window:SetHeight(720)
+    window:SetHeight(648)
     window:EnableResize(false)
 
     if window.frame then

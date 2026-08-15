@@ -523,14 +523,6 @@ local function RefreshWindowState(context, deps)
         end
     end
 
-    if context.widgets.createProfileFromPreset then
-        context.widgets.createProfileFromPreset:SetText(T("PRESET_CREATE_PROFILE", "Create Profile", deps))
-        context.widgets.createProfileFromPreset:SetDisabled(not selectedPreset)
-        if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.createProfileFromPreset, SIDEBAR_VISUAL_ROLE.UTILITY)
-        end
-    end
-
     if context.widgets.saveCustom then
         context.widgets.saveCustom:SetText(T("EDITOR_PRESET_SAVE_CUSTOM", "Save Current Layout as My Layout", deps))
         context.widgets.saveCustom:SetDisabled(not ThemeService.CaptureDefaultSnapshot)
@@ -724,14 +716,6 @@ local function WireCallbacks(context, deps, refreshFn)
                 PresetUI.ApplyPresetToCurrent(context, deps, refreshFn, {
                     allowCustomLayout = true,
                 })
-            end
-        end)
-    end
-
-    if context.widgets.createProfileFromPreset then
-        context.widgets.createProfileFromPreset:SetCallback("OnClick", function()
-            if PresetUI.OpenCreateProfileDialog then
-                PresetUI.OpenCreateProfileDialog(context, deps, refreshFn)
             end
         end)
     end

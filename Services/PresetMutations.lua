@@ -57,15 +57,15 @@ local function ResolveBuiltInName(id, preset)
     return BUILT_IN_NAME_FALLBACKS[id] or tostring(id or "")
 end
 
-local function IsDuplicateUserPresetName(candidate)
+local function IsDuplicateUserPresetName(candidate, excludePresetId)
     local rawPresets = UserPresetStore.ListRaw and UserPresetStore.ListRaw() or {}
     if type(rawPresets) ~= "table" then
         return false
     end
 
-    for _, rawPreset in pairs(rawPresets) do
+    for id, rawPreset in pairs(rawPresets) do
         local metadata = type(rawPreset) == "table" and rawPreset.metadata or nil
-        if NormalizeComparableName(metadata and metadata.name) == candidate then
+        if id ~= excludePresetId and NormalizeComparableName(metadata and metadata.name) == candidate then
             return true
         end
     end
@@ -94,15 +94,22 @@ local function IsValidLayout(layout)
         and type(layout.TextTemplates) == "table"
 end
 
-function PresetMutations.ValidateName(name)
+function PresetMutations.ValidateName(name, options)
+    options = type(options) == "table" and options or {}
     local normalizedName = Trim(name)
-    if normalizedName == "" or GetTextLength(normalizedName) > MAX_NAME_LENGTH then
+    if normalizedName == "" then
         return false, "invalid-name"
+    end
+    if GetTextLength(normalizedName) > MAX_NAME_LENGTH then
+        return false, "name-too-long"
     end
 
     local comparableName = NormalizeComparableName(normalizedName)
-    if IsDuplicateUserPresetName(comparableName) or IsBuiltInName(comparableName) then
+    if IsDuplicateUserPresetName(comparableName, options.excludePresetId) then
         return false, "duplicate-name"
+    end
+    if IsBuiltInName(comparableName) then
+        return false, "reserved-name"
     end
 
     return true, normalizedName
@@ -149,6 +156,66 @@ function PresetMutations.CreateUserPresetFromProfile(name)
 
     local storedPreset = PresetService.GetPreset and PresetService.GetPreset(id) or nil
     return true, storedPreset or Clone(preset)
+end
+
+function PresetMutations.RenameUserPreset(presetId, newName)
+    if type(presetId) ~= "string" or presetId == "" then
+        return false, "not-found"
+    end
+    if PresetService.IsReadOnly and PresetService.IsReadOnly(presetId) then
+        return false, "read-only"
+    end
+
+    local rawPreset = UserPresetStore.GetRaw and UserPresetStore.GetRaw(presetId) or nil
+    if type(rawPreset) ~= "table" then
+        return false, "not-found"
+    end
+
+    local isValidName, normalizedNameOrError = PresetMutations.ValidateName(newName, {
+        excludePresetId = presetId,
+    })
+    if not isValidName then
+        return false, normalizedNameOrError
+    end
+
+    local metadata = type(rawPreset.metadata) == "table" and rawPreset.metadata or {}
+    if NormalizeComparableName(metadata.name) == NormalizeComparableName(normalizedNameOrError) then
+        return true, PresetService.GetPreset and PresetService.GetPreset(presetId) or Clone(rawPreset)
+    end
+
+    local updatedPreset = Clone(rawPreset)
+    updatedPreset.metadata = type(updatedPreset.metadata) == "table" and updatedPreset.metadata or {}
+    updatedPreset.metadata.id = presetId
+    updatedPreset.metadata.name = normalizedNameOrError
+    updatedPreset.metadata.source = "user"
+    updatedPreset.metadata.readOnly = false
+
+    local storedId = UserPresetStore.PutRaw and UserPresetStore.PutRaw(updatedPreset) or nil
+    if storedId ~= presetId then
+        return false, "update-failed"
+    end
+
+    return true, PresetService.GetPreset and PresetService.GetPreset(presetId) or Clone(updatedPreset)
+end
+
+function PresetMutations.DeleteUserPreset(presetId)
+    if type(presetId) ~= "string" or presetId == "" then
+        return false, "not-found"
+    end
+    if PresetService.IsReadOnly and PresetService.IsReadOnly(presetId) then
+        return false, "read-only"
+    end
+
+    local rawPreset = UserPresetStore.GetRaw and UserPresetStore.GetRaw(presetId) or nil
+    if type(rawPreset) ~= "table" then
+        return false, "not-found"
+    end
+
+    if not (UserPresetStore.RemoveRaw and UserPresetStore.RemoveRaw(presetId)) then
+        return false, "delete-failed"
+    end
+
+    return true
 end
 
 return PresetMutations
