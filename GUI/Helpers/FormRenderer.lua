@@ -53,6 +53,7 @@ local function ResetFormRendererState(widget)
     widget._fpOriginalLayoutFinished = nil
     widget._fpLayoutPaddingHeight = nil
     widget._fpLayoutMinHeight = nil
+    widget._fpSectionPadding = nil
 end
 
 local function CreateVerticalGroup(spacing)

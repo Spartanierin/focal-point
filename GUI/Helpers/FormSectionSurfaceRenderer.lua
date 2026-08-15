@@ -193,13 +193,7 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     end
 end
 
-function FormSectionSurfaceRenderer.ApplySectionPadding(group, padding)
-    if not group or not group.content or group.type == "ScrollFrame" then
-        return
-    end
-
-    local anchor = group.frame
-    local content = group.content
+local function ResolvePadding(padding)
     local left = 0
     local right = 0
     local top = 0
@@ -214,9 +208,62 @@ function FormSectionSurfaceRenderer.ApplySectionPadding(group, padding)
         bottom = padding.bottom or padding.y or 0
     end
 
+    return left, right, top, bottom
+end
+
+local function ApplyPaddingAwareContentWidth(group, outerWidth)
+    if not group or not group.content or type(outerWidth) ~= "number" then
+        return
+    end
+
+    local padding = group._fpSectionPadding
+    if not padding then
+        return
+    end
+
+    local innerWidth = math.max(0, outerWidth - (padding.left or 0) - (padding.right or 0))
+    group.content:SetWidth(innerWidth)
+    group.content.width = innerWidth
+end
+
+local function EnsurePaddingAwareWidth(group)
+    if not group or group._fpPaddingAwareWidthWrapped then
+        return
+    end
+
+    local originalOnWidthSet = group.OnWidthSet
+    group._fpOriginalOnWidthSet = originalOnWidthSet
+    group.OnWidthSet = function(widget, width)
+        if type(widget._fpOriginalOnWidthSet) == "function" then
+            widget._fpOriginalOnWidthSet(widget, width)
+        end
+        ApplyPaddingAwareContentWidth(widget, width)
+    end
+    group._fpPaddingAwareWidthWrapped = true
+end
+
+function FormSectionSurfaceRenderer.ApplySectionPadding(group, padding)
+    if not group or not group.content or group.type == "ScrollFrame" then
+        return
+    end
+
+    local anchor = group.frame
+    local content = group.content
+    local left, right, top, bottom = ResolvePadding(padding)
+    group._fpSectionPadding = {
+        left = left,
+        right = right,
+        top = top,
+        bottom = bottom,
+    }
+    EnsurePaddingAwareWidth(group)
+
     content:ClearAllPoints()
     content:SetPoint("TOPLEFT", anchor, "TOPLEFT", left, -top)
     content:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -right, bottom)
+
+    local outerWidth = group.frame and group.frame.GetWidth and group.frame:GetWidth() or nil
+    ApplyPaddingAwareContentWidth(group, outerWidth)
 end
 
 return FormSectionSurfaceRenderer
