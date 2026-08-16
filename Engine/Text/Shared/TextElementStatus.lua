@@ -87,6 +87,10 @@ function Status.ResolveOwningComponent(textConfig, context)
         return "altpower"
     elseif anchorTo == "ClassPowerBar" then
         return "classpower"
+    elseif anchorTo == "NormalAbsorbBar" then
+        return "normalabsorb"
+    elseif anchorTo == "HealingAbsorbBar" then
+        return "healingabsorb"
     elseif anchorTo == "HealthBar" then
         return "health"
     end
@@ -107,6 +111,31 @@ local function IsOwningComponentEnabled(component, unitConfig)
         return unitConfig.showAlternativePowerBar == true
     elseif component == "classpower" then
         return unitConfig.showClassPowerBar == true
+    elseif component == "normalabsorb" then
+        return unitConfig.showNormalAbsorbBar ~= false
+    elseif component == "healingabsorb" then
+        return unitConfig.showHealingAbsorbBar ~= false
+    end
+
+    return true
+end
+
+function Status.IsRuntimeOwnerAllowed(textConfig, unitConfig)
+    if type(textConfig) ~= "table" or type(unitConfig) ~= "table" then
+        return true
+    end
+
+    local anchorTo = textConfig.anchorTo
+    if anchorTo == "PowerBar" then
+        return unitConfig.showPowerBar ~= false
+    elseif anchorTo == "AlternativePowerBar" then
+        return unitConfig.showAlternativePowerBar ~= false
+    elseif anchorTo == "ClassPowerBar" then
+        return unitConfig.showClassPowerBar ~= false
+    elseif anchorTo == "NormalAbsorbBar" then
+        return unitConfig.showNormalAbsorbBar ~= false
+    elseif anchorTo == "HealingAbsorbBar" then
+        return unitConfig.showHealingAbsorbBar ~= false
     end
 
     return true

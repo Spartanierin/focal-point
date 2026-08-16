@@ -511,6 +511,101 @@ local function MigrateClassificationIndicatorEffects()
     end
 end
 
+local LEGACY_ABSORB_COLOR = { 0.66, 0.86, 1.0 }
+local LEGACY_ABSORB_OPACITY = 0.62
+
+local function CopyAbsorbColorWithAlpha(color, opacity)
+    local source = type(color) == "table" and color or LEGACY_ABSORB_COLOR
+    local alpha = tonumber(opacity)
+    if alpha == nil then
+        alpha = LEGACY_ABSORB_OPACITY
+    elseif alpha < 0 then
+        alpha = 0
+    elseif alpha > 1 then
+        alpha = 1
+    end
+
+    return {
+        tonumber(source.r or source[1]) or LEGACY_ABSORB_COLOR[1],
+        tonumber(source.g or source[2]) or LEGACY_ABSORB_COLOR[2],
+        tonumber(source.b or source[3]) or LEGACY_ABSORB_COLOR[3],
+        alpha,
+    }
+end
+
+local function NormalizeAbsorbUnitConfig(unitConfig)
+    if type(unitConfig) ~= "table" then
+        return false
+    end
+
+    local changed = false
+    local legacyShow = rawget(unitConfig, "showAbsorbOverlay")
+    local legacyColor = rawget(unitConfig, "absorbOverlayColor")
+    local legacyOpacity = rawget(unitConfig, "absorbOverlayOpacity")
+
+    if rawget(unitConfig, "showNormalAbsorbBar") == nil and legacyShow ~= nil then
+        unitConfig.showNormalAbsorbBar = legacyShow ~= false
+        changed = true
+    end
+
+    if rawget(unitConfig, "normalAbsorbBarColor") == nil and (legacyColor ~= nil or legacyOpacity ~= nil) then
+        unitConfig.normalAbsorbBarColor = CopyAbsorbColorWithAlpha(legacyColor, legacyOpacity)
+        changed = true
+    end
+
+    if legacyShow ~= nil then
+        unitConfig.showAbsorbOverlay = nil
+        changed = true
+    end
+    if legacyColor ~= nil then
+        unitConfig.absorbOverlayColor = nil
+        changed = true
+    end
+    if legacyOpacity ~= nil then
+        unitConfig.absorbOverlayOpacity = nil
+        changed = true
+    end
+
+    return changed
+end
+
+local function NormalizeAbsorbUnits(units)
+    if type(units) ~= "table" then
+        return false
+    end
+
+    local changed = false
+    for _, unitConfig in pairs(units) do
+        changed = NormalizeAbsorbUnitConfig(unitConfig) or changed
+    end
+    return changed
+end
+
+local function NormalizeAbsorbUserPresets()
+    local store = FocalPoint.UserPresetStore
+    local rawPresets = store and store.ListRaw and store.ListRaw() or nil
+    if type(rawPresets) ~= "table" then
+        return false
+    end
+
+    local changed = false
+    for _, preset in pairs(rawPresets) do
+        local units = type(preset) == "table"
+            and type(preset.layout) == "table"
+            and preset.layout.Units
+            or nil
+        changed = NormalizeAbsorbUnits(units) or changed
+    end
+    return changed
+end
+
+local function NormalizeAbsorbConfig()
+    if FocalPoint.db and FocalPoint.db.profile then
+        NormalizeAbsorbUnits(FocalPoint.db.profile.Units)
+    end
+    NormalizeAbsorbUserPresets()
+end
+
 local function EnsureCastBarInterruptibleColorDefaults()
     if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
@@ -989,6 +1084,7 @@ function FocalPointAddon:OnInitialize()
     EnsureClassPowerDefaults()
     EnsureStatusIndicatorEffectDefaults()
     MigrateClassificationIndicatorEffects()
+    NormalizeAbsorbConfig()
     EnsureCastBarInterruptibleColorDefaults()
     EnsureTextTemplateDefaults()
     NormalizeLegacyTextTemplateNames()
@@ -1009,6 +1105,7 @@ function FocalPointAddon:OnInitialize()
             local options = FocalPoint._pendingProfileActivationOptions
             FocalPoint._pendingProfileActivationReason = nil
             FocalPoint._pendingProfileActivationOptions = nil
+            NormalizeAbsorbConfig()
             if FocalPoint.HandleActiveProfileChanged then
                 FocalPoint:HandleActiveProfileChanged(reason, options)
             elseif FocalPoint.RebuildFramesForActiveProfile then

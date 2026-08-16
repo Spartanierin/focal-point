@@ -4,6 +4,39 @@ FocalPoint.UnitFrameBarLayout = FocalPoint.UnitFrameBarLayout or {}
 local BarLayout = FocalPoint.UnitFrameBarLayout
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local AbsorbBars = FocalPoint.UnitFrameAbsorbBars or {}
+
+local function ApplyAbsorbBarLayout(frame)
+    if not frame then
+        return
+    end
+
+    local config = FocalPoint.UnitFrameUtils
+        and FocalPoint.UnitFrameUtils.GetUnitDB
+        and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
+    if type(config) ~= "table" then
+        return
+    end
+
+    if AbsorbBars.ApplyNormalAbsorbBarStyle then
+        AbsorbBars.ApplyNormalAbsorbBarStyle(frame, config)
+    end
+    if AbsorbBars.ApplyNormalAbsorbBarAnchor then
+        AbsorbBars.ApplyNormalAbsorbBarAnchor(frame, config)
+    end
+    if AbsorbBars.ApplyNormalAbsorbBarVisibility then
+        AbsorbBars.ApplyNormalAbsorbBarVisibility(frame, config)
+    end
+    if AbsorbBars.ApplyHealingAbsorbBarStyle then
+        AbsorbBars.ApplyHealingAbsorbBarStyle(frame, config)
+    end
+    if AbsorbBars.ApplyHealingAbsorbBarAnchor then
+        AbsorbBars.ApplyHealingAbsorbBarAnchor(frame, config)
+    end
+    if AbsorbBars.ApplyHealingAbsorbBarVisibility then
+        AbsorbBars.ApplyHealingAbsorbBarVisibility(frame, config)
+    end
+end
 
 local function IsPlaceholderUnitEnabled(frame)
     if not frame or not frame.unit then
@@ -138,6 +171,8 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
             power:Hide()
         end
     end
+
+    ApplyAbsorbBarLayout(frame)
 end
 
 function BarLayout.ApplyAlternativePower(frame, options)

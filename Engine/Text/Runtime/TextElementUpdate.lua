@@ -70,25 +70,8 @@ local function IsCastTextAllowed(frame)
 end
 
 local function IsTextOwnerAllowed(frame, textConfig)
-    if type(textConfig) ~= "table" then
-        return true
-    end
-
-    local config = frame and frame.config
-    if type(config) ~= "table" then
-        return true
-    end
-
-    local anchorTo = textConfig.anchorTo
-    if anchorTo == "PowerBar" then
-        return config.showPowerBar ~= false
-    elseif anchorTo == "AlternativePowerBar" then
-        return config.showAlternativePowerBar ~= false
-    elseif anchorTo == "ClassPowerBar" then
-        return config.showClassPowerBar ~= false
-    end
-
-    return true
+    return not Status.IsRuntimeOwnerAllowed
+        or Status.IsRuntimeOwnerAllowed(textConfig, frame and frame.config)
 end
 
 local function IsTextEditPreviewMode()

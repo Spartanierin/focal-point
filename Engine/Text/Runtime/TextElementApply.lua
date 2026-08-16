@@ -4,9 +4,15 @@ FocalPoint.TextElementApply = FocalPoint.TextElementApply or {}
 
 local Apply = FocalPoint.TextElementApply
 local Roles = FocalPoint.TextElementRoles or {}
+local Status = FocalPoint.TextElementStatus or {}
 
 -- Applies layout and style settings to text elements while leaving template
 -- and live update logic in their dedicated modules.
+local function IsTextOwnerAllowed(frame, textConfig)
+    return not Status.IsRuntimeOwnerAllowed
+        or Status.IsRuntimeOwnerAllowed(textConfig, frame and frame.config)
+end
+
 local function ResolveOverflowWidth(key, textConfig, anchorParent)
     if not textConfig then
         return 0
@@ -126,6 +132,11 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     end
 
     if textConfig.enabled == false then
+        textObject:Hide()
+        return
+    end
+
+    if not IsTextOwnerAllowed(frame, textConfig) then
         textObject:Hide()
         return
     end

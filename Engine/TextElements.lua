@@ -146,6 +146,34 @@ local TOKEN_DEFS = {
         format = FormatTextValue,
         direct = true,
     },
+    ["absorb:cur"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "absorbTotalText", "0")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["absorb:cur:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "absorbTotalAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["healabsorb:cur"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healAbsorbTotalText", "0")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
+    ["healabsorb:cur:abbr"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "healAbsorbTotalAbbr", "")
+        end,
+        format = FormatTextValue,
+        direct = true,
+    },
     ["power:cur"] = {
         value = function(unit, frame)
             return GetLiveValue(frame, "powerCurrentText", GetLiveValue(frame, "powerCurrentRaw", "0"))
@@ -345,6 +373,10 @@ local TAG_DATABASE = {
     { token = "[hp:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_CUR_ABBR", example = "154k" },
     { token = "[hp:max:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_MAX_ABBR", example = "154k" },
     { token = "[hp:perc]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HP_PERC", example = "100" },
+    { token = "[absorb:cur]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_ABSORB_CUR", example = "12524" },
+    { token = "[absorb:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_ABSORB_CUR_ABBR", example = "12.5k" },
+    { token = "[healabsorb:cur]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HEALABSORB_CUR", example = "8500" },
+    { token = "[healabsorb:cur:abbr]", category = "INFO_TAG_CATEGORY_HEALTH", description = "INFO_TAG_DESC_HEALABSORB_CUR_ABBR", example = "8.5k" },
     { token = "[power:cur]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR", example = "100" },
     { token = "[power:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "100" },
     { token = "[power:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "100" },

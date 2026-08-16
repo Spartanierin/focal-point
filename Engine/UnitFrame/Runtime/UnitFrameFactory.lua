@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameFactory = FocalPoint.UnitFrameFactory or {}
 local Factory = FocalPoint.UnitFrameFactory
 local UnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
+local AbsorbBars = FocalPoint.UnitFrameAbsorbBars or {}
 
 -- Factory helpers create the base frame and the core status bar elements.
 
@@ -13,6 +14,10 @@ end
 function Factory.GetAnchorTarget(frame, anchorTo)
     if anchorTo == "HealthBar" then
         return frame.Elements.HealthBar or frame
+    elseif anchorTo == "NormalAbsorbBar" then
+        return frame.Elements.NormalAbsorbBar or frame
+    elseif anchorTo == "HealingAbsorbBar" then
+        return frame.Elements.HealingAbsorbBar or frame
     elseif anchorTo == "PowerBar" then
         return frame.Elements.PowerBar or frame
     elseif anchorTo == "ClassPowerBar" then
@@ -73,25 +78,15 @@ function Factory.CreateHealthBar(frame)
     bg:SetTexture("Interface\\Buttons\\WHITE8X8")
     health.bg = bg
 
-    local absorbOverlay = CreateFrame("StatusBar", nil, frame)
-    absorbOverlay:SetFrameStrata(frame:GetFrameStrata() or "MEDIUM")
-    absorbOverlay:SetFrameLevel((health:GetFrameLevel() or frame:GetFrameLevel() or 1) + 5)
-    absorbOverlay:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-    absorbOverlay:SetStatusBarColor(0.66, 0.86, 1.0, 0.62)
-    absorbOverlay:SetMinMaxValues(0, 1)
-    absorbOverlay:SetValue(0)
-    absorbOverlay:Hide()
-    health.AbsorbOverlay = absorbOverlay
-
-    local absorbMinMarker = health:CreateTexture(nil, "ARTWORK")
-    absorbMinMarker:SetTexture("Interface\\Buttons\\WHITE8X8")
-    absorbMinMarker:SetSize(2, 1)
-    absorbMinMarker:SetVertexColor(0.66, 0.86, 1.0, 0.95)
-    absorbMinMarker:Hide()
-    health.AbsorbMinMarker = absorbMinMarker
-
     frame.Elements.HealthBar = health
     frame.health = health
+
+    if AbsorbBars.CreateNormalAbsorbBar then
+        AbsorbBars.CreateNormalAbsorbBar(frame)
+    end
+    if AbsorbBars.CreateHealingAbsorbBar then
+        AbsorbBars.CreateHealingAbsorbBar(frame)
+    end
 end
 
 function Factory.CreatePowerBar(frame)

@@ -7,6 +7,7 @@ local Cast = FocalPoint.UnitFrameCastBar or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local Presence = FocalPoint.UnitFramePresence or {}
 local State = FocalPoint.UnitFrameState or {}
+local AbsorbBars = FocalPoint.UnitFrameAbsorbBars or {}
 
 local COMBAT_TRANSITION_TRACE_LIMIT = 100
 local COMBAT_TRANSITION_SUSPICIOUS_REPORT_LIMIT = 20
@@ -3931,10 +3932,13 @@ function Visibility.ClearFrameContentValuesOnly(frame, reason)
         if health then
             health:SetMinMaxValues(0, 1)
             health:SetValue(0)
-            if health.AbsorbOverlay then
-                health.AbsorbOverlay:SetMinMaxValues(0, 1)
-                health.AbsorbOverlay:SetValue(0)
-            end
+        end
+
+        if AbsorbBars.ResetNormalAbsorbBarValue then
+            AbsorbBars.ResetNormalAbsorbBarValue(frame)
+        end
+        if AbsorbBars.ResetHealingAbsorbBarValue then
+            AbsorbBars.ResetHealingAbsorbBarValue(frame)
         end
 
         local power = frame.Elements.PowerBar
@@ -4006,6 +4010,13 @@ function Visibility.ClearFrameVisualState(frame, reason)
             if health.bg then
                 health.bg:Hide()
             end
+        end
+
+        if AbsorbBars.ClearNormalAbsorbBar then
+            AbsorbBars.ClearNormalAbsorbBar(frame)
+        end
+        if AbsorbBars.ClearHealingAbsorbBar then
+            AbsorbBars.ClearHealingAbsorbBar(frame)
         end
 
         local power = frame.Elements.PowerBar

@@ -137,6 +137,19 @@ function InspectorController.Build(container, state, options)
         RAREELITE = L["CLASSIFICATION_RAREELITE"] or "Rare-Elite",
         BOSS = L["CLASSIFICATION_BOSS"] or "Boss",
     }
+    local absorbAnchorTargetList = {
+        Frame = textAnchorTargetList.Frame or (L["EDITOR_SECTION_FRAME"] or "Frame"),
+        HealthBar = textAnchorTargetList.HealthBar or (L["BAR_HEALTH"] or "Health"),
+        PowerBar = textAnchorTargetList.PowerBar or (L["BAR_POWER"] or "Power"),
+    }
+    local absorbSizeModeList = {
+        MATCH_TARGET = L["OPTION_MATCH_TARGET"] or "Match Target",
+        CUSTOM = L["OPTION_CUSTOM"] or "Custom",
+    }
+    local absorbGrowthList = {
+        LEFT_TO_RIGHT = L["OPTION_LEFT_TO_RIGHT"] or "Left to Right",
+        RIGHT_TO_LEFT = L["OPTION_RIGHT_TO_LEFT"] or "Right to Left",
+    }
 
     local function BuildDecorationTextureOptions(currentValue)
         if MediaOptionAdapter and MediaOptionAdapter.BuildDecorationDropdown then
@@ -867,18 +880,6 @@ function InspectorController.Build(container, state, options)
             AddCheckBox(healthSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
                 SetUnitField("healthBarReverseFill", value and true or false)
             end)
-
-            AddCheckBox(healthSection, L["OPTION_SHOW_ABSORB_SHIELDS"] or "Show Absorb Shields", unitConfig.showAbsorbOverlay ~= false, function(value)
-                SetUnitField("showAbsorbOverlay", value and true or false, healthSection)
-            end)
-
-            AddColorPicker(healthSection, L["OPTION_ABSORB_COLOR"] or "Absorb Color", unitConfig.absorbOverlayColor or { 0.66, 0.86, 1.0 }, false, function(value)
-                SetUnitField("absorbOverlayColor", value, healthSection)
-            end)
-
-            AddSlider(healthSection, L["OPTION_ABSORB_OPACITY"] or "Absorb Opacity", 0, 1, 0.01, tonumber(unitConfig.absorbOverlayOpacity) or 0.62, function(value)
-                SetUnitField("absorbOverlayOpacity", tonumber(string.format("%.2f", value or 0.62)) or 0.62, healthSection)
-            end)
         end
 
         if isQuick or unitConfig.useClassColorHealth ~= true then
@@ -905,6 +906,95 @@ function InspectorController.Build(container, state, options)
     AddSpacer(container, INSPECTOR_SECTION_SPACING)
     CreateInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
         localContentBuilder = BuildHealthSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
+
+    local function BuildAbsorbsSectionContent(absorbsSection)
+        if not absorbsSection then
+            return
+        end
+
+        local function AddAbsorbSubheading(text)
+            local label = AceGUI:Create("Label")
+            label:SetFullWidth(true)
+            label:SetText(text)
+            absorbsSection:AddChild(label)
+        end
+
+        local function BuildAbsorbBar(prefix, showField, title, fallbackColor, fallbackGrowth)
+            AddAbsorbSubheading(title)
+
+            local showValue = unitConfig[showField] ~= false
+            AddCheckBox(absorbsSection, L["OPTION_SHOW"] or "Show", showValue, function(value)
+                SetUnitField(showField, value and true or false, absorbsSection)
+            end)
+
+            local textureField = prefix .. "Texture"
+            local textureOptions = BuildStatusBarTextureOptions(unitConfig[textureField])
+            local textureDropdown
+            local function SetAbsorbTexture(value)
+                local result = SetUnitField(textureField, value, absorbsSection)
+                if not (result and result.ok == false) then
+                    SyncDropdownToStoredValue(textureDropdown, unitConfig[textureField])
+                end
+                return result
+            end
+            textureDropdown = AddDropdown(absorbsSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureOptions, textureOptions.value, SetAbsorbTexture)
+            AddMediaBrowserForField(absorbsSection, MEDIA_TYPE_STATUSBAR, function()
+                return unitConfig[textureField]
+            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetAbsorbTexture)
+
+            AddColorPicker(absorbsSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
+                SetUnitField(prefix .. "Color", value, absorbsSection)
+            end)
+
+            if not isExpert then
+                return
+            end
+
+            AddColorPicker(absorbsSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
+                SetUnitField(prefix .. "BackgroundColor", value, absorbsSection)
+            end)
+
+            local sizeMode = unitConfig[prefix .. "SizeMode"] or "MATCH_TARGET"
+            local isCustom = sizeMode == "CUSTOM"
+            AddDropdown(absorbsSection, L["OPTION_SIZE_MODE"] or "Size Mode", absorbSizeModeList, sizeMode, function(value)
+                SetUnitField(prefix .. "SizeMode", value, absorbsSection)
+            end)
+            AddDropdown(absorbsSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
+                SetUnitField(prefix .. "AnchorTo", value, absorbsSection)
+            end)
+            AddSlider(absorbsSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), absorbsSection)
+            end, not isCustom)
+            AddSlider(absorbsSection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
+                SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), absorbsSection)
+            end, not isCustom)
+            AddDropdown(absorbsSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
+                SetUnitField(prefix .. "Point", value, absorbsSection)
+            end, not isCustom)
+            AddDropdown(absorbsSection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
+                SetUnitField(prefix .. "RelativePoint", value, absorbsSection)
+            end, not isCustom)
+            AddSlider(absorbsSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), absorbsSection)
+            end, not isCustom)
+            AddSlider(absorbsSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), absorbsSection)
+            end, not isCustom)
+            AddDropdown(absorbsSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", absorbGrowthList, unitConfig[prefix .. "Growth"] or fallbackGrowth, function(value)
+                SetUnitField(prefix .. "Growth", value, absorbsSection)
+            end)
+        end
+
+        BuildAbsorbBar("normalAbsorbBar", "showNormalAbsorbBar", L["OPTION_NORMAL_ABSORB"] or "Normal Absorb", { 0.66, 0.86, 1.0, 0.62 }, "LEFT_TO_RIGHT")
+        AddSpacer(absorbsSection, 6)
+        BuildAbsorbBar("healingAbsorbBar", "showHealingAbsorbBar", L["OPTION_HEALING_ABSORB"] or "Healing Absorb", { 0.75, 0.20, 1.0, 0.62 }, "RIGHT_TO_LEFT")
+    end
+
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    CreateInspectorSection("absorbs", L["OPTION_ABSORBS"] or "Absorbs", true, {
+        localContentBuilder = BuildAbsorbsSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
 

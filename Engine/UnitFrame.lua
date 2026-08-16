@@ -797,16 +797,16 @@ local function HideTextEditAuras(frame)
 end
 
 local function HideTextEditAbsorbs(frame)
-    local health = frame and frame.Elements and frame.Elements.HealthBar
-    if not health then
+    local elements = frame and frame.Elements
+    if not elements then
         return
     end
 
-    if health.AbsorbOverlay then
-        health.AbsorbOverlay:Hide()
+    if elements.NormalAbsorbBar then
+        elements.NormalAbsorbBar:Hide()
     end
-    if health.AbsorbMinMarker then
-        health.AbsorbMinMarker:Hide()
+    if elements.HealingAbsorbBar then
+        elements.HealingAbsorbBar:Hide()
     end
 end
 
