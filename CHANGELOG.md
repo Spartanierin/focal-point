@@ -10,6 +10,32 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.2.1 Beta 1
+
+Health Family Beta
+
+### Added
+
+* Added configurable Normal Absorb Bar support.
+* Added configurable Healing Absorb Bar support.
+* Added Match Target and Custom size modes for absorb bars.
+* Added texture, color, background, sizing, positioning, and growth controls for absorb bars.
+* Added absorb text tags: `[absorb:cur]`, `[absorb:cur:abbr]`, `[healabsorb:cur]`, and `[healabsorb:cur:abbr]`.
+* Added text anchor targets for Normal Absorb Bar and Healing Absorb Bar.
+
+### Improved
+
+* Integrated absorb bars with Live, Demo, Unlock, and Text Mode rendering.
+* Migrated existing absorb shield settings to the new Normal Absorb Bar configuration.
+* Improved custom absorb-bar slider interaction for width, height, and offsets.
+* Added safe beta defaults with absorb bars disabled by default.
+
+### Beta Note
+
+* Normal Absorb Bar and Healing Absorb Bar are disabled by default in this beta.
+* Enable them manually in the Absorbs section to test the new system.
+* Healing Absorb has been validated through Demo and runtime paths; real encounter testing may still reveal edge cases.
+
 ## Focal Point 1.2.0
 
 Layouts & Presets
