@@ -409,6 +409,10 @@ function Colors.GetResolvedHealthBarColor(frame, config)
         end
     end
 
+    if config and config.useLowHealthColor == false then
+        return healthR, healthG, healthB, healthA
+    end
+
     local lowR, lowG, lowB, lowA = UnpackColor(config and config.healthLowColor, { 1.0, 0.12, 0.12, healthA or 1 })
     lowR, lowG, lowB, lowA = SanitizeRGBA(lowR, lowG, lowB, lowA, 1.0, 0.12, 0.12, healthA or 1)
 

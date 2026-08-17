@@ -166,6 +166,7 @@ function FocalPoint:GetDefaultDB()
                         0.12,
                         0.65,
                     },
+                    useLowHealthColor = true,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -972,6 +973,7 @@ function FocalPoint:GetDefaultDB()
                         0.12,
                         0.65,
                     },
+                    useLowHealthColor = true,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -1731,6 +1733,7 @@ function FocalPoint:GetDefaultDB()
                         0.12,
                         0.65,
                     },
+                    useLowHealthColor = true,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -2424,6 +2427,7 @@ function FocalPoint:GetDefaultDB()
                         0.12,
                         0.65,
                     },
+                    useLowHealthColor = true,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -3117,6 +3121,7 @@ function FocalPoint:GetDefaultDB()
                         0.12,
                         0.65,
                     },
+                    useLowHealthColor = true,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -3802,6 +3807,7 @@ function FocalPoint:GetDefaultDB()
                         0.12,
                         1.0,
                     },
+                    useLowHealthColor = true,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -4554,6 +4560,7 @@ function FocalPoint:GetDefaultDB()
                         g = 0,
                         r = 0.6705882549285889,
                     },
+                    useLowHealthColor = true,
                 },
             },
         },

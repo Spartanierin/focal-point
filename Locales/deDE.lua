@@ -540,6 +540,7 @@ L["OPTION_POWER_COLOR_DESC"] = "Legt die Farbe des Ressourcen-Balken des Frames 
 L["OPTION_POWER_BACKGROUND_DESC"] = "Blendet den Hintergrund des Ressourcenbalkens ein oder aus."
 L["OPTION_POWER_BACKGROUND_COLOR_DESC"] = "Legt die Hintergrundfarbe des Ressourcenbalkens fest."
 L["OPTION_HEALTH_COLOR"] = "Gesundheitsfarbe"
+L["OPTION_USE_LOW_HEALTH_COLOR"] = "Low-Health-Farbe verwenden"
 L["OPTION_LOW_HEALTH_COLOR"] = "Farbe bei wenig Gesundheit"
 L["OPTION_HEALTH_BACKGROUND_DESC"] = "Blendet den Hintergrund des Gesundheitsbalkens ein oder aus."
 L["OPTION_HEALTH_COLOR_DESC"] = "Legt die Farbe der Gesundheitsbalken fest."

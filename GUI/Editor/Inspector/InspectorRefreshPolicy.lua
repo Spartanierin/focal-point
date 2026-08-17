@@ -12,6 +12,7 @@ local FIELD_POLICIES = {
     unit = {
         enabled = { scope = "unitEnabled" },
         useClassColorHealth = { scope = "section", sectionKey = "health" },
+        useLowHealthColor = { scope = "section", sectionKey = "health" },
         useReactionColorNpcHealth = { scope = "section", sectionKey = "health" },
         healthBackground = { scope = "section", sectionKey = "health" },
         showNormalAbsorbBar = { scope = "section", sectionKey = "absorbs" },

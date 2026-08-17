@@ -888,9 +888,13 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
         end
 
+        AddCheckBox(healthSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
+            SetUnitField("useLowHealthColor", value and true or false, healthSection)
+        end)
+
         AddColorPicker(healthSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
             SetUnitField("healthLowColor", value)
-        end)
+        end, unitConfig.useLowHealthColor == false)
 
         if isExpert then
             AddCheckBox(healthSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
