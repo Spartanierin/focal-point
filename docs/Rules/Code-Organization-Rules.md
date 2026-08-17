@@ -1,4 +1,6 @@
-﻿# CODE ORGANIZATION RULES
+﻿STATUS: CURRENT - canonical code-organization rule.
+
+# CODE ORGANIZATION RULES
 
 ## Purpose
 Define file-role naming and folder organization rules for GUI work.
@@ -70,3 +72,4 @@ Optional roles:
 - Prefer small, safe steps with stable runtime behavior.
 - Do not introduce broad rewrites during naming/path cleanup.
 - Mark unclear cases explicitly as `unclear / needs decision` instead of guessing.
+

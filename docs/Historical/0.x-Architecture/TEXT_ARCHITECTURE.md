@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL / PARTIAL - describes old text migrations; current state is documented in docs/Architecture/Text-Architecture.md.
+
 # Text Architecture
 
 ## Purpose
@@ -407,3 +409,4 @@ The intended architecture is:
 - no user-facing slot vocabulary
 
 This is especially important because the Text Builder is a primary product feature and must not be constrained by early-version slot assumptions.
+

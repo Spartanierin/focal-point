@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL / OBSOLETE AS PRODUCT MODEL - old theme system; not the current Profile/Preset model.
+
 # FocalPoint Theme System V1
 
 ## Purpose
@@ -406,3 +408,4 @@ For V1, themes should be:
 - easy to override afterwards
 
 Quickmode should reuse those themes rather than inventing a second preset model.
+

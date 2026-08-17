@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT / PARTIAL - still-relevant aura principles; not a complete runtime document.
+
 # FocalPoint Aura System Concept
 
 ## Purpose
@@ -663,3 +665,4 @@ Especially for:
 
 This rule exists to avoid repeating the ambiguity problems that appeared during
 the inside-lane work.
+

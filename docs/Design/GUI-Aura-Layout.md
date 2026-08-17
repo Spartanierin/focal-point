@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT / PARTIAL - 1.x aura-layout reference; not automatically a 2.0 norm.
+
 # FocalPoint GUI Aura Layout
 
 ## Purpose
@@ -214,3 +216,4 @@ These runtime GUI rules are part of the layout contract:
 - use layout metadata to force consistent left/right row placement
 - prefer section-level reset actions over per-control reset buttons
 - do not redesign the page into a different concept
+

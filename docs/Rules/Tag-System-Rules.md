@@ -1,12 +1,14 @@
+﻿STATUS: CURRENT / HIGH VALUE - canonical tag-system rule.
+
 # FocalPoint Tag System Rules
 
 ## Purpose
 
 This document defines the rules for FocalPoint's tag system and template content layer.
 
-It complements `ARCHITECTURE.md`:
+It complements `docs/Architecture/Text-Architecture.md`:
 
-- `ARCHITECTURE.md` explains the larger text system model
+- `docs/Architecture/Text-Architecture.md` explains the current text system model
 - this file explains how tags and inline formatting should behave inside that model
 
 The tag system exists to produce stable rendered text from prepared runtime data.  
@@ -370,3 +372,5 @@ FocalPoint tags should mostly do this:
 1. read prepared value
 2. format only if trivial
 3. render
+
+

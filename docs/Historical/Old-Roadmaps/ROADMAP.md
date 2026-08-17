@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL - old roadmap; current 2.0 direction is documented in docs/Roadmap/2.0-Design-Principles.md.
+
 # Focal Point Editor UX Roadmap
 
 Focal Point should continue to grow as a focused visual Unit Frame editor. It should not try to become a full UI replacement in the style of broader UI suites. The editor roadmap should strengthen the core workflow around direct manipulation, mouse-based editing, alignment helpers, and paired frame workflows.
@@ -110,3 +112,4 @@ Possible improvements:
 Product direction:
 
 Focal Point should remain a focused Unit Frame editor. It should not try to become a full UI replacement. Future Party/Raid work should be approached deliberately, especially for raid frames where healer-aware design and testing are essential.
+

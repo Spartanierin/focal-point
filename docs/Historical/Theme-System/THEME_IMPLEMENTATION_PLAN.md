@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL - old theme implementation plan; Style/Stylist is future direction only.
+
 # Theme Implementation Plan
 
 ## Goal
@@ -130,3 +132,4 @@ When implementation starts, update:
 - `docs/THEME_SYSTEM_V1.md`
 
 The theme system should remain visible as a first-class product layer, not an afterthought.
+

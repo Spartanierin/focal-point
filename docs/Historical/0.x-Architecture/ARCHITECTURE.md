@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL / OBSOLETE - old architecture overview; do not use as current system map. See docs/Architecture/Architecture-Overview.md.
+
 # FocalPoint Architecture Overview
 
 ## Purpose
@@ -549,3 +551,4 @@ So for that block the current rule is:
 - do not abstract it again without re-testing in-game
 
 This is a deliberate stability choice, not unfinished cleanup.
+

@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT - canonical aura time-classification rule.
+
 # FocalPoint Aura Time Classification
 
 ## Purpose
@@ -271,3 +273,4 @@ The system should prefer:
 
 and keep the other two states as controlled transition/fallback states, not as
 the normal steady-state outcome.
+

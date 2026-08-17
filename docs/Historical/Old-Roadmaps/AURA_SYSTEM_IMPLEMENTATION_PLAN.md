@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL - completed/old implementation plan; not normative.
+
 # FocalPoint Aura System Implementation Plan
 
 ## Purpose
@@ -578,3 +580,4 @@ expressed precisely enough to answer:
 - what is only visual and what affects geometry
 
 If those points are not clear, implementation should pause and be clarified first.
+

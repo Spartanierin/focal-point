@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT / PARTIAL / 1.x SCOPE - relevant for existing 1.x surfaces; not a rigid 2.0 norm.
+
 # FocalPoint GUI Layout Rules
 
 ## Purpose
@@ -157,7 +159,7 @@ Text hierarchy is defined centrally through the GUI text-style roles:
 
 See:
 
-- `docs/gui_text_style.md`
+- `docs/Design/GUI-Text-Style.md`
 
 Exception:
 
@@ -217,8 +219,8 @@ not contradict them without a deliberate, documented exception.
 
 Example:
 
-- `docs/gui_aura_layout.md`
-- `docs/gui_header_layout.md`
+- `docs/Design/GUI-Aura-Layout.md`
+- `docs/Design/GUI-Header-Layout.md`
 
 ## Implementation Guidance
 
@@ -226,3 +228,6 @@ Example:
 - drive row behavior through layout metadata when possible
 - prefer documented conventions over ad-hoc page composition
 - optimize for calm structure, not maximum density
+
+
+

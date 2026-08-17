@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT - canonical visual-role rule.
+
 # GUI VISUAL ROLE RULES
 
 ## Purpose
@@ -151,3 +153,4 @@ When unsure:
 * First fix central style layers, then local exceptions
 * Do not mix structural refactors with visual-role cleanup
 * Re-evaluate with screenshots after each small step
+

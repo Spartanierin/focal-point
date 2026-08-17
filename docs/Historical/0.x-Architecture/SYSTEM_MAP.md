@@ -1,3 +1,5 @@
+﻿STATUS: HISTORICAL / PARTIAL - old system map; not normative for current code.
+
 # FocalPoint System Map
 
 This document is a small internal map of FocalPoint's main systems.
@@ -360,3 +362,4 @@ Good examples:
 - New live frame rendering behavior: Unit Frame Runtime
 
 If a change seems to belong to several places at once, that is usually a sign that a boundary needs to be clarified before implementation.
+

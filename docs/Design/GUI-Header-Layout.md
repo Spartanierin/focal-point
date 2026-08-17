@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT / PARTIAL - 1.x header-layout reference.
+
 # FocalPoint GUI Header Layout
 
 ## Purpose
@@ -144,3 +146,4 @@ Avoid:
 - prefer one short primary title
 - only add a secondary subtitle when it adds real value
 - do not invent page-local title conventions for unit pages
+

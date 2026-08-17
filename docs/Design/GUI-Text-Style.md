@@ -1,3 +1,5 @@
+﻿STATUS: CURRENT / PARTIAL - 1.x text-style reference.
+
 # FocalPoint GUI Text Style
 
 ## Purpose
@@ -212,3 +214,4 @@ That module should expose named roles like:
 
 Future GUI pages should adopt these roles instead of inventing page-local text
 colors.
+
