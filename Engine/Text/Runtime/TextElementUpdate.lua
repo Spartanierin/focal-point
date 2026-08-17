@@ -10,6 +10,8 @@ local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
 local TextPreview = FocalPoint.TextElementPreview or {}
+local TextUtils = FocalPoint.TextElementUtils or {}
+local IsSecret = TextUtils.IsSecret
 
 local function SafeSetText(textObject, textValue, preferLastKnownGood)
     if not textObject or not textObject.SetText then
@@ -117,6 +119,10 @@ local function GetClassificationIndicatorEffect(frame)
 end
 
 local function IsBlankText(value)
+    if IsSecret and IsSecret(value) then
+        return false
+    end
+
     if type(value) ~= "string" then
         return true
     end
@@ -189,7 +195,7 @@ local function GetClassificationLabelStyle(unit)
 end
 
 local function ApplyClassificationNameLabel(frame, textRole, renderedText, template, templateContainsToken)
-    if textRole ~= "name" or type(renderedText) ~= "string" or renderedText == "" then
+    if textRole ~= "name" or type(renderedText) ~= "string" or (IsSecret and IsSecret(renderedText)) or renderedText == "" then
         return renderedText
     end
 
@@ -394,6 +400,10 @@ local function ApplyOverflow(textObject, renderedText, mode)
     local maxWidth = textObject.FocalPointOverflowWidth or 0
 
     if not SafeSetText(textObject, renderedText or "", true) then
+        return
+    end
+
+    if IsSecret and IsSecret(renderedText) then
         return
     end
 

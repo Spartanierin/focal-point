@@ -10,31 +10,31 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
-## Focal Point 1.2.1 Beta 1
+## Focal Point 1.2.1
 
-Health Family Beta
+Health Family Absorbs
 
 ### Added
 
-* Added configurable Normal Absorb Bar support.
-* Added configurable Healing Absorb Bar support.
-* Added Match Target and Custom size modes for absorb bars.
-* Added texture, color, background, sizing, positioning, and growth controls for absorb bars.
+* Added Normal Absorb Bar and Healing Absorb Bar as configurable Health-family components.
+* Added Match Target and Custom sizing modes for absorb bars.
+* Added texture, color, background, anchor, offset, and growth controls for absorb bars.
 * Added absorb text tags: `[absorb:cur]`, `[absorb:cur:abbr]`, `[healabsorb:cur]`, and `[healabsorb:cur:abbr]`.
 * Added text anchor targets for Normal Absorb Bar and Healing Absorb Bar.
+* Added diagonal stripe textures for absorb visualization.
 
 ### Improved
 
-* Integrated absorb bars with Live, Demo, Unlock, and Text Mode rendering.
-* Migrated existing absorb shield settings to the new Normal Absorb Bar configuration.
-* Improved custom absorb-bar slider interaction for width, height, and offsets.
-* Added safe beta defaults with absorb bars disabled by default.
+* Improved absorb bars so they integrate with Live, Demo, Unlock, and Text Mode rendering.
+* Improved migration from existing normal absorb settings to the new Normal Absorb Bar configuration.
+* Improved custom size, offset, and color controls so they update smoothly without rebuilding the Inspector section.
+* Improved absorb-bar text anchoring so text elements anchored to a disabled absorb bar are hidden automatically.
 
-### Beta Note
+### Fixed
 
-* Normal Absorb Bar and Healing Absorb Bar are disabled by default in this beta.
-* Enable them manually in the Absorbs section to test the new system.
-* Healing Absorb has been validated through Demo and runtime paths; real encounter testing may still reveal edge cases.
+* Fixed live absorb rendering with WoW 12.1 Secret Values.
+* Fixed Absorb Bars being hidden in Unlock Text Mode.
+* Fixed absorb-related text visibility when the owning bar is disabled.
 
 ## Focal Point 1.2.0
 

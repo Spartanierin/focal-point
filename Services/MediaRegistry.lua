@@ -1169,6 +1169,16 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "simple-gray", "Focal Point 
     verified = true,
 })
 
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "diagonal-stripes-right", "Focal Point - Diagonal Stripes Right", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_stripe_diagonal_right_256x32.tga", {
+    sortName = "focal point diagonal stripes right",
+    verified = true,
+})
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "diagonal-stripes-left", "Focal Point - Diagonal Stripes Left", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_stripe_diagonal_left_256x32.tga", {
+    sortName = "focal point diagonal stripes left",
+    verified = true,
+})
+
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_STATUSBAR, "shadow1", "Shadow 1", "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png", {
     sortName = "shadow 1",
     verified = true,
