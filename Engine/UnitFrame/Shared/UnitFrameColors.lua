@@ -285,6 +285,39 @@ local function BuildCurveColor(r, g, b, a)
     return color
 end
 
+local function ResolveCurveRGBA(color, fallbackA)
+    if not color then
+        return nil, nil, nil, nil, false
+    end
+
+    if color.GetRGBA then
+        local ok, r, g, b, a = pcall(color.GetRGBA, color)
+        if ok then
+            return r, g, b, a, true
+        end
+    end
+
+    if color.GetRGB then
+        local ok, r, g, b = pcall(color.GetRGB, color)
+        if ok then
+            return r, g, b, fallbackA, true
+        end
+    end
+
+    if type(color) ~= "table" then
+        return nil, nil, nil, nil, false
+    end
+
+    local ok, r, g, b, a = pcall(function()
+        return color.r or color[1], color.g or color[2], color.b or color[3], color.a or color[4]
+    end)
+    if ok and type(r) == "number" and type(g) == "number" and type(b) == "number" then
+        return SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, nil, nil, nil, fallbackA)
+    end
+
+    return nil, nil, nil, nil, false
+end
+
 local function ResolveCurveColor(curve, percent, fallbackR, fallbackG, fallbackB, fallbackA)
     if not curve or type(percent) ~= "number" or not curve.Evaluate then
         return fallbackR, fallbackG, fallbackB, fallbackA
@@ -295,19 +328,9 @@ local function ResolveCurveColor(curve, percent, fallbackR, fallbackG, fallbackB
         return fallbackR, fallbackG, fallbackB, fallbackA
     end
 
-    if color.GetRGBA then
-        local r, g, b, a = color:GetRGBA()
-        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-            return SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
-        end
-    end
-
-    local r = color.r or color[1]
-    local g = color.g or color[2]
-    local b = color.b or color[3]
-    local a = color.a or color[4]
-    if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-        return SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
+    local r, g, b, a, resolved = ResolveCurveRGBA(color, fallbackA)
+    if resolved then
+        return r, g, b, a
     end
 
     return fallbackR, fallbackG, fallbackB, fallbackA
@@ -323,21 +346,9 @@ local function ResolveUnitHealthCurveColor(unit, curve, fallbackR, fallbackG, fa
         return nil
     end
 
-    if color.GetRGBA then
-        local r, g, b, a = color:GetRGBA()
-        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-            local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
-            return sr, sg, sb, sa, true
-        end
-    end
-
-    local r = color.r or color[1]
-    local g = color.g or color[2]
-    local b = color.b or color[3]
-    local a = color.a or color[4]
-    if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-        local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
-        return sr, sg, sb, sa, true
+    local r, g, b, a, resolved = ResolveCurveRGBA(color, fallbackA)
+    if resolved then
+        return r, g, b, a, true
     end
 
     return nil
@@ -354,21 +365,9 @@ local function ResolvePredictionCurveColor(frame, curve, fallbackR, fallbackG, f
         return nil
     end
 
-    if color.GetRGBA then
-        local r, g, b, a = color:GetRGBA()
-        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-            local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
-            return sr, sg, sb, sa, true
-        end
-    end
-
-    local r = color.r or color[1]
-    local g = color.g or color[2]
-    local b = color.b or color[3]
-    local a = color.a or color[4]
-    if type(r) == "number" and type(g) == "number" and type(b) == "number" then
-        local sr, sg, sb, sa = SanitizeRGBA(r, g, b, type(a) == "number" and a or fallbackA, fallbackR, fallbackG, fallbackB, fallbackA)
-        return sr, sg, sb, sa, true
+    local r, g, b, a, resolved = ResolveCurveRGBA(color, fallbackA)
+    if resolved then
+        return r, g, b, a, true
     end
 
     return nil
@@ -435,7 +434,7 @@ function Colors.GetResolvedHealthBarColor(frame, config)
                     healthA
                 )
                 if resolvedFromPrediction then
-                    return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
+                    return resolvedR, resolvedG, resolvedB, resolvedA
                 end
             end
 
@@ -468,7 +467,7 @@ function Colors.GetResolvedHealthBarColor(frame, config)
             end
 
             if resolvedFromUnit then
-                return SanitizeRGBA(resolvedR, resolvedG, resolvedB, resolvedA, healthR, healthG, healthB, healthA)
+                return resolvedR, resolvedG, resolvedB, resolvedA
             end
         end
     end
