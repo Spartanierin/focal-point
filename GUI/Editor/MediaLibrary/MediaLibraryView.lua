@@ -111,37 +111,10 @@ local function LockContainerHeight(container, height)
     container:SetHeight(height)
 end
 
-local function CenterWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-end
+local CenterWindow = FormWidgets.CenterWindow
 
 local function FocusWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    if frame.IsShown and not frame:IsShown() then
-        CenterWindow(window)
-    end
-
-    if window.Show then
-        window:Show()
-    elseif frame.Show then
-        frame:Show()
-    end
-
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetToplevel(true)
-    if frame.Raise then
-        frame:Raise()
-    end
+    FormWidgets.FocusWindow(window, { centerIfHidden = true })
 end
 
 local function EnableEscapeClose(window)

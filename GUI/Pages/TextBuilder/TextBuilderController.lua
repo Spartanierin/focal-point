@@ -45,6 +45,7 @@ local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseBut
 local CreateActionButton = FormWidgets.CreateActionButton
 local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
+local CenterWindow = FormWidgets.CenterWindow
 
 local function T(key, fallback)
     return (L and L[key]) or fallback or ""
@@ -580,37 +581,8 @@ local function FormatMutationError(result)
     return T("INFO_TEXT_BUILDER_STATUS_OPERATION_FAILED")
 end
 
-local function CenterWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-end
-
 local function FocusWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    if frame.IsShown and not frame:IsShown() then
-        CenterWindow(window)
-    end
-
-    if window.Show then
-        window:Show()
-    elseif frame.Show then
-        frame:Show()
-    end
-
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetToplevel(true)
-    if frame.Raise then
-        frame:Raise()
-    end
+    FormWidgets.FocusWindow(window, { centerIfHidden = true })
 end
 
 local function ResolveItemText(item)
@@ -1668,6 +1640,15 @@ local function WireWindowCallbacks(context)
     end)
 end
 
+local function HideOwnedChildDialogs()
+    if deleteDialogContext and deleteDialogContext.window and deleteDialogContext.window.Hide then
+        deleteDialogContext.window:Hide()
+    end
+    if unsavedApplyDialogContext and unsavedApplyDialogContext.window and unsavedApplyDialogContext.window.Hide then
+        unsavedApplyDialogContext.window:Hide()
+    end
+end
+
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
     window:SetTitle(T("INFO_TEXT_BUILDER_TITLE"))
@@ -1691,6 +1672,7 @@ local function CreateWindow(state)
     WireWindowCallbacks(context)
 
     window:SetCallback("OnClose", function()
+        HideOwnedChildDialogs()
         if ns.GUI and ns.GUI.ResetStatusText then
             ns.GUI:ResetStatusText()
         end
@@ -1714,9 +1696,7 @@ function TextBuilderController.OpenWindow(deps)
 end
 
 function TextBuilderController.HideWindow()
-    if deleteDialogContext and deleteDialogContext.window and deleteDialogContext.window.Hide then
-        deleteDialogContext.window:Hide()
-    end
+    HideOwnedChildDialogs()
 
     if not windowContext or not windowContext.window then
         return

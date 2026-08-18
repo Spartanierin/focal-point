@@ -210,33 +210,10 @@ local function CreateCheckBox(label, widgetId)
     return checkbox
 end
 
-local function CenterWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-end
+local CenterWindow = FormWidgets.CenterWindow
 
 local function FocusWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    if window.Show then
-        window:Show()
-    elseif frame.Show then
-        frame:Show()
-    end
-
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetToplevel(true)
-    if frame.Raise then
-        frame:Raise()
-    end
+    FormWidgets.FocusWindow(window)
 end
 
 local function EnableEscapeClose(window)

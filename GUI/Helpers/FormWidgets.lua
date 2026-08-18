@@ -753,6 +753,44 @@ function FormWidgets.EnsureStandardWindowCloseButton(window)
     end
 end
 
+function FormWidgets.CenterWindow(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+end
+
+function FormWidgets.FocusWindow(window, options)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    options = options or {}
+    if options.centerIfHidden and frame.IsShown and not frame:IsShown() then
+        FormWidgets.CenterWindow(window)
+    end
+
+    if window.Show then
+        window:Show()
+    elseif frame.Show then
+        frame:Show()
+    end
+
+    if frame.SetFrameStrata then
+        frame:SetFrameStrata(options.strata or "FULLSCREEN_DIALOG")
+    end
+    if frame.SetToplevel then
+        frame:SetToplevel(options.toplevel ~= false)
+    end
+    if frame.Raise then
+        frame:Raise()
+    end
+end
+
 function FormWidgets.ApplySidebarChrome(window)
     if not window or not window.frame then
         return

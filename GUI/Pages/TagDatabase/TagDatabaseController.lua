@@ -32,6 +32,7 @@ local EnsureStandardWindowCloseButton = FormWidgets.EnsureStandardWindowCloseBut
 local CreateActionButton = FormWidgets.CreateActionButton
 local ApplyModalActionButtonVisual = FormWidgets.ApplyModalActionButtonVisual
 local ResolveItemColor = FormWidgets.ResolveItemColor
+local CenterWindow = FormWidgets.CenterWindow
 
 local function T(key, fallback)
     return (L and L[key]) or fallback or ""
@@ -103,37 +104,8 @@ local function CollectTagDatabase()
     return tagDatabase, grouped, defaultCategory
 end
 
-local function CenterWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-end
-
 local function FocusWindow(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    if frame.IsShown and not frame:IsShown() then
-        CenterWindow(window)
-    end
-
-    if window.Show then
-        window:Show()
-    elseif frame.Show then
-        frame:Show()
-    end
-
-    frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    frame:SetToplevel(true)
-    if frame.Raise then
-        frame:Raise()
-    end
+    FormWidgets.FocusWindow(window, { centerIfHidden = true })
 end
 
 local function FocusCopyEditBox(editBox)
@@ -403,6 +375,12 @@ local function WireWindowCallbacks(context)
     end
 end
 
+local function HideOwnedChildDialogs()
+    if windowContext and windowContext.copyDialog and windowContext.copyDialog.window and windowContext.copyDialog.window.Hide then
+        windowContext.copyDialog.window:Hide()
+    end
+end
+
 local function CreateWindow(state)
     local window = AceGUI:Create("Window")
     window:SetTitle(T("INFO_TAG_DATABASE_TITLE"))
@@ -426,6 +404,7 @@ local function CreateWindow(state)
     WireWindowCallbacks(context)
 
     window:SetCallback("OnClose", function()
+        HideOwnedChildDialogs()
         if ns.GUI and ns.GUI.ResetStatusText then
             ns.GUI:ResetStatusText()
         end
@@ -454,6 +433,8 @@ function TagDatabaseController.OpenWindow(deps)
 end
 
 function TagDatabaseController.HideWindow()
+    HideOwnedChildDialogs()
+
     if not windowContext or not windowContext.window then
         return
     end
