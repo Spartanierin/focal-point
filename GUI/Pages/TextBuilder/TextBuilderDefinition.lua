@@ -131,15 +131,14 @@ ns.GUI.Layouts.TextBuilder.Form = {
             heightInfo = {
                 source = "content",
                 min = 78,
-                derivedFrom = "section title + example + editBox + updateButton + spacing",
+                derivedFrom = "section title + example + editBox + addTagButton + spacing",
             },
         },
         items = {
             { id = "templateTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TEXT_BUILDER_TEMPLATE" },
             { id = "templateExample", widget = "computed_label", itemVariant = "example_text_muted", builder = "templateExample" },
             { id = "templateEdit", widget = "editbox", itemVariant = "builder_field", labelKey = "INFO_TEXT_BUILDER_TEMPLATE", stateKey = "template", normalize = "template" },
-            { id = "tagDatabaseButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TAG_LIBRARY_TITLE", width = 240, fullWidth = false },
-            { id = "updateButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_TEXT_BUILDER_APPLY", width = 240, fullWidth = false },
+            { id = "tagDatabaseButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_ADD_TAG", width = 240, fullWidth = false },
         },
     },
     {

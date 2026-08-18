@@ -1377,7 +1377,6 @@ RefreshWindowState = function()
             return
         end
 
-        ApplyModalActionButtonVisual(context.updateButton, "utility")
         ApplyModalActionButtonVisual(context.tagDatabaseButton, "utility")
         ApplyModalActionButtonVisual(context.newTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.saveButton, "primary_action")
@@ -1390,7 +1389,6 @@ RefreshWindowState = function()
     local hasDB = ns.db and ns.db.profile
     if not hasDB then
         context.templateEdit:SetDisabled(true)
-        context.updateButton:SetDisabled(true)
         context.previewValue:SetText(T("INFO_COMMON_UNAVAILABLE"))
         context.templateSelect:SetList({})
         context.templateSelect:SetDisabled(true)
@@ -1420,7 +1418,6 @@ RefreshWindowState = function()
     context.state.template = NormalizeTemplateInput(context.state.template or context.templateEdit:GetText() or "")
     context.templateEdit:SetDisabled(false)
     SyncEditBoxText(context, context.templateEdit, context.state.template, "suspendTemplateEditCallbacks")
-    context.updateButton:SetDisabled(false)
 
     context.templateSelect:SetDisabled(false)
     context.templateNameEdit:SetDisabled(false)
@@ -1496,7 +1493,6 @@ local function CreateWindowContent(window, state, deps)
         root = root,
         getGUIState = deps and deps.GetGUIState,
         templateEdit = widgets.templateEdit,
-        updateButton = widgets.updateButton,
         tagDatabaseButton = widgets.tagDatabaseButton,
         previewValue = widgets.previewValue,
         templateSelect = widgets.templateSelect,
@@ -1571,12 +1567,6 @@ local function WireWindowCallbacks(context)
 
         context.state.template = NormalizeTemplateInput(widget:GetText() or "")
         CaptureTemplateCursor(context)
-        RefreshPreview(context)
-        RefreshWindowState()
-    end)
-
-    context.updateButton:SetCallback("OnClick", function()
-        context.state.template = NormalizeTemplateInput(context.templateEdit:GetText() or "")
         RefreshPreview(context)
         RefreshWindowState()
     end)
