@@ -159,6 +159,8 @@
     <Script file="GUI/Editor/Toolbar/ToolbarDefinition.lua"/>
     <Script file="GUI/Pages/TextBuilder/TextBuilderDefinition.lua"/>
     <Script file="GUI/Pages/TagDatabase/TagDatabaseDefinition.lua"/>
+    <Script file="GUI/Pages/TagLibrary/TagLibraryView.lua"/>
+    <Script file="GUI/Pages/TagLibrary/TagLibraryController.lua"/>
     <Script file="GUI/GUIController.lua"/>
     <Script file="GUI/Pages/Profiles/LayoutsPresetsController.lua"/>
     <Script file="GUI/Pages/Profiles/ProfilesController.lua"/>

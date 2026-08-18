@@ -53,23 +53,6 @@ local function GetTagDatabaseState(deps)
     return state
 end
 
-local function ResolveInsertContext(deps)
-    if type(deps) ~= "table" or (deps.mode ~= "insert" and deps.mode ~= "library") or type(deps.onApply) ~= "function" then
-        return nil
-    end
-
-    return {
-        mode = deps.mode,
-        owner = deps.owner,
-        onApply = deps.onApply,
-        onCancel = deps.onCancel,
-    }
-end
-
-local function IsInsertMode(context)
-    return context and context.insertContext and context.insertContext.mode == "insert" and type(context.insertContext.onApply) == "function"
-end
-
 local function SetButtonText(button, text)
     if button and button.SetText then
         button:SetText(text or "")
@@ -269,24 +252,23 @@ local function RefreshWindowState()
         if not ApplyModalActionButtonVisual or not windowContext.copySelectedTag then
             return
         end
-        ApplyModalActionButtonVisual(windowContext.copySelectedTag, IsInsertMode(windowContext) and "primary_action" or "utility")
+        ApplyModalActionButtonVisual(windowContext.copySelectedTag, "utility")
     end
 
     local state = windowContext.state
     local tagDatabase, grouped, defaultCategory = CollectTagDatabase()
-    local libraryMode = IsInsertMode(windowContext)
 
     windowContext.grouped = grouped
     windowContext.defaultCategory = defaultCategory
-    SetButtonText(windowContext.copySelectedTag, libraryMode and T("INFO_TAG_DATABASE_INSERT_SELECTED") or T("INFO_TAG_DATABASE_COPY_SELECTED"))
+    SetButtonText(windowContext.copySelectedTag, T("INFO_TAG_DATABASE_COPY_SELECTED"))
     if windowContext.window and windowContext.window.SetTitle then
-        windowContext.window:SetTitle(libraryMode and T("INFO_TAG_LIBRARY_TITLE") or T("INFO_TAG_DATABASE_TITLE"))
+        windowContext.window:SetTitle(T("INFO_TAG_DATABASE_TITLE"))
     end
     if windowContext.title and windowContext.title.SetText then
-        windowContext.title:SetText(libraryMode and T("INFO_TAG_LIBRARY_TITLE") or T("INFO_TAG_DATABASE_TITLE"))
+        windowContext.title:SetText(T("INFO_TAG_DATABASE_TITLE"))
     end
     if windowContext.intro and windowContext.intro.SetText then
-        windowContext.intro:SetText(libraryMode and T("INFO_TAG_LIBRARY_DESCRIPTION_SHORT") or T("INFO_TAG_DATABASE_DESCRIPTION_SHORT"))
+        windowContext.intro:SetText(T("INFO_TAG_DATABASE_DESCRIPTION_SHORT"))
     end
 
     if defaultCategory and not grouped[state.category] then
@@ -389,7 +371,6 @@ local function CreateWindowContent(window, state)
         copySelectedTag = widgets.copySelectedTag,
         emptyState = widgets.emptyState,
         selectedTagText = "",
-        insertContext = nil,
     }
 end
 
@@ -409,14 +390,6 @@ local function WireWindowCallbacks(context)
         context.copySelectedTag:SetCallback("OnClick", function()
             local tagText = context.selectedTagText or ""
             if tagText == "" then
-                return
-            end
-
-            if IsInsertMode(context) then
-                local ok = context.insertContext.onApply(tagText)
-                if ok then
-                    TagDatabaseController.HideWindow()
-                end
                 return
             end
 
@@ -466,7 +439,6 @@ end
 function TagDatabaseController.OpenWindow(deps)
     local state = GetTagDatabaseState(deps)
     local _, grouped, defaultCategory = CollectTagDatabase()
-    local insertContext = ResolveInsertContext(deps)
 
     if defaultCategory and not grouped[state.category] then
         state.category = defaultCategory
@@ -478,7 +450,6 @@ function TagDatabaseController.OpenWindow(deps)
     else
         windowContext.state = state
     end
-    windowContext.insertContext = insertContext
 
     RefreshWindowState()
     FocusWindow(windowContext.window)

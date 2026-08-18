@@ -595,3 +595,70 @@ ns.GUI.Layouts.TextBuilder.UnsavedApplyConfirm = {
         },
     },
 }
+
+ns.GUI.Layouts.TextBuilder.UnsavedCloseConfirm = {
+    {
+        section = "Root",
+        properties = {
+            sectionKind = "root",
+            type = "stack_block",
+            variant = "window_content",
+            padding = {
+                left = 12,
+                right = 12,
+                top = 10,
+                bottom = 14,
+            },
+        },
+        items = {},
+    },
+    {
+        section = "Message",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            surfaceStyle = "status_panel",
+            padding = {
+                left = 10,
+                right = 10,
+                top = 8,
+                bottom = 8,
+            },
+            heightInfo = {
+                source = "content",
+                min = 110,
+            },
+        },
+        items = {
+            { id = "title", widget = "label", itemVariant = "section_title_large", textKey = "INFO_TEXT_BUILDER_UNSAVED_CLOSE_TITLE" },
+            { id = "message", widget = "label", itemVariant = "description_text_body", textKey = "INFO_TEXT_BUILDER_UNSAVED_CLOSE_PROMPT" },
+        },
+    },
+    {
+        section = "ActionRow",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "widget_group",
+            type = "action_row",
+            variant = "triple_button",
+            padding = {
+                left = 8,
+                right = 8,
+                top = 4,
+                bottom = 4,
+            },
+            gapBefore = 8,
+            heightInfo = {
+                source = "content",
+                min = 32,
+            },
+        },
+        items = {
+            { id = "saveCloseButton", widget = "button", itemVariant = "primary_action", textKey = "INFO_TEXT_BUILDER_UNSAVED_SAVE_CLOSE" },
+            { id = "discardCloseButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_UNSAVED_DISCARD_CLOSE" },
+            { id = "cancelButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_COMMON_CANCEL" },
+        },
+    },
+}

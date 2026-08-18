@@ -32,6 +32,8 @@ local fallbackRootState = {}
 local windowContext
 local deleteDialogContext
 local unsavedApplyDialogContext
+local unsavedCloseDialogContext
+local isPerformingClose = false
 local RefreshWindowState
 local GetSelectedTemplateEntry
 local EnsureWritableProfileContext
@@ -618,6 +620,11 @@ local function FocusWindow(window)
     FormWidgets.FocusWindow(window, { centerIfHidden = true })
 end
 
+local function IsTextBuilderWindowShown(context)
+    local frame = context and context.window and context.window.frame or nil
+    return frame and frame.IsShown and frame:IsShown() or false
+end
+
 local function ResolveItemText(item)
     if not item then
         return ""
@@ -804,6 +811,8 @@ local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, op
         deleteConfirmButton = widgets.deleteConfirmButton,
         saveApplyButton = widgets.saveApplyButton,
         applyStoredButton = widgets.applyStoredButton,
+        saveCloseButton = widgets.saveCloseButton,
+        discardCloseButton = widgets.discardCloseButton,
         cancelButton = widgets.cancelButton,
     }
 
@@ -1262,6 +1271,100 @@ local function OpenUnsavedApplyConfirmDialog(context)
     end
 end
 
+local function CloseOwnedTagLibrary()
+    local tagLibraryPage = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TagLibrary
+    if tagLibraryPage and tagLibraryPage.Close then
+        tagLibraryPage.Close()
+    end
+end
+
+local function HideOwnedChildDialogs()
+    if deleteDialogContext and deleteDialogContext.window and deleteDialogContext.window.Hide then
+        deleteDialogContext.window:Hide()
+    end
+    if unsavedApplyDialogContext and unsavedApplyDialogContext.window and unsavedApplyDialogContext.window.Hide then
+        unsavedApplyDialogContext.window:Hide()
+    end
+    if unsavedCloseDialogContext and unsavedCloseDialogContext.window and unsavedCloseDialogContext.window.Hide then
+        unsavedCloseDialogContext.window:Hide()
+    end
+end
+
+local function PerformClose(context)
+    context = context or windowContext
+    if not context or not context.window then
+        return
+    end
+
+    HideOwnedChildDialogs()
+    CloseOwnedTagLibrary()
+    if ns.GUI and ns.GUI.ResetStatusText then
+        ns.GUI:ResetStatusText()
+    end
+
+    isPerformingClose = true
+    if context.window.Hide then
+        context.window:Hide()
+    elseif context.window.frame and context.window.frame.Hide then
+        context.window.frame:Hide()
+    end
+    isPerformingClose = false
+end
+
+local function OpenUnsavedCloseConfirmDialog(context)
+    if not context then
+        return
+    end
+
+    unsavedCloseDialogContext = OpenTextBuilderLayoutDialog(unsavedCloseDialogContext, TextBuilderLayouts.UnsavedCloseConfirm, {
+        title = T("INFO_TEXT_BUILDER_UNSAVED_CLOSE_TITLE"),
+        windowWidth = 560,
+        windowHeight = 230,
+    })
+
+    if unsavedCloseDialogContext and unsavedCloseDialogContext.saveCloseButton then
+        unsavedCloseDialogContext.saveCloseButton:SetDisabled(false)
+        unsavedCloseDialogContext.saveCloseButton:SetCallback("OnClick", function(widget)
+            if widget and widget.SetDisabled then
+                widget:SetDisabled(true)
+            end
+
+            if SaveCurrentTemplate(context) then
+                PerformClose(context)
+            elseif widget and widget.SetDisabled then
+                widget:SetDisabled(false)
+            end
+        end)
+    end
+
+    if unsavedCloseDialogContext and unsavedCloseDialogContext.discardCloseButton then
+        unsavedCloseDialogContext.discardCloseButton:SetDisabled(false)
+        unsavedCloseDialogContext.discardCloseButton:SetCallback("OnClick", function()
+            PerformClose(context)
+        end)
+    end
+
+    if unsavedCloseDialogContext and unsavedCloseDialogContext.cancelButton then
+        unsavedCloseDialogContext.cancelButton:SetCallback("OnClick", function()
+            if unsavedCloseDialogContext.window and unsavedCloseDialogContext.window.Hide then
+                unsavedCloseDialogContext.window:Hide()
+            end
+        end)
+    end
+end
+
+local function RequestClose(context)
+    context = context or windowContext
+    if not context then
+        return
+    end
+    if IsSelectedTemplateDirty(context) then
+        OpenUnsavedCloseConfirmDialog(context)
+        return
+    end
+    PerformClose(context)
+end
+
 RefreshWindowState = function()
     local context = windowContext
     if not context then
@@ -1480,17 +1583,15 @@ local function WireWindowCallbacks(context)
 
     if context.tagDatabaseButton then
         context.tagDatabaseButton:SetCallback("OnClick", function()
-            local tagDatabasePage = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TagDatabase
-            if not tagDatabasePage or not tagDatabasePage.OpenWindow then
+            local tagLibraryPage = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TagLibrary
+            if not tagLibraryPage or not tagLibraryPage.Open then
                 return
             end
 
-            tagDatabasePage.OpenWindow({
-                GetGUIState = context.getGUIState,
-                mode = "library",
+            tagLibraryPage.Open({
                 owner = "TextBuilder",
-                onApply = function(tagText)
-                    return TextBuilderController.InsertTextIntoDraft(tagText)
+                onApply = function(token)
+                    return TextBuilderController.InsertTextIntoDraft(token)
                 end,
             })
         end)
@@ -1698,15 +1799,6 @@ local function WireWindowCallbacks(context)
     end)
 end
 
-local function HideOwnedChildDialogs()
-    if deleteDialogContext and deleteDialogContext.window and deleteDialogContext.window.Hide then
-        deleteDialogContext.window:Hide()
-    end
-    if unsavedApplyDialogContext and unsavedApplyDialogContext.window and unsavedApplyDialogContext.window.Hide then
-        unsavedApplyDialogContext.window:Hide()
-    end
-end
-
 local function CreateWindow(state, deps)
     local window = AceGUI:Create("Window")
     window:SetTitle(T("INFO_TEXT_BUILDER_TITLE"))
@@ -1723,6 +1815,11 @@ local function CreateWindow(state, deps)
     if EnsureStandardWindowCloseButton then
         EnsureStandardWindowCloseButton(window)
     end
+    if window.closebutton and window.closebutton.SetScript then
+        window.closebutton:SetScript("OnClick", function()
+            RequestClose(windowContext)
+        end)
+    end
     CenterWindow(window)
 
     local context = CreateWindowContent(window, state, deps)
@@ -1730,7 +1827,13 @@ local function CreateWindow(state, deps)
     WireWindowCallbacks(context)
 
     window:SetCallback("OnClose", function()
+        if not isPerformingClose and windowContext and IsSelectedTemplateDirty(windowContext) then
+            FocusWindow(windowContext.window)
+            OpenUnsavedCloseConfirmDialog(windowContext)
+            return
+        end
         HideOwnedChildDialogs()
+        CloseOwnedTagLibrary()
         if ns.GUI and ns.GUI.ResetStatusText then
             ns.GUI:ResetStatusText()
         end
@@ -1761,6 +1864,9 @@ function TextBuilderController.InsertTextIntoDraft(text)
 
     local context = windowContext
     if not context or not context.state or not context.templateEdit or not context.templateEdit.GetText then
+        return false
+    end
+    if not IsTextBuilderWindowShown(context) then
         return false
     end
 
@@ -1798,17 +1904,7 @@ function TextBuilderController.InsertTextIntoDraft(text)
 end
 
 function TextBuilderController.HideWindow()
-    HideOwnedChildDialogs()
-
-    if not windowContext or not windowContext.window then
-        return
-    end
-
-    if windowContext.window.Hide then
-        windowContext.window:Hide()
-    elseif windowContext.window.frame and windowContext.window.frame.Hide then
-        windowContext.window.frame:Hide()
-    end
+    RequestClose(windowContext)
 end
 
 function TextBuilderController.RefreshWindowState()
