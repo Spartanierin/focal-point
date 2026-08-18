@@ -32,7 +32,9 @@ local function ApplyLabelStyle(label, node)
     end
 
     local color
-    if node and node.core == true then
+    if node and node.enabled == false then
+        color = ResolveColor("description", { 0.45, 0.48, 0.52, 0.72 })
+    elseif node and node.core == true then
         color = ResolveColor("text", { 0.88, 0.84, 0.72, 1 })
     elseif node and (node.type == "health" or node.type == "power" or node.type == "cast" or node.type == "texts" or node.type == "auras") then
         color = ResolveColor("statusMuted", { 0.66, 0.70, 0.75, 1 })
@@ -101,6 +103,7 @@ local function AddNodeRow(container, node, depth, state, options)
         if clickable and label.label.SetTextColor then
             local color = IsActiveNode(node, state)
                 and ResolveColor("accent", { 1, 0.82, 0.36, 1 })
+                or node.enabled == false and ResolveColor("description", { 0.45, 0.48, 0.52, 0.72 })
                 or ResolveColor("text", { 0.88, 0.84, 0.72, 1 })
             label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
         end

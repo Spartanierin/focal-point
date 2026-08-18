@@ -42,7 +42,7 @@ local function NormalizeUnitKey(unit)
     return unit
 end
 
-local function BuildNode(id, nodeType, unit, parentId, label, order, core, inspectorTarget)
+local function BuildNode(id, nodeType, unit, parentId, label, order, core, inspectorTarget, enabled)
     return {
         id = id,
         type = nodeType,
@@ -52,6 +52,7 @@ local function BuildNode(id, nodeType, unit, parentId, label, order, core, inspe
         order = order,
         core = core == true,
         inspectorTarget = inspectorTarget,
+        enabled = enabled,
         children = {},
     }
 end
@@ -76,6 +77,10 @@ local function IsShown(unitConfig, fieldName)
     return type(unitConfig) == "table" and unitConfig[fieldName] ~= false
 end
 
+local function ConfigExists(config)
+    return type(config) == "table"
+end
+
 local function GetUnitLabel(unit)
     local keyMap = ns.KeyMap and ns.KeyMap.Units or nil
     if ns.GetLabel and keyMap then
@@ -97,7 +102,7 @@ local function GetSortedTextIds(texts)
         return ids
     end
     for textId, textConfig in pairs(texts) do
-        if type(textId) == "string" and IsEnabled(textConfig) then
+        if type(textId) == "string" and type(textConfig) == "table" then
             ids[#ids + 1] = textId
         end
     end
@@ -127,41 +132,36 @@ local function AddHealthBranch(root, unit, unitConfig)
         L["ELEMENT_HEALTH_BAR"] or "Health Bar",
         10,
         true,
-        { kind = "unit", sectionKey = SECTION.health }
+        { kind = "unit", sectionKey = SECTION.health },
+        true
     ))
 
-    if IsShown(unitConfig, "showNormalAbsorbBar") then
-        AddChild(health, BuildNode(
-            health.id .. "/normalabsorb",
-            "normalAbsorbBar",
-            unit,
-            health.id,
-            L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
-            20,
-            false,
-            { kind = "unit", sectionKey = SECTION.absorbs }
-        ))
-    end
+    AddChild(health, BuildNode(
+        health.id .. "/normalabsorb",
+        "normalAbsorbBar",
+        unit,
+        health.id,
+        L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
+        20,
+        false,
+        { kind = "unit", sectionKey = SECTION.absorbs },
+        IsShown(unitConfig, "showNormalAbsorbBar")
+    ))
 
-    if IsShown(unitConfig, "showHealingAbsorbBar") then
-        AddChild(health, BuildNode(
-            health.id .. "/healingabsorb",
-            "healingAbsorbBar",
-            unit,
-            health.id,
-            L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
-            30,
-            false,
-            { kind = "unit", sectionKey = SECTION.absorbs }
-        ))
-    end
+    AddChild(health, BuildNode(
+        health.id .. "/healingabsorb",
+        "healingAbsorbBar",
+        unit,
+        health.id,
+        L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
+        30,
+        false,
+        { kind = "unit", sectionKey = SECTION.absorbs },
+        IsShown(unitConfig, "showHealingAbsorbBar")
+    ))
 end
 
 local function AddPowerBranch(root, unit, unitConfig)
-    if not IsShown(unitConfig, "showPowerBar") then
-        return
-    end
-
     local power = AddChild(root, BuildNode(
         root.id .. "/power",
         "power",
@@ -181,15 +181,12 @@ local function AddPowerBranch(root, unit, unitConfig)
         L["ELEMENT_POWER_BAR"] or "Power Bar",
         10,
         false,
-        { kind = "unit", sectionKey = SECTION.power }
+        { kind = "unit", sectionKey = SECTION.power },
+        IsShown(unitConfig, "showPowerBar")
     ))
 end
 
 local function AddCastBranch(root, unit, unitConfig)
-    if not IsShown(unitConfig, "showCastBar") then
-        return
-    end
-
     local cast = AddChild(root, BuildNode(
         root.id .. "/cast",
         "cast",
@@ -209,7 +206,8 @@ local function AddCastBranch(root, unit, unitConfig)
         L["ELEMENT_CAST_BAR"] or "Cast Bar",
         10,
         false,
-        { kind = "unit", sectionKey = SECTION.cast }
+        { kind = "unit", sectionKey = SECTION.cast },
+        IsShown(unitConfig, "showCastBar")
     ))
 end
 
@@ -242,7 +240,8 @@ local function AddTextBranch(root, unit, unitConfig)
             textLabels[textId] or GetTextLabel(textId, textConfig),
             index,
             false,
-            { kind = "text", sectionKey = SECTION.texts, textKey = textId }
+            { kind = "text", sectionKey = SECTION.texts, textKey = textId },
+            IsEnabled(textConfig)
         ))
     end
 end
@@ -251,7 +250,7 @@ local function AddAuraBranch(root, unit, unitConfig)
     local auraRoot
     for index, auraKey in ipairs({ "Buffs", "Debuffs" }) do
         local auraConfig = type(unitConfig) == "table" and unitConfig[auraKey] or nil
-        if IsEnabled(auraConfig) then
+        if ConfigExists(auraConfig) then
             if not auraRoot then
                 auraRoot = AddChild(root, BuildNode(
                     root.id .. "/auras",
@@ -272,7 +271,8 @@ local function AddAuraBranch(root, unit, unitConfig)
                 L[AURA_LABELS[auraKey]] or auraKey,
                 index,
                 false,
-                { kind = "aura", sectionKey = SECTION.auras, auraKey = auraKey }
+                { kind = "aura", sectionKey = SECTION.auras, auraKey = auraKey },
+                IsEnabled(auraConfig)
             ))
         end
     end
