@@ -53,6 +53,29 @@ local function GetTagDatabaseState(deps)
     return state
 end
 
+local function ResolveInsertContext(deps)
+    if type(deps) ~= "table" or deps.mode ~= "insert" or type(deps.onApply) ~= "function" then
+        return nil
+    end
+
+    return {
+        mode = "insert",
+        owner = deps.owner,
+        onApply = deps.onApply,
+        onCancel = deps.onCancel,
+    }
+end
+
+local function IsInsertMode(context)
+    return context and context.insertContext and context.insertContext.mode == "insert" and type(context.insertContext.onApply) == "function"
+end
+
+local function SetButtonText(button, text)
+    if button and button.SetText then
+        button:SetText(text or "")
+    end
+end
+
 local function BuildCategoryEntries(tagDatabase)
     local grouped = {}
     for _, def in ipairs(tagDatabase or {}) do
@@ -246,7 +269,7 @@ local function RefreshWindowState()
         if not ApplyModalActionButtonVisual or not windowContext.copySelectedTag then
             return
         end
-        ApplyModalActionButtonVisual(windowContext.copySelectedTag, "utility")
+        ApplyModalActionButtonVisual(windowContext.copySelectedTag, IsInsertMode(windowContext) and "primary_action" or "utility")
     end
 
     local state = windowContext.state
@@ -254,6 +277,7 @@ local function RefreshWindowState()
 
     windowContext.grouped = grouped
     windowContext.defaultCategory = defaultCategory
+    SetButtonText(windowContext.copySelectedTag, IsInsertMode(windowContext) and T("INFO_TAG_DATABASE_INSERT_SELECTED") or T("INFO_TAG_DATABASE_COPY_SELECTED"))
 
     if defaultCategory and not grouped[state.category] then
         state.category = defaultCategory
@@ -353,6 +377,7 @@ local function CreateWindowContent(window, state)
         copySelectedTag = widgets.copySelectedTag,
         emptyState = widgets.emptyState,
         selectedTagText = "",
+        insertContext = nil,
     }
 end
 
@@ -370,7 +395,20 @@ local function WireWindowCallbacks(context)
 
     if context.copySelectedTag then
         context.copySelectedTag:SetCallback("OnClick", function()
-            OpenCopyDialog(context.selectedTagText)
+            local tagText = context.selectedTagText or ""
+            if tagText == "" then
+                return
+            end
+
+            if IsInsertMode(context) then
+                local ok = context.insertContext.onApply(tagText)
+                if ok then
+                    TagDatabaseController.HideWindow()
+                end
+                return
+            end
+
+            OpenCopyDialog(tagText)
         end)
     end
 end
@@ -416,6 +454,7 @@ end
 function TagDatabaseController.OpenWindow(deps)
     local state = GetTagDatabaseState(deps)
     local _, grouped, defaultCategory = CollectTagDatabase()
+    local insertContext = ResolveInsertContext(deps)
 
     if defaultCategory and not grouped[state.category] then
         state.category = defaultCategory
@@ -427,6 +466,7 @@ function TagDatabaseController.OpenWindow(deps)
     else
         windowContext.state = state
     end
+    windowContext.insertContext = insertContext
 
     RefreshWindowState()
     FocusWindow(windowContext.window)

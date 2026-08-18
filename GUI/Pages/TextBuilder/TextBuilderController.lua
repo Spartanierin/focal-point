@@ -1275,6 +1275,7 @@ RefreshWindowState = function()
         end
 
         ApplyModalActionButtonVisual(context.updateButton, "utility")
+        ApplyModalActionButtonVisual(context.tagDatabaseButton, "utility")
         ApplyModalActionButtonVisual(context.newTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.saveButton, "primary_action")
         ApplyModalActionButtonVisual(context.copyTemplateButton, "utility")
@@ -1372,7 +1373,7 @@ RefreshWindowState = function()
     end
 end
 
-local function CreateWindowContent(window, state)
+local function CreateWindowContent(window, state, deps)
     local usageCheckboxes = {}
     local groups, widgets = FormRenderer.BuildLayout(window, TextBuilderDefinition, {
         state = state,
@@ -1390,8 +1391,10 @@ local function CreateWindowContent(window, state)
         window = window,
         state = state,
         root = root,
+        getGUIState = deps and deps.GetGUIState,
         templateEdit = widgets.templateEdit,
         updateButton = widgets.updateButton,
+        tagDatabaseButton = widgets.tagDatabaseButton,
         previewValue = widgets.previewValue,
         templateSelect = widgets.templateSelect,
         templateOwnerLabel = widgets.templateOwnerLabel,
@@ -1474,6 +1477,24 @@ local function WireWindowCallbacks(context)
         RefreshPreview(context)
         RefreshWindowState()
     end)
+
+    if context.tagDatabaseButton then
+        context.tagDatabaseButton:SetCallback("OnClick", function()
+            local tagDatabasePage = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TagDatabase
+            if not tagDatabasePage or not tagDatabasePage.OpenWindow then
+                return
+            end
+
+            tagDatabasePage.OpenWindow({
+                GetGUIState = context.getGUIState,
+                mode = "insert",
+                owner = "TextBuilder",
+                onApply = function(tagText)
+                    return TextBuilderController.InsertTextIntoDraft(tagText)
+                end,
+            })
+        end)
+    end
 
     context.templateNameEdit:SetCallback("OnTextChanged", function(_, _, value)
         if context.suspendTemplateNameCallbacks then
@@ -1686,7 +1707,7 @@ local function HideOwnedChildDialogs()
     end
 end
 
-local function CreateWindow(state)
+local function CreateWindow(state, deps)
     local window = AceGUI:Create("Window")
     window:SetTitle(T("INFO_TEXT_BUILDER_TITLE"))
     window:SetLayout("Fill")
@@ -1704,7 +1725,7 @@ local function CreateWindow(state)
     end
     CenterWindow(window)
 
-    local context = CreateWindowContent(window, state)
+    local context = CreateWindowContent(window, state, deps)
     windowContext = context
     WireWindowCallbacks(context)
 
@@ -1722,9 +1743,10 @@ function TextBuilderController.OpenWindow(deps)
     local state = GetTextBuilderState(deps)
 
     if not windowContext or not windowContext.window or not windowContext.window.frame then
-        CreateWindow(state)
+        CreateWindow(state, deps)
     else
         windowContext.state = state
+        windowContext.getGUIState = deps and deps.GetGUIState
     end
 
     SyncDesiredTemplateUsage(windowContext)
