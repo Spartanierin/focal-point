@@ -261,6 +261,7 @@ L["EDITOR_INSPECTOR_ERROR_AURA_CONFIG_NOT_FOUND"] = "The selected aura block is 
 L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"] = "The inspector could not apply this change."
 L["EDITOR_SECTION_FRAME"] = "Frame"
 L["EDITOR_SECTION_DECORATION"] = "Decoration"
+L["EDITOR_SECTION_COMPOSITION_TREE"] = "Composition"
 L["EDITOR_POSITIONING"] = "Positioning"
 L["EDITOR_SECTION_CAST_POSITION"] = "Cast Bar Position"
 L["EDITOR_PRESET_SELECT"] = "Starting Preset"

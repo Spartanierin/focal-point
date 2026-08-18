@@ -288,6 +288,7 @@ L["EDITOR_INSPECTOR_ERROR_AURA_CONFIG_NOT_FOUND"] = "Der ausgewählte Aura-Block
 L["EDITOR_INSPECTOR_ERROR_CHANGE_FAILED"] = "Der Inspector konnte diese Änderung nicht übernehmen."
 L["EDITOR_SECTION_FRAME"] = "Rahmen"
 L["EDITOR_SECTION_DECORATION"] = "Dekoration"
+L["EDITOR_SECTION_COMPOSITION_TREE"] = "Struktur"
 L["EDITOR_POSITIONING"] = "Positionierung"
 L["EDITOR_SECTION_CAST_POSITION"] = "Zauberbalken-Position"
 L["EDITOR_PRESET_SELECT"] = "Start-Preset"

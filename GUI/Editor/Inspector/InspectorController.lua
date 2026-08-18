@@ -15,6 +15,7 @@ local InspectorAuraSelection = ns.InspectorAuraSelection or (ns.GUI.Editor.Inspe
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
+local CompositionTreeView = ns.CompositionTreeView or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -519,6 +520,16 @@ function InspectorController.Build(container, state, options)
         end
     end
 
+    local compositionTreeSection
+
+    local function RebuildCompositionTreeSection()
+        if compositionTreeSection and compositionTreeSection._focalPointRequestRebuild then
+            compositionTreeSection._focalPointRequestRebuild()
+            return true
+        end
+        return false
+    end
+
     local function RebuildLocalSection(section)
         if section and section._focalPointRequestRebuild then
             section._focalPointRequestRebuild()
@@ -529,6 +540,7 @@ function InspectorController.Build(container, state, options)
 
     local function NotifyConfigChangedAndRebuildSection(section, fallbackSectionKey)
         NotifyConfigChanged()
+        RebuildCompositionTreeSection()
         if not RebuildLocalSection(section) and fallbackSectionKey then
             NotifySidebarChanged(fallbackSectionKey)
         end
@@ -792,6 +804,21 @@ function InspectorController.Build(container, state, options)
         end
         summarySection:AddChild(inspectorHint)
     end
+
+    local function BuildCompositionTreeSectionContent(treeSection)
+        if not treeSection then
+            return
+        end
+        if type(CompositionTreeView.Build) == "function" then
+            CompositionTreeView.Build(treeSection, state)
+        end
+    end
+
+    AddSpacer(container, INSPECTOR_SECTION_SPACING)
+    compositionTreeSection = CreateInspectorSection("composition_tree", L["EDITOR_SECTION_COMPOSITION_TREE"] or "Composition", false, {
+        localContentBuilder = BuildCompositionTreeSectionContent,
+        layoutRefresh = RefreshInspectorLayout,
+    })
 
     local function BuildFrameSectionContent(frameSection)
         if not frameSection then
