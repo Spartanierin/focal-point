@@ -10,6 +10,28 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.2.2
+
+Health, windows, and Text Builder flow
+
+### Added
+
+* Added a new Tag Library for directly browsing, searching, and inserting tags from the Text Builder.
+* Added a Use Low Health Color option to disable Low Health color transitions when desired.
+
+### Improved
+
+* Improved the Text Builder and Tag Library so tags can be inserted directly without clipboard copy and paste.
+* Improved popup window lifecycle and owned child dialog cleanup.
+* Improved Inspector geometry handling for more consistent window behavior.
+* Improved Tag Library search, selection, and details to make tags faster to find and insert.
+
+### Fixed
+
+* Fixed Low Health Color not appearing correctly under WoW 12.1 Secret Value handling.
+* Fixed stale Tag Library callbacks being able to modify a closed Text Builder.
+* Fixed owned child dialogs remaining open after their parent window was closed.
+
 ## Focal Point 1.2.1
 
 Health Family Absorbs
