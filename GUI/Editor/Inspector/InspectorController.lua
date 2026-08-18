@@ -94,6 +94,10 @@ function InspectorController.SetActiveTextFontSizeValue(unitKey, textKey, value)
 end
 
 function InspectorController.Build(container, state, options)
+    options = options or {}
+    local buildContextOnly = options.buildContextOnly == true
+    local buildPropertiesOnly = options.buildPropertiesOnly == true
+
     activeTextFontSizeControl = nil
     container:ReleaseChildren()
     container:SetLayout("Flow")
@@ -523,11 +527,16 @@ function InspectorController.Build(container, state, options)
     local compositionTreeSection
 
     local function RebuildCompositionTreeSection()
+        local refreshed = false
         if compositionTreeSection and compositionTreeSection._focalPointRequestRebuild then
             compositionTreeSection._focalPointRequestRebuild()
-            return true
+            refreshed = true
         end
-        return false
+        if type(options.onContextChanged) == "function" then
+            options.onContextChanged()
+            refreshed = true
+        end
+        return refreshed
     end
 
     local function RebuildLocalSection(section)
@@ -761,64 +770,70 @@ function InspectorController.Build(container, state, options)
         return InspectorBinding.CreateInspectorSection(container, CreateSection, state, sectionKey, title, defaultCollapsed, NotifySidebarChanged, sectionOptions)
     end
 
-    local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
-        CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
-        "prominent"
-    )
-    if summarySection then
-        local summaryTextColor = ResolveItemColor and ResolveItemColor("statusMuted") or { 0.66, 0.70, 0.75, 1 }
-        local hintTextColor = ResolveItemColor and ResolveItemColor("description") or { 0.60, 0.64, 0.69, 1 }
-        local inspectorSummary = AceGUI:Create("Label")
-        inspectorSummary:SetFullWidth(true)
-        inspectorSummary:SetText(string.format(
-            "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
-            L["EDITOR_UNIT"] or "Unit",
-            ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, selectedUnit) or selectedUnit,
-            L["EDITOR_MODE"] or "Mode",
-            isExpert and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
-        ))
-        if inspectorSummary.label and inspectorSummary.label.SetFont then
-            inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 12, "")
-            inspectorSummary.label:SetTextColor(
-                summaryTextColor[1] or 0.66,
-                summaryTextColor[2] or 0.70,
-                summaryTextColor[3] or 0.75,
-                summaryTextColor[4] or 1
-            )
-            inspectorSummary.label:SetShadowOffset(1, -1)
-            inspectorSummary.label:SetShadowColor(0, 0, 0, 0.7)
-        end
-        summarySection:AddChild(inspectorSummary)
+    if not buildPropertiesOnly then
+        local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
+            CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
+            "prominent"
+        )
+        if summarySection then
+            local summaryTextColor = ResolveItemColor and ResolveItemColor("statusMuted") or { 0.66, 0.70, 0.75, 1 }
+            local hintTextColor = ResolveItemColor and ResolveItemColor("description") or { 0.60, 0.64, 0.69, 1 }
+            local inspectorSummary = AceGUI:Create("Label")
+            inspectorSummary:SetFullWidth(true)
+            inspectorSummary:SetText(string.format(
+                "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
+                L["EDITOR_UNIT"] or "Unit",
+                ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, selectedUnit) or selectedUnit,
+                L["EDITOR_MODE"] or "Mode",
+                isExpert and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
+            ))
+            if inspectorSummary.label and inspectorSummary.label.SetFont then
+                inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 12, "")
+                inspectorSummary.label:SetTextColor(
+                    summaryTextColor[1] or 0.66,
+                    summaryTextColor[2] or 0.70,
+                    summaryTextColor[3] or 0.75,
+                    summaryTextColor[4] or 1
+                )
+                inspectorSummary.label:SetShadowOffset(1, -1)
+                inspectorSummary.label:SetShadowColor(0, 0, 0, 0.7)
+            end
+            summarySection:AddChild(inspectorSummary)
 
-        local inspectorHint = AceGUI:Create("Label")
-        inspectorHint:SetFullWidth(true)
-        inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
-        if inspectorHint.label and inspectorHint.label.SetFont then
-            inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 10, "")
-            inspectorHint.label:SetTextColor(
-                hintTextColor[1] or 0.60,
-                hintTextColor[2] or 0.64,
-                hintTextColor[3] or 0.69,
-                hintTextColor[4] or 1
-            )
+            local inspectorHint = AceGUI:Create("Label")
+            inspectorHint:SetFullWidth(true)
+            inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
+            if inspectorHint.label and inspectorHint.label.SetFont then
+                inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 10, "")
+                inspectorHint.label:SetTextColor(
+                    hintTextColor[1] or 0.60,
+                    hintTextColor[2] or 0.64,
+                    hintTextColor[3] or 0.69,
+                    hintTextColor[4] or 1
+                )
+            end
+            summarySection:AddChild(inspectorHint)
         end
-        summarySection:AddChild(inspectorHint)
+
+        local function BuildCompositionTreeSectionContent(treeSection)
+            if not treeSection then
+                return
+            end
+            if type(CompositionTreeView.Build) == "function" then
+                CompositionTreeView.Build(treeSection, state)
+            end
+        end
+
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        compositionTreeSection = CreateInspectorSection("composition_tree", L["EDITOR_SECTION_COMPOSITION_TREE"] or "Composition", false, {
+            localContentBuilder = BuildCompositionTreeSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
     end
 
-    local function BuildCompositionTreeSectionContent(treeSection)
-        if not treeSection then
-            return
-        end
-        if type(CompositionTreeView.Build) == "function" then
-            CompositionTreeView.Build(treeSection, state)
-        end
+    if buildContextOnly then
+        return
     end
-
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    compositionTreeSection = CreateInspectorSection("composition_tree", L["EDITOR_SECTION_COMPOSITION_TREE"] or "Composition", false, {
-        localContentBuilder = BuildCompositionTreeSectionContent,
-        layoutRefresh = RefreshInspectorLayout,
-    })
 
     local function BuildFrameSectionContent(frameSection)
         if not frameSection then
@@ -2011,6 +2026,24 @@ function InspectorController.Build(container, state, options)
         })
     end
 
+end
+
+function InspectorController.BuildContext(container, state, options)
+    local contextOptions = {}
+    for key, value in pairs(options or {}) do
+        contextOptions[key] = value
+    end
+    contextOptions.buildContextOnly = true
+    return InspectorController.Build(container, state, contextOptions)
+end
+
+function InspectorController.BuildProperties(container, state, options)
+    local propertyOptions = {}
+    for key, value in pairs(options or {}) do
+        propertyOptions[key] = value
+    end
+    propertyOptions.buildPropertiesOnly = true
+    return InspectorController.Build(container, state, propertyOptions)
 end
 
 return InspectorController

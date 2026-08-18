@@ -13,6 +13,10 @@ local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry
 local INSPECTOR_WIDTH = (SidebarGeometry and SidebarGeometry.width) or 285
 local INSPECTOR_OFFSET_X = -16
 local INSPECTOR_OFFSET_Y = -120
+local INSPECTOR_CONTEXT_HEIGHT_RATIO = 0.34
+local INSPECTOR_CONTEXT_MIN_HEIGHT = 100
+local INSPECTOR_PROPERTY_MIN_HEIGHT = 320
+local INSPECTOR_CONTEXT_GAP = 10
 
 local function GetEditorPresentationAnchor()
     return UIParent
@@ -90,6 +94,18 @@ local function ApplyInspectorGeometry(inspector, geometry)
         inspectorInset:SetPoint("TOPLEFT", inspector.frame, "TOPLEFT", geometry.insetLeft, -geometry.insetTop)
         inspectorInset:SetPoint("BOTTOMRIGHT", inspector.frame, "BOTTOMRIGHT", -geometry.insetRight, geometry.insetBottom)
     end
+end
+
+local function ResolveInspectorContextHeight(geometry)
+    local contentHeight = tonumber(geometry and geometry.contentHeight) or 0
+    if contentHeight <= 0 then
+        return INSPECTOR_CONTEXT_MIN_HEIGHT
+    end
+
+    local minContextHeight = math.min(INSPECTOR_CONTEXT_MIN_HEIGHT, math.max(80, math.floor(contentHeight * 0.25)))
+    local desiredHeight = math.max(minContextHeight, math.floor(contentHeight * INSPECTOR_CONTEXT_HEIGHT_RATIO))
+    local maxHeightWithPropertyBudget = math.max(minContextHeight, contentHeight - INSPECTOR_PROPERTY_MIN_HEIGHT - INSPECTOR_CONTEXT_GAP)
+    return math.min(desiredHeight, maxHeightWithPropertyBudget)
 end
 
 local function GetPersistentInspector()
@@ -201,7 +217,6 @@ end
 
 function EditorController.BuildInspector(container, deps)
     local state = deps.GetEditorState()
-    local BuildScrollableTabContent = deps.BuildScrollableTabContent
     local Inspector = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector
     local inspector = EnsureInspector()
     local inspectorContent = inspector and inspector._focalPointInspectorContent
@@ -241,8 +256,12 @@ function EditorController.BuildInspector(container, deps)
     end
 
     state.editorSidebarScroll = state.editorSidebarScroll or { scrollvalue = 0 }
+    local propertyScrollWidget
 
     local function GetScrollWidget()
+        if propertyScrollWidget then
+            return propertyScrollWidget
+        end
         if not inspectorContent or not inspectorContent.children then
             return nil
         end
@@ -561,31 +580,8 @@ function EditorController.BuildInspector(container, deps)
         end
     end
 
-    local RebuildSidebar
-    RebuildSidebar = function()
-        CaptureSidebarScroll()
-
-        if BuildScrollableTabContent then
-            BuildScrollableTabContent(inspectorContent, state.editorSidebarScroll, function(content)
-                Inspector.Build(content, state, {
-                    onConfigChanged = function()
-                        RefreshLiveUnit(state.selectedUnit)
-                    end,
-                    onUnitEnabledChanged = function()
-                        SyncUnitFrameLifecycle()
-                    end,
-                    onSidebarChanged = function()
-                        RefreshLiveUnit(state.selectedUnit)
-                        RebuildSidebar()
-                    end,
-                })
-            end)
-            RestoreSidebarScroll()
-            ScheduleSidebarScrollRestore(buildSerial)
-            return
-        end
-
-        Inspector.Build(inspector, state, {
+    local function BuildInspectorCallbacks(rebuildContext, rebuildSidebar)
+        return {
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
             end,
@@ -594,9 +590,85 @@ function EditorController.BuildInspector(container, deps)
             end,
             onSidebarChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
-                RebuildSidebar()
+                rebuildSidebar()
             end,
-        })
+            onContextChanged = rebuildContext,
+        }
+    end
+
+    local function BuildSplitInspectorContent(rebuildSidebar)
+        inspectorContent:ReleaseChildren()
+        inspectorContent:SetLayout("Flow")
+
+        local geometry = ComputeInspectorGeometry()
+        local contextHeight = ResolveInspectorContextHeight(geometry)
+        local propertyHeight = math.max(
+            120,
+            math.floor((geometry.contentHeight or 0) - contextHeight - INSPECTOR_CONTEXT_GAP)
+        )
+
+        local root = AceGUI:Create("SimpleGroup")
+        root:SetFullWidth(true)
+        root:SetFullHeight(true)
+        root:SetLayout("Flow")
+        inspectorContent:AddChild(root)
+
+        local contextContainer = AceGUI:Create("SimpleGroup")
+        contextContainer:SetFullWidth(true)
+        contextContainer:SetHeight(contextHeight)
+        contextContainer:SetLayout("Flow")
+        if contextContainer.frame and contextContainer.frame.SetClipsChildren then
+            contextContainer.frame:SetClipsChildren(true)
+        end
+        root:AddChild(contextContainer)
+
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText("")
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(INSPECTOR_CONTEXT_GAP)
+        root:AddChild(spacer)
+
+        propertyScrollWidget = AceGUI:Create("ScrollFrame")
+        propertyScrollWidget:SetLayout("Flow")
+        propertyScrollWidget:SetFullWidth(true)
+        propertyScrollWidget:SetHeight(propertyHeight)
+        propertyScrollWidget:SetStatusTable(state.editorSidebarScroll)
+        root:AddChild(propertyScrollWidget)
+
+        local function RebuildContext()
+            if not contextContainer then
+                return
+            end
+            Inspector.BuildContext(contextContainer, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar))
+            if contextContainer.DoLayout then
+                contextContainer:DoLayout()
+            end
+            if root.DoLayout then
+                root:DoLayout()
+            end
+        end
+
+        RebuildContext()
+        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar))
+
+        if propertyScrollWidget.DoLayout then
+            propertyScrollWidget:DoLayout()
+        end
+        if propertyScrollWidget.FixScroll then
+            propertyScrollWidget:FixScroll()
+        end
+        if root.DoLayout then
+            root:DoLayout()
+        end
+        if inspectorContent.DoLayout then
+            inspectorContent:DoLayout()
+        end
+    end
+
+    local RebuildSidebar
+    RebuildSidebar = function()
+        CaptureSidebarScroll()
+        BuildSplitInspectorContent(RebuildSidebar)
         RestoreSidebarScroll()
         ScheduleSidebarScrollRestore(buildSerial)
     end
