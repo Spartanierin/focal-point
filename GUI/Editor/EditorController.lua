@@ -18,6 +18,80 @@ local function GetEditorPresentationAnchor()
     return UIParent
 end
 
+local function ComputeInspectorGeometry()
+    local width = INSPECTOR_WIDTH
+    local height = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760
+    local insetLeft = 16
+    local insetRight = 16
+    local insetTop = 10
+    local insetBottom = 10
+
+    return {
+        width = width,
+        height = height,
+        anchorHost = GetEditorPresentationAnchor(),
+        point = "TOPRIGHT",
+        relativePoint = "TOPRIGHT",
+        offsetX = (SidebarGeometry and SidebarGeometry.right) or 0,
+        offsetY = (SidebarGeometry and SidebarGeometry.top) or 0,
+        insetLeft = insetLeft,
+        insetRight = insetRight,
+        insetTop = insetTop,
+        insetBottom = insetBottom,
+        contentWidth = width - insetLeft - insetRight,
+        contentHeight = height - insetTop - insetBottom,
+    }
+end
+
+local function ApplyInspectorGeometry(inspector, geometry)
+    if not inspector or not inspector.frame or not geometry then
+        return
+    end
+
+    if inspector.SetWidth then
+        inspector:SetWidth(geometry.width)
+    end
+    if inspector.SetHeight then
+        inspector:SetHeight(geometry.height)
+    end
+    if inspector.frame.SetWidth then
+        inspector.frame:SetWidth(geometry.width)
+    end
+    if inspector.frame.SetHeight then
+        inspector.frame:SetHeight(geometry.height)
+    end
+
+    local anchorHost = geometry.anchorHost
+    if inspector.frame.SetParent then
+        inspector.frame:SetParent(anchorHost)
+    end
+    inspector.frame:ClearAllPoints()
+    inspector.frame:SetPoint(
+        geometry.point,
+        anchorHost,
+        geometry.relativePoint,
+        geometry.offsetX,
+        geometry.offsetY
+    )
+
+    local inspectorContent = inspector._focalPointInspectorContent
+    if inspectorContent then
+        if inspectorContent.SetWidth then
+            inspectorContent:SetWidth(geometry.contentWidth)
+        end
+        if inspectorContent.SetHeight then
+            inspectorContent:SetHeight(geometry.contentHeight)
+        end
+    end
+
+    local inspectorInset = inspector._focalPointInspectorInset
+    if inspectorInset then
+        inspectorInset:ClearAllPoints()
+        inspectorInset:SetPoint("TOPLEFT", inspector.frame, "TOPLEFT", geometry.insetLeft, -geometry.insetTop)
+        inspectorInset:SetPoint("BOTTOMRIGHT", inspector.frame, "BOTTOMRIGHT", -geometry.insetRight, geometry.insetBottom)
+    end
+end
+
 local function GetPersistentInspector()
     return ns.GUI and ns.GUI.Editor and ns.GUI.Editor._persistentInspector
 end
@@ -44,45 +118,7 @@ function EditorController.UpdateActiveInspectorGeometry()
         return
     end
 
-    local targetWidth = INSPECTOR_WIDTH
-    local targetHeight = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760
-
-    if inspector.SetWidth then
-        inspector:SetWidth(targetWidth)
-    end
-    if inspector.SetHeight then
-        inspector:SetHeight(targetHeight)
-    end
-    if inspector.frame.SetWidth then
-        inspector.frame:SetWidth(targetWidth)
-    end
-    if inspector.frame.SetHeight then
-        inspector.frame:SetHeight(targetHeight)
-    end
-
-    local anchorHost = GetEditorPresentationAnchor()
-    if inspector.frame.SetParent then
-        inspector.frame:SetParent(anchorHost)
-    end
-    inspector.frame:ClearAllPoints()
-    inspector.frame:SetPoint("TOPRIGHT", anchorHost, "TOPRIGHT", SidebarGeometry.right or 0, SidebarGeometry.top or 0)
-
-    local inspectorContent = inspector._focalPointInspectorContent
-    if inspectorContent then
-        if inspectorContent.SetWidth then
-            inspectorContent:SetWidth(targetWidth - 32)
-        end
-        if inspectorContent.SetHeight then
-            inspectorContent:SetHeight(targetHeight - 20)
-        end
-    end
-
-    local inspectorInset = inspector._focalPointInspectorInset
-    if inspectorInset then
-        inspectorInset:ClearAllPoints()
-        inspectorInset:SetPoint("TOPLEFT", inspector.frame, "TOPLEFT", 16, -10)
-        inspectorInset:SetPoint("BOTTOMRIGHT", inspector.frame, "BOTTOMRIGHT", -16, 10)
-    end
+    ApplyInspectorGeometry(inspector, ComputeInspectorGeometry())
 end
 
 function EditorController.ReleaseInspector()
@@ -107,9 +143,10 @@ local function EnsureInspector()
     end
 
     inspector = AceGUI:Create("Window")
+    local geometry = ComputeInspectorGeometry()
     inspector:SetTitle("Inspector")
-    inspector:SetWidth(INSPECTOR_WIDTH)
-    inspector:SetHeight((UIParent and UIParent.GetHeight and math.max(760, math.floor(UIParent:GetHeight() - 24))) or 760)
+    inspector:SetWidth(geometry.width)
+    inspector:SetHeight(geometry.height)
     inspector:SetLayout("Fill")
     inspector:EnableResize(false)
     inspector._focalPointEditorRole = "editor_inspector"
@@ -149,8 +186,6 @@ local function EnsureInspector()
 
     if inspector.frame and inspectorContent.frame and not inspector._focalPointInspectorInset then
         local inspectorInset = CreateFrame("Frame", nil, inspector.frame)
-        inspectorInset:SetPoint("TOPLEFT", inspector.frame, "TOPLEFT", 16, -10)
-        inspectorInset:SetPoint("BOTTOMRIGHT", inspector.frame, "BOTTOMRIGHT", -16, 10)
         inspector._focalPointInspectorInset = inspectorInset
 
         inspectorContent.frame:ClearAllPoints()
@@ -159,6 +194,7 @@ local function EnsureInspector()
         inspectorContent.frame:SetPoint("BOTTOMRIGHT", inspectorInset, "BOTTOMRIGHT", 0, 0)
     end
 
+    ApplyInspectorGeometry(inspector, geometry)
     SetPersistentInspector(inspector)
     return inspector
 end
