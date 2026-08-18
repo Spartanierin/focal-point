@@ -143,6 +143,11 @@ function EditorController.ReleaseInspector()
         return
     end
 
+    local editorState = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State or nil
+    if editorState and editorState.ClearPropertyScope then
+        editorState.ClearPropertyScope()
+    end
+
     if inspector.frame and inspector.frame.Hide then
         inspector.frame:Hide()
     end

@@ -57,6 +57,7 @@ local state = {
     selectedTextElementId = nil,
     selectedIndicatorKey = "Portrait",
     selectedAuraKey = "Buffs",
+    propertyScope = nil,
     collapsedSections = {},
 }
 
@@ -109,6 +110,10 @@ local function SyncSelectionAlias(primaryUnit)
     state.selectedUnit = normalizedUnit
 end
 
+local function ClearPropertyScope()
+    state.propertyScope = nil
+end
+
 local function PickPrimaryUnit(preferredUnit)
     local selectedUnits = EnsureSelectedUnits()
     local normalizedPreferred = NormalizeUnitKey(preferredUnit)
@@ -157,6 +162,7 @@ function EditorState.SetSingleSelection(unitKey)
         return nil
     end
 
+    ClearPropertyScope()
     state.selectedUnits = {
         [normalizedUnit] = true,
     }
@@ -170,6 +176,7 @@ function EditorState.SetPrimaryUnit(unitKey)
         return nil
     end
 
+    ClearPropertyScope()
     local selectedUnits = EnsureSelectedUnits()
     selectedUnits[normalizedUnit] = true
     SyncSelectionAlias(normalizedUnit)
@@ -186,6 +193,7 @@ function EditorState.ToggleUnitSelection(unitKey)
         return nil
     end
 
+    ClearPropertyScope()
     local selectedUnits = EnsureSelectedUnits()
     if selectedUnits[normalizedUnit] == true then
         selectedUnits[normalizedUnit] = nil
@@ -199,6 +207,7 @@ function EditorState.ToggleUnitSelection(unitKey)
 end
 
 function EditorState.ClearSelection(fallbackUnit)
+    ClearPropertyScope()
     state.selectedUnits = {}
     EditorState.ClearSelectedTextElement()
 
@@ -257,6 +266,7 @@ function EditorState.SetSelectedTextId(textId)
         return
     end
 
+    ClearPropertyScope()
     state.selectedTextId = textId
     state.selectedTextKey = textId
 end
@@ -271,6 +281,7 @@ function EditorState.SetSelectedTextElement(unitKey, textElementId)
         return nil
     end
 
+    ClearPropertyScope()
     state.selectedTextElementUnit = normalizedUnit
     state.selectedTextElementId = textElementId
     state.selectedTextId = textElementId
@@ -307,6 +318,7 @@ function EditorState.SetSelectedIndicatorKey(indicatorKey)
         return
     end
 
+    ClearPropertyScope()
     state.selectedIndicatorKey = indicatorKey
 end
 
@@ -315,7 +327,33 @@ function EditorState.SetSelectedAuraKey(auraKey)
         return
     end
 
+    ClearPropertyScope()
     state.selectedAuraKey = auraKey
+end
+
+function EditorState.SetPropertyScope(kind, sectionKey)
+    if type(kind) ~= "string" or kind == "" or type(sectionKey) ~= "string" or sectionKey == "" then
+        ClearPropertyScope()
+        return nil
+    end
+
+    state.propertyScope = {
+        kind = kind,
+        sectionKey = sectionKey,
+    }
+    return state.propertyScope
+end
+
+function EditorState.ClearPropertyScope()
+    ClearPropertyScope()
+end
+
+function EditorState.GetPropertyScope()
+    local scope = state.propertyScope
+    if type(scope) ~= "table" or type(scope.sectionKey) ~= "string" or scope.sectionKey == "" then
+        return nil
+    end
+    return scope
 end
 
 function EditorState.IsSectionCollapsed(sectionKey)

@@ -16,6 +16,7 @@ local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
 local CompositionTreeView = ns.CompositionTreeView or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or {}
+local EditorStateApi = ns.GUI.Editor and ns.GUI.Editor.State or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -770,6 +771,36 @@ function InspectorController.Build(container, state, options)
         return InspectorBinding.CreateInspectorSection(container, CreateSection, state, sectionKey, title, defaultCollapsed, NotifySidebarChanged, sectionOptions)
     end
 
+    local function ResolvePropertyScope()
+        if not buildPropertiesOnly then
+            return nil
+        end
+        if type(state) ~= "table" then
+            return nil
+        end
+        local scope = state.propertyScope
+        if type(scope) ~= "table" or scope.kind ~= "unit" or type(scope.sectionKey) ~= "string" or scope.sectionKey == "" then
+            return nil
+        end
+        return scope
+    end
+
+    local function ShouldBuildSection(sectionKey)
+        local scope = ResolvePropertyScope()
+        if not scope then
+            return true
+        end
+        return sectionKey == scope.sectionKey
+    end
+
+    local function AddScopedInspectorSection(sectionKey, title, defaultCollapsed, sectionOptions)
+        if not ShouldBuildSection(sectionKey) then
+            return nil
+        end
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        return CreateInspectorSection(sectionKey, title, defaultCollapsed, sectionOptions)
+    end
+
     if not buildPropertiesOnly then
         local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
             CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
@@ -820,7 +851,17 @@ function InspectorController.Build(container, state, options)
                 return
             end
             if type(CompositionTreeView.Build) == "function" then
-                CompositionTreeView.Build(treeSection, state)
+                CompositionTreeView.Build(treeSection, state, {
+                    onSelect = function(target)
+                        if type(target) ~= "table" or target.kind ~= "unit" or type(target.sectionKey) ~= "string" or target.sectionKey == "" then
+                            return
+                        end
+                        if type(EditorStateApi.SetPropertyScope) == "function" then
+                            EditorStateApi.SetPropertyScope(target.kind, target.sectionKey)
+                        end
+                        NotifySidebarChanged()
+                    end,
+                })
             end
         end
 
@@ -885,8 +926,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("frame", L["EDITOR_SECTION_FRAME"] or "Frame", false, {
+    AddScopedInspectorSection("frame", L["EDITOR_SECTION_FRAME"] or "Frame", false, {
         localContentBuilder = BuildFrameSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -949,8 +989,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
+    AddScopedInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
         localContentBuilder = BuildHealthSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -1038,8 +1077,7 @@ function InspectorController.Build(container, state, options)
         BuildAbsorbBar("healingAbsorbBar", "showHealingAbsorbBar", L["OPTION_HEALING_ABSORB"] or "Healing Absorb", { 0.75, 0.20, 1.0, 0.62 }, "RIGHT_TO_LEFT")
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("absorbs", L["OPTION_ABSORBS"] or "Absorbs", true, {
+    AddScopedInspectorSection("absorbs", L["OPTION_ABSORBS"] or "Absorbs", true, {
         localContentBuilder = BuildAbsorbsSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -1098,8 +1136,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("power", L["BAR_POWER"] or "Power", true, {
+    AddScopedInspectorSection("power", L["BAR_POWER"] or "Power", true, {
         localContentBuilder = BuildPowerSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -1233,14 +1270,12 @@ function InspectorController.Build(container, state, options)
     end
 
     if selectedUnit == "player" then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-        CreateInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true, {
+        AddScopedInspectorSection("alt_power", L["BAR_ALT_POWER"] or "Alt Power", true, {
             localContentBuilder = BuildAltPowerSectionContent,
             layoutRefresh = RefreshInspectorLayout,
         })
 
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-        CreateInspectorSection("class_power", L["BAR_CLASS_POWER"] or "Class Power", true, {
+        AddScopedInspectorSection("class_power", L["BAR_CLASS_POWER"] or "Class Power", true, {
             localContentBuilder = BuildClassPowerSectionContent,
             layoutRefresh = RefreshInspectorLayout,
         })
@@ -1284,8 +1319,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true, {
+    AddScopedInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true, {
         localContentBuilder = BuildCastSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -1326,8 +1360,7 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("visibility", L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true, {
+    AddScopedInspectorSection("visibility", L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true, {
         localContentBuilder = BuildVisibilitySectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -1377,14 +1410,12 @@ function InspectorController.Build(container, state, options)
     end
 
     if isExpert then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-        CreateInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true, {
+        AddScopedInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true, {
             localContentBuilder = BuildPositioningSectionContent,
             layoutRefresh = RefreshInspectorLayout,
         })
 
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-        CreateInspectorSection("cast_position", L["EDITOR_SECTION_CAST_POSITION"] or "Cast Bar Position", true, {
+        AddScopedInspectorSection("cast_position", L["EDITOR_SECTION_CAST_POSITION"] or "Cast Bar Position", true, {
             localContentBuilder = BuildCastPositionSectionContent,
             layoutRefresh = RefreshInspectorLayout,
         })
@@ -1546,9 +1577,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if select(2, ResolveTextContext()) then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-
-        CreateInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true, {
+        AddScopedInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true, {
             localContentBuilder = BuildTextSectionContent,
             layoutRefresh = RefreshInspectorLayout,
         })
@@ -1658,9 +1687,7 @@ function InspectorController.Build(container, state, options)
     do
         local _, indicatorMeta, indicatorConfig = ResolveIndicatorContext()
         if indicatorConfig and indicatorMeta then
-            AddSpacer(container, INSPECTOR_SECTION_SPACING)
-
-            CreateInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true, {
+            AddScopedInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true, {
                 localContentBuilder = BuildIndicatorSectionContent,
                 layoutRefresh = RefreshInspectorLayout,
             })
@@ -1868,8 +1895,7 @@ function InspectorController.Build(container, state, options)
         end, disabled, "decoration_condition")
     end
 
-    AddSpacer(container, INSPECTOR_SECTION_SPACING)
-    CreateInspectorSection("decoration", L["EDITOR_SECTION_DECORATION"] or "Decoration", true, {
+    AddScopedInspectorSection("decoration", L["EDITOR_SECTION_DECORATION"] or "Decoration", true, {
         localContentBuilder = BuildDecorationSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
@@ -2018,9 +2044,7 @@ function InspectorController.Build(container, state, options)
     end
 
     if type(select(2, ResolveAuraContext())) == "table" then
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-
-        CreateInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true, {
+        AddScopedInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true, {
             localContentBuilder = BuildAuraSectionContent,
             layoutRefresh = RefreshInspectorLayout,
         })

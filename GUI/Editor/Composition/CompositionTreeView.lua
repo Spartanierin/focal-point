@@ -58,28 +58,73 @@ local function FormatNodeLabel(node)
     return tostring(node.type or node.id or "")
 end
 
-local function AddNodeRow(container, node, depth)
-    local label = AceGUI:Create("Label")
+local CLICKABLE_NODE_TYPES = {
+    unit = true,
+    healthbar = true,
+    powerbar = true,
+    castbar = true,
+}
+
+local function IsClickableNode(node)
+    if type(node) ~= "table" or CLICKABLE_NODE_TYPES[node.type] ~= true then
+        return false
+    end
+    local target = node.inspectorTarget
+    return type(target) == "table"
+        and target.kind == "unit"
+        and type(target.sectionKey) == "string"
+        and target.sectionKey ~= ""
+end
+
+local function IsActiveNode(node, state)
+    if not IsClickableNode(node) or type(state) ~= "table" then
+        return false
+    end
+    local scope = state.propertyScope
+    return type(scope) == "table"
+        and scope.kind == "unit"
+        and scope.sectionKey == node.inspectorTarget.sectionKey
+        and state.selectedUnit == node.unit
+end
+
+local function AddNodeRow(container, node, depth, state, options)
+    local clickable = IsClickableNode(node) and type(options) == "table" and type(options.onSelect) == "function"
+    local label = AceGUI:Create(clickable and "InteractiveLabel" or "Label")
     label:SetFullWidth(true)
-    label:SetText(string.rep("  ", math.max(0, tonumber(depth) or 0)) .. FormatNodeLabel(node))
+    if label.SetHeight then
+        label:SetHeight(clickable and 20 or 18)
+    end
+    local prefix = clickable and (IsActiveNode(node, state) and "> " or "  ") or "  "
+    label:SetText(string.rep("  ", math.max(0, tonumber(depth) or 0)) .. prefix .. FormatNodeLabel(node))
     if label.label then
         ApplyLabelStyle(label.label, node)
+        if clickable and label.label.SetTextColor then
+            local color = IsActiveNode(node, state)
+                and ResolveColor("accent", { 1, 0.82, 0.36, 1 })
+                or ResolveColor("text", { 0.88, 0.84, 0.72, 1 })
+            label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+        end
+    end
+    if clickable and label.SetCallback then
+        label:SetCallback("OnClick", function()
+            options.onSelect(node.inspectorTarget, node)
+        end)
     end
     container:AddChild(label)
 end
 
-local function RenderNode(container, node, depth)
+local function RenderNode(container, node, depth, state, options)
     if type(node) ~= "table" then
         return
     end
 
-    AddNodeRow(container, node, depth)
+    AddNodeRow(container, node, depth, state, options)
     for _, child in ipairs(node.children or {}) do
-        RenderNode(container, child, (tonumber(depth) or 0) + 1)
+        RenderNode(container, child, (tonumber(depth) or 0) + 1, state, options)
     end
 end
 
-function View.Build(container, state)
+function View.Build(container, state, options)
     if not container then
         return false
     end
@@ -97,7 +142,7 @@ function View.Build(container, state)
         return false
     end
 
-    RenderNode(container, tree, 0)
+    RenderNode(container, tree, 0, state, options)
     return true
 end
 
