@@ -54,12 +54,12 @@ local function GetTagDatabaseState(deps)
 end
 
 local function ResolveInsertContext(deps)
-    if type(deps) ~= "table" or deps.mode ~= "insert" or type(deps.onApply) ~= "function" then
+    if type(deps) ~= "table" or (deps.mode ~= "insert" and deps.mode ~= "library") or type(deps.onApply) ~= "function" then
         return nil
     end
 
     return {
-        mode = "insert",
+        mode = deps.mode,
         owner = deps.owner,
         onApply = deps.onApply,
         onCancel = deps.onCancel,
@@ -274,10 +274,20 @@ local function RefreshWindowState()
 
     local state = windowContext.state
     local tagDatabase, grouped, defaultCategory = CollectTagDatabase()
+    local libraryMode = IsInsertMode(windowContext)
 
     windowContext.grouped = grouped
     windowContext.defaultCategory = defaultCategory
-    SetButtonText(windowContext.copySelectedTag, IsInsertMode(windowContext) and T("INFO_TAG_DATABASE_INSERT_SELECTED") or T("INFO_TAG_DATABASE_COPY_SELECTED"))
+    SetButtonText(windowContext.copySelectedTag, libraryMode and T("INFO_TAG_DATABASE_INSERT_SELECTED") or T("INFO_TAG_DATABASE_COPY_SELECTED"))
+    if windowContext.window and windowContext.window.SetTitle then
+        windowContext.window:SetTitle(libraryMode and T("INFO_TAG_LIBRARY_TITLE") or T("INFO_TAG_DATABASE_TITLE"))
+    end
+    if windowContext.title and windowContext.title.SetText then
+        windowContext.title:SetText(libraryMode and T("INFO_TAG_LIBRARY_TITLE") or T("INFO_TAG_DATABASE_TITLE"))
+    end
+    if windowContext.intro and windowContext.intro.SetText then
+        windowContext.intro:SetText(libraryMode and T("INFO_TAG_LIBRARY_DESCRIPTION_SHORT") or T("INFO_TAG_DATABASE_DESCRIPTION_SHORT"))
+    end
 
     if defaultCategory and not grouped[state.category] then
         state.category = defaultCategory
@@ -369,6 +379,8 @@ local function CreateWindowContent(window, state)
         filtersGroup = filtersGroup,
         detailsGroup = detailsGroup,
         emptyStateGroup = emptyStateGroup,
+        title = widgets.title,
+        intro = widgets.intro,
         categorySelect = widgets.categorySelect,
         tagSelect = widgets.tagSelect,
         tokenValue = widgets.tokenValue,

@@ -1487,7 +1487,7 @@ local function WireWindowCallbacks(context)
 
             tagDatabasePage.OpenWindow({
                 GetGUIState = context.getGUIState,
-                mode = "insert",
+                mode = "library",
                 owner = "TextBuilder",
                 onApply = function(tagText)
                     return TextBuilderController.InsertTextIntoDraft(tagText)
