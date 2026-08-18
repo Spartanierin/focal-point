@@ -359,6 +359,39 @@ local function IsSelectedTemplateDirty(context)
     return GetCurrentEditorTemplate(context) ~= storedTemplate
 end
 
+local function GetTemplateNativeEditBox(context)
+    return context and context.templateEdit and context.templateEdit.editbox or nil
+end
+
+local function ClampCursorPosition(position, text)
+    local textLength = type(text) == "string" and #text or 0
+    local cursor = tonumber(position)
+    if not cursor then
+        return nil
+    end
+    if cursor < 0 then
+        return 0
+    end
+    if cursor > textLength then
+        return textLength
+    end
+    return cursor
+end
+
+local function CaptureTemplateCursor(context)
+    local editBox = GetTemplateNativeEditBox(context)
+    if not editBox or not editBox.GetCursorPosition then
+        return nil
+    end
+
+    local draft = editBox.GetText and editBox:GetText() or (context.templateEdit and context.templateEdit.GetText and context.templateEdit:GetText()) or ""
+    local cursor = ClampCursorPosition(editBox:GetCursorPosition(), draft)
+    if cursor ~= nil then
+        context.lastTemplateCursorPosition = cursor
+    end
+    return cursor
+end
+
 local function ResolvePrimarySaveMode(context)
     local entry = context and GetSelectedTemplateEntry(context.state) or nil
     if not entry then
@@ -1375,6 +1408,7 @@ local function CreateWindowContent(window, state)
         suspendTemplateSelectCallbacks = false,
         suspendTemplateNameCallbacks = false,
         suspendTemplateEditCallbacks = false,
+        lastTemplateCursorPosition = nil,
     }
 end
 
@@ -1408,6 +1442,7 @@ local function WireWindowCallbacks(context)
         end
 
         context.state.template = NormalizeTemplateInput(value or "")
+        CaptureTemplateCursor(context)
         RefreshWindowState()
     end)
 
@@ -1417,6 +1452,7 @@ local function WireWindowCallbacks(context)
         end
 
         context.state.template = NormalizeTemplateInput(value or "")
+        CaptureTemplateCursor(context)
         widget:ClearFocus()
         RefreshPreview(context)
         RefreshWindowState()
@@ -1428,6 +1464,7 @@ local function WireWindowCallbacks(context)
         end
 
         context.state.template = NormalizeTemplateInput(widget:GetText() or "")
+        CaptureTemplateCursor(context)
         RefreshPreview(context)
         RefreshWindowState()
     end)
@@ -1693,6 +1730,49 @@ function TextBuilderController.OpenWindow(deps)
     SyncDesiredTemplateUsage(windowContext)
     RefreshWindowState()
     FocusWindow(windowContext.window)
+end
+
+function TextBuilderController.InsertTextIntoDraft(text)
+    if type(text) ~= "string" or text == "" then
+        return false
+    end
+
+    local context = windowContext
+    if not context or not context.state or not context.templateEdit or not context.templateEdit.GetText then
+        return false
+    end
+
+    local nativeEditBox = GetTemplateNativeEditBox(context)
+    if nativeEditBox and nativeEditBox.HasFocus and nativeEditBox:HasFocus() and nativeEditBox.Insert then
+        nativeEditBox:Insert(text)
+        local nextDraft = NormalizeTemplateInput(context.templateEdit:GetText() or "")
+        if context.state.template ~= nextDraft then
+            context.state.template = nextDraft
+            RefreshPreview(context)
+            RefreshWindowState()
+        end
+        CaptureTemplateCursor(context)
+        return true
+    end
+
+    local draft = context.templateEdit:GetText() or ""
+    local cursor = ClampCursorPosition(context.lastTemplateCursorPosition, draft) or #draft
+    local nextDraft = draft:sub(1, cursor) .. text .. draft:sub(cursor + 1)
+    local nextCursor = cursor + #text
+
+    context.suspendTemplateEditCallbacks = true
+    context.templateEdit:SetText(nextDraft)
+    context.suspendTemplateEditCallbacks = false
+
+    if nativeEditBox and nativeEditBox.SetCursorPosition then
+        nativeEditBox:SetCursorPosition(nextCursor)
+    end
+
+    context.state.template = NormalizeTemplateInput(nextDraft)
+    context.lastTemplateCursorPosition = ClampCursorPosition(nextCursor, nextDraft)
+    RefreshPreview(context)
+    RefreshWindowState()
+    return true
 end
 
 function TextBuilderController.HideWindow()
