@@ -210,6 +210,8 @@ local function CreateSection(container, title, options)
     options = options or {}
     local state = options.state
     local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
+    local forceExpanded = options.forceExpanded == true
+    local persistCollapse = options.persistCollapse ~= false
 
     if not options.collapsible then
         local group = AceGUI:Create("InlineGroup")
@@ -235,7 +237,9 @@ local function CreateSection(container, title, options)
 
     local sectionKey = options.key or title or "section"
     local collapsed = false
-    if stateApi and stateApi.GetSectionCollapsed then
+    if forceExpanded then
+        collapsed = false
+    elseif stateApi and stateApi.GetSectionCollapsed then
         collapsed = stateApi.GetSectionCollapsed(sectionKey, options.defaultCollapsed)
     elseif state and state.collapsedSections and state.collapsedSections[sectionKey] ~= nil then
         collapsed = state.collapsedSections[sectionKey] == true
@@ -247,7 +251,11 @@ local function CreateSection(container, title, options)
     toggle:SetFullWidth(true)
     toggle:SetHeight(34)
     local function UpdateToggleText()
-        toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
+        if forceExpanded and not persistCollapse then
+            toggle:SetText(title or "")
+        else
+            toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
+        end
     end
     UpdateToggleText()
     if toggle.SetUserData then
@@ -363,39 +371,47 @@ local function CreateSection(container, title, options)
             options.localContentBuilder(currentGroup)
         end
 
-        toggle:SetCallback("OnClick", function()
-            collapsed = not collapsed
-            if stateApi and stateApi.SetSectionCollapsed then
-                stateApi.SetSectionCollapsed(sectionKey, collapsed)
-            elseif state then
-                state.collapsedSections = state.collapsedSections or {}
-                state.collapsedSections[sectionKey] = collapsed
-            end
+        if not forceExpanded then
+            toggle:SetCallback("OnClick", function()
+                collapsed = not collapsed
+                if persistCollapse then
+                    if stateApi and stateApi.SetSectionCollapsed then
+                        stateApi.SetSectionCollapsed(sectionKey, collapsed)
+                    elseif state then
+                        state.collapsedSections = state.collapsedSections or {}
+                        state.collapsedSections[sectionKey] = collapsed
+                    end
+                end
 
-            UpdateToggleText()
-            RebuildLocalContent()
+                UpdateToggleText()
+                RebuildLocalContent()
 
-            if options.layoutRefresh then
-                options.layoutRefresh()
-            end
-        end)
+                if options.layoutRefresh then
+                    options.layoutRefresh()
+                end
+            end)
+        end
 
         RebuildLocalContent()
         return currentGroup
     end
 
-    toggle:SetCallback("OnClick", function()
-        if stateApi and stateApi.SetSectionCollapsed then
-            stateApi.SetSectionCollapsed(sectionKey, not collapsed)
-        elseif state then
-            state.collapsedSections = state.collapsedSections or {}
-            state.collapsedSections[sectionKey] = not collapsed
-        end
+    if not forceExpanded then
+        toggle:SetCallback("OnClick", function()
+            if persistCollapse then
+                if stateApi and stateApi.SetSectionCollapsed then
+                    stateApi.SetSectionCollapsed(sectionKey, not collapsed)
+                elseif state then
+                    state.collapsedSections = state.collapsedSections or {}
+                    state.collapsedSections[sectionKey] = not collapsed
+                end
+            end
 
-        if options.onToggle then
-            options.onToggle(sectionKey)
-        end
-    end)
+            if options.onToggle then
+                options.onToggle(sectionKey)
+            end
+        end)
+    end
 
     if collapsed then
         return nil

@@ -797,8 +797,17 @@ function InspectorController.Build(container, state, options)
         if not ShouldBuildSection(sectionKey) then
             return nil
         end
+        local scopedOptions = sectionOptions
+        if ResolvePropertyScope() then
+            scopedOptions = {}
+            for key, value in pairs(sectionOptions or {}) do
+                scopedOptions[key] = value
+            end
+            scopedOptions.forceExpanded = true
+            scopedOptions.persistCollapse = false
+        end
         AddSpacer(container, INSPECTOR_SECTION_SPACING)
-        return CreateInspectorSection(sectionKey, title, defaultCollapsed, sectionOptions)
+        return CreateInspectorSection(sectionKey, title, defaultCollapsed, scopedOptions)
     end
 
     if not buildPropertiesOnly then

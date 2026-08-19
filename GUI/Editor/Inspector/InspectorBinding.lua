@@ -67,6 +67,8 @@ function InspectorBinding.CreateInspectorSection(container, createSection, state
         onToggle = onToggle,
         localContentBuilder = sectionOptions.localContentBuilder,
         layoutRefresh = sectionOptions.layoutRefresh,
+        forceExpanded = sectionOptions.forceExpanded,
+        persistCollapse = sectionOptions.persistCollapse,
     }), "default")
 end
 
