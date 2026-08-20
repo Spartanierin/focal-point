@@ -407,6 +407,13 @@ function InspectorController.Build(container, state, options)
         return
     end
 
+    local function ResolveSelectedUnitLabel()
+        if ns.GetLabel and ns.KeyMap and ns.KeyMap.Units then
+            return ns.GetLabel(ns.KeyMap.Units, selectedUnit) or selectedUnit
+        end
+        return selectedUnit
+    end
+
     local function ResolveTextContext()
         local currentTextList = BuildTextList(type(unitConfig) == "table" and unitConfig.Texts or nil)
         local visualTextUnit = state and state.selectedTextElementUnit
@@ -818,6 +825,81 @@ function InspectorController.Build(container, state, options)
         return CreateInspectorSection(sectionKey, title, defaultCollapsed, scopedOptions)
     end
 
+    local function IsScopedPowerBarObjectMode()
+        local scope = ResolvePropertyScope()
+        return type(scope) == "table"
+            and scope.kind == "unit"
+            and scope.sectionKey == "power"
+    end
+
+    local function AddObjectInspectorHeader(parent, title, subtitle)
+        local titleLabel
+        if FormWidgets.CreateSectionTitle then
+            titleLabel = FormWidgets.CreateSectionTitle(title or "")
+        else
+            titleLabel = AceGUI:Create("Label")
+            titleLabel:SetFullWidth(true)
+            titleLabel:SetText(title or "")
+        end
+        parent:AddChild(titleLabel)
+
+        local subtitleLabel
+        if FormWidgets.CreateBodyText then
+            subtitleLabel = FormWidgets.CreateBodyText(subtitle or "", "description", 11, ResolveItemColor and ResolveItemColor("statusMuted") or nil)
+        else
+            subtitleLabel = AceGUI:Create("Label")
+            subtitleLabel:SetFullWidth(true)
+            subtitleLabel:SetText(subtitle or "")
+        end
+        parent:AddChild(subtitleLabel)
+    end
+
+    local function AddScopedObjectInspectorBody(sectionKey, title, localContentBuilder)
+        if not ShouldBuildSection(sectionKey) then
+            return nil
+        end
+
+        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+
+        local root = AceGUI:Create("SimpleGroup")
+        root:SetFullWidth(true)
+        root:SetLayout("Flow")
+        container:AddChild(root)
+
+        AddObjectInspectorHeader(root, title, ResolveSelectedUnitLabel())
+        AddSpacer(root, 6)
+
+        local body = AceGUI:Create("SimpleGroup")
+        body:SetFullWidth(true)
+        body:SetLayout("Flow")
+        root:AddChild(body)
+
+        local function BuildBodyContent()
+            body:ReleaseChildren()
+            if type(localContentBuilder) == "function" then
+                localContentBuilder(body)
+            end
+        end
+
+        local function RebuildBody()
+            BuildBodyContent()
+            RefreshInspectorLayout()
+        end
+
+        body._focalPointRequestRebuild = RebuildBody
+        if body.SetUserData then
+            body:SetUserData("focalPointSectionKey", sectionKey)
+            body:SetUserData("focalPointSectionRole", "content")
+        end
+        if body.frame then
+            body.frame._focalPointSectionKey = sectionKey
+            body.frame._focalPointSectionRole = "content"
+        end
+
+        BuildBodyContent()
+        return body
+    end
+
     if not buildPropertiesOnly then
         local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
             CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
@@ -831,7 +913,7 @@ function InspectorController.Build(container, state, options)
             inspectorSummary:SetText(string.format(
                 "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
                 L["EDITOR_UNIT"] or "Unit",
-                ns.GetLabel and ns.GetLabel(ns.KeyMap.Units, selectedUnit) or selectedUnit,
+                ResolveSelectedUnitLabel(),
                 L["EDITOR_MODE"] or "Mode",
                 isExpert and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
             ))
@@ -1172,10 +1254,14 @@ function InspectorController.Build(container, state, options)
         end
     end
 
-    AddScopedInspectorSection("power", L["BAR_POWER"] or "Power", true, {
-        localContentBuilder = BuildPowerSectionContent,
-        layoutRefresh = RefreshInspectorLayout,
-    })
+    if IsScopedPowerBarObjectMode() then
+        AddScopedObjectInspectorBody("power", L["VALUE_ANCHOR_TARGET_POWER_BAR"] or L["BAR_POWER"] or "Power Bar", BuildPowerSectionContent)
+    else
+        AddScopedInspectorSection("power", L["BAR_POWER"] or "Power", true, {
+            localContentBuilder = BuildPowerSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+    end
 
     local function BuildAltPowerSectionContent(altPowerSection)
         if not altPowerSection or selectedUnit ~= "player" then
