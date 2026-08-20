@@ -14,6 +14,7 @@ local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
 local ResolveItemColor = FormWidgets.ResolveItemColor
 local ApplyTextStyle = FormWidgets.ApplyTextStyle
 local Adapter = ns.CompositionTreeAdapter or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeAdapter) or {}
+local ObjectSelection = ns.GUI.Editor.ObjectSelection or {}
 
 local function ResolveColor(role, fallback)
     return (ResolveItemColor and ResolveItemColor(role)) or fallback
@@ -67,6 +68,12 @@ local CLICKABLE_NODE_TYPES = {
     castbar = true,
 }
 
+local BAR_OBJECT_BY_NODE_TYPE = {
+    healthbar = "HealthBar",
+    powerbar = "PowerBar",
+    castbar = "CastBar",
+}
+
 local function IsClickableNode(node)
     if type(node) ~= "table" or CLICKABLE_NODE_TYPES[node.type] ~= true then
         return false
@@ -76,6 +83,34 @@ local function IsClickableNode(node)
         and target.kind == "unit"
         and type(target.sectionKey) == "string"
         and target.sectionKey ~= ""
+end
+
+local function BuildObjectRef(node)
+    if not IsClickableNode(node) then
+        return nil
+    end
+
+    local unit = node.unit
+    local sectionKey = node.inspectorTarget.sectionKey
+    if node.type == "unit" then
+        return {
+            kind = "unit",
+            unit = unit,
+            sectionKey = "frame",
+        }
+    end
+
+    local objectKey = BAR_OBJECT_BY_NODE_TYPE[node.type]
+    if objectKey then
+        return {
+            kind = "bar",
+            unit = unit,
+            objectKey = objectKey,
+            sectionKey = sectionKey,
+        }
+    end
+
+    return nil
 end
 
 local function IsActiveNode(node, state)
@@ -110,7 +145,11 @@ local function AddNodeRow(container, node, depth, state, options)
     end
     if clickable and label.SetCallback then
         label:SetCallback("OnClick", function()
-            options.onSelect(node.inspectorTarget, node)
+            local objectRef = BuildObjectRef(node)
+            if type(ObjectSelection.SelectObject) ~= "function" or ObjectSelection.SelectObject(objectRef) ~= true then
+                return
+            end
+            options.onSelect(objectRef, node)
         end)
     end
     container:AddChild(label)

@@ -98,6 +98,10 @@ local function SelectUnit(unitKey)
         return nil
     end
 
+    if GetSelectedUnit() == normalizedUnit then
+        return normalizedUnit
+    end
+
     if FocalPoint and type(FocalPoint.SelectEditorUnit) == "function" then
         FocalPoint:SelectEditorUnit(normalizedUnit)
         return normalizedUnit

@@ -861,13 +861,7 @@ function InspectorController.Build(container, state, options)
             end
             if type(CompositionTreeView.Build) == "function" then
                 CompositionTreeView.Build(treeSection, state, {
-                    onSelect = function(target)
-                        if type(target) ~= "table" or target.kind ~= "unit" or type(target.sectionKey) ~= "string" or target.sectionKey == "" then
-                            return
-                        end
-                        if type(EditorStateApi.SetPropertyScope) == "function" then
-                            EditorStateApi.SetPropertyScope(target.kind, target.sectionKey)
-                        end
+                    onSelect = function()
                         NotifySidebarChanged()
                     end,
                 })
