@@ -15,7 +15,6 @@ local InspectorAuraSelection = ns.InspectorAuraSelection or (ns.GUI.Editor.Inspe
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
-local CompositionTreeView = ns.CompositionTreeView or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or {}
 local EditorStateApi = ns.GUI.Editor and ns.GUI.Editor.State or {}
 
 local L = ns.L or {}
@@ -541,21 +540,6 @@ function InspectorController.Build(container, state, options)
         NotifySidebarChanged()
     end
 
-    local compositionTreeSection
-
-    local function RebuildCompositionTreeSection()
-        local refreshed = false
-        if compositionTreeSection and compositionTreeSection._focalPointRequestRebuild then
-            compositionTreeSection._focalPointRequestRebuild()
-            refreshed = true
-        end
-        if type(options.onContextChanged) == "function" then
-            options.onContextChanged()
-            refreshed = true
-        end
-        return refreshed
-    end
-
     local function RebuildLocalSection(section)
         if section and section._focalPointRequestRebuild then
             section._focalPointRequestRebuild()
@@ -566,7 +550,6 @@ function InspectorController.Build(container, state, options)
 
     local function NotifyConfigChangedAndRebuildSection(section, fallbackSectionKey)
         NotifyConfigChanged()
-        RebuildCompositionTreeSection()
         if not RebuildLocalSection(section) and fallbackSectionKey then
             NotifySidebarChanged(fallbackSectionKey)
         end
@@ -1148,100 +1131,6 @@ function InspectorController.Build(container, state, options)
         return point, relativePoint
     end
 
-
-    if not buildPropertiesOnly then
-        local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
-            CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
-            "prominent"
-        )
-        if summarySection then
-            local summaryTextColor = ResolveItemColor and ResolveItemColor("statusMuted") or { 0.66, 0.70, 0.75, 1 }
-            local hintTextColor = ResolveItemColor and ResolveItemColor("description") or { 0.60, 0.64, 0.69, 1 }
-            local inspectorSummary = AceGUI:Create("Label")
-            inspectorSummary:SetFullWidth(true)
-            inspectorSummary:SetText(string.format(
-                "%s: |cffefe6c5%s|r  |  %s: |cff9cd5ff%s|r",
-                L["EDITOR_UNIT"] or "Unit",
-                ResolveSelectedUnitLabel(),
-                L["EDITOR_MODE"] or "Mode",
-                isExpert and (L["EDITOR_MODE_EXPERT"] or "Expert") or (L["EDITOR_MODE_QUICK"] or "Quick")
-            ))
-            if inspectorSummary.label and inspectorSummary.label.SetFont then
-                inspectorSummary.label:SetFont(STANDARD_TEXT_FONT, 12, "")
-                inspectorSummary.label:SetTextColor(
-                    summaryTextColor[1] or 0.66,
-                    summaryTextColor[2] or 0.70,
-                    summaryTextColor[3] or 0.75,
-                    summaryTextColor[4] or 1
-                )
-                inspectorSummary.label:SetShadowOffset(1, -1)
-                inspectorSummary.label:SetShadowColor(0, 0, 0, 0.7)
-            end
-            summarySection:AddChild(inspectorSummary)
-
-            local inspectorHint = AceGUI:Create("Label")
-            inspectorHint:SetFullWidth(true)
-            inspectorHint:SetText(L["EDITOR_INSPECTOR_NOTE"] or "Bearbeitet immer nur die aktuell ausgewaehlte Unit.")
-            if inspectorHint.label and inspectorHint.label.SetFont then
-                inspectorHint.label:SetFont(STANDARD_TEXT_FONT, 10, "")
-                inspectorHint.label:SetTextColor(
-                    hintTextColor[1] or 0.60,
-                    hintTextColor[2] or 0.64,
-                    hintTextColor[3] or 0.69,
-                    hintTextColor[4] or 1
-                )
-            end
-            summarySection:AddChild(inspectorHint)
-        end
-
-        local function BuildCompositionTreeSectionContent(treeSection)
-            if not treeSection then
-                return
-            end
-            local function ToggleCompositionNode(node, nextEnabled)
-                local target = type(node) == "table" and node.inspectorTarget or nil
-                if type(target) ~= "table" then
-                    return { ok = false, errorCode = "invalid_target" }
-                end
-
-                local enabled = nextEnabled and true or false
-                if node.type == "powerbar" then
-                    return SetUnitField("showPowerBar", enabled)
-                elseif node.type == "classPowerBar" then
-                    return SetUnitField("showClassPowerBar", enabled)
-                elseif node.type == "alternativePowerBar" then
-                    return SetUnitField("showAlternativePowerBar", enabled)
-                elseif node.type == "castbar" then
-                    return SetUnitField("showCastBar", enabled)
-                elseif node.type == "normalAbsorbBar" then
-                    return SetUnitField("showNormalAbsorbBar", enabled)
-                elseif node.type == "healingAbsorbBar" then
-                    return SetUnitField("showHealingAbsorbBar", enabled)
-                elseif node.type == "textElement" and type(target.textKey) == "string" then
-                    return SetTextField(target.textKey, "enabled", enabled)
-                elseif (node.type == "buffs" or node.type == "debuffs") and type(target.auraKey) == "string" then
-                    return SetAuraField(target.auraKey, "enabled", enabled)
-                end
-
-                return { ok = false, errorCode = "unsupported_target" }
-            end
-
-            if type(CompositionTreeView.Build) == "function" then
-                CompositionTreeView.Build(treeSection, state, {
-                    onSelect = function(_, _, changeKind)
-                        NotifySelectionChanged(changeKind)
-                    end,
-                    onToggle = ToggleCompositionNode,
-                })
-            end
-        end
-
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
-        compositionTreeSection = CreateInspectorSection("composition_tree", L["EDITOR_SECTION_COMPOSITION_TREE"] or "Composition", false, {
-            localContentBuilder = BuildCompositionTreeSectionContent,
-            layoutRefresh = RefreshInspectorLayout,
-        })
-    end
 
     if buildContextOnly then
         return

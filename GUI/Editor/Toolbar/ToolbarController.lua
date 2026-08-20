@@ -36,6 +36,7 @@ local TOOLBAR_SECTIONS = {
     Root = true,
     Header = true,
     Tools = true,
+    Composition = true,
     Workspace = true,
     WorkspaceEditorBody = true,
     UnitGrid = true,

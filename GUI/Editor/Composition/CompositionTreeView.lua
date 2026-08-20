@@ -207,12 +207,17 @@ local function CountRows(node)
     return count
 end
 
-local function ResolveTreeScrollHeight(rowCount)
+local function ResolveTreeScrollHeight(rowCount, options)
     local height = math.max(0, tonumber(rowCount) or 0) * TREE_ROW_ESTIMATED_HEIGHT
-    if height <= 0 then
-        return TREE_SCROLL_MIN_HEIGHT
+    local minHeight = tonumber(options and options.minHeight) or TREE_SCROLL_MIN_HEIGHT
+    local maxHeight = tonumber(options and options.maxHeight) or TREE_SCROLL_MAX_HEIGHT
+    if maxHeight < minHeight then
+        maxHeight = minHeight
     end
-    return math.min(TREE_SCROLL_MAX_HEIGHT, math.max(TREE_SCROLL_MIN_HEIGHT, height))
+    if height <= 0 then
+        return minHeight
+    end
+    return math.min(maxHeight, math.max(minHeight, height))
 end
 
 local function BuildObjectRef(node)
@@ -680,7 +685,7 @@ function View.Build(container, state, options)
 
     local scroll = AceGUI:Create("ScrollFrame")
     scroll:SetFullWidth(true)
-    scroll:SetHeight(ResolveTreeScrollHeight(CountRows(tree)))
+    scroll:SetHeight(ResolveTreeScrollHeight(CountRows(tree), options))
     scroll:SetLayout("Flow")
     container:AddChild(scroll)
 

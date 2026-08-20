@@ -155,6 +155,19 @@ function EditorController.ReleaseInspector()
     ns.guiEditorInspectorHost = nil
     ns.GUI.Editor._activeInspectorHost = nil
     ns.GUI.Editor._activeInspector = nil
+    ns.GUI.Editor._activeInspectorRefreshProperties = nil
+end
+
+function EditorController.RefreshActiveProperties()
+    local refreshProperties = ns.GUI
+        and ns.GUI.Editor
+        and ns.GUI.Editor._activeInspectorRefreshProperties
+        or nil
+    if type(refreshProperties) ~= "function" then
+        return false
+    end
+    refreshProperties()
+    return true
 end
 
 local function EnsureInspector()
@@ -609,16 +622,12 @@ function EditorController.BuildInspector(container, deps)
         }
     end
 
-    local function BuildSplitInspectorContent(rebuildSidebar)
+    local function BuildPropertyInspectorContent(rebuildSidebar)
         inspectorContent:ReleaseChildren()
         inspectorContent:SetLayout("Flow")
 
         local geometry = ComputeInspectorGeometry()
-        local contextHeight = ResolveInspectorContextHeight(geometry)
-        local propertyHeight = math.max(
-            120,
-            math.floor((geometry.contentHeight or 0) - contextHeight - INSPECTOR_CONTEXT_GAP)
-        )
+        local propertyHeight = math.max(120, math.floor(geometry.contentHeight or 0))
 
         local root = AceGUI:Create("SimpleGroup")
         root:SetFullWidth(true)
@@ -626,29 +635,12 @@ function EditorController.BuildInspector(container, deps)
         root:SetLayout("Flow")
         inspectorContent:AddChild(root)
 
-        local contextContainer = AceGUI:Create("SimpleGroup")
-        contextContainer:SetFullWidth(true)
-        contextContainer:SetHeight(contextHeight)
-        contextContainer:SetLayout("Flow")
-        if contextContainer.frame and contextContainer.frame.SetClipsChildren then
-            contextContainer.frame:SetClipsChildren(true)
-        end
-        root:AddChild(contextContainer)
-
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText("")
-        spacer:SetFullWidth(true)
-        spacer:SetHeight(INSPECTOR_CONTEXT_GAP)
-        root:AddChild(spacer)
-
         propertyScrollWidget = AceGUI:Create("ScrollFrame")
         propertyScrollWidget:SetLayout("Flow")
         propertyScrollWidget:SetFullWidth(true)
         propertyScrollWidget:SetHeight(propertyHeight)
         propertyScrollWidget:SetStatusTable(state.editorSidebarScroll)
         root:AddChild(propertyScrollWidget)
-
-        local RebuildContext
 
         local function RebuildProperties()
             if not propertyScrollWidget then
@@ -667,7 +659,7 @@ function EditorController.BuildInspector(container, deps)
                 propertyScrollWidget:SetScroll(0)
             end
 
-            Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar, RebuildProperties))
+            Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties))
             if propertyScrollWidget.DoLayout then
                 propertyScrollWidget:DoLayout()
             end
@@ -682,21 +674,8 @@ function EditorController.BuildInspector(container, deps)
             end
         end
 
-        RebuildContext = function()
-            if not contextContainer then
-                return
-            end
-            Inspector.BuildContext(contextContainer, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar, RebuildProperties))
-            if contextContainer.DoLayout then
-                contextContainer:DoLayout()
-            end
-            if root.DoLayout then
-                root:DoLayout()
-            end
-        end
-
-        RebuildContext()
-        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar, RebuildProperties))
+        ns.GUI.Editor._activeInspectorRefreshProperties = RebuildProperties
+        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties))
 
         if propertyScrollWidget.DoLayout then
             propertyScrollWidget:DoLayout()
@@ -715,7 +694,7 @@ function EditorController.BuildInspector(container, deps)
     local RebuildSidebar
     RebuildSidebar = function()
         CaptureSidebarScroll()
-        BuildSplitInspectorContent(RebuildSidebar)
+        BuildPropertyInspectorContent(RebuildSidebar)
         RestoreSidebarScroll()
         ScheduleSidebarScrollRestore(buildSerial)
     end

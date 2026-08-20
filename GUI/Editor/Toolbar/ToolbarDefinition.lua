@@ -73,6 +73,36 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
+        section = "Composition",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            surfaceStyle = "toolbar_workspace_panel",
+            spacing = 6,
+            padding = {
+                left = 8,
+                right = 8,
+                top = 8,
+                bottom = 8,
+            },
+            widthInfo = {
+                source = "parent",
+                derivedFrom = "Root.widthInfo",
+            },
+            heightInfo = {
+                source = "content",
+                min = 172,
+                derivedFrom = "composition title + tree scroll",
+            },
+        },
+        items = {
+            { id = "compositionTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_SECTION_COMPOSITION_TREE" },
+            { id = "compositionTree", widget = "compositionTree" },
+        },
+    },
+    {
         section = "Tools",
         properties = {
             parentSection = "Root",

@@ -469,6 +469,22 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                     end
                 end
             end,
+            onObjectSelectionChanged = function(changeKind)
+                local controller = FocalPoint.GUI
+                    and FocalPoint.GUI.Editor
+                    and FocalPoint.GUI.Editor.Controller
+                    or nil
+                if changeKind == "sameUnitObject"
+                    and controller
+                    and type(controller.RefreshActiveProperties) == "function"
+                    and controller.RefreshActiveProperties()
+                then
+                    return
+                end
+                if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+                    FocalPoint.GUI:RequestRefreshOptions()
+                end
+            end,
             onModeChanged = function(mode)
                 local editorMode = FocalPoint.EditorMode or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode)
                 if editorMode and editorMode.Set then

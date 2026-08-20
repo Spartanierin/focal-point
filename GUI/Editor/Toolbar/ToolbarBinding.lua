@@ -7,6 +7,8 @@ local ToolbarBinding = {}
 ns.GUI.Editor.ToolbarBinding = ToolbarBinding
 
 local PresetUI = ns.GUI.Editor and ns.GUI.Editor.PresetUI or {}
+local CompositionTreeView = ns.CompositionTreeView or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or {}
+local Shared = ns.GUI.Editor.SidebarShared or {}
 
 local NAV_WIDGET_IDS = {
     editorButton = { "Nav", "EDITOR" },
@@ -54,6 +56,14 @@ local ResolveEditorMode
 
 local function ResolveAddon(deps)
     return (deps and deps.ns) or ns or {}
+end
+
+local function ResolveInspectorContext()
+    return ns.InspectorContext or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Context) or {}
+end
+
+local function ResolveInspectorMutations()
+    return ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 end
 
 local function EnsureGeneralConfig(nsRef)
@@ -310,7 +320,162 @@ local function CreateItemWidget(props, deps)
         return dropdown
     end
 
+    if props.widget == "compositionTree" and AceGUI then
+        local treeHost = AceGUI:Create("SimpleGroup")
+        treeHost:SetFullWidth(true)
+        treeHost:SetLayout("Flow")
+        return treeHost
+    end
+
     return nil
+end
+
+local function BuildInspectorContextForToolbar(state, deps)
+    local nsRef = ResolveAddon(deps)
+    local InspectorContext = ResolveInspectorContext()
+    local profile = nsRef.db and nsRef.db.profile or nil
+    local units = profile and profile.Units or nil
+    local unitKey = state and state.selectedUnit or nil
+    local unitConfig = type(units) == "table" and units[unitKey] or nil
+
+    if type(unitConfig) ~= "table" then
+        return nil
+    end
+
+    if type(InspectorContext.Create) == "function" then
+        return InspectorContext.Create({
+            state = state,
+            profile = profile,
+            getUnitConfig = function(key)
+                return type(units) == "table" and units[key] or nil
+            end,
+            buildTextList = Shared.BuildTextList,
+            getFirstTextId = Shared.GetFirstTextId,
+            buildIndicatorList = Shared.BuildIndicatorList,
+            getFirstIndicatorKey = Shared.GetFirstIndicatorKey,
+            indicatorMeta = Shared.INDICATOR_META,
+            buildAuraList = Shared.BuildAuraList,
+            getFirstAuraKey = Shared.GetFirstAuraKey,
+        })
+    end
+
+    return {
+        state = state,
+        unitKey = unitKey,
+        unitConfig = unitConfig,
+    }
+end
+
+local function ApplyTreeToggleMutation(context, node, nextEnabled)
+    local InspectorMutations = ResolveInspectorMutations()
+    local target = type(node) == "table" and node.inspectorTarget or nil
+    if type(target) ~= "table" then
+        return { ok = false, errorCode = "invalid_target" }
+    end
+
+    local enabled = nextEnabled and true or false
+    if node.type == "powerbar" then
+        if type(InspectorMutations.SetUnitField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetUnitField(context, "showPowerBar", enabled)
+    elseif node.type == "classPowerBar" then
+        if type(InspectorMutations.SetUnitField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetUnitField(context, "showClassPowerBar", enabled)
+    elseif node.type == "alternativePowerBar" then
+        if type(InspectorMutations.SetUnitField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetUnitField(context, "showAlternativePowerBar", enabled)
+    elseif node.type == "castbar" then
+        if type(InspectorMutations.SetUnitField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetUnitField(context, "showCastBar", enabled)
+    elseif node.type == "normalAbsorbBar" then
+        if type(InspectorMutations.SetUnitField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetUnitField(context, "showNormalAbsorbBar", enabled)
+    elseif node.type == "healingAbsorbBar" then
+        if type(InspectorMutations.SetUnitField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetUnitField(context, "showHealingAbsorbBar", enabled)
+    elseif node.type == "textElement" and type(target.textKey) == "string" then
+        if type(InspectorMutations.SetTextField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetTextField(context, target.textKey, "enabled", enabled)
+    elseif (node.type == "buffs" or node.type == "debuffs") and type(target.auraKey) == "string" then
+        if type(InspectorMutations.SetAuraField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetAuraField(context, target.auraKey, "enabled", enabled)
+    end
+
+    return { ok = false, errorCode = "unsupported_target" }
+end
+
+local function RefreshTreeRuntimeAndProperties(context, deps)
+    local nsRef = ResolveAddon(deps)
+    local state = context and context.state or nil
+    local unitKey = state and state.selectedUnit or nil
+
+    if nsRef.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "" then
+        nsRef:RefreshUnitFrame(unitKey == "boss" and "boss" or unitKey)
+    end
+
+    local controller = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.Controller
+    if controller and type(controller.RefreshActiveProperties) == "function" then
+        controller.RefreshActiveProperties()
+    end
+end
+
+local function BuildCompositionTree(context, deps)
+    local treeHost = context and context.widgets and context.widgets.compositionTree or nil
+    if not treeHost then
+        return
+    end
+
+    if treeHost.ReleaseChildren then
+        treeHost:ReleaseChildren()
+    end
+
+    if type(CompositionTreeView.Build) ~= "function" then
+        return
+    end
+
+    CompositionTreeView.Build(treeHost, context.state, {
+        minHeight = 112,
+        maxHeight = 184,
+        onSelect = function(_, _, changeKind)
+            local nsRef = ResolveAddon(deps)
+            local controller = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.Controller
+            if changeKind == "sameUnitObject" and controller and type(controller.RefreshActiveProperties) == "function" then
+                controller.RefreshActiveProperties()
+                return
+            end
+            if context.options and type(context.options.onObjectSelectionChanged) == "function" then
+                context.options.onObjectSelectionChanged(changeKind)
+            elseif nsRef.GUI and nsRef.GUI.RequestRefreshOptions then
+                nsRef.GUI:RequestRefreshOptions()
+            end
+        end,
+        onToggle = function(node, nextEnabled)
+            local mutationContext = BuildInspectorContextForToolbar(context.state, deps)
+            if not mutationContext then
+                return { ok = false, errorCode = "invalid_context" }
+            end
+            local result = ApplyTreeToggleMutation(mutationContext, node, nextEnabled)
+            if result and result.ok and result.changed then
+                RefreshTreeRuntimeAndProperties(context, deps)
+            end
+            return result
+        end,
+    })
 end
 
 local function RefreshInteractionModeControls(context, deps)
@@ -416,6 +581,9 @@ local function RefreshWindowState(context, deps)
     if context.widgets.toolsTitle then
         context.widgets.toolsTitle:SetText(T("EDITOR_CONTEXT_TOOLS", "Tools", deps))
     end
+    if context.widgets.compositionTitle then
+        context.widgets.compositionTitle:SetText(T("EDITOR_SECTION_COMPOSITION_TREE", "Composition", deps))
+    end
     if context.widgets.workspaceTitle then
         context.widgets.workspaceTitle:SetText(T("EDITOR_CONTEXT_WORKSPACE", "Workspace", deps))
     end
@@ -493,6 +661,7 @@ local function RefreshWindowState(context, deps)
     end
 
     RefreshInteractionModeControls(context, deps)
+    BuildCompositionTree(context, deps)
 
     if context.widgets.editingHint then
         context.widgets.editingHint:SetText(T("EDITOR_PREVIEW_INTERACTION_HINT", nil, deps))
