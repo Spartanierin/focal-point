@@ -4,6 +4,7 @@ ns.GUI = ns.GUI or {}
 ns.GUI.Editor = ns.GUI.Editor or {}
 ns.GUI.Editor.SidebarGeometry = ns.GUI.Editor.SidebarGeometry or {
     width = 285,
+    inspectorWidth = 315,
     top = 0,
     left = 0,
     right = 0,

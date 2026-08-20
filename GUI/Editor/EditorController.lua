@@ -10,7 +10,7 @@ local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local ApplySidebarChrome = FormWidgets and FormWidgets.ApplySidebarChrome
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry
 
-local INSPECTOR_WIDTH = (SidebarGeometry and SidebarGeometry.width) or 285
+local INSPECTOR_WIDTH = (SidebarGeometry and (SidebarGeometry.inspectorWidth or SidebarGeometry.width)) or 285
 local INSPECTOR_OFFSET_X = -16
 local INSPECTOR_OFFSET_Y = -120
 local INSPECTOR_CONTEXT_HEIGHT_RATIO = 0.34

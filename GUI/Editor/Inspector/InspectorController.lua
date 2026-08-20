@@ -960,7 +960,7 @@ function InspectorController.Build(container, state, options)
 
     local function AddObjectPropertyGroup(parent, title, addTopSpacing)
         if addTopSpacing then
-            AddSpacer(parent, 6)
+            AddSpacer(parent, 10)
         end
 
         local group = AceGUI:Create("SimpleGroup")
@@ -968,15 +968,47 @@ function InspectorController.Build(container, state, options)
         group:SetLayout("Flow")
         parent:AddChild(group)
 
+        local header = AceGUI:Create("SimpleGroup")
+        header:SetFullWidth(true)
+        header:SetLayout("Table")
+        header:SetUserData("table", {
+            columns = {
+                { width = 96 },
+                { weight = 1 },
+            },
+            spaceH = 8,
+            spaceV = 0,
+            align = "TOPLEFT",
+            alignV = "center",
+            alignH = "start",
+        })
+        group:AddChild(header)
+
         local titleLabel
         if FormWidgets.CreateSectionTitle then
             titleLabel = FormWidgets.CreateSectionTitle(title or "", 12)
         else
             titleLabel = AceGUI:Create("Label")
-            titleLabel:SetFullWidth(true)
             titleLabel:SetText(title or "")
         end
-        group:AddChild(titleLabel)
+        titleLabel:SetFullWidth(false)
+        titleLabel:SetWidth(96)
+        header:AddChild(titleLabel)
+
+        local separator = AceGUI:Create("SimpleGroup")
+        separator:SetFullWidth(true)
+        separator:SetHeight(12)
+        header:AddChild(separator)
+        if separator.frame and separator.frame.CreateTexture then
+            local line = separator.frame:CreateTexture(nil, "ARTWORK")
+            local color = ResolveItemColor and ResolveItemColor("sectionBorder") or { 0.16, 0.19, 0.24, 0.75 }
+            line:SetPoint("LEFT", separator.frame, "LEFT", 0, 0)
+            line:SetPoint("RIGHT", separator.frame, "RIGHT", 0, 0)
+            line:SetHeight(1)
+            line:SetColorTexture(color[1] or 0.16, color[2] or 0.19, color[3] or 0.24, color[4] or 0.75)
+        end
+
+        AddSpacer(group, 4)
 
         local content = AceGUI:Create("SimpleGroup")
         content:SetFullWidth(true)
@@ -1050,7 +1082,7 @@ function InspectorController.Build(container, state, options)
     end
 
     local function AddDropdownBrowseRow(parent, dropdownOptions, browseCallback, disabled)
-        local row = CreateTwoControlTableRow(parent, 96)
+        local row = CreateTwoControlTableRow(parent, 80)
         if not row then
             return nil, nil
         end
@@ -1067,7 +1099,7 @@ function InspectorController.Build(container, state, options)
         )
 
         local browse = AddMediaBrowseButton(row, disabled, browseCallback, {
-            width = 96,
+            width = 80,
         })
         return dropdown, browse
     end
@@ -1103,7 +1135,7 @@ function InspectorController.Build(container, state, options)
 
 
     local function AddPointPairRow(parent, pointOptions, relativePointOptions)
-        AddPropertyLabel(parent, (L["OPTION_ANCHOR_FROM"] or "Anchor From") .. " / " .. (L["OPTION_ANCHOR_TO"] or "Anchor To"))
+        AddPropertyLabel(parent, L["OPTION_ANCHOR_POINTS"] or "Anchor Points")
         local row = CreateEvenTwoControlTableRow(parent)
         if not row then
             return nil, nil
@@ -1111,8 +1143,8 @@ function InspectorController.Build(container, state, options)
 
         pointOptions = type(pointOptions) == "table" and pointOptions or {}
         relativePointOptions = type(relativePointOptions) == "table" and relativePointOptions or {}
-        local point = AddDropdown(row, pointOptions.label or L["OPTION_ANCHOR_FROM"] or "Anchor From", pointOptions.list, pointOptions.value, pointOptions.onChanged, pointOptions.disabled, pointOptions.anchorKey)
-        local relativePoint = AddDropdown(row, relativePointOptions.label or L["OPTION_ANCHOR_TO"] or "Anchor To", relativePointOptions.list, relativePointOptions.value, relativePointOptions.onChanged, relativePointOptions.disabled, relativePointOptions.anchorKey)
+        local point = AddDropdown(row, pointOptions.label or L["OPTION_FROM_POINT"] or "From Point", pointOptions.list, pointOptions.value, pointOptions.onChanged, pointOptions.disabled, pointOptions.anchorKey)
+        local relativePoint = AddDropdown(row, relativePointOptions.label or L["OPTION_TO_POINT"] or "To Point", relativePointOptions.list, relativePointOptions.value, relativePointOptions.onChanged, relativePointOptions.disabled, relativePointOptions.anchorKey)
         return point, relativePoint
     end
 
@@ -1492,7 +1524,10 @@ function InspectorController.Build(container, state, options)
             AddDropdown(geometrySection, L["OPTION_SIZE_MODE"] or "Size Mode", absorbSizeModeList, sizeMode, function(value)
                 SetUnitField(prefix .. "SizeMode", value, rootSection)
             end)
-            AddDropdown(geometrySection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
+            local anchorTargetLabel = isScopedObject
+                and (L["OPTION_ANCHOR_TARGET"] or "Anchor Target")
+                or (L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element")
+            AddDropdown(geometrySection, anchorTargetLabel, absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
                 SetUnitField(prefix .. "AnchorTo", value, rootSection)
             end)
             if isScopedObject then
@@ -1519,10 +1554,10 @@ function InspectorController.Build(container, state, options)
                     disabled = not isCustom,
                 })
                 AddPropertyLabel(geometrySection, L["OPTION_OFFSET"] or "Offset")
-                AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                AddSlider(geometrySection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddSlider(geometrySection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                AddSlider(geometrySection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
                     SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
             else
@@ -1884,7 +1919,10 @@ function InspectorController.Build(container, state, options)
                 SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
             end, unitConfig.showClassPowerBar ~= true)
 
-            AddDropdown(geometrySection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", classPowerAnchorTargetList, unitConfig.classPowerBarAnchorTo or "HealthBar", function(value)
+            local classPowerAnchorTargetLabel = usePropertyGroups
+                and (L["OPTION_ANCHOR_TARGET"] or "Anchor Target")
+                or (L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element")
+            AddDropdown(geometrySection, classPowerAnchorTargetLabel, classPowerAnchorTargetList, unitConfig.classPowerBarAnchorTo or "HealthBar", function(value)
                 SetUnitField("classPowerBarAnchorTo", value)
             end, unitConfig.showClassPowerBar ~= true)
 
@@ -1914,11 +1952,13 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showClassPowerBar ~= true)
             end
 
-            AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+            local offsetXLabel = usePropertyGroups and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset")
+            local offsetYLabel = usePropertyGroups and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset")
+            AddSlider(geometrySection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
                 SetUnitField("classPowerBarOffsetX", math.floor((value or 0) + 0.5))
             end, unitConfig.showClassPowerBar ~= true)
 
-            AddSlider(geometrySection, L["OPTION_Y_OFFSET"] or "Y Offset", -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+            AddSlider(geometrySection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
                 SetUnitField("classPowerBarOffsetY", math.floor((value or 0) + 0.5))
             end, unitConfig.showClassPowerBar ~= true)
         end
