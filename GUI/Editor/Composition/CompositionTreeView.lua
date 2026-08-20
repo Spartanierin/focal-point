@@ -96,6 +96,8 @@ local CLICKABLE_NODE_TYPES = {
     unit = true,
     healthbar = true,
     powerbar = true,
+    classPowerBar = true,
+    alternativePowerBar = true,
     castbar = true,
     normalAbsorbBar = true,
     healingAbsorbBar = true,
@@ -104,6 +106,8 @@ local CLICKABLE_NODE_TYPES = {
 local BAR_OBJECT_BY_NODE_TYPE = {
     healthbar = "HealthBar",
     powerbar = "PowerBar",
+    classPowerBar = "ClassPowerBar",
+    alternativePowerBar = "AlternativePowerBar",
     castbar = "CastBar",
     normalAbsorbBar = "NormalAbsorbBar",
     healingAbsorbBar = "HealingAbsorbBar",
@@ -145,6 +149,8 @@ local TYPE_ICON_BY_NODE_TYPE = {
     auras = "+",
     healthbar = "|",
     powerbar = "|",
+    classPowerBar = "|",
+    alternativePowerBar = "|",
     castbar = "|",
     normalAbsorbBar = "~",
     healingAbsorbBar = "~",
@@ -159,6 +165,8 @@ end
 
 local TOGGLE_FIELD_BY_NODE_TYPE = {
     powerbar = { target = "unit", field = "showPowerBar" },
+    classPowerBar = { target = "unit", field = "showClassPowerBar" },
+    alternativePowerBar = { target = "unit", field = "showAlternativePowerBar" },
     castbar = { target = "unit", field = "showCastBar" },
     normalAbsorbBar = { target = "unit", field = "showNormalAbsorbBar" },
     healingAbsorbBar = { target = "unit", field = "showHealingAbsorbBar" },

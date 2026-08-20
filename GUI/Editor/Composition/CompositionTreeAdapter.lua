@@ -17,6 +17,8 @@ local SECTION = {
     health = "health",
     absorbs = "absorbs",
     power = "power",
+    alt_power = "alt_power",
+    class_power = "class_power",
     cast = "cast",
     texts = "texts",
     auras = "auras",
@@ -184,6 +186,32 @@ local function AddPowerBranch(root, unit, unitConfig)
         { kind = "unit", sectionKey = SECTION.power },
         IsShown(unitConfig, "showPowerBar")
     ))
+
+    if unit == "player" then
+        AddChild(power, BuildNode(
+            power.id .. "/classpower",
+            "classPowerBar",
+            unit,
+            power.id,
+            L["BAR_CLASS_POWER"] or "Class Power",
+            20,
+            false,
+            { kind = "unit", sectionKey = SECTION.class_power },
+            IsShown(unitConfig, "showClassPowerBar")
+        ))
+
+        AddChild(power, BuildNode(
+            power.id .. "/alternativepower",
+            "alternativePowerBar",
+            unit,
+            power.id,
+            L["BAR_ALT_POWER"] or "Alt Power",
+            30,
+            false,
+            { kind = "unit", sectionKey = SECTION.alt_power },
+            IsShown(unitConfig, "showAlternativePowerBar")
+        ))
+    end
 end
 
 local function AddCastBranch(root, unit, unitConfig)

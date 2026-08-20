@@ -12,12 +12,16 @@ local Constants = ns.Constants or {}
 local BAR_BY_SECTION = {
     health = "HealthBar",
     power = "PowerBar",
+    alt_power = "AlternativePowerBar",
+    class_power = "ClassPowerBar",
     cast = "CastBar",
 }
 
 local SECTION_BY_BAR = {
     HealthBar = "health",
     PowerBar = "power",
+    AlternativePowerBar = "alt_power",
+    ClassPowerBar = "class_power",
     CastBar = "cast",
     NormalAbsorbBar = "absorbs",
     HealingAbsorbBar = "absorbs",
