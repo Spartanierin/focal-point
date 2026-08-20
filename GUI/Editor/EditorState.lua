@@ -331,7 +331,7 @@ function EditorState.SetSelectedAuraKey(auraKey)
     state.selectedAuraKey = auraKey
 end
 
-function EditorState.SetPropertyScope(kind, sectionKey)
+function EditorState.SetPropertyScope(kind, sectionKey, objectKey)
     if type(kind) ~= "string" or kind == "" or type(sectionKey) ~= "string" or sectionKey == "" then
         ClearPropertyScope()
         return nil
@@ -341,6 +341,9 @@ function EditorState.SetPropertyScope(kind, sectionKey)
         kind = kind,
         sectionKey = sectionKey,
     }
+    if type(objectKey) == "string" and objectKey ~= "" then
+        state.propertyScope.objectKey = objectKey
+    end
     return state.propertyScope
 end
 

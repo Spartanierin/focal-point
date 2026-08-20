@@ -847,6 +847,35 @@ function InspectorController.Build(container, state, options)
             and scope.sectionKey == "cast"
     end
 
+    local function ResolveScopedAbsorbObject()
+        local scope = ResolvePropertyScope()
+        if not (type(scope) == "table" and scope.kind == "unit" and scope.sectionKey == "absorbs") then
+            return nil
+        end
+        if scope.objectKey == "NormalAbsorbBar" then
+            return {
+                objectKey = "NormalAbsorbBar",
+                prefix = "normalAbsorbBar",
+                showField = "showNormalAbsorbBar",
+                title = L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
+                headerTitle = L["OPTION_NORMAL_ABSORB"] or "Normal Absorb Bar",
+                fallbackColor = { 0.66, 0.86, 1.0, 0.62 },
+                fallbackGrowth = "LEFT_TO_RIGHT",
+            }
+        elseif scope.objectKey == "HealingAbsorbBar" then
+            return {
+                objectKey = "HealingAbsorbBar",
+                prefix = "healingAbsorbBar",
+                showField = "showHealingAbsorbBar",
+                title = L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
+                headerTitle = L["OPTION_HEALING_ABSORB"] or "Healing Absorb Bar",
+                fallbackColor = { 0.75, 0.20, 1.0, 0.62 },
+                fallbackGrowth = "RIGHT_TO_LEFT",
+            }
+        end
+        return nil
+    end
+
     local function AddObjectInspectorHeader(parent, title, subtitle)
         local titleLabel
         if FormWidgets.CreateSectionTitle then
@@ -1321,6 +1350,8 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local scopedAbsorbObject = ResolveScopedAbsorbObject()
+
         local function AddAbsorbSubheading(text)
             local label = AceGUI:Create("Label")
             label:SetFullWidth(true)
@@ -1328,70 +1359,118 @@ function InspectorController.Build(container, state, options)
             absorbsSection:AddChild(label)
         end
 
-        local function BuildAbsorbBar(prefix, showField, title, fallbackColor, fallbackGrowth)
-            AddAbsorbSubheading(title)
+        local function BuildAbsorbBar(prefix, showField, title, fallbackColor, fallbackGrowth, options)
+            options = type(options) == "table" and options or {}
+            local isScopedObject = options.scopedObject == true
+            local rootSection = options.rootSection or absorbsSection
+            local generalSection = absorbsSection
+            local appearanceSection = absorbsSection
+            local geometrySection = absorbsSection
+            local behaviorSection = absorbsSection
+
+            if isScopedObject then
+                generalSection = AddObjectPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
+                appearanceSection = AddObjectPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+                if isExpert then
+                    geometrySection = AddObjectPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                    behaviorSection = AddObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                end
+            else
+                AddAbsorbSubheading(title)
+            end
 
             local showValue = unitConfig[showField] ~= false
-            AddCheckBox(absorbsSection, L["OPTION_SHOW"] or "Show", showValue, function(value)
-                SetUnitField(showField, value and true or false, absorbsSection)
+            AddCheckBox(generalSection, L["OPTION_SHOW"] or "Show", showValue, function(value)
+                SetUnitField(showField, value and true or false, rootSection)
             end)
 
             local textureField = prefix .. "Texture"
             local textureOptions = BuildStatusBarTextureOptions(unitConfig[textureField])
             local textureDropdown
             local function SetAbsorbTexture(value)
-                local result = SetUnitField(textureField, value, absorbsSection)
+                local result = SetUnitField(textureField, value, rootSection)
                 if not (result and result.ok == false) then
                     SyncDropdownToStoredValue(textureDropdown, unitConfig[textureField])
                 end
                 return result
             end
-            textureDropdown = AddDropdown(absorbsSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureOptions, textureOptions.value, SetAbsorbTexture)
-            AddMediaBrowserForField(absorbsSection, MEDIA_TYPE_STATUSBAR, function()
-                return unitConfig[textureField]
-            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetAbsorbTexture)
+            if isScopedObject then
+                AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
+                textureDropdown = AddDropdownBrowseRow(appearanceSection, {
+                    list = textureOptions,
+                    value = textureOptions.value,
+                    onChanged = SetAbsorbTexture,
+                }, function()
+                    OpenMediaBrowserForField({
+                        mediaType = MEDIA_TYPE_STATUSBAR,
+                        currentValue = function()
+                            return unitConfig[textureField]
+                        end,
+                        fallbackReference = DEFAULT_STATUSBAR_REFERENCE,
+                        title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
+                        onApply = SetAbsorbTexture,
+                    })
+                end)
+            else
+                textureDropdown = AddDropdown(absorbsSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureOptions, textureOptions.value, SetAbsorbTexture)
+                AddMediaBrowserForField(absorbsSection, MEDIA_TYPE_STATUSBAR, function()
+                    return unitConfig[textureField]
+                end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetAbsorbTexture)
+            end
 
-            AddColorPicker(absorbsSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
-                SetUnitField(prefix .. "Color", value, absorbsSection)
+            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
+                SetUnitField(prefix .. "Color", value, rootSection)
             end)
 
             if not isExpert then
                 return
             end
 
-            AddColorPicker(absorbsSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
-                SetUnitField(prefix .. "BackgroundColor", value, absorbsSection)
+            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
+                SetUnitField(prefix .. "BackgroundColor", value, rootSection)
             end)
 
             local sizeMode = unitConfig[prefix .. "SizeMode"] or "MATCH_TARGET"
             local isCustom = sizeMode == "CUSTOM"
-            AddDropdown(absorbsSection, L["OPTION_SIZE_MODE"] or "Size Mode", absorbSizeModeList, sizeMode, function(value)
-                SetUnitField(prefix .. "SizeMode", value, absorbsSection)
+            AddDropdown(geometrySection, L["OPTION_SIZE_MODE"] or "Size Mode", absorbSizeModeList, sizeMode, function(value)
+                SetUnitField(prefix .. "SizeMode", value, rootSection)
             end)
-            AddDropdown(absorbsSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
-                SetUnitField(prefix .. "AnchorTo", value, absorbsSection)
+            AddDropdown(geometrySection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
+                SetUnitField(prefix .. "AnchorTo", value, rootSection)
             end)
-            AddSlider(absorbsSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
-                SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), absorbsSection)
+            AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
             end, not isCustom)
-            AddSlider(absorbsSection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
-                SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), absorbsSection)
+            AddSlider(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
+                SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
             end, not isCustom)
-            AddDropdown(absorbsSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
-                SetUnitField(prefix .. "Point", value, absorbsSection)
+            AddDropdown(geometrySection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
+                SetUnitField(prefix .. "Point", value, rootSection)
             end, not isCustom)
-            AddDropdown(absorbsSection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
-                SetUnitField(prefix .. "RelativePoint", value, absorbsSection)
+            AddDropdown(geometrySection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
+                SetUnitField(prefix .. "RelativePoint", value, rootSection)
             end, not isCustom)
-            AddSlider(absorbsSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
-                SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), absorbsSection)
+            AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
             end, not isCustom)
-            AddSlider(absorbsSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
-                SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), absorbsSection)
+            AddSlider(geometrySection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
             end, not isCustom)
-            AddDropdown(absorbsSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", absorbGrowthList, unitConfig[prefix .. "Growth"] or fallbackGrowth, function(value)
-                SetUnitField(prefix .. "Growth", value, absorbsSection)
+            AddDropdown(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", absorbGrowthList, unitConfig[prefix .. "Growth"] or fallbackGrowth, function(value)
+                SetUnitField(prefix .. "Growth", value, rootSection)
             end)
+        end
+
+        if scopedAbsorbObject then
+            BuildAbsorbBar(
+                scopedAbsorbObject.prefix,
+                scopedAbsorbObject.showField,
+                scopedAbsorbObject.title,
+                scopedAbsorbObject.fallbackColor,
+                scopedAbsorbObject.fallbackGrowth,
+                { scopedObject = true, rootSection = absorbsSection }
+            )
+            return
         end
 
         BuildAbsorbBar("normalAbsorbBar", "showNormalAbsorbBar", L["OPTION_NORMAL_ABSORB"] or "Normal Absorb", { 0.66, 0.86, 1.0, 0.62 }, "LEFT_TO_RIGHT")
@@ -1399,10 +1478,17 @@ function InspectorController.Build(container, state, options)
         BuildAbsorbBar("healingAbsorbBar", "showHealingAbsorbBar", L["OPTION_HEALING_ABSORB"] or "Healing Absorb", { 0.75, 0.20, 1.0, 0.62 }, "RIGHT_TO_LEFT")
     end
 
-    AddScopedInspectorSection("absorbs", L["OPTION_ABSORBS"] or "Absorbs", true, {
-        localContentBuilder = BuildAbsorbsSectionContent,
-        layoutRefresh = RefreshInspectorLayout,
-    })
+    do
+        local scopedAbsorbObject = ResolveScopedAbsorbObject()
+        if scopedAbsorbObject then
+            AddScopedObjectInspectorBody("absorbs", scopedAbsorbObject.headerTitle, BuildAbsorbsSectionContent)
+        else
+            AddScopedInspectorSection("absorbs", L["OPTION_ABSORBS"] or "Absorbs", true, {
+                localContentBuilder = BuildAbsorbsSectionContent,
+                layoutRefresh = RefreshInspectorLayout,
+            })
+        end
+    end
 
     local function BuildPowerSectionContent(powerSection)
         if not powerSection then

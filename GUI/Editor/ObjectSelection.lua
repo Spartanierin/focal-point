@@ -19,6 +19,13 @@ local SECTION_BY_BAR = {
     HealthBar = "health",
     PowerBar = "power",
     CastBar = "cast",
+    NormalAbsorbBar = "absorbs",
+    HealingAbsorbBar = "absorbs",
+}
+
+local ABSORB_BAR_BY_OBJECT = {
+    NormalAbsorbBar = true,
+    HealingAbsorbBar = true,
 }
 
 local VALID_UNITS = nil
@@ -127,6 +134,19 @@ function ObjectSelection.GetSelectedObject()
     end
 
     local sectionKey = type(scope) == "table" and scope.kind == "unit" and scope.sectionKey or nil
+    if sectionKey == "absorbs" then
+        local objectKey = type(scope) == "table" and scope.objectKey or nil
+        if ABSORB_BAR_BY_OBJECT[objectKey] then
+            return {
+                kind = "bar",
+                unit = selectedUnit,
+                objectKey = objectKey,
+                sectionKey = sectionKey,
+            }
+        end
+        return nil
+    end
+
     local objectKey = BAR_BY_SECTION[sectionKey or ""]
     if objectKey then
         return {
@@ -178,7 +198,8 @@ function ObjectSelection.SelectObject(objectRef)
             EditorState.ClearSelectedTextElement()
         end
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
-            local scope = EditorState.SetPropertyScope("unit", sectionKey)
+            local scopeObjectKey = sectionKey == "absorbs" and objectRef.objectKey or nil
+            local scope = EditorState.SetPropertyScope("unit", sectionKey, scopeObjectKey)
             if scope ~= nil then
                 return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
             end

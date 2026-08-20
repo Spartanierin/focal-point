@@ -97,12 +97,16 @@ local CLICKABLE_NODE_TYPES = {
     healthbar = true,
     powerbar = true,
     castbar = true,
+    normalAbsorbBar = true,
+    healingAbsorbBar = true,
 }
 
 local BAR_OBJECT_BY_NODE_TYPE = {
     healthbar = "HealthBar",
     powerbar = "PowerBar",
     castbar = "CastBar",
+    normalAbsorbBar = "NormalAbsorbBar",
+    healingAbsorbBar = "HealingAbsorbBar",
 }
 
 local function IsClickableNode(node)
@@ -223,7 +227,7 @@ local function BuildObjectRef(node)
         return {
             kind = "bar",
             unit = unit,
-            objectKey = objectKey,
+            objectKey = node.inspectorTarget.objectKey or objectKey,
             sectionKey = sectionKey,
         }
     end
@@ -243,6 +247,10 @@ local function IsActiveNode(node, state)
     return type(scope) == "table"
         and scope.kind == "unit"
         and scope.sectionKey == node.inspectorTarget.sectionKey
+        and (
+            not node.inspectorTarget.objectKey
+            or scope.objectKey == node.inspectorTarget.objectKey
+        )
         and state.selectedUnit == node.unit
 end
 

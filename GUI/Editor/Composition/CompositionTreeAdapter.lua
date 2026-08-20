@@ -144,7 +144,7 @@ local function AddHealthBranch(root, unit, unitConfig)
         L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
         20,
         false,
-        { kind = "unit", sectionKey = SECTION.absorbs },
+        { kind = "unit", sectionKey = SECTION.absorbs, objectKey = "NormalAbsorbBar" },
         IsShown(unitConfig, "showNormalAbsorbBar")
     ))
 
@@ -156,7 +156,7 @@ local function AddHealthBranch(root, unit, unitConfig)
         L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
         30,
         false,
-        { kind = "unit", sectionKey = SECTION.absorbs },
+        { kind = "unit", sectionKey = SECTION.absorbs, objectKey = "HealingAbsorbBar" },
         IsShown(unitConfig, "showHealingAbsorbBar")
     ))
 end
