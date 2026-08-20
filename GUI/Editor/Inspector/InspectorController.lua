@@ -832,6 +832,13 @@ function InspectorController.Build(container, state, options)
             and scope.sectionKey == "power"
     end
 
+    local function IsScopedHealthBarObjectMode()
+        local scope = ResolvePropertyScope()
+        return type(scope) == "table"
+            and scope.kind == "unit"
+            and scope.sectionKey == "health"
+    end
+
     local function AddObjectInspectorHeader(parent, title, subtitle)
         local titleLabel
         if FormWidgets.CreateSectionTitle then
@@ -1082,6 +1089,16 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local usePropertyGroups = IsScopedHealthBarObjectMode()
+        local appearanceSection = healthSection
+        local behaviorSection = healthSection
+        if usePropertyGroups then
+            appearanceSection = AddObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            if isExpert then
+                behaviorSection = AddObjectPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            end
+        end
+
         local healthTextureOptions = BuildStatusBarTextureOptions(unitConfig.healthBarTexture)
         local healthTextureDropdown
         local function SetHealthBarTexture(value)
@@ -1091,54 +1108,58 @@ function InspectorController.Build(container, state, options)
             end
             return result
         end
-        healthTextureDropdown = AddDropdown(healthSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
-        AddMediaBrowserForField(healthSection, MEDIA_TYPE_STATUSBAR, function()
+        healthTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
+        AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
             return unitConfig.healthBarTexture
         end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
 
-        AddCheckBox(healthSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
+        AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
             SetUnitField("useClassColorHealth", value and true or false, healthSection)
         end)
 
         if isExpert then
-            AddCheckBox(healthSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
+            AddCheckBox(appearanceSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
                 SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
             end)
 
-            AddCheckBox(healthSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
+            AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
                 SetUnitField("healthBarReverseFill", value and true or false)
             end)
         end
 
         if isQuick or unitConfig.useClassColorHealth ~= true then
-            AddColorPicker(healthSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
                 SetUnitField("healthColor", value)
             end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
         end
 
-        AddCheckBox(healthSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
+        AddCheckBox(appearanceSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
             SetUnitField("useLowHealthColor", value and true or false, healthSection)
         end)
 
-        AddColorPicker(healthSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
+        AddColorPicker(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
             SetUnitField("healthLowColor", value)
         end, unitConfig.useLowHealthColor == false)
 
         if isExpert then
-            AddCheckBox(healthSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
+            AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
                 SetUnitField("healthBackground", value and true or false, healthSection)
             end)
 
-            AddColorPicker(healthSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
+            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
                 SetUnitField("healthBackgroundColor", value)
             end, unitConfig.healthBackground == false)
         end
     end
 
-    AddScopedInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
-        localContentBuilder = BuildHealthSectionContent,
-        layoutRefresh = RefreshInspectorLayout,
-    })
+    if IsScopedHealthBarObjectMode() then
+        AddScopedObjectInspectorBody("health", L["VALUE_ANCHOR_TARGET_HEALTH_BAR"] or L["BAR_HEALTH"] or "Health Bar", BuildHealthSectionContent)
+    else
+        AddScopedInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
+            localContentBuilder = BuildHealthSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+    end
 
     local function BuildAbsorbsSectionContent(absorbsSection)
         if not absorbsSection then
