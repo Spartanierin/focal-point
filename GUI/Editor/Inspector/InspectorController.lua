@@ -1012,6 +1012,29 @@ function InspectorController.Build(container, state, options)
         return row
     end
 
+    local function CreateEvenTwoControlTableRow(parent)
+        if not parent then
+            return nil
+        end
+
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Table")
+        row:SetUserData("table", {
+            columns = {
+                { weight = 1 },
+                { weight = 1 },
+            },
+            spaceH = 8,
+            spaceV = 0,
+            align = "TOPLEFT",
+            alignV = "start",
+            alignH = "start",
+        })
+        parent:AddChild(row)
+        return row
+    end
+
     local function AddDropdownBrowseRow(parent, dropdownOptions, browseCallback, disabled)
         local row = CreateTwoControlTableRow(parent, 96)
         if not row then
@@ -1063,6 +1086,22 @@ function InspectorController.Build(container, state, options)
         )
         return toggle, color
     end
+
+
+    local function AddPointPairRow(parent, pointOptions, relativePointOptions)
+        AddPropertyLabel(parent, (L["OPTION_ANCHOR_FROM"] or "Anchor From") .. " / " .. (L["OPTION_ANCHOR_TO"] or "Anchor To"))
+        local row = CreateEvenTwoControlTableRow(parent)
+        if not row then
+            return nil, nil
+        end
+
+        pointOptions = type(pointOptions) == "table" and pointOptions or {}
+        relativePointOptions = type(relativePointOptions) == "table" and relativePointOptions or {}
+        local point = AddDropdown(row, pointOptions.label or L["OPTION_ANCHOR_FROM"] or "Anchor From", pointOptions.list, pointOptions.value, pointOptions.onChanged, pointOptions.disabled, pointOptions.anchorKey)
+        local relativePoint = AddDropdown(row, relativePointOptions.label or L["OPTION_ANCHOR_TO"] or "Anchor To", relativePointOptions.list, relativePointOptions.value, relativePointOptions.onChanged, relativePointOptions.disabled, relativePointOptions.anchorKey)
+        return point, relativePoint
+    end
+
 
     if not buildPropertiesOnly then
         local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
@@ -1438,24 +1477,56 @@ function InspectorController.Build(container, state, options)
             AddDropdown(geometrySection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
                 SetUnitField(prefix .. "AnchorTo", value, rootSection)
             end)
-            AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
-                SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
-            end, not isCustom)
-            AddSlider(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
-                SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
-            end, not isCustom)
-            AddDropdown(geometrySection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
-                SetUnitField(prefix .. "Point", value, rootSection)
-            end, not isCustom)
-            AddDropdown(geometrySection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
-                SetUnitField(prefix .. "RelativePoint", value, rootSection)
-            end, not isCustom)
-            AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
-                SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
-            end, not isCustom)
-            AddSlider(geometrySection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
-                SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
-            end, not isCustom)
+            if isScopedObject then
+                AddPropertyLabel(geometrySection, L["OPTION_SIZE"] or "Size")
+                AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                    SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddSlider(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
+                    SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddPointPairRow(geometrySection, {
+                    list = barAnchorList,
+                    value = unitConfig[prefix .. "Point"] or "LEFT",
+                    onChanged = function(value)
+                        SetUnitField(prefix .. "Point", value, rootSection)
+                    end,
+                    disabled = not isCustom,
+                }, {
+                    list = barAnchorList,
+                    value = unitConfig[prefix .. "RelativePoint"] or "LEFT",
+                    onChanged = function(value)
+                        SetUnitField(prefix .. "RelativePoint", value, rootSection)
+                    end,
+                    disabled = not isCustom,
+                })
+                AddPropertyLabel(geometrySection, L["OPTION_OFFSET"] or "Offset")
+                AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                    SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddSlider(geometrySection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                    SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+            else
+                AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                    SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddSlider(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
+                    SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddDropdown(geometrySection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
+                    SetUnitField(prefix .. "Point", value, rootSection)
+                end, not isCustom)
+                AddDropdown(geometrySection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
+                    SetUnitField(prefix .. "RelativePoint", value, rootSection)
+                end, not isCustom)
+                AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                    SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddSlider(geometrySection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                    SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+            end
             AddDropdown(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", absorbGrowthList, unitConfig[prefix .. "Growth"] or fallbackGrowth, function(value)
                 SetUnitField(prefix .. "Growth", value, rootSection)
             end)
