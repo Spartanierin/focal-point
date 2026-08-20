@@ -293,18 +293,19 @@ function InspectorController.Build(container, state, options)
             and type(ns.GUI.Editor.MediaLibrary.Open) == "function"
     end
 
-    local function AddMediaBrowseButton(section, disabled, onClick)
+    local function AddMediaBrowseButton(section, disabled, onClick, options)
         if not section or not IsMediaBrowserAvailable() then
             return nil
         end
 
+        options = type(options) == "table" and options or {}
         local button = AceGUI:Create("Button")
         if FormWidgets.ResetInspectorButtonState then
             FormWidgets.ResetInspectorButtonState(button)
         end
-        button:SetText(L["MEDIA_LIBRARY_BROWSE"] or "Browse...")
-        button:SetFullWidth(false)
-        button:SetWidth(112)
+        button:SetText(options.label or L["MEDIA_LIBRARY_BROWSE"] or "Browse...")
+        button:SetFullWidth(options.fullWidth == true)
+        button:SetWidth(options.width or 112)
         button:SetDisabled(disabled and true or false)
         button:SetCallback("OnClick", function()
             if disabled or type(onClick) ~= "function" then
@@ -345,7 +346,7 @@ function InspectorController.Build(container, state, options)
         })
     end
 
-    local function AddMediaBrowserForField(section, mediaType, currentValue, fallbackReference, title, disabled, onApply)
+    local function AddMediaBrowserForField(section, mediaType, currentValue, fallbackReference, title, disabled, onApply, buttonOptions)
         return AddMediaBrowseButton(section, disabled, function()
             OpenMediaBrowserForField({
                 mediaType = mediaType,
@@ -354,7 +355,7 @@ function InspectorController.Build(container, state, options)
                 title = title,
                 onApply = onApply,
             })
-        end)
+        end, buttonOptions)
     end
 
     local function SyncDropdownToStoredValue(dropdown, value)
@@ -1108,10 +1109,46 @@ function InspectorController.Build(container, state, options)
             end
             return result
         end
-        healthTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
-        AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
-            return unitConfig.healthBarTexture
-        end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
+        if usePropertyGroups then
+            local textureLabel
+            if FormWidgets.CreateBodyText then
+                textureLabel = FormWidgets.CreateBodyText(L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", "label", 12, nil, nil, true)
+            else
+                textureLabel = AceGUI:Create("Label")
+                textureLabel:SetFullWidth(true)
+                textureLabel:SetText(L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
+            end
+            appearanceSection:AddChild(textureLabel)
+
+            local textureRow = AceGUI:Create("SimpleGroup")
+            textureRow:SetFullWidth(true)
+            textureRow:SetLayout("Table")
+            textureRow:SetUserData("table", {
+                columns = {
+                    { weight = 1 },
+                    { width = 96 },
+                },
+                spaceH = 8,
+                spaceV = 0,
+                align = "TOPLEFT",
+                alignV = "start",
+                alignH = "start",
+            })
+            appearanceSection:AddChild(textureRow)
+
+            healthTextureDropdown = AddDropdown(textureRow, "", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
+
+            AddMediaBrowserForField(textureRow, MEDIA_TYPE_STATUSBAR, function()
+                return unitConfig.healthBarTexture
+            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture, {
+                width = 96,
+            })
+        else
+            healthTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
+            AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
+                return unitConfig.healthBarTexture
+            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
+        end
 
         AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
             SetUnitField("useClassColorHealth", value and true or false, healthSection)
@@ -1133,13 +1170,49 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
         end
 
-        AddCheckBox(appearanceSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
-            SetUnitField("useLowHealthColor", value and true or false, healthSection)
-        end)
+        if usePropertyGroups then
+            local lowHealthLabel
+            if FormWidgets.CreateBodyText then
+                lowHealthLabel = FormWidgets.CreateBodyText(L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", "label", 12, nil, nil, true)
+            else
+                lowHealthLabel = AceGUI:Create("Label")
+                lowHealthLabel:SetFullWidth(true)
+                lowHealthLabel:SetText(L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color")
+            end
+            appearanceSection:AddChild(lowHealthLabel)
 
-        AddColorPicker(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
-            SetUnitField("healthLowColor", value)
-        end, unitConfig.useLowHealthColor == false)
+            local lowHealthRow = AceGUI:Create("SimpleGroup")
+            lowHealthRow:SetFullWidth(true)
+            lowHealthRow:SetLayout("Table")
+            lowHealthRow:SetUserData("table", {
+                columns = {
+                    { weight = 1 },
+                    { width = 96 },
+                },
+                spaceH = 8,
+                spaceV = 0,
+                align = "TOPLEFT",
+                alignV = "start",
+                alignH = "start",
+            })
+            appearanceSection:AddChild(lowHealthRow)
+
+            AddCheckBox(lowHealthRow, L["OPTION_ENABLED"] or "Enabled", unitConfig.useLowHealthColor ~= false, function(value)
+                SetUnitField("useLowHealthColor", value and true or false, healthSection)
+            end)
+
+            AddColorPicker(lowHealthRow, "", unitConfig.healthLowColor, true, function(value)
+                SetUnitField("healthLowColor", value)
+            end, unitConfig.useLowHealthColor == false)
+        else
+            AddCheckBox(appearanceSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
+                SetUnitField("useLowHealthColor", value and true or false, healthSection)
+            end)
+
+            AddColorPicker(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
+                SetUnitField("healthLowColor", value)
+            end, unitConfig.useLowHealthColor == false)
+        end
 
         if isExpert then
             AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
