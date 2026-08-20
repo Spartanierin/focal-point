@@ -900,6 +900,34 @@ function InspectorController.Build(container, state, options)
         return body
     end
 
+    local function AddObjectPropertyGroup(parent, title, addTopSpacing)
+        if addTopSpacing then
+            AddSpacer(parent, 6)
+        end
+
+        local group = AceGUI:Create("SimpleGroup")
+        group:SetFullWidth(true)
+        group:SetLayout("Flow")
+        parent:AddChild(group)
+
+        local titleLabel
+        if FormWidgets.CreateSectionTitle then
+            titleLabel = FormWidgets.CreateSectionTitle(title or "", 12)
+        else
+            titleLabel = AceGUI:Create("Label")
+            titleLabel:SetFullWidth(true)
+            titleLabel:SetText(title or "")
+        end
+        group:AddChild(titleLabel)
+
+        local content = AceGUI:Create("SimpleGroup")
+        content:SetFullWidth(true)
+        content:SetLayout("Flow")
+        group:AddChild(content)
+
+        return content
+    end
+
     if not buildPropertiesOnly then
         local summarySection = InspectorBinding.ApplyInspectorSectionStructure(
             CreateSection(container, L["EDITOR_SIDEBAR_TITLE"] or "Inspector", { style = "prominent" }),
@@ -1205,7 +1233,21 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        AddCheckBox(powerSection, L["EDITOR_OPTION_SHOW_POWER"] or "Show Power Bar", unitConfig.showPowerBar ~= false, function(value)
+        local usePropertyGroups = IsScopedPowerBarObjectMode()
+        local generalSection = powerSection
+        local appearanceSection = powerSection
+        local geometrySection = powerSection
+        local behaviorSection = powerSection
+        if usePropertyGroups then
+            generalSection = AddObjectPropertyGroup(powerSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = AddObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            if isExpert then
+                geometrySection = AddObjectPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                behaviorSection = AddObjectPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            end
+        end
+
+        AddCheckBox(generalSection, L["EDITOR_OPTION_SHOW_POWER"] or "Show Power Bar", unitConfig.showPowerBar ~= false, function(value)
             SetUnitField("showPowerBar", value and true or false, powerSection)
         end)
 
@@ -1218,37 +1260,37 @@ function InspectorController.Build(container, state, options)
             end
             return result
         end
-        powerTextureDropdown = AddDropdown(powerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, SetPowerBarTexture, unitConfig.showPowerBar == false)
-        AddMediaBrowserForField(powerSection, MEDIA_TYPE_STATUSBAR, function()
+        powerTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, SetPowerBarTexture, unitConfig.showPowerBar == false)
+        AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
             return unitConfig.powerBarTexture
         end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showPowerBar == false, SetPowerBarTexture)
 
         if isExpert then
-            AddSlider(powerSection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+            AddSlider(geometrySection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
                 SetUnitField("powerBarHeight", math.floor((value or 0) + 0.5))
             end, unitConfig.showPowerBar == false)
         end
 
-        AddCheckBox(powerSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorPower == true, function(value)
+        AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorPower == true, function(value)
             SetUnitField("useClassColorPower", value and true or false, powerSection)
         end, unitConfig.showPowerBar == false)
 
         if isExpert then
-            AddCheckBox(powerSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
+            AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
                 SetUnitField("powerBarReverseFill", value and true or false)
             end, unitConfig.showPowerBar == false)
         end
 
-        AddColorPicker(powerSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
+        AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
             SetUnitField("powerColor", value)
         end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
 
         if isExpert then
-            AddCheckBox(powerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
+            AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
                 SetUnitField("powerBackground", value and true or false, powerSection)
             end, unitConfig.showPowerBar == false)
 
-            AddColorPicker(powerSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.powerBackgroundColor, true, function(value)
+            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.powerBackgroundColor, true, function(value)
                 SetUnitField("powerBackgroundColor", value)
             end, unitConfig.showPowerBar == false or unitConfig.powerBackground == false)
         end

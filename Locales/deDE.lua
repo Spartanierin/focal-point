@@ -446,8 +446,10 @@ L["THEME_MODERN_DESC"] = "Präsenter, stilvoller und etwas markanter."
 
 -- Sections
 L["SECTION_GENERAL"] = "Allgemein"
+L["SECTION_APPEARANCE"] = "Darstellung"
 L["SECTION_ALTERNATIVE_POWER"] = "Sekundäre Ressource"
 L["SECTION_CLASS_POWER"] = "Klassenressource"
+L["SECTION_GEOMETRY"] = "Geometrie"
 L["SECTION_POSITION"] = "Position"
 L["SECTION_SIZE_POSITION"] = "Größe & Position"
 L["SECTION_OPACITY_SCALING"] = "Transparenz & Skalierung"

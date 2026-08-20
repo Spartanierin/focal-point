@@ -419,8 +419,10 @@ L["THEME_MODERN_DESC"] = "More present, more styled, and a bit bolder."
 
 -- Sections
 L["SECTION_GENERAL"] = "General"
+L["SECTION_APPEARANCE"] = "Appearance"
 L["SECTION_ALTERNATIVE_POWER"] = "Secondary Resource"
 L["SECTION_CLASS_POWER"] = "Class Power"
+L["SECTION_GEOMETRY"] = "Geometry"
 L["SECTION_POSITION"] = "Position"
 L["SECTION_SIZE_POSITION"] = "Size & Position"
 L["SECTION_OPACITY_SCALING"] = "Opacity & Scaling"
