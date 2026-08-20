@@ -867,11 +867,36 @@ function InspectorController.Build(container, state, options)
             if not treeSection then
                 return
             end
+            local function ToggleCompositionNode(node, nextEnabled)
+                local target = type(node) == "table" and node.inspectorTarget or nil
+                if type(target) ~= "table" then
+                    return { ok = false, errorCode = "invalid_target" }
+                end
+
+                local enabled = nextEnabled and true or false
+                if node.type == "powerbar" then
+                    return SetUnitField("showPowerBar", enabled)
+                elseif node.type == "castbar" then
+                    return SetUnitField("showCastBar", enabled)
+                elseif node.type == "normalAbsorbBar" then
+                    return SetUnitField("showNormalAbsorbBar", enabled)
+                elseif node.type == "healingAbsorbBar" then
+                    return SetUnitField("showHealingAbsorbBar", enabled)
+                elseif node.type == "textElement" and type(target.textKey) == "string" then
+                    return SetTextField(target.textKey, "enabled", enabled)
+                elseif (node.type == "buffs" or node.type == "debuffs") and type(target.auraKey) == "string" then
+                    return SetAuraField(target.auraKey, "enabled", enabled)
+                end
+
+                return { ok = false, errorCode = "unsupported_target" }
+            end
+
             if type(CompositionTreeView.Build) == "function" then
                 CompositionTreeView.Build(treeSection, state, {
                     onSelect = function(_, _, changeKind)
                         NotifySelectionChanged(changeKind)
                     end,
+                    onToggle = ToggleCompositionNode,
                 })
             end
         end

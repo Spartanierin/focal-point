@@ -24,6 +24,12 @@ local ROW_INDENT = 8
 local ROW_TEXT_INSET = 4
 local ROW_TEXT_RIGHT_INSET = 3
 local ROW_ACCENT_WIDTH = 2
+local ROW_ICON_SIZE = 10
+local ROW_TOGGLE_SIZE = 9
+local ROW_LABEL_GAP = 3
+local TREE_SCROLL_MAX_HEIGHT = 132
+local TREE_SCROLL_MIN_HEIGHT = 64
+local TREE_ROW_ESTIMATED_HEIGHT = 15
 
 local ROW_COLORS = {
     fillSelected = { 0.11, 0.12, 0.15, 0.66 },
@@ -35,6 +41,10 @@ local ROW_COLORS = {
     textContainer = { 0.58, 0.61, 0.66, 1.00 },
     textDisabled = { 0.54, 0.57, 0.61, 0.95 },
     textFallback = { 0.76, 0.79, 0.84, 1.00 },
+    icon = { 0.72, 0.68, 0.54, 0.92 },
+    iconContainer = { 0.50, 0.54, 0.60, 0.82 },
+    toggleOn = { 0.90, 0.78, 0.34, 0.92 },
+    toggleOff = { 0.42, 0.45, 0.50, 0.58 },
 }
 
 local function ResolveColor(role, fallback)
@@ -122,6 +132,77 @@ local function IsContainerNode(node)
     )
 end
 
+local TYPE_ICON_BY_NODE_TYPE = {
+    unit = "F",
+    health = "+",
+    power = "+",
+    cast = "+",
+    texts = "+",
+    auras = "+",
+    healthbar = "|",
+    powerbar = "|",
+    castbar = "|",
+    normalAbsorbBar = "~",
+    healingAbsorbBar = "~",
+    textElement = "T",
+    buffs = "A",
+    debuffs = "A",
+}
+
+local function ResolveTypeIcon(node)
+    return type(node) == "table" and (TYPE_ICON_BY_NODE_TYPE[node.type] or "?") or "?"
+end
+
+local TOGGLE_FIELD_BY_NODE_TYPE = {
+    powerbar = { target = "unit", field = "showPowerBar" },
+    castbar = { target = "unit", field = "showCastBar" },
+    normalAbsorbBar = { target = "unit", field = "showNormalAbsorbBar" },
+    healingAbsorbBar = { target = "unit", field = "showHealingAbsorbBar" },
+    textElement = { target = "text", field = "enabled" },
+    buffs = { target = "aura", field = "enabled" },
+    debuffs = { target = "aura", field = "enabled" },
+}
+
+local function GetToggleSpec(node)
+    if type(node) ~= "table" then
+        return nil
+    end
+    local spec = TOGGLE_FIELD_BY_NODE_TYPE[node.type]
+    if type(spec) ~= "table" then
+        return nil
+    end
+    if spec.target == "text" and not (node.inspectorTarget and node.inspectorTarget.textKey) then
+        return nil
+    end
+    if spec.target == "aura" and not (node.inspectorTarget and node.inspectorTarget.auraKey) then
+        return nil
+    end
+    return spec
+end
+
+local function IsToggleableNode(node)
+    return GetToggleSpec(node) ~= nil
+end
+
+local function CountRows(node)
+    if type(node) ~= "table" then
+        return 0
+    end
+    local count = 1
+    for _, child in ipairs(node.children or {}) do
+        count = count + CountRows(child)
+    end
+    return count
+end
+
+local function ResolveTreeScrollHeight(rowCount)
+    local height = math.max(0, tonumber(rowCount) or 0) * TREE_ROW_ESTIMATED_HEIGHT
+    if height <= 0 then
+        return TREE_SCROLL_MIN_HEIGHT
+    end
+    return math.min(TREE_SCROLL_MAX_HEIGHT, math.max(TREE_SCROLL_MIN_HEIGHT, height))
+end
+
 local function BuildObjectRef(node)
     if not IsClickableNode(node) then
         return nil
@@ -190,10 +271,29 @@ local function ApplyRowGeometry(row)
     end
 
     local depth = math.max(0, tonumber(row.depth) or 0)
+    local indent = ROW_TEXT_INSET + depth * ROW_INDENT
+
+    if row.icon then
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("LEFT", row.frame, "LEFT", indent, 0)
+        row.icon:SetSize(ROW_ICON_SIZE, ROW_ICON_SIZE)
+    end
+
+    if row.toggle then
+        row.toggle:ClearAllPoints()
+        row.toggle:SetPoint("RIGHT", row.frame, "RIGHT", -ROW_TEXT_RIGHT_INSET, 0)
+        row.toggle:SetSize(ROW_TOGGLE_SIZE + 4, ROW_TOGGLE_SIZE + 4)
+    end
+
+    local hasToggle = row.toggleable == true and row.toggle ~= nil
+    local labelRightTarget = hasToggle and row.toggle or row.frame
+    local labelRightPoint = hasToggle and "LEFT" or "RIGHT"
+    local labelRightOffset = hasToggle and -ROW_LABEL_GAP or -ROW_TEXT_RIGHT_INSET
+
     local label = row.label
     label:ClearAllPoints()
-    label:SetPoint("LEFT", row.frame, "LEFT", ROW_TEXT_INSET + depth * ROW_INDENT, 0)
-    label:SetPoint("RIGHT", row.frame, "RIGHT", -ROW_TEXT_RIGHT_INSET, 0)
+    label:SetPoint("LEFT", row.icon or row.frame, row.icon and "RIGHT" or "LEFT", row.icon and ROW_LABEL_GAP or indent, 0)
+    label:SetPoint("RIGHT", labelRightTarget, labelRightPoint, labelRightOffset, 0)
 end
 
 local function ApplyRowVisualState(row)
@@ -224,6 +324,36 @@ local function ApplyRowVisualState(row)
             row.accent:Show()
         else
             row.accent:Hide()
+        end
+    end
+
+    if row.icon then
+        row.icon:SetText(ResolveTypeIcon(node))
+        local iconColor = IsContainerNode(node)
+            and ResolveColor("statusMuted", ROW_COLORS.iconContainer)
+            or ResolveColor("description", ROW_COLORS.icon)
+        row.icon:SetTextColor(iconColor[1] or 1, iconColor[2] or 1, iconColor[3] or 1, iconColor[4] or 1)
+    end
+
+    if row.toggle then
+        local toggleable = IsToggleableNode(node)
+        if toggleable then
+            row.toggle:Show()
+            local toggleColor = node and node.enabled == false
+                and ResolveColor("statusMuted", ROW_COLORS.toggleOff)
+                or ResolveColor("accent", ROW_COLORS.toggleOn)
+            local alpha = node and node.enabled == false and 0.56 or 0.94
+            SetTextureColor(row.toggleGlyph, {
+                toggleColor[1] or 1,
+                toggleColor[2] or 1,
+                toggleColor[3] or 1,
+                alpha,
+            })
+            if row.toggleGlyph then
+                row.toggleGlyph:SetSize(node and node.enabled == false and 5 or 7, node and node.enabled == false and 5 or 7)
+            end
+        else
+            row.toggle:Hide()
         end
     end
 
@@ -266,10 +396,12 @@ local function RegisterCompositionTreeRowWidget()
         self.state = nil
         self.clickable = false
         self.hovered = false
+        self.toggleable = false
         if self.events then
             self.events.OnClick = nil
             self.events.OnEnter = nil
             self.events.OnLeave = nil
+            self.events.OnToggle = nil
         end
         if self.frame then
             self.frame:EnableMouse(false)
@@ -288,10 +420,12 @@ local function RegisterCompositionTreeRowWidget()
         self.state = nil
         self.clickable = false
         self.hovered = false
+        self.toggleable = false
         if self.events then
             self.events.OnClick = nil
             self.events.OnEnter = nil
             self.events.OnLeave = nil
+            self.events.OnToggle = nil
         end
         if self.frame then
             self.frame:EnableMouse(false)
@@ -305,6 +439,9 @@ local function RegisterCompositionTreeRowWidget()
         if self.accent then
             self.accent:Hide()
         end
+        if self.toggle then
+            self.toggle:Hide()
+        end
     end
 
     function methods:SetRow(node, depth, state, clickable)
@@ -313,9 +450,17 @@ local function RegisterCompositionTreeRowWidget()
         self.state = state
         self.clickable = clickable == true
         self.hovered = false
+        self.toggleable = IsToggleableNode(node)
         self:SetHeight(self.clickable and ROW_HEIGHT_CLICKABLE or ROW_HEIGHT_STATIC)
         if self.frame then
-            self.frame:EnableMouse(self.clickable)
+            self.frame:EnableMouse(self.clickable or self.toggleable)
+        end
+        if self.toggle then
+            if self.toggleable then
+                self.toggle:Show()
+            else
+                self.toggle:Hide()
+            end
         end
         ApplyRowGeometry(self)
         ApplyRowVisualState(self)
@@ -350,14 +495,34 @@ local function RegisterCompositionTreeRowWidget()
             label:SetMaxLines(1)
         end
 
+        local icon = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        icon:SetJustifyH("CENTER")
+        icon:SetJustifyV("MIDDLE")
+        icon:SetWordWrap(false)
+        if icon.SetMaxLines then
+            icon:SetMaxLines(1)
+        end
+
+        local toggle = CreateFrame("Button", nil, frame)
+        toggle:Hide()
+        toggle:EnableMouse(true)
+
+        local toggleGlyph = toggle:CreateTexture(nil, "ARTWORK")
+        toggleGlyph:SetPoint("CENTER")
+        toggleGlyph:SetTexture("Interface\\Buttons\\WHITE8X8")
+
         local widget = {
             frame = frame,
             type = ROW_WIDGET_TYPE,
             background = background,
             accent = accent,
+            icon = icon,
             label = label,
+            toggle = toggle,
+            toggleGlyph = toggleGlyph,
         }
         frame.obj = widget
+        toggle.obj = widget
 
         frame:SetScript("OnEnter", function(self)
             local obj = self.obj
@@ -379,6 +544,19 @@ local function RegisterCompositionTreeRowWidget()
             local obj = self.obj
             if obj and obj.clickable then
                 obj:Fire("OnClick", button)
+            end
+            AceGUI:ClearFocus()
+        end)
+        toggle:SetScript("OnMouseDown", function(self, button)
+            local obj = self.obj
+            if not (obj and obj.toggleable and obj.node) then
+                return
+            end
+            local nextEnabled = obj.node.enabled == false
+            local result = obj:Fire("OnToggle", obj.node, nextEnabled, button)
+            if not (result and result.ok == false) then
+                obj.node.enabled = nextEnabled
+                ApplyRowVisualState(obj)
             end
             AceGUI:ClearFocus()
         end)
@@ -415,6 +593,7 @@ end
 
 local function AddNodeRow(container, node, depth, state, options)
     local clickable = IsClickableNode(node) and type(options) == "table" and type(options.onSelect) == "function"
+    local toggleable = IsToggleableNode(node) and type(options) == "table" and type(options.onToggle) == "function"
     local rowWidget = AceGUI:Create(ROW_WIDGET_TYPE)
     rowWidget:SetFullWidth(true)
     if rowWidget.SetRow then
@@ -442,6 +621,11 @@ local function AddNodeRow(container, node, depth, state, options)
                 RefreshRowStates(options._focalPointRows, state)
             end
             options.onSelect(objectRef, node, changeKind)
+        end)
+    end
+    if toggleable and rowWidget.SetCallback then
+        rowWidget:SetCallback("OnToggle", function(_, _, toggleNode, nextEnabled)
+            return options.onToggle(toggleNode, nextEnabled)
         end)
     end
     container:AddChild(rowWidget)
@@ -478,7 +662,13 @@ function View.Build(container, state, options)
         return false
     end
 
-    RenderNode(container, tree, 0, state, options)
+    local scroll = AceGUI:Create("ScrollFrame")
+    scroll:SetFullWidth(true)
+    scroll:SetHeight(ResolveTreeScrollHeight(CountRows(tree)))
+    scroll:SetLayout("Flow")
+    container:AddChild(scroll)
+
+    RenderNode(scroll, tree, 0, state, options)
     return true
 end
 
