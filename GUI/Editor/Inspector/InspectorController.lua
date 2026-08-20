@@ -525,6 +525,14 @@ function InspectorController.Build(container, state, options)
         end
     end
 
+    local function NotifySelectionChanged(changeKind)
+        if options.onSelectionChanged then
+            options.onSelectionChanged(changeKind)
+            return
+        end
+        NotifySidebarChanged()
+    end
+
     local compositionTreeSection
 
     local function RebuildCompositionTreeSection()
@@ -861,8 +869,8 @@ function InspectorController.Build(container, state, options)
             end
             if type(CompositionTreeView.Build) == "function" then
                 CompositionTreeView.Build(treeSection, state, {
-                    onSelect = function()
-                        NotifySidebarChanged()
+                    onSelect = function(_, _, changeKind)
+                        NotifySelectionChanged(changeKind)
                     end,
                 })
             end

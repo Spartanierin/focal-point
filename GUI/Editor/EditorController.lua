@@ -585,7 +585,7 @@ function EditorController.BuildInspector(container, deps)
         end
     end
 
-    local function BuildInspectorCallbacks(rebuildContext, rebuildSidebar)
+    local function BuildInspectorCallbacks(rebuildContext, rebuildSidebar, refreshProperties)
         return {
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
@@ -594,6 +594,14 @@ function EditorController.BuildInspector(container, deps)
                 SyncUnitFrameLifecycle()
             end,
             onSidebarChanged = function()
+                RefreshLiveUnit(state.selectedUnit)
+                rebuildSidebar()
+            end,
+            onSelectionChanged = function(changeKind)
+                if changeKind == "sameUnitObject" and type(refreshProperties) == "function" then
+                    refreshProperties()
+                    return
+                end
                 RefreshLiveUnit(state.selectedUnit)
                 rebuildSidebar()
             end,
@@ -640,11 +648,45 @@ function EditorController.BuildInspector(container, deps)
         propertyScrollWidget:SetStatusTable(state.editorSidebarScroll)
         root:AddChild(propertyScrollWidget)
 
-        local function RebuildContext()
+        local RebuildContext
+
+        local function RebuildProperties()
+            if not propertyScrollWidget then
+                return
+            end
+
+            state.editorSidebarScroll.scrollvalue = 0
+            state.editorSidebarScroll.offset = nil
+            state.editorSidebarScroll.visibleAnchorSectionKey = nil
+            state.editorSidebarScroll.visibleAnchorRole = nil
+            state.editorSidebarScroll.visibleAnchorChildIndex = nil
+            state.editorSidebarScroll.visibleAnchorChildKey = nil
+            state.editorSidebarScroll.visibleAnchorOffset = nil
+
+            if propertyScrollWidget.SetScroll then
+                propertyScrollWidget:SetScroll(0)
+            end
+
+            Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar, RebuildProperties))
+            if propertyScrollWidget.DoLayout then
+                propertyScrollWidget:DoLayout()
+            end
+            if propertyScrollWidget.FixScroll then
+                propertyScrollWidget:FixScroll()
+            end
+            if root.DoLayout then
+                root:DoLayout()
+            end
+            if inspectorContent.DoLayout then
+                inspectorContent:DoLayout()
+            end
+        end
+
+        RebuildContext = function()
             if not contextContainer then
                 return
             end
-            Inspector.BuildContext(contextContainer, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar))
+            Inspector.BuildContext(contextContainer, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar, RebuildProperties))
             if contextContainer.DoLayout then
                 contextContainer:DoLayout()
             end
@@ -654,7 +696,7 @@ function EditorController.BuildInspector(container, deps)
         end
 
         RebuildContext()
-        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar))
+        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(RebuildContext, rebuildSidebar, RebuildProperties))
 
         if propertyScrollWidget.DoLayout then
             propertyScrollWidget:DoLayout()

@@ -118,19 +118,21 @@ local function IsActiveNode(node, state)
         return false
     end
     local scope = state.propertyScope
+    if node.type == "unit" then
+        return state.selectedUnit == node.unit
+            and (type(scope) ~= "table" or scope.sectionKey == "frame")
+    end
     return type(scope) == "table"
         and scope.kind == "unit"
         and scope.sectionKey == node.inspectorTarget.sectionKey
         and state.selectedUnit == node.unit
 end
 
-local function AddNodeRow(container, node, depth, state, options)
-    local clickable = IsClickableNode(node) and type(options) == "table" and type(options.onSelect) == "function"
-    local label = AceGUI:Create(clickable and "InteractiveLabel" or "Label")
-    label:SetFullWidth(true)
-    if label.SetHeight then
-        label:SetHeight(clickable and 20 or 18)
+local function ApplyRowState(label, node, depth, state, clickable)
+    if not label then
+        return
     end
+
     local prefix = clickable and (IsActiveNode(node, state) and "> " or "  ") or "  "
     label:SetText(string.rep("  ", math.max(0, tonumber(depth) or 0)) .. prefix .. FormatNodeLabel(node))
     if label.label then
@@ -143,13 +145,48 @@ local function AddNodeRow(container, node, depth, state, options)
             label.label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
         end
     end
+end
+
+local function RefreshRowStates(rows, state)
+    if type(rows) ~= "table" then
+        return
+    end
+
+    for _, row in ipairs(rows) do
+        ApplyRowState(row.label, row.node, row.depth, state, row.clickable)
+    end
+end
+
+local function AddNodeRow(container, node, depth, state, options)
+    local clickable = IsClickableNode(node) and type(options) == "table" and type(options.onSelect) == "function"
+    local label = AceGUI:Create(clickable and "InteractiveLabel" or "Label")
+    label:SetFullWidth(true)
+    if label.SetHeight then
+        label:SetHeight(clickable and 20 or 18)
+    end
+    ApplyRowState(label, node, depth, state, clickable)
+    if type(options) == "table" and type(options._focalPointRows) == "table" then
+        options._focalPointRows[#options._focalPointRows + 1] = {
+            label = label,
+            node = node,
+            depth = depth,
+            clickable = clickable,
+        }
+    end
     if clickable and label.SetCallback then
         label:SetCallback("OnClick", function()
             local objectRef = BuildObjectRef(node)
-            if type(ObjectSelection.SelectObject) ~= "function" or ObjectSelection.SelectObject(objectRef) ~= true then
+            if type(ObjectSelection.SelectObject) ~= "function" then
                 return
             end
-            options.onSelect(objectRef, node)
+            local ok, changeKind = ObjectSelection.SelectObject(objectRef)
+            if ok ~= true then
+                return
+            end
+            if changeKind == "sameUnitObject" then
+                RefreshRowStates(options._focalPointRows, state)
+            end
+            options.onSelect(objectRef, node, changeKind)
         end)
     end
     container:AddChild(label)
@@ -170,6 +207,8 @@ function View.Build(container, state, options)
     if not container then
         return false
     end
+    options = options or {}
+    options._focalPointRows = {}
 
     local unit = type(state) == "table" and state.selectedUnit or nil
     local tree = type(Adapter.BuildUnitTree) == "function" and Adapter.BuildUnitTree(unit) or nil

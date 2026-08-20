@@ -154,6 +154,7 @@ function ObjectSelection.SelectObject(objectRef)
     if not IsValidUnit(unit) then
         return false
     end
+    local previousUnit = GetSelectedUnit()
 
     if kind == "unit" then
         if not SelectUnit(unit) then
@@ -162,7 +163,7 @@ function ObjectSelection.SelectObject(objectRef)
         if EditorState and type(EditorState.ClearPropertyScope) == "function" then
             EditorState.ClearPropertyScope()
         end
-        return true
+        return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
     end
 
     if kind == "bar" then
@@ -177,7 +178,10 @@ function ObjectSelection.SelectObject(objectRef)
             EditorState.ClearSelectedTextElement()
         end
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
-            return EditorState.SetPropertyScope("unit", sectionKey) ~= nil
+            local scope = EditorState.SetPropertyScope("unit", sectionKey)
+            if scope ~= nil then
+                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+            end
         end
     end
 
