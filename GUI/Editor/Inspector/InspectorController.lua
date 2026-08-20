@@ -840,6 +840,13 @@ function InspectorController.Build(container, state, options)
             and scope.sectionKey == "health"
     end
 
+    local function IsScopedCastBarObjectMode()
+        local scope = ResolvePropertyScope()
+        return type(scope) == "table"
+            and scope.kind == "unit"
+            and scope.sectionKey == "cast"
+    end
+
     local function AddObjectInspectorHeader(parent, title, subtitle)
         local titleLabel
         if FormWidgets.CreateSectionTitle then
@@ -1272,13 +1279,31 @@ function InspectorController.Build(container, state, options)
         end
 
         if isExpert then
-            AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
-                SetUnitField("healthBackground", value and true or false, healthSection)
-            end)
+            if usePropertyGroups then
+                AddPropertyLabel(appearanceSection, L["OPTION_BACKGROUND"] or "Background")
+                AddToggleColorRow(appearanceSection, {
+                    label = L["OPTION_ENABLED"] or "Enabled",
+                    value = unitConfig.healthBackground ~= false,
+                    onChanged = function(value)
+                        SetUnitField("healthBackground", value and true or false, healthSection)
+                    end,
+                }, {
+                    color = unitConfig.healthBackgroundColor,
+                    hasAlpha = true,
+                    onChanged = function(value)
+                        SetUnitField("healthBackgroundColor", value)
+                    end,
+                    disabled = unitConfig.healthBackground == false,
+                })
+            else
+                AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
+                    SetUnitField("healthBackground", value and true or false, healthSection)
+                end)
 
-            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
-                SetUnitField("healthBackgroundColor", value)
-            end, unitConfig.healthBackground == false)
+                AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
+                    SetUnitField("healthBackgroundColor", value)
+                end, unitConfig.healthBackground == false)
+            end
         end
     end
 
@@ -1411,10 +1436,29 @@ function InspectorController.Build(container, state, options)
             end
             return result
         end
-        powerTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, SetPowerBarTexture, unitConfig.showPowerBar == false)
-        AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
-            return unitConfig.powerBarTexture
-        end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showPowerBar == false, SetPowerBarTexture)
+        if usePropertyGroups then
+            AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
+            powerTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
+                list = powerTextureOptions,
+                value = powerTextureOptions.value,
+                onChanged = SetPowerBarTexture,
+            }, function()
+                OpenMediaBrowserForField({
+                    mediaType = MEDIA_TYPE_STATUSBAR,
+                    currentValue = function()
+                        return unitConfig.powerBarTexture
+                    end,
+                    fallbackReference = DEFAULT_STATUSBAR_REFERENCE,
+                    title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
+                    onApply = SetPowerBarTexture,
+                })
+            end, unitConfig.showPowerBar == false)
+        else
+            powerTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, SetPowerBarTexture, unitConfig.showPowerBar == false)
+            AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
+                return unitConfig.powerBarTexture
+            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showPowerBar == false, SetPowerBarTexture)
+        end
 
         if isExpert then
             AddSlider(geometrySection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
@@ -1437,13 +1481,32 @@ function InspectorController.Build(container, state, options)
         end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
 
         if isExpert then
-            AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
-                SetUnitField("powerBackground", value and true or false, powerSection)
-            end, unitConfig.showPowerBar == false)
+            if usePropertyGroups then
+                AddPropertyLabel(appearanceSection, L["OPTION_BACKGROUND"] or "Background")
+                AddToggleColorRow(appearanceSection, {
+                    label = L["OPTION_ENABLED"] or "Enabled",
+                    value = unitConfig.powerBackground ~= false,
+                    onChanged = function(value)
+                        SetUnitField("powerBackground", value and true or false, powerSection)
+                    end,
+                    disabled = unitConfig.showPowerBar == false,
+                }, {
+                    color = unitConfig.powerBackgroundColor,
+                    hasAlpha = true,
+                    onChanged = function(value)
+                        SetUnitField("powerBackgroundColor", value)
+                    end,
+                    disabled = unitConfig.showPowerBar == false or unitConfig.powerBackground == false,
+                })
+            else
+                AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
+                    SetUnitField("powerBackground", value and true or false, powerSection)
+                end, unitConfig.showPowerBar == false)
 
-            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.powerBackgroundColor, true, function(value)
-                SetUnitField("powerBackgroundColor", value)
-            end, unitConfig.showPowerBar == false or unitConfig.powerBackground == false)
+                AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.powerBackgroundColor, true, function(value)
+                    SetUnitField("powerBackgroundColor", value)
+                end, unitConfig.showPowerBar == false or unitConfig.powerBackground == false)
+            end
         end
     end
 
@@ -1601,15 +1664,27 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        AddCheckBox(castSection, L["OPTION_SHOW_CAST_BAR"] or "Show Cast Bar", unitConfig.showCastBar ~= false, function(value)
+        local usePropertyGroups = IsScopedCastBarObjectMode()
+        local generalSection = castSection
+        local appearanceSection = castSection
+        local geometrySection = castSection
+        if usePropertyGroups then
+            generalSection = AddObjectPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = AddObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            if isExpert then
+                geometrySection = AddObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            end
+        end
+
+        AddCheckBox(generalSection, L["OPTION_SHOW_CAST_BAR"] or "Show Cast Bar", unitConfig.showCastBar ~= false, function(value)
             SetUnitField("showCastBar", value and true or false, castSection)
         end)
 
-        AddCheckBox(castSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
+        AddCheckBox(generalSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
             SetUnitField("showCastBarIcon", value and true or false)
         end, unitConfig.showCastBar == false)
 
-        AddColorPicker(castSection, L["OPTION_CAST_BAR_COLOR"] or "Cast Bar Color", unitConfig.castBarColor, true, function(value)
+        AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_COLOR"] or "Cast Bar Color", unitConfig.castBarColor, true, function(value)
             SetUnitField("castBarColor", value)
         end, unitConfig.showCastBar == false)
 
@@ -1623,21 +1698,44 @@ function InspectorController.Build(container, state, options)
                 end
                 return result
             end
-            castTextureDropdown = AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", castTextureOptions, castTextureOptions.value, SetCastBarTexture, unitConfig.showCastBar == false)
-            AddMediaBrowserForField(castSection, MEDIA_TYPE_STATUSBAR, function()
-                return unitConfig.castBarTexture
-            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
+            if usePropertyGroups then
+                AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
+                castTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
+                    list = castTextureOptions,
+                    value = castTextureOptions.value,
+                    onChanged = SetCastBarTexture,
+                }, function()
+                    OpenMediaBrowserForField({
+                        mediaType = MEDIA_TYPE_STATUSBAR,
+                        currentValue = function()
+                            return unitConfig.castBarTexture
+                        end,
+                        fallbackReference = DEFAULT_STATUSBAR_REFERENCE,
+                        title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
+                        onApply = SetCastBarTexture,
+                    })
+                end, unitConfig.showCastBar == false)
+            else
+                castTextureDropdown = AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", castTextureOptions, castTextureOptions.value, SetCastBarTexture, unitConfig.showCastBar == false)
+                AddMediaBrowserForField(castSection, MEDIA_TYPE_STATUSBAR, function()
+                    return unitConfig.castBarTexture
+                end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
+            end
 
-            AddSlider(castSection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+            AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
                 SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
             end, unitConfig.showCastBar == false)
         end
     end
 
-    AddScopedInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true, {
-        localContentBuilder = BuildCastSectionContent,
-        layoutRefresh = RefreshInspectorLayout,
-    })
+    if IsScopedCastBarObjectMode() then
+        AddScopedObjectInspectorBody("cast", L["BAR_CAST"] or "Cast Bar", BuildCastSectionContent)
+    else
+        AddScopedInspectorSection("cast", L["BAR_CAST"] or "Cast Bar", true, {
+            localContentBuilder = BuildCastSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
+    end
 
     local function BuildVisibilitySectionContent(visibilitySection)
         if not visibilitySection then
