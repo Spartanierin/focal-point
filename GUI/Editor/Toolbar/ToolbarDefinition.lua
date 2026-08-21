@@ -103,40 +103,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
-        section = "Tools",
-        properties = {
-            parentSection = "Root",
-            sectionKind = "section",
-            type = "stack_block",
-            variant = "section_stack",
-            surfaceStyle = "toolbar_tools_panel",
-            spacing = 6,
-            padding = {
-                left = 8,
-                right = 8,
-                top = 8,
-                bottom = 8,
-            },
-            widthInfo = {
-                source = "parent",
-                derivedFrom = "Root.widthInfo",
-            },
-            heightInfo = {
-                source = "content",
-                min = 144,
-                derivedFrom = "section title + 5 toolbar buttons + spacing",
-            },
-        },
-        items = {
-            { id = "toolsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_TOOLS" },
-            { id = "editorButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_EDITOR" },
-            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUTS" },
-            { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
-            { id = "tagDatabaseButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
-            { id = "closeButton", widget = "button", itemVariant = "toolbar_danger_action", textKey = "CLOSE" },
-        },
-    },
-    {
         section = "Workspace",
         properties = {
             parentSection = "Root",
@@ -527,6 +493,38 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
+        section = "Secondary",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            surfaceStyle = "toolbar_global_panel",
+            spacing = 4,
+            padding = {
+                left = 8,
+                right = 8,
+                top = 6,
+                bottom = 6,
+            },
+            widthInfo = {
+                source = "parent",
+                derivedFrom = "Root.widthInfo",
+            },
+            heightInfo = {
+                source = "content",
+                min = 96,
+                derivedFrom = "secondary dialog access buttons",
+            },
+        },
+        items = {
+            { id = "toolsTitle", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_CONTEXT_TOOLS", size = 10 },
+            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUTS" },
+            { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
+            { id = "tagDatabaseButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
+        },
+    },
+    {
         section = "Footer",
         properties = {
             parentSection = "Root",
@@ -546,11 +544,12 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 16,
-                derivedFrom = "single muted footer note",
+                min = 38,
+                derivedFrom = "close action + muted footer note",
             },
         },
         items = {
+            { id = "closeButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "CLOSE" },
             { id = "footerNote", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_PREVIEW_NOTE", size = 9 },
         },
     },

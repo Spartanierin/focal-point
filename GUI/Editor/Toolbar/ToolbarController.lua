@@ -35,7 +35,6 @@ local windowContext
 local TOOLBAR_SECTIONS = {
     Root = true,
     Header = true,
-    Tools = true,
     Composition = true,
     Workspace = true,
     WorkspaceEditorBody = true,
@@ -50,6 +49,7 @@ local TOOLBAR_SECTIONS = {
     EditingHint = true,
     Presets = true,
     Global = true,
+    Secondary = true,
     Footer = true,
 }
 
