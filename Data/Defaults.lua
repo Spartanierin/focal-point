@@ -2,6 +2,9 @@ local _, FocalPoint = ...
 
 function FocalPoint:GetDefaultDB()
     return {
+        char = {
+            activeLayoutId = nil,
+        },
         global = {
             ProfileAutomation = {
                 enabled = false,
