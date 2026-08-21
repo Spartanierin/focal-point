@@ -8,6 +8,7 @@ function FocalPoint:GetDefaultDB()
                 specProfiles = {},
             },
             UserPresets = {},
+            UserLayouts = {},
         },
         profile = {
             General = {
