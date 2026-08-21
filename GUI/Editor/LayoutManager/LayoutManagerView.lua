@@ -19,6 +19,7 @@ local WINDOW_HEIGHT = 460
 local context
 local renameDialog
 local copyDialog
+local deleteDialog
 
 local ROW_COLORS = {
     fill = { 0.075, 0.085, 0.105, 0.78 },
@@ -493,6 +494,16 @@ local function ResolveCopyStatus(reason)
     return T("LAYOUT_COPY_FAILED", "Layout copy could not be created.")
 end
 
+local function ResolveDeleteStatus(reason)
+    if reason == "active-layout" then
+        return T("LAYOUT_DELETE_ACTIVE_BLOCKED", "Activate another layout before deleting this one.")
+    end
+    if reason == "invalid-layout" or reason == "layout-not-found" then
+        return T("LAYOUT_DELETE_INVALID_LAYOUT", "Select a custom layout first.")
+    end
+    return T("LAYOUT_DELETE_FAILED", "Layout could not be deleted.")
+end
+
 local function RefreshCanvasPicker()
     local canvasToolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.CanvasToolbar
     if canvasToolbar and canvasToolbar.Refresh then
@@ -521,6 +532,53 @@ local function SetButtonVisible(button, visible, width)
     end
 end
 
+local function AnchorFooterButton(button, point, relativeTo, relativePoint, xOffset, yOffset)
+    local frame = button and button.frame
+    if not frame then
+        return
+    end
+    frame:ClearAllPoints()
+    frame:SetPoint(point, relativeTo, relativePoint, xOffset or 0, yOffset or 0)
+end
+
+local function LayoutFooterActions()
+    if not (context and context.widgets and context.widgets.footer) then
+        return
+    end
+
+    local footerFrame = context.widgets.footer.frame
+    local renameButton = context.widgets.renameButton
+    local copyButton = context.widgets.copyButton
+    local deleteButton = context.widgets.deleteButton
+    local closeButton = context.widgets.closeButton
+    local gap = 8
+
+    if closeButton then
+        AnchorFooterButton(closeButton, "RIGHT", footerFrame, "RIGHT", -12, 0)
+    end
+
+    local previous
+    if renameButton and renameButton.frame and renameButton.frame:IsShown() then
+        AnchorFooterButton(renameButton, "LEFT", footerFrame, "LEFT", 12, 0)
+        previous = renameButton.frame
+    end
+    if copyButton and copyButton.frame and copyButton.frame:IsShown() then
+        if previous then
+            AnchorFooterButton(copyButton, "LEFT", previous, "RIGHT", gap, 0)
+        else
+            AnchorFooterButton(copyButton, "LEFT", footerFrame, "LEFT", 12, 0)
+        end
+        previous = copyButton.frame
+    end
+    if deleteButton and deleteButton.frame and deleteButton.frame:IsShown() then
+        if previous then
+            AnchorFooterButton(deleteButton, "LEFT", previous, "RIGHT", gap, 0)
+        else
+            AnchorFooterButton(deleteButton, "LEFT", footerFrame, "LEFT", 12, 0)
+        end
+    end
+end
+
 local function CloseRenameDialog()
     if renameDialog and renameDialog.Close then
         renameDialog:Close()
@@ -537,6 +595,14 @@ local function CloseCopyDialog()
     end
 end
 
+local function CloseDeleteDialog()
+    if deleteDialog and deleteDialog.Hide then
+        deleteDialog:Hide()
+    elseif deleteDialog and deleteDialog.window and deleteDialog.window.Hide then
+        deleteDialog.window:Hide()
+    end
+end
+
 local function FocusDialogEditBox(editBox)
     local native = editBox and editBox.editbox or nil
     if native and native.SetFocus then
@@ -545,6 +611,83 @@ local function FocusDialogEditBox(editBox)
     if native and native.HighlightText then
         native:HighlightText()
     end
+end
+
+local function CreateDeleteConfirmDialog(item)
+    local window = AceGUI:Create("Window")
+    window:SetTitle(T("LAYOUT_DELETE_TITLE", "Delete Layout?"))
+    window:SetLayout("List")
+    window:SetWidth(430)
+    window:SetHeight(198)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+        window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    end
+    if FormWidgets.ApplyWindowChrome then
+        FormWidgets.ApplyWindowChrome(window)
+    end
+    if FormWidgets.EnsureStandardWindowCloseButton then
+        FormWidgets.EnsureStandardWindowCloseButton(window)
+    end
+    EnableEscapeClose(window)
+
+    local body = AceGUI:Create("SimpleGroup")
+    body:SetLayout("List")
+    body:SetFullWidth(true)
+    body:SetHeight(96)
+    window:AddChild(body)
+
+    local message = AceGUI:Create("Label")
+    message:SetText(string.format(T("LAYOUT_DELETE_MESSAGE", "This permanently deletes \"%s\".\nThis cannot be undone."), item and item.name or ""))
+    message:SetFullWidth(true)
+    message:SetHeight(52)
+    if FormWidgets.ApplyTextStyle then
+        FormWidgets.ApplyTextStyle(message.label, "label", 12, 1)
+    end
+    body:AddChild(message)
+
+    local status = AceGUI:Create("Label")
+    status:SetText(" ")
+    status:SetFullWidth(true)
+    status:SetHeight(18)
+    if FormWidgets.ApplyTextStyle then
+        FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
+    end
+    body:AddChild(status)
+
+    local footer = AceGUI:Create("SimpleGroup")
+    footer:SetLayout("Flow")
+    footer:SetFullWidth(true)
+    footer:SetHeight(40)
+    window:AddChild(footer)
+
+    footer:AddChild(CreateSpacer(184, 1))
+    local cancelButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(T("INFO_COMMON_CANCEL", "Cancel"), "utility", 100, false) or AceGUI:Create("Button")
+    cancelButton:SetText(T("INFO_COMMON_CANCEL", "Cancel"))
+    cancelButton:SetWidth(100)
+    cancelButton:SetFullWidth(false)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(cancelButton, "utility")
+    end
+    footer:AddChild(cancelButton)
+    footer:AddChild(CreateSpacer(8, 1))
+    local deleteButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(T("LAYOUT_DELETE_CONFIRM", "Delete"), "danger", 100, false) or AceGUI:Create("Button")
+    deleteButton:SetText(T("LAYOUT_DELETE_CONFIRM", "Delete"))
+    deleteButton:SetWidth(100)
+    deleteButton:SetFullWidth(false)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
+    end
+    footer:AddChild(deleteButton)
+
+    return {
+        window = window,
+        status = status,
+        cancelButton = cancelButton,
+        deleteButton = deleteButton,
+    }
 end
 
 local function CreateLayoutNameDialog(options)
@@ -745,6 +888,59 @@ local function OpenCopyDialog()
     FocusDialogEditBox(dialog.nameEdit)
 end
 
+local function OpenDeleteDialog()
+    if not (context and context.state) then
+        return
+    end
+
+    local selected = FindSelectedItem(context.state)
+    if not (selected and selected.source == "userLayout" and selected.id ~= context.activeLayoutId) then
+        return
+    end
+
+    CloseDeleteDialog()
+
+    local dialog = CreateDeleteConfirmDialog(selected)
+    if not dialog then
+        return
+    end
+
+    dialog.cancelButton:SetCallback("OnClick", CloseDeleteDialog)
+    dialog.deleteButton:SetCallback("OnClick", function(widget)
+        if widget and widget.SetDisabled then
+            widget:SetDisabled(true)
+        end
+
+        local mutations = ns.LayoutMutations or {}
+        local ok, resultOrReason = false, "delete-unavailable"
+        if mutations.DeleteUserLayout then
+            ok, resultOrReason = mutations.DeleteUserLayout(selected.id)
+        end
+
+        if ok then
+            context.selectedLayoutId = nil
+            CloseDeleteDialog()
+            RefreshCanvasPicker()
+            return
+        end
+
+        if dialog.status then
+            dialog.status:SetText(ResolveDeleteStatus(resultOrReason))
+        end
+        if widget and widget.SetDisabled then
+            widget:SetDisabled(false)
+        end
+    end)
+    dialog.window:SetCallback("OnClose", function()
+        if deleteDialog == dialog then
+            deleteDialog = nil
+        end
+    end)
+
+    deleteDialog = dialog
+    FocusWindow(dialog.window)
+end
+
 local function RefreshActions()
     if not (context and context.widgets) then
         return
@@ -753,6 +949,7 @@ local function RefreshActions()
     local selected = FindSelectedItem(context.state)
     local isUserLayout = selected and selected.source == "userLayout"
     local isBuiltin = selected and selected.source == "builtin"
+    local canDelete = isUserLayout and selected.id ~= context.activeLayoutId
     if context.widgets.renameButton then
         context.widgets.renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
         SetButtonVisible(context.widgets.renameButton, isUserLayout, 105)
@@ -767,6 +964,21 @@ local function RefreshActions()
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.copyButton, "utility")
         end
     end
+    if context.widgets.deleteButton then
+        context.widgets.deleteButton:SetText(T("LAYOUT_MANAGER_DELETE", "Delete"))
+        SetButtonVisible(context.widgets.deleteButton, isUserLayout, 105)
+        context.widgets.deleteButton:SetDisabled(not canDelete)
+        if FormWidgets.ApplyModalActionButtonVisual then
+            FormWidgets.ApplyModalActionButtonVisual(context.widgets.deleteButton, "danger")
+        end
+    end
+    if context.widgets.closeButton then
+        SetButtonVisible(context.widgets.closeButton, true, 105)
+        if FormWidgets.ApplyModalActionButtonVisual then
+            FormWidgets.ApplyModalActionButtonVisual(context.widgets.closeButton, "utility")
+        end
+    end
+    LayoutFooterActions()
     if context.window and context.window.DoLayout then
         context.window:DoLayout()
     end
@@ -818,6 +1030,7 @@ end
 local function Close()
     CloseRenameDialog()
     CloseCopyDialog()
+    CloseDeleteDialog()
     if context and context.window and context.window.Hide then
         context.selectedLayoutId = nil
         context.window:Hide()
@@ -878,10 +1091,6 @@ local function CreateWindow()
         border = SECTION_CHROME.footerBorder,
     })
 
-    footer:AddChild(CreateSpacer(12, 1))
-    local status = CreateLabel("", "help", 10, 150)
-    footer:AddChild(status)
-    footer:AddChild(CreateSpacer(10, 1))
     local renameButton = AceGUI:Create("Button")
     renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
     renameButton:SetWidth(105)
@@ -889,8 +1098,6 @@ local function CreateWindow()
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(renameButton, "utility")
     end
-    footer:AddChild(renameButton)
-    footer:AddChild(CreateSpacer(8, 1))
     local copyButton = AceGUI:Create("Button")
     copyButton:SetText(T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"))
     copyButton:SetWidth(105)
@@ -898,8 +1105,13 @@ local function CreateWindow()
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(copyButton, "utility")
     end
-    footer:AddChild(copyButton)
-    footer:AddChild(CreateSpacer(8, 1))
+    local deleteButton = AceGUI:Create("Button")
+    deleteButton:SetText(T("LAYOUT_MANAGER_DELETE", "Delete"))
+    deleteButton:SetWidth(105)
+    deleteButton:SetFullWidth(false)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
+    end
     local closeButton = AceGUI:Create("Button")
     closeButton:SetText(T("INFO_COMMON_CLOSE", "Close"))
     closeButton:SetWidth(105)
@@ -907,25 +1119,30 @@ local function CreateWindow()
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(closeButton, "utility")
     end
-    footer:AddChild(closeButton)
+    renameButton.frame:SetParent(footer.frame)
+    copyButton.frame:SetParent(footer.frame)
+    deleteButton.frame:SetParent(footer.frame)
+    closeButton.frame:SetParent(footer.frame)
 
     context.window = window
     context.widgets = {
         root = root,
         scroll = scroll,
         footer = footer,
-        status = status,
         renameButton = renameButton,
         copyButton = copyButton,
+        deleteButton = deleteButton,
         closeButton = closeButton,
     }
 
     renameButton:SetCallback("OnClick", OpenRenameDialog)
     copyButton:SetCallback("OnClick", OpenCopyDialog)
+    deleteButton:SetCallback("OnClick", OpenDeleteDialog)
     closeButton:SetCallback("OnClick", Close)
     window:SetCallback("OnClose", function()
         CloseRenameDialog()
         CloseCopyDialog()
+        CloseDeleteDialog()
         context.selectedLayoutId = nil
         if GameTooltip and GameTooltip.Hide then
             GameTooltip:Hide()

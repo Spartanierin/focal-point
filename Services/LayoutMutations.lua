@@ -198,6 +198,37 @@ function Mutations.CopyLayout(layoutId, newName)
     return true, newLayoutId, normalizedNameOrReason
 end
 
+function Mutations.DeleteUserLayout(layoutId)
+    if type(layoutId) ~= "string" or layoutId == "" or not layoutId:match("^layout:") then
+        return false, "invalid-layout"
+    end
+
+    local Resolver = FocalPoint.ActiveLayoutResolver or {}
+    local activeLayoutId = Resolver.GetStoredActiveLayoutId and Resolver.GetStoredActiveLayoutId(FocalPoint.db) or nil
+    if activeLayoutId == layoutId then
+        return false, "active-layout"
+    end
+
+    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
+    local existing = UserLayoutStore.GetRawReadOnly and UserLayoutStore.GetRawReadOnly(layoutId, FocalPoint.db) or nil
+    if type(existing) ~= "table" then
+        return false, "layout-not-found"
+    end
+    if not UserLayoutStore.RemoveRaw then
+        return false, "user-layout-store-unavailable"
+    end
+
+    if not UserLayoutStore.RemoveRaw(layoutId) then
+        return false, "store-delete-failed"
+    end
+    local afterDelete = UserLayoutStore.GetRawReadOnly and UserLayoutStore.GetRawReadOnly(layoutId, FocalPoint.db) or nil
+    if type(afterDelete) == "table" then
+        return false, "store-delete-failed"
+    end
+
+    return true, layoutId
+end
+
 function Mutations.RenameUserLayout(layoutId, newName)
     if type(layoutId) ~= "string" or layoutId == "" or not layoutId:match("^layout:") then
         return false, "invalid-layout"
