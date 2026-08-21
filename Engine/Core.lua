@@ -10,10 +10,21 @@ local function GetUnitConfig(unit)
         return utils.GetUnitDB(unit)
     end
 
-    return FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.Units
-        and FocalPoint.db.profile.Units[unit]
+    return nil
+end
+
+local function GetEditableUnitConfig(unit)
+    if type(unit) == "string" and unit:match("^boss%d+$") then
+        unit = "boss"
+    end
+
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetEditableActiveUnits then
+        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+        return type(units) == "table" and units[unit] or nil
+    end
+
+    return nil
 end
 
 function FocalPoint:Init()
@@ -709,7 +720,7 @@ local function SaveFramePosition(frame)
         return
     end
 
-    local unitConfig = GetUnitConfig(frame.unit)
+    local unitConfig = GetEditableUnitConfig(frame.unit)
     if not unitConfig then
         return
     end

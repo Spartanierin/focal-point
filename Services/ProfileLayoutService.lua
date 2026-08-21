@@ -35,6 +35,11 @@ local function IsValidLayout(layout)
         and type(layout.TextTemplates) == "table"
 end
 
+local function IsCoreLayoutCutoverEnabled()
+    local resolver = FocalPoint.ActiveLayoutResolver
+    return resolver and resolver.IsCoreCutoverEnabled and resolver.IsCoreCutoverEnabled() == true
+end
+
 local function GetProfilesTable(db)
     if type(db) ~= "table" then
         return nil
@@ -94,6 +99,10 @@ end
 
 function ProfileLayoutService.CreateProfileFromLayout(layout, profileName, options)
     options = type(options) == "table" and options or {}
+
+    if IsCoreLayoutCutoverEnabled() then
+        return false, "layout-core-cutover"
+    end
 
     if not IsValidLayout(layout) then
         return false, "layout-invalid"

@@ -66,15 +66,15 @@ local function GetUnitConfig(frame)
         return nil, nil
     end
 
-    local utils = FocalPoint.UnitFrameUtils
-    if utils and utils.GetUnitDB then
-        return utils.GetUnitDB(unitKey), unitKey
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetEditableActiveUnits then
+        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+        if type(units) == "table" then
+            return units[unitKey], unitKey
+        end
     end
 
-    return FocalPoint.db
-        and FocalPoint.db.profile
-        and FocalPoint.db.profile.Units
-        and FocalPoint.db.profile.Units[unitKey], unitKey
+    return nil, unitKey
 end
 
 local function IsEditorUnlocked()

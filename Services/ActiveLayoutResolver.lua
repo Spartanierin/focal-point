@@ -175,6 +175,51 @@ function Resolver.GetActivePayload(db)
     return LayoutService.Clone and LayoutService.Clone(envelope.payload) or nil
 end
 
+function Resolver.GetActivePayloadRoot(db)
+    db = ResolveDB(db)
+    local layoutId = Resolver.GetStoredActiveLayoutId(db)
+    local sourceKind = SplitActiveLayoutId(layoutId)
+    if sourceKind == "layout" then
+        local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
+        return payload, reason, layoutId
+    end
+
+    if sourceKind == "builtin" then
+        local payload, reason = Resolver.GetActivePayload(db)
+        return payload, reason, layoutId
+    end
+
+    return nil, "unsupported-source", layoutId
+end
+
+function Resolver.GetActiveUnits(db)
+    local payload, reason = Resolver.GetActivePayloadRoot(db)
+    local units = type(payload) == "table" and payload.Units or nil
+    return type(units) == "table" and units or nil, reason
+end
+
+function Resolver.GetActiveTextTemplates(db)
+    local payload, reason = Resolver.GetActivePayloadRoot(db)
+    local templates = type(payload) == "table" and payload.TextTemplates or nil
+    return type(templates) == "table" and templates or nil, reason
+end
+
+function Resolver.GetEditableActiveUnits(db)
+    local payload, layoutId, created, reason = Resolver.EnsureEditableActiveLayout(db)
+    local units = type(payload) == "table" and payload.Units or nil
+    return type(units) == "table" and units or nil, layoutId, created, reason
+end
+
+function Resolver.GetEditableActiveTextTemplates(db)
+    local payload, layoutId, created, reason = Resolver.EnsureEditableActiveLayout(db)
+    local templates = type(payload) == "table" and payload.TextTemplates or nil
+    return type(templates) == "table" and templates or nil, layoutId, created, reason
+end
+
+function Resolver.IsCoreCutoverEnabled()
+    return true
+end
+
 function Resolver.EnsureEditableActiveLayout(db)
     db = ResolveDB(db)
     if type(db) ~= "table" then

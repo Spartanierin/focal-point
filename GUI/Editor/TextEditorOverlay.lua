@@ -91,10 +91,21 @@ local function GetCursorPositionInUiScale()
     return (cursorX or 0) / scale, (cursorY or 0) / scale
 end
 
-local function GetUnitConfigByKey(unitKey)
+local function GetUnitConfigByKey(unitKey, editable)
     local normalizedUnit = NormalizeUnitKey(unitKey)
     if not normalizedUnit then
         return nil, nil
+    end
+
+    if editable == true then
+        local resolver = FocalPoint.ActiveLayoutResolver
+        if resolver and resolver.GetEditableActiveUnits then
+            local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+            if type(units) == "table" then
+                return units[normalizedUnit], normalizedUnit
+            end
+        end
+        return nil, normalizedUnit
     end
 
     if UnitUtils.GetUnitDB then
@@ -927,7 +938,7 @@ local function SyncInspectorTextFontSize(unitKey, textKey, fontSize)
 end
 
 local function CommitTextPosition(frame, textKey, offsetX, offsetY)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -955,7 +966,7 @@ local function CommitTextPosition(frame, textKey, offsetX, offsetY)
 end
 
 local function CommitTextAnchor(frame, textKey, point, relativePoint)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -984,7 +995,7 @@ local function CommitTextAnchor(frame, textKey, point, relativePoint)
 end
 
 local function CommitTextPositionReset(frame, textKey)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1020,7 +1031,7 @@ local function CommitTextPositionReset(frame, textKey)
 end
 
 local function CommitTextFontSizeReset(frame, textKey)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1051,7 +1062,7 @@ local function CommitTextFontSizeReset(frame, textKey)
 end
 
 local function CommitTextFontSizeAdjustment(frame, textKey, delta)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end

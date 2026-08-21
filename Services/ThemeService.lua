@@ -27,6 +27,11 @@ local PRESERVED_UNIT_KEYS = {
     "frameStrata",
 }
 
+local function IsCoreLayoutCutoverEnabled()
+    local resolver = FocalPoint.ActiveLayoutResolver
+    return resolver and resolver.IsCoreCutoverEnabled and resolver.IsCoreCutoverEnabled() == true
+end
+
 local function CloneValue(value)
     if LayoutService.Clone then
         return LayoutService.Clone(value)
@@ -255,6 +260,10 @@ function ThemeService.HasDefaultSnapshot()
 end
 
 function ThemeService.CaptureDefaultSnapshot()
+    if IsCoreLayoutCutoverEnabled() then
+        return false
+    end
+
     local profile = FocalPoint.db and FocalPoint.db.profile
     if not profile or type(profile.Units) ~= "table" then
         return false
@@ -270,6 +279,10 @@ function ThemeService.CaptureDefaultSnapshot()
 end
 
 function ThemeService.RestoreDefaultSnapshot()
+    if IsCoreLayoutCutoverEnabled() then
+        return false
+    end
+
     local snapshot = GetPersistedDefaultTheme()
     if type(snapshot) ~= "table" then
         return false
@@ -295,6 +308,10 @@ function ThemeService.RestoreDefaultSnapshot()
 end
 
 function ThemeService.CaptureRestoreSnapshot()
+    if IsCoreLayoutCutoverEnabled() then
+        return false
+    end
+
     local profile = FocalPoint.db and FocalPoint.db.profile
     if not profile or type(profile.Units) ~= "table" then
         return false
@@ -315,6 +332,10 @@ function ThemeService.ClearRestoreSnapshot()
 end
 
 function ThemeService.RestoreSnapshot()
+    if IsCoreLayoutCutoverEnabled() then
+        return false
+    end
+
     if type(themeRestoreState) ~= "table" then
         themeRestoreState = GetPersistedRestoreState()
     end
@@ -364,6 +385,10 @@ function ThemeService.BuildPreviewUnitConfig(themeId, unitKey)
 end
 
 function ThemeService.ApplyTheme(themeId)
+    if IsCoreLayoutCutoverEnabled() then
+        return false
+    end
+
     if themeId == CUSTOM_THEME_ID then
         return ThemeService.RestoreDefaultSnapshot()
     end

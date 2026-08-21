@@ -120,6 +120,23 @@ local function ResolveUnitConfig(frame)
     return nil, unitKey
 end
 
+local function ResolveEditableUnitConfig(frame)
+    local unitKey = GetUnitKey(frame)
+    if not unitKey then
+        return nil, nil
+    end
+
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetEditableActiveUnits then
+        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+        if type(units) == "table" then
+            return units[unitKey], unitKey
+        end
+    end
+
+    return nil, unitKey
+end
+
 local function IsEditorUnlocked()
     return FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
@@ -408,7 +425,7 @@ local function PasteSize(frame)
         return
     end
 
-    local config, unitKey = ResolveUnitConfig(frame)
+    local config, unitKey = ResolveEditableUnitConfig(frame)
     if type(config) ~= "table" then
         return
     end
@@ -452,7 +469,7 @@ local function PastePosition(frame)
         return
     end
 
-    local config, unitKey = ResolveUnitConfig(frame)
+    local config, unitKey = ResolveEditableUnitConfig(frame)
     if type(config) ~= "table" then
         return
     end

@@ -24,6 +24,11 @@ local function GetAutomationConfig()
     return db.global.ProfileAutomation
 end
 
+local function IsCoreLayoutCutoverEnabled()
+    local resolver = FocalPoint.ActiveLayoutResolver
+    return resolver and resolver.IsCoreCutoverEnabled and resolver.IsCoreCutoverEnabled() == true
+end
+
 local function GetProfileList()
     local db = FocalPoint.db
     if not db or type(db.GetProfiles) ~= "function" then
@@ -253,6 +258,11 @@ function FocalPoint:ActivateProfile(profileName, reason, options)
 end
 
 local function ApplyMappedProfile(reason)
+    if IsCoreLayoutCutoverEnabled() then
+        pendingProfileName = nil
+        return false
+    end
+
     if not ProfileAutomation.IsEnabled() then
         pendingProfileName = nil
         return false

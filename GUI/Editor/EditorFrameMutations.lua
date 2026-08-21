@@ -76,9 +76,12 @@ local function GetUnitConfig(unitKey)
         return nil, nil
     end
 
-    local utils = FocalPoint.UnitFrameUtils
-    if utils and utils.GetUnitDB then
-        return utils.GetUnitDB(normalizedUnit), normalizedUnit
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetEditableActiveUnits then
+        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+        if type(units) == "table" then
+            return units[normalizedUnit], normalizedUnit
+        end
     end
 
     return nil, normalizedUnit

@@ -14,12 +14,7 @@ local function GetUnitConfig(unit)
         return UnitUtils.GetUnitDB(unit)
     end
 
-    local db = FocalPoint.db
-    if not db or not db.profile or not db.profile.Units then
-        return nil
-    end
-
-    return db.profile.Units[unit]
+    return nil
 end
 
 local function GetGroupConfig(frame, groupKey)

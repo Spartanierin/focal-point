@@ -226,6 +226,8 @@ function InspectorContext.Create(options)
         unitKey = unitKey,
 
         getUnitConfig = options.getUnitConfig,
+        getEditablePayload = options.getEditablePayload,
+        getEditableUnitConfig = options.getEditableUnitConfig,
         buildTextList = options.buildTextList,
         getFirstTextId = options.getFirstTextId,
         buildIndicatorList = options.buildIndicatorList,

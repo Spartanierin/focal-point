@@ -466,9 +466,25 @@ local function BuildInspectorContextForToolbar(state, deps)
     local nsRef = ResolveAddon(deps)
     local InspectorContext = ResolveInspectorContext()
     local profile = nsRef.db and nsRef.db.profile or nil
-    local units = profile and profile.Units or nil
+    local units = nsRef.UnitFrameUtils
+        and nsRef.UnitFrameUtils.GetUnitsDB
+        and nsRef.UnitFrameUtils.GetUnitsDB()
+        or nil
     local unitKey = state and state.selectedUnit or nil
     local unitConfig = type(units) == "table" and units[unitKey] or nil
+    local function GetEditablePayload()
+        local resolver = nsRef.ActiveLayoutResolver
+        if resolver and resolver.EnsureEditableActiveLayout then
+            local payload = resolver.EnsureEditableActiveLayout(nsRef.db)
+            return type(payload) == "table" and payload or nil
+        end
+        return nil
+    end
+    local function GetEditableUnitConfig(key)
+        local payload = GetEditablePayload()
+        local editableUnits = type(payload) == "table" and payload.Units or nil
+        return type(editableUnits) == "table" and editableUnits[key] or nil
+    end
 
     if type(unitConfig) ~= "table" then
         return nil
@@ -481,6 +497,8 @@ local function BuildInspectorContextForToolbar(state, deps)
             getUnitConfig = function(key)
                 return type(units) == "table" and units[key] or nil
             end,
+            getEditablePayload = GetEditablePayload,
+            getEditableUnitConfig = GetEditableUnitConfig,
             buildTextList = Shared.BuildTextList,
             getFirstTextId = Shared.GetFirstTextId,
             buildIndicatorList = Shared.BuildIndicatorList,

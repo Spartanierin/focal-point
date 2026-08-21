@@ -248,9 +248,30 @@ function InspectorController.Build(container, state, options)
     end
 
     local function GetActiveProfileTextTemplates()
-        local profile = ns.db and ns.db.profile or nil
-        local templates = profile and profile.TextTemplates or nil
+        local templates = ns.UnitFrameUtils
+            and ns.UnitFrameUtils.GetTextTemplatesDB
+            and ns.UnitFrameUtils.GetTextTemplatesDB()
+            or nil
         return type(templates) == "table" and templates or {}
+    end
+
+    local function GetEditableActivePayload()
+        local resolver = ns.ActiveLayoutResolver
+        if resolver and resolver.EnsureEditableActiveLayout then
+            local payload = resolver.EnsureEditableActiveLayout(ns.db)
+            return type(payload) == "table" and payload or nil
+        end
+        return nil
+    end
+
+    local function GetEditableUnitConfig(unitKey)
+        local payload = GetEditableActivePayload()
+        local units = type(payload) == "table" and payload.Units or nil
+        local normalizedUnit = ns.UnitFrameUtils
+            and ns.UnitFrameUtils.NormalizeConfigUnitKey
+            and ns.UnitFrameUtils.NormalizeConfigUnitKey(unitKey)
+            or unitKey
+        return type(units) == "table" and units[normalizedUnit] or nil
     end
 
     local function BuildTextStateTemplateOptions(currentValue)
@@ -380,6 +401,8 @@ function InspectorController.Build(container, state, options)
         getUnitConfig = function(unitKey)
             return ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
         end,
+        getEditablePayload = GetEditableActivePayload,
+        getEditableUnitConfig = GetEditableUnitConfig,
         buildTextList = function(_, currentUnitConfig)
             return BuildTextList(type(currentUnitConfig) == "table" and currentUnitConfig.Texts or nil)
         end,

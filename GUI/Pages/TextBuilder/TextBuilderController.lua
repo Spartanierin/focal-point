@@ -103,22 +103,14 @@ end
 
 local function GetActiveProfileTemplates()
     local profileName = GetCurrentProfileName()
-    local library = ns.TextTemplateLibrary
-    if library and library.GetProfileTemplates then
-        return library.GetProfileTemplates(ns.db, profileName), profileName
-    end
-
-    local profile = ns.db and ns.db.profile
-    local templates = profile and type(profile.TextTemplates) == "table" and profile.TextTemplates or {}
+    local templates = ns.UnitFrameUtils
+        and ns.UnitFrameUtils.GetTextTemplatesDB
+        and ns.UnitFrameUtils.GetTextTemplatesDB()
+        or {}
     return templates, profileName
 end
 
 local function ListProfileTemplateEntries()
-    local library = ns.TextTemplateLibrary
-    if library and library.ListProfileTemplateEntries then
-        return library.ListProfileTemplateEntries(ns.db)
-    end
-
     local templates, profileName = GetActiveProfileTemplates()
     local entries = {}
     for templateName, templateValue in pairs(templates or {}) do
@@ -142,11 +134,6 @@ local function ListProfileTemplateEntries()
 end
 
 local function GetProfileTemplateEntry(profileName, templateName)
-    local library = ns.TextTemplateLibrary
-    if library and library.GetProfileTemplateEntry then
-        return library.GetProfileTemplateEntry(ns.db, profileName, templateName)
-    end
-
     local templates = GetActiveProfileTemplates()
     local templateValue = type(templates) == "table" and templates[templateName] or nil
     if type(profileName) ~= "string" or profileName == "" or type(templateName) ~= "string" or templateName == "" or type(templateValue) ~= "string" then
@@ -183,9 +170,10 @@ local function BuildTemplateEntryKey(entry)
 end
 
 local function ResolveTemplateEntryKey(key)
-    local library = ns.TextTemplateLibrary
-    if library and library.FindTemplateEntryByKey then
-        return library.FindTemplateEntryByKey(ns.db, key)
+    for _, entry in ipairs(ListProfileTemplateEntries()) do
+        if BuildTemplateEntryKey(entry) == key then
+            return entry
+        end
     end
 
     return nil
@@ -252,11 +240,6 @@ end
 local function ResolveTemplateSelection(selection)
     if type(selection) ~= "table" then
         return nil
-    end
-
-    local library = ns.TextTemplateLibrary
-    if library and library.FindTemplateEntry then
-        return library.FindTemplateEntry(ns.db, selection)
     end
 
     if selection.sourceType == "profile" then
@@ -831,16 +814,22 @@ local function GetTemplateUsageCounts(templateName, profileName)
     end
 
     local usageApi = ns.TextTemplateUsage
-    if not usageApi or not usageApi.CreateProfileContext or not usageApi.GetTemplateUsage then
+    if not usageApi or not usageApi.GetTemplateUsage then
         return usage
     end
-    local library = ns.TextTemplateLibrary
-    local profile = library and library.GetProfileByName and library.GetProfileByName(ns.db, profileName) or nil
-    if type(profile) ~= "table" then
-        return usage
-    end
+    local readContext = {
+        GetTemplates = function()
+            return ns.UnitFrameUtils and ns.UnitFrameUtils.GetTextTemplatesDB and ns.UnitFrameUtils.GetTextTemplatesDB() or nil
+        end,
+        GetUnits = function()
+            return ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitsDB and ns.UnitFrameUtils.GetUnitsDB() or nil
+        end,
+        GetUnitConfig = function(unitKey)
+            return ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
+        end,
+    }
 
-    local usageResult = usageApi.GetTemplateUsage(usageApi.CreateProfileContext(profile, profileName), templateName)
+    local usageResult = usageApi.GetTemplateUsage(readContext, templateName)
     local countedTextElements = {}
     for _, entry in ipairs(type(usageResult) == "table" and usageResult.references or {}) do
         if entry.templateName == templateName and usage[entry.unitKey] ~= nil then
@@ -867,7 +856,7 @@ local function SyncDesiredTemplateUsage(context)
 end
 
 local function BuildMutationContext()
-    return TextTemplateMutations.CreateProfileContext and TextTemplateMutations.CreateProfileContext(ns.db and ns.db.profile) or {}
+    return TextTemplateMutations.CreateActiveLayoutContext and TextTemplateMutations.CreateActiveLayoutContext(ns.db) or {}
 end
 
 local function RefreshPreview(context)

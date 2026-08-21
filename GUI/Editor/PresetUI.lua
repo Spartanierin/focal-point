@@ -58,6 +58,11 @@ local function CloneValue(value, deps)
     return result
 end
 
+local function IsCoreLayoutCutoverEnabled(nsRef)
+    local resolver = nsRef and nsRef.ActiveLayoutResolver or ns.ActiveLayoutResolver
+    return resolver and resolver.IsCoreCutoverEnabled and resolver.IsCoreCutoverEnabled() == true
+end
+
 local function RaiseDialogAboveOwner(window, ownerWindow)
     local frame = window and window.frame
     if not frame then
@@ -318,6 +323,10 @@ function PresetUI.PreviewPreset(context, presetId, deps, refreshFn)
     end
 
     local nsRef = ResolveAddon(deps)
+    if IsCoreLayoutCutoverEnabled(nsRef) then
+        return false
+    end
+
     local ThemeService = (deps and deps.ThemeService) or nsRef.ThemeService or {}
     local PresetService = (deps and deps.PresetService) or nsRef.PresetService or {}
     local preset = PresetService.GetPreset and PresetService.GetPreset(presetId) or nil

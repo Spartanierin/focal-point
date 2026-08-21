@@ -165,7 +165,19 @@ local function GetDefaultTextPosition(context, textKey)
 end
 
 local function GetUnitConfig(context)
-    if type(context) ~= "table" or type(context.unitConfig) ~= "table" then
+    if type(context) ~= "table" then
+        return nil
+    end
+
+    local unitKey = NormalizeUnitKey(context.unitKey or context.unit)
+    if unitKey and type(context.getEditableUnitConfig) == "function" then
+        local ok, unitConfig = pcall(context.getEditableUnitConfig, unitKey)
+        if ok and type(unitConfig) == "table" then
+            return unitConfig
+        end
+    end
+
+    if type(context.unitConfig) ~= "table" then
         return nil
     end
 
@@ -300,17 +312,24 @@ end
 local function BuildTextTemplateMutationContext(context)
     return {
         GetTemplates = function()
-            local profile = FocalPoint.db and FocalPoint.db.profile or nil
-            return profile and profile.TextTemplates or nil
+            if type(context) == "table" and type(context.getEditablePayload) == "function" then
+                local ok, payload = pcall(context.getEditablePayload)
+                local templates = ok and type(payload) == "table" and payload.TextTemplates or nil
+                if type(templates) == "table" then
+                    return templates
+                end
+            end
+            return nil
         end,
         GetUnitConfig = function(unitKey)
-            if type(context) == "table" and unitKey == context.unitKey and type(context.unitConfig) == "table" then
-                return context.unitConfig
+            if type(context) == "table" and type(context.getEditableUnitConfig) == "function" then
+                local ok, unitConfig = pcall(context.getEditableUnitConfig, unitKey)
+                if ok and type(unitConfig) == "table" then
+                    return unitConfig
+                end
             end
 
-            local profile = FocalPoint.db and FocalPoint.db.profile or nil
-            local units = profile and profile.Units or nil
-            return type(units) == "table" and units[unitKey] or nil
+            return nil
         end,
     }
 end

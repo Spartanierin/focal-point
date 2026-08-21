@@ -369,6 +369,40 @@ function Mutations.CreateProfileContext(profile)
     }
 end
 
+function Mutations.CreateActiveLayoutContext(db)
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if not (resolver and resolver.EnsureEditableActiveLayout) then
+        return nil
+    end
+
+    local function GetPayload()
+        local payload = resolver.EnsureEditableActiveLayout(db or FocalPoint.db)
+        return type(payload) == "table" and payload or nil
+    end
+
+    return {
+        GetTemplates = function()
+            local payload = GetPayload()
+            local templates = type(payload) == "table" and payload.TextTemplates or nil
+            if type(templates) ~= "table" and type(payload) == "table" then
+                payload.TextTemplates = {}
+                templates = payload.TextTemplates
+            end
+            return templates
+        end,
+        GetUnits = function()
+            local payload = GetPayload()
+            local units = type(payload) == "table" and payload.Units or nil
+            return type(units) == "table" and units or nil
+        end,
+        GetUnitConfig = function(unitKey)
+            local payload = GetPayload()
+            local units = type(payload) == "table" and payload.Units or nil
+            return type(units) == "table" and units[unitKey] or nil
+        end,
+    }
+end
+
 function Mutations.CreateTemplate(context, templateName, templateText)
     if not ValidateTemplateName(templateName) then
         return Result(false, { errorCode = "invalid_template_name" })

@@ -2381,9 +2381,9 @@ function FocalPoint:RebuildFramesForActiveProfile()
     end
 end
 
-local function GetActiveProfileUnitConfig(addon, unitKey)
-    local profile = addon and addon.db and addon.db.profile
-    local units = profile and profile.Units
+local function GetActiveLayoutUnitConfig(addon, unitKey)
+    local utils = addon and addon.UnitFrameUtils
+    local units = utils and utils.GetUnitsDB and utils.GetUnitsDB() or nil
     if type(units) ~= "table" or type(unitKey) ~= "string" or unitKey == "" then
         return nil
     end
@@ -2420,7 +2420,7 @@ local function ValidateEditorSelectionForProfile(addon)
 
     local selectedUnit = state.selectedUnit
     local function IsValidProfileUnit(unitKey)
-        return type(GetActiveProfileUnitConfig(addon, unitKey)) == "table"
+        return type(GetActiveLayoutUnitConfig(addon, unitKey)) == "table"
     end
 
     if editorStateApi.ValidateSelection then
@@ -2434,7 +2434,7 @@ local function ValidateEditorSelectionForProfile(addon)
         end
     end
 
-    local unitConfig = GetActiveProfileUnitConfig(addon, selectedUnit)
+    local unitConfig = GetActiveLayoutUnitConfig(addon, selectedUnit)
     local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
     local textSelection = addon.InspectorTextSelection or (addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Inspector and addon.GUI.Editor.Inspector.TextSelection)
     local shared = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.SidebarShared or nil

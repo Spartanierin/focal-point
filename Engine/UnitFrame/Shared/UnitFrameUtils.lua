@@ -240,12 +240,12 @@ function Utils.GetProfileDB()
 end
 
 function Utils.GetUnitsDB()
-    local profile = Utils.GetProfileDB()
-    if not profile or type(profile.Units) ~= "table" then
-        return nil
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetActiveUnits then
+        return resolver.GetActiveUnits(FocalPoint.db)
     end
 
-    return profile.Units
+    return nil
 end
 
 function Utils.GetGeneralDB()
@@ -258,12 +258,12 @@ function Utils.GetGeneralDB()
 end
 
 function Utils.GetTextTemplatesDB()
-    local profile = Utils.GetProfileDB()
-    if not profile or type(profile.TextTemplates) ~= "table" then
-        return nil
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetActiveTextTemplates then
+        return resolver.GetActiveTextTemplates(FocalPoint.db)
     end
 
-    return profile.TextTemplates
+    return nil
 end
 
 function Utils.GetUnitDB(unit)

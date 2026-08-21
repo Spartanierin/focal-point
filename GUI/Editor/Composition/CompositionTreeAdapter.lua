@@ -29,9 +29,10 @@ local AURA_LABELS = {
     Debuffs = "AURA_DEBUFFS",
 }
 
-local function GetProfileUnits()
-    local profile = ns.db and ns.db.profile or nil
-    return type(profile) == "table" and profile.Units or nil
+local function GetActiveUnits()
+    local utils = ns.UnitFrameUtils
+    local units = utils and utils.GetUnitsDB and utils.GetUnitsDB() or nil
+    return type(units) == "table" and units or nil
 end
 
 local function NormalizeUnitKey(unit)
@@ -307,7 +308,7 @@ local function AddAuraBranch(root, unit, unitConfig)
 end
 
 function Adapter.GetRootUnits()
-    local units = GetProfileUnits()
+    local units = GetActiveUnits()
     local roots = {}
     local seen = {}
     local unitOrder = C.UnitOrder or {}
@@ -340,7 +341,7 @@ end
 
 function Adapter.BuildUnitTree(unit)
     local normalizedUnit = NormalizeUnitKey(unit)
-    local units = GetProfileUnits()
+    local units = GetActiveUnits()
     local unitConfig = normalizedUnit and type(units) == "table" and units[normalizedUnit] or nil
     if type(unitConfig) ~= "table" then
         return nil
