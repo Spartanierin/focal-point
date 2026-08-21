@@ -20,6 +20,7 @@
     <Script file="Services/LegacyThemeAdapter.lua"/>
     <Script file="Services/UserPresetStore.lua"/>
     <Script file="Services/UserLayoutStore.lua"/>
+    <Script file="Services/LayoutMigration.lua"/>
     <Script file="Services/PresetService.lua"/>
     <Script file="Services/PresetMutations.lua"/>
     <Script file="Services/ProfileLayoutService.lua"/>
