@@ -211,6 +211,8 @@ local function IsCombatLocked()
     return InCombatLockdown and InCombatLockdown() == true
 end
 
+local AttachInteractionModeTooltip
+
 local function GetInteractionMode(nsRef)
     return nsRef
         and nsRef.GUI
@@ -225,7 +227,137 @@ local function IsInteractionModeControlDisabled(nsRef)
         or not (nsRef.IsEditorActive and nsRef:IsEditorActive())
 end
 
-local function AttachInteractionModeTooltip(button, titleKey, fallbackTitle, deps)
+local function ResolveSidebarButtonVisuals(deps)
+    local nsRef = deps and deps.ns or {}
+    local sidebarThemeHelpers = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.EditorSidebarThemeHelpers or {}
+    local roles = (nsRef.GUI and nsRef.GUI.ButtonVisualRole)
+        or sidebarThemeHelpers.ButtonVisualRole
+        or sidebarThemeHelpers.SIDEBAR_VISUAL_ROLE
+        or {
+            ACTIVE = "active",
+            SECONDARY = "secondary",
+            PRIMARY_ACTION = "primary_action",
+            UTILITY = "utility",
+            QUIET_UTILITY = "quiet_utility",
+            DANGER = "danger",
+        }
+    return sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton, roles
+end
+
+local function NotifyEditingCommandChanged(context)
+    if context and context.options and type(context.options.onGlobalChanged) == "function" then
+        context.options.onGlobalChanged()
+    end
+end
+
+local function RefreshDemoControl(control, deps)
+    if not control then
+        return
+    end
+    local nsRef = deps and deps.ns or {}
+    local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
+    control:SetText((nsRef.guiTestModeEnabled and T("GUI_TEST_STOP", "Stop Test", deps)) or T("GUI_TEST_START", "Test", deps))
+    if ApplySidebarButtonVisual then
+        ApplySidebarButtonVisual(control, roles.UTILITY)
+    end
+end
+
+local function RefreshUnlockControl(control, deps)
+    if not control then
+        return
+    end
+    local nsRef = deps and deps.ns or {}
+    local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
+    control:SetText((nsRef.framesUnlocked and T("GUI_UNLOCK_STOP", "Lock Frames", deps)) or T("GUI_UNLOCK_START", "Unlock Frames", deps))
+    if ApplySidebarButtonVisual then
+        ApplySidebarButtonVisual(control, roles.PRIMARY_ACTION)
+    end
+end
+
+local function RefreshInteractionModeControlPair(frameButton, textButton, deps)
+    local nsRef = deps and deps.ns or {}
+    local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
+    local interactionMode = GetInteractionMode(nsRef)
+    local isFrameMode = interactionMode and interactionMode.IsFrameMode and interactionMode.IsFrameMode() or false
+    local isTextMode = interactionMode and interactionMode.IsTextMode and interactionMode.IsTextMode() or false
+    local disabled = IsInteractionModeControlDisabled(nsRef)
+
+    if frameButton then
+        frameButton:SetText(T("EDITOR_INTERACTION_FRAME_MODE", "Frame", deps))
+        frameButton:SetDisabled(disabled)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(frameButton, isFrameMode and roles.ACTIVE or roles.SECONDARY)
+        end
+        AttachInteractionModeTooltip(frameButton, "EDITOR_INTERACTION_FRAME_MODE_TOOLTIP", "Edit, move and resize unit frames.", deps)
+    end
+
+    if textButton then
+        textButton:SetText(T("EDITOR_INTERACTION_TEXT_MODE", "Text", deps))
+        textButton:SetDisabled(disabled)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(textButton, isTextMode and roles.ACTIVE or roles.SECONDARY)
+        end
+        AttachInteractionModeTooltip(textButton, "EDITOR_INTERACTION_TEXT_MODE_TOOLTIP", "Select, move, anchor and resize text elements.", deps)
+    end
+end
+
+local function HandleToggleDemo(context, deps)
+    local nsRef = deps and deps.ns or {}
+    if not nsRef.ToggleTestMode then
+        return false
+    end
+    nsRef:ToggleTestMode()
+    NotifyEditingCommandChanged(context)
+    return true
+end
+
+local function HandleToggleUnlock(context, deps)
+    local nsRef = deps and deps.ns or {}
+    if not nsRef.ToggleFrameLock then
+        return false
+    end
+    nsRef:ToggleFrameLock()
+    NotifyEditingCommandChanged(context)
+    return true
+end
+
+local function HandleSetFrameMode(deps)
+    local nsRef = deps and deps.ns or {}
+    if IsInteractionModeControlDisabled(nsRef) then
+        return false
+    end
+
+    local interactionMode = GetInteractionMode(nsRef)
+    if interactionMode
+        and interactionMode.IsFrameMode
+        and interactionMode.IsFrameMode() then
+        return false
+    end
+    if interactionMode and interactionMode.SetLatchedTextMode then
+        return interactionMode.SetLatchedTextMode(false)
+    end
+    return false
+end
+
+local function HandleSetTextMode(deps)
+    local nsRef = deps and deps.ns or {}
+    if IsInteractionModeControlDisabled(nsRef) then
+        return false
+    end
+
+    local interactionMode = GetInteractionMode(nsRef)
+    if interactionMode
+        and interactionMode.IsTextMode
+        and interactionMode.IsTextMode() then
+        return false
+    end
+    if interactionMode and interactionMode.SetLatchedTextMode then
+        return interactionMode.SetLatchedTextMode(true)
+    end
+    return false
+end
+
+AttachInteractionModeTooltip = function(button, titleKey, fallbackTitle, deps)
     if not button or not button.frame or button.__fpInteractionModeTooltipHooked then
         return
     end
@@ -483,40 +615,11 @@ local function RefreshInteractionModeControls(context, deps)
         return
     end
 
-    local nsRef = deps and deps.ns or {}
-    local sidebarThemeHelpers = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.EditorSidebarThemeHelpers or {}
-    local SIDEBAR_VISUAL_ROLE = (nsRef.GUI and nsRef.GUI.ButtonVisualRole)
-        or sidebarThemeHelpers.ButtonVisualRole
-        or sidebarThemeHelpers.SIDEBAR_VISUAL_ROLE
-        or {
-            ACTIVE = "active",
-            SECONDARY = "secondary",
-        }
-    local ApplySidebarButtonVisual = sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton
-    local interactionMode = GetInteractionMode(nsRef)
-    local isFrameMode = interactionMode and interactionMode.IsFrameMode and interactionMode.IsFrameMode() or false
-    local isTextMode = interactionMode and interactionMode.IsTextMode and interactionMode.IsTextMode() or false
-    local disabled = IsInteractionModeControlDisabled(nsRef)
-    local frameButton = context.widgets[INTERACTION_MODE_BUTTONS.frame]
-    local textButton = context.widgets[INTERACTION_MODE_BUTTONS.text]
-
-    if frameButton then
-        frameButton:SetText(T("EDITOR_INTERACTION_FRAME_MODE", "Frame", deps))
-        frameButton:SetDisabled(disabled)
-        if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(frameButton, isFrameMode and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
-        end
-        AttachInteractionModeTooltip(frameButton, "EDITOR_INTERACTION_FRAME_MODE_TOOLTIP", "Edit, move and resize unit frames.", deps)
-    end
-
-    if textButton then
-        textButton:SetText(T("EDITOR_INTERACTION_TEXT_MODE", "Text", deps))
-        textButton:SetDisabled(disabled)
-        if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(textButton, isTextMode and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
-        end
-        AttachInteractionModeTooltip(textButton, "EDITOR_INTERACTION_TEXT_MODE_TOOLTIP", "Select, move, anchor and resize text elements.", deps)
-    end
+    RefreshInteractionModeControlPair(
+        context.widgets[INTERACTION_MODE_BUTTONS.frame],
+        context.widgets[INTERACTION_MODE_BUTTONS.text],
+        deps
+    )
 end
 
 local function RefreshWindowState(context, deps)
@@ -647,17 +750,11 @@ local function RefreshWindowState(context, deps)
     end
 
     if context.widgets.demoButton then
-        context.widgets.demoButton:SetText((nsRef.guiTestModeEnabled and T("GUI_TEST_STOP", "Stop Test", deps)) or T("GUI_TEST_START", "Test", deps))
-        if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.demoButton, SIDEBAR_VISUAL_ROLE.UTILITY)
-        end
+        RefreshDemoControl(context.widgets.demoButton, deps)
     end
 
     if context.widgets.unlockButton then
-        context.widgets.unlockButton:SetText((nsRef.framesUnlocked and T("GUI_UNLOCK_STOP", "Lock Frames", deps)) or T("GUI_UNLOCK_START", "Unlock Frames", deps))
-        if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.unlockButton, SIDEBAR_VISUAL_ROLE.PRIMARY_ACTION)
-        end
+        RefreshUnlockControl(context.widgets.unlockButton, deps)
     end
 
     RefreshInteractionModeControls(context, deps)
@@ -812,59 +909,25 @@ local function WireCallbacks(context, deps, refreshFn)
 
     if context.widgets.demoButton then
         context.widgets.demoButton:SetCallback("OnClick", function()
-            if nsRef.ToggleTestMode then
-                nsRef:ToggleTestMode()
-                if context.options and context.options.onGlobalChanged then
-                    context.options.onGlobalChanged()
-                end
-            end
+            HandleToggleDemo(context, deps)
         end)
     end
 
     if context.widgets.unlockButton then
         context.widgets.unlockButton:SetCallback("OnClick", function()
-            if nsRef.ToggleFrameLock then
-                nsRef:ToggleFrameLock()
-                if context.options and context.options.onGlobalChanged then
-                    context.options.onGlobalChanged()
-                end
-            end
+            HandleToggleUnlock(context, deps)
         end)
     end
 
     if context.widgets.frameModeButton then
         context.widgets.frameModeButton:SetCallback("OnClick", function()
-            if IsInteractionModeControlDisabled(nsRef) then
-                return
-            end
-
-            local interactionMode = GetInteractionMode(nsRef)
-            if interactionMode
-                and interactionMode.IsFrameMode
-                and interactionMode.IsFrameMode() then
-                return
-            end
-            if interactionMode and interactionMode.SetLatchedTextMode then
-                interactionMode.SetLatchedTextMode(false)
-            end
+            HandleSetFrameMode(deps)
         end)
     end
 
     if context.widgets.textModeButton then
         context.widgets.textModeButton:SetCallback("OnClick", function()
-            if IsInteractionModeControlDisabled(nsRef) then
-                return
-            end
-
-            local interactionMode = GetInteractionMode(nsRef)
-            if interactionMode
-                and interactionMode.IsTextMode
-                and interactionMode.IsTextMode() then
-                return
-            end
-            if interactionMode and interactionMode.SetLatchedTextMode then
-                interactionMode.SetLatchedTextMode(true)
-            end
+            HandleSetTextMode(deps)
         end)
     end
 
@@ -971,6 +1034,13 @@ local function WireCallbacks(context, deps, refreshFn)
 end
 
 ToolbarBinding.CreateItemWidget = CreateItemWidget
+ToolbarBinding.HandleToggleDemo = HandleToggleDemo
+ToolbarBinding.HandleToggleUnlock = HandleToggleUnlock
+ToolbarBinding.HandleSetFrameMode = HandleSetFrameMode
+ToolbarBinding.HandleSetTextMode = HandleSetTextMode
+ToolbarBinding.RefreshDemoControl = RefreshDemoControl
+ToolbarBinding.RefreshUnlockControl = RefreshUnlockControl
+ToolbarBinding.RefreshInteractionModeControlPair = RefreshInteractionModeControlPair
 ToolbarBinding.RefreshInteractionModeControls = RefreshInteractionModeControls
 ToolbarBinding.RefreshWindowState = RefreshWindowState
 ToolbarBinding.WireCallbacks = WireCallbacks
