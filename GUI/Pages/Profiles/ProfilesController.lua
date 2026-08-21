@@ -42,14 +42,11 @@ local DEFAULT_LAYOUTS_SUBPAGE = "profiles"
 
 local VALID_LAYOUTS_SUBPAGES = {
     profiles = true,
-    presets = true,
-    automation = true,
 }
 
 local LAYOUTS_SHELL_SECTIONS = {
     Root = true,
     Header = true,
-    Subnav = true,
     ContentHost = true,
 }
 

@@ -46,7 +46,6 @@ local TOOLBAR_SECTIONS = {
     WorkspaceEditorFooter = true,
     Editing = true,
     EditingHint = true,
-    Presets = true,
     Global = true,
     Secondary = true,
     Footer = true,

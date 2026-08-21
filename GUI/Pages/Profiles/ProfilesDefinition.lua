@@ -89,37 +89,6 @@ ns.GUI.Layouts.Profile.Form = {
         },
     },
     {
-        section = "Subnav",
-        properties = {
-            parentSection = "Root",
-            sectionKind = "widget_group",
-            type = "action_row",
-            variant = "triple_button",
-            surfaceStyle = "section_panel",
-            padding = {
-                left = 8,
-                right = 8,
-                top = 4,
-                bottom = 4,
-            },
-            widthInfo = {
-                source = "parent",
-                value = 736,
-                derivedFrom = "Root.widthInfo.value",
-            },
-            heightInfo = {
-                source = "content",
-                min = 32,
-                derivedFrom = "layouts subnavigation buttons",
-            },
-        },
-        items = {
-            { id = "profilesTabButton", widget = "button", itemVariant = "secondary_action", textKey = "LAYOUTS_PROFILES" },
-            { id = "presetsTabButton", widget = "button", itemVariant = "secondary_action", textKey = "LAYOUTS_PRESETS" },
-            { id = "automationTabButton", widget = "button", itemVariant = "secondary_action", textKey = "LAYOUTS_AUTOMATION" },
-        },
-    },
-    {
         section = "ContentHost",
         properties = {
             parentSection = "Root",

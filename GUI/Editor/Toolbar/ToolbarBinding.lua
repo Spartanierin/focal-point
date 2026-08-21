@@ -667,16 +667,25 @@ local function RefreshWindowState(context, deps)
             DANGER = "danger",
         }
     local ApplySidebarButtonVisual = sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton
-    local ThemeService = (deps and deps.ThemeService) or nsRef.ThemeService or {}
     local BuilderUI = (deps and deps.BuilderUI) or (nsRef.GUI and nsRef.GUI.Helpers and nsRef.GUI.Helpers.GUIRuntimeHelpers) or {}
     local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
     if type(generalConfig) ~= "table" then
         context._suspendCallbacks = false
         return
     end
-    local presetView = PresetUI.BuildPresetViewData and PresetUI.BuildPresetViewData(state, deps, {
-        includeCustom = ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot(),
-    }) or {}
+    local hasPresetWidgets = context.widgets.presetDropdown
+        or context.widgets.applyPreset
+        or context.widgets.saveCustom
+        or context.widgets.restoreCustom
+    local presetView = {}
+    local ThemeService = nil
+    if hasPresetWidgets and PresetUI.BuildPresetViewData then
+        ThemeService = (deps and deps.ThemeService) or nsRef.ThemeService or {}
+        presetView = PresetUI.BuildPresetViewData(state, deps, {
+            includeCustom = ThemeService.HasDefaultSnapshot and ThemeService.HasDefaultSnapshot(),
+        }) or {}
+    end
+    ThemeService = ThemeService or {}
     local presetList = presetView.presetList or {}
     local presetOrder = presetView.presetOrder
     local selectedPresetId = presetView.selectedPresetId

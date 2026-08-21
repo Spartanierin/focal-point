@@ -405,40 +405,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
-        section = "Presets",
-        properties = {
-            parentSection = "Root",
-            sectionKind = "section",
-            type = "stack_block",
-            variant = "section_stack",
-            surfaceStyle = "toolbar_presets_panel",
-            spacing = 4,
-            padding = {
-                left = 8,
-                right = 8,
-                top = 6,
-                bottom = 6,
-            },
-            widthInfo = {
-                source = "parent",
-                derivedFrom = "Root.widthInfo",
-            },
-            heightInfo = {
-                source = "content",
-                min = 158,
-                derivedFrom = "title + dropdown + quick actions + restore hint",
-            },
-        },
-        items = {
-            { id = "presetsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_PRESET" },
-            { id = "presetDropdownLabel", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_PRESET_SELECT", size = 11 },
-            { id = "presetDropdown", widget = "dropdown", itemVariant = "profile_field" },
-            { id = "applyPreset", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_PRESET_APPLY" },
-            { id = "saveCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_SAVE_CUSTOM" },
-            { id = "restoreCustom", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_PRESET_RESTORE_CUSTOM" },
-        },
-    },
-    {
         section = "Global",
         properties = {
             parentSection = "Root",
