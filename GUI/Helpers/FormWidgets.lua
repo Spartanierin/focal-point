@@ -791,6 +791,368 @@ function FormWidgets.FocusWindow(window, options)
     end
 end
 
+local function EnableCompactDialogEscapeClose(window)
+    local frame = window and window.frame
+    if not frame or not frame.SetScript then
+        return
+    end
+
+    frame:EnableKeyboard(true)
+    if frame.SetPropagateKeyboardInput then
+        frame:SetPropagateKeyboardInput(true)
+    end
+    frame:SetScript("OnKeyDown", function(_, key)
+        if key == "ESCAPE" and window.Hide then
+            window:Hide()
+        end
+    end)
+end
+
+local function AddCompactDialogSpacer(parent, height)
+    local spacer = AceGUI:Create("Label")
+    spacer:SetText(" ")
+    spacer:SetFullWidth(true)
+    spacer:SetHeight(height or 6)
+    parent:AddChild(spacer)
+    return spacer
+end
+
+local function CreateCompactDialogSpacerWidget(width, height)
+    local spacer = AceGUI:Create("Label")
+    spacer:SetText("")
+    if width then
+        spacer:SetFullWidth(false)
+        spacer:SetWidth(width)
+    else
+        spacer:SetFullWidth(true)
+    end
+    if height then
+        spacer:SetHeight(height)
+    end
+    return spacer
+end
+
+local function EnsureCompactDialogTexture(frame, key, layer)
+    if not frame then
+        return nil
+    end
+
+    if not frame[key] then
+        frame[key] = frame:CreateTexture(nil, layer or "BACKGROUND")
+    end
+    frame[key]:Show()
+    return frame[key]
+end
+
+local function SetCompactDialogColor(texture, color)
+    if texture and texture.SetColorTexture and color then
+        texture:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+end
+
+local function SetCompactDialogPointPair(texture, startPoint, startRelative, startX, startY, endPoint, endRelative, endX, endY)
+    if not texture then
+        return
+    end
+
+    texture:ClearAllPoints()
+    texture:SetPoint(startPoint, startRelative, startPoint, startX or 0, startY or 0)
+    texture:SetPoint(endPoint, endRelative, endPoint, endX or 0, endY or 0)
+end
+
+local function ApplyCompactDialogWindowChrome(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    local chromeColors = GetChromeColors()
+    local outerInset = 8
+
+    local fill = EnsureCompactDialogTexture(frame, "_fpCompactDialogOuterFill", "ARTWORK")
+    SetCompactDialogPointPair(fill, "TOPLEFT", frame, outerInset, -outerInset, "BOTTOMRIGHT", frame, -outerInset, outerInset)
+    SetCompactDialogColor(fill, chromeColors.panelBackground)
+
+    local header = EnsureCompactDialogTexture(frame, "_fpCompactDialogHeaderFill", "ARTWORK")
+    SetCompactDialogPointPair(header, "TOPLEFT", frame, outerInset, -outerInset, "TOPRIGHT", frame, -outerInset, -outerInset)
+    header:SetHeight(24)
+    SetCompactDialogColor(header, chromeColors.panelHeader)
+
+    local headerDivider = EnsureCompactDialogTexture(frame, "_fpCompactDialogHeaderDivider", "ARTWORK")
+    SetCompactDialogPointPair(headerDivider, "TOPLEFT", frame, outerInset, -32, "TOPRIGHT", frame, -outerInset, -32)
+    headerDivider:SetHeight(1)
+    SetCompactDialogColor(headerDivider, chromeColors.panelTopShade or chromeColors.panelInnerBorder)
+
+    local bottomShade = EnsureCompactDialogTexture(frame, "_fpCompactDialogBottomShade", "ARTWORK")
+    SetCompactDialogPointPair(bottomShade, "BOTTOMLEFT", frame, outerInset, outerInset, "BOTTOMRIGHT", frame, -outerInset, outerInset)
+    bottomShade:SetHeight(1)
+    SetCompactDialogColor(bottomShade, chromeColors.panelBottomShade)
+
+    local borderColor = chromeColors.panelBorder
+    local innerBorderColor = chromeColors.panelInnerBorder or chromeColors.sectionBorder
+
+    local borderTop = EnsureCompactDialogTexture(frame, "_fpCompactDialogBorderTop", "OVERLAY")
+    SetCompactDialogPointPair(borderTop, "TOPLEFT", frame, 7, -7, "TOPRIGHT", frame, -7, -7)
+    borderTop:SetHeight(1)
+    SetCompactDialogColor(borderTop, borderColor)
+
+    local borderBottom = EnsureCompactDialogTexture(frame, "_fpCompactDialogBorderBottom", "OVERLAY")
+    SetCompactDialogPointPair(borderBottom, "BOTTOMLEFT", frame, 7, 7, "BOTTOMRIGHT", frame, -7, 7)
+    borderBottom:SetHeight(1)
+    SetCompactDialogColor(borderBottom, borderColor)
+
+    local borderLeft = EnsureCompactDialogTexture(frame, "_fpCompactDialogBorderLeft", "OVERLAY")
+    SetCompactDialogPointPair(borderLeft, "TOPLEFT", frame, 7, -7, "BOTTOMLEFT", frame, 7, 7)
+    borderLeft:SetWidth(1)
+    SetCompactDialogColor(borderLeft, borderColor)
+
+    local borderRight = EnsureCompactDialogTexture(frame, "_fpCompactDialogBorderRight", "OVERLAY")
+    SetCompactDialogPointPair(borderRight, "TOPRIGHT", frame, -7, -7, "BOTTOMRIGHT", frame, -7, 7)
+    borderRight:SetWidth(1)
+    SetCompactDialogColor(borderRight, borderColor)
+
+    local innerTop = EnsureCompactDialogTexture(frame, "_fpCompactDialogInnerTop", "BORDER")
+    SetCompactDialogPointPair(innerTop, "TOPLEFT", frame, outerInset, -outerInset, "TOPRIGHT", frame, -outerInset, -outerInset)
+    innerTop:SetHeight(1)
+    SetCompactDialogColor(innerTop, innerBorderColor)
+
+    local innerBottom = EnsureCompactDialogTexture(frame, "_fpCompactDialogInnerBottom", "BORDER")
+    SetCompactDialogPointPair(innerBottom, "BOTTOMLEFT", frame, outerInset, outerInset, "BOTTOMRIGHT", frame, -outerInset, outerInset)
+    innerBottom:SetHeight(1)
+    SetCompactDialogColor(innerBottom, innerBorderColor)
+
+    local innerLeft = EnsureCompactDialogTexture(frame, "_fpCompactDialogInnerLeft", "BORDER")
+    SetCompactDialogPointPair(innerLeft, "TOPLEFT", frame, outerInset, -outerInset, "BOTTOMLEFT", frame, outerInset, outerInset)
+    innerLeft:SetWidth(1)
+    SetCompactDialogColor(innerLeft, innerBorderColor)
+
+    local innerRight = EnsureCompactDialogTexture(frame, "_fpCompactDialogInnerRight", "BORDER")
+    SetCompactDialogPointPair(innerRight, "TOPRIGHT", frame, -outerInset, -outerInset, "BOTTOMRIGHT", frame, -outerInset, outerInset)
+    innerRight:SetWidth(1)
+    SetCompactDialogColor(innerRight, innerBorderColor)
+end
+
+local function ApplyCompactDialogSurface(widget, key, options)
+    local frame = widget and widget.frame
+    if not frame then
+        return
+    end
+
+    options = options or {}
+    local chromeColors = GetChromeColors()
+    local prefix = "_fpCompactDialog" .. (key or "Surface")
+
+    local fill = EnsureCompactDialogTexture(frame, prefix .. "Fill", "BACKGROUND")
+    SetCompactDialogPointPair(fill, "TOPLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
+    SetCompactDialogColor(fill, options.fill or chromeColors.sectionFill)
+
+    local topShade = EnsureCompactDialogTexture(frame, prefix .. "TopShade", "BORDER")
+    SetCompactDialogPointPair(topShade, "TOPLEFT", frame, 1, -1, "TOPRIGHT", frame, -1, -1)
+    topShade:SetHeight(1)
+    SetCompactDialogColor(topShade, options.topShade or chromeColors.sectionInsetTop)
+
+    local bottomShade = EnsureCompactDialogTexture(frame, prefix .. "BottomShade", "BORDER")
+    SetCompactDialogPointPair(bottomShade, "BOTTOMLEFT", frame, 1, 1, "BOTTOMRIGHT", frame, -1, 1)
+    bottomShade:SetHeight(1)
+    SetCompactDialogColor(bottomShade, options.bottomShade or chromeColors.sectionInsetBottom)
+
+    local borderColor = options.border or chromeColors.sectionBorder or chromeColors.panelInnerBorder
+    local borderTop = EnsureCompactDialogTexture(frame, prefix .. "BorderTop", "BORDER")
+    SetCompactDialogPointPair(borderTop, "TOPLEFT", frame, 0, 0, "TOPRIGHT", frame, 0, 0)
+    borderTop:SetHeight(1)
+    SetCompactDialogColor(borderTop, borderColor)
+
+    local borderBottom = EnsureCompactDialogTexture(frame, prefix .. "BorderBottom", "BORDER")
+    SetCompactDialogPointPair(borderBottom, "BOTTOMLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
+    borderBottom:SetHeight(1)
+    SetCompactDialogColor(borderBottom, borderColor)
+
+    local borderLeft = EnsureCompactDialogTexture(frame, prefix .. "BorderLeft", "BORDER")
+    SetCompactDialogPointPair(borderLeft, "TOPLEFT", frame, 0, 0, "BOTTOMLEFT", frame, 0, 0)
+    borderLeft:SetWidth(1)
+    SetCompactDialogColor(borderLeft, borderColor)
+
+    local borderRight = EnsureCompactDialogTexture(frame, prefix .. "BorderRight", "BORDER")
+    SetCompactDialogPointPair(borderRight, "TOPRIGHT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
+    borderRight:SetWidth(1)
+    SetCompactDialogColor(borderRight, borderColor)
+end
+
+local function CreateCompactDialogInsetGroup(parent, height, insetX, contentWidth, childLayout)
+    local row = AceGUI:Create("SimpleGroup")
+    row:SetLayout("Flow")
+    row:SetFullWidth(true)
+    row:SetHeight(height)
+    parent:AddChild(row)
+
+    row:AddChild(CreateCompactDialogSpacerWidget(insetX, 1))
+
+    local inner = AceGUI:Create("SimpleGroup")
+    inner:SetLayout(childLayout or "List")
+    inner:SetWidth(contentWidth)
+    inner:SetHeight(height)
+    row:AddChild(inner)
+
+    return row, inner
+end
+
+function FormWidgets.CreateCompactFormDialog(options)
+    options = options or {}
+
+    local window = AceGUI:Create("Window")
+    local width = options.width or 420
+    local contentInset = options.contentInset or 14
+    local contentWidth = math.max(1, width - (contentInset * 2))
+
+    window:SetTitle(options.title or "")
+    window:SetLayout("List")
+    window:SetWidth(width)
+    window:SetHeight(options.height or 216)
+    window:EnableResize(false)
+
+    if window.frame then
+        window.frame:SetClampedToScreen(true)
+        window.frame:SetFrameStrata(options.strata or "FULLSCREEN_DIALOG")
+    end
+
+    FormWidgets.ApplyWindowChrome(window)
+    ApplyCompactDialogWindowChrome(window)
+    FormWidgets.EnsureStandardWindowCloseButton(window)
+    EnableCompactDialogEscapeClose(window)
+
+    local root = AceGUI:Create("SimpleGroup")
+    root:SetLayout("List")
+    root:SetFullWidth(true)
+    root:SetFullHeight(true)
+    window:AddChild(root)
+
+    local description
+    if type(options.description) == "string" and options.description ~= "" then
+        local _, headerContent = CreateCompactDialogInsetGroup(root, options.descriptionHeight or 32, contentInset, contentWidth, "List")
+        description = AceGUI:Create("Label")
+        description:SetText(options.description)
+        description:SetWidth(contentWidth)
+        description:SetHeight(options.descriptionTextHeight or 24)
+        if FormWidgets.ApplyTextStyle then
+            FormWidgets.ApplyTextStyle(description.label, "help", 11, 1)
+        end
+        headerContent:AddChild(description)
+    end
+
+    local bodyShell, body = CreateCompactDialogInsetGroup(root, options.bodyHeight or 76, contentInset, contentWidth, options.bodyLayout or "List")
+    ApplyCompactDialogSurface(bodyShell, "Body", {
+        fill = options.bodyFill,
+        border = options.bodyBorder,
+    })
+    body:SetLayout(options.bodyLayout or "List")
+    body:SetWidth(contentWidth - 18)
+    body:SetHeight(math.max(1, (options.bodyHeight or 76) - 12))
+    AddCompactDialogSpacer(body, 6)
+
+    local _, statusContent = CreateCompactDialogInsetGroup(root, options.statusHeight or 22, contentInset, contentWidth, "List")
+    local status = AceGUI:Create("Label")
+    status:SetText(" ")
+    status:SetWidth(contentWidth)
+    status:SetHeight(options.statusTextHeight or 16)
+    if FormWidgets.ApplyTextStyle then
+        FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
+    end
+    statusContent:AddChild(status)
+
+    local footerShell, footer = CreateCompactDialogInsetGroup(root, options.footerHeight or 38, contentInset, contentWidth, "Flow")
+    ApplyCompactDialogSurface(footerShell, "Footer", {
+        fill = options.footerFill or GetChromeColors().sectionFillStrong,
+        border = options.footerBorder,
+    })
+    footer:SetLayout("Flow")
+    footer:SetWidth(contentWidth)
+    footer:SetHeight(math.max(1, (options.footerHeight or 38) - 8))
+
+    local dialog = {
+        window = window,
+        root = root,
+        description = description,
+        bodyShell = bodyShell,
+        body = body,
+        status = status,
+        footerShell = footerShell,
+        footer = footer,
+        contentWidth = contentWidth,
+    }
+
+    function dialog:SetStatus(message)
+        self.status:SetText(type(message) == "string" and message ~= "" and message or " ")
+        if self.window and self.window.DoLayout then
+            self.window:DoLayout()
+        end
+    end
+
+    function dialog:SetActions(actions)
+        actions = actions or {}
+        self.footer:ReleaseChildren()
+
+        local secondary = actions.secondary
+        local primary = actions.primary
+        local secondaryWidth = secondary and (secondary.width or 110) or 0
+        local primaryWidth = primary and (primary.width or 120) or 0
+        local gap = secondary and primary and 8 or 0
+        local footerWidth = actions.footerWidth or self.contentWidth or 388
+        local spacerWidth = math.max(0, footerWidth - secondaryWidth - primaryWidth - gap)
+
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText("")
+        spacer:SetWidth(spacerWidth)
+        self.footer:AddChild(spacer)
+
+        if secondary then
+            local button = FormWidgets.CreateActionButton(secondary.text or "", secondary.role or "utility", secondaryWidth, false)
+            FormWidgets.ApplyModalActionButtonVisual(button, secondary.role or "utility")
+            button:SetCallback("OnClick", function()
+                if secondary.onClick then
+                    secondary.onClick(self)
+                end
+            end)
+            self.footer:AddChild(button)
+            self.secondaryButton = button
+        end
+
+        if secondary and primary then
+            local actionGap = AceGUI:Create("Label")
+            actionGap:SetText("")
+            actionGap:SetWidth(gap)
+            self.footer:AddChild(actionGap)
+        end
+
+        if primary then
+            local button = FormWidgets.CreateActionButton(primary.text or "", primary.role or "primary_action", primaryWidth, false)
+            FormWidgets.ApplyModalActionButtonVisual(button, primary.role or "primary_action")
+            button:SetCallback("OnClick", function()
+                if primary.onClick then
+                    primary.onClick(self)
+                end
+            end)
+            self.footer:AddChild(button)
+            self.primaryButton = button
+        end
+
+        if self.window and self.window.DoLayout then
+            self.window:DoLayout()
+        end
+    end
+
+    function dialog:Show()
+        FormWidgets.FocusWindow(self.window, { centerIfHidden = true, strata = options.strata or "FULLSCREEN_DIALOG" })
+    end
+
+    function dialog:Close()
+        if self.window and self.window.Hide then
+            self.window:Hide()
+        end
+    end
+
+    return dialog
+end
+
 function FormWidgets.ApplySidebarChrome(window)
     if not window or not window.frame then
         return

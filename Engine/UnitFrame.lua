@@ -2529,6 +2529,145 @@ local function EnsureLayoutActivationEventFrame(addon)
     addon._layoutActivationEventFrame = frame
 end
 
+local function TrimLayoutName(value)
+    if type(value) ~= "string" then
+        return ""
+    end
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function GetLayoutNameLength(value)
+    if strlenutf8 then
+        local ok, length = pcall(strlenutf8, value)
+        if ok and type(length) == "number" then
+            return length
+        end
+    end
+    return #value
+end
+
+local function ResolveLayoutSummaryName(summary, addon)
+    if type(summary) ~= "table" then
+        return ""
+    end
+    local labelKey = summary.labelKey
+    local localized = type(labelKey) == "string" and addon and addon.L and addon.L[labelKey] or nil
+    if type(localized) == "string" and localized ~= "" then
+        return localized
+    end
+    if type(summary.name) == "string" and summary.name ~= "" then
+        return summary.name
+    end
+    return type(summary.id) == "string" and summary.id or ""
+end
+
+local function IsLayoutNameCollision(addon, normalizedName)
+    local layoutService = addon and addon.LayoutService or {}
+    local summaries = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = addon.db }) or {}
+    local candidate = string.lower(normalizedName)
+    for _, summary in ipairs(summaries) do
+        if type(summary) == "table" and (summary.source == "userLayout" or summary.source == "builtin") then
+            local name = ResolveLayoutSummaryName(summary, addon)
+            if type(name) == "string" and string.lower(TrimLayoutName(name)) == candidate then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function ResolveCreatedFromSource(layoutId)
+    if type(layoutId) ~= "string" then
+        return nil
+    end
+    if layoutId:match("^builtin:") then
+        return "builtin"
+    end
+    if layoutId:match("^layout:") then
+        return "userLayout"
+    end
+    return nil
+end
+
+local function IsValidLayoutPayload(payload)
+    return type(payload) == "table"
+        and type(payload.Units) == "table"
+        and type(payload.TextTemplates) == "table"
+end
+
+function FocalPoint:ValidateNewLayoutName(name)
+    local normalizedName = TrimLayoutName(name)
+    if normalizedName == "" then
+        return false, "name-required"
+    end
+    if GetLayoutNameLength(normalizedName) > 64 then
+        return false, "name-too-long"
+    end
+    if IsLayoutNameCollision(self, normalizedName) then
+        return false, "duplicate-name"
+    end
+    return true, normalizedName
+end
+
+function FocalPoint:CreateLayoutFromActive(name, options)
+    options = type(options) == "table" and options or {}
+    if InCombatLockdown and InCombatLockdown() then
+        return false, "combat-blocked"
+    end
+
+    local validName, normalizedNameOrReason = self:ValidateNewLayoutName(name)
+    if not validName then
+        return false, normalizedNameOrReason
+    end
+
+    local resolver = self.ActiveLayoutResolver or {}
+    local layoutService = self.LayoutService or {}
+    local userLayoutStore = self.UserLayoutStore or {}
+    local activeLayoutId = resolver.GetStoredActiveLayoutId and resolver.GetStoredActiveLayoutId(self.db) or nil
+    local source = ResolveCreatedFromSource(activeLayoutId)
+    if not source then
+        return false, "unsupported-source"
+    end
+
+    local activePayload = resolver.GetActivePayload and resolver.GetActivePayload(self.db) or nil
+    local copiedPayload = layoutService.CopyPayload and layoutService.CopyPayload(activePayload) or nil
+    if not IsValidLayoutPayload(copiedPayload) then
+        return false, "payload-invalid"
+    end
+
+    if not (userLayoutStore.GenerateId and userLayoutStore.PutRaw) then
+        return false, "user-layout-store-unavailable"
+    end
+    local newLayoutId = userLayoutStore.GenerateId()
+    if type(newLayoutId) ~= "string" or newLayoutId == "" then
+        return false, "id-failed"
+    end
+
+    local record = {
+        name = normalizedNameOrReason,
+        payload = copiedPayload,
+        formatVersion = 1,
+        createdFrom = {
+            source = source,
+            id = activeLayoutId,
+        },
+    }
+    local storedId = userLayoutStore.PutRaw(newLayoutId, record)
+    if storedId ~= newLayoutId then
+        return false, "store-write-failed"
+    end
+    local storedRecord = userLayoutStore.GetRawReadOnly and userLayoutStore.GetRawReadOnly(newLayoutId, self.db) or nil
+    if type(storedRecord) ~= "table" or not IsValidLayoutPayload(storedRecord.payload) then
+        return false, "store-verify-failed"
+    end
+
+    local ok, reason = self:ActivateLayout(newLayoutId, options.reason or "create-layout", options.activateOptions)
+    if not ok then
+        return false, reason or "activation-failed", newLayoutId
+    end
+    return true, newLayoutId
+end
+
 function FocalPoint:ResyncActiveLayout(reason, options)
     options = type(options) == "table" and options or {}
 

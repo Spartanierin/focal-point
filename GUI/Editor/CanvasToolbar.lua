@@ -17,7 +17,9 @@ local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
 local LAYOUT_LABEL_X = 268
 local LAYOUT_DROPDOWN_X = 314
-local LAYOUT_DROPDOWN_WIDTH = 190
+local LAYOUT_DROPDOWN_WIDTH = 156
+local LAYOUT_ADD_X = 474
+local LAYOUT_ADD_WIDTH = 30
 local LAYOUT_ACTIVATE_X = 512
 local LAYOUT_ACTIVATE_WIDTH = 76
 
@@ -28,6 +30,13 @@ local BUTTONS = {
 }
 
 local context
+local newLayoutDialog
+
+local function T(key, fallback)
+    local L = ns.L or {}
+    local value = L[key]
+    return type(value) == "string" and value ~= "" and value or fallback or key
+end
 
 local function BuildBindingDeps()
     local editorSidebarThemeHelpers = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
@@ -112,6 +121,54 @@ local function ResolveLayoutDisplayName(layout)
     return type(layout.id) == "string" and layout.id or ""
 end
 
+local function Trim(value)
+    if type(value) ~= "string" then
+        return ""
+    end
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function BuildUsedLayoutNames()
+    local layoutService = ns.LayoutService or {}
+    local layouts = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
+    local used = {}
+    for _, layout in ipairs(layouts) do
+        if type(layout) == "table" and IsProductLayoutSource(layout.source) then
+            local name = ResolveLayoutDisplayName(layout)
+            name = Trim(name)
+            if name ~= "" then
+                used[string.lower(name)] = true
+            end
+        end
+    end
+    return used
+end
+
+local function ResolveDefaultNewLayoutName()
+    local activeName = context and context.activeLayoutName or ""
+    if activeName == "" then
+        local resolver = ns.ActiveLayoutResolver or {}
+        local envelope = resolver.GetActiveLayout and resolver.GetActiveLayout(ns.db) or nil
+        activeName = ResolveLayoutDisplayName(envelope)
+    end
+    activeName = activeName ~= "" and activeName or T("LAYOUT_NEW_DEFAULT_BASE", "New Layout")
+
+    local used = BuildUsedLayoutNames()
+    local baseName = activeName .. " Copy"
+    if not used[string.lower(baseName)] then
+        return baseName
+    end
+
+    local index = 2
+    while true do
+        local candidate = string.format("%s Copy %d", activeName, index)
+        if not used[string.lower(candidate)] then
+            return candidate
+        end
+        index = index + 1
+    end
+end
+
 local function BuildLayoutDropdownData(selectedLayoutId)
     local layoutService = ns.LayoutService or {}
     local layouts = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
@@ -160,6 +217,7 @@ local function RefreshLayoutControls(current)
     local values, order, selectedLayoutId, activeLayoutId, activeName = BuildLayoutDropdownData(current.selectedLayoutId)
     current.selectedLayoutId = selectedLayoutId
     current.activeLayoutId = activeLayoutId
+    current.activeLayoutName = activeName
 
     current._suspendLayoutCallbacks = true
     dropdown:SetList(values, order)
@@ -176,9 +234,21 @@ local function RefreshLayoutControls(current)
 
     activateButton:SetText("Activate")
     activateButton:SetDisabled(type(selectedLayoutId) ~= "string" or selectedLayoutId == "" or selectedLayoutId == activeLayoutId)
+    local addDisabled = type(activeLayoutId) ~= "string" or activeLayoutId == ""
+    if current.widgets.layoutAddButton then
+        current.widgets.layoutAddButton:SetDisabled(addDisabled)
+    end
 
     if FormWidgets and FormWidgets.StyleDropdown then
         FormWidgets.StyleDropdown(dropdown, "editor_inset")
+    end
+    if FormWidgets and FormWidgets.ApplyModalActionButtonVisual and current.widgets.layoutAddButton then
+        FormWidgets.ApplyModalActionButtonVisual(current.widgets.layoutAddButton, "utility")
+    end
+    if FormWidgets and FormWidgets.ApplyInspectorGlyphButton and current.widgets.layoutAddButton then
+        FormWidgets.ApplyInspectorGlyphButton(current.widgets.layoutAddButton, "+", addDisabled)
+    elseif current.widgets.layoutAddButton then
+        current.widgets.layoutAddButton:SetText("+")
     end
     if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(activateButton, "primary_action")
@@ -203,6 +273,143 @@ local function ReportLayoutActivationResult(ok, reason)
     if reason and reason ~= "same-layout" and ns.Info then
         ns:Info("Layout activation failed: " .. tostring(reason))
     end
+end
+
+local function ResolveCreateLayoutStatus(reason)
+    if reason == "name-required" then
+        return T("LAYOUT_CREATE_NAME_REQUIRED", "Please enter a layout name.")
+    end
+    if reason == "name-too-long" then
+        return T("LAYOUT_CREATE_NAME_TOO_LONG", "Layout name is too long.")
+    end
+    if reason == "duplicate-name" then
+        return T("LAYOUT_CREATE_NAME_EXISTS", "A layout with this name already exists.")
+    end
+    if reason == "combat-blocked" then
+        return T("LAYOUT_CREATE_COMBAT_BLOCKED", "Create layouts outside combat.")
+    end
+    if reason == "dirty-text-builder" then
+        return T("LAYOUT_CREATE_DIRTY_TEXT_BUILDER", "Save or discard Text Builder changes before creating a layout.")
+    end
+    if reason == "activation-failed" then
+        return T("LAYOUT_CREATE_ACTIVATION_FAILED", "The layout was created, but could not be activated.")
+    end
+    return T("LAYOUT_CREATE_FAILED", "Layout could not be created.")
+end
+
+local function CloseNewLayoutDialog()
+    if newLayoutDialog and newLayoutDialog.Close then
+        newLayoutDialog:Close()
+    elseif newLayoutDialog and newLayoutDialog.window and newLayoutDialog.window.Hide then
+        newLayoutDialog.window:Hide()
+    end
+end
+
+local function FocusDialogEditBox(editBox)
+    local native = editBox and editBox.editbox or nil
+    if native and native.SetFocus then
+        native:SetFocus()
+    end
+    if native and native.HighlightText then
+        native:HighlightText()
+    end
+end
+
+local function OpenNewLayoutDialog()
+    CloseNewLayoutDialog()
+
+    local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+        title = T("LAYOUT_CREATE_TITLE", "New Layout"),
+        description = T("LAYOUT_CREATE_DESCRIPTION", "Create a new layout from the currently active layout."),
+        width = 420,
+        height = 220,
+        bodyHeight = 62,
+    }) or nil
+    if not dialog then
+        return
+    end
+
+    local nameEdit = AceGUI:Create("EditBox")
+    nameEdit:SetLabel(T("LAYOUT_CREATE_NAME", "Name"))
+    nameEdit:SetFullWidth(true)
+    nameEdit:SetText(ResolveDefaultNewLayoutName())
+    if FormWidgets and FormWidgets.StyleEditBox then
+        FormWidgets.StyleEditBox(nameEdit, "editor_inset")
+    end
+    dialog.body:AddChild(nameEdit)
+
+    local function setStatus(message)
+        dialog:SetStatus(message)
+    end
+
+    local function updateCreateButton()
+        if dialog.primaryButton then
+            dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
+        end
+    end
+
+    local function confirm()
+        if HasDirtyTextBuilderDraft() then
+            setStatus(ResolveCreateLayoutStatus("dirty-text-builder"))
+            return
+        end
+
+        local ok, resultOrReason, createdLayoutId = false, "create-unavailable", nil
+        if ns.CreateLayoutFromActive then
+            ok, resultOrReason, createdLayoutId = ns:CreateLayoutFromActive(nameEdit:GetText(), {
+                reason = "create-layout",
+            })
+        end
+        if ok then
+            dialog:Close()
+            context.selectedLayoutId = ResolveActiveLayoutId()
+            CanvasToolbar.Refresh()
+            return
+        end
+
+        local reason = resultOrReason
+        if createdLayoutId and resultOrReason ~= "pending" then
+            reason = "activation-failed"
+        end
+        setStatus(ResolveCreateLayoutStatus(reason))
+        updateCreateButton()
+        CanvasToolbar.Refresh()
+    end
+
+    nameEdit:SetCallback("OnTextChanged", function()
+        setStatus("")
+        updateCreateButton()
+    end)
+    nameEdit:SetCallback("OnEnterPressed", function()
+        if Trim(nameEdit:GetText() or "") ~= "" then
+            confirm()
+        end
+    end)
+
+    dialog:SetActions({
+        secondary = {
+            text = T("INFO_COMMON_CANCEL", "Cancel"),
+            role = "utility",
+            width = 110,
+            onClick = CloseNewLayoutDialog,
+        },
+        primary = {
+            text = T("LAYOUT_CREATE_CONFIRM", "Create"),
+            role = "primary_action",
+            width = 120,
+            onClick = confirm,
+        },
+    })
+
+    dialog.window:SetCallback("OnClose", function()
+        newLayoutDialog = nil
+    end)
+
+    newLayoutDialog = dialog
+    newLayoutDialog.nameEdit = nameEdit
+    updateCreateButton()
+    dialog:Show()
+    FocusDialogEditBox(nameEdit)
 end
 
 local function EnsureHost()
@@ -245,6 +452,7 @@ local function EnsureHost()
         frameModeButton = CreateButton("Frame", BUTTONS.frame.width),
         textModeButton = CreateButton("Text", BUTTONS.text.width),
         layoutDropdown = AceGUI:Create("Dropdown"),
+        layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
     }
 
@@ -261,6 +469,13 @@ local function EnsureHost()
         x = LAYOUT_ACTIVATE_X,
         width = LAYOUT_ACTIVATE_WIDTH,
     })
+    AnchorButton(widgets.layoutAddButton, host, {
+        x = LAYOUT_ADD_X,
+        width = LAYOUT_ADD_WIDTH,
+    })
+    if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
+        FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
+    end
 
     local separator = host:CreateTexture(nil, "ARTWORK")
     separator:SetPoint("TOPLEFT", host, "TOPLEFT", 252, -7)
@@ -319,6 +534,11 @@ local function EnsureHost()
                 end
                 context.selectedLayoutId = value
                 RefreshLayoutControls(context)
+            end)
+        end
+        if widgets.layoutAddButton then
+            widgets.layoutAddButton:SetCallback("OnClick", function()
+                OpenNewLayoutDialog()
             end)
         end
         if widgets.layoutActivateButton then
