@@ -2,6 +2,13 @@ local _, FocalPoint = ...
 
 FocalPoint.LayoutService = FocalPoint.LayoutService or {}
 local LayoutService = FocalPoint.LayoutService
+local LAYOUT_SOURCES = {
+    PROFILE = "profile",
+    BUILTIN = "builtin",
+    USER_PRESET = "userPreset",
+}
+
+LayoutService.Sources = LayoutService.Sources or LAYOUT_SOURCES
 
 function LayoutService.Clone(value)
     if type(value) ~= "table" then
@@ -78,6 +85,96 @@ end
 
 function LayoutService.CopyPayload(payload)
     return LayoutService.NormalizePayload(payload)
+end
+
+local function IsNonEmptyString(value)
+    return type(value) == "string" and value ~= ""
+end
+
+local function BuildEnvelope(id, name, source, readOnly, payload, defaults, metadata)
+    if not (IsNonEmptyString(id) and IsNonEmptyString(name) and IsNonEmptyString(source)) then
+        return nil
+    end
+
+    local envelope = {
+        id = id,
+        name = name,
+        source = source,
+        readOnly = readOnly == true,
+        payload = LayoutService.NormalizePayload(payload, defaults),
+    }
+
+    if type(metadata) == "table" then
+        if IsNonEmptyString(metadata.labelKey) then
+            envelope.labelKey = metadata.labelKey
+        end
+        if IsNonEmptyString(metadata.description) then
+            envelope.description = metadata.description
+        end
+        if IsNonEmptyString(metadata.descriptionKey) then
+            envelope.descriptionKey = metadata.descriptionKey
+        end
+    end
+
+    return envelope
+end
+
+function LayoutService.ProjectProfile(profileName, profile, defaults)
+    if not (IsNonEmptyString(profileName) and type(profile) == "table") then
+        return nil
+    end
+
+    return BuildEnvelope(
+        "profile:" .. profileName,
+        profileName,
+        LAYOUT_SOURCES.PROFILE,
+        false,
+        {
+            Units = profile.Units,
+            TextTemplates = profile.TextTemplates,
+        },
+        defaults
+    )
+end
+
+function LayoutService.ProjectPreset(preset, defaults)
+    if type(preset) ~= "table" or type(preset.layout) ~= "table" then
+        return nil
+    end
+
+    local metadata = type(preset.metadata) == "table" and preset.metadata or {}
+    local source = metadata.source
+    local envelopeSource = nil
+    local idPrefix = nil
+
+    if source == "builtin" then
+        envelopeSource = LAYOUT_SOURCES.BUILTIN
+        idPrefix = "builtin:"
+    elseif source == "user" then
+        envelopeSource = LAYOUT_SOURCES.USER_PRESET
+        idPrefix = "userPreset:"
+    else
+        return nil
+    end
+
+    local sourceId = IsNonEmptyString(metadata.id) and metadata.id or nil
+    if not sourceId then
+        return nil
+    end
+
+    local name = IsNonEmptyString(metadata.name) and metadata.name
+        or IsNonEmptyString(metadata.labelKey) and metadata.labelKey
+        or sourceId
+
+    return BuildEnvelope(
+        idPrefix .. sourceId,
+        name,
+        envelopeSource,
+        metadata.readOnly == true,
+        preset.layout,
+        defaults,
+        metadata
+    )
 end
 
 function LayoutService.MaterializeFromProfile(profile, defaults)
