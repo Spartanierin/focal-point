@@ -808,23 +808,23 @@ function FormWidgets.ApplySidebarChrome(window)
 
     if not frame._fpSidebarPanelFill then
         frame._fpSidebarPanelFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpSidebarPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+        frame._fpSidebarPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
         frame._fpSidebarPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
     end
     frame._fpSidebarPanelFill:SetColorTexture(unpack(chromeColors.panelBackground or {}))
 
     if not frame._fpSidebarPanelHeaderFill then
         frame._fpSidebarPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpSidebarPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpSidebarPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+        frame._fpSidebarPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
+        frame._fpSidebarPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
         frame._fpSidebarPanelHeaderFill:SetHeight(26)
     end
     frame._fpSidebarPanelHeaderFill:SetColorTexture(unpack(chromeColors.panelHeader or {}))
 
     if not frame._fpSidebarPanelTopShade then
         frame._fpSidebarPanelTopShade = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpSidebarPanelTopShade:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
-        frame._fpSidebarPanelTopShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+        frame._fpSidebarPanelTopShade:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -13)
+        frame._fpSidebarPanelTopShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -13)
         frame._fpSidebarPanelTopShade:SetHeight(1)
     end
     frame._fpSidebarPanelTopShade:SetColorTexture(unpack(chromeColors.panelTopShade or {}))
@@ -846,8 +846,8 @@ function FormWidgets.ApplySidebarChrome(window)
     end
 
     EnsureBorder("_fpSidebarPanelBorderTop")
-    frame._fpSidebarPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpSidebarPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpSidebarPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
+    frame._fpSidebarPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
     frame._fpSidebarPanelBorderTop:SetHeight(1)
 
     EnsureBorder("_fpSidebarPanelBorderBottom")
@@ -856,12 +856,12 @@ function FormWidgets.ApplySidebarChrome(window)
     frame._fpSidebarPanelBorderBottom:SetHeight(1)
 
     EnsureBorder("_fpSidebarPanelBorderLeft")
-    frame._fpSidebarPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
+    frame._fpSidebarPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
     frame._fpSidebarPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
     frame._fpSidebarPanelBorderLeft:SetWidth(1)
 
     EnsureBorder("_fpSidebarPanelBorderRight")
-    frame._fpSidebarPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpSidebarPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
     frame._fpSidebarPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
     frame._fpSidebarPanelBorderRight:SetWidth(1)
 
@@ -874,8 +874,8 @@ function FormWidgets.ApplySidebarChrome(window)
     end
 
     EnsureInnerBorder("_fpSidebarPanelInnerTop")
-    frame._fpSidebarPanelInnerTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
-    frame._fpSidebarPanelInnerTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+    frame._fpSidebarPanelInnerTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -13)
+    frame._fpSidebarPanelInnerTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -13)
     frame._fpSidebarPanelInnerTop:SetHeight(1)
 
     EnsureInnerBorder("_fpSidebarPanelInnerBottom")
@@ -884,16 +884,20 @@ function FormWidgets.ApplySidebarChrome(window)
     frame._fpSidebarPanelInnerBottom:SetHeight(1)
 
     EnsureInnerBorder("_fpSidebarPanelInnerLeft")
-    frame._fpSidebarPanelInnerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
+    frame._fpSidebarPanelInnerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -13)
     frame._fpSidebarPanelInnerLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
     frame._fpSidebarPanelInnerLeft:SetWidth(1)
 
     EnsureInnerBorder("_fpSidebarPanelInnerRight")
-    frame._fpSidebarPanelInnerRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+    frame._fpSidebarPanelInnerRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -13)
     frame._fpSidebarPanelInnerRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
     frame._fpSidebarPanelInnerRight:SetWidth(1)
 
     if content then
+        content:ClearAllPoints()
+        content:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
+        content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+
         if not content._fpSidebarAccent then
             content._fpSidebarAccent = content:CreateTexture(nil, "BORDER")
             content._fpSidebarAccent:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -2)
