@@ -9,6 +9,34 @@ local function Clone(value)
     return LayoutService.Clone and LayoutService.Clone(value) or value
 end
 
+local function ResolveDB(db)
+    return type(db) == "table" and db or FocalPoint.db
+end
+
+local function PeekStore(db)
+    db = ResolveDB(db)
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    local layouts = type(global) == "table" and rawget(global, "UserLayouts") or nil
+    return type(layouts) == "table" and layouts or nil
+end
+
+function Store.PeekStore(db)
+    return PeekStore(db)
+end
+
+function Store.ListRawReadOnly(db)
+    return PeekStore(db) or {}
+end
+
+function Store.GetRawReadOnly(id, db)
+    local layouts = PeekStore(db)
+    if type(layouts) ~= "table" or type(id) ~= "string" or id == "" then
+        return nil
+    end
+
+    return layouts[id]
+end
+
 function Store.EnsureStore()
     local db = FocalPoint.db
     if type(db) ~= "table" then

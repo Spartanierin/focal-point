@@ -6,6 +6,7 @@ local LAYOUT_SOURCES = {
     PROFILE = "profile",
     BUILTIN = "builtin",
     USER_PRESET = "userPreset",
+    USER_LAYOUT = "userLayout",
 }
 local BUILT_IN_PRESET_ORDER = {
     "default",
@@ -14,7 +15,10 @@ local BUILT_IN_PRESET_ORDER = {
     "modern",
 }
 
-LayoutService.Sources = LayoutService.Sources or LAYOUT_SOURCES
+LayoutService.Sources = LayoutService.Sources or {}
+for key, value in pairs(LAYOUT_SOURCES) do
+    LayoutService.Sources[key] = value
+end
 
 function LayoutService.Clone(value)
     if type(value) ~= "table" then
@@ -183,6 +187,22 @@ function LayoutService.ProjectPreset(preset, defaults)
     )
 end
 
+function LayoutService.ProjectUserLayout(layoutId, rawRecord, defaults)
+    if not (IsNonEmptyString(layoutId) and type(rawRecord) == "table" and type(rawRecord.payload) == "table") then
+        return nil
+    end
+
+    local name = IsNonEmptyString(rawRecord.name) and rawRecord.name or layoutId
+    return BuildEnvelope(
+        layoutId,
+        name,
+        LAYOUT_SOURCES.USER_LAYOUT,
+        false,
+        rawRecord.payload,
+        defaults
+    )
+end
+
 local function SortedStringKeys(source)
     local keys = {}
     if type(source) ~= "table" then
@@ -197,6 +217,25 @@ local function SortedStringKeys(source)
 
     table.sort(keys)
     return keys
+end
+
+local function CompareUserLayoutEntries(layouts)
+    return function(leftId, rightId)
+        local left = type(layouts) == "table" and layouts[leftId] or nil
+        local right = type(layouts) == "table" and layouts[rightId] or nil
+        local leftName = type(left) == "table" and IsNonEmptyString(left.name) and left.name or leftId
+        local rightName = type(right) == "table" and IsNonEmptyString(right.name) and right.name or rightId
+        if leftName == rightName then
+            return leftId < rightId
+        end
+        return leftName < rightName
+    end
+end
+
+local function SortedUserLayoutIds(layouts)
+    local ids = SortedStringKeys(layouts)
+    table.sort(ids, CompareUserLayoutEntries(layouts))
+    return ids
 end
 
 local function GetProfileStore(db)
@@ -261,6 +300,7 @@ function LayoutService.ListLayouts(options)
     local db = options.db or FocalPoint.db
     local defaults = options.defaults or (FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()) or nil
     local presetService = options.presetService or FocalPoint.PresetService or {}
+    local userLayoutStore = options.userLayoutStore or FocalPoint.UserLayoutStore or {}
     local layouts = {}
 
     for _, profileName in ipairs(GetProfileNames(db)) do
@@ -284,6 +324,11 @@ function LayoutService.ListLayouts(options)
         for _, presetId in ipairs(SortedStringKeys(userPresets)) do
             AppendProjected(layouts, LayoutService.ProjectPreset(userPresets[presetId], defaults))
         end
+    end
+
+    local userLayouts = userLayoutStore.ListRawReadOnly and userLayoutStore.ListRawReadOnly(db) or {}
+    for _, layoutId in ipairs(SortedUserLayoutIds(userLayouts)) do
+        AppendProjected(layouts, LayoutService.ProjectUserLayout(layoutId, userLayouts[layoutId], defaults))
     end
 
     return layouts

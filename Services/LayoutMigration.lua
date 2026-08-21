@@ -185,6 +185,177 @@ local function BuildResult()
     }
 end
 
+local function BuildVerificationSection()
+    return {
+        total = 0,
+        valid = 0,
+        missingLegacy = 0,
+        missingLayout = 0,
+        mismatch = 0,
+        unmappedLegacy = 0,
+        orphanLayouts = 0,
+    }
+end
+
+local function BuildVerificationResult()
+    return {
+        profiles = BuildVerificationSection(),
+        userPresets = BuildVerificationSection(),
+        errors = {},
+        complete = false,
+    }
+end
+
+local function AppendVerificationError(result, section, id, reason)
+    result.errors[#result.errors + 1] = {
+        section = section,
+        id = id,
+        reason = reason,
+    }
+end
+
+local function PeekState(db)
+    db = ResolveDB(db)
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    local state = type(global) == "table" and rawget(global, STATE_KEY) or nil
+    if type(state) ~= "table" then
+        return nil, "missing-state"
+    end
+    if type(state.version) ~= "number" then
+        return nil, "invalid-state-version"
+    end
+    if not IsValidSourceMap(state.profileMap) then
+        return nil, "invalid-profile-map"
+    end
+    if not IsValidSourceMap(state.userPresetMap) then
+        return nil, "invalid-user-preset-map"
+    end
+
+    return state
+end
+
+local function GetReadOnlyUserLayouts(db)
+    if UserLayoutStore.ListRawReadOnly then
+        return UserLayoutStore.ListRawReadOnly(db)
+    end
+
+    db = ResolveDB(db)
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    local layouts = type(global) == "table" and rawget(global, "UserLayouts") or nil
+    return type(layouts) == "table" and layouts or {}
+end
+
+local function DeepEqual(left, right)
+    if left == right then
+        return true
+    end
+    if type(left) ~= type(right) then
+        return false
+    end
+    if type(left) ~= "table" then
+        return false
+    end
+
+    for key, value in pairs(left) do
+        if not DeepEqual(value, right[key]) then
+            return false
+        end
+    end
+    for key in pairs(right) do
+        if left[key] == nil then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function PayloadsEqual(left, right, defaults)
+    if not (LayoutService.NormalizePayload and type(left) == "table" and type(right) == "table") then
+        return false
+    end
+
+    local normalizedLeft = LayoutService.NormalizePayload(left, defaults)
+    local normalizedRight = LayoutService.NormalizePayload(right, defaults)
+    return DeepEqual(normalizedLeft, normalizedRight), normalizedLeft, normalizedRight
+end
+
+local function VerifyMappedPayload(result, sectionName, section, sourceId, legacyPayload, layouts, layoutId, defaults)
+    section.total = section.total + 1
+
+    if type(legacyPayload) ~= "table" then
+        section.missingLegacy = section.missingLegacy + 1
+        AppendVerificationError(result, sectionName, sourceId, "missing-legacy")
+        return
+    end
+
+    local record = type(layouts) == "table" and layouts[layoutId] or nil
+    if type(record) ~= "table" then
+        section.missingLayout = section.missingLayout + 1
+        AppendVerificationError(result, sectionName, sourceId, "missing-layout")
+        return
+    end
+
+    local equal, normalizedLegacy, normalizedLayout = PayloadsEqual(legacyPayload, record.payload, defaults)
+    if not equal then
+        section.mismatch = section.mismatch + 1
+        AppendVerificationError(result, sectionName, sourceId, "payload-mismatch")
+        return
+    end
+
+    if normalizedLegacy
+        and normalizedLayout
+        and (
+            normalizedLegacy.Units == normalizedLayout.Units
+            or normalizedLegacy.TextTemplates == normalizedLayout.TextTemplates
+        )
+    then
+        section.mismatch = section.mismatch + 1
+        AppendVerificationError(result, sectionName, sourceId, "payload-alias")
+        return
+    end
+
+    section.valid = section.valid + 1
+end
+
+local function VerifyUnmappedSources(result, sectionName, section, sourceIds, map, isComplete)
+    if not isComplete then
+        return
+    end
+
+    for _, sourceId in ipairs(sourceIds) do
+        if type(map) ~= "table" or type(map[sourceId]) ~= "string" or map[sourceId] == "" then
+            section.unmappedLegacy = section.unmappedLegacy + 1
+            AppendVerificationError(result, sectionName, sourceId, "unmapped-legacy")
+        end
+    end
+end
+
+local function VerifyOrphanCreatedFrom(result, layouts, state)
+    if type(layouts) ~= "table" or type(state) ~= "table" then
+        return
+    end
+
+    for layoutId, record in pairs(layouts) do
+        local createdFrom = type(record) == "table" and record.createdFrom or nil
+        local source = type(createdFrom) == "table" and createdFrom.source or nil
+        local sourceId = type(createdFrom) == "table" and createdFrom.id or nil
+        if type(layoutId) == "string"
+            and type(sourceId) == "string"
+            and sourceId ~= ""
+            and (source == "profile" or source == "userPreset")
+        then
+            local sectionName = source == "profile" and "profiles" or "userPresets"
+            local section = result[sectionName]
+            local map = source == "profile" and state.profileMap or state.userPresetMap
+            if type(map) ~= "table" or map[sourceId] ~= layoutId then
+                section.orphanLayouts = section.orphanLayouts + 1
+                AppendVerificationError(result, sectionName, layoutId, "orphan-created-from")
+            end
+        end
+    end
+end
+
 local function ResolvePreconditions(db)
     db = ResolveDB(db)
     local backupOk, backupReason = LayoutMigration.ValidateBackup(db)
@@ -499,6 +670,80 @@ function LayoutMigration.MigrateAll(db)
         end
     end
 
+    return result
+end
+
+function LayoutMigration.VerifyUserLayouts(db)
+    local result = BuildVerificationResult()
+    db = ResolveDB(db)
+
+    local backupOk, backupReason = LayoutMigration.ValidateBackup(db)
+    if not backupOk then
+        AppendVerificationError(result, "precondition", "backup", backupReason or "invalid-backup")
+        return result
+    end
+
+    local state, stateReason = PeekState(db)
+    if type(state) ~= "table" then
+        AppendVerificationError(result, "precondition", "state", stateReason or "invalid-state")
+        return result
+    end
+
+    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB() or nil
+    local layouts = GetReadOnlyUserLayouts(db)
+    local isComplete = state.version >= ADDITIVE_MIGRATION_VERSION
+
+    local profileNames = GetProfileNames(db)
+    for _, profileName in ipairs(SortedStringKeys(state.profileMap)) do
+        local profile = GetProfileByName(db, profileName)
+        local legacyPayload = type(profile) == "table"
+            and LayoutService.MaterializeFromProfile
+            and LayoutService.MaterializeFromProfile(profile, defaults)
+            or nil
+        VerifyMappedPayload(
+            result,
+            "profiles",
+            result.profiles,
+            profileName,
+            legacyPayload,
+            layouts,
+            state.profileMap[profileName],
+            defaults
+        )
+    end
+    VerifyUnmappedSources(result, "profiles", result.profiles, profileNames, state.profileMap, isComplete)
+
+    local rawPresets = type(db) == "table" and type(db.global) == "table" and db.global.UserPresets or nil
+    for _, presetId in ipairs(SortedStringKeys(state.userPresetMap)) do
+        local rawPreset = type(rawPresets) == "table" and rawPresets[presetId] or nil
+        local legacyPayload = type(rawPreset) == "table"
+            and type(rawPreset.layout) == "table"
+            and LayoutService.NormalizePayload
+            and LayoutService.NormalizePayload(rawPreset.layout, defaults)
+            or nil
+        VerifyMappedPayload(
+            result,
+            "userPresets",
+            result.userPresets,
+            presetId,
+            legacyPayload,
+            layouts,
+            state.userPresetMap[presetId],
+            defaults
+        )
+    end
+    VerifyUnmappedSources(
+        result,
+        "userPresets",
+        result.userPresets,
+        SortedStringKeys(rawPresets),
+        state.userPresetMap,
+        isComplete
+    )
+
+    VerifyOrphanCreatedFrom(result, layouts, state)
+
+    result.complete = #result.errors == 0
     return result
 end
 
