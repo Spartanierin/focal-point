@@ -2546,36 +2546,6 @@ local function GetLayoutNameLength(value)
     return #value
 end
 
-local function ResolveLayoutSummaryName(summary, addon)
-    if type(summary) ~= "table" then
-        return ""
-    end
-    local labelKey = summary.labelKey
-    local localized = type(labelKey) == "string" and addon and addon.L and addon.L[labelKey] or nil
-    if type(localized) == "string" and localized ~= "" then
-        return localized
-    end
-    if type(summary.name) == "string" and summary.name ~= "" then
-        return summary.name
-    end
-    return type(summary.id) == "string" and summary.id or ""
-end
-
-local function IsLayoutNameCollision(addon, normalizedName)
-    local layoutService = addon and addon.LayoutService or {}
-    local summaries = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = addon.db }) or {}
-    local candidate = string.lower(normalizedName)
-    for _, summary in ipairs(summaries) do
-        if type(summary) == "table" and (summary.source == "userLayout" or summary.source == "builtin") then
-            local name = ResolveLayoutSummaryName(summary, addon)
-            if type(name) == "string" and string.lower(TrimLayoutName(name)) == candidate then
-                return true
-            end
-        end
-    end
-    return false
-end
-
 local function ResolveCreatedFromSource(layoutId)
     if type(layoutId) ~= "string" then
         return nil
@@ -2596,15 +2566,17 @@ local function IsValidLayoutPayload(payload)
 end
 
 function FocalPoint:ValidateNewLayoutName(name)
+    local layoutMutations = self.LayoutMutations or FocalPoint.LayoutMutations or {}
+    if layoutMutations.ValidateLayoutName then
+        return layoutMutations.ValidateLayoutName(name)
+    end
+
     local normalizedName = TrimLayoutName(name)
     if normalizedName == "" then
         return false, "name-required"
     end
     if GetLayoutNameLength(normalizedName) > 64 then
         return false, "name-too-long"
-    end
-    if IsLayoutNameCollision(self, normalizedName) then
-        return false, "duplicate-name"
     end
     return true, normalizedName
 end
