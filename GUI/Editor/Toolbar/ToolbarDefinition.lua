@@ -367,37 +367,13 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 118,
-                derivedFrom = "section title + preview buttons + interaction mode row + preview hint",
+                min = 64,
+                derivedFrom = "section title + preview button + preview hint",
             },
         },
         items = {
             { id = "editingTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_PREVIEW" },
             { id = "demoButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_TEST_MODE" },
-            { id = "unlockButton", widget = "button", itemVariant = "toolbar_primary_action", textKey = "EDITOR_UNLOCK_FRAMES" },
-        },
-    },
-    {
-        section = "InteractionModeRow",
-        properties = {
-            parentSection = "Editing",
-            sectionKind = "section",
-            type = "action_row",
-            variant = "dual_button",
-            border = false,
-            widthInfo = {
-                source = "parent",
-                derivedFrom = "Editing.widthInfo",
-            },
-            heightInfo = {
-                source = "content",
-                min = 1,
-                derivedFrom = "frame/text interaction mode toggle",
-            },
-        },
-        items = {
-            { id = "frameModeButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_INTERACTION_FRAME_MODE" },
-            { id = "textModeButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "EDITOR_INTERACTION_TEXT_MODE" },
         },
     },
     {
