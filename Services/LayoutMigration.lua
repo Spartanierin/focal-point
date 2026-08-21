@@ -4,11 +4,14 @@ FocalPoint.LayoutMigration = FocalPoint.LayoutMigration or {}
 local LayoutMigration = FocalPoint.LayoutMigration
 
 local LayoutService = FocalPoint.LayoutService or {}
+local UserLayoutStore = FocalPoint.UserLayoutStore or {}
 
 local BACKUP_VERSION = 1
 local MIGRATION_VERSION = 0
+local ADDITIVE_MIGRATION_VERSION = 1
 local BACKUP_KEY = "LayoutMigrationBackup"
 local STATE_KEY = "LayoutMigration"
+local LAYOUT_FORMAT_VERSION = 1
 
 local function Clone(value)
     return LayoutService.Clone and LayoutService.Clone(value) or value
@@ -65,6 +68,207 @@ local function IsValidSourceMap(map)
     end
 
     return true
+end
+
+local function SortedStringKeys(source)
+    local keys = {}
+    if type(source) ~= "table" then
+        return keys
+    end
+
+    for key in pairs(source) do
+        if type(key) == "string" and key ~= "" then
+            keys[#keys + 1] = key
+        end
+    end
+
+    table.sort(keys)
+    return keys
+end
+
+local function GetProfileNames(db)
+    if type(db) == "table" and type(db.GetProfiles) == "function" then
+        local ok, profiles = pcall(db.GetProfiles, db, {})
+        if ok and type(profiles) == "table" then
+            table.sort(profiles)
+            return profiles
+        end
+    end
+
+    return SortedStringKeys(GetProfileStore(db))
+end
+
+local function GetProfileByName(db, profileName)
+    if type(profileName) ~= "string" or profileName == "" then
+        return nil
+    end
+    if type(db) == "table" and type(db.GetCurrentProfile) == "function" then
+        local ok, currentProfileName = pcall(db.GetCurrentProfile, db)
+        if ok and currentProfileName == profileName and type(db.profile) == "table" then
+            return db.profile
+        end
+    end
+
+    local profiles = GetProfileStore(db)
+    return type(profiles) == "table" and type(profiles[profileName]) == "table" and profiles[profileName] or nil
+end
+
+local function BuildUsedNames(layouts)
+    local used = {}
+    if type(layouts) ~= "table" then
+        return used
+    end
+
+    for _, record in pairs(layouts) do
+        local name = type(record) == "table" and record.name or nil
+        if type(name) == "string" and name ~= "" then
+            used[string.lower(name)] = true
+        end
+    end
+
+    return used
+end
+
+local function ResolveUniqueName(baseName, usedNames, preferredSuffix)
+    baseName = type(baseName) == "string" and baseName ~= "" and baseName or "Migrated Layout"
+    usedNames = type(usedNames) == "table" and usedNames or {}
+
+    local function Reserve(candidate)
+        local key = string.lower(candidate)
+        if usedNames[key] then
+            return nil
+        end
+        usedNames[key] = true
+        return candidate
+    end
+
+    local resolved = Reserve(baseName)
+    if resolved then
+        return resolved
+    end
+
+    if type(preferredSuffix) == "string" and preferredSuffix ~= "" then
+        resolved = Reserve(baseName .. " " .. preferredSuffix)
+        if resolved then
+            return resolved
+        end
+    end
+
+    local index = 2
+    while true do
+        resolved = Reserve(string.format("%s (%d)", baseName, index))
+        if resolved then
+            return resolved
+        end
+        index = index + 1
+    end
+end
+
+local function AppendError(result, source, id, reason)
+    result.errors[#result.errors + 1] = {
+        source = source,
+        id = id,
+        reason = reason,
+    }
+end
+
+local function BuildResult()
+    return {
+        migratedProfiles = 0,
+        skippedProfiles = 0,
+        recoveredProfiles = 0,
+        migratedUserPresets = 0,
+        skippedUserPresets = 0,
+        recoveredUserPresets = 0,
+        errors = {},
+        complete = false,
+    }
+end
+
+local function ResolvePreconditions(db)
+    db = ResolveDB(db)
+    local backupOk, backupReason = LayoutMigration.ValidateBackup(db)
+    if not backupOk then
+        return nil, nil, nil, backupReason
+    end
+
+    local state, stateReason = LayoutMigration.GetState(db)
+    if type(state) ~= "table" then
+        return nil, nil, nil, stateReason
+    end
+
+    if not (UserLayoutStore.EnsureStore and UserLayoutStore.GenerateId and UserLayoutStore.PutRaw) then
+        return nil, nil, nil, "user-layout-store-unavailable"
+    end
+
+    local layouts = UserLayoutStore.EnsureStore()
+    if type(layouts) ~= "table" then
+        return nil, nil, nil, "user-layout-store-unavailable"
+    end
+
+    return db, state, layouts
+end
+
+local function FindLayoutByCreatedFrom(layouts, source, sourceId)
+    local foundId = nil
+    if type(layouts) ~= "table" or type(source) ~= "string" or type(sourceId) ~= "string" then
+        return nil
+    end
+
+    for layoutId, record in pairs(layouts) do
+        local createdFrom = type(record) == "table" and record.createdFrom or nil
+        if type(layoutId) == "string"
+            and type(createdFrom) == "table"
+            and createdFrom.source == source
+            and createdFrom.id == sourceId
+        then
+            if foundId ~= nil then
+                return nil, "created-from-ambiguous"
+            end
+            foundId = layoutId
+        end
+    end
+
+    return foundId
+end
+
+local function EnsureMappedSource(map, layouts, source, sourceId, result, recoveredField, skippedField)
+    local mappedLayoutId = map[sourceId]
+    if type(mappedLayoutId) == "string" and mappedLayoutId ~= "" then
+        if type(layouts[mappedLayoutId]) == "table" then
+            result[skippedField] = result[skippedField] + 1
+            return true, "mapped"
+        end
+        AppendError(result, source, sourceId, "mapped-layout-missing")
+        return false, "mapped-layout-missing"
+    end
+
+    local recoveredLayoutId, recoveryError = FindLayoutByCreatedFrom(layouts, source, sourceId)
+    if recoveryError then
+        AppendError(result, source, sourceId, recoveryError)
+        return false, recoveryError
+    end
+    if type(recoveredLayoutId) == "string" and recoveredLayoutId ~= "" then
+        map[sourceId] = recoveredLayoutId
+        result[recoveredField] = result[recoveredField] + 1
+        return true, "recovered"
+    end
+
+    return true, "new"
+end
+
+local function StoreMigratedLayout(layouts, record)
+    local layoutId = UserLayoutStore.GenerateId()
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return nil, "id-failed"
+    end
+
+    local storedId = UserLayoutStore.PutRaw(layoutId, record)
+    if storedId ~= layoutId or type(layouts[layoutId]) ~= "table" then
+        return nil, "store-write-failed"
+    end
+
+    return layoutId
 end
 
 function LayoutMigration.ValidateBackup(db)
@@ -155,6 +359,147 @@ function LayoutMigration.GetState(db)
     end
 
     return state
+end
+
+function LayoutMigration.MigrateProfiles(db, context)
+    context = type(context) == "table" and context or {}
+    local result = type(context.result) == "table" and context.result or BuildResult()
+    db = ResolveDB(db)
+    local resolvedDB, state, layouts, preconditionError = ResolvePreconditions(db)
+    if not resolvedDB then
+        AppendError(result, "precondition", "profiles", preconditionError or "precondition-failed")
+        return result
+    end
+
+    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB() or nil
+    local usedNames = context.usedNames or BuildUsedNames(layouts)
+    context.usedNames = usedNames
+
+    for _, profileName in ipairs(GetProfileNames(resolvedDB)) do
+        local ok, status = EnsureMappedSource(
+            state.profileMap,
+            layouts,
+            "profile",
+            profileName,
+            result,
+            "recoveredProfiles",
+            "skippedProfiles"
+        )
+        if not ok then
+            -- Keep processing other sources; the failed source remains unmapped.
+        elseif status == "new" then
+            local profile = GetProfileByName(resolvedDB, profileName)
+            local payload = LayoutService.MaterializeFromProfile
+                and LayoutService.MaterializeFromProfile(profile, defaults)
+                or nil
+            if type(payload) ~= "table" then
+                AppendError(result, "profile", profileName, "payload-invalid")
+            else
+                local record = {
+                    name = ResolveUniqueName(profileName, usedNames),
+                    payload = payload,
+                    formatVersion = LAYOUT_FORMAT_VERSION,
+                    createdFrom = {
+                        source = "profile",
+                        id = profileName,
+                    },
+                }
+                local layoutId, reason = StoreMigratedLayout(layouts, record)
+                if layoutId then
+                    state.profileMap[profileName] = layoutId
+                    result.migratedProfiles = result.migratedProfiles + 1
+                else
+                    AppendError(result, "profile", profileName, reason or "store-write-failed")
+                end
+            end
+        end
+    end
+
+    return result
+end
+
+function LayoutMigration.MigrateUserPresets(db, context)
+    context = type(context) == "table" and context or {}
+    local result = type(context.result) == "table" and context.result or BuildResult()
+    db = ResolveDB(db)
+    local resolvedDB, state, layouts, preconditionError = ResolvePreconditions(db)
+    if not resolvedDB then
+        AppendError(result, "precondition", "userPresets", preconditionError or "precondition-failed")
+        return result
+    end
+
+    local rawPresets = type(resolvedDB.global) == "table" and resolvedDB.global.UserPresets or nil
+    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB() or nil
+    local usedNames = context.usedNames or BuildUsedNames(layouts)
+    context.usedNames = usedNames
+
+    for _, presetId in ipairs(SortedStringKeys(rawPresets)) do
+        local ok, status = EnsureMappedSource(
+            state.userPresetMap,
+            layouts,
+            "userPreset",
+            presetId,
+            result,
+            "recoveredUserPresets",
+            "skippedUserPresets"
+        )
+        if not ok then
+            -- Keep processing other sources; the failed source remains unmapped.
+        elseif status == "new" then
+            local rawPreset = rawPresets[presetId]
+            local payload = type(rawPreset) == "table"
+                and type(rawPreset.layout) == "table"
+                and LayoutService.NormalizePayload
+                and LayoutService.NormalizePayload(rawPreset.layout, defaults)
+                or nil
+            if type(payload) ~= "table" then
+                AppendError(result, "userPreset", presetId, "payload-invalid")
+            else
+                local metadata = type(rawPreset) == "table" and rawPreset.metadata or {}
+                local name = type(metadata.name) == "string" and metadata.name ~= "" and metadata.name or presetId
+                local record = {
+                    name = ResolveUniqueName(name, usedNames, "(Preset)"),
+                    payload = payload,
+                    formatVersion = LAYOUT_FORMAT_VERSION,
+                    createdFrom = {
+                        source = "userPreset",
+                        id = presetId,
+                    },
+                }
+                local layoutId, reason = StoreMigratedLayout(layouts, record)
+                if layoutId then
+                    state.userPresetMap[presetId] = layoutId
+                    result.migratedUserPresets = result.migratedUserPresets + 1
+                else
+                    AppendError(result, "userPreset", presetId, reason or "store-write-failed")
+                end
+            end
+        end
+    end
+
+    return result
+end
+
+function LayoutMigration.MigrateAll(db)
+    local result = BuildResult()
+    local context = {
+        result = result,
+    }
+
+    LayoutMigration.MigrateProfiles(db, context)
+    LayoutMigration.MigrateUserPresets(db, context)
+
+    if #result.errors == 0 then
+        local state = LayoutMigration.GetState(db)
+        if type(state) == "table" then
+            state.version = ADDITIVE_MIGRATION_VERSION
+            result.complete = true
+        else
+            AppendError(result, "state", "all", "state-unavailable")
+        end
+    end
+
+    return result
 end
 
 return LayoutMigration
