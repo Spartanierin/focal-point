@@ -114,7 +114,7 @@ end
 
 local function BuildLayoutDropdownData(selectedLayoutId)
     local layoutService = ns.LayoutService or {}
-    local layouts = layoutService.ListLayouts and layoutService.ListLayouts({ db = ns.db }) or {}
+    local layouts = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
     local activeLayoutId = ResolveActiveLayoutId()
     local values = {}
     local order = {}

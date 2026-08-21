@@ -129,6 +129,33 @@ local function BuildEnvelope(id, name, source, readOnly, payload, defaults, meta
     return envelope
 end
 
+local function BuildSummary(id, name, source, readOnly, metadata)
+    if not (IsNonEmptyString(id) and IsNonEmptyString(name) and IsNonEmptyString(source)) then
+        return nil
+    end
+
+    local summary = {
+        id = id,
+        name = name,
+        source = source,
+        readOnly = readOnly == true,
+    }
+
+    if type(metadata) == "table" then
+        if IsNonEmptyString(metadata.labelKey) then
+            summary.labelKey = metadata.labelKey
+        end
+        if IsNonEmptyString(metadata.description) then
+            summary.description = metadata.description
+        end
+        if IsNonEmptyString(metadata.descriptionKey) then
+            summary.descriptionKey = metadata.descriptionKey
+        end
+    end
+
+    return summary
+end
+
 function LayoutService.ProjectProfile(profileName, profile, defaults)
     if not (IsNonEmptyString(profileName) and type(profile) == "table") then
         return nil
@@ -144,6 +171,19 @@ function LayoutService.ProjectProfile(profileName, profile, defaults)
             TextTemplates = profile.TextTemplates,
         },
         defaults
+    )
+end
+
+function LayoutService.ProjectProfileSummary(profileName, profile)
+    if not (IsNonEmptyString(profileName) and type(profile) == "table") then
+        return nil
+    end
+
+    return BuildSummary(
+        "profile:" .. profileName,
+        profileName,
+        LAYOUT_SOURCES.PROFILE,
+        false
     )
 end
 
@@ -187,6 +227,43 @@ function LayoutService.ProjectPreset(preset, defaults)
     )
 end
 
+function LayoutService.ProjectPresetSummary(metadata)
+    if type(metadata) ~= "table" then
+        return nil
+    end
+
+    local source = metadata.source
+    local envelopeSource = nil
+    local idPrefix = nil
+
+    if source == "builtin" then
+        envelopeSource = LAYOUT_SOURCES.BUILTIN
+        idPrefix = "builtin:"
+    elseif source == "user" then
+        envelopeSource = LAYOUT_SOURCES.USER_PRESET
+        idPrefix = "userPreset:"
+    else
+        return nil
+    end
+
+    local sourceId = IsNonEmptyString(metadata.id) and metadata.id or nil
+    if not sourceId then
+        return nil
+    end
+
+    local name = IsNonEmptyString(metadata.name) and metadata.name
+        or IsNonEmptyString(metadata.labelKey) and metadata.labelKey
+        or sourceId
+
+    return BuildSummary(
+        idPrefix .. sourceId,
+        name,
+        envelopeSource,
+        metadata.readOnly == true,
+        metadata
+    )
+end
+
 function LayoutService.ProjectUserLayout(layoutId, rawRecord, defaults)
     if not (IsNonEmptyString(layoutId) and type(rawRecord) == "table" and type(rawRecord.payload) == "table") then
         return nil
@@ -200,6 +277,20 @@ function LayoutService.ProjectUserLayout(layoutId, rawRecord, defaults)
         false,
         rawRecord.payload,
         defaults
+    )
+end
+
+function LayoutService.ProjectUserLayoutSummary(layoutId, rawRecord)
+    if not (IsNonEmptyString(layoutId) and type(rawRecord) == "table") then
+        return nil
+    end
+
+    local name = IsNonEmptyString(rawRecord.name) and rawRecord.name or layoutId
+    return BuildSummary(
+        layoutId,
+        name,
+        LAYOUT_SOURCES.USER_LAYOUT,
+        false
     )
 end
 
@@ -285,6 +376,12 @@ local function AppendProjected(target, envelope)
     end
 end
 
+local function AppendSummary(target, summary)
+    if type(target) == "table" and type(summary) == "table" then
+        target[#target + 1] = summary
+    end
+end
+
 local function ShouldReadUserPresets(options, db)
     if type(options) == "table" and options.presetService ~= nil then
         return true
@@ -292,6 +389,43 @@ local function ShouldReadUserPresets(options, db)
 
     local global = type(db) == "table" and rawget(db, "global") or nil
     return type(global) == "table" and type(global.UserPresets) == "table"
+end
+
+local function GetRawUserPresets(db)
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    local presets = type(global) == "table" and rawget(global, "UserPresets") or nil
+    return type(presets) == "table" and presets or {}
+end
+
+local function BuildBuiltinPresetMetadata(presetId)
+    local themes = FocalPoint.Themes or {}
+    local theme = themes[presetId]
+    if type(theme) ~= "table" then
+        return nil
+    end
+
+    return {
+        id = presetId,
+        labelKey = theme.labelKey,
+        descriptionKey = theme.descriptionKey,
+        source = "builtin",
+        readOnly = true,
+    }
+end
+
+local function BuildUserPresetMetadata(presetId, rawPreset)
+    if not IsNonEmptyString(presetId) or type(rawPreset) ~= "table" or type(rawPreset.layout) ~= "table" then
+        return nil
+    end
+
+    local metadata = type(rawPreset.metadata) == "table" and rawPreset.metadata or {}
+    return {
+        id = presetId,
+        name = IsNonEmptyString(metadata.name) and metadata.name or presetId,
+        description = IsNonEmptyString(metadata.description) and metadata.description or nil,
+        source = "user",
+        readOnly = false,
+    }
 end
 
 function LayoutService.ListLayouts(options)
@@ -332,6 +466,44 @@ function LayoutService.ListLayouts(options)
     end
 
     return layouts
+end
+
+function LayoutService.ListLayoutSummaries(options)
+    options = type(options) == "table" and options or {}
+
+    local db = options.db or FocalPoint.db
+    local userLayoutStore = options.userLayoutStore or FocalPoint.UserLayoutStore or {}
+    local summaries = {}
+
+    for _, profileName in ipairs(GetProfileNames(db)) do
+        AppendSummary(summaries, LayoutService.ProjectProfileSummary(profileName, GetProfileByName(db, profileName)))
+    end
+
+    local themes = FocalPoint.Themes or {}
+    local seenBuiltIns = {}
+    for _, presetId in ipairs(BUILT_IN_PRESET_ORDER) do
+        seenBuiltIns[presetId] = true
+        AppendSummary(summaries, LayoutService.ProjectPresetSummary(BuildBuiltinPresetMetadata(presetId)))
+    end
+    for _, presetId in ipairs(SortedStringKeys(themes)) do
+        if not seenBuiltIns[presetId] then
+            AppendSummary(summaries, LayoutService.ProjectPresetSummary(BuildBuiltinPresetMetadata(presetId)))
+        end
+    end
+
+    if ShouldReadUserPresets(options, db) then
+        local userPresets = GetRawUserPresets(db)
+        for _, presetId in ipairs(SortedStringKeys(userPresets)) do
+            AppendSummary(summaries, LayoutService.ProjectPresetSummary(BuildUserPresetMetadata(presetId, userPresets[presetId])))
+        end
+    end
+
+    local userLayouts = userLayoutStore.ListRawReadOnly and userLayoutStore.ListRawReadOnly(db) or {}
+    for _, layoutId in ipairs(SortedUserLayoutIds(userLayouts)) do
+        AppendSummary(summaries, LayoutService.ProjectUserLayoutSummary(layoutId, userLayouts[layoutId]))
+    end
+
+    return summaries
 end
 
 function LayoutService.MaterializeFromProfile(profile, defaults)
