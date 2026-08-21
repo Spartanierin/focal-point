@@ -2490,6 +2490,120 @@ local function ValidateEditorSelectionForProfile(addon)
     end
 end
 
+local function CancelEditorInteractionsForLayoutResync(addon)
+    local editor = addon and addon.GUI and addon.GUI.Editor or nil
+    local resizeHandles = editor and editor.FrameResizeHandles or nil
+    if resizeHandles and resizeHandles.CancelAll then
+        resizeHandles.CancelAll()
+    end
+
+    local textOverlay = editor and editor.TextEditorOverlay or nil
+    if textOverlay and textOverlay.CancelActiveDrag then
+        textOverlay.CancelActiveDrag()
+    end
+end
+
+local function EnsureLayoutActivationEventFrame(addon)
+    if not addon or addon._layoutActivationEventFrame then
+        return
+    end
+
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    frame:SetScript("OnEvent", function()
+        if InCombatLockdown and InCombatLockdown() then
+            return
+        end
+
+        local pending = addon._pendingLayoutActivation
+        if type(pending) ~= "table" then
+            return
+        end
+
+        addon._pendingLayoutActivation = nil
+        if addon.ActivateLayout then
+            addon:ActivateLayout(pending.layoutId, pending.reason or "layout-pending", pending.options)
+        end
+    end)
+
+    addon._layoutActivationEventFrame = frame
+end
+
+function FocalPoint:ResyncActiveLayout(reason, options)
+    options = type(options) == "table" and options or {}
+
+    CancelEditorInteractionsForLayoutResync(self)
+    ValidateEditorSelectionForProfile(self)
+
+    if self.RebuildFramesForActiveProfile then
+        self:RebuildFramesForActiveProfile()
+    end
+
+    if self.RefreshEditorSelectionVisuals then
+        self:RefreshEditorSelectionVisuals()
+    end
+
+    if options.silent ~= true and self.GUI and self.GUI.RequestRefreshOptions then
+        self.GUI:RequestRefreshOptions()
+    end
+
+    return true, "resynced"
+end
+
+function FocalPoint:ActivateLayout(layoutId, reason, options)
+    options = type(options) == "table" and options or {}
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return false, "invalid-layout"
+    end
+
+    local db = self.db
+    local resolver = self.ActiveLayoutResolver
+    if type(db) ~= "table" or not (resolver and resolver.ResolveLayout) then
+        return false, "layout-resolver-unavailable"
+    end
+
+    local envelope, resolveReason = resolver.ResolveLayout(db, layoutId)
+    if type(envelope) ~= "table" then
+        return false, resolveReason or "invalid-layout"
+    end
+
+    local currentLayoutId = resolver.GetStoredActiveLayoutId and resolver.GetStoredActiveLayoutId(db) or nil
+    if currentLayoutId == layoutId then
+        return false, "same-layout"
+    end
+
+    if InCombatLockdown and InCombatLockdown() then
+        self._pendingLayoutActivation = {
+            layoutId = layoutId,
+            reason = reason or "layout-activate",
+            options = options,
+        }
+        EnsureLayoutActivationEventFrame(self)
+        return false, "pending"
+    end
+
+    db.char = type(db.char) == "table" and db.char or {}
+    local oldLayoutId = rawget(db.char, "activeLayoutId")
+    db.char.activeLayoutId = layoutId
+
+    local ok, resyncOk, resyncReason = pcall(function()
+        return self:ResyncActiveLayout(reason or "layout-activate", options)
+    end)
+    if ok and resyncOk ~= false then
+        return true, "applied"
+    end
+
+    db.char.activeLayoutId = oldLayoutId
+    pcall(function()
+        self:ResyncActiveLayout("layout-activate-rollback", options)
+    end)
+
+    if not ok then
+        return false, "resync-error"
+    end
+    return false, resyncReason or "resync-failed"
+end
+
 function FocalPoint:HandleActiveProfileChanged(reason, options)
     options = type(options) == "table" and options or {}
     ValidateEditorSelectionForProfile(self)
