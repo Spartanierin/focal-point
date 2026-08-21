@@ -44,24 +44,48 @@ function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
     return materialized
 end
 
-function LayoutService.MaterializeFromProfile(profile, defaults)
+local function ResolveLayoutDefaults(defaults)
     local defaultProfile = defaults and defaults.profile or defaults
-    local defaultUnits = defaultProfile and defaultProfile.Units
-    local profileUnits = profile and profile.Units
-    local layout = {
+    return {
+        Units = defaultProfile and defaultProfile.Units or nil,
+        TextTemplates = defaultProfile and defaultProfile.TextTemplates or nil,
+    }
+end
+
+function LayoutService.NormalizePayload(payload, defaults)
+    local layoutDefaults = ResolveLayoutDefaults(defaults)
+    local sourceUnits = type(payload) == "table" and payload.Units or nil
+    local sourceTemplates = type(payload) == "table" and payload.TextTemplates or nil
+    local normalized = {
         Units = {},
-        TextTemplates = LayoutService.Clone(profile and profile.TextTemplates) or {},
+        TextTemplates = LayoutService.Clone(layoutDefaults.TextTemplates) or {},
     }
 
-    if type(defaultUnits) == "table" then
-        for unitKey, defaultUnit in pairs(defaultUnits) do
-            layout.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, profileUnits and profileUnits[unitKey])
-        end
-    elseif type(profileUnits) == "table" then
-        layout.Units = LayoutService.Clone(profileUnits) or {}
+    if type(sourceTemplates) == "table" then
+        LayoutService.MergeInto(normalized.TextTemplates, sourceTemplates)
     end
 
-    return layout
+    if type(layoutDefaults.Units) == "table" then
+        for unitKey, defaultUnit in pairs(layoutDefaults.Units) do
+            normalized.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, sourceUnits and sourceUnits[unitKey])
+        end
+    elseif type(sourceUnits) == "table" then
+        normalized.Units = LayoutService.Clone(sourceUnits) or {}
+    end
+
+    return normalized
+end
+
+function LayoutService.CopyPayload(payload)
+    return LayoutService.NormalizePayload(payload)
+end
+
+function LayoutService.MaterializeFromProfile(profile, defaults)
+    local defaultProfile = defaults and defaults.profile or defaults
+    return LayoutService.NormalizePayload({
+        Units = profile and profile.Units or nil,
+        TextTemplates = profile and profile.TextTemplates or nil,
+    }, defaultProfile)
 end
 
 function LayoutService.BuildPreviewUnitConfig(layout, unitKey)
