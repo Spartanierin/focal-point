@@ -18,6 +18,7 @@ local WINDOW_HEIGHT = 460
 
 local context
 local renameDialog
+local copyDialog
 
 local ROW_COLORS = {
     fill = { 0.075, 0.085, 0.105, 0.78 },
@@ -476,11 +477,63 @@ local function ResolveRenameStatus(reason)
     return T("LAYOUT_RENAME_FAILED", "Layout could not be renamed.")
 end
 
+local function ResolveCopyStatus(reason)
+    if reason == "name-required" then
+        return T("LAYOUT_RENAME_NAME_REQUIRED", "Please enter a layout name.")
+    end
+    if reason == "name-too-long" then
+        return T("LAYOUT_RENAME_NAME_TOO_LONG", "Layout name is too long.")
+    end
+    if reason == "duplicate-name" then
+        return T("LAYOUT_RENAME_NAME_EXISTS", "A layout with this name already exists.")
+    end
+    if reason == "unsupported-source" or reason == "layout-not-found" or reason == "missing-builtin" then
+        return T("LAYOUT_COPY_INVALID_SOURCE", "Select a layout that can be copied.")
+    end
+    return T("LAYOUT_COPY_FAILED", "Layout copy could not be created.")
+end
+
+local function RefreshCanvasPicker()
+    local canvasToolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.CanvasToolbar
+    if canvasToolbar and canvasToolbar.Refresh then
+        canvasToolbar.Refresh()
+        return
+    end
+    LayoutManager.Refresh()
+end
+
+local function SetButtonVisible(button, visible, width)
+    if not button then
+        return
+    end
+    if button.frame then
+        if visible and button.frame.Show then
+            button.frame:Show()
+        elseif not visible and button.frame.Hide then
+            button.frame:Hide()
+        end
+    end
+    if button.SetWidth then
+        button:SetWidth(visible and width or 1)
+    end
+    if button.SetDisabled then
+        button:SetDisabled(not visible)
+    end
+end
+
 local function CloseRenameDialog()
     if renameDialog and renameDialog.Close then
         renameDialog:Close()
     elseif renameDialog and renameDialog.window and renameDialog.window.Hide then
         renameDialog.window:Hide()
+    end
+end
+
+local function CloseCopyDialog()
+    if copyDialog and copyDialog.Close then
+        copyDialog:Close()
+    elseif copyDialog and copyDialog.window and copyDialog.window.Hide then
+        copyDialog.window:Hide()
     end
 end
 
@@ -492,6 +545,73 @@ local function FocusDialogEditBox(editBox)
     if native and native.HighlightText then
         native:HighlightText()
     end
+end
+
+local function CreateLayoutNameDialog(options)
+    options = options or {}
+    local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+        title = options.title,
+        description = options.description,
+        width = 420,
+        height = 220,
+        bodyHeight = 62,
+    }) or nil
+    if not dialog then
+        return nil
+    end
+
+    local nameEdit = AceGUI:Create("EditBox")
+    nameEdit:SetLabel(options.nameLabel or T("LAYOUT_RENAME_NAME", "Name"))
+    nameEdit:SetFullWidth(true)
+    nameEdit:SetText(options.defaultName or "")
+    if nameEdit.DisableButton then
+        nameEdit:DisableButton(true)
+    end
+    if FormWidgets.StyleEditBox then
+        FormWidgets.StyleEditBox(nameEdit, "editor_inset")
+    end
+    dialog.body:AddChild(nameEdit)
+
+    local function updatePrimaryButton()
+        if dialog.primaryButton then
+            dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
+        end
+    end
+
+    local function clearStatus()
+        dialog:SetStatus("")
+        updatePrimaryButton()
+    end
+
+    nameEdit:SetCallback("OnTextChanged", clearStatus)
+    nameEdit:SetCallback("OnEnterPressed", function()
+        if Trim(nameEdit:GetText() or "") ~= "" and options.onSubmit then
+            options.onSubmit(dialog, nameEdit)
+        end
+    end)
+
+    dialog:SetActions({
+        secondary = {
+            text = T("INFO_COMMON_CANCEL", "Cancel"),
+            role = "utility",
+            width = 110,
+            onClick = options.onCancel,
+        },
+        primary = {
+            text = options.primaryText,
+            role = "primary_action",
+            width = 120,
+            onClick = function()
+                if options.onSubmit then
+                    options.onSubmit(dialog, nameEdit)
+                end
+            end,
+        },
+    })
+
+    dialog.nameEdit = nameEdit
+    updatePrimaryButton()
+    return dialog
 end
 
 local function OpenRenameDialog()
@@ -506,40 +626,23 @@ local function OpenRenameDialog()
 
     CloseRenameDialog()
 
-    local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+    local dialog = CreateLayoutNameDialog({
         title = T("LAYOUT_RENAME_TITLE", "Rename Layout"),
         description = T("LAYOUT_RENAME_DESCRIPTION", "Change the display name. The layout ID and design stay unchanged."),
-        width = 420,
-        height = 220,
-        bodyHeight = 62,
-    }) or nil
+        defaultName = selected.name or "",
+        nameLabel = T("LAYOUT_RENAME_NAME", "Name"),
+        primaryText = T("LAYOUT_RENAME_CONFIRM", "Rename"),
+        onCancel = CloseRenameDialog,
+    })
     if not dialog then
         return
     end
-
-    local nameEdit = AceGUI:Create("EditBox")
-    nameEdit:SetLabel(T("LAYOUT_RENAME_NAME", "Name"))
-    nameEdit:SetFullWidth(true)
-    nameEdit:SetText(selected.name or "")
-    if nameEdit.DisableButton then
-        nameEdit:DisableButton(true)
-    end
-    if FormWidgets.StyleEditBox then
-        FormWidgets.StyleEditBox(nameEdit, "editor_inset")
-    end
-    dialog.body:AddChild(nameEdit)
 
     local function setStatus(message)
         dialog:SetStatus(message)
     end
 
-    local function updateRenameButton()
-        if dialog.primaryButton then
-            dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
-        end
-    end
-
-    local function submitRename()
+    local function submitRename(_, nameEdit)
         local mutations = ns.LayoutMutations or {}
         local ok, resultOrReason = false, "rename-unavailable"
         if mutations.RenameUserLayout then
@@ -548,43 +651,23 @@ local function OpenRenameDialog()
         if ok then
             context.selectedLayoutId = selected.id
             CloseRenameDialog()
-            local canvasToolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.CanvasToolbar
-            if canvasToolbar and canvasToolbar.Refresh then
-                canvasToolbar.Refresh()
-            else
-                LayoutManager.Refresh()
-            end
+            RefreshCanvasPicker()
             return
         end
 
         setStatus(ResolveRenameStatus(resultOrReason))
-        updateRenameButton()
+        if dialog.primaryButton then
+            dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
+        end
     end
-
-    nameEdit:SetCallback("OnTextChanged", function()
-        setStatus("")
-        updateRenameButton()
+    dialog.primaryButton:SetCallback("OnClick", function()
+        submitRename(dialog, dialog.nameEdit)
     end)
-    nameEdit:SetCallback("OnEnterPressed", function()
-        if Trim(nameEdit:GetText() or "") ~= "" then
-            submitRename()
+    dialog.nameEdit:SetCallback("OnEnterPressed", function()
+        if Trim(dialog.nameEdit:GetText() or "") ~= "" then
+            submitRename(dialog, dialog.nameEdit)
         end
     end)
-
-    dialog:SetActions({
-        secondary = {
-            text = T("INFO_COMMON_CANCEL", "Cancel"),
-            role = "utility",
-            width = 110,
-            onClick = CloseRenameDialog,
-        },
-        primary = {
-            text = T("LAYOUT_RENAME_CONFIRM", "Rename"),
-            role = "primary_action",
-            width = 120,
-            onClick = submitRename,
-        },
-    })
 
     dialog.window:SetCallback("OnClose", function()
         if renameDialog == dialog then
@@ -593,10 +676,73 @@ local function OpenRenameDialog()
     end)
 
     renameDialog = dialog
-    renameDialog.nameEdit = nameEdit
-    updateRenameButton()
     dialog:Show()
-    FocusDialogEditBox(nameEdit)
+    FocusDialogEditBox(dialog.nameEdit)
+end
+
+local function OpenCopyDialog()
+    if not (context and context.state) then
+        return
+    end
+
+    local selected = FindSelectedItem(context.state)
+    if not (selected and (selected.source == "userLayout" or selected.source == "builtin")) then
+        return
+    end
+
+    CloseCopyDialog()
+
+    local mutations = ns.LayoutMutations or {}
+    local defaultName = mutations.SuggestLayoutCopyName and mutations.SuggestLayoutCopyName(selected.name) or (selected.name or "Layout") .. " Copy"
+    local isBuiltin = selected.source == "builtin"
+    local dialog = CreateLayoutNameDialog({
+        title = isBuiltin and T("LAYOUT_COPY_TITLE_BUILTIN", "Create Layout Copy") or T("LAYOUT_COPY_TITLE_DUPLICATE", "Duplicate Layout"),
+        description = T("LAYOUT_COPY_DESCRIPTION", "Create a new custom layout from the selected source. It will not be activated automatically."),
+        defaultName = defaultName,
+        nameLabel = T("LAYOUT_COPY_NAME", "Name"),
+        primaryText = isBuiltin and T("LAYOUT_MANAGER_CREATE_COPY", "Create Copy") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"),
+        onCancel = CloseCopyDialog,
+    })
+    if not dialog then
+        return
+    end
+
+    local function submitCopy(_, nameEdit)
+        local ok, resultOrReason = false, "copy-unavailable"
+        if mutations.CopyLayout then
+            ok, resultOrReason = mutations.CopyLayout(selected.id, nameEdit:GetText())
+        end
+        if ok then
+            context.selectedLayoutId = resultOrReason
+            CloseCopyDialog()
+            RefreshCanvasPicker()
+            return
+        end
+
+        dialog:SetStatus(ResolveCopyStatus(resultOrReason))
+        if dialog.primaryButton then
+            dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
+        end
+    end
+
+    dialog.primaryButton:SetCallback("OnClick", function()
+        submitCopy(dialog, dialog.nameEdit)
+    end)
+    dialog.nameEdit:SetCallback("OnEnterPressed", function()
+        if Trim(dialog.nameEdit:GetText() or "") ~= "" then
+            submitCopy(dialog, dialog.nameEdit)
+        end
+    end)
+
+    dialog.window:SetCallback("OnClose", function()
+        if copyDialog == dialog then
+            copyDialog = nil
+        end
+    end)
+
+    copyDialog = dialog
+    dialog:Show()
+    FocusDialogEditBox(dialog.nameEdit)
 end
 
 local function RefreshActions()
@@ -605,13 +751,24 @@ local function RefreshActions()
     end
 
     local selected = FindSelectedItem(context.state)
-    local canRename = selected and selected.source == "userLayout"
+    local isUserLayout = selected and selected.source == "userLayout"
+    local isBuiltin = selected and selected.source == "builtin"
     if context.widgets.renameButton then
         context.widgets.renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
-        context.widgets.renameButton:SetDisabled(not canRename)
+        SetButtonVisible(context.widgets.renameButton, isUserLayout, 105)
         if FormWidgets.ApplyModalActionButtonVisual then
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.renameButton, "utility")
         end
+    end
+    if context.widgets.copyButton then
+        context.widgets.copyButton:SetText(isBuiltin and T("LAYOUT_MANAGER_CREATE_COPY", "Create Copy") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"))
+        SetButtonVisible(context.widgets.copyButton, isUserLayout or isBuiltin, isBuiltin and 120 or 105)
+        if FormWidgets.ApplyModalActionButtonVisual then
+            FormWidgets.ApplyModalActionButtonVisual(context.widgets.copyButton, "utility")
+        end
+    end
+    if context.window and context.window.DoLayout then
+        context.window:DoLayout()
     end
 end
 
@@ -660,6 +817,7 @@ end
 
 local function Close()
     CloseRenameDialog()
+    CloseCopyDialog()
     if context and context.window and context.window.Hide then
         context.selectedLayoutId = nil
         context.window:Hide()
@@ -721,9 +879,9 @@ local function CreateWindow()
     })
 
     footer:AddChild(CreateSpacer(12, 1))
-    local status = CreateLabel("", "help", 10, 280)
+    local status = CreateLabel("", "help", 10, 150)
     footer:AddChild(status)
-    footer:AddChild(CreateSpacer(22, 1))
+    footer:AddChild(CreateSpacer(10, 1))
     local renameButton = AceGUI:Create("Button")
     renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
     renameButton:SetWidth(105)
@@ -732,6 +890,15 @@ local function CreateWindow()
         FormWidgets.ApplyModalActionButtonVisual(renameButton, "utility")
     end
     footer:AddChild(renameButton)
+    footer:AddChild(CreateSpacer(8, 1))
+    local copyButton = AceGUI:Create("Button")
+    copyButton:SetText(T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"))
+    copyButton:SetWidth(105)
+    copyButton:SetFullWidth(false)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(copyButton, "utility")
+    end
+    footer:AddChild(copyButton)
     footer:AddChild(CreateSpacer(8, 1))
     local closeButton = AceGUI:Create("Button")
     closeButton:SetText(T("INFO_COMMON_CLOSE", "Close"))
@@ -749,13 +916,16 @@ local function CreateWindow()
         footer = footer,
         status = status,
         renameButton = renameButton,
+        copyButton = copyButton,
         closeButton = closeButton,
     }
 
     renameButton:SetCallback("OnClick", OpenRenameDialog)
+    copyButton:SetCallback("OnClick", OpenCopyDialog)
     closeButton:SetCallback("OnClick", Close)
     window:SetCallback("OnClose", function()
         CloseRenameDialog()
+        CloseCopyDialog()
         context.selectedLayoutId = nil
         if GameTooltip and GameTooltip.Hide then
             GameTooltip:Hide()
