@@ -4,6 +4,7 @@ FocalPoint.ActiveLayoutResolver = FocalPoint.ActiveLayoutResolver or {}
 local Resolver = FocalPoint.ActiveLayoutResolver
 
 local DEFAULT_ACTIVE_LAYOUT_ID = "builtin:default"
+local LAYOUT_FORMAT_VERSION = 1
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
@@ -51,6 +52,61 @@ local function GetMigrationProfileMap(db)
     local state = type(global) == "table" and rawget(global, "LayoutMigration") or nil
     local profileMap = type(state) == "table" and rawget(state, "profileMap") or nil
     return type(profileMap) == "table" and profileMap or nil
+end
+
+local function BuildUsedLayoutNames(db)
+    local used = {}
+    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
+    local layouts = UserLayoutStore.ListRawReadOnly and UserLayoutStore.ListRawReadOnly(db) or {}
+    if type(layouts) ~= "table" then
+        return used
+    end
+
+    for _, record in pairs(layouts) do
+        local name = type(record) == "table" and record.name or nil
+        if IsNonEmptyString(name) then
+            used[string.lower(name)] = true
+        end
+    end
+
+    return used
+end
+
+local function ResolveUniqueCopyName(baseName, db)
+    baseName = IsNonEmptyString(baseName) and baseName or "Layout"
+    local used = BuildUsedLayoutNames(db)
+    local candidate = baseName .. " Copy"
+    if not used[string.lower(candidate)] then
+        return candidate
+    end
+
+    local index = 2
+    while true do
+        candidate = string.format("%s Copy %d", baseName, index)
+        if not used[string.lower(candidate)] then
+            return candidate
+        end
+        index = index + 1
+    end
+end
+
+local function ResolveMutableUserLayoutPayload(db, layoutId)
+    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
+    local record = UserLayoutStore.GetMutableRaw and UserLayoutStore.GetMutableRaw(layoutId, db)
+        or UserLayoutStore.GetRaw and UserLayoutStore.GetRaw(layoutId)
+        or nil
+    local payload = type(record) == "table" and record.payload or nil
+    if type(payload) ~= "table" then
+        return nil, "missing-user-layout-payload"
+    end
+    if type(payload.Units) ~= "table" then
+        return nil, "missing-user-layout-units"
+    end
+    if type(payload.TextTemplates) ~= "table" then
+        return nil, "missing-user-layout-text-templates"
+    end
+
+    return payload, nil, record
 end
 
 function Resolver.GetStoredActiveLayoutId(db)
@@ -117,6 +173,72 @@ function Resolver.GetActivePayload(db)
 
     local LayoutService = FocalPoint.LayoutService or {}
     return LayoutService.Clone and LayoutService.Clone(envelope.payload) or nil
+end
+
+function Resolver.EnsureEditableActiveLayout(db)
+    db = ResolveDB(db)
+    if type(db) ~= "table" then
+        return nil, nil, false, "db-unavailable"
+    end
+
+    db.char = type(db.char) == "table" and db.char or {}
+
+    local layoutId = Resolver.GetStoredActiveLayoutId(db)
+    local sourceKind = SplitActiveLayoutId(layoutId)
+    if sourceKind == "layout" then
+        local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
+        if type(payload) ~= "table" then
+            return nil, layoutId, false, reason
+        end
+        return payload, layoutId, false
+    end
+
+    if sourceKind ~= "builtin" then
+        return nil, layoutId, false, "unsupported-source"
+    end
+
+    local envelope, resolveReason = Resolver.ResolveLayout(db, layoutId)
+    if type(envelope) ~= "table" or type(envelope.payload) ~= "table" then
+        return nil, layoutId, false, resolveReason or "builtin-unresolvable"
+    end
+
+    local LayoutService = FocalPoint.LayoutService or {}
+    local payload = LayoutService.NormalizePayload and LayoutService.NormalizePayload(envelope.payload, ResolveDefaults()) or nil
+    if type(payload) ~= "table" or type(payload.Units) ~= "table" or type(payload.TextTemplates) ~= "table" then
+        return nil, layoutId, false, "invalid-builtin-payload"
+    end
+
+    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
+    if not (UserLayoutStore.GenerateId and UserLayoutStore.PutRaw) then
+        return nil, layoutId, false, "user-layout-store-unavailable"
+    end
+
+    local newLayoutId = UserLayoutStore.GenerateId()
+    if not IsNonEmptyString(newLayoutId) then
+        return nil, layoutId, false, "id-failed"
+    end
+
+    local record = {
+        name = ResolveUniqueCopyName(envelope.name, db),
+        payload = payload,
+        formatVersion = LAYOUT_FORMAT_VERSION,
+        createdFrom = {
+            source = "builtin",
+            id = envelope.id,
+        },
+    }
+    local storedId = UserLayoutStore.PutRaw(newLayoutId, record)
+    if storedId ~= newLayoutId then
+        return nil, layoutId, false, "store-write-failed"
+    end
+
+    local mutablePayload, mutableReason = ResolveMutableUserLayoutPayload(db, newLayoutId)
+    if type(mutablePayload) ~= "table" then
+        return nil, layoutId, false, mutableReason or "store-verify-failed"
+    end
+
+    db.char.activeLayoutId = newLayoutId
+    return mutablePayload, newLayoutId, true
 end
 
 function Resolver.InitializeActiveLayoutId(db)

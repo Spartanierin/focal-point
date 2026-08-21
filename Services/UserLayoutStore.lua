@@ -58,6 +58,22 @@ function Store.GetRaw(id)
     return layouts[id]
 end
 
+function Store.GetMutableRaw(id, db)
+    local layouts
+    if type(db) == "table" and db ~= FocalPoint.db then
+        db.global = type(db.global) == "table" and db.global or {}
+        db.global.UserLayouts = type(db.global.UserLayouts) == "table" and db.global.UserLayouts or {}
+        layouts = db.global.UserLayouts
+    else
+        layouts = Store.EnsureStore()
+    end
+    if type(layouts) ~= "table" or type(id) ~= "string" or id == "" then
+        return nil
+    end
+
+    return layouts[id]
+end
+
 function Store.ListRaw()
     local layouts = Store.EnsureStore()
     if type(layouts) ~= "table" then
