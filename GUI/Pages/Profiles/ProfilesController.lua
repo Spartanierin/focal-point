@@ -146,10 +146,10 @@ local function RefreshProfileUI()
 end
 
 local function SyncActiveProfile(reason)
-    if ns.HandleActiveProfileChanged then
-        ns:HandleActiveProfileChanged(reason or "profiles-ui-sync")
-    elseif ns.RebuildFramesForActiveProfile then
-        ns:RebuildFramesForActiveProfile()
+    if ns.RefreshProfileSettings then
+        ns:RefreshProfileSettings(reason or "profiles-ui-sync")
+    elseif ns.GUI and ns.GUI.RequestRefreshOptions then
+        ns.GUI:RequestRefreshOptions()
     end
 end
 

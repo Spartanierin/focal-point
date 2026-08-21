@@ -1059,6 +1059,58 @@ function FocalPoint:GetTargetRangeChecker()
     return self.targetRangeChecker
 end
 
+function FocalPoint:RefreshProfileSettings(reason, options)
+    options = type(options) == "table" and options or {}
+
+    local profile = self.db and self.db.profile or nil
+    local general = type(profile) == "table" and profile.General or {}
+    self.TAG_UPDATE_INTERVAL = general.TagUpdateInterval or 0.25
+    self.SEPARATOR = general.Separator or "||"
+    self.TOT_SEPARATOR = general.ToTSeparator or "»"
+
+    if self.ApplyGeneralSettings then
+        self:ApplyGeneralSettings()
+    end
+
+    if self.SetMinimapButtonVisible then
+        local minimap = type(profile) == "table" and profile.Minimap or nil
+        self:SetMinimapButtonVisible(not (type(minimap) == "table" and minimap.hide == true))
+    end
+
+    local editorStateApi = self.GUI and self.GUI.Editor and self.GUI.Editor.State or nil
+    local state = editorStateApi and editorStateApi.Get and editorStateApi.Get() or nil
+    local editorMode = self.EditorMode or (self.GUI and self.GUI.Editor and self.GUI.Editor.Mode)
+    if type(state) == "table" and editorMode and editorMode.SyncStateFromProfile then
+        editorMode.SyncStateFromProfile(state, profile)
+    end
+
+    local activeThemeId = type(general.ActiveThemeId) == "string" and general.ActiveThemeId ~= "" and general.ActiveThemeId or "default"
+    if editorStateApi and editorStateApi.SetSelectedThemeId then
+        editorStateApi.SetSelectedThemeId(activeThemeId)
+    elseif type(state) == "table" then
+        state.selectedThemeId = activeThemeId
+    end
+
+    local grid = self.GUI and self.GUI.Editor and self.GUI.Editor.FrameUnlockGrid or nil
+    if grid and grid.Refresh then
+        grid.Refresh()
+    end
+
+    if self.RefreshAllFrames then
+        self:RefreshAllFrames()
+    elseif self.frames and self.RefreshUnitFrame then
+        for unit in pairs(self.frames) do
+            self:RefreshUnitFrame(unit)
+        end
+    end
+
+    if options.silent ~= true and self.GUI and self.GUI.RequestRefreshOptions then
+        self.GUI:RequestRefreshOptions()
+    end
+
+    return true, "settings-refreshed"
+end
+
 function FocalPointAddon:OnInitialize()
     FocalPoint.db = LibStub("AceDB-3.0"):New("FocalPointDB", FocalPoint:GetDefaultDB(), true)
     EnsureImageElementDefaults()
@@ -1106,10 +1158,8 @@ function FocalPointAddon:OnInitialize()
             FocalPoint._pendingProfileActivationReason = nil
             FocalPoint._pendingProfileActivationOptions = nil
             NormalizeAbsorbConfig()
-            if FocalPoint.HandleActiveProfileChanged then
-                FocalPoint:HandleActiveProfileChanged(reason, options)
-            elseif FocalPoint.RebuildFramesForActiveProfile then
-                FocalPoint:RebuildFramesForActiveProfile()
+            if FocalPoint.RefreshProfileSettings then
+                FocalPoint:RefreshProfileSettings(reason, options)
             end
         end
 

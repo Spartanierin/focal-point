@@ -245,8 +245,8 @@ function FocalPoint:ActivateProfile(profileName, reason, options)
 
     local currentProfileName = GetCurrentProfileName()
     if currentProfileName == profileName then
-        if self.HandleActiveProfileChanged then
-            self:HandleActiveProfileChanged(reason or "profile-activate-current", options)
+        if self.RefreshProfileSettings then
+            self:RefreshProfileSettings(reason or "profile-activate-current", options)
         end
         return true
     end
