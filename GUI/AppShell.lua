@@ -462,11 +462,21 @@ function AppShell.AssignEditorRuntimeRoles(addon)
             addon.guiEditorToolbarHost.frame._focalPointEditorRole = "editor_toolbar"
         end
     end
+
+    local canvasToolbar = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.CanvasToolbar
+    if canvasToolbar and canvasToolbar.Show then
+        canvasToolbar.Show()
+    end
 end
 
 function AppShell.ClearEditorRuntimeRoles(addon)
     if not addon then
         return
+    end
+
+    local canvasToolbar = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.CanvasToolbar
+    if canvasToolbar and canvasToolbar.Hide then
+        canvasToolbar.Hide()
     end
 
     HideEditorPresentationHost(addon)
@@ -940,6 +950,14 @@ function AppShell.UpdateGeometry(addon, resolvePath)
     end
 
     AppShell.LayoutEditorToolbarHost(addon)
+
+    local canvasToolbar = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.CanvasToolbar
+    if editorShellMode and canvasToolbar and canvasToolbar.UpdateGeometry then
+        canvasToolbar.UpdateGeometry()
+        if canvasToolbar.Refresh then
+            canvasToolbar.Refresh()
+        end
+    end
 
     local editorController = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Controller
     if shellMode ~= "editor" and editorController and editorController.ReleaseInspector then

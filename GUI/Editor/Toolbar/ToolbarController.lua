@@ -236,6 +236,10 @@ function ToolbarController.RefreshInteractionModeControls()
     if ToolbarBinding and ToolbarBinding.RefreshInteractionModeControls then
         ToolbarBinding.RefreshInteractionModeControls(windowContext, BuildBindingDeps())
     end
+    local canvasToolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.CanvasToolbar
+    if canvasToolbar and canvasToolbar.Refresh then
+        canvasToolbar.Refresh()
+    end
 end
 
 return ToolbarController
