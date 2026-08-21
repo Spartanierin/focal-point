@@ -7,6 +7,12 @@ local LAYOUT_SOURCES = {
     BUILTIN = "builtin",
     USER_PRESET = "userPreset",
 }
+local BUILT_IN_PRESET_ORDER = {
+    "default",
+    "classic",
+    "minimal",
+    "modern",
+}
 
 LayoutService.Sources = LayoutService.Sources or LAYOUT_SOURCES
 
@@ -175,6 +181,112 @@ function LayoutService.ProjectPreset(preset, defaults)
         defaults,
         metadata
     )
+end
+
+local function SortedStringKeys(source)
+    local keys = {}
+    if type(source) ~= "table" then
+        return keys
+    end
+
+    for key in pairs(source) do
+        if IsNonEmptyString(key) then
+            keys[#keys + 1] = key
+        end
+    end
+
+    table.sort(keys)
+    return keys
+end
+
+local function GetProfileStore(db)
+    if type(db) ~= "table" then
+        return nil
+    end
+    if type(db.profiles) == "table" then
+        return db.profiles
+    end
+    local savedVariables = rawget(db, "sv")
+    return type(savedVariables) == "table" and type(savedVariables.profiles) == "table" and savedVariables.profiles or nil
+end
+
+local function GetProfileNames(db)
+    if type(db) ~= "table" or type(db.GetProfiles) ~= "function" then
+        return {}
+    end
+
+    local ok, profiles = pcall(db.GetProfiles, db, {})
+    if not ok or type(profiles) ~= "table" then
+        return {}
+    end
+
+    table.sort(profiles)
+    return profiles
+end
+
+local function GetProfileByName(db, profileName)
+    if not IsNonEmptyString(profileName) then
+        return nil
+    end
+
+    if type(db) == "table" and type(db.GetCurrentProfile) == "function" then
+        local ok, currentProfile = pcall(db.GetCurrentProfile, db)
+        if ok and currentProfile == profileName and type(db.profile) == "table" then
+            return db.profile
+        end
+    end
+
+    local profileStore = GetProfileStore(db)
+    return type(profileStore) == "table" and type(profileStore[profileName]) == "table" and profileStore[profileName] or nil
+end
+
+local function AppendProjected(target, envelope)
+    if type(target) == "table" and type(envelope) == "table" then
+        target[#target + 1] = envelope
+    end
+end
+
+local function ShouldReadUserPresets(options, db)
+    if type(options) == "table" and options.presetService ~= nil then
+        return true
+    end
+
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    return type(global) == "table" and type(global.UserPresets) == "table"
+end
+
+function LayoutService.ListLayouts(options)
+    options = type(options) == "table" and options or {}
+
+    local db = options.db or FocalPoint.db
+    local defaults = options.defaults or (FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB()) or nil
+    local presetService = options.presetService or FocalPoint.PresetService or {}
+    local layouts = {}
+
+    for _, profileName in ipairs(GetProfileNames(db)) do
+        AppendProjected(layouts, LayoutService.ProjectProfile(profileName, GetProfileByName(db, profileName), defaults))
+    end
+
+    local builtIns = presetService.GetBuiltInPresets and presetService.GetBuiltInPresets() or {}
+    local seenBuiltIns = {}
+    for _, presetId in ipairs(BUILT_IN_PRESET_ORDER) do
+        seenBuiltIns[presetId] = true
+        AppendProjected(layouts, LayoutService.ProjectPreset(builtIns[presetId], defaults))
+    end
+    for _, presetId in ipairs(SortedStringKeys(builtIns)) do
+        if not seenBuiltIns[presetId] then
+            AppendProjected(layouts, LayoutService.ProjectPreset(builtIns[presetId], defaults))
+        end
+    end
+
+    if ShouldReadUserPresets(options, db) then
+        local userPresets = presetService.GetUserPresets and presetService.GetUserPresets() or {}
+        for _, presetId in ipairs(SortedStringKeys(userPresets)) do
+            AppendProjected(layouts, LayoutService.ProjectPreset(userPresets[presetId], defaults))
+        end
+    end
+
+    return layouts
 end
 
 function LayoutService.MaterializeFromProfile(profile, defaults)
