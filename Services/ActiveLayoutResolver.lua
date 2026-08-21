@@ -109,6 +109,62 @@ local function ResolveMutableUserLayoutPayload(db, layoutId)
     return payload, nil, record
 end
 
+local function IsValidLayoutPayload(payload)
+    return type(payload) == "table"
+        and type(payload.Units) == "table"
+        and type(payload.TextTemplates) == "table"
+end
+
+local function BuildRuntimeRoot(db, layoutId)
+    db = ResolveDB(db)
+    local sourceKind = SplitActiveLayoutId(layoutId)
+    if sourceKind == "layout" then
+        local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
+        if not IsValidLayoutPayload(payload) then
+            return nil, reason or "invalid-user-layout-payload"
+        end
+        return {
+            db = db,
+            layoutId = layoutId,
+            source = sourceKind,
+            payload = payload,
+        }
+    end
+
+    if sourceKind == "builtin" then
+        local envelope, reason = Resolver.ResolveLayout(db, layoutId)
+        local payload = type(envelope) == "table" and envelope.payload or nil
+        if not IsValidLayoutPayload(payload) then
+            return nil, reason or "invalid-builtin-payload"
+        end
+        return {
+            db = db,
+            layoutId = layoutId,
+            source = sourceKind,
+            payload = payload,
+        }
+    end
+
+    return nil, "unsupported-source"
+end
+
+local function IsRuntimeRootCurrent(root, db, layoutId)
+    if type(root) ~= "table"
+        or root.db ~= db
+        or root.layoutId ~= layoutId
+        or not IsValidLayoutPayload(root.payload)
+    then
+        return false
+    end
+
+    if root.source == "layout" then
+        local payload = ResolveMutableUserLayoutPayload(db, layoutId)
+        return payload == root.payload
+    end
+
+    return root.source == "builtin"
+end
+
 function Resolver.GetStoredActiveLayoutId(db)
     db = ResolveDB(db)
     local char = type(db) == "table" and rawget(db, "char") or nil
@@ -175,21 +231,59 @@ function Resolver.GetActivePayload(db)
     return LayoutService.Clone and LayoutService.Clone(envelope.payload) or nil
 end
 
-function Resolver.GetActivePayloadRoot(db)
+function Resolver.ResolveRuntimeRoot(db, layoutId)
+    if not IsNonEmptyString(layoutId) then
+        return nil, "invalid-layout"
+    end
+    return BuildRuntimeRoot(db, layoutId)
+end
+
+function Resolver.GetActiveRuntimeRoot()
+    return Resolver._activeRuntimeRoot
+end
+
+function Resolver.SetActiveRuntimeRoot(root)
+    if type(root) ~= "table" or not IsNonEmptyString(root.layoutId) or not IsValidLayoutPayload(root.payload) then
+        return false
+    end
+
+    Resolver._activeRuntimeRoot = root
+    return true
+end
+
+function Resolver.InvalidateActiveRuntimeRoot()
+    Resolver._activeRuntimeRoot = nil
+end
+
+function Resolver.EnsureActiveRuntimeRoot(db)
     db = ResolveDB(db)
     local layoutId = Resolver.GetStoredActiveLayoutId(db)
-    local sourceKind = SplitActiveLayoutId(layoutId)
-    if sourceKind == "layout" then
-        local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
-        return payload, reason, layoutId
+    if not IsNonEmptyString(layoutId) then
+        return nil, "not-initialized"
     end
 
-    if sourceKind == "builtin" then
-        local payload, reason = Resolver.GetActivePayload(db)
-        return payload, reason, layoutId
+    local root = Resolver._activeRuntimeRoot
+    if IsRuntimeRootCurrent(root, db, layoutId) then
+        return root
     end
 
-    return nil, "unsupported-source", layoutId
+    local nextRoot, reason = BuildRuntimeRoot(db, layoutId)
+    if type(nextRoot) ~= "table" then
+        Resolver._activeRuntimeRoot = nil
+        return nil, reason
+    end
+
+    Resolver._activeRuntimeRoot = nextRoot
+    return nextRoot
+end
+
+function Resolver.GetActivePayloadRoot(db)
+    local root, reason = Resolver.EnsureActiveRuntimeRoot(db)
+    if type(root) ~= "table" then
+        return nil, reason, Resolver.GetStoredActiveLayoutId(db)
+    end
+
+    return root.payload, nil, root.layoutId
 end
 
 function Resolver.GetActiveUnits(db)
@@ -283,6 +377,12 @@ function Resolver.EnsureEditableActiveLayout(db)
     end
 
     db.char.activeLayoutId = newLayoutId
+    Resolver.SetActiveRuntimeRoot({
+        db = db,
+        layoutId = newLayoutId,
+        source = "layout",
+        payload = mutablePayload,
+    })
     return mutablePayload, newLayoutId, true
 end
 

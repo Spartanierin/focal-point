@@ -1882,6 +1882,10 @@ function TextBuilderController.InsertTextIntoDraft(text)
     return true
 end
 
+function TextBuilderController.HasUnsavedChanges()
+    return IsSelectedTemplateDirty(windowContext) == true
+end
+
 function TextBuilderController.HideWindow()
     RequestClose(windowContext)
 end

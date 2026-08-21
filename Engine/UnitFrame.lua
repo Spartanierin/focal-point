@@ -2558,12 +2558,12 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
 
     local db = self.db
     local resolver = self.ActiveLayoutResolver
-    if type(db) ~= "table" or not (resolver and resolver.ResolveLayout) then
+    if type(db) ~= "table" or not (resolver and resolver.ResolveRuntimeRoot and resolver.SetActiveRuntimeRoot) then
         return false, "layout-resolver-unavailable"
     end
 
-    local envelope, resolveReason = resolver.ResolveLayout(db, layoutId)
-    if type(envelope) ~= "table" then
+    local targetRoot, resolveReason = resolver.ResolveRuntimeRoot(db, layoutId)
+    if type(targetRoot) ~= "table" then
         return false, resolveReason or "invalid-layout"
     end
 
@@ -2584,7 +2584,9 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
 
     db.char = type(db.char) == "table" and db.char or {}
     local oldLayoutId = rawget(db.char, "activeLayoutId")
+    local oldRuntimeRoot = resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
     db.char.activeLayoutId = layoutId
+    resolver.SetActiveRuntimeRoot(targetRoot)
 
     local ok, resyncOk, resyncReason = pcall(function()
         return self:ResyncActiveLayout(reason or "layout-activate", options)
@@ -2594,6 +2596,11 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
     end
 
     db.char.activeLayoutId = oldLayoutId
+    if type(oldRuntimeRoot) == "table" then
+        resolver.SetActiveRuntimeRoot(oldRuntimeRoot)
+    elseif resolver.InvalidateActiveRuntimeRoot then
+        resolver.InvalidateActiveRuntimeRoot()
+    end
     pcall(function()
         self:ResyncActiveLayout("layout-activate-rollback", options)
     end)

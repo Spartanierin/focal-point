@@ -11,10 +11,15 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 248
+local TOOLBAR_WIDTH = 596
 local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
+local LAYOUT_LABEL_X = 268
+local LAYOUT_DROPDOWN_X = 314
+local LAYOUT_DROPDOWN_WIDTH = 190
+local LAYOUT_ACTIVATE_X = 512
+local LAYOUT_ACTIVATE_WIDTH = 76
 
 local BUTTONS = {
     unlock = { width = 100, x = 8 },
@@ -63,17 +68,141 @@ local function CreateButton(label, width)
     return button
 end
 
-local function AnchorButton(button, parent, layout)
-    if not button or not button.frame or not parent or not layout then
+local function AnchorWidget(widget, parent, layout)
+    if not widget or not widget.frame or not parent or not layout then
         return
     end
 
-    button.frame:SetParent(parent)
-    button.frame:ClearAllPoints()
-    button.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", layout.x, BUTTON_Y)
-    button.frame:SetWidth(layout.width)
-    button.frame:SetHeight(24)
-    button.frame:Show()
+    widget.frame:SetParent(parent)
+    widget.frame:ClearAllPoints()
+    widget.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", layout.x, layout.y or BUTTON_Y)
+    widget.frame:SetWidth(layout.width)
+    widget.frame:SetHeight(layout.height or 24)
+    widget.frame:Show()
+end
+
+local function AnchorButton(button, parent, layout)
+    AnchorWidget(button, parent, layout)
+end
+
+local function IsProductLayoutSource(source)
+    return source == "builtin" or source == "userLayout"
+end
+
+local function ResolveActiveLayoutId()
+    local resolver = ns.ActiveLayoutResolver or {}
+    if resolver.GetStoredActiveLayoutId then
+        return resolver.GetStoredActiveLayoutId(ns.db)
+    end
+    local char = ns.db and ns.db.char or nil
+    return type(char) == "table" and rawget(char, "activeLayoutId") or nil
+end
+
+local function ResolveLayoutDisplayName(layout)
+    if type(layout) ~= "table" then
+        return ""
+    end
+    local L = ns.L or {}
+    if type(layout.labelKey) == "string" and L[layout.labelKey] then
+        return L[layout.labelKey]
+    end
+    if type(layout.name) == "string" and layout.name ~= "" then
+        return layout.name
+    end
+    return type(layout.id) == "string" and layout.id or ""
+end
+
+local function BuildLayoutDropdownData(selectedLayoutId)
+    local layoutService = ns.LayoutService or {}
+    local layouts = layoutService.ListLayouts and layoutService.ListLayouts({ db = ns.db }) or {}
+    local activeLayoutId = ResolveActiveLayoutId()
+    local values = {}
+    local order = {}
+    local known = {}
+    local activeName = ""
+
+    for _, source in ipairs({ "userLayout", "builtin" }) do
+        for _, layout in ipairs(layouts) do
+            local layoutId = type(layout) == "table" and layout.id or nil
+            if IsProductLayoutSource(layout and layout.source) and layout.source == source and type(layoutId) == "string" and layoutId ~= "" then
+                local name = ResolveLayoutDisplayName(layout)
+                local prefix = source == "userLayout" and "My: " or "Built-in: "
+                local label = prefix .. name
+                if layoutId == activeLayoutId then
+                    label = label .. " (Active)"
+                    activeName = name
+                end
+                values[layoutId] = label
+                order[#order + 1] = layoutId
+                known[layoutId] = true
+            end
+        end
+    end
+
+    if type(selectedLayoutId) ~= "string" or not known[selectedLayoutId] then
+        selectedLayoutId = known[activeLayoutId] and activeLayoutId or order[1]
+    end
+
+    return values, order, selectedLayoutId, activeLayoutId, activeName
+end
+
+local function RefreshLayoutControls(current)
+    if not current or not current.widgets then
+        return
+    end
+
+    local dropdown = current.widgets.layoutDropdown
+    local activateButton = current.widgets.layoutActivateButton
+    if not dropdown or not activateButton then
+        return
+    end
+
+    local values, order, selectedLayoutId, activeLayoutId, activeName = BuildLayoutDropdownData(current.selectedLayoutId)
+    current.selectedLayoutId = selectedLayoutId
+    current.activeLayoutId = activeLayoutId
+
+    current._suspendLayoutCallbacks = true
+    dropdown:SetList(values, order)
+    dropdown:SetValue(selectedLayoutId)
+    dropdown:SetDisabled(#order == 0)
+    current._suspendLayoutCallbacks = false
+
+    if current.widgets.layoutLabel then
+        current.widgets.layoutLabel:SetText("Layout:")
+    end
+    if current.widgets.layoutActiveLabel then
+        current.widgets.layoutActiveLabel:SetText(activeName ~= "" and activeName or "")
+    end
+
+    activateButton:SetText("Activate")
+    activateButton:SetDisabled(type(selectedLayoutId) ~= "string" or selectedLayoutId == "" or selectedLayoutId == activeLayoutId)
+
+    if FormWidgets and FormWidgets.StyleDropdown then
+        FormWidgets.StyleDropdown(dropdown, "editor_inset")
+    end
+    if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(activateButton, "primary_action")
+    end
+end
+
+local function HasDirtyTextBuilderDraft()
+    local textBuilder = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TextBuilder or nil
+    return textBuilder and textBuilder.HasUnsavedChanges and textBuilder.HasUnsavedChanges() == true
+end
+
+local function ReportLayoutActivationResult(ok, reason)
+    if ok then
+        return
+    end
+    if reason == "pending" then
+        if ns.Info then
+            ns:Info("Layout activation is pending until combat ends.")
+        end
+        return
+    end
+    if reason and reason ~= "same-layout" and ns.Info then
+        ns:Info("Layout activation failed: " .. tostring(reason))
+    end
 end
 
 local function EnsureHost()
@@ -115,11 +244,39 @@ local function EnsureHost()
         unlockButton = CreateButton("Unlock", BUTTONS.unlock.width),
         frameModeButton = CreateButton("Frame", BUTTONS.frame.width),
         textModeButton = CreateButton("Text", BUTTONS.text.width),
+        layoutDropdown = AceGUI:Create("Dropdown"),
+        layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
     }
 
     AnchorButton(widgets.unlockButton, host, BUTTONS.unlock)
     AnchorButton(widgets.frameModeButton, host, BUTTONS.frame)
     AnchorButton(widgets.textModeButton, host, BUTTONS.text)
+    AnchorWidget(widgets.layoutDropdown, host, {
+        x = LAYOUT_DROPDOWN_X,
+        y = -5,
+        width = LAYOUT_DROPDOWN_WIDTH,
+        height = 26,
+    })
+    AnchorButton(widgets.layoutActivateButton, host, {
+        x = LAYOUT_ACTIVATE_X,
+        width = LAYOUT_ACTIVATE_WIDTH,
+    })
+
+    local separator = host:CreateTexture(nil, "ARTWORK")
+    separator:SetPoint("TOPLEFT", host, "TOPLEFT", 252, -7)
+    separator:SetSize(1, 20)
+    separator:SetColorTexture(0.92, 0.46, 0, 0.42)
+    host.separator = separator
+
+    local layoutLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    layoutLabel:SetPoint("TOPLEFT", host, "TOPLEFT", LAYOUT_LABEL_X, -10)
+    layoutLabel:SetWidth(44)
+    layoutLabel:SetJustifyH("LEFT")
+    layoutLabel:SetText("Layout:")
+    if FormWidgets and FormWidgets.ApplyTextStyle then
+        FormWidgets.ApplyTextStyle(layoutLabel, "label", 11, 1)
+    end
+    widgets.layoutLabel = layoutLabel
 
     context = {
         host = host,
@@ -152,6 +309,39 @@ local function EnsureHost()
                 if ToolbarBinding.HandleSetTextMode then
                     ToolbarBinding.HandleSetTextMode(deps)
                 end
+                CanvasToolbar.Refresh()
+            end)
+        end
+        if widgets.layoutDropdown then
+            widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)
+                if context._suspendLayoutCallbacks then
+                    return
+                end
+                context.selectedLayoutId = value
+                RefreshLayoutControls(context)
+            end)
+        end
+        if widgets.layoutActivateButton then
+            widgets.layoutActivateButton:SetCallback("OnClick", function()
+                if HasDirtyTextBuilderDraft() then
+                    if ns.Info then
+                        ns:Info("Save or discard Text Builder changes before activating another layout.")
+                    end
+                    return
+                end
+                local layoutId = context.selectedLayoutId
+                if type(layoutId) ~= "string" or layoutId == "" or layoutId == ResolveActiveLayoutId() then
+                    RefreshLayoutControls(context)
+                    return
+                end
+                local ok, reason = false, "activate-unavailable"
+                if ns.ActivateLayout then
+                    ok, reason = ns:ActivateLayout(layoutId, "canvas-toolbar")
+                end
+                if ok then
+                    context.selectedLayoutId = ResolveActiveLayoutId()
+                end
+                ReportLayoutActivationResult(ok, reason)
                 CanvasToolbar.Refresh()
             end)
         end
@@ -198,6 +388,7 @@ function CanvasToolbar.Refresh()
             deps
         )
     end
+    RefreshLayoutControls(current)
 end
 
 function CanvasToolbar.Show()
