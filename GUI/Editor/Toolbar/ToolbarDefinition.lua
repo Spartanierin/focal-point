@@ -455,13 +455,14 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 96,
+                min = 124,
                 derivedFrom = "secondary dialog access buttons",
             },
         },
         items = {
             { id = "toolsTitle", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_CONTEXT_TOOLS", size = 10 },
-            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUTS" },
+            { id = "manageLayoutsButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_MANAGE_LAYOUTS" },
+            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_PROFILES" },
             { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
             { id = "tagDatabaseButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
         },

@@ -873,6 +873,11 @@ function FocalPoint:CloseConfig()
         textBuilderPage.HideWindow()
     end
 
+    local layoutManager = self.GUI and self.GUI.Editor and self.GUI.Editor.LayoutManager
+    if layoutManager and layoutManager.Close then
+        layoutManager.Close()
+    end
+
     local toolbar = self.GUI and self.GUI.Editor and self.GUI.Editor.Toolbar
     if toolbar and toolbar.Hide then
         toolbar.Hide()

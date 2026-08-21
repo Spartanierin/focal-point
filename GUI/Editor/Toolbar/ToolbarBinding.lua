@@ -757,6 +757,14 @@ local function RefreshWindowState(context, deps)
         end
     end
 
+    if context.widgets.manageLayoutsButton then
+        context.widgets.manageLayoutsButton:SetText(T("NAV_MANAGE_LAYOUTS", "Manage Layouts...", deps))
+        context.widgets.manageLayoutsButton:SetDisabled(false)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.manageLayoutsButton, SIDEBAR_VISUAL_ROLE.UTILITY)
+        end
+    end
+
     IterateWidgetMap(UNIT_WIDGET_IDS, function(widgetId, constantPath)
         local unitKey = ResolveConstantPath(C, constantPath)
         local button = context.widgets[widgetId]
@@ -907,6 +915,17 @@ local function WireCallbacks(context, deps, refreshFn)
         context.widgets.closeButton:SetCallback("OnClick", function()
             if context.options and context.options.onClose then
                 context.options.onClose()
+            end
+        end)
+    end
+
+    if context.widgets.manageLayoutsButton then
+        context.widgets.manageLayoutsButton:SetCallback("OnClick", function()
+            local layoutManager = nsRef.GUI
+                and nsRef.GUI.Editor
+                and nsRef.GUI.Editor.LayoutManager
+            if layoutManager and layoutManager.Open then
+                layoutManager.Open()
             end
         end)
     end

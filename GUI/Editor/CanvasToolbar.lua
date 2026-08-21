@@ -609,6 +609,10 @@ function CanvasToolbar.Refresh()
         )
     end
     RefreshLayoutControls(current)
+    local layoutManager = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.LayoutManager
+    if layoutManager and layoutManager.Refresh then
+        layoutManager.Refresh()
+    end
 end
 
 function CanvasToolbar.Show()
