@@ -258,7 +258,12 @@ local function RefreshDemoControl(control, deps)
     local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
     control:SetText((nsRef.guiTestModeEnabled and T("GUI_TEST_STOP", "Stop Test", deps)) or T("GUI_TEST_START", "Test", deps))
     if ApplySidebarButtonVisual then
-        ApplySidebarButtonVisual(control, roles.UTILITY)
+        ApplySidebarButtonVisual(control, nsRef.guiTestModeEnabled and roles.ACTIVE or roles.UTILITY)
+    end
+    local formWidgets = (nsRef.GUI and nsRef.GUI.Helpers and nsRef.GUI.Helpers.FormWidgets)
+        or (ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets)
+    if formWidgets and formWidgets.SetInspectorButtonTooltip then
+        formWidgets.SetInspectorButtonTooltip(control, T("GUI_TEST_TOOLTIP", "Use simulated unit data while editing.", deps))
     end
 end
 
