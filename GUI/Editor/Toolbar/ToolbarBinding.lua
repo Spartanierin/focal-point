@@ -267,23 +267,6 @@ local function RefreshDemoControl(control, deps)
     end
 end
 
-local function RefreshUnlockControl(control, deps)
-    if not control then
-        return
-    end
-    local nsRef = deps and deps.ns or {}
-    local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
-    control:SetText((nsRef.framesUnlocked and T("GUI_UNLOCK_STOP", "Lock Frames", deps)) or T("GUI_UNLOCK_START", "Unlock Frames", deps))
-    if nsRef.IsEditorActive and nsRef:IsEditorActive() then
-        control:SetDisabled(true)
-    else
-        control:SetDisabled(false)
-    end
-    if ApplySidebarButtonVisual then
-        ApplySidebarButtonVisual(control, roles.PRIMARY_ACTION)
-    end
-end
-
 local function RefreshInteractionModeControlPair(frameButton, textButton, deps)
     local nsRef = deps and deps.ns or {}
     local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
@@ -317,26 +300,6 @@ local function HandleToggleDemo(context, deps)
         return false
     end
     nsRef:ToggleTestMode()
-    NotifyEditingCommandChanged(context)
-    return true
-end
-
-local function HandleToggleUnlock(context, deps)
-    local nsRef = deps and deps.ns or {}
-    if nsRef.IsEditorActive and nsRef:IsEditorActive() then
-        if nsRef.SetFrameLockEnabled then
-            nsRef:SetFrameLockEnabled(true, {
-                reason = "editor-open-button",
-                silent = true,
-            })
-        end
-        NotifyEditingCommandChanged(context)
-        return true
-    end
-    if not nsRef.ToggleFrameLock then
-        return false
-    end
-    nsRef:ToggleFrameLock()
     NotifyEditingCommandChanged(context)
     return true
 end
@@ -816,10 +779,6 @@ local function RefreshWindowState(context, deps)
         RefreshDemoControl(context.widgets.demoButton, deps)
     end
 
-    if context.widgets.unlockButton then
-        RefreshUnlockControl(context.widgets.unlockButton, deps)
-    end
-
     RefreshInteractionModeControls(context, deps)
     BuildCompositionTree(context, deps)
 
@@ -998,12 +957,6 @@ local function WireCallbacks(context, deps, refreshFn)
         end)
     end
 
-    if context.widgets.unlockButton then
-        context.widgets.unlockButton:SetCallback("OnClick", function()
-            HandleToggleUnlock(context, deps)
-        end)
-    end
-
     if context.widgets.frameModeButton then
         context.widgets.frameModeButton:SetCallback("OnClick", function()
             HandleSetFrameMode(deps)
@@ -1120,11 +1073,9 @@ end
 
 ToolbarBinding.CreateItemWidget = CreateItemWidget
 ToolbarBinding.HandleToggleDemo = HandleToggleDemo
-ToolbarBinding.HandleToggleUnlock = HandleToggleUnlock
 ToolbarBinding.HandleSetFrameMode = HandleSetFrameMode
 ToolbarBinding.HandleSetTextMode = HandleSetTextMode
 ToolbarBinding.RefreshDemoControl = RefreshDemoControl
-ToolbarBinding.RefreshUnlockControl = RefreshUnlockControl
 ToolbarBinding.RefreshInteractionModeControlPair = RefreshInteractionModeControlPair
 ToolbarBinding.RefreshInteractionModeControls = RefreshInteractionModeControls
 ToolbarBinding.RefreshWindowState = RefreshWindowState

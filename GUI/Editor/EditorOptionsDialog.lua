@@ -369,7 +369,7 @@ local function CreateWindow()
 
     local showGrid = CreateCheckBox(T("OPTION_SHOW_GRID", "Show Grid"), "showGrid")
     window:AddChild(showGrid)
-    window:AddChild(CreateIndentedDescription(T("OPTION_SHOW_GRID_DESC", "Displays a visual alignment grid while frames are unlocked.")))
+    window:AddChild(CreateIndentedDescription(T("OPTION_SHOW_GRID_DESC", "Displays a visual alignment grid while editing frames.")))
     window:AddChild(CreateSpacer(4))
 
     local snapping = CreateCheckBox(T("OPTION_ENABLE_SNAPPING", "Enable Snapping"), "snappingEnabled")

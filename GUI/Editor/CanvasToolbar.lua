@@ -11,22 +11,21 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 596
+local TOOLBAR_WIDTH = 490
 local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
-local LAYOUT_LABEL_X = 268
-local LAYOUT_DROPDOWN_X = 314
+local LAYOUT_LABEL_X = 162
+local LAYOUT_DROPDOWN_X = 208
 local LAYOUT_DROPDOWN_WIDTH = 156
-local LAYOUT_ADD_X = 474
+local LAYOUT_ADD_X = 368
 local LAYOUT_ADD_WIDTH = 30
-local LAYOUT_ACTIVATE_X = 512
+local LAYOUT_ACTIVATE_X = 406
 local LAYOUT_ACTIVATE_WIDTH = 76
 
 local BUTTONS = {
-    unlock = { width = 100, x = 8 },
-    frame = { width = 62, x = 114 },
-    text = { width = 62, x = 182 },
+    frame = { width = 62, x = 8 },
+    text = { width = 62, x = 76 },
 }
 
 local context
@@ -448,7 +447,6 @@ local function EnsureHost()
     host.inset = inset
 
     local widgets = {
-        unlockButton = CreateButton("Unlock", BUTTONS.unlock.width),
         frameModeButton = CreateButton("Frame", BUTTONS.frame.width),
         textModeButton = CreateButton("Text", BUTTONS.text.width),
         layoutDropdown = AceGUI:Create("Dropdown"),
@@ -456,7 +454,6 @@ local function EnsureHost()
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
     }
 
-    AnchorButton(widgets.unlockButton, host, BUTTONS.unlock)
     AnchorButton(widgets.frameModeButton, host, BUTTONS.frame)
     AnchorButton(widgets.textModeButton, host, BUTTONS.text)
     AnchorWidget(widgets.layoutDropdown, host, {
@@ -478,7 +475,7 @@ local function EnsureHost()
     end
 
     local separator = host:CreateTexture(nil, "ARTWORK")
-    separator:SetPoint("TOPLEFT", host, "TOPLEFT", 252, -7)
+    separator:SetPoint("TOPLEFT", host, "TOPLEFT", 146, -7)
     separator:SetSize(1, 20)
     separator:SetColorTexture(0.92, 0.46, 0, 0.42)
     host.separator = separator
@@ -503,14 +500,6 @@ local function EnsureHost()
 
     local deps = BuildBindingDeps()
     if ToolbarBinding then
-        if widgets.unlockButton then
-            widgets.unlockButton:SetCallback("OnClick", function()
-                if ToolbarBinding.HandleToggleUnlock then
-                    ToolbarBinding.HandleToggleUnlock(context, deps)
-                end
-                CanvasToolbar.Refresh()
-            end)
-        end
         if widgets.frameModeButton then
             widgets.frameModeButton:SetCallback("OnClick", function()
                 if ToolbarBinding.HandleSetFrameMode then
@@ -598,9 +587,6 @@ function CanvasToolbar.Refresh()
     end
 
     local deps = BuildBindingDeps()
-    if ToolbarBinding.RefreshUnlockControl then
-        ToolbarBinding.RefreshUnlockControl(current.widgets.unlockButton, deps)
-    end
     if ToolbarBinding.RefreshInteractionModeControlPair then
         ToolbarBinding.RefreshInteractionModeControlPair(
             current.widgets.frameModeButton,
