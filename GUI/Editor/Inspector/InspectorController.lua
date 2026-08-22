@@ -16,6 +16,7 @@ local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
 local EditorStateApi = ns.GUI.Editor and ns.GUI.Editor.State or {}
+local ObjectSelection = ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -801,7 +802,7 @@ function InspectorController.Build(container, state, options)
             return nil
         end
         local scope = state.propertyScope
-        if type(scope) ~= "table" or scope.kind ~= "unit" or type(scope.sectionKey) ~= "string" or scope.sectionKey == "" then
+        if type(scope) ~= "table" or type(scope.sectionKey) ~= "string" or scope.sectionKey == "" then
             return nil
         end
         return scope
@@ -2078,6 +2079,16 @@ function InspectorController.Build(container, state, options)
         end
 
             AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", currentTextList, selectedTextId, function(value)
+                local ok = type(ObjectSelection.SelectObject) == "function"
+                    and ObjectSelection.SelectObject({
+                        kind = "text",
+                        unit = selectedUnit,
+                        textKey = value,
+                    })
+                if ok == true then
+                    RebuildLocalSection(textSection)
+                    return
+                end
                 local result = type(InspectorTextSelection.Set) == "function"
                     and InspectorTextSelection.Set(state, value, currentTextList)
                     or nil
@@ -2240,6 +2251,16 @@ function InspectorController.Build(container, state, options)
         end
 
         AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", currentIndicatorList, selectedIndicatorKey, function(value)
+            local ok = type(ObjectSelection.SelectObject) == "function"
+                and ObjectSelection.SelectObject({
+                    kind = "indicator",
+                    unit = selectedUnit,
+                    indicatorKey = value,
+                })
+            if ok == true then
+                RebuildLocalSection(indicatorSection)
+                return
+            end
             local result = type(InspectorIndicatorSelection.Set) == "function"
                 and InspectorIndicatorSelection.Set(state, value, currentIndicatorList)
                 or nil
@@ -2361,6 +2382,15 @@ function InspectorController.Build(container, state, options)
                 return result
             end
             state.selectedDecorationId = result and result.newDecorationId or nil
+            if type(ObjectSelection.SelectObject) == "function" and state.selectedDecorationId then
+                ObjectSelection.SelectObject({
+                    kind = "decoration",
+                    unit = selectedUnit,
+                    decorationId = state.selectedDecorationId,
+                })
+            elseif state.propertyScope and state.propertyScope.kind == "decoration" and EditorStateApi.ClearPropertyScope then
+                EditorStateApi.ClearPropertyScope()
+            end
             if result and result.ok and result.changed then
                 RebuildDecorationSection()
             end
@@ -2443,7 +2473,15 @@ function InspectorController.Build(container, state, options)
             decorationSelector:SetList(decorationSelectorOptions.values, decorationSelectorOptions.order)
             decorationSelector:SetValue(selectedDecorationId)
             decorationSelector:SetCallback("OnValueChanged", function(_, _, value)
-                state.selectedDecorationId = value
+                local ok = type(ObjectSelection.SelectObject) == "function"
+                    and ObjectSelection.SelectObject({
+                        kind = "decoration",
+                        unit = selectedUnit,
+                        decorationId = value,
+                    })
+                if ok ~= true then
+                    state.selectedDecorationId = value
+                end
                 RebuildDecorationSection()
             end)
             if FormWidgets and FormWidgets.StyleDropdown then
@@ -2557,6 +2595,16 @@ function InspectorController.Build(container, state, options)
         end
 
         AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", currentAuraList, selectedAuraKey, function(value)
+            local ok = type(ObjectSelection.SelectObject) == "function"
+                and ObjectSelection.SelectObject({
+                    kind = "aura",
+                    unit = selectedUnit,
+                    auraKey = value,
+                })
+            if ok == true then
+                RebuildLocalSection(auraSection)
+                return
+            end
             local result = type(InspectorAuraSelection.Set) == "function"
                 and InspectorAuraSelection.Set(state, value, currentAuraList)
                 or nil

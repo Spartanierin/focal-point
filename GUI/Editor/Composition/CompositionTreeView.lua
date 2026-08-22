@@ -101,6 +101,9 @@ local CLICKABLE_NODE_TYPES = {
     castbar = true,
     normalAbsorbBar = true,
     healingAbsorbBar = true,
+    textElement = true,
+    buffs = true,
+    debuffs = true,
 }
 
 local BAR_OBJECT_BY_NODE_TYPE = {
@@ -118,10 +121,19 @@ local function IsClickableNode(node)
         return false
     end
     local target = node.inspectorTarget
-    return type(target) == "table"
-        and target.kind == "unit"
-        and type(target.sectionKey) == "string"
-        and target.sectionKey ~= ""
+    if type(target) ~= "table" or type(target.sectionKey) ~= "string" or target.sectionKey == "" then
+        return false
+    end
+    if target.kind == "unit" then
+        return true
+    end
+    if target.kind == "text" then
+        return type(target.textKey) == "string" and target.textKey ~= ""
+    end
+    if target.kind == "aura" then
+        return type(target.auraKey) == "string" and target.auraKey ~= ""
+    end
+    return false
 end
 
 local function SetTextureColor(texture, color)
@@ -227,11 +239,32 @@ local function BuildObjectRef(node)
 
     local unit = node.unit
     local sectionKey = node.inspectorTarget.sectionKey
+    local targetKind = node.inspectorTarget.kind
     if node.type == "unit" then
         return {
             kind = "unit",
             unit = unit,
             sectionKey = "frame",
+        }
+    end
+
+    if targetKind == "text" then
+        return {
+            kind = "text",
+            unit = unit,
+            textKey = node.inspectorTarget.textKey,
+            objectKey = node.inspectorTarget.textKey,
+            sectionKey = sectionKey,
+        }
+    end
+
+    if targetKind == "aura" then
+        return {
+            kind = "aura",
+            unit = unit,
+            auraKey = node.inspectorTarget.auraKey,
+            objectKey = node.inspectorTarget.auraKey,
+            sectionKey = sectionKey,
         }
     end
 
@@ -256,6 +289,19 @@ local function IsActiveNode(node, state)
     if node.type == "unit" then
         return state.selectedUnit == node.unit
             and (type(scope) ~= "table" or scope.sectionKey == "frame")
+    end
+    if node.inspectorTarget.kind == "text" then
+        return state.selectedUnit == node.unit
+            and state.selectedTextElementUnit == node.unit
+            and state.selectedTextElementId == node.inspectorTarget.textKey
+    end
+    if node.inspectorTarget.kind == "aura" then
+        return state.selectedUnit == node.unit
+            and state.selectedAuraKey == node.inspectorTarget.auraKey
+            and type(scope) == "table"
+            and scope.kind == "aura"
+            and scope.sectionKey == node.inspectorTarget.sectionKey
+            and scope.objectKey == node.inspectorTarget.auraKey
     end
     return type(scope) == "table"
         and scope.kind == "unit"

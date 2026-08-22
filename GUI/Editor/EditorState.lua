@@ -58,6 +58,7 @@ local state = {
     selectedTextElementId = nil,
     selectedIndicatorKey = "Portrait",
     selectedAuraKey = "Buffs",
+    selectedDecorationId = nil,
     propertyScope = nil,
     collapsedSections = {},
 }

@@ -32,6 +32,11 @@ local ABSORB_BAR_BY_OBJECT = {
     HealingAbsorbBar = true,
 }
 
+local AURA_BY_KEY = {
+    Buffs = true,
+    Debuffs = true,
+}
+
 local VALID_UNITS = nil
 
 local function NormalizeUnitKey(unitKey)
@@ -85,22 +90,68 @@ local function GetSelectedUnit()
     return NormalizeUnitKey(state and state.selectedUnit)
 end
 
-local function HasSpecificUnsupportedSelection(state, scope)
-    if type(state) == "table"
-        and type(state.selectedTextElementUnit) == "string"
-        and state.selectedTextElementUnit ~= ""
-        and type(state.selectedTextElementId) == "string"
-        and state.selectedTextElementId ~= ""
-    then
-        return true
+local function GetUnitConfig(unitKey)
+    local utils = ns.UnitFrameUtils
+    if utils and type(utils.GetUnitDB) == "function" then
+        return utils.GetUnitDB(unitKey)
     end
 
-    local scopeKind = type(scope) == "table" and scope.kind or nil
-    if scopeKind == "text" or scopeKind == "aura" or scopeKind == "indicator" or scopeKind == "decoration" then
-        return true
+    return nil
+end
+
+local function IsValidText(unitKey, textKey)
+    local unitConfig = GetUnitConfig(unitKey)
+    local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+    return type(textKey) == "string" and textKey ~= ""
+        and type(texts) == "table"
+        and type(texts[textKey]) == "table"
+end
+
+local function IsValidAura(unitKey, auraKey)
+    local unitConfig = GetUnitConfig(unitKey)
+    return AURA_BY_KEY[auraKey] == true
+        and type(unitConfig) == "table"
+        and type(unitConfig[auraKey]) == "table"
+end
+
+local function IsValidIndicator(unitKey, indicatorKey)
+    if type(indicatorKey) ~= "string" or indicatorKey == "" then
+        return false
+    end
+
+    local sidebarShared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or nil
+    if sidebarShared and type(sidebarShared.BuildIndicatorList) == "function" then
+        local list = sidebarShared.BuildIndicatorList(unitKey)
+        return type(list) == "table" and list[indicatorKey] ~= nil
     end
 
     return false
+end
+
+local function IsValidDecoration(unitKey, decorationId)
+    if type(decorationId) ~= "string" or decorationId == "" then
+        return false
+    end
+
+    local unitConfig = GetUnitConfig(unitKey)
+    local decorations = type(unitConfig) == "table" and unitConfig.Decorations or nil
+    if type(decorations) ~= "table" then
+        return false
+    end
+
+    for _, decoration in ipairs(decorations) do
+        if type(decoration) == "table" and decoration.id == decorationId then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ClearTextSelection()
+    if EditorState and type(EditorState.ClearSelectedTextElement) == "function" then
+        EditorState.ClearSelectedTextElement()
+    end
 end
 
 local function SelectUnit(unitKey)
@@ -133,7 +184,60 @@ function ObjectSelection.GetSelectedObject()
 
     local state = GetState()
     local scope = EditorState and type(EditorState.GetPropertyScope) == "function" and EditorState.GetPropertyScope() or nil
-    if HasSpecificUnsupportedSelection(state, scope) then
+
+    if type(state) == "table"
+        and state.selectedTextElementUnit == selectedUnit
+        and IsValidText(selectedUnit, state.selectedTextElementId)
+    then
+        return {
+            kind = "text",
+            unit = selectedUnit,
+            textKey = state.selectedTextElementId,
+            objectKey = state.selectedTextElementId,
+            sectionKey = "texts",
+        }
+    end
+
+    local scopeKind = type(scope) == "table" and scope.kind or nil
+    if scopeKind == "aura" then
+        local auraKey = scope.auraKey or scope.objectKey
+        if IsValidAura(selectedUnit, auraKey) then
+            return {
+                kind = "aura",
+                unit = selectedUnit,
+                auraKey = auraKey,
+                objectKey = auraKey,
+                sectionKey = "auras",
+            }
+        end
+        return nil
+    end
+
+    if scopeKind == "indicator" then
+        local indicatorKey = scope.indicatorKey or scope.objectKey
+        if IsValidIndicator(selectedUnit, indicatorKey) then
+            return {
+                kind = "indicator",
+                unit = selectedUnit,
+                indicatorKey = indicatorKey,
+                objectKey = indicatorKey,
+                sectionKey = "indicators",
+            }
+        end
+        return nil
+    end
+
+    if scopeKind == "decoration" then
+        local decorationId = scope.decorationId or scope.objectKey
+        if IsValidDecoration(selectedUnit, decorationId) then
+            return {
+                kind = "decoration",
+                unit = selectedUnit,
+                decorationId = decorationId,
+                objectKey = decorationId,
+                sectionKey = "decoration",
+            }
+        end
         return nil
     end
 
@@ -184,6 +288,7 @@ function ObjectSelection.SelectObject(objectRef)
         if not SelectUnit(unit) then
             return false
         end
+        ClearTextSelection()
         if EditorState and type(EditorState.ClearPropertyScope) == "function" then
             EditorState.ClearPropertyScope()
         end
@@ -198,12 +303,78 @@ function ObjectSelection.SelectObject(objectRef)
         if not SelectUnit(unit) then
             return false
         end
-        if EditorState and type(EditorState.ClearSelectedTextElement) == "function" then
-            EditorState.ClearSelectedTextElement()
-        end
+        ClearTextSelection()
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scopeObjectKey = sectionKey == "absorbs" and objectRef.objectKey or nil
             local scope = EditorState.SetPropertyScope("unit", sectionKey, scopeObjectKey)
+            if scope ~= nil then
+                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+            end
+        end
+    end
+
+    if kind == "text" then
+        local textKey = objectRef.textKey or objectRef.objectKey
+        if not IsValidText(unit, textKey) or not SelectUnit(unit) then
+            return false
+        end
+        if EditorState and type(EditorState.SetSelectedTextElement) == "function" then
+            local selectedUnit, selectedTextKey = EditorState.SetSelectedTextElement(unit, textKey)
+            if selectedUnit and selectedTextKey then
+                if EditorState and type(EditorState.SetPropertyScope) == "function" then
+                    EditorState.SetPropertyScope("text", "texts", selectedTextKey)
+                end
+                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+            end
+        end
+    end
+
+    if kind == "aura" then
+        local auraKey = objectRef.auraKey or objectRef.objectKey
+        if not IsValidAura(unit, auraKey) or not SelectUnit(unit) then
+            return false
+        end
+        ClearTextSelection()
+        if EditorState and type(EditorState.SetSelectedAuraKey) == "function" then
+            EditorState.SetSelectedAuraKey(auraKey)
+        end
+        if EditorState and type(EditorState.SetPropertyScope) == "function" then
+            local scope = EditorState.SetPropertyScope("aura", "auras", auraKey)
+            if scope ~= nil then
+                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+            end
+        end
+    end
+
+    if kind == "indicator" then
+        local indicatorKey = objectRef.indicatorKey or objectRef.objectKey
+        if not IsValidIndicator(unit, indicatorKey) or not SelectUnit(unit) then
+            return false
+        end
+        ClearTextSelection()
+        if EditorState and type(EditorState.SetSelectedIndicatorKey) == "function" then
+            EditorState.SetSelectedIndicatorKey(indicatorKey)
+        end
+        if EditorState and type(EditorState.SetPropertyScope) == "function" then
+            local scope = EditorState.SetPropertyScope("indicator", "indicators", indicatorKey)
+            if scope ~= nil then
+                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+            end
+        end
+    end
+
+    if kind == "decoration" then
+        local decorationId = objectRef.decorationId or objectRef.objectKey
+        if not IsValidDecoration(unit, decorationId) or not SelectUnit(unit) then
+            return false
+        end
+        ClearTextSelection()
+        local state = GetState()
+        if type(state) == "table" then
+            state.selectedDecorationId = decorationId
+        end
+        if EditorState and type(EditorState.SetPropertyScope) == "function" then
+            local scope = EditorState.SetPropertyScope("decoration", "decoration", decorationId)
             if scope ~= nil then
                 return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
             end
