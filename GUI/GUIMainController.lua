@@ -665,6 +665,48 @@ function FocalPoint:IsEditorActive()
     return ResolveDefaultGUIPath(self.GUI and self.GUI.selectedPath) == self.Constants.Nav.EDITOR
 end
 
+local function EnsureEditorDesignPresenceForUnit(addon, unit)
+    if not (addon and addon.framesUnlocked == true and addon.IsEditorActive and addon:IsEditorActive()) then
+        return
+    end
+    if InCombatLockdown and InCombatLockdown() then
+        return
+    end
+    if type(unit) ~= "string" or unit == "" then
+        return
+    end
+
+    local utils = addon.UnitFrameUtils
+    local configUnit = utils and utils.NormalizeConfigUnitKey and utils.NormalizeConfigUnitKey(unit) or unit
+    if type(configUnit) ~= "string" or configUnit == "" then
+        return
+    end
+
+    local unitConfig = utils and utils.GetUnitDB and utils.GetUnitDB(configUnit) or nil
+    if type(unitConfig) ~= "table" then
+        return
+    end
+
+    addon.frames = addon.frames or {}
+    if configUnit == "boss" then
+        for bossIndex = 1, 5 do
+            local bossUnit = "boss" .. bossIndex
+            if not addon.frames[bossUnit] and addon.SpawnUnitFrame then
+                addon:SpawnUnitFrame(bossUnit, { allowDisabledForUnlock = true })
+            elseif addon.RefreshUnitFrame then
+                addon:RefreshUnitFrame(bossUnit)
+            end
+        end
+        return
+    end
+
+    if not addon.frames[configUnit] and addon.SpawnUnitFrame then
+        addon:SpawnUnitFrame(configUnit, { allowDisabledForUnlock = true })
+    elseif addon.RefreshUnitFrame then
+        addon:RefreshUnitFrame(configUnit)
+    end
+end
+
 function FocalPoint:SelectEditorUnit(unit, options)
     if type(unit) ~= "string" or unit == "" then
         return
@@ -707,6 +749,8 @@ function FocalPoint:SelectEditorUnit(unit, options)
     if self.guiTreeStatus then
         self.guiTreeStatus.selected = self.Constants.Nav.EDITOR
     end
+
+    EnsureEditorDesignPresenceForUnit(self, selectedUnit)
 
     if self.GUI and self.GUI.RequestRefreshOptions then
         self.GUI:RequestRefreshOptions()

@@ -364,6 +364,17 @@ local function IsSelectedEditorFrame(frame)
     return frame.unit == selectedUnit
 end
 
+local function IsEditorLiveUnitPresent(frame)
+    local unit = frame and frame.unit
+    if unit == "player" then
+        return true
+    end
+    if DoesUnitSeemPresent and type(unit) == "string" and unit ~= "" then
+        return DoesUnitSeemPresent(unit) == true
+    end
+    return UnitExists and type(unit) == "string" and UnitExists(unit) and true or false
+end
+
 local function ResolveModeReadOnly(frame)
     if not frame or not frame.unit then
         return "live", "live-invalid-frame"
@@ -380,10 +391,10 @@ local function ResolveModeReadOnly(frame)
         if Demo.IsFrameUnitEnabled and not Demo.IsFrameUnitEnabled(frame) then
             return "placeholder", "unlock-disabled-placeholder"
         end
-        if IsSelectedEditorFrame(frame) then
-            return "detailed", "unlock-selected-detailed"
+        if IsEditorLiveUnitPresent(frame) then
+            return "live", IsSelectedEditorFrame(frame) and "unlock-selected-live" or "unlock-live"
         end
-        return "placeholder", "unlock-placeholder"
+        return "placeholder", IsSelectedEditorFrame(frame) and "unlock-selected-placeholder" or "unlock-placeholder"
     end
 
     return "live", "live-no-demo"

@@ -726,6 +726,18 @@ local function IsSelectedEditorFrame(frame)
     return frame.unit == selectedUnit
 end
 
+local function IsLiveUnitPresent(frame)
+    local unit = frame and frame.unit
+    if unit == "player" then
+        return true
+    end
+    local presence = FocalPoint and FocalPoint.UnitFramePresence or nil
+    if presence and presence.DoesUnitSeemPresent and type(unit) == "string" and unit ~= "" then
+        return presence.DoesUnitSeemPresent(unit) == true
+    end
+    return UnitExists and type(unit) == "string" and UnitExists(unit) and true or false
+end
+
 function Demo.IsFrameUnitEnabled(frame)
     local unit = frame and frame.unit
     if type(unit) ~= "string" or unit == "" then
@@ -850,10 +862,10 @@ function Demo.ResolveMode(frame, caller)
         if not Demo.IsFrameUnitEnabled(frame) then
             return "placeholder", "unlock-disabled-placeholder"
         end
-        if IsSelectedEditorFrame(frame) then
-            return "detailed", "unlock-selected-detailed"
+        if IsLiveUnitPresent(frame) then
+            return "live", IsSelectedEditorFrame(frame) and "unlock-selected-live" or "unlock-live"
         end
-        return "placeholder", "unlock-placeholder"
+        return "placeholder", IsSelectedEditorFrame(frame) and "unlock-selected-placeholder" or "unlock-placeholder"
     end
 
     if not hasFrame then
