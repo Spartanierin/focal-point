@@ -23,6 +23,22 @@ local function IsCombatLocked()
     return InCombatLockdown and InCombatLockdown() == true
 end
 
+local function GetSelectedObjectKind()
+    local objectSelection = FocalPoint
+        and FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.ObjectSelection
+        or nil
+    if objectSelection and type(objectSelection.GetSelectedObject) == "function" then
+        local selectedObject = objectSelection.GetSelectedObject()
+        if type(selectedObject) == "table" and type(selectedObject.kind) == "string" then
+            return selectedObject.kind
+        end
+    end
+
+    return "unit"
+end
+
 local function ResolveMode()
     if not IsEditorUnlocked() then
         return "inactive"
@@ -30,9 +46,14 @@ local function ResolveMode()
     if IsCombatLocked() then
         return "combat-blocked"
     end
-    if state.latchedTextMode == true then
+    local selectedKind = GetSelectedObjectKind()
+    if selectedKind == "text" then
         return "text"
     end
+    if selectedKind ~= "unit" then
+        return "object"
+    end
+
     return "frame"
 end
 
@@ -163,8 +184,8 @@ if eventFrame then
                 local isDown = IsModifierDownValue(down)
                 local wasShiftDown = EditorInteractionMode.IsShiftDown()
                 local changed = SetShiftKeyState(key, isDown)
-                if isDown and changed and not wasShiftDown then
-                    EditorInteractionMode.ToggleTextMode()
+                if changed or wasShiftDown ~= EditorInteractionMode.IsShiftDown() then
+                    RefreshInteractionVisualsIfChanged(false)
                 end
             end
             return

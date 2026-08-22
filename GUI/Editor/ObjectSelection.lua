@@ -154,6 +154,19 @@ local function ClearTextSelection()
     end
 end
 
+local function RefreshInteractionVisuals()
+    if FocalPoint and type(FocalPoint.RefreshEditorInteractionVisuals) == "function" then
+        FocalPoint:RefreshEditorInteractionVisuals()
+    elseif FocalPoint and type(FocalPoint.RefreshEditorSelectionVisuals) == "function" then
+        FocalPoint:RefreshEditorSelectionVisuals()
+    end
+end
+
+local function CompleteSelection(previousUnit)
+    RefreshInteractionVisuals()
+    return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+end
+
 local function SelectUnit(unitKey)
     local normalizedUnit = NormalizeUnitKey(unitKey)
     if not IsValidUnit(normalizedUnit) then
@@ -292,7 +305,7 @@ function ObjectSelection.SelectObject(objectRef)
         if EditorState and type(EditorState.ClearPropertyScope) == "function" then
             EditorState.ClearPropertyScope()
         end
-        return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+        return CompleteSelection(previousUnit)
     end
 
     if kind == "bar" then
@@ -308,7 +321,7 @@ function ObjectSelection.SelectObject(objectRef)
             local scopeObjectKey = sectionKey == "absorbs" and objectRef.objectKey or nil
             local scope = EditorState.SetPropertyScope("unit", sectionKey, scopeObjectKey)
             if scope ~= nil then
-                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+                return CompleteSelection(previousUnit)
             end
         end
     end
@@ -324,7 +337,7 @@ function ObjectSelection.SelectObject(objectRef)
                 if EditorState and type(EditorState.SetPropertyScope) == "function" then
                     EditorState.SetPropertyScope("text", "texts", selectedTextKey)
                 end
-                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+                return CompleteSelection(previousUnit)
             end
         end
     end
@@ -341,7 +354,7 @@ function ObjectSelection.SelectObject(objectRef)
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scope = EditorState.SetPropertyScope("aura", "auras", auraKey)
             if scope ~= nil then
-                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+                return CompleteSelection(previousUnit)
             end
         end
     end
@@ -358,7 +371,7 @@ function ObjectSelection.SelectObject(objectRef)
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scope = EditorState.SetPropertyScope("indicator", "indicators", indicatorKey)
             if scope ~= nil then
-                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+                return CompleteSelection(previousUnit)
             end
         end
     end
@@ -376,7 +389,7 @@ function ObjectSelection.SelectObject(objectRef)
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scope = EditorState.SetPropertyScope("decoration", "decoration", decorationId)
             if scope ~= nil then
-                return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+                return CompleteSelection(previousUnit)
             end
         end
     end

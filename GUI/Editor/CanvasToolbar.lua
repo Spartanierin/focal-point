@@ -11,22 +11,17 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 490
+local TOOLBAR_WIDTH = 350
 local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
-local LAYOUT_LABEL_X = 162
-local LAYOUT_DROPDOWN_X = 208
+local LAYOUT_LABEL_X = 12
+local LAYOUT_DROPDOWN_X = 58
 local LAYOUT_DROPDOWN_WIDTH = 156
-local LAYOUT_ADD_X = 368
+local LAYOUT_ADD_X = 218
 local LAYOUT_ADD_WIDTH = 30
-local LAYOUT_ACTIVATE_X = 406
+local LAYOUT_ACTIVATE_X = 256
 local LAYOUT_ACTIVATE_WIDTH = 76
-
-local BUTTONS = {
-    frame = { width = 62, x = 8 },
-    text = { width = 62, x = 76 },
-}
 
 local context
 local newLayoutDialog
@@ -447,15 +442,11 @@ local function EnsureHost()
     host.inset = inset
 
     local widgets = {
-        frameModeButton = CreateButton("Frame", BUTTONS.frame.width),
-        textModeButton = CreateButton("Text", BUTTONS.text.width),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
     }
 
-    AnchorButton(widgets.frameModeButton, host, BUTTONS.frame)
-    AnchorButton(widgets.textModeButton, host, BUTTONS.text)
     AnchorWidget(widgets.layoutDropdown, host, {
         x = LAYOUT_DROPDOWN_X,
         y = -5,
@@ -473,12 +464,6 @@ local function EnsureHost()
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
     end
-
-    local separator = host:CreateTexture(nil, "ARTWORK")
-    separator:SetPoint("TOPLEFT", host, "TOPLEFT", 146, -7)
-    separator:SetSize(1, 20)
-    separator:SetColorTexture(0.92, 0.46, 0, 0.42)
-    host.separator = separator
 
     local layoutLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     layoutLabel:SetPoint("TOPLEFT", host, "TOPLEFT", LAYOUT_LABEL_X, -10)
@@ -498,24 +483,7 @@ local function EnsureHost()
         },
     }
 
-    local deps = BuildBindingDeps()
     if ToolbarBinding then
-        if widgets.frameModeButton then
-            widgets.frameModeButton:SetCallback("OnClick", function()
-                if ToolbarBinding.HandleSetFrameMode then
-                    ToolbarBinding.HandleSetFrameMode(deps)
-                end
-                CanvasToolbar.Refresh()
-            end)
-        end
-        if widgets.textModeButton then
-            widgets.textModeButton:SetCallback("OnClick", function()
-                if ToolbarBinding.HandleSetTextMode then
-                    ToolbarBinding.HandleSetTextMode(deps)
-                end
-                CanvasToolbar.Refresh()
-            end)
-        end
         if widgets.layoutDropdown then
             widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)
                 if context._suspendLayoutCallbacks then
@@ -586,14 +554,6 @@ function CanvasToolbar.Refresh()
         return
     end
 
-    local deps = BuildBindingDeps()
-    if ToolbarBinding.RefreshInteractionModeControlPair then
-        ToolbarBinding.RefreshInteractionModeControlPair(
-            current.widgets.frameModeButton,
-            current.widgets.textModeButton,
-            deps
-        )
-    end
     RefreshLayoutControls(current)
     local layoutManager = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.LayoutManager
     if layoutManager and layoutManager.Refresh then

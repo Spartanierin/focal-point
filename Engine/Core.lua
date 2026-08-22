@@ -1072,7 +1072,7 @@ function FocalPoint:RefreshEditorInteractionVisuals()
         self:RefreshEditorSelectionVisuals()
     end
 
-    if self.frames and self.UnitFrame and self.UnitFrame.UpdateTextElements then
+    if IsEditorTextMode() and self.frames and self.UnitFrame and self.UnitFrame.UpdateTextElements then
         for _, frame in pairs(self.frames) do
             self.UnitFrame:UpdateTextElements(frame)
         end
