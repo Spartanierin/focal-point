@@ -1027,6 +1027,42 @@ local function BuildPreviewAura(definition, frame, groupKey, index)
     }
 end
 
+local function BuildPreviewAuraList(frame, groupKey, definitions)
+    local built = {}
+    local now = (GetTime and GetTime()) or 0
+    for index, definition in ipairs(definitions or {}) do
+        local aura = BuildPreviewAura(definition, frame, groupKey, index)
+        if aura then
+            if (tonumber(aura.duration) or 0) > 0 then
+                aura.expirationTime = now + math.max(tonumber(definition.remaining) or tonumber(definition.duration) or 0, 0)
+                aura.remaining = math.max((tonumber(aura.expirationTime) or 0) - now, 0)
+            end
+            built[#built + 1] = aura
+        end
+    end
+    return built
+end
+
+function Demo.GetAuraPreviewFixtures(frame, groupKey)
+    if not frame or not frame.unit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
+        return nil
+    end
+    if Demo.IsAurasDisabled() then
+        return {}
+    end
+    if not Demo.ShouldProcessFrame(frame) then
+        return {}
+    end
+
+    local previewSet = TEST_PREVIEW_AURAS.detailed
+    local definitions = previewSet and previewSet[groupKey]
+    if type(definitions) ~= "table" then
+        return {}
+    end
+
+    return BuildPreviewAuraList(frame, groupKey, definitions)
+end
+
 function Demo.GetAuras(frame, groupKey)
     if not frame or not frame.unit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
         return nil

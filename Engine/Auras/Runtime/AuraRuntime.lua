@@ -95,6 +95,67 @@ local function Log(frame, action, details)
     end
 end
 
+local function IsSameSelectionUnit(selectedUnit, frameUnit)
+    if type(selectedUnit) ~= "string" or type(frameUnit) ~= "string" then
+        return false
+    end
+    if selectedUnit == frameUnit then
+        return true
+    end
+    return selectedUnit == "boss" and frameUnit:match("^boss%d+$") ~= nil
+end
+
+local function IsLocalAuraPreviewSelected(frame, unit, groupKey)
+    if groupKey ~= "Buffs" and groupKey ~= "Debuffs" then
+        return false
+    end
+    if not (FocalPoint and FocalPoint.framesUnlocked == true and FocalPoint.guiTestModeEnabled ~= true) then
+        return false
+    end
+    if not (FocalPoint.IsEditorActive and FocalPoint:IsEditorActive()) then
+        return false
+    end
+
+    local objectSelection = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.ObjectSelection
+        or nil
+    local selected = objectSelection and objectSelection.GetSelectedObject and objectSelection.GetSelectedObject() or nil
+    return type(selected) == "table"
+        and selected.kind == "aura"
+        and selected.auraKey == groupKey
+        and IsSameSelectionUnit(selected.unit, unit or (frame and frame.unit))
+end
+
+local function CollectLiveAurasForPreview(frame, unit, groupKey)
+    local AuraScan = FocalPoint.AuraScan or {}
+    if AuraScan.CollectUnitAuras then
+        local ok, auras = AuraScan.CollectUnitAuras(unit, groupKey)
+        if ok == true and type(auras) == "table" then
+            return auras
+        end
+    end
+
+    local AuraCache = FocalPoint.AuraCache or {}
+    return AuraCache.GetAllAuras and AuraCache.GetAllAuras(frame, groupKey) or nil
+end
+
+local function ResolveLocalAuraPreview(frame, unit, groupKey)
+    if not IsLocalAuraPreviewSelected(frame, unit, groupKey) then
+        return nil
+    end
+    if Demo.IsAurasDisabled and Demo.IsAurasDisabled() then
+        return nil
+    end
+
+    local liveAuras = CollectLiveAurasForPreview(frame, unit, groupKey)
+    if type(liveAuras) == "table" and #liveAuras > 0 then
+        return nil
+    end
+
+    return Demo.GetAuraPreviewFixtures and Demo.GetAuraPreviewFixtures(frame, groupKey) or nil
+end
+
 local function ApplyAuraResult(frame, groupKey, auraList, groupConfig)
     local AuraFilters = FocalPoint.AuraFilters or {}
     local AuraSorting = FocalPoint.AuraSorting or {}
@@ -158,6 +219,9 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
         previewAuras = Preview.GetTestAuras and Preview.GetTestAuras(frame, groupKey) or nil
     end
     if previewAuras ~= nil then
+        if type(previewAuras) == "table" and #previewAuras == 0 then
+            previewAuras = ResolveLocalAuraPreview(frame, unit, groupKey) or previewAuras
+        end
         if BackendResolver.ClearManagedGroup then
             BackendResolver.ClearManagedGroup(frame, groupKey)
         end
@@ -165,6 +229,14 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
             Demo.TouchDebug(frame, "auraRefresh")
         end
         return ApplyAuraResult(frame, groupKey, previewAuras, groupConfig)
+    end
+
+    local localPreviewAuras = ResolveLocalAuraPreview(frame, unit, groupKey)
+    if localPreviewAuras ~= nil then
+        if BackendResolver.ClearManagedGroup then
+            BackendResolver.ClearManagedGroup(frame, groupKey)
+        end
+        return ApplyAuraResult(frame, groupKey, localPreviewAuras, groupConfig)
     end
 
     if BackendResolver.RefreshManagedGroup and BackendResolver.RefreshManagedGroup(frame, groupKey, groupConfig) then
