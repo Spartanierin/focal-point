@@ -309,6 +309,30 @@ function InspectorMutations.SetTextField(context, textKey, fieldName, value)
     return SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found")
 end
 
+function InspectorMutations.DeleteTextInstance(context, textKey)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    if not IsValidFieldName(textKey) then
+        return Result(false, { errorCode = "invalid_field" })
+    end
+
+    local unitConfig = GetUnitConfig(context)
+    local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+    if type(texts) ~= "table" or type(texts[textKey]) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+
+    local oldValue = texts[textKey]
+    texts[textKey] = nil
+
+    return Result(true, {
+        changed = true,
+        oldValue = oldValue,
+        deletedTextKey = textKey,
+    })
+end
+
 local function BuildTextTemplateMutationContext(context)
     return {
         GetTemplates = function()

@@ -46,6 +46,7 @@ local MEDIA_TYPE_DECORATION = "decoration"
 local DEFAULT_FONT_REFERENCE = "fp:font:standard"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
+local deleteTextInstanceDialog
 
 local function NormalizeInspectorUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
@@ -730,6 +731,118 @@ function InspectorController.Build(container, state, options)
             RefreshTextFontSizeLocally(textKey, result.newValue)
         end
         return result
+    end
+
+    local function IsSelectedTextObject(unitKey, textKey)
+        local selected = type(ObjectSelection.GetSelectedObject) == "function"
+            and ObjectSelection.GetSelectedObject()
+            or nil
+        return type(selected) == "table"
+            and selected.kind == "text"
+            and selected.unit == NormalizeInspectorUnitKey(unitKey)
+            and selected.textKey == textKey
+    end
+
+    local function CloseDeleteTextInstanceDialog()
+        if deleteTextInstanceDialog and deleteTextInstanceDialog.Close then
+            deleteTextInstanceDialog:Close()
+        elseif deleteTextInstanceDialog and deleteTextInstanceDialog.window and deleteTextInstanceDialog.window.Hide then
+            deleteTextInstanceDialog.window:Hide()
+        end
+        deleteTextInstanceDialog = nil
+    end
+
+    local function SelectUnitRootAfterTextDelete(unitKey)
+        local ok = false
+        if type(ObjectSelection.SelectObject) == "function" then
+            ok = ObjectSelection.SelectObject({
+                kind = "unit",
+                unit = unitKey,
+            }) == true
+        end
+        if not ok then
+            if EditorStateApi and type(EditorStateApi.SetSingleSelection) == "function" then
+                EditorStateApi.SetSingleSelection(unitKey)
+            end
+            if EditorStateApi and type(EditorStateApi.ClearSelectedTextElement) == "function" then
+                EditorStateApi.ClearSelectedTextElement()
+            end
+            if EditorStateApi and type(EditorStateApi.ClearPropertyScope) == "function" then
+                EditorStateApi.ClearPropertyScope()
+            end
+        end
+    end
+
+    local function OpenDeleteTextInstanceConfirmDialog(unitKey, textKey)
+        if not IsSelectedTextObject(unitKey, textKey) then
+            return
+        end
+        if type(InspectorMutations.DeleteTextInstance) ~= "function" then
+            return
+        end
+        if not (FormWidgets and type(FormWidgets.CreateCompactFormDialog) == "function") then
+            return
+        end
+
+        CloseDeleteTextInstanceDialog()
+        local dialog = FormWidgets.CreateCompactFormDialog({
+            title = L["EDITOR_DELETE_TEXT_CONFIRM_TITLE"] or "Delete Text?",
+            description = L["EDITOR_DELETE_TEXT_CONFIRM_DESCRIPTION"] or "This permanently removes this text from the selected unit.",
+            width = 420,
+            height = 226,
+            bodyHeight = 58,
+        })
+        if not dialog then
+            return
+        end
+
+        local bodyText = FormWidgets.CreateBodyText
+            and FormWidgets.CreateBodyText(L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.", "description", 12, nil, dialog.contentWidth - 18, false)
+            or AceGUI:Create("Label")
+        bodyText:SetText(L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.")
+        dialog.body:AddChild(bodyText)
+
+        dialog:SetActions({
+            secondary = {
+                text = L["INFO_COMMON_CANCEL"] or "Cancel",
+                role = "utility",
+                width = 104,
+                onClick = function()
+                    CloseDeleteTextInstanceDialog()
+                end,
+            },
+            primary = {
+                text = L["EDITOR_DELETE_TEXT_CONFIRM_BUTTON"] or "Delete",
+                role = "danger",
+                width = 104,
+                onClick = function(activeDialog)
+                    local overlay = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextEditorOverlay or nil
+                    if overlay and type(overlay.CancelActiveDrag) == "function" then
+                        overlay.CancelActiveDrag()
+                    end
+
+                    local result = InspectorMutations.DeleteTextInstance(inspectorContext, textKey)
+                    if result and result.ok == false then
+                        if activeDialog and activeDialog.SetStatus then
+                            activeDialog:SetStatus(ResolveMutationErrorMessage(result))
+                        end
+                        return
+                    end
+
+                    CloseDeleteTextInstanceDialog()
+                    SelectUnitRootAfterTextDelete(unitKey)
+                    NotifySidebarChanged("texts")
+                end,
+            },
+        })
+
+        dialog.window:SetCallback("OnClose", function()
+            if deleteTextInstanceDialog == dialog then
+                deleteTextInstanceDialog = nil
+            end
+        end)
+        deleteTextInstanceDialog = dialog
+        dialog:Show()
     end
 
     local function SetIndicatorField(indicatorKey, fieldName, value, section, fallbackNotify)
@@ -2257,6 +2370,23 @@ function InspectorController.Build(container, state, options)
                     SetTextStateTemplate(selectedTextId, "ghost", value, textSection, ghostTemplateDropdown)
                 end, textConfig.enabled == false, "text_ghost_template")
             end
+        end
+
+        if IsSelectedTextObject(selectedUnit, selectedTextId) then
+            AddSpacer(textSection, 10)
+            local deleteTextButton = FormWidgets.CreateActionButton
+                and FormWidgets.CreateActionButton(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "danger", 128, false)
+                or AceGUI:Create("Button")
+            deleteTextButton:SetText(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text")
+            deleteTextButton:SetWidth(128)
+            deleteTextButton:SetFullWidth(false)
+            if FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(deleteTextButton, "danger")
+            end
+            deleteTextButton:SetCallback("OnClick", function()
+                OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)
+            end)
+            textSection:AddChild(deleteTextButton)
         end
     end
 
