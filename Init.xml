@@ -24,6 +24,7 @@
     <Script file="Services/LayoutMigration.lua"/>
     <Script file="Services/PresetService.lua"/>
     <Script file="Services/ActiveLayoutResolver.lua"/>
+    <Script file="Services/LayoutAssignmentService.lua"/>
     <Script file="Services/PresetMutations.lua"/>
     <Script file="Services/ProfileLayoutService.lua"/>
     <Script file="Services/ThemeService.lua"/>

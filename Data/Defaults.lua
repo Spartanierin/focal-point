@@ -4,6 +4,9 @@ function FocalPoint:GetDefaultDB()
     return {
         char = {
             activeLayoutId = nil,
+            LayoutAssignments = {
+                specialization = {},
+            },
         },
         global = {
             ProfileAutomation = {
