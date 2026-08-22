@@ -562,6 +562,48 @@ function Mutations.AssignTemplate(context, unitKey, textKey, templateName)
     return Result(true, { templateName = templateName, unitKey = unitKey, textKey = textKey, changed = changed })
 end
 
+function Mutations.CreateTextFromTemplate(context, unitKey, templateName)
+    if not ValidateTemplateName(templateName) then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local templateText = templates[templateName]
+    if type(templateText) ~= "string" then
+        return Result(false, { errorCode = "template_not_found", templateName = templateName })
+    end
+
+    local unitConfig = GetUnitConfigFromContext(context, unitKey)
+    if type(unitConfig) ~= "table" then
+        return Result(false, { errorCode = "unit_not_found", unitKey = unitKey })
+    end
+
+    unitConfig.Texts = type(unitConfig.Texts) == "table" and unitConfig.Texts or {}
+    local textKey = type(context.GetNextTextKey) == "function" and context.GetNextTextKey(unitKey) or Mutations.GetNextTextKey(context, unitKey)
+    if not IsNonEmptyString(textKey) or unitConfig.Texts[textKey] ~= nil then
+        return Result(false, { errorCode = "text_key_unavailable", unitKey = unitKey })
+    end
+
+    local textConfig = type(context.CreateTextConfig) == "function"
+        and context.CreateTextConfig(unitKey, templateText, templateName)
+        or Mutations.BuildTextElementConfig(templateText, templateName)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_unavailable", unitKey = unitKey })
+    end
+
+    unitConfig.Texts[textKey] = textConfig
+    return Result(true, {
+        templateName = templateName,
+        unitKey = unitKey,
+        textKey = textKey,
+        changed = true,
+    })
+end
+
 function Mutations.UnassignTemplate(context, unitKey, textKey)
     local textConfig, texts, unitConfig = GetTextConfig(context, unitKey, textKey)
     if not unitConfig then

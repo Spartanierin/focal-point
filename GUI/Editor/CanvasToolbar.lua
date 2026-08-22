@@ -11,16 +11,19 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 350
+local TOOLBAR_WIDTH = 470
 local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
-local LAYOUT_LABEL_X = 12
-local LAYOUT_DROPDOWN_X = 58
+local INSERT_LABEL_X = 12
+local INSERT_TEXT_X = 58
+local INSERT_TEXT_WIDTH = 62
+local LAYOUT_LABEL_X = 136
+local LAYOUT_DROPDOWN_X = 182
 local LAYOUT_DROPDOWN_WIDTH = 156
-local LAYOUT_ADD_X = 218
+local LAYOUT_ADD_X = 342
 local LAYOUT_ADD_WIDTH = 30
-local LAYOUT_ACTIVATE_X = 256
+local LAYOUT_ACTIVATE_X = 380
 local LAYOUT_ACTIVATE_WIDTH = 76
 
 local context
@@ -442,11 +445,16 @@ local function EnsureHost()
     host.inset = inset
 
     local widgets = {
+        insertTextButton = CreateButton(T("INSERT_TEXT_BUTTON", "Text"), INSERT_TEXT_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
     }
 
+    AnchorButton(widgets.insertTextButton, host, {
+        x = INSERT_TEXT_X,
+        width = INSERT_TEXT_WIDTH,
+    })
     AnchorWidget(widgets.layoutDropdown, host, {
         x = LAYOUT_DROPDOWN_X,
         y = -5,
@@ -462,8 +470,19 @@ local function EnsureHost()
         width = LAYOUT_ADD_WIDTH,
     })
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
+        FormWidgets.SetInspectorButtonTooltip(widgets.insertTextButton, T("INSERT_TEXT_TOOLTIP", "Add Text"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
     end
+
+    local insertLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    insertLabel:SetPoint("TOPLEFT", host, "TOPLEFT", INSERT_LABEL_X, -10)
+    insertLabel:SetWidth(44)
+    insertLabel:SetJustifyH("LEFT")
+    insertLabel:SetText(T("INSERT_TEXT_GROUP_LABEL", "Insert:"))
+    if FormWidgets and FormWidgets.ApplyTextStyle then
+        FormWidgets.ApplyTextStyle(insertLabel, "label", 11, 1)
+    end
+    widgets.insertLabel = insertLabel
 
     local layoutLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     layoutLabel:SetPoint("TOPLEFT", host, "TOPLEFT", LAYOUT_LABEL_X, -10)
@@ -484,6 +503,17 @@ local function EnsureHost()
     }
 
     if ToolbarBinding then
+        if widgets.insertTextButton then
+            widgets.insertTextButton:SetCallback("OnClick", function()
+                local libraryWindow = ns.GUI
+                    and ns.GUI.Editor
+                    and ns.GUI.Editor.TextTemplateLibraryWindow
+                    or nil
+                if libraryWindow and libraryWindow.Open then
+                    libraryWindow.Open()
+                end
+            end)
+        end
         if widgets.layoutDropdown then
             widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)
                 if context._suspendLayoutCallbacks then
