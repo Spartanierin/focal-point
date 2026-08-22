@@ -226,7 +226,17 @@ function Mutations.DeleteUserLayout(layoutId)
         return false, "store-delete-failed"
     end
 
-    return true, layoutId
+    local clearedAssignments = 0
+    local AssignmentService = FocalPoint.LayoutAssignmentService or {}
+    if AssignmentService.ClearAssignmentsForLayout then
+        local clearOk, countOrReason, partialCount = AssignmentService.ClearAssignmentsForLayout(layoutId, FocalPoint.db)
+        clearedAssignments = type(countOrReason) == "number" and countOrReason or partialCount or 0
+        if not clearOk then
+            return true, layoutId, clearedAssignments, countOrReason or "assignment-reconcile-failed"
+        end
+    end
+
+    return true, layoutId, clearedAssignments
 end
 
 function Mutations.RenameUserLayout(layoutId, newName)

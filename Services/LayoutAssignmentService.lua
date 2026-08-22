@@ -278,6 +278,27 @@ function Service.SetSpecializationAssignment(specID, layoutId, db)
     return true
 end
 
+function Service.ClearAssignmentsForLayout(layoutId, db)
+    if type(layoutId) ~= "string" or layoutId == "" or layoutId:match("^layout:") == nil then
+        return false, "invalid-layout", 0
+    end
+
+    local cleared = 0
+    local assignments = Service.GetAllSpecializationAssignments(db)
+    for specID, assignedLayoutId in pairs(assignments) do
+        if assignedLayoutId == layoutId then
+            local ok = Service.SetSpecializationAssignment(specID, nil, db)
+            if ok then
+                cleared = cleared + 1
+            else
+                return false, "clear-failed", cleared
+            end
+        end
+    end
+
+    return true, cleared
+end
+
 function Service.MigrateLegacyProfileAutomationAssignments(db)
     db = ResolveDB(db)
     local result = {
