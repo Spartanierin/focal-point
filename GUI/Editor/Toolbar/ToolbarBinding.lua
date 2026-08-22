@@ -588,7 +588,7 @@ local function BuildCompositionTree(context, deps)
             local nsRef = ResolveAddon(deps)
             local controller = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.Controller
             if changeKind == "sameUnitObject" and controller and type(controller.RefreshActiveProperties) == "function" then
-                controller.RefreshActiveProperties()
+                RefreshTreeRuntimeAndProperties(context, deps)
                 return
             end
             if context.options and type(context.options.onObjectSelectionChanged) == "function" then
