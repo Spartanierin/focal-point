@@ -437,6 +437,14 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
         if FocalPoint.guiTreeStatus then
             FocalPoint.guiTreeStatus.selected = normalizedPath
         end
+        if normalizedPath == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.EDITOR)
+            and FocalPoint.SetFrameLockEnabled
+        then
+            FocalPoint:SetFrameLockEnabled(true, {
+                reason = "editor-navigate",
+                silent = true,
+            })
+        end
         if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
             FocalPoint.GUI:RequestRefreshOptions()
         end
@@ -829,29 +837,11 @@ function FocalPoint:CloseConfig()
         self:DisableTestMode()
     end
 
-    if self.framesUnlocked then
-        self.framesUnlocked = false
-        local interactionMode = self.GUI
-            and self.GUI.Editor
-            and self.GUI.Editor.InteractionMode
-        if interactionMode and interactionMode.ResetToFrameMode then
-            interactionMode.ResetToFrameMode(true)
-        end
-        local demo = self.UnitFrameDemoEnvironment or nil
-        if demo and demo.ExitTestMode then
-            demo.ExitTestMode("config-close-lock")
-        end
-        if self.ClearAllMoveOverlays then
-            self:ClearAllMoveOverlays()
-        end
-        if self.UpdateAllFrameDragStates then
-            self:UpdateAllFrameDragStates()
-        end
-        if self.RefreshAllFrames then
-            self:RefreshAllFrames()
-        elseif self.RefreshAllUnitFrames then
-            self:RefreshAllUnitFrames()
-        end
+    if self.SetFrameLockEnabled then
+        self:SetFrameLockEnabled(false, {
+            reason = "config-close-lock",
+            silent = true,
+        })
     end
 
     if self.RefreshEditorSelectionVisuals then
@@ -1094,9 +1084,21 @@ function FocalPoint:OpenConfig()
     end
 
     if alreadyVisible and currentPath == editorPath and not self._creatingGUI then
+        if self.SetFrameLockEnabled then
+            self:SetFrameLockEnabled(true, {
+                reason = "editor-open",
+                silent = true,
+            })
+        end
         return
     end
 
     self:CreateGUI()
+    if self.SetFrameLockEnabled then
+        self:SetFrameLockEnabled(true, {
+            reason = "editor-open",
+            silent = true,
+        })
+    end
     ShowEditorWelcomeTip()
 end

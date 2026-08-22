@@ -1114,7 +1114,17 @@ function FocalPoint:RefreshEditorSelectionVisuals()
     end
 end
 
-function FocalPoint:ToggleFrameLock()
+function FocalPoint:SetFrameLockEnabled(enabled, options)
+    enabled = enabled == true
+    if self.framesUnlocked == enabled then
+        return false
+    end
+
+    return self:ToggleFrameLock(options)
+end
+
+function FocalPoint:ToggleFrameLock(options)
+    options = type(options) == "table" and options or {}
     self.framesUnlocked = not self.framesUnlocked
     ResetEditorInteractionModeToFrame()
 
@@ -1149,7 +1159,9 @@ function FocalPoint:ToggleFrameLock()
         if self.GUI and self.GUI.RequestRefreshOptions then
             self.GUI:RequestRefreshOptions()
         end
-        self:Info("Unit frames unlocked. Drag with left mouse button.")
+        if not options.silent then
+            self:Info("Unit frames unlocked. Drag with left mouse button.")
+        end
     else
         CancelEditorResize()
         HideEditorSnapLines()
@@ -1164,7 +1176,7 @@ function FocalPoint:ToggleFrameLock()
 
         local demo = self.UnitFrameDemoEnvironment or nil
         if demo and demo.ExitTestMode then
-            demo.ExitTestMode("frames-lock-on")
+            demo.ExitTestMode(options.reason or "frames-lock-on")
         end
         local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
         if editorState and editorState.ClearSelection then
@@ -1181,8 +1193,12 @@ function FocalPoint:ToggleFrameLock()
         if self.GUI and self.GUI.RequestRefreshOptions then
             self.GUI:RequestRefreshOptions()
         end
-        self:Info("Unit frames locked.")
+        if not options.silent then
+            self:Info("Unit frames locked.")
+        end
     end
+
+    return true
 end
 
 function FocalPoint:StartTagTicker()

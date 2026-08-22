@@ -269,6 +269,11 @@ local function RefreshUnlockControl(control, deps)
     local nsRef = deps and deps.ns or {}
     local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
     control:SetText((nsRef.framesUnlocked and T("GUI_UNLOCK_STOP", "Lock Frames", deps)) or T("GUI_UNLOCK_START", "Unlock Frames", deps))
+    if nsRef.IsEditorActive and nsRef:IsEditorActive() then
+        control:SetDisabled(true)
+    else
+        control:SetDisabled(false)
+    end
     if ApplySidebarButtonVisual then
         ApplySidebarButtonVisual(control, roles.PRIMARY_ACTION)
     end
@@ -313,6 +318,16 @@ end
 
 local function HandleToggleUnlock(context, deps)
     local nsRef = deps and deps.ns or {}
+    if nsRef.IsEditorActive and nsRef:IsEditorActive() then
+        if nsRef.SetFrameLockEnabled then
+            nsRef:SetFrameLockEnabled(true, {
+                reason = "editor-open-button",
+                silent = true,
+            })
+        end
+        NotifyEditingCommandChanged(context)
+        return true
+    end
     if not nsRef.ToggleFrameLock then
         return false
     end
