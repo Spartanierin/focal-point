@@ -138,6 +138,7 @@
     <Script file="GUI/Editor/Composition/CompositionTreeView.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>
     <Script file="GUI/Editor/LayoutManager/LayoutManagerView.lua"/>
+    <Script file="GUI/Editor/LayoutAssignments/LayoutAssignmentView.lua"/>
     <Script file="GUI/Editor/CanvasToolbar.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarController.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorTextSelection.lua"/>

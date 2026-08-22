@@ -765,6 +765,14 @@ local function RefreshWindowState(context, deps)
         end
     end
 
+    if context.widgets.layoutAssignmentsButton then
+        context.widgets.layoutAssignmentsButton:SetText(T("NAV_LAYOUT_ASSIGNMENTS", "Assignments...", deps))
+        context.widgets.layoutAssignmentsButton:SetDisabled(false)
+        if ApplySidebarButtonVisual then
+            ApplySidebarButtonVisual(context.widgets.layoutAssignmentsButton, SIDEBAR_VISUAL_ROLE.UTILITY)
+        end
+    end
+
     IterateWidgetMap(UNIT_WIDGET_IDS, function(widgetId, constantPath)
         local unitKey = ResolveConstantPath(C, constantPath)
         local button = context.widgets[widgetId]
@@ -926,6 +934,17 @@ local function WireCallbacks(context, deps, refreshFn)
                 and nsRef.GUI.Editor.LayoutManager
             if layoutManager and layoutManager.Open then
                 layoutManager.Open()
+            end
+        end)
+    end
+
+    if context.widgets.layoutAssignmentsButton then
+        context.widgets.layoutAssignmentsButton:SetCallback("OnClick", function()
+            local assignments = nsRef.GUI
+                and nsRef.GUI.Editor
+                and nsRef.GUI.Editor.LayoutAssignments
+            if assignments and assignments.Open then
+                assignments.Open()
             end
         end)
     end

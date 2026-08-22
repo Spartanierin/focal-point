@@ -3,6 +3,8 @@ local _, FocalPoint = ...
 FocalPoint.LayoutAssignmentService = FocalPoint.LayoutAssignmentService or {}
 local Service = FocalPoint.LayoutAssignmentService
 
+local eventFrame = nil
+
 local function ResolveDB(db)
     return type(db) == "table" and db or FocalPoint.db
 end
@@ -109,6 +111,11 @@ local function ResolveSpecializationInfo(specIndex)
     return nil
 end
 
+local function HasDirtyTextBuilderDraft()
+    local textBuilder = FocalPoint.GUI and FocalPoint.GUI.Pages and FocalPoint.GUI.Pages.TextBuilder or nil
+    return textBuilder and textBuilder.HasUnsavedChanges and textBuilder.HasUnsavedChanges() == true
+end
+
 function Service.GetCurrentSpecialization()
     local specIndex = GetSpecializationIndex()
     local specID, specName = ResolveSpecializationInfo(specIndex)
@@ -191,6 +198,52 @@ function Service.SetSpecializationAssignment(specID, layoutId, db)
     assignments[specID] = layoutId
     assignments[tostring(specID)] = nil
     return true
+end
+
+function Service.EvaluateCurrentSpecializationAssignment(reason)
+    local layoutId, status, specID, _, _, staleLayoutId = Service.GetAssignmentForCurrentSpecialization()
+    if status == "missing" or status == "spec-unavailable" or status == "invalid-spec" then
+        return false, status or "missing"
+    end
+
+    if status == "stale" then
+        if type(specID) == "number" then
+            Service.SetSpecializationAssignment(specID, nil)
+        end
+        return false, "stale", staleLayoutId
+    end
+
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return false, status or "missing"
+    end
+
+    if HasDirtyTextBuilderDraft() then
+        return false, "dirty-text-builder"
+    end
+
+    if not FocalPoint.ActivateLayout then
+        return false, "activate-layout-unavailable"
+    end
+
+    return FocalPoint:ActivateLayout(layoutId, reason or "assignment:spec")
+end
+
+function Service.InitializeRuntime()
+    if eventFrame then
+        return
+    end
+
+    eventFrame = CreateFrame("Frame")
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    eventFrame:SetScript("OnEvent", function(_, event, unit)
+        if event == "PLAYER_SPECIALIZATION_CHANGED" and unit ~= nil and unit ~= "player" then
+            return
+        end
+
+        local reason = event == "PLAYER_ENTERING_WORLD" and "assignment:login" or "assignment:spec-change"
+        Service.EvaluateCurrentSpecializationAssignment(reason)
+    end)
 end
 
 return Service

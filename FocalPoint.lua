@@ -1176,6 +1176,10 @@ function FocalPointAddon:OnInitialize()
         FocalPoint.ActiveLayoutResolver.InitializeActiveLayoutId(FocalPoint.db)
     end
 
+    if FocalPoint.LayoutAssignmentService and FocalPoint.LayoutAssignmentService.InitializeRuntime then
+        FocalPoint.LayoutAssignmentService.InitializeRuntime()
+    end
+
     FocalPoint.TAG_UPDATE_INTERVAL = FocalPoint.db.profile.General.TagUpdateInterval or 0.25
     FocalPoint.SEPARATOR = FocalPoint.db.profile.General.Separator or "||"
     FocalPoint.TOT_SEPARATOR = FocalPoint.db.profile.General.ToTSeparator or "»"
