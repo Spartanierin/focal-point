@@ -113,6 +113,13 @@ local function GetSelectedUnit()
     return type(state) == "table" and state.selectedUnit or nil
 end
 
+local function GetTargetUnit(context)
+    if type(context) == "table" and type(context.targetUnit) == "string" and context.targetUnit ~= "" then
+        return context.targetUnit
+    end
+    return GetSelectedUnit()
+end
+
 local function GetActiveTemplates()
     local resolver = ns.ActiveLayoutResolver or {}
     local templates = resolver.GetActiveTextTemplates and resolver.GetActiveTextTemplates(ns.db) or nil
@@ -163,6 +170,13 @@ local function ResolveMutationStatus(result)
         return T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID", "The active profile is not available.")
     end
     return T("INSERT_TEXT_STATUS_FAILED", "Text could not be added.")
+end
+
+local function ResolvePrimaryLabel(context)
+    if type(context) == "table" and context.mode == "change" then
+        return T("INSERT_TEXT_CHANGE_PRIMARY", "Change")
+    end
+    return T("INSERT_TEXT_ADD", "Add")
 end
 
 local function RefreshPreview(context)
@@ -223,7 +237,7 @@ local function RefreshWindow(context)
     end
 end
 
-local function SelectCreatedText(unitKey, textKey)
+local function SelectText(unitKey, textKey)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
     if objectSelection and type(objectSelection.SelectObject) == "function" then
         return objectSelection.SelectObject({
@@ -235,8 +249,8 @@ local function SelectCreatedText(unitKey, textKey)
     return false
 end
 
-local function AddSelectedTemplate(context)
-    local unitKey = GetSelectedUnit()
+local function SubmitSelectedTemplate(context)
+    local unitKey = GetTargetUnit(context)
     if type(unitKey) ~= "string" or unitKey == "" then
         context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_UNIT", "Select a unit first."))
         return
@@ -245,6 +259,38 @@ local function AddSelectedTemplate(context)
     local templateName = context.selectedTemplateName
     if type(templateName) ~= "string" or templateName == "" then
         context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_TEMPLATE", "Select a text template first."))
+        return
+    end
+
+    if context.mode == "change" then
+        local textKey = context.targetTextKey
+        if type(textKey) ~= "string" or textKey == "" then
+            context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_TEXT", "Select a text object first."))
+            return
+        end
+
+        if templateName == context.initialTemplateName then
+            SelectText(unitKey, textKey)
+            context.dialog:Close()
+            return
+        end
+
+        local mutations = ns.TextTemplateMutations or {}
+        local mutationContext = mutations.CreateActiveLayoutContext and mutations.CreateActiveLayoutContext(ns.db) or nil
+        local result = mutations.AssignTemplate and mutations.AssignTemplate(mutationContext, unitKey, textKey, templateName) or nil
+        if type(result) ~= "table" or not result.ok then
+            context.dialog:SetStatus(ResolveMutationStatus(result))
+            return
+        end
+
+        if ns.RefreshUnitFrame then
+            ns:RefreshUnitFrame(result.unitKey or unitKey)
+        end
+        SelectText(result.unitKey or unitKey, result.textKey or textKey)
+        if ns.GUI and ns.GUI.RequestRefreshOptions then
+            ns.GUI:RequestRefreshOptions()
+        end
+        context.dialog:Close()
         return
     end
 
@@ -259,7 +305,7 @@ local function AddSelectedTemplate(context)
     if ns.RefreshUnitFrame then
         ns:RefreshUnitFrame(unitKey)
     end
-    SelectCreatedText(result.unitKey or unitKey, result.textKey)
+    SelectText(result.unitKey or unitKey, result.textKey)
     if ns.GUI and ns.GUI.RequestRefreshOptions then
         ns.GUI:RequestRefreshOptions()
     end
@@ -295,9 +341,9 @@ local function BuildFooter(context)
     footer:AddChild(cancelButton)
     footer:AddChild(CreateSpacer(8, 1))
 
-    local addButton = CreateButton(T("INSERT_TEXT_ADD", "Add"), "primary_action", 82)
+    local addButton = CreateButton(ResolvePrimaryLabel(context), "primary_action", 82)
     addButton:SetCallback("OnClick", function()
-        AddSelectedTemplate(context)
+        SubmitSelectedTemplate(context)
     end)
     footer:AddChild(addButton)
     context.primaryButton = addButton
@@ -341,14 +387,16 @@ local function BuildBody(context)
     body:AddChild(previewColumn)
 end
 
-function TextTemplateLibraryWindow.Open()
+function TextTemplateLibraryWindow.Open(options)
     if windowContext and windowContext.dialog then
         windowContext.dialog:Close()
     end
+    options = type(options) == "table" and options or {}
+    local mode = options.mode == "change" and "change" or "add"
 
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
-        title = T("INSERT_TEXT_TITLE", "Add Text"),
-        description = T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
+        title = mode == "change" and T("INSERT_TEXT_CHANGE_TITLE", "Change Text") or T("INSERT_TEXT_TITLE", "Add Text"),
+        description = mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
         width = 548,
         height = 342,
         bodyHeight = 196,
@@ -362,7 +410,11 @@ function TextTemplateLibraryWindow.Open()
     local context = {
         dialog = dialog,
         entries = {},
-        selectedTemplateName = nil,
+        mode = mode,
+        targetUnit = options.unit,
+        targetTextKey = options.textKey,
+        initialTemplateName = options.initialTemplateName,
+        selectedTemplateName = options.initialTemplateName,
     }
     windowContext = context
 

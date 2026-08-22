@@ -2109,6 +2109,29 @@ function InspectorController.Build(container, state, options)
             end
             textSection:AddChild(templateSummary)
 
+            local changeTemplateButton = AceGUI:Create("Button")
+            if FormWidgets.ResetInspectorButtonState then
+                FormWidgets.ResetInspectorButtonState(changeTemplateButton)
+            end
+            changeTemplateButton:SetText(L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...")
+            changeTemplateButton:SetFullWidth(false)
+            changeTemplateButton:SetWidth(142)
+            changeTemplateButton:SetCallback("OnClick", function()
+                local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
+                if library and type(library.Open) == "function" then
+                    library.Open({
+                        mode = "change",
+                        unit = selectedUnit,
+                        textKey = selectedTextId,
+                        initialTemplateName = type(textConfig.templateName) == "string" and textConfig.templateName or nil,
+                    })
+                end
+            end)
+            if FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(changeTemplateButton, "utility")
+            end
+            textSection:AddChild(changeTemplateButton)
+
             local missingTemplateMessages = BuildMissingTemplateMessages(selectedTextId)
             if #missingTemplateMessages > 0 then
                 local missingTemplateWarning = AceGUI:Create("Label")
