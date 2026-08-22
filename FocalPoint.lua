@@ -1176,6 +1176,10 @@ function FocalPointAddon:OnInitialize()
         FocalPoint.ActiveLayoutResolver.InitializeActiveLayoutId(FocalPoint.db)
     end
 
+    if FocalPoint.LayoutAssignmentService and FocalPoint.LayoutAssignmentService.MigrateLegacyProfileAutomationAssignments then
+        FocalPoint.LayoutAssignmentService.MigrateLegacyProfileAutomationAssignments(FocalPoint.db)
+    end
+
     if FocalPoint.LayoutAssignmentService and FocalPoint.LayoutAssignmentService.InitializeRuntime then
         FocalPoint.LayoutAssignmentService.InitializeRuntime()
     end
