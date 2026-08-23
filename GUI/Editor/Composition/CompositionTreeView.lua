@@ -104,6 +104,7 @@ local CLICKABLE_NODE_TYPES = {
     textElement = true,
     buffs = true,
     debuffs = true,
+    indicatorElement = true,
     decorationElement = true,
 }
 
@@ -137,6 +138,9 @@ local function IsClickableNode(node)
     if target.kind == "decoration" then
         return type(target.decorationId) == "string" and target.decorationId ~= ""
     end
+    if target.kind == "indicator" then
+        return type(target.indicatorKey) == "string" and target.indicatorKey ~= ""
+    end
     return false
 end
 
@@ -153,6 +157,7 @@ local function IsContainerNode(node)
         or node.type == "cast"
         or node.type == "texts"
         or node.type == "auras"
+        or node.type == "indicators"
         or node.type == "decorations"
     )
 end
@@ -174,6 +179,8 @@ local TYPE_ICON_BY_NODE_TYPE = {
     textElement = "T",
     buffs = "A",
     debuffs = "A",
+    indicators = "+",
+    indicatorElement = "I",
     decorations = "+",
     decorationElement = "D",
 }
@@ -285,6 +292,16 @@ local function BuildObjectRef(node)
         }
     end
 
+    if targetKind == "indicator" then
+        return {
+            kind = "indicator",
+            unit = unit,
+            indicatorKey = node.inspectorTarget.indicatorKey,
+            objectKey = node.inspectorTarget.indicatorKey,
+            sectionKey = sectionKey,
+        }
+    end
+
     local objectKey = BAR_OBJECT_BY_NODE_TYPE[node.type]
     if objectKey then
         return {
@@ -327,6 +344,14 @@ local function IsActiveNode(node, state)
             and scope.kind == "decoration"
             and scope.sectionKey == node.inspectorTarget.sectionKey
             and scope.objectKey == node.inspectorTarget.decorationId
+    end
+    if node.inspectorTarget.kind == "indicator" then
+        return state.selectedUnit == node.unit
+            and state.selectedIndicatorKey == node.inspectorTarget.indicatorKey
+            and type(scope) == "table"
+            and scope.kind == "indicator"
+            and scope.sectionKey == node.inspectorTarget.sectionKey
+            and scope.objectKey == node.inspectorTarget.indicatorKey
     end
     return type(scope) == "table"
         and scope.kind == "unit"

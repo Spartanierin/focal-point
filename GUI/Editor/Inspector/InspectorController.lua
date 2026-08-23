@@ -744,6 +744,16 @@ function InspectorController.Build(container, state, options)
             and selected.textKey == textKey
     end
 
+    local function IsSelectedIndicatorObject(unitKey, indicatorKey)
+        local selected = type(ObjectSelection.GetSelectedObject) == "function"
+            and ObjectSelection.GetSelectedObject()
+            or nil
+        return type(selected) == "table"
+            and selected.kind == "indicator"
+            and selected.unit == NormalizeInspectorUnitKey(unitKey)
+            and selected.indicatorKey == indicatorKey
+    end
+
     local function CloseDeleteTextInstanceDialog()
         if deleteTextInstanceDialog and deleteTextInstanceDialog.Close then
             deleteTextInstanceDialog:Close()
@@ -2431,6 +2441,38 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local disableActionAdded = false
+        local function DisableSelectedIndicator()
+            local result = SetIndicatorField(selectedIndicatorKey, "enabled", false, indicatorSection)
+            if result and result.ok == false then
+                return result
+            end
+            SelectUnitRoot(selectedUnit)
+            NotifySidebarChanged("indicators")
+            return result
+        end
+
+        local function AddDisableIndicatorAction()
+            if disableActionAdded or not IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey) then
+                return
+            end
+            disableActionAdded = true
+            AddSpacer(indicatorSection, 8)
+            local disableButton = FormWidgets.CreateActionButton
+                and FormWidgets.CreateActionButton(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", "danger", 148, false)
+                or AceGUI:Create("Button")
+            disableButton:SetText(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator")
+            disableButton:SetWidth(148)
+            disableButton:SetFullWidth(false)
+            disableButton:SetCallback("OnClick", DisableSelectedIndicator)
+            if FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(disableButton, "danger")
+            elseif FormWidgets.StyleActionButton then
+                FormWidgets.StyleActionButton(disableButton, "danger")
+            end
+            indicatorSection:AddChild(disableButton)
+        end
+
         AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", currentIndicatorList, selectedIndicatorKey, function(value)
             local ok = type(ObjectSelection.SelectObject) == "function"
                 and ObjectSelection.SelectObject({
@@ -2458,6 +2500,7 @@ function InspectorController.Build(container, state, options)
             AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", classificationEffectList, indicatorConfig.effect or "PORTRAIT_OVERLAY", function(value)
                 SetIndicatorField(selectedIndicatorKey, "effect", value)
             end, indicatorConfig.enabled == false)
+            AddDisableIndicatorAction()
             return
         end
 
@@ -2472,6 +2515,7 @@ function InspectorController.Build(container, state, options)
 
         local useOverlayEffect = indicatorMeta.effectListKey == "status" and effect == "FRAME_OVERLAY"
         if useOverlayEffect then
+            AddDisableIndicatorAction()
             return
         end
 
@@ -2490,6 +2534,7 @@ function InspectorController.Build(container, state, options)
         end, indicatorConfig.enabled == false)
 
         if not isExpert then
+            AddDisableIndicatorAction()
             return
         end
 
@@ -2512,6 +2557,7 @@ function InspectorController.Build(container, state, options)
             AddSlider(indicatorSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
                 SetIndicatorField(selectedIndicatorKey, "padding", math.floor((value or 0) + 0.5))
             end, indicatorConfig.enabled == false)
+            AddDisableIndicatorAction()
             return
         end
 
@@ -2534,6 +2580,8 @@ function InspectorController.Build(container, state, options)
         AddSlider(indicatorSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
             SetIndicatorField(selectedIndicatorKey, "offsetY", math.floor((value or 0) + 0.5))
         end, indicatorConfig.enabled == false)
+
+        AddDisableIndicatorAction()
     end
 
     do

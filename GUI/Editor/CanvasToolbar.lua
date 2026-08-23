@@ -11,7 +11,7 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 560
+local TOOLBAR_WIDTH = 662
 local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
@@ -20,16 +20,19 @@ local INSERT_TEXT_X = 58
 local INSERT_TEXT_WIDTH = 62
 local INSERT_DECORATION_X = 124
 local INSERT_DECORATION_WIDTH = 94
-local LAYOUT_LABEL_X = 232
-local LAYOUT_DROPDOWN_X = 278
+local INSERT_INDICATOR_X = 222
+local INSERT_INDICATOR_WIDTH = 86
+local LAYOUT_LABEL_X = 322
+local LAYOUT_DROPDOWN_X = 368
 local LAYOUT_DROPDOWN_WIDTH = 156
-local LAYOUT_ADD_X = 438
+local LAYOUT_ADD_X = 528
 local LAYOUT_ADD_WIDTH = 30
-local LAYOUT_ACTIVATE_X = 476
+local LAYOUT_ACTIVATE_X = 566
 local LAYOUT_ACTIVATE_WIDTH = 76
 
 local context
 local newLayoutDialog
+local indicatorPickerDialog
 
 local function T(key, fallback)
     local L = ns.L or {}
@@ -329,7 +332,7 @@ local function RefreshDecorationInsertResult(unitKey, decorationId)
         })
     end
 
-    if ns.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "" then
+    if type(ns.RefreshUnitFrame) == "function" and type(unitKey) == "string" and unitKey ~= "" then
         ns:RefreshUnitFrame(unitKey)
     end
     RequestEditorRefresh()
@@ -361,6 +364,143 @@ local function InsertDecoration()
     end
 
     RefreshDecorationInsertResult(unitKey, result.newDecorationId)
+end
+
+local function CloseIndicatorPickerDialog()
+    if indicatorPickerDialog and indicatorPickerDialog.Close then
+        indicatorPickerDialog:Close()
+    elseif indicatorPickerDialog and indicatorPickerDialog.window and indicatorPickerDialog.window.Hide then
+        indicatorPickerDialog.window:Hide()
+    end
+    indicatorPickerDialog = nil
+end
+
+local function GetIndicatorConfig(unitKey, indicatorKey)
+    local unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
+    local meta = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared and ns.GUI.Editor.SidebarShared.INDICATOR_META or nil
+    local entry = type(meta) == "table" and meta[indicatorKey] or nil
+    return type(unitConfig) == "table" and type(entry) == "table" and unitConfig[entry.optionKey] or nil
+end
+
+local function BuildIndicatorMutationContext(unitKey)
+    local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
+    return {
+        unitKey = unitKey,
+        unit = unitKey,
+        unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil,
+        getEditablePayload = GetEditableActivePayload,
+        getEditableUnitConfig = GetEditableUnitConfig,
+        indicatorMeta = shared.INDICATOR_META,
+    }
+end
+
+local function SelectIndicator(unitKey, indicatorKey)
+    local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectObject) == "function" then
+        objectSelection.SelectObject({
+            kind = "indicator",
+            unit = unitKey,
+            indicatorKey = indicatorKey,
+        })
+    end
+    if ns.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "" then
+        ns:RefreshUnitFrame(unitKey)
+    end
+    RequestEditorRefresh()
+end
+
+local function EnableIndicator(unitKey, indicatorKey)
+    local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
+    if not (mutations and type(mutations.SetIndicatorField) == "function") then
+        return false
+    end
+    local result = mutations.SetIndicatorField(BuildIndicatorMutationContext(unitKey), indicatorKey, "enabled", true)
+    return result and result.ok ~= false
+end
+
+local function AddIndicatorPickerButton(dialog, unitKey, indicatorKey, label)
+    local indicatorConfig = GetIndicatorConfig(unitKey, indicatorKey)
+    local active = type(indicatorConfig) == "table" and indicatorConfig.enabled ~= false
+    local text = active
+        and string.format("%s %s", label, T("INSERT_INDICATOR_ACTIVE_SUFFIX", "(Active)"))
+        or label
+    local buttonWidth = (tonumber(dialog and dialog.contentWidth) or 340) - 18
+    local button = FormWidgets and FormWidgets.CreateActionButton
+        and FormWidgets.CreateActionButton(text, "secondary", buttonWidth, false)
+        or AceGUI:Create("Button")
+    button:SetText(text)
+    button:SetFullWidth(true)
+    button:SetCallback("OnClick", function()
+        if active or EnableIndicator(unitKey, indicatorKey) then
+            CloseIndicatorPickerDialog()
+            SelectIndicator(unitKey, indicatorKey)
+        elseif ns.Info then
+            ns:Info(T("INSERT_INDICATOR_STATUS_FAILED", "Indicator could not be enabled."))
+        end
+    end)
+    if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(button, active and "utility" or "primary_action")
+    end
+    dialog.body:AddChild(button)
+end
+
+local function OpenIndicatorPicker()
+    local unitKey = ResolveSelectedObjectUnit()
+    if type(unitKey) ~= "string" or unitKey == "" then
+        if ns.Info then
+            ns:Info(T("INSERT_INDICATOR_STATUS_SELECT_UNIT", "Select a unit first."))
+        end
+        return
+    end
+
+    local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
+    local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
+    local order = { "RaidTargetIcon", "LeaderIcon", "RoleIcon", "CombatIndicator", "RestingIndicator", "ReadyCheckIndicator", "ClassificationIndicator" }
+
+    CloseIndicatorPickerDialog()
+    local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+        title = T("INSERT_INDICATOR_TITLE", "Add Indicator"),
+        description = T("INSERT_INDICATOR_DESCRIPTION", "Choose an indicator for the selected unit frame."),
+        width = 380,
+        height = 430,
+        bodyHeight = 260,
+    }) or nil
+    if not dialog then
+        return
+    end
+
+    local added = false
+    for _, indicatorKey in ipairs(order) do
+        local label = indicatorList[indicatorKey]
+        if type(label) == "string" and label ~= "" then
+            AddIndicatorPickerButton(dialog, unitKey, indicatorKey, label)
+            added = true
+        end
+    end
+    if not added then
+        local bodyWidth = (tonumber(dialog and dialog.contentWidth) or 340) - 18
+        local empty = FormWidgets and FormWidgets.CreateBodyText
+            and FormWidgets.CreateBodyText(T("INSERT_INDICATOR_EMPTY", "No indicators are available for this unit."), "description", 12, nil, bodyWidth, false)
+            or AceGUI:Create("Label")
+        empty:SetText(T("INSERT_INDICATOR_EMPTY", "No indicators are available for this unit."))
+        dialog.body:AddChild(empty)
+    end
+
+    dialog:SetActions({
+        secondary = {
+            text = T("INFO_COMMON_CANCEL", "Cancel"),
+            role = "utility",
+            width = 110,
+            onClick = CloseIndicatorPickerDialog,
+        },
+    })
+    dialog.window:SetCallback("OnClose", function()
+        if indicatorPickerDialog == dialog then
+            indicatorPickerDialog = nil
+        end
+    end)
+    indicatorPickerDialog = dialog
+    dialog:Show()
 end
 
 local function ResolveCreateLayoutStatus(reason)
@@ -538,6 +678,7 @@ local function EnsureHost()
     local widgets = {
         insertTextButton = CreateButton(T("INSERT_TEXT_BUTTON", "Text"), INSERT_TEXT_WIDTH),
         insertDecorationButton = CreateButton(T("INSERT_DECORATION_BUTTON", "Decoration"), INSERT_DECORATION_WIDTH),
+        insertIndicatorButton = CreateButton(T("INSERT_INDICATOR_BUTTON", "Indicator"), INSERT_INDICATOR_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
@@ -550,6 +691,10 @@ local function EnsureHost()
     AnchorButton(widgets.insertDecorationButton, host, {
         x = INSERT_DECORATION_X,
         width = INSERT_DECORATION_WIDTH,
+    })
+    AnchorButton(widgets.insertIndicatorButton, host, {
+        x = INSERT_INDICATOR_X,
+        width = INSERT_INDICATOR_WIDTH,
     })
     AnchorWidget(widgets.layoutDropdown, host, {
         x = LAYOUT_DROPDOWN_X,
@@ -568,6 +713,7 @@ local function EnsureHost()
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
         FormWidgets.SetInspectorButtonTooltip(widgets.insertTextButton, T("INSERT_TEXT_TOOLTIP", "Add Text"))
         FormWidgets.SetInspectorButtonTooltip(widgets.insertDecorationButton, T("INSERT_DECORATION_TOOLTIP", "Add Decoration"))
+        FormWidgets.SetInspectorButtonTooltip(widgets.insertIndicatorButton, T("INSERT_INDICATOR_TOOLTIP", "Add Indicator"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
     end
 
@@ -613,6 +759,9 @@ local function EnsureHost()
         end
         if widgets.insertDecorationButton then
             widgets.insertDecorationButton:SetCallback("OnClick", InsertDecoration)
+        end
+        if widgets.insertIndicatorButton then
+            widgets.insertIndicatorButton:SetCallback("OnClick", OpenIndicatorPicker)
         end
         if widgets.layoutDropdown then
             widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)

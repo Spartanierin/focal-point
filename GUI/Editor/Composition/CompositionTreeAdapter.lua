@@ -23,12 +23,23 @@ local SECTION = {
     cast = "cast",
     texts = "texts",
     auras = "auras",
+    indicators = "indicators",
     decoration = "decoration",
 }
 
 local AURA_LABELS = {
     Buffs = "AURA_BUFFS",
     Debuffs = "AURA_DEBUFFS",
+}
+
+local INDICATOR_ORDER = {
+    "RaidTargetIcon",
+    "LeaderIcon",
+    "RoleIcon",
+    "CombatIndicator",
+    "RestingIndicator",
+    "ReadyCheckIndicator",
+    "ClassificationIndicator",
 }
 
 local function GetActiveUnits()
@@ -325,6 +336,44 @@ local function AddAuraBranch(root, unit, unitConfig)
     end
 end
 
+local function AddIndicatorBranch(root, unit, unitConfig)
+    local indicatorList = type(SidebarShared.BuildIndicatorList) == "function" and SidebarShared.BuildIndicatorList(unit) or {}
+    local meta = SidebarShared.INDICATOR_META or {}
+    local indicatorRoot
+
+    for index, indicatorKey in ipairs(INDICATOR_ORDER) do
+        local label = indicatorList[indicatorKey]
+        local entry = meta[indicatorKey]
+        local config = type(unitConfig) == "table" and type(entry) == "table" and unitConfig[entry.optionKey] or nil
+        if type(label) == "string" and type(config) == "table" and config.enabled ~= false then
+            if not indicatorRoot then
+                indicatorRoot = AddChild(root, BuildNode(
+                    root.id .. "/indicators",
+                    "indicators",
+                    unit,
+                    root.id,
+                    L["EDITOR_SECTION_INDICATORS"] or "Indicators",
+                    55,
+                    false,
+                    { kind = "indicator", sectionKey = SECTION.indicators }
+                ))
+            end
+
+            AddChild(indicatorRoot, BuildNode(
+                indicatorRoot.id .. "/" .. indicatorKey,
+                "indicatorElement",
+                unit,
+                indicatorRoot.id,
+                label,
+                index,
+                false,
+                { kind = "indicator", sectionKey = SECTION.indicators, indicatorKey = indicatorKey },
+                true
+            ))
+        end
+    end
+end
+
 local function AddDecorationBranch(root, unit, unitConfig)
     local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
     if type(decorations) ~= "table" or #decorations == 0 then
@@ -420,6 +469,7 @@ function Adapter.BuildUnitTree(unit)
     AddCastBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddTextBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddAuraBranch(root, normalizedUnit, unitConfig)
+    AddIndicatorBranch(root, normalizedUnit, unitConfig)
     AddDecorationBranch(root, normalizedUnit, unitConfig)
 
     return root
