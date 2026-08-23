@@ -104,6 +104,7 @@ local CLICKABLE_NODE_TYPES = {
     textElement = true,
     buffs = true,
     debuffs = true,
+    decorationElement = true,
 }
 
 local BAR_OBJECT_BY_NODE_TYPE = {
@@ -133,6 +134,9 @@ local function IsClickableNode(node)
     if target.kind == "aura" then
         return type(target.auraKey) == "string" and target.auraKey ~= ""
     end
+    if target.kind == "decoration" then
+        return type(target.decorationId) == "string" and target.decorationId ~= ""
+    end
     return false
 end
 
@@ -149,6 +153,7 @@ local function IsContainerNode(node)
         or node.type == "cast"
         or node.type == "texts"
         or node.type == "auras"
+        or node.type == "decorations"
     )
 end
 
@@ -169,6 +174,8 @@ local TYPE_ICON_BY_NODE_TYPE = {
     textElement = "T",
     buffs = "A",
     debuffs = "A",
+    decorations = "+",
+    decorationElement = "D",
 }
 
 local function ResolveTypeIcon(node)
@@ -268,6 +275,16 @@ local function BuildObjectRef(node)
         }
     end
 
+    if targetKind == "decoration" then
+        return {
+            kind = "decoration",
+            unit = unit,
+            decorationId = node.inspectorTarget.decorationId,
+            objectKey = node.inspectorTarget.decorationId,
+            sectionKey = sectionKey,
+        }
+    end
+
     local objectKey = BAR_OBJECT_BY_NODE_TYPE[node.type]
     if objectKey then
         return {
@@ -302,6 +319,14 @@ local function IsActiveNode(node, state)
             and scope.kind == "aura"
             and scope.sectionKey == node.inspectorTarget.sectionKey
             and scope.objectKey == node.inspectorTarget.auraKey
+    end
+    if node.inspectorTarget.kind == "decoration" then
+        return state.selectedUnit == node.unit
+            and state.selectedDecorationId == node.inspectorTarget.decorationId
+            and type(scope) == "table"
+            and scope.kind == "decoration"
+            and scope.sectionKey == node.inspectorTarget.sectionKey
+            and scope.objectKey == node.inspectorTarget.decorationId
     end
     return type(scope) == "table"
         and scope.kind == "unit"

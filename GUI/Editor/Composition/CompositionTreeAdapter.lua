@@ -23,6 +23,7 @@ local SECTION = {
     cast = "cast",
     texts = "texts",
     auras = "auras",
+    decoration = "decoration",
 }
 
 local AURA_LABELS = {
@@ -105,6 +106,13 @@ local function GetTextLabel(textId, textConfig)
         return textConfig.templateName
     end
     return tostring(textId)
+end
+
+local function GetDecorationLabel(decoration, index)
+    if type(decoration) == "table" and type(decoration.id) == "string" and decoration.id ~= "" then
+        return string.format("%s %d", L["EDITOR_SECTION_DECORATION"] or "Decoration", index or 1)
+    end
+    return L["EDITOR_SECTION_DECORATION"] or "Decoration"
 end
 
 local function GetSortedTextIds(texts)
@@ -317,6 +325,41 @@ local function AddAuraBranch(root, unit, unitConfig)
     end
 end
 
+local function AddDecorationBranch(root, unit, unitConfig)
+    local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
+    if type(decorations) ~= "table" or #decorations == 0 then
+        return
+    end
+
+    local decorationRoot = AddChild(root, BuildNode(
+        root.id .. "/decorations",
+        "decorations",
+        unit,
+        root.id,
+        L["EDITOR_SECTION_DECORATION"] or "Decorations",
+        60,
+        false,
+        { kind = "decoration", sectionKey = SECTION.decoration }
+    ))
+
+    for index, decoration in ipairs(decorations) do
+        local decorationId = type(decoration) == "table" and decoration.id or nil
+        if type(decorationId) == "string" and decorationId ~= "" then
+            AddChild(decorationRoot, BuildNode(
+                decorationRoot.id .. "/" .. decorationId,
+                "decorationElement",
+                unit,
+                decorationRoot.id,
+                GetDecorationLabel(decoration, index),
+                index,
+                false,
+                { kind = "decoration", sectionKey = SECTION.decoration, decorationId = decorationId },
+                IsEnabled(decoration)
+            ))
+        end
+    end
+end
+
 function Adapter.GetRootUnits()
     local units = GetActiveUnits()
     local roots = {}
@@ -377,6 +420,7 @@ function Adapter.BuildUnitTree(unit)
     AddCastBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddTextBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddAuraBranch(root, normalizedUnit, unitConfig)
+    AddDecorationBranch(root, normalizedUnit, unitConfig)
 
     return root
 end

@@ -47,6 +47,7 @@ local DEFAULT_FONT_REFERENCE = "fp:font:standard"
 local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 local deleteTextInstanceDialog
+local deleteDecorationDialog
 
 local function NormalizeInspectorUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
@@ -752,6 +753,15 @@ function InspectorController.Build(container, state, options)
         deleteTextInstanceDialog = nil
     end
 
+    local function CloseDeleteDecorationDialog()
+        if deleteDecorationDialog and deleteDecorationDialog.Close then
+            deleteDecorationDialog:Close()
+        elseif deleteDecorationDialog and deleteDecorationDialog.window and deleteDecorationDialog.window.Hide then
+            deleteDecorationDialog.window:Hide()
+        end
+        deleteDecorationDialog = nil
+    end
+
     local function SelectUnitRootAfterTextDelete(unitKey)
         local ok = false
         if type(ObjectSelection.SelectObject) == "function" then
@@ -766,6 +776,24 @@ function InspectorController.Build(container, state, options)
             end
             if EditorStateApi and type(EditorStateApi.ClearSelectedTextElement) == "function" then
                 EditorStateApi.ClearSelectedTextElement()
+            end
+            if EditorStateApi and type(EditorStateApi.ClearPropertyScope) == "function" then
+                EditorStateApi.ClearPropertyScope()
+            end
+        end
+    end
+
+    local function SelectUnitRoot(unitKey)
+        local ok = false
+        if type(ObjectSelection.SelectObject) == "function" then
+            ok = ObjectSelection.SelectObject({
+                kind = "unit",
+                unit = unitKey,
+            }) == true
+        end
+        if not ok then
+            if EditorStateApi and type(EditorStateApi.SetSingleSelection) == "function" then
+                EditorStateApi.SetSingleSelection(unitKey)
             end
             if EditorStateApi and type(EditorStateApi.ClearPropertyScope) == "function" then
                 EditorStateApi.ClearPropertyScope()
@@ -2579,7 +2607,73 @@ function InspectorController.Build(container, state, options)
             if type(InspectorMutations.DeleteDecoration) ~= "function" or not selectedDecorationId then
                 return nil
             end
-            return ApplyDecorationListMutation(InspectorMutations.DeleteDecoration(inspectorContext, selectedDecorationId))
+            local result = InspectorMutations.DeleteDecoration(inspectorContext, selectedDecorationId)
+            if result and result.ok == false then
+                ReportMutationError(result)
+                return result
+            end
+            if result and result.ok and result.changed then
+                state.selectedDecorationId = nil
+                SelectUnitRoot(selectedUnit)
+                NotifySidebarChanged("decoration")
+            end
+            return result
+        end
+
+        local function OpenDeleteDecorationConfirmDialog()
+            if not selectedDecorationId or type(InspectorMutations.DeleteDecoration) ~= "function" then
+                return
+            end
+            if not (FormWidgets and type(FormWidgets.CreateCompactFormDialog) == "function") then
+                DeleteDecoration()
+                return
+            end
+
+            CloseDeleteDecorationDialog()
+            local dialog = FormWidgets.CreateCompactFormDialog({
+                title = L["EDITOR_DELETE_DECORATION_CONFIRM_TITLE"] or "Delete Decoration?",
+                description = L["EDITOR_DELETE_DECORATION_CONFIRM_DESCRIPTION"] or "This removes the selected decoration from this unit frame.",
+                width = 420,
+                height = 204,
+                bodyHeight = 34,
+            })
+            if not dialog then
+                return
+            end
+
+            dialog:SetActions({
+                secondary = {
+                    text = L["INFO_COMMON_CANCEL"] or "Cancel",
+                    role = "utility",
+                    width = 104,
+                    onClick = function()
+                        CloseDeleteDecorationDialog()
+                    end,
+                },
+                primary = {
+                    text = L["EDITOR_DELETE_DECORATION_CONFIRM_BUTTON"] or "Delete",
+                    role = "danger",
+                    width = 104,
+                    onClick = function(activeDialog)
+                        local result = DeleteDecoration()
+                        if result and result.ok == false then
+                            if activeDialog and activeDialog.SetStatus then
+                                activeDialog:SetStatus(ResolveMutationErrorMessage(result))
+                            end
+                            return
+                        end
+                        CloseDeleteDecorationDialog()
+                    end,
+                },
+            })
+
+            dialog.window:SetCallback("OnClose", function()
+                if deleteDecorationDialog == dialog then
+                    deleteDecorationDialog = nil
+                end
+            end)
+            deleteDecorationDialog = dialog
+            dialog:Show()
         end
 
         local function AddDecorationActionButton(row, label, disabled, onClick, width, tooltip)
@@ -2649,7 +2743,6 @@ function InspectorController.Build(container, state, options)
 
             AddDecorationActionButton(actionRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
 
-            AddDecorationActionButton(actionRow, "-", not decorationConfig, DeleteDecoration, 40, L["OPTION_DECORATION_DELETE"] or "Delete Decoration")
         else
             local emptyLabel = AceGUI:Create("Label")
             emptyLabel:SetFullWidth(true)
@@ -2734,6 +2827,22 @@ function InspectorController.Build(container, state, options)
         AddDropdown(decorationSection, L["OPTION_CONDITION"] or "Condition", decorationConditionList, decorationConfig.condition or "ALWAYS", function(value)
             SetDecorationField("condition", value)
         end, disabled, "decoration_condition")
+
+        AddSpacer(decorationSection, 8)
+        local deleteButton = AceGUI:Create("Button")
+        if FormWidgets and FormWidgets.ResetInspectorButtonState then
+            FormWidgets.ResetInspectorButtonState(deleteButton)
+        end
+        deleteButton:SetText(L["OPTION_DECORATION_DELETE"] or "Delete Decoration")
+        deleteButton:SetFullWidth(true)
+        deleteButton:SetDisabled(not decorationConfig)
+        deleteButton:SetCallback("OnClick", OpenDeleteDecorationConfirmDialog)
+        if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+            FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
+        elseif FormWidgets and FormWidgets.StyleActionButton then
+            FormWidgets.StyleActionButton(deleteButton, "danger")
+        end
+        decorationSection:AddChild(deleteButton)
     end
 
     AddScopedInspectorSection("decoration", L["EDITOR_SECTION_DECORATION"] or "Decoration", true, {

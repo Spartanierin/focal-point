@@ -11,19 +11,21 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 470
+local TOOLBAR_WIDTH = 560
 local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
 local INSERT_LABEL_X = 12
 local INSERT_TEXT_X = 58
 local INSERT_TEXT_WIDTH = 62
-local LAYOUT_LABEL_X = 136
-local LAYOUT_DROPDOWN_X = 182
+local INSERT_DECORATION_X = 124
+local INSERT_DECORATION_WIDTH = 94
+local LAYOUT_LABEL_X = 232
+local LAYOUT_DROPDOWN_X = 278
 local LAYOUT_DROPDOWN_WIDTH = 156
-local LAYOUT_ADD_X = 342
+local LAYOUT_ADD_X = 438
 local LAYOUT_ADD_WIDTH = 30
-local LAYOUT_ACTIVATE_X = 380
+local LAYOUT_ACTIVATE_X = 476
 local LAYOUT_ACTIVATE_WIDTH = 76
 
 local context
@@ -272,6 +274,95 @@ local function ReportLayoutActivationResult(ok, reason)
     end
 end
 
+local function ResolveSelectedObjectUnit()
+    local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    local selected = objectSelection and type(objectSelection.GetSelectedObject) == "function" and objectSelection.GetSelectedObject() or nil
+    if type(selected) == "table" and type(selected.unit) == "string" and selected.unit ~= "" then
+        return selected.unit
+    end
+
+    local editorState = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State or nil
+    if editorState and type(editorState.GetPrimaryUnit) == "function" then
+        return editorState.GetPrimaryUnit()
+    end
+
+    local state = editorState and type(editorState.Get) == "function" and editorState.Get() or nil
+    return type(state) == "table" and state.selectedUnit or nil
+end
+
+local function GetEditableActivePayload()
+    local resolver = ns.ActiveLayoutResolver
+    if resolver and type(resolver.EnsureEditableActiveLayout) == "function" then
+        local payload = resolver.EnsureEditableActiveLayout(ns.db)
+        return type(payload) == "table" and payload or nil
+    end
+    return nil
+end
+
+local function GetEditableUnitConfig(unitKey)
+    local payload = GetEditableActivePayload()
+    local units = type(payload) == "table" and payload.Units or nil
+    local normalizedUnit = ns.UnitFrameUtils
+        and ns.UnitFrameUtils.NormalizeConfigUnitKey
+        and ns.UnitFrameUtils.NormalizeConfigUnitKey(unitKey)
+        or unitKey
+    return type(units) == "table" and units[normalizedUnit] or nil
+end
+
+local function BuildDecorationMutationContext(unitKey)
+    return {
+        unitKey = unitKey,
+        unit = unitKey,
+        unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil,
+        getEditablePayload = GetEditableActivePayload,
+        getEditableUnitConfig = GetEditableUnitConfig,
+    }
+end
+
+local function RefreshDecorationInsertResult(unitKey, decorationId)
+    local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectObject) == "function" then
+        objectSelection.SelectObject({
+            kind = "decoration",
+            unit = unitKey,
+            decorationId = decorationId,
+        })
+    end
+
+    if ns.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "" then
+        ns:RefreshUnitFrame(unitKey)
+    end
+    RequestEditorRefresh()
+end
+
+local function InsertDecoration()
+    local unitKey = ResolveSelectedObjectUnit()
+    if type(unitKey) ~= "string" or unitKey == "" then
+        if ns.Info then
+            ns:Info(T("INSERT_DECORATION_STATUS_SELECT_UNIT", "Select a unit first."))
+        end
+        return
+    end
+
+    local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
+    if not (mutations and type(mutations.AddDecoration) == "function") then
+        if ns.Info then
+            ns:Info(T("INSERT_DECORATION_STATUS_FAILED", "Decoration could not be added."))
+        end
+        return
+    end
+
+    local result = mutations.AddDecoration(BuildDecorationMutationContext(unitKey))
+    if not (result and result.ok and result.newDecorationId) then
+        if ns.Info then
+            ns:Info(T("INSERT_DECORATION_STATUS_FAILED", "Decoration could not be added."))
+        end
+        return
+    end
+
+    RefreshDecorationInsertResult(unitKey, result.newDecorationId)
+end
+
 local function ResolveCreateLayoutStatus(reason)
     if reason == "name-required" then
         return T("LAYOUT_CREATE_NAME_REQUIRED", "Please enter a layout name.")
@@ -446,6 +537,7 @@ local function EnsureHost()
 
     local widgets = {
         insertTextButton = CreateButton(T("INSERT_TEXT_BUTTON", "Text"), INSERT_TEXT_WIDTH),
+        insertDecorationButton = CreateButton(T("INSERT_DECORATION_BUTTON", "Decoration"), INSERT_DECORATION_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
@@ -454,6 +546,10 @@ local function EnsureHost()
     AnchorButton(widgets.insertTextButton, host, {
         x = INSERT_TEXT_X,
         width = INSERT_TEXT_WIDTH,
+    })
+    AnchorButton(widgets.insertDecorationButton, host, {
+        x = INSERT_DECORATION_X,
+        width = INSERT_DECORATION_WIDTH,
     })
     AnchorWidget(widgets.layoutDropdown, host, {
         x = LAYOUT_DROPDOWN_X,
@@ -471,6 +567,7 @@ local function EnsureHost()
     })
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
         FormWidgets.SetInspectorButtonTooltip(widgets.insertTextButton, T("INSERT_TEXT_TOOLTIP", "Add Text"))
+        FormWidgets.SetInspectorButtonTooltip(widgets.insertDecorationButton, T("INSERT_DECORATION_TOOLTIP", "Add Decoration"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
     end
 
@@ -513,6 +610,9 @@ local function EnsureHost()
                     libraryWindow.Open()
                 end
             end)
+        end
+        if widgets.insertDecorationButton then
+            widgets.insertDecorationButton:SetCallback("OnClick", InsertDecoration)
         end
         if widgets.layoutDropdown then
             widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)

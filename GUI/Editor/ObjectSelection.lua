@@ -134,7 +134,7 @@ local function IsValidDecoration(unitKey, decorationId)
     end
 
     local unitConfig = GetUnitConfig(unitKey)
-    local decorations = type(unitConfig) == "table" and unitConfig.Decorations or nil
+    local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
     if type(decorations) ~= "table" then
         return false
     end
