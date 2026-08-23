@@ -7,11 +7,13 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local InsideLayout = FocalPoint.UnitFrameInsideLayout or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local GetPreviewRaidTargetIndex = Preview.GetRaidTargetIndex
 local ResolveInsideAnchor = InsideLayout.ResolveAnchor
+local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
 
 local function QueueLayoutRefresh(owner, frame)
     if not owner or not frame or frame._raidTargetLayoutRefreshQueued then
@@ -54,6 +56,7 @@ function RaidTarget.Create(frame)
     texture:Hide()
 
     holder.Texture = texture
+    holder._focalPointIndicatorKey = "RaidTargetIcon"
     frame.Elements.RaidTargetIcon = holder
     frame.RaidTargetIcon = holder
 end
@@ -70,9 +73,13 @@ function RaidTarget.Update(owner, frame)
     local wasShown = holder.IsShown and holder:IsShown() or false
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        if HandleVisibilityTransition then
+            HandleVisibilityTransition(owner, frame, holder, false, "_raidTargetLayoutRefreshQueued")
+        else
+            icon:SetTexture(nil)
+            icon:Hide()
+            holder:Hide()
+        end
         if wasShown then
             QueueLayoutRefresh(owner, frame)
         end
@@ -80,9 +87,13 @@ function RaidTarget.Update(owner, frame)
     end
 
     if not rtmConfig or rtmConfig.enabled == false then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        if HandleVisibilityTransition then
+            HandleVisibilityTransition(owner, frame, holder, false, "_raidTargetLayoutRefreshQueued")
+        else
+            icon:SetTexture(nil)
+            icon:Hide()
+            holder:Hide()
+        end
         if wasShown then
             QueueLayoutRefresh(owner, frame)
         end
@@ -96,15 +107,22 @@ function RaidTarget.Update(owner, frame)
     end
 
     if not index then
-        icon:SetTexture(nil)
-        icon:Hide()
-        holder:Hide()
+        if HandleVisibilityTransition then
+            HandleVisibilityTransition(owner, frame, holder, false, "_raidTargetLayoutRefreshQueued")
+        else
+            icon:SetTexture(nil)
+            icon:Hide()
+            holder:Hide()
+        end
         if wasShown then
             QueueLayoutRefresh(owner, frame)
         end
         return
     end
 
+    if Indicators.HideEditorPlaceholder then
+        Indicators.HideEditorPlaceholder(holder)
+    end
     icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
     SetRaidTargetIconTexture(icon, index)
     holder:Show()
@@ -211,6 +229,9 @@ function RaidTarget.ApplyLayout(owner, frame, options)
 
         owner:UpdateRaidTargetIcon(frame)
     else
+        if Indicators.HideEditorPlaceholder then
+            Indicators.HideEditorPlaceholder(holder)
+        end
         icon:SetTexture(nil)
         icon:Hide()
         holder:Hide()

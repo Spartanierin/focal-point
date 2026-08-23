@@ -9,6 +9,137 @@ local VisualIndicator = FocalPoint.UnitFrameVisualIndicator or {}
 -- Shared helper logic for non-portrait overlay indicators such as leader,
 -- role, combat, resting, and ready check.
 
+local CONDITIONAL_INDICATORS = {
+    RaidTargetIcon = true,
+    LeaderIcon = true,
+    RoleIcon = true,
+    CombatIndicator = true,
+    RestingIndicator = true,
+    ReadyCheckIndicator = true,
+    ClassificationIndicator = true,
+}
+
+local function IsEditorActive()
+    return FocalPoint.framesUnlocked == true
+        and FocalPoint.IsEditorActive
+        and FocalPoint:IsEditorActive()
+end
+
+local function IsIndicatorEnabled(frame, indicatorKey)
+    local config = frame and frame.config
+    local indicatorConfig = type(config) == "table" and config[indicatorKey] or nil
+    return type(indicatorConfig) == "table" and indicatorConfig.enabled ~= false
+end
+
+local function ResolvePresencePolicy()
+    return FocalPoint.EditorPresencePolicy
+        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.PresencePolicy)
+        or nil
+end
+
+local function ShouldRepresentIndicator(frame, indicatorKey)
+    if not (IsEditorActive() and CONDITIONAL_INDICATORS[indicatorKey] and IsIndicatorEnabled(frame, indicatorKey)) then
+        return false
+    end
+
+    local presencePolicy = ResolvePresencePolicy()
+    if presencePolicy and type(presencePolicy.ResolveObject) == "function" then
+        local resolved = presencePolicy.ResolveObject(frame and frame.unit, {
+            kind = "indicator",
+            unit = frame and frame.unit,
+            indicatorKey = indicatorKey,
+            objectKey = indicatorKey,
+            sectionKey = "indicators",
+        })
+        return type(resolved) == "table" and resolved.isConditional == true
+    end
+
+    return true
+end
+
+local function EnsurePlaceholder(holder)
+    if not holder then
+        return nil
+    end
+
+    if holder.EditorPlaceholder then
+        return holder.EditorPlaceholder
+    end
+
+    local placeholder = CreateFrame("Frame", nil, holder)
+    placeholder:SetAllPoints(holder)
+    placeholder:EnableMouse(false)
+
+    local fill = placeholder:CreateTexture(nil, "BACKGROUND", nil, 0)
+    fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+    fill:SetVertexColor(0.06, 0.08, 0.10, 0.20)
+    fill:SetAllPoints(placeholder)
+
+    local borderColor = { 0.70, 0.76, 0.86, 0.42 }
+    local top = placeholder:CreateTexture(nil, "OVERLAY", nil, 1)
+    local bottom = placeholder:CreateTexture(nil, "OVERLAY", nil, 1)
+    local left = placeholder:CreateTexture(nil, "OVERLAY", nil, 1)
+    local right = placeholder:CreateTexture(nil, "OVERLAY", nil, 1)
+    for _, texture in ipairs({ top, bottom, left, right }) do
+        texture:SetTexture("Interface\\Buttons\\WHITE8X8")
+        texture:SetVertexColor(borderColor[1], borderColor[2], borderColor[3], borderColor[4])
+    end
+    top:SetPoint("TOPLEFT", placeholder, "TOPLEFT", 0, 0)
+    top:SetPoint("TOPRIGHT", placeholder, "TOPRIGHT", 0, 0)
+    top:SetHeight(1)
+    bottom:SetPoint("BOTTOMLEFT", placeholder, "BOTTOMLEFT", 0, 0)
+    bottom:SetPoint("BOTTOMRIGHT", placeholder, "BOTTOMRIGHT", 0, 0)
+    bottom:SetHeight(1)
+    left:SetPoint("TOPLEFT", placeholder, "TOPLEFT", 0, 0)
+    left:SetPoint("BOTTOMLEFT", placeholder, "BOTTOMLEFT", 0, 0)
+    left:SetWidth(1)
+    right:SetPoint("TOPRIGHT", placeholder, "TOPRIGHT", 0, 0)
+    right:SetPoint("BOTTOMRIGHT", placeholder, "BOTTOMRIGHT", 0, 0)
+    right:SetWidth(1)
+
+    placeholder.Fill = fill
+    placeholder.BorderTop = top
+    placeholder.BorderBottom = bottom
+    placeholder.BorderLeft = left
+    placeholder.BorderRight = right
+    placeholder:Hide()
+    holder.EditorPlaceholder = placeholder
+    return placeholder
+end
+
+function Indicators.HideEditorPlaceholder(holder)
+    local placeholder = holder and holder.EditorPlaceholder
+    if placeholder then
+        placeholder:Hide()
+    end
+    if holder then
+        holder._focalPointEditorPlaceholder = nil
+    end
+end
+
+function Indicators.ShowEditorPlaceholder(frame, holder, indicatorKey)
+    if not (frame and holder and ShouldRepresentIndicator(frame, indicatorKey)) then
+        return false
+    end
+
+    if VisualIndicator.HideTexture then
+        VisualIndicator.HideTexture(holder)
+    elseif holder.Texture then
+        holder.Texture:SetTexture(nil)
+        holder.Texture:Hide()
+    end
+
+    local placeholder = EnsurePlaceholder(holder)
+    if not placeholder then
+        return false
+    end
+
+    holder._focalPointEditorPlaceholder = true
+    holder:Show()
+    placeholder:Show()
+    return true
+end
+
 local function GetInsideLayout()
     return FocalPoint.UnitFrameInsideLayout or {}
 end
@@ -86,6 +217,14 @@ function Indicators.HandleVisibilityTransition(owner, frame, holder, isVisible, 
     end
 
     if not isVisible then
+        if Indicators.ShowEditorPlaceholder(frame, holder, holder and holder._focalPointIndicatorKey) then
+            if not wasShown then
+                Indicators.QueueLayoutRefresh(owner, frame, stateKey)
+            end
+            return true
+        end
+
+        Indicators.HideEditorPlaceholder(holder)
         if VisualIndicator.Hide then
             VisualIndicator.Hide(holder)
         elseif holder then
@@ -101,6 +240,7 @@ function Indicators.HandleVisibilityTransition(owner, frame, holder, isVisible, 
         return false
     end
 
+    Indicators.HideEditorPlaceholder(holder)
     if VisualIndicator.Show then
         VisualIndicator.Show(holder)
     elseif holder then
@@ -119,7 +259,11 @@ end
 
 function Indicators.CreateHolder(frame, elementKey)
     if VisualIndicator.CreateHolder then
-        return VisualIndicator.CreateHolder(frame, elementKey)
+        local holder = VisualIndicator.CreateHolder(frame, elementKey)
+        if holder then
+            holder._focalPointIndicatorKey = elementKey
+        end
+        return holder
     end
 end
 
@@ -129,6 +273,7 @@ function Indicators.ApplyConfig(owner, frame, holder, options)
     end
 
     local icon = VisualIndicator.ResetHolderVisual and VisualIndicator.ResetHolderVisual(holder, frame) or holder.Texture or holder
+    holder._focalPointIndicatorKey = options._elementKey or holder._focalPointIndicatorKey
 
     if options.enabled then
         if options.customLayout then

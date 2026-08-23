@@ -7,6 +7,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local Indicators = FocalPoint.UnitFrameIndicators or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 
@@ -130,6 +131,10 @@ local function ApplyPortraitOverlayStyle(holder, style)
         return
     end
 
+    if Indicators.HideEditorPlaceholder then
+        Indicators.HideEditorPlaceholder(holder)
+    end
+
     local primary = style.primary or { 1, 1, 1, 1 }
     local secondary = style.secondary or primary
     local tint = style.tint or { primary[1], primary[2], primary[3], 0.08 }
@@ -231,6 +236,10 @@ local function ApplyCrestStyle(holder, style)
         return
     end
 
+    if Indicators.HideEditorPlaceholder then
+        Indicators.HideEditorPlaceholder(holder)
+    end
+
     local primary = style.primary or { 1, 1, 1, 1 }
     local secondary = style.secondary or primary
     local size = style.crestSize or 18
@@ -293,11 +302,17 @@ local function HideClassificationElements(frame)
 
     local portraitOverlay = frame.Elements.ClassificationPortraitOverlay
     if portraitOverlay then
+        if Indicators.HideEditorPlaceholder then
+            Indicators.HideEditorPlaceholder(portraitOverlay)
+        end
         portraitOverlay:Hide()
     end
 
     local crest = frame.Elements.ClassificationCrest
     if crest then
+        if Indicators.HideEditorPlaceholder then
+            Indicators.HideEditorPlaceholder(crest)
+        end
         crest:Hide()
     end
 end
@@ -339,6 +354,8 @@ function Classification.Create(frame)
     crest.DiamondGlow = CreateSolidTexture(crest, "OVERLAY", 2)
     crest.Diamond = CreateSolidTexture(crest, "OVERLAY", 3)
 
+    portraitOverlay._focalPointIndicatorKey = "ClassificationIndicator"
+    crest._focalPointIndicatorKey = "ClassificationIndicator"
     frame.Elements.ClassificationPortraitOverlay = portraitOverlay
     frame.Elements.ClassificationCrest = crest
     frame.ClassificationPortraitOverlay = portraitOverlay
@@ -364,7 +381,35 @@ function Classification.ApplyLayout(frame, options)
     end
 
     local style = GetClassificationStyle(classification)
-    if not style or effect == "NONE" or effect == "NAME_LABEL" then
+    if not style then
+        if effect == "PORTRAIT_OVERLAY" then
+            local portrait = frame.Elements.Portrait
+            local portraitShown = portrait and portrait.IsShown and portrait:IsShown() or false
+            local overlayTarget = portraitShown and portrait or frame
+            crest:Hide()
+            portraitOverlay:ClearAllPoints()
+            portraitOverlay:SetAllPoints(overlayTarget)
+            portraitOverlay:SetFrameStrata(overlayTarget:GetFrameStrata())
+            portraitOverlay:SetFrameLevel(math.max(overlayTarget:GetFrameLevel() + 6, frame:GetFrameLevel() + 26))
+            if Indicators.ShowEditorPlaceholder and Indicators.ShowEditorPlaceholder(frame, portraitOverlay, "ClassificationIndicator") then
+                return
+            end
+        elseif effect == "CORNER_CREST" then
+            portraitOverlay:Hide()
+            crest:ClearAllPoints()
+            crest:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 4)
+            crest:SetFrameStrata(frame:GetFrameStrata())
+            crest:SetFrameLevel(math.max(frame:GetFrameLevel() + 27, (frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 14) or (frame:GetFrameLevel() + 27)))
+            crest:SetSize(18, 18)
+            if Indicators.ShowEditorPlaceholder and Indicators.ShowEditorPlaceholder(frame, crest, "ClassificationIndicator") then
+                return
+            end
+        end
+        HideClassificationElements(frame)
+        return
+    end
+
+    if effect == "NONE" or effect == "NAME_LABEL" then
         HideClassificationElements(frame)
         return
     end
