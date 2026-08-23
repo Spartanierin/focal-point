@@ -162,6 +162,14 @@ local function RefreshInteractionVisuals()
     end
 end
 
+local function RefreshEditorSurface()
+    if FocalPoint and FocalPoint.GUI and type(FocalPoint.GUI.RequestRefreshOptions) == "function" then
+        FocalPoint.GUI:RequestRefreshOptions()
+    else
+        RefreshInteractionVisuals()
+    end
+end
+
 local function RefreshUnitRuntime(unitKey)
     local normalizedUnit = NormalizeUnitKey(unitKey)
     if not normalizedUnit or not (FocalPoint and type(FocalPoint.RefreshUnitFrame) == "function") then
@@ -180,6 +188,7 @@ local function RefreshAuraSelectionRuntime(previousUnit)
 end
 
 local function CompleteSelection(previousUnit, previousObject, nextKind)
+    RefreshEditorSurface()
     RefreshInteractionVisuals()
     if (type(previousObject) == "table" and previousObject.kind == "aura") or nextKind == "aura" then
         RefreshAuraSelectionRuntime(previousUnit)
@@ -194,11 +203,6 @@ local function SelectUnit(unitKey)
     end
 
     if GetSelectedUnit() == normalizedUnit then
-        return normalizedUnit
-    end
-
-    if FocalPoint and type(FocalPoint.SelectEditorUnit) == "function" then
-        FocalPoint:SelectEditorUnit(normalizedUnit)
         return normalizedUnit
     end
 

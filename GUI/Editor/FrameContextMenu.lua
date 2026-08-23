@@ -143,16 +143,6 @@ local function IsEditorUnlocked()
         and FocalPoint:IsEditorActive()
 end
 
-local function IsTextModeActive()
-    local interactionMode = FocalPoint.GUI
-        and FocalPoint.GUI.Editor
-        and FocalPoint.GUI.Editor.InteractionMode
-    return interactionMode
-        and interactionMode.IsTextMode
-        and interactionMode.IsTextMode() == true
-        or false
-end
-
 local function IsWriteBlockedInCombat()
     return InCombatLockdown and InCombatLockdown()
 end
@@ -358,7 +348,7 @@ local function BuildTextMutationContext(menu)
 end
 
 local function IsTextPositionResetAvailable(menu)
-    if IsWriteBlockedInCombat() or not IsEditorUnlocked() or not IsTextModeActive() or not IsTextTargetSelected(menu) then
+    if IsWriteBlockedInCombat() or not IsEditorUnlocked() or not IsTextTargetSelected(menu) then
         return false
     end
 
@@ -372,7 +362,7 @@ local function IsTextPositionResetAvailable(menu)
 end
 
 local function IsTextSizeResetAvailable(menu)
-    if IsWriteBlockedInCombat() or not IsEditorUnlocked() or not IsTextModeActive() or not IsTextTargetSelected(menu) then
+    if IsWriteBlockedInCombat() or not IsEditorUnlocked() or not IsTextTargetSelected(menu) then
         return false
     end
 
@@ -807,7 +797,7 @@ function FrameContextMenu.ShowForFrame(frame)
 end
 
 function FrameContextMenu.ShowForText(frame, textKey)
-    if not IsEditorUnlocked() or not IsTextModeActive() or not frame or not frame.unit or type(textKey) ~= "string" or textKey == "" then
+    if not IsEditorUnlocked() or not frame or not frame.unit or type(textKey) ~= "string" or textKey == "" then
         return
     end
 

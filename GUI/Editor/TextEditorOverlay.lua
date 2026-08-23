@@ -115,16 +115,11 @@ local function GetUnitConfigByKey(unitKey, editable)
     return nil, normalizedUnit
 end
 
-local function IsTextModeActive()
-    local interactionMode = FocalPoint
-        and FocalPoint.GUI
-        and FocalPoint.GUI.Editor
-        and FocalPoint.GUI.Editor.InteractionMode
-    if interactionMode and interactionMode.IsTextMode then
-        return interactionMode.IsTextMode()
-    end
-
-    return false
+local function IsEditorActive()
+    return FocalPoint
+        and FocalPoint.framesUnlocked == true
+        and FocalPoint.IsEditorActive
+        and FocalPoint:IsEditorActive()
 end
 
 local function GetEditorStateApi()
@@ -133,6 +128,23 @@ local function GetEditorStateApi()
         and FocalPoint.GUI.Editor
         and FocalPoint.GUI.Editor.State
         or nil
+end
+
+local function SelectTextObject(frame, textKey)
+    return TextEditorOverlay.Select(frame, textKey)
+end
+
+local function IsSelectedText(frame, textKey)
+    local stateApi = GetEditorStateApi()
+    local normalizedUnit = NormalizeUnitKey(frame and frame.unit)
+    return stateApi
+        and stateApi.IsTextElementSelected
+        and stateApi.IsTextElementSelected(normalizedUnit, textKey) == true
+        or false
+end
+
+local function IsTextInteractionActive(frame, textKey)
+    return IsEditorActive() and IsSelectedText(frame, textKey)
 end
 
 local function GetTextConfig(frame, textKey)
@@ -244,7 +256,23 @@ local function SetBorderStyle(owner, r, g, b, a, thickness)
     if owner.BorderRight then owner.BorderRight:SetWidth(thickness) end
 end
 
-local function HasUsableTextObject(textObject)
+local function ResolveTextAnchor(frame, textConfig)
+    local factory = FocalPoint and FocalPoint.UnitFrameFactory or nil
+    if factory and factory.GetAnchorTarget then
+        return factory.GetAnchorTarget(frame, textConfig and textConfig.anchorTo) or frame
+    end
+
+    return frame
+end
+
+local function ResolveTextHitboxSize(textConfig)
+    local fontSize = tonumber(textConfig and textConfig.fontSize) or 12
+    local width = math.max(HITBOX_WIDTH, math.floor(fontSize * 8 + 0.5))
+    local height = math.max(HITBOX_HEIGHT, math.floor(fontSize + (VISUAL_PADDING_Y * 2) + 0.5))
+    return width, height
+end
+
+local function IsUsableTextVisualTarget(textObject)
     if not textObject or not textObject.GetObjectType then
         return false
     end
@@ -252,6 +280,42 @@ local function HasUsableTextObject(textObject)
         return false
     end
     return true
+end
+
+local function PositionSafeTextHitbox(overlay, frame, textConfig)
+    if not (overlay and frame and type(textConfig) == "table") then
+        return false
+    end
+
+    local anchor = ResolveTextAnchor(frame, textConfig)
+    if not anchor then
+        return false
+    end
+
+    local width, height = ResolveTextHitboxSize(textConfig)
+    overlay:SetSize(width, height)
+    overlay:SetPoint(
+        textConfig.point or "CENTER",
+        anchor,
+        textConfig.relativePoint or "CENTER",
+        textConfig.offsetX or 0,
+        textConfig.offsetY or 0
+    )
+    return true
+end
+
+local function PositionTextVisualChrome(visual, overlay, textObject)
+    if not visual then
+        return
+    end
+
+    visual:ClearAllPoints()
+    if IsUsableTextVisualTarget(textObject) then
+        visual:SetPoint("TOPLEFT", textObject, "TOPLEFT", -VISUAL_PADDING_X, VISUAL_PADDING_Y)
+        visual:SetPoint("BOTTOMRIGHT", textObject, "BOTTOMRIGHT", VISUAL_PADDING_X, -VISUAL_PADDING_Y)
+    else
+        visual:SetAllPoints(overlay)
+    end
 end
 
 local function IsValidAnchorPoint(point)
@@ -464,7 +528,7 @@ local function PositionAnchorToggleButton(overlay, button)
 end
 
 local function ShowAnchorPicker(overlay)
-    if not overlay or IsCombatLocked() or not IsTextModeActive() then
+    if not overlay or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) then
         return
     end
     if overlay._focalPointSelected ~= true then
@@ -685,7 +749,7 @@ local function UpdateAnchorPicker(overlay, selected, textConfig)
     if not overlay then
         return
     end
-    if not selected or IsCombatLocked() or not IsTextModeActive() or type(textConfig) ~= "table" then
+    if not selected or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) or type(textConfig) ~= "table" then
         HideAnchorPicker(overlay)
         if overlay.AnchorToggleButton then
             HideFrameIfShown(overlay.AnchorToggleButton)
@@ -762,10 +826,28 @@ local function EnsureOverlay(frame, textKey)
     end)
     overlay:SetScript("OnEnter", function(self)
         self._focalPointHovered = true
+        local canvasHover = FocalPoint.GUI
+            and FocalPoint.GUI.Editor
+            and FocalPoint.GUI.Editor.CanvasHoverOverlay
+        if canvasHover and canvasHover.SetHover then
+            canvasHover.SetHover(self, {
+                kind = "text",
+                unit = self._focalPointOwnerFrame and self._focalPointOwnerFrame.unit or nil,
+                textKey = self._focalPointTextKey,
+                objectKey = self._focalPointTextKey,
+                sectionKey = "texts",
+            })
+        end
         StyleOverlay(self, self._focalPointSelected == true, true)
     end)
     overlay:SetScript("OnLeave", function(self)
         self._focalPointHovered = false
+        local canvasHover = FocalPoint.GUI
+            and FocalPoint.GUI.Editor
+            and FocalPoint.GUI.Editor.CanvasHoverOverlay
+        if canvasHover and canvasHover.Clear then
+            canvasHover.Clear(self)
+        end
         StyleOverlay(self, self._focalPointSelected == true, false)
     end)
     overlay:SetScript("OnClick", function(self, button)
@@ -775,16 +857,16 @@ local function EnsureOverlay(frame, textKey)
         end
 
         if button == "RightButton" then
-            TextEditorOverlay.Select(self._focalPointOwnerFrame, self._focalPointTextKey)
+            local selected = SelectTextObject(self._focalPointOwnerFrame, self._focalPointTextKey)
             local contextMenu = FocalPoint.GUI
                 and FocalPoint.GUI.Editor
                 and FocalPoint.GUI.Editor.FrameContextMenu
-            if contextMenu and contextMenu.ShowForText then
+            if selected and contextMenu and contextMenu.ShowForText then
                 contextMenu.ShowForText(self._focalPointOwnerFrame, self._focalPointTextKey)
             end
             return
         elseif button == "LeftButton" then
-            TextEditorOverlay.Select(self._focalPointOwnerFrame, self._focalPointTextKey)
+            SelectTextObject(self._focalPointOwnerFrame, self._focalPointTextKey)
         end
     end)
     overlay:SetScript("OnMouseWheel", function(self, delta)
@@ -1119,7 +1201,7 @@ EndTextDrag = function(overlay, commit)
         return
     end
 
-    if commit == false or IsCombatLocked() or not IsTextModeActive() or not IsDragContextStillValid(state) then
+    if commit == false or IsCombatLocked() or not IsTextInteractionActive(state.frame, state.textKey) or not IsDragContextStillValid(state) then
         RestoreTextPositionPreview(state.frame, state.textKey)
         return
     end
@@ -1149,6 +1231,7 @@ function TextEditorOverlay.HideFrame(frame)
                 HideFrameIfShown(overlay.AnchorToggleButton)
             end
             if overlay.VisualBounds and overlay.VisualBounds.Hide then
+                overlay.VisualBounds:ClearAllPoints()
                 overlay.VisualBounds:Hide()
             end
         end
@@ -1160,7 +1243,7 @@ function TextEditorOverlay.UpdateFrame(frame)
         return
     end
 
-    if not IsTextModeActive() then
+    if not IsEditorActive() then
         TextEditorOverlay.HideFrame(frame)
         return
     end
@@ -1190,10 +1273,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                 overlay:SetFrameStrata("FULLSCREEN")
                 overlay:ClearAllPoints()
 
-                if HasUsableTextObject(textObject) then
-                    overlay:SetPoint("TOPLEFT", textObject, "TOPLEFT", -VISUAL_PADDING_X, VISUAL_PADDING_Y)
-                    overlay:SetPoint("BOTTOMRIGHT", textObject, "BOTTOMRIGHT", VISUAL_PADDING_X, -VISUAL_PADDING_Y)
-                else
+                if not PositionSafeTextHitbox(overlay, frame, textConfig) then
                     overlay:SetSize(HITBOX_WIDTH, HITBOX_HEIGHT)
                     overlay:SetPoint("CENTER", frame, "CENTER", 0, 0)
                 end
@@ -1201,13 +1281,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                 local visual = overlay.VisualBounds
                 if visual then
                     visual:SetFrameStrata("FULLSCREEN")
-                    visual:ClearAllPoints()
-                    if HasUsableTextObject(textObject) then
-                        visual:SetPoint("TOPLEFT", textObject, "TOPLEFT", -VISUAL_PADDING_X, VISUAL_PADDING_Y)
-                        visual:SetPoint("BOTTOMRIGHT", textObject, "BOTTOMRIGHT", VISUAL_PADDING_X, -VISUAL_PADDING_Y)
-                    else
-                        visual:SetAllPoints(overlay)
-                    end
+                    PositionTextVisualChrome(visual, overlay, textObject)
                 end
 
                 local selected = stateApi
@@ -1218,7 +1292,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                 StyleOverlay(overlay, overlay._focalPointSelected, overlay._focalPointHovered == true)
                 UpdateAnchorPicker(overlay, overlay._focalPointSelected, textConfig)
                 overlay:EnableMouse(true)
-                overlay:EnableMouseWheel(overlay._focalPointSelected == true)
+                overlay:EnableMouseWheel(overlay._focalPointSelected == true and IsTextInteractionActive(frame, textKey))
                 overlay:Show()
             end
         end
@@ -1239,6 +1313,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                     HideFrameIfShown(overlay.AnchorToggleButton)
                 end
                 if overlay.VisualBounds and overlay.VisualBounds.Hide then
+                    overlay.VisualBounds:ClearAllPoints()
                     overlay.VisualBounds:Hide()
                 end
             end
@@ -1247,7 +1322,7 @@ function TextEditorOverlay.UpdateFrame(frame)
 end
 
 function TextEditorOverlay.BeginDrag(overlay)
-    if not overlay or IsCombatLocked() or not IsTextModeActive() then
+    if not overlay or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) then
         return false
     end
     HideAnchorPicker(overlay)
@@ -1296,7 +1371,7 @@ function TextEditorOverlay.BeginDrag(overlay)
             self:SetScript("OnUpdate", nil)
             return
         end
-        if IsCombatLocked() or not IsTextModeActive() or not IsDragContextStillValid(dragState) then
+        if IsCombatLocked() or not IsTextInteractionActive(dragState.frame, dragState.textKey) or not IsDragContextStillValid(dragState) then
             EndTextDrag(self, false)
             return
         end
@@ -1341,7 +1416,7 @@ function TextEditorOverlay.CancelActiveDrag()
 end
 
 function TextEditorOverlay.SetAnchor(frame, textKey, anchorPoint)
-    if IsCombatLocked() or not IsTextModeActive() then
+    if IsCombatLocked() or not IsTextInteractionActive(frame, textKey) then
         return false
     end
     if not frame or type(textKey) ~= "string" or textKey == "" or not IsValidAnchorPoint(anchorPoint) then
@@ -1385,7 +1460,7 @@ function TextEditorOverlay.RefreshTextElementByUnit(unitKey, textKey)
 end
 
 function TextEditorOverlay.AdjustFontSize(frame, textKey, delta)
-    if IsCombatLocked() or not IsTextModeActive() or activeDragOverlay then
+    if IsCombatLocked() or not IsTextInteractionActive(frame, textKey) or activeDragOverlay then
         return false
     end
     if not frame or type(textKey) ~= "string" or textKey == "" then
@@ -1411,7 +1486,7 @@ function TextEditorOverlay.AdjustFontSize(frame, textKey, delta)
 end
 
 function TextEditorOverlay.ResetPosition(frame, textKey)
-    if IsCombatLocked() or not IsTextModeActive() then
+    if IsCombatLocked() or not IsTextInteractionActive(frame, textKey) then
         return false
     end
     if not frame or type(textKey) ~= "string" or textKey == "" then
@@ -1432,7 +1507,7 @@ function TextEditorOverlay.ResetPosition(frame, textKey)
 end
 
 function TextEditorOverlay.ResetSize(frame, textKey)
-    if IsCombatLocked() or not IsTextModeActive() then
+    if IsCombatLocked() or not IsTextInteractionActive(frame, textKey) then
         return false
     end
     if not frame or type(textKey) ~= "string" or textKey == "" then
@@ -1466,9 +1541,6 @@ function TextEditorOverlay.Select(frame, textKey)
     if not frame or type(textKey) ~= "string" or textKey == "" then
         return false
     end
-    if not IsTextModeActive() then
-        return false
-    end
     if type(GetTextConfig(frame, textKey)) ~= "table" then
         return false
     end
@@ -1479,20 +1551,31 @@ function TextEditorOverlay.Select(frame, textKey)
         return false
     end
 
-    local alreadySelected = stateApi
-        and stateApi.IsUnitSelected
-        and stateApi.IsUnitSelected(normalizedUnit)
-        or false
-    if FocalPoint.SelectEditorUnit then
-        FocalPoint:SelectEditorUnit(frame.unit, { preserveSelection = alreadySelected })
-    elseif stateApi and stateApi.SetPrimaryUnit then
-        stateApi.SetPrimaryUnit(normalizedUnit)
-    end
+    local objectSelection = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.ObjectSelection
+    if objectSelection and objectSelection.SelectObject then
+        if objectSelection.SelectObject({
+            kind = "text",
+            unit = normalizedUnit,
+            textKey = textKey,
+            objectKey = textKey,
+            sectionKey = "texts",
+        }) ~= true then
+            return false
+        end
+    else
+        if FocalPoint.SelectEditorUnit then
+            FocalPoint:SelectEditorUnit(normalizedUnit)
+        elseif stateApi and stateApi.SetSingleSelection then
+            stateApi.SetSingleSelection(normalizedUnit)
+        end
 
-    if stateApi and stateApi.SetSelectedTextElement then
-        stateApi.SetSelectedTextElement(normalizedUnit, textKey)
-    elseif stateApi and stateApi.SetSelectedTextId then
-        stateApi.SetSelectedTextId(textKey)
+        if stateApi and stateApi.SetSelectedTextElement then
+            stateApi.SetSelectedTextElement(normalizedUnit, textKey)
+        elseif stateApi and stateApi.SetSelectedTextId then
+            stateApi.SetSelectedTextId(textKey)
+        end
     end
 
     if stateApi and stateApi.SetSectionCollapsed then

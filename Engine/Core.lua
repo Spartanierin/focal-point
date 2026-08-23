@@ -537,6 +537,24 @@ local function HideTextEditorOverlay(frame)
     end
 end
 
+local function UpdateCanvasHoverOverlay(frame)
+    local overlay = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.CanvasHoverOverlay
+    if overlay and overlay.UpdateFrame then
+        overlay.UpdateFrame(frame)
+    end
+end
+
+local function HideCanvasHoverOverlay(frame)
+    local overlay = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.CanvasHoverOverlay
+    if overlay and overlay.HideFrame then
+        overlay.HideFrame(frame)
+    end
+end
+
 local function CancelEditorResize()
     local resizeHandles = FocalPoint.GUI
         and FocalPoint.GUI.Editor
@@ -948,6 +966,18 @@ function FocalPoint:UpdateFrameDragState(frame)
             overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 40, (frame.Elements and frame.Elements.HealthBar and frame.Elements.HealthBar:GetFrameLevel() + 20) or (frame:GetFrameLevel() + 40)))
             overlay:EnableMouse(frameMode)
             if frameMode then
+                overlay._focalPointEditorForwardMouseDown = function(button)
+                    BeginEditorFrameSelectionClick(frame, button)
+                end
+                overlay._focalPointEditorForwardMouseUp = function(button)
+                    CompleteEditorFrameSelectionClick(frame, button)
+                end
+                overlay._focalPointEditorForwardDragStart = function()
+                    BeginFrameDrag(frame)
+                end
+                overlay._focalPointEditorForwardDragStop = function()
+                    EndFrameDrag(frame)
+                end
                 overlay:RegisterForDrag("LeftButton")
                 overlay:SetScript("OnDragStart", function()
                     if not FocalPoint.framesUnlocked or not IsEditorFrameMode() then
@@ -960,6 +990,10 @@ function FocalPoint:UpdateFrameDragState(frame)
                     EndFrameDrag(frame)
                 end)
             else
+                overlay._focalPointEditorForwardMouseDown = nil
+                overlay._focalPointEditorForwardMouseUp = nil
+                overlay._focalPointEditorForwardDragStart = nil
+                overlay._focalPointEditorForwardDragStop = nil
                 overlay:RegisterForDrag()
                 overlay:SetScript("OnDragStart", nil)
                 overlay:SetScript("OnDragStop", nil)
@@ -998,6 +1032,10 @@ function FocalPoint:UpdateFrameDragState(frame)
             overlay:RegisterForDrag()
             overlay:SetScript("OnDragStart", nil)
             overlay:SetScript("OnDragStop", nil)
+            overlay._focalPointEditorForwardMouseDown = nil
+            overlay._focalPointEditorForwardMouseUp = nil
+            overlay._focalPointEditorForwardDragStart = nil
+            overlay._focalPointEditorForwardDragStop = nil
             overlay:EnableMouse(false)
             overlay:Hide()
             HideEditorResizeHandle(frame)
@@ -1009,6 +1047,7 @@ function FocalPoint:UpdateFrameDragState(frame)
         frame._focalPointDragState = nil
         HideEditorSnapLines()
         HideTextEditorOverlay(frame)
+        HideCanvasHoverOverlay(frame)
     end
 
     UpdateSelectionOverlay(frame)
@@ -1016,6 +1055,7 @@ function FocalPoint:UpdateFrameDragState(frame)
     UpdateTextEditCastPreview(frame)
     UpdateTextEditPresentation(frame)
     UpdateTextEditorOverlay(frame)
+    UpdateCanvasHoverOverlay(frame)
 end
 
 function FocalPoint:UpdateAllFrameDragStates()
@@ -1051,6 +1091,10 @@ function FocalPoint:ClearAllMoveOverlays()
                 overlay:RegisterForDrag()
                 overlay:SetScript("OnDragStart", nil)
                 overlay:SetScript("OnDragStop", nil)
+                overlay._focalPointEditorForwardMouseDown = nil
+                overlay._focalPointEditorForwardMouseUp = nil
+                overlay._focalPointEditorForwardDragStart = nil
+                overlay._focalPointEditorForwardDragStop = nil
                 overlay:EnableMouse(false)
                 overlay:Hide()
             end
@@ -1061,6 +1105,7 @@ function FocalPoint:ClearAllMoveOverlays()
                 selectionOverlay:Hide()
             end
             HideTextEditorOverlay(frame)
+            HideCanvasHoverOverlay(frame)
         end
     end
 end
@@ -1111,6 +1156,7 @@ function FocalPoint:RefreshEditorSelectionVisuals()
         UpdateTextEditCastPreview(frame)
         UpdateTextEditPresentation(frame)
         UpdateTextEditorOverlay(frame)
+        UpdateCanvasHoverOverlay(frame)
     end
 end
 

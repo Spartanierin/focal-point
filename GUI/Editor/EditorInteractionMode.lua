@@ -8,7 +8,6 @@ FocalPoint.GUI.Editor.InteractionMode = EditorInteractionMode
 
 local state = {
     shiftKeysDown = {},
-    latchedTextMode = false,
     lastMode = nil,
 }
 
@@ -117,35 +116,20 @@ function EditorInteractionMode.IsShiftDown()
     return false
 end
 
-function EditorInteractionMode.SetLatchedTextMode(enabled)
-    local nextValue = enabled and true or false
-    if state.latchedTextMode == nextValue then
-        return false
-    end
-    state.latchedTextMode = nextValue
-    RefreshInteractionVisualsIfChanged(false)
-    return true
+function EditorInteractionMode.SetLatchedTextMode()
+    return false
 end
 
 function EditorInteractionMode.IsLatchedTextMode()
-    return state.latchedTextMode == true
+    return false
 end
 
 function EditorInteractionMode.ToggleTextMode()
-    if not IsEditorUnlocked() or IsCombatLocked() or IsTypingFocusActive() then
-        return false
-    end
-
-    return EditorInteractionMode.SetLatchedTextMode(not state.latchedTextMode)
+    return false
 end
 
 function EditorInteractionMode.ResetToFrameMode(force)
     state.shiftKeysDown = {}
-    if state.latchedTextMode ~= false then
-        state.latchedTextMode = false
-        RefreshInteractionVisualsIfChanged(force == true)
-        return true
-    end
 
     if force then
         RefreshInteractionVisualsIfChanged(true)
@@ -162,7 +146,7 @@ function EditorInteractionMode.IsFrameMode()
 end
 
 function EditorInteractionMode.IsTextMode()
-    return ResolveMode() == "text"
+    return false
 end
 
 function EditorInteractionMode.SyncShiftState()
