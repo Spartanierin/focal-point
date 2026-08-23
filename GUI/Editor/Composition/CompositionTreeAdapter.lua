@@ -373,37 +373,39 @@ local function AddIndicatorBranch(root, unit, unitConfig, anchorNodes)
     end
 end
 
-local function AddDecorationBranch(root, unit, unitConfig)
+local function ResolveDecorationParent(root, anchorNodes, decorationConfig)
+    local anchorTo = type(decorationConfig) == "table" and decorationConfig.anchorTo or nil
+    if anchorTo == "Frame" or anchorTo == nil or anchorTo == "" then
+        return root
+    end
+    return type(anchorNodes) == "table" and anchorNodes[anchorTo] or root
+end
+
+local function AddDecorationBranch(root, unit, unitConfig, anchorNodes)
     local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
     if type(decorations) ~= "table" or #decorations == 0 then
         return
     end
 
-    local decorationRoot = AddChild(root, BuildNode(
-        root.id .. "/decorations",
-        "decorations",
-        unit,
-        root.id,
-        L["EDITOR_SECTION_DECORATION"] or "Decorations",
-        60,
-        false,
-        { kind = "decoration", sectionKey = SECTION.decoration }
-    ))
-
     for index, decoration in ipairs(decorations) do
         local decorationId = type(decoration) == "table" and decoration.id or nil
         if type(decorationId) == "string" and decorationId ~= "" then
-            AddChild(decorationRoot, BuildNode(
-                decorationRoot.id .. "/" .. decorationId,
+            local parent = ResolveDecorationParent(root, anchorNodes, decoration)
+            local node = BuildNode(
+                root.id .. "/decoration:" .. decorationId,
                 "decorationElement",
                 unit,
-                decorationRoot.id,
+                parent.id,
                 GetDecorationLabel(decoration, index),
                 index,
                 false,
                 { kind = "decoration", sectionKey = SECTION.decoration, decorationId = decorationId },
                 IsEnabled(decoration)
-            ))
+            )
+            if PresencePolicy and type(PresencePolicy.ResolveObject) == "function" then
+                node.presence = PresencePolicy.ResolveObject(unit, node.inspectorTarget)
+            end
+            AddChild(parent, node)
         end
     end
 end
@@ -469,7 +471,7 @@ function Adapter.BuildUnitTree(unit)
     AddTextBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddAuraBranch(root, normalizedUnit, unitConfig)
     AddIndicatorBranch(root, normalizedUnit, unitConfig, anchorNodes)
-    AddDecorationBranch(root, normalizedUnit, unitConfig)
+    AddDecorationBranch(root, normalizedUnit, unitConfig, anchorNodes)
 
     return root
 end
