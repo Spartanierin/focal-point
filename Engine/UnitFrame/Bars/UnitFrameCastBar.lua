@@ -5,6 +5,7 @@ local CastBar = FocalPoint.UnitFrameCastBar
 
 local Assets = FocalPoint.UnitFrameAssets or {}
 local State = FocalPoint.UnitFrameState or {}
+local Preview = FocalPoint.UnitFramePreview or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
 
@@ -29,6 +30,14 @@ end
 
 function CastBar.IsTextEditMode()
     return IsTextEditMode()
+end
+
+function CastBar.ShouldRepresentInEditor(frame)
+    return frame
+        and frame.config
+        and frame.config.showCastBar ~= false
+        and Preview.ShouldRepresentInEditor
+        and Preview.ShouldRepresentInEditor(frame.unit, { kind = "bar", objectKey = "CastBar" }) == true
 end
 
 local function TemplateContainsCastToken(template)
@@ -311,11 +320,6 @@ function CastBar.Start(frame)
         return
     end
 
-    if IsTextEditMode() then
-        CastBar.ApplyTextEditPreview(frame)
-        return
-    end
-
     local isChannel, startTime, endTime, spellIcon, interruptState, castID, castToken = CastBar.GetActiveTiming(unit, castBar)
 
     if type(startTime) ~= "number" or type(endTime) ~= "number" then
@@ -363,11 +367,6 @@ function CastBar.StartPreview(frame)
         return
     end
 
-    if IsTextEditMode() then
-        CastBar.ApplyTextEditPreview(frame)
-        return
-    end
-
     local now = GetTime and GetTime() or 0
     local previewDuration = 2.5
     castBar.startTime = now
@@ -412,7 +411,7 @@ function CastBar.Stop(frame)
         return
     end
 
-    if IsTextEditMode() and frame.config and frame.config.showCastBar ~= false then
+    if CastBar.ShouldRepresentInEditor(frame) then
         CastBar.ApplyTextEditPreview(frame)
         return
     end
@@ -439,11 +438,6 @@ end
 
 function CastBar.QueueRefresh(frame)
     if not frame then
-        return
-    end
-
-    if IsTextEditMode() then
-        CastBar.ApplyTextEditPreview(frame)
         return
     end
 
@@ -522,7 +516,7 @@ function CastBar.ApplyLayout(frame, options)
         end
     end
 
-    if IsTextEditMode() and showCastBar then
+    if CastBar.ShouldRepresentInEditor(frame) and showCastBar then
         CastBar.ApplyTextEditPreview(frame)
     elseif not showCastBar or not castBar.isCasting then
         CastBar.ClearVisuals(frame)

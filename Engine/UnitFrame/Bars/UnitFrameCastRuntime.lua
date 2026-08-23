@@ -26,10 +26,6 @@ function Runtime.Refresh(owner, frame)
         return
     end
 
-    if Cast.IsTextEditMode and Cast.IsTextEditMode() and Cast.ApplyTextEditPreview and Cast.ApplyTextEditPreview(frame) then
-        return
-    end
-
     local unit = frame.unit
     if not unit then
         StopCastBar(frame)
@@ -79,6 +75,10 @@ function Runtime.Refresh(owner, frame)
         end
 
         castBar:Show()
+    elseif Cast.ShouldRepresentInEditor and Cast.ShouldRepresentInEditor(frame) and Cast.ApplyTextEditPreview and Cast.ApplyTextEditPreview(frame) then
+        return
+    elseif castBar.isPreview and not IsPreviewModeEnabled() then
+        StopCastBar(frame)
     elseif not castBar.isPreview then
         StopCastBar(frame)
     end

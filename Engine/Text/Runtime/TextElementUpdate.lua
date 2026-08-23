@@ -87,6 +87,20 @@ local function IsTextEditPreviewMode()
         or false
 end
 
+local function ShouldRenderTextEditorPreview(frame, key)
+    if Preview.ShouldRepresentInEditor then
+        local shouldRepresent = Preview.ShouldRepresentInEditor(frame and frame.unit, {
+            kind = "text",
+            textKey = key,
+        })
+        if shouldRepresent ~= nil then
+            return shouldRepresent == true
+        end
+    end
+
+    return IsTextEditPreviewMode()
+end
+
 local function IsTextEditPreviewAvailable(frame, key, textConfig)
     if Status.IsEditorRenderable then
         return Status.IsEditorRenderable(textConfig, {
@@ -524,7 +538,7 @@ function Update.UpdateElement(frame, key, deps)
         local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
         local textRole = Roles.Resolve and Roles.Resolve(key, textConfig) or nil
 
-        if IsTextEditPreviewMode() then
+        if ShouldRenderTextEditorPreview(frame, key) then
             if not IsTextEditPreviewAvailable(frame, key, textConfig) then
                 SafeSetText(textObject, "", false)
                 textObject:Hide()

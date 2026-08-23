@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.UnitFramePreview = FocalPoint.UnitFramePreview or {}
 local Preview = FocalPoint.UnitFramePreview
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local RuntimePresence = FocalPoint.UnitFramePresence or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
@@ -92,6 +93,40 @@ end
 function Preview.ShouldShowComponent(componentKey, context)
     local state = Preview.ResolveComponentState(componentKey, context)
     return not state or state.visible ~= false
+end
+
+local function IsEditorPresenceActive()
+    if RuntimePresence.IsPreviewModeEnabled then
+        return RuntimePresence.IsPreviewModeEnabled() == true
+    end
+    return Demo.IsDemoActive and Demo.IsDemoActive() == true
+end
+
+local function ResolvePresencePolicy()
+    return FocalPoint.EditorPresencePolicy
+        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.PresencePolicy)
+        or nil
+end
+
+function Preview.ResolveEditorPresence(unit, objectRef)
+    if not IsEditorPresenceActive() then
+        return nil
+    end
+
+    local policy = ResolvePresencePolicy()
+    if not (policy and type(policy.ResolveObject) == "function") then
+        return nil
+    end
+
+    return policy.ResolveObject(unit, objectRef)
+end
+
+function Preview.ShouldRepresentInEditor(unit, objectRef)
+    local resolved = Preview.ResolveEditorPresence(unit, objectRef)
+    if not resolved then
+        return nil
+    end
+    return resolved.isPersistent == true or resolved.isConditional == true
 end
 
 function Preview.ShouldForceSecondaryPowerPreview(unit)
