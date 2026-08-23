@@ -11,6 +11,7 @@ ns.CompositionTreeAdapter = Adapter
 local C = ns.Constants or {}
 local L = ns.L or {}
 local SidebarShared = ns.GUI.Editor.SidebarShared or {}
+local PresencePolicy = ns.EditorPresencePolicy
 
 local SECTION = {
     frame = "frame",
@@ -68,6 +69,13 @@ local function AddChild(parent, child)
     return child
 end
 
+local function RegisterAnchorNode(anchorNodes, anchorKey, node)
+    if type(anchorNodes) == "table" and type(anchorKey) == "string" and anchorKey ~= "" and type(node) == "table" then
+        anchorNodes[anchorKey] = node
+    end
+    return node
+end
+
 local function HasChildren(node)
     return type(node) == "table" and type(node.children) == "table" and #node.children > 0
 end
@@ -115,7 +123,7 @@ local function GetSortedTextIds(texts)
     return ids
 end
 
-local function AddHealthBranch(root, unit, unitConfig)
+local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
     local health = AddChild(root, BuildNode(
         root.id .. "/health",
         "health",
@@ -127,7 +135,7 @@ local function AddHealthBranch(root, unit, unitConfig)
         { kind = "unit", sectionKey = SECTION.health }
     ))
 
-    AddChild(health, BuildNode(
+    RegisterAnchorNode(anchorNodes, "HealthBar", AddChild(health, BuildNode(
         health.id .. "/healthbar",
         "healthbar",
         unit,
@@ -137,9 +145,9 @@ local function AddHealthBranch(root, unit, unitConfig)
         true,
         { kind = "unit", sectionKey = SECTION.health },
         true
-    ))
+    )))
 
-    AddChild(health, BuildNode(
+    RegisterAnchorNode(anchorNodes, "NormalAbsorbBar", AddChild(health, BuildNode(
         health.id .. "/normalabsorb",
         "normalAbsorbBar",
         unit,
@@ -149,9 +157,9 @@ local function AddHealthBranch(root, unit, unitConfig)
         false,
         { kind = "unit", sectionKey = SECTION.absorbs, objectKey = "NormalAbsorbBar" },
         IsShown(unitConfig, "showNormalAbsorbBar")
-    ))
+    )))
 
-    AddChild(health, BuildNode(
+    RegisterAnchorNode(anchorNodes, "HealingAbsorbBar", AddChild(health, BuildNode(
         health.id .. "/healingabsorb",
         "healingAbsorbBar",
         unit,
@@ -161,10 +169,10 @@ local function AddHealthBranch(root, unit, unitConfig)
         false,
         { kind = "unit", sectionKey = SECTION.absorbs, objectKey = "HealingAbsorbBar" },
         IsShown(unitConfig, "showHealingAbsorbBar")
-    ))
+    )))
 end
 
-local function AddPowerBranch(root, unit, unitConfig)
+local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
     local power = AddChild(root, BuildNode(
         root.id .. "/power",
         "power",
@@ -176,7 +184,7 @@ local function AddPowerBranch(root, unit, unitConfig)
         { kind = "unit", sectionKey = SECTION.power }
     ))
 
-    AddChild(power, BuildNode(
+    RegisterAnchorNode(anchorNodes, "PowerBar", AddChild(power, BuildNode(
         power.id .. "/powerbar",
         "powerbar",
         unit,
@@ -186,10 +194,10 @@ local function AddPowerBranch(root, unit, unitConfig)
         false,
         { kind = "unit", sectionKey = SECTION.power },
         IsShown(unitConfig, "showPowerBar")
-    ))
+    )))
 
     if unit == "player" then
-        AddChild(power, BuildNode(
+        RegisterAnchorNode(anchorNodes, "ClassPowerBar", AddChild(power, BuildNode(
             power.id .. "/classpower",
             "classPowerBar",
             unit,
@@ -199,9 +207,9 @@ local function AddPowerBranch(root, unit, unitConfig)
             false,
             { kind = "unit", sectionKey = SECTION.class_power },
             IsShown(unitConfig, "showClassPowerBar")
-        ))
+        )))
 
-        AddChild(power, BuildNode(
+        RegisterAnchorNode(anchorNodes, "AlternativePowerBar", AddChild(power, BuildNode(
             power.id .. "/alternativepower",
             "alternativePowerBar",
             unit,
@@ -211,11 +219,11 @@ local function AddPowerBranch(root, unit, unitConfig)
             false,
             { kind = "unit", sectionKey = SECTION.alt_power },
             IsShown(unitConfig, "showAlternativePowerBar")
-        ))
+        )))
     end
 end
 
-local function AddCastBranch(root, unit, unitConfig)
+local function AddCastBranch(root, unit, unitConfig, anchorNodes)
     local cast = AddChild(root, BuildNode(
         root.id .. "/cast",
         "cast",
@@ -227,7 +235,7 @@ local function AddCastBranch(root, unit, unitConfig)
         { kind = "unit", sectionKey = SECTION.cast }
     ))
 
-    AddChild(cast, BuildNode(
+    RegisterAnchorNode(anchorNodes, "CastBar", AddChild(cast, BuildNode(
         cast.id .. "/castbar",
         "castbar",
         unit,
@@ -237,10 +245,18 @@ local function AddCastBranch(root, unit, unitConfig)
         false,
         { kind = "unit", sectionKey = SECTION.cast },
         IsShown(unitConfig, "showCastBar")
-    ))
+    )))
 end
 
-local function AddTextBranch(root, unit, unitConfig)
+local function ResolveTextParent(root, anchorNodes, textConfig)
+    local anchorTo = type(textConfig) == "table" and textConfig.anchorTo or nil
+    if anchorTo == "Frame" or anchorTo == nil or anchorTo == "" then
+        return root
+    end
+    return type(anchorNodes) == "table" and anchorNodes[anchorTo] or root
+end
+
+local function AddTextBranch(root, unit, unitConfig, anchorNodes)
     local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
     local textIds = GetSortedTextIds(texts)
     if #textIds == 0 then
@@ -248,30 +264,24 @@ local function AddTextBranch(root, unit, unitConfig)
     end
     local textLabels = type(SidebarShared.BuildTextList) == "function" and SidebarShared.BuildTextList(texts) or {}
 
-    local textRoot = AddChild(root, BuildNode(
-        root.id .. "/texts",
-        "texts",
-        unit,
-        root.id,
-        L["EDITOR_SECTION_TEXT"] or "Texts",
-        40,
-        false,
-        { kind = "text", sectionKey = SECTION.texts }
-    ))
-
     for index, textId in ipairs(textIds) do
         local textConfig = texts[textId]
-        AddChild(textRoot, BuildNode(
-            textRoot.id .. ":" .. textId,
+        local parent = ResolveTextParent(root, anchorNodes, textConfig)
+        local node = BuildNode(
+            root.id .. "/text:" .. textId,
             "textElement",
             unit,
-            textRoot.id,
+            parent.id,
             textLabels[textId] or GetTextLabel(textId, textConfig),
             index,
             false,
             { kind = "text", sectionKey = SECTION.texts, textKey = textId },
             IsEnabled(textConfig)
-        ))
+        )
+        if PresencePolicy and type(PresencePolicy.ResolveText) == "function" then
+            node.presence = PresencePolicy.ResolveText(unit, textId)
+        end
+        AddChild(parent, node)
     end
 end
 
@@ -358,10 +368,14 @@ function Adapter.BuildUnitTree(unit)
         { kind = "unit", sectionKey = SECTION.frame }
     )
 
-    AddHealthBranch(root, normalizedUnit, unitConfig)
-    AddPowerBranch(root, normalizedUnit, unitConfig)
-    AddCastBranch(root, normalizedUnit, unitConfig)
-    AddTextBranch(root, normalizedUnit, unitConfig)
+    local anchorNodes = {
+        Frame = root,
+    }
+
+    AddHealthBranch(root, normalizedUnit, unitConfig, anchorNodes)
+    AddPowerBranch(root, normalizedUnit, unitConfig, anchorNodes)
+    AddCastBranch(root, normalizedUnit, unitConfig, anchorNodes)
+    AddTextBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddAuraBranch(root, normalizedUnit, unitConfig)
 
     return root
