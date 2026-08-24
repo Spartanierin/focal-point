@@ -11,6 +11,30 @@ local function ShouldUseUnitWatch(unit)
     return UnitWatchPolicy.ShouldUse and UnitWatchPolicy.ShouldUse(unit) or false
 end
 
+local function HideUnitTooltip(frame)
+    if GameTooltip and GameTooltip.Hide then
+        if GameTooltip.GetOwner and GameTooltip:GetOwner() ~= frame then
+            return
+        end
+        GameTooltip:Hide()
+    end
+end
+
+local function ShowUnitTooltip(frame)
+    if FocalPoint.framesUnlocked == true then
+        return
+    end
+    if not (frame and frame.unit and GameTooltip and GameTooltip.SetOwner and GameTooltip.SetUnit) then
+        return
+    end
+    if UnitExists and not UnitExists(frame.unit) then
+        return
+    end
+
+    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+    GameTooltip:SetUnit(frame.unit)
+end
+
 function Factory.GetAnchorTarget(frame, anchorTo)
     if anchorTo == "HealthBar" then
         return frame.Elements.HealthBar or frame
@@ -49,6 +73,8 @@ function Factory.CreateBaseFrame(unit, config)
     frame:SetAttribute("*type1", "target")
     frame:SetAttribute("*type2", "togglemenu")
     frame:SetAttribute("toggleForVehicle", true)
+    frame:SetScript("OnEnter", ShowUnitTooltip)
+    frame:SetScript("OnLeave", HideUnitTooltip)
 
     if ShouldUseUnitWatch(unit) and RegisterUnitWatch then
         RegisterUnitWatch(frame)
