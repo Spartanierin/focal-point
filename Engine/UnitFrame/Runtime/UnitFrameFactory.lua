@@ -59,7 +59,7 @@ end
 
 function Factory.CreateBaseFrame(unit, config)
     local frameName = "FocalPoint_" .. unit:gsub("^%l", string.upper)
-    local frame = CreateFrame("Button", frameName, UIParent, "SecureUnitButtonTemplate, BackdropTemplate")
+    local frame = CreateFrame("Button", frameName, UIParent, "SecureUnitButtonTemplate, PingableUnitFrameTemplate, BackdropTemplate")
 
     frame.unit = unit
     frame.config = config
