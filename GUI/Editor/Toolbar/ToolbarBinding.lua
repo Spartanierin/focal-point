@@ -553,6 +553,16 @@ local function ApplyTreeToggleMutation(context, node, nextEnabled)
             return { ok = false, errorCode = "invalid_context" }
         end
         return InspectorMutations.SetAuraField(context, target.auraKey, "enabled", enabled)
+    elseif node.type == "indicatorElement" and type(target.indicatorKey) == "string" then
+        if type(InspectorMutations.SetIndicatorField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetIndicatorField(context, target.indicatorKey, "enabled", enabled)
+    elseif node.type == "decorationElement" and type(target.decorationId) == "string" then
+        if type(InspectorMutations.SetDecorationField) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        return InspectorMutations.SetDecorationField(context, target.decorationId, "enabled", enabled)
     end
 
     return { ok = false, errorCode = "unsupported_target" }

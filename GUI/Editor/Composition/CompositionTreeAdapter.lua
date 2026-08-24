@@ -352,7 +352,7 @@ local function AddIndicatorBranch(root, unit, unitConfig, anchorNodes)
         local label = indicatorList[indicatorKey]
         local entry = meta[indicatorKey]
         local config = type(unitConfig) == "table" and type(entry) == "table" and unitConfig[entry.optionKey] or nil
-        if type(label) == "string" and type(config) == "table" and config.enabled ~= false then
+        if type(label) == "string" and type(config) == "table" then
             local parent = ResolveIndicatorParent(root, anchorNodes, config)
             local node = BuildNode(
                 root.id .. "/indicator:" .. indicatorKey,
@@ -363,7 +363,7 @@ local function AddIndicatorBranch(root, unit, unitConfig, anchorNodes)
                 index,
                 false,
                 { kind = "indicator", sectionKey = SECTION.indicators, indicatorKey = indicatorKey },
-                true
+                IsEnabled(config)
             )
             if PresencePolicy and type(PresencePolicy.ResolveObject) == "function" then
                 node.presence = PresencePolicy.ResolveObject(unit, node.inspectorTarget)

@@ -199,6 +199,8 @@ local TOGGLE_FIELD_BY_NODE_TYPE = {
     textElement = { target = "text", field = "enabled" },
     buffs = { target = "aura", field = "enabled" },
     debuffs = { target = "aura", field = "enabled" },
+    indicatorElement = { target = "indicator", field = "enabled" },
+    decorationElement = { target = "decoration", field = "enabled" },
 }
 
 local function GetToggleSpec(node)
@@ -213,6 +215,12 @@ local function GetToggleSpec(node)
         return nil
     end
     if spec.target == "aura" and not (node.inspectorTarget and node.inspectorTarget.auraKey) then
+        return nil
+    end
+    if spec.target == "indicator" and not (node.inspectorTarget and node.inspectorTarget.indicatorKey) then
+        return nil
+    end
+    if spec.target == "decoration" and not (node.inspectorTarget and node.inspectorTarget.decorationId) then
         return nil
     end
     return spec
