@@ -20,7 +20,6 @@ local windowContext
 local exportDialogContext
 local importDialogContext
 local overwriteDialogContext
-local savePresetDialogContext
 local profileWindowHiddenForTransfer = false
 
 local CreateBodyText = FormWidgets.CreateBodyText
@@ -107,33 +106,6 @@ local function SetStatus(message)
     if ns.GUI and ns.GUI.SetStatusText then
         ns.GUI:SetStatusText(message)
     end
-end
-
-local function SelectPresetInToolbar(presetId)
-    if type(presetId) ~= "string" or presetId == "" then
-        return
-    end
-
-    local editorState = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
-    if editorState and editorState.SetSelectedThemeId then
-        editorState.SetSelectedThemeId(presetId)
-    end
-end
-
-local function ResolveSavePresetError(errorCode)
-    if errorCode == "invalid-name" then
-        return T("PRESET_NAME_REQUIRED", "Please enter a preset name.")
-    elseif errorCode == "name-too-long" then
-        return T("PRESET_NAME_TOO_LONG", "Preset name is too long.")
-    elseif errorCode == "duplicate-name" then
-        return T("PRESET_NAME_EXISTS", "A preset with this name already exists.")
-    elseif errorCode == "reserved-name" then
-        return T("PRESET_NAME_RESERVED", "This name is reserved for a built-in preset.")
-    elseif errorCode == "store-unavailable" then
-        return T("PRESET_STORAGE_UNAVAILABLE", "Preset storage is unavailable.")
-    end
-
-    return T("PRESET_CREATE_FAILED", "Preset could not be created.")
 end
 
 local function RefreshProfileUI()
@@ -675,86 +647,6 @@ local function SetTransferDialogStatus(context, message)
     SetStatus(message)
 end
 
-local function UpdateSavePresetDialogState(context)
-    if not context or not context.okButton or not context.profileNameEdit then
-        return
-    end
-
-    context.okButton:SetDisabled(Trim(context.profileNameEdit:GetText() or "") == "")
-end
-
-local function OpenSavePresetDialog(context)
-    local db = ns.db
-    local currentProfile = db and db.GetCurrentProfile and db:GetCurrentProfile() or ""
-    savePresetDialogContext = OpenLayoutDialog(savePresetDialogContext, ProfilesLayouts.SavePreset, {
-        title = T("PRESET_SAVE_TITLE", "Save as Preset"),
-        windowWidth = 420,
-        windowHeight = 190,
-        state = {
-            profileName = currentProfile,
-            statusText = "",
-        },
-        buttonRoles = {
-            okButton = "primary_action",
-            cancelButton = "utility",
-        },
-        onOk = function(_, presetName)
-            local mutations = ns.PresetMutations
-            if not mutations or not mutations.CreateUserPresetFromProfile then
-                SetTransferDialogStatus(savePresetDialogContext, T("PRESET_CREATE_FAILED", "Preset could not be created."))
-                return false
-            end
-
-            local ok, presetOrError = mutations.CreateUserPresetFromProfile(presetName)
-            if not ok then
-                SetTransferDialogStatus(savePresetDialogContext, ResolveSavePresetError(presetOrError))
-                UpdateSavePresetDialogState(savePresetDialogContext)
-                return false
-            end
-
-            local presetId = presetOrError and presetOrError.metadata and presetOrError.metadata.id
-            SelectPresetInToolbar(presetId)
-            RefreshProfileUI()
-            RefreshWindowState()
-            SetStatus(T("PRESET_SAVED", "Preset saved."))
-            return true
-        end,
-    })
-
-    if savePresetDialogContext and savePresetDialogContext.profileNameEdit then
-        local editBox = savePresetDialogContext.profileNameEdit
-        editBox:SetCallback("OnTextChanged", function()
-            SetTransferDialogStatus(savePresetDialogContext, "")
-            UpdateSavePresetDialogState(savePresetDialogContext)
-        end)
-        editBox:SetCallback("OnEnterPressed", function()
-            if savePresetDialogContext and savePresetDialogContext.okButton and Trim(editBox:GetText() or "") ~= "" then
-                savePresetDialogContext.okButton:Fire("OnClick")
-            end
-        end)
-        QueueFocusTransferEditBox(editBox)
-    end
-
-    if savePresetDialogContext and savePresetDialogContext.window and savePresetDialogContext.window.frame then
-        local frame = savePresetDialogContext.window.frame
-        frame:EnableKeyboard(true)
-        if frame.SetPropagateKeyboardInput then
-            frame:SetPropagateKeyboardInput(true)
-        end
-        frame:SetScript("OnKeyDown", function(_, key)
-            if key == "ESCAPE"
-                and savePresetDialogContext
-                and savePresetDialogContext.window
-                and savePresetDialogContext.window.Hide
-            then
-                savePresetDialogContext.window:Hide()
-            end
-        end)
-    end
-
-    UpdateSavePresetDialogState(savePresetDialogContext)
-end
-
 local function SyncImportProfileNameFromString(context)
     if not context or not context.editBox or not context.profileNameEdit then
         return
@@ -908,7 +800,6 @@ local function ClearLayoutsContentRefs(context)
     end
 
     context.activeProfileValue = nil
-    context.savePresetButton = nil
     context.profileSelect = nil
     context.nameEdit = nil
     context.activateButton = nil
@@ -947,7 +838,6 @@ local function RenderProfilesSubpage(context)
     })
 
     context.activeProfileValue = widgets.activeProfileValue
-    context.savePresetButton = widgets.savePresetButton
     context.profileSelect = widgets.profileSelect
     context.nameEdit = widgets.nameEdit
     context.activateButton = widgets.activateButton
@@ -1020,7 +910,6 @@ function RefreshWindowState()
         end
 
         ApplyModalActionButtonVisual(context.activateButton, "primary_action")
-        ApplyModalActionButtonVisual(context.savePresetButton, "utility")
         ApplyModalActionButtonVisual(context.copyButton, "utility")
         ApplyModalActionButtonVisual(context.createButton, "utility")
         ApplyModalActionButtonVisual(context.exportButton, "utility")
@@ -1031,7 +920,6 @@ function RefreshWindowState()
 
     if not db then
         context.activeProfileValue:SetText(T("INFO_COMMON_UNAVAILABLE"))
-        context.savePresetButton:SetDisabled(true)
         context.profileSelect:SetList({})
         SyncDropdownValue(context, nil)
         context.profileSelect:SetDisabled(true)
@@ -1069,8 +957,6 @@ function RefreshWindowState()
     local newProfileExists = hasNewProfileName and profileList[newProfileName] ~= nil
 
     context.activeProfileValue:SetText(currentProfile)
-    context.savePresetButton:SetText(T("PRESET_SAVE_AS", "Save as Preset"))
-    context.savePresetButton:SetDisabled(currentProfile == nil or currentProfile == "")
     context.profileSelect:SetList(profileList)
     context.profileSelect:SetDisabled(false)
     SyncDropdownValue(context, selectedProfile)
@@ -1241,10 +1127,6 @@ function WireWindowCallbacks(context)
     end)
 
     WireProfileAutomationBlock(context)
-
-    context.savePresetButton:SetCallback("OnClick", function()
-        OpenSavePresetDialog(context)
-    end)
 
     context.activateButton:SetCallback("OnClick", function()
         local db = ns.db
@@ -1526,9 +1408,6 @@ function ProfilesController.HideWindow()
     end
     if overwriteDialogContext and overwriteDialogContext.window and overwriteDialogContext.window.Hide then
         overwriteDialogContext.window:Hide()
-    end
-    if savePresetDialogContext and savePresetDialogContext.window and savePresetDialogContext.window.Hide then
-        savePresetDialogContext.window:Hide()
     end
 
     if not windowContext or not windowContext.window then
