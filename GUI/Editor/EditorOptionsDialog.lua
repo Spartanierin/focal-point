@@ -256,6 +256,9 @@ function Refresh()
         context.widgets.mouseEnabled:SetValue(GetGlobalOptionValue("mouseEnabled") == true)
         context.widgets.mouseEnabled:SetDisabled(not isExpert)
     end
+    if context.widgets.showUnitTooltips then
+        context.widgets.showUnitTooltips:SetValue(GetGlobalOptionValue("showUnitTooltips") == true)
+    end
     if context.widgets.clickthrough then
         context.widgets.clickthrough:SetValue(GetGlobalOptionValue("clickthrough") == true)
         context.widgets.clickthrough:SetDisabled(not isExpert)
@@ -312,6 +315,7 @@ local function WireCallbacks()
 
     local globalOptions = {
         mouseEnabled = "mouseEnabled",
+        showUnitTooltips = "showUnitTooltips",
         clickthrough = "clickthrough",
         showMinimapButton = "showMinimapButton",
         hideBlizzard = "hideBlizzard",
@@ -343,7 +347,7 @@ local function CreateWindow()
     window:SetTitle(T("EDITOR_OPTIONS_TITLE", "Focal Point Options"))
     window:SetLayout("Flow")
     window:SetWidth(340)
-    window:SetHeight(348)
+    window:SetHeight(372)
     window:EnableResize(false)
 
     if window.frame then
@@ -389,6 +393,9 @@ local function CreateWindow()
 
     local showMinimapButton = CreateCheckBox(T("OPTION_SHOW_MINIMAP_BUTTON", "Show Minimap Button"), "showMinimapButton")
     window:AddChild(showMinimapButton)
+
+    local showUnitTooltips = CreateCheckBox(T("OPTION_SHOW_UNIT_TOOLTIPS", "Show Unit Tooltips"), "showUnitTooltips")
+    window:AddChild(showUnitTooltips)
 
     local hideBlizzard = CreateCheckBox(T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames"), "hideBlizzard")
     window:AddChild(hideBlizzard)
