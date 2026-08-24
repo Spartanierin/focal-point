@@ -143,11 +143,6 @@ function EditorController.ReleaseInspector()
         return
     end
 
-    local editorState = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State or nil
-    if editorState and editorState.ClearPropertyScope then
-        editorState.ClearPropertyScope()
-    end
-
     if inspector.frame and inspector.frame.Hide then
         inspector.frame:Hide()
     end
@@ -168,6 +163,39 @@ function EditorController.RefreshActiveProperties()
     end
     refreshProperties()
     return true
+end
+
+local function RefreshSelectedUnitRuntime()
+    local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
+    local state = stateApi and type(stateApi.Get) == "function" and stateApi.Get() or nil
+    local unitKey = state and state.selectedUnit or nil
+    if not (ns.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "") then
+        return
+    end
+
+    ns:RefreshUnitFrame(unitKey == "boss" and "boss" or unitKey)
+end
+
+function EditorController.ApplyObjectSelectionProjection(changeKind)
+    if ns.RefreshEditorInteractionVisuals then
+        ns:RefreshEditorInteractionVisuals()
+    elseif ns.RefreshEditorSelectionVisuals then
+        ns:RefreshEditorSelectionVisuals()
+    end
+
+    if changeKind == "sameUnitObject" then
+        RefreshSelectedUnitRuntime()
+        EditorController.RefreshActiveProperties()
+        if ns.GUI and ns.GUI.RequestRefreshOptions then
+            ns.GUI:RequestRefreshOptions()
+        end
+        return
+    end
+
+    RefreshSelectedUnitRuntime()
+    if ns.GUI and ns.GUI.RequestRefreshOptions then
+        ns.GUI:RequestRefreshOptions()
+    end
 end
 
 local function EnsureInspector()

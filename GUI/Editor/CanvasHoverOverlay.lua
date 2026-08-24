@@ -47,21 +47,6 @@ local function NormalizeUnitKey(unitKey)
     return unitKey
 end
 
-local function IsEditorFrameMode()
-    if not CanvasHoverOverlay.IsEditorActive() then
-        return false
-    end
-
-    local interactionMode = FocalPoint.GUI
-        and FocalPoint.GUI.Editor
-        and FocalPoint.GUI.Editor.InteractionMode
-    if interactionMode and interactionMode.IsFrameMode then
-        return interactionMode.IsFrameMode()
-    end
-
-    return not (InCombatLockdown and InCombatLockdown() == true)
-end
-
 function CanvasHoverOverlay.IsEditorActive()
     return FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
@@ -169,21 +154,59 @@ function CanvasHoverOverlay.GetHoveredObject()
     return currentHover and currentHover.objectRef or nil
 end
 
-local function ForwardScript(source, scriptName)
-    local overlay = source and source._focalPointForwardOverlay
-    if not overlay then
+local function SetZoneMouseEnabled(zone, enabled)
+    if not zone then
+        return
+    end
+    zone:EnableMouse(enabled == true)
+end
+
+local function ShowZone(zone)
+    if not zone then
+        return
+    end
+    zone:Show()
+end
+
+local function HideZoneFrame(zone)
+    if not zone then
+        return
+    end
+    zone:Hide()
+end
+
+local function ApplyObjectSelectionProjection(changeKind)
+    local controller = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.Controller
+    if controller and type(controller.ApplyObjectSelectionProjection) == "function" then
+        controller.ApplyObjectSelectionProjection(changeKind)
         return
     end
 
-    if scriptName == "OnMouseDown" and overlay._focalPointEditorForwardMouseDown then
-        overlay._focalPointEditorForwardMouseDown(source._focalPointForwardButton)
-    elseif scriptName == "OnMouseUp" and overlay._focalPointEditorForwardMouseUp then
-        overlay._focalPointEditorForwardMouseUp(source._focalPointForwardButton)
-    elseif scriptName == "OnDragStart" and overlay._focalPointEditorForwardDragStart then
-        overlay._focalPointEditorForwardDragStart()
-    elseif scriptName == "OnDragStop" and overlay._focalPointEditorForwardDragStop then
-        overlay._focalPointEditorForwardDragStop()
+    if FocalPoint.RefreshEditorInteractionVisuals then
+        FocalPoint:RefreshEditorInteractionVisuals()
+    elseif FocalPoint.RefreshEditorSelectionVisuals then
+        FocalPoint:RefreshEditorSelectionVisuals()
     end
+    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+        FocalPoint.GUI:RequestRefreshOptions()
+    end
+end
+
+local function SelectObjectRef(source, objectRef)
+    local objectSelection = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.ObjectSelection
+    if objectSelection and objectSelection.SelectObject then
+        local ok, changeKind = objectSelection.SelectObject(objectRef)
+        if ok == true then
+            ApplyObjectSelectionProjection(changeKind)
+        end
+        return ok, changeKind
+    end
+
+    return false
 end
 
 local function EnsureHitZone(frame, key)
@@ -199,7 +222,7 @@ local function EnsureHitZone(frame, key)
 
     zone = CreateFrame("Button", nil, frame.MoveOverlay)
     zone:SetFrameStrata(frame.MoveOverlay:GetFrameStrata())
-    zone:EnableMouse(false)
+    SetZoneMouseEnabled(zone, false)
     zone:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     zone:RegisterForDrag("LeftButton")
     zone:SetScript("OnEnter", function(self)
@@ -212,13 +235,10 @@ local function EnsureHitZone(frame, key)
             CanvasHoverOverlay.SetHover(overlay, overlay._focalPointObjectRef)
         end
     end)
-    zone:SetScript("OnMouseDown", function(self, button)
-        self._focalPointForwardButton = button
-        ForwardScript(self, "OnMouseDown")
-    end)
     zone:SetScript("OnMouseUp", function(self, button)
-        self._focalPointForwardButton = button
-        ForwardScript(self, "OnMouseUp")
+        if button == "LeftButton" then
+            SelectObjectRef(self, self._focalPointObjectRef)
+        end
         if button == "RightButton" then
             local contextMenu = FocalPoint.GUI
                 and FocalPoint.GUI.Editor
@@ -227,15 +247,8 @@ local function EnsureHitZone(frame, key)
                 contextMenu.ShowForFrame(self._focalPointOwnerFrame)
             end
         end
-        self._focalPointForwardButton = nil
     end)
-    zone:SetScript("OnDragStart", function(self)
-        ForwardScript(self, "OnDragStart")
-    end)
-    zone:SetScript("OnDragStop", function(self)
-        ForwardScript(self, "OnDragStop")
-    end)
-    zone:Hide()
+    HideZoneFrame(zone)
 
     frame._focalPointCanvasHoverZones[key] = zone
     return zone
@@ -244,8 +257,8 @@ end
 local function PositionZone(zone, frame, target, objectRef, level)
     if not (zone and frame and target and objectRef and IsFrameShown(target)) then
         if zone then
-            zone:Hide()
-            zone:EnableMouse(false)
+            HideZoneFrame(zone)
+            SetZoneMouseEnabled(zone, false)
         end
         return
     end
@@ -257,8 +270,8 @@ local function PositionZone(zone, frame, target, objectRef, level)
     zone:ClearAllPoints()
     zone:SetPoint("TOPLEFT", target, "TOPLEFT", 0, 0)
     zone:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", 0, 0)
-    zone:EnableMouse(true)
-    zone:Show()
+    SetZoneMouseEnabled(zone, true)
+    ShowZone(zone)
 end
 
 local function HideZone(zone)
@@ -268,9 +281,9 @@ local function HideZone(zone)
     if currentHover and currentHover.target == zone then
         CanvasHoverOverlay.Clear(zone)
     end
+    SetZoneMouseEnabled(zone, false)
+    HideZoneFrame(zone)
     zone._focalPointObjectRef = nil
-    zone:EnableMouse(false)
-    zone:Hide()
 end
 
 local function UpdateBars(frame, seen)
@@ -375,8 +388,15 @@ function CanvasHoverOverlay.UpdateFrame(frame)
         }
     end
 
-    local active = IsEditorFrameMode() and overlay and overlay:IsShown()
+    local active = CanvasHoverOverlay.IsEditorActive() and overlay and overlay:IsShown()
     if not active then
+        local zones = frame._focalPointCanvasHoverZones
+        if type(zones) == "table" then
+            for _, zone in pairs(zones) do
+                HideZoneFrame(zone)
+                SetZoneMouseEnabled(zone, false)
+            end
+        end
         CanvasHoverOverlay.HideFrame(frame)
         return
     end

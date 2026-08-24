@@ -83,15 +83,15 @@ local function IsEditorUnlocked()
         and FocalPoint:IsEditorActive()
 end
 
-local function IsEditorFrameMode()
-    local interactionMode = FocalPoint.GUI
+local function GetSelectedEditorObject()
+    local objectSelection = FocalPoint.GUI
         and FocalPoint.GUI.Editor
-        and FocalPoint.GUI.Editor.InteractionMode
-    if interactionMode and interactionMode.IsFrameMode then
-        return interactionMode.IsFrameMode()
+        and FocalPoint.GUI.Editor.ObjectSelection
+    if objectSelection and type(objectSelection.GetSelectedObject) == "function" then
+        return objectSelection.GetSelectedObject()
     end
 
-    return IsEditorUnlocked() and not IsCombatLocked()
+    return nil
 end
 
 local function IsPrimaryEditorFrame(frame)
@@ -111,6 +111,15 @@ local function IsPrimaryEditorFrame(frame)
     end
 
     return NormalizeUnitKey(frame.unit) == primaryUnit
+end
+
+local function IsSelectedUnitRoot(frame)
+    local selectedObject = GetSelectedEditorObject()
+    if type(selectedObject) == "table" then
+        return selectedObject.kind == "unit" and IsPrimaryEditorFrame(frame)
+    end
+
+    return IsPrimaryEditorFrame(frame)
 end
 
 local function IsCombatLocked()
@@ -515,7 +524,7 @@ function FrameResizeHandles.UpdateFrame(frame)
     handle:SetFrameLevel((overlay.GetFrameLevel and overlay:GetFrameLevel() or 1) + 20)
     UpdateHandleVisual(handle)
 
-    if IsEditorFrameMode() and not IsCombatLocked() and IsPrimaryEditorFrame(frame) then
+    if IsEditorUnlocked() and not IsCombatLocked() and IsSelectedUnitRoot(frame) then
         handle:Show()
     else
         handle:Hide()
