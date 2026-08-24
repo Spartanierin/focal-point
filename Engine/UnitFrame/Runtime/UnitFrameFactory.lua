@@ -24,6 +24,10 @@ local function ShowUnitTooltip(frame)
     if FocalPoint.framesUnlocked == true then
         return
     end
+    local general = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
+    if type(general) == "table" and general.ShowUnitTooltips == false then
+        return
+    end
     if not (frame and frame.unit and GameTooltip and GameTooltip.SetOwner and GameTooltip.SetUnit) then
         return
     end

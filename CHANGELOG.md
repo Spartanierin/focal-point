@@ -10,6 +10,22 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.2.3
+
+Gameplay unit frame interaction
+
+### Added
+
+* Added unit tooltips when hovering over Focal Point unit frames during gameplay.
+* Added a global Show Unit Tooltips option for players who prefer to hide those tooltips.
+* Added support for World of Warcraft's built-in ping system on Focal Point unit frames.
+
+### Fixed
+
+* Fixed ping interactions passing through supported Focal Point unit frames to the world behind them.
+
+Development on Focal Point 2.0 is also underway, with a redesigned editor workflow currently in active development.
+
 ## Focal Point 1.2.2
 
 Health, windows, and Text Builder flow

@@ -19,6 +19,7 @@ function FocalPoint:GetDefaultDB()
                 HideBlizzardFrames = true,
                 GlobalClickThrough = false,
                 MouseEnabled = true,
+                ShowUnitTooltips = true,
                 SnappingEnabled = true,
                 ShowGrid = false,
                 ClampToScreen = true,

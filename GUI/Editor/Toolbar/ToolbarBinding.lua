@@ -103,6 +103,8 @@ function ToolbarBinding.GetGlobalOptionValue(optionId, deps)
         return not (type(minimapConfig) == "table" and minimapConfig.hide == true)
     elseif optionId == "mouseEnabled" then
         return generalConfig.MouseEnabled ~= false
+    elseif optionId == "showUnitTooltips" then
+        return generalConfig.ShowUnitTooltips ~= false
     elseif optionId == "clickthrough" then
         return generalConfig.GlobalClickThrough == true
     end
@@ -139,6 +141,11 @@ function ToolbarBinding.ApplyGlobalOptionValue(optionId, value, deps, options)
         generalConfig.MouseEnabled = value and true or false
         if nsRef.RefreshAllUnitFrames then
             nsRef:RefreshAllUnitFrames()
+        end
+    elseif optionId == "showUnitTooltips" then
+        generalConfig.ShowUnitTooltips = value ~= false
+        if value == false and GameTooltip and GameTooltip.Hide then
+            GameTooltip:Hide()
         end
     elseif optionId == "clickthrough" then
         generalConfig.GlobalClickThrough = value and true or false

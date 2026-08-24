@@ -6,6 +6,26 @@ Keep your UI. Design the frames that belong in it.
 
 Focal Point is built for players who want to keep their existing action bars, nameplates, WeakAuras, raid tools, and other addons while replacing or redesigning only the unit frames that should feel more personal. Instead of configuring everything through detached menus, you work visually in the game world: select frames, move them, resize them, align them, edit text directly on the frame, and browse fonts and textures with live previews.
 
+## Focal Point 2.0
+
+Focal Point 2.0 is currently under active development.
+
+The editor is being rebuilt around a simpler and more consistent editing model:
+
+* Layouts are becoming the primary design object
+* Unit-frame components can be selected directly on the canvas
+* The canvas, composition tree, and inspector share the same selection
+* A composition tree makes each unit frame's structure easier to understand
+* Bars, texts, auras, indicators, and decorations are treated as real editable objects
+* Editing, simulated data, and normal gameplay are separated more clearly
+* Layout assignment and switching are being integrated into the editor workflow
+
+The goal is not to turn Focal Point into another large configuration panel. The goal is to make it feel more like a visual design tool inside World of Warcraft: select what you see, edit it directly, and understand how the frame is built.
+
+The current stable release remains fully usable and supported while 2.0 is being developed.
+
+A public beta will be released once the new editor is stable enough for meaningful testing.
+
 ## Features
 
 * Visual unit frame editing with direct frame selection, movement, resizing, and layout control
