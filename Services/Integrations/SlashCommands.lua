@@ -4,6 +4,13 @@ local _, FocalPoint = ...
 -- They are runtime-only flags, never SavedVariables, and are off unless a user
 -- explicitly enables them in chat.
 
+local ENABLE_SUPPORT_DIAGNOSTIC_SLASH_COMMANDS = false
+
+local function IsSupportDiagnosticsEnabled()
+    return ENABLE_SUPPORT_DIAGNOSTIC_SLASH_COMMANDS == true
+        or (FocalPoint and FocalPoint.enableSupportDiagnostics == true)
+end
+
 local function DemoDebugMessage(text)
     local message = "[FP DemoDebug] " .. tostring(text or "")
     if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
@@ -683,13 +690,15 @@ function FocalPoint:SetupSlashCommands()
 
     SLASH_FOCALPOINT1 = "/focalpoint"
     SLASH_FOCALPOINT2 = "/fp"
-    SLASH_FPDEBUGDEMO1 = "/fpdebugdemo"
-    SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
-    SLASH_FPDEBUGUNITWATCH1 = "/fpdebugunitwatch"
-    SLASH_FPDEBUGALPHA1 = "/fpdebugalpha"
-    SLASH_FPDEBUGMEDIA1 = "/fpdebugmedia"
-    SLASH_FPDEBUGLIFECYCLE1 = "/fpdebuglifecycle"
-    SLASH_FPDEBUGAURA1 = "/fpdebugaura"
+    if IsSupportDiagnosticsEnabled() then
+        SLASH_FPDEBUGDEMO1 = "/fpdebugdemo"
+        SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
+        SLASH_FPDEBUGUNITWATCH1 = "/fpdebugunitwatch"
+        SLASH_FPDEBUGALPHA1 = "/fpdebugalpha"
+        SLASH_FPDEBUGMEDIA1 = "/fpdebugmedia"
+        SLASH_FPDEBUGLIFECYCLE1 = "/fpdebuglifecycle"
+        SLASH_FPDEBUGAURA1 = "/fpdebugaura"
+    end
     FocalPoint.debugDemoDisableCastbar = FocalPoint.debugDemoDisableCastbar == true
     FocalPoint.debugDemoDisableAuras = FocalPoint.debugDemoDisableAuras == true
     FocalPoint.debugDemoDisableAuraTimers = FocalPoint.debugDemoDisableAuraTimers == true
@@ -702,79 +711,83 @@ function FocalPoint:SetupSlashCommands()
 
         if msg == "" or msg == "config" then
             FocalPoint:OpenConfig()
-        elseif msg == "debug target" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug target" then
             FocalPoint.debugTargetVisibility = not FocalPoint.debugTargetVisibility
             if FocalPoint.Info then
                 FocalPoint:Info("Target-Debug " .. (FocalPoint.debugTargetVisibility and "aktiv" or "inaktiv"))
             end
-        elseif msg == "debug runtime" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug runtime" then
             FocalPoint.debugRuntimeState = not FocalPoint.debugRuntimeState
             if FocalPoint.Info then
                 FocalPoint:Info("Runtime-Debug " .. (FocalPoint.debugRuntimeState and "aktiv" or "inaktiv"))
             end
-        elseif msg == "diag" or msg == "debug diag" or msg == "debug frames" then
+        elseif IsSupportDiagnosticsEnabled() and (msg == "diag" or msg == "debug diag" or msg == "debug frames") then
             if FocalPoint.DumpRuntimeDiagnostics then
                 FocalPoint:DumpRuntimeDiagnostics()
             end
-        elseif msg == "debug visibility" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug visibility" then
             HandleVisibilityDebugCommand("status")
-        elseif msg:match("^debug visibility%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debug visibility%s+") then
             HandleVisibilityDebugCommand(msg:match("^debug visibility%s+(.+)$"))
-        elseif msg == "debug unitwatch" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug unitwatch" then
             HandleUnitWatchDebugCommand("status")
-        elseif msg:match("^debug unitwatch%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debug unitwatch%s+") then
             HandleUnitWatchDebugCommand(msg:match("^debug unitwatch%s+(.+)$"))
-        elseif msg == "debug alpha" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug alpha" then
             HandleAlphaDebugCommand("status")
-        elseif msg:match("^debug alpha%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debug alpha%s+") then
             HandleAlphaDebugCommand(msg:match("^debug alpha%s+(.+)$"))
-        elseif msg == "debug media" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug media" then
             HandleMediaDebugCommand("status")
-        elseif msg:match("^debug media%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debug media%s+") then
             HandleMediaDebugCommand(msg:match("^debug media%s+(.+)$"))
-        elseif msg == "debug lifecycle" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug lifecycle" then
             HandleLifecycleDebugCommand("status")
-        elseif msg:match("^debug lifecycle%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debug lifecycle%s+") then
             HandleLifecycleDebugCommand(msg:match("^debug lifecycle%s+(.+)$"))
-        elseif msg == "debug aura" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debug aura" then
             HandleAuraDebugCommand("status")
-        elseif msg:match("^debug aura%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debug aura%s+") then
             HandleAuraDebugCommand(msg:match("^debug aura%s+(.+)$"))
-        elseif msg == "debugdemo on" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debugdemo on" then
             FocalPoint.debugDemoRuntime = true
             DemoDebugMessage("enabled=true")
-        elseif msg == "debugdemo on reset" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debugdemo on reset" then
             FocalPoint.debugDemoRuntime = true
             ResetDemoDebug()
             DemoDebugMessage("enabled=true")
-        elseif msg == "debugdemo off" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debugdemo off" then
             FocalPoint.debugDemoRuntime = false
             DemoDebugMessage("enabled=false")
-        elseif msg == "debugdemo status" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debugdemo status" then
             local demoLoaded = FocalPoint.UnitFrameDemoEnvironment ~= nil
             DemoDebugMessage(string.format("enabled=%s DemoEnvironment=%s frames=%d", tostring(FocalPoint.debugDemoRuntime == true), tostring(demoLoaded), CountKnownFrames()))
             DemoToggleStatus()
-        elseif msg == "debugdemo once" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debugdemo once" then
             ReportDemoDebugOnce()
-        elseif msg == "debugdemo reset" then
+        elseif IsSupportDiagnosticsEnabled() and msg == "debugdemo reset" then
             ResetDemoDebug()
-        elseif msg:match("^debugdemo castbar%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo castbar%s+") then
             ApplyDemoToggle("debugDemoDisableCastbar", msg:match("^debugdemo castbar%s+(%S+)$"))
-        elseif msg:match("^debugdemo auras%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo auras%s+") then
             ApplyDemoToggle("debugDemoDisableAuras", msg:match("^debugdemo auras%s+(%S+)$"))
-        elseif msg:match("^debugdemo auratimers%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo auratimers%s+") then
             ApplyDemoToggle("debugDemoDisableAuraTimers", msg:match("^debugdemo auratimers%s+(%S+)$"))
-        elseif msg:match("^debugdemo texts%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo texts%s+") then
             ApplyDemoToggle("debugDemoDisableTexts", msg:match("^debugdemo texts%s+(%S+)$"))
-        elseif msg:match("^debugdemo rangefade%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo rangefade%s+") then
             ApplyDemoToggle("debugDemoDisableRangeFade", msg:match("^debugdemo rangefade%s+(%S+)$"))
-        elseif msg:match("^debugdemo smoothing%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo smoothing%s+") then
             ApplyDemoToggle("debugDemoDisableBarSmoothing", msg:match("^debugdemo smoothing%s+(%S+)$"))
-        elseif msg:match("^debugdemo only%s+") then
+        elseif IsSupportDiagnosticsEnabled() and msg:match("^debugdemo only%s+") then
             ApplyOnlyUnit(msg:match("^debugdemo only%s+(%S+)$"))
         else
             if FocalPoint.Info then
-                FocalPoint:Info("/fp, /fp config, /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp debug aura, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report|browser font|browser statusbar [legacy|missing], /fpdebuglifecycle on|off|status|report|clear, /fpdebugaura on|off|status|report|reset")
+                local help = "/fp, /fp config"
+                if IsSupportDiagnosticsEnabled() then
+                    help = help .. ", /fp debug target, /fp debug runtime, /fp debug visibility, /fp debug unitwatch, /fp debug alpha, /fp debug media, /fp debug lifecycle, /fp debug aura, /fp diag, support diagnostics: /fpdebugdemo on|off|status|once|reset|on reset, /fpdebugvisibility on|off|reset|status|report|transitions|invariants|blocked, /fpdebugunitwatch on|off|reset|status|report, /fpdebugalpha on|off|reset|status|report, /fpdebugmedia on|off|reset|report|browser font|browser statusbar [legacy|missing], /fpdebuglifecycle on|off|status|report|clear, /fpdebugaura on|off|status|report|reset"
+                end
+                FocalPoint:Info(help)
             end
         end
     end
