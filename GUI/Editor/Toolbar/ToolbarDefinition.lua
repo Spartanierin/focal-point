@@ -287,34 +287,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
-        section = "WorkspaceEditorFooter",
-        properties = {
-            parentSection = "WorkspaceEditorBody",
-            sectionKind = "section",
-            type = "section",
-            variant = "note_stack",
-            border = false,
-            padding = {
-                left = 0,
-                right = 0,
-                top = 0,
-                bottom = 0,
-            },
-            widthInfo = {
-                source = "parent",
-                derivedFrom = "WorkspaceEditorBody.widthInfo",
-            },
-            heightInfo = {
-                source = "content",
-                min = 1,
-                derivedFrom = "single checkbox row",
-            },
-        },
-        items = {
-            { id = "expertMode", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_EXPERT_MODE" },
-        },
-    },
-    {
         section = "WorkspaceToolBody",
         properties = {
             parentSection = "Workspace",
@@ -425,13 +397,14 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 56,
-                derivedFrom = "title + options action",
+                min = 80,
+                derivedFrom = "title + options action + expert toggle",
             },
         },
         items = {
             { id = "globalTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_GLOBAL" },
             { id = "globalOptions", widget = "button", itemVariant = "secondary_action", textKey = "OPTION_OPTIONS" },
+            { id = "expertMode", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_EXPERT_MODE" },
         },
     },
     {
@@ -455,7 +428,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 148,
+                min = 120,
                 derivedFrom = "secondary dialog access buttons",
             },
         },
@@ -465,7 +438,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             { id = "layoutAssignmentsButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUT_ASSIGNMENTS" },
             { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_PROFILES" },
             { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
-            { id = "tagDatabaseButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "INFO_TAG_DATABASE_TITLE" },
         },
     },
     {

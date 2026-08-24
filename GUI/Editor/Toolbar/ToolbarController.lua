@@ -43,7 +43,6 @@ local TOOLBAR_SECTIONS = {
     UnitGridRow2 = true,
     UnitGridRow3 = true,
     UnitGridRow4 = true,
-    WorkspaceEditorFooter = true,
     Editing = true,
     EditingHint = true,
     Global = true,

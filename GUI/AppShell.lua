@@ -155,7 +155,6 @@ local function IsToolPath(addon, path)
 
     return path == nav.PROFILES
         or path == nav.TEXT_BUILDER
-        or path == nav.TAG_DATABASE
 end
 
 local function IsEditorPath(addon, path)

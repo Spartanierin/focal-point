@@ -30,7 +30,6 @@ function FocalPoint:GetDefaultDB()
                 SnappingEnabled = true,
                 ShowGrid = false,
                 ClampToScreen = true,
-                HideEditorWelcomeTip = false,
                 ActiveThemeId = "default",
             },
             Minimap = {

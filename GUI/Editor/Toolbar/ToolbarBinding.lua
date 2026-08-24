@@ -14,7 +14,6 @@ local NAV_WIDGET_IDS = {
     editorButton = { "Nav", "EDITOR" },
     profilesButton = { "Nav", "PROFILES" },
     textBuilderButton = { "Nav", "TEXT_BUILDER" },
-    tagDatabaseButton = { "Nav", "TAG_DATABASE" },
 }
 
 local UNIT_WIDGET_IDS = {

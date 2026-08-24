@@ -1366,7 +1366,7 @@ RefreshWindowState = function()
             return
         end
 
-        ApplyModalActionButtonVisual(context.tagDatabaseButton, "utility")
+        ApplyModalActionButtonVisual(context.tagLibraryButton, "utility")
         ApplyModalActionButtonVisual(context.newTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.saveButton, "primary_action")
         ApplyModalActionButtonVisual(context.copyTemplateButton, "utility")
@@ -1482,7 +1482,7 @@ local function CreateWindowContent(window, state, deps)
         root = root,
         getGUIState = deps and deps.GetGUIState,
         templateEdit = widgets.templateEdit,
-        tagDatabaseButton = widgets.tagDatabaseButton,
+        tagLibraryButton = widgets.tagLibraryButton,
         previewValue = widgets.previewValue,
         templateSelect = widgets.templateSelect,
         templateOwnerLabel = widgets.templateOwnerLabel,
@@ -1560,8 +1560,8 @@ local function WireWindowCallbacks(context)
         RefreshWindowState()
     end)
 
-    if context.tagDatabaseButton then
-        context.tagDatabaseButton:SetCallback("OnClick", function()
+    if context.tagLibraryButton then
+        context.tagLibraryButton:SetCallback("OnClick", function()
             local tagLibraryPage = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TagLibrary
             if not tagLibraryPage or not tagLibraryPage.Open then
                 return

@@ -120,242 +120,6 @@ local function ArrangeFrameFooter(frame, testButton)
     statusText:Hide()
 end
 
-local function HideWindowCloseButton(frameWidget)
-    if not frameWidget then
-        return
-    end
-
-    local rootFrame = frameWidget.frame or frameWidget
-    local closeButton = frameWidget.closebutton
-
-    if (not closeButton) and rootFrame and rootFrame.GetChildren then
-        for _, child in ipairs({ rootFrame:GetChildren() }) do
-            if child
-                and child.GetObjectType
-                and child:GetObjectType() == "Button"
-                and child.GetText
-                and child:GetText() == CLOSE
-            then
-                closeButton = child
-                break
-            end
-        end
-    end
-
-    if not closeButton then
-        return
-    end
-
-    if closeButton.Hide then
-        closeButton:Hide()
-    end
-    if closeButton.EnableMouse then
-        closeButton:EnableMouse(false)
-    end
-    if closeButton.SetScript then
-        closeButton:SetScript("OnClick", nil)
-    end
-end
-
-local function CreateWelcomeSpacer(height)
-    local spacer = AceGUI:Create("SimpleGroup")
-    spacer:SetFullWidth(true)
-    spacer:SetAutoAdjustHeight(false)
-    spacer:SetHeight(height or 10)
-    return spacer
-end
-
-local function ShouldShowEditorWelcomeTip()
-    local general = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
-    return type(general) == "table" and general.HideEditorWelcomeTip ~= true
-end
-
-local function SetEditorWelcomeTipHidden(hidden)
-    local general = FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.General
-    if type(general) == "table" then
-        general.HideEditorWelcomeTip = hidden and true or false
-    end
-end
-
-local function HideEditorWelcomeTip()
-    local tipWindow = FocalPoint.guiEditorWelcomeTip
-    if not tipWindow then
-        return
-    end
-
-    FocalPoint.guiEditorWelcomeTip = nil
-    if tipWindow.Release then
-        tipWindow:Release()
-    elseif tipWindow.frame and tipWindow.frame.Hide then
-        tipWindow.frame:Hide()
-    end
-end
-
-local function ShowEditorWelcomeTip()
-    if not ShouldShowEditorWelcomeTip() then
-        return
-    end
-
-    local existing = FocalPoint.guiEditorWelcomeTip
-    if existing then
-        ShowGUIFrame(existing)
-        return
-    end
-
-    local FormWidgets = FocalPoint.GUI and FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormWidgets
-    local FormSectionSurfaceRenderer = FocalPoint.GUI and FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormSectionSurfaceRenderer
-    local headingText = (L and L["EDITOR_WELCOME_HEADING"]) or "Welcome to Focal Point"
-    local introText = (L and L["EDITOR_WELCOME_INTRO"]) or "Focal Point works as an editor for your unit frames."
-    local stepsTitleText = (L and L["EDITOR_WELCOME_STEPS_TITLE"]) or "How to start:"
-    local stepsText = (L and L["EDITOR_WELCOME_STEPS"]) or "1. Select a frame or unit on the left\n2. Pick a tool like Layouts, Text Builder, or Tag Database\n3. Fine-tune the selected unit on the right"
-    local noteText = (L and L["EDITOR_WELCOME_NOTE"]) or "Opening the editor makes frames selectable, movable, and resizable."
-    local WELCOME_GAP_COMPACT = 8
-    local WELCOME_GAP_REGULAR = 12
-    local WELCOME_GAP_SECTION = 16
-
-    local tipWindow = AceGUI:Create("Window")
-    tipWindow:SetTitle((L and L["EDITOR_WELCOME_TITLE"]) or "Quick Start")
-    tipWindow:SetLayout("List")
-    tipWindow:SetWidth(600)
-    tipWindow:SetHeight(470)
-    tipWindow:EnableResize(false)
-    tipWindow:SetStatusText("")
-
-    if tipWindow.frame then
-        tipWindow.frame:SetFrameStrata("DIALOG")
-        tipWindow.frame:SetClampedToScreen(true)
-    end
-
-    if FormWidgets and FormWidgets.ApplyWindowChrome then
-        FormWidgets.ApplyWindowChrome(tipWindow)
-    end
-    ArrangeFrameFooter(tipWindow, nil)
-    HideWindowCloseButton(tipWindow)
-
-    if tipWindow.frame then
-        local fallbackPalette = FocalPoint.GUI
-            and FocalPoint.GUI.Layouts
-            and FocalPoint.GUI.Layouts.FormElements
-            and FocalPoint.GUI.Layouts.FormElements.Palette
-        local skins = FocalPoint.GUI and FocalPoint.GUI.Skins or nil
-        local palette = skins and skins.GetFormPalette and skins.GetFormPalette(fallbackPalette) or fallbackPalette
-        local chromePalette = palette and palette.Chrome
-        local welcomeAccent = chromePalette and (chromePalette.headerAccent or chromePalette.accent)
-        if not tipWindow.frame._fpWelcomeModalAccent then
-            tipWindow.frame._fpWelcomeModalAccent = tipWindow.frame:CreateTexture(nil, "BORDER")
-            tipWindow.frame._fpWelcomeModalAccent:SetPoint("TOPLEFT", tipWindow.frame, "TOPLEFT", 14, -32)
-            tipWindow.frame._fpWelcomeModalAccent:SetPoint("TOPRIGHT", tipWindow.frame, "TOPRIGHT", -14, -32)
-            tipWindow.frame._fpWelcomeModalAccent:SetHeight(2)
-        end
-        if welcomeAccent then
-            tipWindow.frame._fpWelcomeModalAccent:SetColorTexture(unpack(welcomeAccent))
-            tipWindow.frame._fpWelcomeModalAccent:Show()
-        end
-    end
-
-    local content = AceGUI:Create("SimpleGroup")
-    content:SetFullWidth(true)
-    content:SetFullHeight(true)
-    content:SetLayout("List")
-    if FormSectionSurfaceRenderer and FormSectionSurfaceRenderer.ApplySectionPadding then
-        FormSectionSurfaceRenderer.ApplySectionPadding(content, {
-            left = 26,
-            right = 26,
-            top = 26,
-            bottom = 22,
-        })
-    end
-    tipWindow:AddChild(content)
-
-    local heading
-    if FormWidgets and FormWidgets.CreateBodyText then
-        heading = FormWidgets.CreateBodyText(headingText, "sectionHeader", 18, nil, nil, true)
-    else
-        heading = AceGUI:Create("Label")
-        heading:SetFullWidth(true)
-        heading:SetText(headingText)
-    end
-    content:AddChild(heading)
-    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_REGULAR))
-
-    local intro
-    if FormWidgets and FormWidgets.CreateBodyText then
-        intro = FormWidgets.CreateBodyText(introText, "description", 13, nil, nil, true)
-    else
-        intro = AceGUI:Create("Label")
-        intro:SetFullWidth(true)
-        intro:SetText(introText)
-    end
-    content:AddChild(intro)
-    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_SECTION))
-
-    local stepsTitle
-    if FormWidgets and FormWidgets.CreateBodyText then
-        stepsTitle = FormWidgets.CreateBodyText(stepsTitleText, "sectionHeader", 14, nil, nil, true)
-    else
-        stepsTitle = AceGUI:Create("Label")
-        stepsTitle:SetFullWidth(true)
-        stepsTitle:SetText(stepsTitleText)
-    end
-    content:AddChild(stepsTitle)
-    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_COMPACT))
-
-    local steps
-    if FormWidgets and FormWidgets.CreateBodyText then
-        steps = FormWidgets.CreateBodyText(stepsText, "description", 12, nil, nil, true)
-    else
-        steps = AceGUI:Create("Label")
-        steps:SetFullWidth(true)
-        steps:SetText(stepsText)
-    end
-    content:AddChild(steps)
-    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_SECTION))
-
-    local note
-    if FormWidgets and FormWidgets.CreateBodyText then
-        note = FormWidgets.CreateBodyText(noteText, "description", 11, nil, nil, true)
-    else
-        note = AceGUI:Create("Label")
-        note:SetFullWidth(true)
-        note:SetText(noteText)
-    end
-    content:AddChild(note)
-    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_REGULAR))
-
-    local hideCheckbox = AceGUI:Create("CheckBox")
-    hideCheckbox:SetFullWidth(true)
-    hideCheckbox:SetLabel((L and L["EDITOR_WELCOME_DO_NOT_SHOW"]) or "Do not show this tip again")
-    hideCheckbox:SetValue(false)
-    if FormWidgets and FormWidgets.StyleCheckBox then
-        FormWidgets.StyleCheckBox(hideCheckbox, false)
-    end
-    content:AddChild(hideCheckbox)
-    content:AddChild(CreateWelcomeSpacer(WELCOME_GAP_REGULAR))
-
-    local confirmButton
-    if FormWidgets and FormWidgets.CreateActionButton then
-        confirmButton = FormWidgets.CreateActionButton((L and L["EDITOR_WELCOME_CONFIRM"]) or "Got it", "primary_action", nil, true)
-        if FormWidgets.ApplyModalActionButtonVisual then
-            FormWidgets.ApplyModalActionButtonVisual(confirmButton, "primary_action")
-        end
-    else
-        confirmButton = AceGUI:Create("Button")
-        confirmButton:SetText((L and L["EDITOR_WELCOME_CONFIRM"]) or "Got it")
-        confirmButton:SetFullWidth(true)
-    end
-    content:AddChild(confirmButton)
-
-    local function CloseTip()
-        SetEditorWelcomeTipHidden(hideCheckbox.GetValue and hideCheckbox:GetValue())
-        HideEditorWelcomeTip()
-    end
-
-    confirmButton:SetCallback("OnClick", CloseTip)
-    tipWindow:SetCallback("OnClose", CloseTip)
-
-    FocalPoint.guiEditorWelcomeTip = tipWindow
-end
-
 local C = FocalPoint.Constants
 
 local function RenderPage(container, path)
@@ -414,13 +178,6 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
         if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.PROFILES) then
             if FocalPoint.GUIController and FocalPoint.GUIController.OpenProfilesWindow then
                 FocalPoint.GUIController.OpenProfilesWindow()
-            end
-            return
-        end
-
-        if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TAG_DATABASE) then
-            if FocalPoint.GUIController and FocalPoint.GUIController.OpenTagDatabaseWindow then
-                FocalPoint.GUIController.OpenTagDatabaseWindow()
             end
             return
         end
@@ -897,11 +654,6 @@ function FocalPoint:CloseConfig()
         profilesPage.HideWindow()
     end
 
-    local tagDatabasePage = self.GUI and self.GUI.Pages and self.GUI.Pages.TagDatabase
-    if tagDatabasePage and tagDatabasePage.HideWindow then
-        tagDatabasePage.HideWindow()
-    end
-
     local textBuilderPage = self.GUI and self.GUI.Pages and self.GUI.Pages.TextBuilder
     if textBuilderPage and textBuilderPage.HideWindow then
         textBuilderPage.HideWindow()
@@ -916,8 +668,6 @@ function FocalPoint:CloseConfig()
     if toolbar and toolbar.Hide then
         toolbar.Hide()
     end
-
-    HideEditorWelcomeTip()
 
     if self.RefreshAllUnitFrames then
         self:RefreshAllUnitFrames()
@@ -1144,5 +894,4 @@ function FocalPoint:OpenConfig()
             silent = true,
         })
     end
-    ShowEditorWelcomeTip()
 end

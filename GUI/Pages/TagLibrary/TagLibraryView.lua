@@ -318,10 +318,10 @@ local function RefreshDetails(context)
         return
     end
 
-    AddField(details, T("INFO_TAG_DATABASE_COL_TAG", "Tag"), item.token)
+    AddField(details, T("INFO_TAG_LIBRARY_COL_TAG", "Tag"), item.token)
     AddField(details, T("INFO_TAG_LIBRARY_CATEGORY", "Category"), item.category)
-    AddField(details, T("INFO_TAG_DATABASE_COL_DESC", "Description"), item.description)
-    AddField(details, T("INFO_TAG_DATABASE_COL_EXAMPLE", "Example"), item.example)
+    AddField(details, T("INFO_TAG_LIBRARY_COL_DESC", "Description"), item.description)
+    AddField(details, T("INFO_TAG_LIBRARY_COL_EXAMPLE", "Example"), item.example)
 end
 
 local function RefreshRows(context)

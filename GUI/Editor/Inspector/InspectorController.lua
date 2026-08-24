@@ -2605,52 +2605,6 @@ function InspectorController.Build(container, state, options)
             NotifyConfigChangedAndRebuildSection(decorationSection, "decoration")
         end
 
-        local function ApplyDecorationListMutation(result)
-            if result and result.ok == false then
-                ReportMutationError(result)
-                return result
-            end
-            state.selectedDecorationId = result and result.newDecorationId or nil
-            if type(ObjectSelection.SelectObject) == "function" and state.selectedDecorationId then
-                ObjectSelection.SelectObject({
-                    kind = "decoration",
-                    unit = selectedUnit,
-                    decorationId = state.selectedDecorationId,
-                })
-            elseif state.propertyScope and state.propertyScope.kind == "decoration" and EditorStateApi.ClearPropertyScope then
-                EditorStateApi.ClearPropertyScope()
-            end
-            if result and result.ok and result.changed then
-                RebuildDecorationSection()
-            end
-            return result
-        end
-
-        local function AddDecorationWithTexture(texture)
-            if type(InspectorMutations.AddDecoration) ~= "function" then
-                return nil
-            end
-            local initialValues = {}
-            if type(texture) == "string" and texture ~= "" then
-                initialValues.texture = texture
-            end
-            return ApplyDecorationListMutation(InspectorMutations.AddDecoration(inspectorContext, initialValues))
-        end
-
-        local function OpenDecorationBrowserForAdd()
-            OpenMediaBrowserForField({
-                mediaType = MEDIA_TYPE_DECORATION,
-                currentValue = "",
-                fallbackReference = DEFAULT_DECORATION_REFERENCE,
-                title = L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or "Choose Decoration Texture",
-                onApply = function(selectedValue)
-                    if type(selectedValue) == "string" and selectedValue ~= "" then
-                        AddDecorationWithTexture(selectedValue)
-                    end
-                end,
-            })
-        end
-
         local function DeleteDecoration()
             if type(InspectorMutations.DeleteDecoration) ~= "function" or not selectedDecorationId then
                 return nil
@@ -2724,38 +2678,6 @@ function InspectorController.Build(container, state, options)
             dialog:Show()
         end
 
-        local function AddDecorationActionButton(row, label, disabled, onClick, width, tooltip)
-            local button = AceGUI:Create("Button")
-            if FormWidgets and FormWidgets.ResetInspectorButtonState then
-                FormWidgets.ResetInspectorButtonState(button)
-            end
-            button:SetText("")
-            if width then
-                button:SetWidth(width)
-            else
-                button:SetFullWidth(true)
-            end
-            button:SetDisabled(disabled and true or false)
-            if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
-                FormWidgets.ApplyModalActionButtonVisual(button, "utility")
-            elseif FormWidgets and FormWidgets.StyleActionButton then
-                FormWidgets.StyleActionButton(button, "secondary")
-            end
-            if FormWidgets and FormWidgets.ApplyInspectorGlyphButton then
-                FormWidgets.ApplyInspectorGlyphButton(button, label, disabled)
-            end
-            if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
-                FormWidgets.SetInspectorButtonTooltip(button, tooltip)
-            end
-            button:SetCallback("OnClick", function()
-                if onClick then
-                    onClick()
-                end
-            end)
-            row:AddChild(button)
-            return button
-        end
-
         if #decorations > 0 then
             local selectorRow = AceGUI:Create("SimpleGroup")
             selectorRow:SetFullWidth(true)
@@ -2783,26 +2705,11 @@ function InspectorController.Build(container, state, options)
                 FormWidgets.StyleDropdown(decorationSelector, "editor_inset")
             end
             selectorRow:AddChild(decorationSelector)
-
-            local actionRow = AceGUI:Create("SimpleGroup")
-            actionRow:SetFullWidth(true)
-            actionRow:SetLayout("Flow")
-            decorationSection:AddChild(actionRow)
-
-            AddDecorationActionButton(actionRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
-
         else
             local emptyLabel = AceGUI:Create("Label")
             emptyLabel:SetFullWidth(true)
             emptyLabel:SetText(L["OPTION_DECORATION_EMPTY"] or "No decorations yet.")
             decorationSection:AddChild(emptyLabel)
-
-            local emptyRow = AceGUI:Create("SimpleGroup")
-            emptyRow:SetFullWidth(true)
-            emptyRow:SetLayout("Flow")
-            decorationSection:AddChild(emptyRow)
-
-            AddDecorationActionButton(emptyRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
             return
         end
 
@@ -2811,11 +2718,6 @@ function InspectorController.Build(container, state, options)
             emptyLabel:SetFullWidth(true)
             emptyLabel:SetText(L["OPTION_DECORATION_EMPTY"] or "No decorations yet.")
             decorationSection:AddChild(emptyLabel)
-            local emptyRow = AceGUI:Create("SimpleGroup")
-            emptyRow:SetFullWidth(true)
-            emptyRow:SetLayout("Flow")
-            decorationSection:AddChild(emptyRow)
-            AddDecorationActionButton(emptyRow, "+", false, OpenDecorationBrowserForAdd, 40, L["OPTION_DECORATION_ADD"] or "Add Decoration")
             return
         end
 

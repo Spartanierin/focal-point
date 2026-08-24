@@ -12,12 +12,6 @@ function PageDependencyFactory.CreateProfilesDeps(config)
     }
 end
 
-function PageDependencyFactory.CreateTagDatabaseDeps(config)
-    return {
-        GetGUIState = config.GetGUIState,
-    }
-end
-
 function PageDependencyFactory.CreateTextBuilderDeps(config)
     return {
         GetGUIState = config.GetGUIState,

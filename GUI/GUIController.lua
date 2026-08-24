@@ -16,7 +16,6 @@ local PageDependencyFactory = ns.GUI.Helpers.PageDependencyFactory
 
 local GetGUIState = GUIState.GetState
 local CreateProfilesDeps = PageDependencyFactory.CreateProfilesDeps
-local CreateTagDatabaseDeps = PageDependencyFactory.CreateTagDatabaseDeps
 local CreateTextBuilderDeps = PageDependencyFactory.CreateTextBuilderDeps
 local CreateEditorDeps = PageDependencyFactory.CreateEditorDeps
 
@@ -37,17 +36,6 @@ function B.OpenProfilesWindow()
     end
 
     page.OpenWindow(CreateProfilesDeps({
-        GetGUIState = GetGUIState,
-    }))
-end
-
-function B.OpenTagDatabaseWindow()
-    local page = ns.GUI.Pages and ns.GUI.Pages.TagDatabase
-    if not page or not page.OpenWindow then
-        return
-    end
-
-    page.OpenWindow(CreateTagDatabaseDeps({
         GetGUIState = GetGUIState,
     }))
 end
