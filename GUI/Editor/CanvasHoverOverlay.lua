@@ -112,6 +112,20 @@ local function ApplyHoverChrome(target)
     frame:Show()
 end
 
+local function ApplyZoneChrome(zone, selected)
+    if not zone or not zone.SetBackdropColor then
+        return
+    end
+
+    if selected then
+        zone:SetBackdropColor(0.98, 0.84, 0.24, 0.10)
+        zone:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.95)
+    else
+        zone:SetBackdropColor(0, 0, 0, 0)
+        zone:SetBackdropBorderColor(0, 0, 0, 0)
+    end
+end
+
 local function ShouldUseGenericChrome(objectRef)
     return type(objectRef) ~= "table" or objectRef.kind ~= "text"
 end
@@ -220,8 +234,15 @@ local function EnsureHitZone(frame, key)
         return zone
     end
 
-    zone = CreateFrame("Button", nil, frame.MoveOverlay)
+    zone = CreateFrame("Button", nil, frame.MoveOverlay, "BackdropTemplate")
     zone:SetFrameStrata(frame.MoveOverlay:GetFrameStrata())
+    zone:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 2,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 },
+    })
+    ApplyZoneChrome(zone, false)
     SetZoneMouseEnabled(zone, false)
     zone:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     zone:RegisterForDrag("LeftButton")
@@ -270,6 +291,7 @@ local function PositionZone(zone, frame, target, objectRef, level)
     zone:ClearAllPoints()
     zone:SetPoint("TOPLEFT", target, "TOPLEFT", 0, 0)
     zone:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", 0, 0)
+    ApplyZoneChrome(zone, IsSelectedObject(objectRef))
     SetZoneMouseEnabled(zone, true)
     ShowZone(zone)
 end
@@ -282,6 +304,7 @@ local function HideZone(zone)
         CanvasHoverOverlay.Clear(zone)
     end
     SetZoneMouseEnabled(zone, false)
+    ApplyZoneChrome(zone, false)
     HideZoneFrame(zone)
     zone._focalPointObjectRef = nil
 end

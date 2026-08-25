@@ -156,6 +156,12 @@ local function FrameMatchesSelectionUnit(frame, selectedUnit)
     return NormalizeEditorSelectionUnit(frame.unit) == selectedUnit
 end
 
+local function IsEditorChromeActive()
+    return FocalPoint.framesUnlocked == true
+        and FocalPoint.IsEditorActive
+        and FocalPoint:IsEditorActive()
+end
+
 local IsEditorTextMode
 
 local function IsPrimaryEditorFrame(frame)
@@ -206,8 +212,29 @@ local function IsSelectedUnitRoot(frame)
     return IsPrimaryEditorFrame(frame)
 end
 
+local function IsSelectedChildContext(frame)
+    local selectedObject = GetSelectedEditorObject()
+    if type(selectedObject) ~= "table" or selectedObject.kind == "unit" then
+        return false
+    end
+
+    return FrameMatchesSelectionUnit(frame, selectedObject.unit)
+end
+
 local function UpdateSelectionOverlay(frame)
     if not frame then
+        return
+    end
+
+    if not IsEditorChromeActive() then
+        local overlay = frame.SelectionOverlay
+        if overlay then
+            overlay:EnableMouse(false)
+            overlay:RegisterForDrag()
+            overlay:SetScript("OnDragStart", nil)
+            overlay:SetScript("OnDragStop", nil)
+            overlay:Hide()
+        end
         return
     end
 
@@ -234,13 +261,13 @@ local function UpdateSelectionOverlay(frame)
     overlay:SetFrameStrata(frame:GetFrameStrata())
     overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 45, (frame.MoveOverlay and frame.MoveOverlay:GetFrameLevel() + 5) or (frame:GetFrameLevel() + 45)))
 
-    if IsPrimaryEditorFrame(frame) then
+    if IsSelectedUnitRoot(frame) then
         overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.14)
         overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 1.00)
         overlay:Show()
-    elseif IsSecondaryEditorFrame(frame) then
-        overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.04)
-        overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.58)
+    elseif IsSelectedChildContext(frame) or IsSecondaryEditorFrame(frame) then
+        overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.025)
+        overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.32)
         overlay:Show()
     else
         overlay:Hide()
@@ -331,7 +358,7 @@ local function UpdateMoveOverlayVisuals(frame)
     end
 
     if coords then
-        if (isSelected and FocalPoint.framesUnlocked) or isDragging then
+        if isDragging then
             coords:Show()
         else
             coords:Hide()
@@ -971,6 +998,34 @@ EndFrameDrag = function(frame, commit)
     end
 end
 
+local function UpdateRootTransformOverlay(frame, active)
+    active = active == true
+
+    local overlay = active and EnsureSelectionOverlay(frame) or (frame and frame.SelectionOverlay)
+    if not overlay then
+        return
+    end
+
+    overlay:EnableMouse(active)
+    if active then
+        overlay:RegisterForDrag("LeftButton")
+        overlay:SetScript("OnDragStart", function()
+            if not FocalPoint.framesUnlocked or not IsSelectedUnitRoot(frame) then
+                return
+            end
+
+            BeginFrameDrag(frame)
+        end)
+        overlay:SetScript("OnDragStop", function()
+            EndFrameDrag(frame)
+        end)
+    else
+        overlay:RegisterForDrag()
+        overlay:SetScript("OnDragStart", nil)
+        overlay:SetScript("OnDragStop", nil)
+    end
+end
+
 function FocalPoint:UpdateFrameDragState(frame)
     if not frame then
         return
@@ -1084,6 +1139,7 @@ function FocalPoint:UpdateFrameDragState(frame)
         HideCanvasHoverOverlay(frame)
     end
 
+    UpdateRootTransformOverlay(frame, rootDragActive)
     UpdateSelectionOverlay(frame)
     UpdateMoveOverlayVisuals(frame)
     UpdateTextEditCastPreview(frame)
