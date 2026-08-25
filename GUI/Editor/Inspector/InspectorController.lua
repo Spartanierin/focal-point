@@ -1374,6 +1374,35 @@ function InspectorController.Build(container, state, options)
         return dropdown, browse
     end
 
+    local function AddPropertyDropdownRow(parent, labelText, dropdownOptions, disabled)
+        local dropdown
+
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            dropdownOptions = type(dropdownOptions) == "table" and dropdownOptions or {}
+            dropdown = AddDropdown(
+                valueGroup,
+                "",
+                dropdownOptions.list,
+                dropdownOptions.value,
+                dropdownOptions.onChanged,
+                disabled,
+                dropdownOptions.anchorKey
+            )
+        end)
+
+        return dropdown
+    end
+
+    local function AddPropertySliderRow(parent, labelText, minValue, maxValue, step, value, onChanged, disabled, anchorKey)
+        local slider
+
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            slider = AddSlider(valueGroup, "", minValue, maxValue, step, value, onChanged, disabled, anchorKey)
+        end)
+
+        return slider
+    end
+
     local function AddPropertyPickerValueRow(parent, labelText, valueText, onClick, disabled, options)
         local button
         AddPropertyRow(parent, labelText, function(valueGroup)
@@ -1758,24 +1787,34 @@ function InspectorController.Build(container, state, options)
             local rootSection = options.rootSection or absorbsSection
             local generalSection = absorbsSection
             local appearanceSection = absorbsSection
+            local backgroundSection = absorbsSection
             local geometrySection = absorbsSection
+            local positionSection = absorbsSection
             local behaviorSection = absorbsSection
 
             if isScopedObject then
-                generalSection = AddObjectPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
-                appearanceSection = AddObjectPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+                generalSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
+                appearanceSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
                 if isExpert then
-                    geometrySection = AddObjectPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-                    behaviorSection = AddObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                    backgroundSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                    geometrySection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                    positionSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
+                    behaviorSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
                 end
             else
                 AddAbsorbSubheading(title)
             end
 
             local showValue = unitConfig[showField] ~= false
-            AddCheckBox(generalSection, L["OPTION_SHOW"] or "Show", showValue, function(value)
-                SetUnitField(showField, value and true or false, rootSection)
-            end)
+            if isScopedObject then
+                AddPropertyCheckBoxRow(generalSection, L["OPTION_SHOW"] or "Show", showValue, function(value)
+                    SetUnitField(showField, value and true or false, rootSection)
+                end)
+            else
+                AddCheckBox(generalSection, L["OPTION_SHOW"] or "Show", showValue, function(value)
+                    SetUnitField(showField, value and true or false, rootSection)
+                end)
+            end
 
             local textureField = prefix .. "Texture"
             local textureOptions = BuildStatusBarTextureOptions(unitConfig[textureField])
@@ -1783,17 +1822,17 @@ function InspectorController.Build(container, state, options)
             local function SetAbsorbTexture(value)
                 local result = SetUnitField(textureField, value, rootSection)
                 if not (result and result.ok == false) then
-                    SyncDropdownToStoredValue(textureDropdown, unitConfig[textureField])
+                    if textureDropdown and type(textureDropdown._fpSetPropertyValueText) == "function" then
+                        local storedValue = result and result.newValue or unitConfig[textureField] or value
+                        textureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                    else
+                        SyncDropdownToStoredValue(textureDropdown, unitConfig[textureField])
+                    end
                 end
                 return result
             end
             if isScopedObject then
-                AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
-                textureDropdown = AddDropdownBrowseRow(appearanceSection, {
-                    list = textureOptions,
-                    value = textureOptions.value,
-                    onChanged = SetAbsorbTexture,
-                }, function()
+                textureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(textureOptions, textureOptions.value or unitConfig[textureField]), function()
                     OpenMediaBrowserForField({
                         mediaType = MEDIA_TYPE_STATUSBAR,
                         currentValue = function()
@@ -1803,7 +1842,9 @@ function InspectorController.Build(container, state, options)
                         title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
                         onApply = SetAbsorbTexture,
                     })
-                end)
+                end, not IsMediaBrowserAvailable(), {
+                    tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+                })
             else
                 textureDropdown = AddDropdown(absorbsSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", textureOptions, textureOptions.value, SetAbsorbTexture)
                 AddMediaBrowserForField(absorbsSection, MEDIA_TYPE_STATUSBAR, function()
@@ -1811,38 +1852,70 @@ function InspectorController.Build(container, state, options)
                 end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetAbsorbTexture)
             end
 
-            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
-                SetUnitField(prefix .. "Color", value, rootSection)
-            end)
+            if isScopedObject then
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
+                    SetUnitField(prefix .. "Color", value, rootSection)
+                end)
+            else
+                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
+                    SetUnitField(prefix .. "Color", value, rootSection)
+                end)
+            end
 
             if not isExpert then
                 return
             end
 
-            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
-                SetUnitField(prefix .. "BackgroundColor", value, rootSection)
-            end)
+            if isScopedObject then
+                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
+                    SetUnitField(prefix .. "BackgroundColor", value, rootSection)
+                end)
+            else
+                AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
+                    SetUnitField(prefix .. "BackgroundColor", value, rootSection)
+                end)
+            end
 
             local sizeMode = unitConfig[prefix .. "SizeMode"] or "MATCH_TARGET"
             local isCustom = sizeMode == "CUSTOM"
-            AddDropdown(geometrySection, L["OPTION_SIZE_MODE"] or "Size Mode", absorbSizeModeList, sizeMode, function(value)
-                SetUnitField(prefix .. "SizeMode", value, rootSection)
-            end)
+            if isScopedObject then
+                AddPropertyDropdownRow(geometrySection, L["OPTION_SIZE_MODE"] or "Size Mode", {
+                    list = absorbSizeModeList,
+                    value = sizeMode,
+                    onChanged = function(value)
+                        SetUnitField(prefix .. "SizeMode", value, rootSection)
+                    end,
+                })
+            else
+                AddDropdown(geometrySection, L["OPTION_SIZE_MODE"] or "Size Mode", absorbSizeModeList, sizeMode, function(value)
+                    SetUnitField(prefix .. "SizeMode", value, rootSection)
+                end)
+            end
             local anchorTargetLabel = isScopedObject
                 and (L["OPTION_ANCHOR_TARGET"] or "Anchor Target")
                 or (L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element")
-            AddDropdown(geometrySection, anchorTargetLabel, absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
-                SetUnitField(prefix .. "AnchorTo", value, rootSection)
-            end)
+            local anchorParent = isScopedObject and positionSection or geometrySection
             if isScopedObject then
-                AddPropertyLabel(geometrySection, L["OPTION_SIZE"] or "Size")
-                AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                AddPropertyDropdownRow(anchorParent, anchorTargetLabel, {
+                    list = absorbAnchorTargetList,
+                    value = unitConfig[prefix .. "AnchorTo"] or "HealthBar",
+                    onChanged = function(value)
+                        SetUnitField(prefix .. "AnchorTo", value, rootSection)
+                    end,
+                })
+            else
+                AddDropdown(anchorParent, anchorTargetLabel, absorbAnchorTargetList, unitConfig[prefix .. "AnchorTo"] or "HealthBar", function(value)
+                    SetUnitField(prefix .. "AnchorTo", value, rootSection)
+                end)
+            end
+            if isScopedObject then
+                AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
                     SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddSlider(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
+                AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
                     SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddPointPairRow(geometrySection, {
+                AddPointPairRow(positionSection, {
                     list = barAnchorList,
                     value = unitConfig[prefix .. "Point"] or "LEFT",
                     onChanged = function(value)
@@ -1857,11 +1930,10 @@ function InspectorController.Build(container, state, options)
                     end,
                     disabled = not isCustom,
                 })
-                AddPropertyLabel(geometrySection, L["OPTION_OFFSET"] or "Offset")
-                AddSlider(geometrySection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                AddPropertySliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddSlider(geometrySection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                AddPropertySliderRow(positionSection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
                     SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
             else
@@ -1884,9 +1956,19 @@ function InspectorController.Build(container, state, options)
                     SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
             end
-            AddDropdown(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", absorbGrowthList, unitConfig[prefix .. "Growth"] or fallbackGrowth, function(value)
-                SetUnitField(prefix .. "Growth", value, rootSection)
-            end)
+            if isScopedObject then
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", {
+                    list = absorbGrowthList,
+                    value = unitConfig[prefix .. "Growth"] or fallbackGrowth,
+                    onChanged = function(value)
+                        SetUnitField(prefix .. "Growth", value, rootSection)
+                    end,
+                })
+            else
+                AddDropdown(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", absorbGrowthList, unitConfig[prefix .. "Growth"] or fallbackGrowth, function(value)
+                    SetUnitField(prefix .. "Growth", value, rootSection)
+                end)
+            end
         end
 
         if scopedAbsorbObject then
@@ -1926,37 +2008,45 @@ function InspectorController.Build(container, state, options)
         local usePropertyGroups = IsScopedPowerBarObjectMode()
         local generalSection = powerSection
         local appearanceSection = powerSection
+        local backgroundSection = powerSection
         local geometrySection = powerSection
         local behaviorSection = powerSection
         if usePropertyGroups then
-            generalSection = AddObjectPropertyGroup(powerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            generalSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             if isExpert then
-                geometrySection = AddObjectPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-                behaviorSection = AddObjectPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                backgroundSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                geometrySection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                behaviorSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
         end
 
-        AddCheckBox(generalSection, L["EDITOR_OPTION_SHOW_POWER"] or "Show Power Bar", unitConfig.showPowerBar ~= false, function(value)
-            SetUnitField("showPowerBar", value and true or false, powerSection)
-        end)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(generalSection, L["OPTION_SHOW"] or "Show", unitConfig.showPowerBar ~= false, function(value)
+                SetUnitField("showPowerBar", value and true or false, powerSection)
+            end)
+        else
+            AddCheckBox(generalSection, L["EDITOR_OPTION_SHOW_POWER"] or "Show Power Bar", unitConfig.showPowerBar ~= false, function(value)
+                SetUnitField("showPowerBar", value and true or false, powerSection)
+            end)
+        end
 
         local powerTextureOptions = BuildStatusBarTextureOptions(unitConfig.powerBarTexture)
         local powerTextureDropdown
         local function SetPowerBarTexture(value)
             local result = SetUnitField("powerBarTexture", value)
             if not (result and result.ok == false) then
-                SyncDropdownToStoredValue(powerTextureDropdown, unitConfig.powerBarTexture)
+                if powerTextureDropdown and type(powerTextureDropdown._fpSetPropertyValueText) == "function" then
+                    local storedValue = result and result.newValue or unitConfig.powerBarTexture or value
+                    powerTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(powerTextureDropdown, unitConfig.powerBarTexture)
+                end
             end
             return result
         end
         if usePropertyGroups then
-            AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
-            powerTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
-                list = powerTextureOptions,
-                value = powerTextureOptions.value,
-                onChanged = SetPowerBarTexture,
-            }, function()
+            powerTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(powerTextureOptions, powerTextureOptions.value or unitConfig.powerBarTexture), function()
                 OpenMediaBrowserForField({
                     mediaType = MEDIA_TYPE_STATUSBAR,
                     currentValue = function()
@@ -1966,7 +2056,9 @@ function InspectorController.Build(container, state, options)
                     title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
                     onApply = SetPowerBarTexture,
                 })
-            end, unitConfig.showPowerBar == false)
+            end, unitConfig.showPowerBar == false or not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+            })
         else
             powerTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", powerTextureOptions, powerTextureOptions.value, SetPowerBarTexture, unitConfig.showPowerBar == false)
             AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
@@ -1975,43 +2067,58 @@ function InspectorController.Build(container, state, options)
         end
 
         if isExpert then
-            AddSlider(geometrySection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
-                SetUnitField("powerBarHeight", math.floor((value or 0) + 0.5))
-            end, unitConfig.showPowerBar == false)
+            if usePropertyGroups then
+                AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                    SetUnitField("powerBarHeight", math.floor((value or 0) + 0.5))
+                end, unitConfig.showPowerBar == false)
+            else
+                AddSlider(geometrySection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                    SetUnitField("powerBarHeight", math.floor((value or 0) + 0.5))
+                end, unitConfig.showPowerBar == false)
+            end
         end
 
-        AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorPower == true, function(value)
-            SetUnitField("useClassColorPower", value and true or false, powerSection)
-        end, unitConfig.showPowerBar == false)
-
-        if isExpert then
-            AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
-                SetUnitField("powerBarReverseFill", value and true or false)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_CLASS_COLOR"] or L["OPTION_USE_CLASS_COLORS"] or "Class Color", unitConfig.useClassColorPower == true, function(value)
+                SetUnitField("useClassColorPower", value and true or false, powerSection)
+            end, unitConfig.showPowerBar == false)
+        else
+            AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorPower == true, function(value)
+                SetUnitField("useClassColorPower", value and true or false, powerSection)
             end, unitConfig.showPowerBar == false)
         end
-
-        AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
-            SetUnitField("powerColor", value)
-        end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
 
         if isExpert then
             if usePropertyGroups then
-                AddPropertyLabel(appearanceSection, L["OPTION_BACKGROUND"] or "Background")
-                AddToggleColorRow(appearanceSection, {
-                    label = L["OPTION_ENABLED"] or "Enabled",
-                    value = unitConfig.powerBackground ~= false,
-                    onChanged = function(value)
-                        SetUnitField("powerBackground", value and true or false, powerSection)
-                    end,
-                    disabled = unitConfig.showPowerBar == false,
-                }, {
-                    color = unitConfig.powerBackgroundColor,
-                    hasAlpha = true,
-                    onChanged = function(value)
-                        SetUnitField("powerBackgroundColor", value)
-                    end,
-                    disabled = unitConfig.showPowerBar == false or unitConfig.powerBackground == false,
-                })
+                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
+                    SetUnitField("powerBarReverseFill", value and true or false)
+                end, unitConfig.showPowerBar == false)
+            else
+                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
+                    SetUnitField("powerBarReverseFill", value and true or false)
+                end, unitConfig.showPowerBar == false)
+            end
+        end
+
+        if usePropertyGroups then
+            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
+                SetUnitField("powerColor", value)
+            end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
+                SetUnitField("powerColor", value)
+            end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
+        end
+
+        if isExpert then
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", unitConfig.powerBackground ~= false, function(value)
+                    SetUnitField("powerBackground", value and true or false, powerSection)
+                end, unitConfig.showPowerBar == false)
+
+                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.powerBackgroundColor, true, function(value)
+                    SetUnitField("powerBackgroundColor", value)
+                end, unitConfig.showPowerBar == false or unitConfig.powerBackground == false)
             else
                 AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.powerBackground ~= false, function(value)
                     SetUnitField("powerBackground", value and true or false, powerSection)
@@ -2042,20 +2149,28 @@ function InspectorController.Build(container, state, options)
         local rootSection = altPowerSection
         local generalSection = altPowerSection
         local appearanceSection = altPowerSection
+        local backgroundSection = altPowerSection
         local geometrySection = altPowerSection
         local behaviorSection = altPowerSection
         if usePropertyGroups then
-            generalSection = AddObjectPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            geometrySection = AddObjectPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            generalSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            geometrySection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if isExpert then
-                behaviorSection = AddObjectPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                backgroundSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                behaviorSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
         end
 
-        AddCheckBox(generalSection, L["OPTION_SHOW_ALTERNATIVE_POWER_BAR"] or "Show Alternative Power Bar", unitConfig.showAlternativePowerBar == true, function(value)
-            SetUnitField("showAlternativePowerBar", value and true or false, rootSection)
-        end)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(generalSection, L["OPTION_SHOW"] or "Show", unitConfig.showAlternativePowerBar == true, function(value)
+                SetUnitField("showAlternativePowerBar", value and true or false, rootSection)
+            end)
+        else
+            AddCheckBox(generalSection, L["OPTION_SHOW_ALTERNATIVE_POWER_BAR"] or "Show Alternative Power Bar", unitConfig.showAlternativePowerBar == true, function(value)
+                SetUnitField("showAlternativePowerBar", value and true or false, rootSection)
+            end)
+        end
 
         local alternativePowerTextureValue = unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture
         local alternativePowerTextureOptions = BuildStatusBarTextureOptions(alternativePowerTextureValue)
@@ -2063,18 +2178,17 @@ function InspectorController.Build(container, state, options)
         local function SetAlternativePowerBarTexture(value)
             local result = SetUnitField("alternativePowerBarTexture", value)
             if not (result and result.ok == false) then
-                SyncDropdownToStoredValue(alternativePowerTextureDropdown, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture)
+                if alternativePowerTextureDropdown and type(alternativePowerTextureDropdown._fpSetPropertyValueText) == "function" then
+                    local storedValue = result and result.newValue or unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture or value
+                    alternativePowerTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(alternativePowerTextureDropdown, unitConfig.alternativePowerBarTexture or unitConfig.powerBarTexture)
+                end
             end
             return result
         end
         if usePropertyGroups then
-            AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
-            alternativePowerTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
-                list = alternativePowerTextureOptions,
-                value = alternativePowerTextureOptions.value,
-                onChanged = SetAlternativePowerBarTexture,
-                disabled = unitConfig.showAlternativePowerBar ~= true,
-            }, function()
+            alternativePowerTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(alternativePowerTextureOptions, alternativePowerTextureOptions.value or alternativePowerTextureValue), function()
                 OpenMediaBrowserForField({
                     mediaType = MEDIA_TYPE_STATUSBAR,
                     currentValue = function()
@@ -2084,7 +2198,9 @@ function InspectorController.Build(container, state, options)
                     title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
                     onApply = SetAlternativePowerBarTexture,
                 })
-            end, unitConfig.showAlternativePowerBar ~= true)
+            end, unitConfig.showAlternativePowerBar ~= true or not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+            })
         else
             alternativePowerTextureDropdown = AddDropdown(altPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", alternativePowerTextureOptions, alternativePowerTextureOptions.value, SetAlternativePowerBarTexture, unitConfig.showAlternativePowerBar ~= true)
             AddMediaBrowserForField(altPowerSection, MEDIA_TYPE_STATUSBAR, function()
@@ -2092,9 +2208,15 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showAlternativePowerBar ~= true, SetAlternativePowerBarTexture)
         end
 
-        AddSlider(geometrySection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
-            SetUnitField("alternativePowerBarHeight", math.floor((value or 0) + 0.5))
-        end, unitConfig.showAlternativePowerBar ~= true)
+        if usePropertyGroups then
+            AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+                SetUnitField("alternativePowerBarHeight", math.floor((value or 0) + 0.5))
+            end, unitConfig.showAlternativePowerBar ~= true)
+        else
+            AddSlider(geometrySection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+                SetUnitField("alternativePowerBarHeight", math.floor((value or 0) + 0.5))
+            end, unitConfig.showAlternativePowerBar ~= true)
+        end
 
         if isExpert then
             local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
@@ -2104,13 +2226,25 @@ function InspectorController.Build(container, state, options)
                 altPowerReverseFillEnabled = altPowerReverseFillEnabled == true
             end
 
-            AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
-                SetUnitField("alternativePowerBarReverseFill", value and true or false)
-            end, unitConfig.showAlternativePowerBar ~= true)
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
+                    SetUnitField("alternativePowerBarReverseFill", value and true or false)
+                end, unitConfig.showAlternativePowerBar ~= true)
+            else
+                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
+                    SetUnitField("alternativePowerBarReverseFill", value and true or false)
+                end, unitConfig.showAlternativePowerBar ~= true)
+            end
 
-            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
-                SetUnitField("alternativePowerColor", value)
-            end, unitConfig.showAlternativePowerBar ~= true)
+            if usePropertyGroups then
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
+                    SetUnitField("alternativePowerColor", value)
+                end, unitConfig.showAlternativePowerBar ~= true)
+            else
+                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
+                    SetUnitField("alternativePowerColor", value)
+                end, unitConfig.showAlternativePowerBar ~= true)
+            end
 
             local altPowerBackgroundEnabled = unitConfig.alternativePowerBackground
             if altPowerBackgroundEnabled == nil then
@@ -2120,22 +2254,13 @@ function InspectorController.Build(container, state, options)
             end
 
             if usePropertyGroups then
-                AddPropertyLabel(appearanceSection, L["OPTION_BACKGROUND"] or "Background")
-                AddToggleColorRow(appearanceSection, {
-                    label = L["OPTION_ENABLED"] or "Enabled",
-                    value = altPowerBackgroundEnabled,
-                    onChanged = function(value)
-                        SetUnitField("alternativePowerBackground", value and true or false, rootSection)
-                    end,
-                    disabled = unitConfig.showAlternativePowerBar ~= true,
-                }, {
-                    color = unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor,
-                    hasAlpha = true,
-                    onChanged = function(value)
-                        SetUnitField("alternativePowerBackgroundColor", value)
-                    end,
-                    disabled = unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false,
-                })
+                AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", altPowerBackgroundEnabled, function(value)
+                    SetUnitField("alternativePowerBackground", value and true or false, rootSection)
+                end, unitConfig.showAlternativePowerBar ~= true)
+
+                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+                    SetUnitField("alternativePowerBackgroundColor", value)
+                end, unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false)
             else
                 AddCheckBox(altPowerSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", altPowerBackgroundEnabled, function(value)
                     SetUnitField("alternativePowerBackground", value and true or false, altPowerSection)
@@ -2156,16 +2281,28 @@ function InspectorController.Build(container, state, options)
         local rootSection = classPowerSection
         local generalSection = classPowerSection
         local appearanceSection = classPowerSection
+        local backgroundSection = classPowerSection
         local geometrySection = classPowerSection
+        local positionSection = classPowerSection
         if usePropertyGroups then
-            generalSection = AddObjectPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddObjectPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            geometrySection = AddObjectPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            generalSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            backgroundSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            geometrySection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            if isExpert then
+                positionSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
+            end
         end
 
-        AddCheckBox(generalSection, L["OPTION_SHOW_CLASS_POWER_BAR"] or "Show Class Power Bar", unitConfig.showClassPowerBar == true, function(value)
-            SetUnitField("showClassPowerBar", value and true or false, rootSection)
-        end)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(generalSection, L["OPTION_SHOW"] or "Show", unitConfig.showClassPowerBar == true, function(value)
+                SetUnitField("showClassPowerBar", value and true or false, rootSection)
+            end)
+        else
+            AddCheckBox(generalSection, L["OPTION_SHOW_CLASS_POWER_BAR"] or "Show Class Power Bar", unitConfig.showClassPowerBar == true, function(value)
+                SetUnitField("showClassPowerBar", value and true or false, rootSection)
+            end)
+        end
 
         local classPowerTextureValue = unitConfig.classPowerBarTexture or unitConfig.powerBarTexture
         local classPowerTextureOptions = BuildStatusBarTextureOptions(classPowerTextureValue)
@@ -2173,18 +2310,17 @@ function InspectorController.Build(container, state, options)
         local function SetClassPowerBarTexture(value)
             local result = SetUnitField("classPowerBarTexture", value)
             if not (result and result.ok == false) then
-                SyncDropdownToStoredValue(classPowerTextureDropdown, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture)
+                if classPowerTextureDropdown and type(classPowerTextureDropdown._fpSetPropertyValueText) == "function" then
+                    local storedValue = result and result.newValue or unitConfig.classPowerBarTexture or unitConfig.powerBarTexture or value
+                    classPowerTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(classPowerTextureDropdown, unitConfig.classPowerBarTexture or unitConfig.powerBarTexture)
+                end
             end
             return result
         end
         if usePropertyGroups then
-            AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
-            classPowerTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
-                list = classPowerTextureOptions,
-                value = classPowerTextureOptions.value,
-                onChanged = SetClassPowerBarTexture,
-                disabled = unitConfig.showClassPowerBar ~= true,
-            }, function()
+            classPowerTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(classPowerTextureOptions, classPowerTextureOptions.value or classPowerTextureValue), function()
                 OpenMediaBrowserForField({
                     mediaType = MEDIA_TYPE_STATUSBAR,
                     currentValue = function()
@@ -2194,7 +2330,9 @@ function InspectorController.Build(container, state, options)
                     title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
                     onApply = SetClassPowerBarTexture,
                 })
-            end, unitConfig.showClassPowerBar ~= true)
+            end, unitConfig.showClassPowerBar ~= true or not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+            })
         else
             classPowerTextureDropdown = AddDropdown(classPowerSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", classPowerTextureOptions, classPowerTextureOptions.value, SetClassPowerBarTexture, unitConfig.showClassPowerBar ~= true)
             AddMediaBrowserForField(classPowerSection, MEDIA_TYPE_STATUSBAR, function()
@@ -2202,36 +2340,78 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showClassPowerBar ~= true, SetClassPowerBarTexture)
         end
 
-        AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
-            SetUnitField("classPowerColor", value)
-        end, unitConfig.showClassPowerBar ~= true)
+        if usePropertyGroups then
+            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
+                SetUnitField("classPowerColor", value)
+            end, unitConfig.showClassPowerBar ~= true)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
+                SetUnitField("classPowerColor", value)
+            end, unitConfig.showClassPowerBar ~= true)
+        end
 
-        AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
-            SetUnitField("classPowerBackgroundColor", value)
-        end, unitConfig.showClassPowerBar ~= true)
+        if usePropertyGroups then
+            AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+                SetUnitField("classPowerBackgroundColor", value)
+            end, unitConfig.showClassPowerBar ~= true)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+                SetUnitField("classPowerBackgroundColor", value)
+            end, unitConfig.showClassPowerBar ~= true)
+        end
 
-        AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Class Power Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
-            SetUnitField("classPowerBarHeight", math.floor((value or 0) + 0.5))
-        end, unitConfig.showClassPowerBar ~= true)
+        if usePropertyGroups then
+            AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+                SetUnitField("classPowerBarHeight", math.floor((value or 0) + 0.5))
+            end, unitConfig.showClassPowerBar ~= true)
+        else
+            AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Class Power Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+                SetUnitField("classPowerBarHeight", math.floor((value or 0) + 0.5))
+            end, unitConfig.showClassPowerBar ~= true)
+        end
 
         if isExpert then
-            AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Class Power Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
-                SetUnitField("classPowerBarWidth", math.floor((value or 0) + 0.5))
-            end, unitConfig.showClassPowerBar ~= true)
+            if usePropertyGroups then
+                AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
+                    SetUnitField("classPowerBarWidth", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            else
+                AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Class Power Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
+                    SetUnitField("classPowerBarWidth", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            end
 
-            AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
-                SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
-            end, unitConfig.showClassPowerBar ~= true)
+            if usePropertyGroups then
+                AddPropertySliderRow(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
+                    SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            else
+                AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
+                    SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            end
 
             local classPowerAnchorTargetLabel = usePropertyGroups
                 and (L["OPTION_ANCHOR_TARGET"] or "Anchor Target")
                 or (L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element")
-            AddDropdown(geometrySection, classPowerAnchorTargetLabel, classPowerAnchorTargetList, unitConfig.classPowerBarAnchorTo or "HealthBar", function(value)
-                SetUnitField("classPowerBarAnchorTo", value)
-            end, unitConfig.showClassPowerBar ~= true)
+            local anchorParent = usePropertyGroups and positionSection or geometrySection
+            if usePropertyGroups then
+                AddPropertyDropdownRow(anchorParent, classPowerAnchorTargetLabel, {
+                    list = classPowerAnchorTargetList,
+                    value = unitConfig.classPowerBarAnchorTo or "HealthBar",
+                    onChanged = function(value)
+                        SetUnitField("classPowerBarAnchorTo", value)
+                    end,
+                    anchorKey = "class_power_anchor_to",
+                }, unitConfig.showClassPowerBar ~= true)
+            else
+                AddDropdown(anchorParent, classPowerAnchorTargetLabel, classPowerAnchorTargetList, unitConfig.classPowerBarAnchorTo or "HealthBar", function(value)
+                    SetUnitField("classPowerBarAnchorTo", value)
+                end, unitConfig.showClassPowerBar ~= true)
+            end
 
             if usePropertyGroups then
-                AddPointPairRow(geometrySection, {
+                AddPointPairRow(positionSection, {
                     list = barAnchorList,
                     value = unitConfig.classPowerBarPoint or "BOTTOMRIGHT",
                     onChanged = function(value)
@@ -2258,13 +2438,25 @@ function InspectorController.Build(container, state, options)
 
             local offsetXLabel = usePropertyGroups and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset")
             local offsetYLabel = usePropertyGroups and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset")
-            AddSlider(geometrySection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
-                SetUnitField("classPowerBarOffsetX", math.floor((value or 0) + 0.5))
-            end, unitConfig.showClassPowerBar ~= true)
+            if usePropertyGroups then
+                AddPropertySliderRow(positionSection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                    SetUnitField("classPowerBarOffsetX", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            else
+                AddSlider(geometrySection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                    SetUnitField("classPowerBarOffsetX", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            end
 
-            AddSlider(geometrySection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
-                SetUnitField("classPowerBarOffsetY", math.floor((value or 0) + 0.5))
-            end, unitConfig.showClassPowerBar ~= true)
+            if usePropertyGroups then
+                AddPropertySliderRow(positionSection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                    SetUnitField("classPowerBarOffsetY", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            else
+                AddSlider(geometrySection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                    SetUnitField("classPowerBarOffsetY", math.floor((value or 0) + 0.5))
+                end, unitConfig.showClassPowerBar ~= true)
+            end
         end
     end
 
@@ -2298,24 +2490,42 @@ function InspectorController.Build(container, state, options)
         local appearanceSection = castSection
         local geometrySection = castSection
         if usePropertyGroups then
-            generalSection = AddObjectPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            generalSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             if isExpert then
-                geometrySection = AddObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                geometrySection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             end
         end
 
-        AddCheckBox(generalSection, L["OPTION_SHOW_CAST_BAR"] or "Show Cast Bar", unitConfig.showCastBar ~= false, function(value)
-            SetUnitField("showCastBar", value and true or false, castSection)
-        end)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(generalSection, L["OPTION_SHOW"] or "Show", unitConfig.showCastBar ~= false, function(value)
+                SetUnitField("showCastBar", value and true or false, castSection)
+            end)
+        else
+            AddCheckBox(generalSection, L["OPTION_SHOW_CAST_BAR"] or "Show Cast Bar", unitConfig.showCastBar ~= false, function(value)
+                SetUnitField("showCastBar", value and true or false, castSection)
+            end)
+        end
 
-        AddCheckBox(generalSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
-            SetUnitField("showCastBarIcon", value and true or false)
-        end, unitConfig.showCastBar == false)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(generalSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
+                SetUnitField("showCastBarIcon", value and true or false)
+            end, unitConfig.showCastBar == false)
+        else
+            AddCheckBox(generalSection, L["OPTION_SHOW_CAST_BAR_ICON"] or "Show Cast Bar Icon", unitConfig.showCastBarIcon ~= false, function(value)
+                SetUnitField("showCastBarIcon", value and true or false)
+            end, unitConfig.showCastBar == false)
+        end
 
-        AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_COLOR"] or "Cast Bar Color", unitConfig.castBarColor, true, function(value)
-            SetUnitField("castBarColor", value)
-        end, unitConfig.showCastBar == false)
+        if usePropertyGroups then
+            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or L["OPTION_CAST_BAR_COLOR"] or "Color", unitConfig.castBarColor, true, function(value)
+                SetUnitField("castBarColor", value)
+            end, unitConfig.showCastBar == false)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_COLOR"] or "Cast Bar Color", unitConfig.castBarColor, true, function(value)
+                SetUnitField("castBarColor", value)
+            end, unitConfig.showCastBar == false)
+        end
 
         if isExpert then
             local castTextureOptions = BuildStatusBarTextureOptions(unitConfig.castBarTexture)
@@ -2323,17 +2533,17 @@ function InspectorController.Build(container, state, options)
             local function SetCastBarTexture(value)
                 local result = SetUnitField("castBarTexture", value)
                 if not (result and result.ok == false) then
-                    SyncDropdownToStoredValue(castTextureDropdown, unitConfig.castBarTexture)
+                    if castTextureDropdown and type(castTextureDropdown._fpSetPropertyValueText) == "function" then
+                        local storedValue = result and result.newValue or unitConfig.castBarTexture or value
+                        castTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                    else
+                        SyncDropdownToStoredValue(castTextureDropdown, unitConfig.castBarTexture)
+                    end
                 end
                 return result
             end
             if usePropertyGroups then
-                AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
-                castTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
-                    list = castTextureOptions,
-                    value = castTextureOptions.value,
-                    onChanged = SetCastBarTexture,
-                }, function()
+                castTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(castTextureOptions, castTextureOptions.value or unitConfig.castBarTexture), function()
                     OpenMediaBrowserForField({
                         mediaType = MEDIA_TYPE_STATUSBAR,
                         currentValue = function()
@@ -2343,7 +2553,9 @@ function InspectorController.Build(container, state, options)
                         title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
                         onApply = SetCastBarTexture,
                     })
-                end, unitConfig.showCastBar == false)
+                end, unitConfig.showCastBar == false or not IsMediaBrowserAvailable(), {
+                    tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+                })
             else
                 castTextureDropdown = AddDropdown(castSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", castTextureOptions, castTextureOptions.value, SetCastBarTexture, unitConfig.showCastBar == false)
                 AddMediaBrowserForField(castSection, MEDIA_TYPE_STATUSBAR, function()
@@ -2351,9 +2563,15 @@ function InspectorController.Build(container, state, options)
                 end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
             end
 
-            AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
-                SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
-            end, unitConfig.showCastBar == false)
+            if usePropertyGroups then
+                AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                    SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
+                end, unitConfig.showCastBar == false)
+            else
+                AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                    SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
+                end, unitConfig.showCastBar == false)
+            end
         end
     end
 
