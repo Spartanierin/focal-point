@@ -1403,6 +1403,50 @@ function InspectorController.Build(container, state, options)
         return slider
     end
 
+    local function AddPropertyValueTextRow(parent, labelText, valueText, options)
+        local label
+
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            options = type(options) == "table" and options or {}
+            if FormWidgets.CreateBodyText then
+                label = FormWidgets.CreateBodyText(valueText or "", options.variant or "label", 12, nil, nil, true)
+            else
+                label = AceGUI:Create("Label")
+                label:SetFullWidth(true)
+                label:SetText(valueText or "")
+            end
+            valueGroup:AddChild(label)
+        end)
+
+        return label
+    end
+
+    local function AddPropertyActionButtonRow(parent, labelText, buttonText, buttonStyle, width, onClick, disabled)
+        local button
+
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            button = FormWidgets.CreateActionButton
+                and FormWidgets.CreateActionButton(buttonText or labelText or "", buttonStyle or "utility", width or 128, disabled and true or false)
+                or AceGUI:Create("Button")
+            button:SetText(buttonText or labelText or "")
+            button:SetWidth(width or 128)
+            button:SetFullWidth(false)
+            button:SetDisabled(disabled and true or false)
+            if FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(button, buttonStyle or "utility")
+            end
+            button:SetCallback("OnClick", function()
+                if disabled or type(onClick) ~= "function" then
+                    return
+                end
+                onClick()
+            end)
+            valueGroup:AddChild(button)
+        end)
+
+        return button
+    end
+
     local function AddPropertyPickerValueRow(parent, labelText, valueText, onClick, disabled, options)
         local button
         AddPropertyRow(parent, labelText, function(valueGroup)
@@ -2687,6 +2731,26 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local isScopedObject = IsSelectedTextObject(selectedUnit, selectedTextId)
+        local contentSection = textSection
+        local appearanceSection = textSection
+        local positionSection = textSection
+        local advancedSection = textSection
+        local actionsSection = textSection
+
+        if isScopedObject then
+            contentSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_CONTENT"] or "Content", false)
+            appearanceSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            if not isQuick then
+                positionSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_POSITION"] or "Position", true)
+                if type(InspectorMutations.AssignTextStateTemplate) == "function"
+                    and type(InspectorMutations.UnassignTextStateTemplate) == "function"
+                then
+                    advancedSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ADVANCED"] or "Advanced", true)
+                end
+            end
+            actionsSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ACTIONS"] or "Actions", true)
+        else
             AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", currentTextList, selectedTextId, function(value)
                 local ok = type(ObjectSelection.SelectObject) == "function"
                     and ObjectSelection.SelectObject({
@@ -2705,12 +2769,27 @@ function InspectorController.Build(container, state, options)
                     RebuildLocalSection(textSection)
                 end
             end, nil, "text_element")
+        end
 
+        local templateLabel = ((type(linkedTemplateName) == "string" and linkedTemplateName ~= "") and linkedTemplateName or (L["EDITOR_TEXT_DIRECT_TEMPLATE"] or "Direct Template"))
+        if isScopedObject then
+            AddPropertyValueTextRow(contentSection, L["EDITOR_OPTION_TEMPLATE"] or "Template", templateLabel)
+            AddPropertyActionButtonRow(contentSection, L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", "utility", 142, function()
+                local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
+                if library and type(library.Open) == "function" then
+                    library.Open({
+                        mode = "change",
+                        unit = selectedUnit,
+                        textKey = selectedTextId,
+                        initialTemplateName = type(textConfig.templateName) == "string" and textConfig.templateName or nil,
+                    })
+                end
+            end)
+        else
             local templateSummary = AceGUI:Create("Label")
             templateSummary:SetFullWidth(true)
             templateSummary:SetText(
-                (L["EDITOR_TEMPLATE_LINKED"] or "Linked Template") .. ": " ..
-                ((type(linkedTemplateName) == "string" and linkedTemplateName ~= "") and linkedTemplateName or (L["EDITOR_TEXT_DIRECT_TEMPLATE"] or "Direct Template"))
+                (L["EDITOR_TEMPLATE_LINKED"] or "Linked Template") .. ": " .. templateLabel
             )
             if templateSummary.label and templateSummary.label.SetFont then
                 templateSummary.label:SetFont(STANDARD_TEXT_FONT, 10, "")
@@ -2740,159 +2819,321 @@ function InspectorController.Build(container, state, options)
                 FormWidgets.ApplyModalActionButtonVisual(changeTemplateButton, "utility")
             end
             textSection:AddChild(changeTemplateButton)
+        end
 
-            local missingTemplateMessages = BuildMissingTemplateMessages(selectedTextId)
-            if #missingTemplateMessages > 0 then
-                local missingTemplateWarning = AceGUI:Create("Label")
-                missingTemplateWarning:SetFullWidth(true)
-                missingTemplateWarning:SetText(table.concat(missingTemplateMessages, "\n"))
-                if missingTemplateWarning.label and missingTemplateWarning.label.SetFont then
-                    missingTemplateWarning.label:SetFont(STANDARD_TEXT_FONT, 10, "")
-                    missingTemplateWarning.label:SetTextColor(1.00, 0.72, 0.28, 1)
-                end
-                textSection:AddChild(missingTemplateWarning)
+        local missingTemplateMessages = BuildMissingTemplateMessages(selectedTextId)
+        if #missingTemplateMessages > 0 then
+            local missingTemplateWarning = AceGUI:Create("Label")
+            missingTemplateWarning:SetFullWidth(true)
+            missingTemplateWarning:SetText(table.concat(missingTemplateMessages, "\n"))
+            if missingTemplateWarning.label and missingTemplateWarning.label.SetFont then
+                missingTemplateWarning.label:SetFont(STANDARD_TEXT_FONT, 10, "")
+                missingTemplateWarning.label:SetTextColor(1.00, 0.72, 0.28, 1)
             end
+            contentSection:AddChild(missingTemplateWarning)
+        end
 
+        if isScopedObject then
+            AddPropertyCheckBoxRow(contentSection, L["OPTION_ENABLED"] or "Enabled", textConfig.enabled ~= false, function(value)
+                SetTextField(selectedTextId, "enabled", value and true or false, textSection)
+            end, nil, "text_enabled")
+        else
             AddCheckBox(textSection, L["OPTION_ENABLED"] or "Enabled", textConfig.enabled ~= false, function(value)
                 SetTextField(selectedTextId, "enabled", value and true or false, textSection)
             end, nil, "text_enabled")
+        end
+
+        local function AddFontSizeControl(parent)
+            local fontSizeSlider
+            if isScopedObject then
+                fontSizeSlider = AddPropertySliderRow(parent, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                    if activeTextFontSizeControl
+                        and activeTextFontSizeControl.widget == fontSizeSlider
+                        and activeTextFontSizeControl.suppress == true
+                    then
+                        return
+                    end
+                    SetTextFontSize(selectedTextId, value)
+                end, textConfig.enabled == false, "text_font_size")
+            else
+                fontSizeSlider = AddSlider(parent, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                    if activeTextFontSizeControl
+                        and activeTextFontSizeControl.widget == fontSizeSlider
+                        and activeTextFontSizeControl.suppress == true
+                    then
+                        return
+                    end
+                    SetTextFontSize(selectedTextId, value)
+                end, textConfig.enabled == false, "text_font_size")
+            end
+            RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
+        end
 
         if isQuick then
-            local fontSizeSlider
-            fontSizeSlider = AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
-                if activeTextFontSizeControl
-                    and activeTextFontSizeControl.widget == fontSizeSlider
-                    and activeTextFontSizeControl.suppress == true
-                then
-                    return
-                end
-                SetTextFontSize(selectedTextId, value)
-            end, textConfig.enabled == false, "text_font_size")
-            RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
-
-            AddColorPicker(textSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
-                SetTextField(selectedTextId, "color", value)
-            end, textConfig.enabled == false, "text_color")
+            AddFontSizeControl(appearanceSection)
+            if isScopedObject then
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
+                    SetTextField(selectedTextId, "color", value)
+                end, textConfig.enabled == false, "text_color")
+            else
+                AddColorPicker(textSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
+                    SetTextField(selectedTextId, "color", value)
+                end, textConfig.enabled == false, "text_color")
+            end
         else
             local fontOptions = BuildFontOptions(textConfig.font)
             local fontDropdown
             local function SetTextFont(value)
                 local result = SetTextField(selectedTextId, "font", value)
                 if not (result and result.ok == false) then
-                    SyncDropdownToStoredValue(fontDropdown, textConfig.font)
+                    if fontDropdown and type(fontDropdown._fpSetPropertyValueText) == "function" then
+                        local storedValue = result and result.newValue or textConfig.font or value
+                        fontDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildFontOptions(storedValue), storedValue))
+                    else
+                        SyncDropdownToStoredValue(fontDropdown, textConfig.font)
+                    end
                 end
                 return result
             end
-            fontDropdown = AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontOptions, fontOptions.value, SetTextFont, textConfig.enabled == false, "text_font")
-            AddMediaBrowserForField(textSection, MEDIA_TYPE_FONT, function()
-                return textConfig.font
-            end, DEFAULT_FONT_REFERENCE, L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font", textConfig.enabled == false, SetTextFont)
+            if isScopedObject then
+                fontDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_FONT"] or "Font", ResolveOptionValueLabel(fontOptions, fontOptions.value or textConfig.font), function()
+                    OpenMediaBrowserForField({
+                        mediaType = MEDIA_TYPE_FONT,
+                        currentValue = function()
+                            return textConfig.font
+                        end,
+                        fallbackReference = DEFAULT_FONT_REFERENCE,
+                        title = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font",
+                        onApply = SetTextFont,
+                    })
+                end, textConfig.enabled == false or not IsMediaBrowserAvailable(), {
+                    tooltip = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse fonts",
+                })
+                local fontSizeSlider
+                fontSizeSlider = AddPropertySliderRow(appearanceSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                    if activeTextFontSizeControl
+                        and activeTextFontSizeControl.widget == fontSizeSlider
+                        and activeTextFontSizeControl.suppress == true
+                    then
+                        return
+                    end
+                    SetTextFontSize(selectedTextId, value)
+                end, textConfig.enabled == false, "text_font_size")
+                RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
+                AddPropertyDropdownRow(appearanceSection, L["OPTION_FONT_STYLE"] or "Font Style", {
+                    list = fontStyleList,
+                    value = textConfig.fontStyle or "NONE",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "fontStyle", value)
+                    end,
+                    anchorKey = "text_font_style",
+                }, textConfig.enabled == false)
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
+                    SetTextField(selectedTextId, "color", value)
+                end, textConfig.enabled == false, "text_color")
+                AddPropertyDropdownRow(appearanceSection, L["OPTION_JUSTIFY_H"] or "Justify", {
+                    list = justifyList,
+                    value = textConfig.justifyH or "CENTER",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "justifyH", value)
+                    end,
+                    anchorKey = "text_justify",
+                }, textConfig.enabled == false)
+            else
+                fontDropdown = AddDropdown(textSection, L["OPTION_FONT"] or "Font", fontOptions, fontOptions.value, SetTextFont, textConfig.enabled == false, "text_font")
+                AddMediaBrowserForField(textSection, MEDIA_TYPE_FONT, function()
+                    return textConfig.font
+                end, DEFAULT_FONT_REFERENCE, L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font", textConfig.enabled == false, SetTextFont)
 
-            AddDropdown(textSection, L["OPTION_FONT_STYLE"] or "Font Style", fontStyleList, textConfig.fontStyle or "NONE", function(value)
-                SetTextField(selectedTextId, "fontStyle", value)
-            end, textConfig.enabled == false, "text_font_style")
+                AddDropdown(textSection, L["OPTION_FONT_STYLE"] or "Font Style", fontStyleList, textConfig.fontStyle or "NONE", function(value)
+                    SetTextField(selectedTextId, "fontStyle", value)
+                end, textConfig.enabled == false, "text_font_style")
 
-            local fontSizeSlider
-            fontSizeSlider = AddSlider(textSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
-                if activeTextFontSizeControl
-                    and activeTextFontSizeControl.widget == fontSizeSlider
-                    and activeTextFontSizeControl.suppress == true
-                then
-                    return
-                end
-                SetTextFontSize(selectedTextId, value)
-            end, textConfig.enabled == false, "text_font_size")
-            RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
+                AddFontSizeControl(textSection)
 
-            AddDropdown(textSection, L["OPTION_JUSTIFY_H"] or "Justify", justifyList, textConfig.justifyH or "CENTER", function(value)
-                SetTextField(selectedTextId, "justifyH", value)
-            end, textConfig.enabled == false, "text_justify")
+                AddDropdown(textSection, L["OPTION_JUSTIFY_H"] or "Justify", justifyList, textConfig.justifyH or "CENTER", function(value)
+                    SetTextField(selectedTextId, "justifyH", value)
+                end, textConfig.enabled == false, "text_justify")
+            end
 
-            AddDropdown(textSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", textAnchorTargetList, textConfig.anchorTo or "Frame", function(value)
-                SetTextField(selectedTextId, "anchorTo", value)
-            end, textConfig.enabled == false, "text_anchor_to")
+            if isScopedObject then
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                    list = textAnchorTargetList,
+                    value = textConfig.anchorTo or "Frame",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "anchorTo", value)
+                    end,
+                    anchorKey = "text_anchor_to",
+                }, textConfig.enabled == false)
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+                    list = textAnchorPointList,
+                    value = textConfig.point or "CENTER",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "point", value)
+                    end,
+                    anchorKey = "text_point",
+                }, textConfig.enabled == false)
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+                    list = textAnchorPointList,
+                    value = textConfig.relativePoint or "CENTER",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "relativePoint", value)
+                    end,
+                    anchorKey = "text_relative_point",
+                }, textConfig.enabled == false)
+                AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
+                    SetTextField(selectedTextId, "offsetX", math.floor((value or 0) + 0.5))
+                end, textConfig.enabled == false, "text_offset_x")
+                AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
+                    SetTextField(selectedTextId, "offsetY", math.floor((value or 0) + 0.5))
+                end, textConfig.enabled == false, "text_offset_y")
+                AddPropertyDropdownRow(positionSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", {
+                    list = overflowList,
+                    value = textConfig.overflowMode or "NONE",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "overflowMode", value)
+                    end,
+                    anchorKey = "text_overflow",
+                }, textConfig.enabled == false)
+                AddPropertyCheckBoxRow(appearanceSection, L["OPTION_FONT_SHADOW"] or "Shadow", textConfig.shadowEnabled ~= false, function(value)
+                    SetTextField(selectedTextId, "shadowEnabled", value and true or false)
+                end, textConfig.enabled == false, "text_shadow")
+                AddPropertyColorRow(appearanceSection, L["OPTION_SHADOW_COLOR"] or "Shadow Color", textConfig.shadowColor, true, function(value)
+                    SetTextField(selectedTextId, "shadowColor", value)
+                end, textConfig.enabled == false or textConfig.shadowEnabled == false, "text_shadow_color")
+            else
+                AddDropdown(textSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", textAnchorTargetList, textConfig.anchorTo or "Frame", function(value)
+                    SetTextField(selectedTextId, "anchorTo", value)
+                end, textConfig.enabled == false, "text_anchor_to")
 
-            AddDropdown(textSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", textAnchorPointList, textConfig.point or "CENTER", function(value)
-                SetTextField(selectedTextId, "point", value)
-            end, textConfig.enabled == false, "text_point")
+                AddDropdown(textSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", textAnchorPointList, textConfig.point or "CENTER", function(value)
+                    SetTextField(selectedTextId, "point", value)
+                end, textConfig.enabled == false, "text_point")
 
-            AddDropdown(textSection, L["OPTION_ANCHOR_TO"] or "Anchor To", textAnchorPointList, textConfig.relativePoint or "CENTER", function(value)
-                SetTextField(selectedTextId, "relativePoint", value)
-            end, textConfig.enabled == false, "text_relative_point")
+                AddDropdown(textSection, L["OPTION_ANCHOR_TO"] or "Anchor To", textAnchorPointList, textConfig.relativePoint or "CENTER", function(value)
+                    SetTextField(selectedTextId, "relativePoint", value)
+                end, textConfig.enabled == false, "text_relative_point")
 
-            AddSlider(textSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
-                SetTextField(selectedTextId, "offsetX", math.floor((value or 0) + 0.5))
-            end, textConfig.enabled == false, "text_offset_x")
+                AddSlider(textSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
+                    SetTextField(selectedTextId, "offsetX", math.floor((value or 0) + 0.5))
+                end, textConfig.enabled == false, "text_offset_x")
 
-            AddSlider(textSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
-                SetTextField(selectedTextId, "offsetY", math.floor((value or 0) + 0.5))
-            end, textConfig.enabled == false, "text_offset_y")
+                AddSlider(textSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
+                    SetTextField(selectedTextId, "offsetY", math.floor((value or 0) + 0.5))
+                end, textConfig.enabled == false, "text_offset_y")
 
-            AddDropdown(textSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", overflowList, textConfig.overflowMode or "NONE", function(value)
-                SetTextField(selectedTextId, "overflowMode", value)
-            end, textConfig.enabled == false, "text_overflow")
+                AddDropdown(textSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", overflowList, textConfig.overflowMode or "NONE", function(value)
+                    SetTextField(selectedTextId, "overflowMode", value)
+                end, textConfig.enabled == false, "text_overflow")
 
-            AddCheckBox(textSection, L["OPTION_FONT_SHADOW"] or "Shadow", textConfig.shadowEnabled ~= false, function(value)
-                SetTextField(selectedTextId, "shadowEnabled", value and true or false)
-            end, textConfig.enabled == false, "text_shadow")
+                AddCheckBox(textSection, L["OPTION_FONT_SHADOW"] or "Shadow", textConfig.shadowEnabled ~= false, function(value)
+                    SetTextField(selectedTextId, "shadowEnabled", value and true or false)
+                end, textConfig.enabled == false, "text_shadow")
 
-            AddColorPicker(textSection, L["OPTION_SHADOW_COLOR"] or "Shadow Color", textConfig.shadowColor, true, function(value)
-                SetTextField(selectedTextId, "shadowColor", value)
-            end, textConfig.enabled == false or textConfig.shadowEnabled == false, "text_shadow_color")
+                AddColorPicker(textSection, L["OPTION_SHADOW_COLOR"] or "Shadow Color", textConfig.shadowColor, true, function(value)
+                    SetTextField(selectedTextId, "shadowColor", value)
+                end, textConfig.enabled == false or textConfig.shadowEnabled == false, "text_shadow_color")
+            end
 
             if type(InspectorMutations.AssignTextStateTemplate) == "function"
                 and type(InspectorMutations.UnassignTextStateTemplate) == "function"
             then
-                AddSpacer(textSection, 6)
-                local stateTemplateTitle = AceGUI:Create("Label")
-                stateTemplateTitle:SetFullWidth(true)
-                stateTemplateTitle:SetText(L["TEXT_STATE_TEMPLATES"] or "State Templates")
-                if stateTemplateTitle.label and stateTemplateTitle.label.SetFont then
-                    stateTemplateTitle.label:SetFont(STANDARD_TEXT_FONT, 11, "")
-                    stateTemplateTitle.label:SetTextColor(0.68, 0.70, 0.75, 1)
+                if not isScopedObject then
+                    AddSpacer(textSection, 6)
+                    local stateTemplateTitle = AceGUI:Create("Label")
+                    stateTemplateTitle:SetFullWidth(true)
+                    stateTemplateTitle:SetText(L["TEXT_STATE_TEMPLATES"] or "State Templates")
+                    if stateTemplateTitle.label and stateTemplateTitle.label.SetFont then
+                        stateTemplateTitle.label:SetFont(STANDARD_TEXT_FONT, 11, "")
+                        stateTemplateTitle.label:SetTextColor(0.68, 0.70, 0.75, 1)
+                    end
+                    textSection:AddChild(stateTemplateTitle)
                 end
-                textSection:AddChild(stateTemplateTitle)
 
                 local stateTemplates = type(textConfig.stateTemplates) == "table" and textConfig.stateTemplates or nil
                 local deadTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.dead or nil)
                 local deadTemplateDropdown
-                deadTemplateDropdown = AddDropdown(textSection, L["TEXT_DEAD_TEMPLATE"] or "Dead Template", deadTemplateOptions, deadTemplateOptions.value, function(value)
-                    SetTextStateTemplate(selectedTextId, "dead", value, textSection, deadTemplateDropdown)
-                end, textConfig.enabled == false, "text_dead_template")
+                if isScopedObject then
+                    deadTemplateDropdown = AddPropertyDropdownRow(advancedSection, L["TEXT_DEAD_TEMPLATE"] or "Dead Template", {
+                        list = deadTemplateOptions,
+                        value = deadTemplateOptions.value,
+                        onChanged = function(value)
+                            SetTextStateTemplate(selectedTextId, "dead", value, textSection, deadTemplateDropdown)
+                        end,
+                        anchorKey = "text_dead_template",
+                    }, textConfig.enabled == false)
+                else
+                    deadTemplateDropdown = AddDropdown(textSection, L["TEXT_DEAD_TEMPLATE"] or "Dead Template", deadTemplateOptions, deadTemplateOptions.value, function(value)
+                        SetTextStateTemplate(selectedTextId, "dead", value, textSection, deadTemplateDropdown)
+                    end, textConfig.enabled == false, "text_dead_template")
+                end
 
                 local ghostTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.ghost or nil)
                 local ghostTemplateDropdown
-                ghostTemplateDropdown = AddDropdown(textSection, L["TEXT_GHOST_TEMPLATE"] or "Ghost Template", ghostTemplateOptions, ghostTemplateOptions.value, function(value)
-                    SetTextStateTemplate(selectedTextId, "ghost", value, textSection, ghostTemplateDropdown)
-                end, textConfig.enabled == false, "text_ghost_template")
+                if isScopedObject then
+                    ghostTemplateDropdown = AddPropertyDropdownRow(advancedSection, L["TEXT_GHOST_TEMPLATE"] or "Ghost Template", {
+                        list = ghostTemplateOptions,
+                        value = ghostTemplateOptions.value,
+                        onChanged = function(value)
+                            SetTextStateTemplate(selectedTextId, "ghost", value, textSection, ghostTemplateDropdown)
+                        end,
+                        anchorKey = "text_ghost_template",
+                    }, textConfig.enabled == false)
+                else
+                    ghostTemplateDropdown = AddDropdown(textSection, L["TEXT_GHOST_TEMPLATE"] or "Ghost Template", ghostTemplateOptions, ghostTemplateOptions.value, function(value)
+                        SetTextStateTemplate(selectedTextId, "ghost", value, textSection, ghostTemplateDropdown)
+                    end, textConfig.enabled == false, "text_ghost_template")
+                end
             end
         end
 
         if IsSelectedTextObject(selectedUnit, selectedTextId) then
-            AddSpacer(textSection, 10)
-            local deleteTextButton = FormWidgets.CreateActionButton
-                and FormWidgets.CreateActionButton(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "danger", 128, false)
-                or AceGUI:Create("Button")
-            deleteTextButton:SetText(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text")
-            deleteTextButton:SetWidth(128)
-            deleteTextButton:SetFullWidth(false)
-            if FormWidgets.ApplyModalActionButtonVisual then
-                FormWidgets.ApplyModalActionButtonVisual(deleteTextButton, "danger")
+            if isScopedObject then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "danger", 128, function()
+                    OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)
+                end)
+            else
+                AddSpacer(textSection, 10)
+                local deleteTextButton = FormWidgets.CreateActionButton
+                    and FormWidgets.CreateActionButton(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "danger", 128, false)
+                    or AceGUI:Create("Button")
+                deleteTextButton:SetText(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text")
+                deleteTextButton:SetWidth(128)
+                deleteTextButton:SetFullWidth(false)
+                if FormWidgets.ApplyModalActionButtonVisual then
+                    FormWidgets.ApplyModalActionButtonVisual(deleteTextButton, "danger")
+                end
+                deleteTextButton:SetCallback("OnClick", function()
+                    OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)
+                end)
+                textSection:AddChild(deleteTextButton)
             end
-            deleteTextButton:SetCallback("OnClick", function()
-                OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)
-            end)
-            textSection:AddChild(deleteTextButton)
         end
     end
 
-    if select(2, ResolveTextContext()) then
-        AddScopedInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true, {
-            localContentBuilder = BuildTextSectionContent,
-            layoutRefresh = RefreshInspectorLayout,
-        })
+    local function ResolveSelectedTextInspectorTitle()
+        local selectedTextId, textConfig = ResolveTextContext()
+        if not textConfig then
+            return L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements"
+        end
+        local textLabel = selectedTextId
+        if type(textConfig.templateName) == "string" and textConfig.templateName ~= "" then
+            textLabel = textConfig.templateName
+        end
+        return string.format("%s: %s", L["EDITOR_OPTION_TEXT"] or "Text", textLabel or selectedTextId or "")
     end
 
+    if select(2, ResolveTextContext()) then
+        local selectedTextId = ResolveTextContext()
+        if IsSelectedTextObject(selectedUnit, selectedTextId) then
+            AddScopedObjectInspectorBody("texts", ResolveSelectedTextInspectorTitle(), BuildTextSectionContent)
+        else
+            AddScopedInspectorSection("texts", L["EDITOR_SECTION_TEXT_ELEMENTS"] or "Text Elements", true, {
+                localContentBuilder = BuildTextSectionContent,
+                layoutRefresh = RefreshInspectorLayout,
+            })
+        end
+    end
     local function BuildIndicatorSectionContent(indicatorSection)
         local selectedIndicatorKey, indicatorMeta, indicatorConfig, _, currentIndicatorList = ResolveIndicatorContext()
         if not indicatorSection or type(indicatorConfig) ~= "table" or type(indicatorMeta) ~= "table" then
