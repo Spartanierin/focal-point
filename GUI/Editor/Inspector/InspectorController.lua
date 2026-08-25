@@ -238,6 +238,23 @@ function InspectorController.Build(container, state, options)
         }
     end
 
+    local function ResolveOptionValueLabel(options, value)
+        if type(options) == "table" then
+            local values = type(options.values) == "table" and options.values or nil
+            if values and type(value) == "string" and values[value] ~= nil then
+                return tostring(values[value])
+            end
+            local selected = options.value
+            if values and type(selected) == "string" and values[selected] ~= nil then
+                return tostring(values[selected])
+            end
+        end
+        if type(value) == "string" and value ~= "" then
+            return value
+        end
+        return L["OPTION_NONE"] or "None"
+    end
+
     local function BuildFontOptions(currentValue)
         if MediaOptionAdapter and MediaOptionAdapter.BuildFontDropdown then
             return MediaOptionAdapter.BuildFontDropdown(currentValue)
@@ -1049,25 +1066,20 @@ function InspectorController.Build(container, state, options)
     end
 
     local function AddObjectInspectorHeader(parent, title, subtitle)
+        local headerTitle = title or ""
+        if type(subtitle) == "string" and subtitle ~= "" then
+            headerTitle = subtitle .. " / " .. headerTitle
+        end
+
         local titleLabel
         if FormWidgets.CreateSectionTitle then
-            titleLabel = FormWidgets.CreateSectionTitle(title or "")
+            titleLabel = FormWidgets.CreateSectionTitle(headerTitle)
         else
             titleLabel = AceGUI:Create("Label")
             titleLabel:SetFullWidth(true)
-            titleLabel:SetText(title or "")
+            titleLabel:SetText(headerTitle)
         end
         parent:AddChild(titleLabel)
-
-        local subtitleLabel
-        if FormWidgets.CreateBodyText then
-            subtitleLabel = FormWidgets.CreateBodyText(subtitle or "", "description", 11, ResolveItemColor and ResolveItemColor("statusMuted") or nil)
-        else
-            subtitleLabel = AceGUI:Create("Label")
-            subtitleLabel:SetFullWidth(true)
-            subtitleLabel:SetText(subtitle or "")
-        end
-        parent:AddChild(subtitleLabel)
     end
 
     local function AddScopedObjectInspectorBody(sectionKey, title, localContentBuilder)
@@ -1176,6 +1188,21 @@ function InspectorController.Build(container, state, options)
         return content
     end
 
+    local function AddFramedObjectPropertyGroup(parent, title, addTopSpacing)
+        if addTopSpacing then
+            AddSpacer(parent, 8)
+        end
+
+        local group = CreateSection(parent, title, {
+            collapsible = false,
+            style = "default",
+        })
+        if group and InspectorBinding.ApplyInspectorSectionStructure then
+            InspectorBinding.ApplyInspectorSectionStructure(group, "muted")
+        end
+        return group
+    end
+
     local function AddPropertyLabel(parent, text)
         if not parent then
             return nil
@@ -1191,6 +1218,54 @@ function InspectorController.Build(container, state, options)
         end
         parent:AddChild(label)
         return label
+    end
+
+    local PROPERTY_LABEL_WIDTH = 108
+
+    local function AddPropertyRow(parent, labelText, valueBuilder, options)
+        if not parent then
+            return nil, nil
+        end
+
+        options = type(options) == "table" and options or {}
+
+        local row = AceGUI:Create("SimpleGroup")
+        row:SetFullWidth(true)
+        row:SetLayout("Table")
+        row:SetUserData("table", {
+            columns = {
+                { width = options.labelWidth or PROPERTY_LABEL_WIDTH },
+                { weight = 1 },
+            },
+            spaceH = options.spaceH or 8,
+            spaceV = 0,
+            align = "TOPLEFT",
+            alignV = options.alignV or "center",
+            alignH = "start",
+        })
+        parent:AddChild(row)
+
+        local label
+        if FormWidgets.CreateBodyText then
+            label = FormWidgets.CreateBodyText(labelText or "", "label", 12, nil, options.labelWidth or PROPERTY_LABEL_WIDTH, false)
+        else
+            label = AceGUI:Create("Label")
+            label:SetText(labelText or "")
+            label:SetFullWidth(false)
+            label:SetWidth(options.labelWidth or PROPERTY_LABEL_WIDTH)
+        end
+        row:AddChild(label)
+
+        local value = AceGUI:Create("SimpleGroup")
+        value:SetFullWidth(true)
+        value:SetLayout(options.valueLayout or "Flow")
+        row:AddChild(value)
+
+        if type(valueBuilder) == "function" then
+            valueBuilder(value, row, label)
+        end
+
+        return row, value
     end
 
     local function CreateTwoControlTableRow(parent, rightColumnWidth)
@@ -1260,6 +1335,151 @@ function InspectorController.Build(container, state, options)
             width = 80,
         })
         return dropdown, browse
+    end
+
+    local function AddPropertyDropdownBrowseRow(parent, labelText, dropdownOptions, browseCallback, disabled)
+        local dropdown
+        local browse
+
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            valueGroup:SetLayout("Table")
+            valueGroup:SetUserData("table", {
+                columns = {
+                    { weight = 1 },
+                    { width = 80 },
+                },
+                spaceH = 8,
+                spaceV = 0,
+                align = "TOPLEFT",
+                alignV = "start",
+                alignH = "start",
+            })
+
+            dropdownOptions = type(dropdownOptions) == "table" and dropdownOptions or {}
+            dropdown = AddDropdown(
+                valueGroup,
+                "",
+                dropdownOptions.list,
+                dropdownOptions.value,
+                dropdownOptions.onChanged,
+                disabled,
+                dropdownOptions.anchorKey
+            )
+
+            browse = AddMediaBrowseButton(valueGroup, disabled, browseCallback, {
+                width = 80,
+            })
+        end)
+
+        return dropdown, browse
+    end
+
+    local function AddPropertyPickerValueRow(parent, labelText, valueText, onClick, disabled, options)
+        local button
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            options = type(options) == "table" and options or {}
+            button = AceGUI:Create("Button")
+            if FormWidgets.ResetInspectorButtonState then
+                FormWidgets.ResetInspectorButtonState(button)
+            end
+            button:SetFullWidth(true)
+            button:SetText(string.format("%s %s", valueText or (L["OPTION_NONE"] or "None"), options.glyph or "v"))
+            if button.text and button.text.SetJustifyH then
+                button.text:SetJustifyH("LEFT")
+            end
+            button:SetDisabled(disabled and true or false)
+            button:SetCallback("OnClick", function()
+                if disabled or type(onClick) ~= "function" then
+                    return
+                end
+                onClick()
+            end)
+            if FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(button, "utility")
+            elseif FormWidgets.StyleActionButton then
+                FormWidgets.StyleActionButton(button, "utility")
+            end
+            if FormWidgets.SetInspectorButtonTooltip then
+                FormWidgets.SetInspectorButtonTooltip(button, options.tooltip)
+            end
+            button._fpSetPropertyValueText = function(newText)
+                button:SetText(string.format("%s %s", newText or (L["OPTION_NONE"] or "None"), options.glyph or "v"))
+            end
+            valueGroup:AddChild(button)
+        end)
+        return button
+    end
+
+    local function AddPropertyCheckBoxRow(parent, labelText, value, onChanged, disabled, anchorKey)
+        local checkbox
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            local function ResolveValueLabel(currentValue)
+                return currentValue and (L["OPTION_ON"] or "On") or (L["OPTION_OFF"] or "Off")
+            end
+
+            checkbox = AddCheckBox(valueGroup, ResolveValueLabel(value), value, function(newValue)
+                if checkbox and checkbox.SetLabel then
+                    checkbox:SetLabel(ResolveValueLabel(newValue))
+                end
+                if onChanged then
+                    onChanged(newValue)
+                end
+            end, disabled, anchorKey)
+        end)
+
+        return checkbox
+    end
+
+    local function AddPropertyColorRow(parent, labelText, color, hasAlpha, onChanged, disabled, anchorKey)
+        local colorPicker
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            colorPicker = AddColorPicker(valueGroup, "", color, hasAlpha, onChanged, disabled, anchorKey)
+        end)
+        return colorPicker
+    end
+
+    local function AddPropertyToggleColorRow(parent, labelText, toggleOptions, colorOptions)
+        local toggle
+        local color
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            valueGroup:SetLayout("Table")
+            valueGroup:SetUserData("table", {
+                columns = {
+                    { width = 72 },
+                    { weight = 1 },
+                },
+                spaceH = 8,
+                spaceV = 0,
+                align = "TOPLEFT",
+                alignV = "start",
+                alignH = "start",
+            })
+
+            toggleOptions = type(toggleOptions) == "table" and toggleOptions or {}
+            colorOptions = type(colorOptions) == "table" and colorOptions or {}
+            local function ResolveValueLabel(currentValue)
+                return currentValue and (L["OPTION_ON"] or "On") or (L["OPTION_OFF"] or "Off")
+            end
+            toggle = AddCheckBox(valueGroup, ResolveValueLabel(toggleOptions.value), toggleOptions.value, function(newValue)
+                if toggle and toggle.SetLabel then
+                    toggle:SetLabel(ResolveValueLabel(newValue))
+                end
+                if toggleOptions.onChanged then
+                    toggleOptions.onChanged(newValue)
+                end
+            end, toggleOptions.disabled, toggleOptions.anchorKey)
+            color = AddColorPicker(
+                valueGroup,
+                "",
+                colorOptions.color,
+                colorOptions.hasAlpha ~= false,
+                colorOptions.onChanged,
+                colorOptions.disabled,
+                colorOptions.anchorKey
+            )
+        end)
+
+        return toggle, color
     end
 
     local function AddToggleColorRow(parent, toggleOptions, colorOptions)
@@ -1373,11 +1593,15 @@ function InspectorController.Build(container, state, options)
 
         local usePropertyGroups = IsScopedHealthBarObjectMode()
         local appearanceSection = healthSection
+        local backgroundSection = healthSection
         local behaviorSection = healthSection
         if usePropertyGroups then
-            appearanceSection = AddObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            appearanceSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
             if isExpert then
-                behaviorSection = AddObjectPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                backgroundSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            end
+            if isExpert then
+                behaviorSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
         end
 
@@ -1386,17 +1610,17 @@ function InspectorController.Build(container, state, options)
         local function SetHealthBarTexture(value)
             local result = SetUnitField("healthBarTexture", value)
             if not (result and result.ok == false) then
-                SyncDropdownToStoredValue(healthTextureDropdown, unitConfig.healthBarTexture)
+                if healthTextureDropdown and type(healthTextureDropdown._fpSetPropertyValueText) == "function" then
+                    local storedValue = result and result.newValue or unitConfig.healthBarTexture or value
+                    healthTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(healthTextureDropdown, unitConfig.healthBarTexture)
+                end
             end
             return result
         end
         if usePropertyGroups then
-            AddPropertyLabel(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture")
-            healthTextureDropdown = AddDropdownBrowseRow(appearanceSection, {
-                list = healthTextureOptions,
-                value = healthTextureOptions.value,
-                onChanged = SetHealthBarTexture,
-            }, function()
+            healthTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(healthTextureOptions, healthTextureOptions.value or unitConfig.healthBarTexture), function()
                 OpenMediaBrowserForField({
                     mediaType = MEDIA_TYPE_STATUSBAR,
                     currentValue = function()
@@ -1406,7 +1630,9 @@ function InspectorController.Build(container, state, options)
                     title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
                     onApply = SetHealthBarTexture,
                 })
-            end)
+            end, not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+            })
         else
             healthTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
             AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
@@ -1414,30 +1640,52 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
         end
 
-        AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
-            SetUnitField("useClassColorHealth", value and true or false, healthSection)
-        end)
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_CLASS_COLOR"] or L["OPTION_USE_CLASS_COLORS"] or "Class Color", unitConfig.useClassColorHealth == true, function(value)
+                SetUnitField("useClassColorHealth", value and true or false, healthSection)
+            end)
+        else
+            AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
+                SetUnitField("useClassColorHealth", value and true or false, healthSection)
+            end)
+        end
 
         if isExpert then
-            AddCheckBox(appearanceSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
-                SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
-            end)
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(appearanceSection, L["OPTION_REACTION_COLOR"] or L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Reaction Color", unitConfig.useReactionColorNpcHealth == true, function(value)
+                    SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
+                end)
+            else
+                AddCheckBox(appearanceSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
+                    SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
+                end)
+            end
 
-            AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
-                SetUnitField("healthBarReverseFill", value and true or false)
-            end)
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
+                    SetUnitField("healthBarReverseFill", value and true or false)
+                end)
+            else
+                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
+                    SetUnitField("healthBarReverseFill", value and true or false)
+                end)
+            end
         end
 
         if isQuick or unitConfig.useClassColorHealth ~= true then
-            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
-                SetUnitField("healthColor", value)
-            end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            if usePropertyGroups then
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+                    SetUnitField("healthColor", value)
+                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            else
+                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+                    SetUnitField("healthColor", value)
+                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            end
         end
 
         if usePropertyGroups then
-            AddPropertyLabel(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color")
-            AddToggleColorRow(appearanceSection, {
-                label = L["OPTION_ENABLED"] or "Enabled",
+            AddPropertyToggleColorRow(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", {
                 value = unitConfig.useLowHealthColor ~= false,
                 onChanged = function(value)
                     SetUnitField("useLowHealthColor", value and true or false, healthSection)
@@ -1462,21 +1710,13 @@ function InspectorController.Build(container, state, options)
 
         if isExpert then
             if usePropertyGroups then
-                AddPropertyLabel(appearanceSection, L["OPTION_BACKGROUND"] or "Background")
-                AddToggleColorRow(appearanceSection, {
-                    label = L["OPTION_ENABLED"] or "Enabled",
-                    value = unitConfig.healthBackground ~= false,
-                    onChanged = function(value)
-                        SetUnitField("healthBackground", value and true or false, healthSection)
-                    end,
-                }, {
-                    color = unitConfig.healthBackgroundColor,
-                    hasAlpha = true,
-                    onChanged = function(value)
-                        SetUnitField("healthBackgroundColor", value)
-                    end,
-                    disabled = unitConfig.healthBackground == false,
-                })
+                AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", unitConfig.healthBackground ~= false, function(value)
+                    SetUnitField("healthBackground", value and true or false, healthSection)
+                end)
+
+                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.healthBackgroundColor, true, function(value)
+                    SetUnitField("healthBackgroundColor", value)
+                end, unitConfig.healthBackground == false)
             else
                 AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
                     SetUnitField("healthBackground", value and true or false, healthSection)
