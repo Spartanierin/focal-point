@@ -17,13 +17,14 @@ local Adapter = ns.CompositionTreeAdapter or (ns.GUI.Editor.Composition and ns.G
 local ObjectSelection = ns.GUI.Editor.ObjectSelection or {}
 
 local ROW_WIDGET_TYPE = "FocalPointCompositionTreeRow"
-local ROW_WIDGET_VERSION = 1
+local ROW_WIDGET_VERSION = 2
 local ROW_HEIGHT_CLICKABLE = 12
 local ROW_HEIGHT_STATIC = 12
 local ROW_INDENT = 8
 local ROW_TEXT_INSET = 4
 local ROW_TEXT_RIGHT_INSET = 3
 local ROW_ACCENT_WIDTH = 2
+local ROW_CHEVRON_SIZE = 8
 local ROW_ICON_SIZE = 10
 local ROW_TOGGLE_SIZE = 9
 local ROW_LABEL_GAP = 3
@@ -43,9 +44,12 @@ local ROW_COLORS = {
     textFallback = { 0.76, 0.79, 0.84, 1.00 },
     icon = { 0.72, 0.68, 0.54, 0.92 },
     iconContainer = { 0.50, 0.54, 0.60, 0.82 },
+    chevron = { 0.60, 0.64, 0.70, 0.88 },
     toggleOn = { 0.90, 0.78, 0.34, 0.92 },
     toggleOff = { 0.42, 0.45, 0.50, 0.58 },
 }
+
+local treeUiStateByUnit = {}
 
 local function ResolveColor(role, fallback)
     return (ResolveItemColor and ResolveItemColor(role)) or fallback
@@ -226,17 +230,52 @@ local function GetToggleSpec(node)
     return spec
 end
 
+local function HasChildren(node)
+    return type(node) == "table" and type(node.children) == "table" and #node.children > 0
+end
+
+local function ResolveTreeStateKey(unit)
+    if type(unit) == "string" and unit ~= "" then
+        return unit
+    end
+    return "__default"
+end
+
+local function GetTreeUiState(unit)
+    local key = ResolveTreeStateKey(unit)
+    local state = treeUiStateByUnit[key]
+    if type(state) ~= "table" then
+        state = {
+            expanded = {},
+            scroll = { scrollvalue = 0 },
+        }
+        treeUiStateByUnit[key] = state
+    end
+    state.expanded = type(state.expanded) == "table" and state.expanded or {}
+    state.scroll = type(state.scroll) == "table" and state.scroll or { scrollvalue = 0 }
+    return state
+end
+
+local function IsExpanded(node, expansionState)
+    if not HasChildren(node) then
+        return false
+    end
+    return not (type(expansionState) == "table" and expansionState[node.id] == false)
+end
+
 local function IsToggleableNode(node)
     return GetToggleSpec(node) ~= nil
 end
 
-local function CountRows(node)
+local function CountVisibleRows(node, expansionState)
     if type(node) ~= "table" then
         return 0
     end
     local count = 1
-    for _, child in ipairs(node.children or {}) do
-        count = count + CountRows(child)
+    if IsExpanded(node, expansionState) then
+        for _, child in ipairs(node.children or {}) do
+            count = count + CountVisibleRows(child, expansionState)
+        end
     end
     return count
 end
@@ -253,6 +292,8 @@ local function ResolveTreeScrollHeight(rowCount, options)
     end
     return math.min(maxHeight, math.max(minHeight, height))
 end
+
+local IsActiveNode
 
 local function BuildObjectRef(node)
     if not IsClickableNode(node) then
@@ -323,7 +364,55 @@ local function BuildObjectRef(node)
     return nil
 end
 
-local function IsActiveNode(node, state)
+local function RevealActiveNode(node, state, expansionState)
+    if type(node) ~= "table" then
+        return false
+    end
+    if IsActiveNode(node, state) then
+        return true
+    end
+    for _, child in ipairs(node.children or {}) do
+        if RevealActiveNode(child, state, expansionState) then
+            if HasChildren(node) then
+                expansionState[node.id] = true
+            end
+            return true
+        end
+    end
+    return false
+end
+
+local function AdjustScrollForSelection(scrollStatus, selectedRowIndex, rowCount, scrollHeight)
+    selectedRowIndex = tonumber(selectedRowIndex)
+    rowCount = tonumber(rowCount) or 0
+    if not (type(scrollStatus) == "table" and selectedRowIndex and selectedRowIndex > 0 and rowCount > 0) then
+        return
+    end
+
+    local visibleRows = math.max(1, math.floor((tonumber(scrollHeight) or TREE_SCROLL_MIN_HEIGHT) / TREE_ROW_ESTIMATED_HEIGHT))
+    if rowCount <= visibleRows then
+        scrollStatus.scrollvalue = 0
+        return
+    end
+
+    local maxFirstRow = rowCount - visibleRows + 1
+    local currentValue = tonumber(scrollStatus.scrollvalue) or 0
+    local firstRow = math.floor((maxFirstRow - 1) * math.max(0, math.min(1000, currentValue)) / 1000) + 1
+    local lastRow = firstRow + visibleRows - 1
+
+    if selectedRowIndex < firstRow then
+        firstRow = selectedRowIndex
+    elseif selectedRowIndex > lastRow then
+        firstRow = selectedRowIndex - visibleRows + 1
+    else
+        return
+    end
+
+    firstRow = math.max(1, math.min(maxFirstRow, firstRow))
+    scrollStatus.scrollvalue = (firstRow - 1) / (maxFirstRow - 1) * 1000
+end
+
+function IsActiveNode(node, state)
     if not IsClickableNode(node) or type(state) ~= "table" then
         return false
     end
@@ -398,9 +487,15 @@ local function ApplyRowGeometry(row)
     local depth = math.max(0, tonumber(row.depth) or 0)
     local indent = ROW_TEXT_INSET + depth * ROW_INDENT
 
+    if row.expander then
+        row.expander:ClearAllPoints()
+        row.expander:SetPoint("LEFT", row.frame, "LEFT", indent, 0)
+        row.expander:SetSize(ROW_CHEVRON_SIZE + 3, ROW_CHEVRON_SIZE + 3)
+    end
+
     if row.icon then
         row.icon:ClearAllPoints()
-        row.icon:SetPoint("LEFT", row.frame, "LEFT", indent, 0)
+        row.icon:SetPoint("LEFT", row.expander or row.frame, row.expander and "RIGHT" or "LEFT", row.expander and 1 or indent, 0)
         row.icon:SetSize(ROW_ICON_SIZE, ROW_ICON_SIZE)
     end
 
@@ -458,6 +553,22 @@ local function ApplyRowVisualState(row)
             and ResolveColor("statusMuted", ROW_COLORS.iconContainer)
             or ResolveColor("description", ROW_COLORS.icon)
         row.icon:SetTextColor(iconColor[1] or 1, iconColor[2] or 1, iconColor[3] or 1, iconColor[4] or 1)
+    end
+
+    if row.expander then
+        if row.expandable then
+            row.expander:Show()
+            if row.expanderGlyph then
+                row.expanderGlyph:SetText(row.expanded and "v" or ">")
+                local color = ResolveColor("description", ROW_COLORS.chevron)
+                row.expanderGlyph:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+            end
+        else
+            row.expander:Hide()
+            if row.expanderGlyph then
+                row.expanderGlyph:SetText("")
+            end
+        end
     end
 
     if row.toggle then
@@ -522,11 +633,14 @@ local function RegisterCompositionTreeRowWidget()
         self.clickable = false
         self.hovered = false
         self.toggleable = false
+        self.expandable = false
+        self.expanded = false
         if self.events then
             self.events.OnClick = nil
             self.events.OnEnter = nil
             self.events.OnLeave = nil
             self.events.OnToggle = nil
+            self.events.OnExpandToggle = nil
         end
         if self.frame then
             self.frame:EnableMouse(false)
@@ -546,11 +660,14 @@ local function RegisterCompositionTreeRowWidget()
         self.clickable = false
         self.hovered = false
         self.toggleable = false
+        self.expandable = false
+        self.expanded = false
         if self.events then
             self.events.OnClick = nil
             self.events.OnEnter = nil
             self.events.OnLeave = nil
             self.events.OnToggle = nil
+            self.events.OnExpandToggle = nil
         end
         if self.frame then
             self.frame:EnableMouse(false)
@@ -567,18 +684,33 @@ local function RegisterCompositionTreeRowWidget()
         if self.toggle then
             self.toggle:Hide()
         end
+        if self.expander then
+            self.expander:Hide()
+        end
+        if self.expanderGlyph then
+            self.expanderGlyph:SetText("")
+        end
     end
 
-    function methods:SetRow(node, depth, state, clickable)
+    function methods:SetRow(node, depth, state, clickable, expandable, expanded)
         self.node = node
         self.depth = math.max(0, tonumber(depth) or 0)
         self.state = state
         self.clickable = clickable == true
         self.hovered = false
         self.toggleable = IsToggleableNode(node)
+        self.expandable = expandable == true
+        self.expanded = expanded == true
         self:SetHeight(self.clickable and ROW_HEIGHT_CLICKABLE or ROW_HEIGHT_STATIC)
         if self.frame then
-            self.frame:EnableMouse(self.clickable or self.toggleable)
+            self.frame:EnableMouse(self.clickable or self.toggleable or self.expandable)
+        end
+        if self.expander then
+            if self.expandable then
+                self.expander:Show()
+            else
+                self.expander:Hide()
+            end
         end
         if self.toggle then
             if self.toggleable then
@@ -620,6 +752,16 @@ local function RegisterCompositionTreeRowWidget()
             label:SetMaxLines(1)
         end
 
+        local expander = CreateFrame("Button", nil, frame)
+        expander:Hide()
+        expander:EnableMouse(true)
+
+        local expanderGlyph = expander:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        expanderGlyph:SetPoint("CENTER")
+        expanderGlyph:SetJustifyH("CENTER")
+        expanderGlyph:SetJustifyV("MIDDLE")
+        expanderGlyph:SetText("")
+
         local icon = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         icon:SetJustifyH("CENTER")
         icon:SetJustifyV("MIDDLE")
@@ -641,12 +783,15 @@ local function RegisterCompositionTreeRowWidget()
             type = ROW_WIDGET_TYPE,
             background = background,
             accent = accent,
+            expander = expander,
+            expanderGlyph = expanderGlyph,
             icon = icon,
             label = label,
             toggle = toggle,
             toggleGlyph = toggleGlyph,
         }
         frame.obj = widget
+        expander.obj = widget
         toggle.obj = widget
 
         frame:SetScript("OnEnter", function(self)
@@ -670,6 +815,14 @@ local function RegisterCompositionTreeRowWidget()
             if obj and obj.clickable then
                 obj:Fire("OnClick", button)
             end
+            AceGUI:ClearFocus()
+        end)
+        expander:SetScript("OnMouseDown", function(self, button)
+            local obj = self.obj
+            if not (obj and obj.expandable and obj.node) then
+                return
+            end
+            obj:Fire("OnExpandToggle", obj.node, obj.expanded ~= true, button)
             AceGUI:ClearFocus()
         end)
         toggle:SetScript("OnMouseDown", function(self, button)
@@ -719,12 +872,18 @@ end
 local function AddNodeRow(container, node, depth, state, options)
     local clickable = IsClickableNode(node) and type(options) == "table" and type(options.onSelect) == "function"
     local toggleable = IsToggleableNode(node) and type(options) == "table" and type(options.onToggle) == "function"
+    local expandable = HasChildren(node)
+    local expanded = IsExpanded(node, options and options.expanded)
     local rowWidget = AceGUI:Create(ROW_WIDGET_TYPE)
     rowWidget:SetFullWidth(true)
     if rowWidget.SetRow then
-        rowWidget:SetRow(node, depth, state, clickable)
+        rowWidget:SetRow(node, depth, state, clickable, expandable, expanded)
     end
     if type(options) == "table" and type(options._focalPointRows) == "table" then
+        options._visibleRowIndex = (tonumber(options._visibleRowIndex) or 0) + 1
+        if type(options._rowIndexByNodeId) == "table" and type(node.id) == "string" then
+            options._rowIndexByNodeId[node.id] = options._visibleRowIndex
+        end
         options._focalPointRows[#options._focalPointRows + 1] = {
             widget = rowWidget,
             node = node,
@@ -753,6 +912,17 @@ local function AddNodeRow(container, node, depth, state, options)
             return options.onToggle(toggleNode, nextEnabled)
         end)
     end
+    if expandable and rowWidget.SetCallback then
+        rowWidget:SetCallback("OnExpandToggle", function(_, _, expandNode, nextExpanded)
+            local expansionState = options and options.expanded
+            if type(expansionState) == "table" and type(expandNode) == "table" and type(expandNode.id) == "string" then
+                expansionState[expandNode.id] = nextExpanded == true
+                if type(options.rebuild) == "function" then
+                    options.rebuild()
+                end
+            end
+        end)
+    end
     container:AddChild(rowWidget)
 end
 
@@ -762,8 +932,10 @@ local function RenderNode(container, node, depth, state, options)
     end
 
     AddNodeRow(container, node, depth, state, options)
-    for _, child in ipairs(node.children or {}) do
-        RenderNode(container, child, (tonumber(depth) or 0) + 1, state, options)
+    if IsExpanded(node, options and options.expanded) then
+        for _, child in ipairs(node.children or {}) do
+            RenderNode(container, child, (tonumber(depth) or 0) + 1, state, options)
+        end
     end
 end
 
@@ -773,6 +945,8 @@ function View.Build(container, state, options)
     end
     options = options or {}
     options._focalPointRows = {}
+    options._rowIndexByNodeId = {}
+    options._visibleRowIndex = 0
 
     local unit = type(state) == "table" and state.selectedUnit or nil
     local tree = type(Adapter.BuildUnitTree) == "function" and Adapter.BuildUnitTree(unit) or nil
@@ -787,13 +961,41 @@ function View.Build(container, state, options)
         return false
     end
 
+    local uiState = GetTreeUiState(unit)
+    options.expanded = uiState.expanded
+    RevealActiveNode(tree, state, options.expanded)
+    options.rebuild = function()
+        if container.ReleaseChildren then
+            container:ReleaseChildren()
+        end
+        View.Build(container, state, options)
+    end
+
+    local rowCount = CountVisibleRows(tree, options.expanded)
+    local scrollHeight = ResolveTreeScrollHeight(rowCount, options)
     local scroll = AceGUI:Create("ScrollFrame")
     scroll:SetFullWidth(true)
-    scroll:SetHeight(ResolveTreeScrollHeight(CountRows(tree), options))
-    scroll:SetLayout("Flow")
+    scroll:SetHeight(scrollHeight)
+    if scroll.SetLayout then
+        scroll:SetLayout("Flow")
+    end
+    if scroll.SetStatusTable then
+        scroll:SetStatusTable(uiState.scroll)
+    end
     container:AddChild(scroll)
 
     RenderNode(scroll, tree, 0, state, options)
+    local selectedRowIndex
+    for _, row in ipairs(options._focalPointRows) do
+        if IsActiveNode(row.node, state) then
+            selectedRowIndex = options._rowIndexByNodeId[row.node.id]
+            break
+        end
+    end
+    AdjustScrollForSelection(uiState.scroll, selectedRowIndex, rowCount, scrollHeight)
+    if scroll.SetScroll and uiState.scroll and uiState.scroll.scrollvalue then
+        scroll:SetScroll(uiState.scroll.scrollvalue)
+    end
     return true
 end
 
