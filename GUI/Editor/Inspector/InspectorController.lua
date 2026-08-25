@@ -791,6 +791,15 @@ function InspectorController.Build(container, state, options)
             and selected.decorationId == decorationId
     end
 
+    local function IsSelectedUnitRootObject(unitKey)
+        local selected = type(ObjectSelection.GetSelectedObject) == "function"
+            and ObjectSelection.GetSelectedObject()
+            or nil
+        return type(selected) == "table"
+            and selected.kind == "unit"
+            and selected.unit == NormalizeInspectorUnitKey(unitKey)
+    end
+
     local function CloseDeleteTextInstanceDialog()
         if deleteTextInstanceDialog and deleteTextInstanceDialog.Close then
             deleteTextInstanceDialog:Close()
@@ -1688,6 +1697,115 @@ function InspectorController.Build(container, state, options)
 
 
     if buildContextOnly then
+        return
+    end
+
+    local function BuildUnitRootSectionContent(rootSection)
+        if not rootSection then
+            return
+        end
+
+        local generalSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_GENERAL"] or "General", false)
+        local appearanceSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+        local geometrySection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+        local positionSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_POSITION"] or "Position", true)
+        local visibilitySection = AddFramedObjectPropertyGroup(rootSection, L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true)
+        local behaviorSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_BEHAVIOR"] or "Behavior", true) or nil
+        local advancedSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ADVANCED"] or "Advanced", true) or nil
+
+        AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
+            SetUnitField("enabled", value and true or false, rootSection)
+        end)
+
+        AddPropertySliderRow(appearanceSection, L["EDITOR_OPTION_ALPHA"] or "Transparency", 0.1, 1.0, 0.01, tonumber(unitConfig.alpha) or 1, function(value)
+            SetUnitField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
+        end)
+        AddPropertyColorRow(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.backgroundColor, true, function(value)
+            SetUnitField("backgroundColor", value)
+        end)
+        if isExpert then
+            AddPropertyColorRow(appearanceSection, L["OPTION_BORDER_COLOR"] or "Border Color", unitConfig.borderColor, true, function(value)
+                SetUnitField("borderColor", value)
+            end)
+        end
+
+        AddPropertySliderRow(geometrySection, L["EDITOR_OPTION_WIDTH"] or "Width", 120, 420, 1, tonumber(unitConfig.width) or 260, function(value)
+            SetUnitField("width", math.floor((value or 0) + 0.5))
+        end)
+        AddPropertySliderRow(geometrySection, L["EDITOR_OPTION_HEIGHT"] or "Height", 24, 120, 1, tonumber(unitConfig.height) or 65, function(value)
+            SetUnitField("height", math.floor((value or 0) + 0.5))
+        end)
+        if selectedUnit == "boss" then
+            AddPropertySliderRow(geometrySection, L["OPTION_BOSS_FRAME_SPACING"] or "Boss Frame Spacing", 0, 40, 1, tonumber(unitConfig.bossSpacing) or 10, function(value)
+                SetUnitField("bossSpacing", math.floor((value or 0) + 0.5))
+            end)
+        end
+        AddPropertySliderRow(geometrySection, L["EDITOR_OPTION_SCALE"] or "Scale", 0.5, 1.5, 0.01, tonumber(unitConfig.scale) or 1, function(value)
+            SetUnitField("scale", tonumber(string.format("%.2f", value or 1)) or 1)
+        end)
+
+        AddPropertyDropdownRow(positionSection, L["EDITOR_OPTION_POINT"] or "Anchor From", {
+            list = POINTS,
+            value = unitConfig.point or "CENTER",
+            onChanged = function(value)
+                SetUnitField("point", value)
+            end,
+        })
+        AddPropertyDropdownRow(positionSection, L["EDITOR_OPTION_RELATIVE_POINT"] or "Anchor To", {
+            list = POINTS,
+            value = unitConfig.relativePoint or "CENTER",
+            onChanged = function(value)
+                SetUnitField("relativePoint", value)
+            end,
+        })
+        AddPropertySliderRow(positionSection, L["EDITOR_OPTION_X"] or "X Offset", -800, 800, 1, tonumber(unitConfig.x) or 0, function(value)
+            SetUnitField("x", math.floor((value or 0) + 0.5))
+        end)
+        AddPropertySliderRow(positionSection, L["EDITOR_OPTION_Y"] or "Y Offset", -800, 800, 1, tonumber(unitConfig.y) or 0, function(value)
+            SetUnitField("y", math.floor((value or 0) + 0.5))
+        end)
+
+        AddPropertyCheckBoxRow(visibilitySection, L["OPTION_SHOW_IN_SOLO"] or "Show in Solo", unitConfig.showInSolo ~= false, function(value)
+            SetUnitField("showInSolo", value and true or false)
+        end)
+        AddPropertyCheckBoxRow(visibilitySection, L["OPTION_SHOW_IN_PARTY"] or "Show in Party", unitConfig.showInParty ~= false, function(value)
+            SetUnitField("showInParty", value and true or false)
+        end)
+        AddPropertyCheckBoxRow(visibilitySection, L["OPTION_SHOW_IN_RAID"] or "Show in Raid", unitConfig.showInRaid ~= false, function(value)
+            SetUnitField("showInRaid", value and true or false)
+        end)
+        AddPropertyCheckBoxRow(visibilitySection, L["OPTION_SHOW_IN_ARENA"] or "Show in Arena", unitConfig.showInArena ~= false, function(value)
+            SetUnitField("showInArena", value and true or false)
+        end)
+        AddPropertyCheckBoxRow(visibilitySection, L["OPTION_SHOW_IN_PVP"] or "Show in PvP", unitConfig.showInPvp ~= false, function(value)
+            SetUnitField("showInPvp", value and true or false)
+        end)
+
+        if behaviorSection then
+            AddPropertyCheckBoxRow(behaviorSection, L["OPTION_MOUSE_ENABLED"] or "Mouse Enabled", unitConfig.mouseEnabled ~= false, function(value)
+                SetUnitField("mouseEnabled", value and true or false, behaviorSection)
+            end)
+            AddPropertyCheckBoxRow(behaviorSection, L["OPTION_CLICK_THROUGH"] or "Click Through", unitConfig.clickThrough == true, function(value)
+                SetUnitField("clickThrough", value and true or false)
+            end, unitConfig.mouseEnabled == false)
+        end
+
+        if advancedSection then
+            AddPropertyDropdownRow(advancedSection, L["OPTION_FRAME_STRATA"] or "Frame Strata", {
+                list = frameStrataList,
+                value = unitConfig.frameStrata or "MEDIUM",
+                onChanged = function(value)
+                    SetUnitField("frameStrata", value)
+                end,
+            })
+            AddPropertyNumericInputRow(advancedSection, L["OPTION_FRAME_LEVEL"] or "Frame Level", 0, 50, tonumber(unitConfig.frameLevel) or 1, function(value)
+                SetUnitField("frameLevel", math.floor((value or 0) + 0.5))
+            end)
+        end
+    end
+
+    if buildPropertiesOnly and IsSelectedUnitRootObject(selectedUnit) then
+        AddScopedObjectInspectorBody("frame", L["EDITOR_SECTION_UNIT_FRAME"] or L["EDITOR_SECTION_FRAME"] or "Unit Frame", BuildUnitRootSectionContent)
         return
     end
 
