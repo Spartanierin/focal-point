@@ -771,6 +771,16 @@ function InspectorController.Build(container, state, options)
             and selected.indicatorKey == indicatorKey
     end
 
+    local function IsSelectedAuraObject(unitKey, auraKey)
+        local selected = type(ObjectSelection.GetSelectedObject) == "function"
+            and ObjectSelection.GetSelectedObject()
+            or nil
+        return type(selected) == "table"
+            and selected.kind == "aura"
+            and selected.unit == NormalizeInspectorUnitKey(unitKey)
+            and selected.auraKey == auraKey
+    end
+
     local function CloseDeleteTextInstanceDialog()
         if deleteTextInstanceDialog and deleteTextInstanceDialog.Close then
             deleteTextInstanceDialog:Close()
@@ -1401,6 +1411,73 @@ function InspectorController.Build(container, state, options)
         end)
 
         return slider
+    end
+
+    local function AddPropertyNumericInputRow(parent, labelText, minValue, maxValue, value, onChanged, disabled, anchorKey)
+        local editBox
+        local currentValue = math.floor((tonumber(value) or tonumber(minValue) or 0) + 0.5)
+
+        local function NormalizeValue(rawValue)
+            local numericValue = tonumber(rawValue)
+            if type(numericValue) ~= "number" then
+                return nil
+            end
+            numericValue = math.floor(numericValue + 0.5)
+            if type(minValue) == "number" and numericValue < minValue then
+                numericValue = minValue
+            end
+            if type(maxValue) == "number" and numericValue > maxValue then
+                numericValue = maxValue
+            end
+            return numericValue
+        end
+
+        local function SetEditBoxValue(nextValue)
+            currentValue = NormalizeValue(nextValue) or currentValue
+            if editBox and editBox.SetText then
+                editBox:SetText(tostring(currentValue))
+            end
+        end
+
+        local function CommitValue(rawValue, widget)
+            local nextValue = NormalizeValue(rawValue)
+            if nextValue == nil then
+                SetEditBoxValue(currentValue)
+                return
+            end
+            SetEditBoxValue(nextValue)
+            if type(onChanged) == "function" then
+                onChanged(nextValue)
+            end
+            if widget and widget.ClearFocus then
+                widget:ClearFocus()
+            end
+        end
+
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            editBox = AceGUI:Create("EditBox")
+            editBox:SetLabel("")
+            editBox:SetWidth(72)
+            editBox:SetText(tostring(currentValue))
+            if editBox.SetDisabled then
+                editBox:SetDisabled(disabled == true)
+            end
+            if editBox.SetUserData and anchorKey then
+                editBox:SetUserData("focalPointAnchorKey", anchorKey)
+            end
+            if FormWidgets.StyleEditBox then
+                FormWidgets.StyleEditBox(editBox, "editor_inset")
+            end
+            editBox:SetCallback("OnEnterPressed", function(widget, _, rawValue)
+                CommitValue(rawValue, widget)
+            end)
+            editBox:SetCallback("OnFocusLost", function(widget)
+                CommitValue(widget and widget.GetText and widget:GetText() or currentValue, nil)
+            end)
+            valueGroup:AddChild(editBox)
+        end)
+
+        return editBox
     end
 
     local function AddPropertyValueTextRow(parent, labelText, valueText, options)
@@ -3505,158 +3582,346 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", currentAuraList, selectedAuraKey, function(value)
-            local ok = type(ObjectSelection.SelectObject) == "function"
-                and ObjectSelection.SelectObject({
-                    kind = "aura",
-                    unit = selectedUnit,
-                    auraKey = value,
-                })
-            if ok == true then
-                RebuildLocalSection(auraSection)
-                return
+        local isScopedObject = IsSelectedAuraObject(selectedUnit, selectedAuraKey)
+        local displaySection = auraSection
+        local layoutSection = auraSection
+        local behaviorSection = auraSection
+        local positionSection = auraSection
+        local advancedSection = auraSection
+        local disabled = auraConfig.enabled == false
+
+        if isScopedObject then
+            displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", false)
+            layoutSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_LAYOUT"] or "Layout", true)
+            if not isQuick then
+                behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
-            local result = type(InspectorAuraSelection.Set) == "function"
-                and InspectorAuraSelection.Set(state, value, currentAuraList)
-                or nil
-            if result and result.ok and result.changed then
-                RebuildLocalSection(auraSection)
+            positionSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_POSITION"] or "Position", true)
+            if not isQuick then
+                advancedSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ADVANCED"] or "Advanced", true)
             end
-        end, nil, "aura_block")
+        else
+            AddDropdown(auraSection, L["EDITOR_OPTION_AURA_BLOCK"] or "Aura Block", currentAuraList, selectedAuraKey, function(value)
+                local ok = type(ObjectSelection.SelectObject) == "function"
+                    and ObjectSelection.SelectObject({
+                        kind = "aura",
+                        unit = selectedUnit,
+                        auraKey = value,
+                    })
+                if ok == true then
+                    RebuildLocalSection(auraSection)
+                    return
+                end
+                local result = type(InspectorAuraSelection.Set) == "function"
+                    and InspectorAuraSelection.Set(state, value, currentAuraList)
+                    or nil
+                if result and result.ok and result.changed then
+                    RebuildLocalSection(auraSection)
+                end
+            end, nil, "aura_block")
+        end
 
-        AddCheckBox(auraSection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
-            SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
-        end, nil, "aura_enabled")
+        if isScopedObject then
+            AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
+                SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
+            end, nil, "aura_enabled")
+            AddPropertySliderRow(displaySection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
+                SetAuraField(selectedAuraKey, "iconSize", math.floor((value or 0) + 0.5))
+            end, disabled, "aura_icon_size")
+            AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
+                SetAuraField(selectedAuraKey, "showStackText", value and true or false)
+            end, disabled, "aura_show_stacks")
+            AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
+                SetAuraField(selectedAuraKey, "showTimerText", value and true or false)
+            end, disabled, "aura_show_timer")
+        else
+            AddCheckBox(auraSection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
+                SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
+            end, nil, "aura_enabled")
+            AddSlider(auraSection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
+                SetAuraField(selectedAuraKey, "iconSize", math.floor((value or 0) + 0.5))
+            end, disabled, "aura_icon_size")
+        end
 
-        AddDropdown(auraSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", auraPlacementList, auraConfig.placement or "ATTACHED", function(value)
-            SetAuraField(selectedAuraKey, "placement", value, auraSection)
-        end, auraConfig.enabled == false, "aura_placement")
-
-        AddSlider(auraSection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
-            SetAuraField(selectedAuraKey, "iconSize", math.floor((value or 0) + 0.5))
-        end, auraConfig.enabled == false, "aura_icon_size")
-
-        AddSlider(auraSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, 1, tonumber(auraConfig.iconsPerRow) or 5, function(value)
-            SetAuraField(selectedAuraKey, "iconsPerRow", math.floor((value or 0) + 0.5))
-        end, auraConfig.enabled == false, "aura_icons_per_row")
-
-        AddSlider(auraSection, L["OPTION_AURA_MAX_ROWS"] or "Maximum Rows", 0, 10, 1, tonumber(auraConfig.maxRows) or 0, function(value)
-            SetAuraField(selectedAuraKey, "maxRows", math.floor((value or 0) + 0.5))
-        end, auraConfig.enabled == false, "aura_max_rows")
+        if isScopedObject then
+            AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, tonumber(auraConfig.iconsPerRow) or 5, function(value)
+                SetAuraField(selectedAuraKey, "iconsPerRow", math.floor((value or 0) + 0.5))
+            end, disabled, "aura_icons_per_row")
+            AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_MAX_ROWS"] or "Maximum Rows", 0, 10, tonumber(auraConfig.maxRows) or 0, function(value)
+                SetAuraField(selectedAuraKey, "maxRows", math.floor((value or 0) + 0.5))
+            end, disabled, "aura_max_rows")
+        else
+            AddSlider(auraSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, 1, tonumber(auraConfig.iconsPerRow) or 5, function(value)
+                SetAuraField(selectedAuraKey, "iconsPerRow", math.floor((value or 0) + 0.5))
+            end, disabled, "aura_icons_per_row")
+            AddSlider(auraSection, L["OPTION_AURA_MAX_ROWS"] or "Maximum Rows", 0, 10, 1, tonumber(auraConfig.maxRows) or 0, function(value)
+                SetAuraField(selectedAuraKey, "maxRows", math.floor((value or 0) + 0.5))
+            end, disabled, "aura_max_rows")
+        end
 
         if isQuick then
-            AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
-                SetAuraField(selectedAuraKey, "showStackText", value and true or false)
-            end, auraConfig.enabled == false, "aura_show_stacks")
+            if not isScopedObject then
+                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
+                    SetAuraField(selectedAuraKey, "showStackText", value and true or false)
+                end, disabled, "aura_show_stacks")
 
-            AddCheckBox(auraSection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
-                SetAuraField(selectedAuraKey, "showTimerText", value and true or false)
-            end, auraConfig.enabled == false, "aura_show_timer")
-        else
-            AddSlider(auraSection, L["OPTION_AURA_SPACING_X"] or "Spacing X", 0, 20, 1, tonumber(auraConfig.spacingX) or 3, function(value)
-                SetAuraField(selectedAuraKey, "spacingX", math.floor((value or 0) + 0.5))
-            end, auraConfig.enabled == false, "aura_spacing_x")
-
-            AddSlider(auraSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, 1, tonumber(auraConfig.spacingY) or 3, function(value)
-                SetAuraField(selectedAuraKey, "spacingY", math.floor((value or 0) + 0.5))
-            end, auraConfig.enabled == false, "aura_spacing_y")
-
-            AddDropdown(auraSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", auraGrowthXList, auraConfig.growthX or "RIGHT", function(value)
-                SetAuraField(selectedAuraKey, "growthX", value)
-            end, auraConfig.enabled == false, "aura_growth_x")
-
-            AddDropdown(auraSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", auraGrowthYList, auraConfig.growthY or "DOWN", function(value)
-                SetAuraField(selectedAuraKey, "growthY", value)
-            end, auraConfig.enabled == false, "aura_growth_y")
-
-            AddDropdown(auraSection, L["OPTION_AURA_SORT_MODE"] or "Sort Mode", auraSortModeList, auraConfig.sortMode or "NEWEST_FIRST", function(value)
-                SetAuraField(selectedAuraKey, "sortMode", value)
-            end, auraConfig.enabled == false, "aura_sort_mode")
-
-            AddSlider(auraSection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
-                SetAuraField(selectedAuraKey, "stackFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
-            end, auraConfig.enabled == false, "aura_stack_font_scale")
-
-            AddSlider(auraSection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
-                SetAuraField(selectedAuraKey, "timerFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
-            end, auraConfig.enabled == false, "aura_timer_font_scale")
-
-            AddCheckBox(auraSection, L["OPTION_AURA_SHOW_ONLY_MINE"] or "Only My Auras", auraConfig.showOnlyMine == true, function(value)
-                SetAuraField(selectedAuraKey, "showOnlyMine", value and true or false)
-            end, auraConfig.enabled == false, "aura_show_only_mine")
-
-            AddCheckBox(auraSection, L["OPTION_AURA_SHOW_BOSS"] or "Force Boss Auras", auraConfig.showBossAuras ~= false, function(value)
-                SetAuraField(selectedAuraKey, "showBossAuras", value and true or false)
-            end, auraConfig.enabled == false, "aura_show_boss")
-
-            AddCheckBox(auraSection, L["OPTION_AURA_HIDE_PERMANENT"] or "Hide Permanent Auras", auraConfig.hidePermanentAuras == true, function(value)
-                SetAuraField(selectedAuraKey, "hidePermanentAuras", value and true or false)
-            end, auraConfig.enabled == false, "aura_hide_permanent")
-
-            AddCheckBox(auraSection, L["OPTION_AURA_HIDE_LONG"] or "Hide Long Auras", auraConfig.hideLongAuras == true, function(value)
-                SetAuraField(selectedAuraKey, "hideLongAuras", value and true or false, auraSection)
-            end, auraConfig.enabled == false, "aura_hide_long")
-
-            AddSlider(auraSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
-                SetAuraField(selectedAuraKey, "longAuraThreshold", math.floor((value or 0) + 0.5))
-            end, auraConfig.enabled == false or auraConfig.hideLongAuras ~= true, "aura_long_threshold")
-
-            if selectedAuraKey == "Buffs" then
-                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STEALABLE_ONLY"] or "Only Stealable Buffs", auraConfig.showStealableOnly == true, function(value)
-                    SetAuraField(selectedAuraKey, "showStealableOnly", value and true or false)
-                end, auraConfig.enabled == false, "aura_show_stealable_only")
-            else
-                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_DISPELLABLE_ONLY"] or "Only Dispellable Debuffs", auraConfig.showDispellableOnly == true, function(value)
-                    SetAuraField(selectedAuraKey, "showDispellableOnly", value and true or false)
-                end, auraConfig.enabled == false, "aura_show_dispellable_only")
+                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
+                    SetAuraField(selectedAuraKey, "showTimerText", value and true or false)
+                end, disabled, "aura_show_timer")
             end
+        else
+            if isScopedObject then
+                AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_X"] or "Spacing X", 0, 20, tonumber(auraConfig.spacingX) or 3, function(value)
+                    SetAuraField(selectedAuraKey, "spacingX", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_spacing_x")
+                AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, tonumber(auraConfig.spacingY) or 3, function(value)
+                    SetAuraField(selectedAuraKey, "spacingY", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_spacing_y")
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", {
+                    list = auraGrowthXList,
+                    value = auraConfig.growthX or "RIGHT",
+                    onChanged = function(value)
+                        SetAuraField(selectedAuraKey, "growthX", value)
+                    end,
+                    anchorKey = "aura_growth_x",
+                }, disabled)
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", {
+                    list = auraGrowthYList,
+                    value = auraConfig.growthY or "DOWN",
+                    onChanged = function(value)
+                        SetAuraField(selectedAuraKey, "growthY", value)
+                    end,
+                    anchorKey = "aura_growth_y",
+                }, disabled)
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_SORT_MODE"] or "Sort Mode", {
+                    list = auraSortModeList,
+                    value = auraConfig.sortMode or "NEWEST_FIRST",
+                    onChanged = function(value)
+                        SetAuraField(selectedAuraKey, "sortMode", value)
+                    end,
+                    anchorKey = "aura_sort_mode",
+                }, disabled)
+                AddPropertySliderRow(displaySection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
+                    SetAuraField(selectedAuraKey, "stackFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
+                end, disabled, "aura_stack_font_scale")
+                AddPropertySliderRow(displaySection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
+                    SetAuraField(selectedAuraKey, "timerFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
+                end, disabled, "aura_timer_font_scale")
+                AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_SHOW_ONLY_MINE"] or "Only My Auras", auraConfig.showOnlyMine == true, function(value)
+                    SetAuraField(selectedAuraKey, "showOnlyMine", value and true or false)
+                end, disabled, "aura_show_only_mine")
+                AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_SHOW_BOSS"] or "Force Boss Auras", auraConfig.showBossAuras ~= false, function(value)
+                    SetAuraField(selectedAuraKey, "showBossAuras", value and true or false)
+                end, disabled, "aura_show_boss")
+                AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_HIDE_PERMANENT"] or "Hide Permanent Auras", auraConfig.hidePermanentAuras == true, function(value)
+                    SetAuraField(selectedAuraKey, "hidePermanentAuras", value and true or false)
+                end, disabled, "aura_hide_permanent")
+                AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_HIDE_LONG"] or "Hide Long Auras", auraConfig.hideLongAuras == true, function(value)
+                    SetAuraField(selectedAuraKey, "hideLongAuras", value and true or false, auraSection)
+                end, disabled, "aura_hide_long")
+                AddPropertySliderRow(advancedSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
+                    SetAuraField(selectedAuraKey, "longAuraThreshold", math.floor((value or 0) + 0.5))
+                end, disabled or auraConfig.hideLongAuras ~= true, "aura_long_threshold")
+                if selectedAuraKey == "Buffs" then
+                    AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_SHOW_STEALABLE_ONLY"] or "Only Stealable Buffs", auraConfig.showStealableOnly == true, function(value)
+                        SetAuraField(selectedAuraKey, "showStealableOnly", value and true or false)
+                    end, disabled, "aura_show_stealable_only")
+                else
+                    AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_SHOW_DISPELLABLE_ONLY"] or "Only Dispellable Debuffs", auraConfig.showDispellableOnly == true, function(value)
+                        SetAuraField(selectedAuraKey, "showDispellableOnly", value and true or false)
+                    end, disabled, "aura_show_dispellable_only")
+                end
+            else
+                AddSlider(auraSection, L["OPTION_AURA_SPACING_X"] or "Spacing X", 0, 20, 1, tonumber(auraConfig.spacingX) or 3, function(value)
+                    SetAuraField(selectedAuraKey, "spacingX", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_spacing_x")
 
-            AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
-                SetAuraField(selectedAuraKey, "showStackText", value and true or false)
-            end, auraConfig.enabled == false, "aura_show_stacks")
+                AddSlider(auraSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, 1, tonumber(auraConfig.spacingY) or 3, function(value)
+                    SetAuraField(selectedAuraKey, "spacingY", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_spacing_y")
 
-            AddCheckBox(auraSection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
-                SetAuraField(selectedAuraKey, "showTimerText", value and true or false)
-            end, auraConfig.enabled == false, "aura_show_timer")
+                AddDropdown(auraSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", auraGrowthXList, auraConfig.growthX or "RIGHT", function(value)
+                    SetAuraField(selectedAuraKey, "growthX", value)
+                end, disabled, "aura_growth_x")
 
+                AddDropdown(auraSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", auraGrowthYList, auraConfig.growthY or "DOWN", function(value)
+                    SetAuraField(selectedAuraKey, "growthY", value)
+                end, disabled, "aura_growth_y")
+
+                AddDropdown(auraSection, L["OPTION_AURA_SORT_MODE"] or "Sort Mode", auraSortModeList, auraConfig.sortMode or "NEWEST_FIRST", function(value)
+                    SetAuraField(selectedAuraKey, "sortMode", value)
+                end, disabled, "aura_sort_mode")
+
+                AddSlider(auraSection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
+                    SetAuraField(selectedAuraKey, "stackFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
+                end, disabled, "aura_stack_font_scale")
+
+                AddSlider(auraSection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
+                    SetAuraField(selectedAuraKey, "timerFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
+                end, disabled, "aura_timer_font_scale")
+
+                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_ONLY_MINE"] or "Only My Auras", auraConfig.showOnlyMine == true, function(value)
+                    SetAuraField(selectedAuraKey, "showOnlyMine", value and true or false)
+                end, disabled, "aura_show_only_mine")
+
+                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_BOSS"] or "Force Boss Auras", auraConfig.showBossAuras ~= false, function(value)
+                    SetAuraField(selectedAuraKey, "showBossAuras", value and true or false)
+                end, disabled, "aura_show_boss")
+
+                AddCheckBox(auraSection, L["OPTION_AURA_HIDE_PERMANENT"] or "Hide Permanent Auras", auraConfig.hidePermanentAuras == true, function(value)
+                    SetAuraField(selectedAuraKey, "hidePermanentAuras", value and true or false)
+                end, disabled, "aura_hide_permanent")
+
+                AddCheckBox(auraSection, L["OPTION_AURA_HIDE_LONG"] or "Hide Long Auras", auraConfig.hideLongAuras == true, function(value)
+                    SetAuraField(selectedAuraKey, "hideLongAuras", value and true or false, auraSection)
+                end, disabled, "aura_hide_long")
+
+                AddSlider(auraSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
+                    SetAuraField(selectedAuraKey, "longAuraThreshold", math.floor((value or 0) + 0.5))
+                end, disabled or auraConfig.hideLongAuras ~= true, "aura_long_threshold")
+
+                if selectedAuraKey == "Buffs" then
+                    AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STEALABLE_ONLY"] or "Only Stealable Buffs", auraConfig.showStealableOnly == true, function(value)
+                        SetAuraField(selectedAuraKey, "showStealableOnly", value and true or false)
+                    end, disabled, "aura_show_stealable_only")
+                else
+                    AddCheckBox(auraSection, L["OPTION_AURA_SHOW_DISPELLABLE_ONLY"] or "Only Dispellable Debuffs", auraConfig.showDispellableOnly == true, function(value)
+                        SetAuraField(selectedAuraKey, "showDispellableOnly", value and true or false)
+                    end, disabled, "aura_show_dispellable_only")
+                end
+
+                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
+                    SetAuraField(selectedAuraKey, "showStackText", value and true or false)
+                end, disabled, "aura_show_stacks")
+
+                AddCheckBox(auraSection, L["OPTION_AURA_SHOW_TIMER"] or "Show Timer", auraConfig.showTimerText ~= false, function(value)
+                    SetAuraField(selectedAuraKey, "showTimerText", value and true or false)
+                end, disabled, "aura_show_timer")
+            end
+        end
+
+        if isScopedObject then
+            AddPropertyDropdownRow(positionSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", {
+                list = auraPlacementList,
+                value = auraConfig.placement or "ATTACHED",
+                onChanged = function(value)
+                    SetAuraField(selectedAuraKey, "placement", value, auraSection)
+                end,
+                anchorKey = "aura_placement",
+            }, disabled)
+        else
+            AddDropdown(auraSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", auraPlacementList, auraConfig.placement or "ATTACHED", function(value)
+                SetAuraField(selectedAuraKey, "placement", value, auraSection)
+            end, disabled, "aura_placement")
+        end
+
+        if not isQuick then
             local inside = (auraConfig.placement or "ATTACHED") == "INSIDE"
             if inside then
-                AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.insideAnchorTo or "Frame", function(value)
-                    SetAuraField(selectedAuraKey, "insideAnchorTo", value)
-                end, auraConfig.enabled == false, "aura_inside_anchor_to")
+                if isScopedObject then
+                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                        list = auraAnchorTargetList,
+                        value = auraConfig.insideAnchorTo or "Frame",
+                        onChanged = function(value)
+                            SetAuraField(selectedAuraKey, "insideAnchorTo", value)
+                        end,
+                        anchorKey = "aura_inside_anchor_to",
+                    }, disabled)
+                    AddPropertyDropdownRow(positionSection, L["OPTION_INSIDE_SIDE"] or "Inside Side", {
+                        list = auraInsideSideList,
+                        value = auraConfig.insideSide or "LEFT",
+                        onChanged = function(value)
+                            SetAuraField(selectedAuraKey, "insideSide", value)
+                        end,
+                        anchorKey = "aura_inside_side",
+                    }, disabled)
+                else
+                    AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.insideAnchorTo or "Frame", function(value)
+                        SetAuraField(selectedAuraKey, "insideAnchorTo", value)
+                    end, disabled, "aura_inside_anchor_to")
 
-                AddDropdown(auraSection, L["OPTION_INSIDE_SIDE"] or "Inside Side", auraInsideSideList, auraConfig.insideSide or "LEFT", function(value)
-                    SetAuraField(selectedAuraKey, "insideSide", value)
-                end, auraConfig.enabled == false, "aura_inside_side")
+                    AddDropdown(auraSection, L["OPTION_INSIDE_SIDE"] or "Inside Side", auraInsideSideList, auraConfig.insideSide or "LEFT", function(value)
+                        SetAuraField(selectedAuraKey, "insideSide", value)
+                    end, disabled, "aura_inside_side")
+                end
             else
-                AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.anchorTo or "Frame", function(value)
-                    SetAuraField(selectedAuraKey, "anchorTo", value)
-                end, auraConfig.enabled == false, "aura_anchor_to")
+                if isScopedObject then
+                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                        list = auraAnchorTargetList,
+                        value = auraConfig.anchorTo or "Frame",
+                        onChanged = function(value)
+                            SetAuraField(selectedAuraKey, "anchorTo", value)
+                        end,
+                        anchorKey = "aura_anchor_to",
+                    }, disabled)
+                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+                        list = auraAnchorPointList,
+                        value = auraConfig.point or "BOTTOMLEFT",
+                        onChanged = function(value)
+                            SetAuraField(selectedAuraKey, "point", value)
+                        end,
+                        anchorKey = "aura_point",
+                    }, disabled)
+                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+                        list = auraAnchorPointList,
+                        value = auraConfig.relativePoint or "TOPLEFT",
+                        onChanged = function(value)
+                            SetAuraField(selectedAuraKey, "relativePoint", value)
+                        end,
+                        anchorKey = "aura_relative_point",
+                    }, disabled)
+                    AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                        SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
+                    end, disabled, "aura_offset_x")
+                    AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
+                        SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
+                    end, disabled, "aura_offset_y")
+                else
+                    AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.anchorTo or "Frame", function(value)
+                        SetAuraField(selectedAuraKey, "anchorTo", value)
+                    end, disabled, "aura_anchor_to")
 
-                AddDropdown(auraSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", auraAnchorPointList, auraConfig.point or "BOTTOMLEFT", function(value)
-                    SetAuraField(selectedAuraKey, "point", value)
-                end, auraConfig.enabled == false, "aura_point")
+                    AddDropdown(auraSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", auraAnchorPointList, auraConfig.point or "BOTTOMLEFT", function(value)
+                        SetAuraField(selectedAuraKey, "point", value)
+                    end, disabled, "aura_point")
 
-                AddDropdown(auraSection, L["OPTION_ANCHOR_TO"] or "Anchor To", auraAnchorPointList, auraConfig.relativePoint or "TOPLEFT", function(value)
-                    SetAuraField(selectedAuraKey, "relativePoint", value)
-                end, auraConfig.enabled == false, "aura_relative_point")
+                    AddDropdown(auraSection, L["OPTION_ANCHOR_TO"] or "Anchor To", auraAnchorPointList, auraConfig.relativePoint or "TOPLEFT", function(value)
+                        SetAuraField(selectedAuraKey, "relativePoint", value)
+                    end, disabled, "aura_relative_point")
 
-                AddSlider(auraSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
-                    SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
-                end, auraConfig.enabled == false, "aura_offset_x")
+                    AddSlider(auraSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                        SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
+                    end, disabled, "aura_offset_x")
 
-                AddSlider(auraSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
-                    SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
-                end, auraConfig.enabled == false, "aura_offset_y")
+                    AddSlider(auraSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
+                        SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
+                    end, disabled, "aura_offset_y")
+                end
             end
         end
     end
 
+    local function ResolveSelectedAuraInspectorTitle()
+        local selectedAuraKey = ResolveAuraContext()
+        if selectedAuraKey == "Buffs" then
+            return L["AURA_BUFFS"] or "Buffs"
+        end
+        if selectedAuraKey == "Debuffs" then
+            return L["AURA_DEBUFFS"] or "Debuffs"
+        end
+        return selectedAuraKey or (L["EDITOR_SECTION_AURAS"] or "Auras")
+    end
+
     if type(select(2, ResolveAuraContext())) == "table" then
-        AddScopedInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true, {
-            localContentBuilder = BuildAuraSectionContent,
-            layoutRefresh = RefreshInspectorLayout,
-        })
+        local selectedAuraKey = ResolveAuraContext()
+        if IsSelectedAuraObject(selectedUnit, selectedAuraKey) then
+            AddScopedObjectInspectorBody("auras", ResolveSelectedAuraInspectorTitle(), BuildAuraSectionContent)
+        else
+            AddScopedInspectorSection("auras", L["EDITOR_SECTION_AURAS"] or "Auras", true, {
+                localContentBuilder = BuildAuraSectionContent,
+                layoutRefresh = RefreshInspectorLayout,
+            })
+        end
     end
 
 end

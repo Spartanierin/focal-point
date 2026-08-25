@@ -494,7 +494,9 @@ L["THEME_MODERN_DESC"] = "More present, more styled, and a bit bolder."
 
 -- Sections
 L["SECTION_GENERAL"] = "General"
+L["SECTION_DISPLAY"] = "Display"
 L["SECTION_APPEARANCE"] = "Appearance"
+L["SECTION_LAYOUT"] = "Layout"
 L["SECTION_ALTERNATIVE_POWER"] = "Secondary Resource"
 L["SECTION_CLASS_POWER"] = "Class Power"
 L["SECTION_GEOMETRY"] = "Geometry"
