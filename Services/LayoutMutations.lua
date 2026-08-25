@@ -160,13 +160,19 @@ function Mutations.CopyLayout(layoutId, newName)
         return false, "unsupported-source"
     end
 
+    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
+    local sourcePayload = envelope.payload
+    if envelope.source == "userLayout" then
+        local sourceRecord = UserLayoutStore.GetRawReadOnly and UserLayoutStore.GetRawReadOnly(layoutId, FocalPoint.db) or nil
+        sourcePayload = type(sourceRecord) == "table" and sourceRecord.payload or nil
+    end
+
     local LayoutService = FocalPoint.LayoutService or {}
-    local copiedPayload = LayoutService.CopyPayload and LayoutService.CopyPayload(envelope.payload) or nil
+    local copiedPayload = LayoutService.CopyPayload and LayoutService.CopyPayload(sourcePayload) or nil
     if not IsValidLayoutPayload(copiedPayload) then
         return false, "payload-invalid"
     end
 
-    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
     if not (UserLayoutStore.GenerateId and UserLayoutStore.PutRaw) then
         return false, "user-layout-store-unavailable"
     end

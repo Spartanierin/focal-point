@@ -147,23 +147,15 @@ local function BuildUsedLayoutNames()
 end
 
 local function ResolveDefaultNewLayoutName()
-    local activeName = context and context.activeLayoutName or ""
-    if activeName == "" then
-        local resolver = ns.ActiveLayoutResolver or {}
-        local envelope = resolver.GetActiveLayout and resolver.GetActiveLayout(ns.db) or nil
-        activeName = ResolveLayoutDisplayName(envelope)
-    end
-    activeName = activeName ~= "" and activeName or T("LAYOUT_NEW_DEFAULT_BASE", "New Layout")
-
     local used = BuildUsedLayoutNames()
-    local baseName = activeName .. " Copy"
+    local baseName = T("LAYOUT_NEW_DEFAULT_BASE", "New Layout")
     if not used[string.lower(baseName)] then
         return baseName
     end
 
     local index = 2
     while true do
-        local candidate = string.format("%s Copy %d", activeName, index)
+        local candidate = string.format("%s %d", baseName, index)
         if not used[string.lower(candidate)] then
             return candidate
         end
@@ -224,6 +216,9 @@ local function RefreshLayoutControls(current)
     current._suspendLayoutCallbacks = true
     dropdown:SetList(values, order)
     dropdown:SetValue(selectedLayoutId)
+    if dropdown.SetText then
+        dropdown:SetText(values[selectedLayoutId] or "")
+    end
     dropdown:SetDisabled(#order == 0)
     current._suspendLayoutCallbacks = false
 
@@ -548,7 +543,7 @@ local function OpenNewLayoutDialog()
 
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("LAYOUT_CREATE_TITLE", "New Layout"),
-        description = T("LAYOUT_CREATE_DESCRIPTION", "Create a new layout from the currently active layout."),
+        description = T("LAYOUT_CREATE_DESCRIPTION", "Create a blank layout and start from scratch."),
         width = 420,
         height = 220,
         bodyHeight = 62,
@@ -583,14 +578,14 @@ local function OpenNewLayoutDialog()
         end
 
         local ok, resultOrReason, createdLayoutId = false, "create-unavailable", nil
-        if ns.CreateLayoutFromActive then
-            ok, resultOrReason, createdLayoutId = ns:CreateLayoutFromActive(nameEdit:GetText(), {
+        if ns.CreateBlankLayout then
+            ok, resultOrReason, createdLayoutId = ns:CreateBlankLayout(nameEdit:GetText(), {
                 reason = "create-layout",
             })
         end
         if ok then
             dialog:Close()
-            context.selectedLayoutId = ResolveActiveLayoutId()
+            context.selectedLayoutId = createdLayoutId or resultOrReason or ResolveActiveLayoutId()
             CanvasToolbar.Refresh()
             return
         end

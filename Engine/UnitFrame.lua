@@ -2434,6 +2434,13 @@ local function ValidateEditorSelectionForProfile(addon)
         end
     end
 
+    if not IsValidProfileUnit(selectedUnit) then
+        if editorStateApi.ClearSelection then
+            editorStateApi.ClearSelection()
+        end
+        return
+    end
+
     local unitConfig = GetActiveLayoutUnitConfig(addon, selectedUnit)
     local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
     local textSelection = addon.InspectorTextSelection or (addon.GUI and addon.GUI.Editor and addon.GUI.Editor.Inspector and addon.GUI.Editor.Inspector.TextSelection)
@@ -2546,23 +2553,50 @@ local function GetLayoutNameLength(value)
     return #value
 end
 
-local function ResolveCreatedFromSource(layoutId)
-    if type(layoutId) ~= "string" then
-        return nil
-    end
-    if layoutId:match("^builtin:") then
-        return "builtin"
-    end
-    if layoutId:match("^layout:") then
-        return "userLayout"
-    end
-    return nil
-end
-
 local function IsValidLayoutPayload(payload)
     return type(payload) == "table"
         and type(payload.Units) == "table"
         and type(payload.TextTemplates) == "table"
+end
+
+local function BuildAuthoringReadyBlankPayload(addon)
+    local layoutService = addon and addon.LayoutService or FocalPoint.LayoutService or {}
+    if type(layoutService.NormalizePayload) ~= "function" then
+        return nil
+    end
+
+    local defaults = addon and addon.GetDefaultDB and addon:GetDefaultDB() or nil
+    local payload = layoutService.NormalizePayload({
+        Units = {},
+        TextTemplates = {},
+    }, defaults)
+    if not IsValidLayoutPayload(payload) then
+        return nil
+    end
+
+    payload.TextTemplates = {}
+
+    local unitOrder = addon and addon.Constants and addon.Constants.UnitOrder or {}
+    local seen = {}
+    for _, unitKey in ipairs(unitOrder) do
+        local unitConfig = type(payload.Units) == "table" and payload.Units[unitKey] or nil
+        if type(unitConfig) == "table" then
+            unitConfig.enabled = false
+            unitConfig.Texts = {}
+            unitConfig.decorations = {}
+            seen[unitKey] = true
+        end
+    end
+
+    for unitKey, unitConfig in pairs(payload.Units) do
+        if type(unitConfig) == "table" and not seen[unitKey] then
+            unitConfig.enabled = false
+            unitConfig.Texts = {}
+            unitConfig.decorations = {}
+        end
+    end
+
+    return payload
 end
 
 function FocalPoint:ValidateNewLayoutName(name)
@@ -2581,7 +2615,7 @@ function FocalPoint:ValidateNewLayoutName(name)
     return true, normalizedName
 end
 
-function FocalPoint:CreateLayoutFromActive(name, options)
+function FocalPoint:CreateBlankLayout(name, options)
     options = type(options) == "table" and options or {}
     if InCombatLockdown and InCombatLockdown() then
         return false, "combat-blocked"
@@ -2592,18 +2626,9 @@ function FocalPoint:CreateLayoutFromActive(name, options)
         return false, normalizedNameOrReason
     end
 
-    local resolver = self.ActiveLayoutResolver or {}
-    local layoutService = self.LayoutService or {}
     local userLayoutStore = self.UserLayoutStore or {}
-    local activeLayoutId = resolver.GetStoredActiveLayoutId and resolver.GetStoredActiveLayoutId(self.db) or nil
-    local source = ResolveCreatedFromSource(activeLayoutId)
-    if not source then
-        return false, "unsupported-source"
-    end
-
-    local activePayload = resolver.GetActivePayload and resolver.GetActivePayload(self.db) or nil
-    local copiedPayload = layoutService.CopyPayload and layoutService.CopyPayload(activePayload) or nil
-    if not IsValidLayoutPayload(copiedPayload) then
+    local blankPayload = BuildAuthoringReadyBlankPayload(self)
+    if not IsValidLayoutPayload(blankPayload) then
         return false, "payload-invalid"
     end
 
@@ -2617,12 +2642,8 @@ function FocalPoint:CreateLayoutFromActive(name, options)
 
     local record = {
         name = normalizedNameOrReason,
-        payload = copiedPayload,
+        payload = blankPayload,
         formatVersion = 1,
-        createdFrom = {
-            source = source,
-            id = activeLayoutId,
-        },
     }
     local storedId = userLayoutStore.PutRaw(newLayoutId, record)
     if storedId ~= newLayoutId then
@@ -2637,7 +2658,7 @@ function FocalPoint:CreateLayoutFromActive(name, options)
     if not ok then
         return false, reason or "activation-failed", newLayoutId
     end
-    return true, newLayoutId
+    return true, newLayoutId, newLayoutId
 end
 
 function FocalPoint:ResyncActiveLayout(reason, options)
