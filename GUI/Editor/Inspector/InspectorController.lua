@@ -781,6 +781,16 @@ function InspectorController.Build(container, state, options)
             and selected.auraKey == auraKey
     end
 
+    local function IsSelectedDecorationObject(unitKey, decorationId)
+        local selected = type(ObjectSelection.GetSelectedObject) == "function"
+            and ObjectSelection.GetSelectedObject()
+            or nil
+        return type(selected) == "table"
+            and selected.kind == "decoration"
+            and selected.unit == NormalizeInspectorUnitKey(unitKey)
+            and selected.decorationId == decorationId
+    end
+
     local function CloseDeleteTextInstanceDialog()
         if deleteTextInstanceDialog and deleteTextInstanceDialog.Close then
             deleteTextInstanceDialog:Close()
@@ -3217,6 +3227,24 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local isScopedObject = IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey)
+        local appearanceSection = indicatorSection
+        local geometrySection = indicatorSection
+        local positionSection = indicatorSection
+        local behaviorSection = indicatorSection
+        local actionsSection = indicatorSection
+        local disabled = indicatorConfig.enabled == false
+
+        if isScopedObject then
+            appearanceSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            geometrySection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            behaviorSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            if isExpert then
+                positionSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_POSITION"] or "Position", true)
+            end
+            actionsSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_ACTIONS"] or "Actions", true)
+        end
+
         local disableActionAdded = false
         local function DisableSelectedIndicator()
             local result = SetIndicatorField(selectedIndicatorKey, "enabled", false, indicatorSection)
@@ -3233,60 +3261,94 @@ function InspectorController.Build(container, state, options)
                 return
             end
             disableActionAdded = true
-            AddSpacer(indicatorSection, 8)
-            local disableButton = FormWidgets.CreateActionButton
-                and FormWidgets.CreateActionButton(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", "danger", 148, false)
-                or AceGUI:Create("Button")
-            disableButton:SetText(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator")
-            disableButton:SetWidth(148)
-            disableButton:SetFullWidth(false)
-            disableButton:SetCallback("OnClick", DisableSelectedIndicator)
-            if FormWidgets.ApplyModalActionButtonVisual then
-                FormWidgets.ApplyModalActionButtonVisual(disableButton, "danger")
-            elseif FormWidgets.StyleActionButton then
-                FormWidgets.StyleActionButton(disableButton, "danger")
+            if isScopedObject then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", "danger", 148, DisableSelectedIndicator)
+            else
+                AddSpacer(indicatorSection, 8)
+                local disableButton = FormWidgets.CreateActionButton
+                    and FormWidgets.CreateActionButton(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", "danger", 148, false)
+                    or AceGUI:Create("Button")
+                disableButton:SetText(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator")
+                disableButton:SetWidth(148)
+                disableButton:SetFullWidth(false)
+                disableButton:SetCallback("OnClick", DisableSelectedIndicator)
+                if FormWidgets.ApplyModalActionButtonVisual then
+                    FormWidgets.ApplyModalActionButtonVisual(disableButton, "danger")
+                elseif FormWidgets.StyleActionButton then
+                    FormWidgets.StyleActionButton(disableButton, "danger")
+                end
+                indicatorSection:AddChild(disableButton)
             end
-            indicatorSection:AddChild(disableButton)
         end
 
-        AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", currentIndicatorList, selectedIndicatorKey, function(value)
-            local ok = type(ObjectSelection.SelectObject) == "function"
-                and ObjectSelection.SelectObject({
-                    kind = "indicator",
-                    unit = selectedUnit,
-                    indicatorKey = value,
-                })
-            if ok == true then
-                RebuildLocalSection(indicatorSection)
-                return
-            end
-            local result = type(InspectorIndicatorSelection.Set) == "function"
-                and InspectorIndicatorSelection.Set(state, value, currentIndicatorList)
-                or nil
-            if result and result.ok and result.changed then
-                RebuildLocalSection(indicatorSection)
-            end
-        end)
+        if not isScopedObject then
+            AddDropdown(indicatorSection, L["EDITOR_OPTION_INDICATOR"] or "Indicator", currentIndicatorList, selectedIndicatorKey, function(value)
+                local ok = type(ObjectSelection.SelectObject) == "function"
+                    and ObjectSelection.SelectObject({
+                        kind = "indicator",
+                        unit = selectedUnit,
+                        indicatorKey = value,
+                    })
+                if ok == true then
+                    RebuildLocalSection(indicatorSection)
+                    return
+                end
+                local result = type(InspectorIndicatorSelection.Set) == "function"
+                    and InspectorIndicatorSelection.Set(state, value, currentIndicatorList)
+                    or nil
+                if result and result.ok and result.changed then
+                    RebuildLocalSection(indicatorSection)
+                end
+            end)
+        end
 
-        AddCheckBox(indicatorSection, L[indicatorMeta.labelKey] or "Enabled", indicatorConfig.enabled ~= false, function(value)
-            SetIndicatorField(selectedIndicatorKey, "enabled", value and true or false, indicatorSection)
-        end)
+        if isScopedObject then
+            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_ENABLED"] or "Enabled", indicatorConfig.enabled ~= false, function(value)
+                SetIndicatorField(selectedIndicatorKey, "enabled", value and true or false, indicatorSection)
+            end)
+        else
+            AddCheckBox(indicatorSection, L[indicatorMeta.labelKey] or "Enabled", indicatorConfig.enabled ~= false, function(value)
+                SetIndicatorField(selectedIndicatorKey, "enabled", value and true or false, indicatorSection)
+            end)
+        end
 
         if indicatorMeta.classification then
-            AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", classificationEffectList, indicatorConfig.effect or "PORTRAIT_OVERLAY", function(value)
-                SetIndicatorField(selectedIndicatorKey, "effect", value)
-            end, indicatorConfig.enabled == false)
+            if isScopedObject then
+                AddPropertyDropdownRow(appearanceSection, L[indicatorMeta.effectLabel] or "Effect", {
+                    list = classificationEffectList,
+                    value = indicatorConfig.effect or "PORTRAIT_OVERLAY",
+                    onChanged = function(value)
+                        SetIndicatorField(selectedIndicatorKey, "effect", value)
+                    end,
+                }, disabled)
+            else
+                AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", classificationEffectList, indicatorConfig.effect or "PORTRAIT_OVERLAY", function(value)
+                    SetIndicatorField(selectedIndicatorKey, "effect", value)
+                end, disabled)
+            end
             AddDisableIndicatorAction()
             return
         end
 
         local effect = indicatorConfig.effect or "ICON"
         if indicatorMeta.effectListKey == "status" then
-            AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", statusIndicatorEffectList, effect, function(value)
-                SetIndicatorField(selectedIndicatorKey, "effect", value, nil, function()
-                    NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
-                end)
-            end, indicatorConfig.enabled == false)
+            if isScopedObject then
+                AddPropertyDropdownRow(appearanceSection, L[indicatorMeta.effectLabel] or "Effect", {
+                    list = statusIndicatorEffectList,
+                    value = effect,
+                    onChanged = function(value)
+                        SetIndicatorField(selectedIndicatorKey, "effect", value, nil, function()
+                            NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
+                        end)
+                    end,
+                }, disabled)
+            else
+                AddDropdown(indicatorSection, L[indicatorMeta.effectLabel] or "Effect", statusIndicatorEffectList, effect, function(value)
+                    SetIndicatorField(selectedIndicatorKey, "effect", value, nil, function()
+                        NotifyConfigChangedAndRebuildSection(indicatorSection, "indicators")
+                    end)
+                end, disabled)
+            end
         end
 
         local useOverlayEffect = indicatorMeta.effectListKey == "status" and effect == "FRAME_OVERLAY"
@@ -3295,78 +3357,172 @@ function InspectorController.Build(container, state, options)
             return
         end
 
-        AddDropdown(indicatorSection, L[indicatorMeta.placementLabel] or "Placement", portraitPlacementList, indicatorConfig.placement or "ATTACHED", function(value)
-            SetIndicatorField(selectedIndicatorKey, "placement", value, indicatorSection)
-        end, indicatorConfig.enabled == false)
-
-        if isExpert and indicatorMeta.supportsMode then
-            AddDropdown(indicatorSection, L[indicatorMeta.modeLabel] or "Mode", portraitModeList, indicatorConfig.mode or "2D", function(value)
-                SetIndicatorField(selectedIndicatorKey, "mode", value)
-            end, indicatorConfig.enabled == false)
+        if isScopedObject then
+            AddPropertyDropdownRow(behaviorSection, L[indicatorMeta.placementLabel] or "Placement", {
+                list = portraitPlacementList,
+                value = indicatorConfig.placement or "ATTACHED",
+                onChanged = function(value)
+                    SetIndicatorField(selectedIndicatorKey, "placement", value, indicatorSection)
+                end,
+            }, disabled)
+        else
+            AddDropdown(indicatorSection, L[indicatorMeta.placementLabel] or "Placement", portraitPlacementList, indicatorConfig.placement or "ATTACHED", function(value)
+                SetIndicatorField(selectedIndicatorKey, "placement", value, indicatorSection)
+            end, disabled)
         end
 
-        AddSlider(indicatorSection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
-            SetIndicatorField(selectedIndicatorKey, "size", math.floor((value or 0) + 0.5))
-        end, indicatorConfig.enabled == false)
+        if isExpert and indicatorMeta.supportsMode then
+            if isScopedObject then
+                AddPropertyDropdownRow(behaviorSection, L[indicatorMeta.modeLabel] or "Mode", {
+                    list = portraitModeList,
+                    value = indicatorConfig.mode or "2D",
+                    onChanged = function(value)
+                        SetIndicatorField(selectedIndicatorKey, "mode", value)
+                    end,
+                }, disabled)
+            else
+                AddDropdown(indicatorSection, L[indicatorMeta.modeLabel] or "Mode", portraitModeList, indicatorConfig.mode or "2D", function(value)
+                    SetIndicatorField(selectedIndicatorKey, "mode", value)
+                end, disabled)
+            end
+        end
+
+        if isScopedObject then
+            AddPropertySliderRow(geometrySection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
+                SetIndicatorField(selectedIndicatorKey, "size", math.floor((value or 0) + 0.5))
+            end, disabled)
+        else
+            AddSlider(indicatorSection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
+                SetIndicatorField(selectedIndicatorKey, "size", math.floor((value or 0) + 0.5))
+            end, disabled)
+        end
 
         if not isExpert then
             AddDisableIndicatorAction()
             return
         end
 
-        AddSlider(indicatorSection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
-            SetIndicatorField(selectedIndicatorKey, "scale", tonumber(string.format("%.2f", value or 1)) or 1)
-        end, indicatorConfig.enabled == false)
+        if isScopedObject then
+            AddPropertySliderRow(geometrySection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+                SetIndicatorField(selectedIndicatorKey, "scale", tonumber(string.format("%.2f", value or 1)) or 1)
+            end, disabled)
+        else
+            AddSlider(indicatorSection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+                SetIndicatorField(selectedIndicatorKey, "scale", tonumber(string.format("%.2f", value or 1)) or 1)
+            end, disabled)
+        end
 
         local placement = indicatorConfig.placement or "ATTACHED"
         local inside = placement == "INSIDE"
 
         if inside then
-            AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.insideAnchorTo or "Frame", function(value)
-                SetIndicatorField(selectedIndicatorKey, "insideAnchorTo", value)
-            end, indicatorConfig.enabled == false)
+            if isScopedObject then
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                    list = portraitAnchorTargetList,
+                    value = indicatorConfig.insideAnchorTo or "Frame",
+                    onChanged = function(value)
+                        SetIndicatorField(selectedIndicatorKey, "insideAnchorTo", value)
+                    end,
+                }, disabled)
+                AddPropertyDropdownRow(positionSection, L[indicatorMeta.insideSideLabel] or (L["OPTION_INSIDE_SIDE"] or "Inside Side"), {
+                    list = portraitInsideSideList,
+                    value = indicatorConfig.insideSide or "LEFT",
+                    onChanged = function(value)
+                        SetIndicatorField(selectedIndicatorKey, "insideSide", value)
+                    end,
+                }, disabled)
+                AddPropertySliderRow(positionSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
+                    SetIndicatorField(selectedIndicatorKey, "padding", math.floor((value or 0) + 0.5))
+                end, disabled)
+            else
+                AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.insideAnchorTo or "Frame", function(value)
+                    SetIndicatorField(selectedIndicatorKey, "insideAnchorTo", value)
+                end, disabled)
 
-            AddDropdown(indicatorSection, L[indicatorMeta.insideSideLabel] or (L["OPTION_INSIDE_SIDE"] or "Inside Side"), portraitInsideSideList, indicatorConfig.insideSide or "LEFT", function(value)
-                SetIndicatorField(selectedIndicatorKey, "insideSide", value)
-            end, indicatorConfig.enabled == false)
+                AddDropdown(indicatorSection, L[indicatorMeta.insideSideLabel] or (L["OPTION_INSIDE_SIDE"] or "Inside Side"), portraitInsideSideList, indicatorConfig.insideSide or "LEFT", function(value)
+                    SetIndicatorField(selectedIndicatorKey, "insideSide", value)
+                end, disabled)
 
-            AddSlider(indicatorSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
-                SetIndicatorField(selectedIndicatorKey, "padding", math.floor((value or 0) + 0.5))
-            end, indicatorConfig.enabled == false)
+                AddSlider(indicatorSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
+                    SetIndicatorField(selectedIndicatorKey, "padding", math.floor((value or 0) + 0.5))
+                end, disabled)
+            end
             AddDisableIndicatorAction()
             return
         end
 
-        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.anchorTo or "Frame", function(value)
-            SetIndicatorField(selectedIndicatorKey, "anchorTo", value)
-        end, indicatorConfig.enabled == false)
+        if isScopedObject then
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                list = portraitAnchorTargetList,
+                value = indicatorConfig.anchorTo or "Frame",
+                onChanged = function(value)
+                    SetIndicatorField(selectedIndicatorKey, "anchorTo", value)
+                end,
+            }, disabled)
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+                list = portraitAnchorPointList,
+                value = indicatorConfig.point or "TOP",
+                onChanged = function(value)
+                    SetIndicatorField(selectedIndicatorKey, "point", value)
+                end,
+            }, disabled)
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+                list = portraitAnchorPointList,
+                value = indicatorConfig.relativePoint or "TOP",
+                onChanged = function(value)
+                    SetIndicatorField(selectedIndicatorKey, "relativePoint", value)
+                end,
+            }, disabled)
+            AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
+                SetIndicatorField(selectedIndicatorKey, "offsetX", math.floor((value or 0) + 0.5))
+            end, disabled)
+            AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
+                SetIndicatorField(selectedIndicatorKey, "offsetY", math.floor((value or 0) + 0.5))
+            end, disabled)
+        else
+            AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.anchorTo or "Frame", function(value)
+                SetIndicatorField(selectedIndicatorKey, "anchorTo", value)
+            end, disabled)
 
-        AddDropdown(indicatorSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, indicatorConfig.point or "TOP", function(value)
-            SetIndicatorField(selectedIndicatorKey, "point", value)
-        end, indicatorConfig.enabled == false)
+            AddDropdown(indicatorSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, indicatorConfig.point or "TOP", function(value)
+                SetIndicatorField(selectedIndicatorKey, "point", value)
+            end, disabled)
 
-        AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, indicatorConfig.relativePoint or "TOP", function(value)
-            SetIndicatorField(selectedIndicatorKey, "relativePoint", value)
-        end, indicatorConfig.enabled == false)
+            AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, indicatorConfig.relativePoint or "TOP", function(value)
+                SetIndicatorField(selectedIndicatorKey, "relativePoint", value)
+            end, disabled)
 
-        AddSlider(indicatorSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
-            SetIndicatorField(selectedIndicatorKey, "offsetX", math.floor((value or 0) + 0.5))
-        end, indicatorConfig.enabled == false)
+            AddSlider(indicatorSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
+                SetIndicatorField(selectedIndicatorKey, "offsetX", math.floor((value or 0) + 0.5))
+            end, disabled)
 
-        AddSlider(indicatorSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
-            SetIndicatorField(selectedIndicatorKey, "offsetY", math.floor((value or 0) + 0.5))
-        end, indicatorConfig.enabled == false)
+            AddSlider(indicatorSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
+                SetIndicatorField(selectedIndicatorKey, "offsetY", math.floor((value or 0) + 0.5))
+            end, disabled)
+        end
 
         AddDisableIndicatorAction()
     end
 
+    local function ResolveSelectedIndicatorInspectorTitle()
+        local selectedIndicatorKey, indicatorMeta = ResolveIndicatorContext()
+        if type(indicatorMeta) == "table" and type(indicatorMeta.labelKey) == "string" then
+            return L[indicatorMeta.labelKey] or selectedIndicatorKey or (L["EDITOR_SECTION_INDICATORS"] or "Indicators")
+        end
+        return selectedIndicatorKey or (L["EDITOR_SECTION_INDICATORS"] or "Indicators")
+    end
+
     do
-        local _, indicatorMeta, indicatorConfig = ResolveIndicatorContext()
+        local selectedIndicatorKey, indicatorMeta, indicatorConfig = ResolveIndicatorContext()
         if indicatorConfig and indicatorMeta then
-            AddScopedInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true, {
-                localContentBuilder = BuildIndicatorSectionContent,
-                layoutRefresh = RefreshInspectorLayout,
-            })
+            if IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey) then
+                AddScopedObjectInspectorBody("indicators", ResolveSelectedIndicatorInspectorTitle(), BuildIndicatorSectionContent)
+            else
+                AddScopedInspectorSection("indicators", L["EDITOR_SECTION_INDICATORS"] or "Indicators", true, {
+                    localContentBuilder = BuildIndicatorSectionContent,
+                    layoutRefresh = RefreshInspectorLayout,
+                })
+            end
         end
     end
 
@@ -3377,6 +3533,12 @@ function InspectorController.Build(container, state, options)
 
         local selectedDecorationId, decorationConfig, decorations = ResolveSelectedDecoration(inspectorContext, unitConfig)
         local decorationSelectorOptions = BuildDecorationSelectorOptions(decorations)
+        local isScopedObject = IsSelectedDecorationObject(selectedUnit, selectedDecorationId)
+        local appearanceSection = decorationSection
+        local geometrySection = decorationSection
+        local positionSection = decorationSection
+        local behaviorSection = decorationSection
+        local actionsSection = decorationSection
         local function RebuildDecorationSection()
             NotifyConfigChangedAndRebuildSection(decorationSection, "decoration")
         end
@@ -3454,7 +3616,13 @@ function InspectorController.Build(container, state, options)
             dialog:Show()
         end
 
-        if #decorations > 0 then
+        if isScopedObject then
+            appearanceSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            geometrySection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            positionSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_POSITION"] or "Position", true)
+            behaviorSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            actionsSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_ACTIONS"] or "Actions", true)
+        elseif #decorations > 0 then
             local selectorRow = AceGUI:Create("SimpleGroup")
             selectorRow:SetFullWidth(true)
             selectorRow:SetLayout("Flow")
@@ -3500,81 +3668,174 @@ function InspectorController.Build(container, state, options)
         local disabled = decorationConfig.enabled == false
         local textureOptions = BuildDecorationTextureOptions(decorationConfig.texture)
         local decorationTextureDropdown
+        local decorationTexturePicker
 
-        AddCheckBox(decorationSection, L["OPTION_DECORATION_ENABLED"] or "Enable Decoration", decorationConfig.enabled == true, function(value)
-            SetDecorationField("enabled", value and true or false, decorationSection)
-        end, nil, "decoration_enabled")
+        if isScopedObject then
+            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_ENABLED"] or "Enabled", decorationConfig.enabled == true, function(value)
+                SetDecorationField("enabled", value and true or false, decorationSection)
+            end, nil, "decoration_enabled")
+        else
+            AddCheckBox(decorationSection, L["OPTION_DECORATION_ENABLED"] or "Enable Decoration", decorationConfig.enabled == true, function(value)
+                SetDecorationField("enabled", value and true or false, decorationSection)
+            end, nil, "decoration_enabled")
+        end
 
         local function SetDecorationTexture(value)
             local result = SetDecorationField("texture", value or "")
             if not (result and result.ok == false) then
-                SyncDropdownToStoredValue(decorationTextureDropdown, result and result.newValue or value or "")
+                local nextValue = result and result.newValue or value or ""
+                if decorationTexturePicker and type(decorationTexturePicker._fpSetPropertyValueText) == "function" then
+                    decorationTexturePicker._fpSetPropertyValueText(ResolveOptionValueLabel(BuildDecorationTextureOptions(nextValue), nextValue))
+                else
+                    SyncDropdownToStoredValue(decorationTextureDropdown, nextValue)
+                end
             end
             return result
         end
 
-        decorationTextureDropdown = AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, SetDecorationTexture, disabled, "decoration_texture")
-        AddMediaBrowserForField(decorationSection, MEDIA_TYPE_DECORATION, function()
-            return decorationConfig.texture
-        end, DEFAULT_DECORATION_REFERENCE, L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or "Choose Decoration Texture", disabled, SetDecorationTexture)
+        if isScopedObject then
+            decorationTexturePicker = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or "Texture", ResolveOptionValueLabel(textureOptions, textureOptions.value or decorationConfig.texture), function()
+                OpenMediaBrowserForField({
+                    mediaType = MEDIA_TYPE_DECORATION,
+                    currentValue = function()
+                        return decorationConfig.texture
+                    end,
+                    fallbackReference = DEFAULT_DECORATION_REFERENCE,
+                    title = L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or "Choose Decoration Texture",
+                    onApply = SetDecorationTexture,
+                })
+            end, disabled or not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Choose Decoration Texture",
+            })
+            AddPropertySliderRow(appearanceSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
+                SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
+            end, disabled, "decoration_alpha")
+            AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+                SetDecorationField("width", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_width")
+            AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+                SetDecorationField("height", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_height")
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                list = decorationTargetList,
+                value = decorationConfig.target or "FRAME",
+                onChanged = function(value)
+                    SetDecorationField("target", value)
+                end,
+                anchorKey = "decoration_target",
+            }, disabled)
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+                list = portraitAnchorPointList,
+                value = decorationConfig.point or "CENTER",
+                onChanged = function(value)
+                    SetDecorationField("point", value)
+                end,
+                anchorKey = "decoration_point",
+            }, disabled)
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+                list = portraitAnchorPointList,
+                value = decorationConfig.relativePoint or "CENTER",
+                onChanged = function(value)
+                    SetDecorationField("relativePoint", value)
+                end,
+                anchorKey = "decoration_relative_point",
+            }, disabled)
+            AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
+                SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_offset_x")
+            AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
+                SetDecorationField("offsetY", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_offset_y")
+            AddPropertyDropdownRow(behaviorSection, L["OPTION_CONDITION"] or "Condition", {
+                list = decorationConditionList,
+                value = decorationConfig.condition or "ALWAYS",
+                onChanged = function(value)
+                    SetDecorationField("condition", value)
+                end,
+                anchorKey = "decoration_condition",
+            }, disabled)
+            AddPropertyActionButtonRow(actionsSection, L["OPTION_DECORATION_DELETE"] or "Delete Decoration", L["OPTION_DECORATION_DELETE"] or "Delete Decoration", "danger", 148, OpenDeleteDecorationConfirmDialog, not decorationConfig)
+        else
+            decorationTextureDropdown = AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, SetDecorationTexture, disabled, "decoration_texture")
+            AddMediaBrowserForField(decorationSection, MEDIA_TYPE_DECORATION, function()
+                return decorationConfig.texture
+            end, DEFAULT_DECORATION_REFERENCE, L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or "Choose Decoration Texture", disabled, SetDecorationTexture)
 
-        AddDropdown(decorationSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", decorationTargetList, decorationConfig.target or "FRAME", function(value)
-            SetDecorationField("target", value)
-        end, disabled, "decoration_target")
+            AddDropdown(decorationSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", decorationTargetList, decorationConfig.target or "FRAME", function(value)
+                SetDecorationField("target", value)
+            end, disabled, "decoration_target")
 
-        AddSlider(decorationSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
-            SetDecorationField("width", math.floor((value or 0) + 0.5))
-        end, disabled, "decoration_width")
+            AddSlider(decorationSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+                SetDecorationField("width", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_width")
 
-        AddSlider(decorationSection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
-            SetDecorationField("height", math.floor((value or 0) + 0.5))
-        end, disabled, "decoration_height")
+            AddSlider(decorationSection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+                SetDecorationField("height", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_height")
 
-        AddDropdown(decorationSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, decorationConfig.point or "CENTER", function(value)
-            SetDecorationField("point", value)
-        end, disabled, "decoration_point")
+            AddDropdown(decorationSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, decorationConfig.point or "CENTER", function(value)
+                SetDecorationField("point", value)
+            end, disabled, "decoration_point")
 
-        AddDropdown(decorationSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, decorationConfig.relativePoint or "CENTER", function(value)
-            SetDecorationField("relativePoint", value)
-        end, disabled, "decoration_relative_point")
+            AddDropdown(decorationSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, decorationConfig.relativePoint or "CENTER", function(value)
+                SetDecorationField("relativePoint", value)
+            end, disabled, "decoration_relative_point")
 
-        AddSlider(decorationSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
-            SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
-        end, disabled, "decoration_offset_x")
+            AddSlider(decorationSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
+                SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_offset_x")
 
-        AddSlider(decorationSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
-            SetDecorationField("offsetY", math.floor((value or 0) + 0.5))
-        end, disabled, "decoration_offset_y")
+            AddSlider(decorationSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
+                SetDecorationField("offsetY", math.floor((value or 0) + 0.5))
+            end, disabled, "decoration_offset_y")
 
-        AddSlider(decorationSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
-            SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
-        end, disabled, "decoration_alpha")
+            AddSlider(decorationSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
+                SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
+            end, disabled, "decoration_alpha")
 
-        AddDropdown(decorationSection, L["OPTION_CONDITION"] or "Condition", decorationConditionList, decorationConfig.condition or "ALWAYS", function(value)
-            SetDecorationField("condition", value)
-        end, disabled, "decoration_condition")
+            AddDropdown(decorationSection, L["OPTION_CONDITION"] or "Condition", decorationConditionList, decorationConfig.condition or "ALWAYS", function(value)
+                SetDecorationField("condition", value)
+            end, disabled, "decoration_condition")
 
-        AddSpacer(decorationSection, 8)
-        local deleteButton = AceGUI:Create("Button")
-        if FormWidgets and FormWidgets.ResetInspectorButtonState then
-            FormWidgets.ResetInspectorButtonState(deleteButton)
+            AddSpacer(decorationSection, 8)
+            local deleteButton = AceGUI:Create("Button")
+            if FormWidgets and FormWidgets.ResetInspectorButtonState then
+                FormWidgets.ResetInspectorButtonState(deleteButton)
+            end
+            deleteButton:SetText(L["OPTION_DECORATION_DELETE"] or "Delete Decoration")
+            deleteButton:SetFullWidth(true)
+            deleteButton:SetDisabled(not decorationConfig)
+            deleteButton:SetCallback("OnClick", OpenDeleteDecorationConfirmDialog)
+            if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+                FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
+            elseif FormWidgets and FormWidgets.StyleActionButton then
+                FormWidgets.StyleActionButton(deleteButton, "danger")
+            end
+            decorationSection:AddChild(deleteButton)
         end
-        deleteButton:SetText(L["OPTION_DECORATION_DELETE"] or "Delete Decoration")
-        deleteButton:SetFullWidth(true)
-        deleteButton:SetDisabled(not decorationConfig)
-        deleteButton:SetCallback("OnClick", OpenDeleteDecorationConfirmDialog)
-        if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
-            FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
-        elseif FormWidgets and FormWidgets.StyleActionButton then
-            FormWidgets.StyleActionButton(deleteButton, "danger")
-        end
-        decorationSection:AddChild(deleteButton)
     end
 
-    AddScopedInspectorSection("decoration", L["EDITOR_SECTION_DECORATION"] or "Decoration", true, {
-        localContentBuilder = BuildDecorationSectionContent,
-        layoutRefresh = RefreshInspectorLayout,
-    })
+    local function ResolveSelectedDecorationInspectorTitle()
+        local selectedDecorationId, _, decorations = ResolveSelectedDecoration(inspectorContext, unitConfig)
+        for index, decoration in ipairs(decorations or {}) do
+            if type(decoration) == "table" and decoration.id == selectedDecorationId then
+                return BuildDecorationLabel(decoration, index)
+            end
+        end
+        return L["EDITOR_SECTION_DECORATION"] or "Decoration"
+    end
+
+    do
+        local selectedDecorationId, decorationConfig = ResolveSelectedDecoration(inspectorContext, unitConfig)
+        if IsSelectedDecorationObject(selectedUnit, selectedDecorationId) and type(decorationConfig) == "table" then
+            AddScopedObjectInspectorBody("decoration", ResolveSelectedDecorationInspectorTitle(), BuildDecorationSectionContent)
+        else
+            AddScopedInspectorSection("decoration", L["EDITOR_SECTION_DECORATION"] or "Decoration", true, {
+                localContentBuilder = BuildDecorationSectionContent,
+                layoutRefresh = RefreshInspectorLayout,
+            })
+        end
+    end
 
     local function BuildAuraSectionContent(auraSection)
         local selectedAuraKey, auraConfig, _, currentAuraList = ResolveAuraContext()
