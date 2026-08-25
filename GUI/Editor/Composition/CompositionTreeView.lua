@@ -17,7 +17,7 @@ local Adapter = ns.CompositionTreeAdapter or (ns.GUI.Editor.Composition and ns.G
 local ObjectSelection = ns.GUI.Editor.ObjectSelection or {}
 
 local ROW_WIDGET_TYPE = "FocalPointCompositionTreeRow"
-local ROW_WIDGET_VERSION = 2
+local ROW_WIDGET_VERSION = 3
 local ROW_HEIGHT_CLICKABLE = 12
 local ROW_HEIGHT_STATIC = 12
 local ROW_INDENT = 8
@@ -33,8 +33,8 @@ local TREE_SCROLL_MIN_HEIGHT = 64
 local TREE_ROW_ESTIMATED_HEIGHT = 15
 
 local ROW_COLORS = {
-    fillSelected = { 0.11, 0.12, 0.15, 0.66 },
-    fillHover = { 0.09, 0.10, 0.12, 0.42 },
+    fillSelected = { 0.18, 0.22, 0.30, 0.92 },
+    fillHover = { 0.09, 0.10, 0.12, 0.34 },
     accent = { 0.90, 0.78, 0.34, 0.76 },
     textRoot = { 0.93, 0.90, 0.80, 1.00 },
     textLeaf = { 0.88, 0.84, 0.72, 1.00 },
@@ -45,6 +45,8 @@ local ROW_COLORS = {
     icon = { 0.72, 0.68, 0.54, 0.92 },
     iconContainer = { 0.50, 0.54, 0.60, 0.82 },
     chevron = { 0.60, 0.64, 0.70, 0.88 },
+    chevronFill = { 0.06, 0.07, 0.09, 0.82 },
+    chevronFillSelected = { 0.90, 0.78, 0.34, 0.22 },
     toggleOn = { 0.90, 0.78, 0.34, 0.92 },
     toggleOff = { 0.42, 0.45, 0.50, 0.58 },
 }
@@ -412,6 +414,30 @@ local function AdjustScrollForSelection(scrollStatus, selectedRowIndex, rowCount
     scrollStatus.scrollvalue = (firstRow - 1) / (maxFirstRow - 1) * 1000
 end
 
+local function FindVisibleRowIndex(visibleRows, state)
+    if type(visibleRows) ~= "table" then
+        return nil
+    end
+    for index, row in ipairs(visibleRows) do
+        if IsActiveNode(row.node, state) then
+            return index
+        end
+    end
+    return nil
+end
+
+local function FindVisibleRowByNodeId(visibleRows, nodeId)
+    if type(visibleRows) ~= "table" or type(nodeId) ~= "string" then
+        return nil
+    end
+    for index, row in ipairs(visibleRows) do
+        if row.node and row.node.id == nodeId then
+            return row, index
+        end
+    end
+    return nil
+end
+
 function IsActiveNode(node, state)
     if not IsClickableNode(node) or type(state) ~= "table" then
         return false
@@ -492,6 +518,10 @@ local function ApplyRowGeometry(row)
         row.expander:SetPoint("LEFT", row.frame, "LEFT", indent, 0)
         row.expander:SetSize(ROW_CHEVRON_SIZE + 3, ROW_CHEVRON_SIZE + 3)
     end
+    if row.expanderBackground then
+        row.expanderBackground:ClearAllPoints()
+        row.expanderBackground:SetAllPoints(row.expander)
+    end
 
     if row.icon then
         row.icon:ClearAllPoints()
@@ -558,13 +588,21 @@ local function ApplyRowVisualState(row)
     if row.expander then
         if row.expandable then
             row.expander:Show()
+            if row.expanderBackground then
+                local fill = selected and ROW_COLORS.chevronFillSelected or ROW_COLORS.chevronFill
+                SetTextureColor(row.expanderBackground, fill)
+                row.expanderBackground:Show()
+            end
             if row.expanderGlyph then
-                row.expanderGlyph:SetText(row.expanded and "v" or ">")
+                row.expanderGlyph:SetText(row.expanded and "-" or "+")
                 local color = ResolveColor("description", ROW_COLORS.chevron)
                 row.expanderGlyph:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
             end
         else
             row.expander:Hide()
+            if row.expanderBackground then
+                row.expanderBackground:Hide()
+            end
             if row.expanderGlyph then
                 row.expanderGlyph:SetText("")
             end
@@ -690,6 +728,9 @@ local function RegisterCompositionTreeRowWidget()
         if self.expanderGlyph then
             self.expanderGlyph:SetText("")
         end
+        if self.expanderBackground then
+            self.expanderBackground:Hide()
+        end
     end
 
     function methods:SetRow(node, depth, state, clickable, expandable, expanded)
@@ -756,6 +797,10 @@ local function RegisterCompositionTreeRowWidget()
         expander:Hide()
         expander:EnableMouse(true)
 
+        local expanderBackground = expander:CreateTexture(nil, "BACKGROUND")
+        expanderBackground:SetTexture("Interface\\Buttons\\WHITE8X8")
+        expanderBackground:Hide()
+
         local expanderGlyph = expander:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         expanderGlyph:SetPoint("CENTER")
         expanderGlyph:SetJustifyH("CENTER")
@@ -784,6 +829,7 @@ local function RegisterCompositionTreeRowWidget()
             background = background,
             accent = accent,
             expander = expander,
+            expanderBackground = expanderBackground,
             expanderGlyph = expanderGlyph,
             icon = icon,
             label = label,
@@ -869,6 +915,133 @@ local function RefreshRowStates(rows, state)
     end
 end
 
+local function SelectTreeNode(node, state, options)
+    local objectRef = BuildObjectRef(node)
+    if not objectRef or type(ObjectSelection.SelectObject) ~= "function" then
+        return false
+    end
+
+    local ok, changeKind = ObjectSelection.SelectObject(objectRef)
+    if ok ~= true then
+        return false
+    end
+    if changeKind == "sameUnitObject" then
+        RefreshRowStates(options and options._focalPointRows, state)
+    end
+    if options and type(options.onSelect) == "function" then
+        options.onSelect(objectRef, node, changeKind)
+    end
+    return true
+end
+
+local function RebuildTree(options)
+    if options and type(options.rebuild) == "function" then
+        options.rebuild()
+        return true
+    end
+    return false
+end
+
+local function SelectVisibleRow(visibleRows, index, state, options)
+    local row = type(visibleRows) == "table" and visibleRows[index] or nil
+    if not (row and row.node) then
+        return false
+    end
+    return SelectTreeNode(row.node, state, options)
+end
+
+local function SelectNextVisibleObject(visibleRows, startIndex, direction, state, options)
+    if type(visibleRows) ~= "table" then
+        return false
+    end
+
+    local step = direction == "up" and -1 or 1
+    local index = (tonumber(startIndex) or 0) + step
+    while index >= 1 and index <= #visibleRows do
+        if SelectVisibleRow(visibleRows, index, state, options) then
+            return true
+        end
+        index = index + step
+    end
+    return false
+end
+
+local function HandleTreeKey(key, state, options)
+    local visibleRows = options and options.visibleRows or nil
+    local expansionState = options and options.expanded or nil
+    local currentIndex = FindVisibleRowIndex(visibleRows, state)
+    local currentRow = currentIndex and visibleRows[currentIndex] or nil
+    local currentNode = currentRow and currentRow.node or nil
+    if not currentNode then
+        return false
+    end
+
+    if key == "UP" then
+        if currentIndex and currentIndex > 1 then
+            return SelectNextVisibleObject(visibleRows, currentIndex, "up", state, options)
+        end
+        return false
+    elseif key == "DOWN" then
+        if currentIndex and currentIndex < #visibleRows then
+            return SelectNextVisibleObject(visibleRows, currentIndex, "down", state, options)
+        end
+        return false
+    elseif key == "LEFT" then
+        if HasChildren(currentNode) and IsExpanded(currentNode, expansionState) then
+            expansionState[currentNode.id] = false
+            return RebuildTree(options)
+        end
+        local parentRow = FindVisibleRowByNodeId(visibleRows, currentNode.parentId)
+        if parentRow then
+            return SelectTreeNode(parentRow.node, state, options)
+        end
+        return false
+    elseif key == "RIGHT" then
+        if HasChildren(currentNode) and not IsExpanded(currentNode, expansionState) then
+            expansionState[currentNode.id] = true
+            return RebuildTree(options)
+        end
+        if HasChildren(currentNode) and IsExpanded(currentNode, expansionState) then
+            local firstChild = currentNode.children and currentNode.children[1] or nil
+            local childRow = firstChild and FindVisibleRowByNodeId(visibleRows, firstChild.id) or nil
+            if childRow then
+                return SelectTreeNode(childRow.node, state, options)
+            end
+        end
+    end
+    return false
+end
+
+local function EnableTreeKeyboard(scroll, state, options)
+    local frame = scroll and (scroll.scrollframe or scroll.frame)
+    if not (frame and frame.SetScript and frame.EnableKeyboard) then
+        return
+    end
+
+    frame:EnableKeyboard(false)
+    if frame.SetPropagateKeyboardInput then
+        frame:SetPropagateKeyboardInput(true)
+    end
+    frame:SetScript("OnEnter", function(self)
+        self:EnableKeyboard(true)
+        if self.SetPropagateKeyboardInput then
+            self:SetPropagateKeyboardInput(true)
+        end
+    end)
+    frame:SetScript("OnLeave", function(self)
+        if self.SetPropagateKeyboardInput then
+            self:SetPropagateKeyboardInput(true)
+        end
+        self:EnableKeyboard(false)
+    end)
+    frame:SetScript("OnKeyDown", function(self, key)
+        local handled = HandleTreeKey(key, state, options)
+        if self.SetPropagateKeyboardInput then
+            self:SetPropagateKeyboardInput(not handled)
+        end
+    end)
+end
+
 local function AddNodeRow(container, node, depth, state, options)
     local clickable = IsClickableNode(node) and type(options) == "table" and type(options.onSelect) == "function"
     local toggleable = IsToggleableNode(node) and type(options) == "table" and type(options.onToggle) == "function"
@@ -881,6 +1054,12 @@ local function AddNodeRow(container, node, depth, state, options)
     end
     if type(options) == "table" and type(options._focalPointRows) == "table" then
         options._visibleRowIndex = (tonumber(options._visibleRowIndex) or 0) + 1
+        if type(options.visibleRows) == "table" then
+            options.visibleRows[#options.visibleRows + 1] = {
+                node = node,
+                depth = depth,
+            }
+        end
         if type(options._rowIndexByNodeId) == "table" and type(node.id) == "string" then
             options._rowIndexByNodeId[node.id] = options._visibleRowIndex
         end
@@ -893,18 +1072,7 @@ local function AddNodeRow(container, node, depth, state, options)
     end
     if clickable and rowWidget.SetCallback then
         rowWidget:SetCallback("OnClick", function()
-            local objectRef = BuildObjectRef(node)
-            if type(ObjectSelection.SelectObject) ~= "function" then
-                return
-            end
-            local ok, changeKind = ObjectSelection.SelectObject(objectRef)
-            if ok ~= true then
-                return
-            end
-            if changeKind == "sameUnitObject" then
-                RefreshRowStates(options._focalPointRows, state)
-            end
-            options.onSelect(objectRef, node, changeKind)
+            SelectTreeNode(node, state, options)
         end)
     end
     if toggleable and rowWidget.SetCallback then
@@ -947,6 +1115,7 @@ function View.Build(container, state, options)
     options._focalPointRows = {}
     options._rowIndexByNodeId = {}
     options._visibleRowIndex = 0
+    options.visibleRows = {}
 
     local unit = type(state) == "table" and state.selectedUnit or nil
     local tree = type(Adapter.BuildUnitTree) == "function" and Adapter.BuildUnitTree(unit) or nil
@@ -982,6 +1151,7 @@ function View.Build(container, state, options)
     if scroll.SetStatusTable then
         scroll:SetStatusTable(uiState.scroll)
     end
+    EnableTreeKeyboard(scroll, state, options)
     container:AddChild(scroll)
 
     RenderNode(scroll, tree, 0, state, options)
