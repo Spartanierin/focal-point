@@ -781,7 +781,11 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         owner:RefreshAuras(frame, refreshRequest and refreshRequest.forceAuraFullScan == true)
     end
     if needsTexts and owner.UpdateTextElements then
-        owner:UpdateTextElements(frame)
+        local textDependencies = (not needsFull and not needsLayout)
+            and refreshRequest
+            and refreshRequest.textDependencies
+            or nil
+        owner:UpdateTextElements(frame, textDependencies)
     end
 
     if needsVisibility and owner.ApplyRangeFade then

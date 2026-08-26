@@ -929,6 +929,11 @@ local function RefreshTemplateDropdown(context)
 end
 
 local function RefreshEditorInteractionPreview()
+    if ns.RefreshAllUnitFrames then
+        ns:RefreshAllUnitFrames()
+        return
+    end
+
     if ns.RefreshEditorInteractionVisuals then
         ns:RefreshEditorInteractionVisuals()
     end

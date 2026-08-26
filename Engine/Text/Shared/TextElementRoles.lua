@@ -67,3 +67,43 @@ end
 function Roles.IsCastRole(role)
     return role == "cast_name" or role == "cast_time"
 end
+
+function Roles.GetDependencies(role)
+    if role == "class" then
+        return { "identity", "color" }
+    end
+
+    if role == "name" or role == "race" or role == "level" then
+        return "identity"
+    end
+
+    if role == "health" then
+        return "health"
+    end
+
+    if role == "power" then
+        return "power"
+    end
+
+    if role == "altpower" then
+        return "altpower"
+    end
+
+    if role == "classpower" then
+        return "classpower"
+    end
+
+    if role == "status" then
+        return "status"
+    end
+
+    if role == "cast_name" then
+        return "cast"
+    end
+
+    if role == "cast_time" then
+        return { "cast", "time" }
+    end
+
+    return nil
+end

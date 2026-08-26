@@ -66,6 +66,13 @@ local function MergeInto(target, source)
     end
 end
 
+local function NormalizeUnitTextConfigs(units)
+    local normalizeAll = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.NormalizeAllUnitTexts
+    if type(normalizeAll) == "function" then
+        normalizeAll(units)
+    end
+end
+
 local function BuildClassicCollisionName(templateName, templateValue, templates)
     local baseName = tostring(templateName or "")
     local candidate = baseName .. " (Classic)"
@@ -282,6 +289,7 @@ function ThemeService.RestoreDefaultSnapshot()
 
     if type(snapshot.units) == "table" then
         profile.Units = CloneValue(snapshot.units)
+        NormalizeUnitTextConfigs(profile.Units)
     end
 
     profile.General = profile.General or {}
@@ -330,6 +338,7 @@ function ThemeService.RestoreSnapshot()
 
     if type(themeRestoreState.units) == "table" then
         profile.Units = CloneValue(themeRestoreState.units)
+        NormalizeUnitTextConfigs(profile.Units)
     end
 
     profile.General = profile.General or {}
@@ -409,6 +418,7 @@ function ThemeService.ApplyTheme(themeId)
     for unitKey, unitConfig in pairs(layout.Units) do
         profile.Units[unitKey] = unitConfig
     end
+    NormalizeUnitTextConfigs(profile.Units)
 
     profile.General = profile.General or {}
     profile.General.ActiveThemeId = theme.id

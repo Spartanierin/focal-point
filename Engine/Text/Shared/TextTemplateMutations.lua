@@ -125,6 +125,27 @@ local function GetTextConfig(context, unitKey, textKey)
     return type(textConfig) == "table" and textConfig or nil, texts, unitConfig
 end
 
+local function NormalizeUnitTexts(unitConfig)
+    local normalize = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.NormalizeUnitTexts
+    if type(normalize) == "function" then
+        normalize(unitConfig)
+    end
+end
+
+local function NormalizeUnitTextConfig(context, unitKey)
+    NormalizeUnitTexts(GetUnitConfigFromContext(context, unitKey))
+end
+
+local function NormalizeAllUnitTextConfigs(units)
+    if type(units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(units) do
+        NormalizeUnitTexts(unitConfig)
+    end
+end
+
 local function IsDynamicTextKey(textKey)
     return type(textKey) == "string" and (textKey:match("^text_%d+$") ~= nil or textKey:match("^Custom%d+$") ~= nil)
 end
@@ -453,6 +474,10 @@ function Mutations.RenameTemplate(context, oldName, newName, templateText)
             reference.textConfig.stateTemplates[reference.stateKey] = newName
         end
     end
+    local units = GetUnitsFromContext(context)
+    if type(units) == "table" then
+        NormalizeAllUnitTextConfigs(units)
+    end
 
     return Result(true, { templateName = newName, oldName = oldName, changed = true, affectedReferences = affected })
 end
@@ -525,6 +550,9 @@ function Mutations.AssignTemplate(context, unitKey, textKey, templateName)
 
     local changed = textConfig.templateName ~= templateName
     textConfig.templateName = templateName
+    if changed then
+        NormalizeUnitTexts(unitConfig)
+    end
     return Result(true, { templateName = templateName, unitKey = unitKey, textKey = textKey, changed = changed })
 end
 
@@ -545,6 +573,9 @@ function Mutations.UnassignTemplate(context, unitKey, textKey)
     local templates = GetTemplatesFromContext(context) or {}
     local templateText = templates[templateName]
     local changed, cleanupAction = RemoveTemplateReferenceAndCleanup(texts, textKey, textConfig, templateName, templateText, "primary")
+    if changed then
+        NormalizeUnitTexts(unitConfig)
+    end
     return Result(true, {
         templateName = templateName,
         unitKey = unitKey,
@@ -581,6 +612,9 @@ function Mutations.AssignStateTemplate(context, unitKey, textKey, stateKey, temp
     textConfig.stateTemplates = type(textConfig.stateTemplates) == "table" and textConfig.stateTemplates or {}
     local changed = textConfig.stateTemplates[stateKey] ~= templateName
     textConfig.stateTemplates[stateKey] = templateName
+    if changed then
+        NormalizeUnitTexts(unitConfig)
+    end
     return Result(true, { templateName = templateName, unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = changed })
 end
 
@@ -607,12 +641,18 @@ function Mutations.UnassignStateTemplate(context, unitKey, textKey, stateKey)
         if next(textConfig.stateTemplates) == nil then
             textConfig.stateTemplates = nil
         end
+        if changed then
+            NormalizeUnitTexts(unitConfig)
+        end
         return Result(true, { unitKey = unitKey, textKey = textKey, stateKey = stateKey, changed = changed })
     end
 
     local templates = GetTemplatesFromContext(context) or {}
     local templateText = templates[templateName]
     local changed, cleanupAction = RemoveTemplateReferenceAndCleanup(texts, textKey, textConfig, templateName, templateText, "state", stateKey)
+    if changed then
+        NormalizeUnitTexts(unitConfig)
+    end
     return Result(true, {
         templateName = templateName,
         unitKey = unitKey,
@@ -650,6 +690,7 @@ function Mutations.ApplyTemplateToUnits(context, options)
                 or Mutations.BuildTextElementConfig(options.templateText or "", options.linkedTemplateName or "")
             if IsNonEmptyString(textKey) and type(textConfig) == "table" then
                 unitConfig.Texts[textKey] = textConfig
+                NormalizeUnitTexts(unitConfig)
                 appliedUnits[#appliedUnits + 1] = unitKey
             end
         end
@@ -680,6 +721,7 @@ function Mutations.ApplyTemplateToUnits(context, options)
             end
         end
         if unitChanged then
+            NormalizeUnitTextConfig(context, unitKey)
             removedUnits[#removedUnits + 1] = unitKey
         end
     end

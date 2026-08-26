@@ -10,6 +10,21 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.2.4
+
+Performance & Runtime Efficiency
+
+### Improved
+
+* Reduced unnecessary repeated work in the text update pipeline.
+* Moved configuration normalization out of frequent runtime lookups.
+* Reduced repeated template-resolution work during runtime updates.
+* Improved selective text refreshes so unrelated text elements are updated less often.
+* Reduced unnecessary CastTime model resolution during live updates.
+* Improved runtime dependency tracking for text elements.
+
+No configuration changes are required.
+
 ## Focal Point 1.2.3
 
 Gameplay unit frame interaction

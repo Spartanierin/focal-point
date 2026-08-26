@@ -986,6 +986,16 @@ local function IsLegacyCustomTextId(textId)
     return type(textId) == "string" and textId:match("^Custom%d+$") ~= nil
 end
 
+local function NormalizeUnitTextConfigs()
+    local utils = FocalPoint.UnitFrameUtils
+    local normalizeAll = utils and utils.NormalizeAllUnitTexts
+    if type(normalizeAll) ~= "function" then
+        return
+    end
+
+    normalizeAll(FocalPoint.db and FocalPoint.db.profile and FocalPoint.db.profile.Units)
+end
+
 local function RemoveLegacyDuplicateTextElements()
     if not FocalPoint.db or not FocalPoint.db.profile or type(FocalPoint.db.profile.Units) ~= "table" then
         return
@@ -1092,6 +1102,7 @@ function FocalPointAddon:OnInitialize()
     EnsureCoreTextDefaults()
     EnsureNoEmptyTextElements()
     RemoveLegacyDuplicateTextElements()
+    NormalizeUnitTextConfigs()
     InitRangeCheck()
 
     FocalPoint.LDS = FocalPoint.LDS or LibStub("LibDualSpec-1.0", true)
@@ -1106,6 +1117,7 @@ function FocalPointAddon:OnInitialize()
             FocalPoint._pendingProfileActivationReason = nil
             FocalPoint._pendingProfileActivationOptions = nil
             NormalizeAbsorbConfig()
+            NormalizeUnitTextConfigs()
             if FocalPoint.HandleActiveProfileChanged then
                 FocalPoint:HandleActiveProfileChanged(reason, options)
             elseif FocalPoint.RebuildFramesForActiveProfile then

@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.TextTemplateResolver = FocalPoint.TextTemplateResolver or {}
 local Resolver = FocalPoint.TextTemplateResolver
+local BindingCache = setmetatable({}, { __mode = "k" })
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
@@ -101,6 +102,93 @@ local function BuildRuntimeCandidates(textConfig, state)
     return candidates
 end
 
+local function SortedKeys(source)
+    local keys = {}
+    if type(source) ~= "table" then
+        return keys
+    end
+
+    for key in pairs(source) do
+        if type(key) == "string" then
+            keys[#keys + 1] = key
+        end
+    end
+
+    table.sort(keys)
+    return keys
+end
+
+local function BuildDependencyCandidates(textConfig)
+    local candidates = {}
+    if type(textConfig) ~= "table" then
+        return candidates
+    end
+
+    if type(textConfig.stateTemplates) == "table" then
+        for _, stateKey in ipairs(SortedKeys(textConfig.stateTemplates)) do
+            candidates[#candidates + 1] = BuildStateReference(textConfig, stateKey)
+        end
+    end
+
+    candidates[#candidates + 1] = BuildTemplateReference(textConfig)
+    candidates[#candidates + 1] = BuildInlineReference(textConfig)
+    return candidates
+end
+
+local function GetStateKey(state)
+    return IsNonEmptyString(state) and state or ""
+end
+
+local function GetRuntimeCandidates(textConfig, state)
+    if type(textConfig) ~= "table" then
+        return nil
+    end
+
+    local binding = BindingCache[textConfig]
+    if type(binding) ~= "table" then
+        binding = {
+            states = {},
+        }
+        BindingCache[textConfig] = binding
+    end
+
+    local stateKey = GetStateKey(state)
+    local candidates = binding.states[stateKey]
+    if type(candidates) ~= "table" then
+        candidates = BuildRuntimeCandidates(textConfig, state)
+        binding.states[stateKey] = candidates
+    end
+
+    return candidates
+end
+
+function Resolver.Invalidate(textConfig)
+    if type(textConfig) == "table" then
+        BindingCache[textConfig] = nil
+    end
+end
+
+function Resolver.InvalidateUnitTexts(unitConfig)
+    local texts = unitConfig and unitConfig.Texts
+    if type(texts) ~= "table" then
+        return
+    end
+
+    for _, textConfig in pairs(texts) do
+        Resolver.Invalidate(textConfig)
+    end
+end
+
+function Resolver.InvalidateAllUnitTexts(units)
+    if type(units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(units) do
+        Resolver.InvalidateUnitTexts(unitConfig)
+    end
+end
+
 function Resolver.ResolveReference(textConfig, state)
     if type(textConfig) ~= "table" then
         return nil
@@ -140,7 +228,7 @@ function Resolver.Resolve(textConfig, state, context)
         return ""
     end
 
-    for _, reference in ipairs(BuildRuntimeCandidates(textConfig, state)) do
+    for _, reference in ipairs(GetRuntimeCandidates(textConfig, state) or {}) do
         local resolvedText = Resolver.ResolveTemplateText(reference, context)
         if IsNonEmptyString(resolvedText) then
             return resolvedText
@@ -148,4 +236,88 @@ function Resolver.Resolve(textConfig, state, context)
     end
 
     return ""
+end
+
+local function AddDependency(target, dependency)
+    if type(target) ~= "table" then
+        return
+    end
+
+    if type(dependency) == "string" and dependency ~= "" then
+        target[dependency] = true
+        return
+    end
+
+    if type(dependency) == "table" then
+        for _, entry in ipairs(dependency) do
+            AddDependency(target, entry)
+        end
+    end
+end
+
+local function HasAnyDependency(dependencies)
+    if type(dependencies) ~= "table" then
+        return false
+    end
+
+    for _, enabled in pairs(dependencies) do
+        if enabled == true then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ScanTemplateDependencies(template, dependencies, context)
+    template = NormalizeText(template, context)
+    if template == "" then
+        return false
+    end
+
+    local foundToken = false
+    for token in template:gmatch("%[([^%]]+)%]") do
+        foundToken = true
+
+        local dependency = nil
+        if type(context) == "table" and type(context.GetBasicTagDependencies) == "function" then
+            dependency = context.GetBasicTagDependencies(token)
+        end
+
+        if dependency == nil and type(context) == "table" and type(context.GetTokenDependencies) == "function" then
+            dependency = context.GetTokenDependencies(token)
+        end
+
+        AddDependency(dependencies, dependency or "unknown")
+    end
+
+    return foundToken
+end
+
+function Resolver.ResolveDependencies(textConfig, context)
+    local dependencies = {}
+    local sawTemplate = false
+    local sawToken = false
+
+    if type(textConfig) == "table" then
+        for _, reference in ipairs(BuildDependencyCandidates(textConfig)) do
+            if reference then
+                local template = Resolver.ResolveTemplateText(reference, context)
+                if template ~= "" then
+                    sawTemplate = true
+                    sawToken = ScanTemplateDependencies(template, dependencies, context) or sawToken
+                end
+            end
+        end
+    end
+
+    if not sawTemplate and type(context) == "table" and type(context.GetRoleDependencies) == "function" then
+        AddDependency(dependencies, context.GetRoleDependencies())
+    end
+
+    if not HasAnyDependency(dependencies) then
+        AddDependency(dependencies, sawTemplate and "static" or "unknown")
+    end
+
+    return dependencies
 end

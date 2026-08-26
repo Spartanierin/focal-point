@@ -127,6 +127,26 @@ function Templates.ResolveConfigured(frame, textConfig, deps)
     }) or ""
 end
 
+function Templates.ResolveDependencies(frame, textConfig, deps)
+    deps = deps or {}
+
+    if type(textConfig) ~= "table" then
+        return {
+            unknown = true,
+        }
+    end
+
+    return TemplateResolver.ResolveDependencies and TemplateResolver.ResolveDependencies(textConfig, {
+        GetTemplate = deps.GetTemplate,
+        NormalizeText = NormalizeTemplateText,
+        GetTokenDependencies = deps.GetTokenDependencies,
+        GetBasicTagDependencies = deps.GetBasicTagDependencies,
+        GetRoleDependencies = deps.GetRoleDependencies,
+    }) or {
+        unknown = true,
+    }
+end
+
 function Templates.BuildPreview(template, deps)
     deps = deps or {}
 

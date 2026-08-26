@@ -10,6 +10,11 @@ local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local AbsorbBars = FocalPoint.UnitFrameAbsorbBars or {}
+local HEALTH_TEXT_DEPENDENCIES = {
+    health = true,
+    absorb = true,
+    healing_absorb = true,
+}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -318,9 +323,9 @@ function Health.RegisterEvents(owner, frame)
             return
         end
 
-        local function Queue(scope)
+        local function Queue(scope, options)
             if State.QueueRefresh then
-                State.QueueRefresh(currentOwner, event, scope)
+                State.QueueRefresh(currentOwner, event, scope, options)
             else
                 owner:Refresh(currentOwner)
             end
@@ -354,7 +359,7 @@ function Health.RegisterEvents(owner, frame)
             return
         end
 
-        Queue({ "bars", "texts" })
+        Queue({ "bars", "texts" }, { textDependencies = HEALTH_TEXT_DEPENDENCIES })
     end)
 
     frame.HealthBarEventFrame = eventFrame

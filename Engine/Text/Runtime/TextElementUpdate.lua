@@ -516,6 +516,9 @@ function Update.UpdateElement(frame, key, deps)
         local textObject = frame.Texts[key]
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
         if not textConfig or textConfig.enabled == false then
+            if TextState.InvalidateDependencies then
+                TextState.InvalidateDependencies(frame, key)
+            end
             SafeSetText(textObject, "", false)
             textObject:Hide()
             return
@@ -687,7 +690,69 @@ function Update.UpdateElement(frame, key, deps)
     end
 end
 
-function Update.UpdateAll(frame, deps)
+local function HasAnyDependency(dependencies)
+    if type(dependencies) ~= "table" then
+        return false
+    end
+
+    for _, enabled in pairs(dependencies) do
+        if enabled == true then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ShouldUpdateTextKey(frame, key, changedDependencies)
+    if not HasAnyDependency(changedDependencies) then
+        return true
+    end
+
+    if not TextState.GetDependencies then
+        return true
+    end
+
+    local dependencies = TextState.GetDependencies(frame, key)
+    if not HasAnyDependency(dependencies) then
+        return true
+    end
+
+    if dependencies.unknown == true then
+        return true
+    end
+
+    for dependency, enabled in pairs(changedDependencies) do
+        if enabled == true and dependencies[dependency] == true then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function EnsureDependencyBinding(frame, key, textConfig, deps, changedDependencies)
+    if HasAnyDependency(changedDependencies) then
+        return
+    end
+
+    if type(textConfig) ~= "table" or textConfig.enabled == false then
+        return
+    end
+
+    local MaterializeTextDependencies = deps and deps.MaterializeTextDependencies
+    if not MaterializeTextDependencies or not TextState.GetDependencies then
+        return
+    end
+
+    if HasAnyDependency(TextState.GetDependencies(frame, key)) then
+        return
+    end
+
+    MaterializeTextDependencies(frame, key, textConfig)
+end
+
+function Update.UpdateAll(frame, deps, changedDependencies)
     if not frame or not frame.config or not frame.config.Texts then
         return
     end
@@ -697,8 +762,11 @@ function Update.UpdateAll(frame, deps)
         return
     end
 
-    for key in pairs(frame.config.Texts) do
-        updateElement(frame, key)
+    for key, textConfig in pairs(frame.config.Texts) do
+        EnsureDependencyBinding(frame, key, textConfig, deps, changedDependencies)
+        if ShouldUpdateTextKey(frame, key, changedDependencies) then
+            updateElement(frame, key)
+        end
     end
 
     if TextState.MarkRenderApplied then

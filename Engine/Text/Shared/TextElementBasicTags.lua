@@ -4,6 +4,45 @@ FocalPoint.TextElementBasicTags = FocalPoint.TextElementBasicTags or {}
 
 local BasicTags = FocalPoint.TextElementBasicTags
 
+local BASIC_TAG_DEPENDENCIES = {
+    name = "identity",
+    ["name:full"] = "identity",
+    guild = "identity",
+    realm = "identity",
+    class = { "identity", "color" },
+    race = "identity",
+    classification = "identity",
+    family = "identity",
+    type = "identity",
+    creature = "identity",
+    level = "identity",
+    status = "status",
+    ["status:timer"] = { "status", "time" },
+    ["dead:timer"] = { "status", "time" },
+    afk = "status",
+    dnd = "status",
+    dead = "status",
+    ghost = "status",
+    offline = "status",
+    pvp = "status",
+    combat = "status",
+    resting = "status",
+    leader = "status",
+    role = "status",
+    ["cast:name"] = "cast",
+    ["cast:time"] = { "cast", "time" },
+    powercolor = "color",
+    raidcolor = "color",
+    resetcolor = "color",
+    classcolor = "color",
+    rc = "color",
+    lasthit = "unknown",
+}
+
+function BasicTags.GetDependencies(token)
+    return BASIC_TAG_DEPENDENCIES[token]
+end
+
 -- Resolves the basic built-in tags before template parsing falls back to
 -- the lower-level token definitions.
 function BasicTags.Resolve(frame, unit, token, deps)

@@ -182,6 +182,13 @@ local function GetTextConfig(context, textKey)
     return texts[textKey]
 end
 
+local function NormalizeContextUnitTexts(context)
+    local normalize = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.NormalizeUnitTexts
+    if type(normalize) == "function" then
+        normalize(GetUnitConfig(context))
+    end
+end
+
 local function GetIndicatorConfig(context, indicatorKey)
     local unitConfig = GetUnitConfig(context)
     local meta = type(context) == "table" and context.indicatorMeta or nil
@@ -294,7 +301,12 @@ function InspectorMutations.SetTextField(context, textKey, fieldName, value)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
     end
-    return SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found")
+
+    local result = SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found")
+    if result.ok and result.changed then
+        NormalizeContextUnitTexts(context)
+    end
+    return result
 end
 
 local function BuildTextTemplateMutationContext(context)
@@ -349,6 +361,7 @@ function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, of
     if changed then
         textConfig.offsetX = nextX
         textConfig.offsetY = nextY
+        NormalizeContextUnitTexts(context)
     end
 
     return Result(true, {
@@ -379,6 +392,7 @@ function InspectorMutations.SetTextFontSize(context, textKey, fontSize)
     local changed = oldSize ~= nextSize
     if changed then
         textConfig.fontSize = nextSize
+        NormalizeContextUnitTexts(context)
     end
 
     return Result(true, {
@@ -429,6 +443,10 @@ function InspectorMutations.ResetTextPosition(context, textKey)
                 changed = true
             end
         end
+    end
+
+    if changed then
+        NormalizeContextUnitTexts(context)
     end
 
     return Result(true, {
@@ -488,6 +506,7 @@ function InspectorMutations.SetTextAnchor(context, textKey, point, relativePoint
     if changed then
         textConfig.point = point
         textConfig.relativePoint = relativePoint
+        NormalizeContextUnitTexts(context)
     end
 
     return Result(true, {
