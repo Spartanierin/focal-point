@@ -150,12 +150,32 @@ local function RefreshEditorForUnit(unitKey)
     end
 end
 
+local function SelectUnitRootObject(unitKey)
+    local objectSelection = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
+        return objectSelection.SelectUnitRoot(unitKey) == true
+    end
+
+    if objectSelection and type(objectSelection.SelectObject) == "function" then
+        return objectSelection.SelectObject({
+            kind = "unit",
+            unit = unitKey,
+        }) == true
+    end
+
+    return false
+end
+
 local function SelectFrameForResize(frame)
     if not frame or type(frame.unit) ~= "string" then
         return
     end
 
     local unitKey = NormalizeUnitKey(frame.unit)
+    if SelectUnitRootObject(unitKey) then
+        return
+    end
+
     local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
     local currentState = editorState and editorState.Get and editorState.Get() or nil
     if currentState and currentState.selectedUnit ~= unitKey and FocalPoint.SelectEditorUnit then
@@ -164,6 +184,7 @@ local function SelectFrameForResize(frame)
     end
 
     if editorState and editorState.SetSelectedUnit then
+        -- Legacy fallback for early-load states where ObjectSelection is not available yet.
         editorState.SetSelectedUnit(unitKey)
     end
 

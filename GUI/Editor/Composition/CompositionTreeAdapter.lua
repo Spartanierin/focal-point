@@ -33,6 +33,7 @@ local AURA_LABELS = {
 }
 
 local INDICATOR_ORDER = {
+    "Portrait",
     "RaidTargetIcon",
     "LeaderIcon",
     "RoleIcon",

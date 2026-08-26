@@ -309,6 +309,13 @@ function ObjectSelection.GetSelectedObject()
     }
 end
 
+function ObjectSelection.SelectUnitRoot(unitKey)
+    return ObjectSelection.SelectObject({
+        kind = "unit",
+        unit = unitKey,
+    })
+end
+
 function ObjectSelection.SelectObject(objectRef)
     if type(objectRef) ~= "table" then
         return false

@@ -212,14 +212,6 @@ local function IsSelectedUnitRoot(frame)
     return IsPrimaryEditorFrame(frame)
 end
 
-local function IsSelectedChildContext(frame)
-    local selectedObject = GetSelectedEditorObject()
-    if type(selectedObject) ~= "table" or selectedObject.kind == "unit" then
-        return false
-    end
-
-    return FrameMatchesSelectionUnit(frame, selectedObject.unit)
-end
 
 local function UpdateSelectionOverlay(frame)
     if not frame then
@@ -265,7 +257,7 @@ local function UpdateSelectionOverlay(frame)
         overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.14)
         overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 1.00)
         overlay:Show()
-    elseif IsSelectedChildContext(frame) or IsSecondaryEditorFrame(frame) then
+    elseif IsSecondaryEditorFrame(frame) then
         overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.025)
         overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.32)
         overlay:Show()
@@ -647,6 +639,22 @@ local function GetEditorStateApi()
     return FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State or nil
 end
 
+local function SelectUnitRootObject(unitKey)
+    local objectSelection = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
+        return objectSelection.SelectUnitRoot(unitKey) == true
+    end
+
+    if objectSelection and type(objectSelection.SelectObject) == "function" then
+        return objectSelection.SelectObject({
+            kind = "unit",
+            unit = unitKey,
+        }) == true
+    end
+
+    return false
+end
+
 local function ResolveFrameForSelectionUnit(unitKey, draggedFrame)
     local normalizedUnit = NormalizeEditorSelectionUnit(unitKey)
     if not normalizedUnit then
@@ -689,7 +697,10 @@ local function ResolveSelectedDragUnits(draggedFrame)
         if editorState.GetSelectedUnits then
             return editorState.GetSelectedUnits()
         end
+    elseif SelectUnitRootObject(draggedUnit) then
+        return { draggedUnit }
     elseif editorState and editorState.SetSingleSelection then
+        -- Legacy fallback for early-load states where ObjectSelection is not available yet.
         editorState.SetSingleSelection(draggedUnit)
     elseif editorState and editorState.SetSelectedUnit then
         editorState.SetSelectedUnit(draggedUnit)

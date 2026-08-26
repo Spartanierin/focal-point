@@ -464,6 +464,22 @@ local function EnsureEditorDesignPresenceForUnit(addon, unit)
     end
 end
 
+local function SelectUnitRootObject(unitKey)
+    local objectSelection = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
+        return objectSelection.SelectUnitRoot(unitKey) == true
+    end
+
+    if objectSelection and type(objectSelection.SelectObject) == "function" then
+        return objectSelection.SelectObject({
+            kind = "unit",
+            unit = unitKey,
+        }) == true
+    end
+
+    return false
+end
+
 function FocalPoint:SelectEditorUnit(unit, options)
     if type(unit) ~= "string" or unit == "" then
         return
@@ -493,7 +509,12 @@ function FocalPoint:SelectEditorUnit(unit, options)
         selectedUnit = editorState.ToggleUnitSelection(selectedUnit)
     elseif preserveSelection and editorState and editorState.SetPrimaryUnit then
         selectedUnit = editorState.SetPrimaryUnit(selectedUnit)
+    elseif SelectUnitRootObject(selectedUnit) then
+        if editorState and editorState.GetPrimaryUnit then
+            selectedUnit = editorState.GetPrimaryUnit() or selectedUnit
+        end
     elseif editorState and editorState.SetSingleSelection then
+        -- Legacy fallback for early-load states where ObjectSelection is not available yet.
         selectedUnit = editorState.SetSingleSelection(selectedUnit)
     elseif editorState and editorState.SetSelectedUnit then
         editorState.SetSelectedUnit(selectedUnit)
