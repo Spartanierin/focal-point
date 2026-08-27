@@ -10,6 +10,28 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## Focal Point 1.2.5
+
+Runtime performance backports
+
+### Improved
+
+* Gated range polling in the global tag ticker so range fade is only checked for frames that need dynamic polling.
+* Added event coverage for Resting, Leader, and Role text dependencies.
+* Split `[status:timer]` and `[dead:timer]` into a dedicated `status_timer` dependency while keeping event-driven `status` updates for immediate start/stop changes.
+* Limited the global tag ticker to the remaining timer-driven status text dependency.
+* Raised the default `TagUpdateInterval` to 1.0 second and clamped older SavedVariables values below 1.0 second at runtime without rewriting profiles.
+
+### Removed
+
+* Removed the legacy, non-productive `[lasthit]` tag path.
+* Removed `unknown` from periodic tag polling so it no longer behaves as a global update wildcard during normal ticker updates.
+
+### Validation / Profiling
+
+* Verified the backports with functional status, timer, range, and role-related checks.
+* Documented an internal 60-second Perfy Unlock-mode comparison under the same test conditions, showing a clear reduction in ticker-driven text allocation churn after the final `status_timer` and 1.0-second clamp pass.
+
 ## Focal Point 1.2.4
 
 Performance & Runtime Efficiency
