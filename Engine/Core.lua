@@ -1375,6 +1375,14 @@ local TAG_TICKER_TEXT_DEPENDENCIES = {
     unknown = true,
 }
 
+local function ShouldPollRangeFade(frame)
+    local range = FocalPoint.UnitFrameRange
+    return range
+        and range.ShouldPollFade
+        and range.ShouldPollFade(frame) == true
+        or false
+end
+
 function FocalPoint:UpdateAllTags()
     if not self.frames or not self.UnitFrame then
         return
@@ -1386,7 +1394,7 @@ function FocalPoint:UpdateAllTags()
                 self.UnitFrame:RefreshLiveValues(frame)
             end
 
-            if self.UnitFrame.ApplyRangeFade then
+            if self.UnitFrame.ApplyRangeFade and ShouldPollRangeFade(frame) then
                 self.UnitFrame:ApplyRangeFade(frame)
             end
 

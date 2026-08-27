@@ -17,6 +17,19 @@ local TARGET_RANGE_FADE_SPEED = 16
 -- Range fading is intentionally narrow in scope for now:
 -- target only, soft alpha transition, no GUI dependency.
 
+function Range.ShouldPollFade(frame)
+    if not frame or frame.unit ~= "target" or IsPreviewModeEnabled() then
+        return false
+    end
+
+    local preview = FocalPoint.UnitFramePreview or {}
+    if preview.ShouldShowComponent and preview.ShouldShowComponent("distanceRange") == false then
+        return false
+    end
+
+    return DoesUnitSeemPresent(frame.unit) == true
+end
+
 function Range.GetFadeMultiplier(frame)
     local rangeThreshold = tonumber(FocalPoint and FocalPoint.TARGET_RANGE_CHECK_YARDS) or 40
 
