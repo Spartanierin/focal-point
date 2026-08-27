@@ -53,12 +53,21 @@ function LayoutService.MergeInto(target, source)
     return target
 end
 
+local function NormalizeUnitTexts(unitConfig)
+    local utils = FocalPoint.UnitFrameUtils
+    if type(utils) == "table" and type(utils.NormalizeUnitTexts) == "function" then
+        utils.NormalizeUnitTexts(unitConfig)
+    end
+
+    return unitConfig
+end
+
 function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
     local materialized = LayoutService.Clone(defaultUnit) or {}
     if type(unitConfig) == "table" then
         LayoutService.MergeInto(materialized, unitConfig)
     end
-    return materialized
+    return NormalizeUnitTexts(materialized)
 end
 
 local function ResolveLayoutDefaults(defaults)
@@ -88,6 +97,9 @@ function LayoutService.NormalizePayload(payload, defaults)
         end
     elseif type(sourceUnits) == "table" then
         normalized.Units = LayoutService.Clone(sourceUnits) or {}
+        for _, unitConfig in pairs(normalized.Units) do
+            NormalizeUnitTexts(unitConfig)
+        end
     end
 
     return normalized

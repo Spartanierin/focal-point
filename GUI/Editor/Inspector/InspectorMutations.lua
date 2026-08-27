@@ -194,6 +194,25 @@ local function GetTextConfig(context, textKey)
     return texts[textKey]
 end
 
+local function NormalizeUnitTexts(unitConfig)
+    local utils = FocalPoint.UnitFrameUtils
+    if type(unitConfig) == "table" and type(utils) == "table" and type(utils.NormalizeUnitTexts) == "function" then
+        utils.NormalizeUnitTexts(unitConfig)
+    end
+end
+
+local function NormalizeContextUnitTexts(context)
+    NormalizeUnitTexts(GetUnitConfig(context))
+end
+
+local function NormalizeTextMutationResult(context, result)
+    if type(result) == "table" and result.ok and result.changed then
+        NormalizeContextUnitTexts(context)
+    end
+
+    return result
+end
+
 local function GetIndicatorConfig(context, indicatorKey)
     local unitConfig = GetUnitConfig(context)
     local meta = type(context) == "table" and context.indicatorMeta or nil
@@ -306,7 +325,7 @@ function InspectorMutations.SetTextField(context, textKey, fieldName, value)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
     end
-    return SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found")
+    return NormalizeTextMutationResult(context, SetField(GetTextConfig(context, textKey), fieldName, value, "text_config_not_found"))
 end
 
 function InspectorMutations.DeleteTextInstance(context, textKey)
@@ -325,6 +344,7 @@ function InspectorMutations.DeleteTextInstance(context, textKey)
 
     local oldValue = texts[textKey]
     texts[textKey] = nil
+    NormalizeUnitTexts(unitConfig)
 
     return Result(true, {
         changed = true,
@@ -393,6 +413,7 @@ function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, of
         textConfig.offsetX = nextX
         textConfig.offsetY = nextY
     end
+    NormalizeTextMutationResult(context, { ok = true, changed = changed })
 
     return Result(true, {
         changed = changed,
@@ -423,6 +444,7 @@ function InspectorMutations.SetTextFontSize(context, textKey, fontSize)
     if changed then
         textConfig.fontSize = nextSize
     end
+    NormalizeTextMutationResult(context, { ok = true, changed = changed })
 
     return Result(true, {
         changed = changed,
@@ -473,6 +495,7 @@ function InspectorMutations.ResetTextPosition(context, textKey)
             end
         end
     end
+    NormalizeTextMutationResult(context, { ok = true, changed = changed })
 
     return Result(true, {
         changed = changed,
@@ -532,6 +555,7 @@ function InspectorMutations.SetTextAnchor(context, textKey, point, relativePoint
         textConfig.point = point
         textConfig.relativePoint = relativePoint
     end
+    NormalizeTextMutationResult(context, { ok = true, changed = changed })
 
     return Result(true, {
         changed = changed,

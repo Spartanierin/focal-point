@@ -160,7 +160,7 @@ local function BuildTextFingerprint(textConfig)
     }, "\31")
 end
 
-local function NormalizeUnitTexts(unitConfig)
+function Utils.NormalizeUnitTexts(unitConfig)
     local texts = unitConfig and unitConfig.Texts
     if type(texts) ~= "table" then
         return
@@ -230,6 +230,16 @@ local function NormalizeUnitTexts(unitConfig)
     end
 end
 
+function Utils.NormalizeAllUnitTexts(units)
+    if type(units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(units) do
+        Utils.NormalizeUnitTexts(unitConfig)
+    end
+end
+
 function Utils.GetProfileDB()
     local db = FocalPoint.db
     if not db or type(db.profile) ~= "table" then
@@ -272,12 +282,7 @@ function Utils.GetUnitDB(unit)
         return nil
     end
 
-    local unitConfig = units[Utils.NormalizeConfigUnitKey(unit)]
-    if type(unitConfig) == "table" then
-        NormalizeUnitTexts(unitConfig)
-    end
-
-    return unitConfig
+    return units[Utils.NormalizeConfigUnitKey(unit)]
 end
 
 function Utils.UnpackColor(color, fallback)
