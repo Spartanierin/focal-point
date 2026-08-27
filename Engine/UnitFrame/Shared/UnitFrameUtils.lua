@@ -166,6 +166,11 @@ function Utils.NormalizeUnitTexts(unitConfig)
         return
     end
 
+    local resolver = FocalPoint.TextTemplateResolver
+    if resolver and type(resolver.InvalidateUnitTexts) == "function" then
+        resolver.InvalidateUnitTexts(unitConfig)
+    end
+
     local seenFingerprints = {}
     local removals = {}
     local templateOwners = {}

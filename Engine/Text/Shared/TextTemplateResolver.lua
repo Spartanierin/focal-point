@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.TextTemplateResolver = FocalPoint.TextTemplateResolver or {}
 local Resolver = FocalPoint.TextTemplateResolver
+local BindingCache = setmetatable({}, { __mode = "k" })
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
@@ -101,6 +102,60 @@ local function BuildRuntimeCandidates(textConfig, state)
     return candidates
 end
 
+local function GetStateKey(state)
+    return IsNonEmptyString(state) and state or ""
+end
+
+local function GetRuntimeCandidates(textConfig, state)
+    if type(textConfig) ~= "table" then
+        return nil
+    end
+
+    local binding = BindingCache[textConfig]
+    if type(binding) ~= "table" then
+        binding = {
+            states = {},
+        }
+        BindingCache[textConfig] = binding
+    end
+
+    local stateKey = GetStateKey(state)
+    local candidates = binding.states[stateKey]
+    if type(candidates) ~= "table" then
+        candidates = BuildRuntimeCandidates(textConfig, state)
+        binding.states[stateKey] = candidates
+    end
+
+    return candidates
+end
+
+function Resolver.Invalidate(textConfig)
+    if type(textConfig) == "table" then
+        BindingCache[textConfig] = nil
+    end
+end
+
+function Resolver.InvalidateUnitTexts(unitConfig)
+    local texts = unitConfig and unitConfig.Texts
+    if type(texts) ~= "table" then
+        return
+    end
+
+    for _, textConfig in pairs(texts) do
+        Resolver.Invalidate(textConfig)
+    end
+end
+
+function Resolver.InvalidateAllUnitTexts(units)
+    if type(units) ~= "table" then
+        return
+    end
+
+    for _, unitConfig in pairs(units) do
+        Resolver.InvalidateUnitTexts(unitConfig)
+    end
+end
+
 function Resolver.ResolveReference(textConfig, state)
     if type(textConfig) ~= "table" then
         return nil
@@ -140,7 +195,7 @@ function Resolver.Resolve(textConfig, state, context)
         return ""
     end
 
-    for _, reference in ipairs(BuildRuntimeCandidates(textConfig, state)) do
+    for _, reference in ipairs(GetRuntimeCandidates(textConfig, state) or {}) do
         local resolvedText = Resolver.ResolveTemplateText(reference, context)
         if IsNonEmptyString(resolvedText) then
             return resolvedText
