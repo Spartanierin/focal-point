@@ -14,6 +14,12 @@ local CAST_TEXT_DEPENDENCIES = {
     cast = true,
     time = true,
 }
+local STATUS_TEXT_DEPENDENCIES = {
+    status = true,
+}
+local STATUS_TEXT_REFRESH_OPTIONS = {
+    textDependencies = STATUS_TEXT_DEPENDENCIES,
+}
 
 -- Owns the runtime event bridge that keeps text values refreshed without
 -- forcing the main text module to hold all event plumbing inline.
@@ -57,6 +63,10 @@ function Events.Register(frame, deps)
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
     eventFrame:RegisterEvent("PLAYER_FLAGS_CHANGED")
+    eventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
+    eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+    eventFrame:RegisterEvent("PARTY_LEADER_CHANGED")
+    eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
     eventFrame:RegisterEvent("UNIT_LEVEL")
     eventFrame:RegisterEvent("UNIT_FLAGS")
     eventFrame:RegisterEvent("UNIT_CONNECTION")
@@ -124,6 +134,18 @@ function Events.Register(frame, deps)
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         local owner = eventFrame.owner
         if not owner then
+            return
+        end
+
+        if event == "PLAYER_UPDATE_RESTING" then
+            if owner.unit == "player" then
+                QueueTextCommit(event, "texts", STATUS_TEXT_REFRESH_OPTIONS)
+            end
+            return
+        end
+
+        if event == "GROUP_ROSTER_UPDATE" or event == "PARTY_LEADER_CHANGED" or event == "PLAYER_ROLES_ASSIGNED" then
+            QueueTextCommit(event, "texts", STATUS_TEXT_REFRESH_OPTIONS)
             return
         end
 
