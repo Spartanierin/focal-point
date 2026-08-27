@@ -718,9 +718,6 @@ local function ShouldUpdateTextKey(frame, key, changedDependencies)
         return true
     end
 
-    if dependencies.unknown == true then
-        return true
-    end
 
     for dependency, enabled in pairs(changedDependencies) do
         if enabled == true and dependencies[dependency] == true then

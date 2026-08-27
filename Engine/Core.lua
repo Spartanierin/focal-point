@@ -1198,7 +1198,6 @@ end
 
 local TAG_TICKER_TEXT_DEPENDENCIES = {
     status = true,
-    unknown = true,
 }
 
 local function ShouldPollRangeFade(frame)

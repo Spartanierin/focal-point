@@ -36,7 +36,6 @@ local BASIC_TAG_DEPENDENCIES = {
     resetcolor = "color",
     classcolor = "color",
     rc = "color",
-    lasthit = "unknown",
 }
 
 function BasicTags.GetDependencies(token)
@@ -220,9 +219,6 @@ function BasicTags.Resolve(frame, unit, token, deps)
             return ""
         end
 
-        if token == "lasthit" then
-            return preview.lastHit or ""
-        end
     end
 
     if token == "name" then
@@ -526,9 +522,6 @@ function BasicTags.Resolve(frame, unit, token, deps)
         return ""
     end
 
-    if token == "lasthit" then
-        return ""
-    end
 
     return ResolveToken and ResolveToken(frame, unit, token) or nil
 end
