@@ -19,6 +19,21 @@ local function CopyDirtyScopes(dirty)
     return copy
 end
 
+local function CopyDependencies(dependencies)
+    local copy = {}
+    if type(dependencies) ~= "table" then
+        return copy
+    end
+
+    for dependency, enabled in pairs(dependencies) do
+        if enabled == true and type(dependency) == "string" and dependency ~= "" then
+            copy[dependency] = true
+        end
+    end
+
+    return copy
+end
+
 local function IsRuntimeDebugEnabled()
     return FocalPoint and FocalPoint.debugRuntimeState == true
 end
@@ -233,6 +248,30 @@ local function MergeDirtyScope(dirty, scope)
     dirty.full = true
 end
 
+local function ScopeIncludes(scope, expected)
+    if type(expected) ~= "string" or expected == "" then
+        return false
+    end
+
+    if scope == nil then
+        return expected == "full"
+    end
+
+    if type(scope) == "string" then
+        return scope == expected or scope == "full"
+    end
+
+    if type(scope) == "table" then
+        for _, entry in ipairs(scope) do
+            if ScopeIncludes(entry, expected) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 local function WipeTable(target)
     if type(target) ~= "table" then
         return {}
@@ -262,12 +301,17 @@ function State.Ensure(frame)
         lastCommittedScopes = {},
         forceAuraFullScan = false,
         forceFullRefresh = false,
+        textDependencies = nil,
+        textDependenciesBroad = false,
     }
 
     local runtimeState = frame.RuntimeState
     runtimeState.dirty = runtimeState.dirty or {}
     runtimeState.boundUnit = frame.unit
     runtimeState.lastCommittedScopes = runtimeState.lastCommittedScopes or {}
+    if runtimeState.textDependenciesBroad == nil then
+        runtimeState.textDependenciesBroad = false
+    end
     return runtimeState
 end
 
@@ -560,6 +604,25 @@ function State.MarkDirty(frame, reason, scope, options)
         end
     end
 
+    if ScopeIncludes(scope, "texts") then
+        local dependencies = type(options) == "table" and options.textDependencies or nil
+        local broadTextRefresh = ScopeIncludes(scope, "layout")
+            or ScopeIncludes(scope, "full")
+            or type(dependencies) ~= "table"
+
+        if broadTextRefresh then
+            runtimeState.textDependenciesBroad = true
+            runtimeState.textDependencies = nil
+        elseif not runtimeState.textDependenciesBroad then
+            runtimeState.textDependencies = runtimeState.textDependencies or {}
+            for dependency, enabled in pairs(dependencies) do
+                if enabled == true and type(dependency) == "string" and dependency ~= "" then
+                    runtimeState.textDependencies[dependency] = true
+                end
+            end
+        end
+    end
+
     if runtimeState.phase == "uninitialized" then
         runtimeState.phase = "dirty"
     elseif runtimeState.phase ~= "suspended" then
@@ -579,6 +642,7 @@ local function ConsumeRequest(frame, runtimeState)
         scopes = CopyDirtyScopes(runtimeState.dirty),
         forceAuraFullScan = runtimeState.forceAuraFullScan == true,
         forceFullRefresh = runtimeState.forceFullRefresh == true,
+        textDependencies = runtimeState.textDependenciesBroad and nil or CopyDependencies(runtimeState.textDependencies),
         commitToken = runtimeState.commitToken,
     }
 
@@ -586,6 +650,8 @@ local function ConsumeRequest(frame, runtimeState)
     runtimeState.dirty = {}
     runtimeState.forceAuraFullScan = false
     runtimeState.forceFullRefresh = false
+    runtimeState.textDependencies = nil
+    runtimeState.textDependenciesBroad = false
     runtimeState.phase = runtimeState.suspended and "suspended" or "committing"
 
     return request

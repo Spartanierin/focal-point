@@ -1370,6 +1370,11 @@ function FocalPoint:StartTagTicker()
     self.tagTicker = frame
 end
 
+local TAG_TICKER_TEXT_DEPENDENCIES = {
+    status = true,
+    unknown = true,
+}
+
 function FocalPoint:UpdateAllTags()
     if not self.frames or not self.UnitFrame then
         return
@@ -1386,7 +1391,7 @@ function FocalPoint:UpdateAllTags()
             end
 
             if self.UnitFrame.UpdateTextElements then
-                self.UnitFrame:UpdateTextElements(frame)
+                self.UnitFrame:UpdateTextElements(frame, TAG_TICKER_TEXT_DEPENDENCIES)
             end
         end
     end

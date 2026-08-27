@@ -5,6 +5,15 @@ FocalPoint.TextElementEvents = FocalPoint.TextElementEvents or {}
 local Events = FocalPoint.TextElementEvents
 local RuntimeState = FocalPoint.UnitFrameState or {}
 local TextState = FocalPoint.TextElementState or {}
+local POWER_TEXT_DEPENDENCIES = {
+    power = true,
+    altpower = true,
+    classpower = true,
+}
+local CAST_TEXT_DEPENDENCIES = {
+    cast = true,
+    time = true,
+}
 
 -- Owns the runtime event bridge that keeps text values refreshed without
 -- forcing the main text module to hold all event plumbing inline.
@@ -157,6 +166,24 @@ function Events.Register(frame, deps)
         end
 
         if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
+            return
+        end
+
+        if event == "UNIT_POWER_UPDATE" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
+            QueueTextCommit(event, "texts", { textDependencies = POWER_TEXT_DEPENDENCIES })
+            return
+        end
+
+        if event == "UNIT_SPELLCAST_START"
+            or event == "UNIT_SPELLCAST_STOP"
+            or event == "UNIT_SPELLCAST_FAILED"
+            or event == "UNIT_SPELLCAST_INTERRUPTED"
+            or event == "UNIT_SPELLCAST_CHANNEL_START"
+            or event == "UNIT_SPELLCAST_CHANNEL_STOP"
+            or event == "UNIT_SPELLCAST_DELAYED"
+            or event == "UNIT_SPELLCAST_CHANNEL_UPDATE"
+        then
+            QueueTextCommit(event, "texts", { textDependencies = CAST_TEXT_DEPENDENCIES })
             return
         end
 

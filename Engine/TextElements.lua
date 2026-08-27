@@ -676,12 +676,13 @@ function UF:UpdateTextElement(frame, key)
     })
 end
 
-function UF:UpdateTextElements(frame)
+function UF:UpdateTextElements(frame, changedDependencies)
     return UpdateTextElementsShared(frame, {
+        MaterializeTextDependencies = MaterializeTextDependencies,
         UpdateElement = function(targetFrame, key)
             return self:UpdateTextElement(targetFrame, key)
         end,
-    })
+    }, changedDependencies)
 end
 
 function UF:RegisterTextEvents(frame)
