@@ -18,6 +18,8 @@ local TextUpdate = FocalPoint.TextElementUpdate or {}
 local TextEvents = FocalPoint.TextElementEvents or {}
 local TextApply = FocalPoint.TextElementApply or {}
 local TextLiveValues = FocalPoint.TextElementLiveValues or {}
+local TextState = FocalPoint.TextElementState or {}
+local TextRoles = FocalPoint.TextElementRoles or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
 -- Shared utility aliases.
@@ -61,6 +63,7 @@ local ResolveTokenShared = TextTokenResolver.Resolve
 local ResolveTextTemplateShared = TextTemplates.ResolveTextTemplate
 local TemplateContainsTokenShared = TextTemplates.ContainsToken
 local ResolveConfiguredTemplateShared = TextTemplates.ResolveConfigured
+local ResolveTextDependenciesShared = TextTemplates.ResolveDependencies
 local NormalizeTemplateTextShared = TextTemplates.NormalizeTemplateText
 local ApplyDirectTemplateShared = TextDirectTemplate.Apply
 local CreateTextElementShared = TextFactory.CreateElement
@@ -103,6 +106,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["hp:max"] = {
         value = function(unit, frame)
@@ -110,6 +114,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["hp:cur:abbr"] = {
         value = function(unit, frame)
@@ -117,6 +122,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["hp:cur:short"] = {
         value = function(unit, frame)
@@ -124,6 +130,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["hp:max:abbr"] = {
         value = function(unit, frame)
@@ -131,6 +138,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["hp:max:short"] = {
         value = function(unit, frame)
@@ -138,6 +146,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["hp:perc"] = {
         value = function(unit, frame)
@@ -145,6 +154,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["absorb:cur"] = {
         value = function(unit, frame)
@@ -152,6 +162,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "absorb",
     },
     ["absorb:cur:abbr"] = {
         value = function(unit, frame)
@@ -159,6 +170,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "absorb",
     },
     ["healabsorb:cur"] = {
         value = function(unit, frame)
@@ -166,6 +178,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "healing_absorb",
     },
     ["healabsorb:cur:abbr"] = {
         value = function(unit, frame)
@@ -173,6 +186,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "healing_absorb",
     },
     ["power:cur"] = {
         value = function(unit, frame)
@@ -180,6 +194,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["power:max"] = {
         value = function(unit, frame)
@@ -187,6 +202,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["power:perc"] = {
         value = function(unit, frame)
@@ -194,6 +210,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["power:cur:abbr"] = {
         value = function(unit, frame)
@@ -201,6 +218,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["power:cur:short"] = {
         value = function(unit, frame)
@@ -208,6 +226,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["power:max:abbr"] = {
         value = function(unit, frame)
@@ -215,6 +234,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["power:max:short"] = {
         value = function(unit, frame)
@@ -222,6 +242,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["altpower:cur"] = {
         value = function(unit, frame)
@@ -229,6 +250,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "altpower",
     },
     ["altPower:cur"] = {
         value = function(unit, frame)
@@ -236,6 +258,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "altpower",
     },
     ["altpower:max"] = {
         value = function(unit, frame)
@@ -243,6 +266,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "altpower",
     },
     ["altPower:max"] = {
         value = function(unit, frame)
@@ -250,6 +274,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "altpower",
     },
     ["altpower:cur:abbr"] = {
         value = function(unit, frame)
@@ -257,6 +282,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "altpower",
     },
     ["altpower:max:abbr"] = {
         value = function(unit, frame)
@@ -264,6 +290,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "altpower",
     },
     ["classpower:cur"] = {
         value = function(unit, frame)
@@ -271,6 +298,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "classpower",
     },
     ["classpower:max"] = {
         value = function(unit, frame)
@@ -278,6 +306,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "classpower",
     },
     ["classpower:cur:abbr"] = {
         value = function(unit, frame)
@@ -285,6 +314,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "classpower",
     },
     ["classpower:max:abbr"] = {
         value = function(unit, frame)
@@ -292,6 +322,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "classpower",
     },
     ["curhp"] = {
         value = function(unit, frame)
@@ -299,6 +330,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["maxhp"] = {
         value = function(unit, frame)
@@ -306,6 +338,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["curhp:abbr"] = {
         value = function(unit, frame)
@@ -313,6 +346,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["maxhp:abbr"] = {
         value = function(unit, frame)
@@ -320,6 +354,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["perhp"] = {
         value = function(unit, frame)
@@ -327,6 +362,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "health",
     },
     ["curpp"] = {
         value = function(unit, frame)
@@ -334,6 +370,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["maxpp"] = {
         value = function(unit, frame)
@@ -341,6 +378,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["curpp:abbr"] = {
         value = function(unit, frame)
@@ -348,6 +386,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
     ["maxpp:abbr"] = {
         value = function(unit, frame)
@@ -355,6 +394,7 @@ local TOKEN_DEFS = {
         end,
         format = FormatTextValue,
         direct = true,
+        dependency = "power",
     },
 }
 
@@ -526,6 +566,47 @@ local function ResolveConfiguredTemplate(frame, textConfig)
     })
 end
 
+local function GetTokenDependencies(token)
+    local def = TOKEN_DEFS[token]
+    return def and (def.dependencies or def.dependency) or nil
+end
+
+local function GetBasicTagDependencies(token)
+    return TextBasicTags.GetDependencies and TextBasicTags.GetDependencies(token) or nil
+end
+
+local function ResolveTextDependencies(frame, textKey, textConfig, textRole)
+    return ResolveTextDependenciesShared and ResolveTextDependenciesShared(frame, textConfig, {
+        GetTemplate = function(templateName)
+            local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
+            return type(templates) == "table" and templates[templateName] or nil
+        end,
+        GetTokenDependencies = GetTokenDependencies,
+        GetBasicTagDependencies = GetBasicTagDependencies,
+        GetRoleDependencies = function()
+            return TextRoles.GetDependencies and TextRoles.GetDependencies(textRole or (TextRoles.Resolve and TextRoles.Resolve(textKey, textConfig) or nil)) or nil
+        end,
+    }) or {
+        unknown = true,
+    }
+end
+
+local function MaterializeTextDependencies(frame, textKey, textConfig)
+    if type(textConfig) ~= "table" or textConfig.enabled == false then
+        if TextState.InvalidateDependencies then
+            TextState.InvalidateDependencies(frame, textKey)
+        end
+        return nil
+    end
+
+    if not TextState.SetDependencies then
+        return nil
+    end
+
+    local textRole = TextRoles.Resolve and TextRoles.Resolve(textKey, textConfig) or nil
+    return TextState.SetDependencies(frame, textKey, ResolveTextDependencies(frame, textKey, textConfig, textRole))
+end
+
 function UF:BuildTemplatePreview(template, unit)
     if TextPreview.BuildTemplatePreview then
         return TextPreview.BuildTemplatePreview(template, {
@@ -562,6 +643,7 @@ function UF:CreateTextElements(frame)
 end
 
 function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
+    MaterializeTextDependencies(frame, key, textConfig)
     return ApplyTextElementConfigShared(frame, key, textObject, textConfig, {
         GetAnchorTarget = function(targetFrame, anchorTo)
             return self:GetAnchorTarget(targetFrame, anchorTo)

@@ -40,6 +40,26 @@ local function MergeDirty(dirty, scope)
     dirty.texts = true
 end
 
+local function ScopeInvalidatesTextDependencies(scope)
+    if scope == nil then
+        return true
+    end
+
+    if type(scope) == "string" then
+        return scope == "full" or scope == "layout"
+    end
+
+    if type(scope) == "table" then
+        for _, entry in ipairs(scope) do
+            if ScopeInvalidatesTextDependencies(entry) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 local function CountVisibleTexts(frame)
     local count = 0
     if not frame or type(frame.Texts) ~= "table" then
@@ -53,6 +73,21 @@ local function CountVisibleTexts(frame)
     end
 
     return count
+end
+
+local function CopyDependencies(dependencies)
+    local result = {}
+    if type(dependencies) ~= "table" then
+        return result
+    end
+
+    for dependency, enabled in pairs(dependencies) do
+        if enabled == true and type(dependency) == "string" and dependency ~= "" then
+            result[dependency] = true
+        end
+    end
+
+    return result
 end
 
 function TextState.DebugLog(frame, action, details)
@@ -75,11 +110,13 @@ function TextState.Ensure(frame)
         castTickerActive = false,
         visibleTextCount = 0,
         lastCommittedScopes = {},
+        dependencyBindings = {},
     }
 
     local state = frame.TextRuntimeState
     state.dirty = state.dirty or {}
     state.lastCommittedScopes = state.lastCommittedScopes or {}
+    state.dependencyBindings = state.dependencyBindings or {}
     return state
 end
 
@@ -90,7 +127,7 @@ function TextState.SetPhase(frame, phase)
     end
 end
 
-function TextState.MarkDirty(frame, reason, scope)
+function TextState.MarkDirty(frame, reason, scope, options)
     local state = TextState.Ensure(frame)
     if not state then
         return nil
@@ -101,12 +138,48 @@ function TextState.MarkDirty(frame, reason, scope)
     if state.phase ~= "suspended" then
         state.phase = "pending_refresh"
     end
+    if ScopeInvalidatesTextDependencies(scope) or (type(options) == "table" and options.invalidateTextDependencies == true) then
+        state.dependencyBindings = {}
+    end
     TextState.DebugLog(frame, "dirty", string.format("reason=%s", tostring(state.lastReason or "-")))
     return state
 end
 
+function TextState.SetDependencies(frame, textKey, dependencies)
+    local state = TextState.Ensure(frame)
+    if not state or type(textKey) ~= "string" or textKey == "" then
+        return nil
+    end
+
+    state.dependencyBindings[textKey] = CopyDependencies(dependencies)
+    return state.dependencyBindings[textKey]
+end
+
+function TextState.GetDependencies(frame, textKey)
+    local state = TextState.Ensure(frame)
+    if not state or type(textKey) ~= "string" or textKey == "" then
+        return nil
+    end
+
+    return state.dependencyBindings[textKey]
+end
+
+function TextState.InvalidateDependencies(frame, textKey)
+    local state = TextState.Ensure(frame)
+    if not state then
+        return
+    end
+
+    if type(textKey) == "string" and textKey ~= "" then
+        state.dependencyBindings[textKey] = nil
+        return
+    end
+
+    state.dependencyBindings = {}
+end
+
 function TextState.QueueRefresh(frame, reason, scope, options, delay)
-    local state = TextState.MarkDirty(frame, reason, scope)
+    local state = TextState.MarkDirty(frame, reason, scope, options)
     if not state then
         return false
     end
@@ -171,6 +244,7 @@ function TextState.Reset(frame)
         castTickerActive = false,
         visibleTextCount = 0,
         lastCommittedScopes = {},
+        dependencyBindings = {},
     }
 
     TextState.DebugLog(frame, "reset")
