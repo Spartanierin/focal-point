@@ -1179,7 +1179,7 @@ function FocalPoint:StartTagTicker()
         return
     end
 
-    local interval = self.TAG_UPDATE_INTERVAL or 0.25
+    local interval = self.TAG_UPDATE_INTERVAL or 1.0
     local elapsed = 0
 
     local frame = CreateFrame("Frame")
@@ -1197,7 +1197,7 @@ function FocalPoint:StartTagTicker()
 end
 
 local TAG_TICKER_TEXT_DEPENDENCIES = {
-    status = true,
+    status_timer = true,
 }
 
 local function ShouldPollRangeFade(frame)

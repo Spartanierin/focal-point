@@ -1134,7 +1134,7 @@ function FocalPointAddon:OnInitialize()
         FocalPoint.ProfileAutomation.Initialize()
     end
 
-    FocalPoint.TAG_UPDATE_INTERVAL = FocalPoint.db.profile.General.TagUpdateInterval or 0.25
+    FocalPoint.TAG_UPDATE_INTERVAL = math.max(tonumber(FocalPoint.db.profile.General.TagUpdateInterval) or 1.0, 1.0)
     FocalPoint.SEPARATOR = FocalPoint.db.profile.General.Separator or "||"
     FocalPoint.TOT_SEPARATOR = FocalPoint.db.profile.General.ToTSeparator or "»"
 
