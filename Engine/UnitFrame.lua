@@ -2330,7 +2330,7 @@ end
 
 function FocalPoint:RebuildFramesForActiveProfile()
     local general = self.db and self.db.profile and self.db.profile.General or {}
-    self.TAG_UPDATE_INTERVAL = general.TagUpdateInterval or 0.25
+    self.TAG_UPDATE_INTERVAL = math.max(tonumber(general.TagUpdateInterval) or 1.0, 1.0)
     self.SEPARATOR = general.Separator or "||"
     self.TOT_SEPARATOR = general.ToTSeparator or "»"
 

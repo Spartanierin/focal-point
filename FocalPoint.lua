@@ -1064,7 +1064,7 @@ function FocalPoint:RefreshProfileSettings(reason, options)
 
     local profile = self.db and self.db.profile or nil
     local general = type(profile) == "table" and profile.General or {}
-    self.TAG_UPDATE_INTERVAL = general.TagUpdateInterval or 0.25
+    self.TAG_UPDATE_INTERVAL = math.max(tonumber(general.TagUpdateInterval) or 1.0, 1.0)
     self.SEPARATOR = general.Separator or "||"
     self.TOT_SEPARATOR = general.ToTSeparator or "»"
 
@@ -1184,7 +1184,7 @@ function FocalPointAddon:OnInitialize()
         FocalPoint.LayoutAssignmentService.InitializeRuntime()
     end
 
-    FocalPoint.TAG_UPDATE_INTERVAL = FocalPoint.db.profile.General.TagUpdateInterval or 0.25
+    FocalPoint.TAG_UPDATE_INTERVAL = math.max(tonumber(FocalPoint.db.profile.General.TagUpdateInterval) or 1.0, 1.0)
     FocalPoint.SEPARATOR = FocalPoint.db.profile.General.Separator or "||"
     FocalPoint.TOT_SEPARATOR = FocalPoint.db.profile.General.ToTSeparator or "»"
 

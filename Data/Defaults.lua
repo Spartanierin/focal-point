@@ -18,7 +18,7 @@ function FocalPoint:GetDefaultDB()
         },
         profile = {
             General = {
-                TagUpdateInterval = 0.125,
+                TagUpdateInterval = 1.0,
                 Separator = "||",
                 ToTSeparator = "\194\187",
                 UIScale = 0.7551622418879056,
