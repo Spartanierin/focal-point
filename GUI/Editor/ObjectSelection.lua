@@ -8,6 +8,7 @@ ns.GUI.Editor.ObjectSelection = ObjectSelection
 
 local EditorState = ns.GUI.Editor.State
 local Constants = ns.Constants or {}
+local CompositionPresence = ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.Presence or ns.CompositionPresence
 
 local BAR_BY_SECTION = {
     health = "HealthBar",
@@ -97,6 +98,22 @@ local function GetUnitConfig(unitKey)
     end
 
     return nil
+end
+
+local function BuildUnitRootSelection(unitKey)
+    return {
+        kind = "unit",
+        unit = unitKey,
+        sectionKey = "frame",
+    }
+end
+
+local function IsCompositionPresent(unitKey, objectRef)
+    local unitConfig = GetUnitConfig(unitKey)
+    if CompositionPresence and type(CompositionPresence.IsPresent) == "function" then
+        return CompositionPresence.IsPresent(unitConfig, objectRef) == true
+    end
+    return true
 end
 
 local function IsValidText(unitKey, textKey)
@@ -231,87 +248,107 @@ function ObjectSelection.GetSelectedObject()
         and state.selectedTextElementUnit == selectedUnit
         and IsValidText(selectedUnit, state.selectedTextElementId)
     then
-        return {
+        local objectRef = {
             kind = "text",
             unit = selectedUnit,
             textKey = state.selectedTextElementId,
             objectKey = state.selectedTextElementId,
             sectionKey = "texts",
         }
+        if IsCompositionPresent(selectedUnit, objectRef) then
+            return objectRef
+        end
+        return BuildUnitRootSelection(selectedUnit)
     end
 
     local scopeKind = type(scope) == "table" and scope.kind or nil
     if scopeKind == "aura" then
         local auraKey = scope.auraKey or scope.objectKey
         if IsValidAura(selectedUnit, auraKey) then
-            return {
+            local objectRef = {
                 kind = "aura",
                 unit = selectedUnit,
                 auraKey = auraKey,
                 objectKey = auraKey,
                 sectionKey = "auras",
             }
+            if IsCompositionPresent(selectedUnit, objectRef) then
+                return objectRef
+            end
+            return BuildUnitRootSelection(selectedUnit)
         end
-        return nil
+        return BuildUnitRootSelection(selectedUnit)
     end
 
     if scopeKind == "indicator" then
         local indicatorKey = scope.indicatorKey or scope.objectKey
         if IsValidIndicator(selectedUnit, indicatorKey) then
-            return {
+            local objectRef = {
                 kind = "indicator",
                 unit = selectedUnit,
                 indicatorKey = indicatorKey,
                 objectKey = indicatorKey,
                 sectionKey = "indicators",
             }
+            if IsCompositionPresent(selectedUnit, objectRef) then
+                return objectRef
+            end
+            return BuildUnitRootSelection(selectedUnit)
         end
-        return nil
+        return BuildUnitRootSelection(selectedUnit)
     end
 
     if scopeKind == "decoration" then
         local decorationId = scope.decorationId or scope.objectKey
         if IsValidDecoration(selectedUnit, decorationId) then
-            return {
+            local objectRef = {
                 kind = "decoration",
                 unit = selectedUnit,
                 decorationId = decorationId,
                 objectKey = decorationId,
                 sectionKey = "decoration",
             }
+            if IsCompositionPresent(selectedUnit, objectRef) then
+                return objectRef
+            end
+            return BuildUnitRootSelection(selectedUnit)
         end
-        return nil
+        return BuildUnitRootSelection(selectedUnit)
     end
 
     local sectionKey = type(scope) == "table" and scope.kind == "unit" and scope.sectionKey or nil
     if sectionKey == "absorbs" then
         local objectKey = type(scope) == "table" and scope.objectKey or nil
         if ABSORB_BAR_BY_OBJECT[objectKey] then
-            return {
+            local objectRef = {
                 kind = "bar",
                 unit = selectedUnit,
                 objectKey = objectKey,
                 sectionKey = sectionKey,
             }
+            if IsCompositionPresent(selectedUnit, objectRef) then
+                return objectRef
+            end
+            return BuildUnitRootSelection(selectedUnit)
         end
-        return nil
+        return BuildUnitRootSelection(selectedUnit)
     end
 
     local objectKey = BAR_BY_SECTION[sectionKey or ""]
     if objectKey then
-        return {
+        local objectRef = {
             kind = "bar",
             unit = selectedUnit,
             objectKey = objectKey,
             sectionKey = sectionKey,
         }
+        if IsCompositionPresent(selectedUnit, objectRef) then
+            return objectRef
+        end
+        return BuildUnitRootSelection(selectedUnit)
     end
 
-    return {
-        kind = "unit",
-        unit = selectedUnit,
-        sectionKey = "frame",
-    }
+    return BuildUnitRootSelection(selectedUnit)
 end
 
 function ObjectSelection.SelectUnitRoot(unitKey)

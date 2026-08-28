@@ -12,6 +12,7 @@ local C = ns.Constants or {}
 local L = ns.L or {}
 local SidebarShared = ns.GUI.Editor.SidebarShared or {}
 local PresencePolicy = ns.EditorPresencePolicy
+local CompositionPresence = ns.GUI.Editor.Composition.Presence or ns.CompositionPresence
 
 local SECTION = {
     frame = "frame",
@@ -97,12 +98,66 @@ local function IsEnabled(config)
     return type(config) == "table" and config.enabled ~= false
 end
 
-local function IsShown(unitConfig, fieldName)
-    return type(unitConfig) == "table" and unitConfig[fieldName] ~= false
+local function IsPresent(unitConfig, objectRef)
+    if CompositionPresence and type(CompositionPresence.IsPresent) == "function" then
+        return CompositionPresence.IsPresent(unitConfig, objectRef) == true
+    end
+    return true
 end
 
-local function ConfigExists(config)
-    return type(config) == "table"
+local function BuildBarTarget(sectionKey, objectKey)
+    local target = {
+        kind = "unit",
+        sectionKey = sectionKey,
+    }
+    if objectKey then
+        target.objectKey = objectKey
+    end
+    return target
+end
+
+local function BuildBarRef(unit, objectKey)
+    return {
+        kind = "bar",
+        unit = unit,
+        objectKey = objectKey,
+    }
+end
+
+local function BuildAuraRef(unit, auraKey)
+    return {
+        kind = "aura",
+        unit = unit,
+        auraKey = auraKey,
+        objectKey = auraKey,
+    }
+end
+
+local function BuildIndicatorRef(unit, indicatorKey)
+    return {
+        kind = "indicator",
+        unit = unit,
+        indicatorKey = indicatorKey,
+        objectKey = indicatorKey,
+    }
+end
+
+local function BuildTextRef(unit, textId)
+    return {
+        kind = "text",
+        unit = unit,
+        textKey = textId,
+        objectKey = textId,
+    }
+end
+
+local function BuildDecorationRef(unit, decorationId)
+    return {
+        kind = "decoration",
+        unit = unit,
+        decorationId = decorationId,
+        objectKey = decorationId,
+    }
 end
 
 local function GetUnitLabel(unit)
@@ -163,87 +218,111 @@ local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
         L["ELEMENT_HEALTH_BAR"] or "Health Bar",
         10,
         true,
-        { kind = "unit", sectionKey = SECTION.health },
+        BuildBarTarget(SECTION.health),
         true
     )))
 
-    RegisterAnchorNode(anchorNodes, "NormalAbsorbBar", AddChild(health, BuildNode(
-        health.id .. "/normalabsorb",
-        "normalAbsorbBar",
-        unit,
-        health.id,
-        L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
-        20,
-        false,
-        { kind = "unit", sectionKey = SECTION.absorbs, objectKey = "NormalAbsorbBar" },
-        IsShown(unitConfig, "showNormalAbsorbBar")
-    )))
-
-    RegisterAnchorNode(anchorNodes, "HealingAbsorbBar", AddChild(health, BuildNode(
-        health.id .. "/healingabsorb",
-        "healingAbsorbBar",
-        unit,
-        health.id,
-        L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
-        30,
-        false,
-        { kind = "unit", sectionKey = SECTION.absorbs, objectKey = "HealingAbsorbBar" },
-        IsShown(unitConfig, "showHealingAbsorbBar")
-    )))
-end
-
-local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
-    local power = AddChild(root, BuildNode(
-        root.id .. "/power",
-        "power",
-        unit,
-        root.id,
-        L["EDITOR_SECTION_POWER"] or "Power",
-        20,
-        false,
-        { kind = "unit", sectionKey = SECTION.power }
-    ))
-
-    RegisterAnchorNode(anchorNodes, "PowerBar", AddChild(power, BuildNode(
-        power.id .. "/powerbar",
-        "powerbar",
-        unit,
-        power.id,
-        L["ELEMENT_POWER_BAR"] or "Power Bar",
-        10,
-        false,
-        { kind = "unit", sectionKey = SECTION.power },
-        IsShown(unitConfig, "showPowerBar")
-    )))
-
-    if unit == "player" then
-        RegisterAnchorNode(anchorNodes, "ClassPowerBar", AddChild(power, BuildNode(
-            power.id .. "/classpower",
-            "classPowerBar",
+    if IsPresent(unitConfig, BuildBarRef(unit, "NormalAbsorbBar")) then
+        RegisterAnchorNode(anchorNodes, "NormalAbsorbBar", AddChild(health, BuildNode(
+            health.id .. "/normalabsorb",
+            "normalAbsorbBar",
             unit,
-            power.id,
-            L["BAR_CLASS_POWER"] or "Class Power",
+            health.id,
+            L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
             20,
             false,
-            { kind = "unit", sectionKey = SECTION.class_power },
-            IsShown(unitConfig, "showClassPowerBar")
+            BuildBarTarget(SECTION.absorbs, "NormalAbsorbBar"),
+            true
         )))
+    end
 
-        RegisterAnchorNode(anchorNodes, "AlternativePowerBar", AddChild(power, BuildNode(
-            power.id .. "/alternativepower",
-            "alternativePowerBar",
+    if IsPresent(unitConfig, BuildBarRef(unit, "HealingAbsorbBar")) then
+        RegisterAnchorNode(anchorNodes, "HealingAbsorbBar", AddChild(health, BuildNode(
+            health.id .. "/healingabsorb",
+            "healingAbsorbBar",
             unit,
-            power.id,
-            L["BAR_ALT_POWER"] or "Alt Power",
+            health.id,
+            L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
             30,
             false,
-            { kind = "unit", sectionKey = SECTION.alt_power },
-            IsShown(unitConfig, "showAlternativePowerBar")
+            BuildBarTarget(SECTION.absorbs, "HealingAbsorbBar"),
+            true
         )))
     end
 end
 
+local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
+    local power
+
+    local function EnsurePower()
+        if not power then
+            power = AddChild(root, BuildNode(
+                root.id .. "/power",
+                "power",
+                unit,
+                root.id,
+                L["EDITOR_SECTION_POWER"] or "Power",
+                20,
+                false,
+                { kind = "unit", sectionKey = SECTION.power }
+            ))
+        end
+        return power
+    end
+
+    if IsPresent(unitConfig, BuildBarRef(unit, "PowerBar")) then
+        power = EnsurePower()
+        RegisterAnchorNode(anchorNodes, "PowerBar", AddChild(power, BuildNode(
+            power.id .. "/powerbar",
+            "powerbar",
+            unit,
+            power.id,
+            L["ELEMENT_POWER_BAR"] or "Power Bar",
+            10,
+            false,
+            BuildBarTarget(SECTION.power),
+            true
+        )))
+    end
+
+    if unit == "player" then
+        if IsPresent(unitConfig, BuildBarRef(unit, "ClassPowerBar")) then
+            power = EnsurePower()
+            RegisterAnchorNode(anchorNodes, "ClassPowerBar", AddChild(power, BuildNode(
+                power.id .. "/classpower",
+                "classPowerBar",
+                unit,
+                power.id,
+                L["BAR_CLASS_POWER"] or "Class Power",
+                20,
+                false,
+                BuildBarTarget(SECTION.class_power),
+                true
+            )))
+        end
+
+        if IsPresent(unitConfig, BuildBarRef(unit, "AlternativePowerBar")) then
+            power = EnsurePower()
+            RegisterAnchorNode(anchorNodes, "AlternativePowerBar", AddChild(power, BuildNode(
+                power.id .. "/alternativepower",
+                "alternativePowerBar",
+                unit,
+                power.id,
+                L["BAR_ALT_POWER"] or "Alt Power",
+                30,
+                false,
+                BuildBarTarget(SECTION.alt_power),
+                true
+            )))
+        end
+    end
+end
+
 local function AddCastBranch(root, unit, unitConfig, anchorNodes)
+    if not IsPresent(unitConfig, BuildBarRef(unit, "CastBar")) then
+        return
+    end
+
     local cast = AddChild(root, BuildNode(
         root.id .. "/cast",
         "cast",
@@ -263,8 +342,8 @@ local function AddCastBranch(root, unit, unitConfig, anchorNodes)
         L["ELEMENT_CAST_BAR"] or "Cast Bar",
         10,
         false,
-        { kind = "unit", sectionKey = SECTION.cast },
-        IsShown(unitConfig, "showCastBar")
+        BuildBarTarget(SECTION.cast),
+        true
     )))
 end
 
@@ -286,30 +365,32 @@ local function AddTextBranch(root, unit, unitConfig, anchorNodes)
 
     for index, textId in ipairs(textIds) do
         local textConfig = texts[textId]
-        local parent = ResolveTextParent(root, anchorNodes, textConfig)
-        local node = BuildNode(
-            root.id .. "/text:" .. textId,
-            "textElement",
-            unit,
-            parent.id,
-            textLabels[textId] or GetTextLabel(textId, textConfig),
-            index,
-            false,
-            { kind = "text", sectionKey = SECTION.texts, textKey = textId },
-            IsEnabled(textConfig)
-        )
-        if PresencePolicy and type(PresencePolicy.ResolveText) == "function" then
-            node.presence = PresencePolicy.ResolveText(unit, textId)
+        if IsPresent(unitConfig, BuildTextRef(unit, textId)) then
+            local parent = ResolveTextParent(root, anchorNodes, textConfig)
+            local node = BuildNode(
+                root.id .. "/text:" .. textId,
+                "textElement",
+                unit,
+                parent.id,
+                textLabels[textId] or GetTextLabel(textId, textConfig),
+                index,
+                false,
+                { kind = "text", sectionKey = SECTION.texts, textKey = textId },
+                IsEnabled(textConfig)
+            )
+            if PresencePolicy and type(PresencePolicy.ResolveText) == "function" then
+                node.presence = PresencePolicy.ResolveText(unit, textId)
+            end
+            AddChild(parent, node)
         end
-        AddChild(parent, node)
     end
 end
 
 local function AddAuraBranch(root, unit, unitConfig)
     local auraRoot
     for index, auraKey in ipairs({ "Buffs", "Debuffs" }) do
-        local auraConfig = type(unitConfig) == "table" and unitConfig[auraKey] or nil
-        if ConfigExists(auraConfig) then
+        local auraRef = BuildAuraRef(unit, auraKey)
+        if IsPresent(unitConfig, auraRef) then
             if not auraRoot then
                 auraRoot = AddChild(root, BuildNode(
                     root.id .. "/auras",
@@ -331,7 +412,7 @@ local function AddAuraBranch(root, unit, unitConfig)
                 index,
                 false,
                 { kind = "aura", sectionKey = SECTION.auras, auraKey = auraKey },
-                IsEnabled(auraConfig)
+                true
             ))
         end
     end
@@ -353,7 +434,7 @@ local function AddIndicatorBranch(root, unit, unitConfig, anchorNodes)
         local label = indicatorList[indicatorKey]
         local entry = meta[indicatorKey]
         local config = type(unitConfig) == "table" and type(entry) == "table" and unitConfig[entry.optionKey] or nil
-        if type(label) == "string" and type(config) == "table" then
+        if type(label) == "string" and type(config) == "table" and IsPresent(unitConfig, BuildIndicatorRef(unit, indicatorKey)) then
             local parent = ResolveIndicatorParent(root, anchorNodes, config)
             local node = BuildNode(
                 root.id .. "/indicator:" .. indicatorKey,
@@ -364,7 +445,7 @@ local function AddIndicatorBranch(root, unit, unitConfig, anchorNodes)
                 index,
                 false,
                 { kind = "indicator", sectionKey = SECTION.indicators, indicatorKey = indicatorKey },
-                IsEnabled(config)
+                true
             )
             if PresencePolicy and type(PresencePolicy.ResolveObject) == "function" then
                 node.presence = PresencePolicy.ResolveObject(unit, node.inspectorTarget)
@@ -390,7 +471,7 @@ local function AddDecorationBranch(root, unit, unitConfig, anchorNodes)
 
     for index, decoration in ipairs(decorations) do
         local decorationId = type(decoration) == "table" and decoration.id or nil
-        if type(decorationId) == "string" and decorationId ~= "" then
+        if type(decorationId) == "string" and decorationId ~= "" and IsPresent(unitConfig, BuildDecorationRef(unit, decorationId)) then
             local parent = ResolveDecorationParent(root, anchorNodes, decoration)
             local node = BuildNode(
                 root.id .. "/decoration:" .. decorationId,
