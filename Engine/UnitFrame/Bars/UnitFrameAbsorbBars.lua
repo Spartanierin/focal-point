@@ -6,6 +6,7 @@ local AbsorbBars = FocalPoint.UnitFrameAbsorbBars
 local Assets = FocalPoint.UnitFrameAssets or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 
 local GetStatusBarTexture = Assets.GetStatusBarTexture
 local ToSafeNumberValue = Utils.ToSafeNumberValue
@@ -146,6 +147,14 @@ local function ApplyAbsorbBarStyle(frame, config, spec)
     if not bar then
         return false
     end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, spec.elementKey) then
+        if RuntimeActivity.ClearComponentVisual then
+            RuntimeActivity.ClearComponentVisual(frame, spec.elementKey)
+        else
+            bar:Hide()
+        end
+        return false
+    end
 
     ApplyFrameLayer(frame, bar, spec)
 
@@ -171,6 +180,14 @@ end
 local function ApplyAbsorbBarGeometry(frame, config, spec)
     local bar = frame and frame.Elements and frame.Elements[spec.elementKey]
     if not bar then
+        return false
+    end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, spec.elementKey) then
+        if RuntimeActivity.ClearComponentVisual then
+            RuntimeActivity.ClearComponentVisual(frame, spec.elementKey)
+        else
+            bar:Hide()
+        end
         return false
     end
 
@@ -204,6 +221,14 @@ local function UpdateAbsorbBarValue(frame, spec)
     if not bar then
         return false
     end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, spec.elementKey) then
+        if RuntimeActivity.ClearComponentVisual then
+            RuntimeActivity.ClearComponentVisual(frame, spec.elementKey)
+        else
+            bar:Hide()
+        end
+        return false
+    end
 
     local live = frame.LiveValues or {}
     local maxHealth = live.healthMaxRaw or 1
@@ -234,6 +259,14 @@ end
 local function ApplyAbsorbBarVisibility(frame, config, spec)
     local bar = frame and frame.Elements and frame.Elements[spec.elementKey]
     if not bar then
+        return false
+    end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, spec.elementKey) then
+        if RuntimeActivity.ClearComponentVisual then
+            RuntimeActivity.ClearComponentVisual(frame, spec.elementKey)
+        else
+            bar:Hide()
+        end
         return false
     end
 

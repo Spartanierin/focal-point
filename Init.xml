@@ -43,8 +43,11 @@
     <Script file="Engine/UnitFrame/Shared/UnitFrameUnitWatchPolicy.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFramePreview.lua"/>
     <Script file="Engine/UnitFrame/Shared/EditorVisualPolicy.lua"/>
+    <Script file="GUI/Editor/Composition/CompositionOwnership.lua"/>
+    <Script file="GUI/Editor/Composition/CompositionPresence.lua"/>
     <Script file="Engine/Text/Shared/TextElementRoles.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateResolver.lua"/>
+    <Script file="Engine/UnitFrame/Runtime/UnitFrameRuntimeActivity.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameCastBar.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameCastRuntime.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameAbsorbBars.lua"/>
@@ -138,8 +141,6 @@
     <Script file="GUI/Editor/EditorOptionsDialog.lua"/>
     <Script file="GUI/Editor/EditorController.lua"/>
     <Script file="GUI/Editor/SidebarShared.lua"/>
-    <Script file="GUI/Editor/Composition/CompositionOwnership.lua"/>
-    <Script file="GUI/Editor/Composition/CompositionPresence.lua"/>
     <Script file="GUI/Editor/Composition/CompositionTreeAdapter.lua"/>
     <Script file="GUI/Editor/Composition/CompositionTreeView.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>

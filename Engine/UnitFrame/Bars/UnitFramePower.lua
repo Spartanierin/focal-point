@@ -9,6 +9,7 @@ local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -76,57 +77,65 @@ function Power.RefreshUnitBarValues(owner, frame)
         owner:RefreshHealthBar(frame)
     end
 
-    if frame.Elements.PowerBar then
-        local currentPower = 0
-        local maxPower = 1
+    local currentPower = 0
+    local maxPower = 1
 
-        if previewValues then
-            currentPower = previewValues.powerCurrent or 65
-            maxPower = previewValues.powerMax or 100
-        elseif unitExists and UnitPower and UnitPowerMax then
-            currentPower = UnitPower(unit) or 0
-            maxPower = UnitPowerMax(unit) or 1
-        end
+    if previewValues then
+        currentPower = previewValues.powerCurrent or 65
+        maxPower = previewValues.powerMax or 100
+    elseif unitExists and UnitPower and UnitPowerMax then
+        currentPower = UnitPower(unit) or 0
+        maxPower = UnitPowerMax(unit) or 1
+    end
 
-        local currentPowerBarValue, currentPowerIsSecret = ResolveBarNumber(currentPower)
-        local maxPowerBarValue, maxPowerIsSecret = ResolveBarNumber(maxPower)
+    local currentPowerBarValue, currentPowerIsSecret = ResolveBarNumber(currentPower)
+    local maxPowerBarValue, maxPowerIsSecret = ResolveBarNumber(maxPower)
 
-        if type(maxPowerBarValue) ~= "number" then
-            maxPowerBarValue = 1
-            maxPowerIsSecret = false
-        end
+    if type(maxPowerBarValue) ~= "number" then
+        maxPowerBarValue = 1
+        maxPowerIsSecret = false
+    end
 
-        if not maxPowerIsSecret and maxPowerBarValue < 1 then
-            maxPowerBarValue = 1
-        end
+    if not maxPowerIsSecret and maxPowerBarValue < 1 then
+        maxPowerBarValue = 1
+    end
 
-        if type(currentPowerBarValue) ~= "number" then
+    if type(currentPowerBarValue) ~= "number" then
+        currentPowerBarValue = 0
+        currentPowerIsSecret = false
+    end
+
+    if not currentPowerIsSecret and not maxPowerIsSecret then
+        if currentPowerBarValue < 0 then
             currentPowerBarValue = 0
-            currentPowerIsSecret = false
+        elseif currentPowerBarValue > maxPowerBarValue then
+            currentPowerBarValue = maxPowerBarValue
         end
+    end
 
-        if not currentPowerIsSecret and not maxPowerIsSecret then
-            if currentPowerBarValue < 0 then
-                currentPowerBarValue = 0
-            elseif currentPowerBarValue > maxPowerBarValue then
-                currentPowerBarValue = maxPowerBarValue
+    frame.LiveValues.powerCurrentRaw = currentPower
+    frame.LiveValues.powerMaxRaw = maxPower
+    frame.LiveValues.powerCurrentText = FormatDisplayNumber(currentPower)
+    frame.LiveValues.powerMaxText = FormatDisplayNumber(maxPower)
+    frame.LiveValues.powerCurrentSafe = ToSafeNumberValue(currentPower)
+    frame.LiveValues.powerMaxSafe = ToSafeNumberValue(maxPower)
+    frame.LiveValues.powerCurrentAbbr = ResolveBlizzardAbbreviation(currentPower, frame.LiveValues.powerCurrentText)
+    frame.LiveValues.powerMaxAbbr = ResolveBlizzardAbbreviation(maxPower, frame.LiveValues.powerMaxText)
+
+    if frame.Elements.PowerBar then
+        if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "PowerBar") then
+            if RuntimeActivity.ClearComponentVisual then
+                RuntimeActivity.ClearComponentVisual(frame, "PowerBar")
+            else
+                frame.Elements.PowerBar:Hide()
+            end
+        else
+            frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerBarValue)
+            frame.Elements.PowerBar:SetValue(currentPowerBarValue)
+            if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
+                Demo.TouchDebug(frame, "barSmoothingTicks")
             end
         end
-
-        frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerBarValue)
-        frame.Elements.PowerBar:SetValue(currentPowerBarValue)
-        if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
-            Demo.TouchDebug(frame, "barSmoothingTicks")
-        end
-
-        frame.LiveValues.powerCurrentRaw = currentPower
-        frame.LiveValues.powerMaxRaw = maxPower
-        frame.LiveValues.powerCurrentText = FormatDisplayNumber(currentPower)
-        frame.LiveValues.powerMaxText = FormatDisplayNumber(maxPower)
-        frame.LiveValues.powerCurrentSafe = ToSafeNumberValue(currentPower)
-        frame.LiveValues.powerMaxSafe = ToSafeNumberValue(maxPower)
-        frame.LiveValues.powerCurrentAbbr = ResolveBlizzardAbbreviation(currentPower, frame.LiveValues.powerCurrentText)
-        frame.LiveValues.powerMaxAbbr = ResolveBlizzardAbbreviation(maxPower, frame.LiveValues.powerMaxText)
     end
 
     if frame.Elements.AlternativePowerBar then

@@ -7,6 +7,7 @@ local Cast = FocalPoint.UnitFrameCastBar or {}
 local Presence = FocalPoint.UnitFramePresence or {}
 local State = FocalPoint.UnitFrameState or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 
 local ApplyCastBarStateColor = Cast.ApplyStateColor
 local GetActiveCastTiming = Cast.GetActiveTiming
@@ -21,7 +22,9 @@ function Runtime.Refresh(owner, frame)
         return
     end
 
-    if frame.config and frame.config.showCastBar == false then
+    if (frame.config and frame.config.showCastBar == false)
+        or (RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar"))
+    then
         StopCastBar(frame)
         return
     end
@@ -124,6 +127,11 @@ function Runtime.RegisterEvents(owner, frame)
             self.elapsed = 0
             return
         end
+        if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(currentOwner, "CastBar") then
+            self.elapsed = 0
+            StopCastBar(currentOwner)
+            return
+        end
 
         local now = GetTime and GetTime() or 0
         if castBar.isTextEditPreview == true then
@@ -189,6 +197,10 @@ function Runtime.RegisterEvents(owner, frame)
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         local currentOwner = eventFrame.owner
         if not currentOwner then
+            return
+        end
+        if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(currentOwner, "CastBar") then
+            StopCastBar(currentOwner)
             return
         end
 

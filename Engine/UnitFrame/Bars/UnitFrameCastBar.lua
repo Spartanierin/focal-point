@@ -9,6 +9,7 @@ local Preview = FocalPoint.UnitFramePreview or {}
 local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 
 local UnpackColor = Utils.UnpackColor
 local ResolveInterruptState = Utils.ResolveInterruptState
@@ -35,6 +36,9 @@ end
 
 function CastBar.ShouldRepresentInEditor(frame)
     if not frame or not frame.config or frame.config.showCastBar == false then
+        return false
+    end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar") then
         return false
     end
 
@@ -130,7 +134,9 @@ function CastBar.ApplyTextEditPreview(frame)
         return false
     end
 
-    if frame.config and frame.config.showCastBar == false then
+    if (frame.config and frame.config.showCastBar == false)
+        or (RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar"))
+    then
         castBar.isTextEditPreview = false
         CastBar.ClearVisuals(frame)
         castBar:Hide()
@@ -329,6 +335,10 @@ function CastBar.Start(frame)
     if not castBar or not unit then
         return
     end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar") then
+        CastBar.Stop(frame)
+        return
+    end
 
     local isChannel, startTime, endTime, spellIcon, interruptState, castID, castToken = CastBar.GetActiveTiming(unit, castBar)
 
@@ -374,6 +384,10 @@ end
 function CastBar.StartPreview(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
+        return
+    end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar") then
+        CastBar.Stop(frame)
         return
     end
 
@@ -481,6 +495,11 @@ end
 function CastBar.ApplyLayout(frame, options)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
+        return
+    end
+    if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar") then
+        CastBar.ClearVisuals(frame)
+        castBar:Hide()
         return
     end
 
