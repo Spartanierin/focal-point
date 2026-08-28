@@ -2676,7 +2676,7 @@ function FocalPoint:ResyncActiveLayout(reason, options)
     end
 
     if options.silent ~= true and self.GUI and self.GUI.RequestRefreshOptions then
-        self.GUI:RequestRefreshOptions()
+        self.GUI:RequestRefreshOptions("Layout.ResyncActiveLayout")
     end
 
     return true, "resynced"
@@ -2763,7 +2763,7 @@ function FocalPoint:HandleActiveProfileChanged(reason, options)
     end
 
     if shouldRefreshGUI and self.GUI and self.GUI.RequestRefreshOptions then
-        self.GUI:RequestRefreshOptions()
+        self.GUI:RequestRefreshOptions("Layout.ApplyActiveLayout")
     end
 end
 

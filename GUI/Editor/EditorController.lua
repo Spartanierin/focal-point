@@ -186,15 +186,16 @@ function EditorController.ApplyObjectSelectionProjection(changeKind)
     if changeKind == "sameUnitObject" then
         RefreshSelectedUnitRuntime()
         EditorController.RefreshActiveProperties()
-        if ns.GUI and ns.GUI.RequestRefreshOptions then
-            ns.GUI:RequestRefreshOptions()
+        local treeView = ns.CompositionTreeView or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or nil
+        if treeView and type(treeView.RefreshKeyboardBinding) == "function" then
+            treeView.RefreshKeyboardBinding()
         end
         return
     end
 
     RefreshSelectedUnitRuntime()
     if ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions("EditorController.ObjectSelection")
     end
 end
 

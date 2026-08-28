@@ -288,7 +288,7 @@ local function SubmitSelectedTemplate(context)
         end
         SelectText(result.unitKey or unitKey, result.textKey or textKey)
         if ns.GUI and ns.GUI.RequestRefreshOptions then
-            ns.GUI:RequestRefreshOptions()
+            ns.GUI:RequestRefreshOptions("TextTemplateLibrary.ApplyTemplate")
         end
         context.dialog:Close()
         return
@@ -307,7 +307,7 @@ local function SubmitSelectedTemplate(context)
     end
     SelectText(result.unitKey or unitKey, result.textKey)
     if ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions("TextTemplateLibrary.ApplyTemplate")
     end
     context.dialog:Close()
 end

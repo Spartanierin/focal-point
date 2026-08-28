@@ -203,7 +203,7 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
             })
         end
         if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-            FocalPoint.GUI:RequestRefreshOptions()
+            FocalPoint.GUI:RequestRefreshOptions("Navigation.Sidebar")
         end
     end
 
@@ -230,7 +230,7 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                 elseif EditorState.SetSelectedUnit then
                     EditorState.SetSelectedUnit(unitKey)
                     if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                        FocalPoint.GUI:RequestRefreshOptions()
+                        FocalPoint.GUI:RequestRefreshOptions("Toolbar.UnitChangedFallback")
                     end
                 end
             end,
@@ -247,7 +247,7 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                     return
                 end
                 if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                    FocalPoint.GUI:RequestRefreshOptions()
+                    FocalPoint.GUI:RequestRefreshOptions("Toolbar.ObjectSelectionChanged")
                 end
             end,
             onModeChanged = function(mode)
@@ -256,7 +256,7 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                     editorMode.Set(EditorState.Get and EditorState.Get(), FocalPoint.db and FocalPoint.db.profile, mode)
                 end
                 if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                    FocalPoint.GUI:RequestRefreshOptions()
+                    FocalPoint.GUI:RequestRefreshOptions("Toolbar.ModeChanged")
                 end
             end,
             onThemeChanged = function(themeId)
@@ -264,7 +264,7 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                     EditorState.SetSelectedThemeId(themeId)
                 end
                 if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                    FocalPoint.GUI:RequestRefreshOptions()
+                    FocalPoint.GUI:RequestRefreshOptions("Toolbar.ThemeChanged")
                 end
             end,
             onThemeApplied = function(themeId)
@@ -272,12 +272,12 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
                     EditorState.SetSelectedThemeId(themeId)
                 end
                 if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                    FocalPoint.GUI:RequestRefreshOptions()
+                    FocalPoint.GUI:RequestRefreshOptions("Toolbar.ThemeApplied")
                 end
             end,
             onGlobalChanged = function()
                 if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-                    FocalPoint.GUI:RequestRefreshOptions()
+                    FocalPoint.GUI:RequestRefreshOptions("Toolbar.GlobalChanged")
                 end
             end,
             onClose = function()
@@ -319,7 +319,15 @@ local function StabilizeRenderedShell(expectedPath, refreshSerial)
     end
 end
 
-function FocalPoint.GUI:RequestRefreshOptions()
+function FocalPoint.GUI:RequestRefreshOptions(reason)
+    local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+    if perf and perf.Count then
+        perf:Count("RequestRefreshOptions")
+        if perf.RecordRequestRefreshReason then
+            perf:RecordRequestRefreshReason(reason)
+        end
+    end
+
     local addon = FocalPoint
 
     if addon._closingConfig then
@@ -352,18 +360,30 @@ function FocalPoint.GUI:RequestRefreshOptions()
 end
 
 function FocalPoint.GUI:RefreshOptions()
+    local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("RefreshOptions")
+
     local addon = FocalPoint
 
     if addon._closingConfig then
+        if perf and perf.End then
+            perf:End("RefreshOptions", perfStart)
+        end
         return
     end
 
     if not addon.guiContentHost then
+        if perf and perf.End then
+            perf:End("RefreshOptions", perfStart)
+        end
         return
     end
 
     if addon._refreshingOptions then
         addon._pendingRefreshOptions = true
+        if perf and perf.End then
+            perf:End("RefreshOptions", perfStart)
+        end
         return
     end
 
@@ -399,9 +419,12 @@ function FocalPoint.GUI:RefreshOptions()
     end)
 
     addon._refreshingOptions = false
+    if perf and perf.End then
+        perf:End("RefreshOptions", perfStart)
+    end
 
     if addon._pendingRefreshOptions then
-        self:RequestRefreshOptions()
+        self:RequestRefreshOptions("RefreshOptions.Reschedule")
     end
 
     if not ok then
@@ -531,7 +554,7 @@ function FocalPoint:SelectEditorUnit(unit, options)
     EnsureEditorDesignPresenceForUnit(self, selectedUnit)
 
     if self.GUI and self.GUI.RequestRefreshOptions then
-        self.GUI:RequestRefreshOptions()
+        self.GUI:RequestRefreshOptions("Editor.SelectUnit")
     elseif self.RefreshEditorSelectionVisuals then
         self:RefreshEditorSelectionVisuals()
     end
@@ -572,7 +595,7 @@ ShowGUIFrame = function(widget)
     if widget.frame and widget.frame.Show then
         widget.frame:Show()
         if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-            FocalPoint.GUI:RequestRefreshOptions()
+            FocalPoint.GUI:RequestRefreshOptions("GUI.ShowFrame")
         elseif FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
         end
@@ -582,7 +605,7 @@ ShowGUIFrame = function(widget)
     if widget.Show then
         widget:Show()
         if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-            FocalPoint.GUI:RequestRefreshOptions()
+            FocalPoint.GUI:RequestRefreshOptions("GUI.ShowFrame")
         elseif FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
         end
@@ -797,7 +820,7 @@ function FocalPoint:CreateGUI()
         end
 
         if self.GUI and self.GUI.RequestRefreshOptions then
-            self.GUI:RequestRefreshOptions()
+            self.GUI:RequestRefreshOptions("GUI.TestEnvironmentChanged")
         end
     end
 

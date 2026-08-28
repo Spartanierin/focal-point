@@ -110,7 +110,7 @@ end
 
 local function RefreshProfileUI()
     if ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions("Profiles.RefreshProfileUI")
     end
 end
 
@@ -118,7 +118,7 @@ local function SyncActiveProfile(reason)
     if ns.RefreshProfileSettings then
         ns:RefreshProfileSettings(reason or "profiles-ui-sync")
     elseif ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions("Profiles.SyncProfileSettings")
     end
 end
 

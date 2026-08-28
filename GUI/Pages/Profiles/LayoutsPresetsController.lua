@@ -27,9 +27,9 @@ local function T(key, fallback)
     return (type(key) == "string" and L[key]) or fallback or ""
 end
 
-local function RequestRefreshOptions()
+local function RequestRefreshOptions(reason)
     if ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions(reason or "Profiles.LayoutPresets")
     end
 end
 

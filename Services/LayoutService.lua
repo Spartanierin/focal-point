@@ -481,6 +481,9 @@ function LayoutService.ListLayouts(options)
 end
 
 function LayoutService.ListLayoutSummaries(options)
+    local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("LayoutService.ListLayoutSummaries")
+
     options = type(options) == "table" and options or {}
 
     local db = options.db or FocalPoint.db
@@ -515,6 +518,9 @@ function LayoutService.ListLayoutSummaries(options)
         AppendSummary(summaries, LayoutService.ProjectUserLayoutSummary(layoutId, userLayouts[layoutId]))
     end
 
+    if perf and perf.End then
+        perf:End("LayoutService.ListLayoutSummaries", perfStart)
+    end
     return summaries
 end
 

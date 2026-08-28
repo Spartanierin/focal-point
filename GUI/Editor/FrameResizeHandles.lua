@@ -142,7 +142,7 @@ local function RefreshEditorForUnit(unitKey)
     end
 
     if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-        FocalPoint.GUI:RequestRefreshOptions()
+        FocalPoint.GUI:RequestRefreshOptions("FrameResizeHandles.Resize")
     end
 
     if FocalPoint.RefreshEditorSelectionVisuals then

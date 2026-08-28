@@ -204,7 +204,7 @@ local function ApplyObjectSelectionProjection(changeKind)
         FocalPoint:RefreshEditorSelectionVisuals()
     end
     if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-        FocalPoint.GUI:RequestRefreshOptions()
+        FocalPoint.GUI:RequestRefreshOptions("CanvasHoverOverlay.Selection")
     end
 end
 

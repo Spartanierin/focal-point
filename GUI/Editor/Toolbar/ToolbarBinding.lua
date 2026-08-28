@@ -622,7 +622,7 @@ local function BuildCompositionTree(context, deps)
             if context.options and type(context.options.onObjectSelectionChanged) == "function" then
                 context.options.onObjectSelectionChanged(changeKind)
             elseif nsRef.GUI and nsRef.GUI.RequestRefreshOptions then
-                nsRef.GUI:RequestRefreshOptions()
+                nsRef.GUI:RequestRefreshOptions("CompositionTree.Selection")
             end
         end,
         onToggle = function(node, nextEnabled)

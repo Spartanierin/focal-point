@@ -79,6 +79,133 @@ function FocalPoint:Debug(message)
     PrintToChat("|cffb7a6ff[Debug]|r ", message)
 end
 
+FocalPoint.SelectionPerfDebug = {
+    enabled = true,
+    counters = {},
+    requestReasons = {},
+    requestReasonTotal = 0,
+}
+
+function FocalPoint.SelectionPerfDebug:Reset()
+    self.counters = {}
+    self.requestReasons = {}
+    self.requestReasonTotal = 0
+    self.selectionSwitches = 0
+    if FocalPoint and FocalPoint.Info then
+        FocalPoint:Info("[FP SelectionPerf] reset")
+    end
+end
+
+function FocalPoint.SelectionPerfDebug:Count(name)
+    if self.enabled ~= true or type(name) ~= "string" then
+        return
+    end
+
+    local counter = self.counters[name]
+    if type(counter) ~= "table" then
+        counter = { calls = 0, total = 0, max = 0 }
+        self.counters[name] = counter
+    end
+    counter.calls = (counter.calls or 0) + 1
+end
+
+
+function FocalPoint.SelectionPerfDebug:RecordRequestRefreshReason(reason)
+    if self.enabled ~= true then
+        return
+    end
+
+    local reasonKey = type(reason) == "string" and reason ~= "" and reason or "unspecified"
+    self.requestReasonTotal = (self.requestReasonTotal or 0) + 1
+    self.requestReasons[reasonKey] = (self.requestReasons[reasonKey] or 0) + 1
+end
+
+function FocalPoint.SelectionPerfDebug:Begin(name)
+    if self.enabled ~= true or type(name) ~= "string" or not debugprofilestop then
+        return nil
+    end
+    return debugprofilestop()
+end
+
+function FocalPoint.SelectionPerfDebug:End(name, started)
+    if self.enabled ~= true or type(name) ~= "string" then
+        return
+    end
+
+    local elapsed = 0
+    if started and debugprofilestop then
+        elapsed = math.max(0, debugprofilestop() - started)
+    end
+
+    local counter = self.counters[name]
+    if type(counter) ~= "table" then
+        counter = { calls = 0, total = 0, max = 0 }
+        self.counters[name] = counter
+    end
+    counter.calls = (counter.calls or 0) + 1
+    counter.total = (counter.total or 0) + elapsed
+    counter.max = math.max(counter.max or 0, elapsed)
+end
+
+function FocalPoint.SelectionPerfDebug:RecordSelection(changeKind)
+    self.selectionSwitches = (self.selectionSwitches or 0) + 1
+    self:Count("ObjectSelection.SelectObject")
+    if type(changeKind) == "string" and changeKind ~= "" then
+        self:Count("selection." .. changeKind)
+    end
+end
+
+function FocalPoint.SelectionPerfDebug:Dump()
+    local order = {
+        "ObjectSelection.SelectObject",
+        "selection.sameUnitObject",
+        "selection.unitChanged",
+        "RequestRefreshOptions",
+        "RefreshOptions",
+        "AppShell.UpdateGeometry",
+        "CanvasToolbar.Refresh",
+        "LayoutService.ListLayoutSummaries",
+        "CompositionTreeView.Build",
+        "InspectorController.Build",
+        "RefreshEditorSelectionVisuals",
+    }
+
+    if FocalPoint and FocalPoint.Info then
+        FocalPoint:Info(string.format("[FP SelectionPerf] Selection switches: %d", tonumber(self.selectionSwitches) or 0))
+        for _, name in ipairs(order) do
+            local counter = self.counters[name]
+            local calls = counter and tonumber(counter.calls) or 0
+            local total = counter and tonumber(counter.total) or 0
+            local maxValue = counter and tonumber(counter.max) or 0
+            local avg = calls > 0 and (total / calls) or 0
+            FocalPoint:Info(string.format("[FP SelectionPerf] %s calls=%d total=%.2fms avg=%.2fms max=%.2fms", name, calls, total, avg, maxValue))
+        end
+        local reasonRows = {}
+        local reasonTotal = tonumber(self.requestReasonTotal) or 0
+        for reasonKey, calls in pairs(self.requestReasons or {}) do
+            reasonRows[#reasonRows + 1] = { key = reasonKey, calls = tonumber(calls) or 0 }
+        end
+        table.sort(reasonRows, function(left, right)
+            if left.calls == right.calls then
+                return left.key < right.key
+            end
+            return left.calls > right.calls
+        end)
+
+        FocalPoint:Info(string.format("[FP SelectionPerf] RequestRefreshOptions reasons total=%d", reasonTotal))
+        local shown = math.min(#reasonRows, 10)
+        local shownCalls = 0
+        for index = 1, shown do
+            local row = reasonRows[index]
+            shownCalls = shownCalls + row.calls
+            FocalPoint:Info(string.format("[FP SelectionPerf]   %s = %d", row.key, row.calls))
+        end
+        if #reasonRows > shown then
+            FocalPoint:Info(string.format("[FP SelectionPerf]   other reasons = %d", reasonTotal - shownCalls))
+        end
+    end
+end
+
 local FocalPointAddon = LibStub("AceAddon-3.0"):NewAddon("FocalPoint")
 FocalPoint.Ace = FocalPointAddon
 
@@ -1105,7 +1232,7 @@ function FocalPoint:RefreshProfileSettings(reason, options)
     end
 
     if options.silent ~= true and self.GUI and self.GUI.RequestRefreshOptions then
-        self.GUI:RequestRefreshOptions()
+        self.GUI:RequestRefreshOptions("Settings.RefreshProfileSettings")
     end
 
     return true, "settings-refreshed"

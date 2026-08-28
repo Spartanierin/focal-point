@@ -384,7 +384,28 @@ local function RevealActiveNode(node, state, expansionState)
     return false
 end
 
-local function AdjustScrollForSelection(scrollStatus, selectedRowIndex, rowCount, scrollHeight)
+local function ApplyTreeScrollValue(scroll, value)
+    if not (scroll and value) then
+        return
+    end
+    if scroll.scrollbar and scroll.scrollbar.SetValue then
+        scroll.scrollbar:SetValue(value)
+    elseif scroll.SetScroll then
+        scroll:SetScroll(value)
+    end
+end
+
+local function GetTreeScrollValue(scroll, scrollStatus)
+    if scroll and scroll.scrollbar and scroll.scrollbar.GetValue then
+        local value = tonumber(scroll.scrollbar:GetValue())
+        if value then
+            return value
+        end
+    end
+    return tonumber(scrollStatus and scrollStatus.scrollvalue) or 0
+end
+
+local function AdjustScrollForSelection(scrollStatus, selectedRowIndex, rowCount, scrollHeight, currentScrollValue)
     selectedRowIndex = tonumber(selectedRowIndex)
     rowCount = tonumber(rowCount) or 0
     if not (type(scrollStatus) == "table" and selectedRowIndex and selectedRowIndex > 0 and rowCount > 0) then
@@ -398,8 +419,8 @@ local function AdjustScrollForSelection(scrollStatus, selectedRowIndex, rowCount
     end
 
     local maxFirstRow = rowCount - visibleRows + 1
-    local currentValue = tonumber(scrollStatus.scrollvalue) or 0
-    local firstRow = math.floor((maxFirstRow - 1) * math.max(0, math.min(1000, currentValue)) / 1000) + 1
+    local currentValue = tonumber(currentScrollValue) or tonumber(scrollStatus.scrollvalue) or 0
+    local firstRow = math.ceil((maxFirstRow - 1) * math.max(0, math.min(1000, currentValue)) / 1000) + 1
     local lastRow = firstRow + visibleRows - 1
 
     if selectedRowIndex < firstRow then
@@ -942,12 +963,29 @@ local function RebuildTree(options)
     return false
 end
 
+local function EnsureActiveSelectionVisible(scroll, state, options)
+    local uiState = options and options._focalPointTreeUiState or nil
+    local visibleRows = options and options.visibleRows or nil
+    local selectedRowIndex = FindVisibleRowIndex(visibleRows, state)
+    local rowCount = type(visibleRows) == "table" and #visibleRows or tonumber(options and options._focalPointRowCount) or 0
+    local scrollHeight = options and options._focalPointScrollHeight or nil
+    local scrollStatus = uiState and uiState.scroll or nil
+    AdjustScrollForSelection(scrollStatus, selectedRowIndex, rowCount, scrollHeight, GetTreeScrollValue(scroll, scrollStatus))
+    if scrollStatus and scrollStatus.scrollvalue then
+        ApplyTreeScrollValue(scroll, scrollStatus.scrollvalue)
+    end
+end
+
 local function SelectVisibleRow(visibleRows, index, state, options)
     local row = type(visibleRows) == "table" and visibleRows[index] or nil
     if not (row and row.node) then
         return false
     end
-    return SelectTreeNode(row.node, state, options)
+    local selected = SelectTreeNode(row.node, state, options)
+    if selected then
+        EnsureActiveSelectionVisible(options and options._focalPointScroll, state, options)
+    end
+    return selected
 end
 
 local function SelectNextVisibleObject(visibleRows, startIndex, direction, state, options)
@@ -1108,7 +1146,13 @@ local function RenderNode(container, node, depth, state, options)
 end
 
 function View.Build(container, state, options)
+    local perf = ns and ns.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("CompositionTreeView.Build")
+
     if not container then
+        if perf and perf.End then
+            perf:End("CompositionTreeView.Build", perfStart)
+        end
         return false
     end
     options = options or {}
@@ -1127,6 +1171,9 @@ function View.Build(container, state, options)
             ApplyLabelStyle(empty.label, { type = "empty" })
         end
         container:AddChild(empty)
+        if perf and perf.End then
+            perf:End("CompositionTreeView.Build", perfStart)
+        end
         return false
     end
 
@@ -1151,6 +1198,10 @@ function View.Build(container, state, options)
     if scroll.SetStatusTable then
         scroll:SetStatusTable(uiState.scroll)
     end
+    options._focalPointScroll = scroll
+    options._focalPointTreeUiState = uiState
+    options._focalPointRowCount = rowCount
+    options._focalPointScrollHeight = scrollHeight
     EnableTreeKeyboard(scroll, state, options)
     container:AddChild(scroll)
 
@@ -1163,10 +1214,31 @@ function View.Build(container, state, options)
         end
     end
     AdjustScrollForSelection(uiState.scroll, selectedRowIndex, rowCount, scrollHeight)
-    if scroll.SetScroll and uiState.scroll and uiState.scroll.scrollvalue then
-        scroll:SetScroll(uiState.scroll.scrollvalue)
+    if uiState.scroll and uiState.scroll.scrollvalue then
+        ApplyTreeScrollValue(scroll, uiState.scroll.scrollvalue)
+    end
+    View._keyboardBindingContext = {
+        scroll = scroll,
+        state = state,
+        options = options,
+    }
+    if perf and perf.End then
+        perf:End("CompositionTreeView.Build", perfStart)
     end
     return true
 end
 
+function View.RefreshKeyboardBinding()
+    local context = View._keyboardBindingContext
+    local scroll = context and context.scroll or nil
+    local state = context and context.state or nil
+    local options = context and context.options or nil
+    if not (scroll and state and options) then
+        return false
+    end
+
+    EnableTreeKeyboard(scroll, state, options)
+    EnsureActiveSelectionVisible(scroll, state, options)
+    return true
+end
 return View

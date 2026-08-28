@@ -568,7 +568,7 @@ end
 
 local function RefreshToolUI()
     if ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions("TextBuilder.RefreshToolUI")
     end
 end
 

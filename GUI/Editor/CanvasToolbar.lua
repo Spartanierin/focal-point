@@ -65,9 +65,9 @@ local function BuildBindingDeps()
     }
 end
 
-local function RequestEditorRefresh()
+local function RequestEditorRefresh(reason)
     if ns.GUI and ns.GUI.RequestRefreshOptions then
-        ns.GUI:RequestRefreshOptions()
+        ns.GUI:RequestRefreshOptions(reason or "CanvasToolbar")
     end
 end
 
@@ -823,8 +823,14 @@ function CanvasToolbar.UpdateGeometry()
 end
 
 function CanvasToolbar.Refresh()
+    local perf = ns and ns.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("CanvasToolbar.Refresh")
+
     local current = EnsureHost()
     if not current or not ToolbarBinding then
+        if perf and perf.End then
+            perf:End("CanvasToolbar.Refresh", perfStart)
+        end
         return
     end
 
@@ -832,6 +838,10 @@ function CanvasToolbar.Refresh()
     local layoutManager = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.LayoutManager
     if layoutManager and layoutManager.Refresh then
         layoutManager.Refresh()
+    end
+
+    if perf and perf.End then
+        perf:End("CanvasToolbar.Refresh", perfStart)
     end
 end
 

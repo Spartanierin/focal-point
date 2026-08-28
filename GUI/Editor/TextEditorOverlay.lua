@@ -988,7 +988,7 @@ local function RefreshAfterTextPositionCommit(frame)
     TextEditorOverlay.UpdateFrame(frame)
 
     if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-        FocalPoint.GUI:RequestRefreshOptions()
+        FocalPoint.GUI:RequestRefreshOptions("TextEditorOverlay.TextMutation")
     end
     if FocalPoint.RefreshEditorSelectionVisuals then
         FocalPoint:RefreshEditorSelectionVisuals()
@@ -1100,7 +1100,7 @@ local function CommitTextPositionReset(frame, textKey)
     if result and result.changed then
         RefreshSingleTextElement(frame, textKey)
         if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-            FocalPoint.GUI:RequestRefreshOptions()
+            FocalPoint.GUI:RequestRefreshOptions("TextEditorOverlay.TextMutation")
         end
         if FocalPoint.RefreshEditorSelectionVisuals then
             FocalPoint:RefreshEditorSelectionVisuals()
@@ -1597,7 +1597,7 @@ function TextEditorOverlay.Select(frame, textKey)
         FocalPoint:RefreshEditorSelectionVisuals()
     end
     if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-        FocalPoint.GUI:RequestRefreshOptions()
+        FocalPoint.GUI:RequestRefreshOptions("TextEditorOverlay.TextMutation")
     end
 
     return true

@@ -893,13 +893,22 @@ local function RestoreHostDockingAfterEditor(widget, rootFrame)
 end
 
 function AppShell.UpdateGeometry(addon, resolvePath)
+    local perf = addon and addon.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("AppShell.UpdateGeometry")
+
     local widget = GetMainHostWidget(addon)
     if not widget or type(resolvePath) ~= "function" then
+        if perf and perf.End then
+            perf:End("AppShell.UpdateGeometry", perfStart)
+        end
         return
     end
 
     local rootFrame = widget.frame or widget
     if not rootFrame then
+        if perf and perf.End then
+            perf:End("AppShell.UpdateGeometry", perfStart)
+        end
         return
     end
 
@@ -963,6 +972,10 @@ function AppShell.UpdateGeometry(addon, resolvePath)
         editorController.ReleaseInspector()
     elseif editorController and editorController.UpdateActiveInspectorGeometry then
         editorController.UpdateActiveInspectorGeometry()
+    end
+
+    if perf and perf.End then
+        perf:End("AppShell.UpdateGeometry", perfStart)
     end
 end
 

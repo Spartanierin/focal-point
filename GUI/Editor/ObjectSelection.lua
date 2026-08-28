@@ -164,7 +164,7 @@ end
 
 local function RefreshEditorSurface()
     if FocalPoint and FocalPoint.GUI and type(FocalPoint.GUI.RequestRefreshOptions) == "function" then
-        FocalPoint.GUI:RequestRefreshOptions()
+        FocalPoint.GUI:RequestRefreshOptions("ObjectSelection.CompleteSelection")
     else
         RefreshInteractionVisuals()
     end
@@ -193,7 +193,12 @@ local function CompleteSelection(previousUnit, previousObject, nextKind)
     if (type(previousObject) == "table" and previousObject.kind == "aura") or nextKind == "aura" then
         RefreshAuraSelectionRuntime(previousUnit)
     end
-    return true, previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+    local changeKind = previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
+    local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+    if perf and perf.RecordSelection then
+        perf:RecordSelection(changeKind)
+    end
+    return true, changeKind
 end
 
 local function SelectUnit(unitKey)

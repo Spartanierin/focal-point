@@ -163,7 +163,7 @@ local function RefreshEditorForUnit(unitKey)
     end
 
     if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-        FocalPoint.GUI:RequestRefreshOptions()
+        FocalPoint.GUI:RequestRefreshOptions("FrameContextMenu.Action")
     end
 
     if FocalPoint.RefreshEditorSelectionVisuals then

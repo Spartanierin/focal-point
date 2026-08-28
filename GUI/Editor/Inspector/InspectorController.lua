@@ -97,6 +97,9 @@ function InspectorController.SetActiveTextFontSizeValue(unitKey, textKey, value)
 end
 
 function InspectorController.Build(container, state, options)
+    local perf = ns and ns.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("InspectorController.Build")
+
     options = options or {}
     local buildContextOnly = options.buildContextOnly == true
     local buildPropertiesOnly = options.buildPropertiesOnly == true
@@ -4303,6 +4306,9 @@ function InspectorController.Build(container, state, options)
         end
     end
 
+    if perf and perf.End then
+        perf:End("InspectorController.Build", perfStart)
+    end
 end
 
 function InspectorController.BuildContext(container, state, options)

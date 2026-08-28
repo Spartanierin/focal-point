@@ -690,6 +690,8 @@ function FocalPoint:SetupSlashCommands()
 
     SLASH_FOCALPOINT1 = "/focalpoint"
     SLASH_FOCALPOINT2 = "/fp"
+    SLASH_FPSELECTIONPERFRESET1 = "/fpperfreset"
+    SLASH_FPSELECTIONPERFDUMP1 = "/fpperfdump"
     if IsSupportDiagnosticsEnabled() then
         SLASH_FPDEBUGDEMO1 = "/fpdebugdemo"
         SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
@@ -791,6 +793,25 @@ function FocalPoint:SetupSlashCommands()
             end
         end
     end
+
+    SlashCmdList["FPSELECTIONPERFRESET"] = function()
+        local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+        if perf and perf.Reset then
+            perf:Reset()
+        elseif FocalPoint.Info then
+            FocalPoint:Info("[FP SelectionPerf] unavailable")
+        end
+    end
+
+    SlashCmdList["FPSELECTIONPERFDUMP"] = function()
+        local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+        if perf and perf.Dump then
+            perf:Dump()
+        elseif FocalPoint.Info then
+            FocalPoint:Info("[FP SelectionPerf] unavailable")
+        end
+    end
+
 
     SlashCmdList["FPDEBUGAURA"] = function(msg)
         HandleAuraDebugCommand(msg)

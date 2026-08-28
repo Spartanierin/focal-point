@@ -1242,7 +1242,13 @@ function FocalPoint:RefreshEditorInteractionVisuals()
 end
 
 function FocalPoint:RefreshEditorSelectionVisuals()
+    local perf = self and self.SelectionPerfDebug
+    local perfStart = perf and perf.Begin and perf:Begin("RefreshEditorSelectionVisuals")
+
     if not self.frames then
+        if perf and perf.End then
+            perf:End("RefreshEditorSelectionVisuals", perfStart)
+        end
         return
     end
 
@@ -1258,6 +1264,10 @@ function FocalPoint:RefreshEditorSelectionVisuals()
         UpdateTextEditPresentation(frame)
         UpdateTextEditorOverlay(frame)
         UpdateCanvasHoverOverlay(frame)
+    end
+
+    if perf and perf.End then
+        perf:End("RefreshEditorSelectionVisuals", perfStart)
     end
 end
 
@@ -1304,7 +1314,7 @@ function FocalPoint:ToggleFrameLock(options)
         self:UpdateAllFrameDragStates()
         self:RefreshEditorSelectionVisuals()
         if self.GUI and self.GUI.RequestRefreshOptions then
-            self.GUI:RequestRefreshOptions()
+            self.GUI:RequestRefreshOptions("Editor.UnlockState")
         end
         if not options.silent then
             self:Info("Unit frames unlocked. Drag with left mouse button.")
@@ -1338,7 +1348,7 @@ function FocalPoint:ToggleFrameLock(options)
             self:RefreshAllFrames()
         end
         if self.GUI and self.GUI.RequestRefreshOptions then
-            self.GUI:RequestRefreshOptions()
+            self.GUI:RequestRefreshOptions("Editor.LockState")
         end
         if not options.silent then
             self:Info("Unit frames locked.")
