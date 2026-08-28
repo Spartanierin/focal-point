@@ -6,6 +6,7 @@ local CastBar = FocalPoint.UnitFrameCastBar
 local Assets = FocalPoint.UnitFrameAssets or {}
 local State = FocalPoint.UnitFrameState or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
 
@@ -33,10 +34,19 @@ function CastBar.IsTextEditMode()
 end
 
 function CastBar.ShouldRepresentInEditor(frame)
-    return frame
-        and frame.config
-        and frame.config.showCastBar ~= false
-        and Preview.ShouldRepresentInEditor
+    if not frame or not frame.config or frame.config.showCastBar == false then
+        return false
+    end
+
+    if VisualPolicy.Resolve then
+        local state = VisualPolicy.Resolve(frame, "CastBar", {
+            enabled = true,
+            hasLiveData = false,
+        })
+        return state == "editor-simulated"
+    end
+
+    return Preview.ShouldRepresentInEditor
         and Preview.ShouldRepresentInEditor(frame.unit, { kind = "bar", objectKey = "CastBar" }) == true
 end
 

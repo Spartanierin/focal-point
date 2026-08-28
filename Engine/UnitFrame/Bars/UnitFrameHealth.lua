@@ -10,6 +10,7 @@ local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local AbsorbBars = FocalPoint.UnitFrameAbsorbBars or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 local HEALTH_TEXT_DEPENDENCIES = {
     health = true,
     absorb = true,
@@ -46,6 +47,24 @@ local function IsPlaceholderUnitEnabled(frame)
 
     local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(unitKey)
     return type(config) ~= "table" or config.enabled ~= false
+end
+
+local function ResolveBarVisualState(frame, componentKey, enabled, hasLiveData)
+    if VisualPolicy.Resolve then
+        return VisualPolicy.Resolve(frame, componentKey, {
+            enabled = enabled,
+            hasLiveData = hasLiveData,
+        })
+    end
+
+    return nil
+end
+
+local function ResolveSimulationValues(frame, state)
+    if VisualPolicy.GetSimulationValues then
+        return VisualPolicy.GetSimulationValues(frame, state)
+    end
+    return Demo.GetUnitValues and Demo.GetUnitValues(frame) or nil
 end
 
 local function ResolveTotalAbsorb(frame, unit, unitExists, previewValues)
@@ -136,7 +155,13 @@ function Health.GetCurrentValues(frame)
 
     local unit = frame.unit
     local unitExists = DoesUnitSeemPresent(unit)
-    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    local visualState = ResolveBarVisualState(frame, "HealthBar", true, unitExists)
+    local previewValues = nil
+    if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState) then
+        previewValues = ResolveSimulationValues(frame, visualState)
+    else
+        previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    end
 
     if previewValues then
         return previewValues.healthCurrent or 100, previewValues.healthMax or 100
@@ -178,7 +203,13 @@ function Health.UpdateBarValue(frame)
         Demo.TouchDebug(frame, "barSmoothingTicks")
     end
     local unitExists = DoesUnitSeemPresent(frame.unit)
-    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    local visualState = ResolveBarVisualState(frame, "HealthBar", true, unitExists)
+    local previewValues = nil
+    if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState) then
+        previewValues = ResolveSimulationValues(frame, visualState)
+    else
+        previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    end
     local absorbTotalRaw, absorbTotalSafe, healAbsorbTotalRaw, healAbsorbTotalSafe = ResolveTotalAbsorb(frame, frame.unit, unitExists, previewValues)
     frame.LiveValues.healthCurrentRaw = currentHealth
     frame.LiveValues.healthMaxRaw = maxHealth

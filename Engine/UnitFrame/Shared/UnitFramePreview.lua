@@ -141,7 +141,20 @@ function Preview.ShouldForceSecondaryPowerPreview(unit)
         return false
     end
 
-    return ResolveDemoModeForUnit(unit, "secondaryPower") == "detailed"
+    if ResolveDemoModeForUnit(unit, "secondaryPower") == "detailed" then
+        return true
+    end
+
+    local policy = FocalPoint.EditorVisualPolicy
+    if policy and policy.Resolve then
+        local state = policy.Resolve({ unit = unit, config = unitConfig }, "AlternativePowerBar", {
+            enabled = true,
+            hasLiveData = false,
+        })
+        return state == "editor-simulated"
+    end
+
+    return false
 end
 
 function Preview.IsDetailedPreviewEnabled(frame)
@@ -280,22 +293,7 @@ local function GetForcedSecondaryPowerPreviewValues(unit)
     return ALTERNATE_POWER_INDEX, currentPower, maxPower, minPower
 end
 
-function Preview.GetSecondaryPowerTypeForUnit(unit)
-    local _, barInfo = GetAlternatePowerBarInfo(unit)
-    if IsAlternatePowerVisible(unit, barInfo) then
-        return ALTERNATE_POWER_INDEX
-    end
-
-    local manaPowerType = GetManaSecondaryPowerValues(unit)
-    if manaPowerType ~= nil then
-        return manaPowerType
-    end
-
-    local previewPowerType = GetForcedSecondaryPowerPreviewValues(unit)
-    return previewPowerType
-end
-
-function Preview.GetSecondaryPowerValues(unit)
+function Preview.GetLiveSecondaryPowerValues(unit)
     local _, barInfo = GetAlternatePowerBarInfo(unit)
     if IsAlternatePowerVisible(unit, barInfo) then
         local minPower = tonumber(barInfo.minPower) or 0
@@ -308,6 +306,25 @@ function Preview.GetSecondaryPowerValues(unit)
     local manaPowerType, currentMana, maxMana, minMana = GetManaSecondaryPowerValues(unit)
     if manaPowerType ~= nil then
         return manaPowerType, currentMana, maxMana, minMana
+    end
+
+    return nil, 0, 0, 0
+end
+
+function Preview.GetSecondaryPowerTypeForUnit(unit)
+    local livePowerType = Preview.GetLiveSecondaryPowerValues(unit)
+    if livePowerType ~= nil then
+        return livePowerType
+    end
+
+    local previewPowerType = GetForcedSecondaryPowerPreviewValues(unit)
+    return previewPowerType
+end
+
+function Preview.GetSecondaryPowerValues(unit)
+    local livePowerType, currentPower, maxPower, minPower = Preview.GetLiveSecondaryPowerValues(unit)
+    if livePowerType ~= nil then
+        return livePowerType, currentPower, maxPower, minPower
     end
 
     return GetForcedSecondaryPowerPreviewValues(unit)

@@ -7,6 +7,7 @@ local Factory = FocalPoint.UnitFrameFactory or {}
 local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 
 local GetAnchorTarget = Factory.GetAnchorTarget
 local FormatDisplayNumber = Utils.FormatDisplayNumber
@@ -223,7 +224,19 @@ function ClassPower.ShouldForcePreview(unit)
         return false
     end
 
-    return Demo.IsDetailed and Demo.IsDetailed({ unit = "player" }) or false
+    if Demo.IsDetailed and Demo.IsDetailed({ unit = "player" }) then
+        return true
+    end
+
+    if VisualPolicy.Resolve then
+        local state = VisualPolicy.Resolve({ unit = unit, config = unitConfig }, "ClassPowerBar", {
+            enabled = true,
+            hasLiveData = false,
+        })
+        return state == "editor-simulated"
+    end
+
+    return false
 end
 
 local function GetPreviewClassPowerInfo()

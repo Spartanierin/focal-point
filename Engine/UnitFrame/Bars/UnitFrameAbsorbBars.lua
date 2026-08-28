@@ -5,6 +5,7 @@ local AbsorbBars = FocalPoint.UnitFrameAbsorbBars
 
 local Assets = FocalPoint.UnitFrameAssets or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 
 local GetStatusBarTexture = Assets.GetStatusBarTexture
 local ToSafeNumberValue = Utils.ToSafeNumberValue
@@ -207,6 +208,23 @@ local function UpdateAbsorbBarValue(frame, spec)
     local live = frame.LiveValues or {}
     local maxHealth = live.healthMaxRaw or 1
     local absorb = live[spec.valueKey] or 0
+    local liveAbsorb = ResolveBarNumber(absorb, 0)
+
+    if VisualPolicy.Resolve and VisualPolicy.GetSimulationValues and VisualPolicy.IsSimulatedState then
+        local state = VisualPolicy.Resolve(frame, spec.elementKey, {
+            enabled = not (frame.config and frame.config[spec.showKey] == false),
+            hasLiveData = liveAbsorb > 0,
+        })
+        if VisualPolicy.IsSimulatedState(state) then
+            local values = VisualPolicy.GetSimulationValues(frame, state) or {}
+            maxHealth = values.healthMax or maxHealth
+            if spec.valueKey == "healAbsorbTotalRaw" then
+                absorb = values.healAbsorbTotal or values.healAbsorb or absorb
+            else
+                absorb = values.absorbTotal or values.absorb or absorb
+            end
+        end
+    end
 
     bar:SetMinMaxValues(0, maxHealth)
     bar:SetValue(absorb)

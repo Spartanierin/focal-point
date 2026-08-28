@@ -8,6 +8,7 @@ local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local Utils = FocalPoint.UnitFrameUtils or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -17,11 +18,30 @@ local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
 local GetSecondaryPowerTypeForUnit = Preview.GetSecondaryPowerTypeForUnit
 local GetSecondaryPowerValues = Preview.GetSecondaryPowerValues
 local GetSecondaryPowerDisplayValues = Preview.GetSecondaryPowerDisplayValues
+local GetLiveSecondaryPowerValues = Preview.GetLiveSecondaryPowerValues
 
 -- Power helpers keep resource/alt-power value refresh together.
 
 local function IsSecretValue(value)
     return issecretvalue and issecretvalue(value) or false
+end
+
+local function ResolveBarVisualState(frame, componentKey, enabled, hasLiveData)
+    if VisualPolicy.Resolve then
+        return VisualPolicy.Resolve(frame, componentKey, {
+            enabled = enabled,
+            hasLiveData = hasLiveData,
+        })
+    end
+
+    return nil
+end
+
+local function ResolveSimulationValues(frame, state)
+    if VisualPolicy.GetSimulationValues then
+        return VisualPolicy.GetSimulationValues(frame, state)
+    end
+    return Demo.GetUnitValues and Demo.GetUnitValues(frame) or nil
 end
 
 local function ResolveBarNumber(rawValue)
@@ -39,7 +59,15 @@ function Power.RefreshUnitBarValues(owner, frame)
 
     local unit = frame.unit
     local unitExists = DoesUnitSeemPresent(unit)
-    local previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    local powerEnabled = not (frame.config and frame.config.showPowerBar == false)
+    local hasLivePower = unitExists == true and UnitPower ~= nil and UnitPowerMax ~= nil
+    local visualState = ResolveBarVisualState(frame, "PowerBar", powerEnabled, hasLivePower)
+    local previewValues = nil
+    if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState) then
+        previewValues = ResolveSimulationValues(frame, visualState)
+    else
+        previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    end
     frame.LiveValues = frame.LiveValues or {}
     -- Legacy compatibility write-through for older text/bar readers.
     frame.TestValues = previewValues
@@ -107,15 +135,28 @@ function Power.RefreshUnitBarValues(owner, frame)
         local maxAltPower = 0
         local showAltPower = false
 
-        local secondaryPowerType = GetSecondaryPowerTypeForUnit(unit)
+        local liveSecondaryPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = nil, 0, 0, 0
+        if GetLiveSecondaryPowerValues then
+            liveSecondaryPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetLiveSecondaryPowerValues(unit)
+        end
+        local secondaryPowerType = liveSecondaryPowerType or GetSecondaryPowerTypeForUnit(unit)
+        local altPowerEnabled = frame.config and frame.config.showAlternativePowerBar == true
+        local hasLiveAltPower = unitExists == true and liveSecondaryPowerType ~= nil
+        local altVisualState = ResolveBarVisualState(frame, "AlternativePowerBar", altPowerEnabled, hasLiveAltPower)
+        local altPreviewValues = previewValues
+        if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(altVisualState) then
+            altPreviewValues = ResolveSimulationValues(frame, altVisualState)
+        end
 
-        if previewValues then
-            minAltPower = previewValues.altPowerMin or 0
-            currentAltPower = previewValues.altPowerCurrent or 0
-            maxAltPower = previewValues.altPowerMax or 0
-            showAltPower = secondaryPowerType ~= nil
-        elseif secondaryPowerType ~= nil and unitExists then
-            _, currentAltPower, maxAltPower, minAltPower = GetSecondaryPowerValues(unit)
+        if altPreviewValues and secondaryPowerType ~= nil then
+            minAltPower = altPreviewValues.altPowerMin or 0
+            currentAltPower = altPreviewValues.altPowerCurrent or 0
+            maxAltPower = altPreviewValues.altPowerMax or 0
+            showAltPower = true
+        elseif liveSecondaryPowerType ~= nil and unitExists then
+            currentAltPower = liveAltPowerCurrent
+            maxAltPower = liveAltPowerMax
+            minAltPower = liveAltPowerMin
             showAltPower = true
         end
 
