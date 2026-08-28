@@ -278,7 +278,7 @@ local function EnsureHitZone(frame, key)
 end
 
 local function ResolveZoneGeometry(frame, target, objectRef, isSelected)
-    if isSelected and objectRef and objectRef.kind == "bar" and SelectionGeometryResolver.Resolve then
+    if isSelected and objectRef and (objectRef.kind == "bar" or objectRef.kind == "indicator" or objectRef.kind == "decoration") and SelectionGeometryResolver.Resolve then
         return SelectionGeometryResolver.Resolve(frame, objectRef)
     end
     if IsFrameShown(target) then
@@ -402,6 +402,7 @@ local function UpdateIndicators(frame, seen)
             unit = frame.unit,
             indicatorKey = item.indicatorKey,
             objectKey = item.indicatorKey,
+            elementKey = item.elementKey,
             sectionKey = "indicators",
         }, item.level)
     end

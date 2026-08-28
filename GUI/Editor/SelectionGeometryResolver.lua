@@ -7,15 +7,33 @@ local Resolver = {}
 FocalPoint.GUI.Editor.SelectionGeometryResolver = Resolver
 
 local Factory = FocalPoint.UnitFrameFactory or {}
+local Decoration = FocalPoint.UnitFrameDecoration or {}
 
 local BAR_SPECS = {
     HealthBar = { elementKey = "HealthBar" },
-    PowerBar = { elementKey = "PowerBar", fallback = "power" },
-    CastBar = { elementKey = "CastBar", fallback = "cast" },
-    ClassPowerBar = { elementKey = "ClassPowerBar", fallback = "classPower" },
-    AlternativePowerBar = { elementKey = "AlternativePowerBar", fallback = "alternativePower" },
+    PowerBar = { elementKey = "PowerBar" },
+    CastBar = { elementKey = "CastBar" },
+    ClassPowerBar = { elementKey = "ClassPowerBar" },
+    AlternativePowerBar = { elementKey = "AlternativePowerBar" },
     NormalAbsorbBar = { elementKey = "NormalAbsorbBar", absorbPrefix = "normalAbsorbBar" },
     HealingAbsorbBar = { elementKey = "HealingAbsorbBar", absorbPrefix = "healingAbsorbBar" },
+}
+
+local INDICATOR_SPECS = {
+    Portrait = { elementKey = "Portrait", defaults = { enabled = false, size = 40, scale = 1, placement = "INSIDE", insideSide = "LEFT", insideAnchorTo = "Frame", point = "RIGHT", relativePoint = "LEFT", offsetX = -4, offsetY = 0, anchorTo = "Frame" } },
+    RaidTargetIcon = { elementKey = "RaidTargetIcon", defaults = { size = 18, scale = 1, placement = "ATTACHED", insideSide = "RIGHT", insideAnchorTo = "Frame", point = "TOP", relativePoint = "TOP", offsetX = 0, offsetY = 8, anchorTo = "Frame", padding = 2 } },
+    LeaderIcon = { elementKey = "LeaderIcon", defaults = { size = 16, scale = 1, placement = "ATTACHED", insideSide = "LEFT", insideAnchorTo = "Frame", point = "TOPLEFT", relativePoint = "TOP", offsetX = 0, offsetY = 0, anchorTo = "Frame", padding = 2 } },
+    RoleIcon = { elementKey = "RoleIcon", defaults = { size = 16, scale = 1, placement = "ATTACHED", insideSide = "RIGHT", insideAnchorTo = "Frame", point = "TOPRIGHT", relativePoint = "TOP", offsetX = 0, offsetY = 0, anchorTo = "Frame", padding = 2 } },
+    CombatIndicator = { elementKey = "CombatIndicator", defaults = { size = 16, scale = 1, placement = "ATTACHED", insideSide = "RIGHT", insideAnchorTo = "Frame", point = "TOP", relativePoint = "TOP", offsetX = 0, offsetY = 0, anchorTo = "Frame", padding = 2 } },
+    RestingIndicator = { elementKey = "RestingIndicator", defaults = { size = 16, scale = 1, placement = "ATTACHED", insideSide = "LEFT", insideAnchorTo = "Frame", point = "TOPLEFT", relativePoint = "TOP", offsetX = 0, offsetY = 0, anchorTo = "Frame", padding = 2 } },
+    ReadyCheckIndicator = { elementKey = "ReadyCheckIndicator", defaults = { size = 16, scale = 1, placement = "ATTACHED", insideSide = "RIGHT", insideAnchorTo = "Frame", point = "TOPRIGHT", relativePoint = "TOP", offsetX = 0, offsetY = 0, anchorTo = "Frame", padding = 2 } },
+    ClassificationIndicator = { elementKey = "ClassificationPortraitOverlay", defaults = { effect = "PORTRAIT_OVERLAY" } },
+}
+
+local VALID_DECORATION_POINTS = {
+    TOPLEFT = true, TOP = true, TOPRIGHT = true,
+    LEFT = true, CENTER = true, RIGHT = true,
+    BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
 }
 
 local function Number(value, fallback)
@@ -24,6 +42,13 @@ local function Number(value, fallback)
         return fallback
     end
     return parsed
+end
+
+local function Enum(value, valid, fallback)
+    if type(value) == "string" and valid[value] then
+        return value
+    end
+    return fallback
 end
 
 local function HasGeometry(target)
@@ -98,6 +123,19 @@ local function StretchGeometry(relativeTo, insetLeft, insetRight, bottomOffset, 
     }
 end
 
+local function AllPointsGeometry(relativeTo, source)
+    if not relativeTo then
+        return nil
+    end
+    return {
+        source = source or "match-target",
+        points = {
+            { point = "TOPLEFT", relativeTo = relativeTo, relativePoint = "TOPLEFT", offsetX = 0, offsetY = 0 },
+            { point = "BOTTOMRIGHT", relativeTo = relativeTo, relativePoint = "BOTTOMRIGHT", offsetX = 0, offsetY = 0 },
+        },
+    }
+end
+
 local function ResolvePower(frame, config)
     local borderInset = Number(config and config.borderInset, 1)
     local height = Number(config and config.powerBarHeight, 8)
@@ -160,16 +198,10 @@ local function ResolveAbsorb(frame, config, prefix)
             prefix .. "-config"
         )
     end
-    return {
-        source = prefix .. "-match-target",
-        points = {
-            { point = "TOPLEFT", relativeTo = anchorTarget, relativePoint = "TOPLEFT", offsetX = 0, offsetY = 0 },
-            { point = "BOTTOMRIGHT", relativeTo = anchorTarget, relativePoint = "BOTTOMRIGHT", offsetX = 0, offsetY = 0 },
-        },
-    }
+    return AllPointsGeometry(anchorTarget, prefix .. "-match-target")
 end
 
-local function ResolveFallback(frame, objectKey, spec, config)
+local function ResolveBarFallback(frame, objectKey, spec, config)
     if objectKey == "PowerBar" then
         return ResolvePower(frame, config)
     elseif objectKey == "AlternativePowerBar" then
@@ -184,11 +216,7 @@ local function ResolveFallback(frame, objectKey, spec, config)
     return FrameGeometry(frame, "frame-fallback")
 end
 
-function Resolver.Resolve(frame, objectRef)
-    if not (frame and objectRef and objectRef.kind == "bar") then
-        return nil
-    end
-
+local function ResolveBar(frame, objectRef, config)
     local objectKey = objectRef.objectKey
     local spec = objectKey and BAR_SPECS[objectKey]
     if not spec then
@@ -201,5 +229,201 @@ function Resolver.Resolve(frame, objectRef)
         return targetGeometry
     end
 
-    return ResolveFallback(frame, objectKey, spec, frame.config or {})
+    return ResolveBarFallback(frame, objectKey, spec, config)
+end
+
+local function MergeConfig(config, key, defaults)
+    local result = {}
+    for field, value in pairs(defaults or {}) do
+        result[field] = value
+    end
+    local source = type(config) == "table" and config[key] or nil
+    if type(source) == "table" then
+        for field, value in pairs(source) do
+            result[field] = value
+        end
+    end
+    return result
+end
+
+local function ResolvePortrait(frame, config)
+    local portrait = frame.Elements and frame.Elements.Portrait or nil
+    local targetGeometry = FrameGeometry(portrait, "portrait-frame")
+    if targetGeometry then
+        return targetGeometry
+    end
+
+    local portraitConfig = MergeConfig(config, "Portrait", INDICATOR_SPECS.Portrait.defaults)
+    local size = math.max(1, Number(portraitConfig.size, 40) * Number(portraitConfig.scale, 1))
+    local placement = portraitConfig.placement or "INSIDE"
+    local borderInset = Number(config and config.borderInset, 1)
+    if placement == "INSIDE" then
+        if portraitConfig.insideSide == "RIGHT" then
+            return PointGeometry(frame, "RIGHT", "RIGHT", size, size, -borderInset, 0, "portrait-inside-config")
+        end
+        return PointGeometry(frame, "LEFT", "LEFT", size, size, borderInset, 0, "portrait-inside-config")
+    end
+
+    local anchorTarget = GetAnchorTarget(frame, portraitConfig.anchorTo or "Frame") or frame
+    return PointGeometry(
+        anchorTarget,
+        portraitConfig.point or "RIGHT",
+        portraitConfig.relativePoint or "LEFT",
+        size,
+        size,
+        Number(portraitConfig.offsetX, -4),
+        Number(portraitConfig.offsetY, 0),
+        "portrait-config"
+    )
+end
+
+local function ResolveInsideIndicator(frame, indicatorConfig, size, source)
+    local borderInset = Number(frame.config and frame.config.borderInset, 1)
+    local anchorTo = indicatorConfig.insideAnchorTo or "Frame"
+    local anchorParent = frame
+    if anchorTo == "HealthBar" and frame.Elements and frame.Elements.HealthBar then
+        anchorParent = frame.Elements.HealthBar
+    elseif anchorTo == "PowerBar" and frame.Elements and frame.Elements.PowerBar and HasGeometry(frame.Elements.PowerBar) then
+        anchorParent = frame.Elements.PowerBar
+    end
+
+    if indicatorConfig.insideSide == "LEFT" then
+        return PointGeometry(anchorParent, "TOPLEFT", "TOPLEFT", size, size, Number(indicatorConfig.padding, 2), -borderInset, source)
+    end
+    return PointGeometry(anchorParent, "TOPRIGHT", "TOPRIGHT", size, size, -Number(indicatorConfig.padding, 2), -borderInset, source)
+end
+
+local function ResolveClassification(frame, objectRef, config)
+    local requestedElement = objectRef.elementKey
+    local classificationConfig = MergeConfig(config, "ClassificationIndicator", INDICATOR_SPECS.ClassificationIndicator.defaults)
+    local effect = classificationConfig.effect or "PORTRAIT_OVERLAY"
+    local activeElement = effect == "CORNER_CREST" and "ClassificationCrest" or "ClassificationPortraitOverlay"
+    if requestedElement and requestedElement ~= activeElement then
+        return nil
+    end
+
+    local target = frame.Elements and frame.Elements[activeElement] or nil
+    local targetGeometry = FrameGeometry(target, "classification-frame")
+    if targetGeometry then
+        return targetGeometry
+    end
+
+    if activeElement == "ClassificationCrest" then
+        return PointGeometry(frame, "TOPRIGHT", "TOPRIGHT", 18, 18, 4, 4, "classification-crest-config")
+    end
+
+    local portrait = frame.Elements and frame.Elements.Portrait or nil
+    local overlayTarget = HasGeometry(portrait) and portrait or frame
+    return AllPointsGeometry(overlayTarget, "classification-portrait-overlay-config")
+end
+
+local function ResolveIndicator(frame, objectRef, config)
+    local indicatorKey = objectRef.indicatorKey or objectRef.objectKey
+    if indicatorKey == "Portrait" then
+        return ResolvePortrait(frame, config)
+    end
+    if indicatorKey == "ClassificationIndicator" then
+        return ResolveClassification(frame, objectRef, config)
+    end
+
+    local spec = indicatorKey and INDICATOR_SPECS[indicatorKey]
+    if not spec then
+        return nil
+    end
+
+    local holder = frame.Elements and frame.Elements[spec.elementKey] or nil
+    local holderGeometry = FrameGeometry(holder, "indicator-frame")
+    if holderGeometry then
+        return holderGeometry
+    end
+
+    local indicatorConfig = MergeConfig(config, indicatorKey, spec.defaults)
+    if indicatorConfig.effect == "FRAME_OVERLAY" then
+        return FrameGeometry(frame, indicatorKey .. "-frame-overlay")
+    end
+
+    local size = math.max(1, Number(indicatorConfig.size, spec.defaults.size or 16) * Number(indicatorConfig.scale, spec.defaults.scale or 1))
+    if indicatorConfig.placement == "INSIDE" then
+        return ResolveInsideIndicator(frame, indicatorConfig, size, indicatorKey .. "-inside-config")
+    end
+
+    local anchorTarget = GetAnchorTarget(frame, indicatorConfig.anchorTo or "Frame") or frame
+    return PointGeometry(
+        anchorTarget,
+        indicatorConfig.point or "CENTER",
+        indicatorConfig.relativePoint or "CENTER",
+        size,
+        size,
+        Number(indicatorConfig.offsetX, 0),
+        Number(indicatorConfig.offsetY, 0),
+        indicatorKey .. "-config"
+    )
+end
+
+local function FindDecorationConfig(config, decorationId)
+    local decorations = type(config) == "table" and config.decorations or nil
+    if type(decorations) ~= "table" then
+        return nil
+    end
+    for index, decoration in ipairs(decorations) do
+        if type(decoration) == "table" and decoration.id == decorationId then
+            if Decoration.NormalizeDecoration then
+                return Decoration.NormalizeDecoration(decoration, index)
+            end
+            return decoration
+        end
+    end
+    return nil
+end
+
+local function ResolveDecoration(frame, objectRef, config)
+    local decorationId = objectRef.decorationId or objectRef.objectKey
+    if type(decorationId) ~= "string" or decorationId == "" then
+        return nil
+    end
+
+    local entry = frame.DecorationIndicators and frame.DecorationIndicators[decorationId] or nil
+    local holderGeometry = FrameGeometry(entry and entry.holder, "decoration-frame")
+    if holderGeometry then
+        return holderGeometry
+    end
+
+    local decorationConfig = FindDecorationConfig(config, decorationId)
+    if type(decorationConfig) ~= "table" then
+        return nil
+    end
+
+    local target = frame
+    if decorationConfig.target == "PORTRAIT" then
+        local portrait = frame.Elements and frame.Elements.Portrait or nil
+        target = HasGeometry(portrait) and portrait or frame
+    end
+
+    return PointGeometry(
+        target,
+        Enum(decorationConfig.point, VALID_DECORATION_POINTS, "CENTER"),
+        Enum(decorationConfig.relativePoint, VALID_DECORATION_POINTS, "CENTER"),
+        math.max(1, Number(decorationConfig.width, 64)),
+        math.max(1, Number(decorationConfig.height, 64)),
+        Number(decorationConfig.offsetX, 0),
+        Number(decorationConfig.offsetY, 0),
+        "decoration-config"
+    )
+end
+
+function Resolver.Resolve(frame, objectRef)
+    if not (frame and objectRef) then
+        return nil
+    end
+
+    local config = frame.config or {}
+    if objectRef.kind == "bar" then
+        return ResolveBar(frame, objectRef, config)
+    elseif objectRef.kind == "indicator" then
+        return ResolveIndicator(frame, objectRef, config)
+    elseif objectRef.kind == "decoration" then
+        return ResolveDecoration(frame, objectRef, config)
+    end
+
+    return nil
 end
