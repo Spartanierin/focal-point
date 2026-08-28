@@ -6,6 +6,8 @@ FocalPoint.GUI.Editor = FocalPoint.GUI.Editor or {}
 local CanvasHoverOverlay = {}
 FocalPoint.GUI.Editor.CanvasHoverOverlay = CanvasHoverOverlay
 
+local SelectionGeometryResolver = FocalPoint.GUI.Editor.SelectionGeometryResolver or {}
+
 local HOVER_FRAME_LEVEL = 910
 
 local BAR_TARGETS = {
@@ -275,8 +277,52 @@ local function EnsureHitZone(frame, key)
     return zone
 end
 
+local function ResolveZoneGeometry(frame, target, objectRef, isSelected)
+    if isSelected and objectRef and objectRef.kind == "bar" and SelectionGeometryResolver.Resolve then
+        return SelectionGeometryResolver.Resolve(frame, objectRef)
+    end
+    if IsFrameShown(target) then
+        return { target = target }
+    end
+    return nil
+end
+
+local function ApplyZoneGeometry(zone, geometry)
+    if not (zone and geometry) then
+        return false
+    end
+
+    zone:ClearAllPoints()
+    if geometry.target then
+        zone:SetPoint("TOPLEFT", geometry.target, "TOPLEFT", 0, 0)
+        zone:SetPoint("BOTTOMRIGHT", geometry.target, "BOTTOMRIGHT", 0, 0)
+        return true
+    end
+
+    if geometry.width then
+        zone:SetWidth(geometry.width)
+    end
+    if geometry.height then
+        zone:SetHeight(geometry.height)
+    end
+
+    local points = geometry.points
+    if type(points) ~= "table" or #points == 0 then
+        return false
+    end
+    for _, point in ipairs(points) do
+        if not (point.point and point.relativeTo and point.relativePoint) then
+            return false
+        end
+        zone:SetPoint(point.point, point.relativeTo, point.relativePoint, point.offsetX or 0, point.offsetY or 0)
+    end
+    return true
+end
+
 local function PositionZone(zone, frame, target, objectRef, level)
-    if not (zone and frame and target and objectRef and IsFrameShown(target)) then
+    local isSelected = IsSelectedObject(objectRef)
+    local geometry = ResolveZoneGeometry(frame, target, objectRef, isSelected)
+    if not (zone and frame and objectRef and geometry) then
         if zone then
             HideZoneFrame(zone)
             SetZoneMouseEnabled(zone, false)
@@ -288,10 +334,12 @@ local function PositionZone(zone, frame, target, objectRef, level)
     zone._focalPointOwnerFrame = frame
     zone._focalPointObjectRef = objectRef
     zone:SetFrameLevel((frame.MoveOverlay:GetFrameLevel() or 0) + (tonumber(level) or 1))
-    zone:ClearAllPoints()
-    zone:SetPoint("TOPLEFT", target, "TOPLEFT", 0, 0)
-    zone:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", 0, 0)
-    ApplyZoneChrome(zone, IsSelectedObject(objectRef))
+    if not ApplyZoneGeometry(zone, geometry) then
+        HideZoneFrame(zone)
+        SetZoneMouseEnabled(zone, false)
+        return
+    end
+    ApplyZoneChrome(zone, isSelected)
     SetZoneMouseEnabled(zone, true)
     ShowZone(zone)
 end
