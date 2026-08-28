@@ -632,6 +632,12 @@ function EditorController.BuildInspector(container, deps)
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
             end,
+            onCompositionTreeChanged = function()
+                local toolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Toolbar
+                if toolbar and type(toolbar.RefreshCompositionTree) == "function" then
+                    toolbar.RefreshCompositionTree()
+                end
+            end,
             onUnitEnabledChanged = function()
                 SyncUnitFrameLifecycle()
             end,

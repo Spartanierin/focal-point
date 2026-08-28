@@ -1106,6 +1106,7 @@ ToolbarBinding.HandleSetTextMode = HandleSetTextMode
 ToolbarBinding.RefreshDemoControl = RefreshDemoControl
 ToolbarBinding.RefreshInteractionModeControlPair = RefreshInteractionModeControlPair
 ToolbarBinding.RefreshInteractionModeControls = RefreshInteractionModeControls
+ToolbarBinding.RefreshCompositionTree = BuildCompositionTree
 ToolbarBinding.RefreshWindowState = RefreshWindowState
 ToolbarBinding.WireCallbacks = WireCallbacks
 ToolbarBinding.IsExpertMode = IsExpertMode

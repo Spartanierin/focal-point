@@ -586,6 +586,17 @@ function InspectorController.Build(container, state, options)
         NotifySidebarChanged()
     end
 
+    local function NotifyCompositionTreeChanged()
+        if options.onCompositionTreeChanged then
+            options.onCompositionTreeChanged()
+        end
+    end
+
+    local function AffectsCompositionTreeProjection(targetKind, fieldName)
+        return targetKind == "unit"
+            and (fieldName == "showNormalAbsorbBar" or fieldName == "showHealingAbsorbBar")
+    end
+
     local function RebuildLocalSection(section)
         if section and section._focalPointRequestRebuild then
             section._focalPointRequestRebuild()
@@ -670,6 +681,9 @@ function InspectorController.Build(container, state, options)
             and InspectorRefreshPolicy.Resolve(targetKind, fieldName)
             or { scope = "live" }
         ApplyRefreshPolicy(policy, section)
+        if AffectsCompositionTreeProjection(targetKind, fieldName) then
+            NotifyCompositionTreeChanged()
+        end
         return result
     end
 

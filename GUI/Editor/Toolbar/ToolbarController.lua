@@ -239,4 +239,10 @@ function ToolbarController.RefreshInteractionModeControls()
     end
 end
 
+function ToolbarController.RefreshCompositionTree()
+    if ToolbarBinding and ToolbarBinding.RefreshCompositionTree then
+        ToolbarBinding.RefreshCompositionTree(windowContext, BuildBindingDeps())
+    end
+end
+
 return ToolbarController
