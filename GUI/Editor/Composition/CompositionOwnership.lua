@@ -8,6 +8,8 @@ local Ownership = {}
 ns.GUI.Editor.Composition.Ownership = Ownership
 ns.CompositionOwnership = Ownership
 
+local LegacyAssociationMap = ns.GUI.Editor.Composition.LegacyAssociationMap or ns.LegacyAssociationMap
+
 local BAR_SECTION_BY_KEY = {
     HealthBar = "health",
     PowerBar = "power",
@@ -188,6 +190,54 @@ local function HasDecoration(unitConfig, decorationId)
     return false
 end
 
+local function BuildCurrentObjects(unitConfig, unit)
+    local objects = {}
+    for _, barKey in ipairs(BAR_ORDER) do
+        local child = BuildBarRef(unit, barKey)
+        if child then
+            objects[#objects + 1] = child
+        end
+    end
+
+    local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+    if type(texts) == "table" then
+        local textKeys = {}
+        for textKey, textConfig in pairs(texts) do
+            if type(textKey) == "string" and textKey ~= "" and type(textConfig) == "table" then
+                textKeys[#textKeys + 1] = textKey
+            end
+        end
+        table.sort(textKeys)
+        for _, textKey in ipairs(textKeys) do
+            objects[#objects + 1] = BuildTextRef(unit, textKey)
+        end
+    end
+
+    for _, auraKey in ipairs(AURA_ORDER) do
+        if type(unitConfig[auraKey]) == "table" then
+            objects[#objects + 1] = BuildAuraRef(unit, auraKey)
+        end
+    end
+
+    for _, indicatorKey in ipairs(INDICATOR_ORDER) do
+        if type(unitConfig[indicatorKey]) == "table" then
+            objects[#objects + 1] = BuildIndicatorRef(unit, indicatorKey)
+        end
+    end
+
+    local decorations = unitConfig.decorations
+    if type(decorations) == "table" then
+        for _, decoration in ipairs(decorations) do
+            local decorationId = type(decoration) == "table" and decoration.id or nil
+            if type(decorationId) == "string" and decorationId ~= "" then
+                objects[#objects + 1] = BuildDecorationRef(unit, decorationId)
+            end
+        end
+    end
+
+    return objects
+end
+
 local function IsSameObject(left, right)
     if type(left) ~= "table" or type(right) ~= "table" then
         return false
@@ -253,6 +303,26 @@ local function IsKnownCurrentObject(unitConfig, objectRef)
     return false
 end
 
+local function IsLegacyParentPresent(unitConfig, parentRef)
+    if type(parentRef) ~= "table" then
+        return false
+    end
+    if parentRef.kind == "unit" then
+        return true
+    end
+
+    local presence = ns.GUI
+        and ns.GUI.Editor
+        and ns.GUI.Editor.Composition
+        and ns.GUI.Editor.Composition.Presence
+        or ns.CompositionPresence
+    if presence and type(presence.IsOwnPresent) == "function" then
+        return presence.IsOwnPresent(unitConfig, parentRef) == true
+    end
+
+    return IsKnownCurrentObject(unitConfig, parentRef)
+end
+
 function Ownership.BuildUnitRootRef(unit)
     return BuildUnitRootRef(unit)
 end
@@ -275,57 +345,31 @@ function Ownership.ResolveParent(unitConfig, objectRef)
         return nil
     end
 
-    -- Initial contract: existing composition objects are owned directly by the unit root.
+    if LegacyAssociationMap and type(LegacyAssociationMap.Resolve) == "function" then
+        local legacyParent = LegacyAssociationMap.Resolve(unitConfig, objectRef)
+        if type(legacyParent) == "table" then
+            if IsKnownCurrentObject(unitConfig, legacyParent) and IsLegacyParentPresent(unitConfig, legacyParent) then
+                return legacyParent
+            end
+            return BuildUnitRootRef(unit)
+        end
+    end
+
+    -- Fixed default: current composition objects are owned directly by the unit root.
     return BuildUnitRootRef(unit)
 end
 
 function Ownership.GetChildren(unitConfig, parentRef)
     local unit = type(parentRef) == "table" and NormalizeUnitKey(parentRef.unit) or nil
-    if type(unitConfig) ~= "table" or not unit or type(parentRef) ~= "table" or parentRef.kind ~= "unit" then
+    if type(unitConfig) ~= "table" or not unit or type(parentRef) ~= "table" or not IsKnownCurrentObject(unitConfig, parentRef) then
         return {}
     end
 
     local children = {}
-    for _, barKey in ipairs(BAR_ORDER) do
-        local child = BuildBarRef(unit, barKey)
-        if child then
+    for _, child in ipairs(BuildCurrentObjects(unitConfig, unit)) do
+        local parent = Ownership.ResolveParent(unitConfig, child)
+        if IsSameObject(parent, parentRef) then
             children[#children + 1] = child
-        end
-    end
-
-    local texts = unitConfig.Texts
-    if type(texts) == "table" then
-        local textKeys = {}
-        for textKey, textConfig in pairs(texts) do
-            if type(textKey) == "string" and type(textConfig) == "table" then
-                textKeys[#textKeys + 1] = textKey
-            end
-        end
-        table.sort(textKeys)
-        for _, textKey in ipairs(textKeys) do
-            children[#children + 1] = BuildTextRef(unit, textKey)
-        end
-    end
-
-    for _, auraKey in ipairs(AURA_ORDER) do
-        if type(unitConfig[auraKey]) == "table" then
-            children[#children + 1] = BuildAuraRef(unit, auraKey)
-        end
-    end
-
-    for _, indicatorKey in ipairs(INDICATOR_ORDER) do
-        if type(unitConfig[indicatorKey]) == "table" then
-            children[#children + 1] = BuildIndicatorRef(unit, indicatorKey)
-        end
-    end
-
-    local decorations = unitConfig.decorations
-    if type(decorations) == "table" then
-        for _, decoration in ipairs(decorations) do
-            local decorationId = type(decoration) == "table" and decoration.id or nil
-            if type(decorationId) == "string" and decorationId ~= "" then
-                children[#children + 1] = BuildDecorationRef(unit, decorationId)
-            end
         end
     end
 

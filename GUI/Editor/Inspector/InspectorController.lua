@@ -593,6 +593,9 @@ function InspectorController.Build(container, state, options)
     end
 
     local function AffectsCompositionTreeProjection(targetKind, fieldName)
+        if targetKind == "text" then
+            return fieldName == "anchorTo"
+        end
         return targetKind == "unit"
             and (fieldName == "showNormalAbsorbBar" or fieldName == "showHealingAbsorbBar")
     end

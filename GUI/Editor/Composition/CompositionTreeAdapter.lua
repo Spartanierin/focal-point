@@ -12,6 +12,7 @@ local C = ns.Constants or {}
 local L = ns.L or {}
 local SidebarShared = ns.GUI.Editor.SidebarShared or {}
 local PresencePolicy = ns.EditorPresencePolicy
+local CompositionOwnership = ns.GUI.Editor.Composition.Ownership or ns.CompositionOwnership
 local CompositionPresence = ns.GUI.Editor.Composition.Presence or ns.CompositionPresence
 
 local SECTION = {
@@ -348,11 +349,16 @@ local function AddCastBranch(root, unit, unitConfig, anchorNodes)
 end
 
 local function ResolveTextParent(root, anchorNodes, textConfig)
-    local anchorTo = type(textConfig) == "table" and textConfig.anchorTo or nil
-    if anchorTo == "Frame" or anchorTo == nil or anchorTo == "" then
+    if not (CompositionOwnership and type(CompositionOwnership.ResolveParent) == "function") then
         return root
     end
-    return type(anchorNodes) == "table" and anchorNodes[anchorTo] or root
+
+    local parentRef = CompositionOwnership.ResolveParent(textConfig.unitConfig, textConfig.objectRef)
+    if type(parentRef) ~= "table" or parentRef.kind == "unit" then
+        return root
+    end
+
+    return type(anchorNodes) == "table" and anchorNodes[parentRef.objectKey] or root
 end
 
 local function AddTextBranch(root, unit, unitConfig, anchorNodes)
@@ -366,7 +372,10 @@ local function AddTextBranch(root, unit, unitConfig, anchorNodes)
     for index, textId in ipairs(textIds) do
         local textConfig = texts[textId]
         if IsPresent(unitConfig, BuildTextRef(unit, textId)) then
-            local parent = ResolveTextParent(root, anchorNodes, textConfig)
+            local parent = ResolveTextParent(root, anchorNodes, {
+                unitConfig = unitConfig,
+                objectRef = BuildTextRef(unit, textId),
+            })
             local node = BuildNode(
                 root.id .. "/text:" .. textId,
                 "textElement",

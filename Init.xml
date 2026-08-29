@@ -43,6 +43,7 @@
     <Script file="Engine/UnitFrame/Shared/UnitFrameUnitWatchPolicy.lua"/>
     <Script file="Engine/UnitFrame/Shared/UnitFramePreview.lua"/>
     <Script file="Engine/UnitFrame/Shared/EditorVisualPolicy.lua"/>
+    <Script file="GUI/Editor/Composition/LegacyAssociationMap.lua"/>
     <Script file="GUI/Editor/Composition/CompositionOwnership.lua"/>
     <Script file="GUI/Editor/Composition/CompositionPresence.lua"/>
     <Script file="Engine/Text/Shared/TextElementRoles.lua"/>
