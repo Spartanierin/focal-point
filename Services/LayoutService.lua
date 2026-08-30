@@ -62,12 +62,26 @@ local function NormalizeUnitTexts(unitConfig)
     return unitConfig
 end
 
+local function NormalizeUnitCompositionPresence(unitConfig)
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.EnsureUnit) == "function" then
+        storage.EnsureUnit(unitConfig)
+    end
+
+    return unitConfig
+end
+
+local function NormalizeUnit(unitConfig)
+    NormalizeUnitTexts(unitConfig)
+    return NormalizeUnitCompositionPresence(unitConfig)
+end
+
 function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
     local materialized = LayoutService.Clone(defaultUnit) or {}
     if type(unitConfig) == "table" then
         LayoutService.MergeInto(materialized, unitConfig)
     end
-    return NormalizeUnitTexts(materialized)
+    return NormalizeUnit(materialized)
 end
 
 local function ResolveLayoutDefaults(defaults)
@@ -98,8 +112,13 @@ function LayoutService.NormalizePayload(payload, defaults)
     elseif type(sourceUnits) == "table" then
         normalized.Units = LayoutService.Clone(sourceUnits) or {}
         for _, unitConfig in pairs(normalized.Units) do
-            NormalizeUnitTexts(unitConfig)
+            NormalizeUnit(unitConfig)
         end
+    end
+
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.EnsurePayload) == "function" then
+        storage.EnsurePayload(normalized)
     end
 
     return normalized

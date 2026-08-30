@@ -41,36 +41,6 @@ local function SafeSetText(textObject, textValue, preferLastKnownGood)
     return false
 end
 
-local function TemplateContainsCastToken(template)
-    return type(template) == "string"
-        and (template:find("%[cast:name%]") ~= nil or template:find("%[cast:time%]") ~= nil)
-end
-
-local function IsCastBoundTextElement(frame, key, textConfig, template, textRole)
-    if Roles.IsCastRole and Roles.IsCastRole(textRole) then
-        return true
-    end
-
-    if key == "CastName" or key == "CastTime" then
-        return true
-    end
-
-    if type(textConfig) == "table" and textConfig.anchorTo == "CastBar" then
-        return true
-    end
-
-    return TemplateContainsCastToken(template)
-end
-
-local function IsCastTextAllowed(frame)
-    local castBar = frame and frame.Elements and frame.Elements.CastBar
-    return frame
-        and frame.config
-        and frame.config.showCastBar ~= false
-        and castBar
-        and (castBar.isCasting == true or castBar.isPreview == true)
-end
-
 local function IsTextOwnerAllowed(frame, textConfig)
     return not Status.IsRuntimeOwnerAllowed
         or Status.IsRuntimeOwnerAllowed(textConfig, frame and frame.config)
@@ -563,12 +533,6 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
-
-        if IsCastBoundTextElement(frame, key, textConfig, template, textRole) and not IsCastTextAllowed(frame) then
-            SafeSetText(textObject, "", false)
-            textObject:Hide()
-            return
-        end
 
         if not IsTextOwnerAllowed(frame, textConfig) then
             SafeSetText(textObject, "", false)

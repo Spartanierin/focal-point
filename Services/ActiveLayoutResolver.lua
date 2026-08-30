@@ -106,6 +106,11 @@ local function ResolveMutableUserLayoutPayload(db, layoutId)
         return nil, "missing-user-layout-text-templates"
     end
 
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.EnsurePayload) == "function" then
+        storage.EnsurePayload(payload)
+    end
+
     return payload, nil, record
 end
 

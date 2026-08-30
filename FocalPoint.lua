@@ -597,6 +597,12 @@ local function EnsureClassPowerDefaults()
     end
 end
 
+local function EnsureCompositionPresenceDefaults()
+    local storage = FocalPoint.CompositionPresenceStorage
+    if FocalPoint.db and FocalPoint.db.profile and type(storage) == "table" and type(storage.EnsureProfile) == "function" then
+        storage.EnsureProfile(FocalPoint.db.profile)
+    end
+end
 local function EnsureStatusIndicatorEffectDefaults()
     if not FocalPoint.db or not FocalPoint.db.profile or not FocalPoint.GetDefaultDB then
         return
@@ -1262,6 +1268,7 @@ function FocalPointAddon:OnInitialize()
     EnsureAlternativePowerDefaults()
     EnsureClassPowerDefaults()
     EnsureStatusIndicatorEffectDefaults()
+    EnsureCompositionPresenceDefaults()
     MigrateClassificationIndicatorEffects()
     NormalizeAbsorbConfig()
     EnsureCastBarInterruptibleColorDefaults()
@@ -1285,6 +1292,7 @@ function FocalPointAddon:OnInitialize()
             FocalPoint._pendingProfileActivationReason = nil
             FocalPoint._pendingProfileActivationOptions = nil
             NormalizeAbsorbConfig()
+            EnsureCompositionPresenceDefaults()
             if FocalPoint.RefreshProfileSettings then
                 FocalPoint:RefreshProfileSettings(reason, options)
             end

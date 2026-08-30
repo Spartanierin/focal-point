@@ -77,9 +77,11 @@ function FocalPoint:GetDefaultDB()
                     relativePoint = "CENTER",
                     x = -269.9996948242188,
                     y = -220.0001220703125,
+                    powerBarPresent = true,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = false,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -93,6 +95,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -107,6 +110,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarOffsetY = 0,
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     powerBarReverseFill = false,
+                    classPowerBarPresent = true,
                     showClassPowerBar = true,
                     classPowerBarHeight = 12,
                     classPowerBarWidth = 100,
@@ -116,6 +120,7 @@ function FocalPoint:GetDefaultDB()
                     classPowerBarRelativePoint = "TOPLEFT",
                     classPowerBarOffsetX = 0,
                     classPowerBarOffsetY = 14,
+                    alternativePowerBarPresent = true,
                     showAlternativePowerBar = true,
                     alternativePowerBarHeight = 20,
                     alternativePowerBarWidth = 217,
@@ -124,6 +129,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
                     alternativePowerBarOffsetX = 0,
                     alternativePowerBarOffsetY = 0,
+                    castBarPresent = true,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -215,6 +221,7 @@ function FocalPoint:GetDefaultDB()
                     useClassColorPower = true,
                     useReactionColorNpcHealth = false,
                     Portrait = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         mode = "2D",
@@ -229,6 +236,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         size = 40,
@@ -243,6 +251,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 18,
                     },
                     LeaderIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -256,6 +265,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 40,
                     },
                     RoleIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -269,6 +279,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 20,
                     },
                     CombatIndicator = {
+                        present = true,
                         enabled = true,
                         effect = "FRAME_OVERLAY",
                         placement = "ATTACHED",
@@ -283,6 +294,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 17,
                     },
                     RestingIndicator = {
+                        present = true,
                         enabled = true,
                         effect = "FRAME_OVERLAY",
                         placement = "INSIDE",
@@ -298,6 +310,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     ReadyCheckIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -311,6 +324,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     Buffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -341,6 +355,7 @@ function FocalPoint:GetDefaultDB()
                         sortMode = "NEWEST_FIRST",
                     },
                     Debuffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -894,9 +909,11 @@ function FocalPoint:GetDefaultDB()
                     relativePoint = "CENTER",
                     x = 270,
                     y = -220.0000610351563,
+                    powerBarPresent = true,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -910,6 +927,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -924,6 +942,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarOffsetY = 0,
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     powerBarReverseFill = true,
+                    alternativePowerBarPresent = true,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 100,
@@ -932,6 +951,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
                     alternativePowerBarOffsetX = 5,
                     alternativePowerBarOffsetY = 5,
+                    castBarPresent = true,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -1005,6 +1025,7 @@ function FocalPoint:GetDefaultDB()
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
                     Portrait = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         mode = "2D",
@@ -1019,6 +1040,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         size = 40,
@@ -1033,6 +1055,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     LeaderIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -1046,6 +1069,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 40,
                     },
                     RoleIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -1059,6 +1083,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 20,
                     },
                     CombatIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 16,
@@ -1073,6 +1098,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     RestingIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 16,
@@ -1087,6 +1113,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     ReadyCheckIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -1100,10 +1127,12 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     ClassificationIndicator = {
+                        present = true,
                         enabled = true,
                         effect = "PORTRAIT_OVERLAY",
                     },
                     Buffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -1134,6 +1163,7 @@ function FocalPoint:GetDefaultDB()
                         sortMode = "NEWEST_FIRST",
                     },
                     Debuffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -1654,9 +1684,11 @@ function FocalPoint:GetDefaultDB()
                     relativePoint = "CENTER",
                     x = 300.000732421875,
                     y = -50.000244140625,
+                    powerBarPresent = true,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -1670,6 +1702,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -1684,6 +1717,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarOffsetY = 0,
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     powerBarReverseFill = true,
+                    alternativePowerBarPresent = true,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 100,
@@ -1692,6 +1726,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
                     alternativePowerBarOffsetX = 5,
                     alternativePowerBarOffsetY = 5,
+                    castBarPresent = true,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -1765,6 +1800,7 @@ function FocalPoint:GetDefaultDB()
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
                     Portrait = {
+                        present = true,
                         enabled = false,
                         placement = "INSIDE",
                         mode = "2D",
@@ -1779,6 +1815,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         size = 40,
@@ -1793,6 +1830,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     LeaderIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -1806,6 +1844,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 40,
                     },
                     RoleIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -1819,6 +1858,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 20,
                     },
                     CombatIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 16,
@@ -1833,6 +1873,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     RestingIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 16,
@@ -1847,6 +1888,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     ReadyCheckIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -1860,10 +1902,12 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     ClassificationIndicator = {
+                        present = true,
                         enabled = false,
                         effect = "PORTRAIT_OVERLAY",
                     },
                     Buffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -1894,6 +1938,7 @@ function FocalPoint:GetDefaultDB()
                         sortMode = "NEWEST_FIRST",
                     },
                     Debuffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -2348,9 +2393,11 @@ function FocalPoint:GetDefaultDB()
                     relativePoint = "CENTER",
                     x = 0.0008544921875,
                     y = -40.00070190429688,
+                    powerBarPresent = true,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -2364,6 +2411,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -2378,6 +2426,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarOffsetY = 0,
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     powerBarReverseFill = true,
+                    alternativePowerBarPresent = true,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 100,
@@ -2386,6 +2435,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
                     alternativePowerBarOffsetX = 5,
                     alternativePowerBarOffsetY = 5,
+                    castBarPresent = true,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -2459,6 +2509,7 @@ function FocalPoint:GetDefaultDB()
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
                     Portrait = {
+                        present = true,
                         enabled = false,
                         placement = "INSIDE",
                         mode = "2D",
@@ -2473,6 +2524,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         size = 40,
@@ -2487,6 +2539,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     LeaderIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -2500,6 +2553,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 40,
                     },
                     RoleIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -2513,6 +2567,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 20,
                     },
                     CombatIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 16,
@@ -2527,6 +2582,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     RestingIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 16,
@@ -2541,6 +2597,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     ReadyCheckIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -2554,10 +2611,12 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     ClassificationIndicator = {
+                        present = true,
                         enabled = true,
                         effect = "PORTRAIT_OVERLAY",
                     },
                     Buffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -2588,6 +2647,7 @@ function FocalPoint:GetDefaultDB()
                         sortMode = "NEWEST_FIRST",
                     },
                     Debuffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -3042,9 +3102,11 @@ function FocalPoint:GetDefaultDB()
                     relativePoint = "CENTER",
                     x = -34.99993896484375,
                     y = 134.9993286132813,
+                    powerBarPresent = true,
                     showPowerBar = true,
                     powerBarHeight = 20,
                     healthBarReverseFill = true,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -3058,6 +3120,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -3072,6 +3135,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarOffsetY = 0,
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     powerBarReverseFill = true,
+                    alternativePowerBarPresent = true,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 100,
@@ -3080,6 +3144,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
                     alternativePowerBarOffsetX = 5,
                     alternativePowerBarOffsetY = 5,
+                    castBarPresent = true,
                     showCastBar = true,
                     showCastBarIcon = true,
                     castBarHeight = 20,
@@ -3153,6 +3218,7 @@ function FocalPoint:GetDefaultDB()
                     useClassColorPower = true,
                     useReactionColorNpcHealth = true,
                     Portrait = {
+                        present = true,
                         enabled = false,
                         placement = "INSIDE",
                         mode = "2D",
@@ -3167,6 +3233,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         size = 40,
@@ -3181,6 +3248,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     LeaderIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -3194,6 +3262,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 40,
                     },
                     RoleIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -3207,6 +3276,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 20,
                     },
                     CombatIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 16,
@@ -3221,6 +3291,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     RestingIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 16,
@@ -3235,6 +3306,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     ReadyCheckIndicator = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 20,
@@ -3248,6 +3320,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     Buffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -3278,6 +3351,7 @@ function FocalPoint:GetDefaultDB()
                         sortMode = "NEWEST_FIRST",
                     },
                     Debuffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -3728,9 +3802,11 @@ function FocalPoint:GetDefaultDB()
                     frameStrata = "MEDIUM",
                     frameLevel = 0,
                     borderInset = 1,
+                    powerBarPresent = true,
                     showPowerBar = true,
                     powerBarHeight = 15,
                     healthBarReverseFill = true,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -3744,6 +3820,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -3758,6 +3835,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarOffsetY = 0,
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     powerBarReverseFill = false,
+                    alternativePowerBarPresent = true,
                     showAlternativePowerBar = false,
                     alternativePowerBarHeight = 5,
                     alternativePowerBarWidth = 75,
@@ -3766,6 +3844,7 @@ function FocalPoint:GetDefaultDB()
                     alternativePowerBarRelativePoint = "BOTTOMLEFT",
                     alternativePowerBarOffsetX = 5,
                     alternativePowerBarOffsetY = 5,
+                    castBarPresent = true,
                     showCastBar = false,
                     showCastBarIcon = false,
                     castBarHeight = 10,
@@ -3838,6 +3917,7 @@ function FocalPoint:GetDefaultDB()
                     },
                     useClassColorPower = true,
                     Portrait = {
+                        present = true,
                         enabled = true,
                         placement = "INSIDE",
                         mode = "2D",
@@ -3852,6 +3932,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 16,
@@ -3865,6 +3946,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 6,
                     },
                     LeaderIcon = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 14,
@@ -3878,6 +3960,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RoleIcon = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 14,
@@ -3891,6 +3974,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     CombatIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 14,
@@ -3905,6 +3989,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     RestingIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 14,
@@ -3919,6 +4004,7 @@ function FocalPoint:GetDefaultDB()
                         effect = "ICON",
                     },
                     ReadyCheckIndicator = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         size = 14,
@@ -3932,6 +4018,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     ClassificationIndicator = {
+                        present = true,
                         enabled = true,
                         effect = "PORTRAIT_OVERLAY",
                     },
@@ -4279,6 +4366,7 @@ function FocalPoint:GetDefaultDB()
                 boss = {
                     enabled = true,
                     bossSpacing = 10,
+                    castBarPresent = true,
                     showCastBar = false,
                     Texts = {
                         Name = {
@@ -4439,6 +4527,7 @@ function FocalPoint:GetDefaultDB()
                     relativePoint = "CENTER",
                     useClassColorHealth = true,
                     healthBarReverseFill = false,
+                    normalAbsorbBarPresent = true,
                     showNormalAbsorbBar = true,
                     normalAbsorbBarSizeMode = "MATCH_TARGET",
                     normalAbsorbBarWidth = 320,
@@ -4452,6 +4541,7 @@ function FocalPoint:GetDefaultDB()
                     normalAbsorbBarOffsetX = 0,
                     normalAbsorbBarOffsetY = 0,
                     normalAbsorbBarGrowth = "LEFT_TO_RIGHT",
+                    healingAbsorbBarPresent = true,
                     showHealingAbsorbBar = true,
                     healingAbsorbBarSizeMode = "MATCH_TARGET",
                     healingAbsorbBarWidth = 320,
@@ -4467,6 +4557,7 @@ function FocalPoint:GetDefaultDB()
                     healingAbsorbBarGrowth = "RIGHT_TO_LEFT",
                     healthBarTexture = "fp:statusbar:raid-hp-fill",
                     Portrait = {
+                        present = true,
                         enabled = false,
                         placement = "INSIDE",
                         mode = "2D",
@@ -4481,6 +4572,7 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     RaidTargetIcon = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         size = 32,
@@ -4494,10 +4586,12 @@ function FocalPoint:GetDefaultDB()
                         offsetY = 0,
                     },
                     ClassificationIndicator = {
+                        present = true,
                         enabled = false,
                         effect = "PORTRAIT_OVERLAY",
                     },
                     Buffs = {
+                        present = true,
                         enabled = false,
                         placement = "ATTACHED",
                         anchorTo = "Frame",
@@ -4528,6 +4622,7 @@ function FocalPoint:GetDefaultDB()
                         sortMode = "NEWEST_FIRST",
                     },
                     Debuffs = {
+                        present = true,
                         enabled = true,
                         placement = "ATTACHED",
                         anchorTo = "Frame",

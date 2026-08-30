@@ -10,18 +10,13 @@ ns.CompositionPresence = Presence
 
 local Ownership = ns.GUI.Editor.Composition.Ownership or ns.CompositionOwnership
 
-local SHOW_FLAG_BY_BAR = {
-    PowerBar = "showPowerBar",
-    CastBar = "showCastBar",
-    ClassPowerBar = "showClassPowerBar",
-    AlternativePowerBar = "showAlternativePowerBar",
-    NormalAbsorbBar = "showNormalAbsorbBar",
-    HealingAbsorbBar = "showHealingAbsorbBar",
-}
-
-local TRUE_ONLY_BAR = {
-    ClassPowerBar = true,
-    AlternativePowerBar = true,
+local PRESENT_FIELD_BY_BAR = {
+    PowerBar = "powerBarPresent",
+    CastBar = "castBarPresent",
+    ClassPowerBar = "classPowerBarPresent",
+    AlternativePowerBar = "alternativePowerBarPresent",
+    NormalAbsorbBar = "normalAbsorbBarPresent",
+    HealingAbsorbBar = "healingAbsorbBarPresent",
 }
 
 local CORE_BARS = {
@@ -107,35 +102,33 @@ local function HasDecoration(unitConfig, decorationId)
     return false
 end
 
-local function IsLegacyEnabledConfigPresent(config)
-    return type(config) == "table" and config.enabled ~= false
-end
-
 local function IsBarOwnPresent(unitConfig, barKey)
     if CORE_BARS[barKey] then
         return true
     end
 
-    local showFlag = SHOW_FLAG_BY_BAR[barKey]
-    if not showFlag or type(unitConfig) ~= "table" then
-        return false
-    end
+    local presentField = PRESENT_FIELD_BY_BAR[barKey]
+    return type(presentField) == "string"
+        and type(unitConfig) == "table"
+        and unitConfig[presentField] == true
+end
 
-    if TRUE_ONLY_BAR[barKey] then
-        return unitConfig[showFlag] == true
-    end
-
-    return unitConfig[showFlag] ~= false
+local function IsTableComponentPresent(config)
+    return type(config) == "table" and config.present == true
 end
 
 function Presence.IsOwnPresent(unitConfig, objectRef)
-    if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
+    if type(objectRef) ~= "table" then
         return false
     end
 
     local kind = objectRef.kind
     if kind == "unit" then
         return NormalizeUnitKey(objectRef.unit) ~= nil
+    end
+
+    if type(unitConfig) ~= "table" then
+        return false
     end
 
     if kind == "bar" then
@@ -154,19 +147,27 @@ function Presence.IsOwnPresent(unitConfig, objectRef)
 
     if kind == "aura" then
         local auraKey = GetAuraKey(objectRef)
-        return AURA_KEYS[auraKey] == true and IsLegacyEnabledConfigPresent(unitConfig[auraKey])
+        return AURA_KEYS[auraKey] == true and IsTableComponentPresent(unitConfig[auraKey])
     end
 
     if kind == "indicator" then
         local indicatorKey = GetIndicatorKey(objectRef)
-        return INDICATOR_KEYS[indicatorKey] == true and IsLegacyEnabledConfigPresent(unitConfig[indicatorKey])
+        return INDICATOR_KEYS[indicatorKey] == true and IsTableComponentPresent(unitConfig[indicatorKey])
     end
 
     return false
 end
 
 function Presence.IsPresent(unitConfig, objectRef)
-    if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
+    if type(objectRef) ~= "table" then
+        return false
+    end
+
+    if objectRef.kind == "unit" then
+        return Presence.IsOwnPresent(unitConfig, objectRef)
+    end
+
+    if type(unitConfig) ~= "table" then
         return false
     end
 

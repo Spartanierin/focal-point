@@ -95,6 +95,33 @@ local function HasChildren(node)
     return type(node) == "table" and type(node.children) == "table" and #node.children > 0
 end
 
+local SHOW_FIELD_BY_BAR = {
+    PowerBar = "showPowerBar",
+    CastBar = "showCastBar",
+    ClassPowerBar = "showClassPowerBar",
+    AlternativePowerBar = "showAlternativePowerBar",
+    NormalAbsorbBar = "showNormalAbsorbBar",
+    HealingAbsorbBar = "showHealingAbsorbBar",
+}
+
+local TRUE_ONLY_SHOW_BARS = {
+    ClassPowerBar = true,
+    AlternativePowerBar = true,
+}
+
+local function IsBarEnabled(unitConfig, barKey)
+    local showField = SHOW_FIELD_BY_BAR[barKey]
+    if not showField or type(unitConfig) ~= "table" then
+        return true
+    end
+
+    if TRUE_ONLY_SHOW_BARS[barKey] then
+        return unitConfig[showField] == true
+    end
+
+    return unitConfig[showField] ~= false
+end
+
 local function IsEnabled(config)
     return type(config) == "table" and config.enabled ~= false
 end
@@ -233,7 +260,7 @@ local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
             20,
             false,
             BuildBarTarget(SECTION.absorbs, "NormalAbsorbBar"),
-            true
+            IsBarEnabled(unitConfig, "NormalAbsorbBar")
         )))
     end
 
@@ -247,7 +274,7 @@ local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
             30,
             false,
             BuildBarTarget(SECTION.absorbs, "HealingAbsorbBar"),
-            true
+            IsBarEnabled(unitConfig, "HealingAbsorbBar")
         )))
     end
 end
@@ -282,7 +309,7 @@ local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
             10,
             false,
             BuildBarTarget(SECTION.power),
-            true
+            IsBarEnabled(unitConfig, "PowerBar")
         )))
     end
 
@@ -298,7 +325,7 @@ local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
                 20,
                 false,
                 BuildBarTarget(SECTION.class_power),
-                true
+                IsBarEnabled(unitConfig, "ClassPowerBar")
             )))
         end
 
@@ -313,7 +340,7 @@ local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
                 30,
                 false,
                 BuildBarTarget(SECTION.alt_power),
-                true
+                IsBarEnabled(unitConfig, "AlternativePowerBar")
             )))
         end
     end
@@ -344,7 +371,7 @@ local function AddCastBranch(root, unit, unitConfig, anchorNodes)
         10,
         false,
         BuildBarTarget(SECTION.cast),
-        true
+        IsBarEnabled(unitConfig, "CastBar")
     )))
 end
 
@@ -421,7 +448,7 @@ local function AddAuraBranch(root, unit, unitConfig)
                 index,
                 false,
                 { kind = "aura", sectionKey = SECTION.auras, auraKey = auraKey },
-                true
+                IsEnabled(unitConfig[auraKey])
             ))
         end
     end
@@ -454,7 +481,7 @@ local function AddIndicatorBranch(root, unit, unitConfig, anchorNodes)
                 index,
                 false,
                 { kind = "indicator", sectionKey = SECTION.indicators, indicatorKey = indicatorKey },
-                true
+                IsEnabled(config)
             )
             if PresencePolicy and type(PresencePolicy.ResolveObject) == "function" then
                 node.presence = PresencePolicy.ResolveObject(unit, node.inspectorTarget)

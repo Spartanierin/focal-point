@@ -4,7 +4,7 @@ local ProfileTransfer = {}
 FocalPoint.ProfileTransfer = ProfileTransfer
 
 local EXPORT_PREFIX = "FocalPointProfile:6:"
-local SCHEMA_VERSION = 7
+local SCHEMA_VERSION = 8
 local MIN_SUPPORTED_SCHEMA_VERSION = 4
 local HEADER_SEPARATOR = "~"
 local BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -68,6 +68,43 @@ local function BuildDefaultSchema(value, path, schema)
     end
 
     return schema
+end
+
+local function BuildLegacySchema(schema)
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) ~= "table" or type(storage.IsPresencePath) ~= "function" then
+        return schema
+    end
+
+    local legacy = {}
+    for _, entry in ipairs(schema or {}) do
+        if not storage.IsPresencePath(entry.path) then
+            legacy[#legacy + 1] = entry
+        end
+    end
+    return legacy
+end
+
+local function ResolveImportSchema(schema, expectedSchemaCount, schemaVersion)
+    if expectedSchemaCount == #schema then
+        return schema
+    end
+
+    if (tonumber(schemaVersion) or 0) < SCHEMA_VERSION then
+        local legacySchema = BuildLegacySchema(schema)
+        if expectedSchemaCount == #legacySchema then
+            return legacySchema
+        end
+    end
+
+    return nil
+end
+
+local function EnsureImportedCompositionPresence(profile)
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.EnsureProfile) == "function" then
+        storage.EnsureProfile(profile)
+    end
 end
 
 local function GetValueAtPath(root, path)
@@ -803,7 +840,8 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
 
     local schema = BuildDefaultSchema(defaultProfile)
     local expectedSchemaCount = FromBase36(Trim(parts.schemaCount))
-    if expectedSchemaCount ~= #schema then
+    local importSchema = ResolveImportSchema(schema, expectedSchemaCount, schemaVersion)
+    if not importSchema then
         return nil, string.format(
             "schema-mismatch expected-%s got-%s %s",
             tostring(#schema),
@@ -813,7 +851,7 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
     end
 
     local validationProfile = {}
-    if not ApplySchemaRecords(validationProfile, schema, parts.data) then
+    if not ApplySchemaRecords(validationProfile, importSchema, parts.data) then
         return nil, "invalid-profile"
     end
     if not ApplyTextTemplateRecords(validationProfile, parts.textTemplates) then
@@ -844,12 +882,14 @@ function ProfileTransfer.ImportProfileString(db, exportString, profileNameOverri
     end
 
     local importedProfile = {}
-    ApplySchemaRecords(importedProfile, schema, parts.data)
+    ApplySchemaRecords(importedProfile, importSchema, parts.data)
     ApplyTextTemplateRecords(importedProfile, parts.textTemplates)
 
     if validationFullProfile then
         ApplyProfileLeafRecords(importedProfile, parts.profileLeaves)
     end
+
+    EnsureImportedCompositionPresence(importedProfile)
 
     profileStore[requestedProfileName] = importedProfile
     if currentProfileName == requestedProfileName then
