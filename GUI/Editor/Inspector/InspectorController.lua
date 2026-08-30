@@ -602,12 +602,15 @@ function InspectorController.Build(container, state, options)
         return targetKind == "unit"
             and (
                 fieldName == "showPowerBar"
+                or fieldName == "powerBarPresent"
                 or fieldName == "showCastBar"
                 or fieldName == "castBarPresent"
                 or fieldName == "showClassPowerBar"
                 or fieldName == "showAlternativePowerBar"
                 or fieldName == "showNormalAbsorbBar"
+                or fieldName == "normalAbsorbBarPresent"
                 or fieldName == "showHealingAbsorbBar"
+                or fieldName == "healingAbsorbBarPresent"
             )
     end
 
@@ -898,19 +901,19 @@ function InspectorController.Build(container, state, options)
         return ok, changeKind
     end
 
-    local function SelectCastBar(unitKey)
+    local function SelectBar(unitKey, objectKey)
         if type(ObjectSelection.SelectObject) ~= "function" then
             return false
         end
         return ObjectSelection.SelectObject({
             kind = "bar",
             unit = unitKey,
-            objectKey = "CastBar",
+            objectKey = objectKey,
         })
     end
 
-    local function ApplyCastBarPresence(present)
-        local result = SetComponentPresence("CastBar", present == true)
+    local function ApplySingletonBarPresence(componentKey, present, sectionKey)
+        local result = SetComponentPresence(componentKey, present == true)
         if result and result.ok == false then
             ReportMutationError(result)
             return result
@@ -926,16 +929,20 @@ function InspectorController.Build(container, state, options)
 
         local ok, changeKind
         if present == true then
-            ok, changeKind = SelectCastBar(selectedUnit)
+            ok, changeKind = SelectBar(selectedUnit, componentKey)
         else
             ok, changeKind = SelectUnitRoot(selectedUnit)
         end
         if ok then
             NotifySelectionChanged(changeKind)
         else
-            NotifySidebarChanged(present == true and "cast" or "frame")
+            NotifySidebarChanged(present == true and (sectionKey or "frame") or "frame")
         end
         return result
+    end
+
+    local function ApplyCastBarPresence(present)
+        return ApplySingletonBarPresence("CastBar", present == true, "cast")
     end
 
     local function OpenDeleteTextInstanceConfirmDialog(unitKey, textKey)
@@ -1793,7 +1800,12 @@ function InspectorController.Build(container, state, options)
         local visibilitySection = AddFramedObjectPropertyGroup(rootSection, L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true)
         local behaviorSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_BEHAVIOR"] or "Behavior", true) or nil
         local advancedSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ADVANCED"] or "Advanced", true) or nil
-        local actionsSection = unitConfig.castBarPresent == false and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ACTIONS"] or "Actions", true) or nil
+        local hasAbsentSingleton =
+            unitConfig.powerBarPresent == false
+            or unitConfig.castBarPresent == false
+            or unitConfig.normalAbsorbBarPresent == false
+            or unitConfig.healingAbsorbBarPresent == false
+        local actionsSection = hasAbsentSingleton and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ACTIONS"] or "Actions", true) or nil
 
         AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
             SetUnitField("enabled", value and true or false, rootSection)
@@ -1886,9 +1898,26 @@ function InspectorController.Build(container, state, options)
         end
 
         if actionsSection then
-            AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "primary_action", 132, function()
-                ApplyCastBarPresence(true)
-            end)
+            if unitConfig.powerBarPresent == false then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_POWER_BAR_BUTTON"] or "Add Power Bar", L["EDITOR_ADD_POWER_BAR_BUTTON"] or "Add Power Bar", "primary_action", 132, function()
+                    ApplySingletonBarPresence("PowerBar", true, "power")
+                end)
+            end
+            if unitConfig.castBarPresent == false then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "primary_action", 132, function()
+                    ApplyCastBarPresence(true)
+                end)
+            end
+            if unitConfig.normalAbsorbBarPresent == false then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON"] or "Add Normal Absorb", L["EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON"] or "Add Normal Absorb", "primary_action", 160, function()
+                    ApplySingletonBarPresence("NormalAbsorbBar", true, "absorbs")
+                end)
+            end
+            if unitConfig.healingAbsorbBarPresent == false then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", "primary_action", 160, function()
+                    ApplySingletonBarPresence("HealingAbsorbBar", true, "absorbs")
+                end)
+            end
         end
     end
 
@@ -2128,6 +2157,7 @@ function InspectorController.Build(container, state, options)
             local geometrySection = absorbsSection
             local positionSection = absorbsSection
             local behaviorSection = absorbsSection
+            local actionsSection
 
             if isScopedObject then
                 generalSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
@@ -2138,6 +2168,7 @@ function InspectorController.Build(container, state, options)
                     positionSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
                     behaviorSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
                 end
+                actionsSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
             else
                 AddAbsorbSubheading(title)
             end
@@ -2196,6 +2227,16 @@ function InspectorController.Build(container, state, options)
             else
                 AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "Color"] or fallbackColor, true, function(value)
                     SetUnitField(prefix .. "Color", value, rootSection)
+                end)
+            end
+
+            if actionsSection and options.objectKey == "NormalAbsorbBar" then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON"] or "Remove Normal Absorb", L["EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON"] or "Remove Normal Absorb", "danger", 176, function()
+                    ApplySingletonBarPresence("NormalAbsorbBar", false, "absorbs")
+                end)
+            elseif actionsSection and options.objectKey == "HealingAbsorbBar" then
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON"] or "Remove Healing Absorb", L["EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON"] or "Remove Healing Absorb", "danger", 176, function()
+                    ApplySingletonBarPresence("HealingAbsorbBar", false, "absorbs")
                 end)
             end
 
@@ -2306,6 +2347,7 @@ function InspectorController.Build(container, state, options)
                     SetUnitField(prefix .. "Growth", value, rootSection)
                 end)
             end
+
         end
 
         if scopedAbsorbObject then
@@ -2315,7 +2357,7 @@ function InspectorController.Build(container, state, options)
                 scopedAbsorbObject.title,
                 scopedAbsorbObject.fallbackColor,
                 scopedAbsorbObject.fallbackGrowth,
-                { scopedObject = true, rootSection = absorbsSection }
+                { scopedObject = true, rootSection = absorbsSection, objectKey = scopedAbsorbObject.objectKey }
             )
             return
         end
@@ -2348,6 +2390,7 @@ function InspectorController.Build(container, state, options)
         local backgroundSection = powerSection
         local geometrySection = powerSection
         local behaviorSection = powerSection
+        local actionsSection
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
@@ -2356,6 +2399,7 @@ function InspectorController.Build(container, state, options)
                 geometrySection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
                 behaviorSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
+            actionsSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
         if usePropertyGroups then
@@ -2465,6 +2509,12 @@ function InspectorController.Build(container, state, options)
                     SetUnitField("powerBackgroundColor", value)
                 end, unitConfig.showPowerBar == false or unitConfig.powerBackground == false)
             end
+        end
+
+        if actionsSection then
+            AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", "danger", 148, function()
+                ApplySingletonBarPresence("PowerBar", false, "power")
+            end)
         end
     end
 

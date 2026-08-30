@@ -93,7 +93,10 @@ local DECORATION_DEFAULTS = {
 }
 
 local COMPONENT_PRESENCE_FIELDS = {
+    PowerBar = "powerBarPresent",
     CastBar = "castBarPresent",
+    NormalAbsorbBar = "normalAbsorbBarPresent",
+    HealingAbsorbBar = "healingAbsorbBarPresent",
 }
 
 local function IsValidTextAnchorPoint(point)

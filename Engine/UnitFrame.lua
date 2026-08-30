@@ -881,20 +881,22 @@ function UF:RegisterPortraitEvents(frame)
     return RegisterPortraitEvents(frame)
 end
 
+local function IsPowerBarShown(config)
+    return type(config) == "table" and config.powerBarPresent == true and config.showPowerBar and true or false
+end
+
 function UF:ApplyConfig(frame)
     local config = frame.config
     if not config then
         return
     end
-    local protectedInCombat = IsProtectedFrameInCombat(frame)
-
     local width = config.width or 220
     local height = config.height or 40
     local alpha = config.alpha or 1
     local scale = config.scale or 1
     local frameLevel = config.frameLevel or 1
     local frameStrata = config.frameStrata or "MEDIUM"
-    local showPowerBar = config.showPowerBar and true or false
+    local showPowerBar = IsPowerBarShown(config)
     local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
     local healthBarReverseFill = config.healthBarReverseFill
     local powerBarReverseFill = config.powerBarReverseFill
@@ -1144,7 +1146,7 @@ function UF:ApplyConfig(frame)
         layoutAlpha = 0
     end
 
-    if not protectedInCombat then
+    if not IsProtectedFrameInCombat(frame) then
         ApplyBaseFrameLayout(self, frame, config, {
             width = width,
             height = height,
