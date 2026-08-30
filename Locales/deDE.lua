@@ -680,6 +680,8 @@ L["OPTION_BOSS_FRAME_SPACING"] = "Abstand Boss-Frames"
 -- Visibility / Logic
 L["OPTION_SHOW_CAST_BAR"] = "Zauberbalken anzeigen"
 L["OPTION_SHOW_CAST_BAR_DESC"] = "Blendet den Zauberbalken für diesen Frame ein oder aus."
+L["EDITOR_ADD_CAST_BAR_BUTTON"] = "Zauberbalken hinzufügen"
+L["EDITOR_REMOVE_CAST_BAR_BUTTON"] = "Zauberbalken entfernen"
 L["OPTION_SHOW_CAST_BAR_ICON"] = "Zaubericon anzeigen"
 L["OPTION_SHOW_CAST_BAR_ICON_DESC"] = "Blendet das Zaubericon neben dem Zauberbalken ein oder aus."
 L["OPTION_CAST_BAR_COLOR"] = "Farbe Zauberbalken"

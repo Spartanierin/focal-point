@@ -303,26 +303,6 @@ local function IsKnownCurrentObject(unitConfig, objectRef)
     return false
 end
 
-local function IsLegacyParentPresent(unitConfig, parentRef)
-    if type(parentRef) ~= "table" then
-        return false
-    end
-    if parentRef.kind == "unit" then
-        return true
-    end
-
-    local presence = ns.GUI
-        and ns.GUI.Editor
-        and ns.GUI.Editor.Composition
-        and ns.GUI.Editor.Composition.Presence
-        or ns.CompositionPresence
-    if presence and type(presence.IsOwnPresent) == "function" then
-        return presence.IsOwnPresent(unitConfig, parentRef) == true
-    end
-
-    return IsKnownCurrentObject(unitConfig, parentRef)
-end
-
 function Ownership.BuildUnitRootRef(unit)
     return BuildUnitRootRef(unit)
 end
@@ -348,7 +328,7 @@ function Ownership.ResolveParent(unitConfig, objectRef)
     if LegacyAssociationMap and type(LegacyAssociationMap.Resolve) == "function" then
         local legacyParent = LegacyAssociationMap.Resolve(unitConfig, objectRef)
         if type(legacyParent) == "table" then
-            if IsKnownCurrentObject(unitConfig, legacyParent) and IsLegacyParentPresent(unitConfig, legacyParent) then
+            if IsKnownCurrentObject(unitConfig, legacyParent) then
                 return legacyParent
             end
             return BuildUnitRootRef(unit)

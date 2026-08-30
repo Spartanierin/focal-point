@@ -92,6 +92,10 @@ local DECORATION_DEFAULTS = {
     condition = "ALWAYS",
 }
 
+local COMPONENT_PRESENCE_FIELDS = {
+    CastBar = "castBarPresent",
+}
+
 local function IsValidTextAnchorPoint(point)
     return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
 end
@@ -319,6 +323,22 @@ function InspectorMutations.SetUnitField(context, fieldName, value)
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetUnitConfig(context), fieldName, value, "unit_config_not_found")
+end
+
+function InspectorMutations.SetComponentPresence(context, componentKey, present)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local presentField = COMPONENT_PRESENCE_FIELDS[componentKey]
+    if not presentField then
+        return Result(false, { errorCode = "unsupported_component" })
+    end
+
+    local result = SetField(GetUnitConfig(context), presentField, present == true, "unit_config_not_found")
+    result.componentKey = componentKey
+    result.presentField = presentField
+    return result
 end
 
 function InspectorMutations.SetTextField(context, textKey, fieldName, value)

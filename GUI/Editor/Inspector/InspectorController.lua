@@ -603,6 +603,7 @@ function InspectorController.Build(container, state, options)
             and (
                 fieldName == "showPowerBar"
                 or fieldName == "showCastBar"
+                or fieldName == "castBarPresent"
                 or fieldName == "showClassPowerBar"
                 or fieldName == "showAlternativePowerBar"
                 or fieldName == "showNormalAbsorbBar"
@@ -705,6 +706,13 @@ function InspectorController.Build(container, state, options)
             return nil
         end
         return ApplyMutation("unit", fieldName, InspectorMutations.SetUnitField(inspectorContext, fieldName, value), section, fallbackNotify)
+    end
+
+    local function SetComponentPresence(componentKey, present)
+        if type(InspectorMutations.SetComponentPresence) ~= "function" then
+            return nil
+        end
+        return InspectorMutations.SetComponentPresence(inspectorContext, componentKey, present == true)
     end
 
     local function SetTextField(textKey, fieldName, value, section, fallbackNotify)
@@ -871,11 +879,13 @@ function InspectorController.Build(container, state, options)
 
     local function SelectUnitRoot(unitKey)
         local ok = false
+        local changeKind
         if type(ObjectSelection.SelectObject) == "function" then
-            ok = ObjectSelection.SelectObject({
+            ok, changeKind = ObjectSelection.SelectObject({
                 kind = "unit",
                 unit = unitKey,
-            }) == true
+            })
+            ok = ok == true
         end
         if not ok then
             if EditorStateApi and type(EditorStateApi.SetSingleSelection) == "function" then
@@ -885,6 +895,47 @@ function InspectorController.Build(container, state, options)
                 EditorStateApi.ClearPropertyScope()
             end
         end
+        return ok, changeKind
+    end
+
+    local function SelectCastBar(unitKey)
+        if type(ObjectSelection.SelectObject) ~= "function" then
+            return false
+        end
+        return ObjectSelection.SelectObject({
+            kind = "bar",
+            unit = unitKey,
+            objectKey = "CastBar",
+        })
+    end
+
+    local function ApplyCastBarPresence(present)
+        local result = SetComponentPresence("CastBar", present == true)
+        if result and result.ok == false then
+            ReportMutationError(result)
+            return result
+        end
+        if not (result and result.ok and result.changed) then
+            return result
+        end
+
+        if type(ns.RefreshUnitFrame) == "function" and type(selectedUnit) == "string" and selectedUnit ~= "" then
+            ns:RefreshUnitFrame(selectedUnit == "boss" and "boss" or selectedUnit)
+        end
+        NotifyCompositionTreeChanged()
+
+        local ok, changeKind
+        if present == true then
+            ok, changeKind = SelectCastBar(selectedUnit)
+        else
+            ok, changeKind = SelectUnitRoot(selectedUnit)
+        end
+        if ok then
+            NotifySelectionChanged(changeKind)
+        else
+            NotifySidebarChanged(present == true and "cast" or "frame")
+        end
+        return result
     end
 
     local function OpenDeleteTextInstanceConfirmDialog(unitKey, textKey)
@@ -1742,6 +1793,7 @@ function InspectorController.Build(container, state, options)
         local visibilitySection = AddFramedObjectPropertyGroup(rootSection, L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true)
         local behaviorSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_BEHAVIOR"] or "Behavior", true) or nil
         local advancedSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ADVANCED"] or "Advanced", true) or nil
+        local actionsSection = unitConfig.castBarPresent == false and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ACTIONS"] or "Actions", true) or nil
 
         AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
             SetUnitField("enabled", value and true or false, rootSection)
@@ -1830,6 +1882,12 @@ function InspectorController.Build(container, state, options)
             })
             AddPropertyNumericInputRow(advancedSection, L["OPTION_FRAME_LEVEL"] or "Frame Level", 0, 50, tonumber(unitConfig.frameLevel) or 1, function(value)
                 SetUnitField("frameLevel", math.floor((value or 0) + 0.5))
+            end)
+        end
+
+        if actionsSection then
+            AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "primary_action", 132, function()
+                ApplyCastBarPresence(true)
             end)
         end
     end
@@ -2768,12 +2826,14 @@ function InspectorController.Build(container, state, options)
         local generalSection = castSection
         local appearanceSection = castSection
         local geometrySection = castSection
+        local actionsSection
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             if isExpert then
                 geometrySection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             end
+            actionsSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
         if usePropertyGroups then
@@ -2851,6 +2911,12 @@ function InspectorController.Build(container, state, options)
                     SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
                 end, unitConfig.showCastBar == false)
             end
+        end
+
+        if actionsSection then
+            AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "danger", 148, function()
+                ApplyCastBarPresence(false)
+            end)
         end
     end
 
