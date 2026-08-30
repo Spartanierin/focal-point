@@ -594,10 +594,20 @@ function InspectorController.Build(container, state, options)
 
     local function AffectsCompositionTreeProjection(targetKind, fieldName)
         if targetKind == "text" then
-            return fieldName == "anchorTo"
+            return fieldName == "enabled" or fieldName == "anchorTo"
+        end
+        if targetKind == "aura" or targetKind == "indicator" or targetKind == "decoration" then
+            return fieldName == "enabled"
         end
         return targetKind == "unit"
-            and (fieldName == "showNormalAbsorbBar" or fieldName == "showHealingAbsorbBar")
+            and (
+                fieldName == "showPowerBar"
+                or fieldName == "showCastBar"
+                or fieldName == "showClassPowerBar"
+                or fieldName == "showAlternativePowerBar"
+                or fieldName == "showNormalAbsorbBar"
+                or fieldName == "showHealingAbsorbBar"
+            )
     end
 
     local function RebuildLocalSection(section)
