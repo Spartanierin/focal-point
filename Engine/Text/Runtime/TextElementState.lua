@@ -111,12 +111,14 @@ function TextState.Ensure(frame)
         visibleTextCount = 0,
         lastCommittedScopes = {},
         dependencyBindings = {},
+        compositionBindings = {},
     }
 
     local state = frame.TextRuntimeState
     state.dirty = state.dirty or {}
     state.lastCommittedScopes = state.lastCommittedScopes or {}
     state.dependencyBindings = state.dependencyBindings or {}
+    state.compositionBindings = state.compositionBindings or {}
     return state
 end
 
@@ -140,6 +142,7 @@ function TextState.MarkDirty(frame, reason, scope, options)
     end
     if ScopeInvalidatesTextDependencies(scope) or (type(options) == "table" and options.invalidateTextDependencies == true) then
         state.dependencyBindings = {}
+        state.compositionBindings = {}
     end
     TextState.DebugLog(frame, "dirty", string.format("reason=%s", tostring(state.lastReason or "-")))
     return state
@@ -176,6 +179,44 @@ function TextState.InvalidateDependencies(frame, textKey)
     end
 
     state.dependencyBindings = {}
+end
+
+function TextState.SetCompositionBinding(frame, textKey, binding)
+    local state = TextState.Ensure(frame)
+    if not state or type(textKey) ~= "string" or textKey == "" then
+        return nil
+    end
+
+    if type(binding) ~= "table" then
+        state.compositionBindings[textKey] = nil
+        return nil
+    end
+
+    state.compositionBindings[textKey] = binding
+    return binding
+end
+
+function TextState.GetCompositionBinding(frame, textKey)
+    local state = TextState.Ensure(frame)
+    if not state or type(textKey) ~= "string" or textKey == "" then
+        return nil
+    end
+
+    return state.compositionBindings[textKey]
+end
+
+function TextState.InvalidateCompositionBinding(frame, textKey)
+    local state = TextState.Ensure(frame)
+    if not state then
+        return
+    end
+
+    if type(textKey) == "string" and textKey ~= "" then
+        state.compositionBindings[textKey] = nil
+        return
+    end
+
+    state.compositionBindings = {}
 end
 
 function TextState.QueueRefresh(frame, reason, scope, options, delay)
@@ -245,6 +286,7 @@ function TextState.Reset(frame)
         visibleTextCount = 0,
         lastCommittedScopes = {},
         dependencyBindings = {},
+        compositionBindings = {},
     }
 
     TextState.DebugLog(frame, "reset")

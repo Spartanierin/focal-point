@@ -51,12 +51,28 @@ local function IsTextEffectivePresent(frame, key, textConfig, deps)
         return false
     end
 
+    local binding = TextState.GetCompositionBinding and TextState.GetCompositionBinding(frame, key) or nil
+    if type(binding) == "table" then
+        return binding.effectivePresent == true
+    end
+
     local resolver = deps and deps.IsTextEffectivePresent
     if type(resolver) == "function" then
         return resolver(frame, key, textConfig) == true
     end
 
     return true
+end
+
+local function EnsureTextRuntimeBinding(frame, key, textConfig, deps)
+    if TextState.GetCompositionBinding and TextState.GetCompositionBinding(frame, key) ~= nil then
+        return
+    end
+
+    local materialize = deps and (deps.MaterializeTextRuntimeBinding or deps.MaterializeTextDependencies)
+    if type(materialize) == "function" then
+        materialize(frame, key, textConfig)
+    end
 end
 
 local function ClearAndHideText(textObject)
@@ -519,6 +535,7 @@ function Update.UpdateElement(frame, key, deps)
 
         local textObject = frame.Texts[key]
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
+        EnsureTextRuntimeBinding(frame, key, textConfig, deps)
         if not IsTextEffectivePresent(frame, key, textConfig, deps) then
             ClearAndHideText(textObject)
             return
@@ -723,6 +740,7 @@ local function EnsureDependencyBinding(frame, key, textConfig, deps, changedDepe
         return
     end
 
+    EnsureTextRuntimeBinding(frame, key, textConfig, deps)
     if not IsTextEffectivePresent(frame, key, textConfig, deps) then
         if TextState.InvalidateDependencies then
             TextState.InvalidateDependencies(frame, key)
@@ -753,6 +771,7 @@ function Update.UpdateAll(frame, deps, changedDependencies)
     end
 
     for key, textConfig in pairs(frame.config.Texts) do
+        EnsureTextRuntimeBinding(frame, key, textConfig, deps)
         if not IsTextEffectivePresent(frame, key, textConfig, deps) then
             if TextState.InvalidateDependencies then
                 TextState.InvalidateDependencies(frame, key)

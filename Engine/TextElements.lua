@@ -22,6 +22,7 @@ local TextState = FocalPoint.TextElementState or {}
 local TextRoles = FocalPoint.TextElementRoles or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local CompositionPresence = FocalPoint.CompositionPresence or {}
+local CompositionOwnership = FocalPoint.CompositionOwnership or {}
 
 -- Shared utility aliases.
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
@@ -551,6 +552,11 @@ local function IsTextEffectivePresent(frame, textKey, textConfig)
         return false
     end
 
+    local binding = TextState.GetCompositionBinding and TextState.GetCompositionBinding(frame, textKey) or nil
+    if type(binding) == "table" then
+        return binding.effectivePresent == true
+    end
+
     if not CompositionPresence or type(CompositionPresence.IsPresent) ~= "function" then
         return true
     end
@@ -566,18 +572,11 @@ end
 
 local ResolveTextDependencies
 
-local function TextUsesCastTime(frame, textKey, textConfig)
-    if not IsTextEffectivePresent(frame, textKey, textConfig) then
-        return false
-    end
-
-    local textRole = TextRoles.Resolve and TextRoles.Resolve(textKey, textConfig) or nil
-    if textRole == "cast_time" then
-        return true
-    end
-
-    local dependencies = ResolveTextDependencies(frame, textKey, textConfig, textRole)
-    return type(dependencies) == "table" and dependencies.time == true
+local function TextUsesCastTime(frame, textKey)
+    local binding = TextState.GetCompositionBinding and TextState.GetCompositionBinding(frame, textKey) or nil
+    return type(binding) == "table"
+        and binding.effectivePresent == true
+        and binding.usesCastTime == true
 end
 
 -- Checks whether the current frame actually uses a CastTime text element.
@@ -586,8 +585,8 @@ local function FrameUsesCastTime(frame)
         return false
     end
 
-    for textKey, textConfig in pairs(frame.config.Texts) do
-        if TextUsesCastTime(frame, textKey, textConfig) then
+    for textKey in pairs(frame.config.Texts) do
+        if TextUsesCastTime(frame, textKey) then
             return true
         end
     end
@@ -598,7 +597,7 @@ end
 local function ResolveCastTimeTextKey(frame)
     local castTimeKey = FindTextKeyByRole(frame, "cast_time", "CastTime")
     local textConfig = castTimeKey and frame and frame.config and frame.config.Texts and frame.config.Texts[castTimeKey]
-    if IsTextEffectivePresent(frame, castTimeKey, textConfig) then
+    if textConfig and TextUsesCastTime(frame, castTimeKey) then
         return castTimeKey
     end
 
@@ -606,8 +605,8 @@ local function ResolveCastTimeTextKey(frame)
         return nil
     end
 
-    for textKey, candidateConfig in pairs(frame.config.Texts) do
-        if TextUsesCastTime(frame, textKey, candidateConfig) then
+    for textKey in pairs(frame.config.Texts) do
+        if TextUsesCastTime(frame, textKey) then
             return textKey
         end
     end
@@ -646,6 +645,20 @@ local function GetBasicTagDependencies(token)
     return TextBasicTags.GetDependencies and TextBasicTags.GetDependencies(token) or nil
 end
 
+local function GetParentKey(parentRef)
+    if type(parentRef) ~= "table" then
+        return nil
+    end
+
+    return parentRef.objectKey
+        or parentRef.barKey
+        or parentRef.textKey
+        or parentRef.auraKey
+        or parentRef.indicatorKey
+        or parentRef.decorationId
+        or parentRef.unit
+end
+
 ResolveTextDependencies = function(frame, textKey, textConfig, textRole)
     return ResolveTextDependenciesShared and ResolveTextDependenciesShared(frame, textConfig, {
         GetTemplate = function(templateName)
@@ -662,20 +675,59 @@ ResolveTextDependencies = function(frame, textKey, textConfig, textRole)
     }
 end
 
-local function MaterializeTextDependencies(frame, textKey, textConfig)
-    if not IsTextEffectivePresent(frame, textKey, textConfig) then
+local function MaterializeTextRuntimeBinding(frame, textKey, textConfig)
+    local effectivePresent = false
+    local parentRef = nil
+    local textRole = nil
+    local dependencies = nil
+    local textRef = BuildTextRef(frame, textKey)
+    local unitConfig = frame and frame.config
+
+    if type(textConfig) == "table" and textConfig.enabled ~= false and type(unitConfig) == "table" and type(textRef) == "table" then
+        if CompositionPresence and type(CompositionPresence.IsPresent) == "function" then
+            effectivePresent = CompositionPresence.IsPresent(unitConfig, textRef) == true
+        else
+            effectivePresent = true
+        end
+
+        if CompositionOwnership and type(CompositionOwnership.ResolveParent) == "function" then
+            parentRef = CompositionOwnership.ResolveParent(unitConfig, textRef)
+        end
+    end
+
+    if not effectivePresent then
         if TextState.InvalidateDependencies then
             TextState.InvalidateDependencies(frame, textKey)
+        end
+        if TextState.SetCompositionBinding then
+            return TextState.SetCompositionBinding(frame, textKey, {
+                effectivePresent = false,
+                parentKind = type(parentRef) == "table" and parentRef.kind or nil,
+                parentKey = GetParentKey(parentRef),
+                usesCastTime = false,
+            })
         end
         return nil
     end
 
-    if not TextState.SetDependencies then
-        return nil
+    textRole = TextRoles.Resolve and TextRoles.Resolve(textKey, textConfig) or nil
+    dependencies = ResolveTextDependencies(frame, textKey, textConfig, textRole)
+    if TextState.SetDependencies then
+        TextState.SetDependencies(frame, textKey, dependencies)
     end
+    if TextState.SetCompositionBinding then
+        return TextState.SetCompositionBinding(frame, textKey, {
+            effectivePresent = true,
+            parentKind = type(parentRef) == "table" and parentRef.kind or nil,
+            parentKey = GetParentKey(parentRef),
+            usesCastTime = textRole == "cast_time" or (type(dependencies) == "table" and dependencies.time == true),
+        })
+    end
+    return dependencies
+end
 
-    local textRole = TextRoles.Resolve and TextRoles.Resolve(textKey, textConfig) or nil
-    return TextState.SetDependencies(frame, textKey, ResolveTextDependencies(frame, textKey, textConfig, textRole))
+local function MaterializeTextDependencies(frame, textKey, textConfig)
+    return MaterializeTextRuntimeBinding(frame, textKey, textConfig)
 end
 
 function UF:BuildTemplatePreview(template, unit)
@@ -714,7 +766,7 @@ function UF:CreateTextElements(frame)
 end
 
 function UF:ApplyTextElementConfig(frame, key, textObject, textConfig)
-    MaterializeTextDependencies(frame, key, textConfig)
+    MaterializeTextRuntimeBinding(frame, key, textConfig)
     return ApplyTextElementConfigShared(frame, key, textObject, textConfig, {
         GetAnchorTarget = function(targetFrame, anchorTo)
             return self:GetAnchorTarget(targetFrame, anchorTo)
@@ -735,6 +787,7 @@ end
 function UF:UpdateTextElement(frame, key)
     return UpdateTextElementShared(frame, key, {
         IsTextEffectivePresent = IsTextEffectivePresent,
+        MaterializeTextRuntimeBinding = MaterializeTextRuntimeBinding,
         ResolveConfiguredTemplate = ResolveConfiguredTemplate,
         UnpackColor = UnpackColor,
         GetLiveValue = GetLiveValue,
@@ -751,6 +804,7 @@ end
 function UF:UpdateTextElements(frame, changedDependencies)
     return UpdateTextElementsShared(frame, {
         IsTextEffectivePresent = IsTextEffectivePresent,
+        MaterializeTextRuntimeBinding = MaterializeTextRuntimeBinding,
         MaterializeTextDependencies = MaterializeTextDependencies,
         UpdateElement = function(targetFrame, key)
             return self:UpdateTextElement(targetFrame, key)
