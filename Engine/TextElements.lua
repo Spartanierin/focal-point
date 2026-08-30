@@ -21,6 +21,7 @@ local TextLiveValues = FocalPoint.TextElementLiveValues or {}
 local TextState = FocalPoint.TextElementState or {}
 local TextRoles = FocalPoint.TextElementRoles or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local CompositionPresence = FocalPoint.CompositionPresence or {}
 
 -- Shared utility aliases.
 local IsPreviewModeEnabled = TextUtils.IsPreviewModeEnabled
@@ -533,15 +534,85 @@ local function FindTextKeyByRole(frame, role, legacyKey)
     return Roles.FindTextKeyByRole and Roles.FindTextKeyByRole(frame.config.Texts, role, legacyKey) or nil
 end
 
+local function BuildTextRef(frame, textKey)
+    if not frame or type(frame.unit) ~= "string" or frame.unit == "" or type(textKey) ~= "string" or textKey == "" then
+        return nil
+    end
+    return {
+        kind = "text",
+        unit = frame.unit,
+        textKey = textKey,
+        objectKey = textKey,
+    }
+end
+
+local function IsTextEffectivePresent(frame, textKey, textConfig)
+    if type(textConfig) ~= "table" or textConfig.enabled == false then
+        return false
+    end
+
+    if not CompositionPresence or type(CompositionPresence.IsPresent) ~= "function" then
+        return true
+    end
+
+    local unitConfig = frame and frame.config
+    local textRef = BuildTextRef(frame, textKey)
+    if type(unitConfig) ~= "table" or type(textRef) ~= "table" then
+        return false
+    end
+
+    return CompositionPresence.IsPresent(unitConfig, textRef) == true
+end
+
+local ResolveTextDependencies
+
+local function TextUsesCastTime(frame, textKey, textConfig)
+    if not IsTextEffectivePresent(frame, textKey, textConfig) then
+        return false
+    end
+
+    local textRole = TextRoles.Resolve and TextRoles.Resolve(textKey, textConfig) or nil
+    if textRole == "cast_time" then
+        return true
+    end
+
+    local dependencies = ResolveTextDependencies(frame, textKey, textConfig, textRole)
+    return type(dependencies) == "table" and dependencies.time == true
+end
+
 -- Checks whether the current frame actually uses a CastTime text element.
 local function FrameUsesCastTime(frame)
-    local castTimeKey = FindTextKeyByRole(frame, "cast_time", "CastTime")
-    local textConfig = castTimeKey and frame.config and frame.config.Texts and frame.config.Texts[castTimeKey]
-    return type(textConfig) == "table" and textConfig.enabled ~= false
+    if not frame or not frame.config or not frame.config.Texts then
+        return false
+    end
+
+    for textKey, textConfig in pairs(frame.config.Texts) do
+        if TextUsesCastTime(frame, textKey, textConfig) then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function ResolveCastTimeTextKey(frame)
-    return FindTextKeyByRole(frame, "cast_time", "CastTime")
+    local castTimeKey = FindTextKeyByRole(frame, "cast_time", "CastTime")
+    local textConfig = castTimeKey and frame and frame.config and frame.config.Texts and frame.config.Texts[castTimeKey]
+    if IsTextEffectivePresent(frame, castTimeKey, textConfig) then
+        return castTimeKey
+    end
+
+    if not frame or not frame.config or not frame.config.Texts then
+        return nil
+    end
+
+    for textKey, candidateConfig in pairs(frame.config.Texts) do
+        if TextUsesCastTime(frame, textKey, candidateConfig) then
+            return textKey
+        end
+    end
+
+    return nil
 end
 
 -- Local wrappers keep the public UF methods stable while delegating logic out.
@@ -575,7 +646,7 @@ local function GetBasicTagDependencies(token)
     return TextBasicTags.GetDependencies and TextBasicTags.GetDependencies(token) or nil
 end
 
-local function ResolveTextDependencies(frame, textKey, textConfig, textRole)
+ResolveTextDependencies = function(frame, textKey, textConfig, textRole)
     return ResolveTextDependenciesShared and ResolveTextDependenciesShared(frame, textConfig, {
         GetTemplate = function(templateName)
             local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
@@ -592,7 +663,7 @@ local function ResolveTextDependencies(frame, textKey, textConfig, textRole)
 end
 
 local function MaterializeTextDependencies(frame, textKey, textConfig)
-    if type(textConfig) ~= "table" or textConfig.enabled == false then
+    if not IsTextEffectivePresent(frame, textKey, textConfig) then
         if TextState.InvalidateDependencies then
             TextState.InvalidateDependencies(frame, textKey)
         end
@@ -663,6 +734,7 @@ end
 
 function UF:UpdateTextElement(frame, key)
     return UpdateTextElementShared(frame, key, {
+        IsTextEffectivePresent = IsTextEffectivePresent,
         ResolveConfiguredTemplate = ResolveConfiguredTemplate,
         UnpackColor = UnpackColor,
         GetLiveValue = GetLiveValue,
@@ -678,6 +750,7 @@ end
 
 function UF:UpdateTextElements(frame, changedDependencies)
     return UpdateTextElementsShared(frame, {
+        IsTextEffectivePresent = IsTextEffectivePresent,
         MaterializeTextDependencies = MaterializeTextDependencies,
         UpdateElement = function(targetFrame, key)
             return self:UpdateTextElement(targetFrame, key)

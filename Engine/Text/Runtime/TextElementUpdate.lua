@@ -46,6 +46,26 @@ local function IsTextOwnerAllowed(frame, textConfig)
         or Status.IsRuntimeOwnerAllowed(textConfig, frame and frame.config)
 end
 
+local function IsTextEffectivePresent(frame, key, textConfig, deps)
+    if type(textConfig) ~= "table" or textConfig.enabled == false then
+        return false
+    end
+
+    local resolver = deps and deps.IsTextEffectivePresent
+    if type(resolver) == "function" then
+        return resolver(frame, key, textConfig) == true
+    end
+
+    return true
+end
+
+local function ClearAndHideText(textObject)
+    SafeSetText(textObject, "", false)
+    if textObject and textObject.Hide then
+        textObject:Hide()
+    end
+end
+
 local function IsTextEditPreviewMode()
     local interactionMode = FocalPoint
         and FocalPoint.GUI
@@ -499,9 +519,8 @@ function Update.UpdateElement(frame, key, deps)
 
         local textObject = frame.Texts[key]
         local textConfig = frame.config and frame.config.Texts and frame.config.Texts[key]
-        if not textConfig or textConfig.enabled == false then
-            SafeSetText(textObject, "", false)
-            textObject:Hide()
+        if not IsTextEffectivePresent(frame, key, textConfig, deps) then
+            ClearAndHideText(textObject)
             return
         end
 
@@ -510,8 +529,7 @@ function Update.UpdateElement(frame, key, deps)
 
         if ShouldRenderTextEditorPreview(frame, key) then
             if not IsTextEditPreviewAvailable(frame, key, textConfig) then
-                SafeSetText(textObject, "", false)
-                textObject:Hide()
+                ClearAndHideText(textObject)
                 return
             end
 
@@ -521,22 +539,19 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
-            SafeSetText(textObject, "", false)
-            textObject:Hide()
+            ClearAndHideText(textObject)
             return
         end
 
         if ShouldSuppressTextForMissingUnit(frame) then
-            SafeSetText(textObject, "", false)
-            textObject:Hide()
+            ClearAndHideText(textObject)
             return
         end
 
         local r, g, b, a = UnpackColor and UnpackColor(textConfig.color, { 1, 1, 1, 1 }) or 1, 1, 1, 1
 
         if not IsTextOwnerAllowed(frame, textConfig) then
-            SafeSetText(textObject, "", false)
-            textObject:Hide()
+            ClearAndHideText(textObject)
             return
         end
 
@@ -708,7 +723,10 @@ local function EnsureDependencyBinding(frame, key, textConfig, deps, changedDepe
         return
     end
 
-    if type(textConfig) ~= "table" or textConfig.enabled == false then
+    if not IsTextEffectivePresent(frame, key, textConfig, deps) then
+        if TextState.InvalidateDependencies then
+            TextState.InvalidateDependencies(frame, key)
+        end
         return
     end
 
@@ -735,9 +753,16 @@ function Update.UpdateAll(frame, deps, changedDependencies)
     end
 
     for key, textConfig in pairs(frame.config.Texts) do
-        EnsureDependencyBinding(frame, key, textConfig, deps, changedDependencies)
-        if ShouldUpdateTextKey(frame, key, changedDependencies) then
+        if not IsTextEffectivePresent(frame, key, textConfig, deps) then
+            if TextState.InvalidateDependencies then
+                TextState.InvalidateDependencies(frame, key)
+            end
             updateElement(frame, key)
+        else
+            EnsureDependencyBinding(frame, key, textConfig, deps, changedDependencies)
+            if ShouldUpdateTextKey(frame, key, changedDependencies) then
+                updateElement(frame, key)
+            end
         end
     end
 
