@@ -17,6 +17,16 @@ local TRUE_ONLY_SHOW_BARS = {
     AlternativePowerBar = "showAlternativePowerBar",
 }
 
+local TABLE_COMPONENT_KEYS = {
+    Portrait = true,
+    RaidTargetIcon = true,
+    LeaderIcon = true,
+    RoleIcon = true,
+    CombatIndicator = true,
+    RestingIndicator = true,
+    ReadyCheckIndicator = true,
+}
+
 local function NormalizeUnitKey(unit)
     if type(unit) ~= "string" or unit == "" then
         return nil
@@ -103,6 +113,18 @@ function RuntimeActivity.ShouldRunComponent(frame, objectRef)
     end
 
     return IsComponentEnabled(unitConfig, objectRef)
+end
+
+function RuntimeActivity.ShouldRunTableComponent(frame, componentKey)
+    if not TABLE_COMPONENT_KEYS[componentKey] then
+        return false
+    end
+
+    local unitConfig = GetUnitConfig(frame)
+    local componentConfig = type(unitConfig) == "table" and unitConfig[componentKey] or nil
+    return type(componentConfig) == "table"
+        and componentConfig.present == true
+        and componentConfig.enabled ~= false
 end
 
 function RuntimeActivity.ClearComponentVisual(frame, objectKey)

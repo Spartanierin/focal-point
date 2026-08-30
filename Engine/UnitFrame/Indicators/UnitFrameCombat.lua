@@ -12,6 +12,8 @@ local StatusOverlay = FocalPoint.UnitFrameStatusOverlay or {}
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local HideIndicatorVisual = Indicators.HideIndicatorVisual
+local ShouldRunPresenceGatedIndicator = Indicators.ShouldRunPresenceGatedIndicator
 
 -- Combat indicator runtime keeps combat-state evaluation and event wiring
 -- isolated from the rest of the indicator logic.
@@ -26,6 +28,16 @@ function Combat.Update(owner, frame)
     local config = frame.config
     local combatConfig = config and config.CombatIndicator or nil
     local effect = combatConfig and combatConfig.effect or "ICON"
+
+    if ShouldRunPresenceGatedIndicator and not ShouldRunPresenceGatedIndicator(frame, "CombatIndicator") then
+        if StatusOverlay.Hide then
+            StatusOverlay.Hide(holder)
+        end
+        if HideIndicatorVisual then
+            HideIndicatorVisual(holder)
+        end
+        return
+    end
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
         if StatusOverlay.Hide then

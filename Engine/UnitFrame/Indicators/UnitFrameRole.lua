@@ -12,6 +12,8 @@ local Utils = FocalPoint.UnitFrameUtils or {}
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local HideIndicatorVisual = Indicators.HideIndicatorVisual
+local ShouldRunPresenceGatedIndicator = Indicators.ShouldRunPresenceGatedIndicator
 local IsSecretValue = Utils.IsSecretValue
 
 -- Role icon runtime keeps role evaluation and event wiring isolated.
@@ -59,6 +61,13 @@ function Role.Update(owner, frame)
     local icon = holder.Texture or holder
     local config = frame.config
     local roleConfig = config and config.RoleIcon or nil
+
+    if ShouldRunPresenceGatedIndicator and not ShouldRunPresenceGatedIndicator(frame, "RoleIcon") then
+        if HideIndicatorVisual then
+            HideIndicatorVisual(holder)
+        end
+        return
+    end
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
         HandleVisibilityTransition(owner, frame, holder, false, "_roleLayoutRefreshQueued")

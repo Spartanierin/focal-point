@@ -596,7 +596,10 @@ function InspectorController.Build(container, state, options)
         if targetKind == "text" then
             return fieldName == "enabled" or fieldName == "anchorTo"
         end
-        if targetKind == "aura" or targetKind == "indicator" or targetKind == "decoration" then
+        if targetKind == "indicator" then
+            return fieldName == "enabled" or fieldName == "present"
+        end
+        if targetKind == "aura" or targetKind == "decoration" then
             return fieldName == "enabled"
         end
         return targetKind == "unit"
@@ -912,7 +915,19 @@ function InspectorController.Build(container, state, options)
         })
     end
 
-    local function ApplySingletonBarPresence(componentKey, present, sectionKey)
+    local function SelectIndicator(unitKey, indicatorKey)
+        if type(ObjectSelection.SelectObject) ~= "function" then
+            return false
+        end
+        return ObjectSelection.SelectObject({
+            kind = "indicator",
+            unit = unitKey,
+            indicatorKey = indicatorKey,
+            objectKey = indicatorKey,
+        })
+    end
+
+    local function ApplySingletonComponentPresence(componentKey, present, sectionKey, kind)
         local result = SetComponentPresence(componentKey, present == true)
         if result and result.ok == false then
             ReportMutationError(result)
@@ -929,7 +944,11 @@ function InspectorController.Build(container, state, options)
 
         local ok, changeKind
         if present == true then
-            ok, changeKind = SelectBar(selectedUnit, componentKey)
+            if kind == "indicator" then
+                ok, changeKind = SelectIndicator(selectedUnit, componentKey)
+            else
+                ok, changeKind = SelectBar(selectedUnit, componentKey)
+            end
         else
             ok, changeKind = SelectUnitRoot(selectedUnit)
         end
@@ -939,6 +958,14 @@ function InspectorController.Build(container, state, options)
             NotifySidebarChanged(present == true and (sectionKey or "frame") or "frame")
         end
         return result
+    end
+
+    local function ApplySingletonBarPresence(componentKey, present, sectionKey)
+        return ApplySingletonComponentPresence(componentKey, present == true, sectionKey, "bar")
+    end
+
+    local function ApplySingletonIndicatorPresence(componentKey, present)
+        return ApplySingletonComponentPresence(componentKey, present == true, "indicators", "indicator")
     end
 
     local function ApplyCastBarPresence(present)
@@ -3509,39 +3536,37 @@ function InspectorController.Build(container, state, options)
             actionsSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
-        local disableActionAdded = false
-        local function DisableSelectedIndicator()
-            local result = SetIndicatorField(selectedIndicatorKey, "enabled", false, indicatorSection)
+        local removeActionAdded = false
+        local function RemoveSelectedIndicator()
+            local result = ApplySingletonIndicatorPresence(selectedIndicatorKey, false)
             if result and result.ok == false then
                 return result
             end
-            SelectUnitRoot(selectedUnit)
-            NotifySidebarChanged("indicators")
             return result
         end
 
-        local function AddDisableIndicatorAction()
-            if disableActionAdded or not IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey) then
+        local function AddRemoveIndicatorAction()
+            if removeActionAdded or indicatorMeta.classification or not IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey) then
                 return
             end
-            disableActionAdded = true
+            removeActionAdded = true
             if isScopedObject then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", "danger", 148, DisableSelectedIndicator)
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "danger", 148, RemoveSelectedIndicator)
             else
                 AddSpacer(indicatorSection, 8)
-                local disableButton = FormWidgets.CreateActionButton
-                    and FormWidgets.CreateActionButton(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator", "danger", 148, false)
+                local removeButton = FormWidgets.CreateActionButton
+                    and FormWidgets.CreateActionButton(L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "danger", 148, false)
                     or AceGUI:Create("Button")
-                disableButton:SetText(L["EDITOR_DISABLE_INDICATOR_BUTTON"] or "Disable Indicator")
-                disableButton:SetWidth(148)
-                disableButton:SetFullWidth(false)
-                disableButton:SetCallback("OnClick", DisableSelectedIndicator)
+                removeButton:SetText(L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator")
+                removeButton:SetWidth(148)
+                removeButton:SetFullWidth(false)
+                removeButton:SetCallback("OnClick", RemoveSelectedIndicator)
                 if FormWidgets.ApplyModalActionButtonVisual then
-                    FormWidgets.ApplyModalActionButtonVisual(disableButton, "danger")
+                    FormWidgets.ApplyModalActionButtonVisual(removeButton, "danger")
                 elseif FormWidgets.StyleActionButton then
-                    FormWidgets.StyleActionButton(disableButton, "danger")
+                    FormWidgets.StyleActionButton(removeButton, "danger")
                 end
-                indicatorSection:AddChild(disableButton)
+                indicatorSection:AddChild(removeButton)
             end
         end
 
@@ -3590,7 +3615,7 @@ function InspectorController.Build(container, state, options)
                     SetIndicatorField(selectedIndicatorKey, "effect", value)
                 end, disabled)
             end
-            AddDisableIndicatorAction()
+            AddRemoveIndicatorAction()
             return
         end
 
@@ -3617,7 +3642,7 @@ function InspectorController.Build(container, state, options)
 
         local useOverlayEffect = indicatorMeta.effectListKey == "status" and effect == "FRAME_OVERLAY"
         if useOverlayEffect then
-            AddDisableIndicatorAction()
+            AddRemoveIndicatorAction()
             return
         end
 
@@ -3662,7 +3687,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if not isExpert then
-            AddDisableIndicatorAction()
+            AddRemoveIndicatorAction()
             return
         end
 
@@ -3711,7 +3736,7 @@ function InspectorController.Build(container, state, options)
                     SetIndicatorField(selectedIndicatorKey, "padding", math.floor((value or 0) + 0.5))
                 end, disabled)
             end
-            AddDisableIndicatorAction()
+            AddRemoveIndicatorAction()
             return
         end
 
@@ -3765,7 +3790,7 @@ function InspectorController.Build(container, state, options)
             end, disabled)
         end
 
-        AddDisableIndicatorAction()
+        AddRemoveIndicatorAction()
     end
 
     local function ResolveSelectedIndicatorInspectorTitle()

@@ -4,6 +4,7 @@ FocalPoint.UnitFrameIndicators = FocalPoint.UnitFrameIndicators or {}
 local Indicators = FocalPoint.UnitFrameIndicators
 local State = FocalPoint.UnitFrameState or {}
 local Preview = FocalPoint.UnitFramePreview or {}
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 local VisualIndicator = FocalPoint.UnitFrameVisualIndicator or {}
 
 -- Shared helper logic for non-portrait overlay indicators such as leader,
@@ -19,6 +20,15 @@ local CONDITIONAL_INDICATORS = {
     ClassificationIndicator = true,
 }
 
+local PRESENCE_GATED_INDICATORS = {
+    RaidTargetIcon = true,
+    LeaderIcon = true,
+    RoleIcon = true,
+    CombatIndicator = true,
+    RestingIndicator = true,
+    ReadyCheckIndicator = true,
+}
+
 local function IsEditorActive()
     return FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
@@ -31,6 +41,12 @@ local function IsIndicatorEnabled(frame, indicatorKey)
     return type(indicatorConfig) == "table" and indicatorConfig.enabled ~= false
 end
 
+local function IsIndicatorPresent(frame, indicatorKey)
+    local config = frame and frame.config
+    local indicatorConfig = type(config) == "table" and config[indicatorKey] or nil
+    return type(indicatorConfig) == "table" and indicatorConfig.present == true
+end
+
 local function ResolvePresencePolicy()
     return FocalPoint.EditorPresencePolicy
         or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.PresencePolicy)
@@ -38,6 +54,10 @@ local function ResolvePresencePolicy()
 end
 
 local function ShouldRepresentIndicator(frame, indicatorKey)
+    if PRESENCE_GATED_INDICATORS[indicatorKey] and not IsIndicatorPresent(frame, indicatorKey) then
+        return false
+    end
+
     if not (IsEditorActive() and CONDITIONAL_INDICATORS[indicatorKey] and IsIndicatorEnabled(frame, indicatorKey)) then
         return false
     end
@@ -55,6 +75,38 @@ local function ShouldRepresentIndicator(frame, indicatorKey)
     end
 
     return true
+end
+
+function Indicators.ShouldRunPresenceGatedIndicator(frame, indicatorKey)
+    if not PRESENCE_GATED_INDICATORS[indicatorKey] then
+        return true
+    end
+    if RuntimeActivity.ShouldRunTableComponent then
+        return RuntimeActivity.ShouldRunTableComponent(frame, indicatorKey)
+    end
+    return IsIndicatorPresent(frame, indicatorKey) and IsIndicatorEnabled(frame, indicatorKey)
+end
+
+function Indicators.HideIndicatorVisual(holder)
+    Indicators.HideEditorPlaceholder(holder)
+    local StatusOverlay = FocalPoint.UnitFrameStatusOverlay or nil
+    if StatusOverlay and StatusOverlay.Hide then
+        StatusOverlay.Hide(holder)
+    end
+    if VisualIndicator.Hide then
+        VisualIndicator.Hide(holder)
+    elseif holder then
+        local icon = holder.Texture or holder
+        if icon.SetTexture then
+            icon:SetTexture(nil)
+        end
+        if icon.Hide then
+            icon:Hide()
+        end
+        if holder.Hide then
+            holder:Hide()
+        end
+    end
 end
 
 local function EnsurePlaceholder(holder)
@@ -315,13 +367,7 @@ function Indicators.ApplyConfig(owner, frame, holder, options)
 
         options.updateFunc(frame)
     else
-        if VisualIndicator.Hide then
-            VisualIndicator.Hide(holder)
-        else
-            icon:SetTexture(nil)
-            icon:Hide()
-            holder:Hide()
-        end
+        Indicators.HideIndicatorVisual(holder)
     end
 end
 

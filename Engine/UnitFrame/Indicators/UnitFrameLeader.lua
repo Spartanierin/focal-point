@@ -12,6 +12,8 @@ local Utils = FocalPoint.UnitFrameUtils or {}
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local HideIndicatorVisual = Indicators.HideIndicatorVisual
+local ShouldRunPresenceGatedIndicator = Indicators.ShouldRunPresenceGatedIndicator
 local IsSafeTrue = Utils.IsSafeTrue
 
 -- Leader icon runtime keeps the leader-state evaluation and event wiring
@@ -55,6 +57,13 @@ function Leader.Update(owner, frame)
     local icon = holder.Texture or holder
     local config = frame.config
     local leaderConfig = config and config.LeaderIcon or nil
+
+    if ShouldRunPresenceGatedIndicator and not ShouldRunPresenceGatedIndicator(frame, "LeaderIcon") then
+        if HideIndicatorVisual then
+            HideIndicatorVisual(holder)
+        end
+        return
+    end
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
         HandleVisibilityTransition(owner, frame, holder, false, "_leaderLayoutRefreshQueued")

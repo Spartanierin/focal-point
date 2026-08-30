@@ -14,6 +14,8 @@ local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local GetPreviewRaidTargetIndex = Preview.GetRaidTargetIndex
 local ResolveInsideAnchor = InsideLayout.ResolveAnchor
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local HideIndicatorVisual = Indicators.HideIndicatorVisual
+local ShouldRunPresenceGatedIndicator = Indicators.ShouldRunPresenceGatedIndicator
 
 local function QueueLayoutRefresh(owner, frame)
     if not owner or not frame or frame._raidTargetLayoutRefreshQueued then
@@ -71,6 +73,20 @@ function RaidTarget.Update(owner, frame)
     local config = frame.config
     local rtmConfig = config and config.RaidTargetIcon or nil
     local wasShown = holder.IsShown and holder:IsShown() or false
+
+    if ShouldRunPresenceGatedIndicator and not ShouldRunPresenceGatedIndicator(frame, "RaidTargetIcon") then
+        if HideIndicatorVisual then
+            HideIndicatorVisual(holder)
+        else
+            icon:SetTexture(nil)
+            icon:Hide()
+            holder:Hide()
+        end
+        if wasShown then
+            QueueLayoutRefresh(owner, frame)
+        end
+        return
+    end
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false then
         if HandleVisibilityTransition then

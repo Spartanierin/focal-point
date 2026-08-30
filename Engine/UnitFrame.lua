@@ -926,7 +926,7 @@ function UF:ApplyConfig(frame)
     local restingConfig = config.RestingIndicator or {}
     local readyCheckConfig = config.ReadyCheckIndicator or {}
     local classificationConfig = config.ClassificationIndicator or {}
-    local portraitEnabled = portraitConfig.enabled and true or false
+    local portraitEnabled = portraitConfig.present == true and portraitConfig.enabled ~= false
     local portraitPlacement = portraitConfig.placement or "INSIDE"
     local portraitMode = portraitConfig.mode or "2D"
     local portraitSize = tonumber(portraitConfig.size) or 40
@@ -949,7 +949,7 @@ function UF:ApplyConfig(frame)
     -- Important: GUI uses fallback=true for new RTM configs. Treat a missing
     -- enabled flag as active as well, otherwise the UI can look enabled while
     -- the engine silently considers the element disabled on older profiles.
-    local raidTargetEnabled = raidTargetConfig.enabled ~= false
+    local raidTargetEnabled = raidTargetConfig.present == true and raidTargetConfig.enabled ~= false
     local raidTargetSize = tonumber(raidTargetConfig.size) or 18
     local raidTargetScale = tonumber(raidTargetConfig.scale) or 1
     local raidTargetPoint = raidTargetConfig.point or "TOP"
@@ -958,7 +958,7 @@ function UF:ApplyConfig(frame)
     local raidTargetOffsetY = tonumber(raidTargetConfig.offsetY) or 8
     local raidTargetAnchorTo = raidTargetConfig.anchorTo or "Frame"
 
-    local leaderEnabled = leaderConfig.enabled ~= false
+    local leaderEnabled = leaderConfig.present == true and leaderConfig.enabled ~= false
     local leaderPlacement = leaderConfig.placement or "ATTACHED"
     local leaderSize = tonumber(leaderConfig.size) or 16
     local leaderScale = tonumber(leaderConfig.scale) or 1
@@ -970,7 +970,7 @@ function UF:ApplyConfig(frame)
     local leaderOffsetY = tonumber(leaderConfig.offsetY) or 0
     local leaderAnchorTo = leaderConfig.anchorTo or "Frame"
 
-    local roleEnabled = roleConfig.enabled ~= false
+    local roleEnabled = roleConfig.present == true and roleConfig.enabled ~= false
     local rolePlacement = roleConfig.placement or "ATTACHED"
     local roleSize = tonumber(roleConfig.size) or 16
     local roleScale = tonumber(roleConfig.scale) or 1
@@ -982,7 +982,7 @@ function UF:ApplyConfig(frame)
     local roleOffsetY = tonumber(roleConfig.offsetY) or 0
     local roleAnchorTo = roleConfig.anchorTo or "Frame"
 
-    local combatEnabled = combatConfig.enabled ~= false
+    local combatEnabled = combatConfig.present == true and combatConfig.enabled ~= false
     local combatEffect = combatConfig.effect or "ICON"
     local combatUsesOverlay = combatEffect == "FRAME_OVERLAY"
     local combatPlacement = combatConfig.placement or "ATTACHED"
@@ -996,7 +996,7 @@ function UF:ApplyConfig(frame)
     local combatOffsetY = tonumber(combatConfig.offsetY) or 0
     local combatAnchorTo = combatConfig.anchorTo or "Frame"
 
-    local restingEnabled = restingConfig.enabled ~= false
+    local restingEnabled = restingConfig.present == true and restingConfig.enabled ~= false
     local restingEffect = restingConfig.effect or "ICON"
     local restingUsesOverlay = restingEffect == "FRAME_OVERLAY"
     local restingPlacement = restingConfig.placement or "ATTACHED"
@@ -1010,7 +1010,7 @@ function UF:ApplyConfig(frame)
     local restingOffsetY = tonumber(restingConfig.offsetY) or 0
     local restingAnchorTo = restingConfig.anchorTo or "Frame"
 
-    local readyCheckEnabled = readyCheckConfig.enabled ~= false
+    local readyCheckEnabled = readyCheckConfig.present == true and readyCheckConfig.enabled ~= false
     local readyCheckPlacement = readyCheckConfig.placement or "ATTACHED"
     local readyCheckSize = tonumber(readyCheckConfig.size) or 16
     local readyCheckScale = tonumber(readyCheckConfig.scale) or 1

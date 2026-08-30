@@ -365,6 +365,16 @@ local ADD_OBJECT_BAR_CAPABILITIES = {
     { componentKey = "HealingAbsorbBar", labelKey = "EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON", fallback = "Healing Absorb" },
 }
 
+local ADD_OBJECT_VISUAL_CAPABILITIES = {
+    { componentKey = "Portrait", labelKey = "EDITOR_ADD_PORTRAIT_BUTTON", fallback = "Portrait" },
+    { componentKey = "RaidTargetIcon", labelKey = "EDITOR_ADD_RAID_TARGET_ICON_BUTTON", fallback = "Raid Target" },
+    { componentKey = "LeaderIcon", labelKey = "EDITOR_ADD_LEADER_ICON_BUTTON", fallback = "Leader" },
+    { componentKey = "RoleIcon", labelKey = "EDITOR_ADD_ROLE_ICON_BUTTON", fallback = "Role" },
+    { componentKey = "CombatIndicator", labelKey = "EDITOR_ADD_COMBAT_INDICATOR_BUTTON", fallback = "Combat" },
+    { componentKey = "RestingIndicator", labelKey = "EDITOR_ADD_RESTING_INDICATOR_BUTTON", fallback = "Resting" },
+    { componentKey = "ReadyCheckIndicator", labelKey = "EDITOR_ADD_READY_CHECK_INDICATOR_BUTTON", fallback = "Ready Check" },
+}
+
 local function CloseAddObjectPickerDialog()
     if addObjectPickerDialog and addObjectPickerDialog.Close then
         addObjectPickerDialog:Close()
@@ -374,26 +384,28 @@ local function CloseAddObjectPickerDialog()
     addObjectPickerDialog = nil
 end
 
-local function IsSingletonBarPresent(unitKey, componentKey)
+local function IsSingletonComponentPresent(unitKey, kind, componentKey)
     local unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
     local presence = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.Presence or nil
     if presence and type(presence.IsPresent) == "function" then
         return presence.IsPresent(unitConfig, {
-            kind = "bar",
+            kind = kind,
             unit = unitKey,
             objectKey = componentKey,
+            indicatorKey = kind == "indicator" and componentKey or nil,
         }) == true
     end
     return false
 end
 
-local function SelectSingletonBar(unitKey, componentKey)
+local function SelectSingletonComponent(unitKey, kind, componentKey)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
     if objectSelection and type(objectSelection.SelectObject) == "function" then
         objectSelection.SelectObject({
-            kind = "bar",
+            kind = kind,
             unit = unitKey,
             objectKey = componentKey,
+            indicatorKey = kind == "indicator" and componentKey or nil,
         })
     end
     if type(ns.RefreshUnitFrame) == "function" then
@@ -402,7 +414,7 @@ local function SelectSingletonBar(unitKey, componentKey)
     RequestEditorRefresh("CanvasToolbar.AddObject")
 end
 
-local function AddSingletonBar(unitKey, componentKey)
+local function AddSingletonComponent(unitKey, kind, componentKey)
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
     if not (mutations and type(mutations.SetComponentPresence) == "function") then
         if ns.Info then
@@ -419,7 +431,7 @@ local function AddSingletonBar(unitKey, componentKey)
         return
     end
 
-    SelectSingletonBar(unitKey, componentKey)
+    SelectSingletonComponent(unitKey, kind, componentKey)
 end
 
 local function AddPickerHeader(dialog, label)
@@ -468,9 +480,9 @@ local function OpenAddObjectPicker()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("ADD_OBJECT_TITLE", "Add Object"),
         description = T("ADD_OBJECT_DESCRIPTION", "Choose what to add to the selected unit frame."),
-        width = 380,
-        height = 402,
-        bodyHeight = 232,
+        width = 420,
+        height = 560,
+        bodyHeight = 390,
     }) or nil
     if not dialog then
         return
@@ -478,13 +490,28 @@ local function OpenAddObjectPicker()
 
     local hasBarsHeader = false
     for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
-        if not IsSingletonBarPresent(unitKey, item.componentKey) then
+        if not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
             if not hasBarsHeader then
                 AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_BARS", "Bars"))
                 hasBarsHeader = true
             end
             AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
-                AddSingletonBar(unitKey, item.componentKey)
+                AddSingletonComponent(unitKey, "bar", item.componentKey)
+            end)
+        end
+    end
+
+    local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
+    local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
+    local hasVisualsHeader = false
+    for _, item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
+        if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then
+            if not hasVisualsHeader then
+                AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_VISUALS", "Visuals"))
+                hasVisualsHeader = true
+            end
+            AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
+                AddSingletonComponent(unitKey, "indicator", item.componentKey)
             end)
         end
     end

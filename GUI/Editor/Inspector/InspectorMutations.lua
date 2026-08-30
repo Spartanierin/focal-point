@@ -99,6 +99,16 @@ local COMPONENT_PRESENCE_FIELDS = {
     HealingAbsorbBar = "healingAbsorbBarPresent",
 }
 
+local TABLE_COMPONENT_PRESENCE_KEYS = {
+    Portrait = true,
+    RaidTargetIcon = true,
+    LeaderIcon = true,
+    RoleIcon = true,
+    CombatIndicator = true,
+    RestingIndicator = true,
+    ReadyCheckIndicator = true,
+}
+
 local function IsValidTextAnchorPoint(point)
     return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
 end
@@ -333,14 +343,23 @@ function InspectorMutations.SetComponentPresence(context, componentKey, present)
         return Result(false, { errorCode = "invalid_context" })
     end
 
+    local unitConfig = GetUnitConfig(context)
     local presentField = COMPONENT_PRESENCE_FIELDS[componentKey]
-    if not presentField then
+    if presentField then
+        local result = SetField(unitConfig, presentField, present == true, "unit_config_not_found")
+        result.componentKey = componentKey
+        result.presentField = presentField
+        return result
+    end
+
+    if not TABLE_COMPONENT_PRESENCE_KEYS[componentKey] then
         return Result(false, { errorCode = "unsupported_component" })
     end
 
-    local result = SetField(GetUnitConfig(context), presentField, present == true, "unit_config_not_found")
+    local componentConfig = type(unitConfig) == "table" and unitConfig[componentKey] or nil
+    local result = SetField(componentConfig, "present", present == true, "component_config_not_found")
     result.componentKey = componentKey
-    result.presentField = presentField
+    result.presentField = "present"
     return result
 end
 

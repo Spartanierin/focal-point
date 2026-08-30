@@ -11,6 +11,8 @@ local State = FocalPoint.UnitFrameState or {}
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local IsPreviewIndicatorVisible = Preview.IsIndicatorVisible
 local HandleVisibilityTransition = Indicators.HandleVisibilityTransition
+local HideIndicatorVisual = Indicators.HideIndicatorVisual
+local ShouldRunPresenceGatedIndicator = Indicators.ShouldRunPresenceGatedIndicator
 
 -- Ready check runtime keeps ready-check state evaluation and event wiring
 -- isolated from the rest of the indicator logic.
@@ -24,6 +26,13 @@ function ReadyCheck.Update(owner, frame)
     local icon = holder.Texture or holder
     local config = frame.config
     local readyCheckConfig = config and config.ReadyCheckIndicator or nil
+
+    if ShouldRunPresenceGatedIndicator and not ShouldRunPresenceGatedIndicator(frame, "ReadyCheckIndicator") then
+        if HideIndicatorVisual then
+            HideIndicatorVisual(holder)
+        end
+        return
+    end
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("indicators", { frame = frame }) == false then
         HandleVisibilityTransition(owner, frame, holder, false, "_readyCheckLayoutRefreshQueued")

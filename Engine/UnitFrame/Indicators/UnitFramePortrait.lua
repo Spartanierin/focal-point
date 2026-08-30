@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFramePortrait = FocalPoint.UnitFramePortrait or {}
 local Portrait = FocalPoint.UnitFramePortrait
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 local State = FocalPoint.UnitFrameState or {}
 
 -- Portrait helpers encapsulate creation, texture refresh, and portrait-specific
@@ -42,8 +43,15 @@ function Portrait.UpdateTexture(frame)
         return
     end
 
-    if not portraitConfig or portraitConfig.enabled == false then
+    if RuntimeActivity.ShouldRunTableComponent and not RuntimeActivity.ShouldRunTableComponent(frame, "Portrait") then
         texture:SetTexture(nil)
+        texture:Hide()
+        return
+    end
+
+    if not portraitConfig or portraitConfig.present ~= true or portraitConfig.enabled == false then
+        texture:SetTexture(nil)
+        texture:Hide()
         return
     end
 
@@ -151,6 +159,7 @@ function Portrait.ApplyLayout(owner, frame, options)
     else
         if portrait.Texture then
             portrait.Texture:SetTexture(nil)
+            portrait.Texture:Hide()
         end
         portrait:Hide()
     end
