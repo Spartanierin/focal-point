@@ -16,22 +16,19 @@ local TOOLBAR_HEIGHT = 34
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
 local INSERT_LABEL_X = 12
-local INSERT_TEXT_X = 58
-local INSERT_TEXT_WIDTH = 62
-local INSERT_DECORATION_X = 124
-local INSERT_DECORATION_WIDTH = 94
-local INSERT_INDICATOR_X = 222
-local INSERT_INDICATOR_WIDTH = 86
-local LAYOUT_LABEL_X = 322
-local LAYOUT_DROPDOWN_X = 368
+local INSERT_ADD_OBJECT_X = 58
+local INSERT_ADD_OBJECT_WIDTH = 142
+local LAYOUT_LABEL_X = 224
+local LAYOUT_DROPDOWN_X = 270
 local LAYOUT_DROPDOWN_WIDTH = 156
-local LAYOUT_ADD_X = 528
+local LAYOUT_ADD_X = 430
 local LAYOUT_ADD_WIDTH = 30
-local LAYOUT_ACTIVATE_X = 566
+local LAYOUT_ACTIVATE_X = 468
 local LAYOUT_ACTIVATE_WIDTH = 76
 
 local context
 local newLayoutDialog
+local addObjectPickerDialog
 local indicatorPickerDialog
 
 local function T(key, fallback)
@@ -361,6 +358,158 @@ local function InsertDecoration()
     RefreshDecorationInsertResult(unitKey, result.newDecorationId)
 end
 
+local ADD_OBJECT_BAR_CAPABILITIES = {
+    { componentKey = "PowerBar", labelKey = "EDITOR_ADD_POWER_BAR_BUTTON", fallback = "Power Bar" },
+    { componentKey = "CastBar", labelKey = "EDITOR_ADD_CAST_BAR_BUTTON", fallback = "Cast Bar" },
+    { componentKey = "NormalAbsorbBar", labelKey = "EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON", fallback = "Normal Absorb" },
+    { componentKey = "HealingAbsorbBar", labelKey = "EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON", fallback = "Healing Absorb" },
+}
+
+local function CloseAddObjectPickerDialog()
+    if addObjectPickerDialog and addObjectPickerDialog.Close then
+        addObjectPickerDialog:Close()
+    elseif addObjectPickerDialog and addObjectPickerDialog.window and addObjectPickerDialog.window.Hide then
+        addObjectPickerDialog.window:Hide()
+    end
+    addObjectPickerDialog = nil
+end
+
+local function IsSingletonBarPresent(unitKey, componentKey)
+    local unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
+    local presence = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.Presence or nil
+    if presence and type(presence.IsPresent) == "function" then
+        return presence.IsPresent(unitConfig, {
+            kind = "bar",
+            unit = unitKey,
+            objectKey = componentKey,
+        }) == true
+    end
+    return false
+end
+
+local function SelectSingletonBar(unitKey, componentKey)
+    local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectObject) == "function" then
+        objectSelection.SelectObject({
+            kind = "bar",
+            unit = unitKey,
+            objectKey = componentKey,
+        })
+    end
+    if type(ns.RefreshUnitFrame) == "function" then
+        ns:RefreshUnitFrame(unitKey)
+    end
+    RequestEditorRefresh("CanvasToolbar.AddObject")
+end
+
+local function AddSingletonBar(unitKey, componentKey)
+    local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
+    if not (mutations and type(mutations.SetComponentPresence) == "function") then
+        if ns.Info then
+            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
+        end
+        return
+    end
+
+    local result = mutations.SetComponentPresence(BuildDecorationMutationContext(unitKey), componentKey, true)
+    if not (result and result.ok ~= false) then
+        if ns.Info then
+            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
+        end
+        return
+    end
+
+    SelectSingletonBar(unitKey, componentKey)
+end
+
+local function AddPickerHeader(dialog, label)
+    local header = FormWidgets and FormWidgets.CreateSectionTitle and FormWidgets.CreateSectionTitle(label, 12) or AceGUI:Create("Label")
+    header:SetText(label)
+    header:SetFullWidth(true)
+    dialog.body:AddChild(header)
+end
+
+local function AddPickerButton(dialog, label, callback)
+    local buttonWidth = (tonumber(dialog and dialog.contentWidth) or 340) - 18
+    local button = FormWidgets and FormWidgets.CreateActionButton
+        and FormWidgets.CreateActionButton(label, "secondary", buttonWidth, false)
+        or AceGUI:Create("Button")
+    button:SetText(label)
+    button:SetFullWidth(true)
+    button:SetCallback("OnClick", function()
+        CloseAddObjectPickerDialog()
+        callback()
+    end)
+    if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(button, "secondary")
+    end
+    dialog.body:AddChild(button)
+end
+
+local function OpenTextTemplateLibrary()
+    local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
+    if libraryWindow and libraryWindow.Open then
+        libraryWindow.Open()
+    elseif ns.Info then
+        ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
+    end
+end
+
+local function OpenAddObjectPicker()
+    local unitKey = ResolveSelectedObjectUnit()
+    if type(unitKey) ~= "string" or unitKey == "" then
+        if ns.Info then
+            ns:Info(T("ADD_OBJECT_STATUS_SELECT_UNIT", "Select a unit first."))
+        end
+        return
+    end
+
+    CloseAddObjectPickerDialog()
+    local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+        title = T("ADD_OBJECT_TITLE", "Add Object"),
+        description = T("ADD_OBJECT_DESCRIPTION", "Choose what to add to the selected unit frame."),
+        width = 380,
+        height = 402,
+        bodyHeight = 232,
+    }) or nil
+    if not dialog then
+        return
+    end
+
+    local hasBarsHeader = false
+    for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
+        if not IsSingletonBarPresent(unitKey, item.componentKey) then
+            if not hasBarsHeader then
+                AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_BARS", "Bars"))
+                hasBarsHeader = true
+            end
+            AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
+                AddSingletonBar(unitKey, item.componentKey)
+            end)
+        end
+    end
+
+    AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_CONTENT", "Content"))
+    AddPickerButton(dialog, T("ADD_OBJECT_TEXT_BUTTON", "Text"), OpenTextTemplateLibrary)
+    AddPickerButton(dialog, T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), InsertDecoration)
+
+    dialog:SetActions({
+        secondary = {
+            text = T("INFO_COMMON_CANCEL", "Cancel"),
+            role = "utility",
+            width = 110,
+            onClick = CloseAddObjectPickerDialog,
+        },
+    })
+    dialog.window:SetCallback("OnClose", function()
+        if addObjectPickerDialog == dialog then
+            addObjectPickerDialog = nil
+        end
+    end)
+    addObjectPickerDialog = dialog
+    dialog:Show()
+end
+
 local function CloseIndicatorPickerDialog()
     if indicatorPickerDialog and indicatorPickerDialog.Close then
         indicatorPickerDialog:Close()
@@ -671,25 +820,15 @@ local function EnsureHost()
     host.inset = inset
 
     local widgets = {
-        insertTextButton = CreateButton(T("INSERT_TEXT_BUTTON", "Text"), INSERT_TEXT_WIDTH),
-        insertDecorationButton = CreateButton(T("INSERT_DECORATION_BUTTON", "Decoration"), INSERT_DECORATION_WIDTH),
-        insertIndicatorButton = CreateButton(T("INSERT_INDICATOR_BUTTON", "Indicator"), INSERT_INDICATOR_WIDTH),
+        addObjectButton = CreateButton(T("ADD_OBJECT_BUTTON", "+ Add Object"), INSERT_ADD_OBJECT_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
     }
 
-    AnchorButton(widgets.insertTextButton, host, {
-        x = INSERT_TEXT_X,
-        width = INSERT_TEXT_WIDTH,
-    })
-    AnchorButton(widgets.insertDecorationButton, host, {
-        x = INSERT_DECORATION_X,
-        width = INSERT_DECORATION_WIDTH,
-    })
-    AnchorButton(widgets.insertIndicatorButton, host, {
-        x = INSERT_INDICATOR_X,
-        width = INSERT_INDICATOR_WIDTH,
+    AnchorButton(widgets.addObjectButton, host, {
+        x = INSERT_ADD_OBJECT_X,
+        width = INSERT_ADD_OBJECT_WIDTH,
     })
     AnchorWidget(widgets.layoutDropdown, host, {
         x = LAYOUT_DROPDOWN_X,
@@ -706,9 +845,7 @@ local function EnsureHost()
         width = LAYOUT_ADD_WIDTH,
     })
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
-        FormWidgets.SetInspectorButtonTooltip(widgets.insertTextButton, T("INSERT_TEXT_TOOLTIP", "Add Text"))
-        FormWidgets.SetInspectorButtonTooltip(widgets.insertDecorationButton, T("INSERT_DECORATION_TOOLTIP", "Add Decoration"))
-        FormWidgets.SetInspectorButtonTooltip(widgets.insertIndicatorButton, T("INSERT_INDICATOR_TOOLTIP", "Add Indicator"))
+        FormWidgets.SetInspectorButtonTooltip(widgets.addObjectButton, T("ADD_OBJECT_TOOLTIP", "Add Object"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
     end
 
@@ -741,22 +878,8 @@ local function EnsureHost()
     }
 
     if ToolbarBinding then
-        if widgets.insertTextButton then
-            widgets.insertTextButton:SetCallback("OnClick", function()
-                local libraryWindow = ns.GUI
-                    and ns.GUI.Editor
-                    and ns.GUI.Editor.TextTemplateLibraryWindow
-                    or nil
-                if libraryWindow and libraryWindow.Open then
-                    libraryWindow.Open()
-                end
-            end)
-        end
-        if widgets.insertDecorationButton then
-            widgets.insertDecorationButton:SetCallback("OnClick", InsertDecoration)
-        end
-        if widgets.insertIndicatorButton then
-            widgets.insertIndicatorButton:SetCallback("OnClick", OpenIndicatorPicker)
+        if widgets.addObjectButton then
+            widgets.addObjectButton:SetCallback("OnClick", OpenAddObjectPicker)
         end
         if widgets.layoutDropdown then
             widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)
