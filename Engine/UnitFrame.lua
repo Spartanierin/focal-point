@@ -125,7 +125,7 @@ local function BuildStatusBarMediaContext(frame, field, referenceSourceField)
     end
 
     return {
-        unitKey = type(frame) == "table" and type(frame.unit) == "string" and frame.unit or "unknown",
+        unitKey = type(frame) == "table" and type(frame._fpUnit) == "string" and frame._fpUnit or "unknown",
         field = field,
         referenceSourceField = referenceSourceField,
     }
@@ -353,7 +353,7 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     end
 
     state.totalMismatches = (tonumber(state.totalMismatches) or 0) + 1
-    BumpAlphaCounter(state.mismatchesByUnit, frame and frame.unit or "unknown")
+    BumpAlphaCounter(state.mismatchesByUnit, frame and frame._fpUnit or "unknown")
     BumpAlphaCounter(state.mismatchesByCallsite, callsite)
     BumpAlphaCounter(state.mismatchesByReason, reason)
     for _, mismatch in ipairs(mismatches) do
@@ -361,7 +361,7 @@ local function RecordRootAlphaRangeFadeShadow(frame, legacy, decision)
     end
 
     local detail = {
-        unit = frame and frame.unit or nil,
+        unit = frame and frame._fpUnit or nil,
         callsite = callsite,
         legacyReason = reason,
         decisionSource = decision.winningSource,
@@ -445,7 +445,7 @@ local function IsLaterOverriddenByPlaceholder(frame)
 end
 
 local function ResolveRootAlphaRangeFadeMissing(frame)
-    local config = frame and (frame.config or GetUnitDB(frame.unit)) or nil
+    local config = frame and (frame.config or GetUnitDB(frame._fpUnit)) or nil
     local configAlpha = (config and config.alpha) or 1
     local legacy = {
         writesImmediately = true,
@@ -852,7 +852,7 @@ function UF:ApplyTextEditPresentation(frame)
     end
 
     if not shouldShow or shouldShow("distanceRange", { frame = frame }) == false then
-        local config = frame.config or GetUnitDB(frame.unit)
+        local config = frame.config or GetUnitDB(frame._fpUnit)
         local alpha = (config and config.alpha) or 1
         frame._rangeCurrentAlpha = alpha
         frame._rangeTargetAlpha = alpha
@@ -912,9 +912,9 @@ function UF:ApplyConfig(frame)
     local classPowerBarRelativePoint = config.classPowerBarRelativePoint or "BOTTOMRIGHT"
     local classPowerBarOffsetX = tonumber(config.classPowerBarOffsetX) or -5
     local classPowerBarOffsetY = tonumber(config.classPowerBarOffsetY) or 5
-    local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetSecondaryPowerValues(frame.unit)
+    local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetSecondaryPowerValues(frame._fpUnit)
     local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil
-    local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame.unit) or nil
+    local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame._fpUnit) or nil
     local classPowerBarVisible = showClassPowerBar and liveClassPowerInfo ~= nil
     local borderInset = 1
 
@@ -1090,7 +1090,7 @@ function UF:ApplyConfig(frame)
     end
 
     if config.useClassColorPower then
-        local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame.unit)
+        local resourceR, resourceG, resourceB, resourceA = GetPowerColorForUnit(frame._fpUnit)
         if resourceR and resourceG and resourceB then
             powerR, powerG, powerB = resourceR, resourceG, resourceB
         end
@@ -1104,11 +1104,11 @@ function UF:ApplyConfig(frame)
     local bottomExtensionHeight = alternativePowerBarVisible and alternativePowerBarHeight or 0
 
     if healthBarReverseFill == nil then
-        healthBarReverseFill = frame.unit == "target"
+        healthBarReverseFill = frame._fpUnit == "target"
     end
 
     if powerBarReverseFill == nil then
-        powerBarReverseFill = frame.unit == "target"
+        powerBarReverseFill = frame._fpUnit == "target"
     end
 
     if alternativePowerBarReverseFill == nil then
@@ -1116,32 +1116,32 @@ function UF:ApplyConfig(frame)
     end
 
     local layoutAlpha = alpha
-    if frame.unit == "target"
+    if frame._fpUnit == "target"
         and not IsPreviewModeEnabled()
         and UnitExists
         and not UnitExists("target")
     then
         layoutAlpha = 0
     end
-    if frame.unit == "targettarget"
+    if frame._fpUnit == "targettarget"
         and not IsPreviewModeEnabled()
         and UnitExists
         and not UnitExists("targettarget")
     then
         layoutAlpha = 0
     end
-    if frame.unit == "focustarget"
+    if frame._fpUnit == "focustarget"
         and not IsPreviewModeEnabled()
         and UnitExists
         and not UnitExists("focustarget")
     then
         layoutAlpha = 0
     end
-    if type(frame.unit) == "string"
-        and frame.unit:match("^boss%d+$")
+    if type(frame._fpUnit) == "string"
+        and frame._fpUnit:match("^boss%d+$")
         and not IsPreviewModeEnabled()
         and UnitExists
-        and not UnitExists(frame.unit)
+        and not UnitExists(frame._fpUnit)
     then
         layoutAlpha = 0
     end
@@ -1624,7 +1624,7 @@ function UF:ApplyRangeFade(frame)
     end
 
     if Preview.ShouldShowComponent and Preview.ShouldShowComponent("distanceRange", { frame = frame }) == false then
-        local config = frame.config or GetUnitDB(frame.unit)
+        local config = frame.config or GetUnitDB(frame._fpUnit)
         local alpha = (config and config.alpha) or 1
         frame._rangeCurrentAlpha = alpha
         frame._rangeTargetAlpha = alpha
@@ -1635,7 +1635,7 @@ function UF:ApplyRangeFade(frame)
         return
     end
 
-    if frame.unit == "target"
+    if frame._fpUnit == "target"
         and not IsPreviewModeEnabled()
         and UnitExists
         and not UnitExists("target")
@@ -1651,7 +1651,7 @@ function UF:ApplyRangeFade(frame)
         return
     end
 
-    if frame.unit == "targettarget"
+    if frame._fpUnit == "targettarget"
         and not IsPreviewModeEnabled()
         and UnitExists
         and not UnitExists("targettarget")
@@ -1667,7 +1667,7 @@ function UF:ApplyRangeFade(frame)
         return
     end
 
-    if frame.unit == "focustarget"
+    if frame._fpUnit == "focustarget"
         and not IsPreviewModeEnabled()
         and UnitExists
         and not UnitExists("focustarget")
@@ -1683,11 +1683,11 @@ function UF:ApplyRangeFade(frame)
         return
     end
 
-    if type(frame.unit) == "string"
-        and frame.unit:match("^boss%d+$")
+    if type(frame._fpUnit) == "string"
+        and frame._fpUnit:match("^boss%d+$")
         and not IsPreviewModeEnabled()
         and UnitExists
-        and not UnitExists(frame.unit)
+        and not UnitExists(frame._fpUnit)
     then
         frame._rangeCurrentAlpha = 0
         frame._rangeTargetAlpha = 0
@@ -1700,13 +1700,13 @@ function UF:ApplyRangeFade(frame)
         return
     end
 
-    local config = frame.config or GetUnitDB(frame.unit)
+    local config = frame.config or GetUnitDB(frame._fpUnit)
     local baseAlpha = (config and config.alpha) or 1
     local rangeMultiplier = GetRangeFadeMultiplier(frame)
     local targetAlpha = baseAlpha * rangeMultiplier
     local laterOverriddenByPlaceholder = IsLaterOverriddenByPlaceholder(frame)
 
-    if frame.unit ~= "target" or not frame:IsShown() then
+    if frame._fpUnit ~= "target" or not frame:IsShown() then
         frame._rangeCurrentAlpha = targetAlpha
         frame._rangeTargetAlpha = targetAlpha
         local legacy = {
@@ -1818,12 +1818,12 @@ function UF:ApplyTestValues(frame)
 
     if IsPreviewModeEnabled()
         and frame
-        and frame.unit == "player"
+        and frame._fpUnit == "player"
         and frame.config
         and frame.config.showAlternativePowerBar
         and frame.Elements
         and frame.Elements.AlternativePowerBar
-        and GetSecondaryPowerTypeForUnit(frame.unit) ~= nil
+        and GetSecondaryPowerTypeForUnit(frame._fpUnit) ~= nil
     then
         local previewValues = self:GetTestPreviewValues(frame) or {}
         local minAltPower = previewValues.altPowerMin or 0
@@ -1841,7 +1841,7 @@ function UF:ApplyTestValues(frame)
 
         frame.LiveValues = frame.LiveValues or {}
         frame.LiveValues.altPowerVisible = true
-        frame.LiveValues.altPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
+        frame.LiveValues.altPowerType = GetSecondaryPowerTypeForUnit(frame._fpUnit)
         frame.LiveValues.altPowerMinRaw = minAltPower
         frame.LiveValues.altPowerCurrentRaw = currentAltPower
         frame.LiveValues.altPowerMaxRaw = maxAltPower
@@ -1969,7 +1969,7 @@ function UF:Refresh(frame, refreshRequest)
         return
     end
 
-    local config = GetUnitDB(frame.unit)
+    local config = GetUnitDB(frame._fpUnit)
     if not config then
         return
     end
@@ -2089,8 +2089,8 @@ function UF:Refresh(frame, refreshRequest)
 
     ApplyRefreshFlow(self, frame, config, refreshRequest)
 
-    if StateRuntime.Guard and frame.unit ~= "player" and not IsPreviewModeEnabled() then
-        local shouldExist = DoesUnitSeemPresent and DoesUnitSeemPresent(frame.unit)
+    if StateRuntime.Guard and frame._fpUnit ~= "player" and not IsPreviewModeEnabled() then
+        local shouldExist = DoesUnitSeemPresent and DoesUnitSeemPresent(frame._fpUnit)
         local shown = frame.IsShown and frame:IsShown() or false
         StateRuntime.Guard(frame, "visible_missing_unit", not (shown and not shouldExist), "frame visible while unit seems absent")
     end

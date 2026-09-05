@@ -61,7 +61,7 @@ local function NormalizeUnitKey(unit)
 end
 
 local function GetUnitConfig(frame)
-    local unitKey = frame and NormalizeUnitKey(frame.unit) or nil
+    local unitKey = frame and NormalizeUnitKey(frame._fpUnit) or nil
     if type(unitKey) ~= "string" or unitKey == "" then
         return nil, nil
     end
@@ -95,7 +95,7 @@ local function GetSelectedEditorObject()
 end
 
 local function IsPrimaryEditorFrame(frame)
-    if not frame or type(frame.unit) ~= "string" then
+    if not frame or type(frame._fpUnit) ~= "string" then
         return false
     end
 
@@ -107,10 +107,10 @@ local function IsPrimaryEditorFrame(frame)
     end
 
     if primaryUnit == "boss" then
-        return frame.unit:match("^boss%d+$") ~= nil
+        return frame._fpUnit:match("^boss%d+$") ~= nil
     end
 
-    return NormalizeUnitKey(frame.unit) == primaryUnit
+    return NormalizeUnitKey(frame._fpUnit) == primaryUnit
 end
 
 local function IsSelectedUnitRoot(frame)
@@ -167,11 +167,11 @@ local function SelectUnitRootObject(unitKey)
 end
 
 local function SelectFrameForResize(frame)
-    if not frame or type(frame.unit) ~= "string" then
+    if not frame or type(frame._fpUnit) ~= "string" then
         return
     end
 
-    local unitKey = NormalizeUnitKey(frame.unit)
+    local unitKey = NormalizeUnitKey(frame._fpUnit)
     if SelectUnitRootObject(unitKey) then
         return
     end
@@ -228,12 +228,12 @@ local function GetFrameCenterOffsets(frame)
 end
 
 local function GetBossStackOffset(frame, unitConfig)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return 0
     end
 
     local utils = FocalPoint.UnitFrameUtils
-    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame.unit)
+    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame._fpUnit)
     if not bossIndex or bossIndex <= 1 then
         return 0
     end

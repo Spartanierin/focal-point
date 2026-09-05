@@ -30,8 +30,8 @@ local function GetUnitConfig(frame)
     if frame and type(frame.config) == "table" then
         return frame.config
     end
-    if frame and frame.unit and Utils.GetUnitDB then
-        return Utils.GetUnitDB(frame.unit)
+    if frame and frame._fpUnit and Utils.GetUnitDB then
+        return Utils.GetUnitDB(frame._fpUnit)
     end
     return nil
 end
@@ -113,7 +113,7 @@ local function CopyValues(source, target)
 end
 
 function Policy.GetSimulationValues(frame, state)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return nil
     end
 
@@ -124,7 +124,7 @@ function Policy.GetSimulationValues(frame, state)
     if state == "editor-simulated" then
         local values = {}
         if Demo.GetDetailedValuesForUnit then
-            CopyValues(Demo.GetDetailedValuesForUnit(frame.unit), values)
+            CopyValues(Demo.GetDetailedValuesForUnit(frame._fpUnit), values)
         end
         if Demo.GetUnitValues then
             CopyValues(Demo.GetUnitValues(frame, "placeholder"), values)
@@ -136,5 +136,5 @@ function Policy.GetSimulationValues(frame, state)
 end
 
 function Policy.DoesUnitHaveLiveContext(frame)
-    return frame and frame.unit and Presence.DoesUnitSeemPresent and Presence.DoesUnitSeemPresent(frame.unit) == true or false
+    return frame and frame._fpUnit and Presence.DoesUnitSeemPresent and Presence.DoesUnitSeemPresent(frame._fpUnit) == true or false
 end

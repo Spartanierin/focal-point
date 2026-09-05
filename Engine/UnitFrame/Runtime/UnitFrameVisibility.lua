@@ -246,7 +246,7 @@ local TARGET_ROOT_PREARM_REASONS = {
 }
 
 local function ShouldPrearmTargetRoot(frame, options)
-    if not (frame and frame.unit == "target") then
+    if not (frame and frame._fpUnit == "target") then
         return false
     end
     local reason = type(options) == "table" and options.reason or nil
@@ -275,7 +275,7 @@ local function HideFrameIfSafe(frame, options)
     if not (frame and frame.Hide) then
         return false
     end
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         local prearmed = PrearmTargetRootIfSafe(frame, options)
         if Visibility.RecordBlockedRootIntent then
             Visibility.RecordBlockedRootIntent(frame, {
@@ -283,7 +283,7 @@ local function HideFrameIfSafe(frame, options)
                 source = "hide-if-safe",
                 reason = "target-hide-suppressed",
                 mode = "live",
-                exists = UnitExists and UnitExists(frame.unit) or false,
+                exists = UnitExists and UnitExists(frame._fpUnit) or false,
                 shown = frame.IsShown and frame:IsShown() or false,
                 alpha = frame.GetAlpha and frame:GetAlpha() or nil,
                 protected = frame.IsProtected and frame:IsProtected() or false,
@@ -301,7 +301,7 @@ local function HideFrameIfSafe(frame, options)
                 source = "hide-if-safe",
                 reason = "hide-protected-combat",
                 mode = "live",
-                exists = UnitExists and UnitExists(frame.unit) or false,
+                exists = UnitExists and UnitExists(frame._fpUnit) or false,
                 shown = frame.IsShown and frame:IsShown() or false,
                 alpha = frame.GetAlpha and frame:GetAlpha() or nil,
                 protected = true,
@@ -348,7 +348,7 @@ local function ResolveEditorSelectedUnit()
 end
 
 local function IsSelectedEditorFrame(frame)
-    if not frame or type(frame.unit) ~= "string" then
+    if not frame or type(frame._fpUnit) ~= "string" then
         return false
     end
 
@@ -358,14 +358,14 @@ local function IsSelectedEditorFrame(frame)
     end
 
     if selectedUnit == "boss" then
-        return frame.unit:match("^boss%d+$") ~= nil
+        return frame._fpUnit:match("^boss%d+$") ~= nil
     end
 
-    return frame.unit == selectedUnit
+    return frame._fpUnit == selectedUnit
 end
 
 local function IsEditorLiveUnitPresent(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if unit == "player" then
         return true
     end
@@ -376,7 +376,7 @@ local function IsEditorLiveUnitPresent(frame)
 end
 
 local function ResolveModeReadOnly(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return "live", "live-invalid-frame"
     end
 
@@ -403,7 +403,7 @@ end
 function Visibility.ResolveRootDecision(frame, reason, options)
     options = type(options) == "table" and options or {}
 
-    local unit = frame and frame.unit or nil
+    local unit = frame and frame._fpUnit or nil
     local protectedRoot = frame
         and frame.IsProtected
         and frame:IsProtected()
@@ -583,7 +583,7 @@ end
 function Visibility.ResolveRootShowDecision(frame, options)
     options = type(options) == "table" and options or {}
 
-    local unit = frame and frame.unit or nil
+    local unit = frame and frame._fpUnit or nil
     local config = type(options.config) == "table" and options.config or frame and frame.config or nil
     local configEnabled = nil
     if config ~= nil then
@@ -817,7 +817,7 @@ local function ResolveRangeMultiplier(frame, options)
 end
 
 local function IsMissingUnitAlphaGuardActive(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if IsPreviewModeEnabled and IsPreviewModeEnabled() then
         return false
     end
@@ -892,7 +892,7 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
         if missingUnitAlphaGuard then
             overrideAlpha = 0
             winningSource = "range-missing-unit"
-        elseif frame and frame.unit == "target" and frame.IsShown and frame:IsShown() and rangeDriverActive then
+        elseif frame and frame._fpUnit == "target" and frame.IsShown and frame:IsShown() and rangeDriverActive then
             writesImmediately = false
             requiresRangeContext = true
             winningSource = "range-fade-target"
@@ -982,7 +982,7 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
         reason = reason,
         winningSource = winningSource,
         visibilityReason = reason,
-        unit = rootDecision and rootDecision.unit or frame and frame.unit or nil,
+        unit = rootDecision and rootDecision.unit or frame and frame._fpUnit or nil,
         unitPresent = rootDecision and rootDecision.unitPresent == true or false,
         mode = rootDecision and rootDecision.mode or "live",
         modeReason = rootDecision and rootDecision.modeReason or nil,
@@ -1017,7 +1017,7 @@ local function WouldHideRoot(frame)
     if not (frame and frame.Hide) then
         return false
     end
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         return false
     end
     if IsProtectedFrameInCombat(frame) then
@@ -1027,7 +1027,7 @@ local function WouldHideRoot(frame)
 end
 
 local function ResolveLegacyMissingUnitOutcome(frame)
-    local unit = frame and frame.unit or nil
+    local unit = frame and frame._fpUnit or nil
     local protectedRoot = frame
         and frame.IsProtected
         and frame:IsProtected()
@@ -1165,7 +1165,7 @@ local function ResolveUnitLostClearAction(frame, reason, context)
         return "content-only"
     end
 
-    local unit = context.unit or frame and frame.unit
+    local unit = context.unit or frame and frame._fpUnit
     local protectedRoot
     if type(context.protectedRoot) == "boolean" then
         protectedRoot = context.protectedRoot
@@ -1208,7 +1208,7 @@ local function BuildMissingUnitActionPlan(frame, rootDecision, branchReason, opt
         and rootDecision
         or Visibility.ResolveRootDecision(frame, options.visibilityReason or "root-action-plan", options.visibilityOptions)
 
-    local unit = rootDecision and rootDecision.unit or frame and frame.unit or nil
+    local unit = rootDecision and rootDecision.unit or frame and frame._fpUnit or nil
     local protectedRoot = rootDecision and rootDecision.protectedRoot == true or false
     local inCombat = rootDecision and rootDecision.inCombat == true or false
     local protectedInCombat = protectedRoot and inCombat
@@ -1312,11 +1312,11 @@ function Visibility.ResolveRootActionPlan(frame, options)
     end
 
     local shouldHideForMissingUnit = not decision.previewEnabled
-        and frame.unit ~= "player"
+        and frame._fpUnit ~= "player"
         and not decision.unitPresent
 
     if shouldHideForMissingUnit then
-        if frame.unit == "target" then
+        if frame._fpUnit == "target" then
             plan.alphaAction = "zero"
         end
         if not plan.protectedInCombat then
@@ -1365,7 +1365,7 @@ function Visibility.ResolveRootActionPlan(frame, options)
         return plan
     end
 
-    if shouldHideForMissingUnit and frame.unit == "target" then
+    if shouldHideForMissingUnit and frame._fpUnit == "target" then
         local now = tonumber(options.now) or (GetTime and GetTime() or 0)
         local missingSince = tonumber(options.missingSince or frame._missingUnitSince) or now
         local elapsedMissing = now - missingSince
@@ -1638,7 +1638,7 @@ function Visibility.RecordCombatTransition(frame, event, stage, values)
     end
 
     values = type(values) == "table" and values or {}
-    local unit = values.unit or frame and frame.unit or nil
+    local unit = values.unit or frame and frame._fpUnit or nil
     if not IsCombatTransitionUnit(unit) then
         return nil
     end
@@ -1657,7 +1657,7 @@ function Visibility.RecordCombatTransition(frame, event, stage, values)
         event = event,
         stage = stage or "unknown",
         unit = unit,
-        frameUnit = frame and frame.unit or nil,
+        frameUnit = frame and frame._fpUnit or nil,
         UnitExists = ResolveTraceUnitExists(unit),
         frameExists = frame ~= nil,
         shown = ResolveTraceFrameShown(frame),
@@ -1739,13 +1739,13 @@ local function SafeFrameAlpha(frame)
 end
 
 local function IsActiveRuntimeFrame(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local frames = FocalPoint and FocalPoint.frames or nil
     return type(frames) == "table" and type(unit) == "string" and frames[unit] == frame
 end
 
 local function IsPooledFrame(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local pool = FocalPoint and FocalPoint.framePool or nil
     return type(pool) == "table" and type(unit) == "string" and pool[unit] == frame
 end
@@ -1832,7 +1832,7 @@ end
 
 local function BuildInvariantResult(frame, context)
     context = type(context) == "table" and context or {}
-    local unit = frame and frame.unit or nil
+    local unit = frame and frame._fpUnit or nil
     local config = type(context.config) == "table" and context.config or frame and frame.config or nil
     local mode, modeReason = ResolveInvariantMode(frame, context)
     local configEnabled = type(config) ~= "table" or config.enabled ~= false
@@ -2158,7 +2158,7 @@ end
 
 local function ResolveBlockedIntentFrameState(frame, context)
     context = type(context) == "table" and context or {}
-    local unit = context.unit or frame and frame.unit or nil
+    local unit = context.unit or frame and frame._fpUnit or nil
     local mode, modeReason = ResolveInvariantMode(frame, context)
     local exists = SafeUnitExists(unit)
     local shown = SafeFrameShown(frame)
@@ -2404,7 +2404,7 @@ function Visibility.RecordBlockedRootIntent(frame, values)
     end
 
     values = type(values) == "table" and values or {}
-    local unit = values.unit or frame and frame.unit or nil
+    local unit = values.unit or frame and frame._fpUnit or nil
     if not IsEndStateInvariantUnit(unit) then
         return nil
     end
@@ -2500,7 +2500,7 @@ function Visibility.ReconcileBlockedRootIntents(frame, context)
         return
     end
 
-    local unit = frame and frame.unit or context and context.unit or nil
+    local unit = frame and frame._fpUnit or context and context.unit or nil
     if not IsEndStateInvariantUnit(unit) then
         return
     end
@@ -2642,7 +2642,7 @@ local function BuildLegacyRootActionTrace(frame, branch, values)
         stateAction = values.stateAction or "none",
         recoveryAction = values.recoveryAction or "none",
         shouldReturn = values.shouldReturn == true,
-        unit = values.unit or frame and frame.unit or nil,
+        unit = values.unit or frame and frame._fpUnit or nil,
         unitPresent = values.unitPresent == true,
         previewActive = values.previewActive == true,
         forceVisible = values.forceVisible == true,
@@ -3125,7 +3125,7 @@ function Visibility.RecordRootShowDecisionComparison(frame, legacy, decision)
 
     local state = EnsureRootActionDebugState(EnsureDecisionDebugState())
     local mismatches = CompareLegacyToRootShowDecision(legacy, decision)
-    local unit = tostring(legacy.unit or decision.unit or frame and frame.unit or "unknown")
+    local unit = tostring(legacy.unit or decision.unit or frame and frame._fpUnit or "unknown")
     local legacyBranch = tostring(legacy.branch or legacy.reason or "unknown")
     local legacyReason = NormalizeRootShowReason(legacy.reason or legacy.branch)
     local decisionReason = NormalizeRootShowReason(decision.reason)
@@ -3872,7 +3872,7 @@ function Visibility.BuildDecisionDebugReport()
 end
 
 local function QueueTargetRecoveryRefreshes(frame, reason)
-    if not frame or frame.unit ~= "target" or not State.QueueRefresh then
+    if not frame or frame._fpUnit ~= "target" or not State.QueueRefresh then
         return
     end
 
@@ -3893,7 +3893,7 @@ end
 local function IsPendingUnitWatchVisibilityRecovery(frame)
     local unitWatchPolicy = FocalPoint and FocalPoint.UnitFrameUnitWatchPolicy or nil
     return frame
-        and type(frame.unit) == "string"
+        and type(frame._fpUnit) == "string"
         and unitWatchPolicy
         and unitWatchPolicy.ShouldUse
         and unitWatchPolicy.ShouldUse(frame) == true
@@ -3904,7 +3904,7 @@ local function IsPendingUnitWatchVisibilityRecovery(frame)
 end
 
 ShouldTreatMissingTargetAsSuspicious = function(frame)
-    if not frame or frame.unit ~= "target" then
+    if not frame or frame._fpUnit ~= "target" then
         return false
     end
 
@@ -4298,11 +4298,11 @@ function Visibility.HandleMissingUnit(frame)
     local protectedFrame = decision.protectedRoot
     local protectedInCombat = decision.protectedRoot and decision.inCombat
     local shouldHideForMissingUnit = not decision.previewEnabled
-        and frame.unit ~= "player"
+        and frame._fpUnit ~= "player"
         and not decision.unitPresent
 
     if shouldHideForMissingUnit then
-        if frame.unit == "target" and frame.SetAlpha then
+        if frame._fpUnit == "target" and frame.SetAlpha then
             frame:SetAlpha(0)
         end
         if not protectedInCombat then
@@ -4352,11 +4352,11 @@ function Visibility.HandleMissingUnit(frame)
 
         local expected = {
             clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected", {
-                unit = frame.unit,
+                unit = frame._fpUnit,
                 protectedRoot = protectedFrame,
                 inCombat = decision.inCombat,
             }),
-            alphaAction = frame.unit == "target" and "zero" or "keep",
+            alphaAction = frame._fpUnit == "target" and "zero" or "keep",
             mouseAction = protectedInCombat and "keep" or "disable",
             rootAction = "hide-if-safe",
             stateAction = "unit-lost",
@@ -4402,7 +4402,7 @@ function Visibility.HandleMissingUnit(frame)
         })
         RecordRootActionTrace("missing_unit_protected", {
             clearAction = ResolveUnitLostClearAction(frame, "missing_unit_protected", rootActionPlan),
-            alphaAction = frame.unit == "target" and "zero" or "keep",
+            alphaAction = frame._fpUnit == "target" and "zero" or "keep",
             mouseAction = protectedInCombat and "keep" or "disable",
             rootAction = "hide-if-safe",
             stateAction = "unit-lost",
@@ -4420,10 +4420,10 @@ function Visibility.HandleMissingUnit(frame)
     if shouldHideForMissingUnit then
         frame._missingUnitSince = frame._missingUnitSince or (GetTime and GetTime() or 0)
 
-        if frame.unit == "target" then
+        if frame._fpUnit == "target" then
             local now = GetTime and GetTime() or 0
             local elapsedMissing = now - (frame._missingUnitSince or now)
-            local snapshot = GetTargetPresenceSnapshot(frame.unit)
+            local snapshot = GetTargetPresenceSnapshot(frame._fpUnit)
 
             if not IsMissingDebugSuppressed(frame) then
                 ForceDebugTarget(frame, string.format(
@@ -4581,21 +4581,21 @@ function Visibility.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("PET_BATTLE_OPENING_START")
     eventFrame:RegisterEvent("PET_BATTLE_CLOSE")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
-    if type(frame.unit) == "string" and frame.unit:match("^boss%d+$") then
+    if type(frame._fpUnit) == "string" and frame._fpUnit:match("^boss%d+$") then
         eventFrame:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
     end
 
@@ -4607,12 +4607,12 @@ function Visibility.RegisterEvents(owner, frame)
 
         if event ~= "PLAYER_REGEN_ENABLED"
             and unit
-            and unit ~= currentOwner.unit
+            and unit ~= currentOwner._fpUnit
             and not (event == "UNIT_ENTERED_VEHICLE" and unit == "player")
             and not (event == "UNIT_EXITED_VEHICLE" and unit == "player")
-            and not (currentOwner.unit == "targettarget" and event == "UNIT_TARGET" and unit == "target")
-            and not (currentOwner.unit == "focustarget" and event == "UNIT_TARGET" and unit == "focus")
-            and not (currentOwner.unit == "pet" and event == "UNIT_PET" and unit == "player")
+            and not (currentOwner._fpUnit == "targettarget" and event == "UNIT_TARGET" and unit == "target")
+            and not (currentOwner._fpUnit == "focustarget" and event == "UNIT_TARGET" and unit == "focus")
+            and not (currentOwner._fpUnit == "pet" and event == "UNIT_PET" and unit == "player")
         then
             return
         end
@@ -4633,11 +4633,11 @@ function Visibility.RegisterEvents(owner, frame)
         end
 
         currentOwner._lastVisibilityEvent = event
-        if currentOwner.unit == "target" and (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_ENABLED") then
+        if currentOwner._fpUnit == "target" and (event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_ENABLED") then
             currentOwner._lastTargetEventAt = GetTime and GetTime() or 0
         end
-        if currentOwner.unit == "target" and event == "PLAYER_TARGET_CHANGED" then
-            local snapshot = GetTargetPresenceSnapshot(currentOwner.unit)
+        if currentOwner._fpUnit == "target" and event == "PLAYER_TARGET_CHANGED" then
+            local snapshot = GetTargetPresenceSnapshot(currentOwner._fpUnit)
             local shown = currentOwner.IsShown and currentOwner:IsShown() or false
             local alpha = tonumber(currentOwner.GetAlpha and currentOwner:GetAlpha() or 0) or 0
             local suspicious = not snapshot.exists
@@ -4661,8 +4661,8 @@ function Visibility.RegisterEvents(owner, frame)
             end
         end
         if event == "INSTANCE_ENCOUNTER_ENGAGE_UNIT"
-            and type(currentOwner.unit) == "string"
-            and currentOwner.unit:match("^boss%d+$")
+            and type(currentOwner._fpUnit) == "string"
+            and currentOwner._fpUnit:match("^boss%d+$")
         then
             if State.QueueRefresh then
                 local inCombat = InCombatLockdown and InCombatLockdown()
@@ -4678,7 +4678,7 @@ function Visibility.RegisterEvents(owner, frame)
                         refreshReason = event,
                         refreshScopes = scopes,
                         mode = "live",
-                        exists = UnitExists and UnitExists(currentOwner.unit) or false,
+                        exists = UnitExists and UnitExists(currentOwner._fpUnit) or false,
                         shown = currentOwner.IsShown and currentOwner:IsShown() or false,
                         alpha = currentOwner.GetAlpha and currentOwner:GetAlpha() or nil,
                         protected = currentOwner.IsProtected and currentOwner:IsProtected() or false,
@@ -4719,7 +4719,7 @@ function Visibility.RegisterEvents(owner, frame)
 
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_PET" or event == "UNIT_TARGET" then
             Visibility.QueueRefresh(currentOwner)
-            if currentOwner.unit == "target" and event == "PLAYER_TARGET_CHANGED" then
+            if currentOwner._fpUnit == "target" and event == "PLAYER_TARGET_CHANGED" then
                 QueueTargetRecoveryRefreshes(currentOwner, "target_changed_recovery")
             end
         end

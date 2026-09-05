@@ -90,20 +90,20 @@ local function Clamp(value, minValue, maxValue)
 end
 
 local function GetUnitKey(frame)
-    if not frame or type(frame.unit) ~= "string" or frame.unit == "" then
+    if not frame or type(frame._fpUnit) ~= "string" or frame._fpUnit == "" then
         return nil
     end
 
     local utils = FocalPoint.UnitFrameUtils
     if utils and utils.NormalizeConfigUnitKey then
-        return utils.NormalizeConfigUnitKey(frame.unit)
+        return utils.NormalizeConfigUnitKey(frame._fpUnit)
     end
 
-    if frame.unit:match("^boss%d+$") then
+    if frame._fpUnit:match("^boss%d+$") then
         return "boss"
     end
 
-    return frame.unit
+    return frame._fpUnit
 end
 
 local function ResolveUnitConfig(frame)
@@ -172,8 +172,8 @@ local function RefreshEditorForUnit(unitKey)
 end
 
 local function SelectFrame(frame)
-    if FocalPoint.SelectEditorUnit and frame and frame.unit then
-        FocalPoint:SelectEditorUnit(frame.unit)
+    if FocalPoint.SelectEditorUnit and frame and frame._fpUnit then
+        FocalPoint:SelectEditorUnit(frame._fpUnit)
     end
 end
 
@@ -771,7 +771,7 @@ local function UpdateMenuButtons(menu)
 end
 
 function FrameContextMenu.ShowForFrame(frame)
-    if not IsEditorUnlocked() or not frame or not frame.unit then
+    if not IsEditorUnlocked() or not frame or not frame._fpUnit then
         return
     end
 
@@ -797,7 +797,7 @@ function FrameContextMenu.ShowForFrame(frame)
 end
 
 function FrameContextMenu.ShowForText(frame, textKey)
-    if not IsEditorUnlocked() or not frame or not frame.unit or type(textKey) ~= "string" or textKey == "" then
+    if not IsEditorUnlocked() or not frame or not frame._fpUnit or type(textKey) ~= "string" or textKey == "" then
         return
     end
 

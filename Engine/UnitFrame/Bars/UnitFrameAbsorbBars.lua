@@ -160,7 +160,7 @@ local function ApplyAbsorbBarStyle(frame, config, spec)
 
     local texture = GetStatusBarTexture
         and GetStatusBarTexture(GetConfigValue(config, spec, "Texture"), {
-            unit = frame.unit,
+            unit = frame._fpUnit,
             field = spec.configPrefix .. "Texture",
         })
         or DEFAULT_TEXTURE

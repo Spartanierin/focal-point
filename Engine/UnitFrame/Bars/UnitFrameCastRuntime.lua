@@ -29,7 +29,7 @@ function Runtime.Refresh(owner, frame)
         return
     end
 
-    local unit = frame.unit
+    local unit = frame._fpUnit
     if not unit then
         StopCastBar(frame)
         return
@@ -106,17 +106,17 @@ function Runtime.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -218,8 +218,8 @@ function Runtime.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_TARGET" then
-            if currentOwner.unit ~= "targettarget" or unit ~= "target" then
-                if currentOwner.unit ~= "focustarget" or unit ~= "focus" then
+            if currentOwner._fpUnit ~= "targettarget" or unit ~= "target" then
+                if currentOwner._fpUnit ~= "focustarget" or unit ~= "focus" then
                     return
                 end
             end
@@ -228,7 +228,7 @@ function Runtime.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_PET" then
-            if currentOwner.unit == "pet" and unit == "player" then
+            if currentOwner._fpUnit == "pet" and unit == "player" then
                 Queue({ "castbar", "layout" })
             end
             return
@@ -239,7 +239,7 @@ function Runtime.RegisterEvents(owner, frame)
             return
         end
 
-        if unit and unit ~= currentOwner.unit then
+        if unit and unit ~= currentOwner._fpUnit then
             return
         end
 

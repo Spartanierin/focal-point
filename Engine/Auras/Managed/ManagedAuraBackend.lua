@@ -1011,7 +1011,7 @@ function Managed.IsGroupAvailable(unit, groupKey)
 end
 
 function Managed.IsGroupActive(frame, groupKey)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local definition = GetGroupDefinition(unit, groupKey)
     return frame
         and definition ~= nil
@@ -1021,7 +1021,7 @@ function Managed.IsGroupActive(frame, groupKey)
 end
 
 function Managed.ClearGroup(frame, groupKey)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local definition = GetGroupDefinition(unit, groupKey)
     if not (frame and definition) then
         return
@@ -1041,7 +1041,7 @@ function Managed.ClearGroup(frame, groupKey)
 end
 
 function Managed.EnsureGroup(frame, groupKey, config)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local definition = GetGroupDefinition(unit, groupKey)
     if not (frame and unit and definition) then
         return false
@@ -1229,7 +1229,7 @@ function Managed.RefreshGroup(frame, groupKey, config)
         return false
     end
 
-    local definition = GetGroupDefinition(frame and frame.unit, groupKey)
+    local definition = GetGroupDefinition(frame and frame._fpUnit, groupKey)
     local state = definition and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
     if state and state.visualRoot and state.visualRoot.Show then
         state.visualRoot:Show()
@@ -1242,7 +1242,7 @@ function Managed.RefreshGroup(frame, groupKey, config)
 end
 
 function Managed.UpdateAllAuras(frame, groupKey)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local definition = GetGroupDefinition(unit, groupKey)
     local state = definition and frame and frame.ManagedAuraBackend and frame.ManagedAuraBackend[definition.stateKey]
     local container = state and state.container or nil

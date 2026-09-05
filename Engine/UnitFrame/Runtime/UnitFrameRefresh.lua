@@ -38,7 +38,7 @@ local function ClearPendingVisibilityIntent(frame, reason)
 end
 
 local function MarkPendingUnitWatchLiveReentry(frame, reason)
-    if frame and IsVisibilityRecoveryUnit(frame.unit) then
+    if frame and IsVisibilityRecoveryUnit(frame._fpUnit) then
         frame._focalPointPendingUnitWatchLiveReentry = {
             reason = reason or "live-reentry",
             createdAt = GetTime and GetTime() or 0,
@@ -54,13 +54,13 @@ local function ClearPendingUnitWatchLiveReentry(frame, reason)
 end
 
 local function IsVisibilityEndStateRecovered(frame)
-    if not (frame and IsVisibilityRecoveryUnit(frame.unit)) then
+    if not (frame and IsVisibilityRecoveryUnit(frame._fpUnit)) then
         return false
     end
     if frame.config and frame.config.enabled == false then
         return false
     end
-    if not (UnitExists and UnitExists(frame.unit)) then
+    if not (UnitExists and UnitExists(frame._fpUnit)) then
         return false
     end
     local shown = frame.IsShown and frame:IsShown() == true or false
@@ -90,14 +90,14 @@ local function ReconcilePendingVisibilityIntent(frame, mode)
         ClearPendingUnitWatchLiveReentry(frame, "unit-disabled")
         return
     end
-    if not (UnitExists and UnitExists(frame.unit)) then
+    if not (UnitExists and UnitExists(frame._fpUnit)) then
         ClearPendingVisibilityIntent(frame, "unit-absent")
     end
     ClearRecoveredVisibilityIntent(frame, "end-state-recovered")
 end
 
 local function MarkPendingVisibilityIntent(frame, reason, refreshRequest, mode)
-    if not (frame and IsVisibilityRecoveryUnit(frame.unit)) then
+    if not (frame and IsVisibilityRecoveryUnit(frame._fpUnit)) then
         return false
     end
     if mode ~= "live" then
@@ -106,7 +106,7 @@ local function MarkPendingVisibilityIntent(frame, reason, refreshRequest, mode)
     if frame.config and frame.config.enabled == false then
         return false
     end
-    if not (UnitExists and UnitExists(frame.unit)) then
+    if not (UnitExists and UnitExists(frame._fpUnit)) then
         return false
     end
     if frame.IsShown and frame:IsShown() then
@@ -128,7 +128,7 @@ local function MarkPendingVisibilityIntent(frame, reason, refreshRequest, mode)
 end
 
 RestoreLivePresentAlpha = function(owner, frame, mode)
-    if not (owner and owner.ApplyRangeFade and frame and IsVisibilityRecoveryUnit(frame.unit)) then
+    if not (owner and owner.ApplyRangeFade and frame and IsVisibilityRecoveryUnit(frame._fpUnit)) then
         return false
     end
     if mode ~= "live" then
@@ -137,7 +137,7 @@ RestoreLivePresentAlpha = function(owner, frame, mode)
     if frame.config and frame.config.enabled == false then
         return false
     end
-    if not (UnitExists and UnitExists(frame.unit)) then
+    if not (UnitExists and UnitExists(frame._fpUnit)) then
         return false
     end
     local alpha = tonumber(frame.GetAlpha and frame:GetAlpha() or nil)
@@ -168,7 +168,7 @@ local function ResolveLegacySyncAction(frame, previewOutsideCombat)
     local legacy = {
         action = "none",
         reason = "no-action",
-        unit = frame.unit,
+        unit = frame._fpUnit,
         shouldUse = shouldUse,
         previewOutsideCombat = previewOutsideCombat == true,
         isRegisteredBefore = isRegisteredBefore,
@@ -262,7 +262,7 @@ local function SyncPreviewUnitWatch(frame, previewOutsideCombat)
 end
 
 function Refresh.SyncLiveUnitWatchReentry(owner, frame, reason)
-    if not (frame and IsVisibilityRecoveryUnit(frame.unit)) then
+    if not (frame and IsVisibilityRecoveryUnit(frame._fpUnit)) then
         return nil
     end
     if frame.config and frame.config.enabled == false then
@@ -310,7 +310,7 @@ local function ResolveRefreshUnitPresent(frame, fallback)
     if type(fallback) == "boolean" then
         return fallback
     end
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if unit == "player" then
         return true
     end
@@ -332,7 +332,7 @@ local function BuildRootShowLegacyTrace(frame, values)
         shouldShow = values.shouldShow == true,
         shouldSkipShow = values.shouldSkipShow == true,
 
-        unit = values.unit or frame and frame.unit or nil,
+        unit = values.unit or frame and frame._fpUnit or nil,
         mode = values.mode,
         modeReason = values.modeReason,
         previewActive = values.previewActive == true,
@@ -815,23 +815,23 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
         canUnregisterNow = unitWatchDecision and unitWatchDecision.canUnregisterNow,
     })
 
-    local skipShowForAbsentTarget = frame.unit == "target"
+    local skipShowForAbsentTarget = frame._fpUnit == "target"
         and not previewOutsideCombat
         and UnitExists
         and not UnitExists("target")
-    local skipShowForAbsentTargetTarget = frame.unit == "targettarget"
+    local skipShowForAbsentTargetTarget = frame._fpUnit == "targettarget"
         and not previewOutsideCombat
         and UnitExists
         and not UnitExists("targettarget")
-    local skipShowForAbsentFocusTarget = frame.unit == "focustarget"
+    local skipShowForAbsentFocusTarget = frame._fpUnit == "focustarget"
         and not previewOutsideCombat
         and UnitExists
         and not UnitExists("focustarget")
-    local skipShowForAbsentBoss = type(frame.unit) == "string"
-        and frame.unit:match("^boss%d+$")
+    local skipShowForAbsentBoss = type(frame._fpUnit) == "string"
+        and frame._fpUnit:match("^boss%d+$")
         and not previewOutsideCombat
         and UnitExists
-        and not UnitExists(frame.unit)
+        and not UnitExists(frame._fpUnit)
     local canCallShow = not protectedRoot or previewOutsideCombat or outsideCombat
     local unitPresent = ResolveRefreshUnitPresent(frame)
 

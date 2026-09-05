@@ -64,9 +64,9 @@ local function ShouldRepresentIndicator(frame, indicatorKey)
 
     local presencePolicy = ResolvePresencePolicy()
     if presencePolicy and type(presencePolicy.ResolveObject) == "function" then
-        local resolved = presencePolicy.ResolveObject(frame and frame.unit, {
+        local resolved = presencePolicy.ResolveObject(frame and frame._fpUnit, {
             kind = "indicator",
-            unit = frame and frame.unit,
+            unit = frame and frame._fpUnit,
             indicatorKey = indicatorKey,
             objectKey = indicatorKey,
             sectionKey = "indicators",

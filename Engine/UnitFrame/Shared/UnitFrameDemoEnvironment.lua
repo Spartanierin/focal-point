@@ -400,7 +400,7 @@ function Demo.ReportDebug(frame)
 
     local message = string.format(
         "[FP DemoDebug] unit=%s mode=%s modeReason=%s configReason=%s castStartReason=%s cleanupReason=%s testModeExitCount=%d testModeExitReason=%s visibilityResyncCount=%d framesHiddenOnExit=%d framesStillVisibleMissingUnit=%d exitCleanup=%d hiddenOnExit=%s missingUnitAfterExit=%s flagsRaw=test=%s unlocked=%s active=%s resolved=%s committed=%s resolveCalls=%d resolveBy=%s commitCalls=%d refresh=%d snapshot=%d runtime=%d config=%d castStart=%d castStop=%d auraRefresh=%d auraRender=%d auraClear=%d cleanupAttempt=%d cleanupBlocked=%d cleanupExecuted=%d castbarOnUpdateTicks=%d castbarValueUpdates=%d castbarPreviewValueUpdates=%d castbarPreviewElapsed=%.3f castbarPreviewDuration=%.3f castbarPreviewUpdateMode=%s auraCooldownUpdates=%d auraTimerTextUpdates=%d barSmoothingTicks=%d rangeFadeTicks=%d modeChanges=%d modeTransitions=%s flags=%s",
-        tostring(frame and frame.unit or "?"),
+        tostring(frame and frame._fpUnit or "?"),
         tostring(mode),
         tostring(d.modeReason or "unknown"),
         tostring(d.configReason or "unknown"),
@@ -710,7 +710,7 @@ local function GetSelectedEditorUnit()
 end
 
 local function IsSelectedEditorFrame(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return false
     end
 
@@ -720,14 +720,14 @@ local function IsSelectedEditorFrame(frame)
     end
 
     if selectedUnit == "boss" then
-        return frame.unit:match("^boss%d+$") ~= nil
+        return frame._fpUnit:match("^boss%d+$") ~= nil
     end
 
-    return frame.unit == selectedUnit
+    return frame._fpUnit == selectedUnit
 end
 
 local function IsLiveUnitPresent(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if unit == "player" then
         return true
     end
@@ -739,7 +739,7 @@ local function IsLiveUnitPresent(frame)
 end
 
 function Demo.IsFrameUnitEnabled(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if type(unit) ~= "string" or unit == "" then
         return false
     end
@@ -759,12 +759,12 @@ function Demo.IsFrameUnitEnabled(frame)
 end
 
 function Demo.ShouldProcessFrame(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return false
     end
     local onlyUnit = FocalPoint and FocalPoint.debugDemoOnlyUnit or nil
     if type(onlyUnit) == "string" and onlyUnit ~= "" then
-        return frame.unit == onlyUnit
+        return frame._fpUnit == onlyUnit
     end
     return true
 end
@@ -844,7 +844,7 @@ function Demo.ResolveMode(frame, caller)
         TouchResolveCaller(d, caller)
     end
 
-    local hasFrame = frame and frame.unit
+    local hasFrame = frame and frame._fpUnit
     if FocalPoint.guiTestModeEnabled == true then
         if hasFrame then
             if not Demo.IsFrameUnitEnabled(frame) then
@@ -913,7 +913,7 @@ function Demo.IsPlaceholder(frame)
 end
 
 function Demo.ShouldForceFrameVisible(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return false
     end
 
@@ -948,7 +948,7 @@ function Demo.GetDetailedValuesForUnit(unit)
 end
 
 function Demo.GetUnitValues(frame, mode)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return nil
     end
 
@@ -957,10 +957,10 @@ function Demo.GetUnitValues(frame, mode)
         return nil
     end
     if mode == "detailed" then
-        return Demo.GetDetailedValuesForUnit(frame.unit)
+        return Demo.GetDetailedValuesForUnit(frame._fpUnit)
     end
     if mode == "placeholder" then
-        return PLACEHOLDER_PREVIEW_VALUES[frame.unit]
+        return PLACEHOLDER_PREVIEW_VALUES[frame._fpUnit]
             or PLACEHOLDER_PREVIEW_VALUES.boss
             or PLACEHOLDER_PREVIEW_VALUES.target
             or PLACEHOLDER_PREVIEW_VALUES.player
@@ -969,7 +969,7 @@ function Demo.GetUnitValues(frame, mode)
 end
 
 function Demo.GetPreviewClassificationKind(frame, mode)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return nil
     end
 
@@ -978,11 +978,11 @@ function Demo.GetPreviewClassificationKind(frame, mode)
         return nil
     end
 
-    return PREVIEW_CLASSIFICATION_BY_UNIT[frame.unit]
+    return PREVIEW_CLASSIFICATION_BY_UNIT[frame._fpUnit]
 end
 
 function Demo.ShouldBypassDecorationConditions(frame, mode)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return false
     end
 
@@ -1011,7 +1011,7 @@ local function BuildPreviewAura(definition, frame, groupKey, index)
     local isHarmful = groupKey == "Debuffs"
     local count = tonumber(definition.count) or 0
     local spellId = tonumber(definition.spellId) or (100000 + index)
-    local unitSeed = string.len(tostring(frame.unit or "")) * 1000
+    local unitSeed = string.len(tostring(frame._fpUnit or "")) * 1000
 
     return {
         spellId = spellId, auraInstanceId = unitSeed + ((isHelpful and 10000) or 20000) + index,
@@ -1044,7 +1044,7 @@ local function BuildPreviewAuraList(frame, groupKey, definitions)
 end
 
 function Demo.GetAuraPreviewFixtures(frame, groupKey)
-    if not frame or not frame.unit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
+    if not frame or not frame._fpUnit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
         return nil
     end
     if Demo.IsAurasDisabled() then
@@ -1064,7 +1064,7 @@ function Demo.GetAuraPreviewFixtures(frame, groupKey)
 end
 
 function Demo.GetAuras(frame, groupKey)
-    if not frame or not frame.unit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
+    if not frame or not frame._fpUnit or (groupKey ~= "Buffs" and groupKey ~= "Debuffs") then
         return nil
     end
     if Demo.IsAurasDisabled() then
@@ -1094,7 +1094,7 @@ function Demo.GetAuras(frame, groupKey)
 
     local state = GetRuntimeState(frame)
     state.auras = state.auras or {}
-    local signature = tostring(frame.unit or "") .. ":" .. tostring(mode) .. ":" .. tostring(groupKey) .. ":" .. tostring(#definitions)
+    local signature = tostring(frame._fpUnit or "") .. ":" .. tostring(mode) .. ":" .. tostring(groupKey) .. ":" .. tostring(#definitions)
     local cached = state.auras[groupKey]
     if not cached or cached.signature ~= signature then
         local now = (GetTime and GetTime()) or 0
@@ -1122,14 +1122,14 @@ function Demo.GetAuras(frame, groupKey)
 end
 
 function Demo.GetIndicatorState(frame, indicatorKey)
-    if not frame or not frame.unit or not indicatorKey then
+    if not frame or not frame._fpUnit or not indicatorKey then
         return false
     end
     return Demo.IsDetailed(frame)
 end
 
 function Demo.GetRaidTargetIndex(frame)
-    return PREVIEW_RAID_TARGETS[frame and frame.unit or ""] or 1
+    return PREVIEW_RAID_TARGETS[frame and frame._fpUnit or ""] or 1
 end
 
 local function PrepareSnapshotText(value)

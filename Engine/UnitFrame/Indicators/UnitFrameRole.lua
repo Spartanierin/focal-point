@@ -79,7 +79,7 @@ function Role.Update(owner, frame)
         return
     end
 
-    local role = ResolveLiveRole(frame.unit)
+    local role = ResolveLiveRole(frame._fpUnit)
 
     if not role and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "role") then
         role = ResolvePreviewRole(frame)
@@ -111,17 +111,17 @@ function Role.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
     eventFrame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -136,8 +136,8 @@ function Role.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_TARGET" then
-            local targetOk = currentOwner.unit == "targettarget" and unit == "target"
-            local focusOk = currentOwner.unit == "focustarget" and unit == "focus"
+            local targetOk = currentOwner._fpUnit == "targettarget" and unit == "target"
+            local focusOk = currentOwner._fpUnit == "focustarget" and unit == "focus"
             if not targetOk and not focusOk then
                 return
             end

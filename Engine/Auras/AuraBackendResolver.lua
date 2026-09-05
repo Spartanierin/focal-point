@@ -57,11 +57,11 @@ local function IsEditorAuraMode(frame)
         return true
     end
 
-    return isDemoActive and frame.unit ~= nil
+    return isDemoActive and frame._fpUnit ~= nil
 end
 
 function Resolver.CanUseManagedPlayerGroup(frame, groupKey)
-    local unitGroups = frame and MANAGED_GROUPS[frame.unit] or nil
+    local unitGroups = frame and MANAGED_GROUPS[frame._fpUnit] or nil
     if not frame or unitGroups == nil or unitGroups[groupKey] ~= true then
         return false
     end
@@ -81,7 +81,7 @@ function Resolver.CanUseManagedPlayerGroup(frame, groupKey)
     end
 
     if backend.IsGroupAvailable then
-        return backend.IsGroupAvailable(frame.unit, groupKey) == true
+        return backend.IsGroupAvailable(frame._fpUnit, groupKey) == true
     end
 
     return true
@@ -92,7 +92,7 @@ function Resolver.CanUseManagedPlayerBuffs(frame, groupKey)
 end
 
 function Resolver.ShouldUseManagedEditorVisuals(frame, groupKey)
-    local unitGroups = frame and MANAGED_GROUPS[frame.unit] or nil
+    local unitGroups = frame and MANAGED_GROUPS[frame._fpUnit] or nil
     if not frame or unitGroups == nil or unitGroups[groupKey] ~= true then
         return false
     end

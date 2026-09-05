@@ -366,7 +366,7 @@ local function UpdateBars(frame, seen)
         seen[key] = true
         PositionZone(zone, frame, target, {
             kind = "bar",
-            unit = frame.unit,
+            unit = frame._fpUnit,
             objectKey = item.objectKey,
             sectionKey = item.sectionKey,
         }, item.level)
@@ -382,7 +382,7 @@ local function UpdateAuras(frame, seen)
         seen[key] = true
         PositionZone(zone, frame, target, {
             kind = "aura",
-            unit = frame.unit,
+            unit = frame._fpUnit,
             auraKey = item.auraKey,
             objectKey = item.auraKey,
             sectionKey = "auras",
@@ -399,7 +399,7 @@ local function UpdateIndicators(frame, seen)
         seen[key] = true
         PositionZone(zone, frame, target, {
             kind = "indicator",
-            unit = frame.unit,
+            unit = frame._fpUnit,
             indicatorKey = item.indicatorKey,
             objectKey = item.indicatorKey,
             elementKey = item.elementKey,
@@ -421,7 +421,7 @@ local function UpdateDecorations(frame, seen)
         seen[key] = true
         PositionZone(zone, frame, target, {
             kind = "decoration",
-            unit = frame.unit,
+            unit = frame._fpUnit,
             decorationId = decorationId,
             objectKey = decorationId,
             sectionKey = "decoration",
@@ -443,7 +443,7 @@ function CanvasHoverOverlay.UpdateFrame(frame)
         overlay._focalPointCanvasHoverHooked = true
         overlay._focalPointObjectRef = {
             kind = "unit",
-            unit = frame.unit,
+            unit = frame._fpUnit,
             sectionKey = "frame",
         }
         overlay:HookScript("OnEnter", function(self)
@@ -455,7 +455,7 @@ function CanvasHoverOverlay.UpdateFrame(frame)
     elseif overlay then
         overlay._focalPointObjectRef = {
             kind = "unit",
-            unit = frame.unit,
+            unit = frame._fpUnit,
             sectionKey = "frame",
         }
     end

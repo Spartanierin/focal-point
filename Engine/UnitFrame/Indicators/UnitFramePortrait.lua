@@ -57,8 +57,8 @@ function Portrait.UpdateTexture(frame)
 
     texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    if frame.unit and UnitExists(frame.unit) then
-        SetPortraitTexture(texture, frame.unit)
+    if frame._fpUnit and UnitExists(frame._fpUnit) then
+        SetPortraitTexture(texture, frame._fpUnit)
     else
         texture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     end
@@ -79,12 +79,12 @@ function Portrait.RegisterEvents(frame)
     eventFrame:RegisterEvent("UNIT_PORTRAIT_UPDATE")
     eventFrame:RegisterEvent("UNIT_MODEL_CHANGED")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
     end
@@ -96,14 +96,14 @@ function Portrait.RegisterEvents(frame)
         end
 
         if event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
-            if unit ~= owner.unit then
+            if unit ~= owner._fpUnit then
                 return
             end
         end
 
         if event == "UNIT_TARGET" then
-            local targetOk = owner.unit == "targettarget" and unit == "target"
-            local focusOk = owner.unit == "focustarget" and unit == "focus"
+            local targetOk = owner._fpUnit == "targettarget" and unit == "target"
+            local focusOk = owner._fpUnit == "focustarget" and unit == "focus"
             if not targetOk and not focusOk then
                 return
             end

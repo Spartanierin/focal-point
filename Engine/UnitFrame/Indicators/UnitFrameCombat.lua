@@ -55,7 +55,7 @@ function Combat.Update(owner, frame)
         return
     end
 
-    local inCombat = frame.unit and UnitAffectingCombat and UnitAffectingCombat(frame.unit) or false
+    local inCombat = frame._fpUnit and UnitAffectingCombat and UnitAffectingCombat(frame._fpUnit) or false
 
     if IsPreviewModeEnabled() then
         inCombat = IsPreviewIndicatorVisible(frame, "combat")
@@ -100,17 +100,17 @@ function Combat.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -120,7 +120,7 @@ function Combat.RegisterEvents(owner, frame)
             return
         end
 
-        if event == "UNIT_FLAGS" and unit ~= currentOwner.unit then
+        if event == "UNIT_FLAGS" and unit ~= currentOwner._fpUnit then
             return
         end
 
@@ -129,8 +129,8 @@ function Combat.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_TARGET" then
-            local targetOk = currentOwner.unit == "targettarget" and unit == "target"
-            local focusOk = currentOwner.unit == "focustarget" and unit == "focus"
+            local targetOk = currentOwner._fpUnit == "targettarget" and unit == "target"
+            local focusOk = currentOwner._fpUnit == "focustarget" and unit == "focus"
             if not targetOk and not focusOk then
                 return
             end

@@ -536,12 +536,12 @@ local function FindTextKeyByRole(frame, role, legacyKey)
 end
 
 local function BuildTextRef(frame, textKey)
-    if not frame or type(frame.unit) ~= "string" or frame.unit == "" or type(textKey) ~= "string" or textKey == "" then
+    if not frame or type(frame._fpUnit) ~= "string" or frame._fpUnit == "" or type(textKey) ~= "string" or textKey == "" then
         return nil
     end
     return {
         kind = "text",
-        unit = frame.unit,
+        unit = frame._fpUnit,
         textKey = textKey,
         objectKey = textKey,
     }

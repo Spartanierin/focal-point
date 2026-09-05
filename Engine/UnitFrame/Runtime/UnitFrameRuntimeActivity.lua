@@ -45,13 +45,13 @@ local function GetUnitConfig(frame)
         return frame.config
     end
     if Utils.GetUnitDB then
-        return Utils.GetUnitDB(NormalizeUnitKey(frame.unit))
+        return Utils.GetUnitDB(NormalizeUnitKey(frame._fpUnit))
     end
     return nil
 end
 
 local function BuildBarRef(frame, objectKey)
-    local unit = NormalizeUnitKey(frame and frame.unit)
+    local unit = NormalizeUnitKey(frame and frame._fpUnit)
     if not unit or type(objectKey) ~= "string" or objectKey == "" then
         return nil
     end

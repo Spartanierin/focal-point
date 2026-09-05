@@ -44,7 +44,7 @@ function ReadyCheck.Update(owner, frame)
         return
     end
 
-    local status = frame.unit and GetReadyCheckStatus and GetReadyCheckStatus(frame.unit) or nil
+    local status = frame._fpUnit and GetReadyCheckStatus and GetReadyCheckStatus(frame._fpUnit) or nil
 
     if not status and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "readyCheck") then
         local previewMap = {
@@ -53,7 +53,7 @@ function ReadyCheck.Update(owner, frame)
             focus = "waiting",
             pet = "ready",
         }
-        status = previewMap[frame.unit] or "ready"
+        status = previewMap[frame._fpUnit] or "ready"
     end
 
     if status == "ready" then
@@ -85,17 +85,17 @@ function ReadyCheck.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("READY_CHECK_FINISHED")
     eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -110,8 +110,8 @@ function ReadyCheck.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_TARGET" then
-            local targetOk = currentOwner.unit == "targettarget" and unit == "target"
-            local focusOk = currentOwner.unit == "focustarget" and unit == "focus"
+            local targetOk = currentOwner._fpUnit == "targettarget" and unit == "target"
+            local focusOk = currentOwner._fpUnit == "focustarget" and unit == "focus"
             if not targetOk and not focusOk then
                 return
             end

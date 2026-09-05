@@ -185,7 +185,7 @@ local function GetFrameDebugLabel(frame)
         return "frame=?"
     end
 
-    local unit = tostring(frame.unit or "?")
+    local unit = tostring(frame._fpUnit or "?")
     local name = frame.GetName and frame:GetName()
     if type(name) == "string" and name ~= "" then
         return string.format("%s<%s>", name, unit)
@@ -198,7 +198,7 @@ local function DebugTargetState(frame, label, reason)
     if not (FocalPoint and FocalPoint.debugTargetVisibility == true) then
         return
     end
-    if not (frame and frame.unit == "target") then
+    if not (frame and frame._fpUnit == "target") then
         return
     end
 
@@ -294,7 +294,7 @@ function State.Ensure(frame)
         dirty = {},
         pendingCommit = false,
         suspended = false,
-        boundUnit = frame.unit,
+        boundUnit = frame._fpUnit,
         commitToken = 0,
         lastCommitToken = 0,
         lastReason = nil,
@@ -307,7 +307,7 @@ function State.Ensure(frame)
 
     local runtimeState = frame.RuntimeState
     runtimeState.dirty = runtimeState.dirty or {}
-    runtimeState.boundUnit = frame.unit
+    runtimeState.boundUnit = frame._fpUnit
     runtimeState.lastCommittedScopes = runtimeState.lastCommittedScopes or {}
     if runtimeState.textDependenciesBroad == nil then
         runtimeState.textDependenciesBroad = false
@@ -326,7 +326,7 @@ function State.DebugLog(frame, action, details)
 end
 
 local function HandleDerivedUnitTransition(frame, reason, runtimeState)
-    local parentUnit = GetDerivedParentUnit(frame and frame.unit)
+    local parentUnit = GetDerivedParentUnit(frame and frame._fpUnit)
     if not parentUnit then
         return false
     end
@@ -348,7 +348,7 @@ local function HandleDerivedUnitTransition(frame, reason, runtimeState)
         "reason=%s parent=%s unit=%s",
         tostring(reason or "derived_unit_transition"),
         tostring(parentUnit),
-        tostring(frame.unit or "?")
+        tostring(frame._fpUnit or "?")
     ))
     return true
 end
@@ -397,7 +397,7 @@ function State.ResetFrameRuntimeState(frame)
     runtimeState.lastCommittedScopes = WipeTable(runtimeState.lastCommittedScopes)
     runtimeState.forceAuraFullScan = false
     runtimeState.forceFullRefresh = false
-    runtimeState.boundUnit = frame and frame.unit or runtimeState.boundUnit
+    runtimeState.boundUnit = frame and frame._fpUnit or runtimeState.boundUnit
     runtimeState.phase = "empty_valid"
     runtimeState.guardFailures = WipeTable(runtimeState.guardFailures)
     State.DebugLog(frame, "reset-frame")
@@ -439,31 +439,31 @@ function State.HandleUnitLost(frame, reason)
 
     local Visibility = FocalPoint.UnitFrameVisibility or {}
     if Visibility.ClearFrameVisualState then
-        if frame.unit == "target" and UnitExists and UnitExists("target") then
+        if frame._fpUnit == "target" and UnitExists and UnitExists("target") then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
             frame._protectedMissingTargetRecoveryQueued = nil
             State.DebugLog(frame, "unit-lost-skip-existing-target", tostring(reason or "unit_lost"))
             return
         end
-        if frame.unit == "targettarget" and UnitExists and UnitExists("targettarget") then
+        if frame._fpUnit == "targettarget" and UnitExists and UnitExists("targettarget") then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
             frame._protectedMissingTargetRecoveryQueued = nil
             State.DebugLog(frame, "unit-lost-skip-existing-targettarget", tostring(reason or "unit_lost"))
             return
         end
-        if frame.unit == "focustarget" and UnitExists and UnitExists("focustarget") then
+        if frame._fpUnit == "focustarget" and UnitExists and UnitExists("focustarget") then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
             frame._protectedMissingTargetRecoveryQueued = nil
             State.DebugLog(frame, "unit-lost-skip-existing-focustarget", tostring(reason or "unit_lost"))
             return
         end
-        if type(frame.unit) == "string"
-            and frame.unit:match("^boss%d+$")
+        if type(frame._fpUnit) == "string"
+            and frame._fpUnit:match("^boss%d+$")
             and UnitExists
-            and UnitExists(frame.unit)
+            and UnitExists(frame._fpUnit)
         then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
@@ -476,8 +476,8 @@ function State.HandleUnitLost(frame, reason)
             and frame:IsProtected()
             and InCombatLockdown
             and InCombatLockdown()
-        local bossMissingUnit = type(frame.unit) == "string"
-            and frame.unit:match("^boss%d+$")
+        local bossMissingUnit = type(frame._fpUnit) == "string"
+            and frame._fpUnit:match("^boss%d+$")
             and (
                 reason == "missing_unit"
                 or reason == "missing_unit_protected"
@@ -524,7 +524,7 @@ function State.HandleTargetSwap(frame, reason)
     local Visibility = FocalPoint.UnitFrameVisibility or {}
     if Visibility.ClearFrameVisualState then
         DebugTargetState(frame, "before_clear_visual_state", reason)
-        if frame.unit == "target" and InCombatLockdown and InCombatLockdown() then
+        if frame._fpUnit == "target" and InCombatLockdown and InCombatLockdown() then
             if runtimeState then
                 runtimeState.phase = "stale"
                 runtimeState.lastReason = reason or "target_swap"
@@ -536,7 +536,7 @@ function State.HandleTargetSwap(frame, reason)
             DebugTargetState(frame, "skip_clear_in_combat", reason)
             return
         end
-        if frame.unit == "target" and UnitExists and UnitExists("target") then
+        if frame._fpUnit == "target" and UnitExists and UnitExists("target") then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
             frame._protectedMissingTargetRecoveryQueued = nil
@@ -544,7 +544,7 @@ function State.HandleTargetSwap(frame, reason)
             State.DebugLog(frame, "target-swap", tostring(reason or "target_swap"))
             return
         end
-        if frame.unit == "targettarget" and UnitExists and UnitExists("targettarget") then
+        if frame._fpUnit == "targettarget" and UnitExists and UnitExists("targettarget") then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
             frame._protectedMissingTargetRecoveryQueued = nil
@@ -552,7 +552,7 @@ function State.HandleTargetSwap(frame, reason)
             State.DebugLog(frame, "target-swap", tostring(reason or "target_swap"))
             return
         end
-        if frame.unit == "focustarget" and UnitExists and UnitExists("focustarget") then
+        if frame._fpUnit == "focustarget" and UnitExists and UnitExists("focustarget") then
             frame._missingUnitSince = nil
             frame._targetRecoveryQueuedUntil = nil
             frame._protectedMissingTargetRecoveryQueued = nil
@@ -573,7 +573,7 @@ function State.HandleUnitRebound(frame, reason, options)
         return
     end
 
-    runtimeState.boundUnit = frame.unit
+    runtimeState.boundUnit = frame._fpUnit
     runtimeState.lastReason = reason or "unit_rebound"
     runtimeState.phase = "bound"
     State.DebugLog(frame, "unit-rebound", tostring(runtimeState.lastReason))

@@ -199,7 +199,7 @@ end
 local function ResolveLiveClassification(frame)
     local Status = FocalPoint.TextElementStatus
     if type(Status) == "table" and type(Status.GetUnitClassificationKind) == "function" then
-        return Status.GetUnitClassificationKind(frame and frame.unit)
+        return Status.GetUnitClassificationKind(frame and frame._fpUnit)
     end
     return nil
 end

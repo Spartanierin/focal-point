@@ -102,7 +102,7 @@ end
 
 -- Builds the live text value cache that all token resolvers read from.
 function LiveValues.Refresh(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         if TextState.Reset then
             TextState.Reset(frame)
         end
@@ -169,7 +169,7 @@ function LiveValues.Refresh(frame)
         return
     end
 
-    local unit = frame.unit
+    local unit = frame._fpUnit
     local healthCurrent, healthMax, healthCurrentSafe, healthMaxSafe = EnsureCanonicalHealthLiveValues(frame, unit)
     local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
     local powerCurrent = UnitPower and UnitPower(unit) or 0
@@ -194,7 +194,7 @@ function LiveValues.Refresh(frame)
         alternativePowerBarMax = maxValue
     end
 
-    local secondaryPowerType = GetSecondaryPowerTypeForUnit(frame.unit)
+    local secondaryPowerType = GetSecondaryPowerTypeForUnit(frame._fpUnit)
     local displayPowerType = nil
     local displayAltPowerCurrentText = nil
     local displayAltPowerMaxText = nil

@@ -36,11 +36,11 @@ local function ResolveAbsorbSafeNumber(rawValue)
 end
 
 local function IsPlaceholderUnitEnabled(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return true
     end
 
-    local unitKey = frame.unit
+    local unitKey = frame._fpUnit
     if type(unitKey) == "string" and unitKey:match("^boss%d+$") then
         unitKey = "boss"
     end
@@ -149,11 +149,11 @@ end
 -- Health helpers keep value formatting and health-bar updates together.
 
 function Health.GetCurrentValues(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return 0, 1
     end
 
-    local unit = frame.unit
+    local unit = frame._fpUnit
     local unitExists = DoesUnitSeemPresent(unit)
     local visualState = ResolveBarVisualState(frame, "HealthBar", true, unitExists)
     local previewValues = nil
@@ -202,7 +202,7 @@ function Health.UpdateBarValue(frame)
     if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
         Demo.TouchDebug(frame, "barSmoothingTicks")
     end
-    local unitExists = DoesUnitSeemPresent(frame.unit)
+    local unitExists = DoesUnitSeemPresent(frame._fpUnit)
     local visualState = ResolveBarVisualState(frame, "HealthBar", true, unitExists)
     local previewValues = nil
     if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState) then
@@ -210,7 +210,7 @@ function Health.UpdateBarValue(frame)
     else
         previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
     end
-    local absorbTotalRaw, absorbTotalSafe, healAbsorbTotalRaw, healAbsorbTotalSafe = ResolveTotalAbsorb(frame, frame.unit, unitExists, previewValues)
+    local absorbTotalRaw, absorbTotalSafe, healAbsorbTotalRaw, healAbsorbTotalSafe = ResolveTotalAbsorb(frame, frame._fpUnit, unitExists, previewValues)
     frame.LiveValues.healthCurrentRaw = currentHealth
     frame.LiveValues.healthMaxRaw = maxHealth
     frame.LiveValues.healthCurrentSafe = ToSafeNumberValue(currentHealth)
@@ -253,7 +253,7 @@ function Health.UpdateBarColor(frame)
         return
     end
 
-    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
+    local config = FocalPoint.UnitFrameUtils and FocalPoint.UnitFrameUtils.GetUnitDB and FocalPoint.UnitFrameUtils.GetUnitDB(frame._fpUnit)
 
     if Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame) then
         local colors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
@@ -322,11 +322,11 @@ function Health.RegisterEvents(owner, frame)
     local eventFrame = CreateFrame("Frame", nil, frame)
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    if frame.unit and eventFrame.RegisterUnitEvent then
-        eventFrame:RegisterUnitEvent("UNIT_HEALTH", frame.unit)
-        eventFrame:RegisterUnitEvent("UNIT_MAXHEALTH", frame.unit)
-        eventFrame:RegisterUnitEvent("UNIT_ABSORB_AMOUNT_CHANGED", frame.unit)
-        eventFrame:RegisterUnitEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED", frame.unit)
+    if frame._fpUnit and eventFrame.RegisterUnitEvent then
+        eventFrame:RegisterUnitEvent("UNIT_HEALTH", frame._fpUnit)
+        eventFrame:RegisterUnitEvent("UNIT_MAXHEALTH", frame._fpUnit)
+        eventFrame:RegisterUnitEvent("UNIT_ABSORB_AMOUNT_CHANGED", frame._fpUnit)
+        eventFrame:RegisterUnitEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED", frame._fpUnit)
     else
         eventFrame:RegisterEvent("UNIT_HEALTH")
         eventFrame:RegisterEvent("UNIT_MAXHEALTH")
@@ -334,17 +334,17 @@ function Health.RegisterEvents(owner, frame)
         eventFrame:RegisterEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED")
     end
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -368,8 +368,8 @@ function Health.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_TARGET" then
-            if currentOwner.unit ~= "targettarget" or unit ~= "target" then
-                if currentOwner.unit ~= "focustarget" or unit ~= "focus" then
+            if currentOwner._fpUnit ~= "targettarget" or unit ~= "target" then
+                if currentOwner._fpUnit ~= "focustarget" or unit ~= "focus" then
                     return
                 end
             end
@@ -378,15 +378,15 @@ function Health.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_PET" then
-            if currentOwner.unit ~= "pet" or unit ~= "player" then
+            if currentOwner._fpUnit ~= "pet" or unit ~= "player" then
                 return
             end
             Queue({ "bars", "texts", "layout" })
             return
-        elseif event == "PLAYER_ENTERING_WORLD" and currentOwner.unit ~= "player" then
+        elseif event == "PLAYER_ENTERING_WORLD" and currentOwner._fpUnit ~= "player" then
             Queue({ "bars", "texts", "layout" })
             return
-        elseif unit and unit ~= currentOwner.unit then
+        elseif unit and unit ~= currentOwner._fpUnit then
             return
         end
 

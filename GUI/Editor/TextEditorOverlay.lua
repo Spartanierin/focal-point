@@ -136,7 +136,7 @@ end
 
 local function IsSelectedText(frame, textKey)
     local stateApi = GetEditorStateApi()
-    local normalizedUnit = NormalizeUnitKey(frame and frame.unit)
+    local normalizedUnit = NormalizeUnitKey(frame and frame._fpUnit)
     return stateApi
         and stateApi.IsTextElementSelected
         and stateApi.IsTextElementSelected(normalizedUnit, textKey) == true
@@ -149,7 +149,7 @@ end
 
 local function GetTextConfig(frame, textKey)
     local unitConfig = frame and frame.config or nil
-    local normalizedUnit = frame and NormalizeUnitKey(frame.unit) or nil
+    local normalizedUnit = frame and NormalizeUnitKey(frame._fpUnit) or nil
     if normalizedUnit then
         unitConfig = GetUnitConfigByKey(normalizedUnit) or unitConfig
     end
@@ -981,8 +981,8 @@ local function RefreshAfterTextPositionCommit(frame)
     local unitFrame = FocalPoint.UnitFrame
     if unitFrame and unitFrame.UpdateTextElements then
         unitFrame:UpdateTextElements(frame)
-    elseif FocalPoint.RefreshUnitFrame and frame and frame.unit then
-        FocalPoint:RefreshUnitFrame(frame.unit)
+    elseif FocalPoint.RefreshUnitFrame and frame and frame._fpUnit then
+        FocalPoint:RefreshUnitFrame(frame._fpUnit)
     end
 
     TextEditorOverlay.UpdateFrame(frame)
@@ -1020,7 +1020,7 @@ local function SyncInspectorTextFontSize(unitKey, textKey, fontSize)
 end
 
 local function CommitTextPosition(frame, textKey, offsetX, offsetY)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1048,7 +1048,7 @@ local function CommitTextPosition(frame, textKey, offsetX, offsetY)
 end
 
 local function CommitTextAnchor(frame, textKey, point, relativePoint)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1077,7 +1077,7 @@ local function CommitTextAnchor(frame, textKey, point, relativePoint)
 end
 
 local function CommitTextPositionReset(frame, textKey)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1113,7 +1113,7 @@ local function CommitTextPositionReset(frame, textKey)
 end
 
 local function CommitTextFontSizeReset(frame, textKey)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1144,7 +1144,7 @@ local function CommitTextFontSizeReset(frame, textKey)
 end
 
 local function CommitTextFontSizeAdjustment(frame, textKey, delta)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame.unit, true)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
     end
@@ -1178,7 +1178,7 @@ local function IsDragContextStillValid(state)
         return false
     end
 
-    local unitConfig = GetUnitConfigByKey(state.frame and state.frame.unit)
+    local unitConfig = GetUnitConfigByKey(state.frame and state.frame._fpUnit)
     local textConfig = GetTextConfig(state.frame, state.textKey)
     return unitConfig == state.unitConfig
         and textConfig == state.textConfig
@@ -1255,7 +1255,7 @@ function TextEditorOverlay.UpdateFrame(frame)
     end
 
     local stateApi = GetEditorStateApi()
-    local normalizedUnit = NormalizeUnitKey(frame.unit)
+    local normalizedUnit = NormalizeUnitKey(frame._fpUnit)
     local seen = {}
 
     for textKey, textConfig in pairs(texts) do
@@ -1329,7 +1329,7 @@ function TextEditorOverlay.BeginDrag(overlay)
 
     local frame = overlay._focalPointOwnerFrame
     local textKey = overlay._focalPointTextKey
-    local unitConfig = GetUnitConfigByKey(frame and frame.unit)
+    local unitConfig = GetUnitConfigByKey(frame and frame._fpUnit)
     local textConfig = GetTextConfig(frame, textKey)
     if not frame or type(unitConfig) ~= "table" or type(textKey) ~= "string" or textKey == "" or type(textConfig) ~= "table" then
         return false
@@ -1473,7 +1473,7 @@ function TextEditorOverlay.AdjustFontSize(frame, textKey, delta)
     end
 
     local stateApi = GetEditorStateApi()
-    local normalizedUnit = NormalizeUnitKey(frame.unit)
+    local normalizedUnit = NormalizeUnitKey(frame._fpUnit)
     local selected = stateApi
         and stateApi.IsTextElementSelected
         and stateApi.IsTextElementSelected(normalizedUnit, textKey)
@@ -1546,7 +1546,7 @@ function TextEditorOverlay.Select(frame, textKey)
     end
 
     local stateApi = GetEditorStateApi()
-    local normalizedUnit = NormalizeUnitKey(frame.unit)
+    local normalizedUnit = NormalizeUnitKey(frame._fpUnit)
     if not normalizedUnit then
         return false
     end

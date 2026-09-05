@@ -136,7 +136,7 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     end
 
     adjustedY = adjustedY + verticalExtensionOffset
-    local bossIndex = GetBossFrameIndex and GetBossFrameIndex(frame and frame.unit)
+    local bossIndex = GetBossFrameIndex and GetBossFrameIndex(frame and frame._fpUnit)
     if bossIndex and bossIndex > 1 then
         local stackGap = tonumber(config.bossSpacing) or 10
         local stackOffset = (bossIndex - 1) * ((height + stackGap) * (relativeScale / frameScale))

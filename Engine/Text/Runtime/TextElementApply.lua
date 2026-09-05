@@ -67,7 +67,7 @@ local function RecordFontResolutionShadow(frame, key, textConfig, legacyFontPath
 
     resolvedResult = type(resolvedResult) == "table" and resolvedResult or registry.ResolveReference(textConfig and textConfig.font or nil, "font")
     registry.RecordFontShadow(textConfig and textConfig.font or nil, legacyFontPath, {
-        unitKey = frame and frame.unit or nil,
+        unitKey = frame and frame._fpUnit or nil,
         field = key or textRole or "font",
         referenceSourceField = "font",
         textKey = key,
@@ -153,7 +153,7 @@ function Apply.ApplyElementConfig(frame, key, textObject, textConfig, deps)
     local template = ResolveConfiguredTemplate and ResolveConfiguredTemplate(frame, textConfig) or ""
 
     if textRole == "class" or (TemplateContainsToken and TemplateContainsToken(template, "class")) then
-        local classR, classG, classB, classA = GetClassTextColor and GetClassTextColor(frame.unit, frame)
+        local classR, classG, classB, classA = GetClassTextColor and GetClassTextColor(frame._fpUnit, frame)
         if classR and classG and classB then
             r, g, b, a = classR, classG, classB, classA or 1
         end

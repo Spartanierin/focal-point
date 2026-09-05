@@ -13,8 +13,8 @@ local function GetUnit(frameOrUnit, options)
     if type(frameOrUnit) == "string" then
         return frameOrUnit
     end
-    if type(frameOrUnit) == "table" and type(frameOrUnit.unit) == "string" then
-        return frameOrUnit.unit
+    if type(frameOrUnit) == "table" and type(frameOrUnit._fpUnit) == "string" then
+        return frameOrUnit._fpUnit
     end
     return nil
 end

@@ -28,15 +28,15 @@ local function ShowUnitTooltip(frame)
     if type(general) == "table" and general.ShowUnitTooltips == false then
         return
     end
-    if not (frame and frame.unit and GameTooltip and GameTooltip.SetOwner and GameTooltip.SetUnit) then
+    if not (frame and frame._fpUnit and GameTooltip and GameTooltip.SetOwner and GameTooltip.SetUnit) then
         return
     end
-    if UnitExists and not UnitExists(frame.unit) then
+    if UnitExists and not UnitExists(frame._fpUnit) then
         return
     end
 
     GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
-    GameTooltip:SetUnit(frame.unit)
+    GameTooltip:SetUnit(frame._fpUnit)
 end
 
 function Factory.GetAnchorTarget(frame, anchorTo)
@@ -65,7 +65,7 @@ function Factory.CreateBaseFrame(unit, config)
     local frameName = "FocalPoint_" .. unit:gsub("^%l", string.upper)
     local frame = CreateFrame("Button", frameName, UIParent, "SecureUnitButtonTemplate, PingableUnitFrameTemplate, BackdropTemplate")
 
-    frame.unit = unit
+    frame._fpUnit = unit
     frame.config = config
     frame.Elements = {}
     frame.Texts = {}

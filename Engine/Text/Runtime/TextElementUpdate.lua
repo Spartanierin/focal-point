@@ -95,7 +95,7 @@ end
 
 local function ShouldRenderTextEditorPreview(frame, key)
     if Preview.ShouldRepresentInEditor then
-        local shouldRepresent = Preview.ShouldRepresentInEditor(frame and frame.unit, {
+        local shouldRepresent = Preview.ShouldRepresentInEditor(frame and frame._fpUnit, {
             kind = "text",
             textKey = key,
         })
@@ -119,7 +119,7 @@ local function IsTextEditPreviewAvailable(frame, key, textConfig)
 end
 
 local function GetClassificationIndicatorEffect(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local unitConfig = UnitUtils.GetUnitDB and UnitUtils.GetUnitDB(unit)
     local indicatorConfig = unitConfig and unitConfig.ClassificationIndicator
 
@@ -150,7 +150,7 @@ local function IsBlankText(value)
 end
 
 local function ShouldSuppressTextForMissingUnit(frame)
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if not unit or unit == "player" then
         return false
     end
@@ -227,7 +227,7 @@ local function ApplyClassificationNameLabel(frame, textRole, renderedText, templ
         return renderedText
     end
 
-    local style = GetClassificationLabelStyle(frame and frame.unit)
+    local style = GetClassificationLabelStyle(frame and frame._fpUnit)
     if not style or type(style.label) ~= "string" or style.label == "" then
         return renderedText
     end
@@ -250,7 +250,7 @@ local function EnsureNameFallback(frame, textRole, renderedText)
         return renderedText
     end
 
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if not unit or not UnitExists or not UnitExists(unit) then
         return renderedText
     end
@@ -299,7 +299,7 @@ local function ResolveRenderableName(frame, renderedText)
         end
     end
 
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     local resolvedName = Status.GetResolvedUnitName and Status.GetResolvedUnitName(unit) or nil
     if type(resolvedName) == "string" then
         return resolvedName
@@ -504,7 +504,7 @@ local function RenderTextEditPreview(frame, key, textObject, textConfig, templat
 
     local previewText = TextPreview.BuildTextElementPreview(textConfig, {
         frame = frame,
-        unit = frame and frame.unit,
+        unit = frame and frame._fpUnit,
         textKey = key,
         textRole = textRole,
         template = template,
@@ -589,7 +589,7 @@ function Update.UpdateElement(frame, key, deps)
 
         if textRole == "altpower" then
             textObject:SetTextColor(r, g, b, a)
-            local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(frame.unit)
+            local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(frame._fpUnit)
             liveMaxNumber = ToSafeNumber and ToSafeNumber(liveMaxNumber) or 0
             liveCurrentText = type(liveCurrentText) == "string" and liveCurrentText or "0"
             liveMaxText = type(liveMaxText) == "string" and liveMaxText or "0"
@@ -638,7 +638,7 @@ function Update.UpdateElement(frame, key, deps)
         end
 
         if textRole == "class" or (TemplateContainsToken and TemplateContainsToken(template, "class")) then
-            local classR, classG, classB, classA = GetClassTextColor and GetClassTextColor(frame.unit, frame)
+            local classR, classG, classB, classA = GetClassTextColor and GetClassTextColor(frame._fpUnit, frame)
             if classR and classG and classB then
                 r, g, b, a = classR, classG, classB, classA or 1
             end
@@ -647,7 +647,7 @@ function Update.UpdateElement(frame, key, deps)
         end
         textObject:SetTextColor(r, g, b, a)
 
-        if ApplyDirectTemplate and ApplyDirectTemplate(frame, textObject, frame.unit, template, textConfig.color) then
+        if ApplyDirectTemplate and ApplyDirectTemplate(frame, textObject, frame._fpUnit, template, textConfig.color) then
             local renderedText = textObject:GetText() or ""
             renderedText = EnsureNameFallback(frame, textRole, renderedText)
             renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
@@ -656,7 +656,7 @@ function Update.UpdateElement(frame, key, deps)
             return
         end
 
-        local renderedText = ResolveTextTemplate and ResolveTextTemplate(frame, frame.unit, template) or ""
+        local renderedText = ResolveTextTemplate and ResolveTextTemplate(frame, frame._fpUnit, template) or ""
         renderedText = EnsureNameFallback(frame, textRole, renderedText)
         renderedText = ApplyClassificationNameLabel(frame, textRole, renderedText, template, TemplateContainsToken)
         ApplyOverflow(
@@ -692,7 +692,7 @@ function Update.UpdateElement(frame, key, deps)
     if frame._focalPointTextErrors[key] ~= err then
         frame._focalPointTextErrors[key] = err
         if FocalPoint and FocalPoint.Warn then
-            FocalPoint:Warn(string.format("Text render failed for %s.%s: %s", tostring(frame.unit or "?"), tostring(key), tostring(err)))
+            FocalPoint:Warn(string.format("Text render failed for %s.%s: %s", tostring(frame._fpUnit or "?"), tostring(key), tostring(err)))
         end
     end
 end

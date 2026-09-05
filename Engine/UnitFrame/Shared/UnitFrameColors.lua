@@ -403,7 +403,7 @@ function Colors.GetResolvedHealthBarColor(frame, config)
     healthR, healthG, healthB, healthA = SanitizeRGBA(healthR, healthG, healthB, healthA, 0.1, 0.8, 0.1, 1)
 
     if config and config.useClassColorHealth then
-        local classR, classG, classB = Colors.GetClassColorForUnit(frame and frame.unit, config.useReactionColorNpcHealth)
+        local classR, classG, classB = Colors.GetClassColorForUnit(frame and frame._fpUnit, config.useReactionColorNpcHealth)
         if classR and classG and classB then
             healthR, healthG, healthB = classR, classG, classB
         end
@@ -461,7 +461,7 @@ function Colors.GetResolvedHealthBarColor(frame, config)
             local resolvedFromUnit
             if not hasCustomHealthColor then
                 resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromUnit = ResolveUnitHealthCurveColor(
-                    frame and frame.unit,
+                    frame and frame._fpUnit,
                     curve,
                     healthR,
                     healthG,

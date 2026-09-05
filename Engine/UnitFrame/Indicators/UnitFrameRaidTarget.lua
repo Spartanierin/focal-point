@@ -116,7 +116,7 @@ function RaidTarget.Update(owner, frame)
         return
     end
 
-    local index = frame.unit and GetRaidTargetIndex and GetRaidTargetIndex(frame.unit) or nil
+    local index = frame._fpUnit and GetRaidTargetIndex and GetRaidTargetIndex(frame._fpUnit) or nil
 
     if not index and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "raidTarget") then
         index = GetPreviewRaidTargetIndex(frame)
@@ -161,11 +161,11 @@ function RaidTarget.RegisterEvents(owner, frame)
     eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
     eventFrame:RegisterEvent("UNIT_TARGET")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -176,11 +176,11 @@ function RaidTarget.RegisterEvents(owner, frame)
         end
 
         if event == "UNIT_TARGET" then
-            if currentOwner.unit ~= "targettarget" and currentOwner.unit ~= "focustarget" then
+            if currentOwner._fpUnit ~= "targettarget" and currentOwner._fpUnit ~= "focustarget" then
                 return
             end
 
-            local expectedUnit = currentOwner.unit == "targettarget" and "target" or "focus"
+            local expectedUnit = currentOwner._fpUnit == "targettarget" and "target" or "focus"
             if unit ~= expectedUnit then
                 return
             end

@@ -68,17 +68,17 @@ local function GetFrameCenterOffsets(frame)
 end
 
 local function GetBossStackOffset(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return 0
     end
 
     local utils = FocalPoint.UnitFrameUtils
-    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame.unit)
+    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame._fpUnit)
     if not bossIndex or bossIndex <= 1 then
         return 0
     end
 
-    local unitConfig = utils and utils.GetUnitDB and utils.GetUnitDB(frame.unit) or nil
+    local unitConfig = utils and utils.GetUnitDB and utils.GetUnitDB(frame._fpUnit) or nil
     local height = frame.GetHeight and frame:GetHeight() or 0
     local stackGap = type(unitConfig) == "table" and (tonumber(unitConfig.bossSpacing) or 10) or 10
     return (bossIndex - 1) * ((tonumber(height) or 0) + stackGap)

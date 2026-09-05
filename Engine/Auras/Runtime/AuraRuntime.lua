@@ -18,11 +18,11 @@ local function GetUnitConfig(unit)
 end
 
 local function GetGroupConfig(frame, groupKey)
-    if not frame or not frame.unit or not groupKey then
+    if not frame or not frame._fpUnit or not groupKey then
         return nil
     end
 
-    local unitConfig = frame.config or GetUnitConfig(frame.unit)
+    local unitConfig = frame.config or GetUnitConfig(frame._fpUnit)
     if not unitConfig then
         return nil
     end
@@ -136,7 +136,7 @@ local function IsLocalAuraPreviewSelected(frame, unit, groupKey)
     return type(selected) == "table"
         and selected.kind == "aura"
         and selected.auraKey == groupKey
-        and IsSameSelectionUnit(selected.unit, unit or (frame and frame.unit))
+        and IsSameSelectionUnit(selected.unit, unit or (frame and frame._fpUnit))
 end
 
 local function CollectLiveAurasForRefresh(frame, unit, groupKey)
@@ -164,7 +164,7 @@ local function ResolveLocalAuraPreview(frame, unit, groupKey)
 end
 
 local function ShouldUseManagedLiveRender(frame, groupKey, liveResult)
-    if not (frame and frame.unit == "player" and groupKey == "Buffs") then
+    if not (frame and frame._fpUnit == "player" and groupKey == "Buffs") then
         return true
     end
     if FocalPoint and FocalPoint.guiTestModeEnabled == true then
@@ -180,7 +180,7 @@ local function ShouldUseManagedLiveRender(frame, groupKey, liveResult)
     end
 
     -- While selected, player buffs need the same state-driven editor surface as other aura groups.
-    return not IsLocalAuraPreviewSelected(frame, frame.unit, groupKey)
+    return not IsLocalAuraPreviewSelected(frame, frame._fpUnit, groupKey)
 end
 
 local function PrepareAuraResult(frame, groupKey, auraList, groupConfig)
@@ -318,7 +318,7 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
 end
 
 function AuraRuntime.RefreshAuras(frame, forceFullScan)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return {}
     end
 
@@ -354,26 +354,26 @@ function AuraRuntime.RefreshAuras(frame, forceFullScan)
             Demo.TouchDebug(frame, "auraRefresh")
         end
         return {
-            Buffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Buffs"),
-            Debuffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Debuffs"),
+            Buffs = AuraRuntime.RefreshAuraGroup(frame, frame._fpUnit, "Buffs"),
+            Debuffs = AuraRuntime.RefreshAuraGroup(frame, frame._fpUnit, "Debuffs"),
         }
     end
 
     local AuraCache = FocalPoint.AuraCache or {}
     local rootCache = frame.AuraCache
     if AuraCache.MarkRefreshStart then
-        AuraCache.MarkRefreshStart(frame, frame.unit, forceFullScan and "fullscan" or "refresh")
+        AuraCache.MarkRefreshStart(frame, frame._fpUnit, forceFullScan and "fullscan" or "refresh")
     end
 
     if forceFullScan or not rootCache or not rootCache.allById or not next(rootCache.allById) then
-        SyncFullAuraState(frame, frame.unit)
+        SyncFullAuraState(frame, frame._fpUnit)
     elseif AuraCache.ReconcileEventAuras then
-        AuraCache.ReconcileEventAuras(frame, frame.unit)
+        AuraCache.ReconcileEventAuras(frame, frame._fpUnit)
     end
 
     local result = {
-        Buffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Buffs"),
-        Debuffs = AuraRuntime.RefreshAuraGroup(frame, frame.unit, "Debuffs"),
+        Buffs = AuraRuntime.RefreshAuraGroup(frame, frame._fpUnit, "Buffs"),
+        Debuffs = AuraRuntime.RefreshAuraGroup(frame, frame._fpUnit, "Debuffs"),
     }
 
     Log(frame, "refresh-applied", string.format("mode=%s buffs=%d debuffs=%d", tostring(forceFullScan and "fullscan" or "refresh"), #(result.Buffs or {}), #(result.Debuffs or {})))

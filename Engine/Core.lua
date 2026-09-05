@@ -145,15 +145,15 @@ local function NormalizeEditorSelectionUnit(unitKey)
 end
 
 local function FrameMatchesSelectionUnit(frame, selectedUnit)
-    if not frame or not frame.unit or type(selectedUnit) ~= "string" or selectedUnit == "" then
+    if not frame or not frame._fpUnit or type(selectedUnit) ~= "string" or selectedUnit == "" then
         return false
     end
 
     if selectedUnit == "boss" then
-        return frame.unit:match("^boss%d+$") ~= nil
+        return frame._fpUnit:match("^boss%d+$") ~= nil
     end
 
-    return NormalizeEditorSelectionUnit(frame.unit) == selectedUnit
+    return NormalizeEditorSelectionUnit(frame._fpUnit) == selectedUnit
 end
 
 local function IsEditorChromeActive()
@@ -165,7 +165,7 @@ end
 local IsEditorTextMode
 
 local function IsPrimaryEditorFrame(frame)
-    if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+    if not frame or not frame._fpUnit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
         return false
     end
 
@@ -176,13 +176,13 @@ local function IsPrimaryEditorFrame(frame)
 end
 
 local function IsSelectedEditorFrame(frame)
-    if not frame or not frame.unit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+    if not frame or not frame._fpUnit or not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
         return false
     end
 
     local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
     if editorState and editorState.IsUnitSelected then
-        return editorState.IsUnitSelected(NormalizeEditorSelectionUnit(frame.unit))
+        return editorState.IsUnitSelected(NormalizeEditorSelectionUnit(frame._fpUnit))
     end
 
     return IsPrimaryEditorFrame(frame)
@@ -286,8 +286,8 @@ local function UpdateMoveOverlayVisuals(frame)
         and not isDragging
 
     local preview = FocalPoint.UnitFramePreview and FocalPoint.UnitFramePreview.GetTestValues and FocalPoint.UnitFramePreview.GetTestValues(frame) or nil
-    local placeholderName = preview and preview.name or (frame.unit or "")
-    local unitConfig = GetUnitConfig(frame.unit)
+    local placeholderName = preview and preview.name or (frame._fpUnit or "")
+    local unitConfig = GetUnitConfig(frame._fpUnit)
     local isEnabled = type(unitConfig) ~= "table" or unitConfig.enabled ~= false
 
     if IsEditorTextMode() then
@@ -397,8 +397,8 @@ local function CompleteEditorFrameSelectionClick(frame, button)
     end
     clickState.handled = true
 
-    if FocalPoint.SelectEditorUnit and frame.unit then
-        FocalPoint:SelectEditorUnit(frame.unit, {
+    if FocalPoint.SelectEditorUnit and frame._fpUnit then
+        FocalPoint:SelectEditorUnit(frame._fpUnit, {
             toggle = FocalPoint.framesUnlocked == true and clickState.ctrl == true,
         })
     end
@@ -538,8 +538,8 @@ local function UpdateTextEditCastPreview(frame)
     end
 
     if castBar.ClearTextEditPreview and castBar.ClearTextEditPreview(frame) and not (frame and frame._fpTextEditPresentationActive) then
-        if FocalPoint.RefreshUnitFrame and frame and frame.unit then
-            FocalPoint:RefreshUnitFrame(frame.unit)
+        if FocalPoint.RefreshUnitFrame and frame and frame._fpUnit then
+            FocalPoint:RefreshUnitFrame(frame._fpUnit)
         elseif FocalPoint.UnitFrame and FocalPoint.UnitFrame.RefreshCastBar then
             FocalPoint.UnitFrame:RefreshCastBar(frame)
         end
@@ -561,8 +561,8 @@ local function UpdateTextEditPresentation(frame)
 
     if frame and frame._fpTextEditPresentationActive then
         frame._fpTextEditPresentationActive = nil
-        if FocalPoint.RefreshUnitFrame and frame.unit then
-            FocalPoint:RefreshUnitFrame(frame.unit)
+        if FocalPoint.RefreshUnitFrame and frame._fpUnit then
+            FocalPoint:RefreshUnitFrame(frame._fpUnit)
         end
     end
 end
@@ -662,7 +662,7 @@ local function ResolveFrameForSelectionUnit(unitKey, draggedFrame)
     end
 
     if normalizedUnit == "boss" then
-        if draggedFrame and draggedFrame.unit and draggedFrame.unit:match("^boss%d+$") then
+        if draggedFrame and draggedFrame._fpUnit and draggedFrame._fpUnit:match("^boss%d+$") then
             return draggedFrame
         end
 
@@ -680,7 +680,7 @@ local function ResolveFrameForSelectionUnit(unitKey, draggedFrame)
 end
 
 local function ResolveSelectedDragUnits(draggedFrame)
-    local draggedUnit = NormalizeEditorSelectionUnit(draggedFrame and draggedFrame.unit)
+    local draggedUnit = NormalizeEditorSelectionUnit(draggedFrame and draggedFrame._fpUnit)
     if not draggedUnit then
         return {}
     end
@@ -743,12 +743,12 @@ local function GetFrameCenterOffsets(frame)
 end
 
 local function GetBossStackOffset(frame, unitConfig)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return 0
     end
 
     local utils = FocalPoint.UnitFrameUtils
-    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame.unit)
+    local bossIndex = utils and utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame._fpUnit)
     if not bossIndex or bossIndex <= 1 then
         return 0
     end
@@ -778,7 +778,7 @@ UpdateMoveOverlay = function(frame)
         return
     end
 
-    local unitConfig = GetUnitConfig(frame.unit)
+    local unitConfig = GetUnitConfig(frame._fpUnit)
     local x = unitConfig and unitConfig.x
     local y = unitConfig and unitConfig.y
     if x == nil or y == nil then
@@ -792,11 +792,11 @@ UpdateMoveOverlay = function(frame)
 end
 
 local function SaveFramePosition(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return
     end
 
-    local unitConfig = GetEditableUnitConfig(frame.unit)
+    local unitConfig = GetEditableUnitConfig(frame._fpUnit)
     if not unitConfig then
         return
     end
@@ -814,11 +814,11 @@ end
 FocalPoint.SaveFramePosition = SaveFramePosition
 
 function FocalPoint:ApplyStoredFramePosition(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return
     end
 
-    local unitConfig = GetUnitConfig(frame.unit)
+    local unitConfig = GetUnitConfig(frame._fpUnit)
     if not unitConfig then
         return
     end
@@ -843,7 +843,7 @@ function FocalPoint:ApplyStoredFramePosition(frame)
 end
 
 local function BeginFrameDrag(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return
     end
 
@@ -857,7 +857,7 @@ local function BeginFrameDrag(frame)
 
     MarkSelectionClickHandled(frame)
 
-    local unitConfig = GetUnitConfig(frame.unit)
+    local unitConfig = GetUnitConfig(frame._fpUnit)
     if not unitConfig then
         return
     end
@@ -993,7 +993,7 @@ EndFrameDrag = function(frame, commit)
         end
     elseif commit then
         SaveFramePosition(frame)
-        if frame.unit and frame.unit:match("^boss%d+$") then
+        if frame._fpUnit and frame._fpUnit:match("^boss%d+$") then
             ApplyBossStackPositions()
         else
             FocalPoint:ApplyStoredFramePosition(frame)

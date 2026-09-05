@@ -55,7 +55,7 @@ function Resting.Update(owner, frame)
         return
     end
 
-    local isResting = frame.unit == "player" and IsResting and IsResting()
+    local isResting = frame._fpUnit == "player" and IsResting and IsResting()
 
     if IsPreviewModeEnabled() then
         isResting = IsPreviewIndicatorVisible(frame, "resting")

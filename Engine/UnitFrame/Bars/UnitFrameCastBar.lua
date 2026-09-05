@@ -51,7 +51,7 @@ function CastBar.ShouldRepresentInEditor(frame)
     end
 
     return Preview.ShouldRepresentInEditor
-        and Preview.ShouldRepresentInEditor(frame.unit, { kind = "bar", objectKey = "CastBar" }) == true
+        and Preview.ShouldRepresentInEditor(frame._fpUnit, { kind = "bar", objectKey = "CastBar" }) == true
 end
 
 local function TemplateContainsCastToken(template)
@@ -331,7 +331,7 @@ end
 
 function CastBar.Start(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
-    local unit = frame and frame.unit
+    local unit = frame and frame._fpUnit
     if not castBar or not unit then
         return
     end

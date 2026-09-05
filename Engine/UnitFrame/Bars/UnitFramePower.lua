@@ -54,11 +54,11 @@ local function ResolveBarNumber(rawValue)
 end
 
 function Power.RefreshUnitBarValues(owner, frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return
     end
 
-    local unit = frame.unit
+    local unit = frame._fpUnit
     local unitExists = DoesUnitSeemPresent(unit)
     local powerEnabled = not (frame.config and frame.config.showPowerBar == false)
     local hasLivePower = unitExists == true and UnitPower ~= nil and UnitPowerMax ~= nil
@@ -225,7 +225,7 @@ function Power.RefreshUnitBarValues(owner, frame)
 end
 
 function Power.RegisterAlternativeEvents(owner, frame)
-    if not frame or frame.AlternativePowerEventFrame or frame.unit ~= "player" then
+    if not frame or frame.AlternativePowerEventFrame or frame._fpUnit ~= "player" then
         return
     end
 
@@ -244,7 +244,7 @@ function Power.RegisterAlternativeEvents(owner, frame)
             return
         end
 
-        if unit and unit ~= currentOwner.unit then
+        if unit and unit ~= currentOwner._fpUnit then
             return
         end
 

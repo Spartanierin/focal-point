@@ -18,7 +18,7 @@ local TARGET_RANGE_FADE_SPEED = 16
 -- target only, soft alpha transition, no GUI dependency.
 
 function Range.ShouldPollFade(frame)
-    if not frame or frame.unit ~= "target" or IsPreviewModeEnabled() then
+    if not frame or frame._fpUnit ~= "target" or IsPreviewModeEnabled() then
         return false
     end
 
@@ -27,7 +27,7 @@ function Range.ShouldPollFade(frame)
         return false
     end
 
-    return DoesUnitSeemPresent(frame.unit) == true
+    return DoesUnitSeemPresent(frame._fpUnit) == true
 end
 
 function Range.GetFadeMultiplier(frame)
@@ -38,25 +38,25 @@ function Range.GetFadeMultiplier(frame)
         return 1
     end
 
-    if not frame or frame.unit ~= "target" or IsPreviewModeEnabled() then
+    if not frame or frame._fpUnit ~= "target" or IsPreviewModeEnabled() then
         return 1
     end
 
-    if not DoesUnitSeemPresent(frame.unit) then
+    if not DoesUnitSeemPresent(frame._fpUnit) then
         return 1
     end
 
-    if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(frame.unit)) then
+    if UnitIsDeadOrGhost and IsSafeTrue(UnitIsDeadOrGhost(frame._fpUnit)) then
         return 1
     end
 
-    if UnitIsConnected and not IsSafeTrue(UnitIsConnected(frame.unit)) then
+    if UnitIsConnected and not IsSafeTrue(UnitIsConnected(frame._fpUnit)) then
         return 1
     end
 
     if UnitCanAttack and UnitCanAssist then
-        local isHostile = IsSafeTrue(UnitCanAttack("player", frame.unit))
-        local isFriendly = IsSafeTrue(UnitCanAssist("player", frame.unit))
+        local isHostile = IsSafeTrue(UnitCanAttack("player", frame._fpUnit))
+        local isFriendly = IsSafeTrue(UnitCanAssist("player", frame._fpUnit))
         if isFriendly and not isHostile then
             return 1
         end
@@ -67,7 +67,7 @@ function Range.GetFadeMultiplier(frame)
     end
 
     if FocalPoint.RangeCheck.GetRange then
-        local ok, minRange, maxRange = pcall(FocalPoint.RangeCheck.GetRange, FocalPoint.RangeCheck, frame.unit, true, false, 0.15)
+        local ok, minRange, maxRange = pcall(FocalPoint.RangeCheck.GetRange, FocalPoint.RangeCheck, frame._fpUnit, true, false, 0.15)
         if ok and type(minRange) == "number" then
             if type(maxRange) == "number" and maxRange <= rangeThreshold then
                 return 1
@@ -94,7 +94,7 @@ function Range.GetFadeMultiplier(frame)
         return 1
     end
 
-    local ok, inRange = pcall(checker, frame.unit)
+    local ok, inRange = pcall(checker, frame._fpUnit)
     if not ok or type(inRange) ~= "boolean" or (issecretvalue and issecretvalue(inRange)) then
         return 1
     end

@@ -317,11 +317,11 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
 end
 
 function ClassPower.RefreshValues(owner, frame)
-    if not frame or not frame.unit or not frame.Elements or not frame.Elements.ClassPowerBar then
+    if not frame or not frame._fpUnit or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
     end
 
-    local info = ClassPower.GetInfo(frame.unit)
+    local info = ClassPower.GetInfo(frame._fpUnit)
     frame.LiveValues = frame.LiveValues or {}
 
     if not info then
@@ -461,7 +461,7 @@ function ClassPower.ApplyLayout(frame, options)
 end
 
 function ClassPower.RegisterEvents(owner, frame)
-    if not frame or frame.ClassPowerEventFrame or frame.unit ~= "player" or not frame.Elements or not frame.Elements.ClassPowerBar then
+    if not frame or frame.ClassPowerEventFrame or frame._fpUnit ~= "player" or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
     end
 
@@ -489,7 +489,7 @@ function ClassPower.RegisterEvents(owner, frame)
             or event == "UNIT_POWER_POINT_CHARGE"
             or event == "UNIT_AURA"
 
-        if isUnitEvent and unit and unit ~= currentOwner.unit then
+        if isUnitEvent and unit and unit ~= currentOwner._fpUnit then
             return
         end
 

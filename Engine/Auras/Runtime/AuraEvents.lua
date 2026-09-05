@@ -142,7 +142,7 @@ local function QueueUnknownAuraReconcile(owner, refreshFunc)
 end
 
 local function RefreshManagedTargetTargetGroups(owner)
-    if not (owner and owner.unit == "targettarget") then
+    if not (owner and owner._fpUnit == "targettarget") then
         return false
     end
 
@@ -158,7 +158,7 @@ local function RefreshManagedTargetTargetGroups(owner)
 end
 
 local function RefreshManagedFocusTargetGroups(owner)
-    if not (owner and owner.unit == "focustarget") then
+    if not (owner and owner._fpUnit == "focustarget") then
         return false
     end
 
@@ -184,17 +184,17 @@ function AuraEvents.Register(frame, refreshFunc)
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("UNIT_AURA")
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -204,7 +204,7 @@ function AuraEvents.Register(frame, refreshFunc)
             return
         end
 
-        if event == "UNIT_AURA" and unit ~= owner.unit then
+        if event == "UNIT_AURA" and unit ~= owner._fpUnit then
             return
         end
 
@@ -213,8 +213,8 @@ function AuraEvents.Register(frame, refreshFunc)
         end
 
         if event == "UNIT_TARGET" then
-            local targetOk = owner.unit == "targettarget" and unit == "target"
-            local focusOk = owner.unit == "focustarget" and unit == "focus"
+            local targetOk = owner._fpUnit == "targettarget" and unit == "target"
+            local focusOk = owner._fpUnit == "focustarget" and unit == "focus"
             if not targetOk and not focusOk then
                 return
             end
@@ -226,11 +226,11 @@ function AuraEvents.Register(frame, refreshFunc)
             end
         end
 
-        if event == "PLAYER_TARGET_CHANGED" and owner.unit == "targettarget" then
+        if event == "PLAYER_TARGET_CHANGED" and owner._fpUnit == "targettarget" then
             RefreshManagedTargetTargetGroups(owner)
         end
 
-        if event == "PLAYER_FOCUS_CHANGED" and owner.unit == "focustarget" then
+        if event == "PLAYER_FOCUS_CHANGED" and owner._fpUnit == "focustarget" then
             RefreshManagedFocusTargetGroups(owner)
         end
 
@@ -255,7 +255,7 @@ function AuraEvents.Register(frame, refreshFunc)
 
             if auraUpdateKind == "secret" or auraUpdateKind == "invalid" then
                 RecordAuraDiagnostic({
-                    unit = owner.unit,
+                    unit = owner._fpUnit,
                     source = "UNIT_AURA",
                     payloadClassification = payloadClassification,
                     scanClassification = "not_attempted",
@@ -267,7 +267,7 @@ function AuraEvents.Register(frame, refreshFunc)
 
             if auraUpdateKind == "full" then
                 RecordAuraDiagnostic({
-                    unit = owner.unit,
+                    unit = owner._fpUnit,
                     source = "UNIT_AURA",
                     payloadClassification = payloadClassification,
                     scanClassification = "not_attempted",
@@ -283,7 +283,7 @@ function AuraEvents.Register(frame, refreshFunc)
             end
 
             RecordAuraDiagnostic({
-                unit = owner.unit,
+                unit = owner._fpUnit,
                 source = "UNIT_AURA",
                 payloadClassification = payloadClassification,
                 scanClassification = "not_attempted",
@@ -294,7 +294,7 @@ function AuraEvents.Register(frame, refreshFunc)
             })
 
             if AuraCache.ApplyUpdate then
-                AuraCache.ApplyUpdate(owner, owner.unit, safeUpdateInfo)
+                AuraCache.ApplyUpdate(owner, owner._fpUnit, safeUpdateInfo)
             end
 
             Log(owner, "event", "UNIT_AURA incremental")

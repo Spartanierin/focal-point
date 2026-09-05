@@ -83,19 +83,19 @@ function Events.Register(frame, deps)
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
     eventFrame.elapsed = 0
 
-    if frame.unit == "target" then
+    if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    elseif frame.unit == "targettarget" then
+    elseif frame._fpUnit == "targettarget" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
         eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
-    elseif frame.unit == "focustarget" then
+    elseif frame._fpUnit == "focustarget" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
         eventFrame:RegisterEvent("UNIT_TARGET")
         eventFrame:RegisterEvent("UNIT_NAME_UPDATE")
-    elseif frame.unit == "focus" then
+    elseif frame._fpUnit == "focus" then
         eventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    elseif frame.unit == "pet" then
+    elseif frame._fpUnit == "pet" then
         eventFrame:RegisterEvent("UNIT_PET")
     end
 
@@ -103,7 +103,7 @@ function Events.Register(frame, deps)
         local owner = self.owner
         local castBar = owner and owner.Elements and owner.Elements.CastBar
         local hasPreviewCast = IsPreviewModeEnabled and IsPreviewModeEnabled() and castBar and castBar.isPreview
-        if not owner or not FrameUsesCastTime or not FrameUsesCastTime(owner) or (not hasPreviewCast and not (HasActiveCast and HasActiveCast(owner.unit))) then
+        if not owner or not FrameUsesCastTime or not FrameUsesCastTime(owner) or (not hasPreviewCast and not (HasActiveCast and HasActiveCast(owner._fpUnit))) then
             self.elapsed = 0
             if TextState.SetCastTickerActive then
                 TextState.SetCastTickerActive(owner, false)
@@ -138,7 +138,7 @@ function Events.Register(frame, deps)
         end
 
         if event == "PLAYER_UPDATE_RESTING" then
-            if owner.unit == "player" then
+            if owner._fpUnit == "player" then
                 QueueTextCommit(event, "texts", STATUS_TEXT_REFRESH_OPTIONS)
             end
             return
@@ -155,8 +155,8 @@ function Events.Register(frame, deps)
         end
 
         if event == "UNIT_TARGET" then
-            if owner.unit ~= "targettarget" or unit ~= "target" then
-                if owner.unit ~= "focustarget" or unit ~= "focus" then
+            if owner._fpUnit ~= "targettarget" or unit ~= "target" then
+                if owner._fpUnit ~= "focustarget" or unit ~= "focus" then
                     return
                 end
             end
@@ -165,25 +165,25 @@ function Events.Register(frame, deps)
         end
 
         if event == "UNIT_NAME_UPDATE" then
-            if (owner.unit == "targettarget" or owner.unit == "focustarget") and unit == owner.unit then
+            if (owner._fpUnit == "targettarget" or owner._fpUnit == "focustarget") and unit == owner._fpUnit then
                 QueueTextCommit(event, "texts")
             end
             return
         end
 
         if event == "UNIT_PET" then
-            if owner.unit == "pet" and unit == "player" then
+            if owner._fpUnit == "pet" and unit == "player" then
                 QueueTextCommit(event, "texts")
             end
             return
         end
 
-        if event == "PLAYER_ENTERING_WORLD" and owner.unit ~= "player" then
+        if event == "PLAYER_ENTERING_WORLD" and owner._fpUnit ~= "player" then
             QueueTextCommit(event, "texts")
             return
         end
 
-        if unit and unit ~= owner.unit then
+        if unit and unit ~= owner._fpUnit then
             return
         end
 

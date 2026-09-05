@@ -95,7 +95,7 @@ function Presence.GetTargetPresenceSnapshot(unit)
 end
 
 function Presence.MaybeDebugTarget(frame, message)
-    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame.unit == "target" and FocalPoint.Debug) then
+    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame._fpUnit == "target" and FocalPoint.Debug) then
         return
     end
 
@@ -117,7 +117,7 @@ function Presence.MaybeDebugTarget(frame, message)
 end
 
 function Presence.ForceDebugTarget(frame, message, key, cooldown)
-    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame.unit == "target" and FocalPoint.Debug) then
+    if not (FocalPoint and FocalPoint.debugTargetVisibility and frame and frame._fpUnit == "target" and FocalPoint.Debug) then
         return
     end
 

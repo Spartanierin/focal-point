@@ -157,14 +157,14 @@ local function BuildSnapshot(event, frame, values)
     local activeUnit = FindFrameInMap(FocalPoint and FocalPoint.frames, frame)
     local pooledUnit = FindFrameInMap(FocalPoint and FocalPoint.framePool, frame)
     local runtimeState = frame and frame.FocalPointRuntimeState or nil
-    local unit = values.unit or activeUnit or pooledUnit or frame and frame.unit
+    local unit = values.unit or activeUnit or pooledUnit or frame and frame._fpUnit
 
     return {
         time = GetTimeValue(),
         event = event,
         unit = unit,
         frameId = Lifecycle.GetFrameId(frame),
-        frameUnit = frame and frame.unit or nil,
+        frameUnit = frame and frame._fpUnit or nil,
         shown = IsRegionShown(frame),
         alpha = GetFrameAlpha(frame),
         inFrames = activeUnit ~= nil,
@@ -293,7 +293,7 @@ function Lifecycle.CheckReuseExit(frame, expectedUnit, reason)
         return
     end
     Lifecycle.Record("reuse-exit", frame, { unit = expectedUnit, reason = reason })
-    if frame and frame.unit ~= expectedUnit then
+    if frame and frame._fpUnit ~= expectedUnit then
         Lifecycle.RecordWarning("reuse-unit-mismatch", frame, { unit = expectedUnit, reason = reason })
     end
     if ShouldExpectVisibleLive(frame, expectedUnit) then
@@ -316,7 +316,7 @@ function Lifecycle.MarkDelayedRefresh(frame, reason, scope, delay)
     end
     return {
         frameId = Lifecycle.GetFrameId(frame),
-        unit = frame and frame.unit or nil,
+        unit = frame and frame._fpUnit or nil,
         reason = reason,
         scope = scope,
         delay = delay,
@@ -329,7 +329,7 @@ function Lifecycle.RecordDelayedRefreshFired(frame, marker)
         return
     end
     Lifecycle.Record("delayed-refresh-fired", frame, {
-        unit = marker and marker.unit or frame and frame.unit,
+        unit = marker and marker.unit or frame and frame._fpUnit,
         reason = marker and marker.reason or nil,
     })
     local activeUnit = FindFrameInMap(FocalPoint and FocalPoint.frames, frame)
@@ -346,7 +346,7 @@ function Lifecycle.RecordDelayedRefreshFired(frame, marker)
             reason = marker and marker.reason or nil,
         })
     end
-    if marker and marker.unit and frame and frame.unit ~= marker.unit then
+    if marker and marker.unit and frame and frame._fpUnit ~= marker.unit then
         Lifecycle.RecordWarning("delayed-refresh-unit-mismatch", frame, {
             unit = marker.unit,
             reason = marker.reason,
@@ -359,7 +359,7 @@ function Lifecycle.RecordDelayedRefreshSkipped(frame, marker, reason)
         return
     end
     Lifecycle.Record("delayed-refresh-skipped", frame, {
-        unit = marker and marker.unit or frame and frame.unit,
+        unit = marker and marker.unit or frame and frame._fpUnit,
         reason = reason or marker and marker.reason or nil,
     })
 end

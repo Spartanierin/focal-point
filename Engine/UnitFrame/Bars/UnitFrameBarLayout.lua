@@ -13,7 +13,7 @@ local function ApplyAbsorbBarLayout(frame)
 
     local config = FocalPoint.UnitFrameUtils
         and FocalPoint.UnitFrameUtils.GetUnitDB
-        and FocalPoint.UnitFrameUtils.GetUnitDB(frame.unit)
+        and FocalPoint.UnitFrameUtils.GetUnitDB(frame._fpUnit)
     if type(config) ~= "table" then
         return
     end
@@ -39,11 +39,11 @@ local function ApplyAbsorbBarLayout(frame)
 end
 
 local function IsPlaceholderUnitEnabled(frame)
-    if not frame or not frame.unit then
+    if not frame or not frame._fpUnit then
         return true
     end
 
-    local unitKey = frame.unit
+    local unitKey = frame._fpUnit
     if type(unitKey) == "string" and unitKey:match("^boss%d+$") then
         unitKey = "boss"
     end

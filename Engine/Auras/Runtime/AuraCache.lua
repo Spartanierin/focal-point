@@ -87,7 +87,7 @@ local function GetRoot(frame)
     frame.AuraCache.groups = frame.AuraCache.groups or {}
     frame.AuraCache.state = frame.AuraCache.state or {
         phase = "cold",
-        boundUnit = frame and frame.unit or nil,
+        boundUnit = frame and frame._fpUnit or nil,
         lastReason = nil,
         lastRefreshMode = nil,
         version = 0,
