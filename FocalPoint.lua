@@ -1433,7 +1433,7 @@ function FocalPoint:EnsureBossFrames()
     end
 
     local bossConfig = self.UnitFrameUtils and self.UnitFrameUtils.GetUnitDB and self.UnitFrameUtils.GetUnitDB("boss")
-    if type(bossConfig) ~= "table" or bossConfig.enabled == false then
+    if type(bossConfig) ~= "table" or bossConfig.present == false or bossConfig.enabled == false then
         return
     end
 

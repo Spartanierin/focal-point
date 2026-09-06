@@ -466,6 +466,9 @@ local function EnsureEditorDesignPresenceForUnit(addon, unit)
     if type(unitConfig) ~= "table" then
         return
     end
+    if unitConfig.present == false then
+        return
+    end
 
     addon.frames = addon.frames or {}
     if configUnit == "boss" then

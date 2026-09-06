@@ -4,6 +4,7 @@ FocalPoint.UnitFrameUnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
 local Policy = FocalPoint.UnitFrameUnitWatchPolicy
 
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local MAX_SYNC_DEBUG_MISMATCHES = 20
 
 local function GetUnit(frameOrUnit, options)
@@ -72,6 +73,17 @@ local function IsDerivedUnit(unit)
     return unit == "targettarget" or unit == "focustarget"
 end
 
+local function IsUnitPresent(frame, unit)
+    local config
+    if UnitUtils.GetUnitDB then
+        config = UnitUtils.GetUnitDB(unit)
+    end
+    if type(config) ~= "table" then
+        config = frame and frame.config
+    end
+    return type(config) == "table" and config.present ~= false
+end
+
 function Policy.Resolve(frameOrUnit, options)
     options = type(options) == "table" and options or {}
 
@@ -111,6 +123,11 @@ function Policy.Resolve(frameOrUnit, options)
 
     if type(unit) ~= "string" or unit == "" then
         result.reason = frame and "invalid-frame" or "invalid-unit"
+        return result
+    end
+
+    if not IsUnitPresent(frame, unit) then
+        result.reason = "unit-absent"
         return result
     end
 

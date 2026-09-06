@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.UnitFrameState = FocalPoint.UnitFrameState or {}
 local State = FocalPoint.UnitFrameState
 local Presence = FocalPoint.UnitFramePresence or {}
+local UnitUtils = FocalPoint.UnitFrameUtils or {}
 
 -- Small runtime-state kernel for controlled refresh orchestration.
 
@@ -178,6 +179,23 @@ local function GetDerivedParentUnit(unit)
         return "focus"
     end
     return nil
+end
+
+local function IsFrameUnitPresent(frame)
+    local unit = frame and frame._fpUnit
+    if type(unit) ~= "string" or unit == "" then
+        return true
+    end
+
+    local config
+    if UnitUtils.GetUnitDB then
+        config = UnitUtils.GetUnitDB(unit)
+    end
+    if type(config) ~= "table" then
+        config = frame.config
+    end
+
+    return type(config) == "table" and config.present ~= false
 end
 
 local function GetFrameDebugLabel(frame)
@@ -679,6 +697,15 @@ function State.QueueRefresh(frame, reason, scope, options, delay)
             end
         end)
         return true
+    end
+
+    if not IsFrameUnitPresent(frame) then
+        local runtimeState = State.Ensure(frame)
+        if runtimeState then
+            runtimeState.pendingCommit = false
+            runtimeState.phase = "absent"
+        end
+        return false
     end
 
     local runtimeState = State.MarkDirty(frame, reason, scope, options)

@@ -27,6 +27,10 @@ local function GetEditableUnitConfig(unit)
     return nil
 end
 
+local function IsUnitConfigPresent(config)
+    return type(config) == "table" and config.present ~= false
+end
+
 function FocalPoint:Init()
     self.frames = self.frames or {}
     self.framesUnlocked = self.framesUnlocked == true
@@ -1292,7 +1296,7 @@ function FocalPoint:ToggleFrameLock(options)
             local config = GetUnitConfig(unit)
 
             if unit == "boss" then
-                if type(config) == "table" then
+                if IsUnitConfigPresent(config) then
                     for bossIndex = 1, 5 do
                         local bossUnit = "boss" .. bossIndex
                         if not self.frames[bossUnit] then
@@ -1300,7 +1304,7 @@ function FocalPoint:ToggleFrameLock(options)
                         end
                     end
                 end
-            elseif type(config) == "table" and not self.frames[unit] then
+            elseif IsUnitConfigPresent(config) and not self.frames[unit] then
                 self:SpawnUnitFrame(unit, { allowDisabledForUnlock = true })
             end
         end

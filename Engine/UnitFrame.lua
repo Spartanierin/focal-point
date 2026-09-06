@@ -46,6 +46,7 @@ local StopCastBar
 
 -- Shared aliases used directly by the coordinating runtime below.
 local GetUnitDB = Utils.GetUnitDB
+local NormalizeConfigUnitKey = Utils.NormalizeConfigUnitKey
 local UnpackColor = Utils.UnpackColor
 local ResolveInterruptibleState = Utils.ResolveInterruptibleState
 local GetPowerColorForUnit = Colors.GetPowerColorForUnit
@@ -117,6 +118,15 @@ local AccumulateInsideReserve = InsideLayout.AccumulateReserve
 local ApplyReserveToArea = InsideLayout.ApplyReserveToArea
 local ApplyVisibleReserve = InsideLayout.ApplyVisibleReserve
 local ApplyVisibleEntryReserves = InsideLayout.ApplyVisibleEntryReserves
+
+local function IsUnitConfigPresent(config)
+    return type(config) == "table" and config.present ~= false
+end
+
+local function IsUnitPresent(unit)
+    local configUnit = NormalizeConfigUnitKey and NormalizeConfigUnitKey(unit) or unit
+    return IsUnitConfigPresent(GetUnitDB(configUnit))
+end
 
 local function BuildStatusBarMediaContext(frame, field, referenceSourceField)
     local MediaRegistry = FocalPoint.MediaRegistry
@@ -1904,7 +1914,7 @@ end
 function UF:Build(unit, options)
     options = options or {}
     local config = GetUnitDB(unit)
-    if not config or (config.enabled == false and not options.allowDisabledForUnlock) then
+    if not config or config.present == false or (config.enabled == false and not options.allowDisabledForUnlock) then
         return nil
     end
 
@@ -1971,6 +1981,41 @@ function UF:Refresh(frame, refreshRequest)
 
     local config = GetUnitDB(frame._fpUnit)
     if not config then
+        return
+    end
+    if config.present == false then
+        if ClearFrameVisualState then
+            ClearFrameVisualState(frame, "unit_absent_refresh")
+        end
+        if frame._unitWatchRegistered and UnregisterUnitWatch and not IsProtectedFrameInCombat(frame) then
+            UnregisterUnitWatch(frame)
+            frame._unitWatchRegistered = false
+        end
+        frame._focalPointPendingVisibilityIntent = nil
+        frame._focalPointPendingVisibilityClearedReason = "unit-absent"
+        frame._focalPointPendingUnitWatchLiveReentry = nil
+        frame._focalPointPendingUnitWatchLiveReentryClearedReason = "unit-absent"
+        if frame.SelectionOverlay and frame.SelectionOverlay.Hide then
+            frame.SelectionOverlay:Hide()
+        end
+        if frame.MoveOverlay and frame.MoveOverlay.Hide then
+            frame.MoveOverlay:Hide()
+        end
+        if frame.EnableMouse then
+            frame:EnableMouse(false)
+        end
+        if frame.SetMouseClickEnabled then
+            pcall(frame.SetMouseClickEnabled, frame, false)
+        end
+        if frame.SetAlpha then
+            frame:SetAlpha(0)
+        end
+        if frame.Hide and not IsProtectedFrameInCombat(frame) then
+            frame:Hide()
+        end
+        if StateRuntime.SetPhase then
+            StateRuntime.SetPhase(frame, "absent")
+        end
         return
     end
     if Visibility.RecordCombatTransition then
@@ -2126,9 +2171,10 @@ local function ExpandActiveProfileUnits(owner)
 
     for _, unitKey in ipairs(unitOrder or {}) do
         local unitConfig = GetUnitDB(unitKey)
+        local present = IsUnitConfigPresent(unitConfig)
         local enabled = type(unitConfig) == "table" and unitConfig.enabled ~= false
 
-        if enabled or (includeDisabledForUnlock and type(unitConfig) == "table") then
+        if present and (enabled or (includeDisabledForUnlock and type(unitConfig) == "table")) then
             if unitKey == "boss" then
                 for bossIndex = 1, 5 do
                     local bossUnit = "boss" .. bossIndex
@@ -2242,12 +2288,28 @@ function FocalPoint:SpawnUnitFrame(unit, options)
     self.framePool = self.framePool or {}
     self.spawnDiagnostics = self.spawnDiagnostics or {}
     local unitDB = GetUnitDB(unit)
+    local present = IsUnitConfigPresent(unitDB)
+
+    if not present then
+        if self.frames[unit] then
+            self:DeactivateUnitFrame(unit, true)
+        end
+        self.spawnDiagnostics[unit] = {
+            ok = false,
+            hasConfig = type(unitDB) == "table",
+            enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            present = false,
+            reason = "unit_absent",
+        }
+        return nil
+    end
 
     if self.frames[unit] then
         self.spawnDiagnostics[unit] = {
             ok = true,
             hasConfig = type(unitDB) == "table",
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            present = true,
             reason = "active_reused",
         }
         if LifecycleDiagnostics.Record then
@@ -2268,6 +2330,7 @@ function FocalPoint:SpawnUnitFrame(unit, options)
             ok = true,
             hasConfig = type(unitDB) == "table",
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            present = true,
             reason = "pooled_reused",
         }
         self:RefreshUnitFrame(unit)
@@ -2288,6 +2351,7 @@ function FocalPoint:SpawnUnitFrame(unit, options)
             ok = false,
             hasConfig = type(unitDB) == "table",
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            present = present,
             reason = frameOrError,
         }
         if self.Warn then
@@ -2306,6 +2370,7 @@ function FocalPoint:SpawnUnitFrame(unit, options)
             ok = true,
             hasConfig = true,
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            present = true,
             reason = type(unitDB) == "table" and unitDB.enabled == false and options.allowDisabledForUnlock and "spawned_editor_disabled" or "spawned",
         }
     else
@@ -2320,6 +2385,7 @@ function FocalPoint:SpawnUnitFrame(unit, options)
             ok = false,
             hasConfig = type(unitDB) == "table",
             enabled = type(unitDB) == "table" and unitDB.enabled ~= false or false,
+            present = present,
             reason = reason,
         }
         if reason == "UF:Build returned nil unexpectedly" and self.Warn then
@@ -2914,6 +2980,18 @@ end
 
 function FocalPoint:RefreshUnitFrame(unit)
     if unit == "boss" then
+        if not IsUnitPresent("boss") then
+            if self.frames then
+                for bossIndex = 1, 5 do
+                    local bossFrame = self.frames["boss" .. bossIndex]
+                    if bossFrame then
+                        UF:Refresh(bossFrame)
+                    end
+                end
+            end
+            return
+        end
+
         if self.EnsureBossFrames then
             self:EnsureBossFrames()
         end
@@ -2932,6 +3010,11 @@ function FocalPoint:RefreshUnitFrame(unit)
     end
 
     if not self.frames or not self.frames[unit] then
+        return
+    end
+
+    if not IsUnitPresent(unit) then
+        UF:Refresh(self.frames[unit])
         return
     end
 
