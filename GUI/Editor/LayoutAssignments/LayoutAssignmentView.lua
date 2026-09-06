@@ -272,6 +272,10 @@ local function RefreshRows()
             if ok and spec.id == GetCurrentSpecID() and service.EvaluateCurrentSpecializationAssignment then
                 service.EvaluateCurrentSpecializationAssignment("assignment:ui")
             end
+            local canvasToolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.CanvasToolbar or nil
+            if canvasToolbar and type(canvasToolbar.Refresh) == "function" then
+                canvasToolbar.Refresh()
+            end
             RefreshRows()
         end)
         row:AddChild(dropdown)

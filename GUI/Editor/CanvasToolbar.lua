@@ -12,7 +12,7 @@ local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
 local TOOLBAR_WIDTH = 662
-local TOOLBAR_HEIGHT = 34
+local TOOLBAR_HEIGHT = 50
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
 local INSERT_LABEL_X = 12
@@ -194,6 +194,57 @@ local function BuildLayoutDropdownData(selectedLayoutId)
     return values, order, selectedLayoutId, activeLayoutId, activeName
 end
 
+local function ResolveLayoutNameById(layoutId)
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return ""
+    end
+
+    local layoutService = ns.LayoutService or {}
+    local layouts = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
+    for _, layout in ipairs(layouts) do
+        if type(layout) == "table" and layout.id == layoutId then
+            return ResolveLayoutDisplayName(layout)
+        end
+    end
+    return layoutId
+end
+
+local function ResolveCurrentSpecAssignment()
+    local service = ns.LayoutAssignmentService or {}
+    if type(service.GetAssignmentForCurrentSpecialization) ~= "function" then
+        return nil
+    end
+
+    local layoutId, status, specID, specName = service.GetAssignmentForCurrentSpecialization(ns.db)
+    if status ~= "ok" or type(layoutId) ~= "string" or layoutId == "" then
+        return nil
+    end
+
+    return {
+        layoutId = layoutId,
+        layoutName = ResolveLayoutNameById(layoutId),
+        specID = specID,
+        specName = type(specName) == "string" and specName ~= "" and specName or nil,
+    }
+end
+
+local function ReportManualAutomationMismatch(selectedLayoutId)
+    local assignment = ResolveCurrentSpecAssignment()
+    if not assignment or assignment.layoutId == selectedLayoutId then
+        return
+    end
+    if ns.Info then
+        local assignedName = assignment.layoutName
+        if type(assignedName) ~= "string" or assignedName == "" then
+            assignedName = assignment.layoutId
+        end
+        ns:Info(string.format(
+            T("LAYOUT_ASSIGNMENT_MANUAL_MISMATCH_HINT", "This specialization is assigned to \"%s\". The assigned layout may be restored automatically."),
+            assignedName
+        ))
+    end
+end
+
 local function RefreshLayoutControls(current)
     if not current or not current.widgets then
         return
@@ -224,6 +275,26 @@ local function RefreshLayoutControls(current)
     end
     if current.widgets.layoutActiveLabel then
         current.widgets.layoutActiveLabel:SetText(activeName ~= "" and activeName or "")
+    end
+    if current.widgets.layoutAutomationLabel then
+        local assignment = ResolveCurrentSpecAssignment()
+        if assignment then
+            local assignedName = assignment.layoutName
+            if type(assignedName) ~= "string" or assignedName == "" then
+                assignedName = assignment.layoutId
+            end
+            local text
+            if assignment.layoutId == activeLayoutId then
+                text = T("LAYOUT_ASSIGNMENT_STATUS_ACTIVE", "Active via Specialization Automation")
+            else
+                text = string.format(T("LAYOUT_ASSIGNMENT_STATUS_ASSIGNED", "Assigned via Specialization: %s"), assignedName)
+            end
+            current.widgets.layoutAutomationLabel:SetText(text)
+            current.widgets.layoutAutomationLabel:Show()
+        else
+            current.widgets.layoutAutomationLabel:SetText("")
+            current.widgets.layoutAutomationLabel:Hide()
+        end
     end
 
     activateButton:SetText("Activate")
@@ -985,6 +1056,17 @@ local function EnsureHost()
     end
     widgets.layoutLabel = layoutLabel
 
+    local layoutAutomationLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    layoutAutomationLabel:SetPoint("TOPLEFT", host, "TOPLEFT", LAYOUT_LABEL_X, -31)
+    layoutAutomationLabel:SetWidth(418)
+    layoutAutomationLabel:SetJustifyH("LEFT")
+    layoutAutomationLabel:SetText("")
+    layoutAutomationLabel:Hide()
+    if FormWidgets and FormWidgets.ApplyTextStyle then
+        FormWidgets.ApplyTextStyle(layoutAutomationLabel, "help", 10, 0.9)
+    end
+    widgets.layoutAutomationLabel = layoutAutomationLabel
+
     context = {
         host = host,
         widgets = widgets,
@@ -1029,6 +1111,7 @@ local function EnsureHost()
                     ok, reason = ns:ActivateLayout(layoutId, "canvas-toolbar")
                 end
                 if ok then
+                    ReportManualAutomationMismatch(layoutId)
                     context.selectedLayoutId = ResolveActiveLayoutId()
                 end
                 ReportLayoutActivationResult(ok, reason)
