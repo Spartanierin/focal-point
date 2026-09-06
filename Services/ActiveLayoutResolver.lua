@@ -107,6 +107,9 @@ local function ResolveMutableUserLayoutPayload(db, layoutId)
     end
 
     local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.MigrateLegacyPayload) == "function" then
+        storage.MigrateLegacyPayload(payload)
+    end
     if type(storage) == "table" and type(storage.EnsurePayload) == "function" then
         storage.EnsurePayload(payload)
     end

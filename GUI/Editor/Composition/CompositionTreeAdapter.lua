@@ -133,6 +133,13 @@ local function IsPresent(unitConfig, objectRef)
     return true
 end
 
+local function IsUnitPresent(unit, unitConfig)
+    return IsPresent(unitConfig, {
+        kind = "unit",
+        unit = unit,
+    })
+end
+
 local function BuildBarTarget(sectionKey, objectKey)
     local target = {
         kind = "unit",
@@ -536,7 +543,12 @@ function Adapter.GetRootUnits()
 
     for _, unit in ipairs(unitOrder) do
         local normalizedUnit = NormalizeUnitKey(unit)
-        if normalizedUnit and not seen[normalizedUnit] and type(units) == "table" and type(units[normalizedUnit]) == "table" then
+        if normalizedUnit
+            and not seen[normalizedUnit]
+            and type(units) == "table"
+            and type(units[normalizedUnit]) == "table"
+            and IsUnitPresent(normalizedUnit, units[normalizedUnit])
+        then
             roots[#roots + 1] = normalizedUnit
             seen[normalizedUnit] = true
         end
@@ -546,7 +558,11 @@ function Adapter.GetRootUnits()
         local extraUnits = {}
         for unit in pairs(units) do
             local normalizedUnit = NormalizeUnitKey(unit)
-            if normalizedUnit and not seen[normalizedUnit] then
+            if normalizedUnit
+                and not seen[normalizedUnit]
+                and type(units[normalizedUnit]) == "table"
+                and IsUnitPresent(normalizedUnit, units[normalizedUnit])
+            then
                 extraUnits[#extraUnits + 1] = normalizedUnit
                 seen[normalizedUnit] = true
             end
@@ -565,6 +581,9 @@ function Adapter.BuildUnitTree(unit)
     local units = GetActiveUnits()
     local unitConfig = normalizedUnit and type(units) == "table" and units[normalizedUnit] or nil
     if type(unitConfig) ~= "table" then
+        return nil
+    end
+    if not IsUnitPresent(normalizedUnit, unitConfig) then
         return nil
     end
 

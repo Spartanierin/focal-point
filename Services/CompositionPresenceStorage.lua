@@ -82,6 +82,48 @@ function Storage.EnsureUnit(unitConfig)
     return unitConfig
 end
 
+function Storage.MigrateLegacyUnitPresence(unitConfig)
+    if type(unitConfig) ~= "table" then
+        return unitConfig
+    end
+
+    if unitConfig.present == nil then
+        unitConfig.present = unitConfig.enabled ~= false
+    end
+
+    return unitConfig
+end
+
+function Storage.MigrateLegacyUnits(units)
+    if type(units) ~= "table" then
+        return units
+    end
+
+    for _, unitConfig in pairs(units) do
+        Storage.MigrateLegacyUnitPresence(unitConfig)
+    end
+
+    return units
+end
+
+function Storage.MigrateLegacyProfile(profile)
+    if type(profile) ~= "table" then
+        return profile
+    end
+
+    Storage.MigrateLegacyUnits(profile.Units)
+    return profile
+end
+
+function Storage.MigrateLegacyPayload(payload)
+    if type(payload) ~= "table" then
+        return payload
+    end
+
+    Storage.MigrateLegacyUnits(payload.Units)
+    return payload
+end
+
 function Storage.EnsureUnits(units)
     if type(units) ~= "table" then
         return units

@@ -599,6 +599,9 @@ end
 
 local function EnsureCompositionPresenceDefaults()
     local storage = FocalPoint.CompositionPresenceStorage
+    if FocalPoint.db and FocalPoint.db.profile and type(storage) == "table" and type(storage.MigrateLegacyProfile) == "function" then
+        storage.MigrateLegacyProfile(FocalPoint.db.profile)
+    end
     if FocalPoint.db and FocalPoint.db.profile and type(storage) == "table" and type(storage.EnsureProfile) == "function" then
         storage.EnsureProfile(FocalPoint.db.profile)
     end

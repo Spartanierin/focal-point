@@ -8,6 +8,7 @@ ns.GUI.Editor.ToolbarBinding = ToolbarBinding
 
 local PresetUI = ns.GUI.Editor and ns.GUI.Editor.PresetUI or {}
 local CompositionTreeView = ns.CompositionTreeView or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or {}
+local CompositionTreeAdapter = ns.CompositionTreeAdapter or (ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeAdapter) or {}
 local Shared = ns.GUI.Editor.SidebarShared or {}
 
 local NAV_WIDGET_IDS = {
@@ -16,14 +17,14 @@ local NAV_WIDGET_IDS = {
     textBuilderButton = { "Nav", "TEXT_BUILDER" },
 }
 
-local UNIT_WIDGET_IDS = {
-    playerButton = { "Units", "PLAYER" },
-    targetButton = { "Units", "TARGET" },
-    targetTargetButton = { "Units", "TARGETTARGET" },
-    petButton = { "Units", "PET" },
-    focusButton = { "Units", "FOCUS" },
-    focusTargetButton = { "Units", "FOCUSTARGET" },
-    bossButton = { "Units", "BOSS" },
+local UNIT_WIDGETS = {
+    { id = "playerButton", constantPath = { "Units", "PLAYER" }, row = "UnitGridRow1" },
+    { id = "targetButton", constantPath = { "Units", "TARGET" }, row = "UnitGridRow1" },
+    { id = "targetTargetButton", constantPath = { "Units", "TARGETTARGET" }, row = "UnitGridRow2" },
+    { id = "petButton", constantPath = { "Units", "PET" }, row = "UnitGridRow2" },
+    { id = "focusButton", constantPath = { "Units", "FOCUS" }, row = "UnitGridRow3" },
+    { id = "focusTargetButton", constantPath = { "Units", "FOCUSTARGET" }, row = "UnitGridRow3" },
+    { id = "bossButton", constantPath = { "Units", "BOSS" }, row = "UnitGridRow4" },
 }
 
 local INTERACTION_MODE_BUTTONS = {
@@ -382,6 +383,81 @@ local function IterateWidgetMap(widgetMap, callback)
     end
 end
 
+local function IterateUnitWidgets(callback)
+    if type(callback) ~= "function" then
+        return
+    end
+    for _, entry in ipairs(UNIT_WIDGETS) do
+        callback(entry)
+    end
+end
+
+local function BuildPresentUnitSet()
+    if type(CompositionTreeAdapter.GetRootUnits) ~= "function" then
+        return nil
+    end
+
+    local presentUnits = {}
+    for _, unitKey in ipairs(CompositionTreeAdapter.GetRootUnits() or {}) do
+        presentUnits[unitKey] = true
+    end
+    return presentUnits
+end
+
+local function RecoverActiveUnitSelection(context)
+    local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State or nil
+    if not (stateApi and type(stateApi.ValidateSelection) == "function") then
+        return
+    end
+
+    local presentUnits = BuildPresentUnitSet()
+    if type(presentUnits) ~= "table" then
+        return
+    end
+
+    local state = context and context.state or nil
+    local selectedUnit = state and state.selectedUnit or nil
+    if selectedUnit and presentUnits[selectedUnit] == true then
+        return
+    end
+
+    local recoveredUnit = stateApi.ValidateSelection(function(unitKey)
+        return presentUnits[unitKey] == true
+    end)
+    if recoveredUnit then
+        if type(stateApi.ClearSelectedTextElement) == "function" then
+            stateApi.ClearSelectedTextElement()
+        end
+        if type(stateApi.ClearPropertyScope) == "function" then
+            stateApi.ClearPropertyScope()
+        end
+    end
+    if context then
+        context.state = stateApi.Get and stateApi.Get() or context.state
+    end
+    return recoveredUnit
+end
+
+local function SetWidgetVisible(widget, visible)
+    if not widget then
+        return
+    end
+
+    local frame = widget.frame or widget
+    if visible == false then
+        if frame.Hide then
+            frame:Hide()
+        end
+    elseif frame.Show then
+        frame:Show()
+    end
+end
+
+local function SetGroupVisible(context, sectionKey, visible)
+    local group = context and context.groups and context.groups[sectionKey] or nil
+    SetWidgetVisible(group, visible)
+end
+
 local function CreateItemWidget(props, deps)
     if not props or not props.widget then
         return nil
@@ -684,6 +760,8 @@ local function RefreshWindowState(context, deps)
         context._suspendCallbacks = false
         return
     end
+    RecoverActiveUnitSelection(context)
+    state = context.state or state
     local hasPresetWidgets = context.widgets.presetDropdown
         or context.widgets.applyPreset
         or context.widgets.saveCustom
@@ -784,16 +862,30 @@ local function RefreshWindowState(context, deps)
         end
     end
 
-    IterateWidgetMap(UNIT_WIDGET_IDS, function(widgetId, constantPath)
-        local unitKey = ResolveConstantPath(C, constantPath)
-        local button = context.widgets[widgetId]
+    local presentUnits = BuildPresentUnitSet()
+    local visibleRows = {}
+    IterateUnitWidgets(function(entry)
+        local unitKey = ResolveConstantPath(C, entry.constantPath)
+        local button = context.widgets[entry.id]
+        local isPresent = presentUnits == nil or presentUnits[unitKey] == true
         if button then
             button:SetText(nsRef.GetLabel and nsRef.GetLabel(KM.Units, unitKey) or unitKey or "")
+            button:SetDisabled(not isPresent)
+            SetWidgetVisible(button, isPresent)
+            if isPresent then
+                visibleRows[entry.row] = true
+            end
             if ApplySidebarButtonVisual then
                 ApplySidebarButtonVisual(button, unitKey == state.selectedUnit and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
             end
         end
     end)
+    SetWidgetVisible(context.widgets.bossSpacer, visibleRows.UnitGridRow4 == true)
+    SetGroupVisible(context, "UnitGridRow1", visibleRows.UnitGridRow1 == true)
+    SetGroupVisible(context, "UnitGridRow2", visibleRows.UnitGridRow2 == true)
+    SetGroupVisible(context, "UnitGridRow3", visibleRows.UnitGridRow3 == true)
+    SetGroupVisible(context, "UnitGridRow4", visibleRows.UnitGridRow4 == true)
+    SetGroupVisible(context, "UnitGrid", next(visibleRows) ~= nil)
 
     if context.widgets.expertMode then
         context.widgets.expertMode:SetLabel(T("OPTION_EXPERT_MODE", "Expert Mode", deps))
@@ -956,11 +1048,15 @@ local function WireCallbacks(context, deps, refreshFn)
         end)
     end
 
-    IterateWidgetMap(UNIT_WIDGET_IDS, function(widgetId, constantPath)
-        local unitKey = ResolveConstantPath(C, constantPath)
-        local button = context.widgets[widgetId]
+    IterateUnitWidgets(function(entry)
+        local unitKey = ResolveConstantPath(C, entry.constantPath)
+        local button = context.widgets[entry.id]
         if button then
             button:SetCallback("OnClick", function()
+                local presentUnits = BuildPresentUnitSet()
+                if presentUnits and presentUnits[unitKey] ~= true then
+                    return
+                end
                 if context.options and context.options.onUnitChanged then
                     context.options.onUnitChanged(unitKey)
                 end

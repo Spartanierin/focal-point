@@ -116,6 +116,13 @@ local function IsCompositionPresent(unitKey, objectRef)
     return true
 end
 
+local function IsUnitPresent(unitKey)
+    return IsCompositionPresent(unitKey, {
+        kind = "unit",
+        unit = unitKey,
+    })
+end
+
 local function IsValidText(unitKey, textKey)
     local unitConfig = GetUnitConfig(unitKey)
     local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
@@ -237,7 +244,7 @@ end
 
 function ObjectSelection.GetSelectedObject()
     local selectedUnit = GetSelectedUnit()
-    if not IsValidUnit(selectedUnit) then
+    if not IsValidUnit(selectedUnit) or not IsUnitPresent(selectedUnit) then
         return nil
     end
 
@@ -365,7 +372,7 @@ function ObjectSelection.SelectObject(objectRef)
 
     local kind = objectRef.kind
     local unit = NormalizeUnitKey(objectRef.unit)
-    if not IsValidUnit(unit) then
+    if not IsValidUnit(unit) or not IsUnitPresent(unit) then
         return false
     end
     local previousUnit = GetSelectedUnit()
@@ -387,6 +394,14 @@ function ObjectSelection.SelectObject(objectRef)
         if not sectionKey then
             return false
         end
+        local barRef = {
+            kind = "bar",
+            unit = unit,
+            objectKey = objectRef.objectKey,
+        }
+        if not IsCompositionPresent(unit, barRef) then
+            return false
+        end
         if not SelectUnit(unit) then
             return false
         end
@@ -402,7 +417,13 @@ function ObjectSelection.SelectObject(objectRef)
 
     if kind == "text" then
         local textKey = objectRef.textKey or objectRef.objectKey
-        if not IsValidText(unit, textKey) or not SelectUnit(unit) then
+        local textRef = {
+            kind = "text",
+            unit = unit,
+            textKey = textKey,
+            objectKey = textKey,
+        }
+        if not IsValidText(unit, textKey) or not IsCompositionPresent(unit, textRef) or not SelectUnit(unit) then
             return false
         end
         if EditorState and type(EditorState.SetSelectedTextElement) == "function" then
@@ -441,7 +462,13 @@ function ObjectSelection.SelectObject(objectRef)
 
     if kind == "indicator" then
         local indicatorKey = objectRef.indicatorKey or objectRef.objectKey
-        if not IsValidIndicator(unit, indicatorKey) or not SelectUnit(unit) then
+        local indicatorRef = {
+            kind = "indicator",
+            unit = unit,
+            indicatorKey = indicatorKey,
+            objectKey = indicatorKey,
+        }
+        if not IsValidIndicator(unit, indicatorKey) or not IsCompositionPresent(unit, indicatorRef) or not SelectUnit(unit) then
             return false
         end
         ClearTextSelection()
@@ -458,7 +485,13 @@ function ObjectSelection.SelectObject(objectRef)
 
     if kind == "decoration" then
         local decorationId = objectRef.decorationId or objectRef.objectKey
-        if not IsValidDecoration(unit, decorationId) or not SelectUnit(unit) then
+        local decorationRef = {
+            kind = "decoration",
+            unit = unit,
+            decorationId = decorationId,
+            objectKey = decorationId,
+        }
+        if not IsValidDecoration(unit, decorationId) or not IsCompositionPresent(unit, decorationRef) or not SelectUnit(unit) then
             return false
         end
         ClearTextSelection()

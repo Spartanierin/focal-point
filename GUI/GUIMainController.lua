@@ -490,17 +490,45 @@ end
 local function SelectUnitRootObject(unitKey)
     local objectSelection = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ObjectSelection or nil
     if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
-        return objectSelection.SelectUnitRoot(unitKey) == true
+        return objectSelection.SelectUnitRoot(unitKey) == true, true
     end
 
     if objectSelection and type(objectSelection.SelectObject) == "function" then
         return objectSelection.SelectObject({
             kind = "unit",
             unit = unitKey,
-        }) == true
+        }) == true, true
     end
 
-    return false
+    return false, false
+end
+
+local function IsEditorUnitPresent(unitKey)
+    local normalizedUnit = unitKey
+    if type(normalizedUnit) == "string" and normalizedUnit:match("^boss%d+$") then
+        normalizedUnit = "boss"
+    end
+
+    local unitConfig = FocalPoint.UnitFrameUtils
+        and FocalPoint.UnitFrameUtils.GetUnitDB
+        and FocalPoint.UnitFrameUtils.GetUnitDB(normalizedUnit)
+        or nil
+    if type(unitConfig) ~= "table" then
+        return false
+    end
+
+    local presence = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.Composition
+        and FocalPoint.GUI.Editor.Composition.Presence
+        or FocalPoint.CompositionPresence
+    if presence and type(presence.IsPresent) == "function" then
+        return presence.IsPresent(unitConfig, {
+            kind = "unit",
+            unit = normalizedUnit,
+        }) == true
+    end
+    return true
 end
 
 function FocalPoint:SelectEditorUnit(unit, options)
@@ -525,6 +553,9 @@ function FocalPoint:SelectEditorUnit(unit, options)
     if selectedUnit:match("^boss%d+$") then
         selectedUnit = "boss"
     end
+    if not IsEditorUnitPresent(selectedUnit) then
+        return
+    end
 
     local toggleSelection = type(options) == "table" and options.toggle == true
     local preserveSelection = type(options) == "table" and options.preserveSelection == true
@@ -532,15 +563,20 @@ function FocalPoint:SelectEditorUnit(unit, options)
         selectedUnit = editorState.ToggleUnitSelection(selectedUnit)
     elseif preserveSelection and editorState and editorState.SetPrimaryUnit then
         selectedUnit = editorState.SetPrimaryUnit(selectedUnit)
-    elseif SelectUnitRootObject(selectedUnit) then
-        if editorState and editorState.GetPrimaryUnit then
-            selectedUnit = editorState.GetPrimaryUnit() or selectedUnit
+    else
+        local selectedRoot, objectSelectionAvailable = SelectUnitRootObject(selectedUnit)
+        if selectedRoot then
+            if editorState and editorState.GetPrimaryUnit then
+                selectedUnit = editorState.GetPrimaryUnit() or selectedUnit
+            end
+        elseif objectSelectionAvailable then
+            return
+        elseif editorState and editorState.SetSingleSelection then
+            -- Legacy fallback for early-load states where ObjectSelection is not available yet.
+            selectedUnit = editorState.SetSingleSelection(selectedUnit)
+        elseif editorState and editorState.SetSelectedUnit then
+            editorState.SetSelectedUnit(selectedUnit)
         end
-    elseif editorState and editorState.SetSingleSelection then
-        -- Legacy fallback for early-load states where ObjectSelection is not available yet.
-        selectedUnit = editorState.SetSingleSelection(selectedUnit)
-    elseif editorState and editorState.SetSelectedUnit then
-        editorState.SetSelectedUnit(selectedUnit)
     end
 
     if self.GUI then

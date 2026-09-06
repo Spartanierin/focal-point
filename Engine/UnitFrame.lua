@@ -2421,10 +2421,27 @@ local function ValidateEditorSelectionForProfile(addon)
     end
 
     local selectedUnit = state.selectedUnit
+    local presence = addon.GUI
+        and addon.GUI.Editor
+        and addon.GUI.Editor.Composition
+        and addon.GUI.Editor.Composition.Presence
+        or addon.CompositionPresence
+
     local function IsValidProfileUnit(unitKey)
-        return type(GetActiveLayoutUnitConfig(addon, unitKey)) == "table"
+        local unitConfig = GetActiveLayoutUnitConfig(addon, unitKey)
+        if type(unitConfig) ~= "table" then
+            return false
+        end
+        if presence and type(presence.IsPresent) == "function" then
+            return presence.IsPresent(unitConfig, {
+                kind = "unit",
+                unit = unitKey,
+            }) == true
+        end
+        return true
     end
 
+    local previousSelectedUnit = selectedUnit
     if editorStateApi.ValidateSelection then
         selectedUnit = editorStateApi.ValidateSelection(IsValidProfileUnit)
     elseif not IsValidProfileUnit(selectedUnit) then
@@ -2441,6 +2458,15 @@ local function ValidateEditorSelectionForProfile(addon)
             editorStateApi.ClearSelection()
         end
         return
+    end
+
+    if previousSelectedUnit ~= selectedUnit then
+        if editorStateApi.ClearSelectedTextElement then
+            editorStateApi.ClearSelectedTextElement()
+        end
+        if editorStateApi.ClearPropertyScope then
+            editorStateApi.ClearPropertyScope()
+        end
     end
 
     local unitConfig = GetActiveLayoutUnitConfig(addon, selectedUnit)

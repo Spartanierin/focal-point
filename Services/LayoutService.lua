@@ -79,7 +79,12 @@ end
 function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
     local materialized = LayoutService.Clone(defaultUnit) or {}
     if type(unitConfig) == "table" then
-        LayoutService.MergeInto(materialized, unitConfig)
+        local sourceUnit = LayoutService.Clone(unitConfig) or {}
+        local storage = FocalPoint.CompositionPresenceStorage
+        if type(storage) == "table" and type(storage.MigrateLegacyUnitPresence) == "function" then
+            storage.MigrateLegacyUnitPresence(sourceUnit)
+        end
+        LayoutService.MergeInto(materialized, sourceUnit)
     end
     return NormalizeUnit(materialized)
 end

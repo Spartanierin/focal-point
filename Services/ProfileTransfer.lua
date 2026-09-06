@@ -102,6 +102,9 @@ end
 
 local function EnsureImportedCompositionPresence(profile)
     local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.MigrateLegacyProfile) == "function" then
+        storage.MigrateLegacyProfile(profile)
+    end
     if type(storage) == "table" and type(storage.EnsureProfile) == "function" then
         storage.EnsureProfile(profile)
     end
