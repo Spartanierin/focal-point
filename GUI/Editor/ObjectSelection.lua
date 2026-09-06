@@ -418,7 +418,13 @@ function ObjectSelection.SelectObject(objectRef)
 
     if kind == "aura" then
         local auraKey = objectRef.auraKey or objectRef.objectKey
-        if not IsValidAura(unit, auraKey) or not SelectUnit(unit) then
+        local auraRef = {
+            kind = "aura",
+            unit = unit,
+            objectKey = auraKey,
+            auraKey = auraKey,
+        }
+        if not IsValidAura(unit, auraKey) or not IsCompositionPresent(unit, auraRef) or not SelectUnit(unit) then
             return false
         end
         ClearTextSelection()

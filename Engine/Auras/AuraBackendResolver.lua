@@ -38,6 +38,15 @@ local function GetManagedBackend()
     return FocalPoint.ManagedAuraBackend or {}
 end
 
+local function GetGroupConfig(frame, groupKey)
+    local config = frame and frame.config or nil
+    return type(config) == "table" and config[groupKey] or nil
+end
+
+local function IsGroupPresentAndEnabled(config)
+    return type(config) == "table" and config.present == true and config.enabled ~= false
+end
+
 local function IsEditorAuraMode(frame)
     if not frame then
         return false
@@ -109,7 +118,7 @@ function Resolver.IsManagedGroupActive(frame, groupKey, config)
         return false
     end
 
-    if config and config.enabled == false then
+    if not IsGroupPresentAndEnabled(config) then
         return false
     end
 
@@ -126,7 +135,7 @@ function Resolver.EnsureManagedGroup(frame, groupKey, config)
         return false
     end
 
-    if config and config.enabled == false then
+    if not IsGroupPresentAndEnabled(config) then
         local backend = GetManagedBackend()
         if backend.ClearGroup then
             backend.ClearGroup(frame, groupKey)
@@ -163,7 +172,12 @@ function Resolver.ClearManagedGroup(frame, groupKey)
 end
 
 function Resolver.UpdateManagedGroupAuras(frame, groupKey)
-    if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) then
+    local config = GetGroupConfig(frame, groupKey)
+    if not Resolver.CanUseManagedPlayerGroup(frame, groupKey) or not IsGroupPresentAndEnabled(config) then
+        local backend = GetManagedBackend()
+        if backend.ClearGroup then
+            backend.ClearGroup(frame, groupKey)
+        end
         return false
     end
 

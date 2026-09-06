@@ -376,6 +376,11 @@ local ADD_OBJECT_VISUAL_CAPABILITIES = {
     { componentKey = "ClassificationIndicator", labelKey = "ELEMENT_CLASSIFICATION_INDICATOR", fallback = "Classification" },
 }
 
+local ADD_OBJECT_AURA_CAPABILITIES = {
+    { componentKey = "Buffs", labelKey = "AURA_BUFFS", fallback = "Buffs" },
+    { componentKey = "Debuffs", labelKey = "AURA_DEBUFFS", fallback = "Debuffs" },
+}
+
 local function CloseAddObjectPickerDialog()
     if addObjectPickerDialog and addObjectPickerDialog.Close then
         addObjectPickerDialog:Close()
@@ -394,6 +399,7 @@ local function IsSingletonComponentPresent(unitKey, kind, componentKey)
             unit = unitKey,
             objectKey = componentKey,
             indicatorKey = kind == "indicator" and componentKey or nil,
+            auraKey = kind == "aura" and componentKey or nil,
         }) == true
     end
     return false
@@ -407,6 +413,7 @@ local function SelectSingletonComponent(unitKey, kind, componentKey)
             unit = unitKey,
             objectKey = componentKey,
             indicatorKey = kind == "indicator" and componentKey or nil,
+            auraKey = kind == "aura" and componentKey or nil,
         })
     end
     if type(ns.RefreshUnitFrame) == "function" then
@@ -513,6 +520,19 @@ local function OpenAddObjectPicker()
             end
             AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
                 AddSingletonComponent(unitKey, "indicator", item.componentKey)
+            end)
+        end
+    end
+
+    local hasAurasHeader = false
+    for _, item in ipairs(ADD_OBJECT_AURA_CAPABILITIES) do
+        if not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then
+            if not hasAurasHeader then
+                AddPickerHeader(dialog, T("EDITOR_SECTION_AURAS", "Auras"))
+                hasAurasHeader = true
+            end
+            AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
+                AddSingletonComponent(unitKey, "aura", item.componentKey)
             end)
         end
     end

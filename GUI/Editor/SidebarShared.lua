@@ -860,7 +860,8 @@ end
 local function BuildAuraList(unitConfig)
     local list = {}
     for _, auraKey in ipairs(AURA_ORDER) do
-        if type(unitConfig[auraKey]) == "table" then
+        local auraConfig = type(unitConfig) == "table" and unitConfig[auraKey] or nil
+        if type(auraConfig) == "table" and auraConfig.present == true then
             if auraKey == "Buffs" then
                 list[auraKey] = L["AURA_BUFFS"] or auraKey
             elseif auraKey == "Debuffs" then

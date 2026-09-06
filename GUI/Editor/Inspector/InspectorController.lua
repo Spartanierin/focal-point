@@ -927,6 +927,18 @@ function InspectorController.Build(container, state, options)
         })
     end
 
+    local function SelectAura(unitKey, auraKey)
+        if type(ObjectSelection.SelectObject) ~= "function" then
+            return false
+        end
+        return ObjectSelection.SelectObject({
+            kind = "aura",
+            unit = unitKey,
+            auraKey = auraKey,
+            objectKey = auraKey,
+        })
+    end
+
     local function ApplySingletonComponentPresence(componentKey, present, sectionKey, kind)
         local result = SetComponentPresence(componentKey, present == true)
         if result and result.ok == false then
@@ -946,6 +958,8 @@ function InspectorController.Build(container, state, options)
         if present == true then
             if kind == "indicator" then
                 ok, changeKind = SelectIndicator(selectedUnit, componentKey)
+            elseif kind == "aura" then
+                ok, changeKind = SelectAura(selectedUnit, componentKey)
             else
                 ok, changeKind = SelectBar(selectedUnit, componentKey)
             end
@@ -966,6 +980,10 @@ function InspectorController.Build(container, state, options)
 
     local function ApplySingletonIndicatorPresence(componentKey, present)
         return ApplySingletonComponentPresence(componentKey, present == true, "indicators", "indicator")
+    end
+
+    local function ApplySingletonAuraPresence(componentKey, present)
+        return ApplySingletonComponentPresence(componentKey, present == true, "auras", "aura")
     end
 
     local function ApplyCastBarPresence(present)
@@ -4138,10 +4156,12 @@ function InspectorController.Build(container, state, options)
         local behaviorSection = auraSection
         local positionSection = auraSection
         local advancedSection = auraSection
+        local actionsSection = auraSection
         local disabled = auraConfig.enabled == false
 
         if isScopedObject then
             displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", false)
+            actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
             layoutSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_LAYOUT"] or "Layout", true)
             if not isQuick then
                 behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
@@ -4363,6 +4383,15 @@ function InspectorController.Build(container, state, options)
             AddDropdown(auraSection, L["OPTION_AURA_PLACEMENT"] or "Aura Block Placement", auraPlacementList, auraConfig.placement or "ATTACHED", function(value)
                 SetAuraField(selectedAuraKey, "placement", value, auraSection)
             end, disabled, "aura_placement")
+        end
+
+        if isScopedObject then
+            local removeLabel = selectedAuraKey == "Debuffs"
+                and (L["EDITOR_REMOVE_DEBUFFS_BUTTON"] or "Remove Debuffs")
+                or (L["EDITOR_REMOVE_BUFFS_BUTTON"] or "Remove Buffs")
+            AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "danger", 148, function()
+                ApplySingletonAuraPresence(selectedAuraKey, false)
+            end, false)
         end
 
         if not isQuick then

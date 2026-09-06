@@ -252,7 +252,7 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
     local BackendResolver = FocalPoint.AuraBackendResolver or {}
 
     local groupConfig = GetGroupConfig(frame, groupKey)
-    if not groupConfig or groupConfig.enabled == false then
+    if not groupConfig or groupConfig.present ~= true or groupConfig.enabled == false then
         if BackendResolver.ClearManagedGroup then
             BackendResolver.ClearManagedGroup(frame, groupKey)
         end

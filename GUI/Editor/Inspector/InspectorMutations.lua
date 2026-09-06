@@ -108,6 +108,8 @@ local TABLE_COMPONENT_PRESENCE_KEYS = {
     RestingIndicator = true,
     ReadyCheckIndicator = true,
     ClassificationIndicator = true,
+    Buffs = true,
+    Debuffs = true,
 }
 
 local function IsValidTextAnchorPoint(point)
