@@ -341,6 +341,13 @@ function InspectorMutations.SetUnitField(context, fieldName, value)
     return SetField(GetUnitConfig(context), fieldName, value, "unit_config_not_found")
 end
 
+function InspectorMutations.SetUnitPresence(context, present)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetField(GetUnitConfig(context), "present", present == true, "unit_config_not_found")
+end
+
 function InspectorMutations.SetComponentPresence(context, componentKey, present)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })

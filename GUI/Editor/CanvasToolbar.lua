@@ -314,6 +314,14 @@ local function BuildDecorationMutationContext(unitKey)
     }
 end
 
+local function ResolveUnitLabel(unitKey)
+    local keyMap = ns.KeyMap and ns.KeyMap.Units or nil
+    if ns.GetLabel and keyMap then
+        return ns.GetLabel(keyMap, unitKey) or unitKey
+    end
+    return unitKey
+end
+
 local function RefreshDecorationInsertResult(unitKey, decorationId)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
     if objectSelection and type(objectSelection.SelectObject) == "function" then
@@ -381,6 +389,14 @@ local ADD_OBJECT_AURA_CAPABILITIES = {
     { componentKey = "Debuffs", labelKey = "AURA_DEBUFFS", fallback = "Debuffs" },
 }
 
+local ADD_OBJECT_UNIT_CAPABILITIES = {
+    { unitKey = "pet" },
+    { unitKey = "targettarget" },
+    { unitKey = "focus" },
+    { unitKey = "focustarget" },
+    { unitKey = "boss", labelKey = "ADD_OBJECT_UNIT_BOSS_FRAMES_BUTTON", fallback = "Boss Frames" },
+}
+
 local function CloseAddObjectPickerDialog()
     if addObjectPickerDialog and addObjectPickerDialog.Close then
         addObjectPickerDialog:Close()
@@ -403,6 +419,11 @@ local function IsSingletonComponentPresent(unitKey, kind, componentKey)
         }) == true
     end
     return false
+end
+
+local function CanAddUnitFrame(unitKey)
+    local unitConfig = GetEditableUnitConfig(unitKey)
+    return type(unitConfig) == "table" and unitConfig.present == false
 end
 
 local function SelectSingletonComponent(unitKey, kind, componentKey)
@@ -440,6 +461,40 @@ local function AddSingletonComponent(unitKey, kind, componentKey)
     end
 
     SelectSingletonComponent(unitKey, kind, componentKey)
+end
+
+local function AddUnitFrame(unitKey)
+    local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
+    if not (mutations and type(mutations.SetUnitPresence) == "function") then
+        if ns.Info then
+            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
+        end
+        return
+    end
+
+    local result = mutations.SetUnitPresence(BuildDecorationMutationContext(unitKey), true)
+    if not (result and result.ok ~= false) then
+        if ns.Info then
+            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
+        end
+        return
+    end
+
+    if type(ns.ResyncActiveLayout) == "function" then
+        ns:ResyncActiveLayout("CanvasToolbar.AddUnitFrame")
+    elseif type(ns.RebuildFramesForActiveProfile) == "function" then
+        ns:RebuildFramesForActiveProfile()
+    elseif type(ns.RefreshUnitFrame) == "function" then
+        ns:RefreshUnitFrame(unitKey)
+    end
+
+    local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
+        objectSelection.SelectUnitRoot(unitKey)
+    elseif type(ns.SelectEditorUnit) == "function" then
+        ns:SelectEditorUnit(unitKey)
+    end
+    RequestEditorRefresh("CanvasToolbar.AddUnitFrame")
 end
 
 local function AddPickerHeader(dialog, label)
@@ -494,6 +549,19 @@ local function OpenAddObjectPicker()
     }) or nil
     if not dialog then
         return
+    end
+
+    local hasUnitsHeader = false
+    for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
+        if CanAddUnitFrame(item.unitKey) then
+            if not hasUnitsHeader then
+                AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_UNIT_FRAMES", "Unit Frames"))
+                hasUnitsHeader = true
+            end
+            AddPickerButton(dialog, item.labelKey and T(item.labelKey, item.fallback) or ResolveUnitLabel(item.unitKey), function()
+                AddUnitFrame(item.unitKey)
+            end)
+        end
     end
 
     local hasBarsHeader = false

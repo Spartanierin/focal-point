@@ -714,6 +714,13 @@ function InspectorController.Build(container, state, options)
         return ApplyMutation("unit", fieldName, InspectorMutations.SetUnitField(inspectorContext, fieldName, value), section, fallbackNotify)
     end
 
+    local function SetUnitPresence(present)
+        if type(InspectorMutations.SetUnitPresence) ~= "function" then
+            return nil
+        end
+        return InspectorMutations.SetUnitPresence(inspectorContext, present == true)
+    end
+
     local function SetComponentPresence(componentKey, present)
         if type(InspectorMutations.SetComponentPresence) ~= "function" then
             return nil
@@ -988,6 +995,45 @@ function InspectorController.Build(container, state, options)
 
     local function ApplyCastBarPresence(present)
         return ApplySingletonBarPresence("CastBar", present == true, "cast")
+    end
+
+    local function IsRemovableUnitRoot(unitKey)
+        return unitKey == "pet"
+            or unitKey == "targettarget"
+            or unitKey == "focus"
+            or unitKey == "focustarget"
+            or unitKey == "boss"
+    end
+
+    local function ResolveRemoveUnitLabel(unitKey)
+        if unitKey == "boss" then
+            return L["EDITOR_REMOVE_BOSS_FRAMES_BUTTON"] or "Remove Boss Frames"
+        end
+        local template = L["EDITOR_REMOVE_UNIT_FRAME_BUTTON"] or "Remove %s"
+        return string.format(template, ResolveSelectedUnitLabel())
+    end
+
+    local function RemoveSelectedUnitFrame()
+        if not IsRemovableUnitRoot(selectedUnit) then
+            return nil
+        end
+        local result = SetUnitPresence(false)
+        if result and result.ok == false then
+            ReportMutationError(result)
+            return result
+        end
+        if not (result and result.ok and result.changed) then
+            return result
+        end
+
+        if type(ns.ResyncActiveLayout) == "function" then
+            ns:ResyncActiveLayout("Inspector.RemoveUnitFrame")
+        else
+            NotifySidebarChanged("frame")
+        end
+        NotifyCompositionTreeChanged()
+        NotifySelectionChanged("unitChanged")
+        return result
     end
 
     local function OpenDeleteTextInstanceConfirmDialog(unitKey, textKey)
@@ -1850,7 +1896,8 @@ function InspectorController.Build(container, state, options)
             or unitConfig.castBarPresent == false
             or unitConfig.normalAbsorbBarPresent == false
             or unitConfig.healingAbsorbBarPresent == false
-        local actionsSection = hasAbsentSingleton and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ACTIONS"] or "Actions", true) or nil
+        local hasUnitRemoveAction = IsRemovableUnitRoot(selectedUnit)
+        local actionsSection = (hasAbsentSingleton or hasUnitRemoveAction) and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ACTIONS"] or "Actions", true) or nil
 
         AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
             SetUnitField("enabled", value and true or false, rootSection)
@@ -1962,6 +2009,10 @@ function InspectorController.Build(container, state, options)
                 AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", "primary_action", 160, function()
                     ApplySingletonBarPresence("HealingAbsorbBar", true, "absorbs")
                 end)
+            end
+            if hasUnitRemoveAction then
+                local removeLabel = ResolveRemoveUnitLabel(selectedUnit)
+                AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "danger", 172, RemoveSelectedUnitFrame)
             end
         end
     end
