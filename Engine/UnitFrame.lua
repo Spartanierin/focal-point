@@ -2618,6 +2618,12 @@ local function MarkOptionalComponentsAbsent(unitConfig)
     end
 end
 
+local function ApplySeededUnitMembership(unitConfig, unitKey)
+    local isStarterUnit = STARTER_UNIT_KEYS[unitKey] == true
+    unitConfig.present = isStarterUnit
+    unitConfig.enabled = isStarterUnit
+end
+
 local function BuildStarterTextConfig(layoutService, sourceConfig, tag, point, offsetX, justifyH)
     local textConfig = CloneLayoutValue(layoutService, sourceConfig) or {}
     textConfig.enabled = true
@@ -2678,7 +2684,7 @@ local function BuildNewLayoutPayload(addon)
         local unitConfig = type(payload.Units) == "table" and payload.Units[unitKey] or nil
         if type(unitConfig) == "table" then
             local defaultTexts = unitConfig.Texts
-            unitConfig.enabled = STARTER_UNIT_KEYS[unitKey] == true
+            ApplySeededUnitMembership(unitConfig, unitKey)
             MarkOptionalComponentsAbsent(unitConfig)
             unitConfig.Texts = {}
             unitConfig.decorations = {}
@@ -2693,7 +2699,7 @@ local function BuildNewLayoutPayload(addon)
     for unitKey, unitConfig in pairs(payload.Units) do
         if type(unitConfig) == "table" and not seen[unitKey] then
             local defaultTexts = unitConfig.Texts
-            unitConfig.enabled = STARTER_UNIT_KEYS[unitKey] == true
+            ApplySeededUnitMembership(unitConfig, unitKey)
             MarkOptionalComponentsAbsent(unitConfig)
             unitConfig.Texts = {}
             unitConfig.decorations = {}
