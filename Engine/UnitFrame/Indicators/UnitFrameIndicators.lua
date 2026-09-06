@@ -27,6 +27,7 @@ local PRESENCE_GATED_INDICATORS = {
     CombatIndicator = true,
     RestingIndicator = true,
     ReadyCheckIndicator = true,
+    ClassificationIndicator = true,
 }
 
 local function IsEditorActive()

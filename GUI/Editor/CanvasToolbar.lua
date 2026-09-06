@@ -373,6 +373,7 @@ local ADD_OBJECT_VISUAL_CAPABILITIES = {
     { componentKey = "CombatIndicator", labelKey = "EDITOR_ADD_COMBAT_INDICATOR_BUTTON", fallback = "Combat" },
     { componentKey = "RestingIndicator", labelKey = "EDITOR_ADD_RESTING_INDICATOR_BUTTON", fallback = "Resting" },
     { componentKey = "ReadyCheckIndicator", labelKey = "EDITOR_ADD_READY_CHECK_INDICATOR_BUTTON", fallback = "Ready Check" },
+    { componentKey = "ClassificationIndicator", labelKey = "ELEMENT_CLASSIFICATION_INDICATOR", fallback = "Classification" },
 }
 
 local function CloseAddObjectPickerDialog()

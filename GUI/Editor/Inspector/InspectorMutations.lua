@@ -107,6 +107,7 @@ local TABLE_COMPONENT_PRESENCE_KEYS = {
     CombatIndicator = true,
     RestingIndicator = true,
     ReadyCheckIndicator = true,
+    ClassificationIndicator = true,
 }
 
 local function IsValidTextAnchorPoint(point)

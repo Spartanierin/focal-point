@@ -8,6 +8,7 @@ local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local Indicators = FocalPoint.UnitFrameIndicators or {}
+local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 
@@ -447,7 +448,7 @@ function Classification.GetResolved(frame)
         return nil, "PORTRAIT_OVERLAY"
     end
 
-    if indicatorConfig.enabled == false then
+    if indicatorConfig.present ~= true or indicatorConfig.enabled == false then
         return nil, "NONE"
     end
 
@@ -500,6 +501,13 @@ function Classification.RegisterEvents(owner, frame)
             and unit
             and unit ~= currentOwner._fpUnit
         then
+            return
+        end
+
+        if RuntimeActivity.ShouldRunTableComponent
+            and not RuntimeActivity.ShouldRunTableComponent(currentOwner, "ClassificationIndicator")
+        then
+            HideClassificationElements(currentOwner)
             return
         end
 

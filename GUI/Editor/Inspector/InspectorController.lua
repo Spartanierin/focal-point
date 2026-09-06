@@ -3546,7 +3546,7 @@ function InspectorController.Build(container, state, options)
         end
 
         local function AddRemoveIndicatorAction()
-            if removeActionAdded or indicatorMeta.classification or not IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey) then
+            if removeActionAdded or not IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey) then
                 return
             end
             removeActionAdded = true

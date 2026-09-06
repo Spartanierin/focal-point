@@ -1021,7 +1021,7 @@ function UF:ApplyConfig(frame)
     local readyCheckOffsetX = tonumber(readyCheckConfig.offsetX) or 0
     local readyCheckOffsetY = tonumber(readyCheckConfig.offsetY) or 0
     local readyCheckAnchorTo = readyCheckConfig.anchorTo or "Frame"
-    local classificationEnabled = classificationConfig.enabled ~= false
+    local classificationEnabled = classificationConfig.present == true and classificationConfig.enabled ~= false
     local classificationEffect = classificationConfig.effect or "PORTRAIT_OVERLAY"
     local liveClassification = nil
     local classificationAllowed = not (Preview.ShouldShowComponent and Preview.ShouldShowComponent("rareEliteRaid", { frame = frame }) == false)

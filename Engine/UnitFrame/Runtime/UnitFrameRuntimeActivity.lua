@@ -25,6 +25,7 @@ local TABLE_COMPONENT_KEYS = {
     CombatIndicator = true,
     RestingIndicator = true,
     ReadyCheckIndicator = true,
+    ClassificationIndicator = true,
 }
 
 local function NormalizeUnitKey(unit)
@@ -128,6 +129,14 @@ function RuntimeActivity.ShouldRunTableComponent(frame, componentKey)
 end
 
 function RuntimeActivity.ClearComponentVisual(frame, objectKey)
+    if objectKey == "ClassificationIndicator" then
+        local classification = FocalPoint.UnitFrameClassificationIndicator or {}
+        if classification.Hide then
+            classification.Hide(frame)
+            return true
+        end
+    end
+
     local element = frame and frame.Elements and frame.Elements[objectKey]
     if not element then
         return false
