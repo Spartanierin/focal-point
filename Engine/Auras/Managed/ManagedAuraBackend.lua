@@ -411,8 +411,11 @@ local function BuildManagedFilterSpec(config, definition, unit, groupKey)
     local showStealableOnly = groupKey == "Buffs" and config and config.showStealableOnly == true or false
     local useSystemBuffExclusions = groupKey == "Buffs"
     local maxDuration, maxDurationText = ResolveManagedMaxDuration(config)
+    local usePlayerFilterString = groupKey == "Debuffs" and showOnlyMine == true
 
-    if showOnlyMine then
+    if usePlayerFilterString then
+        filterString = "HARMFUL|PLAYER"
+    elseif showOnlyMine then
         candidateFilters.isFromPlayerOrPlayerPet = true
     end
     if showStealableOnly then
@@ -963,7 +966,12 @@ local function ApplyManagedFilterSpec(container, definition, filterSpec)
     end
 
     IncrementManagedCounter("filterApplyAttempt")
-    if TryCall(container, "SetAuraGroupCandidateFilters", definition.auraGroupKey, filterSpec.candidateFilters or {}) then
+    local filterStringOk = true
+    if filterSpec.filterString then
+        filterStringOk = TryCall(container, "SetAuraGroupFilterString", definition.auraGroupKey, filterSpec.filterString)
+    end
+    local candidateFiltersOk = TryCall(container, "SetAuraGroupCandidateFilters", definition.auraGroupKey, filterSpec.candidateFilters or {})
+    if filterStringOk and candidateFiltersOk then
         IncrementManagedCounter("filterApplySuccess")
         return true
     end
