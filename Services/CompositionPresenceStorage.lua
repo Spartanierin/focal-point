@@ -46,6 +46,10 @@ function Storage.IsPresencePath(path)
     end
 
     local lastKey = path[#path]
+    if lastKey == "present" and path[#path - 2] == "Units" then
+        return true
+    end
+
     if FLAT_PRESENT_FIELD_SET[lastKey] == true then
         return true
     end
@@ -56,6 +60,10 @@ end
 function Storage.EnsureUnit(unitConfig)
     if type(unitConfig) ~= "table" then
         return unitConfig
+    end
+
+    if unitConfig.present == nil then
+        unitConfig.present = true
     end
 
     for _, component in ipairs(FLAT_COMPONENTS) do

@@ -125,6 +125,8 @@ function Presence.IsOwnPresent(unitConfig, objectRef)
     local kind = objectRef.kind
     if kind == "unit" then
         return NormalizeUnitKey(objectRef.unit) ~= nil
+            and type(unitConfig) == "table"
+            and unitConfig.present ~= false
     end
 
     if type(unitConfig) ~= "table" then

@@ -57,6 +57,7 @@ function FocalPoint:GetDefaultDB()
             },
             Units = {
                 player = {
+                    present = true,
                     enabled = true,
                     mouseEnabled = true,
                     clickThrough = false,
@@ -889,6 +890,7 @@ function FocalPoint:GetDefaultDB()
                     },
                 },
                 target = {
+                    present = true,
                     enabled = true,
                     mouseEnabled = true,
                     clickThrough = false,
@@ -1664,6 +1666,7 @@ function FocalPoint:GetDefaultDB()
                     },
                 },
                 targettarget = {
+                    present = true,
                     enabled = true,
                     mouseEnabled = true,
                     clickThrough = false,
@@ -2373,6 +2376,7 @@ function FocalPoint:GetDefaultDB()
                     },
                 },
                 focus = {
+                    present = true,
                     enabled = true,
                     mouseEnabled = true,
                     clickThrough = false,
@@ -3082,6 +3086,7 @@ function FocalPoint:GetDefaultDB()
                     },
                 },
                 focustarget = {
+                    present = true,
                     enabled = true,
                     mouseEnabled = true,
                     clickThrough = false,
@@ -3786,6 +3791,7 @@ function FocalPoint:GetDefaultDB()
                     },
                 },
                 pet = {
+                    present = true,
                     enabled = true,
                     mouseEnabled = true,
                     clampToScreen = true,
@@ -4364,6 +4370,7 @@ function FocalPoint:GetDefaultDB()
                     useReactionColorNpcHealth = false,
                 },
                 boss = {
+                    present = true,
                     enabled = true,
                     bossSpacing = 10,
                     castBarPresent = true,
