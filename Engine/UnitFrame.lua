@@ -2561,7 +2561,101 @@ local function IsValidLayoutPayload(payload)
         and type(payload.TextTemplates) == "table"
 end
 
-local function BuildAuthoringReadyBlankPayload(addon)
+local STARTER_UNIT_KEYS = {
+    player = true,
+    target = true,
+}
+
+local OPTIONAL_FLAT_COMPONENTS = {
+    { presentField = "powerBarPresent", showField = "showPowerBar" },
+    { presentField = "castBarPresent", showField = "showCastBar" },
+    { presentField = "classPowerBarPresent", showField = "showClassPowerBar" },
+    { presentField = "alternativePowerBarPresent", showField = "showAlternativePowerBar" },
+    { presentField = "normalAbsorbBarPresent", showField = "showNormalAbsorbBar" },
+    { presentField = "healingAbsorbBarPresent", showField = "showHealingAbsorbBar" },
+}
+
+local OPTIONAL_TABLE_COMPONENTS = {
+    "Portrait",
+    "RaidTargetIcon",
+    "LeaderIcon",
+    "RoleIcon",
+    "CombatIndicator",
+    "RestingIndicator",
+    "ReadyCheckIndicator",
+    "ClassificationIndicator",
+    "Buffs",
+    "Debuffs",
+}
+
+local function CloneLayoutValue(layoutService, value)
+    if type(layoutService) == "table" and type(layoutService.Clone) == "function" then
+        return layoutService.Clone(value)
+    end
+    if type(value) ~= "table" then
+        return value
+    end
+
+    local copy = {}
+    for key, childValue in pairs(value) do
+        copy[key] = CloneLayoutValue(layoutService, childValue)
+    end
+    return copy
+end
+
+local function MarkOptionalComponentsAbsent(unitConfig)
+    for _, component in ipairs(OPTIONAL_FLAT_COMPONENTS) do
+        unitConfig[component.presentField] = false
+        unitConfig[component.showField] = false
+    end
+
+    for _, componentKey in ipairs(OPTIONAL_TABLE_COMPONENTS) do
+        local componentConfig = unitConfig[componentKey]
+        if type(componentConfig) == "table" then
+            componentConfig.present = false
+            componentConfig.enabled = false
+        end
+    end
+end
+
+local function BuildStarterTextConfig(layoutService, sourceConfig, tag, point, offsetX, justifyH)
+    local textConfig = CloneLayoutValue(layoutService, sourceConfig) or {}
+    textConfig.enabled = true
+    textConfig.tag = tag
+    textConfig.templateName = ""
+    textConfig.stateTemplates = nil
+    textConfig.anchorTo = "HealthBar"
+    textConfig.point = point
+    textConfig.relativePoint = point
+    textConfig.offsetX = offsetX
+    textConfig.offsetY = 0
+    textConfig.justifyH = justifyH
+    textConfig.font = textConfig.font or "fp:font:standard"
+    textConfig.fontSize = textConfig.fontSize or 12
+    textConfig.shadowEnabled = textConfig.shadowEnabled ~= false
+    textConfig.color = type(textConfig.color) == "table" and textConfig.color or { 1, 1, 1, 1 }
+    return textConfig
+end
+
+local function ApplyStarterTexts(layoutService, unitConfig, defaultTexts)
+    defaultTexts = type(defaultTexts) == "table" and defaultTexts or {}
+    unitConfig.Texts = {
+        Name = BuildStarterTextConfig(layoutService, defaultTexts.Name, "[name]", "LEFT", 4, "LEFT"),
+        Health = BuildStarterTextConfig(layoutService, defaultTexts.Health, "[hp:cur:abbr] | [hp:perc]%", "RIGHT", -4, "RIGHT"),
+    }
+end
+
+local function NormalizeSeededUnit(unitConfig)
+    if type(unitConfig) ~= "table" then
+        return
+    end
+
+    if Utils.NormalizeUnitTexts then
+        Utils.NormalizeUnitTexts(unitConfig)
+    end
+end
+
+local function BuildNewLayoutPayload(addon)
     local layoutService = addon and addon.LayoutService or FocalPoint.LayoutService or {}
     if type(layoutService.NormalizePayload) ~= "function" then
         return nil
@@ -2583,19 +2677,36 @@ local function BuildAuthoringReadyBlankPayload(addon)
     for _, unitKey in ipairs(unitOrder) do
         local unitConfig = type(payload.Units) == "table" and payload.Units[unitKey] or nil
         if type(unitConfig) == "table" then
-            unitConfig.enabled = false
+            local defaultTexts = unitConfig.Texts
+            unitConfig.enabled = STARTER_UNIT_KEYS[unitKey] == true
+            MarkOptionalComponentsAbsent(unitConfig)
             unitConfig.Texts = {}
             unitConfig.decorations = {}
+            if STARTER_UNIT_KEYS[unitKey] then
+                ApplyStarterTexts(layoutService, unitConfig, defaultTexts)
+            end
+            NormalizeSeededUnit(unitConfig)
             seen[unitKey] = true
         end
     end
 
     for unitKey, unitConfig in pairs(payload.Units) do
         if type(unitConfig) == "table" and not seen[unitKey] then
-            unitConfig.enabled = false
+            local defaultTexts = unitConfig.Texts
+            unitConfig.enabled = STARTER_UNIT_KEYS[unitKey] == true
+            MarkOptionalComponentsAbsent(unitConfig)
             unitConfig.Texts = {}
             unitConfig.decorations = {}
+            if STARTER_UNIT_KEYS[unitKey] then
+                ApplyStarterTexts(layoutService, unitConfig, defaultTexts)
+            end
+            NormalizeSeededUnit(unitConfig)
         end
+    end
+
+    local storage = FocalPoint.CompositionPresenceStorage
+    if storage and storage.EnsurePayload then
+        storage.EnsurePayload(payload)
     end
 
     return payload
@@ -2629,7 +2740,7 @@ function FocalPoint:CreateBlankLayout(name, options)
     end
 
     local userLayoutStore = self.UserLayoutStore or {}
-    local blankPayload = BuildAuthoringReadyBlankPayload(self)
+    local blankPayload = BuildNewLayoutPayload(self)
     if not IsValidLayoutPayload(blankPayload) then
         return false, "payload-invalid"
     end
