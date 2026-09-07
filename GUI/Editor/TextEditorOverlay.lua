@@ -1197,6 +1197,13 @@ EndTextDrag = function(overlay, commit)
         activeDragOverlay = nil
     end
 
+    if state.mode == "unit" then
+        if state.dragging and FocalPoint.EndEditorUnitFrameDrag then
+            FocalPoint:EndEditorUnitFrameDrag(state.frame, commit == true)
+        end
+        return
+    end
+
     if not state.dragging then
         return
     end
@@ -1322,7 +1329,7 @@ function TextEditorOverlay.UpdateFrame(frame)
 end
 
 function TextEditorOverlay.BeginDrag(overlay)
-    if not overlay or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) then
+    if not overlay or IsCombatLocked() or not IsEditorActive() then
         return false
     end
     HideAnchorPicker(overlay)
@@ -1343,6 +1350,72 @@ function TextEditorOverlay.BeginDrag(overlay)
     end
 
     TextEditorOverlay.Select(frame, textKey)
+    if not IsTextInteractionActive(frame, textKey) then
+        return false
+    end
+
+    local interactionMode = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    local moveText = interactionMode
+        and interactionMode.IsShiftDown
+        and interactionMode.IsShiftDown()
+
+    if not moveText then
+        local cursorX, cursorY = GetCursorPositionInUiScale()
+        if not cursorX or not cursorY then
+            return false
+        end
+
+        overlay._focalPointSuppressClick = nil
+        overlay._focalPointTextDragState = {
+            mode = "unit",
+            frame = frame,
+            textKey = textKey,
+            startCursorX = cursorX,
+            startCursorY = cursorY,
+            dragging = false,
+        }
+        activeDragOverlay = overlay
+
+        overlay:SetScript("OnUpdate", function(self)
+            local dragState = self._focalPointTextDragState
+            if not dragState then
+                self:SetScript("OnUpdate", nil)
+                return
+            end
+            if IsCombatLocked() or not IsTextInteractionActive(dragState.frame, dragState.textKey) then
+                EndTextDrag(self, false)
+                return
+            end
+            if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
+                EndTextDrag(self, true)
+                return
+            end
+            if dragState.dragging then
+                return
+            end
+
+            local currentX, currentY = GetCursorPositionInUiScale()
+            if not currentX or not currentY then
+                return
+            end
+            if math.abs(currentX - dragState.startCursorX) < DRAG_THRESHOLD
+                and math.abs(currentY - dragState.startCursorY) < DRAG_THRESHOLD then
+                return
+            end
+
+            if FocalPoint.BeginEditorUnitFrameDrag
+                and FocalPoint:BeginEditorUnitFrameDrag(dragState.frame, { preserveSelection = true }) then
+                dragState.dragging = true
+                self._focalPointSuppressClick = true
+            else
+                EndTextDrag(self, false)
+            end
+        end)
+
+        return true
+    end
 
     local cursorX, cursorY = GetCursorPositionInUiScale()
     if not cursorX or not cursorY then
@@ -1351,6 +1424,7 @@ function TextEditorOverlay.BeginDrag(overlay)
 
     overlay._focalPointSuppressClick = nil
     overlay._focalPointTextDragState = {
+        mode = "text",
         frame = frame,
         textKey = textKey,
         unitConfig = unitConfig,

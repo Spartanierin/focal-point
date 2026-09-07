@@ -11,11 +11,11 @@ local SelectionGeometryResolver = FocalPoint.GUI.Editor.SelectionGeometryResolve
 local HOVER_FRAME_LEVEL = 910
 
 local BAR_TARGETS = {
-    { objectKey = "HealthBar", elementKey = "HealthBar", sectionKey = "health", level = 30 },
+    { objectKey = "HealthBar", elementKey = "HealthBar", sectionKey = "health", level = 30, movesUnit = true },
     { objectKey = "NormalAbsorbBar", elementKey = "NormalAbsorbBar", sectionKey = "absorbs", level = 34 },
     { objectKey = "HealingAbsorbBar", elementKey = "HealingAbsorbBar", sectionKey = "absorbs", level = 35 },
-    { objectKey = "PowerBar", elementKey = "PowerBar", sectionKey = "power", level = 30 },
-    { objectKey = "AlternativePowerBar", elementKey = "AlternativePowerBar", sectionKey = "alt_power", level = 31 },
+    { objectKey = "PowerBar", elementKey = "PowerBar", sectionKey = "power", level = 30, movesUnit = true },
+    { objectKey = "AlternativePowerBar", elementKey = "AlternativePowerBar", sectionKey = "alt_power", level = 31, movesUnit = true },
     { objectKey = "ClassPowerBar", elementKey = "ClassPowerBar", sectionKey = "class_power", level = 32 },
     { objectKey = "CastBar", elementKey = "CastBar", sectionKey = "cast", level = 33 },
 }
@@ -225,6 +225,17 @@ local function SelectObjectRef(source, objectRef)
     return false
 end
 
+local function EndOwnerDrag(zone, commit)
+    if not (zone and zone._focalPointOwnerDragActive) then
+        return
+    end
+
+    zone._focalPointOwnerDragActive = nil
+    if FocalPoint.EndEditorUnitFrameDrag then
+        FocalPoint:EndEditorUnitFrameDrag(zone._focalPointOwnerFrame, commit)
+    end
+end
+
 local function EnsureHitZone(frame, key)
     if not (frame and frame.MoveOverlay and type(key) == "string" and key ~= "") then
         return nil
@@ -259,7 +270,7 @@ local function EnsureHitZone(frame, key)
         end
     end)
     zone:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" then
+        if button == "LeftButton" and not self._focalPointMovesUnit then
             SelectObjectRef(self, self._focalPointObjectRef)
         end
         if button == "RightButton" then
@@ -270,6 +281,24 @@ local function EnsureHitZone(frame, key)
                 contextMenu.ShowForFrame(self._focalPointOwnerFrame)
             end
         end
+    end)
+    zone:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" and self._focalPointMovesUnit then
+            SelectObjectRef(self, self._focalPointObjectRef)
+        end
+    end)
+    zone:SetScript("OnDragStart", function(self)
+        if not self._focalPointMovesUnit or not FocalPoint.BeginEditorUnitFrameDrag then
+            return
+        end
+
+        self._focalPointOwnerDragActive = FocalPoint:BeginEditorUnitFrameDrag(
+            self._focalPointOwnerFrame,
+            { preserveSelection = true }
+        ) == true
+    end)
+    zone:SetScript("OnDragStop", function(self)
+        EndOwnerDrag(self, true)
     end)
     HideZoneFrame(zone)
 
@@ -319,7 +348,7 @@ local function ApplyZoneGeometry(zone, geometry)
     return true
 end
 
-local function PositionZone(zone, frame, target, objectRef, level)
+local function PositionZone(zone, frame, target, objectRef, level, movesUnit)
     local isSelected = IsSelectedObject(objectRef)
     local geometry = ResolveZoneGeometry(frame, target, objectRef, isSelected)
     if not (zone and frame and objectRef and geometry) then
@@ -333,6 +362,7 @@ local function PositionZone(zone, frame, target, objectRef, level)
     zone._focalPointForwardOverlay = frame.MoveOverlay
     zone._focalPointOwnerFrame = frame
     zone._focalPointObjectRef = objectRef
+    zone._focalPointMovesUnit = movesUnit == true
     zone:SetFrameLevel((frame.MoveOverlay:GetFrameLevel() or 0) + (tonumber(level) or 1))
     if not ApplyZoneGeometry(zone, geometry) then
         HideZoneFrame(zone)
@@ -351,6 +381,7 @@ local function HideZone(zone)
     if currentHover and currentHover.target == zone then
         CanvasHoverOverlay.Clear(zone)
     end
+    EndOwnerDrag(zone, false)
     SetZoneMouseEnabled(zone, false)
     ApplyZoneChrome(zone, false)
     HideZoneFrame(zone)
@@ -369,7 +400,7 @@ local function UpdateBars(frame, seen)
             unit = frame._fpUnit,
             objectKey = item.objectKey,
             sectionKey = item.sectionKey,
-        }, item.level)
+        }, item.level, item.movesUnit)
     end
 end
 

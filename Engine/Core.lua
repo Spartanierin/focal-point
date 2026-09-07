@@ -379,6 +379,13 @@ local function BeginEditorFrameSelectionClick(frame, button)
         ctrl = IsControlModifierDown(),
         handled = false,
     }
+
+    if not IsSelectedUnitRoot(frame) and FocalPoint.SelectEditorUnit and frame._fpUnit then
+        FocalPoint:SelectEditorUnit(frame._fpUnit, {
+            toggle = FocalPoint.framesUnlocked == true and frame._focalPointSelectionClick.ctrl == true,
+        })
+        frame._focalPointSelectionClick.handled = true
+    end
 end
 
 local function CompleteEditorFrameSelectionClick(frame, button)
@@ -846,27 +853,48 @@ function FocalPoint:ApplyStoredFramePosition(frame)
     frame:SetPoint(point, relativeTo, relativePoint, adjustedX, adjustedY)
 end
 
-local function BeginFrameDrag(frame)
+local function BeginFrameDrag(frame, options)
+    options = type(options) == "table" and options or {}
+    local preserveSelection = options.preserveSelection == true
+
     if not frame or not frame._fpUnit then
-        return
+        return false
     end
 
-    if not IsSelectedUnitRoot(frame) then
-        return
+    if not FocalPoint.framesUnlocked then
+        return false
+    end
+
+    if preserveSelection then
+        local selectedObject = GetSelectedEditorObject()
+        if type(selectedObject) ~= "table" or not FrameMatchesSelectionUnit(frame, selectedObject.unit) then
+            return false
+        end
+    elseif not IsSelectedUnitRoot(frame) then
+        return false
     end
 
     if InCombatLockdown and InCombatLockdown() then
-        return
+        return false
     end
 
     MarkSelectionClickHandled(frame)
 
     local unitConfig = GetUnitConfig(frame._fpUnit)
     if not unitConfig then
-        return
+        return false
     end
 
-    local selectedUnits = ResolveSelectedDragUnits(frame)
+    local selectedUnits
+    if preserveSelection then
+        local unit = NormalizeEditorSelectionUnit(frame._fpUnit)
+        selectedUnits = unit and { unit } or {}
+    else
+        selectedUnits = ResolveSelectedDragUnits(frame)
+    end
+    if #selectedUnits == 0 then
+        return false
+    end
     if FocalPoint.RefreshEditorSelectionVisuals then
         FocalPoint:RefreshEditorSelectionVisuals()
     end
@@ -951,6 +979,7 @@ local function BeginFrameDrag(frame)
     end)
 
     UpdateMoveOverlayVisuals(frame)
+    return true
 end
 
 EndFrameDrag = function(frame, commit)
@@ -1013,6 +1042,19 @@ EndFrameDrag = function(frame, commit)
     end
 end
 
+function FocalPoint:BeginEditorUnitFrameDrag(frame, options)
+    return BeginFrameDrag(frame, options)
+end
+
+function FocalPoint:EndEditorUnitFrameDrag(frame, commit)
+    if not frame or not frame._focalPointDragState then
+        return false
+    end
+
+    EndFrameDrag(frame, commit)
+    return true
+end
+
 local function UpdateRootTransformOverlay(frame, active)
     active = active == true
 
@@ -1055,7 +1097,7 @@ function FocalPoint:UpdateFrameDragState(frame)
         and self:IsEditorActive()
         and not (InCombatLockdown and InCombatLockdown() == true)
     local rootDragActive = editorInputActive and IsSelectedUnitRoot(frame)
-    frame:SetMovable(rootDragActive)
+    frame:SetMovable(editorInputActive)
     frame:SetClampedToScreen(true)
 
     if self.framesUnlocked then
@@ -1072,27 +1114,13 @@ function FocalPoint:UpdateFrameDragState(frame)
                 end
                 overlay._focalPointEditorForwardDragStart = nil
                 overlay._focalPointEditorForwardDragStop = nil
-                if rootDragActive then
-                    overlay:RegisterForDrag("LeftButton")
-                    overlay:SetScript("OnDragStart", function()
-                        if not FocalPoint.framesUnlocked or not IsSelectedUnitRoot(frame) then
-                            return
-                        end
-
-                        BeginFrameDrag(frame)
-                    end)
-                    overlay:SetScript("OnDragStop", function()
-                        EndFrameDrag(frame)
-                    end)
-                else
-                    overlay:RegisterForDrag()
-                    overlay:SetScript("OnDragStart", nil)
-                    overlay:SetScript("OnDragStop", nil)
-                    if frame._focalPointDragState then
-                        EndFrameDrag(frame, false)
-                    end
-                    HideEditorSnapLines()
-                end
+                overlay:RegisterForDrag("LeftButton")
+                overlay:SetScript("OnDragStart", function()
+                    BeginFrameDrag(frame)
+                end)
+                overlay:SetScript("OnDragStop", function()
+                    EndFrameDrag(frame)
+                end)
             else
                 overlay._focalPointEditorForwardMouseDown = nil
                 overlay._focalPointEditorForwardMouseUp = nil
@@ -1114,10 +1142,10 @@ function FocalPoint:UpdateFrameDragState(frame)
                 HideEditorResizeHandle(frame)
             end
         end
-        if rootDragActive then
+        if editorInputActive then
             frame:RegisterForDrag("LeftButton")
             frame:SetScript("OnDragStart", function(target)
-                if not FocalPoint.framesUnlocked or not IsSelectedUnitRoot(target) then
+                if not FocalPoint.framesUnlocked then
                     return
                 end
 

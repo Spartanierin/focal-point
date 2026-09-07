@@ -482,10 +482,7 @@ local function ResetSize(frame)
         return
     end
 
-    local units, isBatch = GetSelectedResetUnits(frame)
-    if not isBatch then
-        SelectFrame(frame)
-    end
+    local units = GetSelectedResetUnits(frame)
     local result = mutations.ResetUnitsSize(units)
     if not (result and result.ok == true) then
         PrintResetFailure("size", result)
@@ -498,10 +495,7 @@ local function ResetPosition(frame)
         return
     end
 
-    local units, isBatch = GetSelectedResetUnits(frame)
-    if not isBatch then
-        SelectFrame(frame)
-    end
+    local units = GetSelectedResetUnits(frame)
     local result = mutations.ResetUnitsPosition(units)
     if not (result and result.ok == true) then
         PrintResetFailure("position", result)
