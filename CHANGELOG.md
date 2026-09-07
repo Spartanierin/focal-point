@@ -10,6 +10,18 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.0 Beta 2
+
+Canvas interaction refinements for direct composition editing.
+
+### Improved
+
+* Improved canvas selection and drag handling so a normal drag on a unit or child consistently moves the owning unit frame.
+* Improved child hit zones so they no longer block frame dragging across bars, auras, portraits, indicators, and decorations.
+* Added SHIFT-drag support for independently anchored children, including Cast Bar, Class Power Bar, decorations, external indicators, external aura groups, and custom absorb bars.
+* Aligned text positioning with the same modifier model: normal drag moves the unit frame, while SHIFT-drag moves the text itself.
+* Updated Reset Position to follow the same frame-versus-child target semantics as canvas dragging.
+
 ## 2.0.0 Beta 1
 
 First public beta of the Focal Point 2.0 editor architecture.
