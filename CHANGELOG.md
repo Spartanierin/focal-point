@@ -10,6 +10,132 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.0 Beta 1
+
+First public beta of the Focal Point 2.0 editor architecture.
+
+2.0 rebuilds the editor around composition-based editing, direct object workflows, and clearer layout ownership. This is a beta release intended for active testing before replacing a known-good setup.
+
+### Editor & Composition
+
+* Added the Composition Tree as the central object browser for unit frames, bars, texts, auras, portraits, indicators, and decorations.
+* Added direct object selection contracts for editor, canvas, tree, and inspector synchronization.
+* Added object-oriented Inspector flows for bars, text, auras, indicators, decorations, and unit roots.
+* Added canvas selection chrome and shared selection geometry resolution for supported object types.
+* Improved keyboard navigation, tree expansion persistence, same-unit selection updates, and tree auto-scroll behavior.
+* Removed obsolete Tag Database and welcome UI surfaces from the normal editor flow.
+
+### Unit Frames
+
+* Added unit frames as composition objects with explicit unit presence and membership handling.
+* Added Unit Explorer support for optional unit frames.
+* Added optional unit add/remove workflows for Pet, Focus, Target of Target, Focus Target, and Boss frames while keeping Player and Target as baseline units.
+* Added Boss Frames as a family-level composition concept.
+* Added runtime and canvas presence gates so absent units no longer appear in the Explorer, Canvas, or runtime output.
+* Added migration support for legacy layouts into the new unit membership model.
+
+### Components
+
+* Added `+ Add Object` as the central object picker for adding supported components.
+* Added add/remove presence workflows for Cast Bar, Power Bar, Normal Absorb Bar, Healing Absorb Bar, Portrait, Classification, Combat, Resting, Leader, Role, Ready Check, Raid Target, Buffs, and Debuffs.
+* Improved soft remove/re-add behavior so component configuration can be retained instead of destructively discarded.
+* Added explicit composition presence storage and projection so tree, inspector, canvas, and runtime consume the same presence model.
+* Improved text association mapping so text objects follow their anchored component more consistently.
+
+### Layouts & Profiles
+
+* Added a user-layout model with active layout resolution, layout envelopes, layout catalog projection, and layout migration safeguards.
+* Added a minimal New Layout starter seed instead of cloning a full default layout.
+* Added layout picker, quick layout creation, layout manager listing, rename, duplicate, copy, and delete flows.
+* Added specialization-to-layout assignments and assignment visibility in the canvas toolbar.
+* Hid legacy preset/profile automation surfaces that no longer match the active layout model.
+
+### Runtime & Performance
+
+* Moved text normalization out of the runtime unit database hotpath.
+* Cached text template runtime candidates and materialized text dependency bindings.
+* Reduced broad text refreshes by narrowing dependency-driven updates.
+* Gated range polling and reduced global ticker work.
+* Split timer-driven status text updates into a dedicated polling path.
+* Added runtime activity and presence gates so absent or removed composition objects do less work.
+* Ported the gameplay unit-tooltip, ping, and managed debuff `Only My Auras` fixes from the 1.x line.
+
+### Editor Preview & Visuals
+
+* Added editor design presence for missing units and made editor interactions active when the editor is open.
+* Added aura geometry placeholders and local selected-aura previews.
+* Improved placeholder/editor rendering for portraits and conditional indicators.
+* Added editor visual policy handling for bar presentation in normal editor and preview contexts.
+* Renamed Demo Data to Simulated Data in the editor UI.
+
+### Compatibility / Migration
+
+* Existing layouts are migrated into the new membership and presence model with non-destructive defaults where possible.
+* Legacy specialization automation assignments are migrated into the layout-assignment model.
+* This is the first public beta of the 2.0 editor architecture; extensive in-game testing is recommended before using it as a primary setup.
+
+## Focal Point 1.2.6
+
+Gameplay interaction and aura filtering fixes
+
+### Fixed
+
+* Fixed pinging certain unit frames in instanced content where Blizzard's ping system could encounter protected unit data.
+* Fixed `Only My Auras` filtering for managed debuff frames by using Blizzard's `HARMFUL|PLAYER` filter contract.
+
+## Focal Point 1.2.5
+
+Runtime performance backports
+
+### Improved
+
+* Gated range polling in the global tag ticker so range fade is only checked for frames that need dynamic polling.
+* Added event coverage for Resting, Leader, and Role text dependencies.
+* Split `[status:timer]` and `[dead:timer]` into a dedicated `status_timer` dependency while keeping event-driven `status` updates for immediate start/stop changes.
+* Limited the global tag ticker to the remaining timer-driven status text dependency.
+* Raised the default `TagUpdateInterval` to 1.0 second and clamped older SavedVariables values below 1.0 second at runtime without rewriting profiles.
+
+### Removed
+
+* Removed the legacy, non-productive `[lasthit]` tag path.
+* Removed `unknown` from periodic tag polling so it no longer behaves as a global update wildcard during normal ticker updates.
+
+### Validation / Profiling
+
+* Verified the backports with functional status, timer, range, and role-related checks.
+* Documented an internal 60-second Perfy Unlock-mode comparison under the same test conditions, showing a clear reduction in ticker-driven text allocation churn after the final `status_timer` and 1.0-second clamp pass.
+
+## Focal Point 1.2.4
+
+Performance & Runtime Efficiency
+
+### Improved
+
+* Reduced unnecessary repeated work in the text update pipeline.
+* Moved configuration normalization out of frequent runtime lookups.
+* Reduced repeated template-resolution work during runtime updates.
+* Improved selective text refreshes so unrelated text elements are updated less often.
+* Reduced unnecessary CastTime model resolution during live updates.
+* Improved runtime dependency tracking for text elements.
+
+No configuration changes are required.
+
+## Focal Point 1.2.3
+
+Gameplay unit frame interaction
+
+### Added
+
+* Added unit tooltips when hovering over Focal Point unit frames during gameplay.
+* Added a global Show Unit Tooltips option for players who prefer to hide those tooltips.
+* Added support for World of Warcraft's built-in ping system on Focal Point unit frames.
+
+### Fixed
+
+* Fixed ping interactions passing through supported Focal Point unit frames to the world behind them.
+
+Development on Focal Point 2.0 is also underway, with a redesigned editor workflow currently in active development.
+
 ## Focal Point 1.2.2
 
 Health, windows, and Text Builder flow

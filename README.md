@@ -87,3 +87,11 @@ This project is released under the terms described in the `LICENSE` file.
 ## Credits
 
 Created by Spartanierin.
+
+### Typography
+
+The Focal Point toolbar logo uses the *Achtung!Polizeit* typeface by Chequered Ink Ltd.
+
+Included with permission for non-commercial use only.
+
+https://www.chequered.ink/

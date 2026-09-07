@@ -32,6 +32,8 @@ local INTERACTION_MODE_BUTTONS = {
     text = "textModeButton",
 }
 
+local BRAND_TITLE_FONT = "Interface\\AddOns\\FocalPoint\\Media\\Achtung! Polizei.otf"
+
 local function ResolveConstantPath(root, path)
     if type(root) ~= "table" or type(path) ~= "table" then
         return nil
@@ -50,6 +52,22 @@ end
 local function T(key, fallback, deps)
     local L = deps and deps.L or {}
     return (type(key) == "string" and L[key]) or fallback or ""
+end
+
+local function ApplyBrandTitleFont(widget)
+    local fontString = widget and widget.label or nil
+    if not fontString or type(fontString.SetFont) ~= "function" then
+        return
+    end
+
+    local currentFont, size, flags = fontString:GetFont()
+    if fontString:SetFont(BRAND_TITLE_FONT, size or 12, flags or "") then
+        return
+    end
+
+    if currentFont then
+        fontString:SetFont(currentFont, size or 12, flags or "")
+    end
 end
 
 local ResolveEditorMode
@@ -792,6 +810,7 @@ local function RefreshWindowState(context, deps)
         local skins = nsRef.GUI and nsRef.GUI.Skins or nil
         local addonName = T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)
         local brandTitle = skins and skins.GetBrandTitle and skins.GetBrandTitle(addonName) or addonName
+        ApplyBrandTitleFont(context.widgets.brandLine)
         context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  %s", logoPath, brandTitle))
     end
     if context.widgets.versionLine then
