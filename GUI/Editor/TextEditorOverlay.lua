@@ -17,7 +17,6 @@ local CLICK_FRAME_LEVEL = 940
 local SELECTED_CLICK_FRAME_LEVEL = 950
 local VISUAL_PADDING_X = 4
 local VISUAL_PADDING_Y = 4
-local DRAG_THRESHOLD = 4
 local MIN_TEXT_OFFSET = -100
 local MAX_TEXT_OFFSET = 100
 local PICKER_FRAME_LEVEL = 960
@@ -813,6 +812,7 @@ local function EnsureOverlay(frame, textKey)
     overlay.VisualBounds = visualBounds
 
     overlay:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    overlay:RegisterForDrag("LeftButton")
     overlay:EnableMouseWheel(false)
     overlay:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" then
@@ -823,6 +823,12 @@ local function EnsureOverlay(frame, textKey)
         if button == "LeftButton" then
             EndTextDrag(self, true)
         end
+    end)
+    overlay:SetScript("OnDragStart", function(self)
+        TextEditorOverlay.StartDrag(self)
+    end)
+    overlay:SetScript("OnDragStop", function(self)
+        EndTextDrag(self, true)
     end)
     overlay:SetScript("OnEnter", function(self)
         self._focalPointHovered = true
@@ -1196,10 +1202,13 @@ EndTextDrag = function(overlay, commit)
     if activeDragOverlay == overlay then
         activeDragOverlay = nil
     end
-
     if state.mode == "unit" then
         if state.dragging and FocalPoint.EndEditorUnitFrameDrag then
             FocalPoint:EndEditorUnitFrameDrag(state.frame, commit == true)
+        end
+        if commit and state.dragging then
+            overlay._focalPointSuppressClick = true
+            TextEditorOverlay.Select(state.frame, state.textKey)
         end
         return
     end
@@ -1208,7 +1217,7 @@ EndTextDrag = function(overlay, commit)
         return
     end
 
-    if commit == false or IsCombatLocked() or not IsTextInteractionActive(state.frame, state.textKey) or not IsDragContextStillValid(state) then
+    if commit == false or IsCombatLocked() or not IsEditorActive() or not IsDragContextStillValid(state) then
         RestoreTextPositionPreview(state.frame, state.textKey)
         return
     end
@@ -1218,6 +1227,7 @@ EndTextDrag = function(overlay, commit)
     if not CommitTextPosition(state.frame, state.textKey, state.currentOffsetX or state.startOffsetX, state.currentOffsetY or state.startOffsetY) then
         RestoreTextPositionPreview(state.frame, state.textKey)
     end
+    TextEditorOverlay.Select(state.frame, state.textKey)
 end
 
 function TextEditorOverlay.HideFrame(frame)
@@ -1349,11 +1359,6 @@ function TextEditorOverlay.BeginDrag(overlay)
         EndTextDrag(activeDragOverlay, false)
     end
 
-    TextEditorOverlay.Select(frame, textKey)
-    if not IsTextInteractionActive(frame, textKey) then
-        return false
-    end
-
     local interactionMode = FocalPoint.GUI
         and FocalPoint.GUI.Editor
         and FocalPoint.GUI.Editor.InteractionMode
@@ -1361,70 +1366,22 @@ function TextEditorOverlay.BeginDrag(overlay)
         and interactionMode.IsShiftDown
         and interactionMode.IsShiftDown()
 
-    if not moveText then
-        local cursorX, cursorY = GetCursorPositionInUiScale()
-        if not cursorX or not cursorY then
-            return false
-        end
-
-        overlay._focalPointSuppressClick = nil
-        overlay._focalPointTextDragState = {
-            mode = "unit",
-            frame = frame,
-            textKey = textKey,
-            startCursorX = cursorX,
-            startCursorY = cursorY,
-            dragging = false,
-        }
-        activeDragOverlay = overlay
-
-        overlay:SetScript("OnUpdate", function(self)
-            local dragState = self._focalPointTextDragState
-            if not dragState then
-                self:SetScript("OnUpdate", nil)
-                return
-            end
-            if IsCombatLocked() or not IsTextInteractionActive(dragState.frame, dragState.textKey) then
-                EndTextDrag(self, false)
-                return
-            end
-            if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
-                EndTextDrag(self, true)
-                return
-            end
-            if dragState.dragging then
-                return
-            end
-
-            local currentX, currentY = GetCursorPositionInUiScale()
-            if not currentX or not currentY then
-                return
-            end
-            if math.abs(currentX - dragState.startCursorX) < DRAG_THRESHOLD
-                and math.abs(currentY - dragState.startCursorY) < DRAG_THRESHOLD then
-                return
-            end
-
-            if FocalPoint.BeginEditorUnitFrameDrag
-                and FocalPoint:BeginEditorUnitFrameDrag(dragState.frame, { preserveSelection = true }) then
-                dragState.dragging = true
-                self._focalPointSuppressClick = true
-            else
-                EndTextDrag(self, false)
-            end
-        end)
-
-        return true
-    end
-
     local cursorX, cursorY = GetCursorPositionInUiScale()
     if not cursorX or not cursorY then
         return false
     end
 
     overlay._focalPointSuppressClick = nil
-    overlay._focalPointTextDragState = {
-        mode = "text",
+    local dragState = {
+        hitTarget = overlay,
+        selectionTarget = {
+            kind = "text",
+            unit = NormalizeUnitKey(frame._fpUnit),
+            textKey = textKey,
+            objectKey = textKey,
+        },
+        movementOwner = moveText and overlay or frame,
+        mode = moveText and "text" or "unit",
         frame = frame,
         textKey = textKey,
         unitConfig = unitConfig,
@@ -1437,15 +1394,42 @@ function TextEditorOverlay.BeginDrag(overlay)
         currentOffsetY = ClampOffset(textConfig.offsetY),
         dragging = false,
     }
+    overlay._focalPointTextDragState = dragState
     activeDragOverlay = overlay
 
+    return true
+end
+
+function TextEditorOverlay.StartDrag(overlay)
+    local dragState = overlay and overlay._focalPointTextDragState
+    if not dragState or dragState.dragging or IsCombatLocked() or not IsEditorActive() then
+        return false
+    end
+
+    if dragState.mode == "unit" then
+        if not FocalPoint.BeginEditorUnitFrameDrag
+            or not FocalPoint:BeginEditorUnitFrameDrag(dragState.movementOwner, {
+                moveOnlyOwner = true,
+                gesture = dragState,
+            }) then
+            EndTextDrag(overlay, false)
+            return false
+        end
+
+        dragState.dragging = true
+        overlay._focalPointSuppressClick = true
+        return true
+    end
+
+    dragState.dragging = true
+    overlay._focalPointSuppressClick = true
     overlay:SetScript("OnUpdate", function(self)
         local dragState = self._focalPointTextDragState
         if not dragState then
             self:SetScript("OnUpdate", nil)
             return
         end
-        if IsCombatLocked() or not IsTextInteractionActive(dragState.frame, dragState.textKey) or not IsDragContextStillValid(dragState) then
+        if IsCombatLocked() or not IsEditorActive() or not IsDragContextStillValid(dragState) then
             EndTextDrag(self, false)
             return
         end
@@ -1461,14 +1445,6 @@ function TextEditorOverlay.BeginDrag(overlay)
 
         local deltaX = currentX - dragState.startCursorX
         local deltaY = currentY - dragState.startCursorY
-        if not dragState.dragging then
-            if math.abs(deltaX) < DRAG_THRESHOLD and math.abs(deltaY) < DRAG_THRESHOLD then
-                return
-            end
-            dragState.dragging = true
-            self._focalPointSuppressClick = true
-        end
-
         local nextOffsetX = ClampOffset(dragState.startOffsetX + deltaX)
         local nextOffsetY = ClampOffset(dragState.startOffsetY + deltaY)
         if nextOffsetX == dragState.currentOffsetX and nextOffsetY == dragState.currentOffsetY then

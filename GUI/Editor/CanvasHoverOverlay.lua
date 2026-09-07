@@ -12,29 +12,29 @@ local HOVER_FRAME_LEVEL = 910
 
 local BAR_TARGETS = {
     { objectKey = "HealthBar", elementKey = "HealthBar", sectionKey = "health", level = 30, movesUnit = true },
-    { objectKey = "NormalAbsorbBar", elementKey = "NormalAbsorbBar", sectionKey = "absorbs", level = 34 },
-    { objectKey = "HealingAbsorbBar", elementKey = "HealingAbsorbBar", sectionKey = "absorbs", level = 35 },
+    { objectKey = "NormalAbsorbBar", elementKey = "NormalAbsorbBar", sectionKey = "absorbs", level = 34, movesUnit = true },
+    { objectKey = "HealingAbsorbBar", elementKey = "HealingAbsorbBar", sectionKey = "absorbs", level = 35, movesUnit = true },
     { objectKey = "PowerBar", elementKey = "PowerBar", sectionKey = "power", level = 30, movesUnit = true },
     { objectKey = "AlternativePowerBar", elementKey = "AlternativePowerBar", sectionKey = "alt_power", level = 31, movesUnit = true },
-    { objectKey = "ClassPowerBar", elementKey = "ClassPowerBar", sectionKey = "class_power", level = 32 },
-    { objectKey = "CastBar", elementKey = "CastBar", sectionKey = "cast", level = 33 },
+    { objectKey = "ClassPowerBar", elementKey = "ClassPowerBar", sectionKey = "class_power", level = 32, movesUnit = true },
+    { objectKey = "CastBar", elementKey = "CastBar", sectionKey = "cast", level = 33, movesUnit = true },
 }
 
 local AURA_TARGETS = {
-    { auraKey = "Buffs", elementKey = "Buffs", level = 40 },
-    { auraKey = "Debuffs", elementKey = "Debuffs", level = 41 },
+    { auraKey = "Buffs", elementKey = "Buffs", level = 40, movesUnit = true },
+    { auraKey = "Debuffs", elementKey = "Debuffs", level = 41, movesUnit = true },
 }
 
 local INDICATOR_TARGETS = {
-    { indicatorKey = "Portrait", elementKey = "Portrait", level = 50 },
-    { indicatorKey = "RaidTargetIcon", elementKey = "RaidTargetIcon", level = 51 },
-    { indicatorKey = "LeaderIcon", elementKey = "LeaderIcon", level = 51 },
-    { indicatorKey = "RoleIcon", elementKey = "RoleIcon", level = 51 },
-    { indicatorKey = "CombatIndicator", elementKey = "CombatIndicator", level = 51 },
-    { indicatorKey = "RestingIndicator", elementKey = "RestingIndicator", level = 51 },
-    { indicatorKey = "ReadyCheckIndicator", elementKey = "ReadyCheckIndicator", level = 51 },
-    { indicatorKey = "ClassificationIndicator", elementKey = "ClassificationCrest", level = 52 },
-    { indicatorKey = "ClassificationIndicator", elementKey = "ClassificationPortraitOverlay", level = 52 },
+    { indicatorKey = "Portrait", elementKey = "Portrait", level = 50, movesUnit = true },
+    { indicatorKey = "RaidTargetIcon", elementKey = "RaidTargetIcon", level = 51, movesUnit = true },
+    { indicatorKey = "LeaderIcon", elementKey = "LeaderIcon", level = 51, movesUnit = true },
+    { indicatorKey = "RoleIcon", elementKey = "RoleIcon", level = 51, movesUnit = true },
+    { indicatorKey = "CombatIndicator", elementKey = "CombatIndicator", level = 51, movesUnit = true },
+    { indicatorKey = "RestingIndicator", elementKey = "RestingIndicator", level = 51, movesUnit = true },
+    { indicatorKey = "ReadyCheckIndicator", elementKey = "ReadyCheckIndicator", level = 51, movesUnit = true },
+    { indicatorKey = "ClassificationIndicator", elementKey = "ClassificationCrest", level = 52, movesUnit = true },
+    { indicatorKey = "ClassificationIndicator", elementKey = "ClassificationPortraitOverlay", level = 52, movesUnit = true },
 }
 
 local currentHover = nil
@@ -236,6 +236,19 @@ local function EndOwnerDrag(zone, commit)
     end
 end
 
+local function CompleteOwnerGesture(zone, commit)
+    local gesture = zone and zone._focalPointGesture
+    if not gesture then
+        return
+    end
+
+    zone._focalPointGesture = nil
+    EndOwnerDrag(zone, commit)
+    if commit then
+        SelectObjectRef(zone, gesture.selectionTarget)
+    end
+end
+
 local function EnsureHitZone(frame, key)
     if not (frame and frame.MoveOverlay and type(key) == "string" and key ~= "") then
         return nil
@@ -270,8 +283,12 @@ local function EnsureHitZone(frame, key)
         end
     end)
     zone:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" and not self._focalPointMovesUnit then
-            SelectObjectRef(self, self._focalPointObjectRef)
+        if button == "LeftButton" then
+            if self._focalPointMovesUnit then
+                CompleteOwnerGesture(self, true)
+            else
+                SelectObjectRef(self, self._focalPointObjectRef)
+            end
         end
         if button == "RightButton" then
             local contextMenu = FocalPoint.GUI
@@ -284,21 +301,28 @@ local function EnsureHitZone(frame, key)
     end)
     zone:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" and self._focalPointMovesUnit then
-            SelectObjectRef(self, self._focalPointObjectRef)
+            local gesture = {
+                hitTarget = self,
+                selectionTarget = self._focalPointObjectRef,
+                movementOwner = self._focalPointOwnerFrame,
+                mode = "unit",
+            }
+            self._focalPointGesture = gesture
         end
     end)
     zone:SetScript("OnDragStart", function(self)
-        if not self._focalPointMovesUnit or not FocalPoint.BeginEditorUnitFrameDrag then
+        local gesture = self._focalPointGesture
+        if not gesture or not self._focalPointMovesUnit or not FocalPoint.BeginEditorUnitFrameDrag then
             return
         end
 
         self._focalPointOwnerDragActive = FocalPoint:BeginEditorUnitFrameDrag(
-            self._focalPointOwnerFrame,
-            { preserveSelection = true }
+            gesture.movementOwner,
+            { moveOnlyOwner = true, gesture = gesture }
         ) == true
     end)
     zone:SetScript("OnDragStop", function(self)
-        EndOwnerDrag(self, true)
+        CompleteOwnerGesture(self, true)
     end)
     HideZoneFrame(zone)
 
@@ -381,7 +405,7 @@ local function HideZone(zone)
     if currentHover and currentHover.target == zone then
         CanvasHoverOverlay.Clear(zone)
     end
-    EndOwnerDrag(zone, false)
+    CompleteOwnerGesture(zone, false)
     SetZoneMouseEnabled(zone, false)
     ApplyZoneChrome(zone, false)
     HideZoneFrame(zone)
@@ -417,7 +441,7 @@ local function UpdateAuras(frame, seen)
             auraKey = item.auraKey,
             objectKey = item.auraKey,
             sectionKey = "auras",
-        }, item.level)
+        }, item.level, item.movesUnit)
     end
 end
 
@@ -435,7 +459,7 @@ local function UpdateIndicators(frame, seen)
             objectKey = item.indicatorKey,
             elementKey = item.elementKey,
             sectionKey = "indicators",
-        }, item.level)
+        }, item.level, item.movesUnit)
     end
 end
 
@@ -456,7 +480,7 @@ local function UpdateDecorations(frame, seen)
             decorationId = decorationId,
             objectKey = decorationId,
             sectionKey = "decoration",
-        }, 60)
+        }, 60, true)
     end
 end
 

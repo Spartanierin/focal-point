@@ -368,24 +368,29 @@ local function IsControlModifierDown()
     return IsControlKeyDown and IsControlKeyDown() == true
 end
 
-local function BeginEditorFrameSelectionClick(frame, button)
+local function BeginEditorFrameSelectionClick(frame, button, hitTarget)
     if not frame or button ~= "LeftButton" then
         return
     end
 
     selectionClickSerial = selectionClickSerial + 1
+    local gesture = {
+        hitTarget = hitTarget or frame,
+        selectionTarget = {
+            kind = "unit",
+            unit = frame._fpUnit,
+        },
+        movementOwner = frame,
+        mode = "unit",
+        selectionTargetWasActive = IsSelectedUnitRoot(frame),
+    }
+
     frame._focalPointSelectionClick = {
         serial = selectionClickSerial,
         ctrl = IsControlModifierDown(),
         handled = false,
+        gesture = gesture,
     }
-
-    if not IsSelectedUnitRoot(frame) and FocalPoint.SelectEditorUnit and frame._fpUnit then
-        FocalPoint:SelectEditorUnit(frame._fpUnit, {
-            toggle = FocalPoint.framesUnlocked == true and frame._focalPointSelectionClick.ctrl == true,
-        })
-        frame._focalPointSelectionClick.handled = true
-    end
 end
 
 local function CompleteEditorFrameSelectionClick(frame, button)
@@ -403,7 +408,7 @@ local function CompleteEditorFrameSelectionClick(frame, button)
         clickState = frame._focalPointSelectionClick
     end
 
-    if type(clickState) ~= "table" or clickState.handled == true then
+    if type(clickState) ~= "table" or clickState.handled == true or frame._focalPointDragState then
         return
     end
     clickState.handled = true
@@ -421,8 +426,8 @@ local function EnsureEditorSelectionHooks(frame)
     end
 
     if frame.HookScript then
-        frame:HookScript("OnMouseDown", function(_, button)
-            BeginEditorFrameSelectionClick(frame, button)
+        frame:HookScript("OnMouseDown", function(source, button)
+            BeginEditorFrameSelectionClick(frame, button, source)
         end)
         frame:HookScript("OnMouseUp", function(_, button)
             CompleteEditorFrameSelectionClick(frame, button)
@@ -431,8 +436,8 @@ local function EnsureEditorSelectionHooks(frame)
 
     local overlay = EnsureMoveOverlay(frame)
     if overlay and overlay.HookScript then
-        overlay:HookScript("OnMouseDown", function(_, button)
-            BeginEditorFrameSelectionClick(frame, button)
+        overlay:HookScript("OnMouseDown", function(source, button)
+            BeginEditorFrameSelectionClick(frame, button, source)
         end)
         overlay:HookScript("OnMouseUp", function(_, button)
             CompleteEditorFrameSelectionClick(frame, button)
@@ -650,22 +655,6 @@ local function GetEditorStateApi()
     return FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State or nil
 end
 
-local function SelectUnitRootObject(unitKey)
-    local objectSelection = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ObjectSelection or nil
-    if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
-        return objectSelection.SelectUnitRoot(unitKey) == true
-    end
-
-    if objectSelection and type(objectSelection.SelectObject) == "function" then
-        return objectSelection.SelectObject({
-            kind = "unit",
-            unit = unitKey,
-        }) == true
-    end
-
-    return false
-end
-
 local function ResolveFrameForSelectionUnit(unitKey, draggedFrame)
     local normalizedUnit = NormalizeEditorSelectionUnit(unitKey)
     if not normalizedUnit then
@@ -702,19 +691,9 @@ local function ResolveSelectedDragUnits(draggedFrame)
         and editorState.IsUnitSelected(draggedUnit)
 
     if isSelected then
-        if editorState.SetPrimaryUnit then
-            editorState.SetPrimaryUnit(draggedUnit)
-        end
         if editorState.GetSelectedUnits then
             return editorState.GetSelectedUnits()
         end
-    elseif SelectUnitRootObject(draggedUnit) then
-        return { draggedUnit }
-    elseif editorState and editorState.SetSingleSelection then
-        -- Legacy fallback for early-load states where ObjectSelection is not available yet.
-        editorState.SetSingleSelection(draggedUnit)
-    elseif editorState and editorState.SetSelectedUnit then
-        editorState.SetSelectedUnit(draggedUnit)
     end
 
     return { draggedUnit }
@@ -855,7 +834,6 @@ end
 
 local function BeginFrameDrag(frame, options)
     options = type(options) == "table" and options or {}
-    local preserveSelection = options.preserveSelection == true
 
     if not frame or not frame._fpUnit then
         return false
@@ -865,12 +843,7 @@ local function BeginFrameDrag(frame, options)
         return false
     end
 
-    if preserveSelection then
-        local selectedObject = GetSelectedEditorObject()
-        if type(selectedObject) ~= "table" or not FrameMatchesSelectionUnit(frame, selectedObject.unit) then
-            return false
-        end
-    elseif not IsSelectedUnitRoot(frame) then
+    if frame._focalPointDragState then
         return false
     end
 
@@ -878,15 +851,13 @@ local function BeginFrameDrag(frame, options)
         return false
     end
 
-    MarkSelectionClickHandled(frame)
-
     local unitConfig = GetUnitConfig(frame._fpUnit)
     if not unitConfig then
         return false
     end
 
     local selectedUnits
-    if preserveSelection then
+    if options.moveOnlyOwner == true then
         local unit = NormalizeEditorSelectionUnit(frame._fpUnit)
         selectedUnits = unit and { unit } or {}
     else
@@ -895,10 +866,6 @@ local function BeginFrameDrag(frame, options)
     if #selectedUnits == 0 then
         return false
     end
-    if FocalPoint.RefreshEditorSelectionVisuals then
-        FocalPoint:RefreshEditorSelectionVisuals()
-    end
-
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
     local cursorX, cursorY = GetCursorPosition()
 
@@ -933,6 +900,15 @@ local function BeginFrameDrag(frame, options)
         end
     end
 
+    local gesture = options.gesture
+        or (frame._focalPointSelectionClick and frame._focalPointSelectionClick.gesture)
+        or {
+            hitTarget = frame,
+            selectionTarget = { kind = "unit", unit = frame._fpUnit },
+            movementOwner = frame,
+            mode = "unit",
+        }
+
     frame._focalPointDragState = {
         cursorX = (cursorX or 0) / scale,
         cursorY = (cursorY or 0) / scale,
@@ -940,6 +916,10 @@ local function BeginFrameDrag(frame, options)
         startY = tonumber(startY) or 0,
         selectedUnits = selectedUnits,
         startPositions = startPositions,
+        completeRootSelection = options.completeRootSelection == true,
+        selectRootAfterDrag = options.completeRootSelection == true and not IsSelectedUnitRoot(frame),
+        selectionCtrl = frame._focalPointSelectionClick and frame._focalPointSelectionClick.ctrl == true,
+        gesture = gesture,
     }
 
     frame:SetScript("OnUpdate", function(movingFrame)
@@ -1035,6 +1015,16 @@ EndFrameDrag = function(frame, commit)
     end
     HideEditorSnapLines()
 
+    if dragState and dragState.completeRootSelection then
+        MarkSelectionClickHandled(frame)
+        if commit and dragState.selectRootAfterDrag and FocalPoint.SelectEditorUnit and frame._fpUnit then
+            FocalPoint:SelectEditorUnit(frame._fpUnit, {
+                toggle = FocalPoint.framesUnlocked == true and dragState.selectionCtrl == true,
+            })
+            return
+        end
+    end
+
     if FocalPoint.RefreshEditorSelectionVisuals then
         FocalPoint:RefreshEditorSelectionVisuals()
     else
@@ -1065,18 +1055,26 @@ local function UpdateRootTransformOverlay(frame, active)
 
     overlay:EnableMouse(active)
     if active then
+        overlay:SetScript("OnMouseDown", function(source, button)
+            BeginEditorFrameSelectionClick(frame, button, source)
+        end)
+        overlay:SetScript("OnMouseUp", function(_, button)
+            CompleteEditorFrameSelectionClick(frame, button)
+        end)
         overlay:RegisterForDrag("LeftButton")
         overlay:SetScript("OnDragStart", function()
             if not FocalPoint.framesUnlocked or not IsSelectedUnitRoot(frame) then
                 return
             end
 
-            BeginFrameDrag(frame)
+            BeginFrameDrag(frame, { completeRootSelection = true })
         end)
         overlay:SetScript("OnDragStop", function()
             EndFrameDrag(frame)
         end)
     else
+        overlay:SetScript("OnMouseDown", nil)
+        overlay:SetScript("OnMouseUp", nil)
         overlay:RegisterForDrag()
         overlay:SetScript("OnDragStart", nil)
         overlay:SetScript("OnDragStop", nil)
@@ -1116,7 +1114,7 @@ function FocalPoint:UpdateFrameDragState(frame)
                 overlay._focalPointEditorForwardDragStop = nil
                 overlay:RegisterForDrag("LeftButton")
                 overlay:SetScript("OnDragStart", function()
-                    BeginFrameDrag(frame)
+                    BeginFrameDrag(frame, { completeRootSelection = true })
                 end)
                 overlay:SetScript("OnDragStop", function()
                     EndFrameDrag(frame)
@@ -1149,7 +1147,7 @@ function FocalPoint:UpdateFrameDragState(frame)
                     return
                 end
 
-                BeginFrameDrag(target)
+                BeginFrameDrag(target, { completeRootSelection = true })
             end)
             frame:SetScript("OnDragStop", function(target)
                 EndFrameDrag(target)
