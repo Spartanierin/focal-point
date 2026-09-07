@@ -7,7 +7,37 @@ local AuraBlockLayout = FocalPoint.AuraBlockLayout
 
 local TIMER_TEXT_SAMPLE_EM_WIDTH = 3.25 -- Conservative reserve for compact forms such as "59 s", "42 m", "12 h".
 
-function AuraBlockLayout.ResolveAnchorOffsets(config)
+function AuraBlockLayout.SetPreviewOffsets(ownerFrame, groupKey, offsetX, offsetY)
+    if not (ownerFrame and groupKey) then
+        return
+    end
+
+    ownerFrame._focalPointAuraDragPreviewOffsets = ownerFrame._focalPointAuraDragPreviewOffsets or {}
+    ownerFrame._focalPointAuraDragPreviewOffsets[groupKey] = {
+        offsetX = tonumber(offsetX) or 0,
+        offsetY = tonumber(offsetY) or 0,
+    }
+end
+
+function AuraBlockLayout.ClearPreviewOffsets(ownerFrame, groupKey)
+    local previews = ownerFrame and ownerFrame._focalPointAuraDragPreviewOffsets
+    if not (previews and groupKey) then
+        return
+    end
+
+    previews[groupKey] = nil
+    if next(previews) == nil then
+        ownerFrame._focalPointAuraDragPreviewOffsets = nil
+    end
+end
+
+function AuraBlockLayout.ResolveAnchorOffsets(config, ownerFrame, groupKey)
+    local previews = ownerFrame and ownerFrame._focalPointAuraDragPreviewOffsets
+    local preview = previews and previews[groupKey]
+    if preview then
+        return preview.offsetX, preview.offsetY
+    end
+
     config = config or {}
     return tonumber(config.offsetX) or 0, tonumber(config.offsetY) or 0
 end
@@ -26,7 +56,7 @@ function AuraBlockLayout.ApplyAnchor(blockFrame, ownerFrame, config, groupKey)
     end
 
     local anchorTarget = AuraBlockLayout.ResolveAnchorTarget(ownerFrame, config, groupKey)
-    local offsetX, offsetY = AuraBlockLayout.ResolveAnchorOffsets(config)
+    local offsetX, offsetY = AuraBlockLayout.ResolveAnchorOffsets(config, ownerFrame, groupKey)
 
     blockFrame:ClearAllPoints()
     blockFrame:SetPoint(
@@ -105,6 +135,12 @@ function AuraBlockLayout.CalculateMetrics(visibleCount, config)
         iconsPerRow = iconsPerRow,
         maxRows = maxRows,
     }
+end
+
+function AuraBlockLayout.ResolveEditorMetrics(config)
+    local seed = AuraBlockLayout.CalculateMetrics(1, config)
+    local rowCount = seed.maxRows > 0 and seed.maxRows or 1
+    return AuraBlockLayout.CalculateMetrics(seed.iconsPerRow * rowCount, config)
 end
 
 function AuraBlockLayout.Apply(groupFrame, auraList, config)

@@ -269,7 +269,7 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
     if objectRef.kind == "aura" then
         local auraConfig = unitConfig[objectRef.auraKey]
         if type(auraConfig) == "table" and auraConfig.placement ~= "INSIDE" then
-            return { kind = "aura", unitConfig = unitConfig, unitKey = unitKey, auraKey = objectRef.auraKey, offsetXField = "offsetX", offsetYField = "offsetY" }
+            return { kind = "aura", unitConfig = unitConfig, unitKey = unitKey, auraKey = objectRef.auraKey, auraConfig = auraConfig, offsetXField = "offsetX", offsetYField = "offsetY" }
         end
         return nil
     end
@@ -286,6 +286,13 @@ end
 
 local function ClampDirectMoveOffset(value)
     return math.max(-DIRECT_MOVE_LIMIT, math.min(DIRECT_MOVE_LIMIT, math.floor((tonumber(value) or 0) + 0.5)))
+end
+
+local function GetDirectMoveOffsetConfig(descriptor)
+    if descriptor and descriptor.kind == "aura" then
+        return descriptor.auraConfig or {}
+    end
+    return descriptor and descriptor.unitConfig or {}
 end
 
 local function ShowZone(zone)
@@ -385,6 +392,29 @@ local function RestoreDirectMovePreview(state)
     return ApplyDirectMovePreview(state, 0, 0)
 end
 
+local function ApplyAuraDirectMovePreview(state, offsetX, offsetY)
+    local descriptor = state and state.descriptor
+    local layout = FocalPoint.AuraBlockLayout
+    if not (descriptor and descriptor.kind == "aura" and layout and layout.SetPreviewOffsets and layout.ApplyAnchor) then
+        return false
+    end
+
+    layout.SetPreviewOffsets(state.frame, descriptor.auraKey, offsetX, offsetY)
+    layout.ApplyAnchor(state.target, state.frame, descriptor.auraConfig, descriptor.auraKey)
+    return true
+end
+
+local function ClearAuraDirectMovePreview(state)
+    local descriptor = state and state.descriptor
+    local layout = FocalPoint.AuraBlockLayout
+    if not (descriptor and descriptor.kind == "aura" and layout and layout.ClearPreviewOffsets) then
+        return false
+    end
+
+    layout.ClearPreviewOffsets(state.frame, descriptor.auraKey)
+    return true
+end
+
 local function CommitDirectMove(state)
     local mutations = FocalPoint.InspectorMutations
         or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
@@ -431,10 +461,16 @@ local function EndDirectMoveDrag(zone, commit)
     zone._focalPointDirectDragState = nil
     zone:SetScript("OnUpdate", nil)
     if commit ~= true or not state.dragging or not CommitDirectMove(state) then
-        RestoreDirectMovePreview(state)
+        if ClearAuraDirectMovePreview(state) then
+            local layout = FocalPoint.AuraBlockLayout
+            layout.ApplyAnchor(state.target, state.frame, state.descriptor.auraConfig, state.descriptor.auraKey)
+        else
+            RestoreDirectMovePreview(state)
+        end
         return
     end
 
+    ClearAuraDirectMovePreview(state)
     if FocalPoint.RefreshUnitFrame then
         FocalPoint:RefreshUnitFrame(state.descriptor.unitKey)
     end
@@ -449,8 +485,8 @@ local function BeginDirectMoveDrag(zone, gesture)
     end
 
     local cursorX, cursorY = GetCursorPositionInUiScale()
-    local points = CaptureFramePoints(target)
-    if not points then
+    local points = descriptor.kind ~= "aura" and CaptureFramePoints(target) or nil
+    if descriptor.kind ~= "aura" and not points then
         return false
     end
 
@@ -461,10 +497,10 @@ local function BeginDirectMoveDrag(zone, gesture)
         points = points,
         startCursorX = cursorX,
         startCursorY = cursorY,
-        startOffsetX = tonumber(descriptor.unitConfig[descriptor.offsetXField]) or 0,
-        startOffsetY = tonumber(descriptor.unitConfig[descriptor.offsetYField]) or 0,
-        currentOffsetX = tonumber(descriptor.unitConfig[descriptor.offsetXField]) or 0,
-        currentOffsetY = tonumber(descriptor.unitConfig[descriptor.offsetYField]) or 0,
+        startOffsetX = tonumber(GetDirectMoveOffsetConfig(descriptor)[descriptor.offsetXField]) or 0,
+        startOffsetY = tonumber(GetDirectMoveOffsetConfig(descriptor)[descriptor.offsetYField]) or 0,
+        currentOffsetX = tonumber(GetDirectMoveOffsetConfig(descriptor)[descriptor.offsetXField]) or 0,
+        currentOffsetY = tonumber(GetDirectMoveOffsetConfig(descriptor)[descriptor.offsetYField]) or 0,
         dragging = true,
     }
     zone._focalPointDirectDragState = state
@@ -491,7 +527,11 @@ local function BeginDirectMoveDrag(zone, gesture)
         end
         activeState.currentOffsetX = offsetX
         activeState.currentOffsetY = offsetY
-        ApplyDirectMovePreview(activeState, offsetX - activeState.startOffsetX, offsetY - activeState.startOffsetY)
+        if activeState.descriptor.kind == "aura" then
+            ApplyAuraDirectMovePreview(activeState, offsetX, offsetY)
+        else
+            ApplyDirectMovePreview(activeState, offsetX - activeState.startOffsetX, offsetY - activeState.startOffsetY)
+        end
     end)
     return true
 end
@@ -606,7 +646,7 @@ local function EnsureHitZone(frame, key)
 end
 
 local function ResolveZoneGeometry(frame, target, objectRef, isSelected)
-    if isSelected and objectRef and (objectRef.kind == "bar" or objectRef.kind == "indicator" or objectRef.kind == "decoration") and SelectionGeometryResolver.Resolve then
+    if objectRef and (objectRef.kind == "aura" or (isSelected and (objectRef.kind == "bar" or objectRef.kind == "indicator" or objectRef.kind == "decoration"))) and SelectionGeometryResolver.Resolve then
         return SelectionGeometryResolver.Resolve(frame, objectRef)
     end
     if IsFrameShown(target) then

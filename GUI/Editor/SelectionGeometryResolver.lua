@@ -8,6 +8,7 @@ FocalPoint.GUI.Editor.SelectionGeometryResolver = Resolver
 
 local Factory = FocalPoint.UnitFrameFactory or {}
 local Decoration = FocalPoint.UnitFrameDecoration or {}
+local AuraBlockLayout = FocalPoint.AuraBlockLayout or {}
 
 local BAR_SPECS = {
     HealthBar = { elementKey = "HealthBar" },
@@ -411,6 +412,44 @@ local function ResolveDecoration(frame, objectRef, config)
     )
 end
 
+local function ResolveAura(frame, objectRef, config)
+    local auraKey = objectRef.auraKey or objectRef.objectKey
+    local auraConfig = auraKey and config[auraKey] or nil
+    if type(auraConfig) ~= "table" then
+        return nil
+    end
+
+    local metrics = AuraBlockLayout.ResolveEditorMetrics and AuraBlockLayout.ResolveEditorMetrics(auraConfig) or nil
+    local groupFrame = frame.Elements and frame.Elements[auraKey] or nil
+    local width = Number(metrics and metrics.blockWidth, 0)
+    local height = Number(metrics and metrics.blockHeight, 0)
+    if width <= 0 or height <= 0 then
+        return FrameGeometry(groupFrame, "aura-frame")
+    end
+
+    local anchorTarget = AuraBlockLayout.ResolveAnchorTarget
+        and AuraBlockLayout.ResolveAnchorTarget(frame, auraConfig, auraKey)
+        or frame
+    local offsetX, offsetY
+    if AuraBlockLayout.ResolveAnchorOffsets then
+        offsetX, offsetY = AuraBlockLayout.ResolveAnchorOffsets(auraConfig, frame, auraKey)
+    else
+        offsetX = Number(auraConfig.offsetX, 0)
+        offsetY = Number(auraConfig.offsetY, 0)
+    end
+
+    return PointGeometry(
+        anchorTarget or frame,
+        auraConfig.point or "TOPLEFT",
+        auraConfig.relativePoint or auraConfig.point or "TOPLEFT",
+        width,
+        height,
+        offsetX,
+        offsetY,
+        "aura-layout-config"
+    )
+end
+
 function Resolver.Resolve(frame, objectRef)
     if not (frame and objectRef) then
         return nil
@@ -423,6 +462,8 @@ function Resolver.Resolve(frame, objectRef)
         return ResolveIndicator(frame, objectRef, config)
     elseif objectRef.kind == "decoration" then
         return ResolveDecoration(frame, objectRef, config)
+    elseif objectRef.kind == "aura" then
+        return ResolveAura(frame, objectRef, config)
     end
 
     return nil
