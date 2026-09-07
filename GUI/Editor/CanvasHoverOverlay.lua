@@ -39,6 +39,8 @@ local INDICATOR_TARGETS = {
 
 local currentHover = nil
 
+local DIRECT_MOVE_LIMIT = 500
+
 local function NormalizeUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
         return nil
@@ -177,6 +179,115 @@ local function SetZoneMouseEnabled(zone, enabled)
     zone:EnableMouse(enabled == true)
 end
 
+local function GetCursorPositionInUiScale()
+    local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    if not scale or scale == 0 then
+        scale = 1
+    end
+    local cursorX, cursorY = GetCursorPosition()
+    return (cursorX or 0) / scale, (cursorY or 0) / scale
+end
+
+local function IsShiftDown()
+    local interactionMode = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    return interactionMode and interactionMode.IsShiftDown and interactionMode.IsShiftDown() == true
+end
+
+local function GetEditableUnitConfig(frame)
+    local unitKey = NormalizeUnitKey(frame and frame._fpUnit)
+    if not unitKey then
+        return nil, nil
+    end
+
+    local resolver = FocalPoint.ActiveLayoutResolver
+    if resolver and resolver.GetEditableActiveUnits then
+        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+        if type(units) == "table" and type(units[unitKey]) == "table" then
+            return units[unitKey], unitKey
+        end
+    end
+
+    local unitUtils = FocalPoint.UnitFrameUtils
+    if unitUtils and unitUtils.GetUnitDB then
+        return unitUtils.GetUnitDB(unitKey), unitKey
+    end
+
+    return nil, unitKey
+end
+
+local function FindDecorationConfig(unitConfig, decorationId)
+    local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
+    if type(decorations) ~= "table" then
+        return nil
+    end
+    for _, decoration in ipairs(decorations) do
+        if type(decoration) == "table" and decoration.id == decorationId then
+            return decoration
+        end
+    end
+    return nil
+end
+
+local function ResolveDirectMoveDescriptor(frame, objectRef)
+    local unitConfig, unitKey = GetEditableUnitConfig(frame)
+    if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
+        return nil
+    end
+
+    if objectRef.kind == "bar" then
+        local objectKey = objectRef.objectKey
+        if objectKey == "CastBar" then
+            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = "castBarOffsetX", offsetYField = "castBarOffsetY" }
+        end
+        if objectKey == "ClassPowerBar" then
+            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = "classPowerBarOffsetX", offsetYField = "classPowerBarOffsetY" }
+        end
+        local prefix = objectKey == "NormalAbsorbBar" and "normalAbsorbBar" or objectKey == "HealingAbsorbBar" and "healingAbsorbBar" or nil
+        if prefix and unitConfig[prefix .. "SizeMode"] == "CUSTOM" then
+            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = prefix .. "OffsetX", offsetYField = prefix .. "OffsetY" }
+        end
+        return nil
+    end
+
+    if objectRef.kind == "indicator" then
+        local indicatorKey = objectRef.indicatorKey
+        if indicatorKey == "ClassificationIndicator" then
+            return nil
+        end
+        local shared = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.SidebarShared
+        local indicatorMeta = shared and shared.INDICATOR_META or nil
+        local meta = type(indicatorMeta) == "table" and indicatorMeta[indicatorKey] or nil
+        local indicatorConfig = type(meta) == "table" and unitConfig[meta.optionKey] or nil
+        if type(indicatorConfig) == "table" and indicatorConfig.placement ~= "INSIDE" then
+            return { kind = "indicator", unitConfig = unitConfig, unitKey = unitKey, indicatorKey = indicatorKey, indicatorMeta = indicatorMeta, offsetXField = "offsetX", offsetYField = "offsetY" }
+        end
+        return nil
+    end
+
+    if objectRef.kind == "aura" then
+        local auraConfig = unitConfig[objectRef.auraKey]
+        if type(auraConfig) == "table" and auraConfig.placement ~= "INSIDE" then
+            return { kind = "aura", unitConfig = unitConfig, unitKey = unitKey, auraKey = objectRef.auraKey, offsetXField = "offsetX", offsetYField = "offsetY" }
+        end
+        return nil
+    end
+
+    if objectRef.kind == "decoration" then
+        local decorationConfig = FindDecorationConfig(unitConfig, objectRef.decorationId)
+        if decorationConfig then
+            return { kind = "decoration", unitConfig = unitConfig, unitKey = unitKey, decorationId = objectRef.decorationId, offsetXField = "offsetX", offsetYField = "offsetY" }
+        end
+    end
+
+    return nil
+end
+
+local function ClampDirectMoveOffset(value)
+    return math.max(-DIRECT_MOVE_LIMIT, math.min(DIRECT_MOVE_LIMIT, math.floor((tonumber(value) or 0) + 0.5)))
+end
+
 local function ShowZone(zone)
     if not zone then
         return
@@ -236,6 +347,155 @@ local function EndOwnerDrag(zone, commit)
     end
 end
 
+local function CaptureFramePoints(target)
+    if not (target and target.GetNumPoints and target.GetPoint) then
+        return nil
+    end
+
+    local points = {}
+    for index = 1, target:GetNumPoints() do
+        local point, relativeTo, relativePoint, offsetX, offsetY = target:GetPoint(index)
+        if point and relativeTo and relativePoint then
+            points[#points + 1] = {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                offsetX = offsetX or 0,
+                offsetY = offsetY or 0,
+            }
+        end
+    end
+    return #points > 0 and points or nil
+end
+
+local function ApplyDirectMovePreview(state, offsetX, offsetY)
+    local target = state and state.target
+    if not (target and state.points and target.ClearAllPoints and target.SetPoint) then
+        return false
+    end
+
+    target:ClearAllPoints()
+    for _, point in ipairs(state.points) do
+        target:SetPoint(point.point, point.relativeTo, point.relativePoint, point.offsetX + offsetX, point.offsetY + offsetY)
+    end
+    return true
+end
+
+local function RestoreDirectMovePreview(state)
+    return ApplyDirectMovePreview(state, 0, 0)
+end
+
+local function CommitDirectMove(state)
+    local mutations = FocalPoint.InspectorMutations
+        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
+    if not (state and state.descriptor and mutations) then
+        return false
+    end
+
+    local descriptor = state.descriptor
+    local context = { unitConfig = descriptor.unitConfig }
+    local setField
+    if descriptor.kind == "unit" then
+        setField = function(fieldName, value)
+            return mutations.SetUnitField and mutations.SetUnitField(context, fieldName, value)
+        end
+    elseif descriptor.kind == "indicator" then
+        context.indicatorMeta = descriptor.indicatorMeta
+        setField = function(fieldName, value)
+            return mutations.SetIndicatorField and mutations.SetIndicatorField(context, descriptor.indicatorKey, fieldName, value)
+        end
+    elseif descriptor.kind == "aura" then
+        setField = function(fieldName, value)
+            return mutations.SetAuraField and mutations.SetAuraField(context, descriptor.auraKey, fieldName, value)
+        end
+    elseif descriptor.kind == "decoration" then
+        setField = function(fieldName, value)
+            return mutations.SetDecorationField and mutations.SetDecorationField(context, descriptor.decorationId, fieldName, value)
+        end
+    end
+    if not setField then
+        return false
+    end
+
+    local resultX = setField(descriptor.offsetXField, state.currentOffsetX)
+    local resultY = setField(descriptor.offsetYField, state.currentOffsetY)
+    return resultX and resultX.ok ~= false and resultY and resultY.ok ~= false
+end
+
+local function EndDirectMoveDrag(zone, commit)
+    local state = zone and zone._focalPointDirectDragState
+    if not state then
+        return
+    end
+
+    zone._focalPointDirectDragState = nil
+    zone:SetScript("OnUpdate", nil)
+    if commit ~= true or not state.dragging or not CommitDirectMove(state) then
+        RestoreDirectMovePreview(state)
+        return
+    end
+
+    if FocalPoint.RefreshUnitFrame then
+        FocalPoint:RefreshUnitFrame(state.descriptor.unitKey)
+    end
+    CanvasHoverOverlay.UpdateFrame(state.frame)
+end
+
+local function BeginDirectMoveDrag(zone, gesture)
+    local descriptor = gesture and gesture.directMove
+    local target = zone and zone._focalPointVisualTarget
+    if not descriptor or not target or (InCombatLockdown and InCombatLockdown()) then
+        return false
+    end
+
+    local cursorX, cursorY = GetCursorPositionInUiScale()
+    local points = CaptureFramePoints(target)
+    if not points then
+        return false
+    end
+
+    local state = {
+        frame = zone._focalPointOwnerFrame,
+        target = target,
+        descriptor = descriptor,
+        points = points,
+        startCursorX = cursorX,
+        startCursorY = cursorY,
+        startOffsetX = tonumber(descriptor.unitConfig[descriptor.offsetXField]) or 0,
+        startOffsetY = tonumber(descriptor.unitConfig[descriptor.offsetYField]) or 0,
+        currentOffsetX = tonumber(descriptor.unitConfig[descriptor.offsetXField]) or 0,
+        currentOffsetY = tonumber(descriptor.unitConfig[descriptor.offsetYField]) or 0,
+        dragging = true,
+    }
+    zone._focalPointDirectDragState = state
+    zone:SetScript("OnUpdate", function(self)
+        local activeState = self._focalPointDirectDragState
+        if not activeState then
+            self:SetScript("OnUpdate", nil)
+            return
+        end
+        if not CanvasHoverOverlay.IsEditorActive() or (InCombatLockdown and InCombatLockdown()) then
+            EndDirectMoveDrag(self, false)
+            return
+        end
+        if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
+            EndDirectMoveDrag(self, true)
+            return
+        end
+
+        local cursorX, cursorY = GetCursorPositionInUiScale()
+        local offsetX = ClampDirectMoveOffset(activeState.startOffsetX + cursorX - activeState.startCursorX)
+        local offsetY = ClampDirectMoveOffset(activeState.startOffsetY + cursorY - activeState.startCursorY)
+        if offsetX == activeState.currentOffsetX and offsetY == activeState.currentOffsetY then
+            return
+        end
+        activeState.currentOffsetX = offsetX
+        activeState.currentOffsetY = offsetY
+        ApplyDirectMovePreview(activeState, offsetX - activeState.startOffsetX, offsetY - activeState.startOffsetY)
+    end)
+    return true
+end
+
 local function CompleteOwnerGesture(zone, commit)
     local gesture = zone and zone._focalPointGesture
     if not gesture then
@@ -243,7 +503,11 @@ local function CompleteOwnerGesture(zone, commit)
     end
 
     zone._focalPointGesture = nil
-    EndOwnerDrag(zone, commit)
+    if gesture.mode == "direct" then
+        EndDirectMoveDrag(zone, commit)
+    else
+        EndOwnerDrag(zone, commit)
+    end
     if commit then
         SelectObjectRef(zone, gesture.selectionTarget)
     end
@@ -301,18 +565,29 @@ local function EnsureHitZone(frame, key)
     end)
     zone:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" and self._focalPointMovesUnit then
+            local directMove = IsShiftDown() and ResolveDirectMoveDescriptor(self._focalPointOwnerFrame, self._focalPointObjectRef) or nil
             local gesture = {
                 hitTarget = self,
                 selectionTarget = self._focalPointObjectRef,
-                movementOwner = self._focalPointOwnerFrame,
-                mode = "unit",
+                movementOwner = directMove and self._focalPointVisualTarget or self._focalPointOwnerFrame,
+                mode = directMove and "direct" or "unit",
+                directMove = directMove,
             }
             self._focalPointGesture = gesture
         end
     end)
     zone:SetScript("OnDragStart", function(self)
         local gesture = self._focalPointGesture
-        if not gesture or not self._focalPointMovesUnit or not FocalPoint.BeginEditorUnitFrameDrag then
+        if not gesture or not self._focalPointMovesUnit then
+            return
+        end
+
+        if gesture.mode == "direct" then
+            BeginDirectMoveDrag(self, gesture)
+            return
+        end
+
+        if not FocalPoint.BeginEditorUnitFrameDrag then
             return
         end
 
@@ -386,6 +661,7 @@ local function PositionZone(zone, frame, target, objectRef, level, movesUnit)
     zone._focalPointForwardOverlay = frame.MoveOverlay
     zone._focalPointOwnerFrame = frame
     zone._focalPointObjectRef = objectRef
+    zone._focalPointVisualTarget = target
     zone._focalPointMovesUnit = movesUnit == true
     zone:SetFrameLevel((frame.MoveOverlay:GetFrameLevel() or 0) + (tonumber(level) or 1))
     if not ApplyZoneGeometry(zone, geometry) then
@@ -410,6 +686,7 @@ local function HideZone(zone)
     ApplyZoneChrome(zone, false)
     HideZoneFrame(zone)
     zone._focalPointObjectRef = nil
+    zone._focalPointVisualTarget = nil
 end
 
 local function UpdateBars(frame, seen)
