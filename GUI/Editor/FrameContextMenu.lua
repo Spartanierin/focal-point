@@ -298,6 +298,16 @@ local function GetTextOverlay()
         or nil
 end
 
+local function IsShiftDown()
+    local interactionMode = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    return interactionMode
+        and interactionMode.IsShiftDown
+        and interactionMode.IsShiftDown() == true
+        or false
+end
+
 local function GetTextTarget(menu)
     if not menu or menu.contextKind ~= "text" then
         return nil, nil, nil, nil
@@ -502,6 +512,15 @@ local function ResetPosition(frame)
     end
 end
 
+local function ResetTextContextPosition(menu)
+    if menu and menu.resetPositionTarget == "frame" then
+        ResetPosition(menu.targetFrame)
+        return
+    end
+
+    ResetTextPosition(menu)
+end
+
 local function GetResetSizeLabel(menu)
     local count = GetSelectedResetCount(menu and menu.targetFrame)
     if count > 1 then
@@ -538,8 +557,22 @@ local function GetAlignTooltip()
     return T("EDITOR_CONTEXT_MENU_ALIGN_TOOLTIP", "Aligns secondary selected unit frames to the primary selection.")
 end
 
-local function GetTextResetPositionTooltip()
+local function GetTextResetPositionTooltip(menu)
+    if menu and menu.resetPositionTarget == "frame" then
+        return GetResetPositionTooltip(menu)
+    end
     return T("EDITOR_CONTEXT_MENU_RESET_TEXT_POSITION_TOOLTIP", "Restore this text element's default anchor and offsets.")
+end
+
+local function IsTextContextPositionResetAvailable(menu)
+    if menu and menu.resetPositionTarget == "frame" then
+        local mutations = GetFrameMutations()
+        return menu.targetFrame ~= nil
+            and mutations
+            and mutations.ResetUnitsPosition ~= nil
+    end
+
+    return IsTextPositionResetAvailable(menu)
 end
 
 local function GetTextResetSizeTooltip()
@@ -613,7 +646,7 @@ local function EnsureMenu()
         { text = T("EDITOR_CONTEXT_MENU_ALIGN_VERTICAL_CENTER", "Align vertical center"), tooltip = GetAlignTooltip, action = function() AlignSelected("verticalCenter") end, enabled = IsAlignSelectionAvailable, preserveSelection = true },
     }
     local textItems = {
-        { text = T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position"), tooltip = GetTextResetPositionTooltip, action = ResetTextPosition, enabled = IsTextPositionResetAvailable, preserveSelection = true },
+        { text = T("EDITOR_CONTEXT_MENU_RESET_POSITION", "Reset position"), tooltip = GetTextResetPositionTooltip, action = ResetTextContextPosition, enabled = IsTextContextPositionResetAvailable, preserveSelection = true },
         { text = T("EDITOR_CONTEXT_MENU_RESET_SIZE", "Reset size"), tooltip = GetTextResetSizeTooltip, action = ResetTextSize, enabled = IsTextSizeResetAvailable, preserveSelection = true },
     }
     menu.frameItems = frameItems
@@ -651,6 +684,7 @@ local function EnsureMenu()
                 contextKind = contextKind,
                 targetFrame = targetFrame,
                 targetTextKey = targetTextKey,
+                resetPositionTarget = menu.resetPositionTarget,
             }
             CloseMenu(menu)
             if item and not item.preserveSelection then
@@ -710,6 +744,7 @@ local function EnsureMenu()
         self.targetFrame = nil
         self.targetTextKey = nil
         self.contextKind = nil
+        self.resetPositionTarget = nil
     end)
 
     FrameContextMenu.menu = menu
@@ -778,6 +813,7 @@ function FrameContextMenu.ShowForFrame(frame)
     menu.contextKind = "frame"
     menu.targetFrame = frame
     menu.targetTextKey = nil
+    menu.resetPositionTarget = nil
     UpdateMenuButtons(menu)
 
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
@@ -804,6 +840,7 @@ function FrameContextMenu.ShowForText(frame, textKey)
     menu.contextKind = "text"
     menu.targetFrame = frame
     menu.targetTextKey = textKey
+    menu.resetPositionTarget = IsShiftDown() and "text" or "frame"
     UpdateMenuButtons(menu)
 
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
