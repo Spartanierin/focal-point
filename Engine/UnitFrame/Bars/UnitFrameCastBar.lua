@@ -203,7 +203,7 @@ function CastBar.ClearTextEditPreview(frame)
     return true
 end
 
-function CastBar.GetActiveTiming(unit, castBar)
+function CastBar.GetActiveTiming(unit, castBar, allowEstimatedTiming)
     if not unit then
         return nil, nil, nil, nil, nil, nil
     end
@@ -281,6 +281,10 @@ function CastBar.GetActiveTiming(unit, castBar)
                 return false, reusedStart, reusedEnd, castIcon, interruptState, castID, castName
             end
 
+            if allowEstimatedTiming == false then
+                return false, nil, nil, castIcon, interruptState, castID, castName
+            end
+
             return false, now, now + 2.5, castIcon, interruptState, castID, castName
         end
     end
@@ -320,6 +324,10 @@ function CastBar.GetActiveTiming(unit, castBar)
             local reusedStart, reusedEnd = ReuseExistingTiming(true, castID, channelName)
             if type(reusedStart) == "number" and type(reusedEnd) == "number" then
                 return true, reusedStart, reusedEnd, channelIcon, interruptState, castID, channelName
+            end
+
+            if allowEstimatedTiming == false then
+                return true, nil, nil, channelIcon, interruptState, castID, channelName
             end
 
             return true, now, now + 2.5, channelIcon, interruptState, castID, channelName

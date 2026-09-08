@@ -3,6 +3,7 @@ local _, FocalPoint = ...
 FocalPoint.TextElementBasicTags = FocalPoint.TextElementBasicTags or {}
 
 local BasicTags = FocalPoint.TextElementBasicTags
+local CastBar = FocalPoint.UnitFrameCastBar or {}
 local BASIC_TAG_DEPENDENCIES = {
     name = "identity",
     ["name:full"] = "identity",
@@ -464,26 +465,13 @@ function BasicTags.Resolve(frame, unit, token, deps)
             return ""
         end
 
-        local now = GetTime and GetTime() or 0
         local castBar = frame and frame.Elements and frame.Elements.CastBar
-
-        if castBar and castBar.isCasting and type(castBar.endTime) == "number" and FormatTimeValue then
-            return FormatTimeValue(math.max(castBar.endTime - now, 0))
-        end
-
-        if UnitCastingInfo and FormatTimeValue then
-            local _, _, _, startTimeMS, endTimeMS = UnitCastingInfo(unit)
-            if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
-                local endTime = endTimeMS / 1000
-                return FormatTimeValue(endTime - now)
-            end
-        end
-
-        if UnitChannelInfo and FormatTimeValue then
-            local _, _, _, startTimeMS, endTimeMS = UnitChannelInfo(unit)
-            if type(startTimeMS) == "number" and type(endTimeMS) == "number" then
-                local remaining = (endTimeMS / 1000) - now
-                return FormatTimeValue(remaining)
+        local getActiveTiming = CastBar.GetActiveTiming
+        if type(getActiveTiming) == "function" and FormatTimeValue then
+            local _, _, endTime = getActiveTiming(unit, castBar, false)
+            if type(endTime) == "number" then
+                local now = GetTime and GetTime() or 0
+                return FormatTimeValue(math.max(endTime - now, 0))
             end
         end
 
