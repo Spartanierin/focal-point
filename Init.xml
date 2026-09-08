@@ -144,6 +144,7 @@
     <Script file="GUI/Editor/EditorController.lua"/>
     <Script file="GUI/Editor/SidebarShared.lua"/>
     <Script file="GUI/Editor/Composition/CompositionTreeAdapter.lua"/>
+    <Script file="GUI/Editor/Composition/CompositionTreeControl.lua"/>
     <Script file="GUI/Editor/Composition/CompositionTreeView.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarBinding.lua"/>
     <Script file="GUI/Editor/LayoutManager/LayoutManagerView.lua"/>
