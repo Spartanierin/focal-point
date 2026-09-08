@@ -560,6 +560,7 @@ function FocalPoint:SelectEditorUnit(unit, options)
         return
     end
 
+    local selectionProjected = false
     local toggleSelection = type(options) == "table" and options.toggle == true
     local preserveSelection = type(options) == "table" and options.preserveSelection == true
     if toggleSelection and editorState and editorState.ToggleUnitSelection then
@@ -569,6 +570,7 @@ function FocalPoint:SelectEditorUnit(unit, options)
     else
         local selectedRoot, objectSelectionAvailable = SelectUnitRootObject(selectedUnit)
         if selectedRoot then
+            selectionProjected = true
             if editorState and editorState.GetPrimaryUnit then
                 selectedUnit = editorState.GetPrimaryUnit() or selectedUnit
             end
@@ -592,10 +594,12 @@ function FocalPoint:SelectEditorUnit(unit, options)
 
     EnsureEditorDesignPresenceForUnit(self, selectedUnit)
 
-    if self.GUI and self.GUI.RequestRefreshOptions then
-        self.GUI:RequestRefreshOptions("Editor.SelectUnit")
-    elseif self.RefreshEditorSelectionVisuals then
-        self:RefreshEditorSelectionVisuals()
+    if not selectionProjected then
+        if self.GUI and self.GUI.RequestRefreshOptions then
+            self.GUI:RequestRefreshOptions("Editor.SelectUnit")
+        elseif self.RefreshEditorSelectionVisuals then
+            self:RefreshEditorSelectionVisuals()
+        end
     end
 
     if (self.framesUnlocked or self.guiTestModeEnabled) and self.RefreshAllFrames then

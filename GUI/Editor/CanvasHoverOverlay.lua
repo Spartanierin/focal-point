@@ -309,35 +309,12 @@ local function HideZoneFrame(zone)
     zone:Hide()
 end
 
-local function ApplyObjectSelectionProjection(changeKind)
-    local controller = FocalPoint.GUI
-        and FocalPoint.GUI.Editor
-        and FocalPoint.GUI.Editor.Controller
-    if controller and type(controller.ApplyObjectSelectionProjection) == "function" then
-        controller.ApplyObjectSelectionProjection(changeKind)
-        return
-    end
-
-    if FocalPoint.RefreshEditorInteractionVisuals then
-        FocalPoint:RefreshEditorInteractionVisuals()
-    elseif FocalPoint.RefreshEditorSelectionVisuals then
-        FocalPoint:RefreshEditorSelectionVisuals()
-    end
-    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
-        FocalPoint.GUI:RequestRefreshOptions("CanvasHoverOverlay.Selection")
-    end
-end
-
 local function SelectObjectRef(source, objectRef)
     local objectSelection = FocalPoint.GUI
         and FocalPoint.GUI.Editor
         and FocalPoint.GUI.Editor.ObjectSelection
     if objectSelection and objectSelection.SelectObject then
-        local ok, changeKind = objectSelection.SelectObject(objectRef)
-        if ok == true then
-            ApplyObjectSelectionProjection(changeKind)
-        end
-        return ok, changeKind
+        return objectSelection.SelectObject(objectRef)
     end
 
     return false

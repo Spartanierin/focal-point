@@ -1601,6 +1601,21 @@ function TextEditorOverlay.Select(frame, textKey)
         return false
     end
 
+    if stateApi and stateApi.SetSectionCollapsed then
+        stateApi.SetSectionCollapsed("texts", false)
+    end
+    if stateApi and stateApi.Get then
+        local state = stateApi.Get()
+        if type(state) == "table" then
+            state.editorSidebarScroll = state.editorSidebarScroll or {}
+            state.editorSidebarScroll.visibleAnchorSectionKey = "texts"
+            state.editorSidebarScroll.visibleAnchorRole = "header"
+            state.editorSidebarScroll.visibleAnchorChildIndex = nil
+            state.editorSidebarScroll.visibleAnchorChildKey = nil
+            state.editorSidebarScroll.visibleAnchorOffset = 0
+        end
+    end
+
     local objectSelection = FocalPoint.GUI
         and FocalPoint.GUI.Editor
         and FocalPoint.GUI.Editor.ObjectSelection
@@ -1614,6 +1629,7 @@ function TextEditorOverlay.Select(frame, textKey)
         }) ~= true then
             return false
         end
+        return true
     else
         if FocalPoint.SelectEditorUnit then
             FocalPoint:SelectEditorUnit(normalizedUnit)
@@ -1625,21 +1641,6 @@ function TextEditorOverlay.Select(frame, textKey)
             stateApi.SetSelectedTextElement(normalizedUnit, textKey)
         elseif stateApi and stateApi.SetSelectedTextId then
             stateApi.SetSelectedTextId(textKey)
-        end
-    end
-
-    if stateApi and stateApi.SetSectionCollapsed then
-        stateApi.SetSectionCollapsed("texts", false)
-    end
-    if stateApi and stateApi.Get then
-        local state = stateApi.Get()
-        if type(state) == "table" then
-            state.editorSidebarScroll = state.editorSidebarScroll or {}
-            state.editorSidebarScroll.visibleAnchorSectionKey = "texts"
-            state.editorSidebarScroll.visibleAnchorRole = "header"
-            state.editorSidebarScroll.visibleAnchorChildIndex = nil
-            state.editorSidebarScroll.visibleAnchorChildKey = nil
-            state.editorSidebarScroll.visibleAnchorOffset = 0
         end
     end
 

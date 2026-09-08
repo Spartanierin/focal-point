@@ -176,15 +176,26 @@ local function RefreshSelectedUnitRuntime()
     ns:RefreshUnitFrame(unitKey == "boss" and "boss" or unitKey)
 end
 
-function EditorController.ApplyObjectSelectionProjection(changeKind)
+function EditorController.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind)
     if ns.RefreshEditorInteractionVisuals then
         ns:RefreshEditorInteractionVisuals()
     elseif ns.RefreshEditorSelectionVisuals then
         ns:RefreshEditorSelectionVisuals()
     end
 
+    RefreshSelectedUnitRuntime()
+    local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State or nil
+    local state = stateApi and type(stateApi.Get) == "function" and stateApi.Get() or nil
+    local selectedUnit = state and state.selectedUnit or nil
+    if ((type(previousObject) == "table" and previousObject.kind == "aura") or nextKind == "aura")
+        and type(previousUnit) == "string"
+        and previousUnit ~= selectedUnit
+        and ns.RefreshUnitFrame
+    then
+        ns:RefreshUnitFrame(previousUnit == "boss" and "boss" or previousUnit)
+    end
+
     if changeKind == "sameUnitObject" then
-        RefreshSelectedUnitRuntime()
         EditorController.RefreshActiveProperties()
         local treeView = ns.CompositionTreeView or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or nil
         if treeView and type(treeView.RefreshKeyboardBinding) == "function" then
@@ -193,7 +204,6 @@ function EditorController.ApplyObjectSelectionProjection(changeKind)
         return
     end
 
-    RefreshSelectedUnitRuntime()
     if ns.GUI and ns.GUI.RequestRefreshOptions then
         ns.GUI:RequestRefreshOptions("EditorController.ObjectSelection")
     end

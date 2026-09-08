@@ -677,16 +677,6 @@ local function RefreshTreeRuntimeAndProperties(context, deps)
     end
 end
 
-local function ApplyObjectSelectionProjection(changeKind, deps)
-    local nsRef = ResolveAddon(deps)
-    local controller = nsRef.GUI and nsRef.GUI.Editor and nsRef.GUI.Editor.Controller
-    if controller and type(controller.ApplyObjectSelectionProjection) == "function" then
-        controller.ApplyObjectSelectionProjection(changeKind)
-        return true
-    end
-    return false
-end
-
 local function BuildCompositionTree(context, deps)
     local treeHost = context and context.widgets and context.widgets.compositionTree or nil
     if not treeHost then
@@ -704,21 +694,6 @@ local function BuildCompositionTree(context, deps)
     CompositionTreeView.Build(treeHost, context.state, {
         minHeight = 112,
         maxHeight = 320,
-        onSelect = function(_, _, changeKind)
-            local nsRef = ResolveAddon(deps)
-            if changeKind == "sameUnitObject" then
-                ApplyObjectSelectionProjection(changeKind, deps)
-                return
-            end
-            if ApplyObjectSelectionProjection(changeKind, deps) then
-                return
-            end
-            if context.options and type(context.options.onObjectSelectionChanged) == "function" then
-                context.options.onObjectSelectionChanged(changeKind)
-            elseif nsRef.GUI and nsRef.GUI.RequestRefreshOptions then
-                nsRef.GUI:RequestRefreshOptions("CompositionTree.Selection")
-            end
-        end,
         onToggle = function(node, nextEnabled)
             local mutationContext = BuildInspectorContextForToolbar(context.state, deps)
             if not mutationContext then

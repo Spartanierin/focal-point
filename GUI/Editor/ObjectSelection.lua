@@ -179,16 +179,16 @@ local function ClearTextSelection()
 end
 
 local function RefreshInteractionVisuals()
-    if FocalPoint and type(FocalPoint.RefreshEditorInteractionVisuals) == "function" then
-        FocalPoint:RefreshEditorInteractionVisuals()
-    elseif FocalPoint and type(FocalPoint.RefreshEditorSelectionVisuals) == "function" then
-        FocalPoint:RefreshEditorSelectionVisuals()
+    if ns and type(ns.RefreshEditorInteractionVisuals) == "function" then
+        ns:RefreshEditorInteractionVisuals()
+    elseif ns and type(ns.RefreshEditorSelectionVisuals) == "function" then
+        ns:RefreshEditorSelectionVisuals()
     end
 end
 
 local function RefreshEditorSurface()
-    if FocalPoint and FocalPoint.GUI and type(FocalPoint.GUI.RequestRefreshOptions) == "function" then
-        FocalPoint.GUI:RequestRefreshOptions("ObjectSelection.CompleteSelection")
+    if ns and ns.GUI and type(ns.GUI.RequestRefreshOptions) == "function" then
+        ns.GUI:RequestRefreshOptions("ObjectSelection.CompleteSelection")
     else
         RefreshInteractionVisuals()
     end
@@ -196,11 +196,11 @@ end
 
 local function RefreshUnitRuntime(unitKey)
     local normalizedUnit = NormalizeUnitKey(unitKey)
-    if not normalizedUnit or not (FocalPoint and type(FocalPoint.RefreshUnitFrame) == "function") then
+    if not normalizedUnit or not (ns and type(ns.RefreshUnitFrame) == "function") then
         return
     end
 
-    FocalPoint:RefreshUnitFrame(normalizedUnit)
+    ns:RefreshUnitFrame(normalizedUnit)
 end
 
 local function RefreshAuraSelectionRuntime(previousUnit)
@@ -212,13 +212,18 @@ local function RefreshAuraSelectionRuntime(previousUnit)
 end
 
 local function CompleteSelection(previousUnit, previousObject, nextKind)
-    RefreshEditorSurface()
-    RefreshInteractionVisuals()
-    if (type(previousObject) == "table" and previousObject.kind == "aura") or nextKind == "aura" then
-        RefreshAuraSelectionRuntime(previousUnit)
-    end
     local changeKind = previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
-    local perf = FocalPoint and FocalPoint.SelectionPerfDebug
+    local controller = ns and ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Controller or nil
+    if controller and type(controller.ApplyObjectSelectionProjection) == "function" then
+        controller.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind)
+    else
+        RefreshEditorSurface()
+        RefreshInteractionVisuals()
+        if (type(previousObject) == "table" and previousObject.kind == "aura") or nextKind == "aura" then
+            RefreshAuraSelectionRuntime(previousUnit)
+        end
+    end
+    local perf = ns and ns.SelectionPerfDebug
     if perf and perf.RecordSelection then
         perf:RecordSelection(changeKind)
     end
