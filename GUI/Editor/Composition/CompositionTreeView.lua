@@ -18,8 +18,8 @@ local ObjectSelection = ns.GUI.Editor.ObjectSelection or {}
 
 local ROW_WIDGET_TYPE = "FocalPointCompositionTreeRow"
 local ROW_WIDGET_VERSION = 3
-local ROW_HEIGHT_CLICKABLE = 12
-local ROW_HEIGHT_STATIC = 12
+local ROW_HEIGHT_CLICKABLE = 16
+local ROW_HEIGHT_STATIC = 16
 local ROW_INDENT = 8
 local ROW_TEXT_INSET = 4
 local ROW_TEXT_RIGHT_INSET = 3
@@ -28,9 +28,9 @@ local ROW_CHEVRON_SIZE = 8
 local ROW_ICON_SIZE = 10
 local ROW_TOGGLE_SIZE = 9
 local ROW_LABEL_GAP = 3
-local TREE_SCROLL_MAX_HEIGHT = 132
+local TREE_SCROLL_MAX_HEIGHT = 320
 local TREE_SCROLL_MIN_HEIGHT = 64
-local TREE_ROW_ESTIMATED_HEIGHT = 15
+local TREE_ROW_ESTIMATED_HEIGHT = 16
 
 local ROW_COLORS = {
     fillSelected = { 0.18, 0.22, 0.30, 0.92 },

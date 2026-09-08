@@ -703,7 +703,7 @@ local function BuildCompositionTree(context, deps)
 
     CompositionTreeView.Build(treeHost, context.state, {
         minHeight = 112,
-        maxHeight = 184,
+        maxHeight = 320,
         onSelect = function(_, _, changeKind)
             local nsRef = ResolveAddon(deps)
             if changeKind == "sameUnitObject" then
