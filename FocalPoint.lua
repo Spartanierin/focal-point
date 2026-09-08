@@ -1249,6 +1249,29 @@ end
 
 function FocalPointAddon:OnInitialize()
     FocalPoint.db = LibStub("AceDB-3.0"):New("FocalPointDB", FocalPoint:GetDefaultDB(), true)
+
+    -- Materialize legacy profiles before startup normalizers can alter their source payloads.
+    local layoutMigration = FocalPoint.LayoutMigration
+    if type(layoutMigration) == "table"
+        and type(layoutMigration.EnsureBackup) == "function"
+        and type(layoutMigration.MigrateAll) == "function"
+    then
+        local backupCallOk, backupOk, backupReason = pcall(layoutMigration.EnsureBackup, FocalPoint.db)
+        if not backupCallOk then
+            FocalPoint:Warn(string.format("Layout migration backup failed: %s", tostring(backupOk)))
+        elseif backupOk ~= true then
+            FocalPoint:Warn(string.format("Layout migration backup unavailable: %s", tostring(backupReason or "unknown")))
+        else
+            local migrationCallOk, result = pcall(layoutMigration.MigrateAll, FocalPoint.db)
+            if not migrationCallOk then
+                FocalPoint:Warn(string.format("Layout migration failed: %s", tostring(result)))
+            elseif type(result) ~= "table" or result.complete ~= true then
+                local errorCount = type(result) == "table" and type(result.errors) == "table" and #result.errors or "unknown"
+                FocalPoint:Warn(string.format("Layout migration incomplete: %s error(s)", tostring(errorCount)))
+            end
+        end
+    end
+
     EnsureImageElementDefaults()
     EnsureBarTextureDefaults()
     EnsureExpandedUnitDefaults("targettarget")

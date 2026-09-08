@@ -10,6 +10,17 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.0 Beta 3
+
+Migration hotfix for existing Focal Point 1.x profiles.
+
+### Fixed
+
+* Fixed migration of existing Focal Point 1.x profiles when starting 2.0.
+* Existing profiles are materialized into the new 2.0 layout system instead of falling back to the built-in default layout.
+* Migration preserves the legacy 1.x profile for backward compatibility.
+* Migration is idempotent and does not create duplicate layouts on subsequent starts.
+
 ## 2.0.0 Beta 2
 
 Canvas interaction refinements for direct composition editing.
