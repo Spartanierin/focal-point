@@ -234,22 +234,11 @@ local function GetSortedTextIds(texts)
 end
 
 local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
-    local health = AddChild(root, BuildNode(
-        root.id .. "/health",
-        "health",
-        unit,
-        root.id,
-        L["EDITOR_SECTION_HEALTH"] or "Health",
-        10,
-        true,
-        { kind = "unit", sectionKey = SECTION.health }
-    ))
-
-    RegisterAnchorNode(anchorNodes, "HealthBar", AddChild(health, BuildNode(
-        health.id .. "/healthbar",
+    RegisterAnchorNode(anchorNodes, "HealthBar", AddChild(root, BuildNode(
+        root.id .. "/health/healthbar",
         "healthbar",
         unit,
-        health.id,
+        root.id,
         L["ELEMENT_HEALTH_BAR"] or "Health Bar",
         10,
         true,
@@ -258,11 +247,11 @@ local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
     )))
 
     if IsPresent(unitConfig, BuildBarRef(unit, "NormalAbsorbBar")) then
-        RegisterAnchorNode(anchorNodes, "NormalAbsorbBar", AddChild(health, BuildNode(
-            health.id .. "/normalabsorb",
+        RegisterAnchorNode(anchorNodes, "NormalAbsorbBar", AddChild(root, BuildNode(
+            root.id .. "/health/normalabsorb",
             "normalAbsorbBar",
             unit,
-            health.id,
+            root.id,
             L["OPTION_NORMAL_ABSORB"] or "Normal Absorb",
             20,
             false,
@@ -272,11 +261,11 @@ local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
     end
 
     if IsPresent(unitConfig, BuildBarRef(unit, "HealingAbsorbBar")) then
-        RegisterAnchorNode(anchorNodes, "HealingAbsorbBar", AddChild(health, BuildNode(
-            health.id .. "/healingabsorb",
+        RegisterAnchorNode(anchorNodes, "HealingAbsorbBar", AddChild(root, BuildNode(
+            root.id .. "/health/healingabsorb",
             "healingAbsorbBar",
             unit,
-            health.id,
+            root.id,
             L["OPTION_HEALING_ABSORB"] or "Healing Absorb",
             30,
             false,
@@ -287,31 +276,12 @@ local function AddHealthBranch(root, unit, unitConfig, anchorNodes)
 end
 
 local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
-    local power
-
-    local function EnsurePower()
-        if not power then
-            power = AddChild(root, BuildNode(
-                root.id .. "/power",
-                "power",
-                unit,
-                root.id,
-                L["EDITOR_SECTION_POWER"] or "Power",
-                20,
-                false,
-                { kind = "unit", sectionKey = SECTION.power }
-            ))
-        end
-        return power
-    end
-
     if IsPresent(unitConfig, BuildBarRef(unit, "PowerBar")) then
-        power = EnsurePower()
-        RegisterAnchorNode(anchorNodes, "PowerBar", AddChild(power, BuildNode(
-            power.id .. "/powerbar",
+        RegisterAnchorNode(anchorNodes, "PowerBar", AddChild(root, BuildNode(
+            root.id .. "/power/powerbar",
             "powerbar",
             unit,
-            power.id,
+            root.id,
             L["ELEMENT_POWER_BAR"] or "Power Bar",
             10,
             false,
@@ -322,12 +292,11 @@ local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
 
     if unit == "player" then
         if IsPresent(unitConfig, BuildBarRef(unit, "ClassPowerBar")) then
-            power = EnsurePower()
-            RegisterAnchorNode(anchorNodes, "ClassPowerBar", AddChild(power, BuildNode(
-                power.id .. "/classpower",
+            RegisterAnchorNode(anchorNodes, "ClassPowerBar", AddChild(root, BuildNode(
+                root.id .. "/power/classpower",
                 "classPowerBar",
                 unit,
-                power.id,
+                root.id,
                 L["BAR_CLASS_POWER"] or "Class Power",
                 20,
                 false,
@@ -337,12 +306,11 @@ local function AddPowerBranch(root, unit, unitConfig, anchorNodes)
         end
 
         if IsPresent(unitConfig, BuildBarRef(unit, "AlternativePowerBar")) then
-            power = EnsurePower()
-            RegisterAnchorNode(anchorNodes, "AlternativePowerBar", AddChild(power, BuildNode(
-                power.id .. "/alternativepower",
+            RegisterAnchorNode(anchorNodes, "AlternativePowerBar", AddChild(root, BuildNode(
+                root.id .. "/power/alternativepower",
                 "alternativePowerBar",
                 unit,
-                power.id,
+                root.id,
                 L["BAR_ALT_POWER"] or "Alt Power",
                 30,
                 false,
@@ -358,22 +326,11 @@ local function AddCastBranch(root, unit, unitConfig, anchorNodes)
         return
     end
 
-    local cast = AddChild(root, BuildNode(
-        root.id .. "/cast",
-        "cast",
-        unit,
-        root.id,
-        L["EDITOR_SECTION_CAST"] or "Cast",
-        30,
-        false,
-        { kind = "unit", sectionKey = SECTION.cast }
-    ))
-
-    RegisterAnchorNode(anchorNodes, "CastBar", AddChild(cast, BuildNode(
-        cast.id .. "/castbar",
+    RegisterAnchorNode(anchorNodes, "CastBar", AddChild(root, BuildNode(
+        root.id .. "/cast/castbar",
         "castbar",
         unit,
-        cast.id,
+        root.id,
         L["ELEMENT_CAST_BAR"] or "Cast Bar",
         10,
         false,
@@ -430,27 +387,14 @@ local function AddTextBranch(root, unit, unitConfig, anchorNodes)
 end
 
 local function AddAuraBranch(root, unit, unitConfig)
-    local auraRoot
     for index, auraKey in ipairs({ "Buffs", "Debuffs" }) do
         local auraRef = BuildAuraRef(unit, auraKey)
         if IsPresent(unitConfig, auraRef) then
-            if not auraRoot then
-                auraRoot = AddChild(root, BuildNode(
-                    root.id .. "/auras",
-                    "auras",
-                    unit,
-                    root.id,
-                    L["EDITOR_SECTION_AURAS"] or "Auras",
-                    50,
-                    false,
-                    { kind = "aura", sectionKey = SECTION.auras }
-                ))
-            end
-            AddChild(auraRoot, BuildNode(
-                auraRoot.id .. "/" .. string.lower(auraKey),
+            AddChild(root, BuildNode(
+                root.id .. "/auras/" .. string.lower(auraKey),
                 auraKey == "Buffs" and "buffs" or "debuffs",
                 unit,
-                auraRoot.id,
+                root.id,
                 L[AURA_LABELS[auraKey]] or auraKey,
                 index,
                 false,
