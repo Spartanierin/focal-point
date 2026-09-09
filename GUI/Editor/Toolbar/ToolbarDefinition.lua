@@ -98,7 +98,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "globalTitle", widget = "label", itemVariant = "section_title", textKey = "OPTION_OPTIONS" },
             { id = "globalOptions", widget = "button", itemVariant = "secondary_action", textKey = "OPTION_OPTIONS" },
             { id = "expertMode", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_EXPERT_MODE" },
         },
@@ -381,34 +380,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
-        section = "EditingHint",
-        properties = {
-            parentSection = "Editing",
-            sectionKind = "section",
-            type = "section",
-            variant = "note_stack",
-            border = false,
-            padding = {
-                left = 0,
-                right = 0,
-                top = 0,
-                bottom = 0,
-            },
-            widthInfo = {
-                source = "parent",
-                derivedFrom = "Editing.widthInfo",
-            },
-            heightInfo = {
-                source = "content",
-                min = 1,
-                derivedFrom = "preview hint",
-            },
-        },
-        items = {
-            { id = "editingHint", widget = "label", itemVariant = "group_description", textKey = "EDITOR_PREVIEW_HINT", size = 11 },
-        },
-    },
-    {
         section = "Secondary",
         properties = {
             parentSection = "Root",
@@ -434,7 +405,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "toolsTitle", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_CONTEXT_TOOLS", size = 10 },
+            { id = "toolsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_TOOLS" },
             { id = "manageLayoutsButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_MANAGE_LAYOUTS" },
             { id = "layoutAssignmentsButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUT_ASSIGNMENTS" },
             { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_PROFILES" },

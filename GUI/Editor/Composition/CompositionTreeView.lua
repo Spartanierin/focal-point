@@ -149,6 +149,15 @@ local function IsToggleableNode(node)
     return GetToggleSpec(node) ~= nil
 end
 
+local function RequestTreeOwnerRelayout(container)
+    local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer or nil
+    if FormRenderer and type(FormRenderer.RequestRelayout) == "function" then
+        FormRenderer.RequestRelayout(container)
+    elseif container and container.DoLayout then
+        container:DoLayout()
+    end
+end
+
 local function ResolveTreeScrollHeight(rowCount, options)
     local height = math.max(0, tonumber(rowCount) or 0) * TREE_ROW_ESTIMATED_HEIGHT
     local minHeight = tonumber(options and options.minHeight) or TREE_SCROLL_MIN_HEIGHT
@@ -476,7 +485,7 @@ function View.Build(container, state, options)
         options.visibleRows = {}
         CollectVisibleRows(tree, 0, state, options)
         host:SetHeight(ResolveTreeScrollHeight(#options.visibleRows, options))
-        container:DoLayout()
+        RequestTreeOwnerRelayout(container)
         control:SetRows(options.visibleRows)
     end
 
@@ -488,6 +497,7 @@ function View.Build(container, state, options)
     CollectVisibleRows(tree, 0, state, options)
     host:SetHeight(ResolveTreeScrollHeight(#options.visibleRows, options))
     container:AddChild(host)
+    RequestTreeOwnerRelayout(container)
 
     local callbacks = {
         onSelect = function(node)

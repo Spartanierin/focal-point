@@ -35,6 +35,8 @@ local function RequestRelayout(container)
     end
 end
 
+FormRenderer.RequestRelayout = RequestRelayout
+
 local function ResetFormRendererState(widget)
     if not widget then
         return

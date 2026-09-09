@@ -693,7 +693,7 @@ local function BuildCompositionTree(context, deps)
 
     CompositionTreeView.Build(treeHost, context.state, {
         minHeight = 112,
-        maxHeight = 320,
+        maxHeight = 416,
         onToggle = function(node, nextEnabled)
             local mutationContext = BuildInspectorContextForToolbar(context.state, deps)
             if not mutationContext then
@@ -807,9 +807,6 @@ local function RefreshWindowState(context, deps)
     if context.widgets.presetsTitle then
         context.widgets.presetsTitle:SetText(T("EDITOR_CONTEXT_PRESET", "Presets", deps))
     end
-    if context.widgets.globalTitle then
-        context.widgets.globalTitle:SetText(T("OPTION_OPTIONS", "Options", deps))
-    end
     if context.widgets.unitLabel then
         context.widgets.unitLabel:SetText(T("EDITOR_UNIT", "Unit", deps))
     end
@@ -895,10 +892,6 @@ local function RefreshWindowState(context, deps)
 
     RefreshInteractionModeControls(context, deps)
     BuildCompositionTree(context, deps)
-
-    if context.widgets.editingHint then
-        context.widgets.editingHint:SetText(T("EDITOR_PREVIEW_INTERACTION_HINT", nil, deps))
-    end
 
     if context.widgets.presetsIntro then
         context.widgets.presetsIntro:SetText(T("EDITOR_PRESET_CONTEXT_HINT", nil, deps))

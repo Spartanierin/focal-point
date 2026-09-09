@@ -44,7 +44,6 @@ local TOOLBAR_SECTIONS = {
     UnitGridRow3 = true,
     UnitGridRow4 = true,
     Editing = true,
-    EditingHint = true,
     Options = true,
     Secondary = true,
     Footer = true,
