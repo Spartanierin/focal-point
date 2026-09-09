@@ -10,6 +10,17 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.0 Beta 4
+
+### Improved
+
+* Overhauled the Composition Tree with a clearer object hierarchy, more direct interactions, and more reliable controls.
+* Improved migration of existing 1.x profiles so layouts retain their actual composition without adding extra 2.0 default objects.
+
+### Fixed
+
+* Protected the CastTime display against restricted WoW timing values.
+
 ## 2.0.0 Beta 3
 
 Migration hotfix for existing Focal Point 1.x profiles.
