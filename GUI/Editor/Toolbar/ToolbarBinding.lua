@@ -747,6 +747,7 @@ local function RefreshWindowState(context, deps)
             DANGER = "danger",
         }
     local ApplySidebarButtonVisual = sidebarThemeHelpers.ApplySidebarButtonVisual or sidebarThemeHelpers.StyleSidebarButton
+    local ApplyUnitNavigatorVisual = sidebarThemeHelpers.ApplyUnitNavigatorVisual
     local BuilderUI = (deps and deps.BuilderUI) or (nsRef.GUI and nsRef.GUI.Helpers and nsRef.GUI.Helpers.GUIRuntimeHelpers) or {}
     local generalConfig = nsRef.db and nsRef.db.profile and nsRef.db.profile.General
     if type(generalConfig) ~= "table" then
@@ -807,10 +808,7 @@ local function RefreshWindowState(context, deps)
         context.widgets.presetsTitle:SetText(T("EDITOR_CONTEXT_PRESET", "Presets", deps))
     end
     if context.widgets.globalTitle then
-        context.widgets.globalTitle:SetText(T("EDITOR_CONTEXT_GLOBAL", "Addon", deps))
-    end
-    if context.widgets.footerNote then
-        context.widgets.footerNote:SetText("")
+        context.widgets.globalTitle:SetText(T("OPTION_OPTIONS", "Options", deps))
     end
     if context.widgets.unitLabel then
         context.widgets.unitLabel:SetText(T("EDITOR_UNIT", "Unit", deps))
@@ -869,7 +867,9 @@ local function RefreshWindowState(context, deps)
             if isPresent then
                 visibleRows[entry.row] = true
             end
-            if ApplySidebarButtonVisual then
+            if ApplyUnitNavigatorVisual then
+                ApplyUnitNavigatorVisual(button, unitKey == state.selectedUnit)
+            elseif ApplySidebarButtonVisual then
                 ApplySidebarButtonVisual(button, unitKey == state.selectedUnit and SIDEBAR_VISUAL_ROLE.ACTIVE or SIDEBAR_VISUAL_ROLE.SECONDARY)
             end
         end

@@ -8,6 +8,68 @@ local freeControls = {}
 local methods = {}
 local ApplyTextStyle = ns.GUI.Helpers.FormWidgets.ApplyTextStyle
 
+local TREE_SURFACE_COLOR = { 0.05, 0.055, 0.06, 0.92 }
+local TREE_TEXT_DESCRIPTION = { 0.68, 0.70, 0.75, 1.00 }
+local TREE_TEXT_DISABLED = { 0.43, 0.45, 0.49, 1.00 }
+
+local ICON_PATH_BY_NODE_TYPE = {
+    unit = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_unit.png",
+    healthbar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    normalAbsorbBar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    healingAbsorbBar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    powerbar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    classPowerBar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    alternativePowerBar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    castbar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
+    textElement = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_text.png",
+    buffs = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_aura.png",
+    debuffs = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_aura.png",
+    decorationElement = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_decoration.png",
+}
+
+local ICON_TINT_BY_NODE_TYPE = {
+    unit = { 0.93, 0.79, 0.49 },
+    healthbar = { 0.43, 0.70, 0.90 },
+    normalAbsorbBar = { 0.43, 0.70, 0.90 },
+    healingAbsorbBar = { 0.43, 0.70, 0.90 },
+    powerbar = { 0.43, 0.70, 0.90 },
+    classPowerBar = { 0.43, 0.70, 0.90 },
+    alternativePowerBar = { 0.43, 0.70, 0.90 },
+    castbar = { 0.43, 0.70, 0.90 },
+    textElement = { 0.95, 0.89, 0.72 },
+    buffs = { 0.67, 0.48, 0.84 },
+    debuffs = { 0.67, 0.48, 0.84 },
+    decorationElement = { 0.70, 0.65, 0.82 },
+}
+
+local INDICATOR_ICON_TINT = { 0.91, 0.55, 0.32 }
+local PORTRAIT_ICON_TINT = { 0.80, 0.65, 0.40 }
+local DEFAULT_ICON_TINT = { 0.72, 0.76, 0.82 }
+
+local function ResolveNodeIcon(node)
+    if type(node) ~= "table" then
+        return nil
+    end
+    if node.type == "indicatorElement" then
+        local target = node.inspectorTarget
+        if type(target) == "table" and target.indicatorKey == "Portrait" then
+            return "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png", PORTRAIT_ICON_TINT
+        end
+        return "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_indicator.png", INDICATOR_ICON_TINT
+    end
+    return ICON_PATH_BY_NODE_TYPE[node.type], ICON_TINT_BY_NODE_TYPE[node.type]
+end
+
+local function SetIconColor(icon, tint, brightness, alpha)
+    local color = tint or DEFAULT_ICON_TINT
+    icon:SetVertexColor(
+        math.min(1, color[1] * brightness),
+        math.min(1, color[2] * brightness),
+        math.min(1, color[3] * brightness),
+        alpha
+    )
+end
+
 local function StyleLabel(label, size)
     if ApplyTextStyle then
         ApplyTextStyle(label, "label", size, 1)
@@ -23,23 +85,32 @@ local function Paint(row)
     local item = row.item
     if not item then return end
     if item.selected then
-        row.background:SetColorTexture(0.19, 0.24, 0.31, 0.85)
+        row.background:SetColorTexture(0.11, 0.18, 0.27, 0.94)
         row.background:Show()
     elseif row.hovered then
-        row.background:SetColorTexture(0.18, 0.20, 0.24, 0.40)
+        row.background:SetColorTexture(0.07, 0.10, 0.15, 0.72)
         row.background:Show()
     else
         row.background:Hide()
     end
     if item.selected then
-        row.label:SetTextColor(0.96, 0.97, 0.99, 1)
+        row.label:SetTextColor(0.88, 0.91, 0.95, 1)
     elseif item.node.enabled == false then
-        row.label:SetTextColor(0.53, 0.57, 0.63, 1)
+        row.label:SetTextColor(unpack(TREE_TEXT_DISABLED))
     else
-        row.label:SetTextColor(0.82, 0.85, 0.90, 1)
+        row.label:SetTextColor(unpack(TREE_TEXT_DESCRIPTION))
+    end
+    if item.selected then
+        SetIconColor(row.icon, row.iconTint, 1.18, 1.00)
+    elseif row.hovered then
+        SetIconColor(row.icon, row.iconTint, 1.04, 0.90)
+    elseif item.node.enabled == false then
+        row.icon:SetVertexColor(0.42, 0.44, 0.48, 0.42)
+    else
+        SetIconColor(row.icon, row.iconTint, 0.90, 0.76)
     end
     row.disclosureGlyph:SetText(item.expanded and "-" or ">")
-    row.toggleGlyph:SetColorTexture(0.58, 0.66, 0.76, item.node.enabled == false and 0.22 or 0.62)
+    row.toggleGlyph:SetColorTexture(0.49, 0.54, 0.61, item.node.enabled == false and 0.14 or 0.38)
 end
 
 function methods:SetKeyboardActive(active)
@@ -91,6 +162,9 @@ local function UnbindRow(row)
     end
     row.frame:ClearAllPoints()
     row.label:SetText("")
+    row.icon:SetTexture(nil)
+    row.icon:Hide()
+    row.iconTint = nil
     row.background:Hide()
 end
 
@@ -103,19 +177,21 @@ function methods:AcquireRow(index)
     background:SetAllPoints(frame)
     local label = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     StyleLabel(label, 11)
+    local icon = frame:CreateTexture(nil, "ARTWORK", nil, 1)
+    icon:SetSize(14, 14)
     local disclosure = CreateFrame("Button", nil, frame)
     disclosure:SetSize(12, Control.ROW_HEIGHT)
     local disclosureGlyph = disclosure:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     disclosureGlyph:SetPoint("CENTER")
     disclosureGlyph:SetTextColor(0.58, 0.63, 0.70, 1)
     local toggle = CreateFrame("Button", nil, frame)
-    toggle:SetSize(14, Control.ROW_HEIGHT)
+    toggle:SetSize(20, Control.ROW_HEIGHT)
     toggle:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
     local toggleGlyph = toggle:CreateTexture(nil, "ARTWORK")
-    toggleGlyph:SetSize(4, 4)
+    toggleGlyph:SetSize(8, 8)
     toggleGlyph:SetPoint("CENTER")
     row = {
-        frame = frame, background = background, label = label,
+        frame = frame, background = background, label = label, icon = icon,
         disclosure = disclosure, disclosureGlyph = disclosureGlyph,
         toggle = toggle, toggleGlyph = toggleGlyph,
     }
@@ -160,8 +236,14 @@ function methods:SetRows(items)
         row.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, -(index - 1) * Control.ROW_HEIGHT)
         row.disclosure:ClearAllPoints()
         row.disclosure:SetPoint("LEFT", row.frame, "LEFT", 3 + item.depth * 10, 0)
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("LEFT", row.disclosure, "RIGHT", 2, 0)
+        local iconPath, iconTint = ResolveNodeIcon(item.node)
+        row.icon:SetTexture(iconPath)
+        row.icon:SetShown(iconPath ~= nil)
+        row.iconTint = iconTint
         row.label:ClearAllPoints()
-        row.label:SetPoint("LEFT", row.disclosure, "RIGHT", 2, 0)
+        row.label:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
         row.label:SetPoint("RIGHT", item.toggleable and row.toggle or row.frame,
             item.toggleable and "LEFT" or "RIGHT", -4, 0)
         row.label:SetText(item.label)
@@ -217,6 +299,9 @@ local function CreateControl()
     local self = setmetatable({ rows = {}, count = 0 }, { __index = methods })
     self.frame = CreateFrame("Frame", nil, UIParent)
     self.frame:Hide()
+    self.background = self.frame:CreateTexture(nil, "BACKGROUND")
+    self.background:SetAllPoints()
+    self.background:SetColorTexture(unpack(TREE_SURFACE_COLOR))
     self.frame:EnableMouse(true)
     self.frame:EnableMouseWheel(true)
     self.scroll = CreateFrame("ScrollFrame", nil, self.frame)

@@ -38,22 +38,22 @@ local FP_BUTTON_STATE_VISUALS = {
         text = { 0.92, 0.95, 0.99, 1.00 },
     },
     hover = {
-        fill = { 0.13, 0.16, 0.20, 0.96 },
-        border = { 0.49, 0.41, 0.28, 0.94 },
-        accent = { 0.70, 0.60, 0.40, 0.24 },
+        fill = { 0.12, 0.16, 0.21, 0.96 },
+        border = { 0.35, 0.51, 0.68, 0.94 },
+        accent = { 0.45, 0.63, 0.82, 0.24 },
         text = { 0.94, 0.97, 1.00, 1.00 },
     },
     pressed = {
-        fill = { 0.10, 0.13, 0.17, 0.96 },
-        border = { 0.56, 0.46, 0.31, 0.95 },
-        accent = { 0.74, 0.64, 0.44, 0.26 },
+        fill = { 0.09, 0.13, 0.19, 0.96 },
+        border = { 0.42, 0.60, 0.80, 0.95 },
+        accent = { 0.50, 0.69, 0.90, 0.26 },
         text = { 0.92, 0.95, 0.99, 1.00 },
     },
     active = {
-        fill = { 0.12, 0.15, 0.19, 0.96 },
-        border = { 0.44, 0.36, 0.24, 0.93 },
-        accent = { 0.62, 0.52, 0.36, 0.24 },
-        text = { 0.95, 0.92, 0.84, 1.00 },
+        fill = { 0.13, 0.20, 0.29, 0.96 },
+        border = { 0.43, 0.62, 0.82, 0.93 },
+        accent = { 0.50, 0.70, 0.92, 0.24 },
+        text = { 0.95, 0.98, 1.00, 1.00 },
     },
 }
 
@@ -135,6 +135,45 @@ local SIDEBAR_LAYER_KEYS = {
     texture = "__fpSidebarVisualTexture",
     border = "__fpSidebarVisualBorder",
     accent = "__fpSidebarSelectedAccent",
+}
+
+local UNIT_NAVIGATOR_LAYER_KEYS = {
+    bg = "__fpUnitNavigatorBg",
+    border = "__fpUnitNavigatorBorder",
+    accent = "__fpUnitNavigatorAccent",
+}
+
+local UNIT_NAVIGATOR_STATES = {
+    disabled = {
+        fill = { 0.035, 0.042, 0.052, 0.42 },
+        border = { 0.13, 0.16, 0.20, 0.20 },
+        accent = { 0.32, 0.40, 0.50, 0.08 },
+        text = { 0.39, 0.44, 0.50, 1.00 },
+    },
+    normal = {
+        fill = { 0.035, 0.045, 0.058, 0.48 },
+        border = { 0.16, 0.19, 0.24, 0.26 },
+        accent = { 0.42, 0.56, 0.72, 0.00 },
+        text = { 0.68, 0.73, 0.80, 1.00 },
+    },
+    hover = {
+        fill = { 0.070, 0.095, 0.128, 0.68 },
+        border = { 0.28, 0.36, 0.46, 0.48 },
+        accent = { 0.44, 0.59, 0.76, 0.14 },
+        text = { 0.84, 0.89, 0.95, 1.00 },
+    },
+    pressed = {
+        fill = { 0.095, 0.135, 0.185, 0.78 },
+        border = { 0.32, 0.43, 0.56, 0.62 },
+        accent = { 0.48, 0.64, 0.82, 0.24 },
+        text = { 0.89, 0.94, 0.98, 1.00 },
+    },
+    active = {
+        fill = { 0.150, 0.225, 0.310, 0.92 },
+        border = { 0.38, 0.53, 0.68, 0.76 },
+        accent = { 0.54, 0.71, 0.88, 0.72 },
+        text = { 0.95, 0.97, 1.00, 1.00 },
+    },
 }
 
 local function EnsureFPButtonVisualLayers(button, layerKeys)
@@ -290,10 +329,10 @@ local function ResolveVisualState(isDisabled, isPressed, isHovered, isSelected, 
     return "normal"
 end
 
-local function ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals)
+local function ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals, stateVisuals)
     local rolePreset = FP_BUTTON_ROLE_PRESETS[rolePresetKey] or {}
     editorButtonVisuals = editorButtonVisuals or GetEditorButtonVisuals()
-    local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
+    local states = stateVisuals or editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
     local closeStates = editorButtonVisuals.closeStates or FP_CLOSE_STATE_VISUALS
     local closeState = closeStates[stateName]
     local base = (rolePreset.closeOverride and closeState) or states[stateName] or states.normal
@@ -429,8 +468,8 @@ function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, option
     local isSelected = opts.selected == true or rolePreset.selected == true
     local stateName = ResolveVisualState(isDisabled, pressed, hovered, isSelected, opts.preferSelectedWhenDisabled == true)
     local editorButtonVisuals = GetEditorButtonVisuals()
-    local stateVisual = ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals)
-    local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
+    local stateVisual = ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals, opts.stateVisuals)
+    local states = opts.stateVisuals or editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
 
     local effectiveStyle = {
         height = style.height,
@@ -557,6 +596,36 @@ function EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, variant)
                 stateKey = "__fpSidebarHovered",
                 pressedKey = "__fpSidebarPressed",
                 onReapply = ReapplySidebarVisualOnHover,
+            },
+        })
+    end
+end
+
+function EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(button, selected)
+    if not button then
+        return
+    end
+
+    button.__fpUnitNavigatorSelected = selected == true
+    if EditorSidebarThemeHelpers.ApplyFPButtonVisualCore then
+        EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, {
+            height = 20,
+            disabledText = UNIT_NAVIGATOR_STATES.disabled.text,
+        }, {
+            layerKeys = UNIT_NAVIGATOR_LAYER_KEYS,
+            rolePreset = "secondary",
+            selected = button.__fpUnitNavigatorSelected,
+            preferSelectedWhenDisabled = button.__fpUnitNavigatorSelected,
+            stateVisuals = UNIT_NAVIGATOR_STATES,
+            accentVisible = button.__fpUnitNavigatorSelected,
+            hover = {
+                enabled = true,
+                hookKey = "__fpUnitNavigatorHoverHooked",
+                stateKey = "__fpUnitNavigatorHovered",
+                pressedKey = "__fpUnitNavigatorPressed",
+                onReapply = function(target)
+                    EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(target, target.__fpUnitNavigatorSelected)
+                end,
             },
         })
     end

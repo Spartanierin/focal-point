@@ -73,6 +73,37 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
+        section = "Options",
+        properties = {
+            parentSection = "Root",
+            sectionKind = "section",
+            type = "stack_block",
+            variant = "section_stack",
+            surfaceStyle = "toolbar_global_panel",
+            spacing = 2,
+            padding = {
+                left = 8,
+                right = 8,
+                top = 6,
+                bottom = 6,
+            },
+            widthInfo = {
+                source = "parent",
+                derivedFrom = "Root.widthInfo",
+            },
+            heightInfo = {
+                source = "content",
+                min = 64,
+                derivedFrom = "title + options action + expert toggle",
+            },
+        },
+        items = {
+            { id = "globalTitle", widget = "label", itemVariant = "section_title", textKey = "OPTION_OPTIONS" },
+            { id = "globalOptions", widget = "button", itemVariant = "secondary_action", textKey = "OPTION_OPTIONS" },
+            { id = "expertMode", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_EXPERT_MODE" },
+        },
+    },
+    {
         section = "Workspace",
         properties = {
             parentSection = "Root",
@@ -139,18 +170,19 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             sectionKind = "section",
             type = "column",
             variant = "compact_form_column",
+            surfaceStyle = "toolbar_explorer_inset",
             border = false,
-            spacing = 4,
+            spacing = 2,
             structure = {
                 mode = "fixed_grid",
                 columns = 2,
                 rows = 4,
             },
             padding = {
-                left = 0,
-                right = 0,
-                top = 0,
-                bottom = 0,
+                left = 2,
+                right = 2,
+                top = 2,
+                bottom = 2,
             },
             widthInfo = {
                 source = "parent",
@@ -170,7 +202,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             parentSection = "UnitGrid",
             sectionKind = "section",
             type = "action_row",
-            variant = "dual_button",
+            variant = "navigator_dual_segment",
             border = false,
             widthInfo = {
                 source = "parent",
@@ -193,7 +225,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             parentSection = "UnitGrid",
             sectionKind = "section",
             type = "action_row",
-            variant = "dual_button",
+            variant = "navigator_dual_segment",
             border = false,
             widthInfo = {
                 source = "parent",
@@ -216,7 +248,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             parentSection = "UnitGrid",
             sectionKind = "section",
             type = "action_row",
-            variant = "dual_button",
+            variant = "navigator_dual_segment",
             border = false,
             widthInfo = {
                 source = "parent",
@@ -239,7 +271,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             parentSection = "UnitGrid",
             sectionKind = "section",
             type = "action_row",
-            variant = "dual_button",
+            variant = "navigator_dual_segment",
             border = false,
             widthInfo = {
                 source = "parent",
@@ -259,21 +291,21 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
     {
         section = "Composition",
         properties = {
-            parentSection = "Root",
+            parentSection = "Workspace",
             sectionKind = "section",
-            type = "stack_block",
-            variant = "section_stack",
-            surfaceStyle = "toolbar_workspace_panel",
+            type = "section",
+            variant = "note_stack",
+            border = false,
             spacing = 6,
             padding = {
-                left = 8,
-                right = 8,
-                top = 8,
-                bottom = 8,
+                left = 0,
+                right = 0,
+                top = 0,
+                bottom = 0,
             },
             widthInfo = {
                 source = "parent",
-                derivedFrom = "Root.widthInfo",
+                derivedFrom = "Workspace.widthInfo",
             },
             heightInfo = {
                 source = "content",
@@ -377,37 +409,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         },
     },
     {
-        section = "Global",
-        properties = {
-            parentSection = "Root",
-            sectionKind = "section",
-            type = "stack_block",
-            variant = "section_stack",
-            surfaceStyle = "toolbar_global_panel",
-            spacing = 6,
-            padding = {
-                left = 8,
-                right = 8,
-                top = 8,
-                bottom = 8,
-            },
-            widthInfo = {
-                source = "parent",
-                derivedFrom = "Root.widthInfo",
-            },
-            heightInfo = {
-                source = "content",
-                min = 80,
-                derivedFrom = "title + options action + expert toggle",
-            },
-        },
-        items = {
-            { id = "globalTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_GLOBAL" },
-            { id = "globalOptions", widget = "button", itemVariant = "secondary_action", textKey = "OPTION_OPTIONS" },
-            { id = "expertMode", widget = "checkbox", itemVariant = "default_checkbox", textKey = "OPTION_EXPERT_MODE" },
-        },
-    },
-    {
         section = "Secondary",
         properties = {
             parentSection = "Root",
@@ -460,13 +461,12 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
             heightInfo = {
                 source = "content",
-                min = 38,
-                derivedFrom = "close action + muted footer note",
+                min = 28,
+                derivedFrom = "close action",
             },
         },
         items = {
             { id = "closeButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "CLOSE" },
-            { id = "footerNote", widget = "label", itemVariant = "footer_hint_muted", textKey = "EDITOR_PREVIEW_NOTE", size = 9 },
         },
     },
 }

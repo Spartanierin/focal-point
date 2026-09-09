@@ -174,6 +174,12 @@ ns.GUI.Layouts.FormElements = {
                 },
             },
         },
+        toolbar_explorer_inset = {
+            border = false,
+            surface = {
+                fill = { 0.05, 0.055, 0.06, 0.92 },
+            },
+        },
         toolbar_editing_panel = {
             border = {
                 color = { 0.34, 0.37, 0.39, 0.74 },
@@ -584,6 +590,15 @@ ns.GUI.Layouts.FormElements = {
                 heightInfo = {
                     source = "content",
                     min = 32,
+                },
+            },
+            navigator_dual_segment = {
+                widget = "SimpleGroup",
+                layout = "TwoColumnGroup",
+                spacing = 3,
+                heightInfo = {
+                    source = "content",
+                    min = 20,
                 },
             },
             triple_button = {
