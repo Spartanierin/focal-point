@@ -283,7 +283,7 @@ local function RefreshDemoControl(control, deps)
     local ApplySidebarButtonVisual, roles = ResolveSidebarButtonVisuals(deps)
     control:SetText((nsRef.guiTestModeEnabled and T("GUI_TEST_STOP", "Stop Test", deps)) or T("GUI_TEST_START", "Test", deps))
     if ApplySidebarButtonVisual then
-        ApplySidebarButtonVisual(control, nsRef.guiTestModeEnabled and roles.ACTIVE or roles.UTILITY)
+        ApplySidebarButtonVisual(control, nsRef.guiTestModeEnabled and roles.ACTIVE or "ToolbarAction")
     end
     local formWidgets = (nsRef.GUI and nsRef.GUI.Helpers and nsRef.GUI.Helpers.FormWidgets)
         or (ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets)
@@ -834,7 +834,7 @@ local function RefreshWindowState(context, deps)
     if context.widgets.closeButton then
         context.widgets.closeButton:SetText(CLOSE or "Close")
         if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.closeButton, SIDEBAR_VISUAL_ROLE.QUIET_UTILITY or SIDEBAR_VISUAL_ROLE.UTILITY)
+            ApplySidebarButtonVisual(context.widgets.closeButton, "UtilityAction", "quiet")
         end
     end
 
@@ -842,7 +842,7 @@ local function RefreshWindowState(context, deps)
         context.widgets.manageLayoutsButton:SetText(T("NAV_MANAGE_LAYOUTS", "Manage Layouts...", deps))
         context.widgets.manageLayoutsButton:SetDisabled(false)
         if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.manageLayoutsButton, SIDEBAR_VISUAL_ROLE.UTILITY)
+            ApplySidebarButtonVisual(context.widgets.manageLayoutsButton, "UtilityAction")
         end
     end
 
@@ -850,7 +850,7 @@ local function RefreshWindowState(context, deps)
         context.widgets.layoutAssignmentsButton:SetText(T("NAV_LAYOUT_ASSIGNMENTS", "Assignments...", deps))
         context.widgets.layoutAssignmentsButton:SetDisabled(false)
         if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.layoutAssignmentsButton, SIDEBAR_VISUAL_ROLE.UTILITY)
+            ApplySidebarButtonVisual(context.widgets.layoutAssignmentsButton, "UtilityAction")
         end
     end
 
@@ -948,7 +948,7 @@ local function RefreshWindowState(context, deps)
     if context.widgets.globalOptions then
         context.widgets.globalOptions:SetText(T("OPTION_OPTIONS", "Options", deps))
         if ApplySidebarButtonVisual then
-            ApplySidebarButtonVisual(context.widgets.globalOptions, SIDEBAR_VISUAL_ROLE.UTILITY)
+            ApplySidebarButtonVisual(context.widgets.globalOptions, "UtilityAction")
         end
     end
 

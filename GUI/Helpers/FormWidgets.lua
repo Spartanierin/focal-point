@@ -59,6 +59,10 @@ local function GetComponentStyle(component)
 
     return nil
 end
+
+FormWidgets.GetComponentStyle = GetComponentStyle
+
+
 local function GetItemColors()
     return GetFormPalette().ItemColors or {}
 end

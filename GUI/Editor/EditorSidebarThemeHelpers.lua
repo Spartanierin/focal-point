@@ -137,6 +137,21 @@ local SIDEBAR_LAYER_KEYS = {
     accent = "__fpSidebarSelectedAccent",
 }
 
+local function ResolveSidebarVisualRole(component, styleVariant)
+    local formWidgets = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
+    local componentStyle = formWidgets and formWidgets.GetComponentStyle and formWidgets.GetComponentStyle(component)
+    if type(componentStyle) == "table" then
+        local sidebarVariants = componentStyle.sidebarVariants
+        local resolvedVariant = styleVariant
+            and type(sidebarVariants) == "table"
+            and sidebarVariants[styleVariant]
+            or componentStyle.sidebarVariant
+            or componentStyle.buttonStyle
+        return SIDEBAR_ROLE_TO_VARIANT[resolvedVariant] or resolvedVariant or "secondary"
+    end
+
+    return SIDEBAR_ROLE_TO_VARIANT[component] or "secondary"
+end
 local UNIT_NAVIGATOR_LAYER_KEYS = {
     bg = "__fpUnitNavigatorBg",
     border = "__fpUnitNavigatorBorder",
@@ -543,18 +558,19 @@ end
 
 local function ReapplySidebarVisualOnHover(button)
     if EditorSidebarThemeHelpers.ApplySidebarButtonVisual then
-        EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, button.__fpSidebarLastRole or "secondary")
+        EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, button.__fpSidebarLastRole or "secondary", button.__fpSidebarLastStyleVariant)
     end
 end
 
-function EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, variant)
+function EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, component, styleVariant)
     if not button then
         return
     end
 
-    button.__fpSidebarLastRole = variant or "secondary"
+    button.__fpSidebarLastRole = component or "secondary"
+    button.__fpSidebarLastStyleVariant = styleVariant
 
-    local visualRole = SIDEBAR_ROLE_TO_VARIANT[button.__fpSidebarLastRole] or "secondary"
+    local visualRole = ResolveSidebarVisualRole(button.__fpSidebarLastRole, styleVariant)
     local editorButtonVisuals = GetEditorButtonVisuals()
     local states = editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
     local style = {
