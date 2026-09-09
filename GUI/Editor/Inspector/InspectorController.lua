@@ -3542,13 +3542,13 @@ function InspectorController.Build(container, state, options)
             else
                 AddSpacer(textSection, 10)
                 local deleteTextButton = FormWidgets.CreateActionButton
-                    and FormWidgets.CreateActionButton(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "danger", 128, false)
+                    and FormWidgets.CreateActionButton(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "DestructiveAction", 128, false)
                     or AceGUI:Create("Button")
                 deleteTextButton:SetText(L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text")
                 deleteTextButton:SetWidth(128)
                 deleteTextButton:SetFullWidth(false)
                 if FormWidgets.ApplyModalActionButtonVisual then
-                    FormWidgets.ApplyModalActionButtonVisual(deleteTextButton, "danger")
+                    FormWidgets.ApplyModalActionButtonVisual(deleteTextButton, "DestructiveAction")
                 end
                 deleteTextButton:SetCallback("OnClick", function()
                     OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)

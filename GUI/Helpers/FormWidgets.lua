@@ -126,7 +126,9 @@ function FormWidgets.ResolveSectionStyle(style)
 end
 
 function FormWidgets.ResolveButtonStyle(variant)
-    return GetButtonStyles()[variant or "primary"] or {}
+    local componentStyle = GetComponentStyle(variant)
+    local resolvedVariant = (componentStyle and componentStyle.buttonStyle) or variant or "primary"
+    return GetButtonStyles()[resolvedVariant] or {}
 end
 
 local function ResolveButtonVariantFromRole(variant)
