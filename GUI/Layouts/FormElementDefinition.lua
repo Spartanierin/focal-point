@@ -355,7 +355,42 @@ ns.GUI.Layouts.FormElements = {
         },
         Navigation = {
             NavigationItem = { buttonStyle = "secondary", variant = "default" },
-            UnitNavigatorItem = { styleOwner = "EditorSidebarThemeHelpers", variant = "navigator" },
+            UnitNavigatorItem = {
+                styleOwner = "EditorSidebarThemeHelpers",
+                variant = "navigator",
+                states = {
+                    disabled = {
+                        fill = { 0.035, 0.042, 0.052, 0.42 },
+                        border = { 0.13, 0.16, 0.20, 0.20 },
+                        accent = { 0.32, 0.40, 0.50, 0.08 },
+                        text = { 0.39, 0.44, 0.50, 1.00 },
+                    },
+                    normal = {
+                        fill = { 0.035, 0.045, 0.058, 0.48 },
+                        border = { 0.16, 0.19, 0.24, 0.26 },
+                        accent = { 0.42, 0.56, 0.72, 0.00 },
+                        text = { 0.68, 0.73, 0.80, 1.00 },
+                    },
+                    hover = {
+                        fill = { 0.070, 0.095, 0.128, 0.68 },
+                        border = { 0.28, 0.36, 0.46, 0.48 },
+                        accent = { 0.44, 0.59, 0.76, 0.14 },
+                        text = { 0.84, 0.89, 0.95, 1.00 },
+                    },
+                    pressed = {
+                        fill = { 0.095, 0.135, 0.185, 0.78 },
+                        border = { 0.32, 0.43, 0.56, 0.62 },
+                        accent = { 0.48, 0.64, 0.82, 0.24 },
+                        text = { 0.89, 0.94, 0.98, 1.00 },
+                    },
+                    active = {
+                        fill = { 0.150, 0.225, 0.310, 0.92 },
+                        border = { 0.38, 0.53, 0.68, 0.76 },
+                        accent = { 0.54, 0.71, 0.88, 0.72 },
+                        text = { 0.95, 0.97, 1.00, 1.00 },
+                    },
+                },
+            },
         },
         Form = {
             FieldLabel = { textRole = "label" },
