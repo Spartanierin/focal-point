@@ -143,42 +143,37 @@ local UNIT_NAVIGATOR_LAYER_KEYS = {
     accent = "__fpUnitNavigatorAccent",
 }
 
--- Scope choices share the UnitGrid surface; only the active/hovered entry fills.
 local UNIT_NAVIGATOR_STATES = {
     disabled = {
-        fill = { 0, 0, 0, 0 },
-        border = { 0, 0, 0, 0 },
-        accent = { 0, 0, 0, 0 },
+        fill = { 0.035, 0.042, 0.052, 0.42 },
+        border = { 0.13, 0.16, 0.20, 0.20 },
+        accent = { 0.32, 0.40, 0.50, 0.08 },
         text = { 0.39, 0.44, 0.50, 1.00 },
     },
     normal = {
-        fill = { 0, 0, 0, 0 },
-        border = { 0, 0, 0, 0 },
-        accent = { 0, 0, 0, 0 },
-        text = { 0.68, 0.71, 0.75, 1.00 },
+        fill = { 0.035, 0.045, 0.058, 0.48 },
+        border = { 0.16, 0.19, 0.24, 0.26 },
+        accent = { 0.42, 0.56, 0.72, 0.00 },
+        text = { 0.68, 0.73, 0.80, 1.00 },
     },
     hover = {
-        fill = { 0.09, 0.11, 0.14, 0.72 },
-        border = { 0, 0, 0, 0 },
-        accent = { 0, 0, 0, 0 },
-        text = { 0.85, 0.88, 0.92, 1.00 },
+        fill = { 0.070, 0.095, 0.128, 0.68 },
+        border = { 0.28, 0.36, 0.46, 0.48 },
+        accent = { 0.44, 0.59, 0.76, 0.14 },
+        text = { 0.84, 0.89, 0.95, 1.00 },
+    },
+    pressed = {
+        fill = { 0.095, 0.135, 0.185, 0.78 },
+        border = { 0.32, 0.43, 0.56, 0.62 },
+        accent = { 0.48, 0.64, 0.82, 0.24 },
+        text = { 0.89, 0.94, 0.98, 1.00 },
     },
     active = {
-        fill = { 0.11, 0.18, 0.27, 0.94 },
-        border = { 0, 0, 0, 0 },
-        accent = { 0.47, 0.57, 0.69, 0.80 },
+        fill = { 0.150, 0.225, 0.310, 0.92 },
+        border = { 0.38, 0.53, 0.68, 0.76 },
+        accent = { 0.54, 0.71, 0.88, 0.72 },
         text = { 0.95, 0.97, 1.00, 1.00 },
     },
-}
--- Mouse-down is navigation, with no separate pressed appearance. Selection
--- stays legible during hover, using the existing selectedUnit projection.
-UNIT_NAVIGATOR_STATES.pressed = UNIT_NAVIGATOR_STATES.hover
-local UNIT_NAVIGATOR_SELECTED_STATES = {
-    disabled = UNIT_NAVIGATOR_STATES.disabled,
-    normal = UNIT_NAVIGATOR_STATES.active,
-    hover = UNIT_NAVIGATOR_STATES.active,
-    pressed = UNIT_NAVIGATOR_STATES.active,
-    active = UNIT_NAVIGATOR_STATES.active,
 }
 
 local function EnsureFPButtonVisualLayers(button, layerKeys)
@@ -611,7 +606,6 @@ function EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(button, selected)
         return
     end
 
-    local previousVisualCacheKey = button.__fpButtonVisualCacheKey
     button.__fpUnitNavigatorSelected = selected == true
     if EditorSidebarThemeHelpers.ApplyFPButtonVisualCore then
         EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, {
@@ -622,7 +616,7 @@ function EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(button, selected)
             rolePreset = "secondary",
             selected = button.__fpUnitNavigatorSelected,
             preferSelectedWhenDisabled = button.__fpUnitNavigatorSelected,
-            stateVisuals = button.__fpUnitNavigatorSelected and UNIT_NAVIGATOR_SELECTED_STATES or UNIT_NAVIGATOR_STATES,
+            stateVisuals = UNIT_NAVIGATOR_STATES,
             accentVisible = button.__fpUnitNavigatorSelected,
             hover = {
                 enabled = true,
@@ -634,45 +628,6 @@ function EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(button, selected)
                 end,
             },
         })
-
-        if previousVisualCacheKey == button.__fpButtonVisualCacheKey then return end
-
-        -- Flatten only this navigator's existing layers, leaving action-button
-        -- styling and the Composition renderer untouched.
-        local frame = button.frame
-        if not frame then return end
-        local bg = button[UNIT_NAVIGATOR_LAYER_KEYS.bg]
-        bg:ClearAllPoints()
-        bg:SetAllPoints(frame)
-        bg:SetVertexColor(1, 1, 1, 1)
-        -- Reuse AceGUI's radio atlas and the existing two visual layers.
-        -- The Button keeps its exclusive scope callback; these are only marks.
-        local ring = button[UNIT_NAVIGATOR_LAYER_KEYS.border]
-        ring:ClearAllPoints()
-        ring:SetPoint("LEFT", frame, "LEFT", 2, 0)
-        ring:SetSize(12, 12)
-        ring:SetTexture(130843) -- Interface\Buttons\UI-RadioButton
-        ring:SetTexCoord(0, 0.25, 0, 1)
-        local ringTone = button.__fpUnitNavigatorSelected and 0.85 or 0.55
-        ring:SetVertexColor(ringTone, ringTone, ringTone, button.disabled and 0.45 or 0.85)
-        ring:Show()
-        local dot = button[UNIT_NAVIGATOR_LAYER_KEYS.accent]
-        dot:ClearAllPoints()
-        dot:SetAllPoints(ring)
-        dot:SetTexture(130843)
-        dot:SetTexCoord(0.25, 0.5, 0, 1)
-        dot:SetVertexColor(0.90, 0.94, 1.00, 1.00)
-        frame:SetPushedTextOffset(0, 0)
-        if button.text then
-            button.text:ClearAllPoints()
-            button.text:SetPoint("TOPLEFT", frame, "TOPLEFT", 17, 0)
-            button.text:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -3, 0)
-            button.text:SetJustifyH("LEFT")
-            button.text:SetWordWrap(false)
-            local font = button.text:GetFont()
-            if font then button.text:SetFont(font, 11, "") end
-            button.text:SetShadowOffset(0, 0)
-        end
     end
 end
 

@@ -45,6 +45,19 @@ Skins.Builtin.default = Skins.Builtin.default or {
             b = 0.000,
         },
     },
+    visual = {
+        -- Global semantic roles.
+        BrandGold = { 0.910, 0.757, 0.400, 1.00 },
+        TextSecondary = { 0.68, 0.70, 0.75, 1.00 },
+        SurfaceExplorer = { 0.05, 0.055, 0.06, 0.92 },
+        DestructiveRed = { 0.48, 0.18, 0.18, 0.95 },
+        -- Shared base primitives; controls may tune local state intensity.
+        TextPrimary = { 0.949, 0.902, 0.788, 1.00 },
+        TextDisabled = { 0.494, 0.459, 0.392, 1.00 },
+        SurfaceBase = { 0.06, 0.07, 0.09, 0.94 },
+        SurfaceInset = { 0.10, 0.11, 0.14, 0.96 },
+        BorderSoft = { 0.30, 0.33, 0.38, 0.56 },
+    },
     fonts = {
         default = STANDARD_TEXT_FONT,
     },

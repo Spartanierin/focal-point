@@ -3263,7 +3263,7 @@ function InspectorController.Build(container, state, options)
                 end
             end)
             if FormWidgets.ApplyModalActionButtonVisual then
-                FormWidgets.ApplyModalActionButtonVisual(changeTemplateButton, "utility")
+                FormWidgets.ApplyModalActionButtonVisual(changeTemplateButton, "InspectorAction")
             end
             textSection:AddChild(changeTemplateButton)
         end

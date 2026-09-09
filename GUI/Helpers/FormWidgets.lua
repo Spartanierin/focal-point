@@ -37,6 +37,28 @@ local function GetFieldStyles()
     return (ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.FieldStyles) or {}
 end
 
+local function GetComponentStyle(component)
+    if type(component) ~= "string" then
+        return nil
+    end
+
+    local componentStyles = ns.GUI.Layouts
+        and ns.GUI.Layouts.FormElements
+        and ns.GUI.Layouts.FormElements.ComponentStyles
+        or nil
+    if type(componentStyles) ~= "table" then
+        return nil
+    end
+
+    for _, family in pairs(componentStyles) do
+        local style = type(family) == "table" and family[component] or nil
+        if type(style) == "table" then
+            return style
+        end
+    end
+
+    return nil
+end
 local function GetItemColors()
     return GetFormPalette().ItemColors or {}
 end
@@ -276,7 +298,8 @@ function FormWidgets.ApplyModalActionButtonVisual(button, role, options)
     local sidebarThemeHelpers = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
     local ApplyFPButtonVisualCore = sidebarThemeHelpers.ApplyFPButtonVisualCore
 
-    local resolvedRole = ResolveButtonVariantFromRole(role)
+    local componentStyle = GetComponentStyle(role)
+    local resolvedRole = ResolveButtonVariantFromRole((componentStyle and componentStyle.buttonStyle) or role)
     if resolvedRole == "primary" then
         resolvedRole = "primary_action"
     elseif resolvedRole ~= "primary_action" and resolvedRole ~= "secondary" and resolvedRole ~= "utility" and resolvedRole ~= "danger" then

@@ -343,6 +343,40 @@ ns.GUI.Layouts.FormElements = {
             insetBottom = { 0.00, 0.00, 0.00, 0.30 },
         },
     },
+    -- Semantic component contracts reference existing style families only.
+    -- Concrete builders remain responsible for behavior and widget lifecycle.
+    ComponentStyles = {
+        Actions = {
+            PrimaryAction = { buttonStyle = "primary", variant = "default" },
+            SecondaryAction = { buttonStyle = "secondary", variant = "default" },
+            UtilityAction = { buttonStyle = "secondary", variant = "utility" },
+            DestructiveAction = { buttonStyle = "danger", variant = "danger" },
+            ToolbarAction = { buttonStyle = "toolbar_secondary", variant = "default" },
+        },
+        Navigation = {
+            NavigationItem = { buttonStyle = "secondary", variant = "default" },
+            UnitNavigatorItem = { styleOwner = "EditorSidebarThemeHelpers", variant = "navigator" },
+        },
+        Form = {
+            FieldLabel = { textRole = "label" },
+            DescriptionText = { textRole = "description" },
+            InputField = { fieldStyle = "editor_inset" },
+            SelectField = { fieldStyle = "editor_inset" },
+            ToggleField = { fieldStyle = "neutral" },
+            SliderField = { fieldStyle = "neutral" },
+            InspectorAction = { buttonStyle = "secondary", variant = "utility" },
+            SectionHeader = { textRole = "sectionHeader" },
+        },
+        Chrome = {
+            Panel = { styleOwner = "SectionStyles" },
+            InsetSurface = { styleOwner = "SectionStyles" },
+            ExplorerSurface = { styleOwner = "CompositionTreeControl" },
+        },
+        SpecialControls = {
+            CompositionTreeControl = { styleOwner = "CompositionTreeControl" },
+            CanvasToolbarHost = { styleOwner = "CanvasToolbar" },
+        },
+    },
     Sections = {
         stack_block = {
             window_content = {
