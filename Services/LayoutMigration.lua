@@ -560,8 +560,8 @@ function LayoutMigration.MigrateProfiles(db, context)
             -- Keep processing other sources; the failed source remains unmapped.
         elseif status == "new" then
             local profile = GetProfileByName(resolvedDB, profileName)
-            local payload = LayoutService.MaterializeFromProfile
-                and LayoutService.MaterializeFromProfile(profile, defaults)
+            local payload = LayoutService.MaterializeFromLegacyProfile
+                and LayoutService.MaterializeFromLegacyProfile(profile, defaults)
                 or nil
             if type(payload) ~= "table" then
                 AppendError(result, "profile", profileName, "payload-invalid")
@@ -697,8 +697,8 @@ function LayoutMigration.VerifyUserLayouts(db)
     for _, profileName in ipairs(SortedStringKeys(state.profileMap)) do
         local profile = GetProfileByName(db, profileName)
         local legacyPayload = type(profile) == "table"
-            and LayoutService.MaterializeFromProfile
-            and LayoutService.MaterializeFromProfile(profile, defaults)
+            and LayoutService.MaterializeFromLegacyProfile
+            and LayoutService.MaterializeFromLegacyProfile(profile, defaults)
             or nil
         VerifyMappedPayload(
             result,

@@ -76,6 +76,139 @@ local function NormalizeUnit(unitConfig)
     return NormalizeUnitCompositionPresence(unitConfig)
 end
 
+local LEGACY_FLAT_COMPONENT_EVIDENCE = {
+    PowerBar = {
+        presentField = "powerBarPresent",
+        fields = { "showPowerBar", "powerBarHeight", "powerBarTexture", "powerBarReverseFill" },
+    },
+    NormalAbsorbBar = {
+        presentField = "normalAbsorbBarPresent",
+        fields = {
+            "showNormalAbsorbBar", "showAbsorbOverlay", "normalAbsorbBarSizeMode", "normalAbsorbBarWidth",
+            "normalAbsorbBarHeight", "normalAbsorbBarAnchorTo", "normalAbsorbBarPoint", "normalAbsorbBarRelativePoint",
+        },
+    },
+    HealingAbsorbBar = {
+        presentField = "healingAbsorbBarPresent",
+        fields = {
+            "showHealingAbsorbBar", "healingAbsorbBarSizeMode", "healingAbsorbBarWidth", "healingAbsorbBarHeight",
+            "healingAbsorbBarAnchorTo", "healingAbsorbBarPoint", "healingAbsorbBarRelativePoint",
+        },
+    },
+    ClassPowerBar = {
+        presentField = "classPowerBarPresent",
+        fields = {
+            "showClassPowerBar", "classPowerBarHeight", "classPowerBarWidth", "classPowerBarSpacing",
+            "classPowerBarAnchorTo", "classPowerBarPoint", "classPowerBarRelativePoint",
+        },
+    },
+    AlternativePowerBar = {
+        presentField = "alternativePowerBarPresent",
+        fields = {
+            "showAlternativePowerBar", "alternativePowerBarHeight", "alternativePowerBarWidth",
+            "alternativePowerBarAnchorTo", "alternativePowerBarPoint", "alternativePowerBarRelativePoint",
+        },
+    },
+    CastBar = {
+        presentField = "castBarPresent",
+        fields = {
+            "showCastBar", "showCastBarIcon", "castBarHeight", "castBarPoint", "castBarRelativePoint",
+            "castBarOffsetX", "castBarOffsetY", "castBarTexture", "castBarColor",
+        },
+    },
+}
+
+local LEGACY_TABLE_COMPONENT_KEYS = {
+    "Portrait",
+    "RaidTargetIcon",
+    "LeaderIcon",
+    "RoleIcon",
+    "CombatIndicator",
+    "RestingIndicator",
+    "ReadyCheckIndicator",
+    "ClassificationIndicator",
+    "Buffs",
+    "Debuffs",
+}
+
+local function HasLegacyFieldEvidence(unitConfig, fields)
+    if type(unitConfig) ~= "table" then
+        return false
+    end
+
+    for _, field in ipairs(fields) do
+        if unitConfig[field] ~= nil then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ApplyLegacyAliases(unitConfig)
+    if type(unitConfig) ~= "table" then
+        return unitConfig
+    end
+
+    if unitConfig.showNormalAbsorbBar == nil and unitConfig.showAbsorbOverlay ~= nil then
+        unitConfig.showNormalAbsorbBar = unitConfig.showAbsorbOverlay ~= false
+    end
+
+    return unitConfig
+end
+
+local function MaterializeLegacyTexts(defaultTexts, sourceTexts)
+    local materialized = {}
+    if type(sourceTexts) ~= "table" then
+        return materialized
+    end
+
+    for textKey, sourceText in pairs(sourceTexts) do
+        if type(sourceText) == "table" then
+            materialized[textKey] = LayoutService.Clone(type(defaultTexts) == "table" and defaultTexts[textKey] or nil) or {}
+            LayoutService.MergeInto(materialized[textKey], sourceText)
+        else
+            materialized[textKey] = sourceText
+        end
+    end
+
+    return materialized
+end
+
+function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit)
+    if type(legacyUnit) ~= "table" then
+        return nil
+    end
+
+    local sourceUnit = ApplyLegacyAliases(LayoutService.Clone(legacyUnit) or {})
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.MigrateLegacyUnitPresence) == "function" then
+        storage.MigrateLegacyUnitPresence(sourceUnit)
+    end
+
+    local materialized = LayoutService.Clone(defaultUnit) or {}
+    LayoutService.MergeInto(materialized, sourceUnit)
+
+    for _, component in pairs(LEGACY_FLAT_COMPONENT_EVIDENCE) do
+        if not HasLegacyFieldEvidence(sourceUnit, component.fields) then
+            materialized[component.presentField] = false
+        end
+    end
+
+    for _, componentKey in ipairs(LEGACY_TABLE_COMPONENT_KEYS) do
+        if type(sourceUnit[componentKey]) ~= "table" and type(materialized[componentKey]) == "table" then
+            materialized[componentKey].present = false
+        end
+    end
+
+    materialized.Texts = MaterializeLegacyTexts(
+        type(defaultUnit) == "table" and defaultUnit.Texts or nil,
+        sourceUnit.Texts
+    )
+
+    return NormalizeUnit(materialized)
+end
+
 function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
     local materialized = LayoutService.Clone(defaultUnit) or {}
     if type(unitConfig) == "table" then
@@ -554,6 +687,37 @@ function LayoutService.MaterializeFromProfile(profile, defaults)
         Units = profile and profile.Units or nil,
         TextTemplates = profile and profile.TextTemplates or nil,
     }, defaultProfile)
+end
+
+function LayoutService.MaterializeFromLegacyProfile(profile, defaults)
+    local layoutDefaults = ResolveLayoutDefaults(defaults)
+    local sourceUnits = type(profile) == "table" and profile.Units or nil
+    local normalized = {
+        Units = {},
+        TextTemplates = LayoutService.Clone(layoutDefaults.TextTemplates) or {},
+    }
+
+    if type(profile) == "table" and type(profile.TextTemplates) == "table" then
+        LayoutService.MergeInto(normalized.TextTemplates, profile.TextTemplates)
+    end
+
+    if type(sourceUnits) == "table" then
+        for unitKey, sourceUnit in pairs(sourceUnits) do
+            if type(sourceUnit) == "table" then
+                normalized.Units[unitKey] = LayoutService.MaterializeLegacyUnit(
+                    type(layoutDefaults.Units) == "table" and layoutDefaults.Units[unitKey] or nil,
+                    sourceUnit
+                )
+            end
+        end
+    end
+
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.EnsurePayload) == "function" then
+        storage.EnsurePayload(normalized)
+    end
+
+    return normalized
 end
 
 function LayoutService.BuildPreviewUnitConfig(layout, unitKey)

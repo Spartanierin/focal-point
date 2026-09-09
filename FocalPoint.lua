@@ -1043,6 +1043,18 @@ local function EnsureCoreTextDefaults()
     end
 end
 
+local function ShouldPreserveMigratedLegacyProfile()
+    local db = FocalPoint.db
+    local state = type(db) == "table" and type(db.global) == "table" and db.global.LayoutMigration or nil
+    local profileMap = type(state) == "table" and state.profileMap or nil
+    if type(profileMap) ~= "table" or type(db.GetCurrentProfile) ~= "function" then
+        return false
+    end
+
+    local ok, profileName = pcall(db.GetCurrentProfile, db)
+    return ok and type(profileName) == "string" and type(profileMap[profileName]) == "string"
+end
+
 local function EnsureNoEmptyTextElements()
     if not FocalPoint.db or not FocalPoint.db.profile or type(FocalPoint.db.profile.Units) ~= "table" then
         return
@@ -1272,27 +1284,34 @@ function FocalPointAddon:OnInitialize()
         end
     end
 
-    EnsureImageElementDefaults()
+    local preserveLegacyIntent = ShouldPreserveMigratedLegacyProfile()
+    if not preserveLegacyIntent then
+        EnsureImageElementDefaults()
+    end
     EnsureBarTextureDefaults()
-    EnsureExpandedUnitDefaults("targettarget")
-    EnsureExpandedUnitDefaults("focus")
-    EnsureExpandedUnitDefaults("focustarget")
-    EnsureDerivedUnitDefaults("boss", "targettarget", function(unitConfig)
-        unitConfig.enabled = true
-        unitConfig.point = "TOPRIGHT"
-        unitConfig.relativeTo = "UIParent"
-        unitConfig.relativePoint = "TOPRIGHT"
-        unitConfig.x = -340
-        unitConfig.y = -170
-        unitConfig.bossSpacing = 10
-        unitConfig.Portrait = unitConfig.Portrait or {}
-        unitConfig.Portrait.enabled = true
-        unitConfig.Portrait.placement = unitConfig.Portrait.placement or "INSIDE"
-        unitConfig.Portrait.insideSide = unitConfig.Portrait.insideSide or "LEFT"
-    end)
+    if not preserveLegacyIntent then
+        EnsureExpandedUnitDefaults("targettarget")
+        EnsureExpandedUnitDefaults("focus")
+        EnsureExpandedUnitDefaults("focustarget")
+        EnsureDerivedUnitDefaults("boss", "targettarget", function(unitConfig)
+            unitConfig.enabled = true
+            unitConfig.point = "TOPRIGHT"
+            unitConfig.relativeTo = "UIParent"
+            unitConfig.relativePoint = "TOPRIGHT"
+            unitConfig.x = -340
+            unitConfig.y = -170
+            unitConfig.bossSpacing = 10
+            unitConfig.Portrait = unitConfig.Portrait or {}
+            unitConfig.Portrait.enabled = true
+            unitConfig.Portrait.placement = unitConfig.Portrait.placement or "INSIDE"
+            unitConfig.Portrait.insideSide = unitConfig.Portrait.insideSide or "LEFT"
+        end)
+    end
     EnsureCastTextDefaults()
-    EnsureAlternativePowerDefaults()
-    EnsureClassPowerDefaults()
+    if not preserveLegacyIntent then
+        EnsureAlternativePowerDefaults()
+        EnsureClassPowerDefaults()
+    end
     EnsureStatusIndicatorEffectDefaults()
     EnsureCompositionPresenceDefaults()
     MigrateClassificationIndicatorEffects()
@@ -1301,7 +1320,9 @@ function FocalPointAddon:OnInitialize()
     EnsureTextTemplateDefaults()
     NormalizeLegacyTextTemplateNames()
     EnsureTextTemplateLinks()
-    EnsureCoreTextDefaults()
+    if not preserveLegacyIntent then
+        EnsureCoreTextDefaults()
+    end
     EnsureNoEmptyTextElements()
     RemoveLegacyDuplicateTextElements()
     InitRangeCheck()
