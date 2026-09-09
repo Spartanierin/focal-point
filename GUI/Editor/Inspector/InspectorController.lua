@@ -1696,19 +1696,19 @@ function InspectorController.Build(container, state, options)
         return label
     end
 
-    local function AddPropertyActionButtonRow(parent, labelText, buttonText, buttonStyle, width, onClick, disabled)
+    local function AddPropertyActionButtonRow(parent, labelText, buttonText, component, width, onClick, disabled)
         local button
 
         AddPropertyRow(parent, labelText, function(valueGroup)
             button = FormWidgets.CreateActionButton
-                and FormWidgets.CreateActionButton(buttonText or labelText or "", buttonStyle or "utility", width or 128, disabled and true or false)
+                and FormWidgets.CreateActionButton(buttonText or labelText or "", component or "InspectorAction", width or 128, disabled and true or false)
                 or AceGUI:Create("Button")
             button:SetText(buttonText or labelText or "")
             button:SetWidth(width or 128)
             button:SetFullWidth(false)
             button:SetDisabled(disabled and true or false)
             if FormWidgets.ApplyModalActionButtonVisual then
-                FormWidgets.ApplyModalActionButtonVisual(button, buttonStyle or "utility")
+                FormWidgets.ApplyModalActionButtonVisual(button, component or "InspectorAction")
             end
             button:SetCallback("OnClick", function()
                 if disabled or type(onClick) ~= "function" then
@@ -1991,28 +1991,28 @@ function InspectorController.Build(container, state, options)
 
         if actionsSection then
             if unitConfig.powerBarPresent == false then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_POWER_BAR_BUTTON"] or "Add Power Bar", L["EDITOR_ADD_POWER_BAR_BUTTON"] or "Add Power Bar", "primary_action", 132, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_POWER_BAR_BUTTON"] or "Add Power Bar", L["EDITOR_ADD_POWER_BAR_BUTTON"] or "Add Power Bar", "PrimaryAction", 132, function()
                     ApplySingletonBarPresence("PowerBar", true, "power")
                 end)
             end
             if unitConfig.castBarPresent == false then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "primary_action", 132, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "PrimaryAction", 132, function()
                     ApplyCastBarPresence(true)
                 end)
             end
             if unitConfig.normalAbsorbBarPresent == false then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON"] or "Add Normal Absorb", L["EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON"] or "Add Normal Absorb", "primary_action", 160, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON"] or "Add Normal Absorb", L["EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON"] or "Add Normal Absorb", "PrimaryAction", 160, function()
                     ApplySingletonBarPresence("NormalAbsorbBar", true, "absorbs")
                 end)
             end
             if unitConfig.healingAbsorbBarPresent == false then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", "primary_action", 160, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", L["EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON"] or "Add Healing Absorb", "PrimaryAction", 160, function()
                     ApplySingletonBarPresence("HealingAbsorbBar", true, "absorbs")
                 end)
             end
             if hasUnitRemoveAction then
                 local removeLabel = ResolveRemoveUnitLabel(selectedUnit)
-                AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "danger", 172, RemoveSelectedUnitFrame)
+                AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "DestructiveAction", 172, RemoveSelectedUnitFrame)
             end
         end
     end
@@ -2327,11 +2327,11 @@ function InspectorController.Build(container, state, options)
             end
 
             if actionsSection and options.objectKey == "NormalAbsorbBar" then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON"] or "Remove Normal Absorb", L["EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON"] or "Remove Normal Absorb", "danger", 176, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON"] or "Remove Normal Absorb", L["EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON"] or "Remove Normal Absorb", "DestructiveAction", 176, function()
                     ApplySingletonBarPresence("NormalAbsorbBar", false, "absorbs")
                 end)
             elseif actionsSection and options.objectKey == "HealingAbsorbBar" then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON"] or "Remove Healing Absorb", L["EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON"] or "Remove Healing Absorb", "danger", 176, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON"] or "Remove Healing Absorb", L["EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON"] or "Remove Healing Absorb", "DestructiveAction", 176, function()
                     ApplySingletonBarPresence("HealingAbsorbBar", false, "absorbs")
                 end)
             end
@@ -2608,7 +2608,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if actionsSection then
-            AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", "danger", 148, function()
+            AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", "DestructiveAction", 148, function()
                 ApplySingletonBarPresence("PowerBar", false, "power")
             end)
         end
@@ -3060,7 +3060,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if actionsSection then
-            AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "danger", 148, function()
+            AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "DestructiveAction", 148, function()
                 ApplyCastBarPresence(false)
             end)
         end
@@ -3221,7 +3221,7 @@ function InspectorController.Build(container, state, options)
         local templateLabel = ((type(linkedTemplateName) == "string" and linkedTemplateName ~= "") and linkedTemplateName or (L["EDITOR_TEXT_DIRECT_TEMPLATE"] or "Direct Template"))
         if isScopedObject then
             AddPropertyValueTextRow(contentSection, L["EDITOR_OPTION_TEMPLATE"] or "Template", templateLabel)
-            AddPropertyActionButtonRow(contentSection, L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", "utility", 142, function()
+            AddPropertyActionButtonRow(contentSection, L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", "InspectorAction", 142, function()
                 local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
                 if library and type(library.Open) == "function" then
                     library.Open({
@@ -3536,7 +3536,7 @@ function InspectorController.Build(container, state, options)
 
         if IsSelectedTextObject(selectedUnit, selectedTextId) then
             if isScopedObject then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "danger", 128, function()
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "DestructiveAction", 128, function()
                     OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)
                 end)
             else
@@ -3620,20 +3620,20 @@ function InspectorController.Build(container, state, options)
             end
             removeActionAdded = true
             if isScopedObject then
-                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "danger", 148, RemoveSelectedIndicator)
+                AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "DestructiveAction", 148, RemoveSelectedIndicator)
             else
                 AddSpacer(indicatorSection, 8)
                 local removeButton = FormWidgets.CreateActionButton
-                    and FormWidgets.CreateActionButton(L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "danger", 148, false)
+                    and FormWidgets.CreateActionButton(L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "DestructiveAction", 148, false)
                     or AceGUI:Create("Button")
                 removeButton:SetText(L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator")
                 removeButton:SetWidth(148)
                 removeButton:SetFullWidth(false)
                 removeButton:SetCallback("OnClick", RemoveSelectedIndicator)
                 if FormWidgets.ApplyModalActionButtonVisual then
-                    FormWidgets.ApplyModalActionButtonVisual(removeButton, "danger")
+                    FormWidgets.ApplyModalActionButtonVisual(removeButton, "DestructiveAction")
                 elseif FormWidgets.StyleActionButton then
-                    FormWidgets.StyleActionButton(removeButton, "danger")
+                    FormWidgets.StyleActionButton(removeButton, "DestructiveAction")
                 end
                 indicatorSection:AddChild(removeButton)
             end
@@ -4112,7 +4112,7 @@ function InspectorController.Build(container, state, options)
                 end,
                 anchorKey = "decoration_condition",
             }, disabled)
-            AddPropertyActionButtonRow(actionsSection, L["OPTION_DECORATION_DELETE"] or "Delete Decoration", L["OPTION_DECORATION_DELETE"] or "Delete Decoration", "danger", 148, OpenDeleteDecorationConfirmDialog, not decorationConfig)
+            AddPropertyActionButtonRow(actionsSection, L["OPTION_DECORATION_DELETE"] or "Delete Decoration", L["OPTION_DECORATION_DELETE"] or "Delete Decoration", "DestructiveAction", 148, OpenDeleteDecorationConfirmDialog, not decorationConfig)
         else
             decorationTextureDropdown = AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, SetDecorationTexture, disabled, "decoration_texture")
             AddMediaBrowserForField(decorationSection, MEDIA_TYPE_DECORATION, function()
@@ -4165,9 +4165,9 @@ function InspectorController.Build(container, state, options)
             deleteButton:SetDisabled(not decorationConfig)
             deleteButton:SetCallback("OnClick", OpenDeleteDecorationConfirmDialog)
             if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
-                FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
+                FormWidgets.ApplyModalActionButtonVisual(deleteButton, "DestructiveAction")
             elseif FormWidgets and FormWidgets.StyleActionButton then
-                FormWidgets.StyleActionButton(deleteButton, "danger")
+                FormWidgets.StyleActionButton(deleteButton, "DestructiveAction")
             end
             decorationSection:AddChild(deleteButton)
         end
@@ -4440,7 +4440,7 @@ function InspectorController.Build(container, state, options)
             local removeLabel = selectedAuraKey == "Debuffs"
                 and (L["EDITOR_REMOVE_DEBUFFS_BUTTON"] or "Remove Debuffs")
                 or (L["EDITOR_REMOVE_BUFFS_BUTTON"] or "Remove Buffs")
-            AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "danger", 148, function()
+            AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "DestructiveAction", 148, function()
                 ApplySingletonAuraPresence(selectedAuraKey, false)
             end, false)
         end
