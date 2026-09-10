@@ -623,7 +623,28 @@ function Mutations.AssignTemplate(context, unitKey, textKey, templateName)
     return Result(true, { templateName = templateName, unitKey = unitKey, textKey = textKey, changed = changed })
 end
 
-function Mutations.CreateTextFromTemplate(context, unitKey, templateName)
+function Mutations.ResolveTextAnchorTarget(context, objectRef)
+    if type(objectRef) ~= "table" then
+        return "Frame"
+    end
+
+    if objectRef.kind == "bar" and IsNonEmptyString(objectRef.objectKey) then
+        return objectRef.objectKey
+    end
+
+    if objectRef.kind == "text" then
+        local unitConfig = GetUnitConfigFromContext(context, objectRef.unit)
+        local associations = FocalPoint.LegacyAssociationMap
+        local parentRef = associations and associations.ResolveTextParent and associations.ResolveTextParent(unitConfig, objectRef) or nil
+        if type(parentRef) == "table" and parentRef ~= objectRef then
+            return Mutations.ResolveTextAnchorTarget(context, parentRef)
+        end
+    end
+
+    return "Frame"
+end
+
+function Mutations.CreateTextFromTemplate(context, unitKey, templateName, options)
     if not ValidateTemplateName(templateName) then
         return Result(false, { errorCode = "invalid_template_name" })
     end
@@ -654,6 +675,10 @@ function Mutations.CreateTextFromTemplate(context, unitKey, templateName)
         or Mutations.BuildTextElementConfig(templateText, templateName)
     if type(textConfig) ~= "table" then
         return Result(false, { errorCode = "text_config_unavailable", unitKey = unitKey })
+    end
+
+    if type(options) == "table" and type(options.anchorTo) == "string" and options.anchorTo ~= "" then
+        textConfig.anchorTo = options.anchorTo
     end
 
     unitConfig.Texts[textKey] = textConfig

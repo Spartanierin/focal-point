@@ -595,7 +595,12 @@ end
 local function OpenTextTemplateLibrary()
     local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
     if libraryWindow and libraryWindow.Open then
-        libraryWindow.Open()
+        local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+        local selectedObject = objectSelection and type(objectSelection.GetSelectedObject) == "function" and objectSelection.GetSelectedObject() or nil
+        libraryWindow.Open({
+            unit = ResolveSelectedObjectUnit(),
+            anchorSelection = selectedObject,
+        })
     elseif ns.Info then
         ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
     end

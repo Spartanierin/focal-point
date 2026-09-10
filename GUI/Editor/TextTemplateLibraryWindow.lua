@@ -347,7 +347,10 @@ local function SubmitSelectedTemplate(context)
         return
     end
 
-    local result = mutations.CreateTextFromTemplate and mutations.CreateTextFromTemplate(mutationContext, unitKey, templateName) or nil
+    local anchorTo = mutations.ResolveTextAnchorTarget and mutations.ResolveTextAnchorTarget(mutationContext, context.anchorSelection) or "Frame"
+    local result = mutations.CreateTextFromTemplate and mutations.CreateTextFromTemplate(mutationContext, unitKey, templateName, {
+        anchorTo = anchorTo,
+    }) or nil
     if type(result) ~= "table" or not result.ok then
         context.dialog:SetStatus(ResolveMutationStatus(result))
         return
@@ -463,6 +466,7 @@ function TextTemplateLibraryWindow.Open(options)
         entries = {},
         mode = mode,
         targetUnit = options.unit,
+        anchorSelection = options.anchorSelection,
         targetTextKey = options.textKey,
         initialTemplateName = options.initialTemplateName,
         selectedTemplateKey = nil,
