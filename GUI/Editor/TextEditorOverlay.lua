@@ -317,6 +317,41 @@ local function IsValidAnchorPoint(point)
     return type(point) == "string" and VALID_ANCHOR_POINTS[point] == true
 end
 
+local AUTO_ANCHOR_PAIRS = {
+    top = { left = { "BOTTOMRIGHT", "TOPLEFT" }, center = { "BOTTOM", "TOP" }, right = { "BOTTOMLEFT", "TOPRIGHT" } },
+    center = { left = { "RIGHT", "LEFT" }, center = { "CENTER", "CENTER" }, right = { "LEFT", "RIGHT" } },
+    bottom = { left = { "TOPRIGHT", "BOTTOMLEFT" }, center = { "TOP", "BOTTOM" }, right = { "TOPLEFT", "BOTTOMRIGHT" } },
+}
+
+local function GetRectAnchor(rect, point)
+    local x = (rect.left + rect.right) / 2
+    local y = (rect.top + rect.bottom) / 2
+    if point:find("LEFT", 1, true) then x = rect.left elseif point:find("RIGHT", 1, true) then x = rect.right end
+    if point:find("TOP", 1, true) then y = rect.top elseif point:find("BOTTOM", 1, true) then y = rect.bottom end
+    return x, y
+end
+
+function TextEditorOverlay.ResolveAutoAnchorGeometry(textRect, ownerRect)
+    if type(textRect) ~= "table" or type(ownerRect) ~= "table" then return nil end
+    for _, rect in ipairs({ textRect, ownerRect }) do
+        if type(rect.left) ~= "number" or type(rect.right) ~= "number" or type(rect.top) ~= "number" or type(rect.bottom) ~= "number" or rect.left >= rect.right or rect.bottom >= rect.top then return nil end
+    end
+    local centerX = (textRect.left + textRect.right) / 2
+    local centerY = (textRect.top + textRect.bottom) / 2
+    local width, height = ownerRect.right - ownerRect.left, ownerRect.top - ownerRect.bottom
+    local horizontal = centerX < ownerRect.left and "left" or centerX > ownerRect.right and "right" or centerX < ownerRect.left + width / 3 and "left" or centerX > ownerRect.left + width * 2 / 3 and "right" or "center"
+    local vertical = centerY < ownerRect.bottom and "bottom" or centerY > ownerRect.top and "top" or centerY < ownerRect.bottom + height / 3 and "bottom" or centerY > ownerRect.bottom + height * 2 / 3 and "top" or "center"
+    local pair = AUTO_ANCHOR_PAIRS[vertical][horizontal]
+    local textX, textY = GetRectAnchor(textRect, pair[1])
+    local ownerX, ownerY = GetRectAnchor(ownerRect, pair[2])
+    return { point = pair[1], relativePoint = pair[2], offsetX = textX - ownerX, offsetY = textY - ownerY }
+end
+local function GetFrameRect(frame)
+    if not (frame and frame.GetLeft and frame.GetRight and frame.GetTop and frame.GetBottom) then return nil end
+    local left, right, top, bottom = frame:GetLeft(), frame:GetRight(), frame:GetTop(), frame:GetBottom()
+    if type(left) ~= "number" or type(right) ~= "number" or type(top) ~= "number" or type(bottom) ~= "number" or left >= right or bottom >= top then return nil end
+    return { left = left, right = right, top = top, bottom = bottom }
+end
 local StyleOverlay
 local EndTextDrag
 local UpdateAnchorToggleButton
@@ -1021,6 +1056,16 @@ local function SyncInspectorTextFontSize(unitKey, textKey, fontSize)
     end
 end
 
+local function CommitTextAnchorPosition(frame, textKey, position)
+    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
+    if type(unitConfig) ~= "table" or not normalizedUnit or type(position) ~= "table" then return false end
+    local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
+    if not (mutations and mutations.SetTextAnchorPosition) then return false end
+    local result = mutations.SetTextAnchorPosition({ unitConfig = unitConfig }, textKey, position.point, position.relativePoint, position.offsetX, position.offsetY)
+    if result and result.ok == false then return false end
+    if result and result.changed then RefreshAfterTextPositionCommit(frame) else TextEditorOverlay.UpdateFrame(frame) end
+    return true
+end
 local function CommitTextPosition(frame, textKey, offsetX, offsetY)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
@@ -1218,9 +1263,17 @@ EndTextDrag = function(overlay, commit)
         return
     end
 
+    local textObject = state.frame and state.frame.Texts and state.frame.Texts[state.textKey]
+    local owner = ResolveTextAnchor(state.frame, state.textConfig)
+    local position = TextEditorOverlay.ResolveAutoAnchorGeometry(GetFrameRect(textObject), GetFrameRect(owner))
+    if not position then
+        RestoreTextPositionPreview(state.frame, state.textKey)
+        return
+    end
+
     overlay._focalPointSuppressClick = true
     ClearPreviewOffset(state.frame, state.textKey)
-    if not CommitTextPosition(state.frame, state.textKey, state.currentOffsetX or state.startOffsetX, state.currentOffsetY or state.startOffsetY) then
+    if not CommitTextAnchorPosition(state.frame, state.textKey, position) then
         RestoreTextPositionPreview(state.frame, state.textKey)
     end
     TextEditorOverlay.Select(state.frame, state.textKey)

@@ -528,6 +528,50 @@ function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, of
     })
 end
 
+function InspectorMutations.SetTextAnchorPosition(context, textKey, point, relativePoint, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local textConfig = GetTextConfig(context, textKey)
+    if type(textConfig) ~= "table" then
+        return Result(false, { errorCode = "text_config_not_found" })
+    end
+    if not IsValidTextAnchorPoint(point) or not IsValidTextAnchorPoint(relativePoint) then
+        return Result(false, { errorCode = "invalid_anchor" })
+    end
+
+    local nextX = NormalizeOffset(offsetX)
+    local nextY = NormalizeOffset(offsetY)
+    local oldValue = {
+        point = textConfig.point,
+        relativePoint = textConfig.relativePoint,
+        offsetX = NormalizeOffset(textConfig.offsetX),
+        offsetY = NormalizeOffset(textConfig.offsetY),
+    }
+    local changed = oldValue.point ~= point
+        or oldValue.relativePoint ~= relativePoint
+        or oldValue.offsetX ~= nextX
+        or oldValue.offsetY ~= nextY
+    if changed then
+        textConfig.point = point
+        textConfig.relativePoint = relativePoint
+        textConfig.offsetX = nextX
+        textConfig.offsetY = nextY
+    end
+    NormalizeTextMutationResult(context, { ok = true, changed = changed })
+
+    return Result(true, {
+        changed = changed,
+        oldValue = oldValue,
+        newValue = {
+            point = point,
+            relativePoint = relativePoint,
+            offsetX = nextX,
+            offsetY = nextY,
+        },
+    })
+end
 function InspectorMutations.SetTextFontSize(context, textKey, fontSize)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
