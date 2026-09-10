@@ -41,6 +41,7 @@ local GetFirstTextId = Shared.GetFirstTextId
 local INSPECTOR_SECTION_SPACING = 10
 local activeTextFontSizeControl
 local activeCanvasWheelFieldControl
+local activeCanvasDirectMoveOffsetControls
 local MEDIA_TYPE_FONT = "font"
 local MEDIA_TYPE_STATUSBAR = "statusbar"
 local MEDIA_TYPE_DECORATION = "decoration"
@@ -49,7 +50,6 @@ local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 local deleteTextInstanceDialog
 local deleteDecorationDialog
-
 local function NormalizeInspectorUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
         return nil
@@ -129,6 +129,49 @@ function InspectorController.SetActiveCanvasWheelFieldValue(unitKey, objectRef, 
     return ok == true
 end
 
+local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, offsetXControl, offsetYControl)
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if not IsSameInspectorObject(selected, objectRef) then
+        return
+    end
+    activeCanvasDirectMoveOffsetControls = {
+        unitKey = NormalizeInspectorUnitKey(unitKey),
+        objectRef = objectRef,
+        offsetXControl = offsetXControl,
+        offsetYControl = offsetYControl,
+        suppress = false,
+    }
+end
+
+local function IsActiveCanvasDirectMoveOffsetControlSuppressed(widget)
+    local controls = activeCanvasDirectMoveOffsetControls
+    return type(controls) == "table"
+        and controls.suppress == true
+        and (controls.offsetXControl == widget or controls.offsetYControl == widget)
+end
+
+function InspectorController.SetActiveCanvasDirectMoveOffsetValues(unitKey, objectRef, offsetX, offsetY)
+    local controls = activeCanvasDirectMoveOffsetControls
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if type(controls) ~= "table"
+        or controls.unitKey ~= NormalizeInspectorUnitKey(unitKey)
+        or not IsSameInspectorObject(controls.objectRef, objectRef)
+        or not IsSameInspectorObject(selected, objectRef)
+        or type(controls.offsetXControl) ~= "table"
+        or type(controls.offsetYControl) ~= "table"
+    then
+        return false
+    end
+
+    controls.suppress = true
+    local ok = pcall(function()
+        controls.offsetXControl:SetValue(offsetX)
+        controls.offsetYControl:SetValue(offsetY)
+    end)
+    controls.suppress = false
+    return ok == true
+end
+
 local function RegisterActiveTextFontSizeControl(unitKey, textKey, widget)
     activeTextFontSizeControl = {
         unitKey = NormalizeInspectorUnitKey(unitKey),
@@ -164,8 +207,10 @@ function InspectorController.Build(container, state, options)
     local buildContextOnly = options.buildContextOnly == true
     local buildPropertiesOnly = options.buildPropertiesOnly == true
 
+
     activeTextFontSizeControl = nil
     activeCanvasWheelFieldControl = nil
+    activeCanvasDirectMoveOffsetControls = nil
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -1659,6 +1704,7 @@ function InspectorController.Build(container, state, options)
             )
         end)
 
+
         return dropdown
     end
 
@@ -2465,12 +2511,24 @@ function InspectorController.Build(container, state, options)
                     end,
                     disabled = not isCustom,
                 })
-                AddPropertySliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                        return
+                    end
                     SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddPropertySliderRow(positionSection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                        return
+                    end
                     SetUnitField(prefix .. "OffsetY", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
+                local objectKey = prefix == "normalAbsorbBar" and "NormalAbsorbBar" or "HealingAbsorbBar"
+                RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+                    kind = "bar",
+                    unit = state and state.selectedUnit,
+                    objectKey = objectKey,
+                }, offsetXControl, offsetYControl)
             else
                 AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
                     SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
@@ -3006,25 +3064,44 @@ function InspectorController.Build(container, state, options)
 
             local offsetXLabel = usePropertyGroups and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset")
             local offsetYLabel = usePropertyGroups and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset")
+            local offsetXControl
+            local offsetYControl
             if usePropertyGroups then
-                AddPropertySliderRow(positionSection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                offsetXControl = AddPropertySliderRow(positionSection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                        return
+                    end
                     SetUnitField("classPowerBarOffsetX", math.floor((value or 0) + 0.5))
                 end, unitConfig.showClassPowerBar ~= true)
             else
-                AddSlider(geometrySection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                offsetXControl = AddSlider(geometrySection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                        return
+                    end
                     SetUnitField("classPowerBarOffsetX", math.floor((value or 0) + 0.5))
                 end, unitConfig.showClassPowerBar ~= true)
             end
 
             if usePropertyGroups then
-                AddPropertySliderRow(positionSection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                offsetYControl = AddPropertySliderRow(positionSection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                        return
+                    end
                     SetUnitField("classPowerBarOffsetY", math.floor((value or 0) + 0.5))
                 end, unitConfig.showClassPowerBar ~= true)
             else
-                AddSlider(geometrySection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                offsetYControl = AddSlider(geometrySection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                        return
+                    end
                     SetUnitField("classPowerBarOffsetY", math.floor((value or 0) + 0.5))
                 end, unitConfig.showClassPowerBar ~= true)
             end
+            RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+                kind = "bar",
+                unit = state and state.selectedUnit,
+                objectKey = "ClassPowerBar",
+            }, offsetXControl, offsetYControl)
         end
     end
 
@@ -3244,13 +3321,24 @@ function InspectorController.Build(container, state, options)
             SetUnitField("castBarRelativePoint", value)
         end)
 
-        AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
+        local offsetXControl = AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
+            if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                return
+            end
             SetUnitField("castBarOffsetX", math.floor((value or 0) + 0.5))
         end)
 
-        AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
+        local offsetYControl = AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
+            if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                return
+            end
             SetUnitField("castBarOffsetY", math.floor((value or 0) + 0.5))
         end)
+        RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+            kind = "bar",
+            unit = state and state.selectedUnit,
+            objectKey = "CastBar",
+        }, offsetXControl, offsetYControl)
     end
 
     if isExpert then
@@ -3937,12 +4025,24 @@ function InspectorController.Build(container, state, options)
                     SetIndicatorField(selectedIndicatorKey, "relativePoint", value)
                 end,
             }, disabled)
-            AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
+            local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
+                if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                    return
+                end
                 SetIndicatorField(selectedIndicatorKey, "offsetX", math.floor((value or 0) + 0.5))
             end, disabled)
-            AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
+            local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
+                if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                    return
+                end
                 SetIndicatorField(selectedIndicatorKey, "offsetY", math.floor((value or 0) + 0.5))
             end, disabled)
+            RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+                kind = "indicator",
+                unit = state and state.selectedUnit,
+                indicatorKey = selectedIndicatorKey,
+                objectKey = selectedIndicatorKey,
+            }, offsetXControl, offsetYControl)
         else
             AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.anchorTo or "Frame", function(value)
                 SetIndicatorField(selectedIndicatorKey, "anchorTo", value)
@@ -4204,12 +4304,24 @@ function InspectorController.Build(container, state, options)
                 end,
                 anchorKey = "decoration_relative_point",
             }, disabled)
-            AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
+            local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
+                if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                    return
+                end
                 SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_offset_x")
-            AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
+            local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
+                if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                    return
+                end
                 SetDecorationField("offsetY", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_offset_y")
+            RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+                kind = "decoration",
+                unit = state and state.selectedUnit,
+                decorationId = selectedDecorationId,
+                objectKey = selectedDecorationId,
+            }, offsetXControl, offsetYControl)
             AddPropertyDropdownRow(behaviorSection, L["OPTION_CONDITION"] or "Condition", {
                 list = decorationConditionList,
                 value = decorationConfig.condition or "ALWAYS",
@@ -4614,12 +4726,24 @@ function InspectorController.Build(container, state, options)
                         end,
                         anchorKey = "aura_relative_point",
                     }, disabled)
-                    AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                    local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                            return
+                        end
                         SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
                     end, disabled, "aura_offset_x")
-                    AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
+                    local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
+                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                            return
+                        end
                         SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
                     end, disabled, "aura_offset_y")
+                    RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+                        kind = "aura",
+                        unit = state and state.selectedUnit,
+                        auraKey = selectedAuraKey,
+                        objectKey = selectedAuraKey,
+                    }, offsetXControl, offsetYControl)
                 else
                     AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.anchorTo or "Frame", function(value)
                         SetAuraField(selectedAuraKey, "anchorTo", value)

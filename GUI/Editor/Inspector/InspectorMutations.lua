@@ -48,6 +48,34 @@ local function NormalizeOffset(value)
     return math.floor(value + 0.5)
 end
 
+local function SetPositionOffsets(target, offsetX, offsetY, missingCode, offsetXField, offsetYField)
+    if type(target) ~= "table" then
+        return Result(false, { errorCode = missingCode or "invalid_context" })
+    end
+
+    offsetXField = offsetXField or "offsetX"
+    offsetYField = offsetYField or "offsetY"
+    if not IsValidFieldName(offsetXField) or not IsValidFieldName(offsetYField) then
+        return Result(false, { errorCode = "invalid_field" })
+    end
+
+    local nextX = NormalizeOffset(offsetX)
+    local nextY = NormalizeOffset(offsetY)
+    local oldX = NormalizeOffset(target[offsetXField])
+    local oldY = NormalizeOffset(target[offsetYField])
+    local changed = oldX ~= nextX or oldY ~= nextY
+    if changed then
+        target[offsetXField] = nextX
+        target[offsetYField] = nextY
+    end
+
+    return Result(true, {
+        changed = changed,
+        oldValue = { offsetX = oldX, offsetY = oldY },
+        newValue = { offsetX = nextX, offsetY = nextY },
+    })
+end
+
 local MIN_TEXT_FONT_SIZE = 6
 local MAX_TEXT_FONT_SIZE = 32
 local TEXT_POSITION_KEYS = { "anchorTo", "point", "relativePoint", "offsetX", "offsetY" }
@@ -574,6 +602,7 @@ function InspectorMutations.SetTextAnchorPosition(context, textKey, point, relat
         },
     })
 end
+
 function InspectorMutations.SetTextFontSize(context, textKey, fontSize)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
@@ -723,6 +752,20 @@ function InspectorMutations.SetIndicatorField(context, indicatorKey, fieldName, 
     return SetField(GetIndicatorConfig(context, indicatorKey), fieldName, value, "indicator_config_not_found")
 end
 
+function InspectorMutations.SetUnitComponentPositionOffsets(context, offsetXField, offsetYField, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetPositionOffsets(GetUnitConfig(context), offsetX, offsetY, "unit_config_not_found", offsetXField, offsetYField)
+end
+
+function InspectorMutations.SetIndicatorPositionOffsets(context, indicatorKey, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetPositionOffsets(GetIndicatorConfig(context, indicatorKey), offsetX, offsetY, "indicator_config_not_found")
+end
+
 function InspectorMutations.AdjustIndicatorScale(context, indicatorKey, delta)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
@@ -749,6 +792,13 @@ function InspectorMutations.SetAuraField(context, auraKey, fieldName, value)
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetAuraConfig(context, auraKey), fieldName, value, "aura_config_not_found")
+end
+
+function InspectorMutations.SetAuraPositionOffsets(context, auraKey, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetPositionOffsets(GetAuraConfig(context, auraKey), offsetX, offsetY, "aura_config_not_found")
 end
 
 function InspectorMutations.GetDecorationConfig(context, decorationId)
@@ -835,6 +885,13 @@ function InspectorMutations.SetDecorationField(context, decorationId, fieldName,
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetDecorationConfig(context, decorationId, true), fieldName, value, "decoration_config_not_found")
+end
+
+function InspectorMutations.SetDecorationPositionOffsets(context, decorationId, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetPositionOffsets(GetDecorationConfig(context, decorationId, true), offsetX, offsetY, "decoration_config_not_found")
 end
 
 return InspectorMutations

@@ -387,6 +387,12 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
         local indicatorMeta = shared and shared.INDICATOR_META or nil
         local meta = type(indicatorMeta) == "table" and indicatorMeta[indicatorKey] or nil
         local indicatorConfig = type(meta) == "table" and unitConfig[meta.optionKey] or nil
+        if (indicatorKey == "CombatIndicator" or indicatorKey == "RestingIndicator")
+            and type(indicatorConfig) == "table"
+            and indicatorConfig.effect == "FRAME_OVERLAY"
+        then
+            return nil
+        end
         if type(indicatorConfig) == "table" and indicatorConfig.placement ~= "INSIDE" then
             return { kind = "indicator", unitConfig = unitConfig, unitKey = unitKey, indicatorKey = indicatorKey, indicatorMeta = indicatorMeta, offsetXField = "offsetX", offsetYField = "offsetY" }
         end
@@ -528,32 +534,22 @@ local function CommitDirectMove(state)
 
     local descriptor = state.descriptor
     local context = { unitConfig = descriptor.unitConfig }
-    local setField
+    local result
     if descriptor.kind == "unit" then
-        setField = function(fieldName, value)
-            return mutations.SetUnitField and mutations.SetUnitField(context, fieldName, value)
-        end
+        result = mutations.SetUnitComponentPositionOffsets
+            and mutations.SetUnitComponentPositionOffsets(context, descriptor.offsetXField, descriptor.offsetYField, state.currentOffsetX, state.currentOffsetY)
     elseif descriptor.kind == "indicator" then
         context.indicatorMeta = descriptor.indicatorMeta
-        setField = function(fieldName, value)
-            return mutations.SetIndicatorField and mutations.SetIndicatorField(context, descriptor.indicatorKey, fieldName, value)
-        end
+        result = mutations.SetIndicatorPositionOffsets
+            and mutations.SetIndicatorPositionOffsets(context, descriptor.indicatorKey, state.currentOffsetX, state.currentOffsetY)
     elseif descriptor.kind == "aura" then
-        setField = function(fieldName, value)
-            return mutations.SetAuraField and mutations.SetAuraField(context, descriptor.auraKey, fieldName, value)
-        end
+        result = mutations.SetAuraPositionOffsets
+            and mutations.SetAuraPositionOffsets(context, descriptor.auraKey, state.currentOffsetX, state.currentOffsetY)
     elseif descriptor.kind == "decoration" then
-        setField = function(fieldName, value)
-            return mutations.SetDecorationField and mutations.SetDecorationField(context, descriptor.decorationId, fieldName, value)
-        end
+        result = mutations.SetDecorationPositionOffsets
+            and mutations.SetDecorationPositionOffsets(context, descriptor.decorationId, state.currentOffsetX, state.currentOffsetY)
     end
-    if not setField then
-        return false
-    end
-
-    local resultX = setField(descriptor.offsetXField, state.currentOffsetX)
-    local resultY = setField(descriptor.offsetYField, state.currentOffsetY)
-    return resultX and resultX.ok ~= false and resultY and resultY.ok ~= false
+    return result
 end
 
 local function EndDirectMoveDrag(zone, commit)
@@ -564,7 +560,8 @@ local function EndDirectMoveDrag(zone, commit)
 
     zone._focalPointDirectDragState = nil
     zone:SetScript("OnUpdate", nil)
-    if commit ~= true or not state.dragging or not CommitDirectMove(state) then
+    local result = commit == true and state.dragging and CommitDirectMove(state) or nil
+    if not (result and result.ok ~= false) then
         if ClearAuraDirectMovePreview(state) then
             local layout = FocalPoint.AuraBlockLayout
             layout.ApplyAnchor(state.target, state.frame, state.descriptor.auraConfig, state.descriptor.auraKey)
@@ -579,6 +576,15 @@ local function EndDirectMoveDrag(zone, commit)
         FocalPoint:RefreshUnitFrame(state.descriptor.unitKey)
     end
     CanvasHoverOverlay.UpdateFrame(state.frame)
+    local inspector = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector
+    if inspector and inspector.SetActiveCanvasDirectMoveOffsetValues and type(result.newValue) == "table" then
+        inspector.SetActiveCanvasDirectMoveOffsetValues(
+            state.descriptor.unitKey,
+            state.objectRef,
+            result.newValue.offsetX,
+            result.newValue.offsetY
+        )
+    end
 end
 
 local function BeginDirectMoveDrag(zone, gesture)
@@ -598,6 +604,7 @@ local function BeginDirectMoveDrag(zone, gesture)
         frame = zone._focalPointOwnerFrame,
         target = target,
         descriptor = descriptor,
+        objectRef = zone._focalPointObjectRef,
         points = points,
         startCursorX = cursorX,
         startCursorY = cursorY,
