@@ -516,14 +516,14 @@ end
 
 local function AddSingletonComponent(unitKey, kind, componentKey)
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
-    if not (mutations and type(mutations.SetComponentPresence) == "function") then
+    if not (mutations and type(mutations.AddComponent) == "function") then
         if ns.Info then
             ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
         end
         return
     end
 
-    local result = mutations.SetComponentPresence(BuildDecorationMutationContext(unitKey), componentKey, true)
+    local result = mutations.AddComponent(BuildDecorationMutationContext(unitKey), componentKey)
     if not (result and result.ok ~= false) then
         if ns.Info then
             ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))

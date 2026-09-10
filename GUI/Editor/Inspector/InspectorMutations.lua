@@ -99,6 +99,13 @@ local COMPONENT_PRESENCE_FIELDS = {
     HealingAbsorbBar = "healingAbsorbBarPresent",
 }
 
+local COMPONENT_VISIBILITY_FIELDS = {
+    PowerBar = "showPowerBar",
+    CastBar = "showCastBar",
+    NormalAbsorbBar = "showNormalAbsorbBar",
+    HealingAbsorbBar = "showHealingAbsorbBar",
+}
+
 local TABLE_COMPONENT_PRESENCE_KEYS = {
     Portrait = true,
     RaidTargetIcon = true,
@@ -373,6 +380,49 @@ function InspectorMutations.SetComponentPresence(context, componentKey, present)
     return result
 end
 
+function InspectorMutations.AddComponent(context, componentKey)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local unitConfig = GetUnitConfig(context)
+    local presentField = COMPONENT_PRESENCE_FIELDS[componentKey]
+    if presentField then
+        local visibilityField = COMPONENT_VISIBILITY_FIELDS[componentKey]
+        if type(unitConfig) ~= "table" or not visibilityField then
+            return Result(false, { errorCode = "unit_config_not_found" })
+        end
+
+        local changed = unitConfig[presentField] ~= true or unitConfig[visibilityField] ~= true
+        unitConfig[presentField] = true
+        unitConfig[visibilityField] = true
+        return Result(true, {
+            changed = changed,
+            componentKey = componentKey,
+            presentField = presentField,
+            visibilityField = visibilityField,
+        })
+    end
+
+    if not TABLE_COMPONENT_PRESENCE_KEYS[componentKey] then
+        return Result(false, { errorCode = "unsupported_component" })
+    end
+
+    local componentConfig = type(unitConfig) == "table" and unitConfig[componentKey] or nil
+    if type(componentConfig) ~= "table" then
+        return Result(false, { errorCode = "component_config_not_found" })
+    end
+
+    local changed = componentConfig.present ~= true or componentConfig.enabled ~= true
+    componentConfig.present = true
+    componentConfig.enabled = true
+    return Result(true, {
+        changed = changed,
+        componentKey = componentKey,
+        presentField = "present",
+        visibilityField = "enabled",
+    })
+end
 function InspectorMutations.SetTextField(context, textKey, fieldName, value)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
