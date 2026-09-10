@@ -560,6 +560,40 @@ function Mutations.CopyTemplate(sourceContext, targetContext, sourceName, target
     return Result(true, { sourceName = sourceName, templateName = targetName, templateValue = templateText, changed = true })
 end
 
+function Mutations.MaterializeTemplateEntry(context, sourceEntry)
+    if type(sourceEntry) ~= "table" then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templateName = sourceEntry.templateName
+    local templateValue = sourceEntry.templateText or sourceEntry.templateValue
+    if not ValidateTemplateName(templateName) or type(templateValue) ~= "string" then
+        return Result(false, { errorCode = "invalid_template_name" })
+    end
+
+    local templates = GetTemplatesFromContext(context)
+    if type(templates) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local targetTemplateName, reusedExisting, createdNew = ResolveTargetTemplateName(templates, templateName, templateValue)
+    if not ValidateTemplateName(targetTemplateName) then
+        return Result(false, { errorCode = "template_materialization_failed" })
+    end
+
+    if createdNew then
+        templates[targetTemplateName] = templateValue
+    end
+
+    return Result(true, {
+        templateName = targetTemplateName,
+        templateValue = templateValue,
+        reusedExisting = reusedExisting and true or false,
+        createdNew = createdNew and true or false,
+        changed = createdNew and true or false,
+    })
+end
+
 function Mutations.AssignTemplate(context, unitKey, textKey, templateName)
     if not ValidateTemplateName(templateName) then
         return Result(false, { errorCode = "invalid_template_name" })

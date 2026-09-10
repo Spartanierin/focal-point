@@ -139,25 +139,70 @@ local function BuildTemplateEntries()
     local entries = {}
     for _, templateName in ipairs(keys) do
         entries[#entries + 1] = {
+            key = "active:" .. templateName,
             templateName = templateName,
             templateText = templates[templateName],
+            sourceType = "activeLayout",
+            sourceLabel = T("INSERT_TEXT_SOURCE_CURRENT_LAYOUT", "Current layout"),
         }
     end
+
+    local library = ns.TextTemplateLibrary or {}
+    local integratedEntries = library.ListIntegratedTemplateDefinitions and library.ListIntegratedTemplateDefinitions() or {}
+    for index, entry in ipairs(integratedEntries) do
+        if type(entry) == "table" and type(entry.templateName) == "string" and entry.templateName ~= "" and type(entry.templateValue) == "string" then
+            local key = library.BuildTemplateEntryKey and library.BuildTemplateEntryKey(entry) or nil
+            entries[#entries + 1] = {
+                key = key or "library:" .. tostring(index) .. ":" .. entry.templateName,
+                templateName = entry.templateName,
+                templateText = entry.templateValue,
+                sourceType = entry.sourceType,
+                sourceId = entry.sourceId,
+                themeId = entry.themeId,
+                sourceLabel = entry.sourceLabel,
+            }
+        end
+    end
+
     return entries
 end
 
-local function FindEntry(context, templateName)
+local function GetEntryLabel(entry)
+    if type(entry) ~= "table" then
+        return ""
+    end
+    if entry.sourceType == "activeLayout" then
+        return entry.templateName
+    end
+    if type(entry.sourceLabel) == "string" and entry.sourceLabel ~= "" then
+        return entry.templateName .. " - " .. entry.sourceLabel
+    end
+    return entry.templateName
+end
+
+local function FindEntry(context, entryKey)
     if type(context) ~= "table" or type(context.entries) ~= "table" then
         return nil
     end
     for _, entry in ipairs(context.entries) do
-        if entry.templateName == templateName then
+        if entry.key == entryKey then
             return entry
         end
     end
     return nil
 end
 
+local function FindInitialEntryKey(entries, templateName)
+    if type(entries) ~= "table" or type(templateName) ~= "string" or templateName == "" then
+        return nil
+    end
+    for _, entry in ipairs(entries) do
+        if entry.sourceType == "activeLayout" and entry.templateName == templateName then
+            return entry.key
+        end
+    end
+    return nil
+end
 local function ResolveMutationStatus(result)
     local errorCode = type(result) == "table" and result.errorCode or nil
     if errorCode == "invalid_template_name" or errorCode == "template_not_found" then
@@ -185,7 +230,7 @@ local function RefreshPreview(context)
     end
 
     context.previewGroup:ReleaseChildren()
-    local entry = FindEntry(context, context.selectedTemplateName)
+    local entry = FindEntry(context, context.selectedTemplateKey)
     if not entry then
         context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 11, 238, 44))
         return
@@ -208,10 +253,10 @@ local function RefreshRows(context)
     end
 
     for _, entry in ipairs(context.entries) do
-        local selected = entry.templateName == context.selectedTemplateName
-        local button = CreateButton(entry.templateName, selected and "primary_action" or "utility", 214)
+        local selected = entry.key == context.selectedTemplateKey
+        local button = CreateButton(GetEntryLabel(entry), selected and "primary_action" or "utility", 214)
         button:SetCallback("OnClick", function()
-            context.selectedTemplateName = entry.templateName
+            context.selectedTemplateKey = entry.key
             RefreshRows(context)
             RefreshPreview(context)
             if context.primaryButton then
@@ -227,13 +272,14 @@ local function RefreshWindow(context)
         return
     end
     context.entries = BuildTemplateEntries()
-    if not FindEntry(context, context.selectedTemplateName) then
-        context.selectedTemplateName = context.entries[1] and context.entries[1].templateName or nil
+    if not FindEntry(context, context.selectedTemplateKey) then
+        context.selectedTemplateKey = FindInitialEntryKey(context.entries, context.initialTemplateName)
+            or (context.entries[1] and context.entries[1].key or nil)
     end
     RefreshRows(context)
     RefreshPreview(context)
     if context.primaryButton then
-        context.primaryButton:SetDisabled(context.selectedTemplateName == nil)
+        context.primaryButton:SetDisabled(context.selectedTemplateKey == nil)
     end
 end
 
@@ -256,11 +302,20 @@ local function SubmitSelectedTemplate(context)
         return
     end
 
-    local templateName = context.selectedTemplateName
-    if type(templateName) ~= "string" or templateName == "" then
+    local entry = FindEntry(context, context.selectedTemplateKey)
+    if type(entry) ~= "table" then
         context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_TEMPLATE", "Select a text template first."))
         return
     end
+
+    local mutations = ns.TextTemplateMutations or {}
+    local mutationContext = mutations.CreateActiveLayoutContext and mutations.CreateActiveLayoutContext(ns.db) or nil
+    local materialized = mutations.MaterializeTemplateEntry and mutations.MaterializeTemplateEntry(mutationContext, entry) or nil
+    if type(materialized) ~= "table" or not materialized.ok then
+        context.dialog:SetStatus(ResolveMutationStatus(materialized))
+        return
+    end
+    local templateName = materialized.templateName
 
     if context.mode == "change" then
         local textKey = context.targetTextKey
@@ -275,8 +330,6 @@ local function SubmitSelectedTemplate(context)
             return
         end
 
-        local mutations = ns.TextTemplateMutations or {}
-        local mutationContext = mutations.CreateActiveLayoutContext and mutations.CreateActiveLayoutContext(ns.db) or nil
         local result = mutations.AssignTemplate and mutations.AssignTemplate(mutationContext, unitKey, textKey, templateName) or nil
         if type(result) ~= "table" or not result.ok then
             context.dialog:SetStatus(ResolveMutationStatus(result))
@@ -294,8 +347,6 @@ local function SubmitSelectedTemplate(context)
         return
     end
 
-    local mutations = ns.TextTemplateMutations or {}
-    local mutationContext = mutations.CreateActiveLayoutContext and mutations.CreateActiveLayoutContext(ns.db) or nil
     local result = mutations.CreateTextFromTemplate and mutations.CreateTextFromTemplate(mutationContext, unitKey, templateName) or nil
     if type(result) ~= "table" or not result.ok then
         context.dialog:SetStatus(ResolveMutationStatus(result))
@@ -414,7 +465,7 @@ function TextTemplateLibraryWindow.Open(options)
         targetUnit = options.unit,
         targetTextKey = options.textKey,
         initialTemplateName = options.initialTemplateName,
-        selectedTemplateName = options.initialTemplateName,
+        selectedTemplateKey = nil,
     }
     windowContext = context
 
