@@ -40,6 +40,7 @@ local GetFirstAuraKey = Shared.GetFirstAuraKey
 local GetFirstTextId = Shared.GetFirstTextId
 local INSPECTOR_SECTION_SPACING = 10
 local activeTextFontSizeControl
+local activeCanvasWheelFieldControl
 local MEDIA_TYPE_FONT = "font"
 local MEDIA_TYPE_STATUSBAR = "statusbar"
 local MEDIA_TYPE_DECORATION = "decoration"
@@ -67,6 +68,65 @@ local function NormalizeInspectorTextFontSize(value)
         value = 32
     end
     return math.floor(value + 0.5)
+end
+
+local function GetInspectorObjectKey(objectRef)
+    if type(objectRef) ~= "table" then
+        return nil
+    end
+    return objectRef.objectKey or objectRef.auraKey
+end
+
+local function IsSameInspectorObject(left, right)
+    return type(left) == "table"
+        and type(right) == "table"
+        and left.kind == right.kind
+        and NormalizeInspectorUnitKey(left.unit) == NormalizeInspectorUnitKey(right.unit)
+        and GetInspectorObjectKey(left) == GetInspectorObjectKey(right)
+end
+
+local function RegisterActiveCanvasWheelFieldControl(unitKey, objectRef, fieldName, widget)
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if not IsSameInspectorObject(selected, objectRef) then
+        return
+    end
+    activeCanvasWheelFieldControl = {
+        unitKey = NormalizeInspectorUnitKey(unitKey),
+        objectRef = objectRef,
+        fieldName = fieldName,
+        widget = widget,
+        suppress = false,
+    }
+end
+
+local function IsActiveCanvasWheelFieldControlSuppressed(widget)
+    local control = activeCanvasWheelFieldControl
+    return type(control) == "table" and control.widget == widget and control.suppress == true
+end
+
+function InspectorController.SetActiveCanvasWheelFieldValue(unitKey, objectRef, fieldName, value)
+    local control = activeCanvasWheelFieldControl
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if type(control) ~= "table"
+        or control.unitKey ~= NormalizeInspectorUnitKey(unitKey)
+        or control.fieldName ~= fieldName
+        or not IsSameInspectorObject(control.objectRef, objectRef)
+        or not IsSameInspectorObject(selected, objectRef)
+        or type(control.widget) ~= "table"
+    then
+        return false
+    end
+
+    control.suppress = true
+    local ok = pcall(function()
+        if control.widget.SetValue then
+            control.widget:SetValue(value)
+        elseif control.widget.SetText then
+            control.widget:SetText(tostring(value))
+        end
+    end)
+    control.suppress = false
+    return ok == true
 end
 
 local function RegisterActiveTextFontSizeControl(unitKey, textKey, widget)
@@ -105,6 +165,7 @@ function InspectorController.Build(container, state, options)
     local buildPropertiesOnly = options.buildPropertiesOnly == true
 
     activeTextFontSizeControl = nil
+    activeCanvasWheelFieldControl = nil
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -2544,15 +2605,23 @@ function InspectorController.Build(container, state, options)
         end
 
         if isExpert then
+            local powerBarHeightControl
             if usePropertyGroups then
-                AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                powerBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                    if IsActiveCanvasWheelFieldControlSuppressed(powerBarHeightControl) then
+                        return
+                    end
                     SetUnitField("powerBarHeight", math.floor((value or 0) + 0.5))
                 end, unitConfig.showPowerBar == false)
             else
-                AddSlider(geometrySection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                powerBarHeightControl = AddSlider(geometrySection, L["OPTION_POWER_BAR_HEIGHT"] or "Power Bar Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                    if IsActiveCanvasWheelFieldControlSuppressed(powerBarHeightControl) then
+                        return
+                    end
                     SetUnitField("powerBarHeight", math.floor((value or 0) + 0.5))
                 end, unitConfig.showPowerBar == false)
             end
+            RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "PowerBar" }, "powerBarHeight", powerBarHeightControl)
         end
 
         if usePropertyGroups then
@@ -2691,15 +2760,23 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showAlternativePowerBar ~= true, SetAlternativePowerBarTexture)
         end
 
+        local alternativePowerBarHeightControl
         if usePropertyGroups then
-            AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+            alternativePowerBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(alternativePowerBarHeightControl) then
+                    return
+                end
                 SetUnitField("alternativePowerBarHeight", math.floor((value or 0) + 0.5))
             end, unitConfig.showAlternativePowerBar ~= true)
         else
-            AddSlider(geometrySection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+            alternativePowerBarHeightControl = AddSlider(geometrySection, L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Alternative Power Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(alternativePowerBarHeightControl) then
+                    return
+                end
                 SetUnitField("alternativePowerBarHeight", math.floor((value or 0) + 0.5))
             end, unitConfig.showAlternativePowerBar ~= true)
         end
+        RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "AlternativePowerBar" }, "alternativePowerBarHeight", alternativePowerBarHeightControl)
 
         if isExpert then
             local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
@@ -2843,15 +2920,23 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showClassPowerBar ~= true)
         end
 
+        local classPowerBarHeightControl
         if usePropertyGroups then
-            AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+            classPowerBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(classPowerBarHeightControl) then
+                    return
+                end
                 SetUnitField("classPowerBarHeight", math.floor((value or 0) + 0.5))
             end, unitConfig.showClassPowerBar ~= true)
         else
-            AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Class Power Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+            classPowerBarHeightControl = AddSlider(geometrySection, L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Class Power Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(classPowerBarHeightControl) then
+                    return
+                end
                 SetUnitField("classPowerBarHeight", math.floor((value or 0) + 0.5))
             end, unitConfig.showClassPowerBar ~= true)
         end
+        RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "ClassPowerBar" }, "classPowerBarHeight", classPowerBarHeightControl)
 
         if isExpert then
             if usePropertyGroups then
@@ -3048,15 +3133,23 @@ function InspectorController.Build(container, state, options)
                 end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
             end
 
+            local castBarHeightControl
             if usePropertyGroups then
-                AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                castBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                    if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
+                        return
+                    end
                     SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
                 end, unitConfig.showCastBar == false)
             else
-                AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                castBarHeightControl = AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                    if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
+                        return
+                    end
                     SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
                 end, unitConfig.showCastBar == false)
             end
+            RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "CastBar" }, "castBarHeight", castBarHeightControl)
         end
 
         if actionsSection then
@@ -4264,21 +4357,29 @@ function InspectorController.Build(container, state, options)
             end, disabled, "aura_icon_size")
         end
 
+        local auraIconsPerRowControl
         if isScopedObject then
-            AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, tonumber(auraConfig.iconsPerRow) or 5, function(value)
+            auraIconsPerRowControl = AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, tonumber(auraConfig.iconsPerRow) or 5, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(auraIconsPerRowControl) then
+                    return
+                end
                 SetAuraField(selectedAuraKey, "iconsPerRow", math.floor((value or 0) + 0.5))
             end, disabled, "aura_icons_per_row")
             AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_MAX_ROWS"] or "Maximum Rows", 0, 10, tonumber(auraConfig.maxRows) or 0, function(value)
                 SetAuraField(selectedAuraKey, "maxRows", math.floor((value or 0) + 0.5))
             end, disabled, "aura_max_rows")
         else
-            AddSlider(auraSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, 1, tonumber(auraConfig.iconsPerRow) or 5, function(value)
+            auraIconsPerRowControl = AddSlider(auraSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, 1, tonumber(auraConfig.iconsPerRow) or 5, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(auraIconsPerRowControl) then
+                    return
+                end
                 SetAuraField(selectedAuraKey, "iconsPerRow", math.floor((value or 0) + 0.5))
             end, disabled, "aura_icons_per_row")
             AddSlider(auraSection, L["OPTION_AURA_MAX_ROWS"] or "Maximum Rows", 0, 10, 1, tonumber(auraConfig.maxRows) or 0, function(value)
                 SetAuraField(selectedAuraKey, "maxRows", math.floor((value or 0) + 0.5))
             end, disabled, "aura_max_rows")
         end
+        RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "aura", unit = state and state.selectedUnit, auraKey = selectedAuraKey, objectKey = selectedAuraKey }, "iconsPerRow", auraIconsPerRowControl)
 
         if isQuick then
             if not isScopedObject then
@@ -4578,4 +4679,3 @@ function InspectorController.BuildProperties(container, state, options)
 end
 
 return InspectorController
-

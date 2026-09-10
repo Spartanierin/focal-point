@@ -217,6 +217,112 @@ local function GetEditableUnitConfig(frame)
     return nil, unitKey
 end
 
+-- Routes wheel input only for selected Canvas objects with an existing size/density field.
+local function ResolveWheelCapability(frame, objectRef)
+    local unitConfig, unitKey = GetEditableUnitConfig(frame)
+    if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
+        return nil
+    end
+
+    if objectRef.kind == "bar" then
+        local barCapability = ({
+            PowerBar = { fieldName = "powerBarHeight", default = 20 },
+            AlternativePowerBar = { fieldName = "alternativePowerBarHeight", default = 20 },
+            CastBar = { fieldName = "castBarHeight", default = 20 },
+            -- Class Power has no supported vertical-orientation setting; height is its thickness.
+            ClassPowerBar = { fieldName = "classPowerBarHeight", default = 12 },
+        })[objectRef.objectKey]
+        if barCapability then
+            return {
+                kind = "barThickness",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                fieldName = barCapability.fieldName,
+                default = barCapability.default,
+                min = 4,
+                max = 30,
+            }
+        end
+    elseif objectRef.kind == "aura" and (objectRef.auraKey == "Buffs" or objectRef.auraKey == "Debuffs") then
+        return {
+            kind = "auraDensity",
+            unitConfig = unitConfig,
+            unitKey = unitKey,
+            auraKey = objectRef.auraKey,
+            fieldName = "iconsPerRow",
+            default = 5,
+            min = 1,
+            max = 20,
+        }
+    end
+
+    return nil
+end
+
+local function NormalizeWheelDelta(delta)
+    delta = tonumber(delta) or 0
+    if delta > 0 then
+        return 1
+    elseif delta < 0 then
+        return -1
+    end
+    return 0
+end
+
+local function ApplyWheelCapability(zone, delta)
+    if not (zone and zone.IsMouseOver and zone:IsMouseOver())
+        or not IsSelectedObject(zone._focalPointObjectRef)
+        or (InCombatLockdown and InCombatLockdown()) then
+        return false
+    end
+
+    local capability = ResolveWheelCapability(zone._focalPointOwnerFrame, zone._focalPointObjectRef)
+    local step = NormalizeWheelDelta(delta)
+    if not capability or step == 0 then
+        return false
+    end
+
+    local current = tonumber(capability.unitConfig[capability.fieldName])
+    local nextValue = math.max(capability.min, math.min(capability.max, (current or capability.default) + step))
+    if nextValue == current then
+        return false
+    end
+
+    local mutations = FocalPoint.InspectorMutations
+        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
+    if not mutations then
+        return false
+    end
+
+    local context = { unitConfig = capability.unitConfig }
+    local result
+    if capability.kind == "barThickness" and mutations.SetUnitField then
+        result = mutations.SetUnitField(context, capability.fieldName, nextValue)
+    elseif capability.kind == "auraDensity" and mutations.SetAuraField then
+        result = mutations.SetAuraField(context, capability.auraKey, capability.fieldName, nextValue)
+    end
+    if not (result and result.ok ~= false and result.changed) then
+        return false
+    end
+
+    if FocalPoint.RefreshUnitFrame then
+        FocalPoint:RefreshUnitFrame(capability.unitKey)
+    end
+    CanvasHoverOverlay.UpdateFrame(zone._focalPointOwnerFrame)
+    local inspector = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.Inspector
+    if inspector and inspector.SetActiveCanvasWheelFieldValue then
+        inspector.SetActiveCanvasWheelFieldValue(
+            capability.unitKey,
+            zone._focalPointObjectRef,
+            capability.fieldName,
+            result.newValue
+        )
+    end
+    return true
+end
+
 local function FindDecorationConfig(unitConfig, decorationId)
     local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
     if type(decorations) ~= "table" then
@@ -551,6 +657,7 @@ local function EnsureHitZone(frame, key)
     })
     ApplyZoneChrome(zone, false)
     SetZoneMouseEnabled(zone, false)
+    zone:EnableMouseWheel(false)
     zone:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     zone:RegisterForDrag("LeftButton")
     zone:SetScript("OnEnter", function(self)
@@ -615,6 +722,9 @@ local function EnsureHitZone(frame, key)
     end)
     zone:SetScript("OnDragStop", function(self)
         CompleteOwnerGesture(self, true)
+    end)
+    zone:SetScript("OnMouseWheel", function(self, delta)
+        ApplyWheelCapability(self, delta)
     end)
     HideZoneFrame(zone)
 
@@ -688,6 +798,7 @@ local function PositionZone(zone, frame, target, objectRef, level, movesUnit)
     end
     ApplyZoneChrome(zone, isSelected)
     SetZoneMouseEnabled(zone, true)
+    zone:EnableMouseWheel(isSelected and ResolveWheelCapability(frame, objectRef) ~= nil)
     ShowZone(zone)
 end
 
@@ -700,6 +811,7 @@ local function HideZone(zone)
     end
     CompleteOwnerGesture(zone, false)
     SetZoneMouseEnabled(zone, false)
+    zone:EnableMouseWheel(false)
     ApplyZoneChrome(zone, false)
     HideZoneFrame(zone)
     zone._focalPointObjectRef = nil
