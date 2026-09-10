@@ -42,6 +42,7 @@ local INSPECTOR_SECTION_SPACING = 10
 local activeTextFontSizeControl
 local activeCanvasWheelFieldControl
 local activeCanvasDirectMoveOffsetControls
+local activeCanvasDecorationSizeControls
 local MEDIA_TYPE_FONT = "font"
 local MEDIA_TYPE_STATUSBAR = "statusbar"
 local MEDIA_TYPE_DECORATION = "decoration"
@@ -126,6 +127,48 @@ function InspectorController.SetActiveCanvasWheelFieldValue(unitKey, objectRef, 
         end
     end)
     control.suppress = false
+    return ok == true
+end
+
+local function RegisterActiveCanvasDecorationSizeControls(unitKey, objectRef, widthControl, heightControl)
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if not IsSameInspectorObject(selected, objectRef) then
+        return
+    end
+    activeCanvasDecorationSizeControls = {
+        unitKey = NormalizeInspectorUnitKey(unitKey),
+        objectRef = objectRef,
+        widthControl = widthControl,
+        heightControl = heightControl,
+        suppress = false,
+    }
+end
+
+local function IsActiveCanvasDecorationSizeControlSuppressed(widget)
+    local controls = activeCanvasDecorationSizeControls
+    return type(controls) == "table" and controls.suppress == true
+        and (controls.widthControl == widget or controls.heightControl == widget)
+end
+
+function InspectorController.SetActiveCanvasDecorationSizeValues(unitKey, objectRef, width, height)
+    local controls = activeCanvasDecorationSizeControls
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if type(controls) ~= "table"
+        or controls.unitKey ~= NormalizeInspectorUnitKey(unitKey)
+        or not IsSameInspectorObject(controls.objectRef, objectRef)
+        or not IsSameInspectorObject(selected, objectRef)
+        or type(controls.widthControl) ~= "table"
+        or type(controls.heightControl) ~= "table"
+    then
+        return false
+    end
+
+    controls.suppress = true
+    local ok = pcall(function()
+        controls.widthControl:SetValue(width)
+        controls.heightControl:SetValue(height)
+    end)
+    controls.suppress = false
     return ok == true
 end
 
@@ -240,6 +283,7 @@ function InspectorController.Build(container, state, options)
     activeTextFontSizeControl = nil
     activeCanvasWheelFieldControl = nil
     activeCanvasDirectMoveOffsetControls = nil
+    activeCanvasDecorationSizeControls = nil
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -4325,12 +4369,26 @@ function InspectorController.Build(container, state, options)
             AddPropertySliderRow(appearanceSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
                 SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
             end, disabled, "decoration_alpha")
-            AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+            local widthControl
+            widthControl = AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+                if IsActiveCanvasDecorationSizeControlSuppressed(widthControl) then
+                    return
+                end
                 SetDecorationField("width", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_width")
-            AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+            local heightControl
+            heightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+                if IsActiveCanvasDecorationSizeControlSuppressed(heightControl) then
+                    return
+                end
                 SetDecorationField("height", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_height")
+            RegisterActiveCanvasDecorationSizeControls(state and state.selectedUnit, {
+                kind = "decoration",
+                unit = state and state.selectedUnit,
+                decorationId = selectedDecorationId,
+                objectKey = selectedDecorationId,
+            }, widthControl, heightControl)
             AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
                 list = decorationTargetList,
                 value = decorationConfig.target or "FRAME",
@@ -4398,13 +4456,27 @@ function InspectorController.Build(container, state, options)
                 SetDecorationField("target", value)
             end, disabled, "decoration_target")
 
-            AddSlider(decorationSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+            local widthControl
+            widthControl = AddSlider(decorationSection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+                if IsActiveCanvasDecorationSizeControlSuppressed(widthControl) then
+                    return
+                end
                 SetDecorationField("width", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_width")
 
-            AddSlider(decorationSection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+            local heightControl
+            heightControl = AddSlider(decorationSection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+                if IsActiveCanvasDecorationSizeControlSuppressed(heightControl) then
+                    return
+                end
                 SetDecorationField("height", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_height")
+            RegisterActiveCanvasDecorationSizeControls(state and state.selectedUnit, {
+                kind = "decoration",
+                unit = state and state.selectedUnit,
+                decorationId = selectedDecorationId,
+                objectKey = selectedDecorationId,
+            }, widthControl, heightControl)
 
             AddDropdown(decorationSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, decorationConfig.point or "CENTER", function(value)
                 SetDecorationField("point", value)

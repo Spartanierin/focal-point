@@ -138,6 +138,8 @@ local MAX_TEXT_FONT_SIZE = 32
 local TEXT_POSITION_KEYS = { "anchorTo", "point", "relativePoint", "offsetX", "offsetY" }
 local MIN_INDICATOR_SCALE = 0.25
 local MAX_INDICATOR_SCALE = 3.00
+local MIN_DECORATION_DIMENSION = 1
+local MAX_DECORATION_DIMENSION = 512
 
 local function NormalizeTextFontSize(value)
     value = tonumber(value) or 12
@@ -940,6 +942,49 @@ function InspectorMutations.SetDecorationField(context, decorationId, fieldName,
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetDecorationConfig(context, decorationId, true), fieldName, value, "decoration_config_not_found")
+end
+
+function InspectorMutations.AdjustDecorationSizeProportionally(context, decorationId, delta)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local decoration = GetDecorationConfig(context, decorationId, true)
+    if type(decoration) ~= "table" then
+        return Result(false, { errorCode = "decoration_config_not_found" })
+    end
+
+    delta = tonumber(delta)
+    if not delta or delta == 0 then
+        return Result(false, { errorCode = "invalid_delta" })
+    end
+    delta = delta > 0 and 1 or -1
+
+    local width = math.max(MIN_DECORATION_DIMENSION, math.min(MAX_DECORATION_DIMENSION, NormalizeOffset(decoration.width or 64)))
+    local height = math.max(MIN_DECORATION_DIMENSION, math.min(MAX_DECORATION_DIMENSION, NormalizeOffset(decoration.height or 64)))
+    local leading = math.max(width, height)
+    local nextLeading = math.max(MIN_DECORATION_DIMENSION, math.min(MAX_DECORATION_DIMENSION, leading + delta))
+    if nextLeading == leading then
+        return Result(true, {
+            changed = false,
+            oldValue = { width = width, height = height },
+            newValue = { width = width, height = height },
+        })
+    end
+
+    local scale = nextLeading / leading
+    local nextWidth = math.max(MIN_DECORATION_DIMENSION, math.min(MAX_DECORATION_DIMENSION, NormalizeOffset(width * scale)))
+    local nextHeight = math.max(MIN_DECORATION_DIMENSION, math.min(MAX_DECORATION_DIMENSION, NormalizeOffset(height * scale)))
+    local changed = nextWidth ~= width or nextHeight ~= height
+    if changed then
+        decoration.width = nextWidth
+        decoration.height = nextHeight
+    end
+    return Result(true, {
+        changed = changed,
+        oldValue = { width = width, height = height },
+        newValue = { width = nextWidth, height = nextHeight },
+    })
 end
 
 function InspectorMutations.SetDecorationPositionOffsets(context, decorationId, offsetX, offsetY)

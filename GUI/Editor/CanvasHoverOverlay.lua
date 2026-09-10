@@ -227,6 +227,7 @@ local function GetEditableUnitConfig(frame)
 end
 
 -- Routes wheel input only for selected Canvas objects with an existing size/density field.
+local FindDecorationConfig
 local function ResolveWheelCapability(frame, objectRef)
     local unitConfig, unitKey = GetEditableUnitConfig(frame)
     if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
@@ -279,6 +280,16 @@ local function ResolveWheelCapability(frame, objectRef)
                 step = 0.05,
             }
         end
+    elseif objectRef.kind == "decoration" then
+        local decoration = FindDecorationConfig(unitConfig, objectRef.decorationId)
+        if decoration then
+            return {
+                kind = "decorationSize",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                decorationId = objectRef.decorationId,
+            }
+        end
     end
 
     return nil
@@ -318,6 +329,8 @@ local function ApplyWheelCapability(zone, delta)
     if capability.kind == "indicatorScale" and mutations.AdjustIndicatorScale then
         context.indicatorMeta = capability.indicatorMeta
         result = mutations.AdjustIndicatorScale(context, capability.indicatorKey, step * capability.step)
+    elseif capability.kind == "decorationSize" and mutations.AdjustDecorationSizeProportionally then
+        result = mutations.AdjustDecorationSizeProportionally(context, capability.decorationId, step)
     else
         local current = tonumber(capability.unitConfig[capability.fieldName])
         local nextValue = math.max(capability.min, math.min(capability.max, (current or capability.default) + step))
@@ -342,18 +355,22 @@ local function ApplyWheelCapability(zone, delta)
     local inspector = FocalPoint.GUI
         and FocalPoint.GUI.Editor
         and FocalPoint.GUI.Editor.Inspector
-    if inspector and inspector.SetActiveCanvasWheelFieldValue then
-        inspector.SetActiveCanvasWheelFieldValue(
-            capability.unitKey,
-            zone._focalPointObjectRef,
-            capability.fieldName,
-            result.newValue
-        )
+    if inspector then
+        if capability.kind == "decorationSize" and inspector.SetActiveCanvasDecorationSizeValues then
+            inspector.SetActiveCanvasDecorationSizeValues(capability.unitKey, zone._focalPointObjectRef, result.newValue.width, result.newValue.height)
+        elseif inspector.SetActiveCanvasWheelFieldValue then
+            inspector.SetActiveCanvasWheelFieldValue(
+                capability.unitKey,
+                zone._focalPointObjectRef,
+                capability.fieldName,
+                result.newValue
+            )
+        end
     end
     return true
 end
 
-local function FindDecorationConfig(unitConfig, decorationId)
+FindDecorationConfig = function(unitConfig, decorationId)
     local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
     if type(decorations) ~= "table" then
         return nil
