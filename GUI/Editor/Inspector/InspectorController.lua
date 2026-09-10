@@ -3853,15 +3853,28 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local indicatorScaleControl
         if isScopedObject then
-            AddPropertySliderRow(geometrySection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+            indicatorScaleControl = AddPropertySliderRow(geometrySection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(indicatorScaleControl) then
+                    return
+                end
                 SetIndicatorField(selectedIndicatorKey, "scale", tonumber(string.format("%.2f", value or 1)) or 1)
             end, disabled)
         else
-            AddSlider(indicatorSection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+            indicatorScaleControl = AddSlider(indicatorSection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+                if IsActiveCanvasWheelFieldControlSuppressed(indicatorScaleControl) then
+                    return
+                end
                 SetIndicatorField(selectedIndicatorKey, "scale", tonumber(string.format("%.2f", value or 1)) or 1)
             end, disabled)
         end
+        RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, {
+            kind = "indicator",
+            unit = state and state.selectedUnit,
+            indicatorKey = selectedIndicatorKey,
+            objectKey = selectedIndicatorKey,
+        }, "scale", indicatorScaleControl)
 
         local placement = indicatorConfig.placement or "ATTACHED"
         local inside = placement == "INSIDE"

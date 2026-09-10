@@ -51,6 +51,8 @@ end
 local MIN_TEXT_FONT_SIZE = 6
 local MAX_TEXT_FONT_SIZE = 32
 local TEXT_POSITION_KEYS = { "anchorTo", "point", "relativePoint", "offsetX", "offsetY" }
+local MIN_INDICATOR_SCALE = 0.25
+local MAX_INDICATOR_SCALE = 3.00
 
 local function NormalizeTextFontSize(value)
     value = tonumber(value) or 12
@@ -719,6 +721,27 @@ function InspectorMutations.SetIndicatorField(context, indicatorKey, fieldName, 
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetField(GetIndicatorConfig(context, indicatorKey), fieldName, value, "indicator_config_not_found")
+end
+
+function InspectorMutations.AdjustIndicatorScale(context, indicatorKey, delta)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+
+    local indicatorConfig = GetIndicatorConfig(context, indicatorKey)
+    if type(indicatorConfig) ~= "table" then
+        return Result(false, { errorCode = "indicator_config_not_found" })
+    end
+
+    delta = tonumber(delta)
+    if not delta then
+        return Result(false, { errorCode = "invalid_delta" })
+    end
+
+    local current = tonumber(indicatorConfig.scale) or 1
+    local value = math.max(MIN_INDICATOR_SCALE, math.min(MAX_INDICATOR_SCALE, current + delta))
+    value = math.floor((value * 100) + 0.5) / 100
+    return InspectorMutations.SetIndicatorField(context, indicatorKey, "scale", value)
 end
 
 function InspectorMutations.SetAuraField(context, auraKey, fieldName, value)

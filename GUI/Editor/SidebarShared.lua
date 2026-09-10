@@ -43,6 +43,7 @@ local INDICATOR_META = {
         placementLabel = "OPTION_PORTRAIT_PLACEMENT",
         sizeLabel = "OPTION_PORTRAIT_SIZE",
         scaleLabel = "OPTION_PORTRAIT_SCALE",
+        wheelScale = true,
         insideSideLabel = "OPTION_INSIDE_SIDE",
         modeLabel = "OPTION_PORTRAIT_MODE",
         supportsMode = true,
@@ -57,6 +58,7 @@ local INDICATOR_META = {
         placementLabel = "OPTION_RTM_PLACEMENT",
         sizeLabel = "OPTION_RTM_SIZE",
         scaleLabel = "OPTION_RTM_SCALE",
+        wheelScale = true,
         insideSideLabel = "OPTION_INSIDE_SIDE",
     },
     LeaderIcon = {
@@ -66,6 +68,7 @@ local INDICATOR_META = {
         placementLabel = "OPTION_LEADER_ICON_PLACEMENT",
         sizeLabel = "OPTION_LEADER_ICON_SIZE",
         scaleLabel = "OPTION_LEADER_ICON_SCALE",
+        wheelScale = true,
         insideSideLabel = "OPTION_INSIDE_SIDE",
         unavailable = function(unitKey)
             return unitKey == "boss"
@@ -78,6 +81,7 @@ local INDICATOR_META = {
         placementLabel = "OPTION_ROLE_ICON_PLACEMENT",
         sizeLabel = "OPTION_ROLE_ICON_SIZE",
         scaleLabel = "OPTION_ROLE_ICON_SCALE",
+        wheelScale = true,
         insideSideLabel = "OPTION_INSIDE_SIDE",
         unavailable = function(unitKey)
             return unitKey == "boss"
@@ -118,6 +122,7 @@ local INDICATOR_META = {
         placementLabel = "OPTION_READY_CHECK_INDICATOR_PLACEMENT",
         sizeLabel = "OPTION_READY_CHECK_INDICATOR_SIZE",
         scaleLabel = "OPTION_READY_CHECK_INDICATOR_SCALE",
+        wheelScale = true,
         insideSideLabel = "OPTION_INSIDE_SIDE",
         unavailable = function(unitKey)
             return unitKey == "boss"

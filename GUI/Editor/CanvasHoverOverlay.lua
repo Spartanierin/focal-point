@@ -254,6 +254,22 @@ local function ResolveWheelCapability(frame, objectRef)
             min = 1,
             max = 20,
         }
+    elseif objectRef.kind == "indicator" then
+        local shared = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.SidebarShared
+        local indicatorMeta = shared and shared.INDICATOR_META or nil
+        local indicatorKey = objectRef.indicatorKey
+        local meta = type(indicatorMeta) == "table" and indicatorMeta[indicatorKey] or nil
+        if type(meta) == "table" and meta.wheelScale == true and type(unitConfig[meta.optionKey]) == "table" then
+            return {
+                kind = "indicatorScale",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                indicatorKey = indicatorKey,
+                indicatorMeta = indicatorMeta,
+                fieldName = "scale",
+                step = 0.05,
+            }
+        end
     end
 
     return nil
@@ -282,12 +298,6 @@ local function ApplyWheelCapability(zone, delta)
         return false
     end
 
-    local current = tonumber(capability.unitConfig[capability.fieldName])
-    local nextValue = math.max(capability.min, math.min(capability.max, (current or capability.default) + step))
-    if nextValue == current then
-        return false
-    end
-
     local mutations = FocalPoint.InspectorMutations
         or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
     if not mutations then
@@ -296,10 +306,21 @@ local function ApplyWheelCapability(zone, delta)
 
     local context = { unitConfig = capability.unitConfig }
     local result
-    if capability.kind == "barThickness" and mutations.SetUnitField then
-        result = mutations.SetUnitField(context, capability.fieldName, nextValue)
-    elseif capability.kind == "auraDensity" and mutations.SetAuraField then
-        result = mutations.SetAuraField(context, capability.auraKey, capability.fieldName, nextValue)
+    if capability.kind == "indicatorScale" and mutations.AdjustIndicatorScale then
+        context.indicatorMeta = capability.indicatorMeta
+        result = mutations.AdjustIndicatorScale(context, capability.indicatorKey, step * capability.step)
+    else
+        local current = tonumber(capability.unitConfig[capability.fieldName])
+        local nextValue = math.max(capability.min, math.min(capability.max, (current or capability.default) + step))
+        if nextValue == current then
+            return false
+        end
+
+        if capability.kind == "barThickness" and mutations.SetUnitField then
+            result = mutations.SetUnitField(context, capability.fieldName, nextValue)
+        elseif capability.kind == "auraDensity" and mutations.SetAuraField then
+            result = mutations.SetAuraField(context, capability.auraKey, capability.fieldName, nextValue)
+        end
     end
     if not (result and result.ok ~= false and result.changed) then
         return false
