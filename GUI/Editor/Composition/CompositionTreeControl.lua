@@ -70,6 +70,21 @@ local function SetIconColor(icon, tint, brightness, alpha)
     )
 end
 
+local function ClampScrollOffset(value, maxScroll)
+    maxScroll = math.max(0, tonumber(maxScroll) or 0)
+    return math.max(0, math.min(maxScroll, tonumber(value) or 0))
+end
+
+-- WoW vertical sliders increase visually upward, while ScrollFrames increase downward.
+local function SliderValueToScrollOffset(value, maxScroll)
+    return ClampScrollOffset((tonumber(maxScroll) or 0) - (tonumber(value) or 0), maxScroll)
+end
+
+local function ScrollOffsetToSliderValue(offset, maxScroll)
+    maxScroll = math.max(0, tonumber(maxScroll) or 0)
+    return maxScroll - ClampScrollOffset(offset, maxScroll)
+end
+
 local function StyleLabel(label, size)
     if ApplyTextStyle then
         ApplyTextStyle(label, "label", size, 1)
@@ -200,28 +215,37 @@ function methods:AcquireRow(index)
 end
 
 function methods:SetScroll(value)
-    local offset = math.max(0, math.min(self.maxScroll or 0, tonumber(value) or 0))
+    local offset = ClampScrollOffset(value, self.maxScroll)
     self.offset = offset
     if self.scrollStatus then self.scrollStatus.scrollvalue = offset end
     self.scroll:SetVerticalScroll(offset)
-    if self.scrollbar:GetValue() ~= offset then self.scrollbar:SetValue(offset) end
+    local sliderValue = ScrollOffsetToSliderValue(offset, self.maxScroll)
+    if self.scrollbar:GetValue() ~= sliderValue then self.scrollbar:SetValue(sliderValue) end
 end
 
 function methods:Layout()
-    local height = math.max(1, self.frame:GetHeight())
+    local height = tonumber(self.frame:GetHeight()) or 0
+    local width = tonumber(self.frame:GetWidth()) or 0
+    if height <= 0 or width <= 0 then
+        -- The AceGUI host has not received its final geometry yet. OnSizeChanged retries this path.
+        self.scrollbar:Hide()
+        return false
+    end
+
     local contentHeight = (self.count or 0) * Control.ROW_HEIGHT
     self.maxScroll = math.max(0, contentHeight - height)
     local hasScroll = self.maxScroll > 0
     self.scroll:ClearAllPoints()
     self.scroll:SetPoint("TOPLEFT", self.frame, "TOPLEFT")
     self.scroll:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", hasScroll and -10 or 0, 0)
-    self.content:SetWidth(math.max(1, self.frame:GetWidth() - (hasScroll and 10 or 0)))
+    self.content:SetWidth(math.max(1, width - (hasScroll and 10 or 0)))
     self.content:SetHeight(math.max(1, contentHeight))
     self.scrollbar:SetMinMaxValues(0, self.maxScroll)
     self.scrollbar:SetShown(hasScroll)
     local thumbHeight = math.max(16, height * math.min(1, height / math.max(1, contentHeight)))
     self.scrollbar:GetThumbTexture():SetHeight(thumbHeight)
     self:SetScroll(self.scrollStatus and self.scrollStatus.scrollvalue or 0)
+    return true
 end
 
 function methods:SetRows(items)
@@ -286,6 +310,9 @@ function methods:Release()
     self.callbacks = nil
     self.scrollStatus = nil
     self.count = 0
+    self.maxScroll = 0
+    self.offset = 0
+    self.scrollbar:Hide()
     self.generation = (self.generation or 0) + 1
     self:SetKeyboardActive(false)
     for _, row in ipairs(self.rows) do UnbindRow(row) end
@@ -322,7 +349,9 @@ local function CreateControl()
     thumb:SetColorTexture(0.45, 0.50, 0.58, 0.55)
     thumb:SetSize(5, 20)
     self.scrollbar:SetThumbTexture(thumb)
-    self.scrollbar:SetScript("OnValueChanged", function(_, value) self:SetScroll(value) end)
+    self.scrollbar:SetScript("OnValueChanged", function(_, value)
+        self:SetScroll(SliderValueToScrollOffset(value, self.maxScroll))
+    end)
     self.frame:SetScript("OnSizeChanged", function() self:Layout() end)
     local function OnMouseWheel(_, delta)
         self:SetScroll((self.offset or 0) - delta * Control.ROW_HEIGHT * 3)
