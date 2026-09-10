@@ -7,35 +7,6 @@ Control.ROW_HEIGHT = 16
 local freeControls = {}
 local methods = {}
 local ApplyTextStyle = ns.GUI.Helpers.FormWidgets.ApplyTextStyle
-local activeControl = nil
-
-local ScrollTraceState = {
-    onValueChangedCount = 0,
-    programmaticSetValueCount = 0,
-    dragSampleCount = 0,
-    dragSamples = {},
-}
-
-local MAX_DRAG_TRACE_SAMPLES = 12
-
-local function GetRegionTraceValues(region)
-    if not region then
-        return nil, nil, nil
-    end
-    return region.GetTop and region:GetTop() or nil,
-        region.GetBottom and region:GetBottom() or nil,
-        region.GetHeight and region:GetHeight() or nil
-end
-
-local function AppendNativeDragSample(sample)
-    local samples = ScrollTraceState.dragSamples
-    if #samples >= MAX_DRAG_TRACE_SAMPLES then
-        table.remove(samples, 1)
-    end
-    ScrollTraceState.dragSampleCount = ScrollTraceState.dragSampleCount + 1
-    sample.index = ScrollTraceState.dragSampleCount
-    samples[#samples + 1] = sample
-end
 
 local TREE_SURFACE_COLOR = { 0.05, 0.055, 0.06, 0.92 }
 local TREE_TEXT_DESCRIPTION = { 0.68, 0.70, 0.75, 1.00 }
@@ -249,10 +220,7 @@ function methods:SetScroll(value, forceProjection)
     self.scroll:SetVerticalScroll(offset)
     local sliderValue = ScrollOffsetToSliderValue(offset, self.maxScroll)
     if forceProjection or self.scrollbar:GetValue() ~= sliderValue then
-        ScrollTraceState.programmaticSetValueCount = ScrollTraceState.programmaticSetValueCount + 1
-        self._settingScrollbarValue = true
         self.scrollbar:SetValue(sliderValue)
-        self._settingScrollbarValue = nil
     end
 end
 
@@ -380,7 +348,6 @@ end
 function methods:Release()
     if not self.callbacks then return end
     self:StopThumbDrag()
-    if activeControl == self then activeControl = nil end
     self.callbacks = nil
     self.scrollStatus = nil
     self.count = 0
@@ -445,27 +412,7 @@ local function CreateControl()
         self:StopThumbDrag()
     end)
     self.scrollbar:SetScript("OnValueChanged", function(_, value)
-        ScrollTraceState.onValueChangedCount = ScrollTraceState.onValueChangedCount + 1
-        local sample = nil
-        if not self._settingScrollbarValue then
-            local _, cursorY = GetCursorPosition()
-            local thumbTop, thumbBottom = GetRegionTraceValues(self.scrollbar:GetThumbTexture())
-            sample = {
-                cursorY = cursorY,
-                value = value,
-                sliderValue = self.scrollbar:GetValue(),
-                thumbTop = thumbTop,
-                thumbBottom = thumbBottom,
-                beforeOffset = self.offset,
-                beforeVerticalScroll = self.scroll:GetVerticalScroll(),
-            }
-        end
         self:SetScroll(SliderValueToScrollOffset(value, self.maxScroll))
-        if sample then
-            sample.afterOffset = self.offset
-            sample.afterVerticalScroll = self.scroll:GetVerticalScroll()
-            AppendNativeDragSample(sample)
-        end
     end)
     self.frame:SetScript("OnSizeChanged", function() self:Layout() end)
     local function OnMouseWheel(_, delta)
@@ -495,11 +442,6 @@ end
 
 function Control.Acquire(parent, scrollStatus, callbacks)
     local self = table.remove(freeControls) or CreateControl()
-    activeControl = self
-    ScrollTraceState.onValueChangedCount = 0
-    ScrollTraceState.programmaticSetValueCount = 0
-    ScrollTraceState.dragSampleCount = 0
-    ScrollTraceState.dragSamples = {}
     self.scrollStatus = scrollStatus
     self.callbacks = callbacks
     self.frame:SetParent(parent)
@@ -509,55 +451,6 @@ function Control.Acquire(parent, scrollStatus, callbacks)
     self.frame:Show()
     self._scrollbarProjectionInitialized = false
     return self
-end
-
-function Control.GetScrollTraceSnapshot()
-    local self = activeControl
-    if not self then
-        return nil
-    end
-
-    local scrollbar = self.scrollbar
-    local minimum, maximum = nil, nil
-    if scrollbar and scrollbar.GetMinMaxValues then
-        minimum, maximum = scrollbar:GetMinMaxValues()
-    end
-    local thumb = scrollbar and scrollbar.GetThumbTexture and scrollbar:GetThumbTexture() or nil
-    local thumbTop, thumbBottom, thumbHeight = GetRegionTraceValues(thumb)
-    local sliderTop, sliderBottom, sliderHeight = GetRegionTraceValues(scrollbar)
-
-    return {
-        scrollbarExists = scrollbar ~= nil,
-        scrollbarShown = scrollbar and scrollbar.IsShown and scrollbar:IsShown() or false,
-        scrollbarVisible = scrollbar and scrollbar.IsVisible and scrollbar:IsVisible() or false,
-        sliderMinimum = minimum,
-        sliderMaximum = maximum,
-        sliderValue = scrollbar and scrollbar.GetValue and scrollbar:GetValue() or nil,
-        verticalScroll = self.scroll and self.scroll.GetVerticalScroll and self.scroll:GetVerticalScroll() or nil,
-        offset = self.offset,
-        maxScroll = self.maxScroll,
-        thumbTop = thumbTop,
-        thumbBottom = thumbBottom,
-        thumbHeight = thumbHeight,
-        sliderTop = sliderTop,
-        sliderBottom = sliderBottom,
-        sliderHeight = sliderHeight,
-        onValueChangedCount = ScrollTraceState.onValueChangedCount,
-        programmaticSetValueCount = ScrollTraceState.programmaticSetValueCount,
-    }
-end
-
-function Control.ResetScrollDragTrace()
-    ScrollTraceState.dragSampleCount = 0
-    ScrollTraceState.dragSamples = {}
-end
-
-function Control.GetScrollDragTraceSamples()
-    local samples = {}
-    for index, sample in ipairs(ScrollTraceState.dragSamples) do
-        samples[index] = sample
-    end
-    return samples
 end
 
 return Control
