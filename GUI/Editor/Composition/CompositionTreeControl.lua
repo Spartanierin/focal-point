@@ -242,13 +242,13 @@ function methods:AcquireRow(index)
     return row
 end
 
-function methods:SetScroll(value)
+function methods:SetScroll(value, forceProjection)
     local offset = ClampScrollOffset(value, self.maxScroll)
     self.offset = offset
     if self.scrollStatus then self.scrollStatus.scrollvalue = offset end
     self.scroll:SetVerticalScroll(offset)
     local sliderValue = ScrollOffsetToSliderValue(offset, self.maxScroll)
-    if self.scrollbar:GetValue() ~= sliderValue then
+    if forceProjection or self.scrollbar:GetValue() ~= sliderValue then
         ScrollTraceState.programmaticSetValueCount = ScrollTraceState.programmaticSetValueCount + 1
         self._settingScrollbarValue = true
         self.scrollbar:SetValue(sliderValue)
@@ -313,7 +313,10 @@ function methods:Layout()
     self.scrollbar:SetShown(hasScroll)
     local thumbHeight = math.max(16, height * math.min(1, height / math.max(1, contentHeight)))
     self.scrollbar:GetThumbTexture():SetHeight(thumbHeight)
-    self:SetScroll(self.scrollStatus and self.scrollStatus.scrollvalue or 0)
+    if not hasScroll then self._scrollbarProjectionInitialized = false end
+    local forceProjection = hasScroll and not self._scrollbarProjectionInitialized
+    self:SetScroll(self.scrollStatus and self.scrollStatus.scrollvalue or 0, forceProjection)
+    if hasScroll then self._scrollbarProjectionInitialized = true end
     return true
 end
 
@@ -504,6 +507,7 @@ function Control.Acquire(parent, scrollStatus, callbacks)
     self.frame:SetAllPoints(parent)
     self:SetKeyboardActive(false)
     self.frame:Show()
+    self._scrollbarProjectionInitialized = false
     return self
 end
 
