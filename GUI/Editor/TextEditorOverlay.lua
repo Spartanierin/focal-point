@@ -17,8 +17,6 @@ local CLICK_FRAME_LEVEL = 940
 local SELECTED_CLICK_FRAME_LEVEL = 950
 local VISUAL_PADDING_X = 4
 local VISUAL_PADDING_Y = 4
-local MIN_TEXT_OFFSET = -100
-local MAX_TEXT_OFFSET = 100
 local PICKER_FRAME_LEVEL = 960
 local PICKER_BUTTON_FRAME_LEVEL = 970
 local PICKER_BUTTON_SIZE = 16
@@ -65,12 +63,10 @@ local function IsCombatLocked()
     return InCombatLockdown and InCombatLockdown() == true
 end
 
-local function ClampOffset(value)
+local function NormalizeTextOffset(value)
     value = tonumber(value) or 0
-    if value < MIN_TEXT_OFFSET then
-        value = MIN_TEXT_OFFSET
-    elseif value > MAX_TEXT_OFFSET then
-        value = MAX_TEXT_OFFSET
+    if value ~= value or value == math.huge or value == -math.huge then
+        value = 0
     end
 
     return math.floor(value + 0.5)
@@ -1388,10 +1384,10 @@ function TextEditorOverlay.BeginDrag(overlay)
         textConfig = textConfig,
         startCursorX = cursorX,
         startCursorY = cursorY,
-        startOffsetX = ClampOffset(textConfig.offsetX),
-        startOffsetY = ClampOffset(textConfig.offsetY),
-        currentOffsetX = ClampOffset(textConfig.offsetX),
-        currentOffsetY = ClampOffset(textConfig.offsetY),
+        startOffsetX = NormalizeTextOffset(textConfig.offsetX),
+        startOffsetY = NormalizeTextOffset(textConfig.offsetY),
+        currentOffsetX = NormalizeTextOffset(textConfig.offsetX),
+        currentOffsetY = NormalizeTextOffset(textConfig.offsetY),
         dragging = false,
     }
     overlay._focalPointTextDragState = dragState
@@ -1445,8 +1441,8 @@ function TextEditorOverlay.StartDrag(overlay)
 
         local deltaX = currentX - dragState.startCursorX
         local deltaY = currentY - dragState.startCursorY
-        local nextOffsetX = ClampOffset(dragState.startOffsetX + deltaX)
-        local nextOffsetY = ClampOffset(dragState.startOffsetY + deltaY)
+        local nextOffsetX = NormalizeTextOffset(dragState.startOffsetX + deltaX)
+        local nextOffsetY = NormalizeTextOffset(dragState.startOffsetY + deltaY)
         if nextOffsetX == dragState.currentOffsetX and nextOffsetY == dragState.currentOffsetY then
             return
         end

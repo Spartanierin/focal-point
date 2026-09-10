@@ -41,10 +41,8 @@ end
 
 local function NormalizeOffset(value)
     value = tonumber(value) or 0
-    if value < -100 then
-        value = -100
-    elseif value > 100 then
-        value = 100
+    if value ~= value or value == math.huge or value == -math.huge then
+        value = 0
     end
 
     return math.floor(value + 0.5)
