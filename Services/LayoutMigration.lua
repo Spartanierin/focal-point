@@ -12,6 +12,8 @@ local ADDITIVE_MIGRATION_VERSION = 1
 local BACKUP_KEY = "LayoutMigrationBackup"
 local STATE_KEY = "LayoutMigration"
 local LAYOUT_FORMAT_VERSION = 1
+local DELETED_PROFILE_MAP_KEY = "deletedProfileMap"
+local DELETED_USER_PRESET_MAP_KEY = "deletedUserPresetMap"
 
 local function Clone(value)
     return LayoutService.Clone and LayoutService.Clone(value) or value
@@ -68,6 +70,18 @@ local function IsValidSourceMap(map)
     end
 
     return true
+end
+
+local function IsValidOptionalSourceMap(state, key)
+    local map = type(state) == "table" and rawget(state, key) or nil
+    return map == nil or IsValidSourceMap(map)
+end
+
+local function IsDeliberatelyDeleted(deletedMap, sourceId, layoutId)
+    return type(deletedMap) == "table"
+        and type(sourceId) == "string"
+        and type(layoutId) == "string"
+        and deletedMap[sourceId] == layoutId
 end
 
 local function SortedStringKeys(source)
@@ -229,6 +243,12 @@ local function PeekState(db)
     end
     if not IsValidSourceMap(state.userPresetMap) then
         return nil, "invalid-user-preset-map"
+    end
+    if not IsValidOptionalSourceMap(state, DELETED_PROFILE_MAP_KEY) then
+        return nil, "invalid-deleted-profile-map"
+    end
+    if not IsValidOptionalSourceMap(state, DELETED_USER_PRESET_MAP_KEY) then
+        return nil, "invalid-deleted-user-preset-map"
     end
 
     return state
@@ -403,12 +423,16 @@ local function FindLayoutByCreatedFrom(layouts, source, sourceId)
     return foundId
 end
 
-local function EnsureMappedSource(map, layouts, source, sourceId, result, recoveredField, skippedField)
+local function EnsureMappedSource(map, deletedMap, layouts, source, sourceId, result, recoveredField, skippedField)
     local mappedLayoutId = map[sourceId]
     if type(mappedLayoutId) == "string" and mappedLayoutId ~= "" then
         if type(layouts[mappedLayoutId]) == "table" then
             result[skippedField] = result[skippedField] + 1
             return true, "mapped"
+        end
+        if IsDeliberatelyDeleted(deletedMap, sourceId, mappedLayoutId) then
+            result[skippedField] = result[skippedField] + 1
+            return true, "deleted"
         end
         AppendError(result, source, sourceId, "mapped-layout-missing")
         return false, "mapped-layout-missing"
@@ -529,7 +553,47 @@ function LayoutMigration.GetState(db)
         return nil, "invalid-user-preset-map"
     end
 
+    if state[DELETED_PROFILE_MAP_KEY] == nil then
+        state[DELETED_PROFILE_MAP_KEY] = {}
+    end
+    if state[DELETED_USER_PRESET_MAP_KEY] == nil then
+        state[DELETED_USER_PRESET_MAP_KEY] = {}
+    end
+    if not IsValidSourceMap(state[DELETED_PROFILE_MAP_KEY]) then
+        return nil, "invalid-deleted-profile-map"
+    end
+    if not IsValidSourceMap(state[DELETED_USER_PRESET_MAP_KEY]) then
+        return nil, "invalid-deleted-user-preset-map"
+    end
+
     return state
+end
+
+function LayoutMigration.MarkDeletedUserLayout(layoutId, createdFrom, db)
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return false, "invalid-layout"
+    end
+
+    local source = type(createdFrom) == "table" and createdFrom.source or nil
+    local sourceId = type(createdFrom) == "table" and createdFrom.id or nil
+    local mapKey = source == "profile" and "profileMap" or source == "userPreset" and "userPresetMap" or nil
+    local deletedMapKey = source == "profile" and DELETED_PROFILE_MAP_KEY
+        or source == "userPreset" and DELETED_USER_PRESET_MAP_KEY
+        or nil
+    if type(sourceId) ~= "string" or sourceId == "" or mapKey == nil or deletedMapKey == nil then
+        return true, "not-migrated"
+    end
+
+    local state, reason = LayoutMigration.GetState(db)
+    if type(state) ~= "table" then
+        return false, reason or "state-unavailable"
+    end
+    if state[mapKey][sourceId] ~= layoutId then
+        return true, "mapping-mismatch"
+    end
+
+    state[deletedMapKey][sourceId] = layoutId
+    return true, "marked-deleted"
 end
 
 function LayoutMigration.MigrateProfiles(db, context)
@@ -549,6 +613,7 @@ function LayoutMigration.MigrateProfiles(db, context)
     for _, profileName in ipairs(GetProfileNames(resolvedDB)) do
         local ok, status = EnsureMappedSource(
             state.profileMap,
+            state[DELETED_PROFILE_MAP_KEY],
             layouts,
             "profile",
             profileName,
@@ -607,6 +672,7 @@ function LayoutMigration.MigrateUserPresets(db, context)
     for _, presetId in ipairs(SortedStringKeys(rawPresets)) do
         local ok, status = EnsureMappedSource(
             state.userPresetMap,
+            state[DELETED_USER_PRESET_MAP_KEY],
             layouts,
             "userPreset",
             presetId,
@@ -695,6 +761,11 @@ function LayoutMigration.VerifyUserLayouts(db)
 
     local profileNames = GetProfileNames(db)
     for _, profileName in ipairs(SortedStringKeys(state.profileMap)) do
+        local mappedLayoutId = state.profileMap[profileName]
+        if IsDeliberatelyDeleted(state[DELETED_PROFILE_MAP_KEY], profileName, mappedLayoutId) then
+            result.profiles.total = result.profiles.total + 1
+            result.profiles.valid = result.profiles.valid + 1
+        else
         local profile = GetProfileByName(db, profileName)
         local legacyPayload = type(profile) == "table"
             and LayoutService.MaterializeFromLegacyProfile
@@ -707,14 +778,20 @@ function LayoutMigration.VerifyUserLayouts(db)
             profileName,
             legacyPayload,
             layouts,
-            state.profileMap[profileName],
+            mappedLayoutId,
             defaults
         )
+        end
     end
     VerifyUnmappedSources(result, "profiles", result.profiles, profileNames, state.profileMap, isComplete)
 
     local rawPresets = type(db) == "table" and type(db.global) == "table" and db.global.UserPresets or nil
     for _, presetId in ipairs(SortedStringKeys(state.userPresetMap)) do
+        local mappedLayoutId = state.userPresetMap[presetId]
+        if IsDeliberatelyDeleted(state[DELETED_USER_PRESET_MAP_KEY], presetId, mappedLayoutId) then
+            result.userPresets.total = result.userPresets.total + 1
+            result.userPresets.valid = result.userPresets.valid + 1
+        else
         local rawPreset = type(rawPresets) == "table" and rawPresets[presetId] or nil
         local legacyPayload = type(rawPreset) == "table"
             and type(rawPreset.layout) == "table"
@@ -728,9 +805,10 @@ function LayoutMigration.VerifyUserLayouts(db)
             presetId,
             legacyPayload,
             layouts,
-            state.userPresetMap[presetId],
+            mappedLayoutId,
             defaults
         )
+        end
     end
     VerifyUnmappedSources(
         result,

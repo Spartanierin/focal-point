@@ -232,6 +232,12 @@ function Mutations.DeleteUserLayout(layoutId)
         return false, "store-delete-failed"
     end
 
+    local migration = FocalPoint.LayoutMigration or {}
+    local migrationOk, migrationReason = true, "not-migrated"
+    if type(migration.MarkDeletedUserLayout) == "function" then
+        migrationOk, migrationReason = migration.MarkDeletedUserLayout(layoutId, existing.createdFrom, FocalPoint.db)
+    end
+
     local clearedAssignments = 0
     local AssignmentService = FocalPoint.LayoutAssignmentService or {}
     if AssignmentService.ClearAssignmentsForLayout then
@@ -240,6 +246,10 @@ function Mutations.DeleteUserLayout(layoutId)
         if not clearOk then
             return true, layoutId, clearedAssignments, countOrReason or "assignment-reconcile-failed"
         end
+    end
+
+    if not migrationOk then
+        return true, layoutId, clearedAssignments, migrationReason or "migration-delete-marker-failed"
     end
 
     return true, layoutId, clearedAssignments

@@ -59,6 +59,9 @@ Load("Services/CompositionPresenceStorage.lua")
 Load("Services/LayoutService.lua")
 Load("Services/UserLayoutStore.lua")
 Load("Services/LayoutMigration.lua")
+Load("Services/ActiveLayoutResolver.lua")
+Load("Services/LayoutAssignmentService.lua")
+Load("Services/LayoutMutations.lua")
 
 local function NewDatabase(profile)
     local database = {
@@ -122,6 +125,56 @@ AssertEqual(secondResult.migratedProfiles, 0, "second migration profile count")
 AssertEqual(CountEntries(database.global.UserLayouts), 1, "second migration layout count")
 local verification = FocalPoint.LayoutMigration.VerifyUserLayouts(database)
 assert(verification.complete == true, "migration verification failed")
+
+local deletedLayoutId = database.global.LayoutMigration.profileMap.Default
+database.char = {
+    LayoutAssignments = {
+        specialization = {
+            [72] = deletedLayoutId,
+        },
+    },
+}
+local deleteOk = FocalPoint.LayoutMutations.DeleteUserLayout(deletedLayoutId)
+assert(deleteOk == true, "delete migrated layout failed")
+assert(database.global.UserLayouts[deletedLayoutId] == nil, "deleted layout remains stored")
+AssertEqual(database.global.LayoutMigration.deletedProfileMap.Default, deletedLayoutId, "deleted profile tombstone")
+assert(database.char.LayoutAssignments.specialization[72] == nil, "deleted layout assignment remains stored")
+local deletedResult = FocalPoint.LayoutMigration.MigrateAll(database)
+assert(deletedResult.complete == true, "deleted migrated layout must not fail migration")
+AssertEqual(CountEntries(database.global.UserLayouts), 0, "deleted migrated layout was recreated")
+local deletedVerification = FocalPoint.LayoutMigration.VerifyUserLayouts(database)
+assert(deletedVerification.complete == true, "deleted migrated layout verification failed")
+local deletedSecondResult = FocalPoint.LayoutMigration.MigrateAll(database)
+assert(deletedSecondResult.complete == true, "deleted migrated layout second run failed")
+AssertEqual(CountEntries(database.global.UserLayouts), 0, "deleted migrated layout second run recreated it")
+
+local missingDatabase = NewDatabase({ Units = { target = {} } })
+missingDatabase.global = {
+    UserLayouts = {},
+    LayoutMigration = {
+        version = 1,
+        profileMap = { Default = "missing" },
+        userPresetMap = {},
+    },
+}
+FocalPoint.db = missingDatabase
+assert(FocalPoint.LayoutMigration.EnsureBackup(missingDatabase) == true, "missing-layout backup failed")
+local missingResult = FocalPoint.LayoutMigration.MigrateAll(missingDatabase)
+AssertEqual(#missingResult.errors, 1, "missing layout error count")
+AssertEqual(missingResult.errors[1].reason, "mapped-layout-missing", "missing layout error")
+assert(missingDatabase.global.UserLayouts.missing == nil, "missing layout was silently recreated")
+
+local nativeDatabase = NewDatabase({ Units = { target = {} } })
+FocalPoint.db = nativeDatabase
+nativeDatabase.global.UserLayouts = {
+    ["layout:native"] = {
+        name = "Native",
+        payload = { Units = {}, TextTemplates = {} },
+        createdFrom = { source = "builtin", id = "default" },
+    },
+}
+assert(FocalPoint.LayoutMutations.DeleteUserLayout("layout:native") == true, "delete native layout failed")
+assert(nativeDatabase.global.LayoutMigration == nil or nativeDatabase.global.LayoutMigration.deletedProfileMap == nil, "native deletion created legacy tombstone")
 
 local _, noEvidencePayload = MigrateProfile({ Units = { target = {} } })
 local noEvidenceTarget = noEvidencePayload.Units.target
