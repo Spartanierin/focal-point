@@ -7,6 +7,7 @@ local CanvasHoverOverlay = {}
 FocalPoint.GUI.Editor.CanvasHoverOverlay = CanvasHoverOverlay
 
 local SelectionGeometryResolver = FocalPoint.GUI.Editor.SelectionGeometryResolver or {}
+local AnchorGeometry = FocalPoint.GUI.Editor.AnchorGeometry or {}
 
 local HOVER_FRAME_LEVEL = 910
 
@@ -35,6 +36,14 @@ local INDICATOR_TARGETS = {
     { indicatorKey = "ReadyCheckIndicator", elementKey = "ReadyCheckIndicator", level = 51, movesUnit = true },
     { indicatorKey = "ClassificationIndicator", elementKey = "ClassificationCrest", level = 52, movesUnit = true },
     { indicatorKey = "ClassificationIndicator", elementKey = "ClassificationPortraitOverlay", level = 52, movesUnit = true },
+}
+
+local AUTO_ANCHOR_INDICATORS = {
+    Portrait = true,
+    RaidTargetIcon = true,
+    LeaderIcon = true,
+    RoleIcon = true,
+    ReadyCheckIndicator = true,
 }
 
 local currentHover = nil
@@ -369,11 +378,31 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
             return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = "castBarOffsetX", offsetYField = "castBarOffsetY" }
         end
         if objectKey == "ClassPowerBar" then
-            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = "classPowerBarOffsetX", offsetYField = "classPowerBarOffsetY" }
+            return {
+                kind = "unit",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                anchorToField = "classPowerBarAnchorTo",
+                pointField = "classPowerBarPoint",
+                relativePointField = "classPowerBarRelativePoint",
+                offsetXField = "classPowerBarOffsetX",
+                offsetYField = "classPowerBarOffsetY",
+                autoAnchor = true,
+            }
         end
         local prefix = objectKey == "NormalAbsorbBar" and "normalAbsorbBar" or objectKey == "HealingAbsorbBar" and "healingAbsorbBar" or nil
         if prefix and unitConfig[prefix .. "SizeMode"] == "CUSTOM" then
-            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = prefix .. "OffsetX", offsetYField = prefix .. "OffsetY" }
+            return {
+                kind = "unit",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                anchorToField = prefix .. "AnchorTo",
+                pointField = prefix .. "Point",
+                relativePointField = prefix .. "RelativePoint",
+                offsetXField = prefix .. "OffsetX",
+                offsetYField = prefix .. "OffsetY",
+                autoAnchor = true,
+            }
         end
         return nil
     end
@@ -394,7 +423,16 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
             return nil
         end
         if type(indicatorConfig) == "table" and indicatorConfig.placement ~= "INSIDE" then
-            return { kind = "indicator", unitConfig = unitConfig, unitKey = unitKey, indicatorKey = indicatorKey, indicatorMeta = indicatorMeta, offsetXField = "offsetX", offsetYField = "offsetY" }
+            return {
+                kind = "indicator",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                indicatorKey = indicatorKey,
+                indicatorMeta = indicatorMeta,
+                offsetXField = "offsetX",
+                offsetYField = "offsetY",
+                autoAnchor = AUTO_ANCHOR_INDICATORS[indicatorKey] == true,
+            }
         end
         return nil
     end
@@ -410,7 +448,16 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
     if objectRef.kind == "decoration" then
         local decorationConfig = FindDecorationConfig(unitConfig, objectRef.decorationId)
         if decorationConfig then
-            return { kind = "decoration", unitConfig = unitConfig, unitKey = unitKey, decorationId = objectRef.decorationId, offsetXField = "offsetX", offsetYField = "offsetY" }
+            return {
+                kind = "decoration",
+                unitConfig = unitConfig,
+                unitKey = unitKey,
+                decorationId = objectRef.decorationId,
+                decorationConfig = decorationConfig,
+                offsetXField = "offsetX",
+                offsetYField = "offsetY",
+                autoAnchor = true,
+            }
         end
     end
 
@@ -426,6 +473,49 @@ local function GetDirectMoveOffsetConfig(descriptor)
         return descriptor.auraConfig or {}
     end
     return descriptor and descriptor.unitConfig or {}
+end
+
+local function GetFrameRect(frame)
+    if not (frame and frame.GetLeft and frame.GetRight and frame.GetTop and frame.GetBottom) then
+        return nil
+    end
+    local left, right, top, bottom = frame:GetLeft(), frame:GetRight(), frame:GetTop(), frame:GetBottom()
+    if type(left) ~= "number" or type(right) ~= "number" or type(top) ~= "number" or type(bottom) ~= "number"
+        or left >= right or bottom >= top
+    then
+        return nil
+    end
+    return { left = left, right = right, top = top, bottom = bottom }
+end
+
+local function ResolveDirectMoveAnchorOwner(state)
+    local descriptor = state and state.descriptor
+    local frame = state and state.frame
+    if not (descriptor and frame) then
+        return nil
+    end
+    local factory = FocalPoint.UnitFrameFactory
+    if descriptor.kind == "unit" then
+        local anchorTo = descriptor.unitConfig and descriptor.unitConfig[descriptor.anchorToField]
+        return factory and factory.GetAnchorTarget and factory.GetAnchorTarget(frame, anchorTo) or frame
+    end
+    if descriptor.kind == "indicator" then
+        local config = descriptor.indicatorMeta and descriptor.unitConfig and descriptor.unitConfig[descriptor.indicatorMeta.optionKey]
+        local anchorTo = type(config) == "table" and config.anchorTo or nil
+        return factory and factory.GetAnchorTarget and factory.GetAnchorTarget(frame, anchorTo) or frame
+    end
+    if descriptor.kind == "decoration" then
+        local decoration = FocalPoint.UnitFrameDecoration
+        return decoration and decoration.ResolveTarget and decoration.ResolveTarget(frame, descriptor.decorationConfig) or nil
+    end
+    return nil
+end
+
+local function ResolveDirectMoveAutoAnchor(state)
+    if not (state and state.descriptor and state.descriptor.autoAnchor and AnchorGeometry.ResolveAutoAnchorGeometry) then
+        return nil
+    end
+    return AnchorGeometry.ResolveAutoAnchorGeometry(GetFrameRect(state.target), GetFrameRect(ResolveDirectMoveAnchorOwner(state)))
 end
 
 local function ShowZone(zone)
@@ -525,7 +615,7 @@ local function ClearAuraDirectMovePreview(state)
     return true
 end
 
-local function CommitDirectMove(state)
+local function CommitDirectMove(state, anchorPosition)
     local mutations = FocalPoint.InspectorMutations
         or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
     if not (state and state.descriptor and mutations) then
@@ -535,7 +625,27 @@ local function CommitDirectMove(state)
     local descriptor = state.descriptor
     local context = { unitConfig = descriptor.unitConfig }
     local result
-    if descriptor.kind == "unit" then
+    if anchorPosition and descriptor.autoAnchor and descriptor.kind == "unit" then
+        result = mutations.SetUnitComponentAnchorPosition
+            and mutations.SetUnitComponentAnchorPosition(
+                context,
+                descriptor.pointField,
+                descriptor.relativePointField,
+                descriptor.offsetXField,
+                descriptor.offsetYField,
+                anchorPosition.point,
+                anchorPosition.relativePoint,
+                anchorPosition.offsetX,
+                anchorPosition.offsetY
+            )
+    elseif anchorPosition and descriptor.autoAnchor and descriptor.kind == "indicator" then
+        context.indicatorMeta = descriptor.indicatorMeta
+        result = mutations.SetIndicatorAnchorPosition
+            and mutations.SetIndicatorAnchorPosition(context, descriptor.indicatorKey, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
+    elseif anchorPosition and descriptor.autoAnchor and descriptor.kind == "decoration" then
+        result = mutations.SetDecorationAnchorPosition
+            and mutations.SetDecorationAnchorPosition(context, descriptor.decorationId, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
+    elseif descriptor.kind == "unit" then
         result = mutations.SetUnitComponentPositionOffsets
             and mutations.SetUnitComponentPositionOffsets(context, descriptor.offsetXField, descriptor.offsetYField, state.currentOffsetX, state.currentOffsetY)
     elseif descriptor.kind == "indicator" then
@@ -560,7 +670,8 @@ local function EndDirectMoveDrag(zone, commit)
 
     zone._focalPointDirectDragState = nil
     zone:SetScript("OnUpdate", nil)
-    local result = commit == true and state.dragging and CommitDirectMove(state) or nil
+    local anchorPosition = commit == true and state.dragging and ResolveDirectMoveAutoAnchor(state) or nil
+    local result = commit == true and state.dragging and CommitDirectMove(state, anchorPosition) or nil
     if not (result and result.ok ~= false) then
         if ClearAuraDirectMovePreview(state) then
             local layout = FocalPoint.AuraBlockLayout
@@ -577,13 +688,12 @@ local function EndDirectMoveDrag(zone, commit)
     end
     CanvasHoverOverlay.UpdateFrame(state.frame)
     local inspector = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector
-    if inspector and inspector.SetActiveCanvasDirectMoveOffsetValues and type(result.newValue) == "table" then
-        inspector.SetActiveCanvasDirectMoveOffsetValues(
-            state.descriptor.unitKey,
-            state.objectRef,
-            result.newValue.offsetX,
-            result.newValue.offsetY
-        )
+    if inspector and type(result.newValue) == "table" then
+        if result.newValue.point and inspector.SetActiveCanvasDirectMoveAnchorValues then
+            inspector.SetActiveCanvasDirectMoveAnchorValues(state.descriptor.unitKey, state.objectRef, result.newValue)
+        elseif inspector.SetActiveCanvasDirectMoveOffsetValues then
+            inspector.SetActiveCanvasDirectMoveOffsetValues(state.descriptor.unitKey, state.objectRef, result.newValue.offsetX, result.newValue.offsetY)
+        end
     end
 end
 

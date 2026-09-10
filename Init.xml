@@ -129,6 +129,7 @@
     <Script file="GUI/Editor/EditorMode.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
     <Script file="GUI/Editor/ObjectSelection.lua"/>
+    <Script file="GUI/Editor/EditorAnchorGeometry.lua"/>
     <Script file="GUI/Editor/SelectionGeometryResolver.lua"/>
     <Script file="GUI/Editor/CanvasHoverOverlay.lua"/>
     <Script file="GUI/Editor/EditorPresencePolicy.lua"/>

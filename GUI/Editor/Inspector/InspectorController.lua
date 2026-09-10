@@ -129,7 +129,7 @@ function InspectorController.SetActiveCanvasWheelFieldValue(unitKey, objectRef, 
     return ok == true
 end
 
-local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, offsetXControl, offsetYControl)
+local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, offsetXControl, offsetYControl, pointControl, relativePointControl)
     local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
     if not IsSameInspectorObject(selected, objectRef) then
         return
@@ -139,6 +139,8 @@ local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, 
         objectRef = objectRef,
         offsetXControl = offsetXControl,
         offsetYControl = offsetYControl,
+        pointControl = pointControl,
+        relativePointControl = relativePointControl,
         suppress = false,
     }
 end
@@ -147,7 +149,7 @@ local function IsActiveCanvasDirectMoveOffsetControlSuppressed(widget)
     local controls = activeCanvasDirectMoveOffsetControls
     return type(controls) == "table"
         and controls.suppress == true
-        and (controls.offsetXControl == widget or controls.offsetYControl == widget)
+        and (controls.offsetXControl == widget or controls.offsetYControl == widget or controls.pointControl == widget or controls.relativePointControl == widget)
 end
 
 function InspectorController.SetActiveCanvasDirectMoveOffsetValues(unitKey, objectRef, offsetX, offsetY)
@@ -167,6 +169,33 @@ function InspectorController.SetActiveCanvasDirectMoveOffsetValues(unitKey, obje
     local ok = pcall(function()
         controls.offsetXControl:SetValue(offsetX)
         controls.offsetYControl:SetValue(offsetY)
+    end)
+    controls.suppress = false
+    return ok == true
+end
+
+function InspectorController.SetActiveCanvasDirectMoveAnchorValues(unitKey, objectRef, value)
+    local controls = activeCanvasDirectMoveOffsetControls
+    local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
+    if type(controls) ~= "table"
+        or controls.unitKey ~= NormalizeInspectorUnitKey(unitKey)
+        or not IsSameInspectorObject(controls.objectRef, objectRef)
+        or not IsSameInspectorObject(selected, objectRef)
+        or type(controls.pointControl) ~= "table"
+        or type(controls.relativePointControl) ~= "table"
+        or type(controls.offsetXControl) ~= "table"
+        or type(controls.offsetYControl) ~= "table"
+        or type(value) ~= "table"
+    then
+        return false
+    end
+
+    controls.suppress = true
+    local ok = pcall(function()
+        controls.pointControl:SetValue(value.point)
+        controls.relativePointControl:SetValue(value.relativePoint)
+        controls.offsetXControl:SetValue(value.offsetX)
+        controls.offsetYControl:SetValue(value.offsetY)
     end)
     controls.suppress = false
     return ok == true
@@ -2496,10 +2525,15 @@ function InspectorController.Build(container, state, options)
                 AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
                     SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddPointPairRow(positionSection, {
+                local pointControl
+                local relativePointControl
+                pointControl, relativePointControl = AddPointPairRow(positionSection, {
                     list = barAnchorList,
                     value = unitConfig[prefix .. "Point"] or "LEFT",
                     onChanged = function(value)
+                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(pointControl) then
+                            return
+                        end
                         SetUnitField(prefix .. "Point", value, rootSection)
                     end,
                     disabled = not isCustom,
@@ -2507,6 +2541,9 @@ function InspectorController.Build(container, state, options)
                     list = barAnchorList,
                     value = unitConfig[prefix .. "RelativePoint"] or "LEFT",
                     onChanged = function(value)
+                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(relativePointControl) then
+                            return
+                        end
                         SetUnitField(prefix .. "RelativePoint", value, rootSection)
                     end,
                     disabled = not isCustom,
@@ -2528,7 +2565,7 @@ function InspectorController.Build(container, state, options)
                     kind = "bar",
                     unit = state and state.selectedUnit,
                     objectKey = objectKey,
-                }, offsetXControl, offsetYControl)
+                }, offsetXControl, offsetYControl, pointControl, relativePointControl)
             else
                 AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
                     SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
@@ -3036,11 +3073,16 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showClassPowerBar ~= true)
             end
 
+            local pointControl
+            local relativePointControl
             if usePropertyGroups then
-                AddPointPairRow(positionSection, {
+                pointControl, relativePointControl = AddPointPairRow(positionSection, {
                     list = barAnchorList,
                     value = unitConfig.classPowerBarPoint or "BOTTOMRIGHT",
                     onChanged = function(value)
+                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(pointControl) then
+                            return
+                        end
                         SetUnitField("classPowerBarPoint", value)
                     end,
                     disabled = unitConfig.showClassPowerBar ~= true,
@@ -3048,6 +3090,9 @@ function InspectorController.Build(container, state, options)
                     list = barAnchorList,
                     value = unitConfig.classPowerBarRelativePoint or "BOTTOMRIGHT",
                     onChanged = function(value)
+                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(relativePointControl) then
+                            return
+                        end
                         SetUnitField("classPowerBarRelativePoint", value)
                     end,
                     disabled = unitConfig.showClassPowerBar ~= true,
@@ -3101,7 +3146,7 @@ function InspectorController.Build(container, state, options)
                 kind = "bar",
                 unit = state and state.selectedUnit,
                 objectKey = "ClassPowerBar",
-            }, offsetXControl, offsetYControl)
+            }, offsetXControl, offsetYControl, pointControl, relativePointControl)
         end
     end
 
@@ -4011,17 +4056,23 @@ function InspectorController.Build(container, state, options)
                     SetIndicatorField(selectedIndicatorKey, "anchorTo", value)
                 end,
             }, disabled)
-            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+            local pointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
                 list = portraitAnchorPointList,
                 value = indicatorConfig.point or "TOP",
                 onChanged = function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(pointControl) then
+                        return
+                    end
                     SetIndicatorField(selectedIndicatorKey, "point", value)
                 end,
             }, disabled)
-            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+            local relativePointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
                 list = portraitAnchorPointList,
                 value = indicatorConfig.relativePoint or "TOP",
                 onChanged = function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(relativePointControl) then
+                        return
+                    end
                     SetIndicatorField(selectedIndicatorKey, "relativePoint", value)
                 end,
             }, disabled)
@@ -4042,7 +4093,7 @@ function InspectorController.Build(container, state, options)
                 unit = state and state.selectedUnit,
                 indicatorKey = selectedIndicatorKey,
                 objectKey = selectedIndicatorKey,
-            }, offsetXControl, offsetYControl)
+            }, offsetXControl, offsetYControl, pointControl, relativePointControl)
         else
             AddDropdown(indicatorSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", portraitAnchorTargetList, indicatorConfig.anchorTo or "Frame", function(value)
                 SetIndicatorField(selectedIndicatorKey, "anchorTo", value)
@@ -4288,18 +4339,24 @@ function InspectorController.Build(container, state, options)
                 end,
                 anchorKey = "decoration_target",
             }, disabled)
-            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+            local pointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
                 list = portraitAnchorPointList,
                 value = decorationConfig.point or "CENTER",
                 onChanged = function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(pointControl) then
+                        return
+                    end
                     SetDecorationField("point", value)
                 end,
                 anchorKey = "decoration_point",
             }, disabled)
-            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+            local relativePointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
                 list = portraitAnchorPointList,
                 value = decorationConfig.relativePoint or "CENTER",
                 onChanged = function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(relativePointControl) then
+                        return
+                    end
                     SetDecorationField("relativePoint", value)
                 end,
                 anchorKey = "decoration_relative_point",
@@ -4321,7 +4378,7 @@ function InspectorController.Build(container, state, options)
                 unit = state and state.selectedUnit,
                 decorationId = selectedDecorationId,
                 objectKey = selectedDecorationId,
-            }, offsetXControl, offsetYControl)
+            }, offsetXControl, offsetYControl, pointControl, relativePointControl)
             AddPropertyDropdownRow(behaviorSection, L["OPTION_CONDITION"] or "Condition", {
                 list = decorationConditionList,
                 value = decorationConfig.condition or "ALWAYS",

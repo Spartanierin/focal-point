@@ -48,6 +48,22 @@ local function NormalizeOffset(value)
     return math.floor(value + 0.5)
 end
 
+local TEXT_ANCHOR_POINTS = {
+    TOPLEFT = true,
+    TOP = true,
+    TOPRIGHT = true,
+    LEFT = true,
+    CENTER = true,
+    RIGHT = true,
+    BOTTOMLEFT = true,
+    BOTTOM = true,
+    BOTTOMRIGHT = true,
+}
+
+local function IsValidTextAnchorPoint(point)
+    return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
+end
+
 local function SetPositionOffsets(target, offsetX, offsetY, missingCode, offsetXField, offsetYField)
     if type(target) ~= "table" then
         return Result(false, { errorCode = missingCode or "invalid_context" })
@@ -76,6 +92,47 @@ local function SetPositionOffsets(target, offsetX, offsetY, missingCode, offsetX
     })
 end
 
+local function SetAnchorPosition(target, point, relativePoint, offsetX, offsetY, missingCode, pointField, relativePointField, offsetXField, offsetYField)
+    if type(target) ~= "table" then
+        return Result(false, { errorCode = missingCode or "invalid_context" })
+    end
+    if not IsValidTextAnchorPoint(point) or not IsValidTextAnchorPoint(relativePoint) then
+        return Result(false, { errorCode = "invalid_anchor" })
+    end
+
+    pointField = pointField or "point"
+    relativePointField = relativePointField or "relativePoint"
+    offsetXField = offsetXField or "offsetX"
+    offsetYField = offsetYField or "offsetY"
+    if not IsValidFieldName(pointField) or not IsValidFieldName(relativePointField)
+        or not IsValidFieldName(offsetXField) or not IsValidFieldName(offsetYField)
+    then
+        return Result(false, { errorCode = "invalid_field" })
+    end
+
+    local nextX = NormalizeOffset(offsetX)
+    local nextY = NormalizeOffset(offsetY)
+    local oldValue = {
+        point = target[pointField],
+        relativePoint = target[relativePointField],
+        offsetX = NormalizeOffset(target[offsetXField]),
+        offsetY = NormalizeOffset(target[offsetYField]),
+    }
+    local changed = oldValue.point ~= point or oldValue.relativePoint ~= relativePoint
+        or oldValue.offsetX ~= nextX or oldValue.offsetY ~= nextY
+    if changed then
+        target[pointField] = point
+        target[relativePointField] = relativePoint
+        target[offsetXField] = nextX
+        target[offsetYField] = nextY
+    end
+    return Result(true, {
+        changed = changed,
+        oldValue = oldValue,
+        newValue = { point = point, relativePoint = relativePoint, offsetX = nextX, offsetY = nextY },
+    })
+end
+
 local MIN_TEXT_FONT_SIZE = 6
 local MAX_TEXT_FONT_SIZE = 32
 local TEXT_POSITION_KEYS = { "anchorTo", "point", "relativePoint", "offsetX", "offsetY" }
@@ -92,18 +149,6 @@ local function NormalizeTextFontSize(value)
 
     return math.floor(value + 0.5)
 end
-
-local TEXT_ANCHOR_POINTS = {
-    TOPLEFT = true,
-    TOP = true,
-    TOPRIGHT = true,
-    LEFT = true,
-    CENTER = true,
-    RIGHT = true,
-    BOTTOMLEFT = true,
-    BOTTOM = true,
-    BOTTOMRIGHT = true,
-}
 
 local DECORATION_DEFAULTS = {
     id = "primary",
@@ -146,10 +191,6 @@ local TABLE_COMPONENT_PRESENCE_KEYS = {
     Buffs = true,
     Debuffs = true,
 }
-
-local function IsValidTextAnchorPoint(point)
-    return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
-end
 
 local function CopyValue(value)
     if type(value) == "table" then
@@ -759,11 +800,25 @@ function InspectorMutations.SetUnitComponentPositionOffsets(context, offsetXFiel
     return SetPositionOffsets(GetUnitConfig(context), offsetX, offsetY, "unit_config_not_found", offsetXField, offsetYField)
 end
 
+function InspectorMutations.SetUnitComponentAnchorPosition(context, pointField, relativePointField, offsetXField, offsetYField, point, relativePoint, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetAnchorPosition(GetUnitConfig(context), point, relativePoint, offsetX, offsetY, "unit_config_not_found", pointField, relativePointField, offsetXField, offsetYField)
+end
+
 function InspectorMutations.SetIndicatorPositionOffsets(context, indicatorKey, offsetX, offsetY)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetPositionOffsets(GetIndicatorConfig(context, indicatorKey), offsetX, offsetY, "indicator_config_not_found")
+end
+
+function InspectorMutations.SetIndicatorAnchorPosition(context, indicatorKey, point, relativePoint, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetAnchorPosition(GetIndicatorConfig(context, indicatorKey), point, relativePoint, offsetX, offsetY, "indicator_config_not_found")
 end
 
 function InspectorMutations.AdjustIndicatorScale(context, indicatorKey, delta)
@@ -892,6 +947,13 @@ function InspectorMutations.SetDecorationPositionOffsets(context, decorationId, 
         return Result(false, { errorCode = "invalid_context" })
     end
     return SetPositionOffsets(GetDecorationConfig(context, decorationId, true), offsetX, offsetY, "decoration_config_not_found")
+end
+
+function InspectorMutations.SetDecorationAnchorPosition(context, decorationId, point, relativePoint, offsetX, offsetY)
+    if type(context) ~= "table" then
+        return Result(false, { errorCode = "invalid_context" })
+    end
+    return SetAnchorPosition(GetDecorationConfig(context, decorationId, true), point, relativePoint, offsetX, offsetY, "decoration_config_not_found")
 end
 
 return InspectorMutations
