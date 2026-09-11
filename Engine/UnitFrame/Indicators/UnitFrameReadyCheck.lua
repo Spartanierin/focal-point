@@ -39,14 +39,15 @@ function ReadyCheck.Update(owner, frame)
         return
     end
 
-    if not readyCheckConfig or readyCheckConfig.enabled == false then
+    local selectionPreview = Indicators.IsSelectionPreview and Indicators.IsSelectionPreview(frame, "ReadyCheckIndicator")
+    if not readyCheckConfig or (readyCheckConfig.enabled == false and not selectionPreview) then
         HandleVisibilityTransition(owner, frame, holder, false, "_readyCheckLayoutRefreshQueued")
         return
     end
 
     local status = frame._fpUnit and GetReadyCheckStatus and GetReadyCheckStatus(frame._fpUnit) or nil
 
-    if not status and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "readyCheck") then
+    if not status and (selectionPreview or (IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "readyCheck"))) then
         local previewMap = {
             player = "ready",
             target = "notready",

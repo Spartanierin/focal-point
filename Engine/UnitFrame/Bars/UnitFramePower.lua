@@ -27,6 +27,20 @@ local function IsSecretValue(value)
     return issecretvalue and issecretvalue(value) or false
 end
 
+local function HasUsableLivePower(unit, unitExists)
+    if not (unitExists == true and UnitPower and UnitPowerMax) then
+        return false
+    end
+
+    local current = UnitPower(unit)
+    local maximum = UnitPowerMax(unit)
+    return type(current) == "number"
+        and type(maximum) == "number"
+        and not IsSecretValue(current)
+        and not IsSecretValue(maximum)
+        and maximum > 0
+end
+
 local function ResolveBarVisualState(frame, componentKey, enabled, hasLiveData)
     if VisualPolicy.Resolve then
         return VisualPolicy.Resolve(frame, componentKey, {
@@ -61,7 +75,7 @@ function Power.RefreshUnitBarValues(owner, frame)
     local unit = frame._fpUnit
     local unitExists = DoesUnitSeemPresent(unit)
     local powerEnabled = not (frame.config and frame.config.showPowerBar == false)
-    local hasLivePower = unitExists == true and UnitPower ~= nil and UnitPowerMax ~= nil
+    local hasLivePower = HasUsableLivePower(unit, unitExists)
     local visualState = ResolveBarVisualState(frame, "PowerBar", powerEnabled, hasLivePower)
     local previewValues = nil
     if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState) then

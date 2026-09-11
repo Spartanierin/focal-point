@@ -47,7 +47,8 @@ function Combat.Update(owner, frame)
         return
     end
 
-    if not combatConfig or combatConfig.enabled == false then
+    local selectionPreview = Indicators.IsSelectionPreview and Indicators.IsSelectionPreview(frame, "CombatIndicator")
+    if not combatConfig or (combatConfig.enabled == false and not selectionPreview) then
         if StatusOverlay.Hide then
             StatusOverlay.Hide(holder)
         end
@@ -57,8 +58,8 @@ function Combat.Update(owner, frame)
 
     local inCombat = frame._fpUnit and UnitAffectingCombat and UnitAffectingCombat(frame._fpUnit) or false
 
-    if IsPreviewModeEnabled() then
-        inCombat = IsPreviewIndicatorVisible(frame, "combat")
+    if selectionPreview or IsPreviewModeEnabled() then
+        inCombat = selectionPreview or IsPreviewIndicatorVisible(frame, "combat")
     end
 
     if not inCombat then

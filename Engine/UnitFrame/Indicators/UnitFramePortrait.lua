@@ -4,6 +4,16 @@ FocalPoint.UnitFramePortrait = FocalPoint.UnitFramePortrait or {}
 local Portrait = FocalPoint.UnitFramePortrait
 local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 local State = FocalPoint.UnitFrameState or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
+
+local function IsSelectionPreview(frame)
+    return VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "indicator",
+        unit = frame and frame._fpUnit,
+        indicatorKey = "Portrait",
+        objectKey = "Portrait",
+    }) == true
+end
 
 -- Portrait helpers encapsulate creation, texture refresh, and portrait-specific
 -- event registration without pulling in the full unit-frame runtime.
@@ -49,7 +59,7 @@ function Portrait.UpdateTexture(frame)
         return
     end
 
-    if not portraitConfig or portraitConfig.present ~= true or portraitConfig.enabled == false then
+    if not portraitConfig or portraitConfig.present ~= true or (portraitConfig.enabled == false and not IsSelectionPreview(frame)) then
         texture:SetTexture(nil)
         texture:Hide()
         return

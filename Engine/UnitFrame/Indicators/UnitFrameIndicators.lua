@@ -48,6 +48,16 @@ local function IsIndicatorPresent(frame, indicatorKey)
     return type(indicatorConfig) == "table" and indicatorConfig.present == true
 end
 
+function Indicators.IsSelectionPreview(frame, indicatorKey)
+    local policy = FocalPoint.EditorVisualPolicy or {}
+    return policy.IsSelectionPreview and policy.IsSelectionPreview(frame, {
+        kind = "indicator",
+        unit = frame and frame._fpUnit,
+        indicatorKey = indicatorKey,
+        objectKey = indicatorKey,
+    }) == true
+end
+
 local function ResolvePresencePolicy()
     return FocalPoint.EditorPresencePolicy
         or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.PresencePolicy)
@@ -59,7 +69,8 @@ local function ShouldRepresentIndicator(frame, indicatorKey)
         return false
     end
 
-    if not (IsEditorActive() and CONDITIONAL_INDICATORS[indicatorKey] and IsIndicatorEnabled(frame, indicatorKey)) then
+    if not (IsEditorActive() and CONDITIONAL_INDICATORS[indicatorKey]
+        and (IsIndicatorEnabled(frame, indicatorKey) or Indicators.IsSelectionPreview(frame, indicatorKey))) then
         return false
     end
 

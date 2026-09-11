@@ -270,7 +270,12 @@ local function ApplyAbsorbBarVisibility(frame, config, spec)
         return false
     end
 
-    if config and config[spec.showKey] == false then
+    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "bar",
+        unit = frame and frame._fpUnit,
+        objectKey = spec.elementKey,
+    }) == true
+    if config and config[spec.showKey] == false and not selectionPreview then
         bar:Hide()
     else
         bar:Show()

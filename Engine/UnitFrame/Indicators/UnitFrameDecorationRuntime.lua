@@ -5,6 +5,7 @@ local Runtime = FocalPoint.UnitFrameDecorationRuntime
 
 local Decoration = FocalPoint.UnitFrameDecoration or {}
 local VisualIndicator = FocalPoint.UnitFrameVisualIndicator or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 local MEDIA_TYPE_DECORATION = "decoration"
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 
@@ -142,10 +143,15 @@ function Runtime.Apply(frame, decorations, context)
         local visual = holder and VisualIndicator.ResetHolderVisual and VisualIndicator.ResetHolderVisual(holder, frame) or nil
         local texture = holder and holder.Texture or nil
         local target = Decoration.ResolveTarget and Decoration.ResolveTarget(frame, decoration) or nil
-        local conditionOk = Decoration.ResolveCondition and Decoration.ResolveCondition(frame, decoration, context) or false
+        local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+            kind = "decoration",
+            unit = frame and frame._fpUnit,
+            decorationId = decoration.id,
+        }) == true
+        local conditionOk = selectionPreview or (Decoration.ResolveCondition and Decoration.ResolveCondition(frame, decoration, context) or false)
         local texturePath = ResolveDecorationTexture(decoration.texture)
 
-        if not holder or not visual or not texture or not decoration.enabled or not texturePath or not target or not conditionOk then
+        if not holder or not visual or not texture or (not decoration.enabled and not selectionPreview) or not texturePath or not target or not conditionOk then
             if holder then
                 VisualIndicator.Hide(holder)
             end

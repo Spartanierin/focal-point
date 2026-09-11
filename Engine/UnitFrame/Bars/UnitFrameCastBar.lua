@@ -35,7 +35,15 @@ function CastBar.IsTextEditMode()
 end
 
 function CastBar.ShouldRepresentInEditor(frame)
-    if not frame or not frame.config or frame.config.showCastBar == false then
+    if not frame or not frame.config then
+        return false
+    end
+    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "bar",
+        unit = frame._fpUnit,
+        objectKey = "CastBar",
+    }) == true
+    if frame.config.showCastBar == false and not selectionPreview then
         return false
     end
     if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar") then
@@ -134,7 +142,12 @@ function CastBar.ApplyTextEditPreview(frame)
         return false
     end
 
-    if (frame.config and frame.config.showCastBar == false)
+    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "bar",
+        unit = frame and frame._fpUnit,
+        objectKey = "CastBar",
+    }) == true
+    if ((frame.config and frame.config.showCastBar == false) and not selectionPreview)
         or (RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar"))
     then
         castBar.isTextEditPreview = false
@@ -343,6 +356,11 @@ function CastBar.Start(frame)
     if not castBar or not unit then
         return
     end
+    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "bar",
+        unit = unit,
+        objectKey = "CastBar",
+    }) == true
     if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar") then
         CastBar.Stop(frame)
         return
@@ -384,7 +402,7 @@ function CastBar.Start(frame)
         end
     end
 
-    if frame.config and frame.config.showCastBar ~= false then
+    if frame.config and (frame.config.showCastBar ~= false or selectionPreview) then
         castBar:Show()
     end
 end

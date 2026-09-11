@@ -70,15 +70,16 @@ function Leader.Update(owner, frame)
         return
     end
 
-    if not leaderConfig or leaderConfig.enabled == false then
+    local selectionPreview = Indicators.IsSelectionPreview and Indicators.IsSelectionPreview(frame, "LeaderIcon")
+    if not leaderConfig or (leaderConfig.enabled == false and not selectionPreview) then
         HandleVisibilityTransition(owner, frame, holder, false, "_leaderLayoutRefreshQueued")
         return
     end
 
     local isLeader = false
 
-    if IsPreviewModeEnabled() then
-        isLeader = IsPreviewIndicatorVisible(frame, "leader")
+    if selectionPreview or IsPreviewModeEnabled() then
+        isLeader = selectionPreview or IsPreviewIndicatorVisible(frame, "leader")
     end
 
     if not isLeader then

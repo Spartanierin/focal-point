@@ -132,6 +132,16 @@ local function IsLocalAuraPreviewSelected(frame, unit, groupKey)
         return false
     end
 
+    local policy = FocalPoint.EditorVisualPolicy or {}
+    if policy.IsSelectionPreview then
+        return policy.IsSelectionPreview(frame, {
+            kind = "aura",
+            unit = unit or (frame and frame._fpUnit),
+            auraKey = groupKey,
+            objectKey = groupKey,
+        }) == true
+    end
+
     local selected = GetSelectedObject()
     return type(selected) == "table"
         and selected.kind == "aura"

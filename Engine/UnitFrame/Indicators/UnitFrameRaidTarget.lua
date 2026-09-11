@@ -102,7 +102,8 @@ function RaidTarget.Update(owner, frame)
         return
     end
 
-    if not rtmConfig or rtmConfig.enabled == false then
+    local selectionPreview = Indicators.IsSelectionPreview and Indicators.IsSelectionPreview(frame, "RaidTargetIcon")
+    if not rtmConfig or (rtmConfig.enabled == false and not selectionPreview) then
         if HandleVisibilityTransition then
             HandleVisibilityTransition(owner, frame, holder, false, "_raidTargetLayoutRefreshQueued")
         else
@@ -118,7 +119,7 @@ function RaidTarget.Update(owner, frame)
 
     local index = frame._fpUnit and GetRaidTargetIndex and GetRaidTargetIndex(frame._fpUnit) or nil
 
-    if not index and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "raidTarget") then
+    if not index and (selectionPreview or (IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "raidTarget"))) then
         index = GetPreviewRaidTargetIndex(frame)
     end
 

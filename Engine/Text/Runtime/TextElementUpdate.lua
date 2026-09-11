@@ -10,6 +10,7 @@ local Status = FocalPoint.TextElementStatus or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
 local Roles = FocalPoint.TextElementRoles or {}
 local TextPreview = FocalPoint.TextElementPreview or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 local TextUtils = FocalPoint.TextElementUtils or {}
 local IsSecret = TextUtils.IsSecret
 
@@ -46,14 +47,23 @@ local function IsTextOwnerAllowed(frame, textConfig)
         or Status.IsRuntimeOwnerAllowed(textConfig, frame and frame.config)
 end
 
+local function IsSelectedTextPreview(frame, key)
+    return VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "text",
+        unit = frame and frame._fpUnit,
+        textKey = key,
+    }) == true
+end
+
 local function IsTextEffectivePresent(frame, key, textConfig, deps)
-    if type(textConfig) ~= "table" or textConfig.enabled == false then
+    local selectionPreview = IsSelectedTextPreview(frame, key)
+    if type(textConfig) ~= "table" or (textConfig.enabled == false and not selectionPreview) then
         return false
     end
 
     local binding = TextState.GetCompositionBinding and TextState.GetCompositionBinding(frame, key) or nil
     if type(binding) == "table" then
-        return binding.effectivePresent == true
+        return binding.effectivePresent == true or selectionPreview
     end
 
     local resolver = deps and deps.IsTextEffectivePresent
@@ -94,6 +104,10 @@ local function IsTextEditPreviewMode()
 end
 
 local function ShouldRenderTextEditorPreview(frame, key)
+    if IsSelectedTextPreview(frame, key) then
+        return true
+    end
+
     if Preview.ShouldRepresentInEditor then
         local shouldRepresent = Preview.ShouldRepresentInEditor(frame and frame._fpUnit, {
             kind = "text",
@@ -108,6 +122,10 @@ local function ShouldRenderTextEditorPreview(frame, key)
 end
 
 local function IsTextEditPreviewAvailable(frame, key, textConfig)
+    if IsSelectedTextPreview(frame, key) then
+        return type(textConfig) == "table"
+    end
+
     if Status.IsEditorRenderable then
         return Status.IsEditorRenderable(textConfig, {
             textKey = key,

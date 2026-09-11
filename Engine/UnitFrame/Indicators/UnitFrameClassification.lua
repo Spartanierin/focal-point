@@ -7,6 +7,16 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Preview = FocalPoint.UnitFramePreview or {}
 local State = FocalPoint.UnitFrameState or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
+local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
+
+local function IsSelectionPreview(frame)
+    return VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "indicator",
+        unit = frame and frame._fpUnit,
+        indicatorKey = "ClassificationIndicator",
+        objectKey = "ClassificationIndicator",
+    }) == true
+end
 local Indicators = FocalPoint.UnitFrameIndicators or {}
 local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 
@@ -39,7 +49,7 @@ local function NormalizeEffect(effect)
 end
 
 local function GetPreviewClassification(frame)
-    if not (frame and IsPreviewModeEnabled and IsPreviewModeEnabled()) then
+    if not (frame and ((IsPreviewModeEnabled and IsPreviewModeEnabled()) or IsSelectionPreview(frame))) then
         return nil
     end
 
@@ -448,7 +458,7 @@ function Classification.GetResolved(frame)
         return nil, "PORTRAIT_OVERLAY"
     end
 
-    if indicatorConfig.present ~= true or indicatorConfig.enabled == false then
+    if indicatorConfig.present ~= true or (indicatorConfig.enabled == false and not IsSelectionPreview(frame)) then
         return nil, "NONE"
     end
 

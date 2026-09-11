@@ -24,7 +24,51 @@ local EXPLICIT_TRUE_FIELDS = {
 local SIMULATED_STATES = {
     ["editor-simulated"] = true,
     ["detailed-simulated"] = true,
+    ["selection-simulated"] = true,
 }
+
+local function NormalizeUnitKey(unit)
+    if type(unit) ~= "string" or unit == "" then
+        return nil
+    end
+    return unit:match("^boss%d+$") and "boss" or unit
+end
+
+local function GetSelectedObject()
+    local selection = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.ObjectSelection
+        or nil
+    return selection and selection.GetSelectedObject and selection.GetSelectedObject() or nil
+end
+
+local function GetObjectKey(objectRef)
+    return type(objectRef) == "table"
+        and (objectRef.objectKey or objectRef.barKey or objectRef.auraKey or objectRef.indicatorKey)
+        or nil
+end
+
+function Policy.IsSelectionPreview(frame, objectRef)
+    if not Policy.IsNormalEditorActive() or type(frame) ~= "table" or type(objectRef) ~= "table" then
+        return false
+    end
+
+    local selected = GetSelectedObject()
+    if type(selected) ~= "table" or selected.kind ~= objectRef.kind then
+        return false
+    end
+    if NormalizeUnitKey(selected.unit) ~= NormalizeUnitKey(frame._fpUnit) then
+        return false
+    end
+
+    if selected.kind == "text" then
+        return selected.textKey == objectRef.textKey
+    elseif selected.kind == "decoration" then
+        return selected.decorationId == objectRef.decorationId
+    end
+
+    return GetObjectKey(selected) == GetObjectKey(objectRef)
+end
 
 local function GetUnitConfig(frame)
     if frame and type(frame.config) == "table" then
@@ -79,16 +123,26 @@ end
 
 function Policy.Resolve(frame, componentKey, options)
     options = options or {}
+    local objectRef = options.objectRef or {
+        kind = "bar",
+        objectKey = componentKey,
+    }
+    local selectionPreview = Policy.IsSelectionPreview(frame, objectRef)
     local enabled = options.enabled
     if enabled == nil then
         enabled = Policy.IsComponentEnabled(frame, componentKey)
     end
+
     if enabled == false then
-        return "hidden"
+        return selectionPreview and "selection-simulated" or "hidden"
     end
 
     if Policy.IsExplicitPreviewMode() then
         return "detailed-simulated"
+    end
+
+    if selectionPreview and options.hasLiveData ~= true and options.canSimulate ~= false then
+        return "selection-simulated"
     end
 
     if Policy.IsNormalEditorActive() then
@@ -121,7 +175,7 @@ function Policy.GetSimulationValues(frame, state)
         return Demo.GetUnitValues and Demo.GetUnitValues(frame, "detailed") or nil
     end
 
-    if state == "editor-simulated" then
+    if state == "editor-simulated" or state == "selection-simulated" then
         local values = {}
         if Demo.GetDetailedValuesForUnit then
             CopyValues(Demo.GetDetailedValuesForUnit(frame._fpUnit), values)

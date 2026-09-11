@@ -165,15 +165,17 @@ function EditorController.RefreshActiveProperties()
     return true
 end
 
-local function RefreshSelectedUnitRuntime()
-    local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
-    local state = stateApi and type(stateApi.Get) == "function" and stateApi.Get() or nil
-    local unitKey = state and state.selectedUnit or nil
+local function RefreshUnitRuntime(unitKey)
     if not (ns.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "") then
         return
     end
-
     ns:RefreshUnitFrame(unitKey == "boss" and "boss" or unitKey)
+end
+
+local function RefreshSelectedUnitRuntime()
+    local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State
+    local state = stateApi and type(stateApi.Get) == "function" and stateApi.Get() or nil
+    RefreshUnitRuntime(state and state.selectedUnit or nil)
 end
 
 function EditorController.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind)
@@ -183,17 +185,13 @@ function EditorController.ApplyObjectSelectionProjection(changeKind, previousUni
         ns:RefreshEditorSelectionVisuals()
     end
 
-    RefreshSelectedUnitRuntime()
     local stateApi = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.State or nil
     local state = stateApi and type(stateApi.Get) == "function" and stateApi.Get() or nil
     local selectedUnit = state and state.selectedUnit or nil
-    if ((type(previousObject) == "table" and previousObject.kind == "aura") or nextKind == "aura")
-        and type(previousUnit) == "string"
-        and previousUnit ~= selectedUnit
-        and ns.RefreshUnitFrame
-    then
-        ns:RefreshUnitFrame(previousUnit == "boss" and "boss" or previousUnit)
+    if type(previousUnit) == "string" and previousUnit ~= selectedUnit then
+        RefreshUnitRuntime(previousUnit)
     end
+    RefreshSelectedUnitRuntime()
 
     if changeKind == "sameUnitObject" then
         EditorController.RefreshActiveProperties()

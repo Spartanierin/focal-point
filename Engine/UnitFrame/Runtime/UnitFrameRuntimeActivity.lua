@@ -113,7 +113,12 @@ function RuntimeActivity.ShouldRunComponent(frame, objectRef)
         return false
     end
 
-    return IsComponentEnabled(unitConfig, objectRef)
+    if IsComponentEnabled(unitConfig, objectRef) then
+        return true
+    end
+
+    local policy = FocalPoint.EditorVisualPolicy or {}
+    return policy.IsSelectionPreview and policy.IsSelectionPreview(frame, objectRef) == true
 end
 
 function RuntimeActivity.ShouldRunTableComponent(frame, componentKey)
@@ -123,9 +128,20 @@ function RuntimeActivity.ShouldRunTableComponent(frame, componentKey)
 
     local unitConfig = GetUnitConfig(frame)
     local componentConfig = type(unitConfig) == "table" and unitConfig[componentKey] or nil
-    return type(componentConfig) == "table"
-        and componentConfig.present == true
-        and componentConfig.enabled ~= false
+    if not (type(componentConfig) == "table" and componentConfig.present == true) then
+        return false
+    end
+    if componentConfig.enabled ~= false then
+        return true
+    end
+
+    local policy = FocalPoint.EditorVisualPolicy or {}
+    return policy.IsSelectionPreview and policy.IsSelectionPreview(frame, {
+        kind = "indicator",
+        unit = NormalizeUnitKey(frame and frame._fpUnit),
+        indicatorKey = componentKey,
+        objectKey = componentKey,
+    }) == true
 end
 
 function RuntimeActivity.ClearComponentVisual(frame, objectKey)

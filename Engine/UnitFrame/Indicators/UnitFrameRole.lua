@@ -47,8 +47,10 @@ local function ResolveLiveRole(unit)
     return NormalizeRoleValue(role)
 end
 
-local function ResolvePreviewRole(frame)
-    local preview = Preview.GetTestValues and Preview.GetTestValues(frame) or nil
+local function ResolvePreviewRole(frame, useDetailedValues)
+    local demo = FocalPoint.UnitFrameDemoEnvironment or {}
+    local preview = useDetailedValues and demo.GetUnitValues and demo.GetUnitValues(frame, "detailed")
+        or Preview.GetTestValues and Preview.GetTestValues(frame)
     return NormalizeRoleValue(preview and preview.role or nil)
 end
 
@@ -74,15 +76,16 @@ function Role.Update(owner, frame)
         return
     end
 
-    if not roleConfig or roleConfig.enabled == false then
+    local selectionPreview = Indicators.IsSelectionPreview and Indicators.IsSelectionPreview(frame, "RoleIcon")
+    if not roleConfig or (roleConfig.enabled == false and not selectionPreview) then
         HandleVisibilityTransition(owner, frame, holder, false, "_roleLayoutRefreshQueued")
         return
     end
 
     local role = ResolveLiveRole(frame._fpUnit)
 
-    if not role and IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "role") then
-        role = ResolvePreviewRole(frame)
+    if not role and (selectionPreview or (IsPreviewModeEnabled() and IsPreviewIndicatorVisible(frame, "role"))) then
+        role = ResolvePreviewRole(frame, selectionPreview == true)
     end
 
     if role == "TANK" then

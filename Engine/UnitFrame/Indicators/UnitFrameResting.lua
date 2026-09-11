@@ -47,7 +47,8 @@ function Resting.Update(owner, frame)
         return
     end
 
-    if not restingConfig or restingConfig.enabled == false then
+    local selectionPreview = Indicators.IsSelectionPreview and Indicators.IsSelectionPreview(frame, "RestingIndicator")
+    if not restingConfig or (restingConfig.enabled == false and not selectionPreview) then
         if StatusOverlay.Hide then
             StatusOverlay.Hide(holder)
         end
@@ -57,8 +58,8 @@ function Resting.Update(owner, frame)
 
     local isResting = frame._fpUnit == "player" and IsResting and IsResting()
 
-    if IsPreviewModeEnabled() then
-        isResting = IsPreviewIndicatorVisible(frame, "resting")
+    if selectionPreview or IsPreviewModeEnabled() then
+        isResting = selectionPreview or IsPreviewIndicatorVisible(frame, "resting")
     end
 
     if not isResting then

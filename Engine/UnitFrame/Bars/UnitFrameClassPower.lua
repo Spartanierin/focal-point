@@ -220,7 +220,15 @@ function ClassPower.ShouldForcePreview(unit)
     local unitConfig = FocalPoint.UnitFrameUtils
         and FocalPoint.UnitFrameUtils.GetUnitDB
         and FocalPoint.UnitFrameUtils.GetUnitDB(unit)
-    if type(unitConfig) ~= "table" or unitConfig.showClassPowerBar ~= true then
+    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview({
+        _fpUnit = unit,
+        config = unitConfig,
+    }, {
+        kind = "bar",
+        unit = unit,
+        objectKey = "ClassPowerBar",
+    }) == true
+    if type(unitConfig) ~= "table" or (unitConfig.showClassPowerBar ~= true and not selectionPreview) then
         return false
     end
 
