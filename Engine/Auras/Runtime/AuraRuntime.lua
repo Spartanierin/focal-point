@@ -144,12 +144,12 @@ local function CollectLiveAurasForRefresh(frame, unit, groupKey)
     if AuraScan.CollectUnitAuras then
         local ok, auras = AuraScan.CollectUnitAuras(unit, groupKey)
         if ok == true and type(auras) == "table" then
-            return auras
+            return auras, true
         end
     end
 
     local AuraCache = FocalPoint.AuraCache or {}
-    return AuraCache.GetAllAuras and AuraCache.GetAllAuras(frame, groupKey) or nil
+    return AuraCache.GetAllAuras and AuraCache.GetAllAuras(frame, groupKey) or nil, false
 end
 
 local function ResolveLocalAuraPreview(frame, unit, groupKey)
@@ -267,12 +267,13 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
 
     local liveAuras = nil
     local liveResult = nil
+    local liveScanUsable = nil
 
     local function EnsureLiveResult()
         if liveResult then
             return liveResult
         end
-        liveAuras = CollectLiveAurasForRefresh(frame, unit, groupKey)
+        liveAuras, liveScanUsable = CollectLiveAurasForRefresh(frame, unit, groupKey)
         liveResult = PrepareAuraResult(frame, groupKey, liveAuras, groupConfig)
         return liveResult
     end
@@ -300,7 +301,21 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
         return ApplyPreparedAuraResult(preparedPreview)
     end
 
+    if BackendResolver.RefreshManagedGroup
+        and BackendResolver.RefreshManagedGroup(frame, groupKey, groupConfig)
+    then
+        if AuraRenderer.ClearGroup then
+            AuraRenderer.ClearGroup(frame, groupKey)
+        end
+        return {}
+    end
+
     EnsureLiveResult()
+    if liveScanUsable ~= true then
+        -- Preserve the last valid renderer/cache state until a scan confirms a new state.
+        return liveAuras or {}
+    end
+
     if type(liveResult.sortedAuras) == "table" and #liveResult.sortedAuras > 0 then
         if ShouldUseManagedLiveRender(frame, groupKey, liveResult)
             and BackendResolver.RefreshManagedGroup

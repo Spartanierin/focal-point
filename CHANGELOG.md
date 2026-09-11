@@ -10,6 +10,52 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.0
+
+Focal Point 2.0 changes how building unit frames feels. The editor now centers on direct visual interaction and a simpler Layout-based workflow.
+
+### Layouts
+
+* Added a Layout-first workflow for building and managing unit frame setups.
+* Built-in layouts provide read-only starting points; editing creates your own User Layout.
+* Specialization automation now assigns layouts directly.
+
+### Visual Editing
+
+* Select objects directly on the canvas, then refine them in the Inspector.
+* Normal dragging moves the frame being edited, while SHIFT-drag moves supported independently positioned components.
+* Mouse wheel editing adjusts the relevant selected property directly, including text size, supported bar thickness, aura density, portrait and indicator scale, and decoration size.
+* The Inspector stays synchronized with direct canvas interactions without unnecessary full refreshes.
+
+### Composition Tree
+
+* Added a dedicated Composition Tree for navigating the components of each unit frame.
+* Select, expand, collapse, toggle, and scroll to objects directly from the tree.
+* Improved tree opening, closing, selection synchronization, scrolling, and scrollbar behavior for a more reliable editor workflow.
+
+### Text and Anchoring
+
+* Text can be selected and positioned directly on the frame.
+* New text reuses existing templates and starts anchored relative to the currently selected visual object.
+* Supported direct-move components automatically choose a sensible anchor after repositioning.
+* Removed the restrictive text offset range for more flexible positioning.
+
+### Health and Absorbs
+
+* Normal Absorb and Healing Absorb are available as independent visual bars in the health family.
+* Their positioning, anchors, size, textures, colors, backgrounds, and text values can be configured independently.
+
+### Stability and Compatibility
+
+* Improved editor, layout, runtime visibility, UnitWatch, combat recovery, and post-combat resynchronization lifecycles.
+* Existing 1.x data remains supported through the migration and compatibility path, without requiring manual migration in the supported workflow.
+* Improved migration handling for intentionally deleted migrated layouts and guarded CastTime output when timing data is restricted.
+
+### Runtime Improvements
+
+* Continued to decouple and materialize text and runtime data paths.
+* Reduced unnecessary reconstruction through more targeted editor and text updates.
+
 ## 2.0.0 Beta 4
 
 ### Improved
