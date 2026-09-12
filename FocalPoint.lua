@@ -80,7 +80,7 @@ function FocalPoint:Debug(message)
 end
 
 FocalPoint.SelectionPerfDebug = {
-    enabled = true,
+    enabled = false,
     counters = {},
     requestReasons = {},
     requestReasonTotal = 0,
