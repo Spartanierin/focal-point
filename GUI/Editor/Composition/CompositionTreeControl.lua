@@ -70,6 +70,19 @@ local function SetIconColor(icon, tint, brightness, alpha)
     )
 end
 
+local function GetActiveUnitMarkerColor()
+    local componentStyles = ns.GUI
+        and ns.GUI.Layouts
+        and ns.GUI.Layouts.FormElements
+        and ns.GUI.Layouts.FormElements.ComponentStyles
+    local activeState = componentStyles
+        and componentStyles.Navigation
+        and componentStyles.Navigation.UnitNavigatorItem
+        and componentStyles.Navigation.UnitNavigatorItem.states
+        and componentStyles.Navigation.UnitNavigatorItem.states.active
+    return activeState and activeState.accent or nil
+end
+
 local function ClampScrollOffset(value, maxScroll)
     maxScroll = math.max(0, tonumber(maxScroll) or 0)
     return math.max(0, math.min(maxScroll, tonumber(value) or 0))
@@ -124,7 +137,16 @@ local function Paint(row)
         SetIconColor(row.icon, row.iconTint, 0.90, 0.76)
     end
     row.disclosureGlyph:SetText(item.expanded and "-" or ">")
-    row.toggleGlyph:SetColorTexture(0.49, 0.54, 0.61, item.node.enabled == false and 0.14 or 0.38)
+    if item.node.enabled == false then
+        row.toggleGlyph:SetColorTexture(0.49, 0.54, 0.61, 0.14)
+    else
+        local activeColor = GetActiveUnitMarkerColor()
+        if activeColor then
+            row.toggleGlyph:SetColorTexture(unpack(activeColor))
+        else
+            row.toggleGlyph:SetColorTexture(0.49, 0.54, 0.61, 0.38)
+        end
+    end
 end
 
 function methods:SetKeyboardActive(active)
