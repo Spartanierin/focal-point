@@ -128,6 +128,7 @@
     <Script file="GUI/Helpers/LayoutHelpers.lua"/>
     <Script file="GUI/Editor/EditorMode.lua"/>
     <Script file="GUI/Editor/EditorState.lua"/>
+    <Script file="GUI/Editor/LayoutEditWorkflow.lua"/>
     <Script file="GUI/Editor/ObjectSelection.lua"/>
     <Script file="GUI/Editor/EditorAnchorGeometry.lua"/>
     <Script file="GUI/Editor/SelectionGeometryResolver.lua"/>

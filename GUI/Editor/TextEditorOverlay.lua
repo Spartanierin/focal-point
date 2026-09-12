@@ -1056,7 +1056,7 @@ local function SyncInspectorTextFontSize(unitKey, textKey, fontSize)
     end
 end
 
-local function CommitTextAnchorPosition(frame, textKey, position)
+local function CommitTextAnchorPositionNow(frame, textKey, position)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit or type(position) ~= "table" then return false end
     local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
@@ -1066,7 +1066,7 @@ local function CommitTextAnchorPosition(frame, textKey, position)
     if result and result.changed then RefreshAfterTextPositionCommit(frame) else TextEditorOverlay.UpdateFrame(frame) end
     return true
 end
-local function CommitTextPosition(frame, textKey, offsetX, offsetY)
+local function CommitTextPositionNow(frame, textKey, offsetX, offsetY)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
@@ -1094,7 +1094,7 @@ local function CommitTextPosition(frame, textKey, offsetX, offsetY)
     return true
 end
 
-local function CommitTextAnchor(frame, textKey, point, relativePoint)
+local function CommitTextAnchorNow(frame, textKey, point, relativePoint)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
@@ -1123,7 +1123,7 @@ local function CommitTextAnchor(frame, textKey, point, relativePoint)
     return true
 end
 
-local function CommitTextPositionReset(frame, textKey)
+local function CommitTextPositionResetNow(frame, textKey)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
@@ -1159,7 +1159,27 @@ local function CommitTextPositionReset(frame, textKey)
     return true
 end
 
-local function CommitTextFontSizeReset(frame, textKey)
+local function RequestEditableTextCommit(commit)
+    local workflow = FocalPoint.LayoutEditWorkflow
+    if not (workflow and workflow.RequestEditableLayoutForMutation) then return false end
+    local completed = false
+    workflow.RequestEditableLayoutForMutation(function() completed = commit() == true end)
+    return completed
+end
+
+local function CommitTextAnchorPosition(frame, textKey, position)
+    return RequestEditableTextCommit(function() return CommitTextAnchorPositionNow(frame, textKey, position) end)
+end
+local function CommitTextPosition(frame, textKey, offsetX, offsetY)
+    return RequestEditableTextCommit(function() return CommitTextPositionNow(frame, textKey, offsetX, offsetY) end)
+end
+local function CommitTextAnchor(frame, textKey, point, relativePoint)
+    return RequestEditableTextCommit(function() return CommitTextAnchorNow(frame, textKey, point, relativePoint) end)
+end
+local function CommitTextPositionReset(frame, textKey)
+    return RequestEditableTextCommit(function() return CommitTextPositionResetNow(frame, textKey) end)
+end
+local function CommitTextFontSizeResetNow(frame, textKey)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
@@ -1188,6 +1208,10 @@ local function CommitTextFontSizeReset(frame, textKey)
     end
 
     return true
+end
+
+local function CommitTextFontSizeReset(frame, textKey)
+    return RequestEditableTextCommit(function() return CommitTextFontSizeResetNow(frame, textKey) end)
 end
 
 local function CommitTextFontSizeAdjustment(frame, textKey, delta)

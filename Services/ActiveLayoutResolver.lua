@@ -307,13 +307,13 @@ function Resolver.GetActiveTextTemplates(db)
 end
 
 function Resolver.GetEditableActiveUnits(db)
-    local payload, layoutId, created, reason = Resolver.EnsureEditableActiveLayout(db)
+    local payload, layoutId, created, reason = Resolver.EnsureEditableForMutation(db)
     local units = type(payload) == "table" and payload.Units or nil
     return type(units) == "table" and units or nil, layoutId, created, reason
 end
 
 function Resolver.GetEditableActiveTextTemplates(db)
-    local payload, layoutId, created, reason = Resolver.EnsureEditableActiveLayout(db)
+    local payload, layoutId, created, reason = Resolver.EnsureEditableForMutation(db)
     local templates = type(payload) == "table" and payload.TextTemplates or nil
     return type(templates) == "table" and templates or nil, layoutId, created, reason
 end
@@ -322,78 +322,22 @@ function Resolver.IsCoreCutoverEnabled()
     return true
 end
 
-function Resolver.EnsureEditableActiveLayout(db)
+function Resolver.EnsureEditableForMutation(db)
     db = ResolveDB(db)
     if type(db) ~= "table" then
         return nil, nil, false, "db-unavailable"
     end
 
-    db.char = type(db.char) == "table" and db.char or {}
-
     local layoutId = Resolver.GetStoredActiveLayoutId(db)
-    local sourceKind = SplitActiveLayoutId(layoutId)
-    if sourceKind == "layout" then
-        local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
-        if type(payload) ~= "table" then
-            return nil, layoutId, false, reason
-        end
-        return payload, layoutId, false
+    if SplitActiveLayoutId(layoutId) ~= "layout" then
+        return nil, layoutId, false, "readonly-layout"
     end
 
-    if sourceKind ~= "builtin" then
-        return nil, layoutId, false, "unsupported-source"
-    end
-
-    local envelope, resolveReason = Resolver.ResolveLayout(db, layoutId)
-    if type(envelope) ~= "table" or type(envelope.payload) ~= "table" then
-        return nil, layoutId, false, resolveReason or "builtin-unresolvable"
-    end
-
-    local LayoutService = FocalPoint.LayoutService or {}
-    local payload = LayoutService.NormalizePayload and LayoutService.NormalizePayload(envelope.payload, ResolveDefaults()) or nil
-    if type(payload) ~= "table" or type(payload.Units) ~= "table" or type(payload.TextTemplates) ~= "table" then
-        return nil, layoutId, false, "invalid-builtin-payload"
-    end
-
-    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
-    if not (UserLayoutStore.GenerateId and UserLayoutStore.PutRaw) then
-        return nil, layoutId, false, "user-layout-store-unavailable"
-    end
-
-    local newLayoutId = UserLayoutStore.GenerateId()
-    if not IsNonEmptyString(newLayoutId) then
-        return nil, layoutId, false, "id-failed"
-    end
-
-    local record = {
-        name = ResolveUniqueCopyName(envelope.name, db),
-        payload = payload,
-        formatVersion = LAYOUT_FORMAT_VERSION,
-        createdFrom = {
-            source = "builtin",
-            id = envelope.id,
-        },
-    }
-    local storedId = UserLayoutStore.PutRaw(newLayoutId, record)
-    if storedId ~= newLayoutId then
-        return nil, layoutId, false, "store-write-failed"
-    end
-
-    local mutablePayload, mutableReason = ResolveMutableUserLayoutPayload(db, newLayoutId)
-    if type(mutablePayload) ~= "table" then
-        return nil, layoutId, false, mutableReason or "store-verify-failed"
-    end
-
-    db.char.activeLayoutId = newLayoutId
-    Resolver.SetActiveRuntimeRoot({
-        db = db,
-        layoutId = newLayoutId,
-        source = "layout",
-        payload = mutablePayload,
-    })
-    return mutablePayload, newLayoutId, true
+    local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
+    return payload, layoutId, false, reason
 end
 
+Resolver.EnsureEditableActiveLayout = Resolver.EnsureEditableForMutation
 function Resolver.InitializeActiveLayoutId(db)
     db = ResolveDB(db)
     if type(db) ~= "table" then

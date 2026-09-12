@@ -20,6 +20,22 @@ for key, value in pairs(LAYOUT_SOURCES) do
     LayoutService.Sources[key] = value
 end
 
+function LayoutService.GetDisplayName(layout)
+    if type(layout) ~= "table" then
+        return ""
+    end
+
+    local labelKey = layout.labelKey
+    local localized = type(labelKey) == "string" and FocalPoint.L and FocalPoint.L[labelKey] or nil
+    if type(localized) == "string" and localized ~= "" then
+        return localized
+    end
+    if type(layout.name) == "string" and layout.name ~= "" then
+        return layout.name
+    end
+    return type(layout.id) == "string" and layout.id or ""
+end
+
 function LayoutService.Clone(value)
     if type(value) ~= "table" then
         return value

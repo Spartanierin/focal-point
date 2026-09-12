@@ -514,7 +514,9 @@ function View.Build(container, state, options)
             local generation = control.generation
             local result = options.onToggle(node, enabled)
             -- A mutation may synchronously release and rebind this pooled control.
-            if control.generation == generation and not (result and result.ok == false) then
+            -- Only a completed synchronous mutation may update this snapshot locally.
+            -- Pending built-in confirmation is resolved by the later tree projection.
+            if control.generation == generation and result and result.ok and result.changed then
                 node.enabled = enabled
                 control:RefreshSelection(function(rowNode) return IsActiveNode(rowNode, state) end)
             end

@@ -204,15 +204,15 @@ local function IsShiftDown()
     return interactionMode and interactionMode.IsShiftDown and interactionMode.IsShiftDown() == true
 end
 
-local function GetEditableUnitConfig(frame)
+local function GetActiveUnitConfig(frame)
     local unitKey = NormalizeUnitKey(frame and frame._fpUnit)
     if not unitKey then
         return nil, nil
     end
 
     local resolver = FocalPoint.ActiveLayoutResolver
-    if resolver and resolver.GetEditableActiveUnits then
-        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+    if resolver and resolver.GetActiveUnits then
+        local units = resolver.GetActiveUnits(FocalPoint.db)
         if type(units) == "table" and type(units[unitKey]) == "table" then
             return units[unitKey], unitKey
         end
@@ -229,7 +229,7 @@ end
 -- Routes wheel input only for selected Canvas objects with an existing size/density field.
 local FindDecorationConfig
 local function ResolveWheelCapability(frame, objectRef)
-    local unitConfig, unitKey = GetEditableUnitConfig(frame)
+    local unitConfig, unitKey = GetActiveUnitConfig(frame)
     if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
         return nil
     end
@@ -306,70 +306,44 @@ local function NormalizeWheelDelta(delta)
 end
 
 local function ApplyWheelCapability(zone, delta)
-    if not (zone and zone.IsMouseOver and zone:IsMouseOver())
-        or not IsSelectedObject(zone._focalPointObjectRef)
-        or (InCombatLockdown and InCombatLockdown()) then
-        return false
-    end
-
+    if not (zone and zone.IsMouseOver and zone:IsMouseOver()) or not IsSelectedObject(zone._focalPointObjectRef) or (InCombatLockdown and InCombatLockdown()) then return false end
     local capability = ResolveWheelCapability(zone._focalPointOwnerFrame, zone._focalPointObjectRef)
     local step = NormalizeWheelDelta(delta)
-    if not capability or step == 0 then
-        return false
-    end
-
-    local mutations = FocalPoint.InspectorMutations
-        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
-    if not mutations then
-        return false
-    end
-
-    local context = { unitConfig = capability.unitConfig }
-    local result
-    if capability.kind == "indicatorScale" and mutations.AdjustIndicatorScale then
-        context.indicatorMeta = capability.indicatorMeta
-        result = mutations.AdjustIndicatorScale(context, capability.indicatorKey, step * capability.step)
-    elseif capability.kind == "decorationSize" and mutations.AdjustDecorationSizeProportionally then
-        result = mutations.AdjustDecorationSizeProportionally(context, capability.decorationId, step)
-    else
-        local current = tonumber(capability.unitConfig[capability.fieldName])
-        local nextValue = math.max(capability.min, math.min(capability.max, (current or capability.default) + step))
-        if nextValue == current then
-            return false
+    if not capability or step == 0 then return false end
+    local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
+    local workflow = FocalPoint.LayoutEditWorkflow
+    if not (mutations and workflow and workflow.RequestEditableLayoutForMutation) then return false end
+    local applied = false
+    workflow.RequestEditableLayoutForMutation(function()
+        local resolver = FocalPoint.ActiveLayoutResolver
+        local units = resolver and resolver.GetEditableActiveUnits and resolver.GetEditableActiveUnits(FocalPoint.db) or nil
+        local config = type(units) == "table" and units[capability.unitKey] or nil
+        if type(config) ~= "table" then return end
+        local context, result = { unitConfig = config }, nil
+        if capability.kind == "indicatorScale" and mutations.AdjustIndicatorScale then
+            context.indicatorMeta = capability.indicatorMeta
+            result = mutations.AdjustIndicatorScale(context, capability.indicatorKey, step * capability.step)
+        elseif capability.kind == "decorationSize" and mutations.AdjustDecorationSizeProportionally then
+            result = mutations.AdjustDecorationSizeProportionally(context, capability.decorationId, step)
+        else
+            local current = tonumber(config[capability.fieldName])
+            local nextValue = math.max(capability.min, math.min(capability.max, (current or capability.default) + step))
+            if nextValue == current then return end
+            if capability.kind == "barThickness" and mutations.SetUnitField then result = mutations.SetUnitField(context, capability.fieldName, nextValue)
+            elseif capability.kind == "auraDensity" and mutations.SetAuraField then result = mutations.SetAuraField(context, capability.auraKey, capability.fieldName, nextValue) end
         end
-
-        if capability.kind == "barThickness" and mutations.SetUnitField then
-            result = mutations.SetUnitField(context, capability.fieldName, nextValue)
-        elseif capability.kind == "auraDensity" and mutations.SetAuraField then
-            result = mutations.SetAuraField(context, capability.auraKey, capability.fieldName, nextValue)
+        if not (result and result.ok ~= false and result.changed) then return end
+        if FocalPoint.RefreshUnitFrame then FocalPoint:RefreshUnitFrame(capability.unitKey) end
+        CanvasHoverOverlay.UpdateFrame(zone._focalPointOwnerFrame)
+        local inspector = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector
+        if inspector then
+            if capability.kind == "decorationSize" and inspector.SetActiveCanvasDecorationSizeValues then inspector.SetActiveCanvasDecorationSizeValues(capability.unitKey, zone._focalPointObjectRef, result.newValue.width, result.newValue.height)
+            elseif inspector.SetActiveCanvasWheelFieldValue then inspector.SetActiveCanvasWheelFieldValue(capability.unitKey, zone._focalPointObjectRef, capability.fieldName, result.newValue) end
         end
-    end
-    if not (result and result.ok ~= false and result.changed) then
-        return false
-    end
-
-    if FocalPoint.RefreshUnitFrame then
-        FocalPoint:RefreshUnitFrame(capability.unitKey)
-    end
-    CanvasHoverOverlay.UpdateFrame(zone._focalPointOwnerFrame)
-    local inspector = FocalPoint.GUI
-        and FocalPoint.GUI.Editor
-        and FocalPoint.GUI.Editor.Inspector
-    if inspector then
-        if capability.kind == "decorationSize" and inspector.SetActiveCanvasDecorationSizeValues then
-            inspector.SetActiveCanvasDecorationSizeValues(capability.unitKey, zone._focalPointObjectRef, result.newValue.width, result.newValue.height)
-        elseif inspector.SetActiveCanvasWheelFieldValue then
-            inspector.SetActiveCanvasWheelFieldValue(
-                capability.unitKey,
-                zone._focalPointObjectRef,
-                capability.fieldName,
-                result.newValue
-            )
-        end
-    end
-    return true
+        applied = true
+    end)
+    return applied
 end
-
 FindDecorationConfig = function(unitConfig, decorationId)
     local decorations = type(unitConfig) == "table" and unitConfig.decorations or nil
     if type(decorations) ~= "table" then
@@ -384,7 +358,7 @@ FindDecorationConfig = function(unitConfig, decorationId)
 end
 
 local function ResolveDirectMoveDescriptor(frame, objectRef)
-    local unitConfig, unitKey = GetEditableUnitConfig(frame)
+    local unitConfig, unitKey = GetActiveUnitConfig(frame)
     if type(unitConfig) ~= "table" or type(objectRef) ~= "table" then
         return nil
     end
@@ -633,52 +607,31 @@ local function ClearAuraDirectMovePreview(state)
 end
 
 local function CommitDirectMove(state, anchorPosition)
-    local mutations = FocalPoint.InspectorMutations
-        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
-    if not (state and state.descriptor and mutations) then
-        return false
-    end
-
-    local descriptor = state.descriptor
-    local context = { unitConfig = descriptor.unitConfig }
-    local result
-    if anchorPosition and descriptor.autoAnchor and descriptor.kind == "unit" then
-        result = mutations.SetUnitComponentAnchorPosition
-            and mutations.SetUnitComponentAnchorPosition(
-                context,
-                descriptor.pointField,
-                descriptor.relativePointField,
-                descriptor.offsetXField,
-                descriptor.offsetYField,
-                anchorPosition.point,
-                anchorPosition.relativePoint,
-                anchorPosition.offsetX,
-                anchorPosition.offsetY
-            )
-    elseif anchorPosition and descriptor.autoAnchor and descriptor.kind == "indicator" then
-        context.indicatorMeta = descriptor.indicatorMeta
-        result = mutations.SetIndicatorAnchorPosition
-            and mutations.SetIndicatorAnchorPosition(context, descriptor.indicatorKey, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
-    elseif anchorPosition and descriptor.autoAnchor and descriptor.kind == "decoration" then
-        result = mutations.SetDecorationAnchorPosition
-            and mutations.SetDecorationAnchorPosition(context, descriptor.decorationId, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
-    elseif descriptor.kind == "unit" then
-        result = mutations.SetUnitComponentPositionOffsets
-            and mutations.SetUnitComponentPositionOffsets(context, descriptor.offsetXField, descriptor.offsetYField, state.currentOffsetX, state.currentOffsetY)
-    elseif descriptor.kind == "indicator" then
-        context.indicatorMeta = descriptor.indicatorMeta
-        result = mutations.SetIndicatorPositionOffsets
-            and mutations.SetIndicatorPositionOffsets(context, descriptor.indicatorKey, state.currentOffsetX, state.currentOffsetY)
-    elseif descriptor.kind == "aura" then
-        result = mutations.SetAuraPositionOffsets
-            and mutations.SetAuraPositionOffsets(context, descriptor.auraKey, state.currentOffsetX, state.currentOffsetY)
-    elseif descriptor.kind == "decoration" then
-        result = mutations.SetDecorationPositionOffsets
-            and mutations.SetDecorationPositionOffsets(context, descriptor.decorationId, state.currentOffsetX, state.currentOffsetY)
-    end
+    local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
+    local workflow = FocalPoint.LayoutEditWorkflow
+    if not (state and state.descriptor and mutations and workflow and workflow.RequestEditableLayoutForMutation) then return nil end
+    local descriptor, result = state.descriptor, nil
+    workflow.RequestEditableLayoutForMutation(function()
+        local resolver = FocalPoint.ActiveLayoutResolver
+        local units = resolver and resolver.GetEditableActiveUnits and resolver.GetEditableActiveUnits(FocalPoint.db) or nil
+        local config = type(units) == "table" and units[descriptor.unitKey] or nil
+        if type(config) ~= "table" then return end
+        local context = { unitConfig = config }
+        if anchorPosition and descriptor.autoAnchor and descriptor.kind == "unit" then
+            result = mutations.SetUnitComponentAnchorPosition and mutations.SetUnitComponentAnchorPosition(context, descriptor.pointField, descriptor.relativePointField, descriptor.offsetXField, descriptor.offsetYField, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
+        elseif anchorPosition and descriptor.autoAnchor and descriptor.kind == "indicator" then
+            context.indicatorMeta = descriptor.indicatorMeta
+            result = mutations.SetIndicatorAnchorPosition and mutations.SetIndicatorAnchorPosition(context, descriptor.indicatorKey, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
+        elseif anchorPosition and descriptor.autoAnchor and descriptor.kind == "decoration" then
+            result = mutations.SetDecorationAnchorPosition and mutations.SetDecorationAnchorPosition(context, descriptor.decorationId, anchorPosition.point, anchorPosition.relativePoint, anchorPosition.offsetX, anchorPosition.offsetY)
+        elseif descriptor.kind == "unit" then result = mutations.SetUnitComponentPositionOffsets and mutations.SetUnitComponentPositionOffsets(context, descriptor.offsetXField, descriptor.offsetYField, state.currentOffsetX, state.currentOffsetY)
+        elseif descriptor.kind == "indicator" then context.indicatorMeta = descriptor.indicatorMeta; result = mutations.SetIndicatorPositionOffsets and mutations.SetIndicatorPositionOffsets(context, descriptor.indicatorKey, state.currentOffsetX, state.currentOffsetY)
+        elseif descriptor.kind == "aura" then result = mutations.SetAuraPositionOffsets and mutations.SetAuraPositionOffsets(context, descriptor.auraKey, state.currentOffsetX, state.currentOffsetY)
+        elseif descriptor.kind == "decoration" then result = mutations.SetDecorationPositionOffsets and mutations.SetDecorationPositionOffsets(context, descriptor.decorationId, state.currentOffsetX, state.currentOffsetY) end
+        if result and result.ok ~= false and FocalPoint.RefreshUnitFrame then FocalPoint:RefreshUnitFrame(descriptor.unitKey) end
+    end)
     return result
 end
-
 local function EndDirectMoveDrag(zone, commit)
     local state = zone and zone._focalPointDirectDragState
     if not state then

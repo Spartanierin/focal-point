@@ -695,15 +695,35 @@ local function BuildCompositionTree(context, deps)
         minHeight = 112,
         maxHeight = 416,
         onToggle = function(node, nextEnabled)
-            local mutationContext = BuildInspectorContextForToolbar(context.state, deps)
-            if not mutationContext then
-                return { ok = false, errorCode = "invalid_context" }
+            local nsRef = ResolveAddon(deps)
+            local workflow = nsRef.LayoutEditWorkflow
+            if not (workflow and workflow.RequestEditableLayoutForMutation) then
+                return { ok = false, errorCode = "layout-edit-workflow-unavailable" }
             end
-            local result = ApplyTreeToggleMutation(mutationContext, node, nextEnabled)
-            if result and result.ok and result.changed then
-                RefreshTreeRuntimeAndProperties(context, deps)
+
+            local result = nil
+            local ready, reason = workflow.RequestEditableLayoutForMutation(function()
+                -- Build this only after confirmation, so it resolves the active User Layout.
+                local mutationContext = BuildInspectorContextForToolbar(context.state, deps)
+                if not mutationContext then
+                    result = { ok = false, errorCode = "invalid_context" }
+                    return
+                end
+
+                result = ApplyTreeToggleMutation(mutationContext, node, nextEnabled)
+                if result and result.ok and result.changed then
+                    RefreshTreeRuntimeAndProperties(context, deps)
+                    BuildCompositionTree(context, deps)
+                end
+            end)
+
+            if result then
+                return result
             end
-            return result
+            if ready == false and (reason == "confirmation-open" or reason == "confirmation-pending") then
+                return { ok = true, changed = false, pending = true }
+            end
+            return { ok = false, errorCode = reason or "layout-edit-workflow-failed" }
         end,
     })
 end

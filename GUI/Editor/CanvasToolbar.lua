@@ -107,17 +107,11 @@ local function ResolveActiveLayoutId()
 end
 
 local function ResolveLayoutDisplayName(layout)
-    if type(layout) ~= "table" then
-        return ""
+    local layoutService = ns.LayoutService or {}
+    if layoutService.GetDisplayName then
+        return layoutService.GetDisplayName(layout)
     end
-    local L = ns.L or {}
-    if type(layout.labelKey) == "string" and L[layout.labelKey] then
-        return L[layout.labelKey]
-    end
-    if type(layout.name) == "string" and layout.name ~= "" then
-        return layout.name
-    end
-    return type(layout.id) == "string" and layout.id or ""
+    return type(layout) == "table" and (layout.name or layout.id) or ""
 end
 
 local function Trim(value)
@@ -358,8 +352,8 @@ end
 
 local function GetEditableActivePayload()
     local resolver = ns.ActiveLayoutResolver
-    if resolver and type(resolver.EnsureEditableActiveLayout) == "function" then
-        local payload = resolver.EnsureEditableActiveLayout(ns.db)
+    if resolver and type(resolver.EnsureEditableForMutation) == "function" then
+        local payload = resolver.EnsureEditableForMutation and resolver.EnsureEditableForMutation(ns.db)
         return type(payload) == "table" and payload or nil
     end
     return nil
@@ -411,30 +405,17 @@ end
 
 local function InsertDecoration()
     local unitKey = ResolveSelectedObjectUnit()
-    if type(unitKey) ~= "string" or unitKey == "" then
-        if ns.Info then
-            ns:Info(T("INSERT_DECORATION_STATUS_SELECT_UNIT", "Select a unit first."))
-        end
-        return
-    end
-
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
-    if not (mutations and type(mutations.AddDecoration) == "function") then
-        if ns.Info then
+    local workflow = ns.LayoutEditWorkflow
+    if type(unitKey) ~= "string" or not (mutations and mutations.AddDecoration and workflow and workflow.RequestEditableLayoutForMutation) then return end
+    workflow.RequestEditableLayoutForMutation(function()
+        local result = mutations.AddDecoration(BuildDecorationMutationContext(unitKey))
+        if result and result.ok and result.newDecorationId then
+            RefreshDecorationInsertResult(unitKey, result.newDecorationId)
+        elseif ns.Info then
             ns:Info(T("INSERT_DECORATION_STATUS_FAILED", "Decoration could not be added."))
         end
-        return
-    end
-
-    local result = mutations.AddDecoration(BuildDecorationMutationContext(unitKey))
-    if not (result and result.ok and result.newDecorationId) then
-        if ns.Info then
-            ns:Info(T("INSERT_DECORATION_STATUS_FAILED", "Decoration could not be added."))
-        end
-        return
-    end
-
-    RefreshDecorationInsertResult(unitKey, result.newDecorationId)
+    end)
 end
 
 local ADD_OBJECT_BAR_CAPABILITIES = {
@@ -493,7 +474,7 @@ local function IsSingletonComponentPresent(unitKey, kind, componentKey)
 end
 
 local function CanAddUnitFrame(unitKey)
-    local unitConfig = GetEditableUnitConfig(unitKey)
+    local unitConfig = ns.UnitFrameUtils and ns.UnitFrameUtils.GetUnitDB and ns.UnitFrameUtils.GetUnitDB(unitKey) or nil
     return type(unitConfig) == "table" and unitConfig.present == false
 end
 
@@ -516,56 +497,36 @@ end
 
 local function AddSingletonComponent(unitKey, kind, componentKey)
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
-    if not (mutations and type(mutations.AddComponent) == "function") then
-        if ns.Info then
+    local workflow = ns.LayoutEditWorkflow
+    if not (mutations and mutations.AddComponent and workflow and workflow.RequestEditableLayoutForMutation) then return end
+    workflow.RequestEditableLayoutForMutation(function()
+        local result = mutations.AddComponent(BuildDecorationMutationContext(unitKey), componentKey)
+        if result and result.ok ~= false then
+            SelectSingletonComponent(unitKey, kind, componentKey)
+        elseif ns.Info then
             ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
         end
-        return
-    end
-
-    local result = mutations.AddComponent(BuildDecorationMutationContext(unitKey), componentKey)
-    if not (result and result.ok ~= false) then
-        if ns.Info then
-            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
-        end
-        return
-    end
-
-    SelectSingletonComponent(unitKey, kind, componentKey)
+    end)
 end
 
 local function AddUnitFrame(unitKey)
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
-    if not (mutations and type(mutations.SetUnitPresence) == "function") then
-        if ns.Info then
-            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
+    local workflow = ns.LayoutEditWorkflow
+    if not (mutations and mutations.SetUnitPresence and workflow and workflow.RequestEditableLayoutForMutation) then return end
+    workflow.RequestEditableLayoutForMutation(function()
+        local result = mutations.SetUnitPresence(BuildDecorationMutationContext(unitKey), true)
+        if not (result and result.ok ~= false) then
+            if ns.Info then ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added.")) end
+            return
         end
-        return
-    end
-
-    local result = mutations.SetUnitPresence(BuildDecorationMutationContext(unitKey), true)
-    if not (result and result.ok ~= false) then
-        if ns.Info then
-            ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
-        end
-        return
-    end
-
-    if type(ns.ResyncActiveLayout) == "function" then
-        ns:ResyncActiveLayout("CanvasToolbar.AddUnitFrame")
-    elseif type(ns.RebuildFramesForActiveProfile) == "function" then
-        ns:RebuildFramesForActiveProfile()
-    elseif type(ns.RefreshUnitFrame) == "function" then
-        ns:RefreshUnitFrame(unitKey)
-    end
-
-    local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
-    if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
-        objectSelection.SelectUnitRoot(unitKey)
-    elseif type(ns.SelectEditorUnit) == "function" then
-        ns:SelectEditorUnit(unitKey)
-    end
-    RequestEditorRefresh("CanvasToolbar.AddUnitFrame")
+        if type(ns.ResyncActiveLayout) == "function" then ns:ResyncActiveLayout("CanvasToolbar.AddUnitFrame")
+        elseif type(ns.RebuildFramesForActiveProfile) == "function" then ns:RebuildFramesForActiveProfile()
+        elseif type(ns.RefreshUnitFrame) == "function" then ns:RefreshUnitFrame(unitKey) end
+        local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+        if objectSelection and objectSelection.SelectUnitRoot then objectSelection.SelectUnitRoot(unitKey)
+        elseif type(ns.SelectEditorUnit) == "function" then ns:SelectEditorUnit(unitKey) end
+        RequestEditorRefresh("CanvasToolbar.AddUnitFrame")
+    end)
 end
 
 local function AddPickerHeader(dialog, label)
@@ -879,103 +840,57 @@ local function FocusDialogEditBox(editBox)
     end
 end
 
-local function OpenNewLayoutDialog()
-    CloseNewLayoutDialog()
-
-    local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
-        title = T("LAYOUT_CREATE_TITLE", "New Layout"),
-        description = T("LAYOUT_CREATE_DESCRIPTION", "Create a blank layout and start from scratch."),
-        width = 420,
-        height = 220,
-        bodyHeight = 62,
-    }) or nil
-    if not dialog then
-        return
-    end
-
-    local nameEdit = AceGUI:Create("EditBox")
-    nameEdit:SetLabel(T("LAYOUT_CREATE_NAME", "Name"))
-    nameEdit:SetFullWidth(true)
-    nameEdit:SetText(ResolveDefaultNewLayoutName())
-    if FormWidgets and FormWidgets.StyleEditBox then
-        FormWidgets.StyleEditBox(nameEdit, "editor_inset")
-    end
-    dialog.body:AddChild(nameEdit)
-
-    local function setStatus(message)
-        dialog:SetStatus(message)
-    end
-
-    local function updateCreateButton()
-        if dialog.primaryButton then
-            dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
+local function BuildNewLayoutSourceList()
+    local sources = { blank = T("LAYOUT_CREATE_SOURCE_BLANK", "Blank") }
+    local layoutService = ns.LayoutService or {}
+    local summaries = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
+    for _, summary in ipairs(summaries) do
+        if type(summary) == "table" and (summary.source == "builtin" or summary.source == "userLayout") and type(summary.id) == "string" then
+            local prefix = summary.source == "builtin" and T("LAYOUT_CREATE_SOURCE_BUILTIN", "Template: ") or T("LAYOUT_CREATE_SOURCE_USER", "My layout: ")
+            sources[summary.id] = prefix .. ResolveLayoutDisplayName(summary)
         end
     end
-
-    local function confirm()
-        if HasDirtyTextBuilderDraft() then
-            setStatus(ResolveCreateLayoutStatus("dirty-text-builder"))
-            return
-        end
-
-        local ok, resultOrReason, createdLayoutId = false, "create-unavailable", nil
-        if ns.CreateBlankLayout then
-            ok, resultOrReason, createdLayoutId = ns:CreateBlankLayout(nameEdit:GetText(), {
-                reason = "create-layout",
-            })
-        end
-        if ok then
-            dialog:Close()
-            context.selectedLayoutId = createdLayoutId or resultOrReason or ResolveActiveLayoutId()
-            CanvasToolbar.Refresh()
-            return
-        end
-
-        local reason = resultOrReason
-        if createdLayoutId and resultOrReason ~= "pending" then
-            reason = "activation-failed"
-        end
-        setStatus(ResolveCreateLayoutStatus(reason))
-        updateCreateButton()
-        CanvasToolbar.Refresh()
-    end
-
-    nameEdit:SetCallback("OnTextChanged", function()
-        setStatus("")
-        updateCreateButton()
-    end)
-    nameEdit:SetCallback("OnEnterPressed", function()
-        if Trim(nameEdit:GetText() or "") ~= "" then
-            confirm()
-        end
-    end)
-
-    dialog:SetActions({
-        secondary = {
-            text = T("INFO_COMMON_CANCEL", "Cancel"),
-            role = "utility",
-            width = 110,
-            onClick = CloseNewLayoutDialog,
-        },
-        primary = {
-            text = T("LAYOUT_CREATE_CONFIRM", "Create"),
-            role = "primary_action",
-            width = 120,
-            onClick = confirm,
-        },
-    })
-
-    dialog.window:SetCallback("OnClose", function()
-        newLayoutDialog = nil
-    end)
-
-    newLayoutDialog = dialog
-    newLayoutDialog.nameEdit = nameEdit
-    updateCreateButton()
-    dialog:Show()
-    FocusDialogEditBox(nameEdit)
+    return sources
 end
 
+local function OpenNewLayoutDialog(initialSourceId)
+    CloseNewLayoutDialog()
+    local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+        title = T("LAYOUT_CREATE_TITLE", "New Layout"),
+        description = T("LAYOUT_CREATE_DESCRIPTION", "Create a personal layout from blank or an existing layout."),
+        width = 420, height = 276, bodyHeight = 118,
+    }) or nil
+    if not dialog then return end
+    local nameEdit = AceGUI:Create("EditBox")
+    nameEdit:SetLabel(T("LAYOUT_CREATE_NAME", "Name")); nameEdit:SetFullWidth(true); nameEdit:SetText(ResolveDefaultNewLayoutName())
+    if FormWidgets and FormWidgets.StyleEditBox then FormWidgets.StyleEditBox(nameEdit, "editor_inset") end
+    dialog.body:AddChild(nameEdit)
+    local sourceSelect = AceGUI:Create("Dropdown")
+    sourceSelect:SetLabel(T("LAYOUT_CREATE_START_FROM", "Start from")); sourceSelect:SetFullWidth(true); sourceSelect:SetList(BuildNewLayoutSourceList()); sourceSelect:SetValue(initialSourceId or "blank")
+    dialog.body:AddChild(sourceSelect)
+    local function updateCreateButton() if dialog.primaryButton then dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "") end end
+    local function confirm()
+        if HasDirtyTextBuilderDraft() then dialog:SetStatus(ResolveCreateLayoutStatus("dirty-text-builder")); return end
+        local sourceId = sourceSelect:GetValue() or "blank"
+        local ok, resultOrReason, createdLayoutId = false, "create-unavailable", nil
+        if sourceId == "blank" and ns.CreateBlankLayout then
+            ok, resultOrReason, createdLayoutId = ns:CreateBlankLayout(nameEdit:GetText(), { reason = "create-layout" })
+        elseif sourceId ~= "blank" then
+            local mutations = ns.LayoutMutations or {}
+            if mutations.CreateUserLayoutFromSource then
+                ok, resultOrReason = mutations.CreateUserLayoutFromSource(sourceId, nameEdit:GetText(), { activate = true, reason = "create-layout-from-source" })
+                createdLayoutId = resultOrReason
+            end
+        end
+        if ok then dialog:Close(); CanvasToolbar.Refresh(); return end
+        dialog:SetStatus(ResolveCreateLayoutStatus(resultOrReason)); updateCreateButton(); CanvasToolbar.Refresh()
+    end
+    nameEdit:SetCallback("OnTextChanged", function() dialog:SetStatus(""); updateCreateButton() end)
+    nameEdit:SetCallback("OnEnterPressed", function() if Trim(nameEdit:GetText() or "") ~= "" then confirm() end end)
+    dialog:SetActions({ secondary = { text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 110, onClick = CloseNewLayoutDialog }, primary = { text = T("LAYOUT_CREATE_CONFIRM", "Create"), role = "primary_action", width = 120, onClick = confirm } })
+    dialog.window:SetCallback("OnClose", function() if newLayoutDialog == dialog then newLayoutDialog = nil end end)
+    newLayoutDialog = dialog; updateCreateButton(); dialog:Show(); FocusDialogEditBox(nameEdit)
+end
 local function EnsureHost()
     if context and context.host then
         return context

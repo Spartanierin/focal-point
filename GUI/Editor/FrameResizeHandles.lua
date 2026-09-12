@@ -67,8 +67,8 @@ local function GetUnitConfig(frame)
     end
 
     local resolver = FocalPoint.ActiveLayoutResolver
-    if resolver and resolver.GetEditableActiveUnits then
-        local units = resolver.GetEditableActiveUnits(FocalPoint.db)
+    if resolver and resolver.GetActiveUnits then
+        local units = resolver.GetActiveUnits(FocalPoint.db)
         if type(units) == "table" then
             return units[unitKey], unitKey
         end
@@ -352,15 +352,22 @@ local function EndResize(handle, commit)
     SetSizeLabel(frame, state.currentWidth or state.startWidth, state.currentHeight or state.startHeight, false)
 
     if commit and frame and type(config) == "table" and unitKey then
-        config.width = state.currentWidth or state.startWidth
-        config.height = state.currentHeight or state.startHeight
-        config.point = "CENTER"
-        config.relativePoint = "CENTER"
-        config.relativeTo = "UIParent"
-        config.x = state.currentCenterX or state.startCenterX or config.x or 0
-        config.y = state.currentCenterY or state.startCenterY or config.y or 0
-        RefreshEditorForUnit(unitKey)
-    elseif frame then
+        ApplyPreviewGeometry(frame, state.startWidth, state.startHeight, state.bottomExtension, state.startCenterX, state.startCenterY, state.bossStackOffset)
+        local workflow = FocalPoint.LayoutEditWorkflow
+        if workflow and workflow.RequestEditableLayoutForMutation then
+            workflow.RequestEditableLayoutForMutation(function()
+                local resolver = FocalPoint.ActiveLayoutResolver
+                local units = resolver and resolver.GetEditableActiveUnits and resolver.GetEditableActiveUnits(FocalPoint.db) or nil
+                local editable = type(units) == "table" and units[unitKey] or nil
+                if type(editable) ~= "table" then return end
+                editable.width = state.currentWidth or state.startWidth
+                editable.height = state.currentHeight or state.startHeight
+                editable.point, editable.relativePoint, editable.relativeTo = "CENTER", "CENTER", "UIParent"
+                editable.x = state.currentCenterX or state.startCenterX or editable.x or 0
+                editable.y = state.currentCenterY or state.startCenterY or editable.y or 0
+                RefreshEditorForUnit(unitKey)
+            end)
+        end    elseif frame then
         ApplyPreviewGeometry(
             frame,
             state.startWidth,

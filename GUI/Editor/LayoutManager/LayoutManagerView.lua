@@ -341,17 +341,11 @@ local function ResolveActiveLayoutId()
 end
 
 local function ResolveLayoutName(summary)
-    if type(summary) ~= "table" then
-        return ""
+    local layoutService = ns.LayoutService or {}
+    if layoutService.GetDisplayName then
+        return layoutService.GetDisplayName(summary)
     end
-    local L = ns.L or {}
-    if type(summary.labelKey) == "string" and L[summary.labelKey] then
-        return L[summary.labelKey]
-    end
-    if type(summary.name) == "string" and summary.name ~= "" then
-        return summary.name
-    end
-    return type(summary.id) == "string" and summary.id or ""
+    return type(summary) == "table" and (summary.name or summary.id) or ""
 end
 
 local function IsProductLayout(summary)
@@ -840,10 +834,12 @@ local function OpenCopyDialog()
     local isBuiltin = selected.source == "builtin"
     local dialog = CreateLayoutNameDialog({
         title = isBuiltin and T("LAYOUT_COPY_TITLE_BUILTIN", "Create Layout Copy") or T("LAYOUT_COPY_TITLE_DUPLICATE", "Duplicate Layout"),
-        description = T("LAYOUT_COPY_DESCRIPTION", "Create a new custom layout from the selected source. It will not be activated automatically."),
+        description = isBuiltin
+            and T("LAYOUT_COPY_DESCRIPTION_BUILTIN", "Create a personal layout from this built-in template.")
+            or T("LAYOUT_COPY_DESCRIPTION", "Create a new custom layout from the selected source. It will not be activated automatically."),
         defaultName = defaultName,
         nameLabel = T("LAYOUT_COPY_NAME", "Name"),
-        primaryText = isBuiltin and T("LAYOUT_MANAGER_CREATE_COPY", "Create Copy") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"),
+        primaryText = isBuiltin and T("LAYOUT_MANAGER_CREATE_FROM_TEMPLATE", "Create Layout from This") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"),
         onCancel = CloseCopyDialog,
     })
     if not dialog then
@@ -853,7 +849,7 @@ local function OpenCopyDialog()
     local function submitCopy(_, nameEdit)
         local ok, resultOrReason = false, "copy-unavailable"
         if mutations.CopyLayout then
-            ok, resultOrReason = mutations.CopyLayout(selected.id, nameEdit:GetText())
+            ok, resultOrReason = mutations.CopyLayout(selected.id, nameEdit:GetText(), { activate = selected.source == "builtin", reason = "layout-manager-copy" })
         end
         if ok then
             context.selectedLayoutId = resultOrReason
@@ -958,7 +954,7 @@ local function RefreshActions()
         end
     end
     if context.widgets.copyButton then
-        context.widgets.copyButton:SetText(isBuiltin and T("LAYOUT_MANAGER_CREATE_COPY", "Create Copy") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"))
+        context.widgets.copyButton:SetText(isBuiltin and T("LAYOUT_MANAGER_CREATE_FROM_TEMPLATE", "Create Layout from This") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"))
         SetButtonVisible(context.widgets.copyButton, isUserLayout or isBuiltin, isBuiltin and 120 or 105)
         if FormWidgets.ApplyModalActionButtonVisual then
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.copyButton, "utility")

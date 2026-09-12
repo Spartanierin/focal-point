@@ -120,8 +120,7 @@ local function ResolveUnitConfig(frame)
     return nil, unitKey
 end
 
-local function ResolveEditableUnitConfig(frame)
-    local unitKey = GetUnitKey(frame)
+local function ResolveEditableUnitConfigByKey(unitKey)
     if not unitKey then
         return nil, nil
     end
@@ -135,6 +134,20 @@ local function ResolveEditableUnitConfig(frame)
     end
 
     return nil, unitKey
+end
+
+local function RequestEditableContextMutation(action)
+    local workflow = FocalPoint.LayoutEditWorkflow
+    if not (workflow and workflow.RequestEditableLayoutForMutation) then
+        return false
+    end
+
+    local completed = false
+    workflow.RequestEditableLayoutForMutation(function()
+        action()
+        completed = true
+    end)
+    return completed
 end
 
 local function IsEditorUnlocked()
@@ -219,6 +232,14 @@ local function GetSelectedResetUnits(frame)
     return { unitKey }, false
 end
 
+local function SnapshotUnitKeys(units)
+    local snapshot = {}
+    for index, unitKey in ipairs(units or {}) do
+        snapshot[index] = unitKey
+    end
+    return snapshot
+end
+
 local function GetSelectedResetCount(frame)
     local units, isBatch = GetSelectedResetUnits(frame)
     return isBatch and #units or 1
@@ -272,14 +293,20 @@ end
 
 local function AlignSelected(mode)
     local mutations = GetFrameMutations()
-    if not (mutations and mutations.AlignSelectedUnits) then
+    local editorState = GetEditorStateApi()
+    if not (mutations and mutations.AlignUnits and editorState and editorState.GetSelectedUnits and editorState.GetPrimaryUnit) then
         return
     end
 
-    local result = mutations.AlignSelectedUnits(mode)
-    if not (result and result.ok == true) then
-        PrintAlignFailure(result)
-    end
+    local units = SnapshotUnitKeys(editorState.GetSelectedUnits())
+    local primaryUnit = editorState.GetPrimaryUnit()
+
+    RequestEditableContextMutation(function()
+        local result = mutations.AlignUnits(units, primaryUnit, mode)
+        if not (result and result.ok == true) then
+            PrintAlignFailure(result)
+        end
+    end)
 end
 
 local function GetInspectorMutations()
@@ -425,21 +452,27 @@ local function PasteSize(frame)
         return
     end
 
-    local config, unitKey = ResolveEditableUnitConfig(frame)
-    if type(config) ~= "table" then
+    local width = Clamp(clipboard.size.width, SIZE_MIN_WIDTH, SIZE_MAX_WIDTH)
+    local height = Clamp(clipboard.size.height, SIZE_MIN_HEIGHT, SIZE_MAX_HEIGHT)
+    local unitKey = GetUnitKey(frame)
+    if not unitKey then
         return
     end
 
-    local width = Clamp(clipboard.size.width, SIZE_MIN_WIDTH, SIZE_MAX_WIDTH)
-    local height = Clamp(clipboard.size.height, SIZE_MIN_HEIGHT, SIZE_MAX_HEIGHT)
-    if width then
-        config.width = width
-    end
-    if height then
-        config.height = height
-    end
+    RequestEditableContextMutation(function()
+        local config = ResolveEditableUnitConfigByKey(unitKey)
+        if type(config) ~= "table" then
+            return
+        end
+        if width then
+            config.width = width
+        end
+        if height then
+            config.height = height
+        end
 
-    RefreshEditorForUnit(unitKey)
+        RefreshEditorForUnit(unitKey)
+    end)
 end
 
 local function CopyPosition(frame)
@@ -469,21 +502,36 @@ local function PastePosition(frame)
         return
     end
 
-    local config, unitKey = ResolveEditableUnitConfig(frame)
-    if type(config) ~= "table" then
+    local unitKey = GetUnitKey(frame)
+    if not unitKey then
         return
     end
+    local position = {
+        point = clipboard.position.point or "CENTER",
+        relativeTo = clipboard.position.relativeTo or "UIParent",
+        relativePoint = clipboard.position.relativePoint or "CENTER",
+        x = tonumber(clipboard.position.x) or 0,
+        y = tonumber(clipboard.position.y) or 0,
+    }
 
-    config.point = clipboard.position.point or "CENTER"
-    config.relativeTo = clipboard.position.relativeTo or "UIParent"
-    config.relativePoint = clipboard.position.relativePoint or "CENTER"
-    config.x = tonumber(clipboard.position.x) or 0
-    config.y = tonumber(clipboard.position.y) or 0
+    RequestEditableContextMutation(function()
+        local config = ResolveEditableUnitConfigByKey(unitKey)
+        if type(config) ~= "table" then
+            return
+        end
 
-    if FocalPoint.ApplyStoredFramePosition then
-        FocalPoint:ApplyStoredFramePosition(frame)
-    end
-    RefreshEditorForUnit(unitKey)
+        config.point = position.point
+        config.relativeTo = position.relativeTo
+        config.relativePoint = position.relativePoint
+        config.x = position.x
+        config.y = position.y
+
+        if FocalPoint.ApplyStoredFramePosition then
+            local targetFrame = FocalPoint.frames and FocalPoint.frames[unitKey] or frame
+            FocalPoint:ApplyStoredFramePosition(targetFrame)
+        end
+        RefreshEditorForUnit(unitKey)
+    end)
 end
 
 local function ResetSize(frame)
@@ -492,11 +540,13 @@ local function ResetSize(frame)
         return
     end
 
-    local units = GetSelectedResetUnits(frame)
-    local result = mutations.ResetUnitsSize(units)
-    if not (result and result.ok == true) then
-        PrintResetFailure("size", result)
-    end
+    local selectedUnits = SnapshotUnitKeys(GetSelectedResetUnits(frame))
+    RequestEditableContextMutation(function()
+        local result = mutations.ResetUnitsSize(selectedUnits)
+        if not (result and result.ok == true) then
+            PrintResetFailure("size", result)
+        end
+    end)
 end
 
 local function ResetPosition(frame)
@@ -505,11 +555,13 @@ local function ResetPosition(frame)
         return
     end
 
-    local units = GetSelectedResetUnits(frame)
-    local result = mutations.ResetUnitsPosition(units)
-    if not (result and result.ok == true) then
-        PrintResetFailure("position", result)
-    end
+    local selectedUnits = SnapshotUnitKeys(GetSelectedResetUnits(frame))
+    RequestEditableContextMutation(function()
+        local result = mutations.ResetUnitsPosition(selectedUnits)
+        if not (result and result.ok == true) then
+            PrintResetFailure("position", result)
+        end
+    end)
 end
 
 local function ResetTextContextPosition(menu)

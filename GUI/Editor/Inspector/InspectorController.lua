@@ -459,8 +459,8 @@ function InspectorController.Build(container, state, options)
 
     local function GetEditableActivePayload()
         local resolver = ns.ActiveLayoutResolver
-        if resolver and resolver.EnsureEditableActiveLayout then
-            local payload = resolver.EnsureEditableActiveLayout(ns.db)
+        if resolver and resolver.EnsureEditableForMutation then
+            local payload = resolver.EnsureEditableForMutation(ns.db)
             return type(payload) == "table" and payload or nil
         end
         return nil
@@ -886,67 +886,92 @@ function InspectorController.Build(container, state, options)
         return result
     end
 
+    local function RequestEditableMutation(action)
+        local workflow = ns.LayoutEditWorkflow
+        if not (workflow and workflow.RequestEditableLayoutForMutation) then
+            return nil
+        end
+        local result = nil
+        local ready = workflow.RequestEditableLayoutForMutation(function()
+            result = action()
+        end)
+        if result then
+            return result
+        end
+        if ready == false then
+            return { ok = true, changed = false, pending = true }
+        end
+        return nil
+    end
     local function SetUnitField(fieldName, value, section, fallbackNotify)
         if type(InspectorMutations.SetUnitField) ~= "function" then
             return nil
         end
-        return ApplyMutation("unit", fieldName, InspectorMutations.SetUnitField(inspectorContext, fieldName, value), section, fallbackNotify)
+        return RequestEditableMutation(function() return ApplyMutation("unit", fieldName, InspectorMutations.SetUnitField(inspectorContext, fieldName, value), section, fallbackNotify) end)
     end
 
     local function SetUnitPresence(present)
         if type(InspectorMutations.SetUnitPresence) ~= "function" then
             return nil
         end
-        return InspectorMutations.SetUnitPresence(inspectorContext, present == true)
+        return RequestEditableMutation(function() return InspectorMutations.SetUnitPresence(inspectorContext, present == true) end)
     end
 
     local function SetComponentPresence(componentKey, present)
         if type(InspectorMutations.SetComponentPresence) ~= "function" then
             return nil
         end
-        return InspectorMutations.SetComponentPresence(inspectorContext, componentKey, present == true)
+        return RequestEditableMutation(function() return InspectorMutations.SetComponentPresence(inspectorContext, componentKey, present == true) end)
     end
 
     local function SetTextField(textKey, fieldName, value, section, fallbackNotify)
         if type(InspectorMutations.SetTextField) ~= "function" then
             return nil
         end
-        return ApplyMutation("text", fieldName, InspectorMutations.SetTextField(inspectorContext, textKey, fieldName, value), section, fallbackNotify)
+        return RequestEditableMutation(function() return ApplyMutation("text", fieldName, InspectorMutations.SetTextField(inspectorContext, textKey, fieldName, value), section, fallbackNotify) end)
     end
 
     local function SetTextStateTemplate(textKey, stateKey, value, section, dropdown)
-        local result
-        if value == "__none" then
-            result = type(InspectorMutations.UnassignTextStateTemplate) == "function"
-                and InspectorMutations.UnassignTextStateTemplate(inspectorContext, textKey, stateKey)
-                or nil
-        elseif type(GetActiveProfileTextTemplates()[value]) == "string" then
-            result = type(InspectorMutations.AssignTextStateTemplate) == "function"
-                and InspectorMutations.AssignTextStateTemplate(inspectorContext, textKey, stateKey, value)
-                or nil
-        else
+        local function SyncStoredTemplateValue()
             local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
             local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
             SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
+        end
+
+        if value ~= "__none" and type(GetActiveProfileTextTemplates()[value]) ~= "string" then
+            SyncStoredTemplateValue()
             return { ok = true, changed = false }
         end
 
-        if result and result.ok == false then
-            ReportMutationError(result)
-            local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
-            local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
-            SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
-            return result
-        end
+        local result = RequestEditableMutation(function()
+            local mutationResult
+            if value == "__none" then
+                mutationResult = type(InspectorMutations.UnassignTextStateTemplate) == "function"
+                    and InspectorMutations.UnassignTextStateTemplate(inspectorContext, textKey, stateKey)
+                    or nil
+            else
+                mutationResult = type(InspectorMutations.AssignTextStateTemplate) == "function"
+                    and InspectorMutations.AssignTextStateTemplate(inspectorContext, textKey, stateKey, value)
+                    or nil
+            end
 
-        if result and result.ok and result.changed then
-            NotifyConfigChangedAndRebuildSection(section, "texts")
-            return result
-        end
+            if mutationResult and mutationResult.ok == false then
+                ReportMutationError(mutationResult)
+                SyncStoredTemplateValue()
+                return mutationResult
+            end
 
-        local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
-        local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
-        SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
+            if mutationResult and mutationResult.ok and mutationResult.changed then
+                NotifyConfigChangedAndRebuildSection(section, "texts")
+                return mutationResult
+            end
+
+            SyncStoredTemplateValue()
+            return mutationResult
+        end)
+        if result and result.pending then
+            SyncStoredTemplateValue()
+        end
         return result
     end
 
@@ -970,13 +995,22 @@ function InspectorController.Build(container, state, options)
             return nil
         end
 
-        local result = InspectorMutations.SetTextFontSize(inspectorContext, textKey, value)
-        if result and result.ok == false then
-            ReportMutationError(result)
-            return result
-        end
-        if result and result.ok and result.changed then
-            RefreshTextFontSizeLocally(textKey, result.newValue)
+        local requestedValue = value
+        local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
+        local storedValue = type(textConfig) == "table" and textConfig.fontSize or nil
+        local result = RequestEditableMutation(function()
+            local mutationResult = InspectorMutations.SetTextFontSize(inspectorContext, textKey, requestedValue)
+            if mutationResult and mutationResult.ok == false then
+                ReportMutationError(mutationResult)
+                return mutationResult
+            end
+            if mutationResult and mutationResult.ok and mutationResult.changed then
+                RefreshTextFontSizeLocally(textKey, mutationResult.newValue)
+            end
+            return mutationResult
+        end)
+        if result and result.pending then
+            InspectorController.SetActiveTextFontSizeValue(state and state.selectedUnit, textKey, storedValue)
         end
         return result
     end
@@ -1263,7 +1297,16 @@ function InspectorController.Build(container, state, options)
                         overlay.CancelActiveDrag()
                     end
 
-                    local result = InspectorMutations.DeleteTextInstance(inspectorContext, textKey)
+                    local result = RequestEditableMutation(function()
+                        local mutationResult = InspectorMutations.DeleteTextInstance(inspectorContext, textKey)
+                        if mutationResult and mutationResult.ok == false then
+                            return mutationResult
+                        end
+
+                        SelectUnitRootAfterTextDelete(unitKey)
+                        NotifySidebarChanged("texts")
+                        return mutationResult
+                    end)
                     if result and result.ok == false then
                         if activeDialog and activeDialog.SetStatus then
                             activeDialog:SetStatus(ResolveMutationErrorMessage(result))
@@ -1272,8 +1315,6 @@ function InspectorController.Build(container, state, options)
                     end
 
                     CloseDeleteTextInstanceDialog()
-                    SelectUnitRootAfterTextDelete(unitKey)
-                    NotifySidebarChanged("texts")
                 end,
             },
         })
@@ -1291,14 +1332,14 @@ function InspectorController.Build(container, state, options)
         if type(InspectorMutations.SetIndicatorField) ~= "function" then
             return nil
         end
-        return ApplyMutation("indicator", fieldName, InspectorMutations.SetIndicatorField(inspectorContext, indicatorKey, fieldName, value), section, fallbackNotify)
+        return RequestEditableMutation(function() return ApplyMutation("indicator", fieldName, InspectorMutations.SetIndicatorField(inspectorContext, indicatorKey, fieldName, value), section, fallbackNotify) end)
     end
 
     local function SetAuraField(auraKey, fieldName, value, section, fallbackNotify)
         if type(InspectorMutations.SetAuraField) ~= "function" then
             return nil
         end
-        return ApplyMutation("aura", fieldName, InspectorMutations.SetAuraField(inspectorContext, auraKey, fieldName, value), section, fallbackNotify)
+        return RequestEditableMutation(function() return ApplyMutation("aura", fieldName, InspectorMutations.SetAuraField(inspectorContext, auraKey, fieldName, value), section, fallbackNotify) end)
     end
 
     local function SetDecorationField(fieldName, value, section, fallbackNotify)
@@ -1309,7 +1350,7 @@ function InspectorController.Build(container, state, options)
         if type(decorationId) ~= "string" or decorationId == "" then
             return nil
         end
-        return ApplyMutation("decoration", fieldName, InspectorMutations.SetDecorationField(inspectorContext, decorationId, fieldName, value), section, fallbackNotify)
+        return RequestEditableMutation(function() return ApplyMutation("decoration", fieldName, InspectorMutations.SetDecorationField(inspectorContext, decorationId, fieldName, value), section, fallbackNotify) end)
     end
 
     local function RefreshInspectorLayout()
@@ -4206,17 +4247,19 @@ function InspectorController.Build(container, state, options)
             if type(InspectorMutations.DeleteDecoration) ~= "function" or not selectedDecorationId then
                 return nil
             end
-            local result = InspectorMutations.DeleteDecoration(inspectorContext, selectedDecorationId)
-            if result and result.ok == false then
-                ReportMutationError(result)
+            return RequestEditableMutation(function()
+                local result = InspectorMutations.DeleteDecoration(inspectorContext, selectedDecorationId)
+                if result and result.ok == false then
+                    ReportMutationError(result)
+                    return result
+                end
+                if result and result.ok and result.changed then
+                    state.selectedDecorationId = nil
+                    SelectUnitRoot(selectedUnit)
+                    NotifySidebarChanged("decoration")
+                end
                 return result
-            end
-            if result and result.ok and result.changed then
-                state.selectedDecorationId = nil
-                SelectUnitRoot(selectedUnit)
-                NotifySidebarChanged("decoration")
-            end
-            return result
+            end)
         end
 
         local function OpenDeleteDecorationConfirmDialog()

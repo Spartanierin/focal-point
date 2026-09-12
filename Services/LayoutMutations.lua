@@ -32,18 +32,11 @@ local function NormalizeComparableName(value)
 end
 
 local function ResolveLayoutSummaryName(summary)
-    if type(summary) ~= "table" then
-        return ""
+    local layoutService = FocalPoint.LayoutService or {}
+    if layoutService.GetDisplayName then
+        return layoutService.GetDisplayName(summary)
     end
-    local labelKey = summary.labelKey
-    local localized = type(labelKey) == "string" and FocalPoint.L and FocalPoint.L[labelKey] or nil
-    if type(localized) == "string" and localized ~= "" then
-        return localized
-    end
-    if type(summary.name) == "string" and summary.name ~= "" then
-        return summary.name
-    end
-    return type(summary.id) == "string" and summary.id or ""
+    return type(summary) == "table" and (summary.name or summary.id) or ""
 end
 
 local function IsProductLayoutSource(source)
@@ -138,72 +131,40 @@ function Mutations.SuggestLayoutCopyName(baseName)
     return BuildCopyNameCandidate("Layout", 1)
 end
 
-function Mutations.CopyLayout(layoutId, newName)
-    if not IsCopyableLayoutId(layoutId) then
-        return false, "unsupported-source"
-    end
-
-    local validName, normalizedNameOrReason = Mutations.ValidateLayoutName(newName)
-    if not validName then
-        return false, normalizedNameOrReason
-    end
+function Mutations.CreateUserLayoutFromSource(layoutId, newName, options)
+    if not IsCopyableLayoutId(layoutId) then return false, "unsupported-source" end
+    options = type(options) == "table" and options or {}
+    if InCombatLockdown and InCombatLockdown() then return false, "combat-blocked" end
 
     local Resolver = FocalPoint.ActiveLayoutResolver or {}
-    if not Resolver.ResolveLayout then
-        return false, "resolver-unavailable"
-    end
-    local envelope, resolveReason = Resolver.ResolveLayout(FocalPoint.db, layoutId)
-    if type(envelope) ~= "table" then
-        return false, resolveReason or "layout-not-found"
-    end
-    if envelope.source ~= "userLayout" and envelope.source ~= "builtin" then
-        return false, "unsupported-source"
-    end
+    local envelope, resolveReason = Resolver.ResolveLayout and Resolver.ResolveLayout(FocalPoint.db, layoutId) or nil
+    if type(envelope) ~= "table" then return false, resolveReason or "layout-not-found" end
+    if envelope.source ~= "userLayout" and envelope.source ~= "builtin" then return false, "unsupported-source" end
 
-    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
-    local sourcePayload = envelope.payload
-    if envelope.source == "userLayout" then
-        local sourceRecord = UserLayoutStore.GetRawReadOnly and UserLayoutStore.GetRawReadOnly(layoutId, FocalPoint.db) or nil
-        sourcePayload = type(sourceRecord) == "table" and sourceRecord.payload or nil
-    end
+    local displayName = ResolveLayoutSummaryName(envelope)
+    local requestedName = type(newName) == "string" and newName or Mutations.SuggestLayoutCopyName(displayName)
+    local validName, normalizedNameOrReason = Mutations.ValidateLayoutName(requestedName)
+    if not validName then return false, normalizedNameOrReason end
 
     local LayoutService = FocalPoint.LayoutService or {}
-    local copiedPayload = LayoutService.CopyPayload and LayoutService.CopyPayload(sourcePayload) or nil
-    if not IsValidLayoutPayload(copiedPayload) then
-        return false, "payload-invalid"
-    end
-
-    if not (UserLayoutStore.GenerateId and UserLayoutStore.PutRaw) then
-        return false, "user-layout-store-unavailable"
-    end
-
+    local payload = LayoutService.CopyPayload and LayoutService.CopyPayload(envelope.payload) or nil
+    if not IsValidLayoutPayload(payload) then return false, "payload-invalid" end
+    local UserLayoutStore = FocalPoint.UserLayoutStore or {}
+    if not (UserLayoutStore.GenerateId and UserLayoutStore.PutRaw and UserLayoutStore.RemoveRaw) then return false, "user-layout-store-unavailable" end
     local newLayoutId = UserLayoutStore.GenerateId()
-    if type(newLayoutId) ~= "string" or newLayoutId == "" then
-        return false, "id-failed"
+    if type(newLayoutId) ~= "string" or newLayoutId == "" then return false, "id-failed" end
+    local record = { name = normalizedNameOrReason, payload = payload, formatVersion = LAYOUT_FORMAT_VERSION, createdFrom = { source = ResolveCreatedFromSource(envelope.source), id = envelope.id } }
+    if UserLayoutStore.PutRaw(newLayoutId, record) ~= newLayoutId then return false, "store-write-failed" end
+    if options.activate == true then
+        local activated, reason = FocalPoint.ActivateLayout and FocalPoint:ActivateLayout(newLayoutId, options.reason or "create-layout-from-source") or false, "activation-unavailable"
+        if not activated then UserLayoutStore.RemoveRaw(newLayoutId, FocalPoint.db); return false, reason or "activation-failed" end
     end
-
-    local record = {
-        name = normalizedNameOrReason,
-        payload = copiedPayload,
-        formatVersion = LAYOUT_FORMAT_VERSION,
-        createdFrom = {
-            source = ResolveCreatedFromSource(envelope.source),
-            id = envelope.id,
-        },
-    }
-    local storedId = UserLayoutStore.PutRaw(newLayoutId, record)
-    if storedId ~= newLayoutId then
-        return false, "store-write-failed"
-    end
-
-    local storedRecord = UserLayoutStore.GetRawReadOnly and UserLayoutStore.GetRawReadOnly(newLayoutId, FocalPoint.db) or nil
-    if type(storedRecord) ~= "table" or not IsValidLayoutPayload(storedRecord.payload) then
-        return false, "store-verify-failed"
-    end
-
     return true, newLayoutId, normalizedNameOrReason
 end
-
+function Mutations.CopyLayout(layoutId, newName, options)
+    options = type(options) == "table" and options or {}
+    return Mutations.CreateUserLayoutFromSource(layoutId, newName, { activate = options.activate == true, reason = options.reason or "copy-layout" })
+end
 function Mutations.DeleteUserLayout(layoutId)
     if type(layoutId) ~= "string" or layoutId == "" or not layoutId:match("^layout:") then
         return false, "invalid-layout"

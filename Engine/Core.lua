@@ -781,24 +781,60 @@ UpdateMoveOverlay = function(frame)
     UpdateMoveOverlayVisuals(frame)
 end
 
-local function SaveFramePosition(frame)
+local function CaptureFramePosition(frame)
     if not frame or not frame._fpUnit then
-        return
+        return nil
+    end
+
+    local unitConfig = GetUnitConfig(frame._fpUnit)
+    local x, y = GetFrameCenterOffsets(frame)
+    local bossStackOffset = GetBossStackOffset(frame, unitConfig)
+    return {
+        point = "CENTER",
+        relativePoint = "CENTER",
+        relativeTo = "UIParent",
+        x = x,
+        y = y + bossStackOffset,
+    }
+end
+
+local function SaveFramePositionNow(frame, position)
+    if not frame or not frame._fpUnit or type(position) ~= "table" then
+        return false
     end
 
     local unitConfig = GetEditableUnitConfig(frame._fpUnit)
     if not unitConfig then
+        return false
+    end
+
+    unitConfig.point = position.point
+    unitConfig.relativePoint = position.relativePoint
+    unitConfig.relativeTo = position.relativeTo
+    unitConfig.x = position.x
+    unitConfig.y = position.y
+    return true
+end
+
+local function SaveFramePosition(frame, position)
+    position = position or CaptureFramePosition(frame)
+    if type(position) ~= "table" then
         return
     end
 
-    local x, y = GetFrameCenterOffsets(frame)
-    local bossStackOffset = GetBossStackOffset(frame, unitConfig)
-
-    unitConfig.point = "CENTER"
-    unitConfig.relativePoint = "CENTER"
-    unitConfig.relativeTo = "UIParent"
-    unitConfig.x = x
-    unitConfig.y = y + bossStackOffset
+    local workflow = FocalPoint.LayoutEditWorkflow
+    if not (workflow and workflow.RequestEditableLayoutForMutation) then return end
+    workflow.RequestEditableLayoutForMutation(function()
+        if not SaveFramePositionNow(frame, position) then
+            return
+        end
+        if frame._fpUnit and frame._fpUnit:match("^boss%d+$") then
+            ApplyBossStackPositions()
+        else
+            FocalPoint:ApplyStoredFramePosition(frame)
+            UpdateMoveOverlay(frame)
+        end
+    end)
 end
 
 FocalPoint.SaveFramePosition = SaveFramePosition
@@ -995,7 +1031,7 @@ EndFrameDrag = function(frame, commit)
         for unitKey in pairs(dragState.startPositions) do
             local selectedFrame = ResolveFrameForSelectionUnit(unitKey, frame)
             if selectedFrame then
-                SaveFramePosition(selectedFrame)
+                SaveFramePosition(selectedFrame, CaptureFramePosition(selectedFrame))
                 if unitKey == "boss" then
                     ApplyBossStackPositions()
                 else
@@ -1005,7 +1041,7 @@ EndFrameDrag = function(frame, commit)
             end
         end
     elseif commit then
-        SaveFramePosition(frame)
+        SaveFramePosition(frame, CaptureFramePosition(frame))
         if frame._fpUnit and frame._fpUnit:match("^boss%d+$") then
             ApplyBossStackPositions()
         else
