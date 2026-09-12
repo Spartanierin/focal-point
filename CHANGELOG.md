@@ -10,6 +10,23 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.2
+
+### Improved
+
+* Refined editor dialogs with cleaner spacing, more consistent sizing, and clearer action placement.
+* Improved the New Layout, Add Object, Add Indicator, and text selection workflows.
+* Updated Layout Assignments and Manage Layouts dialogs for a more consistent editing experience.
+* Editor Options now use a clearer two-column On/Off presentation.
+* Active markers in the Composition Tree now match the active Unit highlight.
+* Updated the runtime Text icon for clearer recognition in the Composition Tree.
+* Internal selection performance diagnostics no longer run by default.
+
+### Removed
+
+* Removed the obsolete Settings Profiles entry from the editor sidebar.
+* Removed the legacy Copy to Current Profile action from Text Builder.
+
 ## 2.0.1
 
 ### Improved
