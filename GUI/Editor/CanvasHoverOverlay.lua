@@ -64,6 +64,9 @@ function CanvasHoverOverlay.IsEditorActive()
     return FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
         and FocalPoint:IsEditorActive()
+        and not (FocalPoint.GUI.Editor.InteractionMode
+            and FocalPoint.GUI.Editor.InteractionMode.IsCanvasInteractionBlocked
+            and FocalPoint.GUI.Editor.InteractionMode.IsCanvasInteractionBlocked())
 end
 
 local function IsFrameShown(frame)
@@ -306,7 +309,7 @@ local function NormalizeWheelDelta(delta)
 end
 
 local function ApplyWheelCapability(zone, delta)
-    if not (zone and zone.IsMouseOver and zone:IsMouseOver()) or not IsSelectedObject(zone._focalPointObjectRef) or (InCombatLockdown and InCombatLockdown()) then return false end
+    if not CanvasHoverOverlay.IsEditorActive() or not (zone and zone.IsMouseOver and zone:IsMouseOver()) or not IsSelectedObject(zone._focalPointObjectRef) or (InCombatLockdown and InCombatLockdown()) then return false end
     local capability = ResolveWheelCapability(zone._focalPointOwnerFrame, zone._focalPointObjectRef)
     local step = NormalizeWheelDelta(delta)
     if not capability or step == 0 then return false end
@@ -779,6 +782,9 @@ local function EnsureHitZone(frame, key)
         end
     end)
     zone:SetScript("OnMouseUp", function(self, button)
+        if not CanvasHoverOverlay.IsEditorActive() then
+            return
+        end
         if button == "LeftButton" then
             if self._focalPointMovesUnit then
                 CompleteOwnerGesture(self, true)
@@ -796,6 +802,9 @@ local function EnsureHitZone(frame, key)
         end
     end)
     zone:SetScript("OnMouseDown", function(self, button)
+        if not CanvasHoverOverlay.IsEditorActive() then
+            return
+        end
         if button == "LeftButton" and self._focalPointMovesUnit then
             local directMove = IsShiftDown() and ResolveDirectMoveDescriptor(self._focalPointOwnerFrame, self._focalPointObjectRef) or nil
             local gesture = {
@@ -809,6 +818,9 @@ local function EnsureHitZone(frame, key)
         end
     end)
     zone:SetScript("OnDragStart", function(self)
+        if not CanvasHoverOverlay.IsEditorActive() then
+            return
+        end
         local gesture = self._focalPointGesture
         if not gesture or not self._focalPointMovesUnit then
             return

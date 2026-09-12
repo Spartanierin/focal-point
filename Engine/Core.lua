@@ -398,7 +398,11 @@ local function CompleteEditorFrameSelectionClick(frame, button)
         return
     end
 
-    if not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive() then
+    local interactionMode = FocalPoint.GUI
+        and FocalPoint.GUI.Editor
+        and FocalPoint.GUI.Editor.InteractionMode
+    if not FocalPoint.IsEditorActive or not FocalPoint:IsEditorActive()
+        or (interactionMode and interactionMode.IsCanvasInteractionBlocked and interactionMode.IsCanvasInteractionBlocked()) then
         return
     end
 
@@ -879,6 +883,11 @@ local function BeginFrameDrag(frame, options)
         return false
     end
 
+    local interactionMode = GetEditorInteractionMode()
+    if interactionMode and interactionMode.IsCanvasInteractionBlocked and interactionMode.IsCanvasInteractionBlocked() then
+        return false
+    end
+
     if frame._focalPointDragState then
         return false
     end
@@ -1079,6 +1088,14 @@ function FocalPoint:EndEditorUnitFrameDrag(frame, commit)
 
     EndFrameDrag(frame, commit)
     return true
+end
+
+function FocalPoint:CancelEditorUnitFrameDrags()
+    for _, frame in pairs(self.frames or {}) do
+        if frame and frame._focalPointDragState then
+            self:EndEditorUnitFrameDrag(frame, false)
+        end
+    end
 end
 
 local function UpdateRootTransformOverlay(frame, active)

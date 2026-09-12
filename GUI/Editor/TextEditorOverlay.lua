@@ -115,6 +115,9 @@ local function IsEditorActive()
         and FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
         and FocalPoint:IsEditorActive()
+        and not (FocalPoint.GUI.Editor.InteractionMode
+            and FocalPoint.GUI.Editor.InteractionMode.IsCanvasInteractionBlocked
+            and FocalPoint.GUI.Editor.InteractionMode.IsCanvasInteractionBlocked())
 end
 
 local function GetEditorStateApi()

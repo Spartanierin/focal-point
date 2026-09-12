@@ -116,6 +116,32 @@ function EditorInteractionMode.IsShiftDown()
     return false
 end
 
+function EditorInteractionMode.IsCanvasInteractionBlocked()
+    return GameMenuFrame and GameMenuFrame.IsShown and GameMenuFrame:IsShown() == true
+end
+
+local function CancelCanvasInteractionForGameMenu()
+    local editor = FocalPoint and FocalPoint.GUI and FocalPoint.GUI.Editor or nil
+    local hoverOverlay = editor and editor.CanvasHoverOverlay or nil
+    if hoverOverlay and hoverOverlay.Clear then
+        hoverOverlay.Clear()
+    end
+
+    local textOverlay = editor and editor.TextEditorOverlay or nil
+    if textOverlay and textOverlay.CancelActiveDrag then
+        textOverlay.CancelActiveDrag()
+    end
+
+    local resizeHandles = editor and editor.FrameResizeHandles or nil
+    if resizeHandles and resizeHandles.CancelAll then
+        resizeHandles.CancelAll()
+    end
+
+    if FocalPoint and FocalPoint.CancelEditorUnitFrameDrags then
+        FocalPoint:CancelEditorUnitFrameDrags()
+    end
+end
+
 function EditorInteractionMode.SetLatchedTextMode()
     return false
 end
@@ -179,5 +205,10 @@ if eventFrame then
     end)
 end
 state.lastMode = ResolveMode()
+
+if GameMenuFrame and GameMenuFrame.HookScript and not GameMenuFrame._focalPointCanvasInteractionHooked then
+    GameMenuFrame:HookScript("OnShow", CancelCanvasInteractionForGameMenu)
+    GameMenuFrame._focalPointCanvasInteractionHooked = true
+end
 
 return EditorInteractionMode
