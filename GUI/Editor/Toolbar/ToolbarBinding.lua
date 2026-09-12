@@ -33,6 +33,8 @@ local INTERACTION_MODE_BUTTONS = {
 }
 
 local BRAND_TITLE_FONT = "Interface\\AddOns\\FocalPoint\\Media\\Achtung! Polizei.otf"
+local BRAND_FALLBACK_FONT = "Fonts\\FRIZQT__.TTF"
+local BRAND_LOGO_PATH = "Interface\\AddOns\\FocalPoint\\Media\\icon.tga"
 
 local function ResolveConstantPath(root, path)
     if type(root) ~= "table" or type(path) ~= "table" then
@@ -57,17 +59,23 @@ end
 local function ApplyBrandTitleFont(widget)
     local fontString = widget and widget.label or nil
     if not fontString or type(fontString.SetFont) ~= "function" then
-        return
+        return false
     end
 
-    local currentFont, size, flags = fontString:GetFont()
-    if fontString:SetFont(BRAND_TITLE_FONT, size or 12, flags or "") then
-        return
+    local _, size, flags = fontString:GetFont()
+    size = size or 18
+    flags = flags or ""
+
+    -- Establish a known-good font before assigning the inline logo markup.
+    local fallbackApplied = fontString:SetFont(BRAND_FALLBACK_FONT, size, flags)
+    if fontString:SetFont(BRAND_TITLE_FONT, size, flags) then
+        return true
     end
 
-    if currentFont then
-        fontString:SetFont(currentFont, size or 12, flags or "")
+    if fallbackApplied then
+        fontString:SetFont(BRAND_FALLBACK_FONT, size, flags)
     end
+    return false
 end
 
 local ResolveEditorMode
@@ -799,7 +807,6 @@ local function RefreshWindowState(context, deps)
     local selectedIsCustomLayout = presetView.selectedIsCustomLayout
 
     local versionText = BuilderUI.GetAddonVersionText and BuilderUI.GetAddonVersionText() or "dev"
-    local logoPath = "Interface\\AddOns\\FocalPoint\\Media\\icon.tga"
     local normalizedCurrent = options.currentPath or (nsRef.GUI and nsRef.GUI.selectedPath) or ResolveConstantPath(C, { "Nav", "EDITOR" })
 
     if context.widgets.brandLine then
@@ -807,7 +814,7 @@ local function RefreshWindowState(context, deps)
         local addonName = T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)
         local brandTitle = skins and skins.GetBrandTitle and skins.GetBrandTitle(addonName) or addonName
         ApplyBrandTitleFont(context.widgets.brandLine)
-        context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  %s", logoPath, brandTitle))
+        context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  %s", BRAND_LOGO_PATH, brandTitle))
     end
     if context.widgets.versionLine then
         context.widgets.versionLine:SetText(string.format("|cffd8c27a%s|r  |cff4cff88%s|r", T("INFO_VERSION", "Version", deps), versionText))
