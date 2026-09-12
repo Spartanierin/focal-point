@@ -10,6 +10,21 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.1
+
+### Improved
+
+* Built-in Layouts now stay read-only templates until you choose to create a personal editable Layout.
+* Editing a Built-in Layout now clearly asks before creating and activating your personal copy.
+* New Layout can now start blank or use an existing Built-in or User Layout as its starting point.
+* Choosing a Layout from the selector now switches to it immediately, with Manage Layouts available right beside it.
+* Built-in editing now behaves consistently across the Inspector, Composition Tree, canvas interactions, and context-menu actions.
+* Improved editor branding reliability during startup.
+
+### Removed
+
+* Removed unused high-resolution source icons that are not needed at runtime.
+
 ## 2.0.0
 
 Focal Point 2.0 changes how building unit frames feels. The editor now centers on direct visual interaction and a simpler Layout-based workflow.
