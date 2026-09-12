@@ -14,7 +14,12 @@ local ROW_WIDGET_TYPE = "FocalPointLayoutManagerRow"
 local ROW_WIDGET_VERSION = 1
 local ROW_HEIGHT = 30
 local WINDOW_WIDTH = 560
-local WINDOW_HEIGHT = 460
+local WINDOW_CHROME_HEIGHT = 57
+local WINDOW_DESCRIPTION_HEIGHT = 32
+local WINDOW_LIST_HEIGHT = 330
+local WINDOW_STATUS_HEIGHT = 22
+local WINDOW_FOOTER_HEIGHT = 42
+local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_FOOTER_HEIGHT
 
 local context
 local renameDialog
@@ -34,13 +39,6 @@ local ROW_COLORS = {
     nameSelected = { 1.00, 0.98, 0.88, 1.00 },
     status = { 0.72, 0.74, 0.78, 0.96 },
     active = { 0.96, 0.82, 0.38, 1.00 },
-}
-
-local SECTION_CHROME = {
-    fill = { 0.060, 0.068, 0.084, 0.56 },
-    border = { 0.25, 0.28, 0.33, 0.54 },
-    footerFill = { 0.065, 0.072, 0.088, 0.66 },
-    footerBorder = { 0.30, 0.32, 0.36, 0.44 },
 }
 
 local function T(key, fallback)
@@ -103,26 +101,6 @@ local function LockContainerHeight(container, height)
         container:SetAutoAdjustHeight(false)
     end
     container:SetHeight(height)
-end
-
-local function ApplySectionChrome(widget, colors)
-    local frame = widget and widget.frame
-    if not frame then
-        return
-    end
-    if not frame.SetBackdrop then
-        return
-    end
-
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    local fill = colors and colors.fill or SECTION_CHROME.fill
-    local border = colors and colors.border or SECTION_CHROME.border
-    frame:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
-    frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
 end
 
 local function SetTextureColor(texture, color)
@@ -303,23 +281,6 @@ local function RegisterLayoutRowWidget()
 end
 
 RegisterLayoutRowWidget()
-
-local function EnableEscapeClose(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-    if frame.EnableKeyboard then
-        frame:EnableKeyboard(true)
-    end
-    if frame.SetScript then
-        frame:SetScript("OnKeyDown", function(_, key)
-            if key == "ESCAPE" and window.Hide then
-                window:Hide()
-            end
-        end)
-    end
-end
 
 local function FocusWindow(window)
     if FormWidgets.FocusWindow then
@@ -608,79 +569,34 @@ local function FocusDialogEditBox(editBox)
 end
 
 local function CreateDeleteConfirmDialog(item)
-    local window = AceGUI:Create("Window")
-    window:SetTitle(T("LAYOUT_DELETE_TITLE", "Delete Layout?"))
-    window:SetLayout("List")
-    window:SetWidth(430)
-    window:SetHeight(198)
-    window:EnableResize(false)
-
-    if window.frame then
-        window.frame:SetClampedToScreen(true)
-        window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    end
-    if FormWidgets.ApplyWindowChrome then
-        FormWidgets.ApplyWindowChrome(window)
-    end
-    if FormWidgets.EnsureStandardWindowCloseButton then
-        FormWidgets.EnsureStandardWindowCloseButton(window)
-    end
-    EnableEscapeClose(window)
-
-    local body = AceGUI:Create("SimpleGroup")
-    body:SetLayout("List")
-    body:SetFullWidth(true)
-    body:SetHeight(96)
-    window:AddChild(body)
-
-    local message = AceGUI:Create("Label")
-    message:SetText(string.format(T("LAYOUT_DELETE_MESSAGE", "This permanently deletes \"%s\".\nThis cannot be undone."), item and item.name or ""))
-    message:SetFullWidth(true)
-    message:SetHeight(52)
-    if FormWidgets.ApplyTextStyle then
-        FormWidgets.ApplyTextStyle(message.label, "label", 12, 1)
-    end
-    body:AddChild(message)
-
-    local status = AceGUI:Create("Label")
-    status:SetText(" ")
-    status:SetFullWidth(true)
-    status:SetHeight(18)
-    if FormWidgets.ApplyTextStyle then
-        FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
-    end
-    body:AddChild(status)
-
-    local footer = AceGUI:Create("SimpleGroup")
-    footer:SetLayout("Flow")
-    footer:SetFullWidth(true)
-    footer:SetHeight(40)
-    window:AddChild(footer)
-
-    footer:AddChild(CreateSpacer(184, 1))
-    local cancelButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(T("INFO_COMMON_CANCEL", "Cancel"), "utility", 100, false) or AceGUI:Create("Button")
-    cancelButton:SetText(T("INFO_COMMON_CANCEL", "Cancel"))
-    cancelButton:SetWidth(100)
-    cancelButton:SetFullWidth(false)
-    if FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(cancelButton, "utility")
-    end
-    footer:AddChild(cancelButton)
-    footer:AddChild(CreateSpacer(8, 1))
-    local deleteButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(T("LAYOUT_DELETE_CONFIRM", "Delete"), "danger", 100, false) or AceGUI:Create("Button")
-    deleteButton:SetText(T("LAYOUT_DELETE_CONFIRM", "Delete"))
-    deleteButton:SetWidth(100)
-    deleteButton:SetFullWidth(false)
-    if FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
-    end
-    footer:AddChild(deleteButton)
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        mode = "message",
+        title = T("LAYOUT_DELETE_TITLE", "Delete Layout?"),
+        description = string.format(T("LAYOUT_DELETE_MESSAGE", "This permanently deletes \"%s\".\nThis cannot be undone."), item and item.name or ""),
+        width = 430,
+        footerHeight = 40,
+        messageContentHeight = 52,
+        reserveStatusSpace = true,
+    })
+    dialog:SetActions({
+        primary = {
+            text = T("LAYOUT_DELETE_CONFIRM", "Delete"),
+            role = "danger",
+            width = 100,
+        },
+        cancel = {
+            text = T("INFO_COMMON_CANCEL", "Cancel"),
+            role = "utility",
+            width = 100,
+        },
+    })
 
     return {
-        window = window,
-        status = status,
-        cancelButton = cancelButton,
-        deleteButton = deleteButton,
+        window = dialog.window,
+        dialog = dialog,
+        status = dialog.status,
+        cancelButton = dialog.cancelButton,
+        deleteButton = dialog.primaryButton,
     }
 end
 
@@ -690,8 +606,8 @@ local function CreateLayoutNameDialog(options)
         title = options.title,
         description = options.description,
         width = 420,
-        height = 220,
-        bodyHeight = 62,
+        formContentHeight = 50,
+        reserveStatusSpace = true,
     }) or nil
     if not dialog then
         return nil
@@ -728,7 +644,7 @@ local function CreateLayoutNameDialog(options)
     end)
 
     dialog:SetActions({
-        secondary = {
+        cancel = {
             text = T("INFO_COMMON_CANCEL", "Cancel"),
             role = "utility",
             width = 110,
@@ -920,8 +836,8 @@ local function OpenDeleteDialog()
             return
         end
 
-        if dialog.status then
-            dialog.status:SetText(ResolveDeleteStatus(resultOrReason))
+        if dialog.dialog and dialog.dialog.SetStatus then
+            dialog.dialog:SetStatus(ResolveDeleteStatus(resultOrReason))
         end
         if widget and widget.SetDisabled then
             widget:SetDisabled(false)
@@ -1034,58 +950,22 @@ local function Close()
 end
 
 local function CreateWindow()
-    local window = AceGUI:Create("Window")
-    window:SetTitle(T("LAYOUT_MANAGER_TITLE", "Manage Layouts"))
-    window:SetLayout("Fill")
-    window:SetWidth(WINDOW_WIDTH)
-    window:SetHeight(WINDOW_HEIGHT)
-    window:EnableResize(false)
-
-    if window.frame then
-        window.frame:SetClampedToScreen(true)
-        window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    end
-    if FormWidgets.ApplyWindowChrome then
-        FormWidgets.ApplyWindowChrome(window)
-    end
-    if FormWidgets.EnsureStandardWindowCloseButton then
-        FormWidgets.EnsureStandardWindowCloseButton(window)
-    end
-    EnableEscapeClose(window)
-
-    local root = AceGUI:Create("SimpleGroup")
-    root:SetLayout("Flow")
-    root:SetFullWidth(true)
-    root:SetFullHeight(true)
-    window:AddChild(root)
-
-    local titleRow = AceGUI:Create("SimpleGroup")
-    titleRow:SetLayout("Flow")
-    titleRow:SetFullWidth(true)
-    LockContainerHeight(titleRow, 30)
-    root:AddChild(titleRow)
-    titleRow:AddChild(CreateSpacer(12, 1))
-    titleRow:AddChild(CreateLabel(T("LAYOUT_MANAGER_DESCRIPTION", "View available layouts. Activate them from the Canvas Toolbar."), "help", 11, 505))
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = T("LAYOUT_MANAGER_TITLE", "Manage Layouts"),
+        description = T("LAYOUT_MANAGER_DESCRIPTION", "View available layouts. Activate them from the Canvas Toolbar."),
+        width = WINDOW_WIDTH,
+        height = WINDOW_HEIGHT,
+        bodyLayout = "Fill",
+        addBodySpacer = false,
+        showStatus = true,
+        footerHeight = WINDOW_FOOTER_HEIGHT,
+    })
 
     local scroll = AceGUI:Create("ScrollFrame")
     scroll:SetLayout("Flow")
     scroll:SetFullWidth(true)
-    scroll:SetHeight(330)
-    root:AddChild(scroll)
-    ApplySectionChrome(scroll, {
-        fill = SECTION_CHROME.fill,
-        border = SECTION_CHROME.border,
-    })
-
-    local footer = AceGUI:Create("SimpleGroup")
-    footer:SetLayout("Flow")
-    footer:SetFullWidth(true)
-    LockContainerHeight(footer, 42)
-    root:AddChild(footer)
-    ApplySectionChrome(footer, {
-        fill = SECTION_CHROME.footerFill,
-        border = SECTION_CHROME.footerBorder,
-    })
+    scroll:SetFullHeight(true)
+    dialog.body:AddChild(scroll)
 
     local renameButton = AceGUI:Create("Button")
     renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
@@ -1115,16 +995,16 @@ local function CreateWindow()
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(closeButton, "utility")
     end
-    renameButton.frame:SetParent(footer.frame)
-    copyButton.frame:SetParent(footer.frame)
-    deleteButton.frame:SetParent(footer.frame)
-    closeButton.frame:SetParent(footer.frame)
+    renameButton.frame:SetParent(dialog.footer.frame)
+    copyButton.frame:SetParent(dialog.footer.frame)
+    deleteButton.frame:SetParent(dialog.footer.frame)
+    closeButton.frame:SetParent(dialog.footer.frame)
 
-    context.window = window
+    context.window = dialog.window
     context.widgets = {
-        root = root,
         scroll = scroll,
-        footer = footer,
+        footer = dialog.footer,
+        status = dialog.status,
         renameButton = renameButton,
         copyButton = copyButton,
         deleteButton = deleteButton,
@@ -1135,7 +1015,7 @@ local function CreateWindow()
     copyButton:SetCallback("OnClick", OpenCopyDialog)
     deleteButton:SetCallback("OnClick", OpenDeleteDialog)
     closeButton:SetCallback("OnClick", Close)
-    window:SetCallback("OnClose", function()
+    dialog.window:SetCallback("OnClose", function()
         CloseRenameDialog()
         CloseCopyDialog()
         CloseDeleteDialog()
@@ -1146,11 +1026,11 @@ local function CreateWindow()
     end)
 
     if FormWidgets.CenterWindow then
-        FormWidgets.CenterWindow(window)
+        FormWidgets.CenterWindow(dialog.window)
     end
-    FocusWindow(window)
+    FocusWindow(dialog.window)
     RefreshList()
-    return window
+    return dialog.window
 end
 
 function LayoutManager.Open()

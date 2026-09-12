@@ -958,13 +958,12 @@ function MediaLibraryView.Create(context)
     })
 
     actions:AddChild(CreateSpacer(nil, 5))
+    local applyButton = CreateButton(T("MEDIA_LIBRARY_APPLY", "Apply"), "primary_action", 105)
+    actions:AddChild(applyButton)
     actions:AddChild(CreateSpacer(450, 1))
 
     local cancelButton = CreateButton(T("MEDIA_LIBRARY_CANCEL", "Cancel"), "utility", 105)
     actions:AddChild(cancelButton)
-
-    local applyButton = CreateButton(T("MEDIA_LIBRARY_APPLY", "Apply"), "primary_action", 105)
-    actions:AddChild(applyButton)
 
     context.window = window
     context.widgets = {

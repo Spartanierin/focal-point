@@ -483,13 +483,11 @@ function TagLibraryView.Create(context)
     })
 
     actions:AddChild(CreateSpacer(nil, 5))
-    actions:AddChild(CreateSpacer(486, 1))
-
-    local cancelButton = CreateButton(T("INFO_COMMON_CANCEL", "Cancel"), "utility", 105)
-    actions:AddChild(cancelButton)
-    actions:AddChild(CreateSpacer(8, 1))
     local applyButton = CreateButton(T("INFO_TAG_LIBRARY_INSERT", "Insert Tag"), "primary_action", 115)
     actions:AddChild(applyButton)
+    actions:AddChild(CreateSpacer(494, 1))
+    local cancelButton = CreateButton(T("INFO_COMMON_CANCEL", "Cancel"), "utility", 105)
+    actions:AddChild(cancelButton)
 
     context.window = window
     context.widgets = {

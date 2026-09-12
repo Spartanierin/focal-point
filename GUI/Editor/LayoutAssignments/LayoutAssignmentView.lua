@@ -11,17 +11,16 @@ local LayoutAssignments = {}
 ns.GUI.Editor.LayoutAssignments = LayoutAssignments
 
 local WINDOW_WIDTH = 520
-local WINDOW_HEIGHT = 320
+local WINDOW_CHROME_HEIGHT = 57
+local WINDOW_DESCRIPTION_HEIGHT = 32
+local WINDOW_CONTENT_PADDING = 12
+local WINDOW_TABLE_HEADER_HEIGHT = 24
+local WINDOW_SPEC_ROW_HEIGHT = 42
+local WINDOW_FOOTER_HEIGHT = 42
+local WINDOW_MIN_HEIGHT = 264
 local NONE_VALUE = "__fp_assignment_none__"
 
 local context
-
-local SECTION_CHROME = {
-    fill = { 0.060, 0.068, 0.084, 0.56 },
-    border = { 0.25, 0.28, 0.33, 0.54 },
-    footerFill = { 0.065, 0.072, 0.088, 0.66 },
-    footerBorder = { 0.30, 0.32, 0.36, 0.44 },
-}
 
 local function T(key, fallback)
     local L = ns.L or {}
@@ -71,38 +70,6 @@ local function LockContainerHeight(container, height)
     container:SetHeight(height)
 end
 
-local function ApplySectionChrome(widget, colors)
-    local frame = widget and widget.frame
-    if not (frame and frame.SetBackdrop and colors) then
-        return
-    end
-
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    frame:SetBackdropColor(colors.fill[1], colors.fill[2], colors.fill[3], colors.fill[4] or 1)
-    frame:SetBackdropBorderColor(colors.border[1], colors.border[2], colors.border[3], colors.border[4] or 1)
-end
-
-local function EnableEscapeClose(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-    if frame.EnableKeyboard then
-        frame:EnableKeyboard(true)
-    end
-    if frame.SetScript then
-        frame:SetScript("OnKeyDown", function(_, key)
-            if key == "ESCAPE" and window.Hide then
-                window:Hide()
-            end
-        end)
-    end
-end
-
 local function FocusWindow(window)
     if FormWidgets.FocusWindow then
         FormWidgets.FocusWindow(window, { centerIfHidden = true, strata = "FULLSCREEN_DIALOG" })
@@ -149,6 +116,11 @@ local function BuildSpecs()
         end
     end
     return specs
+end
+
+local function CalculateWindowHeight()
+    local contentHeight = WINDOW_CONTENT_PADDING + WINDOW_TABLE_HEADER_HEIGHT + (#BuildSpecs() * WINDOW_SPEC_ROW_HEIGHT)
+    return math.max(WINDOW_MIN_HEIGHT, WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + contentHeight + WINDOW_FOOTER_HEIGHT)
 end
 
 local function ResolveLayoutName(summary)
@@ -294,89 +266,44 @@ local function Close()
 end
 
 local function CreateWindow()
-    local window = AceGUI:Create("Window")
-    window:SetTitle(T("LAYOUT_ASSIGNMENT_TITLE", "Assignments"))
-    window:SetLayout("Fill")
-    window:SetWidth(WINDOW_WIDTH)
-    window:SetHeight(WINDOW_HEIGHT)
-    window:EnableResize(false)
-
-    if window.frame then
-        window.frame:SetClampedToScreen(true)
-        window.frame:SetFrameStrata("FULLSCREEN_DIALOG")
-    end
-    if FormWidgets.ApplyWindowChrome then
-        FormWidgets.ApplyWindowChrome(window)
-    end
-    if FormWidgets.EnsureStandardWindowCloseButton then
-        FormWidgets.EnsureStandardWindowCloseButton(window)
-    end
-    EnableEscapeClose(window)
-
-    local root = AceGUI:Create("SimpleGroup")
-    root:SetLayout("Flow")
-    root:SetFullWidth(true)
-    root:SetFullHeight(true)
-    window:AddChild(root)
-
-    local titleRow = AceGUI:Create("SimpleGroup")
-    titleRow:SetLayout("Flow")
-    titleRow:SetFullWidth(true)
-    LockContainerHeight(titleRow, 34)
-    root:AddChild(titleRow)
-    titleRow:AddChild(CreateSpacer(12, 1))
-    titleRow:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_DESCRIPTION", "Assign layouts to your current class specializations."), "help", 11, 470))
-
-    local body = AceGUI:Create("SimpleGroup")
-    body:SetLayout("Flow")
-    body:SetFullWidth(true)
-    body:SetHeight(205)
-    root:AddChild(body)
-    ApplySectionChrome(body, SECTION_CHROME)
-
-    local footer = AceGUI:Create("SimpleGroup")
-    footer:SetLayout("Flow")
-    footer:SetFullWidth(true)
-    LockContainerHeight(footer, 42)
-    root:AddChild(footer)
-    ApplySectionChrome(footer, {
-        fill = SECTION_CHROME.footerFill,
-        border = SECTION_CHROME.footerBorder,
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = T("LAYOUT_ASSIGNMENT_TITLE", "Assignments"),
+        description = T("LAYOUT_ASSIGNMENT_DESCRIPTION", "Assign layouts to your current class specializations."),
+        width = WINDOW_WIDTH,
+        height = CalculateWindowHeight(),
+        bodyLayout = "Flow",
+        footerHeight = WINDOW_FOOTER_HEIGHT,
+    })
+    dialog:SetActions({
+        cancel = {
+            text = T("INFO_COMMON_CLOSE", "Close"),
+            role = "utility",
+            width = 105,
+            onClick = Close,
+        },
     })
 
-    footer:AddChild(CreateSpacer(390, 1))
-    local closeButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(T("INFO_COMMON_CLOSE", "Close"), "utility", 105, false) or AceGUI:Create("Button")
-    closeButton:SetText(T("INFO_COMMON_CLOSE", "Close"))
-    closeButton:SetWidth(105)
-    closeButton:SetFullWidth(false)
-    if FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(closeButton, "utility")
-    end
-    closeButton:SetCallback("OnClick", Close)
-    footer:AddChild(closeButton)
-
     context = {
-        window = window,
+        window = dialog.window,
         widgets = {
-            root = root,
-            body = body,
-            footer = footer,
-            closeButton = closeButton,
+            body = dialog.body,
+            footer = dialog.footer,
+            closeButton = dialog.cancelButton,
         },
     }
 
-    window:SetCallback("OnClose", function()
+    dialog.window:SetCallback("OnClose", function()
         if GameTooltip and GameTooltip.Hide then
             GameTooltip:Hide()
         end
     end)
 
     if FormWidgets.CenterWindow then
-        FormWidgets.CenterWindow(window)
+        FormWidgets.CenterWindow(dialog.window)
     end
-    FocusWindow(window)
+    FocusWindow(dialog.window)
     RefreshRows()
-    return window
+    return dialog.window
 end
 
 function LayoutAssignments.Open()
