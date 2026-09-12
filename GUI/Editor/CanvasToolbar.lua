@@ -24,7 +24,7 @@ local LAYOUT_DROPDOWN_WIDTH = 156
 local LAYOUT_ADD_X = 430
 local LAYOUT_ADD_WIDTH = 30
 local LAYOUT_ACTIVATE_X = 468
-local LAYOUT_ACTIVATE_WIDTH = 76
+local LAYOUT_MANAGE_WIDTH = 118
 
 local context
 local newLayoutDialog
@@ -154,7 +154,7 @@ local function ResolveDefaultNewLayoutName()
     end
 end
 
-local function BuildLayoutDropdownData(selectedLayoutId)
+local function BuildLayoutDropdownData()
     local layoutService = ns.LayoutService or {}
     local layouts = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
     local activeLayoutId = ResolveActiveLayoutId()
@@ -171,7 +171,6 @@ local function BuildLayoutDropdownData(selectedLayoutId)
                 local prefix = source == "userLayout" and "My: " or "Built-in: "
                 local label = prefix .. name
                 if layoutId == activeLayoutId then
-                    label = label .. " (Active)"
                     activeName = name
                 end
                 values[layoutId] = label
@@ -181,11 +180,7 @@ local function BuildLayoutDropdownData(selectedLayoutId)
         end
     end
 
-    if type(selectedLayoutId) ~= "string" or not known[selectedLayoutId] then
-        selectedLayoutId = known[activeLayoutId] and activeLayoutId or order[1]
-    end
-
-    return values, order, selectedLayoutId, activeLayoutId, activeName
+    return values, order, known[activeLayoutId] and activeLayoutId or order[1], activeLayoutId, activeName
 end
 
 local function ResolveLayoutNameById(layoutId)
@@ -245,13 +240,12 @@ local function RefreshLayoutControls(current)
     end
 
     local dropdown = current.widgets.layoutDropdown
-    local activateButton = current.widgets.layoutActivateButton
-    if not dropdown or not activateButton then
+    local manageButton = current.widgets.layoutManageButton
+    if not dropdown or not manageButton then
         return
     end
 
-    local values, order, selectedLayoutId, activeLayoutId, activeName = BuildLayoutDropdownData(current.selectedLayoutId)
-    current.selectedLayoutId = selectedLayoutId
+    local values, order, selectedLayoutId, activeLayoutId, activeName = BuildLayoutDropdownData()
     current.activeLayoutId = activeLayoutId
     current.activeLayoutName = activeName
 
@@ -291,8 +285,8 @@ local function RefreshLayoutControls(current)
         end
     end
 
-    activateButton:SetText("Activate")
-    activateButton:SetDisabled(type(selectedLayoutId) ~= "string" or selectedLayoutId == "" or selectedLayoutId == activeLayoutId)
+    manageButton:SetText("Manage Layouts")
+    manageButton:SetDisabled(false)
     local addDisabled = type(activeLayoutId) ~= "string" or activeLayoutId == ""
     if current.widgets.layoutAddButton then
         current.widgets.layoutAddButton:SetDisabled(addDisabled)
@@ -310,7 +304,7 @@ local function RefreshLayoutControls(current)
         current.widgets.layoutAddButton:SetText("+")
     end
     if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(activateButton, "primary_action")
+        FormWidgets.ApplyModalActionButtonVisual(manageButton, "utility")
     end
 end
 
@@ -930,7 +924,7 @@ local function EnsureHost()
         addObjectButton = CreateButton(T("ADD_OBJECT_BUTTON", "+ Add Object"), INSERT_ADD_OBJECT_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
-        layoutActivateButton = CreateButton("Activate", LAYOUT_ACTIVATE_WIDTH),
+        layoutManageButton = CreateButton("Manage Layouts", LAYOUT_MANAGE_WIDTH),
     }
 
     AnchorButton(widgets.addObjectButton, host, {
@@ -943,9 +937,9 @@ local function EnsureHost()
         width = LAYOUT_DROPDOWN_WIDTH,
         height = 26,
     })
-    AnchorButton(widgets.layoutActivateButton, host, {
+    AnchorButton(widgets.layoutManageButton, host, {
         x = LAYOUT_ACTIVATE_X,
-        width = LAYOUT_ACTIVATE_WIDTH,
+        width = LAYOUT_MANAGE_WIDTH,
     })
     AnchorButton(widgets.layoutAddButton, host, {
         x = LAYOUT_ADD_X,
@@ -1004,8 +998,26 @@ local function EnsureHost()
                 if context._suspendLayoutCallbacks then
                     return
                 end
-                context.selectedLayoutId = value
-                RefreshLayoutControls(context)
+                if HasDirtyTextBuilderDraft() then
+                    if ns.Info then
+                        ns:Info("Save or discard Text Builder changes before activating another layout.")
+                    end
+                    RefreshLayoutControls(context)
+                    return
+                end
+                if type(value) ~= "string" or value == "" or value == ResolveActiveLayoutId() then
+                    RefreshLayoutControls(context)
+                    return
+                end
+                local ok, reason = false, "activate-unavailable"
+                if ns.ActivateLayout then
+                    ok, reason = ns:ActivateLayout(value, "canvas-toolbar")
+                end
+                if ok then
+                    ReportManualAutomationMismatch(value)
+                end
+                ReportLayoutActivationResult(ok, reason)
+                CanvasToolbar.Refresh()
             end)
         end
         if widgets.layoutAddButton then
@@ -1013,29 +1025,14 @@ local function EnsureHost()
                 OpenNewLayoutDialog()
             end)
         end
-        if widgets.layoutActivateButton then
-            widgets.layoutActivateButton:SetCallback("OnClick", function()
-                if HasDirtyTextBuilderDraft() then
-                    if ns.Info then
-                        ns:Info("Save or discard Text Builder changes before activating another layout.")
-                    end
-                    return
+        if widgets.layoutManageButton then
+            widgets.layoutManageButton:SetCallback("OnClick", function()
+                local layoutManager = ns.GUI
+                    and ns.GUI.Editor
+                    and ns.GUI.Editor.LayoutManager
+                if layoutManager and layoutManager.Open then
+                    layoutManager.Open()
                 end
-                local layoutId = context.selectedLayoutId
-                if type(layoutId) ~= "string" or layoutId == "" or layoutId == ResolveActiveLayoutId() then
-                    RefreshLayoutControls(context)
-                    return
-                end
-                local ok, reason = false, "activate-unavailable"
-                if ns.ActivateLayout then
-                    ok, reason = ns:ActivateLayout(layoutId, "canvas-toolbar")
-                end
-                if ok then
-                    ReportManualAutomationMismatch(layoutId)
-                    context.selectedLayoutId = ResolveActiveLayoutId()
-                end
-                ReportLayoutActivationResult(ok, reason)
-                CanvasToolbar.Refresh()
             end)
         end
     end
