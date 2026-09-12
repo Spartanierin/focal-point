@@ -14,6 +14,11 @@ FocalPoint.GUI.Editor.OptionsDialog = OptionsDialog
 local context
 local Refresh
 
+local OPTION_LABEL_WIDTH = 166
+local OPTION_ROW_HEIGHT = 24
+local SECTION_GAP = 16
+local ROW_GAP = 4
+
 local function T(key, fallback)
     return L[key] or fallback or key
 end
@@ -110,128 +115,89 @@ local function ApplyLabelText(widget, role, options)
     end
 end
 
-local function CreateLabel(text, role, size)
+local function CreateLabel(text, role, size, width, fullWidth)
+    if FormWidgets.CreateBodyText then
+        return FormWidgets.CreateBodyText(text or "", role or "label", size or 12, nil, width, fullWidth)
+    end
+
     local label = AceGUI:Create("Label")
-    label:SetFullWidth(true)
+    if type(width) == "number" then
+        label:SetWidth(width)
+    elseif fullWidth ~= false then
+        label:SetFullWidth(true)
+    end
     label:SetText(text or "")
     ApplyLabelText(label, role or "label", { size = size or 12 })
     return label
 end
 
-local function CreateSpacer(height)
-    local spacer = AceGUI:Create("Label")
+local function CreateVerticalGap(height)
+    local spacer = AceGUI:Create("SimpleGroup")
     spacer:SetFullWidth(true)
-    spacer:SetText("")
-    spacer:SetHeight(height or 6)
+    spacer:SetLayout("List")
+    spacer:SetAutoAdjustHeight(false)
+    spacer:SetHeight(height)
     return spacer
 end
 
 local function CreateSectionHeader(text)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetFullWidth(true)
-    group:SetHeight(22)
-    group:SetLayout("Flow")
+    return CreateLabel(text, "sectionHeader", 13, nil, true)
+end
 
-    local frame = group.frame
-    if frame then
-        local label = frame:CreateFontString(nil, "ARTWORK")
-        label:SetPoint("LEFT", frame, "LEFT", 0, 0)
-        TextStyles.ApplyFontString(label, "sectionHeader", { size = 13 })
-        label:SetText(text or "")
-        frame._fpOptionsHeaderLabel = label
-
-        local line = frame:CreateTexture(nil, "BORDER")
-        line:SetPoint("LEFT", label, "RIGHT", 10, 0)
-        line:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
-        line:SetHeight(1)
-        line:SetColorTexture(0.906, 0.769, 0.290, 0.30)
-        frame._fpOptionsHeaderLine = line
+local function StyleCheckBox(widget, disabled)
+    if FormWidgets.StyleCheckBox then
+        FormWidgets.StyleCheckBox(widget, disabled == true)
     end
-
-    return group
 end
 
-local function CreateIndentedDescription(text)
-    local group = AceGUI:Create("SimpleGroup")
-    group:SetFullWidth(true)
-    group:SetLayout("Flow")
-
-    local indent = AceGUI:Create("Label")
-    indent:SetText("")
-    indent:SetWidth(24)
-    group:AddChild(indent)
-
-    local description = AceGUI:Create("Label")
-    description:SetText(text or "")
-    description:SetWidth(246)
-    ApplyLabelText(description, "muted", { size = 11 })
-    group:AddChild(description)
-
-    return group
+local function ResolveBooleanLabel(value)
+    return value and (T("OPTION_ON", "On")) or T("OPTION_OFF", "Off")
 end
 
-local function CreateButton(text, role, width)
-    local button = AceGUI:Create("Button")
-    button:SetText(text or "")
-    button:SetFullWidth(false)
-    button:SetWidth(width or 96)
-    if FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(button, role or "utility")
-    end
-    return button
-end
-
-local function ApplyContentInsets(window)
-    local frame = window and window.frame
-    local content = window and window.content
-    if not frame or not content or not content.ClearAllPoints or not content.SetPoint then
+local function SetBooleanControlValue(widget, value, disabled)
+    if not widget then
         return
     end
 
-    content:ClearAllPoints()
-    content:SetPoint("TOPLEFT", frame, "TOPLEFT", 22, -46)
-    content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -22, 42)
+    widget:SetValue(value == true)
+    widget:SetLabel(ResolveBooleanLabel(value == true))
+    widget:SetDisabled(disabled == true)
+    StyleCheckBox(widget, disabled == true)
 end
 
-local function StyleCheckBox(widget)
-    if FormWidgets.StyleCheckBox then
-        FormWidgets.StyleCheckBox(widget, false)
-    end
-end
+local function CreateOptionRow(parent, labelText, widgetId)
+    local row = AceGUI:Create("SimpleGroup")
+    row:SetFullWidth(true)
+    row:SetHeight(OPTION_ROW_HEIGHT)
+    row:SetLayout("Table")
+    row:SetUserData("table", {
+        columns = {
+            { width = OPTION_LABEL_WIDTH },
+            { weight = 1 },
+        },
+        spaceH = 8,
+        spaceV = 0,
+        align = "TOPLEFT",
+        alignV = "center",
+        alignH = "start",
+    })
+    parent:AddChild(row)
 
-local function CreateCheckBox(label, widgetId)
+    row:AddChild(CreateLabel(labelText, "label", 12, OPTION_LABEL_WIDTH, false))
+
     local checkbox = AceGUI:Create("CheckBox")
-    checkbox:SetFullWidth(true)
-    checkbox:SetLabel(label or "")
+    checkbox:SetFullWidth(false)
+    checkbox:SetWidth(72)
     StyleCheckBox(checkbox)
     if context and context.widgets and widgetId then
         context.widgets[widgetId] = checkbox
     end
+    row:AddChild(checkbox)
     return checkbox
 end
 
-local CenterWindow = FormWidgets.CenterWindow
-
-local function FocusWindow(window)
-    FormWidgets.FocusWindow(window)
-end
-
-local function EnableEscapeClose(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    if frame.EnableKeyboard then
-        frame:EnableKeyboard(true)
-    end
-    if frame.SetScript then
-        frame:SetScript("OnKeyDown", function(_, key)
-            if key == "ESCAPE" and window.Hide then
-                window:Hide()
-            end
-        end)
-    end
+local function CreateOptionHint(text)
+    return CreateLabel(text, "muted", 11, nil, true)
 end
 
 function Refresh()
@@ -240,34 +206,23 @@ function Refresh()
     end
 
     local isExpert = IsExpertMode()
-    if context.widgets.snappingEnabled then
-        context.suspendCallbacks = true
-        context.widgets.snappingEnabled:SetValue(IsSnappingEnabled())
-        context.suspendCallbacks = false
-    end
-    if context.widgets.showGrid then
-        context.suspendCallbacks = true
-        context.widgets.showGrid:SetValue(IsGridEnabled())
-        context.suspendCallbacks = false
-    end
-
     context.suspendCallbacks = true
+    SetBooleanControlValue(context.widgets.snappingEnabled, IsSnappingEnabled())
+    SetBooleanControlValue(context.widgets.showGrid, IsGridEnabled())
     if context.widgets.mouseEnabled then
-        context.widgets.mouseEnabled:SetValue(GetGlobalOptionValue("mouseEnabled") == true)
-        context.widgets.mouseEnabled:SetDisabled(not isExpert)
+        SetBooleanControlValue(context.widgets.mouseEnabled, GetGlobalOptionValue("mouseEnabled") == true, not isExpert)
     end
     if context.widgets.showUnitTooltips then
-        context.widgets.showUnitTooltips:SetValue(GetGlobalOptionValue("showUnitTooltips") == true)
+        SetBooleanControlValue(context.widgets.showUnitTooltips, GetGlobalOptionValue("showUnitTooltips") == true)
     end
     if context.widgets.clickthrough then
-        context.widgets.clickthrough:SetValue(GetGlobalOptionValue("clickthrough") == true)
-        context.widgets.clickthrough:SetDisabled(not isExpert)
+        SetBooleanControlValue(context.widgets.clickthrough, GetGlobalOptionValue("clickthrough") == true, not isExpert)
     end
     if context.widgets.showMinimapButton then
-        context.widgets.showMinimapButton:SetValue(GetGlobalOptionValue("showMinimapButton") == true)
+        SetBooleanControlValue(context.widgets.showMinimapButton, GetGlobalOptionValue("showMinimapButton") == true)
     end
     if context.widgets.hideBlizzard then
-        context.widgets.hideBlizzard:SetValue(GetGlobalOptionValue("hideBlizzard") == true)
+        SetBooleanControlValue(context.widgets.hideBlizzard, GetGlobalOptionValue("hideBlizzard") == true)
     end
     context.suspendCallbacks = false
 end
@@ -332,110 +287,76 @@ local function WireCallbacks()
         end
     end
 
-    local closeButton = context.widgets.closeButton
-    if closeButton then
-        closeButton:SetCallback("OnClick", function()
-            if context and context.window and context.window.Hide then
-                context.window:Hide()
-            end
-        end)
-    end
 end
 
 local function CreateWindow()
-    local window = AceGUI:Create("Window")
-    window:SetTitle(T("EDITOR_OPTIONS_TITLE", "Focal Point Options"))
-    window:SetLayout("Flow")
-    window:SetWidth(340)
-    window:SetHeight(372)
-    window:EnableResize(false)
-
-    if window.frame then
-        window.frame:SetClampedToScreen(true)
-    end
-    if FormWidgets.ApplyWindowChrome then
-        FormWidgets.ApplyWindowChrome(window)
-    end
-    if FormWidgets.EnsureStandardWindowCloseButton then
-        FormWidgets.EnsureStandardWindowCloseButton(window)
-    end
-    ApplyContentInsets(window)
-    EnableEscapeClose(window)
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = T("EDITOR_OPTIONS_TITLE", "Focal Point Options"),
+        width = 360,
+        formContentHeight = 286,
+        footerHeight = 40,
+        contentInset = 14,
+        addBodySpacer = false,
+        bodyLayout = "List",
+    })
+    local window = dialog.window
+    local body = dialog.body
 
     local widgets = {}
     context = {
         window = window,
+        dialog = dialog,
         widgets = widgets,
         suspendCallbacks = false,
     }
 
-    window:AddChild(CreateSectionHeader(T("EDITOR_OPTIONS_SECTION_EDITOR", "Editor")))
+    body:AddChild(CreateSectionHeader(T("EDITOR_OPTIONS_SECTION_EDITOR", "Editor")))
+    CreateOptionRow(body, T("OPTION_SHOW_GRID", "Show Grid"), "showGrid")
+    body:AddChild(CreateOptionHint(T("OPTION_SHOW_GRID_DESC", "Displays a visual alignment grid while editing frames.")))
+    body:AddChild(CreateVerticalGap(ROW_GAP))
+    CreateOptionRow(body, T("OPTION_ENABLE_SNAPPING", "Enable Snapping"), "snappingEnabled")
+    body:AddChild(CreateOptionHint(T("OPTION_ENABLE_SNAPPING_DESC", "Snap frames to the screen center and other editable frames while moving them.")))
+    body:AddChild(CreateVerticalGap(ROW_GAP))
+    CreateOptionRow(body, T("OPTION_MOUSE_ENABLED", "Mouse Enabled"), "mouseEnabled")
+    body:AddChild(CreateVerticalGap(ROW_GAP))
+    CreateOptionRow(body, T("OPTION_GLOBAL_CLICKTHROUGH", "Global Click Through"), "clickthrough")
+    body:AddChild(CreateVerticalGap(SECTION_GAP))
+    body:AddChild(CreateSectionHeader(T("EDITOR_CONTEXT_GLOBAL", "Addon")))
+    CreateOptionRow(body, T("OPTION_SHOW_MINIMAP_BUTTON", "Show Minimap Button"), "showMinimapButton")
+    body:AddChild(CreateVerticalGap(ROW_GAP))
+    CreateOptionRow(body, T("OPTION_SHOW_UNIT_TOOLTIPS", "Show Unit Tooltips"), "showUnitTooltips")
+    body:AddChild(CreateVerticalGap(ROW_GAP))
+    CreateOptionRow(body, T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames"), "hideBlizzard")
+    body:AddChild(CreateVerticalGap(ROW_GAP))
 
-    local showGrid = CreateCheckBox(T("OPTION_SHOW_GRID", "Show Grid"), "showGrid")
-    window:AddChild(showGrid)
-    window:AddChild(CreateIndentedDescription(T("OPTION_SHOW_GRID_DESC", "Displays a visual alignment grid while editing frames.")))
-    window:AddChild(CreateSpacer(4))
-
-    local snapping = CreateCheckBox(T("OPTION_ENABLE_SNAPPING", "Enable Snapping"), "snappingEnabled")
-    window:AddChild(snapping)
-
-    window:AddChild(CreateIndentedDescription(T("OPTION_ENABLE_SNAPPING_DESC", "Snap frames to the screen center and other editable frames while moving them.")))
-    window:AddChild(CreateSpacer(4))
-
-    local mouseEnabled = CreateCheckBox(T("OPTION_MOUSE_ENABLED", "Mouse Enabled"), "mouseEnabled")
-    window:AddChild(mouseEnabled)
-
-    local clickthrough = CreateCheckBox(T("OPTION_GLOBAL_CLICKTHROUGH", "Global Click Through"), "clickthrough")
-    window:AddChild(clickthrough)
-
-    window:AddChild(CreateSpacer(8))
-    window:AddChild(CreateSectionHeader(T("EDITOR_CONTEXT_GLOBAL", "Addon")))
-
-    local showMinimapButton = CreateCheckBox(T("OPTION_SHOW_MINIMAP_BUTTON", "Show Minimap Button"), "showMinimapButton")
-    window:AddChild(showMinimapButton)
-
-    local showUnitTooltips = CreateCheckBox(T("OPTION_SHOW_UNIT_TOOLTIPS", "Show Unit Tooltips"), "showUnitTooltips")
-    window:AddChild(showUnitTooltips)
-
-    local hideBlizzard = CreateCheckBox(T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames"), "hideBlizzard")
-    window:AddChild(hideBlizzard)
-
-    window:AddChild(CreateSpacer(6))
-
-    local footer = AceGUI:Create("SimpleGroup")
-    footer:SetLayout("Flow")
-    footer:SetFullWidth(true)
-    footer:SetHeight(28)
-    window:AddChild(footer)
-
-    local footerSpacer = AceGUI:Create("Label")
-    footerSpacer:SetText("")
-    footerSpacer:SetWidth(178)
-    footer:AddChild(footerSpacer)
-
-    local closeButton = CreateButton(T("OPTION_CLOSE", "Close"), "utility", 96)
-    footer:AddChild(closeButton)
-    widgets.closeButton = closeButton
+    dialog:SetActions({
+        cancel = {
+            text = T("OPTION_CLOSE", "Close"),
+            width = 96,
+            onClick = function()
+                dialog:Close()
+            end,
+        },
+    })
 
     window:SetCallback("OnClose", function()
         HideSnapLines()
     end)
 
     WireCallbacks()
-    CenterWindow(window)
-    return window
+    return dialog
 end
 
 function OptionsDialog.Open()
-    if context and context.window then
+    if context and context.dialog then
         Refresh()
-        FocusWindow(context.window)
+        context.dialog:Show()
         return true
     end
 
-    local window = CreateWindow()
+    local dialog = CreateWindow()
     Refresh()
-    FocusWindow(window)
+    dialog:Show()
     return true
 end
 
