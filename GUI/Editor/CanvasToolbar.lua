@@ -523,10 +523,23 @@ local function AddUnitFrame(unitKey)
     end)
 end
 
+local PICKER_SECTION_HEIGHT = 18
+local PICKER_BUTTON_HEIGHT = 22
+
+local function CalculatePickerContentHeight(rowHeights, minHeight, maxHeight)
+    if FormWidgets and FormWidgets.CalculateCompactPickerContentHeight then
+        return FormWidgets.CalculateCompactPickerContentHeight(rowHeights, {
+            minHeight = minHeight,
+            maxHeight = maxHeight,
+        })
+    end
+    return minHeight
+end
 local function AddPickerHeader(dialog, label)
     local header = FormWidgets and FormWidgets.CreateSectionTitle and FormWidgets.CreateSectionTitle(label, 12) or AceGUI:Create("Label")
     header:SetText(label)
     header:SetFullWidth(true)
+    header:SetHeight(PICKER_SECTION_HEIGHT)
     dialog.body:AddChild(header)
 end
 
@@ -537,6 +550,7 @@ local function AddPickerButton(dialog, label, callback)
         or AceGUI:Create("Button")
     button:SetText(label)
     button:SetFullWidth(true)
+    button:SetHeight(PICKER_BUTTON_HEIGHT)
     button:SetCallback("OnClick", function()
         CloseAddObjectPickerDialog()
         callback()
@@ -570,13 +584,50 @@ local function OpenAddObjectPicker()
         return
     end
 
+    local pickerRows = {}
+    local function AddPickerRows(count, includeHeader)
+        if includeHeader then
+            table.insert(pickerRows, PICKER_SECTION_HEIGHT)
+        end
+        for _ = 1, count do
+            table.insert(pickerRows, PICKER_BUTTON_HEIGHT)
+        end
+    end
+
+    local availableUnitFrames = 0
+    for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
+        if CanAddUnitFrame(item.unitKey) then availableUnitFrames = availableUnitFrames + 1 end
+    end
+    AddPickerRows(availableUnitFrames, availableUnitFrames > 0)
+
+    local availableBars = 0
+    for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
+        if not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then availableBars = availableBars + 1 end
+    end
+    AddPickerRows(availableBars, availableBars > 0)
+
+    local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
+    local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
+    local availableVisuals = 0
+    for _, item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
+        if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then availableVisuals = availableVisuals + 1 end
+    end
+    AddPickerRows(availableVisuals, availableVisuals > 0)
+
+    local availableAuras = 0
+    for _, item in ipairs(ADD_OBJECT_AURA_CAPABILITIES) do
+        if not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then availableAuras = availableAuras + 1 end
+    end
+    AddPickerRows(availableAuras, availableAuras > 0)
+    AddPickerRows(2, true) -- Content: Text and Decoration are always available.
+
     CloseAddObjectPickerDialog()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("ADD_OBJECT_TITLE", "Add Object"),
         description = T("ADD_OBJECT_DESCRIPTION", "Choose what to add to the selected unit frame."),
         width = 420,
-        height = 560,
-        bodyHeight = 390,
+        mode = "picker",
+        pickerContentHeight = CalculatePickerContentHeight(pickerRows, 68, 252),
     }) or nil
     if not dialog then
         return
@@ -608,8 +659,6 @@ local function OpenAddObjectPicker()
         end
     end
 
-    local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
-    local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
     local hasVisualsHeader = false
     for _, item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
         if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then
@@ -641,7 +690,7 @@ local function OpenAddObjectPicker()
     AddPickerButton(dialog, T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), InsertDecoration)
 
     dialog:SetActions({
-        secondary = {
+        cancel = {
             text = T("INFO_COMMON_CANCEL", "Cancel"),
             role = "utility",
             width = 110,
@@ -721,6 +770,7 @@ local function AddIndicatorPickerButton(dialog, unitKey, indicatorKey, label)
         or AceGUI:Create("Button")
     button:SetText(text)
     button:SetFullWidth(true)
+    button:SetHeight(PICKER_BUTTON_HEIGHT)
     button:SetCallback("OnClick", function()
         if active or EnableIndicator(unitKey, indicatorKey) then
             CloseIndicatorPickerDialog()
@@ -748,13 +798,21 @@ local function OpenIndicatorPicker()
     local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
     local order = { "RaidTargetIcon", "LeaderIcon", "RoleIcon", "CombatIndicator", "RestingIndicator", "ReadyCheckIndicator", "ClassificationIndicator" }
 
+    local pickerRows = {}
+    for _, indicatorKey in ipairs(order) do
+        local label = indicatorList[indicatorKey]
+        if type(label) == "string" and label ~= "" then
+            table.insert(pickerRows, PICKER_BUTTON_HEIGHT)
+        end
+    end
+
     CloseIndicatorPickerDialog()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("INSERT_INDICATOR_TITLE", "Add Indicator"),
         description = T("INSERT_INDICATOR_DESCRIPTION", "Choose an indicator for the selected unit frame."),
         width = 380,
-        height = 430,
-        bodyHeight = 260,
+        mode = "picker",
+        pickerContentHeight = CalculatePickerContentHeight(pickerRows, 72, 176),
     }) or nil
     if not dialog then
         return
@@ -778,7 +836,7 @@ local function OpenIndicatorPicker()
     end
 
     dialog:SetActions({
-        secondary = {
+        cancel = {
             text = T("INFO_COMMON_CANCEL", "Cancel"),
             role = "utility",
             width = 110,
@@ -851,8 +909,10 @@ local function OpenNewLayoutDialog(initialSourceId)
     CloseNewLayoutDialog()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("LAYOUT_CREATE_TITLE", "New Layout"),
-        description = T("LAYOUT_CREATE_DESCRIPTION", "Create a personal layout from blank or an existing layout."),
-        width = 420, height = 276, bodyHeight = 118,
+        description = T("LAYOUT_CREATE_DESCRIPTION", "Start with a blank layout or an existing layout."),
+        width = 420,
+        formContentHeight = 96,
+        reserveStatusSpace = true,
     }) or nil
     if not dialog then return end
     local nameEdit = AceGUI:Create("EditBox")
@@ -881,7 +941,7 @@ local function OpenNewLayoutDialog(initialSourceId)
     end
     nameEdit:SetCallback("OnTextChanged", function() dialog:SetStatus(""); updateCreateButton() end)
     nameEdit:SetCallback("OnEnterPressed", function() if Trim(nameEdit:GetText() or "") ~= "" then confirm() end end)
-    dialog:SetActions({ secondary = { text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 110, onClick = CloseNewLayoutDialog }, primary = { text = T("LAYOUT_CREATE_CONFIRM", "Create"), role = "primary_action", width = 120, onClick = confirm } })
+    dialog:SetActions({ cancel = { text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 110, onClick = CloseNewLayoutDialog }, primary = { text = T("LAYOUT_CREATE_CONFIRM", "Create Layout"), role = "primary_action", width = 120, onClick = confirm } })
     dialog.window:SetCallback("OnClose", function() if newLayoutDialog == dialog then newLayoutDialog = nil end end)
     newLayoutDialog = dialog; updateCreateButton(); dialog:Show(); FocusDialogEditBox(nameEdit)
 end

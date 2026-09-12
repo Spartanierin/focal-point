@@ -377,36 +377,43 @@ local function OpenTextBuilder()
 end
 
 local function BuildFooter(context)
-    local footer = context.dialog.footer
-    footer:ReleaseChildren()
-
-    local createButton = CreateButton(T("INSERT_TEXT_CREATE_NEW_TEMPLATE", "Create New Template"), "utility", 164)
-    createButton:SetCallback("OnClick", OpenTextBuilder)
-    footer:AddChild(createButton)
-
-    local footerWidth = context.dialog.contentWidth or 520
-    local spacerWidth = math.max(8, footerWidth - 164 - 82 - 82 - 8)
-    footer:AddChild(CreateSpacer(spacerWidth, 1))
-
-    local cancelButton = CreateButton(T("INSERT_TEXT_CANCEL", "Cancel"), "utility", 82)
-    cancelButton:SetCallback("OnClick", function()
-        context.dialog:Close()
-    end)
-    footer:AddChild(cancelButton)
-    footer:AddChild(CreateSpacer(8, 1))
-
-    local addButton = CreateButton(ResolvePrimaryLabel(context), "primary_action", 82)
-    addButton:SetCallback("OnClick", function()
-        SubmitSelectedTemplate(context)
-    end)
-    footer:AddChild(addButton)
-    context.primaryButton = addButton
+    context.dialog:SetActions({
+        primary = {
+            text = ResolvePrimaryLabel(context),
+            role = "primary_action",
+            width = 82,
+            onClick = function()
+                SubmitSelectedTemplate(context)
+            end,
+        },
+        secondary = {
+            text = T("INSERT_TEXT_CREATE_NEW_TEMPLATE", "Create New Template"),
+            role = "utility",
+            width = 190,
+            onClick = OpenTextBuilder,
+        },
+        cancel = {
+            text = T("INSERT_TEXT_CANCEL", "Cancel"),
+            role = "utility",
+            width = 82,
+            onClick = function()
+                context.dialog:Close()
+            end,
+        },
+    })
+    context.primaryButton = context.dialog.primaryButton
 end
 
 local function BuildBody(context)
     local body = context.dialog.body
     body:ReleaseChildren()
-    body:SetLayout("Flow")
+    body:SetLayout("Fill")
+
+    local content = AceGUI:Create("SimpleGroup")
+    content:SetLayout("Flow")
+    content:SetFullWidth(true)
+    content:SetFullHeight(true)
+    body:AddChild(content)
 
     local listColumn = AceGUI:Create("SimpleGroup")
     listColumn:SetLayout("List")
@@ -421,9 +428,9 @@ local function BuildBody(context)
     LockContainerHeight(listGroup, 150)
     context.listGroup = listGroup
     listColumn:AddChild(listGroup)
-    body:AddChild(listColumn)
+    content:AddChild(listColumn)
 
-    body:AddChild(CreateSpacer(12, 1))
+    content:AddChild(CreateSpacer(12, 1))
 
     local previewColumn = AceGUI:Create("SimpleGroup")
     previewColumn:SetLayout("List")
@@ -438,7 +445,7 @@ local function BuildBody(context)
     LockContainerHeight(previewGroup, 150)
     context.previewGroup = previewGroup
     previewColumn:AddChild(previewGroup)
-    body:AddChild(previewColumn)
+    content:AddChild(previewColumn)
 end
 
 function TextTemplateLibraryWindow.Open(options)
@@ -452,9 +459,11 @@ function TextTemplateLibraryWindow.Open(options)
         title = mode == "change" and T("INSERT_TEXT_CHANGE_TITLE", "Change Text") or T("INSERT_TEXT_TITLE", "Add Text"),
         description = mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
         width = 548,
-        height = 342,
-        bodyHeight = 196,
-        bodyLayout = "Flow",
+        mode = "picker",
+        pickerScrollable = false,
+        pickerContentHeight = 196,
+        reserveStatusSpace = true,
+        bodyLayout = "Fill",
         footerHeight = 40,
     }) or nil
     if not dialog then

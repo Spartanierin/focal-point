@@ -4,6 +4,7 @@ ns.GUI = ns.GUI or {}
 ns.GUI.Helpers = ns.GUI.Helpers or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
+local CreateFrame = CreateFrame
 
 local FormWidgets = {}
 ns.GUI.Helpers.FormWidgets = FormWidgets
@@ -846,21 +847,6 @@ local function AddCompactDialogSpacer(parent, height)
     return spacer
 end
 
-local function CreateCompactDialogSpacerWidget(width, height)
-    local spacer = AceGUI:Create("Label")
-    spacer:SetText("")
-    if width then
-        spacer:SetFullWidth(false)
-        spacer:SetWidth(width)
-    else
-        spacer:SetFullWidth(true)
-    end
-    if height then
-        spacer:SetHeight(height)
-    end
-    return spacer
-end
-
 local function EnsureCompactDialogTexture(frame, key, layer)
     if not frame then
         return nil
@@ -1007,22 +993,276 @@ local function ApplyCompactDialogSurface(widget, key, options)
     SetCompactDialogColor(borderRight, borderColor)
 end
 
-local function CreateCompactDialogInsetGroup(parent, height, insetX, contentWidth, childLayout)
-    local row = AceGUI:Create("SimpleGroup")
-    row:SetLayout("Flow")
-    row:SetFullWidth(true)
-    row:SetHeight(height)
-    parent:AddChild(row)
+function FormWidgets.CalculateCompactPickerContentHeight(rowHeights, options)
+    options = options or {}
 
-    row:AddChild(CreateCompactDialogSpacerWidget(insetX, 1))
+    local contentHeight = tonumber(options.padding) or 6
+    if type(rowHeights) == "table" then
+        for _, rowHeight in ipairs(rowHeights) do
+            if type(rowHeight) == "number" and rowHeight > 0 then
+                contentHeight = contentHeight + rowHeight
+            end
+        end
+    end
 
-    local inner = AceGUI:Create("SimpleGroup")
-    inner:SetLayout(childLayout or "List")
-    inner:SetWidth(contentWidth)
-    inner:SetHeight(height)
-    row:AddChild(inner)
+    local minHeight = tonumber(options.minHeight) or 72
+    local maxHeight = tonumber(options.maxHeight) or 252
+    return math.max(minHeight, math.min(maxHeight, contentHeight))
+end
+local SMALL_WINDOW_REGION_TYPE = "FocalPointSmallWindowRegion"
+local SMALL_WINDOW_REGION_VERSION = 1
 
-    return row, inner
+local function RegisterSmallWindowRegion()
+    if AceGUI:GetWidgetVersion(SMALL_WINDOW_REGION_TYPE) then
+        return
+    end
+
+    local function Constructor()
+        local frame = CreateFrame("Frame", nil, UIParent)
+        local content = CreateFrame("Frame", nil, frame)
+        content:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+        content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+
+        local widget = {
+            type = SMALL_WINDOW_REGION_TYPE,
+            frame = frame,
+            content = content,
+        }
+
+        function widget:OnAcquire()
+            self:SetLayout("List")
+            self:SetAutoAdjustHeight(false)
+            self.frame:Show()
+        end
+
+        function widget:OnRelease()
+            self.frame:Hide()
+        end
+
+        function widget:LayoutFinished()
+            -- The shell owns region geometry; child layout must not resize it.
+        end
+
+        AceGUI:RegisterAsContainer(widget)
+        return widget
+    end
+
+    AceGUI:RegisterWidgetType(SMALL_WINDOW_REGION_TYPE, Constructor, SMALL_WINDOW_REGION_VERSION)
+end
+
+local function CreateSmallWindowRegion(parent, layout, anchors)
+    local region = AceGUI:Create(SMALL_WINDOW_REGION_TYPE)
+    region.frame:SetParent(parent)
+    region.frame:ClearAllPoints()
+    for _, anchor in ipairs(anchors) do
+        region.frame:SetPoint(unpack(anchor))
+    end
+    region:SetLayout(layout)
+    return region
+end
+
+local function CreateSmallWindowScrollRegion(parent, layout, anchors)
+    local region = AceGUI:Create("ScrollFrame")
+    region.frame:SetParent(parent)
+    region.frame:ClearAllPoints()
+    for _, anchor in ipairs(anchors) do
+        region.frame:SetPoint(unpack(anchor))
+    end
+    region:SetLayout(layout or "List")
+    if region.SetAutoAdjustHeight then
+        region:SetAutoAdjustHeight(false)
+    end
+    return region
+end
+local function CreateCompactFormShell(window, options)
+    RegisterSmallWindowRegion()
+
+    local previousShell = window.frame._fpCompactFormShell
+    if previousShell and previousShell.Release then
+        previousShell:Release()
+    end
+
+    local contentInset = options.contentInset or 14
+    local footerHeight = options.footerHeight or 38
+    local statusHeight = options.statusHeight or 22
+    local isMessageDialog = options.mode == "message" or options.showBody == false or options.bodyHeight == 0
+    local isPickerDialog = options.mode == "picker"
+    local headerHeight = not isMessageDialog and type(options.description) == "string" and options.description ~= "" and (options.descriptionHeight or 32) or 0
+    local shellFrames = window.frame._fpCompactFormShellFrames
+    if not shellFrames then
+        shellFrames = {}
+        window.frame._fpCompactFormShellFrames = shellFrames
+    end
+
+    local function AcquireShellFrame(key, parent)
+        local frame = shellFrames[key]
+        if not frame then
+            frame = CreateFrame("Frame", nil, parent)
+            shellFrames[key] = frame
+        else
+            frame:SetParent(parent)
+            frame:ClearAllPoints()
+        end
+        frame:Show()
+        return frame
+    end
+
+    local shellFrame = AcquireShellFrame("shell", window.content)
+    shellFrame:ClearAllPoints()
+    shellFrame:SetPoint("TOPLEFT", window.content, "TOPLEFT", 0, 0)
+    shellFrame:SetPoint("BOTTOMRIGHT", window.content, "BOTTOMRIGHT", 0, 0)
+
+    local footerFrame = AcquireShellFrame("footer", shellFrame)
+    footerFrame:SetPoint("BOTTOMLEFT", shellFrame, "BOTTOMLEFT", 0, 0)
+    footerFrame:SetPoint("BOTTOMRIGHT", shellFrame, "BOTTOMRIGHT", 0, 0)
+    footerFrame:SetHeight(footerHeight)
+
+    local statusFrame = AcquireShellFrame("status", shellFrame)
+    statusFrame:SetPoint("BOTTOMLEFT", footerFrame, "TOPLEFT", contentInset, 0)
+    statusFrame:SetPoint("BOTTOMRIGHT", footerFrame, "TOPRIGHT", -contentInset, 0)
+    statusFrame:SetHeight(statusHeight)
+
+    local headerFrame = shellFrames.header
+    if headerHeight > 0 then
+        headerFrame = AcquireShellFrame("header", shellFrame)
+        headerFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
+        headerFrame:SetPoint("TOPRIGHT", shellFrame, "TOPRIGHT", -contentInset, 0)
+        headerFrame:SetHeight(headerHeight)
+    elseif headerFrame then
+        headerFrame:Hide()
+        headerFrame = nil
+    end
+
+    local contentFrame = AcquireShellFrame("content", shellFrame)
+    local function UpdateContentBounds(statusVisible)
+        contentFrame:ClearAllPoints()
+        if headerFrame then
+            contentFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, 0)
+            contentFrame:SetPoint("TOPRIGHT", headerFrame, "BOTTOMRIGHT", 0, 0)
+        else
+            contentFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
+            contentFrame:SetPoint("TOPRIGHT", shellFrame, "TOPRIGHT", -contentInset, 0)
+        end
+        local bottomFrame = statusVisible and statusFrame or footerFrame
+        contentFrame:SetPoint("BOTTOMLEFT", bottomFrame, "TOPLEFT", 0, 0)
+        contentFrame:SetPoint("BOTTOMRIGHT", bottomFrame, "TOPRIGHT", 0, 0)
+    end
+
+    local statusVisible = options.showStatus == true
+    UpdateContentBounds(statusVisible)
+    if statusVisible then
+        statusFrame:Show()
+    else
+        statusFrame:Hide()
+    end
+
+    local transparent = { 0, 0, 0, 0 }
+    ApplyCompactDialogSurface({ frame = contentFrame }, "Body", {
+        fill = isMessageDialog and transparent or options.bodyFill,
+        topShade = isMessageDialog and transparent or nil,
+        bottomShade = isMessageDialog and transparent or nil,
+        border = isMessageDialog and transparent or options.bodyBorder,
+    })
+    ApplyCompactDialogSurface({ frame = footerFrame }, "Footer", {
+        fill = options.footerFill or GetChromeColors().sectionFillStrong,
+        border = options.footerBorder,
+    })
+
+    local header
+    if headerFrame then
+        header = CreateSmallWindowRegion(headerFrame, "List", {
+            { "TOPLEFT", headerFrame, "TOPLEFT", 0, 0 },
+            { "BOTTOMRIGHT", headerFrame, "BOTTOMRIGHT", 0, 0 },
+        })
+    end
+
+    local body
+    local message
+    if isMessageDialog then
+        message = CreateSmallWindowRegion(contentFrame, "List", {
+            { "TOPLEFT", contentFrame, "TOPLEFT", 0, -8 },
+            { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0 },
+        })
+    elseif isPickerDialog and options.pickerScrollable ~= false then
+        body = CreateSmallWindowScrollRegion(contentFrame, options.bodyLayout or "List", {
+            { "TOPLEFT", contentFrame, "TOPLEFT", 0, -6 },
+            { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0 },
+        })
+    else
+        body = CreateSmallWindowRegion(contentFrame, options.bodyLayout or "List", {
+            { "TOPLEFT", contentFrame, "TOPLEFT", 9, -6 },
+            { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -9, 0 },
+        })
+    end
+    local statusRegion = CreateSmallWindowRegion(statusFrame, "List", {
+        { "TOPLEFT", statusFrame, "TOPLEFT", 0, 0 },
+        { "BOTTOMRIGHT", statusFrame, "BOTTOMRIGHT", 0, 0 },
+    })
+    local footer = CreateSmallWindowRegion(footerFrame, "Flow", {
+        { "TOPLEFT", footerFrame, "TOPLEFT", contentInset, 4 },
+        { "BOTTOMRIGHT", footerFrame, "BOTTOMRIGHT", -contentInset, -4 },
+    })
+
+    local shell = {
+        frame = shellFrame,
+        header = header,
+        body = body,
+        message = message,
+        status = statusRegion,
+        footer = footer,
+        contentWidth = math.max(1, (options.width or 420) - (contentInset * 2)),
+    }
+
+    function shell:SetStatusVisible(visible)
+        visible = visible == true
+        if statusVisible == visible then
+            return
+        end
+        statusVisible = visible
+        if statusVisible then
+            statusFrame:Show()
+        else
+            statusFrame:Hide()
+        end
+        UpdateContentBounds(statusVisible)
+    end
+
+    function shell:Release()
+        for _, region in ipairs({ self.header, self.body, self.message, self.status, self.footer }) do
+            if region then
+                AceGUI:Release(region)
+            end
+        end
+        self.frame:Hide()
+    end
+
+    window.frame._fpCompactFormShell = shell
+
+    return shell
+end
+
+local function CalculateCompactDialogHeight(options, isPickerDialog)
+    local contentHeight
+    if isPickerDialog then
+        contentHeight = options.pickerContentHeight
+    elseif options.mode == "message" or options.showBody == false or options.bodyHeight == 0 then
+        contentHeight = options.messageContentHeight
+    else
+        contentHeight = options.formContentHeight
+    end
+
+    if type(contentHeight) ~= "number" then
+        return options.height or (isPickerDialog and 0 or 216)
+    end
+
+    local isMessageDialog = options.mode == "message" or options.showBody == false or options.bodyHeight == 0
+    local headerHeight = not isMessageDialog and type(options.description) == "string" and options.description ~= "" and (options.descriptionHeight or 32) or 0
+    local footerHeight = options.footerHeight or 38
+    local statusHeight = (options.showStatus == true or options.reserveStatusSpace == true) and (options.statusHeight or 22) or 0
+    local contentTopPadding = isMessageDialog and 8 or 6
+    -- AceGUI Window reserves 57 px around its content frame.
+    local calculatedHeight = 57 + headerHeight + contentHeight + footerHeight + statusHeight + contentTopPadding
+    return math.max(options.height or 0, calculatedHeight)
 end
 
 function FormWidgets.CreateCompactFormDialog(options)
@@ -1030,13 +1270,13 @@ function FormWidgets.CreateCompactFormDialog(options)
 
     local window = AceGUI:Create("Window")
     local width = options.width or 420
-    local contentInset = options.contentInset or 14
-    local contentWidth = math.max(1, width - (contentInset * 2))
+    local isPickerDialog = options.mode == "picker"
+    local height = CalculateCompactDialogHeight(options, isPickerDialog)
 
     window:SetTitle(options.title or "")
-    window:SetLayout("List")
+    window:SetLayout("Fill")
     window:SetWidth(width)
-    window:SetHeight(options.height or 216)
+    window:SetHeight(height)
     window:EnableResize(false)
 
     if window.frame then
@@ -1049,123 +1289,145 @@ function FormWidgets.CreateCompactFormDialog(options)
     FormWidgets.EnsureStandardWindowCloseButton(window)
     EnableCompactDialogEscapeClose(window)
 
-    local root = AceGUI:Create("SimpleGroup")
-    root:SetLayout("List")
-    root:SetFullWidth(true)
-    root:SetFullHeight(true)
-    window:AddChild(root)
-
+    local shell = CreateCompactFormShell(window, options)
+    local isMessageDialog = options.mode == "message" or options.showBody == false or options.bodyHeight == 0
     local description
-    if type(options.description) == "string" and options.description ~= "" then
-        local _, headerContent = CreateCompactDialogInsetGroup(root, options.descriptionHeight or 32, contentInset, contentWidth, "List")
+    if shell.header then
         description = AceGUI:Create("Label")
         description:SetText(options.description)
-        description:SetWidth(contentWidth)
+        description:SetFullWidth(true)
         description:SetHeight(options.descriptionTextHeight or 24)
         if FormWidgets.ApplyTextStyle then
             FormWidgets.ApplyTextStyle(description.label, "help", 11, 1)
         end
-        headerContent:AddChild(description)
+        shell.header:AddChild(description)
+    elseif shell.message then
+        description = FormWidgets.CreateBodyText(options.description or "", "label", options.messageTextSize or 12, nil, shell.contentWidth, false)
+        shell.message:AddChild(description)
+        if type(options.messageHint) == "string" and options.messageHint ~= "" then
+            local hint = FormWidgets.CreateBodyText(options.messageHint, "help", options.messageHintTextSize or 11, nil, shell.contentWidth, false)
+            shell.message:AddChild(hint)
+        end
     end
 
-    local bodyShell, body = CreateCompactDialogInsetGroup(root, options.bodyHeight or 76, contentInset, contentWidth, options.bodyLayout or "List")
-    ApplyCompactDialogSurface(bodyShell, "Body", {
-        fill = options.bodyFill,
-        border = options.bodyBorder,
-    })
-    body:SetLayout(options.bodyLayout or "List")
-    body:SetWidth(contentWidth - 18)
-    body:SetHeight(math.max(1, (options.bodyHeight or 76) - 12))
-    AddCompactDialogSpacer(body, 6)
+    if shell.body and options.mode ~= "picker" and options.addBodySpacer ~= false then
+        AddCompactDialogSpacer(shell.body, 6)
+    end
 
-    local _, statusContent = CreateCompactDialogInsetGroup(root, options.statusHeight or 22, contentInset, contentWidth, "List")
     local status = AceGUI:Create("Label")
     status:SetText(" ")
-    status:SetWidth(contentWidth)
+    status:SetFullWidth(true)
     status:SetHeight(options.statusTextHeight or 16)
     if FormWidgets.ApplyTextStyle then
         FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
     end
-    statusContent:AddChild(status)
-
-    local footerShell, footer = CreateCompactDialogInsetGroup(root, options.footerHeight or 38, contentInset, contentWidth, "Flow")
-    ApplyCompactDialogSurface(footerShell, "Footer", {
-        fill = options.footerFill or GetChromeColors().sectionFillStrong,
-        border = options.footerBorder,
-    })
-    footer:SetLayout("Flow")
-    footer:SetWidth(contentWidth)
-    footer:SetHeight(math.max(1, (options.footerHeight or 38) - 8))
+    shell.status:AddChild(status)
 
     local dialog = {
         window = window,
-        root = root,
+        root = shell,
         description = description,
-        bodyShell = bodyShell,
-        body = body,
+        bodyShell = shell.body and { frame = shell.body.frame } or nil,
+        body = shell.body,
         status = status,
-        footerShell = footerShell,
-        footer = footer,
-        contentWidth = contentWidth,
+        footerShell = { frame = shell.footer.frame },
+        footer = shell.footer,
+        contentWidth = shell.contentWidth,
+        shell = shell,
+        isMessageDialog = isMessageDialog,
     }
 
     function dialog:SetStatus(message)
-        self.status:SetText(type(message) == "string" and message ~= "" and message or " ")
-        if self.window and self.window.DoLayout then
-            self.window:DoLayout()
+        local hasMessage = type(message) == "string" and message ~= ""
+        self.status:SetText(hasMessage and message or " ")
+        if self.shell and self.shell.SetStatusVisible then
+            self.shell:SetStatusVisible(hasMessage or options.showStatus == true)
+        end
+        if self.shell and self.shell.status and self.shell.status.DoLayout then
+            self.shell.status:DoLayout()
         end
     end
 
     function dialog:SetActions(actions)
         actions = actions or {}
         self.footer:ReleaseChildren()
+        self.primaryButton = nil
+        self.secondaryButton = nil
+        self.cancelButton = nil
 
-        local secondary = actions.secondary
         local primary = actions.primary
-        local secondaryWidth = secondary and (secondary.width or 110) or 0
-        local primaryWidth = primary and (primary.width or 120) or 0
-        local gap = secondary and primary and 8 or 0
-        local footerWidth = actions.footerWidth or self.contentWidth or 388
-        local spacerWidth = math.max(0, footerWidth - secondaryWidth - primaryWidth - gap)
+        local secondary = actions.secondary
+        local cancel = actions.cancel
+        local actionButtons = {}
 
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText("")
-        spacer:SetWidth(spacerWidth)
-        self.footer:AddChild(spacer)
+        local function AddAction(key, action, defaultRole, defaultWidth)
+            if not action then
+                return
+            end
 
-        if secondary then
-            local button = FormWidgets.CreateActionButton(secondary.text or "", secondary.role or "utility", secondaryWidth, false)
-            FormWidgets.ApplyModalActionButtonVisual(button, secondary.role or "utility")
+            table.insert(actionButtons, {
+                key = key,
+                action = action,
+                role = action.role or defaultRole,
+                width = math.max(action.width or defaultWidth, action.minWidth or 0),
+            })
+        end
+
+        AddAction("primary", primary, "primary_action", 120)
+        AddAction("secondary", secondary, "utility", 110)
+        AddAction("cancel", cancel, "utility", 110)
+
+        local measuredFooterWidth = self.footer.frame:GetWidth()
+        local footerWidth = actions.footerWidth or (measuredFooterWidth and measuredFooterWidth > 0 and measuredFooterWidth) or self.contentWidth or 388
+        local gap = actions.gap or 8
+        local groupWidth = 0
+        for index, entry in ipairs(actionButtons) do
+            groupWidth = groupWidth + entry.width
+            if index > 1 then
+                groupWidth = groupWidth + gap
+            end
+        end
+
+        for index, entry in ipairs(actionButtons) do
+            local button = FormWidgets.CreateActionButton(entry.action.text or "", entry.role, entry.width, false)
+            FormWidgets.ApplyModalActionButtonVisual(button, entry.role)
             button:SetCallback("OnClick", function()
-                if secondary.onClick then
-                    secondary.onClick(self)
+                if entry.action.onClick then
+                    entry.action.onClick(self)
                 end
             end)
             self.footer:AddChild(button)
-            self.secondaryButton = button
+            entry.button = button
+
+            if entry.key == "primary" then
+                self.primaryButton = button
+            elseif entry.key == "secondary" then
+                self.secondaryButton = button
+            elseif entry.key == "cancel" then
+                self.cancelButton = button
+            end
         end
 
-        if secondary and primary then
-            local actionGap = AceGUI:Create("Label")
-            actionGap:SetText("")
-            actionGap:SetWidth(gap)
-            self.footer:AddChild(actionGap)
+        if self.footer.DoLayout then
+            self.footer:DoLayout()
         end
 
-        if primary then
-            local button = FormWidgets.CreateActionButton(primary.text or "", primary.role or "primary_action", primaryWidth, false)
-            FormWidgets.ApplyModalActionButtonVisual(button, primary.role or "primary_action")
-            button:SetCallback("OnClick", function()
-                if primary.onClick then
-                    primary.onClick(self)
-                end
-            end)
-            self.footer:AddChild(button)
-            self.primaryButton = button
+        local groupStart = 0
+        if #actionButtons == 1 then
+            groupStart = math.max(0, math.floor((footerWidth - groupWidth) / 2))
+        elseif #actionButtons > 1 then
+            groupStart = math.max(0, footerWidth - groupWidth)
         end
 
-        if self.window and self.window.DoLayout then
-            self.window:DoLayout()
+        local actionX = groupStart
+        for _, entry in ipairs(actionButtons) do
+            local frame = entry.button and entry.button.frame or nil
+            if frame then
+                frame:ClearAllPoints()
+                -- LEFT-to-LEFT anchors use the vertical midpoint of the footer.
+                frame:SetPoint("LEFT", self.footer.frame, "LEFT", actionX, 0)
+            end
+            actionX = actionX + entry.width + gap
         end
     end
 

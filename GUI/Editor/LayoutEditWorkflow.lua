@@ -56,8 +56,9 @@ function Workflow.RequestEditableLayoutForMutation(onReady, options)
         title = T("LAYOUT_EDIT_CONFIRM_TITLE", "Create Editable Layout?"),
         description = string.format(T("LAYOUT_EDIT_CONFIRM_MESSAGE", "\"%s\" is a read-only template. Create a personal editable layout from it?"), displayName),
         width = 440,
-        height = 210,
-        bodyHeight = 72,
+        mode = "message",
+        messageContentHeight = 64,
+        reserveStatusSpace = true,
     })
     if not dialog then
         return false, "dialog-unavailable"
@@ -72,11 +73,12 @@ function Workflow.RequestEditableLayoutForMutation(onReady, options)
     end
 
     dialog:SetActions({
-        secondary = { text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 110, onClick = close },
+        cancel = { text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 110, onClick = close },
         primary = {
             text = T("LAYOUT_EDIT_CONFIRM_CREATE", "Create Editable Layout"),
             role = "primary_action",
-            width = 170,
+            width = 210,
+            minWidth = 210,
             onClick = function()
                 if IsBuiltinActive() ~= activeLayoutId then
                     close()

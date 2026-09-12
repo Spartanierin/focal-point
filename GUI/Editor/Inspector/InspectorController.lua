@@ -1265,21 +1265,17 @@ function InspectorController.Build(container, state, options)
             title = L["EDITOR_DELETE_TEXT_CONFIRM_TITLE"] or "Delete Text?",
             description = L["EDITOR_DELETE_TEXT_CONFIRM_DESCRIPTION"] or "This permanently removes this text from the selected unit.",
             width = 420,
-            height = 226,
-            bodyHeight = 58,
+            mode = "message",
+            messageContentHeight = 72,
+            reserveStatusSpace = true,
+            messageHint = L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.",
         })
         if not dialog then
             return
         end
 
-        local bodyText = FormWidgets.CreateBodyText
-            and FormWidgets.CreateBodyText(L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.", "description", 12, nil, dialog.contentWidth - 18, false)
-            or AceGUI:Create("Label")
-        bodyText:SetText(L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.")
-        dialog.body:AddChild(bodyText)
-
         dialog:SetActions({
-            secondary = {
+            cancel = {
                 text = L["INFO_COMMON_CANCEL"] or "Cancel",
                 role = "utility",
                 width = 104,
@@ -4276,15 +4272,16 @@ function InspectorController.Build(container, state, options)
                 title = L["EDITOR_DELETE_DECORATION_CONFIRM_TITLE"] or "Delete Decoration?",
                 description = L["EDITOR_DELETE_DECORATION_CONFIRM_DESCRIPTION"] or "This removes the selected decoration from this unit frame.",
                 width = 420,
-                height = 204,
-                bodyHeight = 34,
+                mode = "message",
+                messageContentHeight = 44,
+                reserveStatusSpace = true,
             })
             if not dialog then
                 return
             end
 
             dialog:SetActions({
-                secondary = {
+                cancel = {
                     text = L["INFO_COMMON_CANCEL"] or "Cancel",
                     role = "utility",
                     width = 104,
