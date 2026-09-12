@@ -13,7 +13,6 @@ local Shared = ns.GUI.Editor.SidebarShared or {}
 
 local NAV_WIDGET_IDS = {
     editorButton = { "Nav", "EDITOR" },
-    profilesButton = { "Nav", "PROFILES" },
     textBuilderButton = { "Nav", "TEXT_BUILDER" },
 }
 

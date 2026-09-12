@@ -407,7 +407,6 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
         items = {
             { id = "toolsTitle", widget = "label", itemVariant = "section_title", textKey = "EDITOR_CONTEXT_TOOLS" },
             { id = "layoutAssignmentsButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_LAYOUT_ASSIGNMENTS" },
-            { id = "profilesButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_PROFILES" },
             { id = "textBuilderButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "NAV_TEXT_BUILDER" },
         },
     },
