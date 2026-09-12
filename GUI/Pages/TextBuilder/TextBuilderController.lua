@@ -293,15 +293,6 @@ local function CanEditSelectedTemplate(context)
     return context and CanEditTemplateEntry(GetSelectedTemplateEntry(context.state))
 end
 
-local function CanCopySelectedTemplate(context)
-    local entry = context and GetSelectedTemplateEntry(context.state) or nil
-    return type(entry) == "table"
-        and entry.sourceType == "profile"
-        and type(entry.profileName) == "string"
-        and entry.profileName ~= ""
-        and entry.profileName ~= GetCurrentProfileName()
-end
-
 local function GetCurrentEditorTemplate(context)
     if not context then
         return ""
@@ -1369,7 +1360,6 @@ RefreshWindowState = function()
         ApplyModalActionButtonVisual(context.tagLibraryButton, "utility")
         ApplyModalActionButtonVisual(context.newTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.saveButton, "primary_action")
-        ApplyModalActionButtonVisual(context.copyTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.updateTemplateButton, "utility")
         ApplyModalActionButtonVisual(context.deleteTemplateButton, "danger")
         ApplyModalActionButtonVisual(context.applyTemplateButton, "primary_action")
@@ -1385,7 +1375,6 @@ RefreshWindowState = function()
         context.newTemplateButton:SetDisabled(true)
         context.deleteTemplateButton:SetDisabled(true)
         context.saveButton:SetDisabled(true)
-        context.copyTemplateButton:SetDisabled(true)
         context.updateTemplateButton:SetDisabled(true)
         context.applyTemplateButton:SetDisabled(true)
         ApplyTextBuilderButtonVisuals()
@@ -1421,7 +1410,6 @@ RefreshWindowState = function()
     local hasTemplateName = Trim(context.templateNameEdit:GetText() or "") ~= ""
     local hasTemplateText = Trim(context.templateEdit:GetText() or "") ~= ""
     local canEditSelectedTemplate = CanEditSelectedTemplate(context)
-    local canCopySelectedTemplate = CanCopySelectedTemplate(context)
     local saveMode = ResolvePrimarySaveMode(context)
     local selectedEntry = GetSelectedTemplateEntry(context.state)
     local selectedName = selectedEntry and selectedEntry.templateName or ""
@@ -1449,7 +1437,6 @@ RefreshWindowState = function()
         or (saveMode == "update" and (not hasTemplateText or not canEditSelectedTemplate or not isDirty))
         or saveMode == "readOnly"
     )
-    context.copyTemplateButton:SetDisabled(not canCopySelectedTemplate)
     context.updateTemplateButton:SetDisabled(not isRenameCandidate)
     context.applyTemplateButton:SetDisabled(not hasTemplateText or not canEditSelectedTemplate)
     ApplyTextBuilderButtonVisuals()
@@ -1490,7 +1477,6 @@ local function CreateWindowContent(window, state, deps)
         newTemplateButton = widgets.newTemplateButton,
         deleteTemplateButton = widgets.deleteTemplateButton,
         saveButton = widgets.saveButton,
-        copyTemplateButton = widgets.copyTemplateButton,
         updateTemplateButton = widgets.updateTemplateButton,
         libraryHint = widgets.libraryHint,
         usageHint = widgets.usageHint,
@@ -1655,43 +1641,6 @@ local function WireWindowCallbacks(context)
 
     context.saveButton:SetCallback("OnClick", function()
         SaveCurrentTemplate(context)
-    end)
-
-    context.copyTemplateButton:SetCallback("OnClick", function()
-        if not CanCopySelectedTemplate(context) then
-            RefreshWindowState()
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_SELECT_OTHER"), "warning")
-            return
-        end
-
-        local mutations = ns.TextTemplateMutations
-        if not mutations or not mutations.CopyTemplateEntryToProfile then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_UNAVAILABLE"), "error")
-            return
-        end
-
-        local sourceEntry = GetSelectedTemplateEntry(context.state)
-        local result = mutations.CopyTemplateEntryToProfile(ns.db, sourceEntry, GetCurrentProfileName())
-        if type(result) ~= "table" or not result.success then
-            RefreshWindowState()
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_FAILED"), "error")
-            return
-        end
-
-        local targetEntry = GetProfileTemplateEntry(result.targetProfileName, result.targetTemplateName)
-        if targetEntry then
-            SetTemplateSelection(context.state, targetEntry)
-        end
-
-        RefreshTemplateDropdown(context)
-        RefreshWindowState()
-        RefreshEditorInteractionPreview()
-
-        if result.reusedExisting then
-            SetStatus(T("INFO_TEXT_BUILDER_STATUS_COPY_REUSED"), "success")
-        else
-            SetStatus(string.format(T("INFO_TEXT_BUILDER_STATUS_COPY_SUCCESS"), tostring(result.targetTemplateName or "")), "success")
-        end
     end)
 
     context.updateTemplateButton:SetCallback("OnClick", function()

@@ -189,7 +189,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
             heightInfo = {
                 source = "content",
                 min = 1,
-                derivedFrom = "section title + TemplatesColumns + Actions + CopyAction + TemplatesNote + spacing",
+                derivedFrom = "section title + TemplatesColumns + Actions + TemplatesNote + spacing",
             },
         },
         items = {
@@ -304,54 +304,9 @@ ns.GUI.Layouts.TextBuilder.Form = {
         },
     },
     {
-        section = "CopyAction",
-        properties = {
-            parentSection = "Templates",
-            sectionKind = "widget_group",
-            structure = {
-                header = {
-                    present = true,
-                    optional = true,
-                },
-                body = {
-                    present = true,
-                    section = "CopyAction",
-                },
-                footer = {
-                    present = true,
-                    optional = false,
-                    section = "TemplatesNote",
-                },
-            },
-            type = "action_row",
-            variant = "single_button",
-            gapBefore = 2,
-            padding = {
-                left = 4,
-                right = 4,
-                top = 1,
-                bottom = 1,
-            },
-            widthInfo = {
-                source = "parent",
-            },
-            heightInfo = {
-                source = "content",
-                min = 26,
-                derivedFrom = "copyTemplateButton",
-            },
-        },
-        items = {
-            { id = "copyTemplateButton", widget = "button", itemVariant = "secondary_action", textKey = "INFO_TEXT_BUILDER_COPY_TO_CURRENT_PROFILE", fullWidth = true },
-        },
-    },
-    {
         section = "TemplatesNote",
         properties = {
             parentSection = "Templates",
-            sectionKind = "widget_group_footer",
-            structureSlot = "footer",
-            widgetGroup = "CopyAction",
             type = "info_block",
             variant = "note_text",
             padding = {
