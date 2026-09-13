@@ -17,37 +17,23 @@ local CLICK_FRAME_LEVEL = 940
 local SELECTED_CLICK_FRAME_LEVEL = 950
 local VISUAL_PADDING_X = 4
 local VISUAL_PADDING_Y = 4
-local PICKER_FRAME_LEVEL = 960
-local PICKER_BUTTON_FRAME_LEVEL = 970
-local PICKER_BUTTON_SIZE = 16
-local PICKER_GAP = 2
-local PICKER_PADDING = 3
-local PICKER_SIZE = 58
-local PICKER_OFFSET_Y = -6
-local ANCHOR_TOGGLE_SIZE = 18
-local ANCHOR_TOGGLE_OFFSET_X = 5
-local ANCHOR_TOGGLE_OFFSET_Y = 5
+local GROWTH_CONTROL_FRAME_LEVEL = 960
+local GROWTH_BUTTON_FRAME_LEVEL = 970
+local GROWTH_BUTTON_SIZE = 16
+local GROWTH_BUTTON_GAP = 2
+local GROWTH_CONTROL_PADDING = 3
+local GROWTH_CONTROL_WIDTH = 58
+local GROWTH_CONTROL_HEIGHT = 22
+local GROWTH_CONTROL_OFFSET_X = 5
+local GROWTH_CONTROL_OFFSET_Y = 5
 
-local ANCHOR_POINTS = {
-    { key = "TOPLEFT", label = "TL", row = 0, col = 0 },
-    { key = "TOP", label = "T", row = 0, col = 1 },
-    { key = "TOPRIGHT", label = "TR", row = 0, col = 2 },
-    { key = "LEFT", label = "L", row = 1, col = 0 },
-    { key = "CENTER", label = "C", row = 1, col = 1 },
-    { key = "RIGHT", label = "R", row = 1, col = 2 },
-    { key = "BOTTOMLEFT", label = "BL", row = 2, col = 0 },
-    { key = "BOTTOM", label = "B", row = 2, col = 1 },
-    { key = "BOTTOMRIGHT", label = "BR", row = 2, col = 2 },
+local GROWTH_DIRECTIONS = {
+    { key = "LEFT", tooltip = "Left" },
+    { key = "CENTER", tooltip = "Center" },
+    { key = "RIGHT", tooltip = "Right" },
 }
 
-local VALID_ANCHOR_POINTS = {}
-for _, anchorMeta in ipairs(ANCHOR_POINTS) do
-    VALID_ANCHOR_POINTS[anchorMeta.key] = true
-end
-
 local activeDragOverlay
-local activeAnchorPickerOverlay
-local anchorPickerOutsideFrame
 
 local function NormalizeUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
@@ -316,15 +302,44 @@ local function PositionTextVisualChrome(visual, overlay, textObject)
     end
 end
 
-local function IsValidAnchorPoint(point)
-    return type(point) == "string" and VALID_ANCHOR_POINTS[point] == true
-end
-
 local AUTO_ANCHOR_PAIRS = {
     top = { left = { "BOTTOMRIGHT", "TOPLEFT" }, center = { "BOTTOM", "TOP" }, right = { "BOTTOMLEFT", "TOPRIGHT" } },
     center = { left = { "RIGHT", "LEFT" }, center = { "CENTER", "CENTER" }, right = { "LEFT", "RIGHT" } },
     bottom = { left = { "TOPRIGHT", "BOTTOMLEFT" }, center = { "TOP", "BOTTOM" }, right = { "TOPLEFT", "BOTTOMRIGHT" } },
 }
+
+local function ResolveHorizontalAnchor(point)
+    if point == "LEFT" or point == "TOPLEFT" or point == "BOTTOMLEFT" then
+        return "LEFT"
+    end
+    if point == "RIGHT" or point == "TOPRIGHT" or point == "BOTTOMRIGHT" then
+        return "RIGHT"
+    end
+    if point == "TOP" or point == "CENTER" or point == "BOTTOM" then
+        return "CENTER"
+    end
+    return nil
+end
+
+local function ResolveVerticalAnchor(point)
+    if point == "TOPLEFT" or point == "TOP" or point == "TOPRIGHT" then
+        return "TOP"
+    end
+    if point == "BOTTOMLEFT" or point == "BOTTOM" or point == "BOTTOMRIGHT" then
+        return "BOTTOM"
+    end
+    return "CENTER"
+end
+
+local function ComposeAnchorPoint(vertical, horizontal)
+    if vertical == "TOP" then
+        return horizontal == "LEFT" and "TOPLEFT" or horizontal == "RIGHT" and "TOPRIGHT" or "TOP"
+    end
+    if vertical == "BOTTOM" then
+        return horizontal == "LEFT" and "BOTTOMLEFT" or horizontal == "RIGHT" and "BOTTOMRIGHT" or "BOTTOM"
+    end
+    return horizontal == "LEFT" and "LEFT" or horizontal == "RIGHT" and "RIGHT" or "CENTER"
+end
 
 local function GetRectAnchor(rect, point)
     local x = (rect.left + rect.right) / 2
@@ -334,7 +349,7 @@ local function GetRectAnchor(rect, point)
     return x, y
 end
 
-function TextEditorOverlay.ResolveAutoAnchorGeometry(textRect, ownerRect)
+function TextEditorOverlay.ResolveAutoAnchorGeometry(textRect, ownerRect, textConfig)
     if type(textRect) ~= "table" or type(ownerRect) ~= "table" then return nil end
     for _, rect in ipairs({ textRect, ownerRect }) do
         if type(rect.left) ~= "number" or type(rect.right) ~= "number" or type(rect.top) ~= "number" or type(rect.bottom) ~= "number" or rect.left >= rect.right or rect.bottom >= rect.top then return nil end
@@ -345,9 +360,17 @@ function TextEditorOverlay.ResolveAutoAnchorGeometry(textRect, ownerRect)
     local horizontal = centerX < ownerRect.left and "left" or centerX > ownerRect.right and "right" or centerX < ownerRect.left + width / 3 and "left" or centerX > ownerRect.left + width * 2 / 3 and "right" or "center"
     local vertical = centerY < ownerRect.bottom and "bottom" or centerY > ownerRect.top and "top" or centerY < ownerRect.bottom + height / 3 and "bottom" or centerY > ownerRect.bottom + height * 2 / 3 and "top" or "center"
     local pair = AUTO_ANCHOR_PAIRS[vertical][horizontal]
-    local textX, textY = GetRectAnchor(textRect, pair[1])
+    local ownHorizontal = ResolveHorizontalAnchor(textConfig and textConfig.point) or ResolveHorizontalAnchor(pair[1])
+    local point = ComposeAnchorPoint(ResolveVerticalAnchor(pair[1]), ownHorizontal)
+    local textX, textY = GetRectAnchor(textRect, point)
     local ownerX, ownerY = GetRectAnchor(ownerRect, pair[2])
-    return { point = pair[1], relativePoint = pair[2], offsetX = textX - ownerX, offsetY = textY - ownerY }
+    return {
+        point = point,
+        relativePoint = pair[2],
+        offsetX = textX - ownerX,
+        offsetY = textY - ownerY,
+        justifyH = textConfig and textConfig.justifyH or nil,
+    }
 end
 local function GetFrameRect(frame)
     if not (frame and frame.GetLeft and frame.GetRight and frame.GetTop and frame.GetBottom) then return nil end
@@ -355,21 +378,37 @@ local function GetFrameRect(frame)
     if type(left) ~= "number" or type(right) ~= "number" or type(top) ~= "number" or type(bottom) ~= "number" or left >= right or bottom >= top then return nil end
     return { left = left, right = right, top = top, bottom = bottom }
 end
+
+-- TEMPORARY: Manual-only runtime snapshot for the text direction audit.
+local function FormatDirectionSnapshotValue(value)
+    if issecretvalue and issecretvalue(value) then
+        return "<secret>"
+    end
+    if value == nil then
+        return "<nil>"
+    end
+    return tostring(value)
+end
+
+local function FormatDirectionSnapshotRect(rect)
+    if type(rect) ~= "table" then
+        return "<unavailable>"
+    end
+    return string.format("L=%.1f R=%.1f T=%.1f B=%.1f", rect.left, rect.right, rect.top, rect.bottom)
+end
+
+local function PrintDirectionSnapshot(message)
+    local text = "[FP TextDirection] " .. message
+    if FocalPoint and FocalPoint.Print then
+        FocalPoint:Print(text)
+    elseif DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage(text)
+    end
+end
+
 local StyleOverlay
 local EndTextDrag
-local UpdateAnchorToggleButton
-local HideAnchorPicker
-local EnsureAnchorPicker
-local RefreshAnchorPickerButtons
-
-local function IsMouseOverRegion(region)
-    return region
-        and region.IsShown
-        and region:IsShown()
-        and MouseIsOver
-        and MouseIsOver(region) == true
-        or false
-end
+local UpdateGrowthIndicator
 
 local function GetTooltipOwner()
     if GameTooltip and GameTooltip.GetOwner then
@@ -384,438 +423,253 @@ local function HideTooltipFor(owner)
     end
 end
 
-local function HideFrameIfShown(frame)
-    if frame and frame.Hide and (not frame.IsShown or frame:IsShown()) then
-        frame:Hide()
-    end
-end
-
-local function HideAnchorTooltipForOverlay(overlay)
-    local owner = GetTooltipOwner()
-    if not owner or not overlay or not GameTooltip or not GameTooltip.Hide then
-        return
-    end
-
-    if owner == overlay.AnchorToggleButton then
-        GameTooltip:Hide()
-        return
-    end
-
-    local picker = overlay.AnchorPicker
-    for _, button in ipairs((picker and picker.Buttons) or {}) do
-        if owner == button then
-            GameTooltip:Hide()
-            return
-        end
-    end
-end
-
-local function EnsureAnchorPickerOutsideFrame()
-    if anchorPickerOutsideFrame then
-        return anchorPickerOutsideFrame
-    end
-
-    local frame = CreateFrame("Frame")
-    frame:SetScript("OnEvent", function(_, event)
-        if event ~= "GLOBAL_MOUSE_DOWN" then
-            return
-        end
-
-        local overlay = activeAnchorPickerOverlay
-        if not overlay then
-            return
-        end
-
-        local picker = overlay.AnchorPicker
-        local toggle = overlay.AnchorToggleButton
-        if IsMouseOverRegion(picker) or IsMouseOverRegion(toggle) then
-            return
-        end
-
-        HideAnchorPicker(overlay)
-    end)
-
-    anchorPickerOutsideFrame = frame
-    return frame
-end
-
-local function SetAnchorPickerOutsideActive(active)
-    local frame = active and EnsureAnchorPickerOutsideFrame() or anchorPickerOutsideFrame
-    if not frame then
-        return
-    end
-
-    if active then
-        frame:RegisterEvent("GLOBAL_MOUSE_DOWN")
-    else
-        frame:UnregisterEvent("GLOBAL_MOUSE_DOWN")
-    end
-end
-
-HideAnchorPicker = function(overlay)
-    local picker = overlay and overlay.AnchorPicker
-    HideFrameIfShown(picker)
-    if overlay then
-        overlay._focalPointAnchorPickerOpen = false
-    end
-    if activeAnchorPickerOverlay == overlay then
-        activeAnchorPickerOverlay = nil
-        SetAnchorPickerOutsideActive(false)
-    end
-    if UpdateAnchorToggleButton then
-        UpdateAnchorToggleButton(overlay, false)
-    end
-    HideAnchorTooltipForOverlay(overlay)
-end
-
-local function StylePickerButton(button, active, hovered)
+local function StyleGrowthButton(button, active, hovered)
     if not button then
         return
     end
 
     local bg = button.Background
-    local label = button.Label
+    local iconColor
     if active then
         if bg then
             bg:SetColorTexture(1.00, 0.76, 0.22, 0.88)
         end
-        if label then
-            label:SetTextColor(0.08, 0.06, 0.02, 1)
-        end
+        iconColor = { 0.08, 0.06, 0.02, 1 }
     elseif hovered then
         if bg then
             bg:SetColorTexture(0.92, 0.82, 0.52, 0.58)
         end
-        if label then
-            label:SetTextColor(1.00, 0.94, 0.76, 1)
-        end
+        iconColor = { 1.00, 0.94, 0.76, 1 }
     else
         if bg then
             bg:SetColorTexture(0.16, 0.17, 0.18, 0.90)
         end
-        if label then
-            label:SetTextColor(0.72, 0.74, 0.74, 1)
-        end
+        iconColor = { 0.72, 0.74, 0.74, 1 }
+    end
+
+    for _, line in ipairs(button.IconLines or {}) do
+        line:SetColorTexture(iconColor[1], iconColor[2], iconColor[3], iconColor[4])
     end
 end
 
-UpdateAnchorToggleButton = function(overlay, hovered)
-    local button = overlay and overlay.AnchorToggleButton
-    if not button then
-        return
-    end
-
-    local open = overlay._focalPointAnchorPickerOpen == true
-    local bg = button.Background
-    local label = button.Label
-    if open then
-        if bg then
-            bg:SetColorTexture(1.00, 0.76, 0.22, 0.92)
-        end
-        if label then
-            label:SetTextColor(0.08, 0.06, 0.02, 1)
-        end
-    elseif hovered then
-        if bg then
-            bg:SetColorTexture(0.92, 0.82, 0.52, 0.70)
-        end
-        if label then
-            label:SetTextColor(1.00, 0.94, 0.76, 1)
-        end
-    else
-        if bg then
-            bg:SetColorTexture(0.16, 0.17, 0.18, 0.94)
-        end
-        if label then
-            label:SetTextColor(0.92, 0.84, 0.58, 1)
-        end
-    end
-end
-
-local function PositionAnchorPicker(overlay, picker)
-    if not overlay or not picker then
-        return
-    end
-
-    picker:ClearAllPoints()
-    if overlay.AnchorToggleButton then
-        picker:SetPoint("TOPRIGHT", overlay.AnchorToggleButton, "BOTTOMRIGHT", 0, PICKER_OFFSET_Y)
-    elseif overlay.VisualBounds then
-        picker:SetPoint("TOPLEFT", overlay.VisualBounds, "BOTTOMLEFT", 0, PICKER_OFFSET_Y)
-    else
-        picker:SetPoint("TOPLEFT", overlay, "BOTTOMLEFT", 0, PICKER_OFFSET_Y)
-    end
-end
-
-local function PositionAnchorToggleButton(overlay, button)
-    if not overlay or not button then
-        return
-    end
-
-    button:ClearAllPoints()
-    if overlay.VisualBounds then
-        button:SetPoint("TOPRIGHT", overlay.VisualBounds, "TOPRIGHT", ANCHOR_TOGGLE_OFFSET_X, ANCHOR_TOGGLE_OFFSET_Y)
-    else
-        button:SetPoint("TOPRIGHT", overlay, "TOPRIGHT", ANCHOR_TOGGLE_OFFSET_X, ANCHOR_TOGGLE_OFFSET_Y)
-    end
-end
-
-local function ShowAnchorPicker(overlay)
-    if not overlay or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) then
-        return
-    end
-    if overlay._focalPointSelected ~= true then
-        return
-    end
-
-    local textConfig = GetTextConfig(overlay._focalPointOwnerFrame, overlay._focalPointTextKey)
-    if type(textConfig) ~= "table" or not IsEditorRenderableText(overlay._focalPointOwnerFrame, overlay._focalPointTextKey, textConfig) then
-        return
-    end
-
-    if activeAnchorPickerOverlay and activeAnchorPickerOverlay ~= overlay then
-        HideAnchorPicker(activeAnchorPickerOverlay)
-    end
-
-    local picker = EnsureAnchorPicker(overlay)
-    if not picker then
-        return
-    end
-
-    activeAnchorPickerOverlay = overlay
-    overlay._focalPointAnchorPickerOpen = true
-    picker._focalPointOwnerOverlay = overlay
-    PositionAnchorPicker(overlay, picker)
-    RefreshAnchorPickerButtons(picker, textConfig)
-    if not picker.IsShown or not picker:IsShown() then
-        picker:Show()
-    end
-    UpdateAnchorToggleButton(overlay, false)
-    SetAnchorPickerOutsideActive(true)
-end
-
-local function ToggleAnchorPicker(overlay)
-    if not overlay or activeDragOverlay == overlay then
-        return
-    end
-
-    if overlay._focalPointAnchorPickerOpen == true then
-        HideAnchorPicker(overlay)
-    else
-        ShowAnchorPicker(overlay)
-    end
-end
-
-local function EnsureAnchorToggleButton(overlay)
-    if not overlay then
-        return nil
-    end
-    if overlay.AnchorToggleButton then
-        return overlay.AnchorToggleButton
-    end
-
-    local button = CreateFrame("Button", nil, overlay)
-    button:SetFrameStrata("FULLSCREEN")
-    button:SetFrameLevel(PICKER_BUTTON_FRAME_LEVEL)
-    button:SetSize(ANCHOR_TOGGLE_SIZE, ANCHOR_TOGGLE_SIZE)
-    button:RegisterForClicks("LeftButtonUp")
-    button:EnableMouse(true)
-    button:EnableMouseWheel(true)
-    button:Hide()
-
-    local bg = button:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(button)
-    button.Background = bg
-    CreateBorderTextures(button)
-    SetFullBorderVisible(button, true)
-    SetBorderStyle(button, 0.82, 0.68, 0.32, 0.82, 1)
-
-    local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetAllPoints(button)
-    label:SetJustifyH("CENTER")
-    label:SetJustifyV("MIDDLE")
-    label:SetText("A")
-    button.Label = label
-
-    button:SetScript("OnEnter", function(self)
-        self._focalPointHovered = true
-        UpdateAnchorToggleButton(overlay, true)
-        if GameTooltip then
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            if GameTooltip.ClearLines then
-                GameTooltip:ClearLines()
-            end
-            GameTooltip:AddLine("Anchors", 1, 1, 1, true)
-            GameTooltip:AddLine("Choose the text element's anchor point.", 0.82, 0.84, 0.86, true)
-            GameTooltip:AddLine("Click to open or close the anchor picker.", 0.72, 0.74, 0.76, true)
-            GameTooltip:Show()
-        end
-    end)
-    button:SetScript("OnLeave", function(self)
-        self._focalPointHovered = false
-        UpdateAnchorToggleButton(overlay, false)
-        HideTooltipFor(self)
-    end)
-    button:SetScript("OnClick", function(_, buttonName)
-        if buttonName ~= "LeftButton" then
-            return
-        end
-        ToggleAnchorPicker(overlay)
-    end)
-    button:SetScript("OnMouseWheel", function()
-    end)
-
-    overlay.AnchorToggleButton = button
-    UpdateAnchorToggleButton(overlay, false)
-    return button
-end
-
-EnsureAnchorPicker = function(overlay)
-    if not overlay then
+local function ResolveTextGrowth(frame, textKey, textConfig)
+    if type(textConfig) ~= "table" then
         return nil
     end
 
-    if overlay.AnchorPicker then
-        return overlay.AnchorPicker
+    local textObject = frame and frame.Texts and frame.Texts[textKey] or nil
+    if textObject and textObject.FocalPointOverflowWidth == 0 then
+        local point = ResolveHorizontalAnchor(textConfig.point)
+        if point == "LEFT" then
+            return "RIGHT"
+        end
+        if point == "RIGHT" then
+            return "LEFT"
+        end
+        return point
     end
 
-    local picker = CreateFrame("Frame", nil, overlay)
-    picker:SetFrameStrata("FULLSCREEN")
-    picker:SetFrameLevel(PICKER_FRAME_LEVEL)
-    picker:SetSize(PICKER_SIZE, PICKER_SIZE)
-    picker:EnableMouse(true)
-    picker:EnableMouseWheel(true)
-    picker:SetScript("OnMouseWheel", function()
-    end)
-    picker:Hide()
+    -- Preserve the existing conservative behavior for fixed-width slots.
+    local point = ResolveHorizontalAnchor(textConfig.point)
+    local relativePoint = ResolveHorizontalAnchor(textConfig.relativePoint)
+    if not point or point ~= relativePoint then
+        return nil
+    end
 
-    local background = picker:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints(picker)
+    local justifyH = textConfig.justifyH or "CENTER"
+    if point == "LEFT" and justifyH == "LEFT" then
+        return "RIGHT"
+    end
+    if point == "RIGHT" and justifyH == "RIGHT" then
+        return "LEFT"
+    end
+    if point == "CENTER" and justifyH == "CENTER" then
+        return "CENTER"
+    end
+    return nil
+end
+
+local function ResolveGrowthVertical(textRect, ownerRect)
+    local centerY = (textRect.top + textRect.bottom) / 2
+    local height = ownerRect.top - ownerRect.bottom
+    if centerY < ownerRect.bottom + height / 3 then
+        return "BOTTOM"
+    end
+    if centerY > ownerRect.top - height / 3 then
+        return "TOP"
+    end
+    return "CENTER"
+end
+
+local function ResolveGrowthPoint(vertical, growth)
+    if vertical == "TOP" then
+        return growth == "LEFT" and "TOPRIGHT" or growth == "RIGHT" and "TOPLEFT" or "TOP"
+    end
+    if vertical == "BOTTOM" then
+        return growth == "LEFT" and "BOTTOMRIGHT" or growth == "RIGHT" and "BOTTOMLEFT" or "BOTTOM"
+    end
+    return growth == "LEFT" and "RIGHT" or growth == "RIGHT" and "LEFT" or "CENTER"
+end
+
+local function ResolveGrowthAnchorPosition(frame, textKey, growth)
+    local textConfig = GetTextConfig(frame, textKey)
+    local textObject = frame and frame.Texts and frame.Texts[textKey]
+    local owner = ResolveTextAnchor(frame, textConfig)
+    local textRect = GetFrameRect(textObject)
+    local ownerRect = GetFrameRect(owner)
+    if not textRect or not ownerRect then
+        return nil
+    end
+
+    local point = ResolveGrowthPoint(ResolveGrowthVertical(textRect, ownerRect), growth)
+    local textX, textY = GetRectAnchor(textRect, point)
+    local ownerX, ownerY = GetRectAnchor(ownerRect, point)
+    return {
+        point = point,
+        relativePoint = point,
+        offsetX = textX - ownerX,
+        offsetY = textY - ownerY,
+        justifyH = growth == "LEFT" and "RIGHT" or growth == "RIGHT" and "LEFT" or "CENTER",
+    }
+end
+
+local function HideGrowthIndicator(overlay)
+    if overlay and overlay.GrowthIndicator then
+        overlay.GrowthIndicator:Hide()
+    end
+end
+
+local function PositionGrowthIndicator(overlay, indicator)
+    if not overlay or not indicator then
+        return
+    end
+
+    local selectionFrame = overlay.VisualBounds or overlay
+    indicator:ClearAllPoints()
+    indicator:SetPoint("BOTTOMLEFT", selectionFrame, "TOPRIGHT", GROWTH_CONTROL_OFFSET_X, GROWTH_CONTROL_OFFSET_Y)
+end
+
+local function CreateGrowthIconLine(button, width, offsetX, offsetY, rotation)
+    local line = button:CreateTexture(nil, "ARTWORK")
+    line:SetSize(width, 2)
+    line:SetPoint("CENTER", button, "CENTER", offsetX, offsetY)
+    line:SetRotation(rotation or 0)
+    return line
+end
+
+local function AddGrowthArrowHead(button, lines, offsetX, direction)
+    lines[#lines + 1] = CreateGrowthIconLine(button, 6, offsetX, 2, direction * math.rad(45))
+    lines[#lines + 1] = CreateGrowthIconLine(button, 6, offsetX, -2, direction * math.rad(-45))
+end
+
+local function CreateGrowthIcon(button, growth)
+    local lines = {}
+    lines[#lines + 1] = CreateGrowthIconLine(button, 11, 0, 0)
+    if growth == "LEFT" then
+        AddGrowthArrowHead(button, lines, -4, 1)
+    elseif growth == "RIGHT" then
+        AddGrowthArrowHead(button, lines, 4, -1)
+    else
+        AddGrowthArrowHead(button, lines, -4, 1)
+        AddGrowthArrowHead(button, lines, 4, -1)
+    end
+    button.IconLines = lines
+end
+
+local function EnsureGrowthIndicator(overlay)
+    if not overlay then
+        return nil
+    end
+    if overlay.GrowthIndicator then
+        return overlay.GrowthIndicator
+    end
+
+    local indicator = CreateFrame("Frame", nil, overlay)
+    indicator:SetFrameStrata("FULLSCREEN")
+    indicator:SetFrameLevel(GROWTH_CONTROL_FRAME_LEVEL)
+    indicator:SetSize(GROWTH_CONTROL_WIDTH, GROWTH_CONTROL_HEIGHT)
+    indicator:EnableMouse(true)
+    indicator:EnableMouseWheel(true)
+    indicator:SetScript("OnMouseWheel", function()
+    end)
+    indicator:Hide()
+
+    local background = indicator:CreateTexture(nil, "BACKGROUND")
+    background:SetAllPoints(indicator)
     background:SetColorTexture(0.04, 0.045, 0.05, 0.92)
-    picker.Background = background
-    CreateBorderTextures(picker)
-    SetFullBorderVisible(picker, true)
-    SetBorderStyle(picker, 0.82, 0.68, 0.32, 0.72, 1)
+    indicator.Background = background
+    CreateBorderTextures(indicator)
+    SetFullBorderVisible(indicator, true)
+    SetBorderStyle(indicator, 0.82, 0.68, 0.32, 0.72, 1)
 
-    picker.Buttons = {}
-    for _, anchorMeta in ipairs(ANCHOR_POINTS) do
-        local button = CreateFrame("Button", nil, picker)
+    indicator.Buttons = {}
+    for index, growthMeta in ipairs(GROWTH_DIRECTIONS) do
+        local button = CreateFrame("Button", nil, indicator)
         button:SetFrameStrata("FULLSCREEN")
-        button:SetFrameLevel(PICKER_BUTTON_FRAME_LEVEL)
-        button:SetSize(PICKER_BUTTON_SIZE, PICKER_BUTTON_SIZE)
-        button:SetPoint(
-            "TOPLEFT",
-            picker,
-            "TOPLEFT",
-            PICKER_PADDING + anchorMeta.col * (PICKER_BUTTON_SIZE + PICKER_GAP),
-            -(PICKER_PADDING + anchorMeta.row * (PICKER_BUTTON_SIZE + PICKER_GAP))
-        )
+        button:SetFrameLevel(GROWTH_BUTTON_FRAME_LEVEL)
+        button:SetSize(GROWTH_BUTTON_SIZE, GROWTH_BUTTON_SIZE)
+        button:SetPoint("LEFT", indicator, "LEFT", GROWTH_CONTROL_PADDING + (index - 1) * (GROWTH_BUTTON_SIZE + GROWTH_BUTTON_GAP), 0)
         button:RegisterForClicks("LeftButtonUp")
         button:EnableMouseWheel(true)
-        button._focalPointAnchorPoint = anchorMeta.key
+        button._focalPointGrowth = growthMeta.key
+        button._focalPointGrowthTooltip = growthMeta.tooltip
 
         local buttonBackground = button:CreateTexture(nil, "BACKGROUND")
         buttonBackground:SetAllPoints(button)
         button.Background = buttonBackground
 
-        local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetAllPoints(button)
-        label:SetJustifyH("CENTER")
-        label:SetJustifyV("MIDDLE")
-        label:SetText(anchorMeta.label)
-        button.Label = label
+        CreateGrowthIcon(button, growthMeta.key)
 
         button:SetScript("OnEnter", function(self)
-            self._focalPointAnchorHovered = true
-            StylePickerButton(self, self._focalPointAnchorActive == true, true)
-            if GameTooltip and self._focalPointAnchorPoint then
+            self._focalPointHovered = true
+            StyleGrowthButton(self, self._focalPointGrowthActive == true, true)
+            if GameTooltip then
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                if GameTooltip.ClearLines then
-                    GameTooltip:ClearLines()
-                end
-                GameTooltip:AddLine(self._focalPointAnchorPoint, 1, 1, 1, true)
+                GameTooltip:ClearLines()
+                GameTooltip:AddLine(self._focalPointGrowthTooltip, 1, 1, 1, true)
                 GameTooltip:Show()
             end
         end)
         button:SetScript("OnLeave", function(self)
-            self._focalPointAnchorHovered = false
-            StylePickerButton(self, self._focalPointAnchorActive == true, false)
+            self._focalPointHovered = false
+            StyleGrowthButton(self, self._focalPointGrowthActive == true, false)
             HideTooltipFor(self)
         end)
         button:SetScript("OnClick", function(self, buttonName)
-            if buttonName ~= "LeftButton" then
-                return
+            if buttonName == "LeftButton" then
+                local owner = indicator._focalPointOwnerOverlay
+                TextEditorOverlay.SetGrowthDirection(owner and owner._focalPointOwnerFrame, owner and owner._focalPointTextKey, self._focalPointGrowth)
             end
-            HideTooltipFor(self)
-            local owner = picker._focalPointOwnerOverlay
-            TextEditorOverlay.SetAnchor(owner and owner._focalPointOwnerFrame, owner and owner._focalPointTextKey, self._focalPointAnchorPoint)
-            HideAnchorPicker(owner)
         end)
         button:SetScript("OnMouseWheel", function()
         end)
-
-        picker.Buttons[#picker.Buttons + 1] = button
+        indicator.Buttons[#indicator.Buttons + 1] = button
     end
 
-    overlay.AnchorPicker = picker
-    picker._focalPointOwnerOverlay = overlay
-    return picker
+    overlay.GrowthIndicator = indicator
+    indicator._focalPointOwnerOverlay = overlay
+    return indicator
 end
 
-RefreshAnchorPickerButtons = function(picker, textConfig)
-    if not picker then
+UpdateGrowthIndicator = function(overlay, selected, textConfig)
+    if not overlay or not selected or activeDragOverlay == overlay or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) or type(textConfig) ~= "table" then
+        HideGrowthIndicator(overlay)
         return
     end
 
-    local activePoint = nil
-    if type(textConfig) == "table" and textConfig.point == textConfig.relativePoint and IsValidAnchorPoint(textConfig.point) then
-        activePoint = textConfig.point
-    end
-
-    for _, button in ipairs(picker.Buttons or {}) do
-        button._focalPointAnchorActive = button._focalPointAnchorPoint == activePoint
-        StylePickerButton(button, button._focalPointAnchorActive == true, button._focalPointAnchorHovered == true)
-    end
-end
-
-local function UpdateAnchorPicker(overlay, selected, textConfig)
-    if not overlay then
+    local indicator = EnsureGrowthIndicator(overlay)
+    if not indicator then
         return
     end
-    if not selected or IsCombatLocked() or not IsTextInteractionActive(overlay._focalPointOwnerFrame, overlay._focalPointTextKey) or type(textConfig) ~= "table" then
-        HideAnchorPicker(overlay)
-        if overlay.AnchorToggleButton then
-            HideFrameIfShown(overlay.AnchorToggleButton)
-        end
-        return
-    end
+    indicator._focalPointOwnerOverlay = overlay
+    PositionGrowthIndicator(overlay, indicator)
 
-    local toggle = EnsureAnchorToggleButton(overlay)
-    if toggle then
-        PositionAnchorToggleButton(overlay, toggle)
-        if not toggle.IsShown or not toggle:IsShown() then
-            toggle:Show()
-        end
-        UpdateAnchorToggleButton(overlay, toggle._focalPointHovered == true)
+    local activeGrowth = ResolveTextGrowth(overlay._focalPointOwnerFrame, overlay._focalPointTextKey, textConfig)
+    for _, button in ipairs(indicator.Buttons or {}) do
+        button._focalPointGrowthActive = button._focalPointGrowth == activeGrowth
+        StyleGrowthButton(button, button._focalPointGrowthActive == true, button._focalPointHovered == true)
     end
-
-    local picker = overlay.AnchorPicker
-    if picker then
-        picker._focalPointOwnerOverlay = overlay
-        PositionAnchorPicker(overlay, picker)
-    end
-
-    if picker then
-        RefreshAnchorPickerButtons(picker, textConfig)
-
-        if overlay._focalPointAnchorPickerOpen == true then
-            if not picker.IsShown or not picker:IsShown() then
-                picker:Show()
-            end
-        elseif not picker.IsShown or picker:IsShown() then
-            HideFrameIfShown(picker)
-        end
-    end
+    indicator:Show()
 end
 
 local function EnsureOverlay(frame, textKey)
@@ -914,10 +768,7 @@ local function EnsureOverlay(frame, textKey)
     end)
     overlay:SetScript("OnHide", function(self)
         EndTextDrag(self, false)
-        HideAnchorPicker(self)
-        if self.AnchorToggleButton then
-            HideFrameIfShown(self.AnchorToggleButton)
-        end
+        HideGrowthIndicator(self)
     end)
     overlay:Hide()
 
@@ -943,10 +794,7 @@ StyleOverlay = function(overlay, selected, hovered)
             visual:Show()
         end
     else
-        HideAnchorPicker(overlay)
-        if overlay.AnchorToggleButton then
-            HideFrameIfShown(overlay.AnchorToggleButton)
-        end
+        HideGrowthIndicator(overlay)
         overlay:SetFrameLevel(CLICK_FRAME_LEVEL)
         if visual then
             visual:SetFrameLevel(VISUAL_FRAME_LEVEL)
@@ -1064,7 +912,7 @@ local function CommitTextAnchorPositionNow(frame, textKey, position)
     if type(unitConfig) ~= "table" or not normalizedUnit or type(position) ~= "table" then return false end
     local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
     if not (mutations and mutations.SetTextAnchorPosition) then return false end
-    local result = mutations.SetTextAnchorPosition({ unitConfig = unitConfig }, textKey, position.point, position.relativePoint, position.offsetX, position.offsetY)
+    local result = mutations.SetTextAnchorPosition({ unitConfig = unitConfig }, textKey, position.point, position.relativePoint, position.offsetX, position.offsetY, position.justifyH)
     if result and result.ok == false then return false end
     if result and result.changed then RefreshAfterTextPositionCommit(frame) else TextEditorOverlay.UpdateFrame(frame) end
     return true
@@ -1097,34 +945,6 @@ local function CommitTextPositionNow(frame, textKey, offsetX, offsetY)
     return true
 end
 
-local function CommitTextAnchorNow(frame, textKey, point, relativePoint)
-    local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
-    if type(unitConfig) ~= "table" or not normalizedUnit then
-        return false
-    end
-
-    local mutations = FocalPoint.InspectorMutations
-        or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
-    if not (mutations and mutations.SetTextAnchor) then
-        return false
-    end
-
-    local result = mutations.SetTextAnchor({
-        unitConfig = unitConfig,
-    }, textKey, point, relativePoint)
-    if result and result.ok == false then
-        return false
-    end
-
-    ClearPreviewOffset(frame, textKey)
-    if result and result.changed then
-        RefreshAfterTextPositionCommit(frame)
-    else
-        TextEditorOverlay.UpdateFrame(frame)
-    end
-
-    return true
-end
 
 local function CommitTextPositionResetNow(frame, textKey)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
@@ -1175,9 +995,6 @@ local function CommitTextAnchorPosition(frame, textKey, position)
 end
 local function CommitTextPosition(frame, textKey, offsetX, offsetY)
     return RequestEditableTextCommit(function() return CommitTextPositionNow(frame, textKey, offsetX, offsetY) end)
-end
-local function CommitTextAnchor(frame, textKey, point, relativePoint)
-    return RequestEditableTextCommit(function() return CommitTextAnchorNow(frame, textKey, point, relativePoint) end)
 end
 local function CommitTextPositionReset(frame, textKey)
     return RequestEditableTextCommit(function() return CommitTextPositionResetNow(frame, textKey) end)
@@ -1292,7 +1109,7 @@ EndTextDrag = function(overlay, commit)
 
     local textObject = state.frame and state.frame.Texts and state.frame.Texts[state.textKey]
     local owner = ResolveTextAnchor(state.frame, state.textConfig)
-    local position = TextEditorOverlay.ResolveAutoAnchorGeometry(GetFrameRect(textObject), GetFrameRect(owner))
+    local position = TextEditorOverlay.ResolveAutoAnchorGeometry(GetFrameRect(textObject), GetFrameRect(owner), state.textConfig)
     if not position then
         RestoreTextPositionPreview(state.frame, state.textKey)
         return
@@ -1319,10 +1136,7 @@ function TextEditorOverlay.HideFrame(frame)
             overlay:Hide()
             overlay:EnableMouse(false)
             overlay:EnableMouseWheel(false)
-            HideAnchorPicker(overlay)
-            if overlay.AnchorToggleButton then
-                HideFrameIfShown(overlay.AnchorToggleButton)
-            end
+            HideGrowthIndicator(overlay)
             if overlay.VisualBounds and overlay.VisualBounds.Hide then
                 overlay.VisualBounds:ClearAllPoints()
                 overlay.VisualBounds:Hide()
@@ -1383,7 +1197,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                     or false
                 overlay._focalPointSelected = selected == true
                 StyleOverlay(overlay, overlay._focalPointSelected, overlay._focalPointHovered == true)
-                UpdateAnchorPicker(overlay, overlay._focalPointSelected, textConfig)
+                UpdateGrowthIndicator(overlay, overlay._focalPointSelected, textConfig)
                 overlay:EnableMouse(true)
                 overlay:EnableMouseWheel(overlay._focalPointSelected == true and IsTextInteractionActive(frame, textKey))
                 overlay:Show()
@@ -1401,10 +1215,7 @@ function TextEditorOverlay.UpdateFrame(frame)
                 overlay:Hide()
                 overlay:EnableMouse(false)
                 overlay:EnableMouseWheel(false)
-                HideAnchorPicker(overlay)
-                if overlay.AnchorToggleButton then
-                    HideFrameIfShown(overlay.AnchorToggleButton)
-                end
+                HideGrowthIndicator(overlay)
                 if overlay.VisualBounds and overlay.VisualBounds.Hide then
                     overlay.VisualBounds:ClearAllPoints()
                     overlay.VisualBounds:Hide()
@@ -1418,8 +1229,7 @@ function TextEditorOverlay.BeginDrag(overlay)
     if not overlay or IsCombatLocked() or not IsEditorActive() then
         return false
     end
-    HideAnchorPicker(overlay)
-
+    HideGrowthIndicator(overlay)
     local frame = overlay._focalPointOwnerFrame
     local textKey = overlay._focalPointTextKey
     local unitConfig = GetUnitConfigByKey(frame and frame._fpUnit)
@@ -1541,11 +1351,11 @@ function TextEditorOverlay.CancelActiveDrag()
     end
 end
 
-function TextEditorOverlay.SetAnchor(frame, textKey, anchorPoint)
+function TextEditorOverlay.SetGrowthDirection(frame, textKey, growth)
     if IsCombatLocked() or not IsTextInteractionActive(frame, textKey) then
         return false
     end
-    if not frame or type(textKey) ~= "string" or textKey == "" or not IsValidAnchorPoint(anchorPoint) then
+    if not frame or type(textKey) ~= "string" or textKey == "" or (growth ~= "LEFT" and growth ~= "CENTER" and growth ~= "RIGHT") then
         return false
     end
 
@@ -1554,12 +1364,85 @@ function TextEditorOverlay.SetAnchor(frame, textKey, anchorPoint)
         return false
     end
 
-    if activeDragOverlay then
-        EndTextDrag(activeDragOverlay, false)
+    local position = ResolveGrowthAnchorPosition(frame, textKey, growth)
+    if not position then
+        return false
     end
 
-    TextEditorOverlay.Select(frame, textKey)
-    return CommitTextAnchor(frame, textKey, anchorPoint, anchorPoint)
+    return RequestEditableTextCommit(function()
+        return CommitTextAnchorPositionNow(frame, textKey, position)
+    end)
+end
+
+-- TEMPORARY: Invoke manually with /run after selecting a text element in the editor.
+function TextEditorOverlay.DebugSelectedTextDirectionSnapshot()
+    local stateApi = GetEditorStateApi()
+    local unitKey, textKey
+    if stateApi and stateApi.GetSelectedTextElement then
+        unitKey, textKey = stateApi.GetSelectedTextElement()
+    end
+    if not unitKey or not textKey then
+        PrintDirectionSnapshot("select a text element first")
+        return false
+    end
+
+    local frames = FocalPoint and FocalPoint.frames or nil
+    local frame = frames and frames[unitKey] or nil
+    if not frame and NormalizeUnitKey(unitKey) == "boss" and type(frames) == "table" then
+        for index = 1, 5 do
+            frame = frames["boss" .. index]
+            if frame then
+                break
+            end
+        end
+    end
+    local textConfig = GetTextConfig(frame, textKey)
+    local textObject = frame and frame.Texts and frame.Texts[textKey] or nil
+    if not frame or type(textConfig) ~= "table" or not textObject then
+        PrintDirectionSnapshot("selected text runtime is unavailable")
+        return false
+    end
+
+    local roles = FocalPoint.TextElementRoles
+    local role = roles and roles.Resolve and roles.Resolve(textKey, textConfig) or nil
+    local owner = ResolveTextAnchor(frame, textConfig)
+    local overlay = frame._focalPointTextEditorOverlays and frame._focalPointTextEditorOverlays[textKey] or nil
+    local visualBounds = overlay and overlay.VisualBounds or nil
+    local runtimeWidth = textObject.GetWidth and textObject:GetWidth() or nil
+    local runtimeHeight = textObject.GetHeight and textObject:GetHeight() or nil
+    local stringWidth = textObject.GetStringWidth and textObject:GetStringWidth() or nil
+    local renderedText = textObject.GetText and textObject:GetText() or nil
+
+    PrintDirectionSnapshot(string.format(
+        "key=%s role=%s anchorTo=%s point=%s relative=%s offset=(%s,%s) justify=%s overflow=%s configuredWidth=%s",
+        FormatDirectionSnapshotValue(textKey),
+        FormatDirectionSnapshotValue(role),
+        FormatDirectionSnapshotValue(textConfig.anchorTo),
+        FormatDirectionSnapshotValue(textConfig.point),
+        FormatDirectionSnapshotValue(textConfig.relativePoint),
+        FormatDirectionSnapshotValue(textConfig.offsetX),
+        FormatDirectionSnapshotValue(textConfig.offsetY),
+        FormatDirectionSnapshotValue(textConfig.justifyH),
+        FormatDirectionSnapshotValue(textConfig.overflowMode),
+        FormatDirectionSnapshotValue(textConfig.width)
+    ))
+    PrintDirectionSnapshot(string.format(
+        "runtime width=%s height=%s stringWidth=%s overflowWidth=%s text=%s",
+        FormatDirectionSnapshotValue(runtimeWidth),
+        FormatDirectionSnapshotValue(runtimeHeight),
+        FormatDirectionSnapshotValue(stringWidth),
+        FormatDirectionSnapshotValue(textObject.FocalPointOverflowWidth),
+        FormatDirectionSnapshotValue(renderedText)
+    ))
+    PrintDirectionSnapshot("textRect " .. FormatDirectionSnapshotRect(GetFrameRect(textObject)))
+    PrintDirectionSnapshot(string.format(
+        "owner width=%s rect=%s selectionRect=%s growth=%s",
+        FormatDirectionSnapshotValue(owner and owner.GetWidth and owner:GetWidth() or nil),
+        FormatDirectionSnapshotRect(GetFrameRect(owner)),
+        FormatDirectionSnapshotRect(GetFrameRect(visualBounds)),
+        FormatDirectionSnapshotValue(ResolveTextGrowth(frame, textKey, textConfig))
+    ))
+    return true
 end
 
 function TextEditorOverlay.RefreshTextElementByUnit(unitKey, textKey)

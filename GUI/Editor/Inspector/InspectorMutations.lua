@@ -64,6 +64,10 @@ local function IsValidTextAnchorPoint(point)
     return type(point) == "string" and TEXT_ANCHOR_POINTS[point] == true
 end
 
+local function IsValidTextJustifyH(value)
+    return value == "LEFT" or value == "CENTER" or value == "RIGHT"
+end
+
 local function SetPositionOffsets(target, offsetX, offsetY, missingCode, offsetXField, offsetYField)
     if type(target) ~= "table" then
         return Result(false, { errorCode = missingCode or "invalid_context" })
@@ -601,7 +605,7 @@ function InspectorMutations.SetTextPositionOffsets(context, textKey, offsetX, of
     })
 end
 
-function InspectorMutations.SetTextAnchorPosition(context, textKey, point, relativePoint, offsetX, offsetY)
+function InspectorMutations.SetTextAnchorPosition(context, textKey, point, relativePoint, offsetX, offsetY, justifyH)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
     end
@@ -613,24 +617,31 @@ function InspectorMutations.SetTextAnchorPosition(context, textKey, point, relat
     if not IsValidTextAnchorPoint(point) or not IsValidTextAnchorPoint(relativePoint) then
         return Result(false, { errorCode = "invalid_anchor" })
     end
+    if justifyH ~= nil and not IsValidTextJustifyH(justifyH) then
+        return Result(false, { errorCode = "invalid_justify" })
+    end
 
     local nextX = NormalizeOffset(offsetX)
     local nextY = NormalizeOffset(offsetY)
+    local nextJustifyH = justifyH or textConfig.justifyH
     local oldValue = {
         point = textConfig.point,
         relativePoint = textConfig.relativePoint,
         offsetX = NormalizeOffset(textConfig.offsetX),
         offsetY = NormalizeOffset(textConfig.offsetY),
+        justifyH = textConfig.justifyH,
     }
     local changed = oldValue.point ~= point
         or oldValue.relativePoint ~= relativePoint
         or oldValue.offsetX ~= nextX
         or oldValue.offsetY ~= nextY
+        or oldValue.justifyH ~= nextJustifyH
     if changed then
         textConfig.point = point
         textConfig.relativePoint = relativePoint
         textConfig.offsetX = nextX
         textConfig.offsetY = nextY
+        textConfig.justifyH = nextJustifyH
     end
     NormalizeTextMutationResult(context, { ok = true, changed = changed })
 
@@ -642,6 +653,7 @@ function InspectorMutations.SetTextAnchorPosition(context, textKey, point, relat
             relativePoint = relativePoint,
             offsetX = nextX,
             offsetY = nextY,
+            justifyH = nextJustifyH,
         },
     })
 end

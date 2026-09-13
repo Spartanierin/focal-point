@@ -72,6 +72,111 @@ local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
 end
 
+local NUMERIC_OR_TIME_TOKENS = {
+    ["hp:cur"] = true,
+    ["hp:max"] = true,
+    ["hp:cur:abbr"] = true,
+    ["hp:cur:short"] = true,
+    ["hp:max:abbr"] = true,
+    ["hp:max:short"] = true,
+    ["hp:perc"] = true,
+    ["absorb:cur"] = true,
+    ["absorb:cur:abbr"] = true,
+    ["healabsorb:cur"] = true,
+    ["healabsorb:cur:abbr"] = true,
+    ["power:cur"] = true,
+    ["power:max"] = true,
+    ["power:cur:abbr"] = true,
+    ["power:cur:short"] = true,
+    ["power:max:abbr"] = true,
+    ["power:max:short"] = true,
+    ["power:perc"] = true,
+    ["altpower:cur"] = true,
+    ["altPower:cur"] = true,
+    ["altpower:max"] = true,
+    ["altPower:max"] = true,
+    ["altpower:cur:abbr"] = true,
+    ["altPower:cur:abbr"] = true,
+    ["altpower:max:abbr"] = true,
+    ["altPower:max:abbr"] = true,
+    ["classpower:cur"] = true,
+    ["classpower:max"] = true,
+    ["classpower:cur:abbr"] = true,
+    ["classpower:max:abbr"] = true,
+    ["curhp"] = true,
+    ["maxhp"] = true,
+    ["curhp:abbr"] = true,
+    ["maxhp:abbr"] = true,
+    ["perhp"] = true,
+    ["curpp"] = true,
+    ["maxpp"] = true,
+    ["curpp:abbr"] = true,
+    ["maxpp:abbr"] = true,
+    ["cast:time"] = true,
+    ["status:timer"] = true,
+    ["dead:timer"] = true,
+}
+
+local FORMAT_TOKENS = {
+    rc = true,
+    powercolor = true,
+    raidcolor = true,
+    resetcolor = true,
+    classcolor = true,
+}
+
+local function ResolveInitialTextGrowth(template, role)
+    if role == "status" then
+        return "CENTER_GROWTH"
+    end
+
+    if role == "health" or role == "power" or role == "altpower" or role == "classpower" or role == "cast_time" then
+        return "LEFT_GROWTH"
+    end
+
+    if type(template) ~= "string" or template == "" then
+        return "RIGHT_GROWTH"
+    end
+
+    local sawNumericOrTime = false
+    local sawNonNumeric = false
+    for token in template:gmatch("%[([^%]]+)%]") do
+        if not FORMAT_TOKENS[token] and not token:match("^color:") then
+            if NUMERIC_OR_TIME_TOKENS[token] then
+                sawNumericOrTime = true
+            else
+                sawNonNumeric = true
+            end
+        end
+    end
+
+    -- Words around a value make the template intentionally mixed, not numeric-only.
+    local literalText = template:gsub("%b[]", "")
+    if literalText:find("[%a]") then
+        sawNonNumeric = true
+    end
+
+    if sawNumericOrTime and not sawNonNumeric then
+        return "LEFT_GROWTH"
+    end
+
+    return "RIGHT_GROWTH"
+end
+
+local function ApplyInitialTextGrowthDefaults(textConfig, template, role)
+    local growth = ResolveInitialTextGrowth(template, role)
+    if growth == "LEFT_GROWTH" then
+        textConfig.point = "RIGHT"
+        textConfig.justifyH = "RIGHT"
+    elseif growth == "CENTER_GROWTH" then
+        textConfig.point = "CENTER"
+        textConfig.justifyH = "CENTER"
+    else
+        textConfig.point = "LEFT"
+        textConfig.justifyH = "LEFT"
+    end
+end
+
 local function GetTemplatesFromContext(context)
     if type(context) ~= "table" or type(context.GetTemplates) ~= "function" then
         return nil
@@ -278,7 +383,7 @@ local function RemoveTemplateReferenceAndCleanup(texts, textKey, textConfig, tem
 end
 
 function Mutations.BuildTextElementConfig(template, linkedTemplateName)
-    return {
+    local textConfig = {
         enabled = true,
         tag = template or "",
         templateName = linkedTemplateName or "",
@@ -298,6 +403,9 @@ function Mutations.BuildTextElementConfig(template, linkedTemplateName)
         shadowOffsetY = -1,
         color = { 1, 1, 1, 1 },
     }
+
+    ApplyInitialTextGrowthDefaults(textConfig, template)
+    return textConfig
 end
 
 function Mutations.GetNextTextKey(context, unitKey)
