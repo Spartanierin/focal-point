@@ -729,6 +729,10 @@ local function RefreshMetadata(context)
     SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), hasPreview and item and Shorten(item.resolvedAsset, 92) or "n/a")
     SetMetaLabel(widgets.fallbackUsedLabel, T("MEDIA_LIBRARY_FALLBACK_USED", "Fallback Used"), hasPreview and item and FormatBool(item.missing == true or item.available ~= true or not item.resolvedAsset) or "n/a")
 
+    if widgets.metadata and widgets.metadata.DoLayout then
+        widgets.metadata:DoLayout()
+    end
+
     if widgets.applyButton and widgets.applyButton.SetDisabled then
         widgets.applyButton:SetDisabled(not (item and item.selectable ~= false))
     end
