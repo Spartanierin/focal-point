@@ -2348,6 +2348,18 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
         end
 
+        if isQuick or unitConfig.useClassColorHealth ~= true then
+            if usePropertyGroups then
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+                    SetUnitField("healthColor", value)
+                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            else
+                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+                    SetUnitField("healthColor", value)
+                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            end
+        end
+
         if usePropertyGroups then
             AddPropertyCheckBoxRow(appearanceSection, L["OPTION_CLASS_COLOR"] or L["OPTION_USE_CLASS_COLORS"] or "Class Color", unitConfig.useClassColorHealth == true, function(value)
                 SetUnitField("useClassColorHealth", value and true or false, healthSection)
@@ -2377,18 +2389,6 @@ function InspectorController.Build(container, state, options)
                 AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
                     SetUnitField("healthBarReverseFill", value and true or false)
                 end)
-            end
-        end
-
-        if isQuick or unitConfig.useClassColorHealth ~= true then
-            if usePropertyGroups then
-                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
-                    SetUnitField("healthColor", value)
-                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
-            else
-                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
-                    SetUnitField("healthColor", value)
-                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
             end
         end
 
@@ -2801,6 +2801,16 @@ function InspectorController.Build(container, state, options)
         end
 
         if usePropertyGroups then
+            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
+                SetUnitField("powerColor", value)
+            end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
+                SetUnitField("powerColor", value)
+            end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
+        end
+
+        if usePropertyGroups then
             AddPropertyCheckBoxRow(appearanceSection, L["OPTION_CLASS_COLOR"] or L["OPTION_USE_CLASS_COLORS"] or "Class Color", unitConfig.useClassColorPower == true, function(value)
                 SetUnitField("useClassColorPower", value and true or false, powerSection)
             end, unitConfig.showPowerBar == false)
@@ -2820,16 +2830,6 @@ function InspectorController.Build(container, state, options)
                     SetUnitField("powerBarReverseFill", value and true or false)
                 end, unitConfig.showPowerBar == false)
             end
-        end
-
-        if usePropertyGroups then
-            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
-                SetUnitField("powerColor", value)
-            end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
-        else
-            AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.powerColor, true, function(value)
-                SetUnitField("powerColor", value)
-            end, unitConfig.showPowerBar == false or unitConfig.useClassColorPower == true)
         end
 
         if isExpert then
@@ -2883,9 +2883,11 @@ function InspectorController.Build(container, state, options)
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            geometrySection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if isExpert then
                 backgroundSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            end
+            geometrySection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            if isExpert then
                 behaviorSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
         end
@@ -3290,16 +3292,6 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showCastBar == false)
         end
 
-        if usePropertyGroups then
-            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or L["OPTION_CAST_BAR_COLOR"] or "Color", unitConfig.castBarColor, true, function(value)
-                SetUnitField("castBarColor", value)
-            end, unitConfig.showCastBar == false)
-        else
-            AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_COLOR"] or "Cast Bar Color", unitConfig.castBarColor, true, function(value)
-                SetUnitField("castBarColor", value)
-            end, unitConfig.showCastBar == false)
-        end
-
         if isExpert then
             local castTextureOptions = BuildStatusBarTextureOptions(unitConfig.castBarTexture)
             local castTextureDropdown
@@ -3353,6 +3345,16 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showCastBar == false)
             end
             RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "CastBar" }, "castBarHeight", castBarHeightControl)
+        end
+
+        if usePropertyGroups then
+            AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or L["OPTION_CAST_BAR_COLOR"] or "Color", unitConfig.castBarColor, true, function(value)
+                SetUnitField("castBarColor", value)
+            end, unitConfig.showCastBar == false)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_COLOR"] or "Cast Bar Color", unitConfig.castBarColor, true, function(value)
+                SetUnitField("castBarColor", value)
+            end, unitConfig.showCastBar == false)
         end
 
         if actionsSection then
