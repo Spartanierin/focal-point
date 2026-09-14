@@ -13,6 +13,9 @@ local MAX_WIDTH = 420
 local MIN_HEIGHT = 24
 local MAX_HEIGHT = 120
 local HANDLE_SIZE = 14
+-- Resize is an explicit canvas control and must win over text/child interaction layers.
+local RESIZE_HANDLE_FRAME_STRATA = "FULLSCREEN"
+local RESIZE_HANDLE_FRAME_LEVEL = 980
 
 local activeHandle
 
@@ -474,7 +477,8 @@ local function CreateHandle(frame, overlay)
     local handle = CreateFrame("Button", nil, overlay, "BackdropTemplate")
     handle:SetSize(HANDLE_SIZE, HANDLE_SIZE)
     handle:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -2, 2)
-    handle:SetFrameLevel((overlay.GetFrameLevel and overlay:GetFrameLevel() or 1) + 20)
+    handle:SetFrameStrata(RESIZE_HANDLE_FRAME_STRATA)
+    handle:SetFrameLevel(RESIZE_HANDLE_FRAME_LEVEL)
     handle:EnableMouse(true)
     handle:RegisterForDrag("LeftButton")
     handle:Hide()
@@ -552,7 +556,8 @@ function FrameResizeHandles.UpdateFrame(frame)
         return
     end
 
-    handle:SetFrameLevel((overlay.GetFrameLevel and overlay:GetFrameLevel() or 1) + 20)
+    handle:SetFrameStrata(RESIZE_HANDLE_FRAME_STRATA)
+    handle:SetFrameLevel(RESIZE_HANDLE_FRAME_LEVEL)
     UpdateHandleVisual(handle)
 
     if IsEditorUnlocked() and not IsCombatLocked() and IsSelectedUnitRoot(frame) then
