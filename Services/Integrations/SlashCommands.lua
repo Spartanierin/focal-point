@@ -713,14 +713,6 @@ function FocalPoint:SetupSlashCommands()
 
         if msg == "" or msg == "config" then
             FocalPoint:OpenConfig()
-        -- TEMPORARY: Manual snapshot for the text direction runtime audit.
-        elseif msg == "textdirdebug" then
-            local overlay = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.TextEditorOverlay
-            if overlay and overlay.DebugSelectedTextDirectionSnapshot then
-                overlay.DebugSelectedTextDirectionSnapshot()
-            elseif FocalPoint.Info then
-                FocalPoint:Info("[FP TextDirection] snapshot unavailable")
-            end
         elseif IsSupportDiagnosticsEnabled() and msg == "debug target" then
             FocalPoint.debugTargetVisibility = not FocalPoint.debugTargetVisibility
             if FocalPoint.Info then

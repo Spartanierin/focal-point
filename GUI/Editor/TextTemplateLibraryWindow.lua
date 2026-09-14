@@ -241,12 +241,21 @@ local function RefreshPreview(context)
     context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 120), "help", 11, 238, 64))
 end
 
+local function RefreshSelectionRowVisual(context, entryKey)
+    local button = context and context.rowButtons and context.rowButtons[entryKey] or nil
+    if button and FormWidgets.ApplyModalActionButtonVisual then
+        local selected = entryKey == context.selectedTemplateKey
+        FormWidgets.ApplyModalActionButtonVisual(button, selected and "primary_action" or "utility")
+    end
+end
+
 local function RefreshRows(context)
     if type(context) ~= "table" or not context.listGroup then
         return
     end
 
     context.listGroup:ReleaseChildren()
+    context.rowButtons = {}
     if #context.entries == 0 then
         context.listGroup:AddChild(CreateLabel(T("INSERT_TEXT_EMPTY", "No text templates available."), "help", 11, 214, 44))
         return
@@ -256,14 +265,17 @@ local function RefreshRows(context)
         local selected = entry.key == context.selectedTemplateKey
         local button = CreateButton(GetEntryLabel(entry), selected and "primary_action" or "utility", 214)
         button:SetCallback("OnClick", function()
+            local previousTemplateKey = context.selectedTemplateKey
             context.selectedTemplateKey = entry.key
-            RefreshRows(context)
+            RefreshSelectionRowVisual(context, previousTemplateKey)
+            RefreshSelectionRowVisual(context, entry.key)
             RefreshPreview(context)
             if context.primaryButton then
                 context.primaryButton:SetDisabled(false)
             end
         end)
         context.listGroup:AddChild(button)
+        context.rowButtons[entry.key] = button
     end
 end
 

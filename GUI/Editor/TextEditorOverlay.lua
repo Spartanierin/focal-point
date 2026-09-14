@@ -379,33 +379,6 @@ local function GetFrameRect(frame)
     return { left = left, right = right, top = top, bottom = bottom }
 end
 
--- TEMPORARY: Manual-only runtime snapshot for the text direction audit.
-local function FormatDirectionSnapshotValue(value)
-    if issecretvalue and issecretvalue(value) then
-        return "<secret>"
-    end
-    if value == nil then
-        return "<nil>"
-    end
-    return tostring(value)
-end
-
-local function FormatDirectionSnapshotRect(rect)
-    if type(rect) ~= "table" then
-        return "<unavailable>"
-    end
-    return string.format("L=%.1f R=%.1f T=%.1f B=%.1f", rect.left, rect.right, rect.top, rect.bottom)
-end
-
-local function PrintDirectionSnapshot(message)
-    local text = "[FP TextDirection] " .. message
-    if FocalPoint and FocalPoint.Print then
-        FocalPoint:Print(text)
-    elseif DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
-        DEFAULT_CHAT_FRAME:AddMessage(text)
-    end
-end
-
 local StyleOverlay
 local EndTextDrag
 local UpdateGrowthIndicator
@@ -1372,77 +1345,6 @@ function TextEditorOverlay.SetGrowthDirection(frame, textKey, growth)
     return RequestEditableTextCommit(function()
         return CommitTextAnchorPositionNow(frame, textKey, position)
     end)
-end
-
--- TEMPORARY: Invoke manually with /run after selecting a text element in the editor.
-function TextEditorOverlay.DebugSelectedTextDirectionSnapshot()
-    local stateApi = GetEditorStateApi()
-    local unitKey, textKey
-    if stateApi and stateApi.GetSelectedTextElement then
-        unitKey, textKey = stateApi.GetSelectedTextElement()
-    end
-    if not unitKey or not textKey then
-        PrintDirectionSnapshot("select a text element first")
-        return false
-    end
-
-    local frames = FocalPoint and FocalPoint.frames or nil
-    local frame = frames and frames[unitKey] or nil
-    if not frame and NormalizeUnitKey(unitKey) == "boss" and type(frames) == "table" then
-        for index = 1, 5 do
-            frame = frames["boss" .. index]
-            if frame then
-                break
-            end
-        end
-    end
-    local textConfig = GetTextConfig(frame, textKey)
-    local textObject = frame and frame.Texts and frame.Texts[textKey] or nil
-    if not frame or type(textConfig) ~= "table" or not textObject then
-        PrintDirectionSnapshot("selected text runtime is unavailable")
-        return false
-    end
-
-    local roles = FocalPoint.TextElementRoles
-    local role = roles and roles.Resolve and roles.Resolve(textKey, textConfig) or nil
-    local owner = ResolveTextAnchor(frame, textConfig)
-    local overlay = frame._focalPointTextEditorOverlays and frame._focalPointTextEditorOverlays[textKey] or nil
-    local visualBounds = overlay and overlay.VisualBounds or nil
-    local runtimeWidth = textObject.GetWidth and textObject:GetWidth() or nil
-    local runtimeHeight = textObject.GetHeight and textObject:GetHeight() or nil
-    local stringWidth = textObject.GetStringWidth and textObject:GetStringWidth() or nil
-    local renderedText = textObject.GetText and textObject:GetText() or nil
-
-    PrintDirectionSnapshot(string.format(
-        "key=%s role=%s anchorTo=%s point=%s relative=%s offset=(%s,%s) justify=%s overflow=%s configuredWidth=%s",
-        FormatDirectionSnapshotValue(textKey),
-        FormatDirectionSnapshotValue(role),
-        FormatDirectionSnapshotValue(textConfig.anchorTo),
-        FormatDirectionSnapshotValue(textConfig.point),
-        FormatDirectionSnapshotValue(textConfig.relativePoint),
-        FormatDirectionSnapshotValue(textConfig.offsetX),
-        FormatDirectionSnapshotValue(textConfig.offsetY),
-        FormatDirectionSnapshotValue(textConfig.justifyH),
-        FormatDirectionSnapshotValue(textConfig.overflowMode),
-        FormatDirectionSnapshotValue(textConfig.width)
-    ))
-    PrintDirectionSnapshot(string.format(
-        "runtime width=%s height=%s stringWidth=%s overflowWidth=%s text=%s",
-        FormatDirectionSnapshotValue(runtimeWidth),
-        FormatDirectionSnapshotValue(runtimeHeight),
-        FormatDirectionSnapshotValue(stringWidth),
-        FormatDirectionSnapshotValue(textObject.FocalPointOverflowWidth),
-        FormatDirectionSnapshotValue(renderedText)
-    ))
-    PrintDirectionSnapshot("textRect " .. FormatDirectionSnapshotRect(GetFrameRect(textObject)))
-    PrintDirectionSnapshot(string.format(
-        "owner width=%s rect=%s selectionRect=%s growth=%s",
-        FormatDirectionSnapshotValue(owner and owner.GetWidth and owner:GetWidth() or nil),
-        FormatDirectionSnapshotRect(GetFrameRect(owner)),
-        FormatDirectionSnapshotRect(GetFrameRect(visualBounds)),
-        FormatDirectionSnapshotValue(ResolveTextGrowth(frame, textKey, textConfig))
-    ))
-    return true
 end
 
 function TextEditorOverlay.RefreshTextElementByUnit(unitKey, textKey)

@@ -10,6 +10,25 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.3
+
+### Added
+
+* Added a focused Growth Direction control for selected text, with left, centered, and right-growing modes.
+
+### Improved
+
+* New text elements now receive more useful initial growth directions: names and labels grow to the right, while clear values and cast times grow to the left.
+* Moving text with Auto Anchor now preserves the selected growth direction.
+* The Add Text template list keeps its scroll position while changing the selected template.
+
+### Fixed
+
+* Corrected Media Library metadata layout after selection changes.
+* Prevented canvas interactions from continuing while the game menu is open.
+* Fixed unit resize handles being blocked by text interaction areas.
+* Fixed units shifting after drag or snapping when Alternative Power extends the frame layout.
+
 ## 2.0.2
 
 ### Improved

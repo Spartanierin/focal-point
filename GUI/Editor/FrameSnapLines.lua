@@ -198,8 +198,18 @@ function FrameSnapLines.Apply(frame, proposedX, proposedY)
     proposedX = tonumber(proposedX) or 0
     proposedY = tonumber(proposedY) or 0
 
+    local utils = FocalPoint.UnitFrameUtils
+    local unitConfig = utils and utils.GetUnitDB and utils.GetUnitDB(frame._fpUnit) or nil
+    local layout = FocalPoint.UnitFrameLayout
+    local rootX, rootY
+    if layout and layout.ProjectConfigCenterToRootCenter then
+        rootX, rootY = layout.ProjectConfigCenterToRootCenter(frame, unitConfig, proposedX, proposedY)
+    else
+        rootX, rootY = proposedX, proposedY
+    end
+
     local stackOffset = GetBossStackOffset(frame)
-    local visualY = proposedY - stackOffset
+    local visualY = rootY - stackOffset
     local candidatesX = {
         { value = 0, guide = 0 },
     }
@@ -209,21 +219,27 @@ function FrameSnapLines.Apply(frame, proposedX, proposedY)
 
     AddFrameCandidates(candidatesX, candidatesY, frame)
 
-    local snapX = GetBestCandidate(proposedX, candidatesX)
+    local snapX = GetBestCandidate(rootX, candidatesX)
     local snapY = GetBestCandidate(visualY, candidatesY)
 
     if snapX then
-        proposedX = snapX.value
+        rootX = snapX.value
         ShowVerticalLine(snapX.guide)
     else
         HideLine("vertical")
     end
 
     if snapY then
-        proposedY = snapY.value + stackOffset
+        rootY = snapY.value + stackOffset
         ShowHorizontalLine(snapY.guide)
     else
         HideLine("horizontal")
+    end
+
+    if layout and layout.ProjectRootCenterToConfigCenter then
+        proposedX, proposedY = layout.ProjectRootCenterToConfigCenter(frame, unitConfig, rootX, rootY)
+    else
+        proposedX, proposedY = rootX, rootY
     end
 
     return proposedX, proposedY

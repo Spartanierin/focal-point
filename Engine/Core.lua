@@ -736,6 +736,16 @@ local function GetFrameCenterOffsets(frame)
     return 0, 0
 end
 
+local function GetFrameConfigCenterOffsets(frame, unitConfig)
+    local rootX, rootY = GetFrameCenterOffsets(frame)
+    local layout = FocalPoint.UnitFrameLayout
+    if layout and layout.ProjectRootCenterToConfigCenter then
+        return layout.ProjectRootCenterToConfigCenter(frame, unitConfig, rootX, rootY)
+    end
+
+    return rootX, rootY
+end
+
 local function GetBossStackOffset(frame, unitConfig)
     if not frame or not frame._fpUnit then
         return 0
@@ -776,7 +786,7 @@ UpdateMoveOverlay = function(frame)
     local x = unitConfig and unitConfig.x
     local y = unitConfig and unitConfig.y
     if x == nil or y == nil then
-        x, y = GetFrameCenterOffsets(frame)
+        x, y = GetFrameConfigCenterOffsets(frame, unitConfig)
     end
 
     x = math.floor((tonumber(x) or 0) + 0.5)
@@ -791,7 +801,7 @@ local function CaptureFramePosition(frame)
     end
 
     local unitConfig = GetUnitConfig(frame._fpUnit)
-    local x, y = GetFrameCenterOffsets(frame)
+    local x, y = GetFrameConfigCenterOffsets(frame, unitConfig)
     local bossStackOffset = GetBossStackOffset(frame, unitConfig)
     return {
         point = "CENTER",
@@ -853,16 +863,19 @@ function FocalPoint:ApplyStoredFramePosition(frame)
         return
     end
 
-    local relativeTo = _G[unitConfig.relativeTo or "UIParent"] or UIParent
-    local point = unitConfig.point or "CENTER"
-    local relativePoint = unitConfig.relativePoint or "CENTER"
-    local x = unitConfig.x or 0
-    local y = unitConfig.y or 0
-
+    local layout = FocalPoint.UnitFrameLayout
+    local projection = layout and layout.ProjectConfigToRootAnchor
+        and layout.ProjectConfigToRootAnchor(frame, unitConfig)
+        or nil
+    local relativeTo = projection and projection.relativeTo or (_G[unitConfig.relativeTo or "UIParent"] or UIParent)
+    local point = projection and projection.point or (unitConfig.point or "CENTER")
+    local relativePoint = projection and projection.relativePoint or (unitConfig.relativePoint or "CENTER")
+    local x = projection and projection.x or (unitConfig.x or 0)
+    local y = projection and projection.y or (unitConfig.y or 0)
     local relativeScale = relativeTo.GetEffectiveScale and relativeTo:GetEffectiveScale() or 1
     local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
-    local adjustedX = x * (relativeScale / frameScale)
-    local adjustedY = y * (relativeScale / frameScale)
+    local adjustedX = projection and projection.adjustedX or (x * (relativeScale / frameScale))
+    local adjustedY = projection and projection.adjustedY or (y * (relativeScale / frameScale))
     local bossStackOffset = GetBossStackOffset(frame, unitConfig)
     if bossStackOffset ~= 0 then
         adjustedY = adjustedY - (bossStackOffset * (relativeScale / frameScale))
@@ -914,7 +927,7 @@ local function BeginFrameDrag(frame, options)
     local scale = UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
     local cursorX, cursorY = GetCursorPosition()
 
-    local startX, startY = GetFrameCenterOffsets(frame)
+    local startX, startY = GetFrameConfigCenterOffsets(frame, unitConfig)
     local bossStackOffset = GetBossStackOffset(frame, unitConfig)
     if bossStackOffset ~= 0 then
         startY = startY + bossStackOffset
@@ -931,7 +944,7 @@ local function BeginFrameDrag(frame, options)
         local selectedFrame = ResolveFrameForSelectionUnit(normalizedUnit, frame)
         local selectedConfig = GetUnitConfig(normalizedUnit)
         if normalizedUnit and selectedFrame and selectedConfig then
-            local selectedX, selectedY = GetFrameCenterOffsets(selectedFrame)
+            local selectedX, selectedY = GetFrameConfigCenterOffsets(selectedFrame, selectedConfig)
             selectedY = selectedY + GetBossStackOffset(selectedFrame, selectedConfig)
             selectedConfig.point = "CENTER"
             selectedConfig.relativePoint = "CENTER"
