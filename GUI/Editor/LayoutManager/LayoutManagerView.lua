@@ -385,15 +385,24 @@ local function AddGroupHeader(parent, text)
     row:AddChild(CreateSpacer(10, 1))
     row:AddChild(CreateLabel(text, "sectionHeader", 12, 180))
     row:AddChild(CreateSpacer(8, 1))
-    local divider = CreateLabel("", "help", 1, 270)
+    local divider = AceGUI:Create("SimpleGroup")
+    divider:SetAutoAdjustHeight(false)
+    divider:SetFullWidth(false)
+    divider:SetWidth(270)
+    divider:SetHeight(1)
     row:AddChild(divider)
     if divider.frame and divider.frame.CreateTexture then
-        local line = divider.frame:CreateTexture(nil, "ARTWORK")
+        local line = divider._fpDivider
+        if not line then
+            line = divider.frame:CreateTexture(nil, "ARTWORK")
+            divider._fpDivider = line
+        end
+        line:ClearAllPoints()
         line:SetPoint("LEFT", divider.frame, "LEFT", 0, 0)
         line:SetPoint("RIGHT", divider.frame, "RIGHT", 0, 0)
         line:SetHeight(1)
         line:SetColorTexture(0.32, 0.34, 0.38, 0.52)
-        divider._fpDivider = line
+        line:Show()
     end
 end
 
