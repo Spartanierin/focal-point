@@ -1861,18 +1861,21 @@ function InspectorController.Build(container, state, options)
         return slider
     end
 
-    -- Pilot only: Unit Frame X/Y offsets. Other sliders retain the SLIDER row.
-    local function AddPropertyCompactSliderRow(parent, labelText, minValue, maxValue, step, value, onChanged)
+    local function AddPropertyCompactSliderRow(parent, labelText, minValue, maxValue, step, value, onChanged, disabled, anchorKey)
         local slider
         AddPropertyRow(parent, labelText, function(valueGroup)
             slider = AceGUI:Create("FPCompactSlider")
             slider:SetFullWidth(true)
             slider:SetSliderValues(minValue, maxValue, step)
             slider:SetValue(value)
-            slider:SetDisabled(false)
+            slider:SetDisabled(disabled == true)
             slider:SetCallback("OnValueChanged", function(_, _, newValue)
                 if onChanged then onChanged(newValue) end
             end)
+            if anchorKey then
+                slider:SetUserData("focalPointAnchorKey", anchorKey)
+                slider.frame._focalPointAnchorKey = anchorKey
+            end
             valueGroup:AddChild(slider)
         end, { rowType = "COMPACT" })
         return slider
@@ -2174,7 +2177,7 @@ function InspectorController.Build(container, state, options)
             SetUnitField("enabled", value and true or false, rootSection)
         end)
 
-        AddPropertySliderRow(appearanceSection, L["EDITOR_OPTION_ALPHA"] or "Transparency", 0.1, 1.0, 0.01, tonumber(unitConfig.alpha) or 1, function(value)
+        AddPropertyCompactSliderRow(appearanceSection, L["EDITOR_OPTION_ALPHA"] or "Transparency", 0.1, 1.0, 0.01, tonumber(unitConfig.alpha) or 1, function(value)
             SetUnitField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
         end)
         AddPropertyColorRow(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.backgroundColor, true, function(value)
@@ -2186,18 +2189,18 @@ function InspectorController.Build(container, state, options)
             end)
         end
 
-        AddPropertySliderRow(geometrySection, L["EDITOR_OPTION_WIDTH"] or "Width", 120, 420, 1, tonumber(unitConfig.width) or 260, function(value)
+        AddPropertyCompactSliderRow(geometrySection, L["EDITOR_OPTION_WIDTH"] or "Width", 120, 420, 1, tonumber(unitConfig.width) or 260, function(value)
             SetUnitField("width", math.floor((value or 0) + 0.5))
         end)
-        AddPropertySliderRow(geometrySection, L["EDITOR_OPTION_HEIGHT"] or "Height", 24, 120, 1, tonumber(unitConfig.height) or 65, function(value)
+        AddPropertyCompactSliderRow(geometrySection, L["EDITOR_OPTION_HEIGHT"] or "Height", 24, 120, 1, tonumber(unitConfig.height) or 65, function(value)
             SetUnitField("height", math.floor((value or 0) + 0.5))
         end)
         if selectedUnit == "boss" then
-            AddPropertySliderRow(geometrySection, L["OPTION_BOSS_FRAME_SPACING"] or "Boss Frame Spacing", 0, 40, 1, tonumber(unitConfig.bossSpacing) or 10, function(value)
+            AddPropertyCompactSliderRow(geometrySection, L["OPTION_BOSS_FRAME_SPACING"] or "Boss Frame Spacing", 0, 40, 1, tonumber(unitConfig.bossSpacing) or 10, function(value)
                 SetUnitField("bossSpacing", math.floor((value or 0) + 0.5))
             end)
         end
-        AddPropertySliderRow(geometrySection, L["EDITOR_OPTION_SCALE"] or "Scale", 0.5, 1.5, 0.01, tonumber(unitConfig.scale) or 1, function(value)
+        AddPropertyCompactSliderRow(geometrySection, L["EDITOR_OPTION_SCALE"] or "Scale", 0.5, 1.5, 0.01, tonumber(unitConfig.scale) or 1, function(value)
             SetUnitField("scale", tonumber(string.format("%.2f", value or 1)) or 1)
         end)
 
@@ -2654,10 +2657,10 @@ function InspectorController.Build(container, state, options)
                 end)
             end
             if isScopedObject then
-                AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
                     SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
+                AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
                     SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
                 local pointControl
@@ -2683,13 +2686,13 @@ function InspectorController.Build(container, state, options)
                     end,
                     disabled = not isCustom,
                 })
-                local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
+                local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                         return
                     end
                     SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
+                local offsetYControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetY"]) or 0, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                         return
                     end
@@ -2837,7 +2840,7 @@ function InspectorController.Build(container, state, options)
         if isExpert then
             local powerBarHeightControl
             if usePropertyGroups then
-                powerBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                powerBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
                     if IsActiveCanvasWheelFieldControlSuppressed(powerBarHeightControl) then
                         return
                     end
@@ -2994,7 +2997,7 @@ function InspectorController.Build(container, state, options)
 
         local alternativePowerBarHeightControl
         if usePropertyGroups then
-            alternativePowerBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
+            alternativePowerBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_ALTERNATIVE_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.alternativePowerBarHeight) or 20, function(value)
                 if IsActiveCanvasWheelFieldControlSuppressed(alternativePowerBarHeightControl) then
                     return
                 end
@@ -3154,7 +3157,7 @@ function InspectorController.Build(container, state, options)
 
         local classPowerBarHeightControl
         if usePropertyGroups then
-            classPowerBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
+            classPowerBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CLASS_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.classPowerBarHeight) or 12, function(value)
                 if IsActiveCanvasWheelFieldControlSuppressed(classPowerBarHeightControl) then
                     return
                 end
@@ -3172,7 +3175,7 @@ function InspectorController.Build(container, state, options)
 
         if isExpert then
             if usePropertyGroups then
-                AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
+                AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
                     SetUnitField("classPowerBarWidth", math.floor((value or 0) + 0.5))
                 end, unitConfig.showClassPowerBar ~= true)
             else
@@ -3182,7 +3185,7 @@ function InspectorController.Build(container, state, options)
             end
 
             if usePropertyGroups then
-                AddPropertySliderRow(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
+                AddPropertyCompactSliderRow(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
                     SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
                 end, unitConfig.showClassPowerBar ~= true)
             else
@@ -3249,7 +3252,7 @@ function InspectorController.Build(container, state, options)
             local offsetXControl
             local offsetYControl
             if usePropertyGroups then
-                offsetXControl = AddPropertySliderRow(positionSection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
+                offsetXControl = AddPropertyCompactSliderRow(positionSection, offsetXLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetX) or -5, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                         return
                     end
@@ -3265,7 +3268,7 @@ function InspectorController.Build(container, state, options)
             end
 
             if usePropertyGroups then
-                offsetYControl = AddPropertySliderRow(positionSection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
+                offsetYControl = AddPropertyCompactSliderRow(positionSection, offsetYLabel, -200, 200, 1, tonumber(unitConfig.classPowerBarOffsetY) or 5, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                         return
                     end
@@ -3384,7 +3387,7 @@ function InspectorController.Build(container, state, options)
 
             local castBarHeightControl
             if usePropertyGroups then
-                castBarHeightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                castBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
                     if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
                         return
                     end
@@ -3656,7 +3659,7 @@ function InspectorController.Build(container, state, options)
         local function AddFontSizeControl(parent)
             local fontSizeSlider
             if isScopedObject then
-                fontSizeSlider = AddPropertySliderRow(parent, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                fontSizeSlider = AddPropertyCompactSliderRow(parent, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
                     if activeTextFontSizeControl
                         and activeTextFontSizeControl.widget == fontSizeSlider
                         and activeTextFontSizeControl.suppress == true
@@ -3720,7 +3723,7 @@ function InspectorController.Build(container, state, options)
                     tooltip = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse fonts",
                 })
                 local fontSizeSlider
-                fontSizeSlider = AddPropertySliderRow(appearanceSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
+                fontSizeSlider = AddPropertyCompactSliderRow(appearanceSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
                     if activeTextFontSizeControl
                         and activeTextFontSizeControl.widget == fontSizeSlider
                         and activeTextFontSizeControl.suppress == true
@@ -3791,10 +3794,10 @@ function InspectorController.Build(container, state, options)
                     end,
                     anchorKey = "text_relative_point",
                 }, textConfig.enabled == false)
-                AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
+                AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
                     SetTextField(selectedTextId, "offsetX", math.floor((value or 0) + 0.5))
                 end, textConfig.enabled == false, "text_offset_x")
-                AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
+                AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
                     SetTextField(selectedTextId, "offsetY", math.floor((value or 0) + 0.5))
                 end, textConfig.enabled == false, "text_offset_y")
                 AddPropertyDropdownRow(positionSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", {
@@ -4109,7 +4112,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if isScopedObject then
-            AddPropertySliderRow(geometrySection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
+            AddPropertyCompactSliderRow(geometrySection, L[indicatorMeta.sizeLabel] or "Size", 8, 128, 1, tonumber(indicatorConfig.size) or 16, function(value)
                 SetIndicatorField(selectedIndicatorKey, "size", math.floor((value or 0) + 0.5))
             end, disabled)
         else
@@ -4125,7 +4128,7 @@ function InspectorController.Build(container, state, options)
 
         local indicatorScaleControl
         if isScopedObject then
-            indicatorScaleControl = AddPropertySliderRow(geometrySection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
+            indicatorScaleControl = AddPropertyCompactSliderRow(geometrySection, L[indicatorMeta.scaleLabel] or "Scale", 0.25, 3.0, 0.01, tonumber(indicatorConfig.scale) or 1, function(value)
                 if IsActiveCanvasWheelFieldControlSuppressed(indicatorScaleControl) then
                     return
                 end
@@ -4165,7 +4168,7 @@ function InspectorController.Build(container, state, options)
                         SetIndicatorField(selectedIndicatorKey, "insideSide", value)
                     end,
                 }, disabled)
-                AddPropertySliderRow(positionSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
+                AddPropertyCompactSliderRow(positionSection, L["OPTION_PADDING"] or "Padding", 0, 64, 1, tonumber(indicatorConfig.padding) or 2, function(value)
                     SetIndicatorField(selectedIndicatorKey, "padding", math.floor((value or 0) + 0.5))
                 end, disabled)
             else
@@ -4213,13 +4216,13 @@ function InspectorController.Build(container, state, options)
                     SetIndicatorField(selectedIndicatorKey, "relativePoint", value)
                 end,
             }, disabled)
-            local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
+            local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(indicatorConfig.offsetX) or 0, function(value)
                 if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                     return
                 end
                 SetIndicatorField(selectedIndicatorKey, "offsetX", math.floor((value or 0) + 0.5))
             end, disabled)
-            local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
+            local offsetYControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(indicatorConfig.offsetY) or 0, function(value)
                 if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                     return
                 end
@@ -4462,18 +4465,18 @@ function InspectorController.Build(container, state, options)
             end, disabled or not IsMediaBrowserAvailable(), {
                 tooltip = L["MEDIA_LIBRARY_BROWSE_DECORATION_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Choose Decoration Texture",
             })
-            AddPropertySliderRow(appearanceSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
+            AddPropertyCompactSliderRow(appearanceSection, L["OPTION_ALPHA"] or "Alpha", 0, 1, 0.01, tonumber(decorationConfig.alpha) or 1, function(value)
                 SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
             end, disabled, "decoration_alpha")
             local widthControl
-            widthControl = AddPropertySliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
+            widthControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(decorationConfig.width) or 64, function(value)
                 if IsActiveCanvasDecorationSizeControlSuppressed(widthControl) then
                     return
                 end
                 SetDecorationField("width", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_width")
             local heightControl
-            heightControl = AddPropertySliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
+            heightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 512, 1, tonumber(decorationConfig.height) or 64, function(value)
                 if IsActiveCanvasDecorationSizeControlSuppressed(heightControl) then
                     return
                 end
@@ -4515,13 +4518,13 @@ function InspectorController.Build(container, state, options)
                 end,
                 anchorKey = "decoration_relative_point",
             }, disabled)
-            local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
+            local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
                 if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                     return
                 end
                 SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
             end, disabled, "decoration_offset_x")
-            local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
+            local offsetYControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(decorationConfig.offsetY) or 0, function(value)
                 if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                     return
                 end
@@ -4689,7 +4692,7 @@ function InspectorController.Build(container, state, options)
             AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
                 SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
             end, nil, "aura_enabled")
-            AddPropertySliderRow(displaySection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
+            AddPropertyCompactSliderRow(displaySection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
                 SetAuraField(selectedAuraKey, "iconSize", math.floor((value or 0) + 0.5))
             end, disabled, "aura_icon_size")
             AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
@@ -4773,10 +4776,10 @@ function InspectorController.Build(container, state, options)
                     end,
                     anchorKey = "aura_sort_mode",
                 }, disabled)
-                AddPropertySliderRow(displaySection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
+                AddPropertyCompactSliderRow(displaySection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
                     SetAuraField(selectedAuraKey, "stackFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
                 end, disabled, "aura_stack_font_scale")
-                AddPropertySliderRow(displaySection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
+                AddPropertyCompactSliderRow(displaySection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
                     SetAuraField(selectedAuraKey, "timerFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
                 end, disabled, "aura_timer_font_scale")
                 AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_SHOW_ONLY_MINE"] or "Only My Auras", auraConfig.showOnlyMine == true, function(value)
@@ -4791,7 +4794,7 @@ function InspectorController.Build(container, state, options)
                 AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_HIDE_LONG"] or "Hide Long Auras", auraConfig.hideLongAuras == true, function(value)
                     SetAuraField(selectedAuraKey, "hideLongAuras", value and true or false, auraSection)
                 end, disabled, "aura_hide_long")
-                AddPropertySliderRow(advancedSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
+                AddPropertyCompactSliderRow(advancedSection, L["OPTION_AURA_LONG_THRESHOLD"] or "Hide Above Duration", 0, 3600, 5, tonumber(auraConfig.longAuraThreshold) or 300, function(value)
                     SetAuraField(selectedAuraKey, "longAuraThreshold", math.floor((value or 0) + 0.5))
                 end, disabled or auraConfig.hideLongAuras ~= true, "aura_long_threshold")
                 if selectedAuraKey == "Buffs" then
@@ -4951,13 +4954,13 @@ function InspectorController.Build(container, state, options)
                         end,
                         anchorKey = "aura_relative_point",
                     }, disabled)
-                    local offsetXControl = AddPropertySliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                    local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
                         if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                             return
                         end
                         SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
                     end, disabled, "aura_offset_x")
-                    local offsetYControl = AddPropertySliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
+                    local offsetYControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
                         if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                             return
                         end
