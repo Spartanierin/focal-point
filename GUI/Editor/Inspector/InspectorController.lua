@@ -3761,6 +3761,14 @@ function InspectorController.Build(container, state, options)
                 end, textConfig.enabled == false or not IsMediaBrowserAvailable(), {
                     tooltip = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse fonts",
                 })
+                AddPropertyDropdownRow(appearanceSection, L["OPTION_FONT_STYLE"] or "Font Style", {
+                    list = fontStyleList,
+                    value = textConfig.fontStyle or "NONE",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "fontStyle", value)
+                    end,
+                    anchorKey = "text_font_style",
+                }, textConfig.enabled == false)
                 local fontSizeSlider
                 fontSizeSlider = AddPropertyCompactSliderRow(appearanceSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(textConfig.fontSize) or 12, function(value)
                     if activeTextFontSizeControl
@@ -3772,14 +3780,6 @@ function InspectorController.Build(container, state, options)
                     SetTextFontSize(selectedTextId, value)
                 end, textConfig.enabled == false, "text_font_size")
                 RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
-                AddPropertyDropdownRow(appearanceSection, L["OPTION_FONT_STYLE"] or "Font Style", {
-                    list = fontStyleList,
-                    value = textConfig.fontStyle or "NONE",
-                    onChanged = function(value)
-                        SetTextField(selectedTextId, "fontStyle", value)
-                    end,
-                    anchorKey = "text_font_style",
-                }, textConfig.enabled == false)
                 AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
                     SetTextField(selectedTextId, "color", value)
                 end, textConfig.enabled == false, "text_color")
