@@ -121,7 +121,7 @@ local function Constructor()
         insets = { left = 3, right = 3, top = 6, bottom = 6 },
     })
     slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
-    slider:GetThumbTexture():SetSize(14, TRACK_HEIGHT)
+    slider:GetThumbTexture():SetSize(20, 26)
 
     local editbox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
     editbox:SetAutoFocus(false)

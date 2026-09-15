@@ -127,8 +127,8 @@ for cycle = 1, 50 do
         equal(widget.slider:GetHeight(), 15)
         equal(widget.editbox:GetHeight(), 14)
         equal(widget.frame:GetTop() - widget.editbox:GetTop() + widget.editbox:GetHeight(), 29)
-        equal(widget.slider:GetThumbTexture():GetWidth(), 14)
-        equal(widget.slider:GetThumbTexture():GetHeight(), 15)
+        equal(widget.slider:GetThumbTexture():GetWidth(), 20)
+        equal(widget.slider:GetThumbTexture():GetHeight(), 26)
     end
     widget:SetFullWidth(true)
     assert(widget:IsFullWidth())
