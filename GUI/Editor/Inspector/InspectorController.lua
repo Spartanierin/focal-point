@@ -39,6 +39,14 @@ local BuildAuraList = Shared.BuildAuraList
 local GetFirstAuraKey = Shared.GetFirstAuraKey
 local GetFirstTextId = Shared.GetFirstTextId
 local INSPECTOR_SECTION_SPACING = 10
+-- Strides include the gap added by the surrounding AceGUI Flow layout.
+local INSPECTOR_FLOW_GAP = 3
+local INSPECTOR_ROW_STRIDES = {
+    COMPACT = 32,
+    SLIDER = 48,
+    DOUBLE = 64,
+    TRIPLE = 96,
+}
 local activeTextFontSizeControl
 local activeCanvasWheelFieldControl
 local activeCanvasDirectMoveOffsetControls
@@ -1653,7 +1661,13 @@ function InspectorController.Build(container, state, options)
 
         options = type(options) == "table" and options or {}
 
+        -- Unclassified text/specialized rows retain their content-driven layout.
+        local stride = options.rowType and assert(INSPECTOR_ROW_STRIDES[options.rowType], "Unknown Inspector row type")
+        local rowHeight = stride and (stride - INSPECTOR_FLOW_GAP)
+
         local row = AceGUI:Create("SimpleGroup")
+        row:SetAutoAdjustHeight(rowHeight == nil)
+        if rowHeight then row:SetHeight(rowHeight) end
         row:SetFullWidth(true)
         row:SetLayout("Table")
         row:SetUserData("table", {
@@ -1682,7 +1696,22 @@ function InspectorController.Build(container, state, options)
 
         local value = AceGUI:Create("SimpleGroup")
         value:SetFullWidth(true)
-        value:SetLayout(options.valueLayout or "Flow")
+        value:SetAutoAdjustHeight(rowHeight == nil)
+        if rowHeight then
+            value:SetHeight(rowHeight)
+            -- A Flow value host adds a 3px top inset, overflowing a 44px slider
+            -- in a 45px row. The existing Table layout has no such inset.
+            value:SetLayout("Table")
+            value:SetUserData("table", {
+                columns = { { weight = 1 } },
+                spaceH = 0,
+                spaceV = 0,
+                alignV = "start",
+                alignH = "start",
+            })
+        else
+            value:SetLayout(options.valueLayout or "Flow")
+        end
         row:AddChild(value)
 
         if type(valueBuilder) == "function" then
@@ -1793,7 +1822,7 @@ function InspectorController.Build(container, state, options)
             browse = AddMediaBrowseButton(valueGroup, disabled, browseCallback, {
                 width = 80,
             })
-        end)
+        end, { rowType = "COMPACT" })
 
         return dropdown, browse
     end
@@ -1812,7 +1841,9 @@ function InspectorController.Build(container, state, options)
                 disabled,
                 dropdownOptions.anchorKey
             )
-        end)
+        end, {
+            rowType = "COMPACT",
+        })
 
 
         return dropdown
@@ -1823,7 +1854,9 @@ function InspectorController.Build(container, state, options)
 
         AddPropertyRow(parent, labelText, function(valueGroup)
             slider = AddSlider(valueGroup, "", minValue, maxValue, step, value, onChanged, disabled, anchorKey)
-        end)
+        end, {
+            rowType = "SLIDER",
+        })
 
         return slider
     end
@@ -1890,7 +1923,7 @@ function InspectorController.Build(container, state, options)
                 CommitValue(widget and widget.GetText and widget:GetText() or currentValue, nil)
             end)
             valueGroup:AddChild(editBox)
-        end)
+        end, { rowType = "COMPACT" })
 
         return editBox
     end
@@ -1934,7 +1967,7 @@ function InspectorController.Build(container, state, options)
                 onClick()
             end)
             valueGroup:AddChild(button)
-        end)
+        end, { rowType = "COMPACT" })
 
         return button
     end
@@ -1990,7 +2023,9 @@ function InspectorController.Build(container, state, options)
                     onChanged(newValue)
                 end
             end, disabled, anchorKey)
-        end)
+        end, {
+            rowType = "COMPACT",
+        })
 
         return checkbox
     end
@@ -1999,7 +2034,9 @@ function InspectorController.Build(container, state, options)
         local colorPicker
         AddPropertyRow(parent, labelText, function(valueGroup)
             colorPicker = AddColorPicker(valueGroup, "", color, hasAlpha, onChanged, disabled, anchorKey)
-        end)
+        end, {
+            rowType = "COMPACT",
+        })
         return colorPicker
     end
 
@@ -2042,7 +2079,7 @@ function InspectorController.Build(container, state, options)
                 colorOptions.disabled,
                 colorOptions.anchorKey
             )
-        end)
+        end, { rowType = "COMPACT" })
 
         return toggle, color
     end
