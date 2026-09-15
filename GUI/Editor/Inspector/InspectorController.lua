@@ -1861,6 +1861,23 @@ function InspectorController.Build(container, state, options)
         return slider
     end
 
+    -- Pilot only: Unit Frame X/Y offsets. Other sliders retain the SLIDER row.
+    local function AddPropertyCompactSliderRow(parent, labelText, minValue, maxValue, step, value, onChanged)
+        local slider
+        AddPropertyRow(parent, labelText, function(valueGroup)
+            slider = AceGUI:Create("FPCompactSlider")
+            slider:SetFullWidth(true)
+            slider:SetSliderValues(minValue, maxValue, step)
+            slider:SetValue(value)
+            slider:SetDisabled(false)
+            slider:SetCallback("OnValueChanged", function(_, _, newValue)
+                if onChanged then onChanged(newValue) end
+            end)
+            valueGroup:AddChild(slider)
+        end, { rowType = "COMPACT" })
+        return slider
+    end
+
     local function AddPropertyNumericInputRow(parent, labelText, minValue, maxValue, value, onChanged, disabled, anchorKey)
         local editBox
         local currentValue = math.floor((tonumber(value) or tonumber(minValue) or 0) + 0.5)
@@ -2198,10 +2215,10 @@ function InspectorController.Build(container, state, options)
                 SetUnitField("relativePoint", value)
             end,
         })
-        AddPropertySliderRow(positionSection, L["EDITOR_OPTION_X"] or "X Offset", -800, 800, 1, tonumber(unitConfig.x) or 0, function(value)
+        AddPropertyCompactSliderRow(positionSection, L["EDITOR_OPTION_X"] or "X Offset", -800, 800, 1, tonumber(unitConfig.x) or 0, function(value)
             SetUnitField("x", math.floor((value or 0) + 0.5))
         end)
-        AddPropertySliderRow(positionSection, L["EDITOR_OPTION_Y"] or "Y Offset", -800, 800, 1, tonumber(unitConfig.y) or 0, function(value)
+        AddPropertyCompactSliderRow(positionSection, L["EDITOR_OPTION_Y"] or "Y Offset", -800, 800, 1, tonumber(unitConfig.y) or 0, function(value)
             SetUnitField("y", math.floor((value or 0) + 0.5))
         end)
 

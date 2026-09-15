@@ -167,6 +167,7 @@
     <Script file="GUI/Editor/MediaLibrary/MediaLibraryView.lua"/>
     <Script file="GUI/Editor/MediaLibrary/MediaLibraryController.lua"/>
     <Script file="GUI/Editor/Inspector/MediaOptionAdapter.lua"/>
+    <Script file="GUI/Editor/Inspector/FPCompactSlider.lua"/>
     <Script file="GUI/Editor/Inspector/InspectorController.lua"/>
     <Script file="GUI/Widgets/ColorPickerWidget.lua"/>
     <Script file="GUI/Widgets/SliderWidget.lua"/>
