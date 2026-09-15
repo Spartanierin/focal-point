@@ -10,6 +10,22 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.4
+
+### Added
+
+* Added compact sliders to modern Inspector controls, with direct value entry and visible minimum and maximum values.
+
+### Improved
+
+* Refined Inspector rows for a more consistent and compact editing workflow.
+* Improved Quick and Expert modes so everyday design controls stay easy to reach while technical details remain available when needed.
+* Kept text controls in a consistent order across Quick and Expert modes.
+
+### Fixed
+
+* Fixed a Layout Manager divider lifecycle issue that could leave visual artifacts in pooled interface elements.
+
 ## 2.0.3
 
 ### Added
