@@ -2362,9 +2362,7 @@ function InspectorController.Build(container, state, options)
         local behaviorSection = healthSection
         if usePropertyGroups then
             appearanceSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
-            if isExpert then
-                backgroundSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-            end
+            backgroundSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             if isExpert then
                 behaviorSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
@@ -2473,7 +2471,7 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.useLowHealthColor == false)
         end
 
-        if isExpert then
+        if isQuick or isExpert then
             if usePropertyGroups then
                 AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", unitConfig.healthBackground ~= false, function(value)
                     SetUnitField("healthBackground", value and true or false, healthSection)
@@ -2532,12 +2530,10 @@ function InspectorController.Build(container, state, options)
             if isScopedObject then
                 generalSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
                 appearanceSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-                if isExpert then
-                    backgroundSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-                    geometrySection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-                    positionSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
-                    behaviorSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-                end
+                backgroundSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                geometrySection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                positionSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
+                behaviorSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
                 actionsSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
             else
                 AddAbsorbSubheading(title)
@@ -2610,10 +2606,6 @@ function InspectorController.Build(container, state, options)
                 end)
             end
 
-            if not isExpert then
-                return
-            end
-
             if isScopedObject then
                 AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
                     SetUnitField(prefix .. "BackgroundColor", value, rootSection)
@@ -2665,7 +2657,8 @@ function InspectorController.Build(container, state, options)
                 end, not isCustom)
                 local pointControl
                 local relativePointControl
-                pointControl, relativePointControl = AddPointPairRow(positionSection, {
+                if isExpert then
+                    pointControl, relativePointControl = AddPointPairRow(positionSection, {
                     list = barAnchorList,
                     value = unitConfig[prefix .. "Point"] or "LEFT",
                     onChanged = function(value)
@@ -2685,7 +2678,8 @@ function InspectorController.Build(container, state, options)
                         SetUnitField(prefix .. "RelativePoint", value, rootSection)
                     end,
                     disabled = not isCustom,
-                })
+                    })
+                end
                 local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                         return
@@ -2711,12 +2705,14 @@ function InspectorController.Build(container, state, options)
                 AddSlider(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
                     SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
-                AddDropdown(geometrySection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
-                    SetUnitField(prefix .. "Point", value, rootSection)
-                end, not isCustom)
-                AddDropdown(geometrySection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
-                    SetUnitField(prefix .. "RelativePoint", value, rootSection)
-                end, not isCustom)
+                if isExpert then
+                    AddDropdown(geometrySection, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig[prefix .. "Point"] or "LEFT", function(value)
+                        SetUnitField(prefix .. "Point", value, rootSection)
+                    end, not isCustom)
+                    AddDropdown(geometrySection, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig[prefix .. "RelativePoint"] or "LEFT", function(value)
+                        SetUnitField(prefix .. "RelativePoint", value, rootSection)
+                    end, not isCustom)
+                end
                 AddSlider(geometrySection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     SetUnitField(prefix .. "OffsetX", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
@@ -2784,11 +2780,9 @@ function InspectorController.Build(container, state, options)
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            if isExpert then
-                backgroundSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-                geometrySection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-                behaviorSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            end
+            backgroundSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            geometrySection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            behaviorSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             actionsSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
@@ -2837,7 +2831,7 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showPowerBar == false, SetPowerBarTexture)
         end
 
-        if isExpert then
+        if isQuick or isExpert then
             local powerBarHeightControl
             if usePropertyGroups then
                 powerBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
@@ -2889,7 +2883,7 @@ function InspectorController.Build(container, state, options)
             end
         end
 
-        if isExpert then
+        if isQuick or isExpert then
             if usePropertyGroups then
                 AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", unitConfig.powerBackground ~= false, function(value)
                     SetUnitField("powerBackground", value and true or false, powerSection)
@@ -2940,9 +2934,7 @@ function InspectorController.Build(container, state, options)
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            if isExpert then
-                backgroundSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-            end
+            backgroundSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if isExpert then
                 behaviorSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
@@ -3013,24 +3005,7 @@ function InspectorController.Build(container, state, options)
         end
         RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "AlternativePowerBar" }, "alternativePowerBarHeight", alternativePowerBarHeightControl)
 
-        if isExpert then
-            local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
-            if altPowerReverseFillEnabled == nil then
-                altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
-            else
-                altPowerReverseFillEnabled = altPowerReverseFillEnabled == true
-            end
-
-            if usePropertyGroups then
-                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
-                    SetUnitField("alternativePowerBarReverseFill", value and true or false)
-                end, unitConfig.showAlternativePowerBar ~= true)
-            else
-                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
-                    SetUnitField("alternativePowerBarReverseFill", value and true or false)
-                end, unitConfig.showAlternativePowerBar ~= true)
-            end
-
+        if isQuick or isExpert then
             if usePropertyGroups then
                 AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerColor, true, function(value)
                     SetUnitField("alternativePowerColor", value)
@@ -3065,6 +3040,26 @@ function InspectorController.Build(container, state, options)
                     SetUnitField("alternativePowerBackgroundColor", value)
                 end, unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false)
             end
+        end
+
+        if isExpert then
+            local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
+            if altPowerReverseFillEnabled == nil then
+                altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
+            else
+                altPowerReverseFillEnabled = altPowerReverseFillEnabled == true
+            end
+
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
+                    SetUnitField("alternativePowerBarReverseFill", value and true or false)
+                end, unitConfig.showAlternativePowerBar ~= true)
+            else
+                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", altPowerReverseFillEnabled, function(value)
+                    SetUnitField("alternativePowerBarReverseFill", value and true or false)
+                end, unitConfig.showAlternativePowerBar ~= true)
+            end
+
         end
     end
     local function BuildClassPowerSectionContent(classPowerSection)
@@ -3323,9 +3318,7 @@ function InspectorController.Build(container, state, options)
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            if isExpert then
-                geometrySection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-            end
+            geometrySection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             actionsSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
@@ -3349,7 +3342,7 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showCastBar == false)
         end
 
-        if isExpert then
+        if isQuick or isExpert then
             local castTextureOptions = BuildStatusBarTextureOptions(unitConfig.castBarTexture)
             local castTextureDropdown
             local function SetCastBarTexture(value)
@@ -3554,13 +3547,11 @@ function InspectorController.Build(container, state, options)
         if isScopedObject then
             contentSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_CONTENT"] or "Content", false)
             appearanceSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            if not isQuick then
-                positionSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_POSITION"] or "Position", true)
-                if type(InspectorMutations.AssignTextStateTemplate) == "function"
-                    and type(InspectorMutations.UnassignTextStateTemplate) == "function"
-                then
-                    advancedSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ADVANCED"] or "Advanced", true)
-                end
+            positionSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_POSITION"] or "Position", true)
+            if not isQuick and type(InspectorMutations.AssignTextStateTemplate) == "function"
+                and type(InspectorMutations.UnassignTextStateTemplate) == "function"
+            then
+                advancedSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ADVANCED"] or "Advanced", true)
             end
             actionsSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ACTIONS"] or "Actions", true)
         else
@@ -3682,7 +3673,45 @@ function InspectorController.Build(container, state, options)
             RegisterActiveTextFontSizeControl(state and state.selectedUnit, selectedTextId, fontSizeSlider)
         end
 
+        local fontOptions = BuildFontOptions(textConfig.font)
+        local fontDropdown
+        local function SetTextFont(value)
+            local result = SetTextField(selectedTextId, "font", value)
+            if not (result and result.ok == false) then
+                if fontDropdown and type(fontDropdown._fpSetPropertyValueText) == "function" then
+                    local storedValue = result and result.newValue or textConfig.font or value
+                    fontDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildFontOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(fontDropdown, textConfig.font)
+                end
+            end
+            return result
+        end
+
         if isQuick then
+            if isScopedObject then
+                fontDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_FONT"] or "Font", ResolveOptionValueLabel(fontOptions, fontOptions.value or textConfig.font), function()
+                    OpenMediaBrowserForField({
+                        mediaType = MEDIA_TYPE_FONT,
+                        currentValue = function()
+                            return textConfig.font
+                        end,
+                        fallbackReference = DEFAULT_FONT_REFERENCE,
+                        title = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font",
+                        onApply = SetTextFont,
+                    })
+                end, textConfig.enabled == false or not IsMediaBrowserAvailable(), {
+                    tooltip = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse fonts",
+                })
+                AddPropertyDropdownRow(appearanceSection, L["OPTION_FONT_STYLE"] or "Font Style", {
+                    list = fontStyleList,
+                    value = textConfig.fontStyle or "NONE",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "fontStyle", value)
+                    end,
+                    anchorKey = "text_font_style",
+                }, textConfig.enabled == false)
+            end
             AddFontSizeControl(appearanceSection)
             if isScopedObject then
                 AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
@@ -3693,21 +3722,31 @@ function InspectorController.Build(container, state, options)
                     SetTextField(selectedTextId, "color", value)
                 end, textConfig.enabled == false, "text_color")
             end
-        else
-            local fontOptions = BuildFontOptions(textConfig.font)
-            local fontDropdown
-            local function SetTextFont(value)
-                local result = SetTextField(selectedTextId, "font", value)
-                if not (result and result.ok == false) then
-                    if fontDropdown and type(fontDropdown._fpSetPropertyValueText) == "function" then
-                        local storedValue = result and result.newValue or textConfig.font or value
-                        fontDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildFontOptions(storedValue), storedValue))
-                    else
-                        SyncDropdownToStoredValue(fontDropdown, textConfig.font)
-                    end
-                end
-                return result
+            if isScopedObject then
+                AddPropertyDropdownRow(appearanceSection, L["OPTION_JUSTIFY_H"] or "Justify", {
+                    list = justifyList,
+                    value = textConfig.justifyH or "CENTER",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "justifyH", value)
+                    end,
+                    anchorKey = "text_justify",
+                }, textConfig.enabled == false)
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
+                    list = textAnchorTargetList,
+                    value = textConfig.anchorTo or "Frame",
+                    onChanged = function(value)
+                        SetTextField(selectedTextId, "anchorTo", value)
+                    end,
+                    anchorKey = "text_anchor_to",
+                }, textConfig.enabled == false)
+                AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -100, 100, 1, tonumber(textConfig.offsetX) or 0, function(value)
+                    SetTextField(selectedTextId, "offsetX", math.floor((value or 0) + 0.5))
+                end, textConfig.enabled == false, "text_offset_x")
+                AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
+                    SetTextField(selectedTextId, "offsetY", math.floor((value or 0) + 0.5))
+                end, textConfig.enabled == false, "text_offset_y")
             end
+        else
             if isScopedObject then
                 fontDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_FONT"] or "Font", ResolveOptionValueLabel(fontOptions, fontOptions.value or textConfig.font), function()
                     OpenMediaBrowserForField({
@@ -4496,7 +4535,10 @@ function InspectorController.Build(container, state, options)
                 end,
                 anchorKey = "decoration_target",
             }, disabled)
-            local pointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+            local pointControl
+            local relativePointControl
+            if isExpert then
+                pointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
                 list = portraitAnchorPointList,
                 value = decorationConfig.point or "CENTER",
                 onChanged = function(value)
@@ -4506,8 +4548,8 @@ function InspectorController.Build(container, state, options)
                     SetDecorationField("point", value)
                 end,
                 anchorKey = "decoration_point",
-            }, disabled)
-            local relativePointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+                }, disabled)
+                relativePointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
                 list = portraitAnchorPointList,
                 value = decorationConfig.relativePoint or "CENTER",
                 onChanged = function(value)
@@ -4517,7 +4559,8 @@ function InspectorController.Build(container, state, options)
                     SetDecorationField("relativePoint", value)
                 end,
                 anchorKey = "decoration_relative_point",
-            }, disabled)
+                }, disabled)
+            end
             local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
                 if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                     return
@@ -4536,14 +4579,16 @@ function InspectorController.Build(container, state, options)
                 decorationId = selectedDecorationId,
                 objectKey = selectedDecorationId,
             }, offsetXControl, offsetYControl, pointControl, relativePointControl)
-            AddPropertyDropdownRow(behaviorSection, L["OPTION_CONDITION"] or "Condition", {
-                list = decorationConditionList,
-                value = decorationConfig.condition or "ALWAYS",
-                onChanged = function(value)
-                    SetDecorationField("condition", value)
-                end,
-                anchorKey = "decoration_condition",
-            }, disabled)
+            if isExpert then
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_CONDITION"] or "Condition", {
+                    list = decorationConditionList,
+                    value = decorationConfig.condition or "ALWAYS",
+                    onChanged = function(value)
+                        SetDecorationField("condition", value)
+                    end,
+                    anchorKey = "decoration_condition",
+                }, disabled)
+            end
             AddPropertyActionButtonRow(actionsSection, L["OPTION_DECORATION_DELETE"] or "Delete Decoration", L["OPTION_DECORATION_DELETE"] or "Delete Decoration", "DestructiveAction", 148, OpenDeleteDecorationConfirmDialog, not decorationConfig)
         else
             decorationTextureDropdown = AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, SetDecorationTexture, disabled, "decoration_texture")
@@ -4577,13 +4622,15 @@ function InspectorController.Build(container, state, options)
                 objectKey = selectedDecorationId,
             }, widthControl, heightControl)
 
-            AddDropdown(decorationSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, decorationConfig.point or "CENTER", function(value)
-                SetDecorationField("point", value)
-            end, disabled, "decoration_point")
+            if isExpert then
+                AddDropdown(decorationSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", portraitAnchorPointList, decorationConfig.point or "CENTER", function(value)
+                    SetDecorationField("point", value)
+                end, disabled, "decoration_point")
 
-            AddDropdown(decorationSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, decorationConfig.relativePoint or "CENTER", function(value)
-                SetDecorationField("relativePoint", value)
-            end, disabled, "decoration_relative_point")
+                AddDropdown(decorationSection, L["OPTION_ANCHOR_TO"] or "Anchor To", portraitAnchorPointList, decorationConfig.relativePoint or "CENTER", function(value)
+                    SetDecorationField("relativePoint", value)
+                end, disabled, "decoration_relative_point")
+            end
 
             AddSlider(decorationSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(decorationConfig.offsetX) or 0, function(value)
                 SetDecorationField("offsetX", math.floor((value or 0) + 0.5))
@@ -4597,9 +4644,11 @@ function InspectorController.Build(container, state, options)
                 SetDecorationField("alpha", tonumber(string.format("%.2f", value or 1)) or 1)
             end, disabled, "decoration_alpha")
 
-            AddDropdown(decorationSection, L["OPTION_CONDITION"] or "Condition", decorationConditionList, decorationConfig.condition or "ALWAYS", function(value)
-                SetDecorationField("condition", value)
-            end, disabled, "decoration_condition")
+            if isExpert then
+                AddDropdown(decorationSection, L["OPTION_CONDITION"] or "Condition", decorationConditionList, decorationConfig.condition or "ALWAYS", function(value)
+                    SetDecorationField("condition", value)
+                end, disabled, "decoration_condition")
+            end
 
             AddSpacer(decorationSection, 8)
             local deleteButton = AceGUI:Create("Button")
@@ -4660,9 +4709,7 @@ function InspectorController.Build(container, state, options)
             displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", false)
             actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
             layoutSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_LAYOUT"] or "Layout", true)
-            if not isQuick then
-                behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            end
+            behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             positionSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_POSITION"] or "Position", true)
             if not isQuick then
                 advancedSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ADVANCED"] or "Advanced", true)
@@ -4735,7 +4782,30 @@ function InspectorController.Build(container, state, options)
         RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "aura", unit = state and state.selectedUnit, auraKey = selectedAuraKey, objectKey = selectedAuraKey }, "iconsPerRow", auraIconsPerRowControl)
 
         if isQuick then
-            if not isScopedObject then
+            if isScopedObject then
+                AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_X"] or "Spacing X", 0, 20, tonumber(auraConfig.spacingX) or 3, function(value)
+                    SetAuraField(selectedAuraKey, "spacingX", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_spacing_x")
+                AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, tonumber(auraConfig.spacingY) or 3, function(value)
+                    SetAuraField(selectedAuraKey, "spacingY", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_spacing_y")
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", {
+                    list = auraGrowthXList,
+                    value = auraConfig.growthX or "RIGHT",
+                    onChanged = function(value)
+                        SetAuraField(selectedAuraKey, "growthX", value)
+                    end,
+                    anchorKey = "aura_growth_x",
+                }, disabled)
+                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", {
+                    list = auraGrowthYList,
+                    value = auraConfig.growthY or "DOWN",
+                    onChanged = function(value)
+                        SetAuraField(selectedAuraKey, "growthY", value)
+                    end,
+                    anchorKey = "aura_growth_y",
+                }, disabled)
+            else
                 AddCheckBox(auraSection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
                     SetAuraField(selectedAuraKey, "showStackText", value and true or false)
                 end, disabled, "aura_show_stacks")
