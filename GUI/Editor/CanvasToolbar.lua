@@ -560,6 +560,7 @@ local function AddPickerButton(dialog, label, callback)
     if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(button, "secondary")
     end
+    button.text:SetJustifyH("CENTER")
     dialog.body:AddChild(button)
 end
 
