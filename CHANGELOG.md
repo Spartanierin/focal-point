@@ -10,6 +10,24 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.6
+
+### Improved
+
+* Improved the Add Text dialog with a larger live preview, clearer information hierarchy, and more stable layout.
+* Class Power Bar and Secondary Resource Bar now use the consistent Add Object workflow for restoring removed components.
+* Selected text remains locatable on the canvas even when it is hidden or disabled.
+
+### Fixed
+
+* The Composition Tree now updates immediately after deleting a text object.
+* Add Object picker labels now remain centered after interface widget reuse.
+* Fixed layout transfer validation for decoration records.
+
+### Removed
+
+* Removed the inactive 2D/3D Portrait selector and redundant Inspector add actions for optional bars.
+
 ## 2.0.5
 
 ### Added

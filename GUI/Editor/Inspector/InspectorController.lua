@@ -53,7 +53,8 @@ local activeCanvasDirectMoveOffsetControls
 local activeCanvasDecorationSizeControls
 local activeInspectorDiagnosticHosts = {}
 
--- TEMPORARY: Manual snapshot for identifying pooled SimpleGroup divider textures.
+-- TEMP DIAGNOSTIC: Inspector 1px-line investigation.
+-- Intentionally kept for 2.0.6; remove after root cause is confirmed.
 local function InspectorDiagnosticMessage(message)
     if ns and ns.Info then
         ns:Info("[FP InspectorTexture] " .. tostring(message or ""))
