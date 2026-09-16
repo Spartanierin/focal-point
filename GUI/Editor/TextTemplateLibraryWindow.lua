@@ -38,6 +38,17 @@ local function Shorten(value, limit)
     return value:sub(1, math.max(1, limit - 3)) .. "..."
 end
 
+local function BuildRenderedPreview(templateText)
+    local unitFrame = ns.UnitFrame or nil
+    if unitFrame and type(unitFrame.BuildTemplatePreview) == "function" then
+        local preview = unitFrame:BuildTemplatePreview(templateText)
+        if type(preview) == "string" and preview ~= "" then
+            return preview
+        end
+    end
+    return tostring(templateText or "")
+end
+
 local function ApplyLabelText(widget, role, size)
     if TextStyles.ApplyLabelWidget then
         TextStyles.ApplyLabelWidget(widget, role or "label", { size = size or 11 })
@@ -232,13 +243,28 @@ local function RefreshPreview(context)
     context.previewGroup:ReleaseChildren()
     local entry = FindEntry(context, context.selectedTemplateKey)
     if not entry then
-        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 11, 238, 44))
+        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "section_title", 11, 388, 18))
+        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12, 388, 72))
         return
     end
 
-    context.previewGroup:AddChild(CreateLabel(entry.templateName, "section_title", 12, 238, 20))
-    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATE_STRING", "Template"), "label", 10, 238, 14))
-    context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 120), "help", 11, 238, 64))
+    context.previewGroup:AddChild(CreateLabel(entry.templateName, "section_title", 14, 388, 22))
+    if type(entry.sourceLabel) == "string" and entry.sourceLabel ~= "" then
+        context.previewGroup:AddChild(CreateLabel(entry.sourceLabel, "help", 10, 388, 14))
+    end
+    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "section_title", 11, 388, 18))
+
+    local previewPanel = AceGUI:Create("InlineGroup")
+    previewPanel:SetLayout("List")
+    previewPanel:SetTitle(" ")
+    previewPanel:SetFullWidth(false)
+    previewPanel:SetWidth(388)
+    LockContainerHeight(previewPanel, 96)
+    previewPanel:AddChild(CreateLabel(BuildRenderedPreview(entry.templateText), "highlight", 17, 368, 68))
+    context.previewGroup:AddChild(previewPanel)
+
+    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATE_STRING", "Template"), "label", 10, 388, 14))
+    context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 360), "help", 11, 388, 42))
 end
 
 local function RefreshSelectionRowVisual(context, entryKey)
@@ -430,31 +456,28 @@ local function BuildBody(context)
     local listColumn = AceGUI:Create("SimpleGroup")
     listColumn:SetLayout("List")
     listColumn:SetFullWidth(false)
-    listColumn:SetWidth(232)
-    LockContainerHeight(listColumn, 178)
-    listColumn:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATES", "Templates"), "section_title", 11, 214, 18))
+    listColumn:SetWidth(220)
+    LockContainerHeight(listColumn, 228)
+    listColumn:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATES", "Templates"), "section_title", 11, 202, 18))
     local listGroup = AceGUI:Create("ScrollFrame")
     listGroup:SetLayout("List")
     listGroup:SetFullWidth(false)
-    listGroup:SetWidth(214)
-    LockContainerHeight(listGroup, 150)
+    listGroup:SetWidth(202)
+    LockContainerHeight(listGroup, 200)
     context.listGroup = listGroup
     listColumn:AddChild(listGroup)
     content:AddChild(listColumn)
 
-    content:AddChild(CreateSpacer(12, 1))
-
     local previewColumn = AceGUI:Create("SimpleGroup")
     previewColumn:SetLayout("List")
     previewColumn:SetFullWidth(false)
-    previewColumn:SetWidth(250)
-    LockContainerHeight(previewColumn, 178)
-    previewColumn:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "section_title", 11, 238, 18))
+    previewColumn:SetWidth(400)
+    LockContainerHeight(previewColumn, 228)
     local previewGroup = AceGUI:Create("SimpleGroup")
     previewGroup:SetLayout("List")
     previewGroup:SetFullWidth(false)
-    previewGroup:SetWidth(238)
-    LockContainerHeight(previewGroup, 150)
+    previewGroup:SetWidth(388)
+    LockContainerHeight(previewGroup, 218)
     context.previewGroup = previewGroup
     previewColumn:AddChild(previewGroup)
     content:AddChild(previewColumn)
@@ -470,10 +493,10 @@ function TextTemplateLibraryWindow.Open(options)
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = mode == "change" and T("INSERT_TEXT_CHANGE_TITLE", "Change Text") or T("INSERT_TEXT_TITLE", "Add Text"),
         description = mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
-        width = 548,
+        width = 700,
         mode = "picker",
         pickerScrollable = false,
-        pickerContentHeight = 196,
+        pickerContentHeight = 246,
         reserveStatusSpace = true,
         bodyLayout = "Fill",
         footerHeight = 40,
