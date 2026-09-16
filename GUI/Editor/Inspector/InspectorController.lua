@@ -1716,16 +1716,6 @@ function InspectorController.Build(container, state, options)
         end
         row:AddChild(value)
 
-        activeInspectorDiagnosticHosts[#activeInspectorDiagnosticHosts + 1] = {
-            widget = row,
-            role = "row",
-            label = labelText,
-        }
-        activeInspectorDiagnosticHosts[#activeInspectorDiagnosticHosts + 1] = {
-            widget = value,
-            role = "value",
-            label = labelText,
-        }
 
         if type(valueBuilder) == "function" then
             valueBuilder(value, row, label)
@@ -2285,18 +2275,6 @@ function InspectorController.Build(container, state, options)
             if unitConfig.castBarPresent == false then
                 AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "PrimaryAction", 132, function()
                     ApplyCastBarPresence(true)
-                end)
-            end
-            if selectedUnit == "player" and unitConfig.classPowerBarPresent == false then
-                local label = L["EDITOR_ADD_CLASS_POWER_BAR_BUTTON"] or "Add Class Power Bar"
-                AddPropertyActionButtonRow(actionsSection, label, label, "PrimaryAction", 160, function()
-                    ApplySingletonBarPresence("ClassPowerBar", true, "class_power")
-                end)
-            end
-            if selectedUnit == "player" and unitConfig.alternativePowerBarPresent == false then
-                local label = L["EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON"] or "Add Secondary Resource Bar"
-                AddPropertyActionButtonRow(actionsSection, label, label, "PrimaryAction", 180, function()
-                    ApplySingletonBarPresence("AlternativePowerBar", true, "alt_power")
                 end)
             end
             if unitConfig.normalAbsorbBarPresent == false then
