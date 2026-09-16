@@ -415,6 +415,8 @@ end
 local ADD_OBJECT_BAR_CAPABILITIES = {
     { componentKey = "PowerBar", labelKey = "EDITOR_ADD_POWER_BAR_BUTTON", fallback = "Power Bar" },
     { componentKey = "CastBar", labelKey = "EDITOR_ADD_CAST_BAR_BUTTON", fallback = "Cast Bar" },
+    { componentKey = "ClassPowerBar", labelKey = "EDITOR_ADD_CLASS_POWER_BAR_BUTTON", fallback = "Add Class Power Bar", playerOnly = true },
+    { componentKey = "AlternativePowerBar", labelKey = "EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON", fallback = "Add Secondary Resource Bar", playerOnly = true },
     { componentKey = "NormalAbsorbBar", labelKey = "EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON", fallback = "Normal Absorb" },
     { componentKey = "HealingAbsorbBar", labelKey = "EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON", fallback = "Healing Absorb" },
 }
@@ -602,7 +604,7 @@ local function OpenAddObjectPicker()
 
     local availableBars = 0
     for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
-        if not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then availableBars = availableBars + 1 end
+        if (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then availableBars = availableBars + 1 end
     end
     AddPickerRows(availableBars, availableBars > 0)
 
@@ -648,7 +650,7 @@ local function OpenAddObjectPicker()
 
     local hasBarsHeader = false
     for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
-        if not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
+        if (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
             if not hasBarsHeader then
                 AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_BARS", "Bars"))
                 hasBarsHeader = true

@@ -174,6 +174,8 @@ local DECORATION_DEFAULTS = {
 local COMPONENT_PRESENCE_FIELDS = {
     PowerBar = "powerBarPresent",
     CastBar = "castBarPresent",
+    ClassPowerBar = "classPowerBarPresent",
+    AlternativePowerBar = "alternativePowerBarPresent",
     NormalAbsorbBar = "normalAbsorbBarPresent",
     HealingAbsorbBar = "healingAbsorbBarPresent",
 }
@@ -181,6 +183,8 @@ local COMPONENT_PRESENCE_FIELDS = {
 local COMPONENT_VISIBILITY_FIELDS = {
     PowerBar = "showPowerBar",
     CastBar = "showCastBar",
+    ClassPowerBar = "showClassPowerBar",
+    AlternativePowerBar = "showAlternativePowerBar",
     NormalAbsorbBar = "showNormalAbsorbBar",
     HealingAbsorbBar = "showHealingAbsorbBar",
 }

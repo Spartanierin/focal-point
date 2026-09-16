@@ -911,9 +911,9 @@ function UF:ApplyConfig(frame)
     local healthBarReverseFill = config.healthBarReverseFill
     local powerBarReverseFill = config.powerBarReverseFill
     local alternativePowerBarReverseFill = config.alternativePowerBarReverseFill
-    local showAlternativePowerBar = config.showAlternativePowerBar and true or false
+    local showAlternativePowerBar = config.alternativePowerBarPresent == true and config.showAlternativePowerBar and true or false
     local alternativePowerBarHeight = showAlternativePowerBar and (config.alternativePowerBarHeight or 5) or 0
-    local showClassPowerBar = config.showClassPowerBar and true or false
+    local showClassPowerBar = config.classPowerBarPresent == true and config.showClassPowerBar and true or false
     local classPowerBarHeight = showClassPowerBar and (config.classPowerBarHeight or 12) or 0
     local classPowerBarWidth = tonumber(config.classPowerBarWidth) or 100
     local classPowerBarSpacing = tonumber(config.classPowerBarSpacing) or 2
@@ -1829,6 +1829,7 @@ function UF:ApplyTestValues(frame)
         and frame
         and frame._fpUnit == "player"
         and frame.config
+        and frame.config.alternativePowerBarPresent == true
         and frame.config.showAlternativePowerBar
         and frame.Elements
         and frame.Elements.AlternativePowerBar

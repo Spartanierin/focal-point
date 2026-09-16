@@ -137,7 +137,10 @@ function Preview.ShouldForceSecondaryPowerPreview(unit)
     local unitConfig = FocalPoint.UnitFrameUtils
         and FocalPoint.UnitFrameUtils.GetUnitDB
         and FocalPoint.UnitFrameUtils.GetUnitDB(unit)
-    if type(unitConfig) ~= "table" or unitConfig.showAlternativePowerBar ~= true then
+    if type(unitConfig) ~= "table"
+        or unitConfig.alternativePowerBarPresent ~= true
+        or unitConfig.showAlternativePowerBar ~= true
+    then
         return false
     end
 

@@ -2167,6 +2167,8 @@ function InspectorController.Build(container, state, options)
         local hasAbsentSingleton =
             unitConfig.powerBarPresent == false
             or unitConfig.castBarPresent == false
+            or (selectedUnit == "player" and unitConfig.classPowerBarPresent == false)
+            or (selectedUnit == "player" and unitConfig.alternativePowerBarPresent == false)
             or unitConfig.normalAbsorbBarPresent == false
             or unitConfig.healingAbsorbBarPresent == false
         local hasUnitRemoveAction = IsRemovableUnitRoot(selectedUnit)
@@ -2271,6 +2273,18 @@ function InspectorController.Build(container, state, options)
             if unitConfig.castBarPresent == false then
                 AddPropertyActionButtonRow(actionsSection, L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", L["EDITOR_ADD_CAST_BAR_BUTTON"] or "Add Cast Bar", "PrimaryAction", 132, function()
                     ApplyCastBarPresence(true)
+                end)
+            end
+            if selectedUnit == "player" and unitConfig.classPowerBarPresent == false then
+                local label = L["EDITOR_ADD_CLASS_POWER_BAR_BUTTON"] or "Add Class Power Bar"
+                AddPropertyActionButtonRow(actionsSection, label, label, "PrimaryAction", 160, function()
+                    ApplySingletonBarPresence("ClassPowerBar", true, "class_power")
+                end)
+            end
+            if selectedUnit == "player" and unitConfig.alternativePowerBarPresent == false then
+                local label = L["EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON"] or "Add Secondary Resource Bar"
+                AddPropertyActionButtonRow(actionsSection, label, label, "PrimaryAction", 180, function()
+                    ApplySingletonBarPresence("AlternativePowerBar", true, "alt_power")
                 end)
             end
             if unitConfig.normalAbsorbBarPresent == false then
@@ -2930,6 +2944,7 @@ function InspectorController.Build(container, state, options)
         local backgroundSection = altPowerSection
         local geometrySection = altPowerSection
         local behaviorSection = altPowerSection
+        local actionsSection
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
@@ -2938,6 +2953,7 @@ function InspectorController.Build(container, state, options)
             if isExpert then
                 behaviorSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
+            actionsSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
         if usePropertyGroups then
@@ -3060,6 +3076,13 @@ function InspectorController.Build(container, state, options)
             end
 
         end
+
+        if actionsSection then
+            local label = L["EDITOR_REMOVE_ALTERNATIVE_POWER_BAR_BUTTON"] or "Remove Secondary Resource Bar"
+            AddPropertyActionButtonRow(actionsSection, label, label, "DestructiveAction", 180, function()
+                ApplySingletonBarPresence("AlternativePowerBar", false, "alt_power")
+            end)
+        end
     end
     local function BuildClassPowerSectionContent(classPowerSection)
         if not classPowerSection or selectedUnit ~= "player" then
@@ -3073,6 +3096,7 @@ function InspectorController.Build(container, state, options)
         local backgroundSection = classPowerSection
         local geometrySection = classPowerSection
         local positionSection = classPowerSection
+        local actionsSection
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
@@ -3081,6 +3105,7 @@ function InspectorController.Build(container, state, options)
             if isExpert then
                 positionSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
             end
+            actionsSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
         end
 
         if usePropertyGroups then
@@ -3281,6 +3306,13 @@ function InspectorController.Build(container, state, options)
                 unit = state and state.selectedUnit,
                 objectKey = "ClassPowerBar",
             }, offsetXControl, offsetYControl, pointControl, relativePointControl)
+        end
+
+        if actionsSection then
+            local label = L["EDITOR_REMOVE_CLASS_POWER_BAR_BUTTON"] or "Remove Class Power Bar"
+            AddPropertyActionButtonRow(actionsSection, label, label, "DestructiveAction", 160, function()
+                ApplySingletonBarPresence("ClassPowerBar", false, "class_power")
+            end)
         end
     end
 

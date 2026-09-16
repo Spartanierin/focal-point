@@ -1134,15 +1134,15 @@ function TextEditorOverlay.UpdateFrame(frame)
         return
     end
 
-    local stateApi = GetEditorStateApi()
-    local normalizedUnit = NormalizeUnitKey(frame._fpUnit)
     local seen = {}
 
     for textKey, textConfig in pairs(texts) do
+        local selected = IsSelectedText(frame, textKey)
+        local renderable = IsEditorRenderableText(frame, textKey, textConfig)
         if type(textKey) == "string"
             and textKey ~= ""
             and type(textConfig) == "table"
-            and IsEditorRenderableText(frame, textKey, textConfig)
+            and (renderable or selected)
         then
             seen[textKey] = true
             local textObject = frame.Texts and frame.Texts[textKey]
@@ -1164,15 +1164,11 @@ function TextEditorOverlay.UpdateFrame(frame)
                     PositionTextVisualChrome(visual, overlay, textObject)
                 end
 
-                local selected = stateApi
-                    and stateApi.IsTextElementSelected
-                    and stateApi.IsTextElementSelected(normalizedUnit, textKey)
-                    or false
                 overlay._focalPointSelected = selected == true
                 StyleOverlay(overlay, overlay._focalPointSelected, overlay._focalPointHovered == true)
-                UpdateGrowthIndicator(overlay, overlay._focalPointSelected, textConfig)
-                overlay:EnableMouse(true)
-                overlay:EnableMouseWheel(overlay._focalPointSelected == true and IsTextInteractionActive(frame, textKey))
+                UpdateGrowthIndicator(overlay, overlay._focalPointSelected and renderable, textConfig)
+                overlay:EnableMouse(renderable == true)
+                overlay:EnableMouseWheel(renderable == true and overlay._focalPointSelected == true and IsTextInteractionActive(frame, textKey))
                 overlay:Show()
             end
         end

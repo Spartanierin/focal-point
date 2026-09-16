@@ -228,7 +228,10 @@ function ClassPower.ShouldForcePreview(unit)
         unit = unit,
         objectKey = "ClassPowerBar",
     }) == true
-    if type(unitConfig) ~= "table" or (unitConfig.showClassPowerBar ~= true and not selectionPreview) then
+    if type(unitConfig) ~= "table"
+        or unitConfig.classPowerBarPresent ~= true
+        or (unitConfig.showClassPowerBar ~= true and not selectionPreview)
+    then
         return false
     end
 

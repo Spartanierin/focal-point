@@ -56,14 +56,13 @@ local function IsSelectedTextPreview(frame, key)
 end
 
 local function IsTextEffectivePresent(frame, key, textConfig, deps)
-    local selectionPreview = IsSelectedTextPreview(frame, key)
-    if type(textConfig) ~= "table" or (textConfig.enabled == false and not selectionPreview) then
+    if type(textConfig) ~= "table" or textConfig.enabled == false then
         return false
     end
 
     local binding = TextState.GetCompositionBinding and TextState.GetCompositionBinding(frame, key) or nil
     if type(binding) == "table" then
-        return binding.effectivePresent == true or selectionPreview
+        return binding.effectivePresent == true
     end
 
     local resolver = deps and deps.IsTextEffectivePresent
@@ -122,8 +121,12 @@ local function ShouldRenderTextEditorPreview(frame, key)
 end
 
 local function IsTextEditPreviewAvailable(frame, key, textConfig)
+    if type(textConfig) ~= "table" or textConfig.enabled == false then
+        return false
+    end
+
     if IsSelectedTextPreview(frame, key) then
-        return type(textConfig) == "table"
+        return true
     end
 
     if Status.IsEditorRenderable then
