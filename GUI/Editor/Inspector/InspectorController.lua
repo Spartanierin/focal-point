@@ -1306,6 +1306,9 @@ function InspectorController.Build(container, state, options)
                             return mutationResult
                         end
 
+                        if mutationResult and mutationResult.ok and mutationResult.changed then
+                            NotifyCompositionTreeChanged()
+                        end
                         SelectUnitRootAfterTextDelete(unitKey)
                         NotifySidebarChanged("texts")
                         return mutationResult
