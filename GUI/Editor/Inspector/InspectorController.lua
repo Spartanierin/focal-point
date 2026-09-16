@@ -1716,6 +1716,17 @@ function InspectorController.Build(container, state, options)
         end
         row:AddChild(value)
 
+        activeInspectorDiagnosticHosts[#activeInspectorDiagnosticHosts + 1] = {
+            widget = row,
+            role = "row",
+            label = labelText,
+        }
+        activeInspectorDiagnosticHosts[#activeInspectorDiagnosticHosts + 1] = {
+            widget = value,
+            role = "value",
+            label = labelText,
+        }
+
         if type(valueBuilder) == "function" then
             valueBuilder(value, row, label)
         end
@@ -2170,8 +2181,6 @@ function InspectorController.Build(container, state, options)
         local hasAbsentSingleton =
             unitConfig.powerBarPresent == false
             or unitConfig.castBarPresent == false
-            or (selectedUnit == "player" and unitConfig.classPowerBarPresent == false)
-            or (selectedUnit == "player" and unitConfig.alternativePowerBarPresent == false)
             or unitConfig.normalAbsorbBarPresent == false
             or unitConfig.healingAbsorbBarPresent == false
         local hasUnitRemoveAction = IsRemovableUnitRoot(selectedUnit)
