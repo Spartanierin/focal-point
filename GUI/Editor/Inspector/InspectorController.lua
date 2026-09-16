@@ -311,7 +311,6 @@ function InspectorController.Build(container, state, options)
     local overflowList = BuildLocalizedList(textLayouts.Lists and textLayouts.Lists.overflowMode)
     local frameStrataList = BuildLocalizedList(frameLayouts.Lists and frameLayouts.Lists.frameStrata)
     local portraitPlacementList = BuildLocalizedList(portraitLayouts.Lists and portraitLayouts.Lists.placement)
-    local portraitModeList = BuildLocalizedList(portraitLayouts.Lists and portraitLayouts.Lists.mode)
     local portraitInsideSideList = BuildLocalizedList(portraitLayouts.Lists and portraitLayouts.Lists.insideSide)
     local portraitAnchorTargetList = BuildLocalizedList(portraitLayouts.Lists and portraitLayouts.Lists.anchorTo)
     local portraitAnchorPointList = BuildLocalizedList(portraitLayouts.Lists and portraitLayouts.Lists.anchorPoints)
@@ -4132,22 +4131,6 @@ function InspectorController.Build(container, state, options)
             AddDropdown(indicatorSection, L[indicatorMeta.placementLabel] or "Placement", portraitPlacementList, indicatorConfig.placement or "ATTACHED", function(value)
                 SetIndicatorField(selectedIndicatorKey, "placement", value, indicatorSection)
             end, disabled)
-        end
-
-        if isExpert and indicatorMeta.supportsMode then
-            if isScopedObject then
-                AddPropertyDropdownRow(behaviorSection, L[indicatorMeta.modeLabel] or "Mode", {
-                    list = portraitModeList,
-                    value = indicatorConfig.mode or "2D",
-                    onChanged = function(value)
-                        SetIndicatorField(selectedIndicatorKey, "mode", value)
-                    end,
-                }, disabled)
-            else
-                AddDropdown(indicatorSection, L[indicatorMeta.modeLabel] or "Mode", portraitModeList, indicatorConfig.mode or "2D", function(value)
-                    SetIndicatorField(selectedIndicatorKey, "mode", value)
-                end, disabled)
-            end
         end
 
         if isScopedObject then

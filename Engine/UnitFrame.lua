@@ -938,7 +938,6 @@ function UF:ApplyConfig(frame)
     local classificationConfig = config.ClassificationIndicator or {}
     local portraitEnabled = portraitConfig.present == true and portraitConfig.enabled ~= false
     local portraitPlacement = portraitConfig.placement or "INSIDE"
-    local portraitMode = portraitConfig.mode or "2D"
     local portraitSize = tonumber(portraitConfig.size) or 40
     local portraitScale = tonumber(portraitConfig.scale) or 1
     local portraitPadding = tonumber(portraitConfig.padding) or 4

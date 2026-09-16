@@ -45,8 +45,6 @@ local INDICATOR_META = {
         scaleLabel = "OPTION_PORTRAIT_SCALE",
         wheelScale = true,
         insideSideLabel = "OPTION_INSIDE_SIDE",
-        modeLabel = "OPTION_PORTRAIT_MODE",
-        supportsMode = true,
         unavailable = function()
             return false
         end,

@@ -10,10 +10,6 @@ ns.GUI.Layouts.UnitPortrait.Lists = {
         INSIDE = "VALUE_PORTRAIT_PLACEMENT_INSIDE",
         ATTACHED = "VALUE_PORTRAIT_PLACEMENT_ATTACHED",
     },
-    mode = {
-        ["2D"] = "VALUE_PORTRAIT_MODE_2D",
-        ["3D"] = "VALUE_PORTRAIT_MODE_3D",
-    },
     insideSide = {
         LEFT = "VALUE_SIDE_LEFT",
         RIGHT = "VALUE_SIDE_RIGHT",
