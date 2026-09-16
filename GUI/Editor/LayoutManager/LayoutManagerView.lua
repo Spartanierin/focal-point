@@ -19,12 +19,14 @@ local WINDOW_DESCRIPTION_HEIGHT = 32
 local WINDOW_LIST_HEIGHT = 330
 local WINDOW_STATUS_HEIGHT = 22
 local WINDOW_FOOTER_HEIGHT = 42
-local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_FOOTER_HEIGHT
+local WINDOW_TRANSFER_ACTIONS_HEIGHT = 32
+local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_FOOTER_HEIGHT + WINDOW_TRANSFER_ACTIONS_HEIGHT + 6 -- compact body top inset
 
 local context
 local renameDialog
 local copyDialog
 local deleteDialog
+local transferDialog
 
 local ROW_COLORS = {
     fill = { 0.075, 0.085, 0.105, 0.78 },
@@ -862,6 +864,112 @@ local function OpenDeleteDialog()
     FocusWindow(dialog.window)
 end
 
+local function CloseTransferDialog()
+    if transferDialog then transferDialog:Close() end
+end
+
+local function TransferError(reason)
+    local key = ({
+        ["invalid-header"] = "LAYOUT_TRANSFER_ERROR_HEADER",
+        ["invalid-encoding"] = "LAYOUT_TRANSFER_ERROR_ENCODING",
+        ["transfer-version"] = "LAYOUT_TRANSFER_ERROR_VERSION",
+        ["layout-version"] = "LAYOUT_TRANSFER_ERROR_VERSION",
+        ["name-required"] = "LAYOUT_RENAME_NAME_REQUIRED",
+        ["name-too-long"] = "LAYOUT_RENAME_NAME_TOO_LONG",
+        ["name-invalid"] = "LAYOUT_TRANSFER_ERROR_NAME",
+        ["duplicate-name"] = "LAYOUT_RENAME_NAME_EXISTS",
+        ["too-large"] = "LAYOUT_TRANSFER_ERROR_SIZE",
+        ["too-complex"] = "LAYOUT_TRANSFER_ERROR_SIZE",
+        ["units-invalid"] = "LAYOUT_TRANSFER_ERROR_PAYLOAD",
+        ["templates-invalid"] = "LAYOUT_TRANSFER_ERROR_PAYLOAD",
+        ["payload-invalid"] = "LAYOUT_TRANSFER_ERROR_PAYLOAD",
+        ["document-invalid"] = "LAYOUT_TRANSFER_ERROR_PAYLOAD",
+    })[reason] or "LAYOUT_TRANSFER_ERROR_FAILED"
+    return T(key, "Layout transfer failed.")
+end
+
+local function OpenTransferDialog(export)
+    local transfer = ns.LayoutTransfer
+    if not (context and transfer) then return end
+    local exportText
+    if export then
+        local selected = FindSelectedItem(context.state)
+        if not (selected and selected.source == "userLayout" and not selected.readOnly) then return end
+        local reason
+        exportText, reason = transfer.Export(selected.id)
+        if not exportText then context.widgets.status:SetText(TransferError(reason)); return end
+    end
+    CloseTransferDialog()
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = T(export and "LAYOUT_TRANSFER_EXPORT_TITLE" or "LAYOUT_TRANSFER_IMPORT_TITLE"),
+        description = T(export and "LAYOUT_TRANSFER_EXPORT_HINT" or "LAYOUT_TRANSFER_IMPORT_HINT"),
+        width = 560,
+        formContentHeight = 220,
+        bodyLayout = "Fill",
+        addBodySpacer = false,
+        showStatus = true,
+        statusHeight = 36,
+        statusTextHeight = 32,
+    })
+    local edit = AceGUI:Create("MultiLineEditBox")
+    edit:SetLabel("")
+    edit:SetNumLines(10)
+    edit:SetFullWidth(true)
+    edit:SetFullHeight(true)
+    edit:DisableButton(true)
+    edit:SetText(exportText or "")
+    if FormWidgets.StyleEditBox then FormWidgets.StyleEditBox(edit, "editor_inset") end
+    dialog.body:AddChild(edit)
+
+    local function SelectText()
+        edit:SetFocus()
+        edit:HighlightText()
+    end
+    dialog:SetActions({
+        primary = {
+            text = T(export and "LAYOUT_TRANSFER_SELECT_ALL" or "LAYOUT_TRANSFER_IMPORT"),
+            onClick = function()
+                if export then SelectText(); return end
+                local ok, id, name = transfer.Import(edit:GetText())
+                if not ok then
+                    dialog:SetStatus(TransferError(id))
+                    return
+                end
+                context.selectedLayoutId = id
+                LayoutManager.Refresh() -- library selection only; never Activate
+                edit:SetText("")
+                dialog.primaryButton:SetDisabled(true)
+                dialog:SetStatus(string.format(T("LAYOUT_TRANSFER_IMPORTED"), name))
+            end,
+        },
+        cancel = {text=T("INFO_COMMON_CLOSE", "Close"), onClick=CloseTransferDialog},
+    })
+    if not export then
+        dialog.primaryButton:SetDisabled(true)
+        edit:SetCallback("OnTextChanged", function()
+            local text = edit:GetText() or ""
+            dialog:SetStatus("")
+            dialog.primaryButton:SetDisabled(Trim(text) == "")
+        end)
+    end
+    dialog.window:SetCallback("OnClose", function()
+        if dialog.released then return end
+        dialog.released = true
+        if transferDialog == dialog then transferDialog = nil end
+        if AceGUI.FocusedWidget == edit then AceGUI:ClearFocus() else edit:ClearFocus() end
+        -- Compact shell regions are owned separately from Window.children.
+        for _, region in ipairs({dialog.shell.header, dialog.body, dialog.shell.status, dialog.footer}) do
+            AceGUI:Release(region)
+        end
+        dialog.shell.frame:Hide()
+        dialog.window.frame._fpCompactFormShell = nil
+        AceGUI:Release(dialog.window)
+    end)
+    transferDialog = dialog
+    dialog:Show()
+    if export then SelectText() else edit:SetFocus() end
+end
+
 local function RefreshActions()
     if not (context and context.widgets) then
         return
@@ -871,6 +979,9 @@ local function RefreshActions()
     local isUserLayout = selected and selected.source == "userLayout"
     local isBuiltin = selected and selected.source == "builtin"
     local canDelete = isUserLayout and selected.id ~= context.activeLayoutId
+    if context.widgets.exportButton then
+        context.widgets.exportButton:SetDisabled(not (isUserLayout and not selected.readOnly))
+    end
     if context.widgets.renameButton then
         context.widgets.renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
         SetButtonVisible(context.widgets.renameButton, isUserLayout, 105)
@@ -949,6 +1060,7 @@ local function RefreshList()
 end
 
 local function Close()
+    CloseTransferDialog()
     CloseRenameDialog()
     CloseCopyDialog()
     CloseDeleteDialog()
@@ -964,16 +1076,37 @@ local function CreateWindow()
         description = T("LAYOUT_MANAGER_DESCRIPTION", "View available layouts. Activate them from the Canvas Toolbar."),
         width = WINDOW_WIDTH,
         height = WINDOW_HEIGHT,
-        bodyLayout = "Fill",
+        bodyLayout = "List",
         addBodySpacer = false,
         showStatus = true,
         footerHeight = WINDOW_FOOTER_HEIGHT,
     })
 
+    local transferActions = AceGUI:Create("SimpleGroup")
+    transferActions:SetLayout("Flow")
+    transferActions:SetFullWidth(true)
+    LockContainerHeight(transferActions, WINDOW_TRANSFER_ACTIONS_HEIGHT)
+    dialog.body:AddChild(transferActions)
+    local importButton = AceGUI:Create("Button")
+    importButton:SetText(T("LAYOUT_TRANSFER_IMPORT"))
+    importButton:SetWidth(120)
+    importButton:SetCallback("OnClick", function() OpenTransferDialog(false) end)
+    transferActions:AddChild(importButton)
+    local exportButton = AceGUI:Create("Button")
+    exportButton:SetText(T("LAYOUT_TRANSFER_EXPORT"))
+    exportButton:SetWidth(120)
+    exportButton:SetCallback("OnClick", function() OpenTransferDialog(true) end)
+    transferActions:AddChild(exportButton)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(importButton, "utility")
+        FormWidgets.ApplyModalActionButtonVisual(exportButton, "utility")
+    end
+
     local scroll = AceGUI:Create("ScrollFrame")
     scroll:SetLayout("Flow")
     scroll:SetFullWidth(true)
-    scroll:SetFullHeight(true)
+    scroll:SetFullHeight(false)
+    scroll:SetHeight(WINDOW_LIST_HEIGHT)
     dialog.body:AddChild(scroll)
 
     local renameButton = AceGUI:Create("Button")
@@ -1014,6 +1147,8 @@ local function CreateWindow()
         scroll = scroll,
         footer = dialog.footer,
         status = dialog.status,
+        importButton = importButton,
+        exportButton = exportButton,
         renameButton = renameButton,
         copyButton = copyButton,
         deleteButton = deleteButton,
@@ -1025,6 +1160,7 @@ local function CreateWindow()
     deleteButton:SetCallback("OnClick", OpenDeleteDialog)
     closeButton:SetCallback("OnClick", Close)
     dialog.window:SetCallback("OnClose", function()
+        CloseTransferDialog()
         CloseRenameDialog()
         CloseCopyDialog()
         CloseDeleteDialog()

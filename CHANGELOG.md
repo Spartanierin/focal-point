@@ -10,6 +10,17 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.0.5
+
+### Added
+
+* Added portable layout import and export for My Layouts.
+* Added strict, bounded validation for layout transfer strings.
+
+### Changed
+
+* Imported layouts remain inactive until explicitly selected.
+
 ## 2.0.4
 
 ### Added

@@ -22,6 +22,8 @@
     <Script file="Services/UserPresetStore.lua"/>
     <Script file="Services/UserLayoutStore.lua"/>
     <Script file="Services/LayoutMutations.lua"/>
+    <Script file="Services/LayoutTransferCodec.lua"/>
+    <Script file="Services/LayoutTransfer.lua"/>
     <Script file="Services/LayoutMigration.lua"/>
     <Script file="Services/PresetService.lua"/>
     <Script file="Services/ActiveLayoutResolver.lua"/>
