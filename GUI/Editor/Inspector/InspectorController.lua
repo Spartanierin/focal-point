@@ -51,6 +51,119 @@ local activeTextFontSizeControl
 local activeCanvasWheelFieldControl
 local activeCanvasDirectMoveOffsetControls
 local activeCanvasDecorationSizeControls
+local activeInspectorDiagnosticHosts = {}
+
+-- TEMPORARY: Manual snapshot for identifying pooled SimpleGroup divider textures.
+local function InspectorDiagnosticMessage(message)
+    if ns and ns.Info then
+        ns:Info("[FP InspectorTexture] " .. tostring(message or ""))
+    elseif DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then
+        DEFAULT_CHAT_FRAME:AddMessage("[FP InspectorTexture] " .. tostring(message or ""))
+    end
+end
+
+local function InspectorDiagnosticPoints(region)
+    if not (region and region.GetNumPoints and region.GetPoint) then
+        return "none"
+    end
+
+    local points = {}
+    for index = 1, region:GetNumPoints() do
+        local point, relativeTo, relativePoint, offsetX, offsetY = region:GetPoint(index)
+        points[#points + 1] = string.format(
+            "%s>%s:%s@%s,%s",
+            tostring(point),
+            tostring(relativeTo),
+            tostring(relativePoint),
+            tostring(offsetX),
+            tostring(offsetY)
+        )
+    end
+    return #points > 0 and table.concat(points, " | ") or "none"
+end
+
+local function InspectorDiagnosticColor(texture)
+    local red, green, blue, alpha
+    if texture and texture.GetColorTexture then
+        red, green, blue, alpha = texture:GetColorTexture()
+    end
+    if red == nil and texture and texture.GetVertexColor then
+        red, green, blue, alpha = texture:GetVertexColor()
+    end
+    return red, green, blue, alpha
+end
+
+function InspectorController.DebugVisibleRowTextures()
+    local reportedHosts = 0
+    local reportedTextures = 0
+
+    for _, host in ipairs(activeInspectorDiagnosticHosts) do
+        local widget = host.widget
+        local frame = widget and widget.frame
+        if frame and frame.IsVisible and frame:IsVisible() then
+            reportedHosts = reportedHosts + 1
+            InspectorDiagnosticMessage(string.format(
+                "host role=%s label=%s widget=%s type=%s frame=%s parent=%s w=%s h=%s points=%s",
+                tostring(host.role),
+                tostring(host.label),
+                tostring(widget),
+                tostring(widget.type),
+                tostring(frame),
+                tostring(frame:GetParent()),
+                tostring(frame:GetWidth()),
+                tostring(frame:GetHeight()),
+                InspectorDiagnosticPoints(frame)
+            ))
+
+            for _, region in ipairs({ frame:GetRegions() }) do
+                if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+                    local red, green, blue, alpha = InspectorDiagnosticColor(region)
+                    local layer = region.GetDrawLayer and region:GetDrawLayer() or nil
+                    local isDivider = widget._fpDivider == region
+                    local isCandidate = isDivider
+                        or (region:GetHeight() >= 0.5 and region:GetHeight() <= 1.5
+                            and layer == "ARTWORK"
+                            and region:IsShown())
+                    reportedTextures = reportedTextures + 1
+                    InspectorDiagnosticMessage(string.format(
+                        "%s texture=%s host=%s parent=%s w=%s h=%s layer=%s color=%s,%s,%s,%s path=%s atlas=%s shown=%s visible=%s points=%s",
+                        isDivider and "CONFIRMED _fpDivider" or (isCandidate and "CANDIDATE" or "texture"),
+                        tostring(region),
+                        tostring(widget),
+                        tostring(region:GetParent()),
+                        tostring(region:GetWidth()),
+                        tostring(region:GetHeight()),
+                        tostring(layer),
+                        tostring(red),
+                        tostring(green),
+                        tostring(blue),
+                        tostring(alpha),
+                        tostring(region:GetTexture()),
+                        tostring(region.GetAtlas and region:GetAtlas() or nil),
+                        tostring(region:IsShown()),
+                        tostring(region:IsVisible()),
+                        InspectorDiagnosticPoints(region)
+                    ))
+                end
+            end
+
+            if widget._fpDivider and widget._fpDivider.GetObjectType then
+                InspectorDiagnosticMessage(string.format(
+                    "divider host=%s exists=true texture=%s height=%s layer=%s shown=%s visible=%s points=%s",
+                    tostring(widget),
+                    tostring(widget._fpDivider),
+                    tostring(widget._fpDivider:GetHeight()),
+                    tostring(widget._fpDivider:GetDrawLayer()),
+                    tostring(widget._fpDivider:IsShown()),
+                    tostring(widget._fpDivider:IsVisible()),
+                    InspectorDiagnosticPoints(widget._fpDivider)
+                ))
+            end
+        end
+    end
+
+    InspectorDiagnosticMessage(string.format("summary visibleHosts=%d textureRegions=%d", reportedHosts, reportedTextures))
+end
 local MEDIA_TYPE_FONT = "font"
 local MEDIA_TYPE_STATUSBAR = "statusbar"
 local MEDIA_TYPE_DECORATION = "decoration"
@@ -292,6 +405,7 @@ function InspectorController.Build(container, state, options)
     activeCanvasWheelFieldControl = nil
     activeCanvasDirectMoveOffsetControls = nil
     activeCanvasDecorationSizeControls = nil
+    activeInspectorDiagnosticHosts = {}
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -1716,6 +1830,16 @@ function InspectorController.Build(container, state, options)
         end
         row:AddChild(value)
 
+        activeInspectorDiagnosticHosts[#activeInspectorDiagnosticHosts + 1] = {
+            widget = row,
+            role = "row",
+            label = labelText,
+        }
+        activeInspectorDiagnosticHosts[#activeInspectorDiagnosticHosts + 1] = {
+            widget = value,
+            role = "value",
+            label = labelText,
+        }
 
         if type(valueBuilder) == "function" then
             valueBuilder(value, row, label)

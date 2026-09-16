@@ -692,6 +692,7 @@ function FocalPoint:SetupSlashCommands()
     SLASH_FOCALPOINT2 = "/fp"
     SLASH_FPSELECTIONPERFRESET1 = "/fpperfreset"
     SLASH_FPSELECTIONPERFDUMP1 = "/fpperfdump"
+    SLASH_FPINSPECTORTEXTURE1 = "/fpinspectortexture"
     if IsSupportDiagnosticsEnabled() then
         SLASH_FPDEBUGDEMO1 = "/fpdebugdemo"
         SLASH_FPDEBUGVISIBILITY1 = "/fpdebugvisibility"
@@ -809,6 +810,16 @@ function FocalPoint:SetupSlashCommands()
             perf:Dump()
         elseif FocalPoint.Info then
             FocalPoint:Info("[FP SelectionPerf] unavailable")
+        end
+    end
+
+    -- TEMPORARY: Manual one-shot snapshot for inspector divider-texture diagnosis.
+    SlashCmdList["FPINSPECTORTEXTURE"] = function()
+        local Inspector = FocalPoint and FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector
+        if Inspector and Inspector.DebugVisibleRowTextures then
+            Inspector.DebugVisibleRowTextures()
+        elseif FocalPoint and FocalPoint.Info then
+            FocalPoint:Info("[FP InspectorTexture] inspector snapshot unavailable")
         end
     end
 
