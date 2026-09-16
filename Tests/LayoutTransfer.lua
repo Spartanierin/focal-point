@@ -17,7 +17,7 @@ local function Equal(left, right)
 end
 local defaults = ns:GetDefaultDB()
 local payload = ns.LayoutService.CopyPayload({Units=defaults.profile.Units, TextTemplates=defaults.profile.TextTemplates})
-payload.Units.player.decorations = {{id="decoration1", point="CENTER", texture="fp:decoration:missing", width=99}}
+payload.Units.player.decorations = {{id="decoration1", target="FRAME", point="CENTER", texture="fp:decoration:missing", width=99}, {id="decoration2", target="PORTRAIT", point="CENTER", texture="fp:decoration:missing", width=99}}
 payload.Units.player.Texts.Health.font = "lsm:font:missing"
 payload.Units.player.Texts.Color = {enabled=true, tag="[name]", font="lsm:font:missing"}
 payload.TextTemplates["Custom ü"] = "[name]\n[hp:cur] | literal \\ \0"

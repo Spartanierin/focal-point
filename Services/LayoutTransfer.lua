@@ -31,12 +31,12 @@ local function BuildFieldTypes()
     return types
 end
 
-local function ValidateConfig(config, types, collection)
+local function ValidateConfig(config, types, collection, dynamicFields)
     if type(config) ~= "table" then return false end
     for key, value in pairs(config) do
         local kind = type(value)
         if type(key) == "string" and not collection then
-            if types[key] and not types[key][kind] then return false end
+            if not dynamicFields and types[key] and not types[key][kind] then return false end
             if (key == "point" or key == "relativePoint" or key:match("Point$")) and not POINTS[value] then return false end
             if key == "frameStrata" and not STRATA[value] then return false end
         end
@@ -49,7 +49,8 @@ local function ValidateConfig(config, types, collection)
                         or type(component) ~= "number" then return false end
                 end
             end
-            if not ValidateConfig(value, types, key == "Texts" or key == "stateTemplates") then return false end
+            local isDecorations = key == "decorations"
+            if not ValidateConfig(value, types, key == "Texts" or key == "stateTemplates" or isDecorations, dynamicFields or isDecorations) then return false end
         elseif kind ~= "number" and kind ~= "string" and kind ~= "boolean" then
             return false
         end
