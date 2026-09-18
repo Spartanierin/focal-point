@@ -15,11 +15,11 @@ local ResolveSectionStyle = FormWidgets.ResolveSectionStyle
 local ApplyTextStyle = FormWidgets.ApplyTextStyle
 local StyleDropdownField = FormWidgets.StyleDropdown
 local StyleCheckBoxField = FormWidgets.StyleCheckBox
+local StyleSliderField = FormWidgets.StyleSlider
 
 local function GetChromeColors()
-    local fallback = ((ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {})
     local skins = ns.GUI and ns.GUI.Skins or nil
-    local palette = skins and skins.GetFormPalette and skins.GetFormPalette(fallback) or fallback
+    local palette = skins and skins.GetFormPalette and skins.GetFormPalette() or {}
     return palette.Chrome or {}
 end
 
@@ -522,6 +522,9 @@ local function AddSlider(container, label, minValue, maxValue, step, value, onCh
     end)
     if widget.label then
         StyleSidebarLabel(widget.label, 12, disabled and { 0.50, 0.50, 0.50, 1 } or { 0.68, 0.70, 0.75, 1 })
+    end
+    if StyleSliderField then
+        StyleSliderField(widget)
     end
     ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)

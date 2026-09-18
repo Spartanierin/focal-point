@@ -1,3 +1,4 @@
+local _, ns = ...
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
 local Type, Version = "FPCompactSlider", 1
 if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
@@ -5,6 +6,14 @@ if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 local TRACK_HEIGHT, INPUT_HEIGHT = 15, 14
 local HEIGHT = TRACK_HEIGHT + INPUT_HEIGHT
 local INPUT_WIDTH = 65
+
+local function GetPresentation()
+    return ns.GUI.Skins.GetFormPalette().CompactSlider
+end
+
+local function SetTextColor(text, color)
+    text:SetTextColor(unpack(color))
+end
 
 local function NormalizeValue(self, value)
     value = tonumber(value)
@@ -64,20 +73,21 @@ function methods:ClearFocus()
 end
 
 function methods:SetDisabled(disabled)
+    local presentation = GetPresentation()
     self.disabled = disabled == true
     self.slider:EnableMouse(not self.disabled)
     self.editbox:EnableMouse(not self.disabled)
     self.editbox:EnableKeyboard(not self.disabled)
-    self.slider:GetThumbTexture():SetAlpha(self.disabled and 0.45 or 1)
-    local tone = self.disabled and 0.5 or 1
-    self.editbox:SetTextColor(tone, tone, tone)
-    self.lowtext:SetTextColor(tone, tone, tone)
-    self.hightext:SetTextColor(tone, tone, tone)
+    self.slider:GetThumbTexture():SetAlpha(self.disabled and presentation.thumb.disabledAlpha or presentation.thumb.alpha)
+    local textColor = self.disabled and presentation.text.disabled or presentation.text.normal
+    SetTextColor(self.editbox, textColor)
+    SetTextColor(self.lowtext, textColor)
+    SetTextColor(self.hightext, textColor)
     if self.disabled then
         self.slider:EnableMouseWheel(false)
         self:ClearFocus()
     end
-    self.editbox:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+    self.editbox:SetBackdropBorderColor(unpack(presentation.input.border))
 end
 
 function methods:OnAcquire()
@@ -106,6 +116,7 @@ local function BeginInteraction(frame)
 end
 
 local function Constructor()
+    local presentation = GetPresentation()
     local frame = CreateFrame("Frame", nil, UIParent)
     frame:Hide()
     local slider = CreateFrame("Slider", nil, frame, "BackdropTemplate")
@@ -115,12 +126,15 @@ local function Constructor()
     slider:SetHeight(TRACK_HEIGHT)
     slider:SetHitRectInsets(0, 0, 0, 0)
     slider:SetBackdrop({
-        bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
-        edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+        bgFile = presentation.track.backgroundTexture,
+        edgeFile = presentation.track.borderTexture,
         tile = true, tileSize = 8, edgeSize = 8,
         insets = { left = 3, right = 3, top = 6, bottom = 6 },
     })
-    slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+    slider:SetBackdropColor(unpack(presentation.track.backgroundColor))
+    slider:SetBackdropBorderColor(unpack(presentation.track.borderColor))
+    slider:SetThumbTexture(presentation.thumb.texture)
+    slider:GetThumbTexture():SetVertexColor(unpack(presentation.thumb.tint))
     slider:GetThumbTexture():SetSize(20, 26)
 
     local editbox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
@@ -131,11 +145,12 @@ local function Constructor()
     editbox:SetWidth(INPUT_WIDTH)
     editbox:SetHeight(INPUT_HEIGHT)
     editbox:SetBackdrop({
-        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-        edgeFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        bgFile = presentation.input.backgroundTexture,
+        edgeFile = presentation.input.borderTexture,
         tile = true, edgeSize = 1, tileSize = 5,
     })
-    editbox:SetBackdropColor(0, 0, 0, 0.5)
+    editbox:SetBackdropColor(unpack(presentation.input.backgroundColor))
+    editbox:SetBackdropBorderColor(unpack(presentation.input.border))
 
     -- At 77px: 5px Min + 1px gap + 65px input + 1px gap + 5px Max.
     -- The lower line uses the host width; the track keeps its existing inset.
@@ -188,9 +203,9 @@ local function Constructor()
     editbox:SetScript("OnEnterPressed", function() CommitValue(widget, editbox:GetText(), true) end)
     editbox:SetScript("OnEscapePressed", function() widget:ClearFocus() end)
     editbox:SetScript("OnEnter", function()
-        if not widget.disabled then editbox:SetBackdropBorderColor(0.5, 0.5, 0.5, 1) end
+        if not widget.disabled then editbox:SetBackdropBorderColor(unpack(GetPresentation().input.borderHover)) end
     end)
-    editbox:SetScript("OnLeave", function() editbox:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8) end)
+    editbox:SetScript("OnLeave", function() editbox:SetBackdropBorderColor(unpack(GetPresentation().input.border)) end)
 
     return AceGUI:RegisterAsWidget(widget)
 end

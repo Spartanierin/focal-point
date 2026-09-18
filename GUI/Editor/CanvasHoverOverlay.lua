@@ -73,6 +73,26 @@ local function IsFrameShown(frame)
     return frame and (not frame.IsShown or frame:IsShown())
 end
 
+local function GetCanvasInteractionPresentation()
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    return skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or {}
+end
+
+local function ApplyBackdropPresentation(frame, presentation)
+    if not (frame and presentation) then
+        return
+    end
+
+    local fill = presentation.fill
+    local border = presentation.border
+    if type(fill) == "table" then
+        frame:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
+    end
+    if type(border) == "table" then
+        frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
+    end
+end
+
 local function GetRefObjectKey(ref)
     if type(ref) ~= "table" then
         return nil
@@ -112,8 +132,8 @@ local function EnsureHoverFrame()
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 },
     })
-    frame:SetBackdropColor(0.75, 0.86, 1.00, 0.035)
-    frame:SetBackdropBorderColor(0.72, 0.82, 1.00, 0.54)
+    local presentation = GetCanvasInteractionPresentation()
+    ApplyBackdropPresentation(frame, presentation.hover and presentation.hover.object)
     frame:Hide()
 
     CanvasHoverOverlay.Frame = frame
@@ -134,8 +154,8 @@ local function ApplyZoneChrome(zone, selected)
     end
 
     if selected then
-        zone:SetBackdropColor(0.98, 0.84, 0.24, 0.10)
-        zone:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.95)
+        local presentation = GetCanvasInteractionPresentation()
+        ApplyBackdropPresentation(zone, presentation.selection and presentation.selection.object)
     else
         zone:SetBackdropColor(0, 0, 0, 0)
         zone:SetBackdropBorderColor(0, 0, 0, 0)

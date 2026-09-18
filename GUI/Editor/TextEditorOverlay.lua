@@ -754,16 +754,24 @@ StyleOverlay = function(overlay, selected, hovered)
         return
     end
 
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local canvasPresentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or {}
+    local textPresentation = canvasPresentation.text or {}
     local visual = overlay.VisualBounds
     if selected then
+        local presentation = textPresentation.selection or {}
+        local fill = presentation.fill
+        local border = presentation.border
         overlay:SetFrameLevel(SELECTED_CLICK_FRAME_LEVEL)
         if visual then
             visual:SetFrameLevel(SELECTED_VISUAL_FRAME_LEVEL)
-            if visual.Background then
-                visual.Background:SetColorTexture(0.98, 0.74, 0.18, 0.08)
+            if visual.Background and type(fill) == "table" then
+                visual.Background:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
             end
             SetFullBorderVisible(visual, true)
-            SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.98, 2)
+            if type(border) == "table" then
+                SetBorderStyle(visual, border[1], border[2], border[3], border[4], presentation.borderThickness)
+            end
             visual:Show()
         end
     else
@@ -773,15 +781,22 @@ StyleOverlay = function(overlay, selected, hovered)
             visual:SetFrameLevel(VISUAL_FRAME_LEVEL)
             if visual.Background then
                 if hovered then
-                    visual.Background:SetColorTexture(0.98, 0.74, 0.18, 0.02)
+                    local fill = (textPresentation.hover or {}).fill
+                    if type(fill) == "table" then
+                        visual.Background:SetColorTexture(fill[1], fill[2], fill[3], fill[4])
+                    end
                 else
                     visual.Background:SetColorTexture(0, 0, 0, 0)
                 end
             end
 
             if hovered then
+                local presentation = textPresentation.hover or {}
+                local border = presentation.border
                 SetFullBorderVisible(visual, true)
-                SetBorderStyle(visual, 1.00, 0.82, 0.24, 0.70, 1)
+                if type(border) == "table" then
+                    SetBorderStyle(visual, border[1], border[2], border[3], border[4], presentation.borderThickness)
+                end
                 visual:Show()
             else
                 SetFullBorderVisible(visual, false)

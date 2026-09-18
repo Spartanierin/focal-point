@@ -48,15 +48,15 @@ Skins.Builtin.default = Skins.Builtin.default or {
     visual = {
         -- Global semantic roles.
         BrandGold = { 0.910, 0.757, 0.400, 1.00 },
-        TextSecondary = { 0.68, 0.70, 0.75, 1.00 },
-        SurfaceExplorer = { 0.05, 0.055, 0.06, 0.92 },
+        TextSecondary = { 0.70, 0.68, 0.62, 1.00 },
+        SurfaceExplorer = { 0.045, 0.040, 0.035, 0.94 },
         DestructiveRed = { 0.48, 0.18, 0.18, 0.95 },
         -- Shared base primitives; controls may tune local state intensity.
         TextPrimary = { 0.949, 0.902, 0.788, 1.00 },
         TextDisabled = { 0.494, 0.459, 0.392, 1.00 },
-        SurfaceBase = { 0.06, 0.07, 0.09, 0.94 },
-        SurfaceInset = { 0.10, 0.11, 0.14, 0.96 },
-        BorderSoft = { 0.30, 0.33, 0.38, 0.56 },
+        SurfaceBase = { 0.055, 0.048, 0.042, 0.96 },
+        SurfaceInset = { 0.085, 0.075, 0.065, 0.98 },
+        BorderSoft = { 0.29, 0.25, 0.19, 0.62 },
     },
     fonts = {
         default = STANDARD_TEXT_FONT,
@@ -81,11 +81,11 @@ Skins.Builtin.default = Skins.Builtin.default or {
             b = 0.788,
         },
         help = {
-            hex = "B7AA8A",
-            wow = "|cffB7AA8A",
-            r = 0.718,
-            g = 0.667,
-            b = 0.541,
+            hex = "B8AD95",
+            wow = "|cffB8AD95",
+            r = 0.722,
+            g = 0.678,
+            b = 0.584,
         },
         highlight = {
             hex = "8FC7FF",
@@ -235,6 +235,16 @@ end
 function Skins.GetFormPalette(fallback)
     local skin = Skins.GetActiveSkin()
     return (skin and skin.formPalette) or fallback or {}
+end
+
+function Skins.GetCanvasInteractionPresentation(fallback)
+    local skin = Skins.GetActiveSkin()
+    local palette = skin and skin.formPalette or nil
+    local defaultPalette = Skins.Builtin.default and Skins.Builtin.default.formPalette or nil
+    return (palette and palette.CanvasInteraction)
+        or (defaultPalette and defaultPalette.CanvasInteraction)
+        or fallback
+        or {}
 end
 
 function Skins.GetTextColor(role, fallback)

@@ -73,11 +73,19 @@ local function EnsureMoveOverlay(frame)
     overlay:SetBackdropColor(0, 0, 0, 0)
     overlay:SetBackdropBorderColor(0, 0, 0, 0)
 
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local canvasPresentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or {}
+    local movePresentation = canvasPresentation.move or {}
+    local coordinatesPresentation = movePresentation.coordinates or {}
+    local placeholderPresentation = movePresentation.placeholder or {}
+
     local coords = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     coords:SetPoint("TOPLEFT", overlay, "TOPLEFT", 6, -6)
     coords:SetFont(STANDARD_TEXT_FONT, 14, "OUTLINE")
     coords:SetText("X: 0  Y: 0")
-    coords:SetTextColor(0.35, 1.00, 0.45, 0.95)
+    if type(coordinatesPresentation.text) == "table" then
+        coords:SetTextColor(coordinatesPresentation.text[1], coordinatesPresentation.text[2], coordinatesPresentation.text[3], coordinatesPresentation.text[4])
+    end
     coords:Hide()
     if coords.SetJustifyH then
         coords:SetJustifyH("LEFT")
@@ -88,19 +96,27 @@ local function EnsureMoveOverlay(frame)
     accent:SetPoint("TOPLEFT", overlay, "TOPLEFT", 1, -1)
     accent:SetPoint("TOPRIGHT", overlay, "TOPRIGHT", -1, -1)
     accent:SetHeight(2)
-    accent:SetColorTexture(0.78, 0.65, 0.24, 0.42)
+    if type(placeholderPresentation.accent) == "table" and type(placeholderPresentation.accent.enabled) == "table" then
+        local accentColor = placeholderPresentation.accent.enabled
+        accent:SetColorTexture(accentColor[1], accentColor[2], accentColor[3], accentColor[4])
+    end
     accent:Hide()
     overlay.Accent = accent
 
     local placeholderLabel = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     placeholderLabel:SetPoint("CENTER", overlay, "CENTER", 0, 0)
     placeholderLabel:SetFont(STANDARD_TEXT_FONT, 14, "")
-    placeholderLabel:SetTextColor(0.93, 0.94, 0.96, 0.96)
+    if type(placeholderPresentation.text) == "table" and type(placeholderPresentation.text.enabled) == "table" then
+        local textColor = placeholderPresentation.text.enabled
+        placeholderLabel:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4])
+    end
     if placeholderLabel.SetJustifyH then
         placeholderLabel:SetJustifyH("CENTER")
     end
     placeholderLabel:SetShadowOffset(1, -1)
-    placeholderLabel:SetShadowColor(0, 0, 0, 0.75)
+    if type(placeholderPresentation.shadow) == "table" then
+        placeholderLabel:SetShadowColor(placeholderPresentation.shadow[1], placeholderPresentation.shadow[2], placeholderPresentation.shadow[3], placeholderPresentation.shadow[4])
+    end
     placeholderLabel:Hide()
     overlay.PlaceholderLabel = placeholderLabel
 
@@ -164,6 +180,48 @@ local function IsEditorChromeActive()
     return FocalPoint.framesUnlocked == true
         and FocalPoint.IsEditorActive
         and FocalPoint:IsEditorActive()
+end
+
+local function GetCanvasSelectionPresentation(role)
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local presentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or nil
+    return presentation and presentation.selection and presentation.selection[role] or nil
+end
+
+local function GetCanvasMovePresentation()
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local presentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or nil
+    return presentation and presentation.move or {}
+end
+
+local function ApplyMoveOverlaySurfacePresentation(overlay, presentation)
+    if not (overlay and presentation) then
+        return
+    end
+
+    local fill = presentation.fill
+    local border = presentation.border
+    if type(fill) == "table" then
+        overlay:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
+    end
+    if type(border) == "table" then
+        overlay:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
+    end
+end
+
+local function ApplySelectionOverlayPresentation(overlay, presentation)
+    if not (overlay and presentation) then
+        return
+    end
+
+    local fill = presentation.fill
+    local border = presentation.border
+    if type(fill) == "table" then
+        overlay:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
+    end
+    if type(border) == "table" then
+        overlay:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
+    end
 end
 
 local IsEditorTextMode
@@ -241,12 +299,10 @@ local function UpdateSelectionOverlay(frame)
 
     if IsEditorTextMode() then
         if IsPrimaryEditorFrame(frame) then
-            overlay:SetBackdropColor(0, 0, 0, 0)
-            overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.42)
+            ApplySelectionOverlayPresentation(overlay, GetCanvasSelectionPresentation("unitPrimaryTextMode"))
             overlay:Show()
         elseif IsSecondaryEditorFrame(frame) then
-            overlay:SetBackdropColor(0, 0, 0, 0)
-            overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.20)
+            ApplySelectionOverlayPresentation(overlay, GetCanvasSelectionPresentation("unitSecondaryTextMode"))
             overlay:Show()
         else
             overlay:Hide()
@@ -258,12 +314,10 @@ local function UpdateSelectionOverlay(frame)
     overlay:SetFrameLevel(math.max(frame:GetFrameLevel() + 45, (frame.MoveOverlay and frame.MoveOverlay:GetFrameLevel() + 5) or (frame:GetFrameLevel() + 45)))
 
     if IsSelectedUnitRoot(frame) then
-        overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.14)
-        overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 1.00)
+        ApplySelectionOverlayPresentation(overlay, GetCanvasSelectionPresentation("unitPrimary"))
         overlay:Show()
     elseif IsSecondaryEditorFrame(frame) then
-        overlay:SetBackdropColor(0.98, 0.84, 0.24, 0.025)
-        overlay:SetBackdropBorderColor(0.98, 0.84, 0.24, 0.32)
+        ApplySelectionOverlayPresentation(overlay, GetCanvasSelectionPresentation("unitSecondary"))
         overlay:Show()
     else
         overlay:Hide()
@@ -293,6 +347,16 @@ local function UpdateMoveOverlayVisuals(frame)
     local placeholderName = preview and preview.name or (frame._fpUnit or "")
     local unitConfig = GetUnitConfig(frame._fpUnit)
     local isEnabled = type(unitConfig) ~= "table" or unitConfig.enabled ~= false
+    local movePresentation = GetCanvasMovePresentation()
+    local coordinatesPresentation = movePresentation.coordinates or {}
+    local placeholderPresentation = movePresentation.placeholder or {}
+
+    if coords and type(coordinatesPresentation.text) == "table" then
+        coords:SetTextColor(coordinatesPresentation.text[1], coordinatesPresentation.text[2], coordinatesPresentation.text[3], coordinatesPresentation.text[4])
+    end
+    if placeholderLabel and type(placeholderPresentation.shadow) == "table" then
+        placeholderLabel:SetShadowColor(placeholderPresentation.shadow[1], placeholderPresentation.shadow[2], placeholderPresentation.shadow[3], placeholderPresentation.shadow[4])
+    end
 
     if IsEditorTextMode() then
         overlay:SetBackdropColor(0, 0, 0, 0)
@@ -310,35 +374,20 @@ local function UpdateMoveOverlayVisuals(frame)
     end
 
     if isPlaceholder then
-        if isSecondary then
-            if isEnabled then
-                overlay:SetBackdropColor(0.18, 0.15, 0.08, 0.94)
-                overlay:SetBackdropBorderColor(0.54, 0.43, 0.17, 0.58)
-            else
-                overlay:SetBackdropColor(0.13, 0.10, 0.05, 0.88)
-                overlay:SetBackdropBorderColor(0.54, 0.43, 0.17, 0.34)
-            end
-        elseif isEnabled then
-            overlay:SetBackdropColor(0.11, 0.13, 0.16, 0.94)
-            overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.46)
-        else
-            overlay:SetBackdropColor(0.05, 0.06, 0.08, 0.88)
-            overlay:SetBackdropBorderColor(0.22, 0.25, 0.31, 0.24)
-        end
+        local statePresentation = isSecondary and placeholderPresentation.secondary or placeholderPresentation.unselected
+        ApplyMoveOverlaySurfacePresentation(overlay, statePresentation and statePresentation[isEnabled and "enabled" or "disabled"])
         if accent then
-            if isEnabled then
-                accent:SetColorTexture(0.78, 0.65, 0.24, 0.42)
-            else
-                accent:SetColorTexture(0.78, 0.65, 0.24, 0.10)
+            local accentColor = placeholderPresentation.accent and placeholderPresentation.accent[isEnabled and "enabled" or "disabled"]
+            if type(accentColor) == "table" then
+                accent:SetColorTexture(accentColor[1], accentColor[2], accentColor[3], accentColor[4])
             end
             accent:Show()
         end
         if placeholderLabel then
             placeholderLabel:SetText(placeholderName)
-            if isEnabled then
-                placeholderLabel:SetTextColor(0.93, 0.94, 0.96, 0.96)
-            else
-                placeholderLabel:SetTextColor(0.82, 0.84, 0.88, 0.38)
+            local textColor = placeholderPresentation.text and placeholderPresentation.text[isEnabled and "enabled" or "disabled"]
+            if type(textColor) == "table" then
+                placeholderLabel:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4])
             end
             placeholderLabel:Show()
         end

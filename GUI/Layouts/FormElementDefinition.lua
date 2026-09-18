@@ -29,43 +29,6 @@ Form baseline rules:
 8. Sections can explicitly declare whether they belong to a widget group's header, body, or footer.
 ]]
 ns.GUI.Layouts.FormElements = {
-    Palette = {
-        Chrome = {
-            panelBackground = { 0.06, 0.07, 0.09, 0.94 },
-            panelBorder = { 0.42, 0.38, 0.26, 0.92 },
-            panelInnerBorder = { 0.18, 0.20, 0.24, 0.92 },
-            panelHeader = { 0.11, 0.12, 0.15, 0.82 },
-            panelTopShade = { 1.00, 1.00, 1.00, 0.05 },
-            panelBottomShade = { 0.00, 0.00, 0.00, 0.42 },
-            fieldBackground = { 0.10, 0.11, 0.14, 0.96 },
-            fieldBorder = { 0.31, 0.34, 0.39, 0.95 },
-            fieldBorderFocus = { 0.74, 0.61, 0.26, 0.95 },
-            fieldInsetTop = { 1.00, 1.00, 1.00, 0.04 },
-            fieldInsetBottom = { 0.00, 0.00, 0.00, 0.28 },
-            accent = { 0.83, 0.70, 0.30, 0.22 },
-            sectionBorder = { 0.30, 0.33, 0.38, 0.56 },
-            sectionFill = { 0.09, 0.10, 0.12, 0.52 },
-            sectionFillStrong = { 0.11, 0.12, 0.15, 0.66 },
-            sectionInsetTop = { 1.00, 1.00, 1.00, 0.035 },
-            sectionInsetBottom = { 0.00, 0.00, 0.00, 0.26 },
-            sectionAccent = { 0.83, 0.70, 0.30, 0.26 },
-            headerAccent = { 0.90, 0.78, 0.34, 0.42 },
-            workspaceDivider = { 0.34, 0.37, 0.42, 0.24 },
-        },
-        ItemColors = {
-            pageIntro = { 0.78, 0.75, 0.69, 1.00 },
-            description = { 0.68, 0.70, 0.75 },
-            sectionDescription = { 0.65, 0.67, 0.72, 1.00 },
-            hint = { 0.70, 0.73, 0.78 },
-            statusMuted = { 0.58, 0.61, 0.66, 1.00 },
-            footerHint = { 0.62, 0.65, 0.70 },
-            footerMuted = { 0.52, 0.55, 0.60, 1.00 },
-            value = { 0.93, 0.90, 0.80 },
-            valueEmphasis = { 0.97, 0.95, 0.91, 1.00 },
-            checkbox = { 0.94, 0.90, 0.82, 1.00 },
-            checkboxDisabled = { 0.50, 0.50, 0.50, 1.00 },
-        },
-    },
     SectionStyles = {
         page_header = {
             border = {
@@ -94,6 +57,9 @@ ns.GUI.Layouts.FormElements = {
             },
             surface = {
                 fill = { 0.10, 0.11, 0.13, 0.58 },
+                material = "texture",
+                texture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                tint = { 0.22, 0.17, 0.10, 0.42 },
                 topShade = { 1.00, 1.00, 1.00, 0.03 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.24 },
                 accent = {
@@ -113,6 +79,9 @@ ns.GUI.Layouts.FormElements = {
             },
             surface = {
                 fill = { 0.09, 0.10, 0.12, 0.48 },
+                material = "texture",
+                texture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                tint = { 0.18, 0.14, 0.09, 0.18 },
                 topShade = { 1.00, 1.00, 1.00, 0.03 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.24 },
             },
@@ -125,6 +94,9 @@ ns.GUI.Layouts.FormElements = {
             },
             surface = {
                 fill = { 0.11, 0.12, 0.15, 0.62 },
+                material = "texture",
+                texture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp",
+                tint = { 0.20, 0.15, 0.10, 0.22 },
                 topShade = { 1.00, 1.00, 1.00, 0.04 },
                 bottomShade = { 0.00, 0.00, 0.00, 0.28 },
                 accent = {

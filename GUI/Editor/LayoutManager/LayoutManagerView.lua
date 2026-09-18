@@ -28,17 +28,13 @@ local copyDialog
 local deleteDialog
 local transferDialog
 
+local function GetListSelectionRowColors()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    local palette = skins and skins.GetFormPalette and skins.GetFormPalette() or {}
+    return palette.ListSelectionRow or {}
+end
+
 local ROW_COLORS = {
-    fill = { 0.075, 0.085, 0.105, 0.78 },
-    fillHover = { 0.105, 0.118, 0.142, 0.92 },
-    fillSelected = { 0.210, 0.170, 0.082, 0.98 },
-    border = { 0.22, 0.24, 0.28, 0.46 },
-    borderHover = { 0.36, 0.39, 0.44, 0.72 },
-    borderSelected = { 0.95, 0.76, 0.28, 0.98 },
-    marker = { 1.00, 0.80, 0.24, 1.00 },
-    markerMuted = { 0.58, 0.62, 0.68, 0.34 },
-    name = { 0.93, 0.91, 0.84, 1.00 },
-    nameSelected = { 1.00, 0.98, 0.88, 1.00 },
     status = { 0.72, 0.74, 0.78, 0.96 },
     active = { 0.96, 0.82, 0.38, 1.00 },
 }
@@ -135,8 +131,9 @@ local function ApplyRowBackdrop(frame, selected, hovered)
     if not (frame and frame.SetBackdropColor and frame.SetBackdropBorderColor) then
         return
     end
-    local fill = selected and ROW_COLORS.fillSelected or (hovered and ROW_COLORS.fillHover or ROW_COLORS.fill)
-    local border = selected and ROW_COLORS.borderSelected or (hovered and ROW_COLORS.borderHover or ROW_COLORS.border)
+    local colors = GetListSelectionRowColors()
+    local fill = selected and colors.fillSelected or (hovered and colors.fillHover or colors.fill)
+    local border = selected and colors.borderSelected or (hovered and colors.borderHover or colors.border)
     frame:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
     frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
 end
@@ -146,6 +143,7 @@ local function UpdateRowVisual(widget)
     local selected = widget and widget.selected == true
     local hovered = widget and widget.hovered == true
     local active = item and item.active == true
+    local colors = GetListSelectionRowColors()
 
     ApplyRowBackdrop(widget.frame, selected, hovered)
 
@@ -159,10 +157,10 @@ local function UpdateRowVisual(widget)
     widget.nameText:SetText(Shorten(item and item.name or "", 48))
     widget.statusText:SetText(status)
 
-    SetTextureColor(widget.marker, (selected or active) and ROW_COLORS.marker or ROW_COLORS.markerMuted)
+    SetTextureColor(widget.marker, (selected or active) and colors.marker or colors.markerMuted)
     widget.marker:SetWidth(selected and 6 or (active and 4 or 2))
     widget.marker:SetAlpha((selected or active or hovered) and 1 or 0.55)
-    SetFontColor(widget.nameText, selected and ROW_COLORS.nameSelected or ROW_COLORS.name)
+    SetFontColor(widget.nameText, selected and colors.nameSelected or colors.name)
     SetFontColor(widget.statusText, active and ROW_COLORS.active or ROW_COLORS.status)
 end
 
@@ -213,14 +211,15 @@ local function RegisterLayoutRowWidget()
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
         })
-        frame:SetBackdropColor(ROW_COLORS.fill[1], ROW_COLORS.fill[2], ROW_COLORS.fill[3], ROW_COLORS.fill[4])
-        frame:SetBackdropBorderColor(ROW_COLORS.border[1], ROW_COLORS.border[2], ROW_COLORS.border[3], ROW_COLORS.border[4])
+        local colors = GetListSelectionRowColors()
+        frame:SetBackdropColor(colors.fill[1], colors.fill[2], colors.fill[3], colors.fill[4])
+        frame:SetBackdropBorderColor(colors.border[1], colors.border[2], colors.border[3], colors.border[4])
 
         local marker = frame:CreateTexture(nil, "ARTWORK")
         marker:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
         marker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 1, 1)
         marker:SetWidth(2)
-        marker:SetColorTexture(ROW_COLORS.markerMuted[1], ROW_COLORS.markerMuted[2], ROW_COLORS.markerMuted[3], ROW_COLORS.markerMuted[4])
+        marker:SetColorTexture(colors.markerMuted[1], colors.markerMuted[2], colors.markerMuted[3], colors.markerMuted[4])
 
         local statusText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         statusText:SetPoint("RIGHT", frame, "RIGHT", -12, 0)
@@ -240,7 +239,7 @@ local function RegisterLayoutRowWidget()
         if nameText.SetMaxLines then
             nameText:SetMaxLines(1)
         end
-        ApplyFontStringStyle(nameText, "label", 11, ROW_COLORS.name)
+        ApplyFontStringStyle(nameText, "label", 11, colors.name)
 
         local widget = {
             frame = frame,
@@ -398,12 +397,17 @@ local function AddGroupHeader(parent, text)
         if not line then
             line = divider.frame:CreateTexture(nil, "ARTWORK")
             divider._fpDivider = line
+            divider.frame:HookScript("OnHide", function()
+                line:Hide()
+            end)
         end
         line:ClearAllPoints()
         line:SetPoint("LEFT", divider.frame, "LEFT", 0, 0)
         line:SetPoint("RIGHT", divider.frame, "RIGHT", 0, 0)
         line:SetHeight(1)
-        line:SetColorTexture(0.32, 0.34, 0.38, 0.52)
+        local skins = ns.GUI and ns.GUI.Skins or nil
+        local palette = skins and skins.GetFormPalette and skins.GetFormPalette() or {}
+        SetTextureColor(line, (palette.Chrome or {}).sectionBorder)
         line:Show()
     end
 end
@@ -1077,6 +1081,7 @@ local function CreateWindow()
         width = WINDOW_WIDTH,
         height = WINDOW_HEIGHT,
         bodyLayout = "List",
+        contentSurface = "parchment",
         addBodySpacer = false,
         showStatus = true,
         footerHeight = WINDOW_FOOTER_HEIGHT,

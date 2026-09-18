@@ -6,17 +6,12 @@ ns.GUI.Helpers = ns.GUI.Helpers or {}
 local FormSectionSurfaceRenderer = {}
 ns.GUI.Helpers.FormSectionSurfaceRenderer = FormSectionSurfaceRenderer
 
-local function GetLayoutFormPalette()
-    return (ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {}
-end
-
 local function GetFormPalette()
-    local fallback = GetLayoutFormPalette()
     local skins = ns.GUI and ns.GUI.Skins or nil
     if skins and skins.GetFormPalette then
-        return skins.GetFormPalette(fallback) or fallback
+        return skins.GetFormPalette() or {}
     end
-    return fallback
+    return {}
 end
 
 local function GetChromeColors()
@@ -130,9 +125,20 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
         return frame[name]
     end
 
-    if surface.fill then
+    local surfaceMaterial = surface.material or "color"
+    if surfaceMaterial == "texture" and type(surface.texture) == "string" then
         local fill = EnsureTexture("_fpSectionFill", "BACKGROUND")
         fill:SetAllPoints(frame)
+        fill:SetTexture(surface.texture)
+        fill:SetTexCoord(0, 1, 0, 1)
+        fill:SetBlendMode("BLEND")
+        fill:SetVertexColor(unpack(surface.tint or { 1, 1, 1, 1 }))
+    elseif surface.fill then
+        local fill = EnsureTexture("_fpSectionFill", "BACKGROUND")
+        fill:SetAllPoints(frame)
+        fill:SetTexCoord(0, 1, 0, 1)
+        fill:SetBlendMode("BLEND")
+        fill:SetVertexColor(1, 1, 1, 1)
         fill:SetColorTexture(unpack(surface.fill))
     else
         HideTexture("_fpSectionFill")
@@ -183,11 +189,25 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
         local thickness = surface.divider.thickness or 1
         local insetTop = surface.divider.insetTop or 0
         local insetBottom = surface.divider.insetBottom or 0
+        local material = surface.divider.material or "color"
         divider:ClearAllPoints()
         divider:SetPoint("TOP", frame, "TOP", 0, -insetTop)
         divider:SetPoint("BOTTOM", frame, "BOTTOM", 0, insetBottom)
         divider:SetWidth(thickness)
-        divider:SetColorTexture(unpack(surface.divider.color or {}))
+
+        -- The section owns divider geometry; the style chooses only its material.
+        divider:SetBlendMode("BLEND")
+        if material == "texture" and type(surface.divider.texture) == "string" then
+            divider:SetTexture(surface.divider.texture)
+            divider:SetTexCoord(0, 1, 0, 1)
+            divider:SetVertexColor(unpack(surface.divider.color or { 1, 1, 1, 1 }))
+        elseif material == "atlas" and type(surface.divider.atlas) == "string" then
+            divider:SetAtlas(surface.divider.atlas, false)
+            divider:SetVertexColor(unpack(surface.divider.color or { 1, 1, 1, 1 }))
+        else
+            -- Legacy definitions remain color dividers without a migration.
+            divider:SetColorTexture(unpack(surface.divider.color or {}))
+        end
     else
         HideTexture("_fpSectionDivider")
     end

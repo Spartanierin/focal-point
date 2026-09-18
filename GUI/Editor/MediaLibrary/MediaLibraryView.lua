@@ -6,8 +6,13 @@ ns.GUI.Editor.MediaLibrary = ns.GUI.Editor.MediaLibrary or {}
 
 local AceGUI = LibStub("AceGUI-3.0")
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
+local FormSectionSurfaceRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormSectionSurfaceRenderer or {}
 local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or {}
 local L = ns.L or {}
+
+local ApplySectionBorder = FormSectionSurfaceRenderer.ApplySectionBorder
+local ApplySectionSurface = FormSectionSurfaceRenderer.ApplySectionSurface
+local ResolveSectionStyle = FormWidgets.ResolveSectionStyle
 
 local MediaLibraryView = {}
 ns.GUI.Editor.MediaLibrary.MediaLibraryView = MediaLibraryView
@@ -211,18 +216,14 @@ local function GetItemRowHeight(item)
     return BuildItemBadges(item) ~= "" and ROW_HEIGHT_BADGED or ROW_HEIGHT_COMPACT
 end
 
+local function GetListSelectionRowColors()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    local palette = skins and skins.GetFormPalette and skins.GetFormPalette() or {}
+    return palette.ListSelectionRow or {}
+end
+
 local ROW_COLORS = {
-    fill = { 0.075, 0.085, 0.105, 0.78 },
-    fillHover = { 0.105, 0.118, 0.142, 0.92 },
-    fillSelected = { 0.210, 0.170, 0.082, 0.98 },
     fillMissing = { 0.105, 0.074, 0.070, 0.84 },
-    border = { 0.22, 0.24, 0.28, 0.46 },
-    borderHover = { 0.36, 0.39, 0.44, 0.72 },
-    borderSelected = { 0.95, 0.76, 0.28, 0.98 },
-    marker = { 1.00, 0.80, 0.24, 1.00 },
-    markerMuted = { 0.58, 0.62, 0.68, 0.34 },
-    name = { 0.93, 0.91, 0.84, 1.00 },
-    nameSelected = { 1.00, 0.98, 0.88, 1.00 },
     nameDisabled = { 0.54, 0.57, 0.61, 0.95 },
     source = { 0.64, 0.67, 0.72, 1.00 },
     sourceSelected = { 0.82, 0.78, 0.64, 1.00 },
@@ -236,8 +237,9 @@ local function ApplyRowBackdrop(frame, selected, hovered, missing)
         return
     end
 
-    local fill = selected and ROW_COLORS.fillSelected or (hovered and ROW_COLORS.fillHover or (missing and ROW_COLORS.fillMissing or ROW_COLORS.fill))
-    local border = selected and ROW_COLORS.borderSelected or (hovered and ROW_COLORS.borderHover or ROW_COLORS.border)
+    local colors = GetListSelectionRowColors()
+    local fill = selected and colors.fillSelected or (hovered and colors.fillHover or (missing and ROW_COLORS.fillMissing or colors.fill))
+    local border = selected and colors.borderSelected or (hovered and colors.borderHover or colors.border)
     frame:SetBackdropColor(unpack(fill))
     frame:SetBackdropBorderColor(unpack(border))
 end
@@ -248,6 +250,7 @@ local function UpdateRowVisual(widget)
     local hovered = widget and widget.hovered == true
     local disabled = widget and widget.disabled == true
     local missing = item and item.missing == true
+    local colors = GetListSelectionRowColors()
     local badges = BuildItemBadges(item)
     local hasBadges = badges ~= ""
     local height = GetItemRowHeight(item)
@@ -259,11 +262,11 @@ local function UpdateRowVisual(widget)
     widget.sourceText:SetText(item and GetSourceLabel(item.source) or "")
     widget.badgeText:SetText(badges)
 
-    SetTextureColor(widget.marker, selected and ROW_COLORS.marker or ROW_COLORS.markerMuted)
+    SetTextureColor(widget.marker, selected and colors.marker or colors.markerMuted)
     widget.marker:SetWidth(selected and 6 or (item and item.current == true and 4 or 2))
     widget.marker:SetAlpha((selected or item and item.current == true or hovered) and 1 or 0.55)
 
-    SetFontColor(widget.nameText, disabled and ROW_COLORS.nameDisabled or (selected and ROW_COLORS.nameSelected or ROW_COLORS.name))
+    SetFontColor(widget.nameText, disabled and ROW_COLORS.nameDisabled or (selected and colors.nameSelected or colors.name))
     SetFontColor(widget.sourceText, item and item.current == true and ROW_COLORS.current or (selected and ROW_COLORS.sourceSelected or ROW_COLORS.source))
     SetFontColor(widget.badgeText, item and item.current == true and ROW_COLORS.current or (missing and ROW_COLORS.warning or ROW_COLORS.badge))
 
@@ -338,14 +341,15 @@ local function RegisterMediaLibraryRowWidget()
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
         })
-        frame:SetBackdropColor(unpack(ROW_COLORS.fill))
-        frame:SetBackdropBorderColor(unpack(ROW_COLORS.border))
+        local colors = GetListSelectionRowColors()
+        frame:SetBackdropColor(unpack(colors.fill))
+        frame:SetBackdropBorderColor(unpack(colors.border))
 
         local marker = frame:CreateTexture(nil, "ARTWORK")
         marker:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
         marker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 1, 1)
         marker:SetWidth(2)
-        marker:SetColorTexture(unpack(ROW_COLORS.markerMuted))
+        marker:SetColorTexture(unpack(colors.markerMuted))
 
         local sourceText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         sourceText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -6)
@@ -365,7 +369,7 @@ local function RegisterMediaLibraryRowWidget()
         if nameText.SetMaxLines then
             nameText:SetMaxLines(1)
         end
-        ApplyFontStringStyle(nameText, "label", 11, ROW_COLORS.name)
+        ApplyFontStringStyle(nameText, "label", 11, colors.name)
 
         local badgeText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         badgeText:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -20)
@@ -420,156 +424,14 @@ end
 
 RegisterMediaLibraryRowWidget()
 
-local FRAME_CHROME = {
-    fill = { 0.052, 0.060, 0.076, 0.965 },
-    header = { 0.095, 0.105, 0.130, 0.90 },
-    border = { 0.48, 0.42, 0.28, 0.94 },
-    innerBorder = { 0.18, 0.20, 0.25, 0.96 },
-    topShade = { 1.00, 1.00, 1.00, 0.05 },
-    bottomShade = { 0.00, 0.00, 0.00, 0.38 },
-}
-
-local SECTION_CHROME = {
-    fill = { 0.060, 0.068, 0.084, 0.56 },
-    border = { 0.25, 0.28, 0.33, 0.54 },
-    topShade = { 1.00, 1.00, 1.00, 0.030 },
-    bottomShade = { 0.00, 0.00, 0.00, 0.240 },
-    footerFill = { 0.065, 0.072, 0.088, 0.66 },
-    footerBorder = { 0.30, 0.32, 0.36, 0.44 },
-}
-
-local function EnsureColorTexture(frame, key, layer)
-    if not frame then
-        return nil
+local function ApplyCentralSectionChrome(widget)
+    local sectionStyle = ResolveSectionStyle and ResolveSectionStyle("section_panel") or nil
+    if ApplySectionSurface then
+        ApplySectionSurface(widget, sectionStyle)
     end
-
-    if not frame[key] then
-        frame[key] = frame:CreateTexture(nil, layer or "BACKGROUND")
+    if ApplySectionBorder then
+        ApplySectionBorder(widget, sectionStyle and sectionStyle.border or nil)
     end
-    frame[key]:Show()
-    return frame[key]
-end
-
-local function SetPointPair(texture, startPoint, startRelative, startX, startY, endPoint, endRelative, endX, endY)
-    if not texture then
-        return
-    end
-
-    texture:ClearAllPoints()
-    texture:SetPoint(startPoint, startRelative, startPoint, startX or 0, startY or 0)
-    texture:SetPoint(endPoint, endRelative, endPoint, endX or 0, endY or 0)
-end
-
-local function ApplyMediaBrowserWindowChrome(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    local fill = EnsureColorTexture(frame, CHROME_PREFIX .. "OuterFill", "BACKGROUND")
-    SetPointPair(fill, "TOPLEFT", frame, 7, -7, "BOTTOMRIGHT", frame, -7, 7)
-    SetTextureColor(fill, FRAME_CHROME.fill)
-
-    local header = EnsureColorTexture(frame, CHROME_PREFIX .. "HeaderFill", "BACKGROUND")
-    SetPointPair(header, "TOPLEFT", frame, 8, -8, "TOPRIGHT", frame, -8, -8)
-    header:SetHeight(24)
-    SetTextureColor(header, FRAME_CHROME.header)
-
-    local topShade = EnsureColorTexture(frame, CHROME_PREFIX .. "TopShade", "ARTWORK")
-    SetPointPair(topShade, "TOPLEFT", frame, 8, -32, "TOPRIGHT", frame, -8, -32)
-    topShade:SetHeight(1)
-    SetTextureColor(topShade, FRAME_CHROME.topShade)
-
-    local bottomShade = EnsureColorTexture(frame, CHROME_PREFIX .. "BottomShade", "ARTWORK")
-    SetPointPair(bottomShade, "BOTTOMLEFT", frame, 8, 8, "BOTTOMRIGHT", frame, -8, 8)
-    bottomShade:SetHeight(1)
-    SetTextureColor(bottomShade, FRAME_CHROME.bottomShade)
-
-    local borderTop = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderTop", "OVERLAY")
-    SetPointPair(borderTop, "TOPLEFT", frame, 7, -7, "TOPRIGHT", frame, -7, -7)
-    borderTop:SetHeight(1)
-    SetTextureColor(borderTop, FRAME_CHROME.border)
-
-    local borderBottom = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderBottom", "OVERLAY")
-    SetPointPair(borderBottom, "BOTTOMLEFT", frame, 7, 7, "BOTTOMRIGHT", frame, -7, 7)
-    borderBottom:SetHeight(1)
-    SetTextureColor(borderBottom, FRAME_CHROME.border)
-
-    local borderLeft = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderLeft", "OVERLAY")
-    SetPointPair(borderLeft, "TOPLEFT", frame, 7, -7, "BOTTOMLEFT", frame, 7, 7)
-    borderLeft:SetWidth(1)
-    SetTextureColor(borderLeft, FRAME_CHROME.border)
-
-    local borderRight = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderRight", "OVERLAY")
-    SetPointPair(borderRight, "TOPRIGHT", frame, -7, -7, "BOTTOMRIGHT", frame, -7, 7)
-    borderRight:SetWidth(1)
-    SetTextureColor(borderRight, FRAME_CHROME.border)
-
-    local innerTop = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerTop", "BORDER")
-    SetPointPair(innerTop, "TOPLEFT", frame, 8, -8, "TOPRIGHT", frame, -8, -8)
-    innerTop:SetHeight(1)
-    SetTextureColor(innerTop, FRAME_CHROME.innerBorder)
-
-    local innerBottom = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerBottom", "BORDER")
-    SetPointPair(innerBottom, "BOTTOMLEFT", frame, 8, 8, "BOTTOMRIGHT", frame, -8, 8)
-    innerBottom:SetHeight(1)
-    SetTextureColor(innerBottom, FRAME_CHROME.innerBorder)
-
-    local innerLeft = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerLeft", "BORDER")
-    SetPointPair(innerLeft, "TOPLEFT", frame, 8, -8, "BOTTOMLEFT", frame, 8, 8)
-    innerLeft:SetWidth(1)
-    SetTextureColor(innerLeft, FRAME_CHROME.innerBorder)
-
-    local innerRight = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerRight", "BORDER")
-    SetPointPair(innerRight, "TOPRIGHT", frame, -8, -8, "BOTTOMRIGHT", frame, -8, 8)
-    innerRight:SetWidth(1)
-    SetTextureColor(innerRight, FRAME_CHROME.innerBorder)
-end
-
-local function ApplySectionChrome(widget, key, options)
-    local frame = widget and widget.frame
-    if not frame then
-        return
-    end
-
-    options = options or {}
-    local prefix = CHROME_PREFIX .. key
-    local fillColor = options.fill or SECTION_CHROME.fill
-    local borderColor = options.border or SECTION_CHROME.border
-
-    local fill = EnsureColorTexture(frame, prefix .. "Fill", "BACKGROUND")
-    SetPointPair(fill, "TOPLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    SetTextureColor(fill, fillColor)
-
-    local topShade = EnsureColorTexture(frame, prefix .. "TopShade", "BORDER")
-    SetPointPair(topShade, "TOPLEFT", frame, 1, -1, "TOPRIGHT", frame, -1, -1)
-    topShade:SetHeight(1)
-    SetTextureColor(topShade, options.topShade or SECTION_CHROME.topShade)
-
-    local bottomShade = EnsureColorTexture(frame, prefix .. "BottomShade", "BORDER")
-    SetPointPair(bottomShade, "BOTTOMLEFT", frame, 1, 1, "BOTTOMRIGHT", frame, -1, 1)
-    bottomShade:SetHeight(1)
-    SetTextureColor(bottomShade, options.bottomShade or SECTION_CHROME.bottomShade)
-
-    local borderTop = EnsureColorTexture(frame, prefix .. "BorderTop", "BORDER")
-    SetPointPair(borderTop, "TOPLEFT", frame, 0, 0, "TOPRIGHT", frame, 0, 0)
-    borderTop:SetHeight(1)
-    SetTextureColor(borderTop, borderColor)
-
-    local borderBottom = EnsureColorTexture(frame, prefix .. "BorderBottom", "BORDER")
-    SetPointPair(borderBottom, "BOTTOMLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    borderBottom:SetHeight(1)
-    SetTextureColor(borderBottom, borderColor)
-
-    local borderLeft = EnsureColorTexture(frame, prefix .. "BorderLeft", "BORDER")
-    SetPointPair(borderLeft, "TOPLEFT", frame, 0, 0, "BOTTOMLEFT", frame, 0, 0)
-    borderLeft:SetWidth(1)
-    SetTextureColor(borderLeft, borderColor)
-
-    local borderRight = EnsureColorTexture(frame, prefix .. "BorderRight", "BORDER")
-    SetPointPair(borderRight, "TOPRIGHT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    borderRight:SetWidth(1)
-    SetTextureColor(borderRight, borderColor)
 end
 
 local function FindCurrentRowIndex(rows)
@@ -830,7 +692,6 @@ function MediaLibraryView.Create(context)
     if FormWidgets.ApplyWindowChrome then
         FormWidgets.ApplyWindowChrome(window)
     end
-    ApplyMediaBrowserWindowChrome(window)
     if FormWidgets.EnsureStandardWindowCloseButton then
         FormWidgets.EnsureStandardWindowCloseButton(window)
     end
@@ -887,30 +748,21 @@ function MediaLibraryView.Create(context)
     itemScroll:SetFullWidth(true)
     itemScroll:SetHeight(270)
     root:AddChild(itemScroll)
-    ApplySectionChrome(itemScroll, "List", {
-        fill = { 0.044, 0.050, 0.064, 0.58 },
-        border = { 0.27, 0.30, 0.36, 0.62 },
-    })
+    ApplyCentralSectionChrome(itemScroll)
 
     local Preview = ns.GUI
         and ns.GUI.Editor
         and ns.GUI.Editor.MediaLibrary
         and ns.GUI.Editor.MediaLibrary.MediaLibraryPreview
     local preview = Preview and Preview.Create and Preview.Create(root) or nil
-    ApplySectionChrome(preview, "Preview", {
-        fill = { 0.052, 0.058, 0.072, 0.48 },
-        border = { 0.24, 0.27, 0.32, 0.46 },
-    })
+    ApplyCentralSectionChrome(preview)
 
     local metadata = AceGUI:Create("SimpleGroup")
     metadata:SetLayout("Flow")
     metadata:SetFullWidth(true)
     LockContainerHeight(metadata, 104)
     root:AddChild(metadata)
-    ApplySectionChrome(metadata, "Metadata", {
-        fill = { 0.054, 0.061, 0.076, 0.50 },
-        border = { 0.23, 0.26, 0.31, 0.44 },
-    })
+    ApplyCentralSectionChrome(metadata)
 
     metadata:AddChild(CreateSpacer(nil, 6))
     metadata:AddChild(CreateSpacer(12, 1))
@@ -954,11 +806,9 @@ function MediaLibraryView.Create(context)
     actions:SetFullWidth(true)
     LockContainerHeight(actions, 38)
     root:AddChild(actions)
-    ApplySectionChrome(actions, "Footer", {
-        fill = SECTION_CHROME.footerFill,
-        border = SECTION_CHROME.footerBorder,
-        topShade = { 0.78, 0.78, 0.74, 0.050 },
-        bottomShade = { 0.00, 0.00, 0.00, 0.280 },
+    FormWidgets.ApplySurfacePresentation(actions, "Footer", {
+        prefix = CHROME_PREFIX,
+        actionBar = true,
     })
 
     actions:AddChild(CreateSpacer(nil, 5))

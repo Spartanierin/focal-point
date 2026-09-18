@@ -9,21 +9,21 @@ local CreateFrame = CreateFrame
 local FormWidgets = {}
 ns.GUI.Helpers.FormWidgets = FormWidgets
 
-local function GetLayoutFormPalette()
-    return (ns.GUI.Layouts and ns.GUI.Layouts.FormElements and ns.GUI.Layouts.FormElements.Palette) or {}
-end
-
 local function GetFormPalette()
-    local fallback = GetLayoutFormPalette()
     local skins = ns.GUI and ns.GUI.Skins or nil
     if skins and skins.GetFormPalette then
-        return skins.GetFormPalette(fallback) or fallback
+        return skins.GetFormPalette() or {}
     end
-    return fallback
+    return {}
 end
 
 local function GetChromeColors()
     return GetFormPalette().Chrome or {}
+end
+
+local function GetCompactDialogContentSurface(name)
+    local surfaces = GetFormPalette().CompactDialogContent or {}
+    return type(name) == "string" and surfaces[name] or nil
 end
 
 local function GetSectionStyles()
@@ -66,6 +66,14 @@ FormWidgets.GetComponentStyle = GetComponentStyle
 
 local function GetItemColors()
     return GetFormPalette().ItemColors or {}
+end
+
+local function GetCheckboxPresentation()
+    return GetFormPalette().Checkbox or {}
+end
+
+local function GetStandardSliderPresentation()
+    return GetFormPalette().StandardSlider or {}
 end
 
 local function GetTextStyles()

@@ -31,6 +31,12 @@ local newLayoutDialog
 local addObjectPickerDialog
 local indicatorPickerDialog
 
+local function GetChromeColors()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    local palette = skins and skins.GetFormPalette and skins.GetFormPalette() or {}
+    return palette.Chrome or {}
+end
+
 local function T(key, fallback)
     local L = ns.L or {}
     local value = L[key]
@@ -630,6 +636,7 @@ local function OpenAddObjectPicker()
         description = T("ADD_OBJECT_DESCRIPTION", "Choose what to add to the selected unit frame."),
         width = 420,
         mode = "picker",
+        contentSurface = "parchment",
         pickerContentHeight = CalculatePickerContentHeight(pickerRows, 68, 252),
     }) or nil
     if not dialog then
@@ -964,23 +971,24 @@ local function EnsureHost()
     host:SetFrameLevel(140)
     host:EnableMouse(true)
     host:Hide()
+    local chromeColors = GetChromeColors()
 
     local bg = host:CreateTexture(nil, "BACKGROUND")
     bg:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
     bg:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
-    bg:SetColorTexture(0.035, 0.04, 0.045, 0.88)
+    bg:SetColorTexture(unpack(chromeColors.canvasToolbarBackground or {}))
     host.bg = bg
 
     local border = host:CreateTexture(nil, "BORDER")
     border:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
     border:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
-    border:SetColorTexture(0.92, 0.46, 0, 0.34)
+    border:SetColorTexture(unpack(chromeColors.canvasToolbarBorder or {}))
     host.border = border
 
     local inset = host:CreateTexture(nil, "ARTWORK")
     inset:SetPoint("TOPLEFT", host, "TOPLEFT", 1, -1)
     inset:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -1, 1)
-    inset:SetColorTexture(0.05, 0.055, 0.06, 0.92)
+    inset:SetColorTexture(unpack(chromeColors.canvasToolbarInset or {}))
     host.inset = inset
 
     local widgets = {
@@ -989,6 +997,10 @@ local function EnsureHost()
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutManageButton = CreateButton("Manage Layouts", LAYOUT_MANAGE_WIDTH),
     }
+
+    if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(widgets.addObjectButton, "secondary")
+    end
 
     AnchorButton(widgets.addObjectButton, host, {
         x = INSERT_ADD_OBJECT_X,

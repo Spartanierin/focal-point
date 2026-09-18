@@ -13,22 +13,11 @@ ns.GUI.Pages.TagLibraryView = TagLibraryView
 
 local CHROME_PREFIX = "__fpTagLibrary"
 
-local FRAME_CHROME = {
-    fill = { 0.028, 0.033, 0.044, 0.94 },
-    header = { 0.070, 0.076, 0.094, 0.86 },
-    border = { 0.36, 0.38, 0.43, 0.66 },
-    innerBorder = { 0.76, 0.70, 0.54, 0.10 },
-    topShade = { 1.00, 0.94, 0.70, 0.06 },
-    bottomShade = { 0.00, 0.00, 0.00, 0.36 },
-}
-
 local SECTION_CHROME = {
     fill = { 0.050, 0.057, 0.072, 0.70 },
     border = { 0.28, 0.31, 0.37, 0.62 },
     topShade = { 1.00, 1.00, 1.00, 0.04 },
     bottomShade = { 0.00, 0.00, 0.00, 0.28 },
-    footerFill = { 0.058, 0.064, 0.080, 0.76 },
-    footerBorder = { 0.32, 0.35, 0.40, 0.50 },
 }
 
 local function SetTextureColor(texture, color)
@@ -138,72 +127,6 @@ local function LockHeight(widget, height)
     if widget and widget.frame and widget.frame.SetHeight then
         widget.frame:SetHeight(height)
     end
-end
-
-local function ApplyPickerWindowChrome(window)
-    local frame = window and window.frame
-    if not frame then
-        return
-    end
-
-    local fill = EnsureColorTexture(frame, CHROME_PREFIX .. "OuterFill", "BACKGROUND")
-    SetPointPair(fill, "TOPLEFT", frame, 7, -7, "BOTTOMRIGHT", frame, -7, 7)
-    SetTextureColor(fill, FRAME_CHROME.fill)
-
-    local header = EnsureColorTexture(frame, CHROME_PREFIX .. "HeaderFill", "BACKGROUND")
-    SetPointPair(header, "TOPLEFT", frame, 8, -8, "TOPRIGHT", frame, -8, -8)
-    header:SetHeight(24)
-    SetTextureColor(header, FRAME_CHROME.header)
-
-    local topShade = EnsureColorTexture(frame, CHROME_PREFIX .. "TopShade", "ARTWORK")
-    SetPointPair(topShade, "TOPLEFT", frame, 8, -32, "TOPRIGHT", frame, -8, -32)
-    topShade:SetHeight(1)
-    SetTextureColor(topShade, FRAME_CHROME.topShade)
-
-    local bottomShade = EnsureColorTexture(frame, CHROME_PREFIX .. "BottomShade", "ARTWORK")
-    SetPointPair(bottomShade, "BOTTOMLEFT", frame, 8, 8, "BOTTOMRIGHT", frame, -8, 8)
-    bottomShade:SetHeight(1)
-    SetTextureColor(bottomShade, FRAME_CHROME.bottomShade)
-
-    local borderTop = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderTop", "OVERLAY")
-    SetPointPair(borderTop, "TOPLEFT", frame, 7, -7, "TOPRIGHT", frame, -7, -7)
-    borderTop:SetHeight(1)
-    SetTextureColor(borderTop, FRAME_CHROME.border)
-
-    local borderBottom = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderBottom", "OVERLAY")
-    SetPointPair(borderBottom, "BOTTOMLEFT", frame, 7, 7, "BOTTOMRIGHT", frame, -7, 7)
-    borderBottom:SetHeight(1)
-    SetTextureColor(borderBottom, FRAME_CHROME.border)
-
-    local borderLeft = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderLeft", "OVERLAY")
-    SetPointPair(borderLeft, "TOPLEFT", frame, 7, -7, "BOTTOMLEFT", frame, 7, 7)
-    borderLeft:SetWidth(1)
-    SetTextureColor(borderLeft, FRAME_CHROME.border)
-
-    local borderRight = EnsureColorTexture(frame, CHROME_PREFIX .. "BorderRight", "OVERLAY")
-    SetPointPair(borderRight, "TOPRIGHT", frame, -7, -7, "BOTTOMRIGHT", frame, -7, 7)
-    borderRight:SetWidth(1)
-    SetTextureColor(borderRight, FRAME_CHROME.border)
-
-    local innerTop = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerTop", "BORDER")
-    SetPointPair(innerTop, "TOPLEFT", frame, 8, -8, "TOPRIGHT", frame, -8, -8)
-    innerTop:SetHeight(1)
-    SetTextureColor(innerTop, FRAME_CHROME.innerBorder)
-
-    local innerBottom = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerBottom", "BORDER")
-    SetPointPair(innerBottom, "BOTTOMLEFT", frame, 8, 8, "BOTTOMRIGHT", frame, -8, 8)
-    innerBottom:SetHeight(1)
-    SetTextureColor(innerBottom, FRAME_CHROME.innerBorder)
-
-    local innerLeft = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerLeft", "BORDER")
-    SetPointPair(innerLeft, "TOPLEFT", frame, 8, -8, "BOTTOMLEFT", frame, 8, 8)
-    innerLeft:SetWidth(1)
-    SetTextureColor(innerLeft, FRAME_CHROME.innerBorder)
-
-    local innerRight = EnsureColorTexture(frame, CHROME_PREFIX .. "InnerRight", "BORDER")
-    SetPointPair(innerRight, "TOPRIGHT", frame, -8, -8, "BOTTOMRIGHT", frame, -8, 8)
-    innerRight:SetWidth(1)
-    SetTextureColor(innerRight, FRAME_CHROME.innerBorder)
 end
 
 local function ApplySectionChrome(widget, key, options)
@@ -403,7 +326,6 @@ function TagLibraryView.Create(context)
     if FormWidgets.ApplyWindowChrome then
         FormWidgets.ApplyWindowChrome(window)
     end
-    ApplyPickerWindowChrome(window)
     if FormWidgets.EnsureStandardWindowCloseButton then
         FormWidgets.EnsureStandardWindowCloseButton(window)
     end
@@ -475,11 +397,9 @@ function TagLibraryView.Create(context)
     actions:SetFullWidth(true)
     LockHeight(actions, 42)
     root:AddChild(actions)
-    ApplySectionChrome(actions, "Footer", {
-        fill = SECTION_CHROME.footerFill,
-        border = SECTION_CHROME.footerBorder,
-        topShade = { 0.78, 0.78, 0.74, 0.05 },
-        bottomShade = { 0.00, 0.00, 0.00, 0.28 },
+    FormWidgets.ApplySurfacePresentation(actions, "Footer", {
+        prefix = CHROME_PREFIX,
+        actionBar = true,
     })
 
     actions:AddChild(CreateSpacer(nil, 5))

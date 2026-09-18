@@ -23,22 +23,10 @@ local function T(key, fallback)
     return L[key] or fallback
 end
 
-local function ResolveColor(color, fallback)
-    color = color or fallback or {}
-
-    return {
-        color[1] or color.r or fallback and fallback[1] or 1,
-        color[2] or color.g or fallback and fallback[2] or 1,
-        color[3] or color.b or fallback and fallback[3] or 1,
-        color[4] or color.a or fallback and fallback[4] or 1,
-    }
-end
-
-local function GetSkinColor(role, fallback)
+local function GetCanvasResizePresentation()
     local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
-    local color = skins and skins.GetBrandColor and skins.GetBrandColor(role) or nil
-
-    return ResolveColor(color, fallback)
+    local presentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or nil
+    return presentation and presentation.resize or {}
 end
 
 local function Clamp(value, minValue, maxValue)
@@ -288,19 +276,38 @@ local function UpdateHandleVisual(handle)
         return
     end
 
-    local orange = GetSkinColor("orangeStrong", { 0.918, 0.459, 0.000, 0.85 })
+    local handlePresentation = GetCanvasResizePresentation().handle or {}
 
-    if handle.bg then
-        handle.bg:SetColorTexture(0.08, 0.07, 0.05, 0.94)
+    if handle.bg and type(handlePresentation.fill) == "table" then
+        handle.bg:SetColorTexture(handlePresentation.fill[1], handlePresentation.fill[2], handlePresentation.fill[3], handlePresentation.fill[4])
     end
-    if handle.border then
-        handle.border:SetBackdropBorderColor(orange[1], orange[2], orange[3], orange[4])
+    if handle.border and type(handlePresentation.border) == "table" then
+        handle.border:SetBackdropBorderColor(handlePresentation.border[1], handlePresentation.border[2], handlePresentation.border[3], handlePresentation.border[4])
     end
-    if handle.diagonalA then
-        handle.diagonalA:SetColorTexture(orange[1], orange[2], orange[3], 0.72)
+    if handle.diagonalA and type(handlePresentation.gripPrimary) == "table" then
+        handle.diagonalA:SetColorTexture(handlePresentation.gripPrimary[1], handlePresentation.gripPrimary[2], handlePresentation.gripPrimary[3], handlePresentation.gripPrimary[4])
     end
-    if handle.diagonalB then
-        handle.diagonalB:SetColorTexture(orange[1], orange[2], orange[3], 0.46)
+    if handle.diagonalB and type(handlePresentation.gripSecondary) == "table" then
+        handle.diagonalB:SetColorTexture(handlePresentation.gripSecondary[1], handlePresentation.gripSecondary[2], handlePresentation.gripSecondary[3], handlePresentation.gripSecondary[4])
+    end
+end
+
+local function ApplySizeLabelVisual(label)
+    if not label then
+        return
+    end
+
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local resizePresentation = GetCanvasResizePresentation()
+    local labelPresentation = resizePresentation.label or {}
+    local font = skins and skins.GetDefaultFont and skins.GetDefaultFont(STANDARD_TEXT_FONT) or STANDARD_TEXT_FONT
+
+    label:SetFont(font, 14, "OUTLINE")
+    if type(labelPresentation.text) == "table" then
+        label:SetTextColor(labelPresentation.text[1], labelPresentation.text[2], labelPresentation.text[3], labelPresentation.text[4])
+    end
+    if type(labelPresentation.shadow) == "table" then
+        label:SetShadowColor(labelPresentation.shadow[1], labelPresentation.shadow[2], labelPresentation.shadow[3], labelPresentation.shadow[4])
     end
 end
 
@@ -316,10 +323,8 @@ local function EnsureSizeLabel(frame)
 
     local label = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("TOPLEFT", overlay, "TOPLEFT", 6, -24)
-    label:SetFont(STANDARD_TEXT_FONT, 14, "OUTLINE")
-    label:SetTextColor(0.918, 0.459, 0.000, 0.98)
     label:SetShadowOffset(1, -1)
-    label:SetShadowColor(0, 0, 0, 0.85)
+    ApplySizeLabelVisual(label)
     label:Hide()
     if label.SetJustifyH then
         label:SetJustifyH("LEFT")
@@ -336,6 +341,7 @@ local function SetSizeLabel(frame, width, height, shown)
     end
 
     if shown then
+        ApplySizeLabelVisual(label)
         label:SetText(string.format(T("EDITOR_RESIZE_SIZE_LABEL", "W: %d  H: %d"), width or 0, height or 0))
         label:Show()
     else

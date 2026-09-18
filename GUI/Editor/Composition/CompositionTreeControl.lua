@@ -8,10 +8,6 @@ local freeControls = {}
 local methods = {}
 local ApplyTextStyle = ns.GUI.Helpers.FormWidgets.ApplyTextStyle
 
-local TREE_SURFACE_COLOR = { 0.05, 0.055, 0.06, 0.92 }
-local TREE_TEXT_DESCRIPTION = { 0.68, 0.70, 0.75, 1.00 }
-local TREE_TEXT_DISABLED = { 0.43, 0.45, 0.49, 1.00 }
-
 local ICON_PATH_BY_NODE_TYPE = {
     unit = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_unit.png",
     healthbar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
@@ -27,41 +23,41 @@ local ICON_PATH_BY_NODE_TYPE = {
     decorationElement = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_decoration.png",
 }
 
-local ICON_TINT_BY_NODE_TYPE = {
-    unit = { 0.93, 0.79, 0.49 },
-    healthbar = { 0.43, 0.70, 0.90 },
-    normalAbsorbBar = { 0.43, 0.70, 0.90 },
-    healingAbsorbBar = { 0.43, 0.70, 0.90 },
-    powerbar = { 0.43, 0.70, 0.90 },
-    classPowerBar = { 0.43, 0.70, 0.90 },
-    alternativePowerBar = { 0.43, 0.70, 0.90 },
-    castbar = { 0.43, 0.70, 0.90 },
-    textElement = { 0.95, 0.89, 0.72 },
-    buffs = { 0.67, 0.48, 0.84 },
-    debuffs = { 0.67, 0.48, 0.84 },
-    decorationElement = { 0.70, 0.65, 0.82 },
+local ICON_ROLE_BY_NODE_TYPE = {
+    unit = "unit",
+    healthbar = "bar",
+    normalAbsorbBar = "bar",
+    healingAbsorbBar = "bar",
+    powerbar = "bar",
+    classPowerBar = "bar",
+    alternativePowerBar = "bar",
+    castbar = "bar",
+    textElement = "text",
+    buffs = "aura",
+    debuffs = "aura",
+    decorationElement = "decoration",
 }
 
-local INDICATOR_ICON_TINT = { 0.91, 0.55, 0.32 }
-local PORTRAIT_ICON_TINT = { 0.80, 0.65, 0.40 }
-local DEFAULT_ICON_TINT = { 0.72, 0.76, 0.82 }
+local function GetCompositionTreePresentation()
+    local palette = ns.GUI.Skins.GetFormPalette()
+    return palette.CompositionTree
+end
 
-local function ResolveNodeIcon(node)
+local function ResolveNodeIcon(node, presentation)
     if type(node) ~= "table" then
         return nil
     end
     if node.type == "indicatorElement" then
         local target = node.inspectorTarget
         if type(target) == "table" and target.indicatorKey == "Portrait" then
-            return "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png", PORTRAIT_ICON_TINT
+            return "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png", presentation.icon.portrait
         end
-        return "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_indicator.png", INDICATOR_ICON_TINT
+        return "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_indicator.png", presentation.icon.indicator
     end
-    return ICON_PATH_BY_NODE_TYPE[node.type], ICON_TINT_BY_NODE_TYPE[node.type]
+    return ICON_PATH_BY_NODE_TYPE[node.type], presentation.icon[ICON_ROLE_BY_NODE_TYPE[node.type]]
 end
 
-local function SetIconColor(icon, tint, brightness, alpha)
-    local color = tint or DEFAULT_ICON_TINT
+local function SetIconColor(icon, color, brightness, alpha)
     icon:SetVertexColor(
         math.min(1, color[1] * brightness),
         math.min(1, color[2] * brightness),
@@ -111,40 +107,41 @@ end
 local function Paint(row)
     local item = row.item
     if not item then return end
+    local presentation = GetCompositionTreePresentation()
     if item.selected then
-        row.background:SetColorTexture(0.11, 0.18, 0.27, 0.94)
+        row.background:SetColorTexture(unpack(presentation.rowSelected))
         row.background:Show()
     elseif row.hovered then
-        row.background:SetColorTexture(0.07, 0.10, 0.15, 0.72)
+        row.background:SetColorTexture(unpack(presentation.rowHover))
         row.background:Show()
     else
         row.background:Hide()
     end
     if item.selected then
-        row.label:SetTextColor(0.88, 0.91, 0.95, 1)
+        row.label:SetTextColor(unpack(presentation.text.selected))
     elseif item.node.enabled == false then
-        row.label:SetTextColor(unpack(TREE_TEXT_DISABLED))
+        row.label:SetTextColor(unpack(presentation.text.disabled))
     else
-        row.label:SetTextColor(unpack(TREE_TEXT_DESCRIPTION))
+        row.label:SetTextColor(unpack(presentation.text.normal))
     end
     if item.selected then
-        SetIconColor(row.icon, row.iconTint, 1.18, 1.00)
+        SetIconColor(row.icon, row.iconTint or presentation.icon.fallback, presentation.icon.selectedBrightness, presentation.icon.selectedAlpha)
     elseif row.hovered then
-        SetIconColor(row.icon, row.iconTint, 1.04, 0.90)
+        SetIconColor(row.icon, row.iconTint or presentation.icon.fallback, presentation.icon.hoverBrightness, presentation.icon.hoverAlpha)
     elseif item.node.enabled == false then
-        row.icon:SetVertexColor(0.42, 0.44, 0.48, 0.42)
+        row.icon:SetVertexColor(unpack(presentation.icon.disabled))
     else
-        SetIconColor(row.icon, row.iconTint, 0.90, 0.76)
+        SetIconColor(row.icon, row.iconTint or presentation.icon.fallback, presentation.icon.normalBrightness, presentation.icon.normalAlpha)
     end
     row.disclosureGlyph:SetText(item.expanded and "-" or ">")
     if item.node.enabled == false then
-        row.toggleGlyph:SetColorTexture(0.49, 0.54, 0.61, 0.14)
+        row.toggleGlyph:SetColorTexture(unpack(presentation.toggle.disabled))
     else
         local activeColor = GetActiveUnitMarkerColor()
         if activeColor then
             row.toggleGlyph:SetColorTexture(unpack(activeColor))
         else
-            row.toggleGlyph:SetColorTexture(0.49, 0.54, 0.61, 0.38)
+            row.toggleGlyph:SetColorTexture(unpack(presentation.toggle.fallback))
         end
     end
 end
@@ -219,7 +216,7 @@ function methods:AcquireRow(index)
     disclosure:SetSize(12, Control.ROW_HEIGHT)
     local disclosureGlyph = disclosure:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     disclosureGlyph:SetPoint("CENTER")
-    disclosureGlyph:SetTextColor(0.58, 0.63, 0.70, 1)
+    disclosureGlyph:SetTextColor(unpack(GetCompositionTreePresentation().text.disclosure))
     local toggle = CreateFrame("Button", nil, frame)
     toggle:SetSize(20, Control.ROW_HEIGHT)
     toggle:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
@@ -324,7 +321,7 @@ function methods:SetRows(items)
         row.disclosure:SetPoint("LEFT", row.frame, "LEFT", 3 + item.depth * 10, 0)
         row.icon:ClearAllPoints()
         row.icon:SetPoint("LEFT", row.disclosure, "RIGHT", 2, 0)
-        local iconPath, iconTint = ResolveNodeIcon(item.node)
+        local iconPath, iconTint = ResolveNodeIcon(item.node, GetCompositionTreePresentation())
         row.icon:SetTexture(iconPath)
         row.icon:SetShown(iconPath ~= nil)
         row.iconTint = iconTint
@@ -391,7 +388,7 @@ local function CreateControl()
     self.frame:Hide()
     self.background = self.frame:CreateTexture(nil, "BACKGROUND")
     self.background:SetAllPoints()
-    self.background:SetColorTexture(unpack(TREE_SURFACE_COLOR))
+    self.background:SetColorTexture(unpack(GetCompositionTreePresentation().surface))
     self.frame:EnableMouse(true)
     self.frame:EnableMouseWheel(true)
     self.scroll = CreateFrame("ScrollFrame", nil, self.frame)
@@ -409,7 +406,7 @@ local function CreateControl()
     self.scrollbar:SetValueStep(1)
     self.scrollbar:SetObeyStepOnDrag(false)
     local thumb = self.scrollbar:CreateTexture(nil, "ARTWORK")
-    thumb:SetColorTexture(0.45, 0.50, 0.58, 0.55)
+    thumb:SetColorTexture(unpack(GetCompositionTreePresentation().scrollbar.thumb))
     thumb:SetSize(5, 20)
     self.scrollbar:SetThumbTexture(thumb)
     self.thumbDragHandle = CreateFrame("Button", nil, self.scrollbar)

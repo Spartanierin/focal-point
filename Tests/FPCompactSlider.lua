@@ -74,7 +74,8 @@ function native:SetThumbTexture() self.thumb = CreateFrame("Texture", nil, self)
 function native:GetThumbTexture() return self.thumb end
 for _, method in ipairs({"EnableMouse", "EnableKeyboard", "EnableMouseWheel", "SetValueStep",
     "SetOrientation", "SetHitRectInsets", "SetBackdrop", "SetBackdropColor", "SetBackdropBorderColor",
-    "SetAutoFocus", "SetFontObject", "SetJustifyH", "SetJustifyV", "SetWordWrap", "SetTextColor", "SetAlpha"}) do
+    "SetAutoFocus", "SetFontObject", "SetJustifyH", "SetJustifyV", "SetWordWrap", "SetTextColor", "SetAlpha",
+    "SetVertexColor"}) do
     native[method] = function(self, ...) self["last" .. method] = {...} end
 end
 function CreateFrame(kind, name, parent)
@@ -85,8 +86,34 @@ UIParent = CreateFrame("Frame")
 GameFontHighlightSmall = {}
 local library = {}
 LibStub = setmetatable({NewLibrary = function() return library end}, {__call = function() return library end})
+local compactSliderPresentation = {
+    track = {
+        backgroundTexture = "Interface\\Buttons\\UI-SliderBar-Background",
+        borderTexture = "Interface\\Buttons\\UI-SliderBar-Border",
+        backgroundColor = { 1, 1, 1, 1 },
+        borderColor = { 1, 1, 1, 1 },
+    },
+    thumb = {
+        texture = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
+        tint = { 1, 1, 1, 1 },
+        alpha = 1,
+        disabledAlpha = 0.45,
+    },
+    input = {
+        backgroundTexture = "Interface\\ChatFrame\\ChatFrameBackground",
+        borderTexture = "Interface\\ChatFrame\\ChatFrameBackground",
+        backgroundColor = { 0, 0, 0, 0.5 },
+        border = { 0.3, 0.3, 0.3, 0.8 },
+        borderHover = { 0.5, 0.5, 0.5, 1 },
+    },
+    text = {
+        normal = { 1, 1, 1, 1 },
+        disabled = { 0.5, 0.5, 0.5, 1 },
+    },
+}
+local ns = { GUI = { Skins = { GetFormPalette = function() return { CompactSlider = compactSliderPresentation } end } } }
 assert(loadfile("Libraries/Ace3/AceGUI-3.0/AceGUI-3.0.lua"))()
-assert(loadfile("GUI/Editor/Inspector/FPCompactSlider.lua"))()
+assert(loadfile("GUI/Editor/Inspector/FPCompactSlider.lua"))(nil, ns)
 local ace = LibStub("AceGUI-3.0")
 local widget = ace:Create("FPCompactSlider")
 local count = created
