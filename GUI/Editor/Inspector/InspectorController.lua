@@ -1378,33 +1378,16 @@ function InspectorController.Build(container, state, options)
         if type(InspectorMutations.DeleteTextInstance) ~= "function" then
             return
         end
-        if not (FormWidgets and type(FormWidgets.CreateCompactFormDialog) == "function") then
+        if not (FormWidgets and type(FormWidgets.CreateCompactConfirmation) == "function") then
             return
         end
 
         CloseDeleteTextInstanceDialog()
-        local dialog = FormWidgets.CreateCompactFormDialog({
+        local dialog = FormWidgets.CreateCompactConfirmation({
             title = L["EDITOR_DELETE_TEXT_CONFIRM_TITLE"] or "Delete Text?",
-            description = L["EDITOR_DELETE_TEXT_CONFIRM_DESCRIPTION"] or "This permanently removes this text from the selected unit.",
-            width = 420,
-            mode = "message",
-            messageContentHeight = 72,
-            reserveStatusSpace = true,
-            messageHint = L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.",
-        })
-        if not dialog then
-            return
-        end
-
-        dialog:SetActions({
-            cancel = {
-                text = L["INFO_COMMON_CANCEL"] or "Cancel",
-                role = "utility",
-                width = 104,
-                onClick = function()
-                    CloseDeleteTextInstanceDialog()
-                end,
-            },
+            message = L["EDITOR_DELETE_TEXT_CONFIRM_DESCRIPTION"] or "This permanently removes this text from the selected unit.",
+            hint = L["EDITOR_DELETE_TEXT_CONFIRM_TEMPLATE_NOTE"] or "The text template is not deleted.",
+            messageHeight = 32,
             primary = {
                 text = L["EDITOR_DELETE_TEXT_CONFIRM_BUTTON"] or "Delete",
                 role = "danger",
@@ -1430,7 +1413,7 @@ function InspectorController.Build(container, state, options)
                     end)
                     if result and result.ok == false then
                         if activeDialog and activeDialog.SetStatus then
-                            activeDialog:SetStatus(ResolveMutationErrorMessage(result))
+                            activeDialog:SetStatus(ResolveMutationErrorMessage(result), "error", activeDialog.confirmationStatus)
                         end
                         return
                     end
@@ -1438,7 +1421,18 @@ function InspectorController.Build(container, state, options)
                     CloseDeleteTextInstanceDialog()
                 end,
             },
+            cancel = {
+                text = L["INFO_COMMON_CANCEL"] or "Cancel",
+                role = "utility",
+                width = 104,
+                onClick = function()
+                    CloseDeleteTextInstanceDialog()
+                end,
+            },
         })
+        if not dialog then
+            return
+        end
 
         dialog.window:SetCallback("OnClose", function()
             if deleteTextInstanceDialog == dialog then
@@ -4490,33 +4484,15 @@ function InspectorController.Build(container, state, options)
             if not selectedDecorationId or type(InspectorMutations.DeleteDecoration) ~= "function" then
                 return
             end
-            if not (FormWidgets and type(FormWidgets.CreateCompactFormDialog) == "function") then
+            if not (FormWidgets and type(FormWidgets.CreateCompactConfirmation) == "function") then
                 DeleteDecoration()
                 return
             end
 
             CloseDeleteDecorationDialog()
-            local dialog = FormWidgets.CreateCompactFormDialog({
+            local dialog = FormWidgets.CreateCompactConfirmation({
                 title = L["EDITOR_DELETE_DECORATION_CONFIRM_TITLE"] or "Delete Decoration?",
-                description = L["EDITOR_DELETE_DECORATION_CONFIRM_DESCRIPTION"] or "This removes the selected decoration from this unit frame.",
-                width = 420,
-                mode = "message",
-                messageContentHeight = 44,
-                reserveStatusSpace = true,
-            })
-            if not dialog then
-                return
-            end
-
-            dialog:SetActions({
-                cancel = {
-                    text = L["INFO_COMMON_CANCEL"] or "Cancel",
-                    role = "utility",
-                    width = 104,
-                    onClick = function()
-                        CloseDeleteDecorationDialog()
-                    end,
-                },
+                message = L["EDITOR_DELETE_DECORATION_CONFIRM_DESCRIPTION"] or "This removes the selected decoration from this unit frame.",
                 primary = {
                     text = L["EDITOR_DELETE_DECORATION_CONFIRM_BUTTON"] or "Delete",
                     role = "danger",
@@ -4525,14 +4501,25 @@ function InspectorController.Build(container, state, options)
                         local result = DeleteDecoration()
                         if result and result.ok == false then
                             if activeDialog and activeDialog.SetStatus then
-                                activeDialog:SetStatus(ResolveMutationErrorMessage(result))
+                                activeDialog:SetStatus(ResolveMutationErrorMessage(result), "error", activeDialog.confirmationStatus)
                             end
                             return
                         end
                         CloseDeleteDecorationDialog()
                     end,
                 },
+                cancel = {
+                    text = L["INFO_COMMON_CANCEL"] or "Cancel",
+                    role = "utility",
+                    width = 104,
+                    onClick = function()
+                        CloseDeleteDecorationDialog()
+                    end,
+                },
             })
+            if not dialog then
+                return
+            end
 
             dialog.window:SetCallback("OnClose", function()
                 if deleteDecorationDialog == dialog then

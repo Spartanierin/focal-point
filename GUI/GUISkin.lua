@@ -87,12 +87,47 @@ Skins.Builtin.default = Skins.Builtin.default or {
             g = 0.678,
             b = 0.584,
         },
+        statusError = {
+            hex = "C96B62",
+            wow = "|cffC96B62",
+            r = 0.788,
+            g = 0.420,
+            b = 0.384,
+        },
+        statusSuccess = {
+            hex = "70A86A",
+            wow = "|cff70A86A",
+            r = 0.439,
+            g = 0.659,
+            b = 0.416,
+        },
         highlight = {
             hex = "8FC7FF",
             wow = "|cff8FC7FF",
             r = 0.561,
             g = 0.780,
             b = 1.000,
+        },
+        parchmentSectionHeader = {
+            hex = "573B1F",
+            wow = "|cff573B1F",
+            r = 0.34,
+            g = 0.23,
+            b = 0.12,
+        },
+        parchmentSecondary = {
+            hex = "664D2B",
+            wow = "|cff664D2B",
+            r = 0.40,
+            g = 0.30,
+            b = 0.17,
+        },
+        parchmentMuted = {
+            hex = "7A613D",
+            wow = "|cff7A613D",
+            r = 0.48,
+            g = 0.38,
+            b = 0.24,
         },
         disabled = {
             hex = "7E7564",
@@ -125,6 +160,14 @@ Skins.Builtin.default = Skins.Builtin.default or {
             headerAccent = { 0.910, 0.757, 0.400, 0.38 },
             workspaceDivider = { 0.34, 0.37, 0.42, 0.24 },
         },
+        CompactDialogContent = {
+            parchment = {
+                material = "texture",
+                texture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_window_background.jpg",
+                tint = { 1.00, 1.00, 1.00, 1.00 },
+                tile = false,
+            },
+        },
         ItemColors = {
             pageIntro = { 0.78, 0.75, 0.69, 1.00 },
             description = { 0.68, 0.70, 0.75 },
@@ -141,7 +184,28 @@ Skins.Builtin.default = Skins.Builtin.default or {
     },
     editorButtonVisuals = {
         states = {
-            disabled = {
+            parchmentSectionHeader = {
+            hex = "573B1F",
+            wow = "|cff573B1F",
+            r = 0.34,
+            g = 0.23,
+            b = 0.12,
+        },
+        parchmentSecondary = {
+            hex = "664D2B",
+            wow = "|cff664D2B",
+            r = 0.40,
+            g = 0.30,
+            b = 0.17,
+        },
+        parchmentMuted = {
+            hex = "7A613D",
+            wow = "|cff7A613D",
+            r = 0.48,
+            g = 0.38,
+            b = 0.24,
+        },
+        disabled = {
                 fill = { 0.08, 0.09, 0.11, 0.92 },
                 border = { 0.18, 0.20, 0.23, 0.86 },
                 accent = { 0.28, 0.30, 0.34, 0.08 },

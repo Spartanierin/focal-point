@@ -305,6 +305,28 @@ local function GetEditorButtonVisuals()
     return fallback
 end
 
+local function ResetForgedMetalRegions(button)
+    if not button then
+        return
+    end
+    for _, key in ipairs({ "__fpForgedCenter", "__fpForgedLeftEndcap", "__fpForgedRightEndcap", "__fpForgedIcon" }) do
+        local region = button[key]
+        if region then
+            if region.SetHorizTile then
+                region:SetHorizTile(false)
+            end
+            if region.SetVertTile then
+                region:SetVertTile(false)
+            end
+            if region.SetTexture then
+                region:SetTexture(nil)
+            end
+            SetTextureColor(region, { 1, 1, 1, 1 })
+            region:Hide()
+        end
+    end
+end
+
 local function ResolveVisualState(isDisabled, isPressed, isHovered, isSelected, preferSelectedWhenDisabled)
     if isDisabled and not (isSelected and preferSelectedWhenDisabled) then
         return "disabled"
@@ -431,131 +453,34 @@ local function ApplyColorTexture(texture, color, texturePath, texCoord)
 end
 
 function EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, style, options)
-    if not button or not style then
+    if not button or not button.frame then
         return
     end
 
     local opts = options or {}
     local layerKeys = opts.layerKeys or SIDEBAR_LAYER_KEYS
-    local hoverOptions = opts.hover
-    local frame = EnsureFPButtonVisualLayers(button, layerKeys)
-    if not frame then
-        return
-    end
-
-    EnsureFPButtonHoverHook(button, hoverOptions)
-
-    local isDisabled = button.disabled == true
-    local hovered = false
-    local pressed = false
-    if type(hoverOptions) == "table" and hoverOptions.enabled == true then
-        local stateKey = hoverOptions.stateKey or "__fpButtonHovered"
-        local pressedKey = hoverOptions.pressedKey or "__fpButtonPressed"
-        hovered = button[stateKey] == true
-        pressed = button[pressedKey] == true
-    end
-
-    local rolePresetKey = opts.rolePreset or "secondary"
-    local rolePreset = FP_BUTTON_ROLE_PRESETS[rolePresetKey] or {}
-    local isSelected = opts.selected == true or rolePreset.selected == true
-    local stateName = ResolveVisualState(isDisabled, pressed, hovered, isSelected, opts.preferSelectedWhenDisabled == true)
-    local editorButtonVisuals = GetEditorButtonVisuals()
-    local stateVisual = ResolveStateVisual(rolePresetKey, stateName, editorButtonVisuals, opts.stateVisuals)
-    local states = opts.stateVisuals or editorButtonVisuals.states or FP_BUTTON_STATE_VISUALS
-
-    local effectiveStyle = {
-        height = style.height,
-        disabledText = style.disabledText or states.disabled.text,
-        fill = stateVisual.fill,
-        border = stateVisual.border,
-        accent = stateVisual.accent,
-        text = stateVisual.text,
+    local frame = button.frame
+    local nativeTextures = {
+        frame.GetNormalTexture and frame:GetNormalTexture() or nil,
+        frame.GetPushedTexture and frame:GetPushedTexture() or nil,
+        frame.GetHighlightTexture and frame:GetHighlightTexture() or nil,
+        frame.GetDisabledTexture and frame:GetDisabledTexture() or nil,
     }
-
-    local accentVisible = opts.accentVisible == true or stateName == "active"
-    local cacheKey = BuildButtonVisualCacheKey(rolePresetKey, stateName, effectiveStyle, opts, editorButtonVisuals, accentVisible)
-    if button.__fpButtonVisualCacheKey == cacheKey then
-        return
-    end
-    button.__fpButtonVisualCacheKey = cacheKey
-
-    button:SetHeight(effectiveStyle.height or 22)
-    NeutralizeTemplateTextures(frame)
-
-    ApplyColorTexture(button[layerKeys.bg], effectiveStyle.fill)
-    if layerKeys.texture then
-        ApplyColorTexture(button[layerKeys.texture], { 0.03, 0.04, 0.05, 0.36 }, editorButtonVisuals.texture, editorButtonVisuals.texCoord)
-    end
-    ApplyColorTexture(button[layerKeys.border], effectiveStyle.border)
-    ApplyColorTexture(button[layerKeys.accent], effectiveStyle.accent)
-
-    local accent = button[layerKeys.accent]
-    if accentVisible then
-        if accent and accent.Show then
-            accent:Show()
-        end
-    elseif accent and accent.Hide then
-        accent:Hide()
-    end
-
-    local bg = button[layerKeys.bg]
-    local bgTexture = layerKeys.texture and button[layerKeys.texture] or nil
-    local border = button[layerKeys.border]
-    if isDisabled then
-        if bg and bg.SetVertexColor then
-            bg:SetVertexColor(0.78, 0.78, 0.78, 0.84)
-        end
-        if bgTexture and bgTexture.SetVertexColor then
-            bgTexture:SetVertexColor(0.78, 0.78, 0.78, 0.12)
-        end
-        if border and border.SetVertexColor then
-            border:SetVertexColor(0.78, 0.78, 0.78, 0.82)
-        end
-    else
-        if bg and bg.SetVertexColor then
-            local fill = effectiveStyle.fill or { 1, 1, 1, 1 }
-            bg:SetVertexColor(fill[1] or 1, fill[2] or 1, fill[3] or 1, fill[4] or 1)
-        end
-        if bgTexture and bgTexture.SetVertexColor then
-            bgTexture:SetVertexColor(0.03, 0.04, 0.05, 0.36)
-        end
-        if border and border.SetVertexColor then
-            border:SetVertexColor(1, 1, 1, 1)
+    for _, texture in ipairs(nativeTextures) do
+        if texture then
+            if texture.SetVertexColor then texture:SetVertexColor(1, 1, 1, 1) end
+            if texture.SetAlpha then texture:SetAlpha(1) end
+            if texture.Show then texture:Show() end
         end
     end
 
-    if button.text and button.text.SetTextColor then
-        if button.text.SetDrawLayer then
-            button.text:SetDrawLayer("OVERLAY", 1)
-        end
-        if button.text.GetFont and button.text.SetFont then
-            local font, size = button.text:GetFont()
-            if font then
-                button.text:SetFont(font, size or 12, "")
-            end
-        end
-        if button.text.SetShadowOffset then
-            button.text:SetShadowOffset(1, -1)
-        end
-        if button.text.SetShadowColor then
-            button.text:SetShadowColor(0, 0, 0, 0.98)
-        end
-        local textColor = effectiveStyle.text
-        if isDisabled then
-            textColor = states.disabled.text
-        end
-        if textColor then
-            button.text:SetTextColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1, textColor[4] or 1)
-        else
-            button.text:SetTextColor(0.89, 0.91, 0.94, 1)
-        end
+    for _, key in ipairs({ layerKeys.bg, layerKeys.texture, layerKeys.border, layerKeys.accent }) do
+        local region = key and button[key] or nil
+        if region and region.Hide then region:Hide() end
     end
-
-    if frame.SetAlpha then
-        frame:SetAlpha(1)
-    end
+    ResetForgedMetalRegions(button)
+    button.__fpButtonVisualCacheKey = nil
 end
-
 local function ReapplySidebarVisualOnHover(button)
     if EditorSidebarThemeHelpers.ApplySidebarButtonVisual then
         EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, button.__fpSidebarLastRole or "secondary", button.__fpSidebarLastStyleVariant)

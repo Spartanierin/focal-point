@@ -267,6 +267,10 @@ function FormWidgets.StyleActionButton(button, variant)
         return
     end
 
+    -- AceGUI's native Button textures are the canonical presentation.
+    -- Keep this helper for sizing/text compatibility, but do not replace the
+    -- widget's normal, pushed, highlight, or disabled regions.
+
     if FormWidgets.ResetInspectorButtonState then
         FormWidgets.ResetInspectorButtonState(button)
     end
@@ -276,84 +280,43 @@ function FormWidgets.StyleActionButton(button, variant)
 
     button:SetHeight(style.height or 24)
 
-    if button.text then
-        FormWidgets.ApplyTextStyle(button.text, style.textRole or "label", 12, 1)
-        if button.text.SetTextColor then
-            local textColor = style.textColor or { 0.95, 0.91, 0.88, 1.00 }
-            button.text:SetTextColor(textColor[1] or 1, textColor[2] or 1, textColor[3] or 1, textColor[4] or 1)
+    local frame = button.frame
+    local nativeTextures = {
+        frame.GetNormalTexture and frame:GetNormalTexture() or nil,
+        frame.GetPushedTexture and frame:GetPushedTexture() or nil,
+        frame.GetHighlightTexture and frame:GetHighlightTexture() or nil,
+        frame.GetDisabledTexture and frame:GetDisabledTexture() or nil,
+    }
+    for _, texture in ipairs(nativeTextures) do
+        if texture then
+            if texture.SetVertexColor then texture:SetVertexColor(1, 1, 1, 1) end
+            if texture.SetAlpha then texture:SetAlpha(1) end
+            if texture.Show then texture:Show() end
         end
     end
-
-    local frame = button.frame
-    local normal = frame.GetNormalTexture and frame:GetNormalTexture() or nil
-    local pushed = frame.GetPushedTexture and frame:GetPushedTexture() or nil
-    local highlight = frame.GetHighlightTexture and frame:GetHighlightTexture() or nil
-    local disabled = frame.GetDisabledTexture and frame:GetDisabledTexture() or nil
-
-    SetTextureColor(normal, style.normal)
-    SetTextureColor(pushed, style.pushed or style.normal)
-    SetTextureColor(highlight, style.highlight or style.normal)
-    SetTextureColor(disabled, style.disabled or style.normal)
+    for _, key in ipairs({
+        "__fpActionVisualBg", "__fpActionVisualTexture",
+        "__fpActionVisualBorder", "__fpActionVisualAccent",
+        "__fpForgedCenter", "__fpForgedLeftEndcap",
+        "__fpForgedRightEndcap", "__fpForgedIcon",
+    }) do
+        local region = button[key]
+        if region and region.Hide then region:Hide() end
+    end
+    button.__fpModalLastRole = nil
+    button.__fpModalForgedMetal = nil
+    button.__fpModalIcon = nil
 end
 
-function FormWidgets.ApplyModalActionButtonVisual(button, role, options)
+function FormWidgets.ApplyModalActionButtonVisual(button, role)
     if not button or not button.frame then
         return
     end
 
-    options = type(options) == "table" and options or {}
-    if not options.preserveInspectorButtonState and FormWidgets.ResetInspectorButtonState then
-        FormWidgets.ResetInspectorButtonState(button)
-    end
-    if not options.preserveInspectorButtonState then
-        button.__fpModalHovered = false
-        button.__fpModalPressed = false
-    end
-
-    local sidebarThemeHelpers = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
-    local ApplyFPButtonVisualCore = sidebarThemeHelpers.ApplyFPButtonVisualCore
-
-    local componentStyle = GetComponentStyle(role)
-    local resolvedRole = ResolveButtonVariantFromRole((componentStyle and componentStyle.buttonStyle) or role)
-    if resolvedRole == "primary" then
-        resolvedRole = "primary_action"
-    elseif resolvedRole ~= "primary_action" and resolvedRole ~= "secondary" and resolvedRole ~= "utility" and resolvedRole ~= "danger" then
-        resolvedRole = "secondary"
-    end
-
-    button.__fpModalLastRole = resolvedRole
-    local style = FP_MODAL_BUTTON_VISUALS[resolvedRole] or FP_MODAL_BUTTON_VISUALS.secondary
-    if not ApplyFPButtonVisualCore then
-        return
-    end
-
-    local function ReapplyModalVisualOnHover(targetButton)
-        FormWidgets.ApplyModalActionButtonVisual(targetButton, targetButton.__fpModalLastRole or "secondary", {
-            preserveInspectorButtonState = true,
-        })
-    end
-
-    ApplyFPButtonVisualCore(button, style, {
-        layerKeys = {
-            bg = "__fpActionVisualBg",
-            texture = "__fpActionVisualTexture",
-            border = "__fpActionVisualBorder",
-            accent = "__fpActionVisualAccent",
-        },
-        rolePreset = resolvedRole,
-        selected = (resolvedRole == "primary_action"),
-        preferSelectedWhenDisabled = false,
-        accentVisible = (resolvedRole == "primary_action"),
-        hover = {
-            enabled = true,
-            hookKey = "__fpModalHoverHooked",
-            stateKey = "__fpModalHovered",
-            pressedKey = "__fpModalPressed",
-            onReapply = ReapplyModalVisualOnHover,
-        },
-    })
+    button.__fpModalHovered = false
+    button.__fpModalPressed = false
+    FormWidgets.StyleActionButton(button, role)
 end
-
 local function SetInspectorGlyphColor(frame, hovered)
     local text = frame and frame.__fpInspectorGlyphText or nil
     if not text or not text.SetTextColor then
@@ -656,14 +619,28 @@ function FormWidgets.StyleCheckBox(checkbox, disabled)
     end
 end
 
-function FormWidgets.ApplyWindowChrome(window)
+function FormWidgets.ApplyWindowChrome(window, options)
     if not window or not window.frame then
         return
     end
 
+    options = options or {}
+    if options.nativeFrameShell then
+        options = {
+            shellInset = 0,
+            headerHeight = 24,
+            headerSeparator = true,
+            showContentAccent = false,
+        }
+    end
     local chromeColors = GetChromeColors()
     local frame = window.frame
     local content = window.content
+    local hasShellInset = options.shellInset ~= nil
+    local shellInset = hasShellInset and options.shellInset or 12
+    local shellTopInset = hasShellInset and -shellInset or -30
+    local shellBottomInset = hasShellInset and shellInset or 12
+    local headerHeight = options.headerHeight or 26
 
     HideDefaultWindowChrome(frame)
 
@@ -673,33 +650,37 @@ function FormWidgets.ApplyWindowChrome(window)
 
     if not frame._fpPanelFill then
         frame._fpPanelFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
     end
+    frame._fpPanelFill:ClearAllPoints()
+    frame._fpPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset, shellTopInset)
+    frame._fpPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -shellInset, shellBottomInset)
     frame._fpPanelFill:SetColorTexture(unpack(chromeColors.panelBackground or {}))
 
     if not frame._fpPanelHeaderFill then
         frame._fpPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-        frame._fpPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-        frame._fpPanelHeaderFill:SetHeight(26)
     end
+    frame._fpPanelHeaderFill:ClearAllPoints()
+    frame._fpPanelHeaderFill:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset, shellTopInset)
+    frame._fpPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -shellInset, shellTopInset)
+    frame._fpPanelHeaderFill:SetHeight(headerHeight)
     frame._fpPanelHeaderFill:SetColorTexture(unpack(chromeColors.panelHeader or {}))
 
     if not frame._fpPanelTopShade then
         frame._fpPanelTopShade = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelTopShade:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
-        frame._fpPanelTopShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
-        frame._fpPanelTopShade:SetHeight(1)
     end
+    frame._fpPanelTopShade:ClearAllPoints()
+    frame._fpPanelTopShade:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset + 1, shellTopInset - 1)
+    frame._fpPanelTopShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(shellInset + 1), shellTopInset - 1)
+    frame._fpPanelTopShade:SetHeight(1)
     frame._fpPanelTopShade:SetColorTexture(unpack(chromeColors.panelTopShade or {}))
 
     if not frame._fpPanelBottomShade then
         frame._fpPanelBottomShade = frame:CreateTexture(nil, "ARTWORK")
-        frame._fpPanelBottomShade:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
-        frame._fpPanelBottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
-        frame._fpPanelBottomShade:SetHeight(1)
     end
+    frame._fpPanelBottomShade:ClearAllPoints()
+    frame._fpPanelBottomShade:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", shellInset + 1, shellBottomInset + 1)
+    frame._fpPanelBottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(shellInset + 1), shellBottomInset + 1)
+    frame._fpPanelBottomShade:SetHeight(1)
     frame._fpPanelBottomShade:SetColorTexture(unpack(chromeColors.panelBottomShade or {}))
 
     local function EnsureBorder(name)
@@ -711,23 +692,27 @@ function FormWidgets.ApplyWindowChrome(window)
     end
 
     EnsureBorder("_fpPanelBorderTop")
-    frame._fpPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
+    frame._fpPanelBorderTop:ClearAllPoints()
+    frame._fpPanelBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset, shellTopInset)
+    frame._fpPanelBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -shellInset, shellTopInset)
     frame._fpPanelBorderTop:SetHeight(1)
 
     EnsureBorder("_fpPanelBorderBottom")
-    frame._fpPanelBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
-    frame._fpPanelBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    frame._fpPanelBorderBottom:ClearAllPoints()
+    frame._fpPanelBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", shellInset, shellBottomInset)
+    frame._fpPanelBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -shellInset, shellBottomInset)
     frame._fpPanelBorderBottom:SetHeight(1)
 
     EnsureBorder("_fpPanelBorderLeft")
-    frame._fpPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -30)
-    frame._fpPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
+    frame._fpPanelBorderLeft:ClearAllPoints()
+    frame._fpPanelBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset, shellTopInset)
+    frame._fpPanelBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", shellInset, shellBottomInset)
     frame._fpPanelBorderLeft:SetWidth(1)
 
     EnsureBorder("_fpPanelBorderRight")
-    frame._fpPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -30)
-    frame._fpPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    frame._fpPanelBorderRight:ClearAllPoints()
+    frame._fpPanelBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -shellInset, shellTopInset)
+    frame._fpPanelBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -shellInset, shellBottomInset)
     frame._fpPanelBorderRight:SetWidth(1)
 
     local function EnsureInnerBorder(name)
@@ -739,26 +724,44 @@ function FormWidgets.ApplyWindowChrome(window)
     end
 
     EnsureInnerBorder("_fpPanelInnerTop")
-    frame._fpPanelInnerTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
-    frame._fpPanelInnerTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
+    frame._fpPanelInnerTop:ClearAllPoints()
+    frame._fpPanelInnerTop:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset + 1, shellTopInset - 1)
+    frame._fpPanelInnerTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(shellInset + 1), shellTopInset - 1)
     frame._fpPanelInnerTop:SetHeight(1)
 
     EnsureInnerBorder("_fpPanelInnerBottom")
-    frame._fpPanelInnerBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
-    frame._fpPanelInnerBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
+    frame._fpPanelInnerBottom:ClearAllPoints()
+    frame._fpPanelInnerBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", shellInset + 1, shellBottomInset + 1)
+    frame._fpPanelInnerBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(shellInset + 1), shellBottomInset + 1)
     frame._fpPanelInnerBottom:SetHeight(1)
 
     EnsureInnerBorder("_fpPanelInnerLeft")
-    frame._fpPanelInnerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 13, -31)
-    frame._fpPanelInnerLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 13, 13)
+    frame._fpPanelInnerLeft:ClearAllPoints()
+    frame._fpPanelInnerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset + 1, shellTopInset - 1)
+    frame._fpPanelInnerLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", shellInset + 1, shellBottomInset + 1)
     frame._fpPanelInnerLeft:SetWidth(1)
 
     EnsureInnerBorder("_fpPanelInnerRight")
-    frame._fpPanelInnerRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -13, -31)
-    frame._fpPanelInnerRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -13, 13)
+    frame._fpPanelInnerRight:ClearAllPoints()
+    frame._fpPanelInnerRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(shellInset + 1), shellTopInset - 1)
+    frame._fpPanelInnerRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(shellInset + 1), shellBottomInset + 1)
     frame._fpPanelInnerRight:SetWidth(1)
 
-    if content then
+    if options.headerSeparator then
+        if not frame._fpPanelHeaderSeparator then
+            frame._fpPanelHeaderSeparator = frame:CreateTexture(nil, "BORDER")
+        end
+        frame._fpPanelHeaderSeparator:ClearAllPoints()
+        frame._fpPanelHeaderSeparator:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset + 1, shellTopInset - headerHeight)
+        frame._fpPanelHeaderSeparator:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(shellInset + 1), shellTopInset - headerHeight)
+        frame._fpPanelHeaderSeparator:SetHeight(1)
+        frame._fpPanelHeaderSeparator:SetColorTexture(unpack(chromeColors.panelInnerBorder or chromeColors.sectionBorder or {}))
+        frame._fpPanelHeaderSeparator:Show()
+    elseif frame._fpPanelHeaderSeparator then
+        frame._fpPanelHeaderSeparator:Hide()
+    end
+
+    if content and options.showContentAccent ~= false then
         if not content._fpAccent then
             content._fpAccent = content:CreateTexture(nil, "BORDER")
             content._fpAccent:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -2)
@@ -766,6 +769,9 @@ function FormWidgets.ApplyWindowChrome(window)
             content._fpAccent:SetHeight(1)
         end
         content._fpAccent:SetColorTexture(unpack(chromeColors.accent or {}))
+        content._fpAccent:Show()
+    elseif content and content._fpAccent then
+        content._fpAccent:Hide()
     end
 end
 
@@ -873,6 +879,15 @@ local function SetCompactDialogColor(texture, color)
     end
 end
 
+local function SetCompactDialogTiling(texture, enabled)
+    if texture and texture.SetHorizTile then
+        texture:SetHorizTile(enabled == true)
+    end
+    if texture and texture.SetVertTile then
+        texture:SetVertTile(enabled == true)
+    end
+end
+
 local function SetCompactDialogPointPair(texture, startPoint, startRelative, startX, startY, endPoint, endRelative, endX, endY)
     if not texture then
         return
@@ -955,7 +970,33 @@ local function ApplyCompactDialogWindowChrome(window)
     SetCompactDialogColor(innerRight, innerBorderColor)
 end
 
-local function ApplyCompactDialogSurface(widget, key, options)
+local function HideCompactDialogWindowChrome(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    for _, key in ipairs({
+        "_fpCompactDialogOuterFill",
+        "_fpCompactDialogHeaderFill",
+        "_fpCompactDialogHeaderDivider",
+        "_fpCompactDialogBottomShade",
+        "_fpCompactDialogBorderTop",
+        "_fpCompactDialogBorderBottom",
+        "_fpCompactDialogBorderLeft",
+        "_fpCompactDialogBorderRight",
+        "_fpCompactDialogInnerTop",
+        "_fpCompactDialogInnerBottom",
+        "_fpCompactDialogInnerLeft",
+        "_fpCompactDialogInnerRight",
+    }) do
+        if frame[key] then
+            frame[key]:Hide()
+        end
+    end
+end
+
+function FormWidgets.ApplySurfacePresentation(widget, key, options)
     local frame = widget and widget.frame
     if not frame then
         return
@@ -963,11 +1004,20 @@ local function ApplyCompactDialogSurface(widget, key, options)
 
     options = options or {}
     local chromeColors = GetChromeColors()
-    local prefix = "_fpCompactDialog" .. (key or "Surface")
+    local prefix = (options.prefix or "_fpSurface") .. (key or "Surface")
 
     local fill = EnsureCompactDialogTexture(frame, prefix .. "Fill", "BACKGROUND")
     SetCompactDialogPointPair(fill, "TOPLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    SetCompactDialogColor(fill, options.fill or chromeColors.sectionFill)
+    local material = options.material
+    if material and material.material == "texture" and material.texture and fill.SetTexture then
+        fill:SetTexture(material.texture)
+        fill:SetTexCoord(0, 1, 0, 1)
+        SetCompactDialogTiling(fill, material.tile)
+        fill:SetVertexColor(unpack(material.tint or { 1, 1, 1, 1 }))
+    else
+        SetCompactDialogTiling(fill, false)
+        SetCompactDialogColor(fill, options.fill or (options.actionBar and chromeColors.sectionFillStrong) or chromeColors.sectionFill)
+    end
 
     local topShade = EnsureCompactDialogTexture(frame, prefix .. "TopShade", "BORDER")
     SetCompactDialogPointPair(topShade, "TOPLEFT", frame, 1, -1, "TOPRIGHT", frame, -1, -1)
@@ -1017,6 +1067,28 @@ function FormWidgets.CalculateCompactPickerContentHeight(rowHeights, options)
     local maxHeight = tonumber(options.maxHeight) or 252
     return math.max(minHeight, math.min(maxHeight, contentHeight))
 end
+
+local function ApplyCompactDialogWindowContentSurface(frame, material)
+    if not frame then
+        return
+    end
+
+    local surface = EnsureCompactDialogTexture(frame, "_fpCompactDialogWindowContentSurface", "BACKGROUND")
+    SetCompactDialogPointPair(surface, "TOPLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
+    if material and material.material == "texture" and material.texture and surface.SetTexture then
+        surface:SetTexture(material.texture)
+        surface:SetTexCoord(0, 1, 0, 1)
+        SetCompactDialogTiling(surface, material.tile)
+        surface:SetVertexColor(unpack(material.tint or { 1, 1, 1, 1 }))
+        surface:Show()
+        return
+    end
+
+    SetCompactDialogTiling(surface, false)
+    surface:SetTexture(nil)
+    surface:Hide()
+end
+
 local SMALL_WINDOW_REGION_TYPE = "FocalPointSmallWindowRegion"
 local SMALL_WINDOW_REGION_VERSION = 1
 
@@ -1084,171 +1156,52 @@ local function CreateSmallWindowScrollRegion(parent, layout, anchors)
 end
 local function CreateCompactFormShell(window, options)
     RegisterSmallWindowRegion()
-
     local previousShell = window.frame._fpCompactFormShell
-    if previousShell and previousShell.Release then
-        previousShell:Release()
-    end
-
+    if previousShell and previousShell.Release then previousShell:Release() end
     local contentInset = options.contentInset or 14
-    local footerHeight = options.footerHeight or 38
-    local statusHeight = options.statusHeight or 22
-    local isMessageDialog = options.mode == "message" or options.showBody == false or options.bodyHeight == 0
-    local isPickerDialog = options.mode == "picker"
-    local headerHeight = not isMessageDialog and type(options.description) == "string" and options.description ~= "" and (options.descriptionHeight or 32) or 0
     local shellFrames = window.frame._fpCompactFormShellFrames
-    if not shellFrames then
-        shellFrames = {}
-        window.frame._fpCompactFormShellFrames = shellFrames
-    end
-
+    if not shellFrames then shellFrames = {}; window.frame._fpCompactFormShellFrames = shellFrames end
     local function AcquireShellFrame(key, parent)
         local frame = shellFrames[key]
-        if not frame then
-            frame = CreateFrame("Frame", nil, parent)
-            shellFrames[key] = frame
-        else
-            frame:SetParent(parent)
-            frame:ClearAllPoints()
-        end
+        if not frame then frame = CreateFrame("Frame", nil, parent); shellFrames[key] = frame
+        else frame:SetParent(parent); frame:ClearAllPoints() end
         frame:Show()
         return frame
     end
-
     local shellFrame = AcquireShellFrame("shell", window.content)
     shellFrame:ClearAllPoints()
     shellFrame:SetPoint("TOPLEFT", window.content, "TOPLEFT", 0, 0)
     shellFrame:SetPoint("BOTTOMRIGHT", window.content, "BOTTOMRIGHT", 0, 0)
-
-    local footerFrame = AcquireShellFrame("footer", shellFrame)
-    footerFrame:SetPoint("BOTTOMLEFT", shellFrame, "BOTTOMLEFT", 0, 0)
-    footerFrame:SetPoint("BOTTOMRIGHT", shellFrame, "BOTTOMRIGHT", 0, 0)
-    footerFrame:SetHeight(footerHeight)
-
-    local statusFrame = AcquireShellFrame("status", shellFrame)
-    statusFrame:SetPoint("BOTTOMLEFT", footerFrame, "TOPLEFT", contentInset, 0)
-    statusFrame:SetPoint("BOTTOMRIGHT", footerFrame, "TOPRIGHT", -contentInset, 0)
-    statusFrame:SetHeight(statusHeight)
-
-    local headerFrame = shellFrames.header
-    if headerHeight > 0 then
-        headerFrame = AcquireShellFrame("header", shellFrame)
-        headerFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
-        headerFrame:SetPoint("TOPRIGHT", shellFrame, "TOPRIGHT", -contentInset, 0)
-        headerFrame:SetHeight(headerHeight)
-    elseif headerFrame then
-        headerFrame:Hide()
-        headerFrame = nil
-    end
-
     local contentFrame = AcquireShellFrame("content", shellFrame)
-    local function UpdateContentBounds(statusVisible)
-        contentFrame:ClearAllPoints()
-        if headerFrame then
-            contentFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, 0)
-            contentFrame:SetPoint("TOPRIGHT", headerFrame, "BOTTOMRIGHT", 0, 0)
-        else
-            contentFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
-            contentFrame:SetPoint("TOPRIGHT", shellFrame, "TOPRIGHT", -contentInset, 0)
-        end
-        local bottomFrame = statusVisible and statusFrame or footerFrame
-        contentFrame:SetPoint("BOTTOMLEFT", bottomFrame, "TOPLEFT", 0, 0)
-        contentFrame:SetPoint("BOTTOMRIGHT", bottomFrame, "TOPRIGHT", 0, 0)
-    end
-
-    local statusVisible = options.showStatus == true
-    UpdateContentBounds(statusVisible)
-    if statusVisible then
-        statusFrame:Show()
-    else
-        statusFrame:Hide()
-    end
-
+    contentFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
+    contentFrame:SetPoint("BOTTOMRIGHT", shellFrame, "BOTTOMRIGHT", -contentInset, 0)
+    local contentMaterial = GetCompactDialogContentSurface(options.contentSurface)
     local transparent = { 0, 0, 0, 0 }
-    ApplyCompactDialogSurface({ frame = contentFrame }, "Body", {
-        fill = isMessageDialog and transparent or options.bodyFill,
-        topShade = isMessageDialog and transparent or nil,
-        bottomShade = isMessageDialog and transparent or nil,
-        border = isMessageDialog and transparent or options.bodyBorder,
+    ApplyCompactDialogWindowContentSurface(shellFrame, contentMaterial)
+    FormWidgets.ApplySurfacePresentation({ frame = contentFrame }, "Body", {
+        prefix = "_fpCompactDialog",
+        fill = contentMaterial and transparent or options.bodyFill,
+        topShade = contentMaterial and transparent or nil,
+        bottomShade = contentMaterial and transparent or nil,
+        border = contentMaterial and transparent or options.bodyBorder,
     })
-    ApplyCompactDialogSurface({ frame = footerFrame }, "Footer", {
-        fill = options.footerFill or GetChromeColors().sectionFillStrong,
-        border = options.footerBorder,
+    local body = CreateSmallWindowRegion(contentFrame, options.bodyLayout or "List", {
+        { "TOPLEFT", contentFrame, "TOPLEFT", 9, -6 },
+        { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -9, 0 },
     })
-
-    local header
-    if headerFrame then
-        header = CreateSmallWindowRegion(headerFrame, "List", {
-            { "TOPLEFT", headerFrame, "TOPLEFT", 0, 0 },
-            { "BOTTOMRIGHT", headerFrame, "BOTTOMRIGHT", 0, 0 },
-        })
-    end
-
-    local body
-    local message
-    if isMessageDialog then
-        message = CreateSmallWindowRegion(contentFrame, "List", {
-            { "TOPLEFT", contentFrame, "TOPLEFT", 0, -8 },
-            { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0 },
-        })
-    elseif isPickerDialog and options.pickerScrollable ~= false then
-        body = CreateSmallWindowScrollRegion(contentFrame, options.bodyLayout or "List", {
-            { "TOPLEFT", contentFrame, "TOPLEFT", 0, -6 },
-            { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0 },
-        })
-    else
-        body = CreateSmallWindowRegion(contentFrame, options.bodyLayout or "List", {
-            { "TOPLEFT", contentFrame, "TOPLEFT", 9, -6 },
-            { "BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", -9, 0 },
-        })
-    end
-    local statusRegion = CreateSmallWindowRegion(statusFrame, "List", {
-        { "TOPLEFT", statusFrame, "TOPLEFT", 0, 0 },
-        { "BOTTOMRIGHT", statusFrame, "BOTTOMRIGHT", 0, 0 },
-    })
-    local footer = CreateSmallWindowRegion(footerFrame, "Flow", {
-        { "TOPLEFT", footerFrame, "TOPLEFT", contentInset, 4 },
-        { "BOTTOMRIGHT", footerFrame, "BOTTOMRIGHT", -contentInset, -4 },
-    })
-
     local shell = {
         frame = shellFrame,
-        header = header,
         body = body,
-        message = message,
-        status = statusRegion,
-        footer = footer,
+        contentRoot = body,
         contentWidth = math.max(1, (options.width or 420) - (contentInset * 2)),
     }
-
-    function shell:SetStatusVisible(visible)
-        visible = visible == true
-        if statusVisible == visible then
-            return
-        end
-        statusVisible = visible
-        if statusVisible then
-            statusFrame:Show()
-        else
-            statusFrame:Hide()
-        end
-        UpdateContentBounds(statusVisible)
-    end
-
     function shell:Release()
-        for _, region in ipairs({ self.header, self.body, self.message, self.status, self.footer }) do
-            if region then
-                AceGUI:Release(region)
-            end
-        end
+        if self.body then AceGUI:Release(self.body) end
         self.frame:Hide()
     end
-
     window.frame._fpCompactFormShell = shell
-
     return shell
 end
-
 local function CalculateCompactDialogHeight(options, isPickerDialog)
     local contentHeight
     if isPickerDialog then
@@ -1263,13 +1216,9 @@ local function CalculateCompactDialogHeight(options, isPickerDialog)
         return options.height or (isPickerDialog and 0 or 216)
     end
 
-    local isMessageDialog = options.mode == "message" or options.showBody == false or options.bodyHeight == 0
-    local headerHeight = not isMessageDialog and type(options.description) == "string" and options.description ~= "" and (options.descriptionHeight or 32) or 0
-    local footerHeight = options.footerHeight or 38
-    local statusHeight = (options.showStatus == true or options.reserveStatusSpace == true) and (options.statusHeight or 22) or 0
-    local contentTopPadding = isMessageDialog and 8 or 6
+    local contentTopPadding = 6
     -- AceGUI Window reserves 57 px around its content frame.
-    local calculatedHeight = 57 + headerHeight + contentHeight + footerHeight + statusHeight + contentTopPadding
+    local calculatedHeight = 57 + contentHeight + contentTopPadding
     return math.max(options.height or 0, calculatedHeight)
 end
 
@@ -1292,73 +1241,58 @@ function FormWidgets.CreateCompactFormDialog(options)
         window.frame:SetFrameStrata(options.strata or "FULLSCREEN_DIALOG")
     end
 
-    FormWidgets.ApplyWindowChrome(window)
-    ApplyCompactDialogWindowChrome(window)
+    local useCanonicalWindowShell = options.useCanonicalWindowShell ~= false
+    FormWidgets.ApplyWindowChrome(window, useCanonicalWindowShell and { nativeFrameShell = true } or nil)
+    if useCanonicalWindowShell then
+        HideCompactDialogWindowChrome(window)
+    else
+        ApplyCompactDialogWindowChrome(window)
+    end
     FormWidgets.EnsureStandardWindowCloseButton(window)
     EnableCompactDialogEscapeClose(window)
 
     local shell = CreateCompactFormShell(window, options)
-    local isMessageDialog = options.mode == "message" or options.showBody == false or options.bodyHeight == 0
-    local description
-    if shell.header then
-        description = AceGUI:Create("Label")
-        description:SetText(options.description)
-        description:SetFullWidth(true)
-        description:SetHeight(options.descriptionTextHeight or 24)
-        if FormWidgets.ApplyTextStyle then
-            FormWidgets.ApplyTextStyle(description.label, "help", 11, 1)
-        end
-        shell.header:AddChild(description)
-    elseif shell.message then
-        description = FormWidgets.CreateBodyText(options.description or "", "label", options.messageTextSize or 12, nil, shell.contentWidth, false)
-        shell.message:AddChild(description)
-        if type(options.messageHint) == "string" and options.messageHint ~= "" then
-            local hint = FormWidgets.CreateBodyText(options.messageHint, "help", options.messageHintTextSize or 11, nil, shell.contentWidth, false)
-            shell.message:AddChild(hint)
+    local statusTextRoles = {
+        neutral = "help",
+        error = "statusError",
+        success = "statusSuccess",
+    }
+
+    local function ApplyStatusStyle(target, role)
+        local textRole = statusTextRoles[role] or statusTextRoles.neutral
+        if target and FormWidgets.ApplyTextStyle then
+            FormWidgets.ApplyTextStyle(target.label, textRole, 10, 1)
         end
     end
-
-    if shell.body and options.mode ~= "picker" and options.addBodySpacer ~= false then
-        AddCompactDialogSpacer(shell.body, 6)
-    end
-
-    local status = AceGUI:Create("Label")
-    status:SetText(" ")
-    status:SetFullWidth(true)
-    status:SetHeight(options.statusTextHeight or 16)
-    if FormWidgets.ApplyTextStyle then
-        FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
-    end
-    shell.status:AddChild(status)
 
     local dialog = {
         window = window,
         root = shell,
-        description = description,
         bodyShell = shell.body and { frame = shell.body.frame } or nil,
         body = shell.body,
-        status = status,
-        footerShell = { frame = shell.footer.frame },
-        footer = shell.footer,
+        contentRoot = shell.contentRoot,
         contentWidth = shell.contentWidth,
         shell = shell,
-        isMessageDialog = isMessageDialog,
     }
 
-    function dialog:SetStatus(message)
+    function dialog:SetStatus(message, role, statusTarget)
         local hasMessage = type(message) == "string" and message ~= ""
-        self.status:SetText(hasMessage and message or " ")
-        if self.shell and self.shell.SetStatusVisible then
-            self.shell:SetStatusVisible(hasMessage or options.showStatus == true)
-        end
-        if self.shell and self.shell.status and self.shell.status.DoLayout then
-            self.shell.status:DoLayout()
+        role = hasMessage and (statusTextRoles[role] and role or "neutral") or "neutral"
+        local target = statusTarget
+        ApplyStatusStyle(target, role)
+        self.statusRole = role
+        if target then
+            target:SetText(hasMessage and message or " ")
         end
     end
 
-    function dialog:SetActions(actions)
+    function dialog:SetActions(actions, actionContainer)
         actions = actions or {}
-        self.footer:ReleaseChildren()
+        local container = actionContainer
+        if not container then
+            error("CreateCompactFormDialog:SetActions requires an actionContainer")
+        end
+        container:ReleaseChildren()
         self.primaryButton = nil
         self.secondaryButton = nil
         self.cancelButton = nil
@@ -1378,6 +1312,7 @@ function FormWidgets.CreateCompactFormDialog(options)
                 action = action,
                 role = action.role or defaultRole,
                 width = math.max(action.width or defaultWidth, action.minWidth or 0),
+                icon = action.icon,
             })
         end
 
@@ -1385,8 +1320,8 @@ function FormWidgets.CreateCompactFormDialog(options)
         AddAction("secondary", secondary, "utility", 110)
         AddAction("cancel", cancel, "utility", 110)
 
-        local measuredFooterWidth = self.footer.frame:GetWidth()
-        local footerWidth = actions.footerWidth or (measuredFooterWidth and measuredFooterWidth > 0 and measuredFooterWidth) or self.contentWidth or 388
+        local measuredContainerWidth = container.frame:GetWidth()
+        local containerWidth = (measuredContainerWidth and measuredContainerWidth > 0 and measuredContainerWidth) or self.contentWidth or 388
         local gap = actions.gap or 8
         local groupWidth = 0
         for index, entry in ipairs(actionButtons) do
@@ -1398,13 +1333,15 @@ function FormWidgets.CreateCompactFormDialog(options)
 
         for index, entry in ipairs(actionButtons) do
             local button = FormWidgets.CreateActionButton(entry.action.text or "", entry.role, entry.width, false)
-            FormWidgets.ApplyModalActionButtonVisual(button, entry.role)
+            FormWidgets.ApplyModalActionButtonVisual(button, entry.role, {
+                icon = entry.icon,
+            })
             button:SetCallback("OnClick", function()
                 if entry.action.onClick then
                     entry.action.onClick(self)
                 end
             end)
-            self.footer:AddChild(button)
+            container:AddChild(button)
             entry.button = button
 
             if entry.key == "primary" then
@@ -1416,15 +1353,15 @@ function FormWidgets.CreateCompactFormDialog(options)
             end
         end
 
-        if self.footer.DoLayout then
-            self.footer:DoLayout()
+        if container.DoLayout then
+            container:DoLayout()
         end
 
         local groupStart = 0
         if #actionButtons == 1 then
-            groupStart = math.max(0, math.floor((footerWidth - groupWidth) / 2))
+            groupStart = math.max(0, math.floor((containerWidth - groupWidth) / 2))
         elseif #actionButtons > 1 then
-            groupStart = math.max(0, footerWidth - groupWidth)
+            groupStart = math.max(0, containerWidth - groupWidth)
         end
 
         local actionX = groupStart
@@ -1432,8 +1369,8 @@ function FormWidgets.CreateCompactFormDialog(options)
             local frame = entry.button and entry.button.frame or nil
             if frame then
                 frame:ClearAllPoints()
-                -- LEFT-to-LEFT anchors use the vertical midpoint of the footer.
-                frame:SetPoint("LEFT", self.footer.frame, "LEFT", actionX, 0)
+                -- LEFT-to-LEFT anchors use the vertical midpoint of the action container.
+                frame:SetPoint("LEFT", container.frame, "LEFT", actionX, 0)
             end
             actionX = actionX + entry.width + gap
         end
@@ -1452,6 +1389,81 @@ function FormWidgets.CreateCompactFormDialog(options)
     return dialog
 end
 
+function FormWidgets.CreateCompactConfirmation(options)
+    options = options or {}
+
+    local messageHeight = options.messageHeight or 44
+    local hintHeight = type(options.hint) == "string" and options.hint ~= "" and (options.hintHeight or 16) or 0
+    local messageHintGap = hintHeight > 0 and (options.messageHintGap or 4) or 0
+    local messageStatusGap = options.messageStatusGap or 6
+    local statusHeight = options.statusHeight or 16
+    local statusActionGap = options.statusActionGap or 6
+    local actionHeight = options.actionHeight or 30
+    local bottomPadding = options.bottomPadding or 6
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = options.title or "",
+        width = options.width or 420,
+        height = 57 + messageHeight + messageHintGap + hintHeight + messageStatusGap + statusHeight + statusActionGap + actionHeight + bottomPadding,
+        bodyLayout = "List",
+        addBodySpacer = false,
+        contentRoot = true,
+    })
+    if not dialog then
+        return nil
+    end
+
+    local function AddSpacer(height)
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText("")
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(height)
+        dialog.body:AddChild(spacer)
+    end
+
+    local message = FormWidgets.CreateBodyText(options.message or "", "label", 12, nil, dialog.contentWidth, false)
+    message:SetFullWidth(true)
+    message:SetHeight(messageHeight)
+    dialog.body:AddChild(message)
+
+    if hintHeight > 0 then
+        AddSpacer(messageHintGap)
+        local hint = FormWidgets.CreateBodyText(options.hint, "help", 11, nil, dialog.contentWidth, false)
+        hint:SetFullWidth(true)
+        hint:SetHeight(hintHeight)
+        dialog.body:AddChild(hint)
+    end
+
+    AddSpacer(messageStatusGap)
+
+    local status = AceGUI:Create("Label")
+    status:SetText(" ")
+    status:SetFullWidth(true)
+    status:SetHeight(statusHeight)
+    if FormWidgets.ApplyTextStyle and status.label then
+        FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
+    end
+    dialog.body:AddChild(status)
+
+    AddSpacer(statusActionGap)
+
+    local actionContainer = AceGUI:Create("SimpleGroup")
+    actionContainer:SetFullWidth(true)
+    actionContainer:SetHeight(actionHeight)
+    actionContainer:SetLayout("Flow")
+    if actionContainer.SetAutoAdjustHeight then
+        actionContainer:SetAutoAdjustHeight(false)
+    end
+    dialog.body:AddChild(actionContainer)
+    AddSpacer(bottomPadding)
+
+    dialog.confirmationStatus = status
+    dialog:SetActions({
+        primary = options.primary,
+        cancel = options.cancel,
+    }, actionContainer)
+
+    return dialog
+end
 function FormWidgets.ApplySidebarChrome(window)
     if not window or not window.frame then
         return

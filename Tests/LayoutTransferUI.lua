@@ -54,16 +54,21 @@ LibStub = function(name) assert(name=="AceGUI-3.0"); return AceGUI end
 local forms = {}
 function forms.FocusWindow(window) window:Show() end
 function forms.CreateCompactFormDialog(options)
-    local dialog = {window=AceGUI:Create("Window"), body=AceGUI:Create("Region"), footer=AceGUI:Create("Region"), status=AceGUI:Create("Label"), options=options}
-    dialog.shell={header=AceGUI:Create("Region"), status=AceGUI:Create("Region"), frame=Frame()}
-    dialog.shell.status:AddChild(dialog.status)
+    local body=AceGUI:Create("Region")
+    local dialog = {window=AceGUI:Create("Window"), body=body, contentRoot=body, options=options}
+    dialog.shell={body=body, contentRoot=body, frame=Frame()}
+    function dialog.shell:Release() AceGUI:Release(self.body); self.frame:Hide() end
     dialog.window.frame._fpCompactFormShell=dialog.shell
-    function dialog:SetStatus(text) self.status:SetText(text) end
-    function dialog:SetActions(actions)
+    function dialog:SetStatus(text, role, target)
+        self.statusRole = (role == "error" or role == "success") and role or "neutral"
+        if target then target:SetText(text) end
+    end
+    function dialog:SetActions(actions, actionContainer)
+        assert(actionContainer)
         for key, action in pairs(actions) do
             local button=AceGUI:Create("Button")
             button:SetCallback("OnClick", action.onClick)
-            self[key .. "Button"]=button; self.footer:AddChild(button)
+            self[key .. "Button"]=button; actionContainer:AddChild(button)
         end
     end
     function dialog:Close() self.window:Hide() end
@@ -84,6 +89,13 @@ local function Row(id)
     for _, row in ipairs(list.children) do if row.item and row.item.id==id then return row end end
 end
 local function Snapshot() return assert(ns.LayoutTransferCodec.Encode(ns.db)) end
+local function FindChild(widget, kind)
+    for _, child in ipairs(widget.children or {}) do
+        if child.kind == kind then return child end
+        local nested = FindChild(child, kind)
+        if nested then return nested end
+    end
+end
 local function Click(button) assert(not button.disabled); button:Fire("OnClick") end
 local before=Snapshot()
 Click(Row("builtin:default"))
@@ -91,33 +103,33 @@ assert(exportButton.disabled)
 Click(Row("layout:original"))
 Click(exportButton)
 local export=dialogs[#dialogs]
-local exportEdit=export.body.children[1]
+local exportEdit=FindChild(export.body, "MultiLineEditBox")
 assert(exportEdit.highlighted)
 local encoded=exportEdit:GetText()
 assert(encoded==ns.LayoutTransfer.Export("layout:original"))
 Click(export.cancelButton)
-assert(export.window.released and export.body.released and export.footer.released and export.shell.status.released)
+assert(export.window.released and export.body.released)
 assert(AceGUI.FocusedWidget==nil and before==Snapshot())
 local active=assert(ns.LayoutTransferCodec.Encode(ns.db.char))
 for _=1,3 do
     Click(importButton)
     local dialog=dialogs[#dialogs]
-    local edit=dialog.body.children[1]
+    local edit=FindChild(dialog.body, "MultiLineEditBox")
     assert(dialog.primaryButton.disabled)
     edit:SetText("broken")
     before=Snapshot()
     Click(dialog.primaryButton)
-    assert(before==Snapshot() and dialog.status:GetText()~="")
+    assert(before==Snapshot() and dialog.status:GetText()~="" and dialog.statusRole=="error")
     edit:SetText(encoded)
     Click(dialog.primaryButton)
-    assert(dialog.status:GetText():match("Imported:") and dialog.primaryButton.disabled)
+    assert(dialog.status:GetText():match("Imported:") and dialog.primaryButton.disabled and dialog.statusRole=="success")
     assert(active==ns.LayoutTransferCodec.Encode(ns.db.char))
     local selected
     for _, row in ipairs(list.children) do if row.selected then selected=row.item end end
     assert(selected and selected.source=="userLayout" and selected.id~="layout:original" and not selected.active)
     assert(ns.UserLayoutStore.GetRawReadOnly(selected.id))
     manager.Close()
-    assert(dialog.window.released and dialog.body.released and dialog.footer.released and dialog.shell.status.released)
+    assert(dialog.window.released and dialog.body.released)
     assert(AceGUI.FocusedWidget==nil)
     assert(manager.Open())
 end

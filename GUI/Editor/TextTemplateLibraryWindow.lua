@@ -6,6 +6,7 @@ ns.GUI.Editor = ns.GUI.Editor or {}
 local AceGUI = LibStub("AceGUI-3.0")
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
 local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or {}
+local SelectionRow = ns.GUI.Widgets and ns.GUI.Widgets.SelectionRow or {}
 
 local TextTemplateLibraryWindow = {}
 ns.GUI.Editor.TextTemplateLibraryWindow = TextTemplateLibraryWindow
@@ -267,41 +268,57 @@ local function RefreshPreview(context)
     context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 360), "help", 11, 388, 42))
 end
 
-local function RefreshSelectionRowVisual(context, entryKey)
-    local button = context and context.rowButtons and context.rowButtons[entryKey] or nil
-    if button and FormWidgets.ApplyModalActionButtonVisual then
-        local selected = entryKey == context.selectedTemplateKey
-        FormWidgets.ApplyModalActionButtonVisual(button, selected and "primary_action" or "utility")
+local function SetStatus(context, message, role)
+    if context and context.dialog then
+        context.dialog:SetStatus(message, role, context.statusTarget)
     end
 end
 
+local function RefreshSelectionRowVisual(context, entryKey)
+    local row = context and context.rowWidgets and context.rowWidgets[entryKey] or nil
+    local binding = context and context.rowBindings and context.rowBindings[entryKey] or nil
+    if row and binding and row.Bind then
+        binding.selected = entryKey == context.selectedTemplateKey
+        row:Bind(binding)
+    end
+end
 local function RefreshRows(context)
     if type(context) ~= "table" or not context.listGroup then
         return
     end
 
     context.listGroup:ReleaseChildren()
-    context.rowButtons = {}
+    context.rowWidgets = {}
+    context.rowBindings = {}
     if #context.entries == 0 then
         context.listGroup:AddChild(CreateLabel(T("INSERT_TEXT_EMPTY", "No text templates available."), "help", 11, 214, 44))
         return
     end
 
     for _, entry in ipairs(context.entries) do
-        local selected = entry.key == context.selectedTemplateKey
-        local button = CreateButton(GetEntryLabel(entry), selected and "primary_action" or "utility", 214)
-        button:SetCallback("OnClick", function()
-            local previousTemplateKey = context.selectedTemplateKey
-            context.selectedTemplateKey = entry.key
-            RefreshSelectionRowVisual(context, previousTemplateKey)
-            RefreshSelectionRowVisual(context, entry.key)
-            RefreshPreview(context)
-            if context.primaryButton then
-                context.primaryButton:SetDisabled(false)
-            end
-        end)
-        context.listGroup:AddChild(button)
-        context.rowButtons[entry.key] = button
+        local binding = {
+            key = entry.key,
+            label = GetEntryLabel(entry),
+            selected = entry.key == context.selectedTemplateKey,
+            onSelect = function(entryKey)
+                local previousTemplateKey = context.selectedTemplateKey
+                context.selectedTemplateKey = entryKey
+                RefreshSelectionRowVisual(context, previousTemplateKey)
+                RefreshSelectionRowVisual(context, entryKey)
+                RefreshPreview(context)
+                if context.primaryButton then
+                    context.primaryButton:SetDisabled(false)
+                end
+            end,
+        }
+        local row = SelectionRow.Create and SelectionRow.Create(binding) or nil
+        if row then
+            row:SetFullWidth(false)
+            row:SetWidth(214)
+            context.listGroup:AddChild(row)
+            context.rowWidgets[entry.key] = row
+            context.rowBindings[entry.key] = binding
+        end
     end
 end
 
@@ -336,13 +353,13 @@ end
 local function SubmitSelectedTemplate(context)
     local unitKey = GetTargetUnit(context)
     if type(unitKey) ~= "string" or unitKey == "" then
-        context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_UNIT", "Select a unit first."))
+        SetStatus(context, T("INSERT_TEXT_STATUS_SELECT_UNIT", "Select a unit first."))
         return
     end
 
     local entry = FindEntry(context, context.selectedTemplateKey)
     if type(entry) ~= "table" then
-        context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_TEMPLATE", "Select a text template first."))
+        SetStatus(context, T("INSERT_TEXT_STATUS_SELECT_TEMPLATE", "Select a text template first."))
         return
     end
 
@@ -350,7 +367,7 @@ local function SubmitSelectedTemplate(context)
     local mutationContext = mutations.CreateActiveLayoutContext and mutations.CreateActiveLayoutContext(ns.db) or nil
     local materialized = mutations.MaterializeTemplateEntry and mutations.MaterializeTemplateEntry(mutationContext, entry) or nil
     if type(materialized) ~= "table" or not materialized.ok then
-        context.dialog:SetStatus(ResolveMutationStatus(materialized))
+        SetStatus(context, ResolveMutationStatus(materialized))
         return
     end
     local templateName = materialized.templateName
@@ -358,7 +375,7 @@ local function SubmitSelectedTemplate(context)
     if context.mode == "change" then
         local textKey = context.targetTextKey
         if type(textKey) ~= "string" or textKey == "" then
-            context.dialog:SetStatus(T("INSERT_TEXT_STATUS_SELECT_TEXT", "Select a text object first."))
+            SetStatus(context, T("INSERT_TEXT_STATUS_SELECT_TEXT", "Select a text object first."))
             return
         end
 
@@ -370,7 +387,7 @@ local function SubmitSelectedTemplate(context)
 
         local result = mutations.AssignTemplate and mutations.AssignTemplate(mutationContext, unitKey, textKey, templateName) or nil
         if type(result) ~= "table" or not result.ok then
-            context.dialog:SetStatus(ResolveMutationStatus(result))
+            SetStatus(context, ResolveMutationStatus(result))
             return
         end
 
@@ -390,7 +407,7 @@ local function SubmitSelectedTemplate(context)
         anchorTo = anchorTo,
     }) or nil
     if type(result) ~= "table" or not result.ok then
-        context.dialog:SetStatus(ResolveMutationStatus(result))
+        SetStatus(context, ResolveMutationStatus(result))
         return
     end
 
@@ -438,19 +455,33 @@ local function BuildFooter(context)
                 context.dialog:Close()
             end,
         },
-    })
+    }, context.actionContainer)
     context.primaryButton = context.dialog.primaryButton
 end
 
 local function BuildBody(context)
     local body = context.dialog.body
     body:ReleaseChildren()
-    body:SetLayout("Fill")
+    body:SetLayout("List")
+
+    local description = CreateLabel(
+        context.mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
+        "help",
+        11,
+        nil,
+        24
+    )
+    body:AddChild(description)
+
+    local descriptionGap = CreateSpacer(nil, 6)
+    descriptionGap:SetFullWidth(true)
+    body:AddChild(descriptionGap)
 
     local content = AceGUI:Create("SimpleGroup")
     content:SetLayout("Flow")
     content:SetFullWidth(true)
-    content:SetFullHeight(true)
+    content:SetFullHeight(false)
+    LockContainerHeight(content, 228)
     body:AddChild(content)
 
     local listColumn = AceGUI:Create("SimpleGroup")
@@ -481,6 +512,20 @@ local function BuildBody(context)
     context.previewGroup = previewGroup
     previewColumn:AddChild(previewGroup)
     content:AddChild(previewColumn)
+
+    local status = CreateLabel(" ", "help", 10, nil, 16)
+    context.statusTarget = status
+    body:AddChild(status)
+
+    local actionContainer = AceGUI:Create("SimpleGroup")
+    actionContainer:SetLayout("Flow")
+    actionContainer:SetFullWidth(true)
+    if actionContainer.SetAutoAdjustHeight then
+        actionContainer:SetAutoAdjustHeight(false)
+    end
+    actionContainer:SetHeight(30)
+    context.actionContainer = actionContainer
+    body:AddChild(actionContainer)
 end
 
 function TextTemplateLibraryWindow.Open(options)
@@ -495,11 +540,9 @@ function TextTemplateLibraryWindow.Open(options)
         description = mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
         width = 700,
         mode = "picker",
-        pickerScrollable = false,
-        pickerContentHeight = 246,
-        reserveStatusSpace = true,
-        bodyLayout = "Fill",
-        footerHeight = 40,
+        pickerContentHeight = 304,
+        bodyLayout = "List",
+        contentRoot = true,
     }) or nil
     if not dialog then
         return

@@ -294,10 +294,10 @@ local function CreateWindow()
         title = T("EDITOR_OPTIONS_TITLE", "Focal Point Options"),
         width = 360,
         formContentHeight = 286,
-        footerHeight = 40,
         contentInset = 14,
         addBodySpacer = false,
         bodyLayout = "List",
+        contentRoot = true,
     })
     local window = dialog.window
     local body = dialog.body
@@ -328,16 +328,6 @@ local function CreateWindow()
     body:AddChild(CreateVerticalGap(ROW_GAP))
     CreateOptionRow(body, T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames"), "hideBlizzard")
     body:AddChild(CreateVerticalGap(ROW_GAP))
-
-    dialog:SetActions({
-        cancel = {
-            text = T("OPTION_CLOSE", "Close"),
-            width = 96,
-            onClick = function()
-                dialog:Close()
-            end,
-        },
-    })
 
     window:SetCallback("OnClose", function()
         HideSnapLines()

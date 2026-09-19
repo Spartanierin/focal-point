@@ -13,10 +13,11 @@ ns.GUI.Editor.LayoutAssignments = LayoutAssignments
 local WINDOW_WIDTH = 520
 local WINDOW_CHROME_HEIGHT = 57
 local WINDOW_DESCRIPTION_HEIGHT = 32
+local WINDOW_DESCRIPTION_TEXT_HEIGHT = 24
+local WINDOW_DESCRIPTION_GAP = 8
 local WINDOW_CONTENT_PADDING = 12
 local WINDOW_TABLE_HEADER_HEIGHT = 24
 local WINDOW_SPEC_ROW_HEIGHT = 42
-local WINDOW_FOOTER_HEIGHT = 42
 local WINDOW_MIN_HEIGHT = 264
 local NONE_VALUE = "__fp_assignment_none__"
 
@@ -120,7 +121,7 @@ end
 
 local function CalculateWindowHeight()
     local contentHeight = WINDOW_CONTENT_PADDING + WINDOW_TABLE_HEADER_HEIGHT + (#BuildSpecs() * WINDOW_SPEC_ROW_HEIGHT)
-    return math.max(WINDOW_MIN_HEIGHT, WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + contentHeight + WINDOW_FOOTER_HEIGHT)
+    return math.max(WINDOW_MIN_HEIGHT, WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + contentHeight)
 end
 
 local function ResolveLayoutName(summary)
@@ -188,6 +189,11 @@ local function RefreshRows()
     local layoutValues, layoutOrder = BuildLayoutDropdownData()
     local currentSpecID = GetCurrentSpecID()
 
+    local description = CreateLabel(T("LAYOUT_ASSIGNMENT_DESCRIPTION", "Assign layouts to your current class specializations."), "help", 11)
+    description:SetHeight(WINDOW_DESCRIPTION_TEXT_HEIGHT)
+    body:AddChild(description)
+    body:AddChild(CreateSpacer(nil, WINDOW_DESCRIPTION_GAP))
+
     local header = AceGUI:Create("SimpleGroup")
     header:SetLayout("Flow")
     header:SetFullWidth(true)
@@ -201,6 +207,7 @@ local function RefreshRows()
     if #specs == 0 then
         local empty = CreateLabel(T("LAYOUT_ASSIGNMENT_NO_SPECS", "No specializations available."), "help", 11, 455)
         body:AddChild(empty)
+        body:AddChild(CreateSpacer(nil, WINDOW_CONTENT_PADDING))
         if context.window and context.window.DoLayout then
             context.window:DoLayout()
         end
@@ -253,42 +260,26 @@ local function RefreshRows()
         row:AddChild(dropdown)
     end
 
+    body:AddChild(CreateSpacer(nil, WINDOW_CONTENT_PADDING))
+
     if context.window and context.window.DoLayout then
         context.window:DoLayout()
     end
     context._suspendCallbacks = false
 end
 
-local function Close()
-    if context and context.window and context.window.Hide then
-        context.window:Hide()
-    end
-end
-
 local function CreateWindow()
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T("LAYOUT_ASSIGNMENT_TITLE", "Assignments"),
-        description = T("LAYOUT_ASSIGNMENT_DESCRIPTION", "Assign layouts to your current class specializations."),
         width = WINDOW_WIDTH,
         height = CalculateWindowHeight(),
         bodyLayout = "Flow",
-        footerHeight = WINDOW_FOOTER_HEIGHT,
+        contentRoot = true,
     })
-    dialog:SetActions({
-        cancel = {
-            text = T("INFO_COMMON_CLOSE", "Close"),
-            role = "utility",
-            width = 105,
-            onClick = Close,
-        },
-    })
-
     context = {
         window = dialog.window,
         widgets = {
             body = dialog.body,
-            footer = dialog.footer,
-            closeButton = dialog.cancelButton,
         },
     }
 
@@ -324,7 +315,9 @@ function LayoutAssignments.Refresh()
 end
 
 function LayoutAssignments.Close()
-    Close()
+    if context and context.window and context.window.Hide then
+        context.window:Hide()
+    end
 end
 
 return LayoutAssignments

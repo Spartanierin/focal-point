@@ -384,7 +384,7 @@ local function AddGroupHeader(parent, text)
     parent:AddChild(row)
 
     row:AddChild(CreateSpacer(10, 1))
-    row:AddChild(CreateLabel(text, "sectionHeader", 12, 180))
+    row:AddChild(CreateLabel(text, "parchmentSectionHeader", 12, 180))
     row:AddChild(CreateSpacer(8, 1))
     local divider = AceGUI:Create("SimpleGroup")
     divider:SetAutoAdjustHeight(false)
@@ -429,7 +429,7 @@ local function AddEmptyState(parent)
     LockContainerHeight(row, 26)
     parent:AddChild(row)
     row:AddChild(CreateSpacer(16, 1))
-    row:AddChild(CreateLabel(T("LAYOUT_MANAGER_EMPTY_MY_LAYOUTS", "No custom layouts yet."), "help", 11, 480))
+    row:AddChild(CreateLabel(T("LAYOUT_MANAGER_EMPTY_MY_LAYOUTS", "No custom layouts yet."), "parchmentMuted", 11, 480))
 end
 
 local function ResolveRenameStatus(reason)
@@ -512,31 +512,26 @@ local function AnchorFooterButton(button, point, relativeTo, relativePoint, xOff
 end
 
 local function LayoutFooterActions()
-    if not (context and context.widgets and context.widgets.footer) then
+    if not (context and context.widgets and context.widgets.actionContainer) then
         return
     end
 
-    local footerFrame = context.widgets.footer.frame
+    local actionFrame = context.widgets.actionContainer.frame
     local renameButton = context.widgets.renameButton
     local copyButton = context.widgets.copyButton
     local deleteButton = context.widgets.deleteButton
-    local closeButton = context.widgets.closeButton
     local gap = 8
-
-    if closeButton then
-        AnchorFooterButton(closeButton, "RIGHT", footerFrame, "RIGHT", -12, 0)
-    end
 
     local previous
     if renameButton and renameButton.frame and renameButton.frame:IsShown() then
-        AnchorFooterButton(renameButton, "LEFT", footerFrame, "LEFT", 12, 0)
+        AnchorFooterButton(renameButton, "LEFT", actionFrame, "LEFT", 12, 0)
         previous = renameButton.frame
     end
     if copyButton and copyButton.frame and copyButton.frame:IsShown() then
         if previous then
             AnchorFooterButton(copyButton, "LEFT", previous, "RIGHT", gap, 0)
         else
-            AnchorFooterButton(copyButton, "LEFT", footerFrame, "LEFT", 12, 0)
+            AnchorFooterButton(copyButton, "LEFT", actionFrame, "LEFT", 12, 0)
         end
         previous = copyButton.frame
     end
@@ -544,7 +539,7 @@ local function LayoutFooterActions()
         if previous then
             AnchorFooterButton(deleteButton, "LEFT", previous, "RIGHT", gap, 0)
         else
-            AnchorFooterButton(deleteButton, "LEFT", footerFrame, "LEFT", 12, 0)
+            AnchorFooterButton(deleteButton, "LEFT", actionFrame, "LEFT", 12, 0)
         end
     end
 end
@@ -584,16 +579,11 @@ local function FocusDialogEditBox(editBox)
 end
 
 local function CreateDeleteConfirmDialog(item)
-    local dialog = FormWidgets.CreateCompactFormDialog({
-        mode = "message",
+    local dialog = FormWidgets.CreateCompactConfirmation({
         title = T("LAYOUT_DELETE_TITLE", "Delete Layout?"),
-        description = string.format(T("LAYOUT_DELETE_MESSAGE", "This permanently deletes \"%s\".\nThis cannot be undone."), item and item.name or ""),
+        message = string.format(T("LAYOUT_DELETE_MESSAGE", "This permanently deletes \"%s\".\nThis cannot be undone."), item and item.name or ""),
         width = 430,
-        footerHeight = 40,
-        messageContentHeight = 52,
-        reserveStatusSpace = true,
-    })
-    dialog:SetActions({
+        messageHeight = 52,
         primary = {
             text = T("LAYOUT_DELETE_CONFIRM", "Delete"),
             role = "danger",
@@ -605,11 +595,14 @@ local function CreateDeleteConfirmDialog(item)
             width = 100,
         },
     })
+    if not dialog then
+        return nil
+    end
 
     return {
         window = dialog.window,
         dialog = dialog,
-        status = dialog.status,
+        status = dialog.confirmationStatus,
         cancelButton = dialog.cancelButton,
         deleteButton = dialog.primaryButton,
     }
@@ -617,20 +610,45 @@ end
 
 local function CreateLayoutNameDialog(options)
     options = options or {}
+    local descriptionHeight = 32
+    local nameHeight = 50
+    local descriptionNameGap = 6
+    local nameStatusGap = 6
+    local statusHeight = 16
+    local statusActionGap = 6
+    local actionHeight = 30
+    local bottomPadding = 6
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = options.title,
-        description = options.description,
         width = 420,
-        formContentHeight = 50,
-        reserveStatusSpace = true,
+        height = 57 + descriptionHeight + descriptionNameGap + nameHeight + nameStatusGap + statusHeight + statusActionGap + actionHeight + bottomPadding,
+        bodyLayout = "List",
+        addBodySpacer = false,
+        contentRoot = true,
     }) or nil
     if not dialog then
         return nil
     end
 
+    local description = FormWidgets.CreateBodyText(options.description or "", "label", 12, nil, dialog.contentWidth, false)
+    description:SetFullWidth(true)
+    description:SetHeight(descriptionHeight)
+    dialog.body:AddChild(description)
+
+    local function AddSpacer(height)
+        local spacer = AceGUI:Create("Label")
+        spacer:SetText("")
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(height)
+        dialog.body:AddChild(spacer)
+    end
+
+    AddSpacer(descriptionNameGap)
+
     local nameEdit = AceGUI:Create("EditBox")
     nameEdit:SetLabel(options.nameLabel or T("LAYOUT_RENAME_NAME", "Name"))
     nameEdit:SetFullWidth(true)
+    nameEdit:SetHeight(nameHeight)
     nameEdit:SetText(options.defaultName or "")
     if nameEdit.DisableButton then
         nameEdit:DisableButton(true)
@@ -640,6 +658,29 @@ local function CreateLayoutNameDialog(options)
     end
     dialog.body:AddChild(nameEdit)
 
+    AddSpacer(nameStatusGap)
+
+    local status = AceGUI:Create("Label")
+    status:SetText(" ")
+    status:SetFullWidth(true)
+    status:SetHeight(statusHeight)
+    if FormWidgets.ApplyTextStyle and status.label then
+        FormWidgets.ApplyTextStyle(status.label, "help", 10, 1)
+    end
+    dialog.body:AddChild(status)
+
+    AddSpacer(statusActionGap)
+
+    local actionContainer = AceGUI:Create("SimpleGroup")
+    actionContainer:SetFullWidth(true)
+    actionContainer:SetHeight(actionHeight)
+    actionContainer:SetLayout("Flow")
+    if actionContainer.SetAutoAdjustHeight then
+        actionContainer:SetAutoAdjustHeight(false)
+    end
+    dialog.body:AddChild(actionContainer)
+    AddSpacer(bottomPadding)
+
     local function updatePrimaryButton()
         if dialog.primaryButton then
             dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
@@ -647,7 +688,7 @@ local function CreateLayoutNameDialog(options)
     end
 
     local function clearStatus()
-        dialog:SetStatus("")
+        dialog:SetStatus("", nil, status)
         updatePrimaryButton()
     end
 
@@ -675,13 +716,13 @@ local function CreateLayoutNameDialog(options)
                 end
             end,
         },
-    })
+    }, actionContainer)
 
     dialog.nameEdit = nameEdit
+    dialog.confirmationStatus = status
     updatePrimaryButton()
     return dialog
 end
-
 local function OpenRenameDialog()
     if not (context and context.state) then
         return
@@ -707,7 +748,7 @@ local function OpenRenameDialog()
     end
 
     local function setStatus(message)
-        dialog:SetStatus(message)
+        dialog:SetStatus(message, "error", dialog.confirmationStatus)
     end
 
     local function submitRename(_, nameEdit)
@@ -789,7 +830,7 @@ local function OpenCopyDialog()
             return
         end
 
-        dialog:SetStatus(ResolveCopyStatus(resultOrReason))
+        dialog:SetStatus(ResolveCopyStatus(resultOrReason), "error", dialog.confirmationStatus)
         if dialog.primaryButton then
             dialog.primaryButton:SetDisabled(Trim(nameEdit:GetText() or "") == "")
         end
@@ -852,7 +893,7 @@ local function OpenDeleteDialog()
         end
 
         if dialog.dialog and dialog.dialog.SetStatus then
-            dialog.dialog:SetStatus(ResolveDeleteStatus(resultOrReason))
+            dialog.dialog:SetStatus(ResolveDeleteStatus(resultOrReason), "error", dialog.status)
         end
         if widget and widget.SetDisabled then
             widget:SetDisabled(false)
@@ -901,29 +942,69 @@ local function OpenTransferDialog(export)
         if not (selected and selected.source == "userLayout" and not selected.readOnly) then return end
         local reason
         exportText, reason = transfer.Export(selected.id)
-        if not exportText then context.widgets.status:SetText(TransferError(reason)); return end
+        if not exportText then
+            context.dialog:SetStatus(TransferError(reason), "error", context.widgets.status)
+            return
+        end
     end
     CloseTransferDialog()
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T(export and "LAYOUT_TRANSFER_EXPORT_TITLE" or "LAYOUT_TRANSFER_IMPORT_TITLE"),
         description = T(export and "LAYOUT_TRANSFER_EXPORT_HINT" or "LAYOUT_TRANSFER_IMPORT_HINT"),
         width = 560,
-        formContentHeight = 220,
-        bodyLayout = "Fill",
+        formContentHeight = 312,
+        bodyLayout = "List",
         addBodySpacer = false,
-        showStatus = true,
-        statusHeight = 36,
-        statusTextHeight = 32,
+        contentRoot = true,
     })
+
+    local body = dialog.body
+    body:ReleaseChildren()
+    body:SetLayout("List")
+
+    local description = AceGUI:Create("Label")
+    description:SetText(T(export and "LAYOUT_TRANSFER_EXPORT_HINT" or "LAYOUT_TRANSFER_IMPORT_HINT"))
+    description:SetFullWidth(true)
+    description:SetHeight(24)
+    if FormWidgets.ApplyTextStyle and description.label then
+        FormWidgets.ApplyTextStyle(description.label, "help", 11, 1)
+    end
+    body:AddChild(description)
+
+    local descriptionGap = AceGUI:Create("Label")
+    descriptionGap:SetText("")
+    descriptionGap:SetFullWidth(true)
+    descriptionGap:SetHeight(6)
+    body:AddChild(descriptionGap)
+
     local edit = AceGUI:Create("MultiLineEditBox")
     edit:SetLabel("")
     edit:SetNumLines(10)
     edit:SetFullWidth(true)
-    edit:SetFullHeight(true)
+    edit:SetFullHeight(false)
+    edit:SetHeight(220)
     edit:DisableButton(true)
     edit:SetText(exportText or "")
     if FormWidgets.StyleEditBox then FormWidgets.StyleEditBox(edit, "editor_inset") end
-    dialog.body:AddChild(edit)
+    body:AddChild(edit)
+
+    local statusTarget = AceGUI:Create("Label")
+    statusTarget:SetText(" ")
+    statusTarget:SetFullWidth(true)
+    statusTarget:SetHeight(32)
+    if FormWidgets.ApplyTextStyle and statusTarget.label then
+        FormWidgets.ApplyTextStyle(statusTarget.label, "help", 10, 1)
+    end
+    body:AddChild(statusTarget)
+
+    local actionContainer = AceGUI:Create("SimpleGroup")
+    actionContainer:SetLayout("Flow")
+    actionContainer:SetFullWidth(true)
+    if actionContainer.SetAutoAdjustHeight then
+        actionContainer:SetAutoAdjustHeight(false)
+    end
+    actionContainer:SetHeight(30)
+    body:AddChild(actionContainer)
 
     local function SelectText()
         edit:SetFocus()
@@ -936,23 +1017,23 @@ local function OpenTransferDialog(export)
                 if export then SelectText(); return end
                 local ok, id, name = transfer.Import(edit:GetText())
                 if not ok then
-                    dialog:SetStatus(TransferError(id))
+                    dialog:SetStatus(TransferError(id), "error", statusTarget)
                     return
                 end
                 context.selectedLayoutId = id
                 LayoutManager.Refresh() -- library selection only; never Activate
                 edit:SetText("")
                 dialog.primaryButton:SetDisabled(true)
-                dialog:SetStatus(string.format(T("LAYOUT_TRANSFER_IMPORTED"), name))
+                dialog:SetStatus(string.format(T("LAYOUT_TRANSFER_IMPORTED"), name), "success", statusTarget)
             end,
         },
         cancel = {text=T("INFO_COMMON_CLOSE", "Close"), onClick=CloseTransferDialog},
-    })
+    }, actionContainer)
     if not export then
         dialog.primaryButton:SetDisabled(true)
         edit:SetCallback("OnTextChanged", function()
             local text = edit:GetText() or ""
-            dialog:SetStatus("")
+            dialog:SetStatus("", nil, statusTarget)
             dialog.primaryButton:SetDisabled(Trim(text) == "")
         end)
     end
@@ -961,11 +1042,9 @@ local function OpenTransferDialog(export)
         dialog.released = true
         if transferDialog == dialog then transferDialog = nil end
         if AceGUI.FocusedWidget == edit then AceGUI:ClearFocus() else edit:ClearFocus() end
-        -- Compact shell regions are owned separately from Window.children.
-        for _, region in ipairs({dialog.shell.header, dialog.body, dialog.shell.status, dialog.footer}) do
-            AceGUI:Release(region)
+        if dialog.shell and dialog.shell.Release then
+            dialog.shell:Release()
         end
-        dialog.shell.frame:Hide()
         dialog.window.frame._fpCompactFormShell = nil
         AceGUI:Release(dialog.window)
     end)
@@ -1008,12 +1087,6 @@ local function RefreshActions()
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.deleteButton, "danger")
         end
     end
-    if context.widgets.closeButton then
-        SetButtonVisible(context.widgets.closeButton, true, 105)
-        if FormWidgets.ApplyModalActionButtonVisual then
-            FormWidgets.ApplyModalActionButtonVisual(context.widgets.closeButton, "utility")
-        end
-    end
     LayoutFooterActions()
     if context.window and context.window.DoLayout then
         context.window:DoLayout()
@@ -1049,11 +1122,11 @@ local function RefreshList()
     end
 
     if context.widgets.status then
-        context.widgets.status:SetText(string.format(
+        context.dialog:SetStatus(string.format(
             T("LAYOUT_MANAGER_STATUS_COUNTS", "%d custom layouts, %d built-in layouts"),
             #state.userLayouts,
             #state.builtinLayouts
-        ))
+        ), nil, context.widgets.status)
     end
 
     if scroll.FixScroll then
@@ -1081,17 +1154,30 @@ local function CreateWindow()
         width = WINDOW_WIDTH,
         height = WINDOW_HEIGHT,
         bodyLayout = "List",
+        useCanonicalWindowShell = true,
         contentSurface = "parchment",
         addBodySpacer = false,
-        showStatus = true,
-        footerHeight = WINDOW_FOOTER_HEIGHT,
+        contentRoot = true,
     })
+
+    local body = dialog.body
+    body:ReleaseChildren()
+    body:SetLayout("List")
+
+    local description = AceGUI:Create("Label")
+    description:SetText(T("LAYOUT_MANAGER_DESCRIPTION", "View available layouts. Activate them from the Canvas Toolbar."))
+    description:SetFullWidth(true)
+    description:SetHeight(WINDOW_DESCRIPTION_HEIGHT)
+    if FormWidgets.ApplyTextStyle and description.label then
+        FormWidgets.ApplyTextStyle(description.label, "parchmentSecondary", 11, 1)
+    end
+    body:AddChild(description)
 
     local transferActions = AceGUI:Create("SimpleGroup")
     transferActions:SetLayout("Flow")
     transferActions:SetFullWidth(true)
     LockContainerHeight(transferActions, WINDOW_TRANSFER_ACTIONS_HEIGHT)
-    dialog.body:AddChild(transferActions)
+    body:AddChild(transferActions)
     local importButton = AceGUI:Create("Button")
     importButton:SetText(T("LAYOUT_TRANSFER_IMPORT"))
     importButton:SetWidth(120)
@@ -1112,7 +1198,22 @@ local function CreateWindow()
     scroll:SetFullWidth(true)
     scroll:SetFullHeight(false)
     scroll:SetHeight(WINDOW_LIST_HEIGHT)
-    dialog.body:AddChild(scroll)
+    body:AddChild(scroll)
+
+    local status = AceGUI:Create("Label")
+    status:SetText(" ")
+    status:SetFullWidth(true)
+    status:SetHeight(WINDOW_STATUS_HEIGHT)
+    if FormWidgets.ApplyTextStyle and status.label then
+        FormWidgets.ApplyTextStyle(status.label, "parchmentMuted", 10, 1)
+    end
+    body:AddChild(status)
+
+    local actionContainer = AceGUI:Create("SimpleGroup")
+    actionContainer:SetLayout("Flow")
+    actionContainer:SetFullWidth(true)
+    LockContainerHeight(actionContainer, WINDOW_FOOTER_HEIGHT)
+    body:AddChild(actionContainer)
 
     local renameButton = AceGUI:Create("Button")
     renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
@@ -1135,35 +1236,26 @@ local function CreateWindow()
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
     end
-    local closeButton = AceGUI:Create("Button")
-    closeButton:SetText(T("INFO_COMMON_CLOSE", "Close"))
-    closeButton:SetWidth(105)
-    closeButton:SetFullWidth(false)
-    if FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(closeButton, "utility")
-    end
-    renameButton.frame:SetParent(dialog.footer.frame)
-    copyButton.frame:SetParent(dialog.footer.frame)
-    deleteButton.frame:SetParent(dialog.footer.frame)
-    closeButton.frame:SetParent(dialog.footer.frame)
+    renameButton.frame:SetParent(actionContainer.frame)
+    copyButton.frame:SetParent(actionContainer.frame)
+    deleteButton.frame:SetParent(actionContainer.frame)
 
+    context.dialog = dialog
     context.window = dialog.window
     context.widgets = {
         scroll = scroll,
-        footer = dialog.footer,
-        status = dialog.status,
+        actionContainer = actionContainer,
+        status = status,
         importButton = importButton,
         exportButton = exportButton,
         renameButton = renameButton,
         copyButton = copyButton,
         deleteButton = deleteButton,
-        closeButton = closeButton,
     }
 
     renameButton:SetCallback("OnClick", OpenRenameDialog)
     copyButton:SetCallback("OnClick", OpenCopyDialog)
     deleteButton:SetCallback("OnClick", OpenDeleteDialog)
-    closeButton:SetCallback("OnClick", Close)
     dialog.window:SetCallback("OnClose", function()
         CloseTransferDialog()
         CloseRenameDialog()

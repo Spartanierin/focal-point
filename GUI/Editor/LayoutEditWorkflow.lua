@@ -47,39 +47,31 @@ function Workflow.RequestEditableLayoutForMutation(onReady, options)
     local layoutService = FocalPoint.LayoutService or {}
     local displayName = layoutService.GetDisplayName and layoutService.GetDisplayName(envelope) or envelope.name or activeLayoutId
     local FormWidgets = FocalPoint.GUI and FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormWidgets or nil
-    local AceGUI = LibStub and LibStub("AceGUI-3.0", true) or nil
-    if not (FormWidgets and FormWidgets.CreateCompactFormDialog and AceGUI) then
+    if not (FormWidgets and FormWidgets.CreateCompactConfirmation) then
         return false, "dialog-unavailable"
     end
 
-    local dialog = FormWidgets.CreateCompactFormDialog({
-        title = T("LAYOUT_EDIT_CONFIRM_TITLE", "Create Editable Layout?"),
-        description = string.format(T("LAYOUT_EDIT_CONFIRM_MESSAGE", "\"%s\" is a read-only template. Create a personal editable layout from it?"), displayName),
-        width = 440,
-        mode = "message",
-        messageContentHeight = 64,
-        reserveStatusSpace = true,
-    })
-    if not dialog then
-        return false, "dialog-unavailable"
-    end
-
+    local dialog
     local closed = false
     local function close()
         if closed then return end
         closed = true
         if pendingDialog == dialog then pendingDialog = nil end
-        if dialog.Close then dialog:Close() end
+        if dialog and dialog.Close then dialog:Close() end
     end
 
-    dialog:SetActions({
+    dialog = FormWidgets.CreateCompactConfirmation({
+        title = T("LAYOUT_EDIT_CONFIRM_TITLE", "Create Editable Layout?"),
+        message = string.format(T("LAYOUT_EDIT_CONFIRM_MESSAGE", "\"%s\" is a read-only template. Create a personal editable layout from it?"), displayName),
+        width = 440,
+        messageHeight = 64,
         cancel = { text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 110, onClick = close },
         primary = {
             text = T("LAYOUT_EDIT_CONFIRM_CREATE", "Create Editable Layout"),
             role = "primary_action",
             width = 210,
             minWidth = 210,
-            onClick = function()
+            onClick = function(activeDialog)
                 if IsBuiltinActive() ~= activeLayoutId then
                     close()
                     return
@@ -90,7 +82,9 @@ function Workflow.RequestEditableLayoutForMutation(onReady, options)
                     ok, newLayoutId = mutations.CreateUserLayoutFromSource(activeLayoutId, nil, { activate = true, reason = "layout-edit-confirm" })
                 end
                 if not ok or type(newLayoutId) ~= "string" then
-                    if dialog.SetStatus then dialog:SetStatus(T("LAYOUT_EDIT_CREATE_FAILED", "Layout could not be created.")) end
+                    if activeDialog and activeDialog.SetStatus then
+                        activeDialog:SetStatus(T("LAYOUT_EDIT_CREATE_FAILED", "Layout could not be created."), "error", activeDialog.confirmationStatus)
+                    end
                     return
                 end
                 close()
@@ -98,6 +92,9 @@ function Workflow.RequestEditableLayoutForMutation(onReady, options)
             end,
         },
     })
+    if not dialog then
+        return false, "dialog-unavailable"
+    end
     dialog.window:SetCallback("OnClose", function()
         if pendingDialog == dialog then pendingDialog = nil end
     end)
