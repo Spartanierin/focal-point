@@ -211,11 +211,12 @@ local function RefreshAuraSelectionRuntime(previousUnit)
     end
 end
 
-local function CompleteSelection(previousUnit, previousObject, nextKind)
+local function CompleteSelection(previousUnit, previousObject, nextKind, selectionContext)
     local changeKind = previousUnit == GetSelectedUnit() and "sameUnitObject" or "unitChanged"
     local controller = ns and ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Controller or nil
+    local surfaceRefreshOwnedByCaller
     if controller and type(controller.ApplyObjectSelectionProjection) == "function" then
-        controller.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind)
+        surfaceRefreshOwnedByCaller = controller.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind, selectionContext)
     else
         RefreshEditorSurface()
         RefreshInteractionVisuals()
@@ -227,7 +228,7 @@ local function CompleteSelection(previousUnit, previousObject, nextKind)
     if perf and perf.RecordSelection then
         perf:RecordSelection(changeKind)
     end
-    return true, changeKind
+    return true, changeKind, surfaceRefreshOwnedByCaller == true
 end
 
 local function SelectUnit(unitKey)
@@ -363,14 +364,14 @@ function ObjectSelection.GetSelectedObject()
     return BuildUnitRootSelection(selectedUnit)
 end
 
-function ObjectSelection.SelectUnitRoot(unitKey)
+function ObjectSelection.SelectUnitRoot(unitKey, selectionContext)
     return ObjectSelection.SelectObject({
         kind = "unit",
         unit = unitKey,
-    })
+    }, selectionContext)
 end
 
-function ObjectSelection.SelectObject(objectRef)
+function ObjectSelection.SelectObject(objectRef, selectionContext)
     if type(objectRef) ~= "table" then
         return false
     end
@@ -391,7 +392,7 @@ function ObjectSelection.SelectObject(objectRef)
         if EditorState and type(EditorState.ClearPropertyScope) == "function" then
             EditorState.ClearPropertyScope()
         end
-        return CompleteSelection(previousUnit, previousObject, kind)
+        return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
     end
 
     if kind == "bar" then

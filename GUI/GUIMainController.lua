@@ -319,7 +319,50 @@ local function StabilizeRenderedShell(expectedPath, refreshSerial)
     end
 end
 
-function FocalPoint.GUI:RequestRefreshOptions(reason)
+local function IsStableUnitRootPresentation(addon)
+    if addon._creatingGUI or addon._closingConfig or addon._pendingLayoutActivation
+        or addon.framesUnlocked ~= true or addon.guiTestModeEnabled
+        or addon.guiShellMode ~= "editor" or not addon.guiContentHost
+        or not addon.IsEditorActive or not addon:IsEditorActive()
+        or (InCombatLockdown and InCombatLockdown())
+    then
+        return false
+    end
+    local editor = addon.GUI and addon.GUI.Editor
+    local selection = editor and editor.ObjectSelection
+    local object = selection and selection.GetSelectedObject and selection.GetSelectedObject()
+    local state = editor and editor.State
+    local units = state and state.GetSelectedUnits and state.GetSelectedUnits()
+    if not object or object.kind ~= "unit" or object.unit == "boss"
+        or not units or #units ~= 1 or units[1] ~= object.unit
+        or (GameMenuFrame and GameMenuFrame.IsShown and GameMenuFrame:IsShown())
+    then
+        return false
+    end
+    -- Read existing gesture owners; never cache a second gesture/selection state.
+    for _, frame in pairs(addon.frames or {}) do
+        local click = frame._focalPointSelectionClick
+        if frame._focalPointDragState or (click and not click.handled)
+            or (frame.ResizeHandle and frame.ResizeHandle._resizeState)
+        then
+            return false
+        end
+        for _, overlay in pairs(frame._focalPointTextEditorOverlays or {}) do
+            if overlay._focalPointTextDragState then return false end
+        end
+        for _, zone in pairs(frame._focalPointCanvasHoverZones or {}) do
+            if zone._focalPointGesture or zone._focalPointDirectDragState or zone._focalPointOwnerDragActive then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+-- Private call marker: direct RefreshOptions calls must not inherit a pending opt-out.
+local pendingRefreshRequest = {}
+
+function FocalPoint.GUI:RequestRefreshOptions(reason, requirements)
     local perf = FocalPoint and FocalPoint.SelectionPerfDebug
     if perf and perf.Count then
         perf:Count("RequestRefreshOptions")
@@ -334,6 +377,13 @@ function FocalPoint.GUI:RequestRefreshOptions(reason)
         return
     end
 
+    local requiresFinalSelectionProjection = type(requirements) ~= "table"
+        or requirements.requiresFinalSelectionProjection ~= false
+    if addon._pendingRefreshOptions then
+        requiresFinalSelectionProjection = addon._pendingFinalSelectionProjection ~= false
+            or requiresFinalSelectionProjection
+    end
+    addon._pendingFinalSelectionProjection = requiresFinalSelectionProjection
     addon._pendingRefreshOptions = true
 
     if addon._refreshingOptions or addon._refreshOptionsScheduled then
@@ -347,7 +397,7 @@ function FocalPoint.GUI:RequestRefreshOptions(reason)
             return
         end
 
-        self:RefreshOptions()
+        self:RefreshOptions(pendingRefreshRequest)
     end
 
     if C_Timer and C_Timer.After then
@@ -359,7 +409,7 @@ function FocalPoint.GUI:RequestRefreshOptions(reason)
     RunDeferredRefresh()
 end
 
-function FocalPoint.GUI:RefreshOptions()
+function FocalPoint.GUI:RefreshOptions(refreshRequest)
     local perf = FocalPoint and FocalPoint.SelectionPerfDebug
     local perfStart = perf and perf.Begin and perf:Begin("RefreshOptions")
 
@@ -381,14 +431,18 @@ function FocalPoint.GUI:RefreshOptions()
 
     if addon._refreshingOptions then
         addon._pendingRefreshOptions = true
+        addon._pendingFinalSelectionProjection = true
         if perf and perf.End then
             perf:End("RefreshOptions", perfStart)
         end
         return
     end
 
+    local requiresFinalSelectionProjection = refreshRequest ~= pendingRefreshRequest
+        or not addon._pendingRefreshOptions or addon._pendingFinalSelectionProjection ~= false
     addon._refreshingOptions = true
     addon._pendingRefreshOptions = nil
+    addon._pendingFinalSelectionProjection = nil
     addon._guiRefreshSerial = (addon._guiRefreshSerial or 0) + 1
 
     local selectedPath = ResolveDefaultGUIPath(self.selectedPath)
@@ -411,7 +465,11 @@ function FocalPoint.GUI:RefreshOptions()
             end)
         end
 
-        if addon.RefreshEditorSelectionVisuals then
+        -- New requests remain pending for the next pass; stronger work also applies now.
+        local pendingRequiresFinalSelectionProjection = addon._pendingRefreshOptions
+            and addon._pendingFinalSelectionProjection ~= false
+        if addon.RefreshEditorSelectionVisuals and (requiresFinalSelectionProjection
+            or pendingRequiresFinalSelectionProjection or not IsStableUnitRootPresentation(addon)) then
             addon:RefreshEditorSelectionVisuals()
         end
     end, function(message)
@@ -424,7 +482,9 @@ function FocalPoint.GUI:RefreshOptions()
     end
 
     if addon._pendingRefreshOptions then
-        self:RequestRefreshOptions("RefreshOptions.Reschedule")
+        self:RequestRefreshOptions("RefreshOptions.Reschedule", {
+            requiresFinalSelectionProjection = addon._pendingFinalSelectionProjection ~= false,
+        })
     end
 
     if not ok then
@@ -490,10 +550,11 @@ local function EnsureEditorDesignPresenceForUnit(addon, unit)
     end
 end
 
-local function SelectUnitRootObject(unitKey)
+local function SelectUnitRootObject(unitKey, selectionContext)
     local objectSelection = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.ObjectSelection or nil
     if objectSelection and type(objectSelection.SelectUnitRoot) == "function" then
-        return objectSelection.SelectUnitRoot(unitKey) == true, true
+        local selected, _, surfaceRefreshOwnedByCaller = objectSelection.SelectUnitRoot(unitKey, selectionContext)
+        return selected == true, true, surfaceRefreshOwnedByCaller
     end
 
     if objectSelection and type(objectSelection.SelectObject) == "function" then
@@ -534,11 +595,14 @@ local function IsEditorUnitPresent(unitKey)
     return true
 end
 
+
 function FocalPoint:SelectEditorUnit(unit, options)
     if type(unit) ~= "string" or unit == "" then
         return
     end
-
+    local editorWasActive = self.IsEditorActive and self:IsEditorActive()
+    local objectSelection = self.GUI and self.GUI.Editor and self.GUI.Editor.ObjectSelection
+    local editorController = self.GUI and self.GUI.Editor and self.GUI.Editor.Controller
     local previousUnit = nil
     local previousUnits = {}
     local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
@@ -561,6 +625,7 @@ function FocalPoint:SelectEditorUnit(unit, options)
     end
 
     local selectionProjected = false
+    local surfaceRefreshOwnedByCaller = false
     local toggleSelection = type(options) == "table" and options.toggle == true
     local preserveSelection = type(options) == "table" and options.preserveSelection == true
     if toggleSelection and editorState and editorState.ToggleUnitSelection then
@@ -568,7 +633,22 @@ function FocalPoint:SelectEditorUnit(unit, options)
     elseif preserveSelection and editorState and editorState.SetPrimaryUnit then
         selectedUnit = editorState.SetPrimaryUnit(selectedUnit)
     else
-        local selectedRoot, objectSelectionAvailable = SelectUnitRootObject(selectedUnit)
+        local selectionContext
+        if editorWasActive and not toggleSelection and not preserveSelection
+            and #previousUnits == 1 and previousUnits[1] == previousUnit
+            and previousUnit ~= selectedUnit and previousUnit ~= "boss" and selectedUnit ~= "boss"
+            and self.frames and self.frames[previousUnit] and self.frames[selectedUnit]
+            and editorState and type(editorState.SetSingleSelection) == "function"
+            and objectSelection and type(objectSelection.SelectUnitRoot) == "function"
+            and editorController and type(editorController.ApplyObjectSelectionProjection) == "function"
+            and type(self.RefreshUnitFrame) == "function" and type(self.RefreshEditorSelectionVisuals) == "function"
+            and self.GUI and type(self.GUI.RequestRefreshOptions) == "function"
+            and not self._refreshingOptions and IsStableUnitRootPresentation(self)
+        then
+            selectionContext = { surfaceRefreshOwnedByCaller = true }
+        end
+        local selectedRoot, objectSelectionAvailable, ownsSurfaceRefresh = SelectUnitRootObject(selectedUnit, selectionContext)
+            surfaceRefreshOwnedByCaller = ownsSurfaceRefresh == true
         if selectedRoot then
             selectionProjected = true
             if editorState and editorState.GetPrimaryUnit then
@@ -592,7 +672,21 @@ function FocalPoint:SelectEditorUnit(unit, options)
         self.guiTreeStatus.selected = self.Constants.Nav.EDITOR
     end
 
-    EnsureEditorDesignPresenceForUnit(self, selectedUnit)
+    local canonicalUnitRootRefresh = selectionProjected
+        and editorWasActive and self:IsEditorActive()
+        and not toggleSelection and not preserveSelection
+        and #previousUnits == 1 and previousUnits[1] == previousUnit
+        and previousUnit ~= selectedUnit
+        and objectSelection and type(objectSelection.SelectUnitRoot) == "function"
+        and editorController and type(editorController.ApplyObjectSelectionProjection) == "function"
+        and not self._creatingGUI and not self._closingConfig
+        and not self._refreshingOptions and not self._pendingLayoutActivation
+
+    local existingStandardUnitFrame = selectedUnit ~= "boss"
+        and self.frames and self.frames[selectedUnit] ~= nil
+    if not (canonicalUnitRootRefresh and existingStandardUnitFrame) then
+        EnsureEditorDesignPresenceForUnit(self, selectedUnit)
+    end
 
     if not selectionProjected then
         if self.GUI and self.GUI.RequestRefreshOptions then
@@ -602,7 +696,11 @@ function FocalPoint:SelectEditorUnit(unit, options)
         end
     end
 
-    if (self.framesUnlocked or self.guiTestModeEnabled) and self.RefreshAllFrames then
+    -- The canonical unit-root projection already refreshed the old and new unit.
+    -- Keep the legacy runtime pass for selection fallbacks and lifecycle entry.
+    if canonicalUnitRootRefresh then
+        -- The existing non-boss frame was already refreshed by the projection.
+    elseif (self.framesUnlocked or self.guiTestModeEnabled) and self.RefreshAllFrames then
         self:RefreshAllFrames()
     else
         local refreshUnits = {}
@@ -625,8 +723,24 @@ function FocalPoint:SelectEditorUnit(unit, options)
         end
     end
 
+    local finalSelectionProjected = false
     if self.RefreshEditorSelectionVisuals then
-        self:RefreshEditorSelectionVisuals()
+        if surfaceRefreshOwnedByCaller then
+            local ok, err = pcall(self.RefreshEditorSelectionVisuals, self)
+            if not ok then
+                -- Preserve a full surface refresh on failure; never publish an unearned false.
+                self.GUI:RequestRefreshOptions("EditorController.ObjectSelection")
+                error(err, 0)
+            end
+        else
+            self:RefreshEditorSelectionVisuals()
+        end
+        finalSelectionProjected = true
+    end
+    if surfaceRefreshOwnedByCaller then
+        self.GUI:RequestRefreshOptions("EditorController.ObjectSelection", {
+            requiresFinalSelectionProjection = not finalSelectionProjected or not IsStableUnitRootPresentation(self),
+        })
     end
 end
 

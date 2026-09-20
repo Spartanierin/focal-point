@@ -178,7 +178,7 @@ local function RefreshSelectedUnitRuntime()
     RefreshUnitRuntime(state and state.selectedUnit or nil)
 end
 
-function EditorController.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind)
+function EditorController.ApplyObjectSelectionProjection(changeKind, previousUnit, previousObject, nextKind, selectionContext)
     if ns.RefreshEditorInteractionVisuals then
         ns:RefreshEditorInteractionVisuals()
     elseif ns.RefreshEditorSelectionVisuals then
@@ -202,6 +202,13 @@ function EditorController.ApplyObjectSelectionProjection(changeKind, previousUni
         return
     end
 
+    if selectionContext and selectionContext.surfaceRefreshOwnedByCaller == true
+        and changeKind == "unitChanged" and nextKind == "unit"
+        and previousObject and previousObject.kind == "unit"
+    then
+        -- The SelectEditorUnit owner requests the surface after its final projection.
+        return true
+    end
     if ns.GUI and ns.GUI.RequestRefreshOptions then
         ns.GUI:RequestRefreshOptions("EditorController.ObjectSelection")
     end

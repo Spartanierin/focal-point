@@ -511,6 +511,12 @@ local function CreateItemWidget(props, deps)
     end
 
     if props.widget == "button" then
+        if props.itemVariant == "unit_scope" and AceGUI then
+            local button = AceGUI:Create("Button")
+            button:SetText(ResolveItemText(props, deps))
+            button:SetFullWidth(true)
+            return button
+        end
         return CreateActionButton and CreateActionButton(ResolveItemText(props, deps), props.buttonVariant, props.width, props.fullWidth)
     end
 

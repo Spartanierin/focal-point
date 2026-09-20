@@ -214,8 +214,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "playerButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_PLAYER" },
-            { id = "targetButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_TARGET" },
+            { id = "playerButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_PLAYER" },
+            { id = "targetButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_TARGET" },
         },
     },
     {
@@ -237,8 +237,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "targetTargetButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_TARGETTARGET" },
-            { id = "petButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_PET" },
+            { id = "targetTargetButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_TARGETTARGET" },
+            { id = "petButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_PET" },
         },
     },
     {
@@ -260,8 +260,8 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "focusButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_FOCUS" },
-            { id = "focusTargetButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_FOCUSTARGET" },
+            { id = "focusButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_FOCUS" },
+            { id = "focusTargetButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_FOCUSTARGET" },
         },
     },
     {
@@ -283,7 +283,7 @@ ns.GUI.Layouts.Editor.ToolbarForm = {
             },
         },
         items = {
-            { id = "bossButton", widget = "button", itemVariant = "toolbar_secondary_action", textKey = "UNIT_BOSS" },
+            { id = "bossButton", widget = "button", itemVariant = "unit_scope", textKey = "UNIT_BOSS" },
             { id = "bossSpacer", widget = "label", itemVariant = "footer_hint_muted", text = "" },
         },
     },

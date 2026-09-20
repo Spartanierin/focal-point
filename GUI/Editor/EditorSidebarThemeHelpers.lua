@@ -520,36 +520,55 @@ function EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, component, s
 end
 
 function EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(button, selected)
-    if not button then
+    if not button or not button.frame then
         return
     end
-
     button.__fpUnitNavigatorSelected = selected == true
+    local frame = button.frame
     local stateVisuals = GetUnitNavigatorStateVisuals()
-    if EditorSidebarThemeHelpers.ApplyFPButtonVisualCore then
-        EditorSidebarThemeHelpers.ApplyFPButtonVisualCore(button, {
-            height = 20,
-            disabledText = stateVisuals.disabled and stateVisuals.disabled.text,
-        }, {
-            layerKeys = UNIT_NAVIGATOR_LAYER_KEYS,
-            rolePreset = "secondary",
-            selected = button.__fpUnitNavigatorSelected,
-            preferSelectedWhenDisabled = button.__fpUnitNavigatorSelected,
-            stateVisuals = stateVisuals,
-            accentVisible = button.__fpUnitNavigatorSelected,
-            hover = {
-                enabled = true,
-                hookKey = "__fpUnitNavigatorHoverHooked",
-                stateKey = "__fpUnitNavigatorHovered",
-                pressedKey = "__fpUnitNavigatorPressed",
-                onReapply = function(target)
-                    EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(target, target.__fpUnitNavigatorSelected)
-                end,
-            },
-        })
-    end
-end
+    local stateName = ResolveVisualState(
+        button.disabled == true,
+        button.__fpUnitNavigatorPressed == true,
+        button.__fpUnitNavigatorHovered == true,
+        button.__fpUnitNavigatorSelected,
+        true
+    )
+    local visual = ResolveStateVisual("secondary", stateName, nil, stateVisuals)
 
+    button:SetHeight(20)
+    NeutralizeTemplateTextures(frame)
+    for _, keys in ipairs({ SIDEBAR_LAYER_KEYS, UNIT_NAVIGATOR_LAYER_KEYS }) do
+        for _, key in ipairs({ keys.bg, keys.texture, keys.border, keys.accent }) do
+            local region = key and button[key] or nil
+            if region and region.Hide then
+                region:Hide()
+            end
+        end
+    end
+    ResetForgedMetalRegions(button)
+
+    EnsureFPButtonVisualLayers(button, UNIT_NAVIGATOR_LAYER_KEYS)
+    ApplyColorTexture(button.__fpUnitNavigatorBg, visual.fill)
+    ApplyColorTexture(button.__fpUnitNavigatorBorder, visual.border)
+    ApplyColorTexture(button.__fpUnitNavigatorAccent, visual.accent)
+    button.__fpUnitNavigatorBg:Show()
+    button.__fpUnitNavigatorBorder:Show()
+    button.__fpUnitNavigatorAccent:Show()
+
+    if button.text and button.text.SetTextColor and visual.text then
+        button.text:SetTextColor(unpack(visual.text))
+    end
+
+    EnsureFPButtonHoverHook(button, {
+        enabled = true,
+        hookKey = "__fpUnitNavigatorHoverHooked",
+        stateKey = "__fpUnitNavigatorHovered",
+        pressedKey = "__fpUnitNavigatorPressed",
+        onReapply = function(target)
+            EditorSidebarThemeHelpers.ApplyUnitNavigatorVisual(target, target.__fpUnitNavigatorSelected)
+        end,
+    })
+end
 function EditorSidebarThemeHelpers.StyleSidebarButton(button, variant)
     EditorSidebarThemeHelpers.ApplySidebarButtonVisual(button, variant)
 end
