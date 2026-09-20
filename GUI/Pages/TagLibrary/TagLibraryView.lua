@@ -7,6 +7,7 @@ local AceGUI = LibStub("AceGUI-3.0")
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
 local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or {}
+local SelectionRow = ns.GUI.Widgets and ns.GUI.Widgets.SelectionRow or {}
 
 local TagLibraryView = {}
 ns.GUI.Pages.TagLibraryView = TagLibraryView
@@ -247,6 +248,27 @@ local function RefreshDetails(context)
     AddField(details, T("INFO_TAG_LIBRARY_COL_EXAMPLE", "Example"), item.example)
 end
 
+local function BindSelectionRow(row, context, item)
+    row:Bind({
+        key = item,
+        label = item.token,
+        description = item.description ~= "" and item.description or nil,
+        selected = context.state.selectedEntry == item,
+        onSelect = function(selectedItem)
+            context.callbacks.onSelect(selectedItem)
+        end,
+    })
+end
+
+local function RefreshSelectionRows(context)
+    local widgets = context and context.widgets or {}
+    for _, row in ipairs(widgets.rows or {}) do
+        if row.item then
+            BindSelectionRow(row, context, row.item)
+        end
+    end
+end
+
 local function RefreshRows(context)
     local widgets = context and context.widgets or {}
     local scroll = widgets.listScroll
@@ -264,32 +286,24 @@ local function RefreshRows(context)
     end
 
     for _, item in ipairs(entries) do
-        local selected = context.state.selectedEntry == item
-        local label = selected and ("> " .. item.token) or item.token
-        if item.description ~= "" then
-            label = label .. "  -  " .. Shorten(item.description, 68)
-        elseif item.category ~= "" then
-            label = label .. "  -  " .. item.category
+        local row = SelectionRow.Create and SelectionRow.Create({}) or nil
+        if row then
+            row.item = item
+            BindSelectionRow(row, context, item)
+            scroll:AddChild(row)
+            widgets.rows[#widgets.rows + 1] = row
         end
-
-        local row = CreateButton(label, selected and "primary_action" or "utility", nil, "LEFT")
-        row:SetCallback("OnClick", function()
-            context.callbacks.onSelect(item)
-        end)
-        scroll:AddChild(row)
-        widgets.rows[#widgets.rows + 1] = row
     end
 end
 
 function TagLibraryView.RefreshSelection(context)
-    RefreshRows(context)
+    RefreshSelectionRows(context)
     RefreshDetails(context)
     local applyButton = context and context.widgets and context.widgets.applyButton
     if applyButton and applyButton.SetDisabled then
         applyButton:SetDisabled(context.state.selectedEntry == nil)
     end
 end
-
 function TagLibraryView.Refresh(context)
     if not context then
         return

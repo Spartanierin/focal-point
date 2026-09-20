@@ -11,6 +11,9 @@ local TYPE = "FocalPointSelectionRow"
 local VERSION = 1
 local COMPACT_HEIGHT = 22
 local DETAIL_HEIGHT = 38
+local LABEL_FONT_SIZE = 11
+local DESCRIPTION_FONT_SIZE = 9
+local DESCRIPTION_GAP = 2
 
 local function GetColors()
     local skins = ns.GUI and ns.GUI.Skins or nil
@@ -39,19 +42,35 @@ end
 
 local function UpdateLayout(widget, hasIcon, hasDescription, hasDetail, hasStatus)
     local left = hasIcon and widget.icon or widget.marker
-    widget.label:ClearAllPoints()
-    widget.label:SetPoint("LEFT", left, "RIGHT", 5, 0)
-    if hasDescription or hasStatus then
-        widget.label:SetPoint("TOP", widget.frame, "TOP", 0, -4)
-    else
-        widget.label:SetPoint("TOP", widget.frame, "TOP", 0, -2)
-        widget.label:SetPoint("BOTTOM", widget.frame, "BOTTOM", 0, 2)
-    end
-    widget.label:SetPoint("RIGHT", hasDetail and widget.detail or widget.frame, hasDetail and "LEFT" or "RIGHT", -8, 0)
+    local right = hasDetail and widget.detail or widget.frame
+    local rightPoint = hasDetail and "LEFT" or "RIGHT"
+    local descriptionRight = hasStatus and widget.status or widget.frame
+    local descriptionRightPoint = hasStatus and "BOTTOMLEFT" or "BOTTOMRIGHT"
+    local descriptionRightInset = hasStatus and -6 or -8
 
+    widget.label:ClearAllPoints()
     widget.description:ClearAllPoints()
-    widget.description:SetPoint("BOTTOMLEFT", left, "RIGHT", 5, 4)
-    widget.description:SetPoint("BOTTOMRIGHT", hasStatus and widget.status or widget.frame, hasStatus and "BOTTOMLEFT" or "BOTTOMRIGHT", hasStatus and -6 or -8, 4)
+    if hasDescription then
+        -- The marker/icon owns horizontal leading only; the text block centers against the row.
+        local textBlockHeight = LABEL_FONT_SIZE + DESCRIPTION_GAP + DESCRIPTION_FONT_SIZE
+        local textBlockTopInset = (DETAIL_HEIGHT - textBlockHeight) / 2
+        widget.label:SetPoint("TOP", widget.frame, "TOP", 0, -textBlockTopInset)
+        widget.label:SetPoint("LEFT", left, "RIGHT", 5, 0)
+        widget.label:SetPoint("RIGHT", right, rightPoint, -8, 0)
+        widget.description:SetPoint("TOPLEFT", widget.label, "BOTTOMLEFT", 0, -DESCRIPTION_GAP)
+        widget.description:SetPoint("TOPRIGHT", widget.label, "BOTTOMRIGHT", 0, -DESCRIPTION_GAP)
+    else
+        widget.label:SetPoint("LEFT", left, "RIGHT", 5, 0)
+        if hasStatus then
+            widget.label:SetPoint("TOP", widget.frame, "TOP", 0, -4)
+        else
+            widget.label:SetPoint("TOP", widget.frame, "TOP", 0, -2)
+            widget.label:SetPoint("BOTTOM", widget.frame, "BOTTOM", 0, 2)
+        end
+        widget.label:SetPoint("RIGHT", right, rightPoint, -8, 0)
+        widget.description:SetPoint("BOTTOMLEFT", left, "RIGHT", 5, 4)
+        widget.description:SetPoint("BOTTOMRIGHT", descriptionRight, descriptionRightPoint, descriptionRightInset, 4)
+    end
 
     widget.detail:ClearAllPoints()
     widget.detail:SetPoint("TOPRIGHT", widget.frame, "TOPRIGHT", -8, -4)
@@ -89,7 +108,7 @@ local function UpdateVisual(widget)
     widget.detail:SetText(binding.detail or "")
     widget.status:SetText(binding.status or "")
     SetTextColor(widget.label, selected and colors.nameSelected or colors.name, disabled and 0.48 or nil)
-    SetTextColor(widget.description, colors.name, disabled and 0.42 or 0.72)
+    if widget.description.SetAlpha then widget.description:SetAlpha(disabled and 0.42 or 1) end
     SetTextColor(widget.detail, colors.name, disabled and 0.42 or 0.72)
     SetTextColor(widget.status, missing and { 0.88, 0.58, 0.52, 0.98 } or colors.name, disabled and 0.42 or 0.72)
 
@@ -176,12 +195,12 @@ local function RegisterWidget()
         label:SetJustifyH("LEFT")
         label:SetWordWrap(false)
         label:SetMaxLines(1)
-        ApplyTextStyle(label, "label", 11)
+        ApplyTextStyle(label, "label", LABEL_FONT_SIZE)
         local description = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         description:SetJustifyH("LEFT")
         description:SetWordWrap(false)
         description:SetMaxLines(1)
-        ApplyTextStyle(description, "help", 9)
+        ApplyTextStyle(description, "sectionHeader", DESCRIPTION_FONT_SIZE)
         local detail = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         detail:SetJustifyH("RIGHT")
         detail:SetWordWrap(false)
