@@ -109,13 +109,95 @@ local FP_MODAL_BUTTON_VISUALS = {
     },
 }
 
+local FP_WINDOW_PANEL_REGION_KEYS = {
+    "_fpPanelFill",
+    "_fpPanelHeaderFill",
+    "_fpPanelTopShade",
+    "_fpPanelBottomShade",
+    "_fpPanelBorderTop",
+    "_fpPanelBorderBottom",
+    "_fpPanelBorderLeft",
+    "_fpPanelBorderRight",
+    "_fpPanelInnerTop",
+    "_fpPanelInnerBottom",
+    "_fpPanelInnerLeft",
+    "_fpPanelInnerRight",
+    "_fpPanelHeaderSeparator",
+}
+
+local FP_WINDOW_MODERN_TITLE_REGION_KEYS = {
+    "_fpModernTitleLeft",
+    "_fpModernTitleCenter",
+    "_fpModernTitleRight",
+}
+
+local function ResetModernWindowTitleBar(frame)
+    if not frame then
+        return
+    end
+
+    for _, key in ipairs(FP_WINDOW_MODERN_TITLE_REGION_KEYS) do
+        local region = frame[key]
+        if region then
+            if region.SetHorizTile then
+                region:SetHorizTile(false)
+            end
+            if region.SetVertTile then
+                region:SetVertTile(false)
+            end
+            region:Hide()
+        end
+    end
+
+    local titleBackground = frame._fpModernTitleNativeBackground
+    if titleBackground and titleBackground.region then
+        if titleBackground.region.SetAlpha then
+            titleBackground.region:SetAlpha(titleBackground.alpha)
+        end
+        if titleBackground.shown then
+            titleBackground.region:Show()
+        else
+            titleBackground.region:Hide()
+        end
+    end
+
+    local titleText = frame._fpModernTitleNativeText
+    if titleText and titleText.region and titleText.drawLayer and titleText.region.SetDrawLayer then
+        titleText.region:SetDrawLayer(titleText.drawLayer, titleText.sublevel)
+    end
+
+    local closeButton = frame._fpModernTitleNativeCloseButton
+    if closeButton and closeButton.region and closeButton.points then
+        closeButton.region:ClearAllPoints()
+        for _, point in ipairs(closeButton.points) do
+            closeButton.region:SetPoint(point.point, point.relativeTo, point.relativePoint, point.x, point.y)
+        end
+    end
+end
+
 local function HideDefaultWindowChrome(frame)
     if not frame or frame._fpDefaultChromeHidden then
         return
     end
 
-    for _, region in ipairs({ frame:GetRegions() }) do
-        if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+    local regions = frame._fpDefaultChromeRegions
+    if not regions then
+        regions = {}
+        for _, region in ipairs({ frame:GetRegions() }) do
+            if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+                table.insert(regions, {
+                    region = region,
+                    shown = region:IsShown(),
+                    alpha = region:GetAlpha(),
+                })
+            end
+        end
+        frame._fpDefaultChromeRegions = regions
+    end
+
+    for _, snapshot in ipairs(regions) do
+        local region = snapshot.region
+        if region then
             region:Hide()
             if region.SetAlpha then
                 region:SetAlpha(0)
@@ -125,6 +207,49 @@ local function HideDefaultWindowChrome(frame)
 
     frame._fpDefaultChromeHidden = true
 end
+
+function FormWidgets.RestoreDefaultWindowChrome(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    ResetModernWindowTitleBar(frame)
+
+    for _, key in ipairs(FP_WINDOW_PANEL_REGION_KEYS) do
+        if frame[key] then
+            frame[key]:Hide()
+        end
+    end
+    if window.content and window.content._fpAccent then
+        window.content._fpAccent:Hide()
+    end
+
+    for _, snapshot in ipairs(frame._fpDefaultChromeRegions or {}) do
+        local region = snapshot.region
+        if region then
+            if region.SetAlpha then
+                region:SetAlpha(snapshot.alpha)
+            end
+            if snapshot.shown then
+                region:Show()
+            else
+                region:Hide()
+            end
+        end
+    end
+    frame._fpDefaultChromeHidden = nil
+
+    if window.titletext then
+        if GameFontNormal and window.titletext.SetFontObject then
+            window.titletext:SetFontObject(GameFontNormal)
+        end
+        if window.titletext.Show then
+            window.titletext:Show()
+        end
+    end
+end
+
 
 function FormWidgets.ResolveItemColor(colorKey)
     return colorKey and GetItemColors()[colorKey] or nil
@@ -642,6 +767,7 @@ function FormWidgets.ApplyWindowChrome(window, options)
     local shellBottomInset = hasShellInset and shellInset or 12
     local headerHeight = options.headerHeight or 26
 
+    ResetModernWindowTitleBar(frame)
     HideDefaultWindowChrome(frame)
 
     if window.titletext then
@@ -655,6 +781,7 @@ function FormWidgets.ApplyWindowChrome(window, options)
     frame._fpPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", shellInset, shellTopInset)
     frame._fpPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -shellInset, shellBottomInset)
     frame._fpPanelFill:SetColorTexture(unpack(chromeColors.panelBackground or {}))
+    frame._fpPanelFill:Show()
 
     if not frame._fpPanelHeaderFill then
         frame._fpPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")
@@ -664,6 +791,7 @@ function FormWidgets.ApplyWindowChrome(window, options)
     frame._fpPanelHeaderFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -shellInset, shellTopInset)
     frame._fpPanelHeaderFill:SetHeight(headerHeight)
     frame._fpPanelHeaderFill:SetColorTexture(unpack(chromeColors.panelHeader or {}))
+    frame._fpPanelHeaderFill:Show()
 
     if not frame._fpPanelTopShade then
         frame._fpPanelTopShade = frame:CreateTexture(nil, "ARTWORK")
@@ -673,6 +801,7 @@ function FormWidgets.ApplyWindowChrome(window, options)
     frame._fpPanelTopShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(shellInset + 1), shellTopInset - 1)
     frame._fpPanelTopShade:SetHeight(1)
     frame._fpPanelTopShade:SetColorTexture(unpack(chromeColors.panelTopShade or {}))
+    frame._fpPanelTopShade:Show()
 
     if not frame._fpPanelBottomShade then
         frame._fpPanelBottomShade = frame:CreateTexture(nil, "ARTWORK")
@@ -682,6 +811,7 @@ function FormWidgets.ApplyWindowChrome(window, options)
     frame._fpPanelBottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(shellInset + 1), shellBottomInset + 1)
     frame._fpPanelBottomShade:SetHeight(1)
     frame._fpPanelBottomShade:SetColorTexture(unpack(chromeColors.panelBottomShade or {}))
+    frame._fpPanelBottomShade:Show()
 
     local function EnsureBorder(name)
         if not frame[name] then

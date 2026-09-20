@@ -10,6 +10,121 @@ local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or {}
 local SelectionRow = ns.GUI.Widgets and ns.GUI.Widgets.SelectionRow or {}
 
 local TagLibraryView = {}
+
+local NATIVE_TITLE_BACKGROUND_TEXTURE = 251966
+local TITLEBAR_HEIGHT = 20
+local TITLEBAR_ENDCAP_WIDTH = 68
+local TITLEBAR_CENTER_TEXTURE = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Window\\fp_window_titlebar_center.png"
+local TITLEBAR_LEFT_TEXTURE = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Window\\fp_window_titlebar_left.png"
+local TITLEBAR_RIGHT_TEXTURE = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Window\\fp_window_titlebar_right.png"
+
+local function FindNativeTitleBackground(frame)
+    if not frame then
+        return nil
+    end
+
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region and region.GetObjectType and region:GetObjectType() == "Texture" and region.GetTexture
+            and region:GetTexture() == NATIVE_TITLE_BACKGROUND_TEXTURE then
+            return region
+        end
+    end
+
+    return nil
+end
+
+local function EnsureModernTitleRegion(frame, key)
+    if not frame[key] then
+        frame[key] = frame:CreateTexture(nil, "ARTWORK")
+    end
+    return frame[key]
+end
+
+local function ApplyModernTitleBar(window)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    local nativeTitleBackground = FindNativeTitleBackground(frame)
+    if nativeTitleBackground and not frame._fpModernTitleNativeBackground then
+        frame._fpModernTitleNativeBackground = {
+            region = nativeTitleBackground,
+            shown = nativeTitleBackground:IsShown(),
+            alpha = nativeTitleBackground:GetAlpha(),
+        }
+    end
+    if nativeTitleBackground and frame._fpModernTitleNativeBackground then
+        nativeTitleBackground:SetAlpha(frame._fpModernTitleNativeBackground.alpha)
+        if frame._fpModernTitleNativeBackground.shown then
+            nativeTitleBackground:Show()
+        else
+            nativeTitleBackground:Hide()
+        end
+    end
+
+    if window.titletext and not frame._fpModernTitleNativeText and window.titletext.GetDrawLayer then
+        local drawLayer, sublevel = window.titletext:GetDrawLayer()
+        frame._fpModernTitleNativeText = {
+            region = window.titletext,
+            drawLayer = drawLayer,
+            sublevel = sublevel,
+        }
+    end
+    if window.titletext and window.titletext.SetDrawLayer then
+        window.titletext:SetDrawLayer("OVERLAY", 7)
+    end
+
+    local closeButton = window.closebutton
+    if closeButton and not frame._fpModernTitleNativeCloseButton then
+        local points = {}
+        for index = 1, closeButton:GetNumPoints() do
+            local point, relativeTo, relativePoint, x, y = closeButton:GetPoint(index)
+            table.insert(points, {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                x = x,
+                y = y,
+            })
+        end
+        frame._fpModernTitleNativeCloseButton = {
+            region = closeButton,
+            points = points,
+        }
+    end
+    if closeButton then
+        closeButton:ClearAllPoints()
+        closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -3)
+    end
+
+    local left = EnsureModernTitleRegion(frame, "_fpModernTitleLeft")
+    left:ClearAllPoints()
+    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 7, -5)
+    left:SetSize(TITLEBAR_ENDCAP_WIDTH, TITLEBAR_HEIGHT)
+    left:SetTexture(TITLEBAR_LEFT_TEXTURE)
+    left:SetHorizTile(false)
+    left:SetVertTile(false)
+    left:Show()
+
+    local right = EnsureModernTitleRegion(frame, "_fpModernTitleRight")
+    right:ClearAllPoints()
+    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -3, -5)
+    right:SetSize(TITLEBAR_ENDCAP_WIDTH, TITLEBAR_HEIGHT)
+    right:SetTexture(TITLEBAR_RIGHT_TEXTURE)
+    right:SetHorizTile(false)
+    right:SetVertTile(false)
+    right:Show()
+
+    local center = EnsureModernTitleRegion(frame, "_fpModernTitleCenter")
+    center:ClearAllPoints()
+    center:SetPoint("TOPLEFT", left, "TOPRIGHT")
+    center:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
+    center:SetTexture(TITLEBAR_CENTER_TEXTURE)
+    center:SetHorizTile(true)
+    center:SetVertTile(false)
+    center:Show()
+end
 ns.GUI.Pages.TagLibraryView = TagLibraryView
 
 local CHROME_PREFIX = "__fpTagLibrary"
@@ -337,9 +452,10 @@ function TagLibraryView.Create(context)
     if window.frame then
         window.frame:SetClampedToScreen(true)
     end
-    if FormWidgets.ApplyWindowChrome then
-        FormWidgets.ApplyWindowChrome(window)
+    if FormWidgets.RestoreDefaultWindowChrome then
+        FormWidgets.RestoreDefaultWindowChrome(window)
     end
+    ApplyModernTitleBar(window)
     if FormWidgets.EnsureStandardWindowCloseButton then
         FormWidgets.EnsureStandardWindowCloseButton(window)
     end
