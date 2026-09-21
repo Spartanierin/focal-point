@@ -195,6 +195,29 @@ Skins.Builtin.default = Skins.Builtin.default or {
             checkbox = { 0.94, 0.90, 0.82, 1.00 },
             checkboxDisabled = { 0.50, 0.50, 0.50, 1.00 },
         },
+        CompactSlider = {
+            track = {
+                leftAtlas = "Minimal_SliderBar_Left",
+                middleAtlas = "_Minimal_SliderBar_Middle",
+                rightAtlas = "Minimal_SliderBar_Right",
+            },
+            thumb = {
+                atlas = "Minimal_SliderBar_Button",
+                alpha = 1.00,
+                disabledAlpha = 0.45,
+            },
+            input = {
+                backgroundTexture = "Interface\\ChatFrame\\ChatFrameBackground",
+                borderTexture = "Interface\\ChatFrame\\ChatFrameBackground",
+                backgroundColor = { 0.00, 0.00, 0.00, 0.50 },
+                border = { 0.30, 0.30, 0.30, 0.80 },
+                borderHover = { 0.50, 0.50, 0.50, 1.00 },
+            },
+            text = {
+                normal = { 1.00, 1.00, 1.00, 1.00 },
+                disabled = { 0.50, 0.50, 0.50, 1.00 },
+            },
+        },
     },
     editorButtonVisuals = {
         states = {

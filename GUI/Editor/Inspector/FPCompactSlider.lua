@@ -15,6 +15,55 @@ local function SetTextColor(text, color)
     text:SetTextColor(unpack(color))
 end
 
+local function ApplySliderPresentation(slider)
+    local presentation = GetPresentation()
+    local trackPresentation = presentation.track or {}
+    local regions = slider._fpMinimalSliderTrack
+    if not regions then
+        regions = {
+            left = slider:CreateTexture(nil, "BACKGROUND"),
+            middle = slider:CreateTexture(nil, "BACKGROUND"),
+            right = slider:CreateTexture(nil, "BACKGROUND"),
+        }
+        slider._fpMinimalSliderTrack = regions
+    end
+
+    if slider.SetBackdrop then
+        slider:SetBackdrop(nil)
+    end
+
+    regions.left:ClearAllPoints()
+    regions.left:SetPoint("LEFT")
+    regions.left:SetAtlas(trackPresentation.leftAtlas, true)
+    regions.left:SetHorizTile(false)
+    regions.left:SetVertTile(false)
+    regions.left:Show()
+
+    regions.right:ClearAllPoints()
+    regions.right:SetPoint("RIGHT")
+    regions.right:SetAtlas(trackPresentation.rightAtlas, true)
+    regions.right:SetHorizTile(false)
+    regions.right:SetVertTile(false)
+    regions.right:Show()
+
+    regions.middle:ClearAllPoints()
+    regions.middle:SetPoint("TOPLEFT", regions.left, "TOPRIGHT")
+    regions.middle:SetPoint("BOTTOMRIGHT", regions.right, "BOTTOMLEFT")
+    regions.middle:SetAtlas(trackPresentation.middleAtlas, true)
+    regions.middle:SetHorizTile(false)
+    regions.middle:SetVertTile(false)
+    regions.middle:Show()
+
+    local thumb = slider:GetThumbTexture()
+    if not thumb and slider.SetThumbTexture then
+        slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+        thumb = slider:GetThumbTexture()
+    end
+    if thumb and thumb.SetAtlas then
+        thumb:SetAtlas(presentation.thumb.atlas, true)
+    end
+end
+
 local function NormalizeValue(self, value)
     value = tonumber(value)
     if not value or value ~= value or value == math.huge or value == -math.huge then return nil end
@@ -93,6 +142,7 @@ end
 function methods:OnAcquire()
     self:SetWidth(200)
     self:SetHeight(HEIGHT)
+    ApplySliderPresentation(self.slider)
     self:SetSliderValues(0, 100, 1)
     self:SetValue(0)
     self:ClearFocus()
@@ -125,17 +175,7 @@ local function Constructor()
     slider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -3, 0)
     slider:SetHeight(TRACK_HEIGHT)
     slider:SetHitRectInsets(0, 0, 0, 0)
-    slider:SetBackdrop({
-        bgFile = presentation.track.backgroundTexture,
-        edgeFile = presentation.track.borderTexture,
-        tile = true, tileSize = 8, edgeSize = 8,
-        insets = { left = 3, right = 3, top = 6, bottom = 6 },
-    })
-    slider:SetBackdropColor(unpack(presentation.track.backgroundColor))
-    slider:SetBackdropBorderColor(unpack(presentation.track.borderColor))
-    slider:SetThumbTexture(presentation.thumb.texture)
-    slider:GetThumbTexture():SetVertexColor(unpack(presentation.thumb.tint))
-    slider:GetThumbTexture():SetSize(20, 26)
+    ApplySliderPresentation(slider)
 
     local editbox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
     editbox:SetAutoFocus(false)
