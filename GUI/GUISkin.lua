@@ -73,6 +73,13 @@ Skins.Builtin.default = Skins.Builtin.default or {
             g = 0.757,
             b = 0.400,
         },
+        strongHeading = {
+            hex = "F2D05C",
+            wow = "|cffF2D05C",
+            r = 0.949,
+            g = 0.816,
+            b = 0.361,
+        },
         label = {
             hex = "F2E6C9",
             wow = "|cffF2E6C9",

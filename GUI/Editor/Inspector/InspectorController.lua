@@ -1739,6 +1739,7 @@ function InspectorController.Build(container, state, options)
         local group = CreateSection(parent, title, {
             collapsible = false,
             style = "default",
+            titleTextRole = "strongHeading",
         })
         if group and InspectorBinding.ApplyInspectorSectionStructure then
             InspectorBinding.ApplyInspectorSectionStructure(group, "muted")

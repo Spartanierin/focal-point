@@ -69,6 +69,7 @@ function InspectorBinding.CreateInspectorSection(container, createSection, state
         layoutRefresh = sectionOptions.layoutRefresh,
         forceExpanded = sectionOptions.forceExpanded,
         persistCollapse = sectionOptions.persistCollapse,
+        titleTextRole = "strongHeading",
     }), "default")
 end
 

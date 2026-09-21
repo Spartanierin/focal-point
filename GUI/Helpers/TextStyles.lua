@@ -14,6 +14,13 @@ TextStyles.TextColors = {
         g = 0.769,
         b = 0.290,
     },
+    strongHeading = {
+        hex = "F2D05C",
+        wow = "|cffF2D05C",
+        r = 0.949,
+        g = 0.816,
+        b = 0.361,
+    },
     label = {
         hex = "F2E6C9",
         wow = "|cffF2E6C9",

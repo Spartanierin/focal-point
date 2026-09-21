@@ -193,13 +193,13 @@ local function ApplyLegacySectionSkin(frame, style)
     end
 end
 
-local function StyleSidebarLabel(fontString, size, color)
+local function StyleSidebarLabel(fontString, size, color, textRole)
     if not fontString then
         return
     end
 
     if ApplyTextStyle then
-        ApplyTextStyle(fontString, "label", size or 12, 1)
+        ApplyTextStyle(fontString, textRole or "label", size or 12, 1)
     elseif fontString.SetFont then
         fontString:SetFont(STANDARD_TEXT_FONT, size or 12, "")
     end
@@ -226,9 +226,13 @@ local function CreateSection(container, title, options)
         local titleText = group.titletext
         local border = group.content and group.content:GetParent()
         local style = options.style or "default"
+        local titleColor
+        if not options.titleTextRole then
+            titleColor = { 0.89, 0.82, 0.60, 1 }
+        end
 
         if titleText then
-            StyleSidebarLabel(titleText, 13, { 0.89, 0.82, 0.60, 1 })
+            StyleSidebarLabel(titleText, 13, titleColor, options.titleTextRole)
         end
 
         if border then
@@ -270,7 +274,7 @@ local function CreateSection(container, title, options)
         toggle.frame._focalPointSectionRole = "header"
     end
     if toggle.label then
-        StyleSidebarLabel(toggle.label, 13, { 0.88, 0.82, 0.62, 1 })
+        StyleSidebarLabel(toggle.label, 13, { 0.88, 0.82, 0.62, 1 }, options.titleTextRole)
         if toggle.label.SetJustifyH then
             toggle.label:SetJustifyH("LEFT")
         end
