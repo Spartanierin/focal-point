@@ -822,7 +822,10 @@ local function RefreshWindowState(context, deps)
         context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  %s", BRAND_LOGO_PATH, brandTitle))
     end
     if context.widgets.versionLine then
-        context.widgets.versionLine:SetText(string.format("|cffd8c27a%s|r  |cff4cff88%s|r", T("INFO_VERSION", "Version", deps), versionText))
+        local skins = nsRef.GUI and nsRef.GUI.Skins or nil
+        local versionColor = skins and skins.GetTextColor and skins.GetTextColor("help", { wow = "|cffB8AD95" }) or { wow = "|cffB8AD95" }
+        local colorCode = versionColor.wow or "|cffB8AD95"
+        context.widgets.versionLine:SetText(string.format("%s%s|r  %s%s|r", colorCode, T("INFO_VERSION", "Version", deps), colorCode, versionText))
     end
     if context.widgets.toolsTitle then
         context.widgets.toolsTitle:SetText(T("EDITOR_CONTEXT_TOOLS", "Tools", deps))
