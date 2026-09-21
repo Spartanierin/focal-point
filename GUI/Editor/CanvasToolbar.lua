@@ -1053,7 +1053,7 @@ local function EnsureHost()
     layoutAutomationLabel:SetText("")
     layoutAutomationLabel:Hide()
     if FormWidgets and FormWidgets.ApplyTextStyle then
-        FormWidgets.ApplyTextStyle(layoutAutomationLabel, "help", 10, 0.9)
+        FormWidgets.ApplyTextStyle(layoutAutomationLabel, "contextHighlight", 10, 0.9)
     end
     widgets.layoutAutomationLabel = layoutAutomationLabel
 
