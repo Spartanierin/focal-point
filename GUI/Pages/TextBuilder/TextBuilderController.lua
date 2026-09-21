@@ -1739,7 +1739,11 @@ local function CreateWindow(state, deps)
         window.frame:SetClampedToScreen(true)
     end
 
-    ApplyWindowChrome(window)
+    FormWidgets.ApplyModernWindowChrome(window, {
+        nineSlice = true,
+        portrait = true,
+        portraitTexture = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png",
+    })
     if EnsureStandardWindowCloseButton then
         EnsureStandardWindowCloseButton(window)
     end
