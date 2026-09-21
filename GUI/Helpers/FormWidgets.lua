@@ -125,18 +125,98 @@ local FP_WINDOW_PANEL_REGION_KEYS = {
     "_fpPanelHeaderSeparator",
 }
 
-local FP_WINDOW_MODERN_TITLE_REGION_KEYS = {
+local FP_MODERN_WINDOW_SLOTS = {
+    topLeft = {
+        key = "_fpModernTitleLeft",
+        atlas = "UI-Frame-PortraitMetal-CornerTopLeft",
+    },
+    topCenter = {
+        key = "_fpModernTitleCenter",
+        atlas = "_UI-Frame-Metal-EdgeTop",
+    },
+    topRight = {
+        key = "_fpModernTitleRight",
+        atlas = "UI-Frame-Metal-CornerTopRight",
+    },
+    bottomLeft = {
+        key = "_fpModernTitleBottomLeft",
+        atlas = "UI-Frame-Metal-CornerBottomLeft",
+    },
+    bottomCenter = {
+        key = "_fpModernTitleBottomCenter",
+        atlas = "_UI-Frame-Metal-EdgeBottom",
+    },
+    bottomRight = {
+        key = "_fpModernTitleBottomRight",
+        atlas = "UI-Frame-Metal-CornerBottomRight",
+    },
+    left = {
+        key = "_fpModernTitleSideLeft",
+        atlas = "!UI-Frame-Metal-EdgeLeft",
+    },
+    right = {
+        key = "_fpModernTitleSideRight",
+        atlas = "!UI-Frame-Metal-EdgeRight",
+    },
+}
+
+local FP_MODERN_WINDOW_SLOT_KEYS = {
     "_fpModernTitleLeft",
     "_fpModernTitleCenter",
     "_fpModernTitleRight",
+    "_fpModernTitleBottomLeft",
+    "_fpModernTitleBottomCenter",
+    "_fpModernTitleBottomRight",
+    "_fpModernTitleSideLeft",
+    "_fpModernTitleSideRight",
 }
+
+local NATIVE_TITLE_BACKGROUND_TEXTURE = 251966
+local NATIVE_BORDER_TEXTURE = 251963
+
+local function FindNativeTitleBackground(frame)
+    if not frame then
+        return nil
+    end
+
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region and region.GetObjectType and region:GetObjectType() == "Texture" and region.GetTexture
+            and region:GetTexture() == NATIVE_TITLE_BACKGROUND_TEXTURE then
+            return region
+        end
+    end
+
+    return nil
+end
+
+local function FindNativeBorderRegions(frame)
+    if not frame then
+        return {}
+    end
+
+    local regions = {}
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region and region.GetObjectType and region:GetObjectType() == "Texture" and region.GetTexture
+            and region:GetTexture() == NATIVE_BORDER_TEXTURE then
+            table.insert(regions, region)
+        end
+    end
+    return regions
+end
+
+local function EnsureModernWindowRegion(frame, key)
+    if not frame[key] then
+        frame[key] = frame:CreateTexture(nil, "ARTWORK")
+    end
+    return frame[key]
+end
 
 local function ResetModernWindowTitleBar(frame)
     if not frame then
         return
     end
 
-    for _, key in ipairs(FP_WINDOW_MODERN_TITLE_REGION_KEYS) do
+    for _, key in ipairs(FP_MODERN_WINDOW_SLOT_KEYS) do
         local region = frame[key]
         if region then
             if region.SetHorizTile then
@@ -161,9 +241,29 @@ local function ResetModernWindowTitleBar(frame)
         end
     end
 
+    for _, snapshot in ipairs(frame._fpModernTitleNativeBorders or {}) do
+        local region = snapshot.region
+        if region then
+            if region.SetAlpha then
+                region:SetAlpha(snapshot.alpha)
+            end
+            if snapshot.shown then
+                region:Show()
+            else
+                region:Hide()
+            end
+        end
+    end
+
     local titleText = frame._fpModernTitleNativeText
     if titleText and titleText.region and titleText.drawLayer and titleText.region.SetDrawLayer then
         titleText.region:SetDrawLayer(titleText.drawLayer, titleText.sublevel)
+    end
+    if titleText and titleText.region and titleText.points then
+        titleText.region:ClearAllPoints()
+        for _, point in ipairs(titleText.points) do
+            titleText.region:SetPoint(point.point, point.relativeTo, point.relativePoint, point.x, point.y)
+        end
     end
 
     local closeButton = frame._fpModernTitleNativeCloseButton
@@ -216,6 +316,10 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
 
     ResetModernWindowTitleBar(frame)
 
+    if frame._fpModernNineSlice then
+        frame._fpModernNineSlice:Hide()
+    end
+
     for _, key in ipairs(FP_WINDOW_PANEL_REGION_KEYS) do
         if frame[key] then
             frame[key]:Hide()
@@ -248,6 +352,196 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
             window.titletext:Show()
         end
     end
+end
+
+function FormWidgets.ApplyModernWindowChrome(window, options)
+    local frame = window and window.frame
+    if not frame then
+        return
+    end
+
+    local useNineSlice = options and options.nineSlice == true
+    if useNineSlice then
+        if not NineSliceUtil or not NineSliceUtil.ApplyLayoutByName then
+            return
+        end
+        if NineSliceUtil.GetLayout and not NineSliceUtil.GetLayout("ButtonFrameTemplateNoPortrait") then
+            return
+        end
+    end
+
+    FormWidgets.RestoreDefaultWindowChrome(window)
+
+    local nativeTitleBackground = FindNativeTitleBackground(frame)
+    if nativeTitleBackground and not frame._fpModernTitleNativeBackground then
+        frame._fpModernTitleNativeBackground = {
+            region = nativeTitleBackground,
+            shown = nativeTitleBackground:IsShown(),
+            alpha = nativeTitleBackground:GetAlpha(),
+        }
+    end
+    if nativeTitleBackground and frame._fpModernTitleNativeBackground then
+        nativeTitleBackground:Hide()
+        nativeTitleBackground:SetAlpha(0)
+    end
+
+    if not frame._fpModernTitleNativeBorders then
+        frame._fpModernTitleNativeBorders = {}
+        for _, region in ipairs(FindNativeBorderRegions(frame)) do
+            table.insert(frame._fpModernTitleNativeBorders, {
+                region = region,
+                shown = region:IsShown(),
+                alpha = region:GetAlpha(),
+            })
+        end
+    end
+    for _, snapshot in ipairs(frame._fpModernTitleNativeBorders) do
+        snapshot.region:Hide()
+        snapshot.region:SetAlpha(0)
+    end
+
+    if window.titletext and not frame._fpModernTitleNativeText and window.titletext.GetDrawLayer then
+        local drawLayer, sublevel = window.titletext:GetDrawLayer()
+        local points = {}
+        for index = 1, window.titletext:GetNumPoints() do
+            local point, relativeTo, relativePoint, x, y = window.titletext:GetPoint(index)
+            table.insert(points, {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                x = x,
+                y = y,
+            })
+        end
+        frame._fpModernTitleNativeText = {
+            region = window.titletext,
+            drawLayer = drawLayer,
+            sublevel = sublevel,
+            points = points,
+        }
+    end
+    if window.titletext and window.titletext.SetDrawLayer then
+        window.titletext:SetDrawLayer("OVERLAY", 7)
+    end
+
+    local closeButton = window.closebutton
+    if closeButton and not frame._fpModernTitleNativeCloseButton then
+        local points = {}
+        for index = 1, closeButton:GetNumPoints() do
+            local point, relativeTo, relativePoint, x, y = closeButton:GetPoint(index)
+            table.insert(points, {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                x = x,
+                y = y,
+            })
+        end
+        frame._fpModernTitleNativeCloseButton = {
+            region = closeButton,
+            points = points,
+        }
+    end
+    if useNineSlice then
+        local nineSlice = frame._fpModernNineSlice
+        if not nineSlice then
+            nineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
+            nineSlice:SetAllPoints(frame)
+            nineSlice:EnableMouse(false)
+            frame._fpModernNineSlice = nineSlice
+        end
+
+        nineSlice:EnableMouse(false)
+        if nineSlice.SetFrameLevel and frame.GetFrameLevel then
+            nineSlice:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+        end
+        NineSliceUtil.ApplyLayoutByName(nineSlice, "ButtonFrameTemplateNoPortrait")
+        nineSlice:Show()
+        if window.titletext then
+            window.titletext:ClearAllPoints()
+            window.titletext:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -6)
+            window.titletext:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -6)
+            window.titletext:Show()
+            window.titletext:SetAlpha(1)
+        end
+        return
+    end
+
+    local topLeft = FP_MODERN_WINDOW_SLOTS.topLeft
+    local left = EnsureModernWindowRegion(frame, topLeft.key)
+    left:ClearAllPoints()
+    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 7, -5)
+    left:SetAtlas(topLeft.atlas, true)
+    left:SetHorizTile(false)
+    left:SetVertTile(false)
+    left:Show()
+
+    local topRight = FP_MODERN_WINDOW_SLOTS.topRight
+    local right = EnsureModernWindowRegion(frame, topRight.key)
+    right:ClearAllPoints()
+    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -3, -5)
+    right:SetAtlas(topRight.atlas, true)
+    right:SetHorizTile(false)
+    right:SetVertTile(false)
+    right:Show()
+
+    local topCenter = FP_MODERN_WINDOW_SLOTS.topCenter
+    local center = EnsureModernWindowRegion(frame, topCenter.key)
+    center:ClearAllPoints()
+    center:SetPoint("TOPLEFT", left, "TOPRIGHT")
+    center:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
+    center:SetAtlas(topCenter.atlas, false)
+    center:SetHorizTile(true)
+    center:SetVertTile(false)
+    center:Show()
+
+    local bottomLeft = FP_MODERN_WINDOW_SLOTS.bottomLeft
+    local bottomLeftRegion = EnsureModernWindowRegion(frame, bottomLeft.key)
+    bottomLeftRegion:ClearAllPoints()
+    bottomLeftRegion:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 7, 5)
+    bottomLeftRegion:SetAtlas(bottomLeft.atlas, true)
+    bottomLeftRegion:SetHorizTile(false)
+    bottomLeftRegion:SetVertTile(false)
+    bottomLeftRegion:Show()
+
+    local bottomRight = FP_MODERN_WINDOW_SLOTS.bottomRight
+    local bottomRightRegion = EnsureModernWindowRegion(frame, bottomRight.key)
+    bottomRightRegion:ClearAllPoints()
+    bottomRightRegion:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -3, 5)
+    bottomRightRegion:SetAtlas(bottomRight.atlas, true)
+    bottomRightRegion:SetHorizTile(false)
+    bottomRightRegion:SetVertTile(false)
+    bottomRightRegion:Show()
+
+    local bottomCenter = FP_MODERN_WINDOW_SLOTS.bottomCenter
+    local bottomCenterRegion = EnsureModernWindowRegion(frame, bottomCenter.key)
+    bottomCenterRegion:ClearAllPoints()
+    bottomCenterRegion:SetPoint("BOTTOMLEFT", bottomLeftRegion, "BOTTOMRIGHT")
+    bottomCenterRegion:SetPoint("TOPRIGHT", bottomRightRegion, "TOPLEFT")
+    bottomCenterRegion:SetAtlas(bottomCenter.atlas, false)
+    bottomCenterRegion:SetHorizTile(true)
+    bottomCenterRegion:SetVertTile(false)
+    bottomCenterRegion:Show()
+
+    local sideLeft = FP_MODERN_WINDOW_SLOTS.left
+    local sideLeftRegion = EnsureModernWindowRegion(frame, sideLeft.key)
+    sideLeftRegion:ClearAllPoints()
+    sideLeftRegion:SetPoint("TOPLEFT", left, "BOTTOMLEFT")
+    sideLeftRegion:SetPoint("BOTTOMRIGHT", bottomLeftRegion, "TOPRIGHT")
+    sideLeftRegion:SetAtlas(sideLeft.atlas, false)
+    sideLeftRegion:SetHorizTile(false)
+    sideLeftRegion:SetVertTile(true)
+    sideLeftRegion:Show()
+
+    local sideRight = FP_MODERN_WINDOW_SLOTS.right
+    local sideRightRegion = EnsureModernWindowRegion(frame, sideRight.key)
+    sideRightRegion:ClearAllPoints()
+    sideRightRegion:SetPoint("TOPRIGHT", right, "BOTTOMRIGHT")
+    sideRightRegion:SetPoint("BOTTOMLEFT", bottomRightRegion, "TOPLEFT")
+    sideRightRegion:SetAtlas(sideRight.atlas, false)
+    sideRightRegion:SetHorizTile(false)
+    sideRightRegion:SetVertTile(true)
+    sideRightRegion:Show()
 end
 
 
