@@ -339,7 +339,11 @@ function TagLibraryView.Create(context)
         window.frame:SetClampedToScreen(true)
     end
     if FormWidgets.ApplyModernWindowChrome then
-        FormWidgets.ApplyModernWindowChrome(window, { nineSlice = true })
+        FormWidgets.ApplyModernWindowChrome(window, {
+            nineSlice = true,
+            portrait = true,
+            portraitTexture = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png",
+        })
     end
     if FormWidgets.EnsureStandardWindowCloseButton then
         FormWidgets.EnsureStandardWindowCloseButton(window)

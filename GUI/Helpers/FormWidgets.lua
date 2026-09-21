@@ -172,6 +172,7 @@ local FP_MODERN_WINDOW_SLOT_KEYS = {
 }
 
 local NATIVE_TITLE_BACKGROUND_TEXTURE = 251966
+local NATIVE_DIALOG_BACKGROUND_TEXTURE = 137056
 local NATIVE_BORDER_TEXTURE = 251963
 
 local function FindNativeTitleBackground(frame)
@@ -182,6 +183,21 @@ local function FindNativeTitleBackground(frame)
     for _, region in ipairs({ frame:GetRegions() }) do
         if region and region.GetObjectType and region:GetObjectType() == "Texture" and region.GetTexture
             and region:GetTexture() == NATIVE_TITLE_BACKGROUND_TEXTURE then
+            return region
+        end
+    end
+
+    return nil
+end
+
+local function FindNativeDialogBackground(frame)
+    if not frame then
+        return nil
+    end
+
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region and region.GetObjectType and region:GetObjectType() == "Texture" and region.GetTexture
+            and region:GetTexture() == NATIVE_DIALOG_BACKGROUND_TEXTURE then
             return region
         end
     end
@@ -209,6 +225,143 @@ local function EnsureModernWindowRegion(frame, key)
         frame[key] = frame:CreateTexture(nil, "ARTWORK")
     end
     return frame[key]
+end
+
+local function EnsureModernWindowPortrait(frame, texturePath)
+    local container = frame._fpModernPortraitContainer
+    if not container then
+        container = CreateFrame("Frame", nil, frame)
+        container:SetSize(1, 1)
+        container:SetPoint("TOPLEFT", frame, "TOPLEFT")
+        container:EnableMouse(false)
+        frame._fpModernPortraitContainer = container
+
+        local portrait = container:CreateTexture(nil, "ARTWORK")
+        portrait:SetSize(62, 62)
+        portrait:SetPoint("TOPLEFT", container, "TOPLEFT", -5, 7)
+        portrait:SetBlendMode("BLEND")
+        container._fpPortrait = portrait
+
+        local mask = container:CreateMaskTexture()
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        mask:SetPoint("TOPLEFT", portrait, "TOPLEFT", 2, 0)
+        mask:SetPoint("BOTTOMRIGHT", portrait, "BOTTOMRIGHT", -2, 4)
+        portrait:AddMaskTexture(mask)
+        container._fpPortraitMask = mask
+    end
+
+    if texturePath and container._fpPortrait then
+        container._fpPortrait:SetTexture(texturePath)
+    end
+    container:Show()
+    container._fpPortrait:Show()
+    container._fpPortraitMask:Show()
+    return container
+end
+
+local function EnsureModernWindowBackground(frame)
+    local background = frame._fpModernPortraitBackground
+    if not background then
+        background = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        frame._fpModernPortraitBackground = background
+    end
+
+    background:ClearAllPoints()
+    background:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -21)
+    background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+    background:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock")
+    background:SetHorizTile(true)
+    background:SetVertTile(true)
+    background:SetVertexColor(1, 1, 1, 1)
+    background:SetAlpha(1)
+    background:SetBlendMode("BLEND")
+    background:Show()
+    return background
+end
+
+local function EnsureModernWindowTopTileStreaks(frame)
+    local streaks = frame._fpModernPortraitTopTileStreaks
+    if not streaks then
+        streaks = frame:CreateTexture(nil, "BORDER")
+        frame._fpModernPortraitTopTileStreaks = streaks
+    end
+
+    streaks:ClearAllPoints()
+    streaks:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -21)
+    streaks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -21)
+    streaks:SetAtlas("_UI-Frame-TopTileStreaks", true)
+    streaks:SetHorizTile(true)
+    streaks:SetVertTile(false)
+    streaks:SetVertexColor(1, 1, 1, 1)
+    streaks:SetAlpha(1)
+    streaks:SetBlendMode("BLEND")
+    streaks:Show()
+    return streaks
+end
+
+local function ApplyModernPortraitBackground(frame)
+    EnsureModernWindowBackground(frame)
+    EnsureModernWindowTopTileStreaks(frame)
+
+    local dialogBackground = frame._fpModernDialogBackground
+    if not dialogBackground then
+        local region = FindNativeDialogBackground(frame)
+        if region then
+            local r, g, b, a = region:GetVertexColor()
+            dialogBackground = {
+                region = region,
+                shown = region:IsShown(),
+                alpha = region:GetAlpha(),
+                color = { r, g, b, a },
+            }
+            frame._fpModernDialogBackground = dialogBackground
+        end
+    end
+    if dialogBackground and dialogBackground.region then
+        dialogBackground.region:Hide()
+        dialogBackground.region:SetAlpha(0)
+    end
+end
+
+local function ResetModernPortraitBackground(frame)
+    if not frame then
+        return
+    end
+
+    if frame._fpModernPortraitBackground then
+        frame._fpModernPortraitBackground:Hide()
+    end
+    if frame._fpModernPortraitTopTileStreaks then
+        frame._fpModernPortraitTopTileStreaks:SetHorizTile(false)
+        frame._fpModernPortraitTopTileStreaks:Hide()
+    end
+
+    local dialogBackground = frame._fpModernDialogBackground
+    if dialogBackground and dialogBackground.region then
+        if dialogBackground.color then
+            dialogBackground.region:SetVertexColor(unpack(dialogBackground.color))
+        end
+        dialogBackground.region:SetAlpha(dialogBackground.alpha)
+        if dialogBackground.shown then
+            dialogBackground.region:Show()
+        else
+            dialogBackground.region:Hide()
+        end
+    end
+end
+
+local function ResetModernWindowPortrait(frame)
+    local container = frame and frame._fpModernPortraitContainer
+    if not container then
+        return
+    end
+    container:Hide()
+    if container._fpPortrait then
+        container._fpPortrait:Hide()
+    end
+    if container._fpPortraitMask then
+        container._fpPortraitMask:Hide()
+    end
 end
 
 local function ResetModernWindowTitleBar(frame)
@@ -260,6 +413,9 @@ local function ResetModernWindowTitleBar(frame)
         titleText.region:SetDrawLayer(titleText.drawLayer, titleText.sublevel)
     end
     if titleText and titleText.region and titleText.points then
+        if titleText.parent and titleText.region.SetParent then
+            titleText.region:SetParent(titleText.parent)
+        end
         titleText.region:ClearAllPoints()
         for _, point in ipairs(titleText.points) do
             titleText.region:SetPoint(point.point, point.relativeTo, point.relativePoint, point.x, point.y)
@@ -268,10 +424,18 @@ local function ResetModernWindowTitleBar(frame)
 
     local closeButton = frame._fpModernTitleNativeCloseButton
     if closeButton and closeButton.region and closeButton.points then
+        if closeButton.frameLevel and closeButton.region.SetFrameLevel then
+            closeButton.region:SetFrameLevel(closeButton.frameLevel)
+        end
         closeButton.region:ClearAllPoints()
         for _, point in ipairs(closeButton.points) do
             closeButton.region:SetPoint(point.point, point.relativeTo, point.relativePoint, point.x, point.y)
         end
+    end
+
+    local titleButton = frame._fpModernTitleDragButton
+    if titleButton and titleButton.region and titleButton.frameLevel and titleButton.region.SetFrameLevel then
+        titleButton.region:SetFrameLevel(titleButton.frameLevel)
     end
 end
 
@@ -315,6 +479,8 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
     end
 
     ResetModernWindowTitleBar(frame)
+    ResetModernPortraitBackground(frame)
+    ResetModernWindowPortrait(frame)
 
     if frame._fpModernNineSlice then
         frame._fpModernNineSlice:Hide()
@@ -361,16 +527,22 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
     end
 
     local useNineSlice = options and options.nineSlice == true
+    local usePortrait = options and options.portrait == true
+    local nineSliceLayout = usePortrait and "PortraitFrameTemplate" or "ButtonFrameTemplateNoPortrait"
     if useNineSlice then
         if not NineSliceUtil or not NineSliceUtil.ApplyLayoutByName then
             return
         end
-        if NineSliceUtil.GetLayout and not NineSliceUtil.GetLayout("ButtonFrameTemplateNoPortrait") then
+        if NineSliceUtil.GetLayout and not NineSliceUtil.GetLayout(nineSliceLayout) then
             return
         end
     end
 
     FormWidgets.RestoreDefaultWindowChrome(window)
+
+    if usePortrait then
+        ApplyModernPortraitBackground(frame)
+    end
 
     local nativeTitleBackground = FindNativeTitleBackground(frame)
     if nativeTitleBackground and not frame._fpModernTitleNativeBackground then
@@ -417,6 +589,7 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
             region = window.titletext,
             drawLayer = drawLayer,
             sublevel = sublevel,
+            parent = window.titletext.GetParent and window.titletext:GetParent() or frame,
             points = points,
         }
     end
@@ -440,6 +613,14 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
         frame._fpModernTitleNativeCloseButton = {
             region = closeButton,
             points = points,
+            frameLevel = closeButton.GetFrameLevel and closeButton:GetFrameLevel() or nil,
+        }
+    end
+    local titleButton = window.title
+    if titleButton and not frame._fpModernTitleDragButton then
+        frame._fpModernTitleDragButton = {
+            region = titleButton,
+            frameLevel = titleButton.GetFrameLevel and titleButton:GetFrameLevel() or nil,
         }
     end
     if useNineSlice then
@@ -453,14 +634,32 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
 
         nineSlice:EnableMouse(false)
         if nineSlice.SetFrameLevel and frame.GetFrameLevel then
-            nineSlice:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+            nineSlice:SetFrameLevel(frame:GetFrameLevel() + 3)
         end
-        NineSliceUtil.ApplyLayoutByName(nineSlice, "ButtonFrameTemplateNoPortrait")
+        NineSliceUtil.ApplyLayoutByName(nineSlice, nineSliceLayout)
+        if usePortrait then
+            local portraitTexture = options.portraitTexture
+            local portrait = EnsureModernWindowPortrait(frame, portraitTexture)
+            if portrait.SetFrameLevel and frame.GetFrameLevel then
+                portrait:SetFrameLevel(frame:GetFrameLevel() + 2)
+            end
+        end
+        if window.title and window.title.SetFrameLevel and frame.GetFrameLevel then
+            window.title:SetFrameLevel(frame:GetFrameLevel() + 4)
+        end
+        if closeButton and closeButton.SetFrameLevel and frame.GetFrameLevel then
+            closeButton:SetFrameLevel(frame:GetFrameLevel() + 5)
+        end
         nineSlice:Show()
         if window.titletext then
+            if window.title and window.titletext.SetParent then
+                window.titletext:SetParent(window.title)
+            end
             window.titletext:ClearAllPoints()
-            window.titletext:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -6)
-            window.titletext:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -6)
+            local titleLeft = usePortrait and 58 or 0
+            local titleRight = usePortrait and -24 or 0
+            window.titletext:SetPoint("TOPLEFT", frame, "TOPLEFT", titleLeft, -6)
+            window.titletext:SetPoint("TOPRIGHT", frame, "TOPRIGHT", titleRight, -6)
             window.titletext:Show()
             window.titletext:SetAlpha(1)
         end
