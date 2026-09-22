@@ -1615,8 +1615,8 @@ function InspectorController.Build(container, state, options)
         end
 
         local titleLabel
-        if FormWidgets.CreateSectionTitle then
-            titleLabel = FormWidgets.CreateSectionTitle(headerTitle)
+        if FormWidgets.CreateBodyText then
+            titleLabel = FormWidgets.CreateBodyText(headerTitle, "identity", 13, nil, nil, true)
         else
             titleLabel = AceGUI:Create("Label")
             titleLabel:SetFullWidth(true)
@@ -2057,7 +2057,7 @@ function InspectorController.Build(container, state, options)
                 editBox:SetUserData("focalPointAnchorKey", anchorKey)
             end
             if FormWidgets.StyleEditBox then
-                FormWidgets.StyleEditBox(editBox, "editor_inset")
+                FormWidgets.StyleEditBox(editBox, "editor_inset", "value")
             end
             editBox:SetCallback("OnEnterPressed", function(widget, _, rawValue)
                 CommitValue(rawValue, widget)
@@ -4561,7 +4561,7 @@ function InspectorController.Build(container, state, options)
                 RebuildDecorationSection()
             end)
             if FormWidgets and FormWidgets.StyleDropdown then
-                FormWidgets.StyleDropdown(decorationSelector, "editor_inset")
+                FormWidgets.StyleDropdown(decorationSelector, "editor_inset", "value")
             end
             selectorRow:AddChild(decorationSelector)
         else

@@ -80,6 +80,13 @@ Skins.Builtin.default = Skins.Builtin.default or {
             g = 0.816,
             b = 0.361,
         },
+        identity = {
+            hex = "F7F2E8",
+            wow = "|cffF7F2E8",
+            r = 0.969,
+            g = 0.949,
+            b = 0.910,
+        },
         contextHighlight = {
             hex = "F2D05C",
             wow = "|cffF2D05C",
@@ -93,6 +100,13 @@ Skins.Builtin.default = Skins.Builtin.default or {
             r = 0.949,
             g = 0.902,
             b = 0.788,
+        },
+        value = {
+            hex = "EDE6CC",
+            wow = "|cffEDE6CC",
+            r = 0.929,
+            g = 0.902,
+            b = 0.800,
         },
         help = {
             hex = "B8AD95",

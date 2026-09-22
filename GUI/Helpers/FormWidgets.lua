@@ -1139,7 +1139,7 @@ local function ApplyInsetSurface(frame, style, prefix)
     end
 end
 
-function FormWidgets.StyleDropdown(dropdown, variant)
+function FormWidgets.StyleDropdown(dropdown, variant, valueRole)
     if not dropdown then
         return
     end
@@ -1149,8 +1149,12 @@ function FormWidgets.StyleDropdown(dropdown, variant)
 
     FormWidgets.ApplyTextStyle(dropdown.label, "label", 12, 1)
     if dropdown.text and dropdown.text.SetTextColor then
-        local valueColor = style.valueColor or GetItemColors().value
-        dropdown.text:SetTextColor(valueColor[1] or 1, valueColor[2] or 1, valueColor[3] or 1, 1)
+        if valueRole and FormWidgets.ApplyTextStyle then
+            FormWidgets.ApplyTextStyle(dropdown.text, valueRole, nil, 1)
+        else
+            local valueColor = style.valueColor or GetItemColors().value
+            dropdown.text:SetTextColor(valueColor[1] or 1, valueColor[2] or 1, valueColor[3] or 1, 1)
+        end
     end
 
     if dropdown.dropdown then
@@ -1185,7 +1189,7 @@ local function ColorEditBoxRegions(target, color)
     end
 end
 
-function FormWidgets.StyleEditBox(editBox, variant)
+function FormWidgets.StyleEditBox(editBox, variant, valueRole)
     if not editBox then
         return
     end
@@ -1197,8 +1201,12 @@ function FormWidgets.StyleEditBox(editBox, variant)
 
     if editBox.editbox then
         if editBox.editbox.SetTextColor then
-            local valueColor = style.valueColor or GetItemColors().value
-            editBox.editbox:SetTextColor(valueColor[1] or 1, valueColor[2] or 1, valueColor[3] or 1, 1)
+            if valueRole and FormWidgets.ApplyTextStyle then
+                FormWidgets.ApplyTextStyle(editBox.editbox, valueRole, nil, 1)
+            else
+                local valueColor = style.valueColor or GetItemColors().value
+                editBox.editbox:SetTextColor(valueColor[1] or 1, valueColor[2] or 1, valueColor[3] or 1, 1)
+            end
         end
 
         ColorEditBoxRegions(editBox.editbox, style.border or chromeColors.fieldBorder)

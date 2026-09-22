@@ -274,7 +274,10 @@ local function CreateSection(container, title, options)
         toggle.frame._focalPointSectionRole = "header"
     end
     if toggle.label then
-        StyleSidebarLabel(toggle.label, 13, { 0.88, 0.82, 0.62, 1 }, options.titleTextRole)
+        local titleColor = options.titleTextRole == "strongHeading"
+            and nil
+            or { 0.88, 0.82, 0.62, 1 }
+        StyleSidebarLabel(toggle.label, 13, titleColor, options.titleTextRole)
         if toggle.label.SetJustifyH then
             toggle.label:SetJustifyH("LEFT")
         end
@@ -525,10 +528,16 @@ local function AddSlider(container, label, minValue, maxValue, step, value, onCh
         end
     end)
     if widget.label then
-        StyleSidebarLabel(widget.label, 12, disabled and { 0.50, 0.50, 0.50, 1 } or { 0.68, 0.70, 0.75, 1 })
+        StyleSidebarLabel(widget.label, 12, nil, disabled and "disabled" or "label")
     end
     if StyleSliderField then
         StyleSliderField(widget)
+    end
+    if widget.lowtext then
+        ApplyTextStyle(widget.lowtext, disabled and "disabled" or "value", nil, 1)
+    end
+    if widget.hightext then
+        ApplyTextStyle(widget.hightext, disabled and "disabled" or "value", nil, 1)
     end
     ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)
@@ -556,7 +565,7 @@ local function AddDropdown(container, label, list, value, onChanged, disabled, a
         end
     end)
     if StyleDropdownField then
-        StyleDropdownField(widget, "editor_inset")
+        StyleDropdownField(widget, "editor_inset", "value")
     end
     ApplyAnchorMetadata(widget, anchorKey)
     container:AddChild(widget)

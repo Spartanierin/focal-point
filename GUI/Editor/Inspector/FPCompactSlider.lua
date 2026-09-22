@@ -6,6 +6,7 @@ if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 local TRACK_HEIGHT, INPUT_HEIGHT = 15, 14
 local HEIGHT = TRACK_HEIGHT + INPUT_HEIGHT
 local INPUT_WIDTH = 65
+local TextStyles = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
 
 local function GetPresentation()
     return ns.GUI.Skins.GetFormPalette().CompactSlider
@@ -13,6 +14,12 @@ end
 
 local function SetTextColor(text, color)
     text:SetTextColor(unpack(color))
+end
+
+local function ApplyValueText(text)
+    if TextStyles and TextStyles.ApplyFontString then
+        TextStyles.ApplyFontString(text, "value")
+    end
 end
 
 local function ApplySliderPresentation(slider)
@@ -128,10 +135,15 @@ function methods:SetDisabled(disabled)
     self.editbox:EnableMouse(not self.disabled)
     self.editbox:EnableKeyboard(not self.disabled)
     self.slider:GetThumbTexture():SetAlpha(self.disabled and presentation.thumb.disabledAlpha or presentation.thumb.alpha)
-    local textColor = self.disabled and presentation.text.disabled or presentation.text.normal
-    SetTextColor(self.editbox, textColor)
-    SetTextColor(self.lowtext, textColor)
-    SetTextColor(self.hightext, textColor)
+    if self.disabled then
+        SetTextColor(self.editbox, presentation.text.disabled)
+        SetTextColor(self.lowtext, presentation.text.disabled)
+        SetTextColor(self.hightext, presentation.text.disabled)
+    else
+        ApplyValueText(self.editbox)
+        ApplyValueText(self.lowtext)
+        ApplyValueText(self.hightext)
+    end
     if self.disabled then
         self.slider:EnableMouseWheel(false)
         self:ClearFocus()
