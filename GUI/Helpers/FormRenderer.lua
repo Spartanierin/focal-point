@@ -8,6 +8,14 @@ local AceGUI = LibStub("AceGUI-3.0")
 local FormRenderer = {}
 ns.GUI.Helpers.FormRenderer = FormRenderer
 
+local function GetEditorSectionRhythm()
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    if skins and skins.GetEditorSectionRhythm then
+        return skins.GetEditorSectionRhythm() or {}
+    end
+    return {}
+end
+
 local function IsWidgetGroupKind(sectionKind)
     return type(sectionKind) == "string" and sectionKind:find("widget_group", 1, true) ~= nil
 end
@@ -415,6 +423,17 @@ function FormRenderer.CreateLayoutGroup(host, definition)
     end
 
     local props = FormRenderer.ResolveSectionProperties(definition)
+    local editorSectionRhythm
+    if props and props.editorSectionRhythm and type(props.padding) == "table" then
+        editorSectionRhythm = GetEditorSectionRhythm()
+        if type(editorSectionRhythm.headerInsetX) == "number" then
+            props.padding.left = editorSectionRhythm.headerInsetX
+            props.padding.right = editorSectionRhythm.headerInsetX
+        end
+        if type(editorSectionRhythm.headerTopGap) == "number" then
+            props.padding.top = editorSectionRhythm.headerTopGap
+        end
+    end
     local function CreateConcreteGroup(groupProps)
         local concreteWidgetType = groupProps.widget or "SimpleGroup"
         local concreteGroup
@@ -511,6 +530,14 @@ function FormRenderer.CreateLayoutGroup(host, definition)
     local applySectionPadding = formSectionSurfaceRenderer and formSectionSurfaceRenderer.ApplySectionPadding
     local resolveSectionStyle = formWidgets and formWidgets.ResolveSectionStyle
     local sectionStyle = resolveSectionStyle and resolveSectionStyle(props.surfaceStyle) or nil
+    if editorSectionRhythm and sectionStyle and sectionStyle.surface and sectionStyle.surface.accent then
+        sectionStyle = FormRenderer.CloneLayoutValue(sectionStyle)
+        local accentInsetX = editorSectionRhythm.accentInsetX
+        if type(accentInsetX) == "number" then
+            sectionStyle.surface.accent.insetLeft = accentInsetX
+            sectionStyle.surface.accent.insetRight = accentInsetX
+        end
+    end
     if applySectionSurface then
         applySectionSurface(group, sectionStyle)
     end
@@ -522,7 +549,7 @@ function FormRenderer.CreateLayoutGroup(host, definition)
         if border == nil and IsWidgetGroupKind(props.sectionKind) then
             border = false
         end
-        applySectionBorder(group, border)
+        applySectionBorder(group, border, sectionStyle and sectionStyle.surfaceInsets or nil)
     end
     if applySectionPadding then
         applySectionPadding(group, props.padding)

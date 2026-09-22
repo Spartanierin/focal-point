@@ -186,6 +186,12 @@ Skins.Builtin.default = Skins.Builtin.default or {
             sectionInsetBottom = { 0.00, 0.00, 0.00, 0.26 },
             sectionAccent = { 0.910, 0.757, 0.400, 0.24 },
             headerAccent = { 0.910, 0.757, 0.400, 0.38 },
+            EditorSectionRhythm = {
+                outerMarginX = 6,
+                headerInsetX = 8,
+                headerTopGap = 8,
+                accentInsetX = 8,
+            },
             workspaceDivider = { 0.34, 0.37, 0.42, 0.24 },
         },
         CompactDialogContent = {
@@ -350,6 +356,15 @@ end
 function Skins.GetFormPalette(fallback)
     local skin = Skins.GetActiveSkin()
     return (skin and skin.formPalette) or fallback or {}
+end
+
+function Skins.GetEditorSectionRhythm(fallback)
+    local palette = Skins.GetFormPalette()
+    local defaultPalette = Skins.Builtin.default and Skins.Builtin.default.formPalette or nil
+    return (palette and palette.Chrome and palette.Chrome.EditorSectionRhythm)
+        or (defaultPalette and defaultPalette.Chrome and defaultPalette.Chrome.EditorSectionRhythm)
+        or fallback
+        or {}
 end
 
 function Skins.GetCanvasInteractionPresentation(fallback)

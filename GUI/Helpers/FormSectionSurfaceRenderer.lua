@@ -38,7 +38,21 @@ local function ResolveSectionStyle(style)
     return type(style) == "string" and GetSectionStyles()[style] or nil
 end
 
-function FormSectionSurfaceRenderer.ApplySectionBorder(group, border)
+local function ResolveSurfaceInsets(insets)
+    if type(insets) ~= "table" then
+        return 0, 0, 0, 0
+    end
+
+    return insets.left or 0, insets.right or 0, insets.top or 0, insets.bottom or 0
+end
+
+local function SetSurfaceBounds(region, frame, left, right, top, bottom)
+    region:ClearAllPoints()
+    region:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
+    region:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -right, bottom)
+end
+
+function FormSectionSurfaceRenderer.ApplySectionBorder(group, border, surfaceInsets)
     if not group or not group.frame then
         return
     end
@@ -46,6 +60,7 @@ function FormSectionSurfaceRenderer.ApplySectionBorder(group, border)
     local frame = group.frame
     local chromeColors = GetChromeColors()
     local color = type(border) == "table" and (border.color or ResolveItemColor(border.colorKey)) or chromeColors.sectionBorder
+    local left, right, top, bottom = ResolveSurfaceInsets(surfaceInsets)
 
     if border == false or not color then
         for _, name in ipairs({
@@ -63,6 +78,10 @@ function FormSectionSurfaceRenderer.ApplySectionBorder(group, border)
 
     local thickness = type(border) == "table" and (border.thickness or 1) or 1
     local inset = type(border) == "table" and (border.inset or 0) or 0
+    left = left + inset
+    right = right + inset
+    top = top + inset
+    bottom = bottom + inset
 
     local function EnsureBorder(name)
         if not frame[name] then
@@ -73,23 +92,27 @@ function FormSectionSurfaceRenderer.ApplySectionBorder(group, border)
     end
 
     EnsureBorder("_fpSectionBorderTop")
-    frame._fpSectionBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
-    frame._fpSectionBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -inset, -inset)
+    frame._fpSectionBorderTop:ClearAllPoints()
+    frame._fpSectionBorderTop:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
+    frame._fpSectionBorderTop:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -right, -top)
     frame._fpSectionBorderTop:SetHeight(thickness)
 
     EnsureBorder("_fpSectionBorderBottom")
-    frame._fpSectionBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, inset)
-    frame._fpSectionBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+    frame._fpSectionBorderBottom:ClearAllPoints()
+    frame._fpSectionBorderBottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", left, bottom)
+    frame._fpSectionBorderBottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -right, bottom)
     frame._fpSectionBorderBottom:SetHeight(thickness)
 
     EnsureBorder("_fpSectionBorderLeft")
-    frame._fpSectionBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
-    frame._fpSectionBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", inset, inset)
+    frame._fpSectionBorderLeft:ClearAllPoints()
+    frame._fpSectionBorderLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
+    frame._fpSectionBorderLeft:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", left, bottom)
     frame._fpSectionBorderLeft:SetWidth(thickness)
 
     EnsureBorder("_fpSectionBorderRight")
-    frame._fpSectionBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -inset, -inset)
-    frame._fpSectionBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+    frame._fpSectionBorderRight:ClearAllPoints()
+    frame._fpSectionBorderRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -right, -top)
+    frame._fpSectionBorderRight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -right, bottom)
     frame._fpSectionBorderRight:SetWidth(thickness)
 end
 
@@ -101,6 +124,7 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     local style = ResolveSectionStyle(sectionStyle)
     local surface = style and style.surface or nil
     local frame = group.frame
+    local left, right, top, bottom = ResolveSurfaceInsets(style and style.surfaceInsets)
 
     local function HideTexture(name)
         if frame[name] and frame[name].Hide then
@@ -128,14 +152,14 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     local surfaceMaterial = surface.material or "color"
     if surfaceMaterial == "texture" and type(surface.texture) == "string" then
         local fill = EnsureTexture("_fpSectionFill", "BACKGROUND")
-        fill:SetAllPoints(frame)
+        SetSurfaceBounds(fill, frame, left, right, top, bottom)
         fill:SetTexture(surface.texture)
         fill:SetTexCoord(0, 1, 0, 1)
         fill:SetBlendMode("BLEND")
         fill:SetVertexColor(unpack(surface.tint or { 1, 1, 1, 1 }))
     elseif surface.fill then
         local fill = EnsureTexture("_fpSectionFill", "BACKGROUND")
-        fill:SetAllPoints(frame)
+        SetSurfaceBounds(fill, frame, left, right, top, bottom)
         fill:SetTexCoord(0, 1, 0, 1)
         fill:SetBlendMode("BLEND")
         fill:SetVertexColor(1, 1, 1, 1)
@@ -146,8 +170,9 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
 
     if surface.topShade then
         local topShade = EnsureTexture("_fpSectionTopShade", "ARTWORK")
-        topShade:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
-        topShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
+        topShade:ClearAllPoints()
+        topShade:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
+        topShade:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -right, -top)
         topShade:SetHeight(1)
         topShade:SetColorTexture(unpack(surface.topShade))
     else
@@ -156,8 +181,9 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
 
     if surface.bottomShade then
         local bottomShade = EnsureTexture("_fpSectionBottomShade", "ARTWORK")
-        bottomShade:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 1, 1)
-        bottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
+        bottomShade:ClearAllPoints()
+        bottomShade:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", left, bottom)
+        bottomShade:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -right, bottom)
         bottomShade:SetHeight(1)
         bottomShade:SetColorTexture(unpack(surface.bottomShade))
     else
@@ -168,15 +194,15 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
         local accent = EnsureTexture("_fpSectionAccent", "BORDER")
         local edge = surface.accent.edge or "top"
         local thickness = surface.accent.thickness or 1
-        local insetLeft = surface.accent.insetLeft or 0
-        local insetRight = surface.accent.insetRight or 0
+        local insetLeft = left + (surface.accent.insetLeft or 0)
+        local insetRight = right + (surface.accent.insetRight or 0)
         accent:ClearAllPoints()
         if edge == "bottom" then
-            accent:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", insetLeft, 0)
-            accent:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -insetRight, 0)
+            accent:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", insetLeft, bottom)
+            accent:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -insetRight, bottom)
         else
-            accent:SetPoint("TOPLEFT", frame, "TOPLEFT", insetLeft, 0)
-            accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insetRight, 0)
+            accent:SetPoint("TOPLEFT", frame, "TOPLEFT", insetLeft, -top)
+            accent:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -insetRight, -top)
         end
         accent:SetHeight(thickness)
         accent:SetColorTexture(unpack(surface.accent.color or {}))
