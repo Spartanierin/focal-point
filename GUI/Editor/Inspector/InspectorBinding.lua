@@ -79,19 +79,27 @@ local function ResolveInspectorSectionPresentation(style)
     }
 end
 
-local function ApplyInspectorSectionHeaderGap(section)
-    local titleText = section and section.titletext or nil
-    local frame = section and section.frame or nil
-    if not titleText or not frame then
+local function ApplyInspectorSectionHeaderPresentation(section, textPresentation)
+    if not FormWidgets.ApplyTextPresentation then
         return
     end
 
+    local presentation = {}
+    if type(textPresentation) == "table" then
+        for key, value in pairs(textPresentation) do
+            presentation[key] = value
+        end
+    end
     local rhythm = GetEditorSectionRhythm()
-    local headerInsetX = rhythm.headerInsetX or 0
-    local headerTopGap = rhythm.headerTopGap or 0
-    titleText:ClearAllPoints()
-    titleText:SetPoint("TOPLEFT", frame, "TOPLEFT", headerInsetX, -headerTopGap)
-    titleText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -headerInsetX, -headerTopGap)
+    presentation.role = presentation.role or "strongHeading"
+    presentation.fontSize = presentation.fontSize or 13
+    if presentation.headerInsetX == nil then
+        presentation.headerInsetX = rhythm.headerInsetX or 0
+    end
+    if presentation.headerTopGap == nil then
+        presentation.headerTopGap = rhythm.headerTopGap or 0
+    end
+    FormWidgets.ApplyTextPresentation(section, presentation)
 end
 
 local function NeutralizeInspectorLegacyBoundary(section)
@@ -112,7 +120,7 @@ local function NeutralizeInspectorLegacyBoundary(section)
     end
 end
 
-function InspectorBinding.ApplyInspectorSectionStructure(section, style)
+function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPresentation)
     if not section then
         return nil
     end
@@ -125,7 +133,8 @@ function InspectorBinding.ApplyInspectorSectionStructure(section, style)
         local border = resolved and resolved.border or nil
         ApplySectionBorder(section, border, resolved and resolved.surfaceInsets or nil)
     end
-    ApplyInspectorSectionHeaderGap(section)
+    ApplyInspectorSectionHeaderPresentation(section, textPresentation)
+
     NeutralizeInspectorLegacyBoundary(section)
     if ApplySectionPadding and resolved then
         if resolved.contentPadding ~= nil then
@@ -146,7 +155,6 @@ end
 
 function InspectorBinding.CreateInspectorSection(container, createSection, state, sectionKey, title, defaultCollapsed, onToggle, extraOptions)
     local sectionOptions = extraOptions or {}
-    local rhythm = GetEditorSectionRhythm()
     sectionOptions.collapsible = true
     sectionOptions.key = sectionKey
     sectionOptions.state = state
@@ -164,9 +172,7 @@ function InspectorBinding.CreateInspectorSection(container, createSection, state
         forceExpanded = sectionOptions.forceExpanded,
         persistCollapse = sectionOptions.persistCollapse,
         titleTextRole = "strongHeading",
-        headerInset = rhythm.headerInsetX,
-        headerTopGap = rhythm.headerTopGap,
-    }), "default")
+    }), "default", sectionOptions.textPresentation)
 end
 
 return InspectorBinding

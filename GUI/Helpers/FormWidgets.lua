@@ -832,6 +832,58 @@ function FormWidgets.ApplyTextStyle(target, role, size, alpha)
     end
 end
 
+function FormWidgets.ApplyTextPresentation(owner, presentation)
+    if not owner then
+        return nil
+    end
+
+    presentation = type(presentation) == "table" and presentation or {}
+    local target = owner.titletext or owner.label
+    local frame = owner.frame
+    if not target then
+        return nil
+    end
+
+    local role = presentation.role or "label"
+    local skins = ns.GUI and ns.GUI.Skins or nil
+    local defaultFont = skins and skins.GetDefaultFont and skins.GetDefaultFont(STANDARD_TEXT_FONT) or STANDARD_TEXT_FONT
+    local fontFace = presentation.fontFace or defaultFont
+    local fontSize = presentation.fontSize or 13
+    local fontFlags = presentation.fontFlags or ""
+    local textStyles = GetTextStyles()
+    if textStyles and textStyles.ApplyFontString then
+        textStyles.ApplyFontString(target, role, {
+            font = fontFace,
+            size = fontSize,
+            flags = fontFlags,
+            alpha = presentation.alpha or 1,
+        })
+    elseif target.SetFont then
+        target:SetFont(fontFace, fontSize, fontFlags)
+    end
+
+    if presentation.color and target.SetTextColor then
+        local color = presentation.color
+        target:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+
+    local headerInsetX = presentation.headerInsetX
+    local headerTopGap = presentation.headerTopGap
+    local offsetX = presentation.offsetX or 0
+    local offsetY = presentation.offsetY or 0
+    if frame and target.ClearAllPoints
+        and (headerInsetX ~= nil or headerTopGap ~= nil or presentation.offsetX ~= nil or presentation.offsetY ~= nil)
+    then
+        local x = (headerInsetX or 0) + offsetX
+        local y = (headerTopGap or 0) + offsetY
+        target:ClearAllPoints()
+        target:SetPoint("TOPLEFT", frame, "TOPLEFT", x, -y)
+        target:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -x, -y)
+    end
+
+    return target
+end
+
 function FormWidgets.CreateBodyText(text, role, size, color, width, fullWidth)
     local label = AceGUI:Create("Label")
     label._fpOwnerGroup = nil

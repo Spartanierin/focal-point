@@ -257,29 +257,12 @@ local function CreateSection(container, title, options)
     local toggle = AceGUI:Create("InteractiveLabel")
     toggle:SetFullWidth(true)
     toggle:SetHeight(34)
-    local function ApplyHeaderInset()
-        if not options.headerInset or not toggle.label then
-            return
-        end
-        toggle.label:ClearAllPoints()
-        local top = options.headerTopGap or 0
-        toggle.label:SetPoint("TOPLEFT", toggle.frame, "TOPLEFT", options.headerInset, -top)
-        toggle.label:SetPoint("TOPRIGHT", toggle.frame, "TOPRIGHT", -options.headerInset, -top)
-    end
-    local originalOnWidthSet = toggle.OnWidthSet
-    toggle.OnWidthSet = function(widget, width)
-        if type(originalOnWidthSet) == "function" then
-            originalOnWidthSet(widget, width)
-        end
-        ApplyHeaderInset()
-    end
     local function UpdateToggleText()
         if forceExpanded and not persistCollapse then
             toggle:SetText(title or "")
         else
             toggle:SetText(string.format("%s %s", collapsed and "[+]" or "[-]", title or ""))
         end
-        ApplyHeaderInset()
     end
     UpdateToggleText()
     if toggle.SetUserData then
@@ -298,7 +281,6 @@ local function CreateSection(container, title, options)
         if toggle.label.SetJustifyH then
             toggle.label:SetJustifyH("LEFT")
         end
-        ApplyHeaderInset()
     end
 
     if toggle.frame then
@@ -344,7 +326,6 @@ local function CreateSection(container, title, options)
     end
 
     container:AddChild(toggle)
-    ApplyHeaderInset()
 
     if options.localContentBuilder then
         local host = AceGUI:Create("SimpleGroup")
