@@ -9,6 +9,20 @@ Skins.Builtin = Skins.Builtin or {}
 
 local DEFAULT_BUTTON_TEXTURE = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"
 
+local function NavigatorColor(color, alpha)
+    return { color[1], color[2], color[3], alpha or color[4] }
+end
+
+local NAVIGATOR = {
+    mahogany = { 0.251, 0.125, 0.114, 0.97 },
+    darkWalnut = { 0.106, 0.090, 0.078, 0.92 },
+    blackenedMetal = { 0.090, 0.098, 0.102, 1.00 },
+    agedBrass = { 0.690, 0.541, 0.243, 1.00 },
+    focusBrass = { 0.816, 0.667, 0.322, 1.00 },
+    warmText = { 0.906, 0.875, 0.788, 1.00 },
+    secondary = { 0.651, 0.616, 0.541, 1.00 },
+}
+
 Skins.Builtin.default = Skins.Builtin.default or {
     id = "default",
     label = "Focal Point",
@@ -166,33 +180,45 @@ Skins.Builtin.default = Skins.Builtin.default or {
         },
     },
     formPalette = {
+        Navigator = {
+            navigatorMahogany = NAVIGATOR.mahogany,
+            navigatorDarkWalnut = NAVIGATOR.darkWalnut,
+            navigatorBlackenedMetal = NAVIGATOR.blackenedMetal,
+            navigatorAgedBrass = NAVIGATOR.agedBrass,
+            navigatorFocusBrass = NAVIGATOR.focusBrass,
+            navigatorWarmText = NAVIGATOR.warmText,
+            navigatorSecondary = NAVIGATOR.secondary,
+        },
         Chrome = {
-            panelBackground = { 0.06, 0.07, 0.09, 0.94 },
-            panelBorder = { 0.42, 0.38, 0.26, 0.92 },
-            panelInnerBorder = { 0.18, 0.20, 0.24, 0.92 },
-            panelHeader = { 0.11, 0.12, 0.15, 0.82 },
+            panelBackground = NAVIGATOR.mahogany,
+            panelBorder = NavigatorColor(NAVIGATOR.agedBrass, 0.82),
+            panelInnerBorder = NavigatorColor(NAVIGATOR.blackenedMetal, 0.90),
+            panelHeader = NavigatorColor(NAVIGATOR.darkWalnut, 0.92),
             panelTopShade = { 1.00, 1.00, 1.00, 0.05 },
             panelBottomShade = { 0.00, 0.00, 0.00, 0.42 },
-            fieldBackground = { 0.10, 0.11, 0.14, 0.96 },
-            fieldBorder = { 0.31, 0.34, 0.39, 0.95 },
-            fieldBorderFocus = { 0.40, 0.60, 0.80, 0.95 },
+            fieldBackground = { 0.055, 0.047, 0.040, 0.99 },
+            fieldBorder = { 0.25, 0.22, 0.18, 0.78 },
+            fieldBorderFocus = { 0.91, 0.70, 0.30, 0.98 },
             fieldInsetTop = { 1.00, 1.00, 1.00, 0.04 },
             fieldInsetBottom = { 0.00, 0.00, 0.00, 0.28 },
             accent = { 0.910, 0.757, 0.400, 0.20 },
-            sectionBorder = { 0.30, 0.33, 0.38, 0.56 },
-            sectionFill = { 0.09, 0.10, 0.12, 0.52 },
-            sectionFillStrong = { 0.11, 0.12, 0.15, 0.66 },
+            sectionBorder = NavigatorColor(NAVIGATOR.agedBrass, 0.48),
+            sectionFill = NavigatorColor(NAVIGATOR.darkWalnut, 0.68),
+            sectionFillStrong = NavigatorColor(NAVIGATOR.darkWalnut, 0.78),
             sectionInsetTop = { 1.00, 1.00, 1.00, 0.035 },
             sectionInsetBottom = { 0.00, 0.00, 0.00, 0.26 },
-            sectionAccent = { 0.910, 0.757, 0.400, 0.24 },
-            headerAccent = { 0.910, 0.757, 0.400, 0.38 },
+            sectionAccent = NavigatorColor(NAVIGATOR.agedBrass, 0.24),
+            headerAccent = NavigatorColor(NAVIGATOR.focusBrass, 0.38),
             EditorSectionRhythm = {
                 outerMarginX = 6,
                 headerInsetX = 8,
                 headerTopGap = 8,
                 accentInsetX = 8,
             },
-            workspaceDivider = { 0.34, 0.37, 0.42, 0.24 },
+            workspaceDivider = { 0.42, 0.34, 0.23, 0.24 },
+            canvasToolbarBackground = { 0.045, 0.040, 0.035, 0.94 },
+            canvasToolbarBorder = { 0.82, 0.58, 0.20, 0.42 },
+            canvasToolbarInset = { 0.070, 0.060, 0.050, 0.94 },
         },
         CompactDialogContent = {
             parchment = {

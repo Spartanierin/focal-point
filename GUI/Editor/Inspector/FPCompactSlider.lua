@@ -68,6 +68,7 @@ local function ApplySliderPresentation(slider)
     end
     if thumb and thumb.SetAtlas then
         thumb:SetAtlas(presentation.thumb.atlas, true)
+        thumb:SetVertexColor(unpack(slider._fpThumbColor or { 1, 1, 1, 1 }))
     end
 end
 
@@ -107,6 +108,14 @@ end
 
 function methods:GetValue()
     return self.value
+end
+
+function methods:SetThumbColor(color)
+    self._fpThumbColor = type(color) == "table" and color or nil
+    local thumb = self.slider and self.slider:GetThumbTexture()
+    if thumb and thumb.SetVertexColor then
+        thumb:SetVertexColor(unpack(self._fpThumbColor or { 1, 1, 1, 1 }))
+    end
 end
 
 function methods:SetSliderValues(minValue, maxValue, step)
@@ -152,6 +161,7 @@ function methods:SetDisabled(disabled)
 end
 
 function methods:OnAcquire()
+    self._fpThumbColor = nil
     self:SetWidth(200)
     self:SetHeight(HEIGHT)
     ApplySliderPresentation(self.slider)

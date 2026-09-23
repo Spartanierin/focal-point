@@ -293,8 +293,11 @@ local function EnsureEditorToolbarLayer(addon)
     layer._focalPointEditorRole = "editor_toolbar_layer"
 
     EnsureSidebarSurface(layer, "_editorSidebar")
+    local palette = ns.GUI and ns.GUI.Skins and ns.GUI.Skins.GetFormPalette and ns.GUI.Skins.GetFormPalette() or {}
+    local chromeColors = palette.Chrome or {}
     if layer._editorSidebar and layer._editorSidebar.SetColorTexture then
-        layer._editorSidebar:SetColorTexture(0, 0, 0, 0)
+        layer._editorSidebar:SetColorTexture(unpack(chromeColors.panelBackground or { 0.05, 0.06, 0.08, 0.84 }))
+        layer._editorSidebar:Show()
     end
     if layer._editorSidebarBorder and layer._editorSidebarBorder.SetColorTexture then
         layer._editorSidebarBorder:SetColorTexture(0, 0, 0, 0)
