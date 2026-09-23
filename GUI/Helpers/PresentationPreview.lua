@@ -150,6 +150,8 @@ end
 function API.Set(target, property, value)
     if InCombat() then return false, "combat" end
     if not IsTarget(target) then return false, "unknown_target" end
+    local composition = ns.GUI.PresentationCompositionPreview
+    if composition and composition.BlocksColorTarget(target) then return false, "section_composition_active" end
     if property == "color" then
         if type(value) ~= "table" or getmetatable(value) ~= nil then return false, "invalid_color" end
         for key in pairs(value) do

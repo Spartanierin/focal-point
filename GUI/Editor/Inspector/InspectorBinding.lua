@@ -108,6 +108,8 @@ InspectorBinding.ResolveSectionPresentation = ResolveInspectorSectionPresentatio
 local sectionTargets = { "inspector_section_surface", "inspector_section_border", "inspector_section_accent" }
 local function ApplySectionPresentation(section, style, canonicalOnly, colorsOnly)
     local resolved = ResolveInspectorSectionPresentation(style)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if composition and composition.Apply(section, resolved, canonicalOnly) then return resolved end
     local preview = ns.GUI.PresentationPreview
     if preview and resolved and resolved.surface and resolved.surface.material ~= "texture" then
         -- Only this fresh Inspector descriptor is overlaid, never SectionStyles.
@@ -154,10 +156,15 @@ function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPre
         return nil
     end
 
+    local composition = ns.GUI.PresentationCompositionPreview
+    if composition then
+        composition.Bind(section, function(owner) ApplySectionPresentation(owner, style) end)
+    end
     local resolved = ApplySectionPresentation(section, style)
     if ns.GUI.PresentationPreview then
         ns.GUI.PresentationPreview.BindWidget(section, sectionTargets, function(owner, canonicalOnly)
-            ApplySectionPresentation(owner, style, canonicalOnly, true)
+            if canonicalOnly and composition then composition.Release(owner) end
+            ApplySectionPresentation(owner, style, canonicalOnly, not (canonicalOnly and composition))
         end)
     end
     ApplyInspectorSectionHeaderPresentation(section, textPresentation)

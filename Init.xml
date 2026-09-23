@@ -116,6 +116,7 @@
 
     <Script file="GUI/GUISkin.lua"/>
     <Script file="GUI/Helpers/PresentationPreview.lua"/>
+    <Script file="GUI/Helpers/PresentationCompositionPreview.lua"/>
     <Script file="GUI/Helpers/OptionPaths.lua"/>
     <Script file="GUI/Helpers/OptionValues.lua"/>
     <Script file="GUI/Helpers/OptionRefresh.lua"/>
