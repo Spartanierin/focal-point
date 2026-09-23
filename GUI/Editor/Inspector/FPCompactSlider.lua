@@ -1,6 +1,6 @@
 local _, ns = ...
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
-local Type, Version = "FPCompactSlider", 1
+local Type, Version = "FPCompactSlider", 2
 if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 
 local TRACK_HEIGHT, INPUT_HEIGHT = 15, 14
@@ -68,7 +68,22 @@ local function ApplySliderPresentation(slider)
     end
     if thumb and thumb.SetAtlas then
         thumb:SetAtlas(presentation.thumb.atlas, true)
-        thumb:SetVertexColor(unpack(slider._fpThumbColor or { 1, 1, 1, 1 }))
+    end
+end
+
+local function ApplyThumbPresentation(widget, canonicalOnly)
+    local presentation = GetPresentation().thumb
+    local thumb = widget.slider:GetThumbTexture()
+    local preview = ns.GUI.PresentationPreview
+    local color = widget._fpInspectorPresentation and preview
+        and preview.ResolveColor("inspector_slider_thumb", canonicalOnly)
+    if color then
+        thumb:SetVertexColor(color[1], color[2], color[3], 1)
+        local disabledFactor = presentation.alpha > 0 and presentation.disabledAlpha / presentation.alpha or 0
+        thumb:SetAlpha(color[4] * (widget.disabled and disabledFactor or 1))
+    else
+        thumb:SetVertexColor(unpack(widget._fpThumbColor or { 1, 1, 1, 1 }))
+        thumb:SetAlpha(widget.disabled and presentation.disabledAlpha or presentation.alpha)
     end
 end
 
@@ -111,11 +126,14 @@ function methods:GetValue()
 end
 
 function methods:SetThumbColor(color)
-    self._fpThumbColor = type(color) == "table" and color or nil
-    local thumb = self.slider and self.slider:GetThumbTexture()
-    if thumb and thumb.SetVertexColor then
-        thumb:SetVertexColor(unpack(self._fpThumbColor or { 1, 1, 1, 1 }))
-    end
+    self._fpThumbColor = type(color) == "table" and { color[1], color[2], color[3], color[4] or 1 } or nil
+    ApplyThumbPresentation(self)
+end
+
+function methods:SetInspectorPresentation()
+    self._fpInspectorPresentation = true
+    ns.GUI.PresentationPreview.Bind(self, { "inspector_slider_thumb" }, ApplyThumbPresentation)
+    ApplyThumbPresentation(self)
 end
 
 function methods:SetSliderValues(minValue, maxValue, step)
@@ -143,7 +161,7 @@ function methods:SetDisabled(disabled)
     self.slider:EnableMouse(not self.disabled)
     self.editbox:EnableMouse(not self.disabled)
     self.editbox:EnableKeyboard(not self.disabled)
-    self.slider:GetThumbTexture():SetAlpha(self.disabled and presentation.thumb.disabledAlpha or presentation.thumb.alpha)
+    ApplyThumbPresentation(self)
     if self.disabled then
         SetTextColor(self.editbox, presentation.text.disabled)
         SetTextColor(self.lowtext, presentation.text.disabled)
@@ -162,6 +180,7 @@ end
 
 function methods:OnAcquire()
     self._fpThumbColor = nil
+    self._fpInspectorPresentation = nil
     self:SetWidth(200)
     self:SetHeight(HEIGHT)
     ApplySliderPresentation(self.slider)
@@ -173,6 +192,9 @@ function methods:OnAcquire()
 end
 
 function methods:OnRelease()
+    if ns.GUI.PresentationPreview then ns.GUI.PresentationPreview.Unbind(self) end
+    self._fpInspectorPresentation = nil
+    self._fpThumbColor = nil
     self:SetDisabled(true)
     self:SetSliderValues(0, 100, 1)
     self:SetValue(0)

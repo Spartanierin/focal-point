@@ -32,11 +32,6 @@ local AddCheckBox = Shared.AddCheckBox
 local AddSlider = Shared.AddSlider
 local AddDropdown = Shared.AddDropdown
 
-local function GetNavigatorColor(role)
-    local palette = ns.GUI and ns.GUI.Skins and ns.GUI.Skins.GetFormPalette and ns.GUI.Skins.GetFormPalette() or {}
-    local navigator = palette.Navigator or {}
-    return navigator[role]
-end
 local AddColorPicker = Shared.AddColorPicker
 local BuildTextList = Shared.BuildTextList
 local BuildIndicatorList = Shared.BuildIndicatorList
@@ -1998,9 +1993,7 @@ function InspectorController.Build(container, state, options)
             slider:SetSliderValues(minValue, maxValue, step)
             slider:SetValue(value)
             slider:SetDisabled(disabled == true)
-            if slider.SetThumbColor then
-                slider:SetThumbColor(GetNavigatorColor("navigatorAgedBrass"))
-            end
+            slider:SetInspectorPresentation()
             slider:SetCallback("OnValueChanged", function(_, _, newValue)
                 if onChanged then onChanged(newValue) end
             end)

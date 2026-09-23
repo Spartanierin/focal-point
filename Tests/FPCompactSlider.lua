@@ -72,10 +72,15 @@ function native:ClearFocus()
 end
 function native:SetThumbTexture() self.thumb = CreateFrame("Texture", nil, self) end
 function native:GetThumbTexture() return self.thumb end
+function native:CreateTexture() return CreateFrame("Texture", nil, self) end
+function native:SetAtlas(atlas, useSize)
+    self.atlas = atlas
+    if useSize then self:SetSize(20, 26) end -- mock atlas dimensions, not a live asset assertion
+end
 for _, method in ipairs({"EnableMouse", "EnableKeyboard", "EnableMouseWheel", "SetValueStep",
     "SetOrientation", "SetHitRectInsets", "SetBackdrop", "SetBackdropColor", "SetBackdropBorderColor",
     "SetAutoFocus", "SetFontObject", "SetJustifyH", "SetJustifyV", "SetWordWrap", "SetTextColor", "SetAlpha",
-    "SetVertexColor"}) do
+    "SetVertexColor", "SetHorizTile", "SetVertTile"}) do
     native[method] = function(self, ...) self["last" .. method] = {...} end
 end
 function CreateFrame(kind, name, parent)
@@ -112,6 +117,7 @@ local compactSliderPresentation = {
     },
 }
 local ns = { GUI = { Skins = { GetFormPalette = function() return { CompactSlider = compactSliderPresentation } end } } }
+ns.GUI.Helpers = { TextStyles = { ApplyFontString = function(text) text:SetTextColor(1, 1, 1, 1) end } }
 assert(loadfile("Libraries/Ace3/AceGUI-3.0/AceGUI-3.0.lua"))()
 assert(loadfile("GUI/Editor/Inspector/FPCompactSlider.lua"))(nil, ns)
 local ace = LibStub("AceGUI-3.0")
@@ -224,3 +230,4 @@ equal(widget:GetValue(), 42); equal(widget.editbox:GetText(), "42")
 equal(created, count)
 assert(#errors == 0, table.concat(errors, "\n"))
 print("PASS: FPCompactSlider Min/Edit/Max at 77/97px, range formatting/reset, geometry, input and 50 AceGUI pooling cycles")
+return { ns = ns, ace = ace, native = native, errors = errors }

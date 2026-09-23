@@ -258,7 +258,7 @@ local function EnsureInspector()
         end
 
         if ApplySidebarChrome then
-            ApplySidebarChrome(inspector)
+            ApplySidebarChrome(inspector, "inspector_shell")
         end
     end
 

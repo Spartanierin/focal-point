@@ -178,7 +178,7 @@ local function CreateWindow(state, options)
     end
 
     if ApplySidebarChrome then
-        ApplySidebarChrome(window)
+        ApplySidebarChrome(window, "sidebar_shell")
     end
     ApplyToolbarWindowPresentation(window)
     PositionWindow(window)

@@ -2147,7 +2147,22 @@ function FormWidgets.CreateCompactConfirmation(options)
 
     return dialog
 end
-function FormWidgets.ApplySidebarChrome(window)
+function FormWidgets.GetSidebarShellFill()
+    local palette = GetFormPalette()
+    return (palette.Chrome and palette.Chrome.panelBackground)
+        or { 0.05, 0.06, 0.08, 0.84 }
+end
+
+function FormWidgets.ApplySidebarShellFill(window, target, canonicalOnly)
+    local fill = window.frame and window.frame._fpSidebarPanelFill
+    if not fill then return end
+    local preview = ns.GUI.PresentationPreview
+    local color = target and preview and preview.ResolveColor(target, canonicalOnly)
+        or FormWidgets.GetSidebarShellFill()
+    fill:SetColorTexture(unpack(color))
+end
+
+function FormWidgets.ApplySidebarChrome(window, previewTarget)
     if not window or not window.frame then
         return
     end
@@ -2167,7 +2182,12 @@ function FormWidgets.ApplySidebarChrome(window)
         frame._fpSidebarPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
         frame._fpSidebarPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
     end
-    frame._fpSidebarPanelFill:SetColorTexture(unpack(chromeColors.panelBackground or {}))
+    FormWidgets.ApplySidebarShellFill(window, previewTarget)
+    if previewTarget and ns.GUI.PresentationPreview then
+        ns.GUI.PresentationPreview.BindWidget(window, { previewTarget }, function(owner, canonicalOnly)
+            FormWidgets.ApplySidebarShellFill(owner, previewTarget, canonicalOnly)
+        end)
+    end
 
     if not frame._fpSidebarPanelHeaderFill then
         frame._fpSidebarPanelHeaderFill = frame:CreateTexture(nil, "ARTWORK")

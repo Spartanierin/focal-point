@@ -239,6 +239,25 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     end
 end
 
+-- Recolor already-created color surfaces without touching anchors or padding.
+function FormSectionSurfaceRenderer.ApplySectionColors(group, style)
+    local frame = group and group.frame
+    local surface = style and style.surface
+    if not frame or not surface or surface.material == "texture" then return end
+    local function ColorRegion(name, color)
+        if frame[name] and color then frame[name]:SetColorTexture(unpack(color)) end
+    end
+    ColorRegion("_fpSectionFill", surface.fill)
+    ColorRegion("_fpSectionAccent", surface.accent and surface.accent.color)
+    local border = style.border
+    if type(border) == "table" then
+        local color = border.color or ResolveItemColor(border.colorKey)
+        for _, edge in ipairs({ "Top", "Bottom", "Left", "Right" }) do
+            ColorRegion("_fpSectionBorder" .. edge, color)
+        end
+    end
+end
+
 local function ResolvePadding(padding)
     local left = 0
     local right = 0

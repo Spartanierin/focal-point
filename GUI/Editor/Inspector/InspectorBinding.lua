@@ -102,6 +102,35 @@ local function ApplyInspectorSectionHeaderPresentation(section, textPresentation
     FormWidgets.ApplyTextPresentation(section, presentation)
 end
 
+-- Shared canonical source for the public baseline and normal section builds.
+InspectorBinding.ResolveSectionPresentation = ResolveInspectorSectionPresentation
+
+local sectionTargets = { "inspector_section_surface", "inspector_section_border", "inspector_section_accent" }
+local function ApplySectionPresentation(section, style, canonicalOnly, colorsOnly)
+    local resolved = ResolveInspectorSectionPresentation(style)
+    local preview = ns.GUI.PresentationPreview
+    if preview and resolved and resolved.surface and resolved.surface.material ~= "texture" then
+        -- Only this fresh Inspector descriptor is overlaid, never SectionStyles.
+        resolved = ns.GUI.Helpers.FormRenderer.CloneLayoutValue(resolved)
+        resolved.surface.fill = preview.ResolveColor(sectionTargets[1], canonicalOnly) or resolved.surface.fill
+        if resolved.border then
+            resolved.border.color = preview.ResolveColor(sectionTargets[2], canonicalOnly) or resolved.border.color
+        end
+        if resolved.surface.accent then
+            resolved.surface.accent.color = preview.ResolveColor(sectionTargets[3], canonicalOnly) or resolved.surface.accent.color
+        end
+    end
+    if colorsOnly then
+        FormSectionSurfaceRenderer.ApplySectionColors(section, resolved)
+    else
+        if ApplySectionSurface then ApplySectionSurface(section, resolved) end
+        if ApplySectionBorder then
+            ApplySectionBorder(section, resolved and resolved.border, resolved and resolved.surfaceInsets)
+        end
+    end
+    return resolved
+end
+
 local function NeutralizeInspectorLegacyBoundary(section)
     local content = section and section.content or nil
     local border = content and content.GetParent and content:GetParent() or nil
@@ -125,13 +154,11 @@ function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPre
         return nil
     end
 
-    local resolved = ResolveInspectorSectionPresentation(style)
-    if ApplySectionSurface then
-        ApplySectionSurface(section, resolved)
-    end
-    if ApplySectionBorder then
-        local border = resolved and resolved.border or nil
-        ApplySectionBorder(section, border, resolved and resolved.surfaceInsets or nil)
+    local resolved = ApplySectionPresentation(section, style)
+    if ns.GUI.PresentationPreview then
+        ns.GUI.PresentationPreview.BindWidget(section, sectionTargets, function(owner, canonicalOnly)
+            ApplySectionPresentation(owner, style, canonicalOnly, true)
+        end)
     end
     ApplyInspectorSectionHeaderPresentation(section, textPresentation)
 
@@ -161,18 +188,25 @@ function InspectorBinding.CreateInspectorSection(container, createSection, state
     sectionOptions.defaultCollapsed = defaultCollapsed
     sectionOptions.onToggle = onToggle
 
-    return InspectorBinding.ApplyInspectorSectionStructure(createSection(container, title, {
+    local contentBuilder = sectionOptions.localContentBuilder
+    local section = createSection(container, title, {
         collapsible = true,
         key = sectionKey,
         state = state,
         defaultCollapsed = defaultCollapsed,
         onToggle = onToggle,
-        localContentBuilder = sectionOptions.localContentBuilder,
+        localContentBuilder = contentBuilder and function(group)
+            contentBuilder(group)
+            -- Collapse/expand creates a fresh group without rebuilding the Inspector.
+            InspectorBinding.ApplyInspectorSectionStructure(group, "default", sectionOptions.textPresentation)
+        end,
         layoutRefresh = sectionOptions.layoutRefresh,
         forceExpanded = sectionOptions.forceExpanded,
         persistCollapse = sectionOptions.persistCollapse,
         titleTextRole = "strongHeading",
-    }), "default", sectionOptions.textPresentation)
+    })
+    if contentBuilder then return section end
+    return InspectorBinding.ApplyInspectorSectionStructure(section, "default", sectionOptions.textPresentation)
 end
 
 return InspectorBinding
