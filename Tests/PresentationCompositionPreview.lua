@@ -49,6 +49,7 @@ for _, file in ipairs({ "AceGUIContainer-SimpleGroup", "AceGUIContainer-InlineGr
 end
 Load("GUI/Editor/SidebarShared.lua")
 local api, preview = ns.Ace.PresentationCompositionPreview, ns.Ace.PresentationPreview
+local composition = ns.GUI.PresentationCompositionPreview
 local binding = ns.GUI.Editor.Inspector.InspectorBinding
 local target = "inspector_section"
 local function Equal(a, b)
@@ -285,6 +286,59 @@ Equal(regionCount, count)
 ace:Release(host)
 assert(api.ResetComposition(target))
 for _, owner in ipairs({ a, b }) do ace:Release(owner) end
+-- Target discovery and Inspector shell isolation.
+local discovered = api.GetTargets()
+Equal(#discovered, 2)
+Equal(discovered[1].id, "inspector_section")
+Equal(discovered[2].id, "inspector_shell")
+discovered[2].types[1] = "bad"
+Equal(api.GetTargets()[2].types[1], "surface")
+local capsCopy = api.GetCapabilities()
+capsCopy.targets[2].properties.surface[1] = "bad"
+Equal(api.GetCapabilities().targets[2].properties.surface[1], "color")
+
+local shell = ace:Create("SimpleGroup")
+local shellCanonical = 0
+local function ApplyShell(owner, canonicalOnly)
+    local active = composition.Apply("inspector_shell", owner, nil, canonicalOnly)
+    if not active then shellCanonical = shellCanonical + 1 end
+end
+composition.Bind("inspector_shell", shell, ApplyShell)
+ApplyShell(shell)
+assert(api.AddLayer("inspector_shell", "surface", { color = { 0.3, 0.4, 0.5 } }))
+assert(api.AddLayer("inspector_shell", "line", { edge = "bottom", thickness = 2 }))
+assert(api.AddLayer("inspector_shell", "texture", { alpha = 0.4 }))
+local shellSurfaceId = api.GetComposition("inspector_shell").layers[1].id
+assert(api.MoveLayer("inspector_shell", shellSurfaceId, "up"))
+assert(api.ClearComposition("inspector_shell"))
+Equal(#api.GetComposition("inspector_shell").layers, 0)
+for _, region in ipairs(shell.frame._fpCompositionRegionsByTarget.inspector_shell) do Neutral(region) end
+assert(api.AddLayer("inspector_shell", "surface", { color = { 0.3, 0.4, 0.5 } }))
+assert(api.AddLayer("inspector_shell", "line", { edge = "bottom", thickness = 2 }))
+assert(api.AddLayer("inspector_shell", "texture", { alpha = 0.4 }))
+local shellSlots = shell.frame._fpCompositionRegionsByTarget.inspector_shell
+assert(shellSlots[1]:IsShown() and shellSlots[2]:IsShown() and shellSlots[3]:IsShown())
+Equal(api.GetComposition(target), nil) -- Shell state is independent from sections.
+assert(api.AddLayer(target, "surface", { color = { 0.6, 0.5, 0.4 } }))
+assert(api.GetComposition(target))
+assert(api.GetComposition("inspector_shell"))
+local ok, why = preview.Set("inspector_shell", "alpha", 0.5)
+Equal(ok, false); Equal(why, "shell_composition_active")
+assert(preview.Set("inspector_section_surface", "alpha", 0.5) == false)
+local shellBeforeCombat = api.GetComposition("inspector_shell")
+combat = true
+local shellCombatOK, shellCombatReason = api.ClearComposition("inspector_shell")
+Equal(shellCombatOK, false); Equal(shellCombatReason, "combat")
+Equal(api.GetComposition("inspector_shell"), shellBeforeCombat)
+combat = false
+assert(api.ResetComposition("inspector_shell"))
+assert(shellCanonical > 0)
+for _, region in ipairs(shellSlots) do Neutral(region) end
+assert(api.GetComposition("inspector_shell") == nil)
+assert(api.GetComposition(target))
+assert(api.ResetComposition(target))
+composition.Release("inspector_shell", shell)
+ace:Release(shell)
 Load("GUI/Helpers/PresentationCompositionPreview.lua")
 Equal(ns.Ace.PresentationCompositionPreview.GetComposition(target), nil)
 assert(#env.errors == 0, table.concat(env.errors, "\n"))

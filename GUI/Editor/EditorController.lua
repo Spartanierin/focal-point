@@ -8,6 +8,15 @@ local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local ApplySidebarChrome = FormWidgets and FormWidgets.ApplySidebarChrome
+
+local function ApplyInspectorShellComposition(owner, canonicalOnly)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not composition or not owner then return end
+    local active = composition.Apply("inspector_shell", owner, nil, canonicalOnly)
+    if not active and ApplySidebarChrome then
+        ApplySidebarChrome(owner, "inspector_shell")
+    end
+end
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry
 
 local INSPECTOR_WIDTH = (SidebarGeometry and (SidebarGeometry.inspectorWidth or SidebarGeometry.width)) or 285
@@ -259,6 +268,11 @@ local function EnsureInspector()
 
         if ApplySidebarChrome then
             ApplySidebarChrome(inspector, "inspector_shell")
+            local composition = ns.GUI.PresentationCompositionPreview
+            if composition then
+                composition.Bind("inspector_shell", inspector, ApplyInspectorShellComposition)
+                ApplyInspectorShellComposition(inspector)
+            end
         end
     end
 

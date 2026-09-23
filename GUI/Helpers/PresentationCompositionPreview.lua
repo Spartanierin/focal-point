@@ -5,12 +5,37 @@ local Composition = {}
 ns.GUI.PresentationCompositionPreview = Composition
 local API = { version = 1 }
 ns.Ace.PresentationCompositionPreview = API
-local TARGET, MAX_LAYERS = "inspector_section", 10
-local descriptor, nextId = nil, 0
-local owners = setmetatable({}, { __mode = "k" })
-local sectionTargets = {
-    inspector_section_surface = true, inspector_section_border = true, inspector_section_accent = true,
+
+local MAX_LAYERS = 10
+local TARGET_ORDER = { "inspector_section", "inspector_shell" }
+local targetInfo = {
+    inspector_section = {
+        label = "Inspector section",
+        area = "Inspector",
+        conflicts = {
+            inspector_section_surface = true,
+            inspector_section_border = true,
+            inspector_section_accent = true,
+        },
+        previewConflictReason = "section_color_preview_active",
+        compositionConflictReason = "section_composition_active",
+    },
+    inspector_shell = {
+        label = "Inspector shell",
+        area = "Inspector",
+        conflicts = { inspector_shell = true },
+        previewConflictReason = "shell_color_preview_active",
+        compositionConflictReason = "shell_composition_active",
+        surfaceInsets = { left = 12, right = 12, top = 12, bottom = 12 },
+    },
 }
+
+local states, owners = {}, {}
+for _, target in ipairs(TARGET_ORDER) do
+    states[target] = { descriptor = nil, nextId = 0 }
+    owners[target] = setmetatable({}, { __mode = "k" })
+end
+
 local textures = {
     parchment = { label = "FP window parchment", path = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_window_background.jpg" },
     blizzard = { label = "FP BetterBlizzard", path = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp" },
@@ -20,6 +45,19 @@ local defaults = {
     line = { color = { 1, 1, 1 }, alpha = 1, edge = "top", offset = 0, thickness = 1 },
     texture = { textureId = "parchment", tint = { 1, 1, 1 }, alpha = 1, mode = "stretch",
         insets = { left = 0, right = 0, top = 0, bottom = 0 } },
+}
+local sharedCapabilities = {
+    maxLayers = MAX_LAYERS,
+    types = { "surface", "line", "texture" },
+    modes = { "stretch" },
+    insetRange = { 0, 8 },
+    offsetRange = { 0, 8 },
+    thicknessRange = { 1, 4 },
+    properties = {
+        surface = { "color", "alpha", "insets" },
+        line = { "edge", "offset", "thickness", "color", "alpha" },
+        texture = { "textureId", "tint", "alpha", "insets", "mode" },
+    },
 }
 
 local function Copy(value)
@@ -35,6 +73,7 @@ end
 
 local function Plain(value) return type(value) == "table" and getmetatable(value) == nil end
 local edges = { top = true, bottom = true, left = true, right = true }
+
 local function ValidProperty(kind, property, value)
     if not defaults[kind] or defaults[kind][property] == nil then return false end
     if property == "color" or property == "tint" then
@@ -55,121 +94,104 @@ local function ValidProperty(kind, property, value)
     return false
 end
 
-function Composition.BlocksColorTarget(target)
-    return descriptor ~= nil and sectionTargets[target] == true
+local function Target(target)
+    return type(target) == "string" and targetInfo[target] ~= nil
+end
+
+local function State(target)
+    return states[target]
+end
+
+local function Empty(target) return { version = 0, target = target, layers = {} } end
+
+local function Find(target, id)
+    local descriptor = State(target).descriptor
+    if descriptor and type(id) == "string" then
+        for index, layer in ipairs(descriptor.layers) do
+            if layer.id == id then return index, layer end
+        end
+    end
+end
+
+local function TargetMetadata(target)
+    local info = targetInfo[target]
+    return {
+        id = target,
+        label = info.label,
+        area = info.area,
+        maxLayers = MAX_LAYERS,
+        types = Copy(sharedCapabilities.types),
+        modes = Copy(sharedCapabilities.modes),
+        properties = Copy(sharedCapabilities.properties),
+    }
+end
+
+function API.GetTargets()
+    local result = {}
+    for _, target in ipairs(TARGET_ORDER) do
+        result[#result + 1] = TargetMetadata(target)
+    end
+    return result
+end
+
+local function PreviewConflict(target)
+    local info = targetInfo[target]
+    local preview = ns.Ace.PresentationPreview
+    if not preview or not info then return nil end
+    for conflictTarget in pairs(info.conflicts) do
+        if next(preview.GetOverrides(conflictTarget) or {}) then
+            return info.previewConflictReason
+        end
+    end
 end
 
 local function CanWrite(target, entering)
     if InCombatLockdown and InCombatLockdown() then return false, "combat" end
-    if target ~= TARGET then return false, "unknown_target" end
-    if entering and not descriptor then
-        local preview = ns.Ace.PresentationPreview
-        for id in pairs(sectionTargets) do
-            if next(preview.GetOverrides(id)) then return false, "section_color_preview_active" end
+    if not Target(target) then return false, "unknown_target" end
+    if entering and not State(target).descriptor then
+        local reason = PreviewConflict(target)
+        if reason then return false, reason end
+    end
+    return true
+end
+
+function Composition.BlocksColorTarget(target)
+    for _, compositionTarget in ipairs(TARGET_ORDER) do
+        if State(compositionTarget).descriptor and targetInfo[compositionTarget].conflicts[target] then
+            return true
         end
     end
-    return true
+    return false
 end
 
-local function Reapply()
-    for owner, apply in pairs(owners) do apply(owner) end
-end
-
-local function Empty() return { version = 0, target = TARGET, layers = {} } end
-local function Find(id)
-    if descriptor and type(id) == "string" then
-        for index, layer in ipairs(descriptor.layers) do if layer.id == id then return index, layer end end
+function Composition.GetColorConflictReason(target)
+    for _, compositionTarget in ipairs(TARGET_ORDER) do
+        if State(compositionTarget).descriptor and targetInfo[compositionTarget].conflicts[target] then
+            return targetInfo[compositionTarget].compositionConflictReason
+        end
     end
 end
 
-function API.GetCapabilities()
-    return { version = 1, descriptorVersion = 0, transient = true, combatWrites = false,
-        target = TARGET, maxLayers = MAX_LAYERS, types = { "surface", "line", "texture" },
-        modes = { "stretch" }, insetRange = { 0, 8 }, offsetRange = { 0, 8 }, thicknessRange = { 1, 4 },
-        properties = { surface = { "color", "alpha", "insets" },
-            line = { "edge", "offset", "thickness", "color", "alpha" },
-            texture = { "textureId", "tint", "alpha", "insets", "mode" } } }
+local function Reapply(target, canonicalOnly)
+    for owner, apply in pairs(owners[target]) do apply(owner, canonicalOnly) end
 end
 
-function API.GetTextureOptions()
-    return { { id = "parchment", label = textures.parchment.label }, { id = "blizzard", label = textures.blizzard.label } }
-end
-
-function API.GetComposition(target)
-    if target ~= TARGET then return nil, "unknown_target" end
-    return Copy(descriptor)
-end
-
-function API.AddLayer(target, kind, initial)
-    local ok, reason = CanWrite(target, true)
-    if not ok then return false, reason end
-    if type(kind) ~= "string" or not defaults[kind] then return false, "unknown_type" end
-    if descriptor and #descriptor.layers >= MAX_LAYERS then return false, "layer_limit" end
-    if initial ~= nil and not Plain(initial) then return false, "invalid_initial" end
-    local layer = Copy(defaults[kind])
-    for property, value in pairs(initial or {}) do
-        if not ValidProperty(kind, property, value) then return false, "invalid_property" end
-        layer[property] = Copy(value)
+local function GetSlots(owner, target, create)
+    local frame = owner and owner.frame
+    if not frame then return nil end
+    local byTarget = frame._fpCompositionRegionsByTarget
+    if not byTarget and create then
+        byTarget = {}
+        frame._fpCompositionRegionsByTarget = byTarget
     end
-    nextId = nextId + 1
-    layer.id, layer.type = "layer_" .. nextId, kind
-    descriptor = descriptor or Empty()
-    descriptor.layers[#descriptor.layers + 1] = layer
-    Reapply()
-    return true, layer.id
-end
-
-function API.RemoveLayer(target, id)
-    local ok, reason = CanWrite(target)
-    if not ok then return false, reason end
-    local index = Find(id)
-    if not index then return false, "unknown_layer" end
-    table.remove(descriptor.layers, index)
-    Reapply()
-    return true
-end
-
-function API.UpdateLayer(target, id, property, value)
-    local ok, reason = CanWrite(target)
-    if not ok then return false, reason end
-    local _, layer = Find(id)
-    if not layer then return false, "unknown_layer" end
-    if not ValidProperty(layer.type, property, value) then return false, "invalid_property" end
-    layer[property] = Copy(value)
-    Reapply()
-    return true
-end
-
-function API.MoveLayer(target, id, destination)
-    local ok, reason = CanWrite(target)
-    if not ok then return false, reason end
-    local index, layer = Find(id)
-    if not index then return false, "unknown_layer" end
-    local count = #descriptor.layers
-    if destination == "up" then destination = math.min(count, index + 1)
-    elseif destination == "down" then destination = math.max(1, index - 1) end
-    if not Number(destination, 1, count) or destination % 1 ~= 0 then return false, "invalid_position" end
-    if destination ~= index then
-        table.remove(descriptor.layers, index)
-        table.insert(descriptor.layers, destination, layer)
-        Reapply()
+    local slots = byTarget and byTarget[target]
+    if not slots and create then
+        slots = {}
+        byTarget[target] = slots
     end
-    return true
-end
-
-function API.ClearComposition(target)
-    local ok, reason = CanWrite(target, true)
-    if not ok then return false, reason end
-    descriptor = Empty()
-    Reapply()
-    return true
-end
-
-function API.ResetComposition(target)
-    local ok, reason = CanWrite(target)
-    if not ok then return false, reason end
-    if descriptor then descriptor = nil; Reapply() end
-    return true
+    -- Preserve the existing internal field for inspector-section diagnostics/tests.
+    if target == "inspector_section" then frame._fpCompositionRegions = slots end
+    return slots
 end
 
 local function Neutralize(region)
@@ -186,44 +208,98 @@ local function Neutralize(region)
     region:SetDrawLayer("BACKGROUND", -8)
 end
 
-local function ClearRegions(owner)
-    for _, region in ipairs(owner.frame._fpCompositionRegions or {}) do Neutralize(region) end
+local function ClearRegions(owner, target)
+    for _, region in ipairs(GetSlots(owner, target, false) or {}) do Neutralize(region) end
 end
 
-function Composition.Bind(owner, apply)
-    owners[owner] = apply
-end
-
-function Composition.Release(owner)
-    owners[owner] = nil
-    ClearRegions(owner)
-end
-
--- Called only by the Inspector's presentation dispatcher, never by a layout hook.
-function Composition.Apply(owner, style, canonicalOnly)
-    if canonicalOnly or not descriptor then ClearRegions(owner); return false end
+local function NeutralizeSection(owner)
     local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
     renderer.ApplySectionSurface(owner, nil)
     renderer.ApplySectionBorder(owner, false)
+end
+
+local function ShellRegions(window)
+    local frame = window and window.frame
+    local content = window and window.content
+    if not frame then return {} end
+    return {
+        frame._fpSidebarPanelFill,
+        frame._fpSidebarPanelHeaderFill,
+        frame._fpSidebarPanelTopShade,
+        frame._fpSidebarPanelBottomShade,
+        frame._fpSidebarPanelBorderTop,
+        frame._fpSidebarPanelBorderBottom,
+        frame._fpSidebarPanelBorderLeft,
+        frame._fpSidebarPanelBorderRight,
+        frame._fpSidebarPanelInnerTop,
+        frame._fpSidebarPanelInnerBottom,
+        frame._fpSidebarPanelInnerLeft,
+        frame._fpSidebarPanelInnerRight,
+        content and content._fpSidebarAccent,
+    }
+end
+
+local function NeutralizeShell(window)
+    for _, region in ipairs(ShellRegions(window)) do
+        if region and region.Hide then region:Hide() end
+    end
+end
+
+function Composition.Bind(target, owner, apply)
+    -- Keep the original internal call shape as a safe compatibility bridge.
+    if type(target) ~= "string" then
+        apply, owner, target = owner, target, "inspector_section"
+    end
+    if not Target(target) or not owner or type(apply) ~= "function" then return false end
+    owners[target][owner] = apply
+    return true
+end
+
+function Composition.Release(target, owner)
+    if type(target) ~= "string" then owner, target = target, "inspector_section" end
+    if not Target(target) then return false end
+    owners[target][owner] = nil
+    ClearRegions(owner, target)
+    return true
+end
+
+local function ApplyLayers(target, owner, style, canonicalOnly)
+    local state = State(target)
+    if canonicalOnly or not state.descriptor then
+        ClearRegions(owner, target)
+        return false
+    end
+
+    if target == "inspector_section" then
+        NeutralizeSection(owner)
+    elseif target == "inspector_shell" then
+        NeutralizeShell(owner)
+    end
+
     local frame = owner.frame
-    local slots = frame._fpCompositionRegions or {}
-    frame._fpCompositionRegions = slots
-    local bounds = style and style.surfaceInsets or {}
-    local left, right, top, bottom = bounds.left or 0, bounds.right or 0, bounds.top or 0, bounds.bottom or 0
-    for index, layer in ipairs(descriptor.layers) do
+    local slots = GetSlots(owner, target, true)
+    local bounds = (style and style.surfaceInsets) or targetInfo[target].surfaceInsets or {}
+    local left, right = bounds.left or 0, bounds.right or 0
+    local top, bottom = bounds.top or 0, bounds.bottom or 0
+    for index, layer in ipairs(state.descriptor.layers) do
         local region = slots[index]
-        if not region then region = frame:CreateTexture(nil, "BACKGROUND", nil, index - 9); slots[index] = region end
+        if not region then
+            region = frame:CreateTexture(nil, "BACKGROUND", nil, index - 9)
+            slots[index] = region
+        end
         Neutralize(region)
         region:SetDrawLayer("BACKGROUND", index - 9)
         if layer.type == "line" then
             local edge, offset = layer.edge, layer.offset
             if edge == "top" or edge == "bottom" then
-                local point, y = edge == "top" and "TOP" or "BOTTOM", edge == "top" and -(top + offset) or bottom + offset
+                local point = edge == "top" and "TOP" or "BOTTOM"
+                local y = edge == "top" and -(top + offset) or bottom + offset
                 region:SetPoint(point .. "LEFT", frame, point .. "LEFT", left, y)
                 region:SetPoint(point .. "RIGHT", frame, point .. "RIGHT", -right, y)
                 region:SetHeight(layer.thickness)
             else
-                local point, x = edge == "left" and "LEFT" or "RIGHT", edge == "left" and left + offset or -(right + offset)
+                local point = edge == "left" and "LEFT" or "RIGHT"
+                local x = edge == "left" and left + offset or -(right + offset)
                 region:SetPoint("TOP" .. point, frame, "TOP" .. point, x, -top)
                 region:SetPoint("BOTTOM" .. point, frame, "BOTTOM" .. point, x, bottom)
                 region:SetWidth(layer.thickness)
@@ -242,6 +318,112 @@ function Composition.Apply(owner, style, canonicalOnly)
         region:SetAlpha(layer.alpha)
         region:Show()
     end
-    for index = #descriptor.layers + 1, #slots do Neutralize(slots[index]) end
+    for index = #state.descriptor.layers + 1, #slots do Neutralize(slots[index]) end
+    return true
+end
+
+function Composition.Apply(target, owner, style, canonicalOnly)
+    -- Keep the original internal call shape as a safe compatibility bridge.
+    if type(target) ~= "string" then
+        canonicalOnly, style, owner, target = style, owner, target, "inspector_section"
+    end
+    if not Target(target) then return false end
+    return ApplyLayers(target, owner, style, canonicalOnly)
+end
+
+function API.GetCapabilities()
+    local capabilities = {
+        version = 1,
+        descriptorVersion = 0,
+        transient = true,
+        combatWrites = false,
+        -- Retained for older clients; new clients should use GetTargets().
+        target = "inspector_section",
+        targets = API.GetTargets(),
+    }
+    for key, value in pairs(sharedCapabilities) do capabilities[key] = Copy(value) end
+    return capabilities
+end
+
+function API.GetTextureOptions()
+    return { { id = "parchment", label = textures.parchment.label }, { id = "blizzard", label = textures.blizzard.label } }
+end
+
+function API.GetComposition(target)
+    if not Target(target) then return nil, "unknown_target" end
+    return Copy(State(target).descriptor)
+end
+
+function API.AddLayer(target, kind, initial)
+    local ok, reason = CanWrite(target, true)
+    if not ok then return false, reason end
+    if type(kind) ~= "string" or not defaults[kind] then return false, "unknown_type" end
+    local state = State(target)
+    if state.descriptor and #state.descriptor.layers >= MAX_LAYERS then return false, "layer_limit" end
+    if initial ~= nil and not Plain(initial) then return false, "invalid_initial" end
+    local layer = Copy(defaults[kind])
+    for property, value in pairs(initial or {}) do
+        if not ValidProperty(kind, property, value) then return false, "invalid_property" end
+        layer[property] = Copy(value)
+    end
+    state.nextId = state.nextId + 1
+    layer.id, layer.type = "layer_" .. state.nextId, kind
+    state.descriptor = state.descriptor or Empty(target)
+    state.descriptor.layers[#state.descriptor.layers + 1] = layer
+    Reapply(target)
+    return true, layer.id
+end
+
+function API.RemoveLayer(target, id)
+    local ok, reason = CanWrite(target)
+    if not ok then return false, reason end
+    local index = Find(target, id)
+    if not index then return false, "unknown_layer" end
+    table.remove(State(target).descriptor.layers, index)
+    Reapply(target)
+    return true
+end
+
+function API.UpdateLayer(target, id, property, value)
+    local ok, reason = CanWrite(target)
+    if not ok then return false, reason end
+    local _, layer = Find(target, id)
+    if not layer then return false, "unknown_layer" end
+    if not ValidProperty(layer.type, property, value) then return false, "invalid_property" end
+    layer[property] = Copy(value)
+    Reapply(target)
+    return true
+end
+
+function API.MoveLayer(target, id, destination)
+    local ok, reason = CanWrite(target)
+    if not ok then return false, reason end
+    local index, layer = Find(target, id)
+    if not index then return false, "unknown_layer" end
+    local count = #State(target).descriptor.layers
+    if destination == "up" then destination = math.min(count, index + 1)
+    elseif destination == "down" then destination = math.max(1, index - 1) end
+    if not Number(destination, 1, count) or destination % 1 ~= 0 then return false, "invalid_position" end
+    if destination ~= index then
+        table.remove(State(target).descriptor.layers, index)
+        table.insert(State(target).descriptor.layers, destination, layer)
+        Reapply(target)
+    end
+    return true
+end
+
+function API.ClearComposition(target)
+    local ok, reason = CanWrite(target, true)
+    if not ok then return false, reason end
+    State(target).descriptor = Empty(target)
+    Reapply(target)
+    return true
+end
+
+function API.ResetComposition(target)
+    local ok, reason = CanWrite(target)
+    if not ok then return false, reason end
+    State(target).descriptor = nil
+    Reapply(target, true)
     return true
 end
