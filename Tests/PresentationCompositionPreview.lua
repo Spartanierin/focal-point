@@ -5,7 +5,7 @@ local env = dofile("Tests/FPCompactSlider.lua")
 local ns, ace, native = env.ns, env.ace, env.native
 ns.Ace = {}
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
-local combat, functionalWrites, regionCount = false, 0, 0
+local combat, functionalWrites, regionCount, regionWrites = false, 0, 0, 0
 function InCombatLockdown() return combat end
 for _, method in ipairs({ "SetTexture", "SetTexCoord", "SetBlendMode", "SetColorTexture", "SetDrawLayer",
     "SetFrameStrata", "SetFrameLevel", "SetAllPoints", "SetIgnoreParentAlpha" }) do
@@ -36,6 +36,15 @@ for _, method in ipairs({ "SetPoint", "ClearAllPoints", "SetWidth", "SetHeight",
     end
 end
 local function Load(path) return assert(loadfile(path))("FocalPoint", ns) end
+for _, method in ipairs({ "Hide", "Show", "ClearAllPoints", "SetPoint", "SetWidth", "SetHeight",
+    "SetTexture", "SetTexCoord", "SetHorizTile", "SetVertTile", "SetBlendMode", "SetVertexColor",
+    "SetColorTexture", "SetAlpha", "SetDrawLayer" }) do
+    local original = native[method]
+    native[method] = function(self, ...)
+        if self.kind == "Texture" then regionWrites = regionWrites + 1 end
+        return original(self, ...)
+    end
+end
 Load("GUI/GUISkin.lua")
 Load("GUI/Helpers/PresentationPreview.lua")
 Load("GUI/Helpers/PresentationCompositionPreview.lua")
@@ -61,10 +70,12 @@ local function Equal(a, b)
 end
 local function Rejected(reason, fn)
     local before, writes, regions = api.GetComposition(target), functionalWrites, regionCount
+    local paints = regionWrites
     local ok, why = fn()
     Equal(ok, false); Equal(why, reason)
     Equal(api.GetComposition(target), before)
     Equal(functionalWrites, writes); Equal(regionCount, regions)
+    Equal(regionWrites, paints)
 end
 local function Add(kind, values)
     local ok, id = api.AddLayer(target, kind, values); assert(ok, id); return id
@@ -498,7 +509,254 @@ assert(api.ResetComposition("sidebar_unit_navigator_inset"))
 assert(lateNavigator.frame._fpSectionFill:IsShown())
 ace:Release(lateNavigator)
 
+-- Geometry extension: real runtime and owner dispatch, recorded native regions.
+-- These assertions cover API/anchor calls, not live client clipping or pixels.
+do
+    local function Clone(value)
+        if type(value) ~= "table" then return value end
+        local result = {}; for key, item in pairs(value) do result[key] = Clone(item) end
+        return result
+    end
+    local function Rect(anchor, x, y, width, height)
+        return { mode = "rect", anchor = anchor or "TOPLEFT", x = x or 0, y = y or 0,
+            width = width or 100, height = height or 40 }
+    end
+    local zeroInsets = { left = 0, right = 0, top = 0, bottom = 0 }
+    local capabilities = api.GetCapabilities()
+    Equal(capabilities.descriptorVersion, 0)
+    Equal(capabilities.canvas, { kind = "structural_owner", bounds = "owner_frame" })
+    Equal(capabilities.geometryModes, { surface = { "inset", "rect" }, texture = { "inset", "rect" }, line = { "edge" } })
+    Equal(capabilities.properties.line, { "edge", "offset", "thickness", "color", "alpha" })
+    Equal(#capabilities.rectAnchors, 9)
+    capabilities.rectAnchors[1], capabilities.geometryModes.surface[1], capabilities.canvas.bounds = "bad", "bad", "bad"
+    Equal(api.GetCapabilities().rectAnchors[1], "TOPLEFT")
+    Equal(api.GetCapabilities().geometryModes.surface[1], "inset")
+    Equal(api.GetCapabilities().canvas.bounds, "owner_frame")
+    for _, info in ipairs(api.GetTargets()) do
+        Equal(info.canvas, { kind = "structural_owner", bounds = "owner_frame" })
+        Equal(info.geometryModes, api.GetCapabilities().geometryModes)
+        info.geometryModes.texture[2], info.rectAnchors[1], info.canvas.bounds = "bad", "bad", "bad"
+    end
+    for _, info in ipairs(api.GetTargets()) do
+        Equal(info.geometryModes.texture[2], "rect"); Equal(info.rectAnchors[1], "TOPLEFT")
+        Equal(info.canvas.bounds, "owner_frame")
+    end
+
+    -- Exact legacy public shape survives internal normalization (including explicit INSET).
+    local legacyId = Add("surface")
+    Equal(api.GetComposition(target), { version = 0, target = target, layers = {
+        { id = legacyId, type = "surface", color = { 1, 1, 1 }, alpha = 1, insets = zeroInsets },
+    } })
+    assert(api.UpdateLayer(target, legacyId, "geometry", { mode = "inset", insets = zeroInsets }))
+    Equal(api.GetComposition(target).layers[1].insets, zeroInsets)
+    Equal(api.GetComposition(target).layers[1].geometry, nil)
+    assert(api.ResetComposition(target))
+    local invalidGeometry = {
+        false, {}, { mode = "unknown" }, { mode = "inset", insets = {} },
+        { mode = "inset", insets = zeroInsets, x = 1 },
+        setmetatable(Rect(), {}),
+    }
+    for _, field in ipairs({ "x", "y", "width", "height" }) do
+        for _, bad in ipairs({ 0/0, math.huge, -math.huge, "1", false }) do
+            local geometry = Rect(); geometry[field] = bad
+            invalidGeometry[#invalidGeometry + 1] = geometry
+        end
+        local geometry = Rect(); geometry[field] = nil
+        invalidGeometry[#invalidGeometry + 1] = geometry
+    end
+    for _, field in ipairs({ "width", "height" }) do
+        for _, bad in ipairs({ 0, -1 }) do
+            local geometry = Rect(); geometry[field] = bad
+            invalidGeometry[#invalidGeometry + 1] = geometry
+        end
+    end
+    for _, bad in ipairs({ "topLeft", "UNKNOWN", {}, false }) do
+        local geometry = Rect(); geometry.anchor = bad
+        invalidGeometry[#invalidGeometry + 1] = geometry
+    end
+    local missingAnchor = Rect(); missingAnchor.anchor = nil; invalidGeometry[#invalidGeometry + 1] = missingAnchor
+    local extra = Rect(); extra.relativePoint = "BOTTOMRIGHT"; invalidGeometry[#invalidGeometry + 1] = extra
+    local cyclic = Rect(); cyclic.x = cyclic; invalidGeometry[#invalidGeometry + 1] = cyclic
+    for _, geometry in ipairs(invalidGeometry) do
+        for _, kind in ipairs({ "surface", "texture" }) do
+            Rejected("invalid_property", function() return api.AddLayer(target, kind, { geometry = geometry }) end)
+        end
+    end
+    Rejected("invalid_initial", function() return api.AddLayer(target, "surface", { insets = zeroInsets, geometry = Rect() }) end)
+    Rejected("invalid_property", function() return api.AddLayer(target, "line", { geometry = Rect() }) end)
+
+    -- Ownerless writes are structurally valid and detached from caller data.
+    local geometryInput = Rect("TOPLEFT", 10, 12)
+    local rectId = Add("surface", { geometry = geometryInput, color = { 0.2, 0.3, 0.4 }, alpha = 0 })
+    Equal(tonumber(rectId:match("%d+$")), tonumber(legacyId:match("%d+$")) + 1)
+    geometryInput.x = 99
+    local descriptor = api.GetComposition(target)
+    Equal(descriptor.layers[1].geometry, Rect("TOPLEFT", 10, 12))
+    Equal(descriptor.layers[1].insets, nil)
+    descriptor.layers[1].geometry.width = 999
+    Equal(api.GetComposition(target).layers[1].geometry.width, 100)
+
+    local owner = NewSection()
+    owner:SetWidth(200); owner:SetHeight(120)
+    local functionalBefore = functionalWrites
+    assert(composition.Apply(target, owner, binding.ResolveSectionPresentation("muted")))
+    local region = owner.frame._fpCompositionRegions[1]
+    Equal(region.lastSetColorTexture, { 0.2, 0.3, 0.4, 1 }); Equal(region.lastSetAlpha, { 0 })
+    Equal(region.points.TOPLEFT.x, 10); Equal(region.points.TOPLEFT.y, -12)
+    Equal(region.nativeWidth, 100); Equal(region.nativeHeight, 40)
+    assert(not owner.frame._fpSectionFill:IsShown())
+    -- RECT uses the structural owner frame; legacy 6px section margins do not move it.
+    Equal(region.points.TOPLEFT.relative, owner.frame)
+    for _, geometry in ipairs(invalidGeometry) do
+        Rejected("invalid_property", function() return api.UpdateLayer(target, rectId, "geometry", geometry) end)
+    end
+    for _, geometry in ipairs({ Rect("TOPLEFT", -1, 0), Rect("TOPLEFT", 0, -1),
+        Rect("TOPLEFT", 101, 0), Rect("TOPLEFT", 0, 81), Rect("TOPLEFT", 0, 0, 201, 40),
+        Rect("TOPLEFT", 0, 0, 100, 121), Rect("TOPRIGHT", 1, 0), Rect("BOTTOMRIGHT", 0, 1),
+        Rect("CENTER", 71, 0, 60, 30), Rect("CENTER", 0, -46, 60, 30),
+        Rect("CENTER", 1e308, 1e308, 1e308, 1e308) }) do
+        Rejected("geometry_out_of_bounds", function() return api.UpdateLayer(target, rectId, "geometry", geometry) end)
+        Rejected("geometry_out_of_bounds", function() return api.AddLayer(target, "texture", { geometry = geometry }) end)
+    end
+    local anchorCases = {
+        { "TOPLEFT", 10, 12 }, { "TOP", -5, 10 }, { "TOPRIGHT", -10, 12 },
+        { "LEFT", 10, -5 }, { "CENTER", -5, -6 }, { "RIGHT", -10, -5 },
+        { "BOTTOMLEFT", 10, -12 }, { "BOTTOM", -5, -12 }, { "BOTTOMRIGHT", -10, -12 },
+    }
+    for _, case in ipairs(anchorCases) do
+        local rect = Rect(case[1], case[2], case[3], 60, 30)
+        assert(api.UpdateLayer(target, rectId, "geometry", rect))
+        Equal(region.points, { [case[1]] = { relative = owner.frame, relativePoint = case[1], x = case[2], y = -case[3] } })
+        Equal(region.nativeWidth, 60); Equal(region.nativeHeight, 30)
+    end
+    assert(api.UpdateLayer(target, rectId, "geometry", Rect("TOPLEFT", 0, 0, 200, 120))) -- exact bounds
+    local geometryUpdate = Rect("CENTER", 0.5, -0.5, 60.5, 30.5)
+    assert(api.UpdateLayer(target, rectId, "geometry", geometryUpdate))
+    geometryUpdate.width = 999
+    Equal(api.GetComposition(target).layers[1].geometry.width, 60.5)
+    Equal(functionalWrites, functionalBefore)
+
+    -- INSET -> RECT -> Texture RECT -> Surface INSET, all on the very same slot.
+    assert(api.UpdateLayer(target, rectId, "insets", { left = 1, right = 2, top = 3, bottom = 4 }))
+    Equal(region.points.TOPLEFT.x, 7); Equal(region.points.BOTTOMRIGHT.x, -8)
+    Equal(region.points.TOPLEFT.y, -3); Equal(region.points.BOTTOMRIGHT.y, 4)
+    Equal(region.nativeWidth, 0); Equal(region.nativeHeight, 0)
+    assert(api.UpdateLayer(target, rectId, "geometry", Rect()))
+    Equal(region.points.BOTTOMRIGHT, nil); Equal(region.nativeWidth, 100); Equal(region.nativeHeight, 40)
+    assert(api.RemoveLayer(target, rectId)); Neutral(region)
+    local textureId = Add("texture", { geometry = Rect("TOPRIGHT", -4, 5, 80, 25),
+        textureId = "blizzard", tint = { 0.3, 0.4, 0.5 }, alpha = 0 })
+    Equal(owner.frame._fpCompositionRegions[1], region)
+    Equal(region.points.TOPRIGHT.x, -4); Equal(region.points.TOPRIGHT.y, -5)
+    Equal(region.nativeWidth, 80); Equal(region.nativeHeight, 25)
+    Equal(region.lastSetVertexColor, { 0.3, 0.4, 0.5, 1 }); Equal(region.lastSetAlpha, { 0 })
+    assert(region:GetTexture():find("BetterBlizzard", 1, true))
+    assert(api.UpdateLayer(target, textureId, "textureId", "parchment"))
+    assert(region:GetTexture():find("fp_window_background.jpg", 1, true))
+    Equal(region.lastSetTexture[2], "CLAMP"); Equal(region.lastSetTexture[3], "CLAMP")
+    Equal(region.lastSetTexCoord, { 0, 1, 0, 1 }); Equal(region.lastSetBlendMode, { "BLEND" })
+    Equal(region.lastSetHorizTile, { false }); Equal(region.lastSetVertTile, { false })
+    assert(api.UpdateLayer(target, textureId, "geometry", { mode = "inset", insets = zeroInsets }))
+    Equal(region.points.TOPRIGHT, nil); Equal(region.points.TOPLEFT.x, 6)
+    Equal(region.points.BOTTOMRIGHT.x, -6); Equal(region.nativeWidth, 0); Equal(region.nativeHeight, 0)
+    assert(api.UpdateLayer(target, textureId, "geometry", Rect()))
+    assert(api.RemoveLayer(target, textureId)); Neutral(region)
+    rectId = Add("surface")
+    Equal(owner.frame._fpCompositionRegions[1], region)
+    Equal(region:GetTexture(), nil); Equal(region.lastSetVertexColor, { 1, 1, 1, 1 })
+    Equal(region.lastSetColorTexture, { 1, 1, 1, 1 }); Equal(region.lastSetAlpha, { 1 })
+    Equal(region.nativeWidth, 0); Equal(region.nativeHeight, 0)
+    assert(api.UpdateLayer(target, rectId, "geometry", Rect()))
+    local rectTexture = Add("texture", { geometry = Rect() })
+    local highWater = regionCount
+    for _ = 1, 20 do assert(api.MoveLayer(target, rectTexture, "down")); assert(api.MoveLayer(target, rectTexture, "up")) end
+    Equal(regionCount, highWater); Equal(functionalWrites, functionalBefore)
+    assert(api.RemoveLayer(target, rectTexture))
+
+    -- Late smaller owner: same descriptor, hidden locally; no per-owner descriptor.
+    local smallOwner = ace:Create("InlineGroup")
+    smallOwner:SetWidth(50); smallOwner:SetHeight(30)
+    binding.ApplyInspectorSectionStructure(smallOwner, "muted")
+    local resizeDescriptor = api.GetComposition(target)
+    functionalBefore = functionalWrites
+    assert(composition.Apply(target, smallOwner, binding.ResolveSectionPresentation("muted")))
+    local smallRegion = smallOwner.frame._fpCompositionRegions[1]
+    Neutral(smallRegion); assert(region:IsShown())
+    assert(not smallOwner.frame._fpSectionFill:IsShown()) -- still an active composition
+    Equal(api.GetComposition(target), resizeDescriptor)
+    Rejected("geometry_out_of_bounds", function() return api.UpdateLayer(target, rectId, "alpha", 0.5) end)
+    Rejected("geometry_out_of_bounds", function() return api.UpdateLayer(target, rectId, "geometry", Rect()) end)
+    assert(api.UpdateLayer(target, rectId, "geometry", Rect("TOPLEFT", 1, 2, 20, 10)))
+    assert(region:IsShown() and smallRegion:IsShown())
+    Equal(smallRegion.nativeWidth, 20); Equal(region.nativeWidth, 20)
+    Equal(functionalWrites, functionalBefore)
+    resizeDescriptor = api.GetComposition(target)
+    smallOwner:SetWidth(10)
+    functionalBefore = functionalWrites
+    assert(composition.Apply(target, smallOwner, binding.ResolveSectionPresentation("muted")))
+    Neutral(smallRegion); Equal(api.GetComposition(target), resizeDescriptor)
+    Equal(functionalWrites, functionalBefore)
+    smallOwner:SetWidth(50)
+    functionalBefore = functionalWrites
+    assert(composition.Apply(target, smallOwner, binding.ResolveSectionPresentation("muted")))
+    assert(smallRegion:IsShown()); Equal(api.GetComposition(target), resizeDescriptor)
+    Equal(functionalWrites, functionalBefore)
+    smallOwner:SetHeight(0)
+    Rejected("canvas_bounds_unavailable", function() return api.AddLayer(target, "surface", { geometry = Rect() }) end)
+    Rejected("geometry_out_of_bounds", function() return api.AddLayer(target, "surface", { geometry = Rect("TOPLEFT", 0, 0, 201, 40) }) end)
+    assert(composition.Apply(target, smallOwner)); Neutral(smallRegion)
+    smallOwner:SetHeight(30)
+
+    combat = true
+    Rejected("combat", function() return api.AddLayer(target, "surface", { geometry = Rect() }) end)
+    Rejected("combat", function() return api.UpdateLayer(target, rectId, "geometry", Rect()) end)
+    assert(api.GetComposition(target).layers[1].geometry)
+    ace:Release(smallOwner); Neutral(smallRegion)
+    combat = false
+    local reacquired = NewSection(); Equal(reacquired, smallOwner)
+    assert(reacquired.frame._fpCompositionRegions[1]:IsShown())
+    ace:Release(reacquired)
+    assert(api.ClearComposition(target)); Neutral(region)
+    Equal(api.GetComposition(target), { version = 0, target = target, layers = {} })
+    assert(not owner.frame._fpSectionFill:IsShown())
+    for index = 1, 10 do Add(index % 2 == 0 and "texture" or "surface", { geometry = Rect() }) end
+    Equal(#owner.frame._fpCompositionRegions, 10)
+    Rejected("layer_limit", function() return api.AddLayer(target, "surface", { geometry = Rect() }) end)
+    assert(api.ClearComposition(target))
+    for _, slot in ipairs(owner.frame._fpCompositionRegions) do Neutral(slot) end
+    assert(api.ResetComposition(target)); assert(owner.frame._fpSectionFill:IsShown())
+    ace:Release(owner)
+
+    -- Existing five targets, including a raw frame singleton, use the same contract.
+    for _, info in ipairs(api.GetTargets()) do
+        local ok, id = api.AddLayer(info.id, "texture", { geometry = Rect("TOPLEFT", 2, 3, 15, 12) })
+        assert(ok, id) -- before owner
+        local frame = CreateFrame("Frame", nil, UIParent); frame:SetSize(80, 60)
+        local boundOwner = info.id == "sidebar_shell" and frame or { frame = frame }
+        local canonicalCalls = 0
+        local function Apply(bound, canonicalOnly)
+            local active = composition.Apply(info.id, bound, nil, canonicalOnly)
+            if not active then canonicalCalls = canonicalCalls + 1 end
+            return active
+        end
+        assert(composition.Bind(info.id, boundOwner, Apply)); assert(Apply(boundOwner))
+        local slot = frame._fpCompositionRegionsByTarget[info.id][1]
+        Equal(slot.points.TOPLEFT.x, 2); Equal(slot.points.TOPLEFT.y, -3)
+        Equal(slot.nativeWidth, 15); Equal(slot.nativeHeight, 12)
+        local writes = functionalWrites
+        assert(api.UpdateLayer(info.id, id, "alpha", 0.25)); Equal(slot.lastSetAlpha, { 0.25 })
+        Equal(functionalWrites, writes)
+        assert(composition.Release(info.id, boundOwner)); Neutral(slot)
+        assert(api.UpdateLayer(info.id, id, "alpha", 0.5)); Neutral(slot)
+        assert(composition.Bind(info.id, boundOwner, Apply)); assert(Apply(boundOwner))
+        Equal(frame._fpCompositionRegionsByTarget[info.id][1], slot)
+        Equal(slot.lastSetAlpha, { 0.5 })
+        assert(api.ResetComposition(info.id)); Neutral(slot); Equal(canonicalCalls, 1)
+        assert(composition.Release(info.id, boundOwner))
+    end
+end
+
 Load("GUI/Helpers/PresentationCompositionPreview.lua")
 Equal(ns.Ace.PresentationCompositionPreview.GetComposition(target), nil)
 assert(#env.errors == 0, table.concat(env.errors, "\n"))
-print("PASS: composition validation/atomicity, regions/material reset, ordering, multi-owner, 60 pooling + 60 collapse cycles, conflicts, combat and functional geometry isolation")
+print("PASS: legacy composition regression; RECT validation/atomicity/copies, nine anchors/Y convention, surface/texture/pool transitions, multi-owner/late binding/resize, five targets, canonical reset, combat and functional isolation")

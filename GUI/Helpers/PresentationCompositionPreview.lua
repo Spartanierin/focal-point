@@ -7,6 +7,13 @@ local API = { version = 1 }
 ns.Ace.PresentationCompositionPreview = API
 
 local MAX_LAYERS = 10
+local RECT_ANCHORS = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
+-- Fractions measured from the canvas top-left; API Y increases downwards.
+local anchorFactors = {
+    TOPLEFT = { 0, 0 }, TOP = { 0.5, 0 }, TOPRIGHT = { 1, 0 },
+    LEFT = { 0, 0.5 }, CENTER = { 0.5, 0.5 }, RIGHT = { 1, 0.5 },
+    BOTTOMLEFT = { 0, 1 }, BOTTOM = { 0.5, 1 }, BOTTOMRIGHT = { 1, 1 },
+}
 local TARGET_ORDER = { "inspector_section", "inspector_shell", "sidebar_shell", "sidebar_section", "sidebar_unit_navigator_inset" }
 local targetInfo = {
     inspector_section = {
@@ -62,10 +69,11 @@ local textures = {
     blizzard = { label = "FP BetterBlizzard", path = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp" },
 }
 local defaults = {
-    surface = { color = { 1, 1, 1 }, alpha = 1, insets = { left = 0, right = 0, top = 0, bottom = 0 } },
+    surface = { color = { 1, 1, 1 }, alpha = 1,
+        geometry = { mode = "inset", insets = { left = 0, right = 0, top = 0, bottom = 0 } } },
     line = { color = { 1, 1, 1 }, alpha = 1, edge = "top", offset = 0, thickness = 1 },
     texture = { textureId = "parchment", tint = { 1, 1, 1 }, alpha = 1, mode = "stretch",
-        insets = { left = 0, right = 0, top = 0, bottom = 0 } },
+        geometry = { mode = "inset", insets = { left = 0, right = 0, top = 0, bottom = 0 } } },
 }
 local sharedCapabilities = {
     maxLayers = MAX_LAYERS,
@@ -74,10 +82,13 @@ local sharedCapabilities = {
     insetRange = { 0, 8 },
     offsetRange = { 0, 8 },
     thicknessRange = { 1, 4 },
+    canvas = { kind = "structural_owner", bounds = "owner_frame" },
+    geometryModes = { surface = { "inset", "rect" }, texture = { "inset", "rect" }, line = { "edge" } },
+    rectAnchors = RECT_ANCHORS,
     properties = {
-        surface = { "color", "alpha", "insets" },
+        surface = { "color", "alpha", "insets", "geometry" },
         line = { "edge", "offset", "thickness", "color", "alpha" },
-        texture = { "textureId", "tint", "alpha", "insets", "mode" },
+        texture = { "textureId", "tint", "alpha", "insets", "mode", "geometry" },
     },
 }
 
@@ -95,17 +106,41 @@ end
 local function Plain(value) return type(value) == "table" and getmetatable(value) == nil end
 local edges = { top = true, bottom = true, left = true, right = true }
 
+local function Finite(value)
+    return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function ValidInsets(value)
+    if not Plain(value) then return false end
+    for key in pairs(value) do if not edges[key] then return false end end
+    for key in pairs(edges) do if not Number(value[key], 0, 8) then return false end end
+    return true
+end
+
+local rectKeys = { mode = true, anchor = true, x = true, y = true, width = true, height = true }
+local function ValidGeometry(value)
+    if not Plain(value) then return false end
+    if value.mode == "inset" then
+        for key in pairs(value) do if key ~= "mode" and key ~= "insets" then return false end end
+        return ValidInsets(value.insets)
+    elseif value.mode == "rect" then
+        for key in pairs(value) do if not rectKeys[key] then return false end end
+        return type(value.anchor) == "string" and anchorFactors[value.anchor] ~= nil
+            and Finite(value.x) and Finite(value.y)
+            and Finite(value.width) and value.width > 0
+            and Finite(value.height) and value.height > 0
+    end
+    return false
+end
+
 local function ValidProperty(kind, property, value)
+    if (kind == "surface" or kind == "texture") and property == "insets" then return ValidInsets(value) end
     if not defaults[kind] or defaults[kind][property] == nil then return false end
-    if property == "color" or property == "tint" then
+    if property == "geometry" then return ValidGeometry(value)
+    elseif property == "color" or property == "tint" then
         if not Plain(value) then return false end
         for key in pairs(value) do if key ~= 1 and key ~= 2 and key ~= 3 then return false end end
         return Number(value[1], 0, 1) and Number(value[2], 0, 1) and Number(value[3], 0, 1)
-    elseif property == "insets" then
-        if not Plain(value) then return false end
-        for key in pairs(value) do if not edges[key] then return false end end
-        for key in pairs(edges) do if not Number(value[key], 0, 8) then return false end end
-        return true
     elseif property == "alpha" then return Number(value, 0, 1)
     elseif property == "offset" then return Number(value, 0, 8)
     elseif property == "thickness" then return Number(value, 1, 4)
@@ -113,6 +148,15 @@ local function ValidProperty(kind, property, value)
     elseif property == "textureId" then return type(value) == "string" and textures[value] ~= nil
     elseif property == "mode" then return value == "stretch" end
     return false
+end
+
+local function SetProperty(layer, property, value)
+    if property == "insets" then
+        -- Legacy input is an alias, never a second internal geometry value.
+        layer.geometry = { mode = "inset", insets = Copy(value) }
+    else
+        layer[property] = Copy(value)
+    end
 end
 
 local function Target(target)
@@ -144,6 +188,9 @@ local function TargetMetadata(target)
         types = Copy(sharedCapabilities.types),
         modes = Copy(sharedCapabilities.modes),
         properties = Copy(sharedCapabilities.properties),
+        canvas = Copy(sharedCapabilities.canvas),
+        geometryModes = Copy(sharedCapabilities.geometryModes),
+        rectAnchors = Copy(sharedCapabilities.rectAnchors),
     }
 end
 
@@ -199,6 +246,35 @@ end
 
 local function OwnerFrame(owner)
     return owner and (owner.frame or owner)
+end
+
+local function RectFits(frame, geometry)
+    local width = frame and frame.GetWidth and frame:GetWidth()
+    local height = frame and frame.GetHeight and frame:GetHeight()
+    if not Finite(width) or not Finite(height) or width <= 0 or height <= 0 then
+        return false, "canvas_bounds_unavailable"
+    end
+    local factor = anchorFactors[geometry.anchor]
+    local left = (width - geometry.width) * factor[1] + geometry.x
+    local top = (height - geometry.height) * factor[2] + geometry.y
+    -- Subtraction avoids accepting an overflowing sum of otherwise finite inputs.
+    if geometry.width > width or geometry.height > height
+        or left < 0 or top < 0 or left > width - geometry.width or top > height - geometry.height then
+        return false, "geometry_out_of_bounds"
+    end
+    return true
+end
+
+local function GeometryFitsOwners(target, layer)
+    if not layer.geometry or layer.geometry.mode ~= "rect" then return true end
+    local failure
+    for owner in pairs(owners[target]) do
+        local ok, reason = RectFits(OwnerFrame(owner), layer.geometry)
+        -- Stable error precedence regardless of weak-registry traversal order.
+        if not ok and (not failure or reason == "geometry_out_of_bounds") then failure = reason end
+    end
+    -- No owner yet: structural validation suffices; each eventual Apply checks bounds.
+    return failure == nil, failure
 end
 
 local function GetSlots(owner, target, create)
@@ -362,6 +438,7 @@ local function ApplyLayers(target, owner, style, canonicalOnly)
         end
         Neutralize(region)
         region:SetDrawLayer("BACKGROUND", index - 9)
+        local visible = true
         if layer.type == "line" then
             local edge, offset = layer.edge, layer.offset
             if edge == "top" or edge == "bottom" then
@@ -377,19 +454,28 @@ local function ApplyLayers(target, owner, style, canonicalOnly)
                 region:SetPoint("BOTTOM" .. point, frame, "BOTTOM" .. point, x, bottom)
                 region:SetWidth(layer.thickness)
             end
+        elseif layer.geometry.mode == "rect" then
+            local geometry = layer.geometry
+            visible = RectFits(frame, geometry)
+            if visible then
+                region:SetPoint(geometry.anchor, frame, geometry.anchor, geometry.x, -geometry.y)
+                region:SetSize(geometry.width, geometry.height)
+            end
         else
-            local inset = layer.insets
+            local inset = layer.geometry.insets
             region:SetPoint("TOPLEFT", frame, "TOPLEFT", left + inset.left, -(top + inset.top))
             region:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -(right + inset.right), bottom + inset.bottom)
         end
-        if layer.type == "texture" then
-            region:SetTexture(textures[layer.textureId].path, "CLAMP", "CLAMP")
-            region:SetVertexColor(layer.tint[1], layer.tint[2], layer.tint[3], 1)
-        else
-            region:SetColorTexture(layer.color[1], layer.color[2], layer.color[3], 1)
+        if visible then
+            if layer.type == "texture" then
+                region:SetTexture(textures[layer.textureId].path, "CLAMP", "CLAMP")
+                region:SetVertexColor(layer.tint[1], layer.tint[2], layer.tint[3], 1)
+            else
+                region:SetColorTexture(layer.color[1], layer.color[2], layer.color[3], 1)
+            end
+            region:SetAlpha(layer.alpha)
+            region:Show()
         end
-        region:SetAlpha(layer.alpha)
-        region:Show()
     end
     for index = #state.descriptor.layers + 1, #slots do Neutralize(slots[index]) end
     return true
@@ -424,7 +510,14 @@ end
 
 function API.GetComposition(target)
     if not Target(target) then return nil, "unknown_target" end
-    return Copy(State(target).descriptor)
+    local descriptor = Copy(State(target).descriptor)
+    for _, layer in ipairs(descriptor and descriptor.layers or {}) do
+        if layer.geometry and layer.geometry.mode == "inset" then
+            -- Preserve the exact legacy wire shape for existing consumers/workspaces.
+            layer.insets, layer.geometry = layer.geometry.insets, nil
+        end
+    end
+    return descriptor
 end
 
 function API.AddLayer(target, kind, initial)
@@ -434,11 +527,14 @@ function API.AddLayer(target, kind, initial)
     local state = State(target)
     if state.descriptor and #state.descriptor.layers >= MAX_LAYERS then return false, "layer_limit" end
     if initial ~= nil and not Plain(initial) then return false, "invalid_initial" end
+    if initial and initial.insets ~= nil and initial.geometry ~= nil then return false, "invalid_initial" end
     local layer = Copy(defaults[kind])
     for property, value in pairs(initial or {}) do
         if not ValidProperty(kind, property, value) then return false, "invalid_property" end
-        layer[property] = Copy(value)
+        SetProperty(layer, property, value)
     end
+    ok, reason = GeometryFitsOwners(target, layer)
+    if not ok then return false, reason end
     state.nextId = state.nextId + 1
     layer.id, layer.type = "layer_" .. state.nextId, kind
     state.descriptor = state.descriptor or Empty(target)
@@ -460,10 +556,14 @@ end
 function API.UpdateLayer(target, id, property, value)
     local ok, reason = CanWrite(target)
     if not ok then return false, reason end
-    local _, layer = Find(target, id)
+    local index, layer = Find(target, id)
     if not layer then return false, "unknown_layer" end
     if not ValidProperty(layer.type, property, value) then return false, "invalid_property" end
-    layer[property] = Copy(value)
+    local candidate = Copy(layer)
+    SetProperty(candidate, property, value)
+    ok, reason = GeometryFitsOwners(target, candidate)
+    if not ok then return false, reason end
+    State(target).descriptor.layers[index] = candidate
     Reapply(target)
     return true
 end
