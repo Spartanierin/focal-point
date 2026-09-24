@@ -288,22 +288,76 @@ assert(api.ResetComposition(target))
 for _, owner in ipairs({ a, b }) do ace:Release(owner) end
 -- Target discovery and Inspector shell isolation.
 local discovered = api.GetTargets()
-Equal(#discovered, 4)
+Equal(#discovered, 5)
 Equal(discovered[1].id, "inspector_section")
 Equal(discovered[2].id, "inspector_shell")
 Equal(discovered[3].id, "sidebar_shell")
 Equal(discovered[3].label, "Shell")
 Equal(discovered[3].area, "Sidebar")
-Equal(discovered[4].id, "sidebar_unit_navigator_inset")
-Equal(discovered[4].label, "Unit Navigator Inset")
+Equal(discovered[4].id, "sidebar_section")
+Equal(discovered[4].label, "Section")
 Equal(discovered[4].area, "Sidebar")
+Equal(discovered[5].id, "sidebar_unit_navigator_inset")
+Equal(discovered[5].label, "Unit Navigator Inset")
+Equal(discovered[5].area, "Sidebar")
 discovered[3].types[1] = "bad"
 Equal(api.GetTargets()[3].types[1], "surface")
-discovered[4].properties.surface[1] = "bad"
-Equal(api.GetTargets()[4].properties.surface[1], "color")
+discovered[5].properties.surface[1] = "bad"
+Equal(api.GetTargets()[5].properties.surface[1], "color")
 local capsCopy = api.GetCapabilities()
 capsCopy.targets[3].properties.surface[1] = "bad"
 Equal(api.GetCapabilities().targets[3].properties.surface[1], "color")
+
+-- Sidebar sections share one composition descriptor while restoring their own
+-- canonical HEAD descriptor after ResetComposition.
+local sidebarSectionStyles = {
+    Workspace = "toolbar_workspace_panel",
+    Editing = "toolbar_editing_panel",
+    Options = "toolbar_global_panel",
+    Secondary = "toolbar_global_panel",
+}
+local sidebarSectionOwners = {}
+local sidebarSectionRenderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+for sectionKey, styleId in pairs(sidebarSectionStyles) do
+    local owner = ace:Create("SimpleGroup")
+    local style = ns.GUI.Helpers.FormWidgets.ResolveSectionStyle(styleId)
+    sidebarSectionRenderer.ApplySectionSurface(owner, style)
+    sidebarSectionRenderer.ApplySectionBorder(owner, style.border, style.surfaceInsets)
+    sidebarSectionOwners[sectionKey] = owner
+    composition.Bind("sidebar_section", owner, function(boundOwner, canonicalOnly)
+        local active = composition.Apply("sidebar_section", boundOwner, nil, canonicalOnly)
+        if not active then
+            sidebarSectionRenderer.ApplySectionSurface(boundOwner, style)
+            sidebarSectionRenderer.ApplySectionBorder(boundOwner, style.border, style.surfaceInsets)
+        end
+        return active
+    end)
+end
+local sidebarSectionPreviewOK, sidebarSectionPreviewReason = preview.Set("sidebar_section", "alpha", 0.5)
+Equal(sidebarSectionPreviewOK, false)
+Equal(sidebarSectionPreviewReason, "unknown_target")
+assert(api.AddLayer("sidebar_section", "surface", { color = { 0.24, 0.18, 0.12 } }))
+assert(api.AddLayer("sidebar_section", "line", { edge = "bottom", thickness = 2 }))
+local sidebarSectionComposition = api.GetComposition("sidebar_section")
+Equal(#sidebarSectionComposition.layers, 2)
+for _, owner in pairs(sidebarSectionOwners) do
+    local slots = owner.frame._fpCompositionRegionsByTarget.sidebar_section
+    assert(#slots == 2 and slots[1]:IsShown() and slots[2]:IsShown())
+    assert(not owner.frame._fpSectionFill:IsShown())
+end
+local sidebarSectionBeforeReset = api.GetComposition("sidebar_section")
+assert(api.ResetComposition("sidebar_section"))
+for _, owner in pairs(sidebarSectionOwners) do
+    local slots = owner.frame._fpCompositionRegionsByTarget.sidebar_section
+    assert(owner.frame._fpSectionFill:IsShown())
+    for _, region in ipairs(slots) do Neutral(region) end
+end
+assert(api.GetComposition("sidebar_section") == nil)
+assert(sidebarSectionBeforeReset.layers[1].type == "surface")
+for _, owner in pairs(sidebarSectionOwners) do
+    composition.Release("sidebar_section", owner)
+    ace:Release(owner)
+end
 
 local shell = ace:Create("SimpleGroup")
 local shellCanonical = 0

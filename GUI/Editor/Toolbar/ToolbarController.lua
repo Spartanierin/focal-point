@@ -15,6 +15,7 @@ local SIDEBAR_WIDTH = (SidebarGeometry and SidebarGeometry.width) or 285
 
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
+local FormSectionSurfaceRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormSectionSurfaceRenderer
 local EditorSidebarThemeHelpers = ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
 local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 
@@ -31,6 +32,13 @@ local EnsureStandardWindowCloseButton = FormWidgets and FormWidgets.EnsureStanda
 
 local StyleSidebarButton = EditorSidebarThemeHelpers.StyleSidebarButton
 local windowContext
+
+local SIDEBAR_SECTION_STYLES = {
+    Workspace = "toolbar_workspace_panel",
+    Editing = "toolbar_editing_panel",
+    Options = "toolbar_global_panel",
+    Secondary = "toolbar_global_panel",
+}
 
 local TOOLBAR_SECTIONS = {
     Root = true,
@@ -127,6 +135,42 @@ local function EnsureToolbarShellCompositionBinding(window)
     ApplyToolbarShellComposition(window)
 end
 
+local function ApplyToolbarSectionComposition(owner, styleId, canonicalOnly)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not composition or not owner then
+        return false
+    end
+
+    local active = composition.Apply("sidebar_section", owner, nil, canonicalOnly)
+    if not active and FormSectionSurfaceRenderer and FormWidgets and FormWidgets.ResolveSectionStyle then
+        local style = FormWidgets.ResolveSectionStyle(styleId)
+        if style then
+            FormSectionSurfaceRenderer.ApplySectionSurface(owner, style)
+            FormSectionSurfaceRenderer.ApplySectionBorder(owner, style.border, style.surfaceInsets)
+        end
+    end
+    return active
+end
+
+local function BindToolbarSectionOwner(groups, sectionKey, styleId)
+    local group = groups and groups[sectionKey]
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not group or not composition then
+        return
+    end
+
+    composition.Bind("sidebar_section", group, function(owner, canonicalOnly)
+        return ApplyToolbarSectionComposition(owner, styleId, canonicalOnly)
+    end)
+    ApplyToolbarSectionComposition(group, styleId)
+end
+
+local function EnsureToolbarSectionCompositionBindings(groups)
+    for sectionKey, styleId in pairs(SIDEBAR_SECTION_STYLES) do
+        BindToolbarSectionOwner(groups, sectionKey, styleId)
+    end
+end
+
 local function FocusWindow(window)
     local frame = window and window.frame
     if not frame then
@@ -175,6 +219,7 @@ local function CreateWindowContent(window)
         end,
     })
 
+    EnsureToolbarSectionCompositionBindings(groups)
     if ns.GUI.PresentationPreview then
         ns.GUI.PresentationPreview.BindSidebarNavigatorInset(groups.UnitGrid)
     end
@@ -236,6 +281,7 @@ function ToolbarController.Open(state, options)
     if windowContext and windowContext.window then
         windowContext.window:SetHeight(GetToolbarWindowHeight())
         EnsureToolbarShellCompositionBinding(windowContext.window)
+        EnsureToolbarSectionCompositionBindings(windowContext.groups)
         ApplyToolbarWindowPresentation(windowContext.window)
         PositionWindow(windowContext.window)
     end

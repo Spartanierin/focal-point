@@ -7,7 +7,7 @@ local API = { version = 1 }
 ns.Ace.PresentationCompositionPreview = API
 
 local MAX_LAYERS = 10
-local TARGET_ORDER = { "inspector_section", "inspector_shell", "sidebar_shell", "sidebar_unit_navigator_inset" }
+local TARGET_ORDER = { "inspector_section", "inspector_shell", "sidebar_shell", "sidebar_section", "sidebar_unit_navigator_inset" }
 local targetInfo = {
     inspector_section = {
         label = "Inspector section",
@@ -34,6 +34,13 @@ local targetInfo = {
         conflicts = { sidebar_shell = true },
         previewConflictReason = "sidebar_shell_color_preview_active",
         compositionConflictReason = "sidebar_shell_composition_active",
+    },
+    sidebar_section = {
+        label = "Section",
+        area = "Sidebar",
+        conflicts = {},
+        previewConflictReason = "sidebar_section_color_preview_active",
+        compositionConflictReason = "sidebar_section_composition_active",
     },
     sidebar_unit_navigator_inset = {
         label = "Unit Navigator Inset",
@@ -287,6 +294,25 @@ local function NeutralizeNavigatorInset(owner)
     end
 end
 
+local function NeutralizeSidebarSection(owner)
+    local frame = OwnerFrame(owner)
+    if not frame then return end
+    for _, name in ipairs({
+        "_fpSectionFill",
+        "_fpSectionTopShade",
+        "_fpSectionBottomShade",
+        "_fpSectionAccent",
+        "_fpSectionDivider",
+        "_fpSectionBorderTop",
+        "_fpSectionBorderBottom",
+        "_fpSectionBorderLeft",
+        "_fpSectionBorderRight",
+    }) do
+        local region = frame[name]
+        if region and region.Hide then region:Hide() end
+    end
+end
+
 function Composition.Bind(target, owner, apply)
     -- Keep the original internal call shape as a safe compatibility bridge.
     if type(target) ~= "string" then
@@ -316,6 +342,8 @@ local function ApplyLayers(target, owner, style, canonicalOnly)
         NeutralizeSection(owner)
     elseif target == "inspector_shell" or target == "sidebar_shell" then
         NeutralizeShell(owner)
+    elseif target == "sidebar_section" then
+        NeutralizeSidebarSection(owner)
     elseif target == "sidebar_unit_navigator_inset" then
         NeutralizeNavigatorInset(owner)
     end
