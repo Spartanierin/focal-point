@@ -57,6 +57,38 @@ local function Color(region, expected) Equal(region.lastSetColorTexture, expecte
 local red = { 1, 0, 0 }
 Equal(#api.GetTargets(), 6)
 Equal(api.GetCapabilities().version, 1)
+local typographyCapabilities = api.GetTypographyCapabilities()
+Equal(typographyCapabilities.properties.size, { type = "number", min = 6, max = 96 })
+Equal(typographyCapabilities.properties.flags,
+    { type = "enum", values = { "", "OUTLINE", "THICKOUTLINE", "MONOCHROME",
+        "OUTLINE,MONOCHROME", "THICKOUTLINE,MONOCHROME" } })
+Equal(typographyCapabilities.properties.font,
+    { type = "mediaReference", mediaType = "font",
+        discovery = { api = "MediaRegistry.GetAvailable", mediaType = "font",
+            options = { availableOnly = true } } })
+Equal(typographyCapabilities.properties.color, { type = "rgb", components = 3, min = 0, max = 1 })
+Equal(typographyCapabilities.properties.alpha, { type = "number", min = 0, max = 1 })
+Equal(typographyCapabilities.properties.shadowEnabled, { type = "boolean" })
+local capabilityCopy = api.GetTypographyCapabilities()
+capabilityCopy.properties.size.min = 99
+capabilityCopy.properties.flags.values[1] = "MUTATED"
+Equal(api.GetTypographyCapabilities().properties.size.min, 6)
+Equal(api.GetTypographyCapabilities().properties.flags.values[1], "")
+for _, flag in ipairs(api.GetTypographyCapabilities().properties.flags.values) do
+    assert(api.SetTypographyPresentation("sidebar_section_heading", { flags = flag }))
+    Equal(api.GetTypographyPresentation("sidebar_section_heading").flags, flag)
+end
+local ok, reason = api.SetTypographyPresentation("sidebar_section_heading", { flags = "INVALID" })
+Equal(ok, false); Equal(reason, "invalid_flags")
+assert(api.SetTypographyPresentation("sidebar_section_heading", { size = 6 }))
+Equal(api.GetTypographyPresentation("sidebar_section_heading").size, 6)
+assert(api.SetTypographyPresentation("sidebar_section_heading", { size = 96 }))
+Equal(api.GetTypographyPresentation("sidebar_section_heading").size, 96)
+ok, reason = api.SetTypographyPresentation("sidebar_section_heading", { size = 5 })
+Equal(ok, false); Equal(reason, "invalid_size")
+ok, reason = api.SetTypographyPresentation("sidebar_section_heading", { size = 97 })
+Equal(ok, false); Equal(reason, "invalid_size")
+assert(api.ClearTypography("sidebar_section_heading"))
 Equal(api.GetOverrides(), {})
 for _, args in ipairs({
     { "bad", "alpha", 0.5 }, { {}, "alpha", 0.5 }, { "sidebar_shell", "width", 2 },

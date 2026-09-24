@@ -62,6 +62,30 @@ local catalog = {
 }
 
 local typographyOrder = { "sidebar_section_heading", "inspector_section_heading" }
+local typographyPropertyOrder = { "font", "size", "flags", "color", "alpha", "shadowEnabled" }
+local typographyFlags = {
+    "",
+    "OUTLINE",
+    "THICKOUTLINE",
+    "MONOCHROME",
+    "OUTLINE,MONOCHROME",
+    "THICKOUTLINE,MONOCHROME",
+}
+local typographyFlagSet = {}
+for _, value in ipairs(typographyFlags) do typographyFlagSet[value] = true end
+local typographyPropertyCapabilities = {
+    font = {
+        type = "mediaReference",
+        mediaType = "font",
+        discovery = { api = "MediaRegistry.GetAvailable", mediaType = "font",
+            options = { availableOnly = true } },
+    },
+    size = { type = "number", min = 6, max = 96 },
+    flags = { type = "enum", values = typographyFlags },
+    color = { type = "rgb", components = 3, min = 0, max = 1 },
+    alpha = { type = "number", min = 0, max = 1 },
+    shadowEnabled = { type = "boolean" },
+}
 local typographyCatalog = {
     sidebar_section_heading = {
         label = "Sidebar section heading",
@@ -97,6 +121,10 @@ end
 
 local function IsTypographyTarget(target)
     return type(target) == "string" and typographyCatalog[target] ~= nil
+end
+
+local function TypographyPropertyList()
+    return Copy(typographyPropertyOrder)
 end
 
 local function DefaultFontReference()
@@ -400,18 +428,15 @@ function API.Refresh(target)
 end
 
 function API.GetTypographyCapabilities()
+    local properties = {}
+    for _, property in ipairs(typographyPropertyOrder) do
+        properties[property] = Copy(typographyPropertyCapabilities[property])
+    end
     return {
         version = 1,
         transient = true,
         combatWrites = false,
-        properties = {
-            font = "MediaRegistry font reference",
-            size = "finite number in [6,96]",
-            flags = "string",
-            color = "RGB array, exactly 3 finite numbers in [0,1]",
-            alpha = "number in [0,1]",
-            shadowEnabled = "boolean",
-        },
+        properties = properties,
     }
 end
 
@@ -423,7 +448,7 @@ function API.GetTypographyTargets()
             id = id,
             label = definition.label,
             area = definition.area,
-            properties = { "font", "size", "flags", "color", "alpha", "shadowEnabled" },
+            properties = TypographyPropertyList(),
         }
     end
     return targets
@@ -464,19 +489,12 @@ local function ValidateTypographyProperty(property, value)
             return false, "unavailable_font"
         end
     elseif property == "size" then
-        if type(value) ~= "number" or value ~= value or value < 6 or value > 96 then
+        local capability = typographyPropertyCapabilities.size
+        if type(value) ~= "number" or value ~= value or value < capability.min or value > capability.max then
             return false, "invalid_size"
         end
     elseif property == "flags" then
-        local supported = {
-            [""] = true,
-            ["OUTLINE"] = true,
-            ["THICKOUTLINE"] = true,
-            ["MONOCHROME"] = true,
-            ["OUTLINE,MONOCHROME"] = true,
-            ["THICKOUTLINE,MONOCHROME"] = true,
-        }
-        if type(value) ~= "string" or not supported[value] then return false, "invalid_flags" end
+        if type(value) ~= "string" or not typographyFlagSet[value] then return false, "invalid_flags" end
     elseif property == "color" then
         if not ValidateTypographyColor(value) then return false, "invalid_color" end
     elseif property == "alpha" then
