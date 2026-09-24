@@ -77,8 +77,7 @@ local typographyPropertyCapabilities = {
     font = {
         type = "mediaReference",
         mediaType = "font",
-        discovery = { api = "MediaRegistry.GetAvailable", mediaType = "font",
-            options = { availableOnly = true } },
+        discovery = { api = "GetTypographyFontOptions", mediaType = "font" },
     },
     size = { type = "number", min = 6, max = 96 },
     flags = { type = "enum", values = typographyFlags },
@@ -438,6 +437,30 @@ function API.GetTypographyCapabilities()
         combatWrites = false,
         properties = properties,
     }
+end
+
+local function GetTypographyFontOptions()
+    local registry = ns.MediaRegistry
+    if not registry or type(registry.GetAvailable) ~= "function" then return {} end
+
+    local options = {}
+    for _, entry in ipairs(registry.GetAvailable("font", { availableOnly = true }) or {}) do
+        if type(entry) == "table" and type(entry.id) == "string" and entry.id ~= ""
+            and entry.available == true then
+            local label = entry.name
+            if type(label) ~= "string" or label == "" then label = entry.id end
+            options[#options + 1] = {
+                id = entry.id,
+                label = label,
+                available = entry.available == true,
+            }
+        end
+    end
+    return options
+end
+
+function API.GetTypographyFontOptions()
+    return Copy(GetTypographyFontOptions())
 end
 
 function API.GetTypographyTargets()

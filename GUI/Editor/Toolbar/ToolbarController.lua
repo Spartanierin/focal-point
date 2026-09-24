@@ -199,6 +199,8 @@ local function ApplyToolbarSectionTypography(widget, canonicalOnly)
         alpha = descriptor.alpha,
         shadow = descriptor.shadowEnabled,
     })
+    -- TextStyles applies the canonical role color; typography RGB overrides it.
+    target:SetTextColor(descriptor.color[1], descriptor.color[2], descriptor.color[3], descriptor.alpha)
 end
 
 local function EnsureToolbarSectionTypographyBindings(widgets)

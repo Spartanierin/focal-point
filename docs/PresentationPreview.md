@@ -22,6 +22,23 @@ Call functions with a dot, not a colon. No external frame access is needed.
 - State lives only in RAM. Missing/hidden instances do not discard overrides.
   Close/reopen retains them; reload clears them. No profile/layout data is touched.
 
+### Typography discovery
+
+`GetTypographyCapabilities().properties.font.discovery.api` names the public
+method `GetTypographyFontOptions`. Call `GetTypographyFontOptions()` on the
+same `PresentationPreview` object to receive detached available-font options:
+
+```lua
+{
+    { id = "fp:font:standard", label = "Focal Point Standard", available = true },
+}
+```
+
+The adapter owns the `availableOnly` filter and exposes no file paths, frame
+references or registry entries. Consumers must use the returned `id` with
+`SetTypographyPresentation`; font validation and resolution remain canonical
+inside the product MediaRegistry contract.
+
 ## Fixed targets
 
 | ID | Region and canonical source |
@@ -44,6 +61,25 @@ uses a timer. Sections rebind on local collapse/expand. Release unregisters pool
 widgets and removes preview appearance before another consumer can acquire them.
 
 ## Verification
+
+Typography Rescue: the external consumer uses only the public
+`GetTypographyFontOptions()` DTOs, reached through the capability discovery method.
+The adapter delegates to MediaRegistry and excludes unavailable entries, including
+defensively filtering its result. IDs remain directly accepted by typography Set
+and resolved internally for built-in and LSM fonts; paths/private entries are not
+exposed. Dropdowns and workspace font validation share this public source.
+
+The Sidebar heading binding now applies descriptor RGB after TextStyles' canonical
+role styling. Previously font/size/alpha/flags/shadow were applied but RGB was lost.
+The Inspector already applies explicit descriptor RGB. Both update bound owners
+synchronously without a toolbar/Inspector rebuild; content text is unchanged.
+
+Typography tests use real TextStyles, Sidebar/Inspector bindings and native-region
+recording to verify final RGB/alpha/font/size/flags/shadow, multi-owner application,
+target isolation, canonical restore, defensive copies, release and combat rejection.
+The public font fixture covers built-in, available LSM and unavailable entries.
+The external DesignTool additionally tests structural/value sync separation and
+continuous callbacks; no live client performance result is claimed for this rescue.
 
 Automated test: `lua54 Tests/PresentationPreview.lua` (includes existing slider tests).
 Uses actual FP renderers and AceGUI pooling with simulated native regions. Checks

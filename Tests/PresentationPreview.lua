@@ -4,6 +4,42 @@ local env = dofile("Tests/FPCompactSlider.lua")
 local ns, ace, native = env.ns, env.ace, env.native
 ns.Ace = {}
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+local fontEntries = {
+    { id = "fp:font:standard", name = "Focal Point Standard", path = "Fonts\\FRIZQT__.TTF", available = true },
+    { id = "fp:font:morpheus", name = "Morpheus", path = "Fonts\\MORPHEUS.ttf", available = true },
+    { id = "lsm:font:fixture", name = "LSM Fixture", path = "Interface\\AddOns\\Fixture\\Font.ttf", available = true },
+    { id = "lsm:font:missing", name = "Unavailable", path = "", available = false },
+}
+local requestedMediaType, requestedOptions
+ns.MediaRegistry = {
+    GetDefault = function(mediaType)
+        if mediaType == "font" then return "fp:font:standard" end
+    end,
+    GetAvailable = function(mediaType, options)
+        requestedMediaType, requestedOptions = mediaType, options
+        local result = {}
+        for _, entry in ipairs(fontEntries) do
+            if not options or options.availableOnly ~= true or entry.available == true then
+                result[#result + 1] = {
+                    id = entry.id, name = entry.name, path = entry.path,
+                    available = entry.available,
+                }
+            end
+        end
+        return result
+    end,
+    GetEntry = function(reference, mediaType)
+        if mediaType ~= "font" then return nil end
+        for _, entry in ipairs(fontEntries) do
+            if entry.id == reference then return entry end
+        end
+    end,
+    ResolveReference = function(reference, mediaType)
+        local entry = ns.MediaRegistry.GetEntry(reference, mediaType)
+        if not entry then return nil end
+        return { available = entry.available, resolvedAsset = entry.path }
+    end,
+}
 local geometryWrites = 0
 for _, method in ipairs({ "SetPoint", "ClearAllPoints", "SetWidth", "SetHeight" }) do
     local original = native[method]
@@ -20,10 +56,15 @@ function native:GetParent() return self.parent end
 function native:GetRegions() end
 function native:GetFrameStrata() return "DIALOG" end
 function native:GetFrameLevel() return 1 end
+function native:GetFont() return table.unpack(self.font or { STANDARD_TEXT_FONT, 13, "" }) end
+function native:SetFont(...) self.font = { ... } end
+function native:SetShadowOffset(...) self.shadowOffset = { ... } end
+function native:SetShadowColor(...) self.shadowColor = { ... } end
 local combat = false
 function InCombatLockdown() return combat end
 local function Load(path) return assert(loadfile(path))("FocalPoint", ns) end
 Load("GUI/GUISkin.lua")
+Load("GUI/Helpers/TextStyles.lua")
 Load("GUI/Helpers/PresentationPreview.lua")
 Load("GUI/Helpers/FormWidgets.lua")
 Load("GUI/Helpers/FormSectionSurfaceRenderer.lua")
@@ -64,8 +105,29 @@ Equal(typographyCapabilities.properties.flags,
         "OUTLINE,MONOCHROME", "THICKOUTLINE,MONOCHROME" } })
 Equal(typographyCapabilities.properties.font,
     { type = "mediaReference", mediaType = "font",
-        discovery = { api = "MediaRegistry.GetAvailable", mediaType = "font",
-            options = { availableOnly = true } } })
+        discovery = { api = "GetTypographyFontOptions", mediaType = "font" } })
+local fontOptions = api.GetTypographyFontOptions()
+Equal(requestedMediaType, "font")
+Equal(requestedOptions, { availableOnly = true })
+Equal(fontOptions, {
+    { id = "fp:font:standard", label = "Focal Point Standard", available = true },
+    { id = "fp:font:morpheus", label = "Morpheus", available = true },
+    { id = "lsm:font:fixture", label = "LSM Fixture", available = true },
+})
+for _, option in ipairs(fontOptions) do
+    assert(api.SetTypographyPresentation("sidebar_section_heading", { font = option.id }))
+    Equal(ns.GUI.PresentationPreview.ResolveTypographyFont(option.id), ns.MediaRegistry.GetEntry(option.id, "font").path)
+end
+assert(fontOptions[1].path == nil)
+fontOptions[1].id = "mutated"
+fontOptions[1].label = "mutated"
+Equal(api.GetTypographyFontOptions()[1],
+    { id = "fp:font:standard", label = "Focal Point Standard", available = true })
+assert(api.SetTypographyPresentation("sidebar_section_heading", { font = "fp:font:morpheus" }))
+Equal(ns.GUI.PresentationPreview.ResolveTypographyFont("fp:font:morpheus"), "Fonts\\MORPHEUS.ttf")
+local fontOk, fontReason = api.SetTypographyPresentation("sidebar_section_heading", { font = "lsm:font:missing" })
+Equal(fontOk, false); Equal(fontReason, "unavailable_font")
+assert(api.ClearTypography("sidebar_section_heading"))
 Equal(typographyCapabilities.properties.color, { type = "rgb", components = 3, min = 0, max = 1 })
 Equal(typographyCapabilities.properties.alpha, { type = "number", min = 0, max = 1 })
 Equal(typographyCapabilities.properties.shadowEnabled, { type = "boolean" })
@@ -265,6 +327,64 @@ Color(inspector.frame._fpSidebarPanelFill, { 0, 1, 0, 0.6 })
 assert(api.ClearAll())
 assert(api.Set("inspector_shell", "color", { 0, 1, 0 }))
 Load("GUI/Helpers/PresentationPreview.lua") -- fresh addon Lua state has no overrides
+api = ns.Ace.PresentationPreview
+-- T1.2 verifies the public Typography contract on real Sidebar/Inspector owners.
+local oldCreate, oldBuild = ace.Create, ns.GUI.Helpers.FormRenderer.BuildLayout
+local headingWidgets = {}
+for _, id in ipairs({ "unitLabel", "compositionTitle", "editingTitle", "toolsTitle" }) do
+    local owner = ace:Create("SimpleGroup")
+    owner.label = owner.frame:CreateFontString()
+    owner.label:SetText(id)
+    headingWidgets[id] = owner
+end
+ace.Create = function(self, kind)
+    if kind ~= "Window" and kind ~= "ScrollFrame" then return oldCreate(self, kind) end
+    local group = oldCreate(self, "SimpleGroup")
+    function group:SetTitle() end
+    function group:EnableResize() end
+    function group:Show() self.frame:Show() end
+    return group
+end
+ns.GUI.Helpers.FormRenderer.BuildLayout = function()
+    return {}, headingWidgets
+end
+for _, method in ipairs({ "SetClampedToScreen", "SetToplevel", "Raise" }) do native[method] = function() end end
+ns.GUI.Editor.SidebarGeometry = { left = 0, top = 0 }
+Load("GUI/Editor/Toolbar/ToolbarController.lua")
+ns.GUI.Editor.Toolbar.Open({}, {})
+ace.Create, ns.GUI.Helpers.FormRenderer.BuildLayout = oldCreate, oldBuild
+local sidebarHeading, inspectorHeading = "sidebar_section_heading", "inspector_section_heading"
+local inspectorTextOwner = ace:Create("SimpleGroup")
+inspectorTextOwner.titletext = inspectorTextOwner.frame:CreateFontString()
+inspectorTextOwner.titletext:SetText("Inspector title")
+binding.ApplyInspectorSectionStructure(inspectorTextOwner, "default")
+local function TypographyColor(region, descriptor)
+    Equal(region.lastSetTextColor, { descriptor.color[1], descriptor.color[2], descriptor.color[3], descriptor.alpha })
+end
+local inspectorBaseline = api.GetTypographyPresentation(inspectorHeading)
+local sidebarBaseline = api.GetTypographyPresentation(sidebarHeading)
+local typographyPatch = { font = "lsm:font:fixture", size = 22, flags = "THICKOUTLINE",
+    color = { 0.2, 0.4, 0.6 }, alpha = 0.35, shadowEnabled = false }
+beforeGeometry = geometryWrites
+assert(api.SetTypographyPresentation(sidebarHeading, typographyPatch))
+for id, owner in pairs(headingWidgets) do
+    TypographyColor(owner.label, typographyPatch)
+    Equal(owner.label.font, { "Interface\\AddOns\\Fixture\\Font.ttf", 22, "THICKOUTLINE" })
+    Equal(owner.label.shadowOffset, { 0, 0 }); Equal(owner.label.shadowColor, { 0, 0, 0, 0 })
+    Equal(owner.label:GetText(), id)
+end
+Equal(geometryWrites, beforeGeometry)
+TypographyColor(inspectorTextOwner.titletext, inspectorBaseline)
+assert(api.SetTypographyPresentation(inspectorHeading, typographyPatch))
+TypographyColor(inspectorTextOwner.titletext, typographyPatch)
+Equal(inspectorTextOwner.titletext.font, { "Interface\\AddOns\\Fixture\\Font.ttf", 22, "THICKOUTLINE" })
+Equal(inspectorTextOwner.titletext.shadowOffset, { 0, 0 })
+Equal(inspectorTextOwner.titletext:GetText(), "Inspector title")
+assert(api.ClearTypography(sidebarHeading)); assert(api.ClearTypography(inspectorHeading))
+for _, owner in pairs(headingWidgets) do ace:Release(owner) end
+ace:Release(inspectorTextOwner)
+ns.GUI.Editor.Toolbar.Hide()
+print("PASS: T1.2 public font DTOs, Sidebar RGB apply, Inspector isolation, resolver compatibility and typography state")
 Equal(ns.Ace.PresentationPreview.GetOverrides(), {})
 assert(#env.errors == 0, table.concat(env.errors, "\n"))
 print("PASS: six preview targets, copies/validation, canonical reset/skin switch, combat, geometry isolation and 50 section + slider pooling cycles")
