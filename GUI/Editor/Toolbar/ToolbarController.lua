@@ -101,6 +101,32 @@ local function ApplyToolbarWindowPresentation(window)
     end
 end
 
+local function ApplyToolbarShellComposition(window, canonicalOnly)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not composition or not window then
+        return false
+    end
+
+    local active = composition.Apply("sidebar_shell", window, nil, canonicalOnly)
+    if not active and ApplySidebarChrome then
+        ApplySidebarChrome(window, "sidebar_shell")
+    end
+    return active
+end
+
+local function EnsureToolbarShellCompositionBinding(window)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not composition or not window then
+        return
+    end
+
+    if not window._fpSidebarCompositionBound then
+        composition.Bind("sidebar_shell", window, ApplyToolbarShellComposition)
+        window._fpSidebarCompositionBound = true
+    end
+    ApplyToolbarShellComposition(window)
+end
+
 local function FocusWindow(window)
     local frame = window and window.frame
     if not frame then
@@ -180,6 +206,7 @@ local function CreateWindow(state, options)
     if ApplySidebarChrome then
         ApplySidebarChrome(window, "sidebar_shell")
     end
+    EnsureToolbarShellCompositionBinding(window)
     ApplyToolbarWindowPresentation(window)
     PositionWindow(window)
 
@@ -204,6 +231,7 @@ function ToolbarController.Open(state, options)
 
     if windowContext and windowContext.window then
         windowContext.window:SetHeight(GetToolbarWindowHeight())
+        EnsureToolbarShellCompositionBinding(windowContext.window)
         ApplyToolbarWindowPresentation(windowContext.window)
         PositionWindow(windowContext.window)
     end

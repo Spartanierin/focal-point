@@ -288,14 +288,17 @@ assert(api.ResetComposition(target))
 for _, owner in ipairs({ a, b }) do ace:Release(owner) end
 -- Target discovery and Inspector shell isolation.
 local discovered = api.GetTargets()
-Equal(#discovered, 2)
+Equal(#discovered, 3)
 Equal(discovered[1].id, "inspector_section")
 Equal(discovered[2].id, "inspector_shell")
-discovered[2].types[1] = "bad"
-Equal(api.GetTargets()[2].types[1], "surface")
+Equal(discovered[3].id, "sidebar_shell")
+Equal(discovered[3].label, "Shell")
+Equal(discovered[3].area, "Sidebar")
+discovered[3].types[1] = "bad"
+Equal(api.GetTargets()[3].types[1], "surface")
 local capsCopy = api.GetCapabilities()
-capsCopy.targets[2].properties.surface[1] = "bad"
-Equal(api.GetCapabilities().targets[2].properties.surface[1], "color")
+capsCopy.targets[3].properties.surface[1] = "bad"
+Equal(api.GetCapabilities().targets[3].properties.surface[1], "color")
 
 local shell = ace:Create("SimpleGroup")
 local shellCanonical = 0
@@ -339,6 +342,58 @@ assert(api.GetComposition(target))
 assert(api.ResetComposition(target))
 composition.Release("inspector_shell", shell)
 ace:Release(shell)
+
+-- Sidebar shell discovery and multi-owner isolation. One descriptor may drive
+-- the persistent AppShell underlay and the AceGUI toolbar window separately.
+local sidebarUnderlay = CreateFrame("Frame", nil, UIParent)
+local sidebarWindow = CreateFrame("Frame", nil, UIParent)
+sidebarUnderlay._editorSidebar = sidebarUnderlay:CreateTexture(nil, "BACKGROUND")
+sidebarUnderlay._editorSidebarBorder = sidebarUnderlay:CreateTexture(nil, "BORDER")
+sidebarUnderlay._editorSidebar:Show()
+sidebarUnderlay._editorSidebarBorder:Show()
+local sidebarCanonical = 0
+local function ApplySidebarShell(owner, canonicalOnly)
+    local active = composition.Apply("sidebar_shell", owner, nil, canonicalOnly)
+    if not active then
+        sidebarCanonical = sidebarCanonical + 1
+        if owner._editorSidebar then owner._editorSidebar:Show() end
+        if owner._editorSidebarBorder then owner._editorSidebarBorder:Show() end
+    end
+end
+composition.Bind("sidebar_shell", sidebarUnderlay, ApplySidebarShell)
+composition.Bind("sidebar_shell", sidebarWindow, ApplySidebarShell)
+ApplySidebarShell(sidebarUnderlay)
+ApplySidebarShell(sidebarWindow)
+assert(api.AddLayer("sidebar_shell", "surface", { color = { 0.2, 0.3, 0.4 } }))
+assert(api.AddLayer("sidebar_shell", "line", { edge = "right", thickness = 2 }))
+local sidebarUnderlaySlots = sidebarUnderlay._fpCompositionRegionsByTarget.sidebar_shell
+local sidebarWindowSlots = sidebarWindow._fpCompositionRegionsByTarget.sidebar_shell
+assert(#sidebarUnderlaySlots == 2 and #sidebarWindowSlots == 2)
+assert(sidebarUnderlaySlots[1]:IsShown() and sidebarWindowSlots[1]:IsShown())
+assert(not sidebarUnderlay._editorSidebar:IsShown())
+local sidebarSurfaceId = api.GetComposition("sidebar_shell").layers[1].id
+assert(api.AddLayer("sidebar_shell", "texture", { textureId = "blizzard", alpha = 0.4 }))
+assert(api.AddLayer("sidebar_shell", "line", { edge = "bottom", thickness = 2 }))
+assert(api.MoveLayer("sidebar_shell", sidebarSurfaceId, "up"))
+assert(api.ClearComposition("sidebar_shell"))
+Equal(#api.GetComposition("sidebar_shell").layers, 0)
+assert(not sidebarUnderlaySlots[1]:IsShown() and not sidebarWindowSlots[1]:IsShown())
+assert(api.AddLayer("sidebar_shell", "surface", { color = { 0.2, 0.3, 0.4 } }))
+Equal(api.GetComposition("inspector_shell"), nil)
+local sidebarPreviewOK, sidebarPreviewReason = preview.Set("sidebar_shell", "alpha", 0.5)
+Equal(sidebarPreviewOK, false); Equal(sidebarPreviewReason, "sidebar_shell_composition_active")
+assert(api.ResetComposition("sidebar_shell"))
+assert(sidebarCanonical > 0)
+for _, slotsForOwner in ipairs({ sidebarUnderlaySlots, sidebarWindowSlots }) do
+    for _, region in ipairs(slotsForOwner) do Neutral(region) end
+end
+assert(api.GetComposition("sidebar_shell") == nil)
+composition.Release("sidebar_shell", sidebarUnderlay)
+composition.Release("sidebar_shell", sidebarWindow)
+assert(api.AddLayer("inspector_shell", "surface", { color = { 0.4, 0.5, 0.6 } }))
+assert(api.GetComposition("sidebar_shell") == nil)
+assert(api.ResetComposition("inspector_shell"))
+
 Load("GUI/Helpers/PresentationCompositionPreview.lua")
 Equal(ns.Ace.PresentationCompositionPreview.GetComposition(target), nil)
 assert(#env.errors == 0, table.concat(env.errors, "\n"))

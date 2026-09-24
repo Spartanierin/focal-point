@@ -273,6 +273,38 @@ local function ApplyEditorToolbarFill(layer, canonicalOnly)
     layer._editorSidebar:SetColorTexture(unpack(color))
 end
 
+local function ApplyEditorToolbarComposition(layer, canonicalOnly)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not composition or not layer then
+        return false
+    end
+
+    local active = composition.Apply("sidebar_shell", layer, nil, canonicalOnly)
+    if not active then
+        if layer._editorSidebar then
+            layer._editorSidebar:Show()
+        end
+        if layer._editorSidebarBorder then
+            layer._editorSidebarBorder:Show()
+        end
+        ApplyEditorToolbarFill(layer, true)
+    end
+    return active
+end
+
+local function EnsureEditorToolbarCompositionBinding(layer)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if not composition or not layer then
+        return
+    end
+
+    if not layer._fpSidebarCompositionBound then
+        composition.Bind("sidebar_shell", layer, ApplyEditorToolbarComposition)
+        layer._fpSidebarCompositionBound = true
+    end
+    ApplyEditorToolbarComposition(layer)
+end
+
 local function EnsureEditorToolbarLayer(addon)
     if not addon then
         return nil
@@ -280,6 +312,7 @@ local function EnsureEditorToolbarLayer(addon)
 
     local layer = addon.guiEditorToolbarLayer
     if layer then
+        EnsureEditorToolbarCompositionBinding(layer)
         return layer
     end
 
@@ -310,6 +343,8 @@ local function EnsureEditorToolbarLayer(addon)
     if layer._editorSidebarBorder and layer._editorSidebarBorder.SetColorTexture then
         layer._editorSidebarBorder:SetColorTexture(0, 0, 0, 0)
     end
+
+    EnsureEditorToolbarCompositionBinding(layer)
 
     addon.guiEditorToolbarLayer = layer
     return layer

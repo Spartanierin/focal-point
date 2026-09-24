@@ -7,7 +7,7 @@ local API = { version = 1 }
 ns.Ace.PresentationCompositionPreview = API
 
 local MAX_LAYERS = 10
-local TARGET_ORDER = { "inspector_section", "inspector_shell" }
+local TARGET_ORDER = { "inspector_section", "inspector_shell", "sidebar_shell" }
 local targetInfo = {
     inspector_section = {
         label = "Inspector section",
@@ -27,6 +27,13 @@ local targetInfo = {
         previewConflictReason = "shell_color_preview_active",
         compositionConflictReason = "shell_composition_active",
         surfaceInsets = { left = 12, right = 12, top = 12, bottom = 12 },
+    },
+    sidebar_shell = {
+        label = "Shell",
+        area = "Sidebar",
+        conflicts = { sidebar_shell = true },
+        previewConflictReason = "sidebar_shell_color_preview_active",
+        compositionConflictReason = "sidebar_shell_composition_active",
     },
 }
 
@@ -176,8 +183,12 @@ local function Reapply(target, canonicalOnly)
     for owner, apply in pairs(owners[target]) do apply(owner, canonicalOnly) end
 end
 
+local function OwnerFrame(owner)
+    return owner and (owner.frame or owner)
+end
+
 local function GetSlots(owner, target, create)
-    local frame = owner and owner.frame
+    local frame = OwnerFrame(owner)
     if not frame then return nil end
     local byTarget = frame._fpCompositionRegionsByTarget
     if not byTarget and create then
@@ -219,24 +230,29 @@ local function NeutralizeSection(owner)
 end
 
 local function ShellRegions(window)
-    local frame = window and window.frame
+    local frame = OwnerFrame(window)
     local content = window and window.content
     if not frame then return {} end
-    return {
-        frame._fpSidebarPanelFill,
-        frame._fpSidebarPanelHeaderFill,
-        frame._fpSidebarPanelTopShade,
-        frame._fpSidebarPanelBottomShade,
-        frame._fpSidebarPanelBorderTop,
-        frame._fpSidebarPanelBorderBottom,
-        frame._fpSidebarPanelBorderLeft,
-        frame._fpSidebarPanelBorderRight,
-        frame._fpSidebarPanelInnerTop,
-        frame._fpSidebarPanelInnerBottom,
-        frame._fpSidebarPanelInnerLeft,
-        frame._fpSidebarPanelInnerRight,
-        content and content._fpSidebarAccent,
-    }
+    local regions = {}
+    local function Add(region)
+        if region then regions[#regions + 1] = region end
+    end
+    Add(frame._fpSidebarPanelFill)
+    Add(frame._fpSidebarPanelHeaderFill)
+    Add(frame._fpSidebarPanelTopShade)
+    Add(frame._fpSidebarPanelBottomShade)
+    Add(frame._fpSidebarPanelBorderTop)
+    Add(frame._fpSidebarPanelBorderBottom)
+    Add(frame._fpSidebarPanelBorderLeft)
+    Add(frame._fpSidebarPanelBorderRight)
+    Add(frame._fpSidebarPanelInnerTop)
+    Add(frame._fpSidebarPanelInnerBottom)
+    Add(frame._fpSidebarPanelInnerLeft)
+    Add(frame._fpSidebarPanelInnerRight)
+    Add(frame._editorSidebar)
+    Add(frame._editorSidebarBorder)
+    Add(content and content._fpSidebarAccent)
+    return regions
 end
 
 local function NeutralizeShell(window)
@@ -272,11 +288,12 @@ local function ApplyLayers(target, owner, style, canonicalOnly)
 
     if target == "inspector_section" then
         NeutralizeSection(owner)
-    elseif target == "inspector_shell" then
+    elseif target == "inspector_shell" or target == "sidebar_shell" then
         NeutralizeShell(owner)
     end
 
-    local frame = owner.frame
+    local frame = OwnerFrame(owner)
+    if not frame then return false end
     local slots = GetSlots(owner, target, true)
     local bounds = (style and style.surfaceInsets) or targetInfo[target].surfaceInsets or {}
     local left, right = bounds.left or 0, bounds.right or 0
