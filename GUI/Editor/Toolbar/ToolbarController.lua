@@ -16,6 +16,7 @@ local SIDEBAR_WIDTH = (SidebarGeometry and SidebarGeometry.width) or 285
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer
 local FormSectionSurfaceRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormSectionSurfaceRenderer
+local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
 local EditorSidebarThemeHelpers = ns.GUI.Editor and ns.GUI.Editor.EditorSidebarThemeHelpers or {}
 local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 
@@ -171,6 +172,52 @@ local function EnsureToolbarSectionCompositionBindings(groups)
     end
 end
 
+local SIDEBAR_SECTION_HEADING_WIDGETS = {
+    "unitLabel",
+    "compositionTitle",
+    "editingTitle",
+    "toolsTitle",
+}
+
+local function ApplyToolbarSectionTypography(widget, canonicalOnly)
+    local target = widget and widget.label
+    local preview = ns.GUI.PresentationPreview
+    if not target or not preview or not preview.ResolveTypographyPresentation then
+        return
+    end
+
+    local descriptor = preview.ResolveTypographyPresentation("sidebar_section_heading", canonicalOnly)
+    if not descriptor or not TextStyles or not TextStyles.ApplyFontString then
+        return
+    end
+
+    local font = preview.ResolveTypographyFont and preview.ResolveTypographyFont(descriptor.font) or nil
+    TextStyles.ApplyFontString(target, "sectionHeader", {
+        font = font,
+        size = descriptor.size,
+        flags = descriptor.flags,
+        alpha = descriptor.alpha,
+        shadow = descriptor.shadowEnabled,
+    })
+end
+
+local function EnsureToolbarSectionTypographyBindings(widgets)
+    local preview = ns.GUI.PresentationPreview
+    if not preview or not preview.BindTypographyWidget then
+        return
+    end
+
+    for _, widgetId in ipairs(SIDEBAR_SECTION_HEADING_WIDGETS) do
+        local widget = widgets and widgets[widgetId]
+        if widget then
+            preview.BindTypographyWidget(widget, { "sidebar_section_heading" }, function(owner, canonicalOnly)
+                ApplyToolbarSectionTypography(owner, canonicalOnly)
+            end)
+            ApplyToolbarSectionTypography(widget)
+        end
+    end
+end
+
 local function FocusWindow(window)
     local frame = window and window.frame
     if not frame then
@@ -220,6 +267,7 @@ local function CreateWindowContent(window)
     })
 
     EnsureToolbarSectionCompositionBindings(groups)
+    EnsureToolbarSectionTypographyBindings(widgets)
     if ns.GUI.PresentationPreview then
         ns.GUI.PresentationPreview.BindSidebarNavigatorInset(groups.UnitGrid)
     end
@@ -282,6 +330,7 @@ function ToolbarController.Open(state, options)
         windowContext.window:SetHeight(GetToolbarWindowHeight())
         EnsureToolbarShellCompositionBinding(windowContext.window)
         EnsureToolbarSectionCompositionBindings(windowContext.groups)
+        EnsureToolbarSectionTypographyBindings(windowContext.widgets)
         ApplyToolbarWindowPresentation(windowContext.window)
         PositionWindow(windowContext.window)
     end

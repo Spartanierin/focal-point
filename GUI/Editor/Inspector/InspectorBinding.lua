@@ -102,6 +102,36 @@ local function ApplyInspectorSectionHeaderPresentation(section, textPresentation
     FormWidgets.ApplyTextPresentation(section, presentation)
 end
 
+local function ApplyInspectorSectionTypography(section, textPresentation, canonicalOnly)
+    local preview = ns.GUI.PresentationPreview
+    local descriptor = preview and preview.ResolveTypographyPresentation
+        and preview.ResolveTypographyPresentation("inspector_section_heading", canonicalOnly)
+    if not descriptor then
+        ApplyInspectorSectionHeaderPresentation(section, textPresentation)
+        return
+    end
+
+    local presentation = {}
+    if type(textPresentation) == "table" then
+        for key, value in pairs(textPresentation) do
+            presentation[key] = value
+        end
+    end
+    presentation.role = "strongHeading"
+    presentation.fontSize = descriptor.size
+    presentation.fontFlags = descriptor.flags
+    presentation.alpha = descriptor.alpha
+    presentation.shadowEnabled = descriptor.shadowEnabled
+    presentation.color = {
+        descriptor.color[1], descriptor.color[2], descriptor.color[3], descriptor.alpha,
+    }
+
+    if preview.ResolveTypographyFont then
+        presentation.fontFace = preview.ResolveTypographyFont(descriptor.font)
+    end
+    ApplyInspectorSectionHeaderPresentation(section, presentation)
+end
+
 -- Shared canonical source for the public baseline and normal section builds.
 InspectorBinding.ResolveSectionPresentation = ResolveInspectorSectionPresentation
 
@@ -168,8 +198,13 @@ function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPre
             if canonicalOnly and composition then composition.Release("inspector_section", owner) end
             ApplySectionPresentation(owner, style, canonicalOnly, not (canonicalOnly and composition))
         end)
+        if ns.GUI.PresentationPreview.BindTypographyWidget then
+            ns.GUI.PresentationPreview.BindTypographyWidget(section, { "inspector_section_heading" }, function(owner, canonicalOnly)
+                ApplyInspectorSectionTypography(owner, textPresentation, canonicalOnly)
+            end)
+        end
     end
-    ApplyInspectorSectionHeaderPresentation(section, textPresentation)
+    ApplyInspectorSectionTypography(section, textPresentation)
 
     NeutralizeInspectorLegacyBoundary(section)
     if ApplySectionPadding and resolved then

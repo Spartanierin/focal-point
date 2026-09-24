@@ -856,7 +856,8 @@ function FormWidgets.ApplyTextPresentation(owner, presentation)
             font = fontFace,
             size = fontSize,
             flags = fontFlags,
-            alpha = presentation.alpha or 1,
+            alpha = presentation.alpha ~= nil and presentation.alpha or 1,
+            shadow = presentation.shadowEnabled,
         })
     elseif target.SetFont then
         target:SetFont(fontFace, fontSize, fontFlags)
@@ -864,7 +865,12 @@ function FormWidgets.ApplyTextPresentation(owner, presentation)
 
     if presentation.color and target.SetTextColor then
         local color = presentation.color
-        target:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+        target:SetTextColor(
+            color[1] or 1,
+            color[2] or 1,
+            color[3] or 1,
+            presentation.alpha ~= nil and presentation.alpha or (color[4] ~= nil and color[4] or 1)
+        )
     end
 
     local headerInsetX = presentation.headerInsetX

@@ -138,7 +138,8 @@ function TextStyles.ApplyFontString(fontString, role, options)
     local opts = type(options) == "table" and options or {}
 
     if fontString.SetTextColor then
-        fontString:SetTextColor(style.r, style.g, style.b, opts.alpha or 1)
+        local alpha = opts.alpha ~= nil and opts.alpha or 1
+        fontString:SetTextColor(style.r, style.g, style.b, alpha)
     end
 
     if fontString.SetFont then
@@ -157,12 +158,20 @@ function TextStyles.ApplyFontString(fontString, role, options)
         shadowEnabled = true
     end
 
-    if shadowEnabled and fontString.SetShadowOffset then
-        fontString:SetShadowOffset(1, -1)
+    if fontString.SetShadowOffset then
+        if shadowEnabled then
+            fontString:SetShadowOffset(1, -1)
+        else
+            fontString:SetShadowOffset(0, 0)
+        end
     end
 
-    if shadowEnabled and fontString.SetShadowColor then
-        fontString:SetShadowColor(0, 0, 0, 0.90)
+    if fontString.SetShadowColor then
+        if shadowEnabled then
+            fontString:SetShadowColor(0, 0, 0, 0.90)
+        else
+            fontString:SetShadowColor(0, 0, 0, 0)
+        end
     end
 end
 

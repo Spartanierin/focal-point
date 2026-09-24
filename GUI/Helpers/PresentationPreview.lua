@@ -6,6 +6,9 @@ ns.GUI.PresentationPreview = Preview
 local overrides = {}
 local owners = setmetatable({}, { __mode = "k" })
 local bindingKey = "fpPresentationPreview"
+local typographyOverrides = {}
+local typographyOwners = setmetatable({}, { __mode = "k" })
+local typographyBindingKey = "fpTypographyPreview"
 
 local function Copy(value)
     if type(value) ~= "table" then return value end
@@ -58,6 +61,22 @@ local catalog = {
     sidebar_unit_navigator_inset = { label = "Unit navigator inset", area = "Sidebar", baseline = NavigatorInsetBaseline },
 }
 
+local typographyOrder = { "sidebar_section_heading", "inspector_section_heading" }
+local typographyCatalog = {
+    sidebar_section_heading = {
+        label = "Sidebar section heading",
+        area = "Sidebar",
+        role = "sectionHeader",
+        size = 13,
+    },
+    inspector_section_heading = {
+        label = "Inspector section heading",
+        area = "Inspector",
+        role = "strongHeading",
+        size = 13,
+    },
+}
+
 local function IsUnitNumber(value)
     return type(value) == "number" and value == value and value >= 0 and value <= 1
 end
@@ -74,6 +93,73 @@ local function Baseline(target)
         return nil, "baseline_unavailable"
     end
     return { color = { color[1], color[2], color[3] }, alpha = color[4] or 1 }
+end
+
+local function IsTypographyTarget(target)
+    return type(target) == "string" and typographyCatalog[target] ~= nil
+end
+
+local function DefaultFontReference()
+    local registry = ns.MediaRegistry
+    if registry and registry.GetDefault then
+        return registry.GetDefault("font") or "fp:font:standard"
+    end
+    return "fp:font:standard"
+end
+
+local function TypographyBaseline(target)
+    local definition = typographyCatalog[target]
+    if not definition then return nil, "unknown_target" end
+
+    local textStyles = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
+    local style = textStyles and textStyles.Get and textStyles.Get(definition.role)
+    if type(style) ~= "table" then
+        return nil, "baseline_unavailable"
+    end
+
+    local color = { style.r, style.g, style.b }
+    if not IsUnitNumber(color[1]) or not IsUnitNumber(color[2]) or not IsUnitNumber(color[3]) then
+        return nil, "baseline_unavailable"
+    end
+
+    return {
+        font = DefaultFontReference(),
+        size = definition.size,
+        flags = "",
+        color = color,
+        alpha = 1,
+        shadowEnabled = true,
+    }
+end
+
+local function ResolveTypography(target, canonicalOnly)
+    local value, reason = TypographyBaseline(target)
+    if not value then return nil, reason end
+
+    local override = not canonicalOnly and typographyOverrides[target]
+    if override then
+        for key, item in pairs(override) do
+            value[key] = Copy(item)
+        end
+    end
+    return value
+end
+
+local function ResolveTypographyFont(reference)
+    local registry = ns.MediaRegistry
+    if not registry or not registry.ResolveReference then
+        return nil
+    end
+    local result = registry.ResolveReference(reference, "font", registry.GetDefault and registry.GetDefault("font"))
+    return result and result.available and result.resolvedAsset or nil
+end
+
+function Preview.ResolveTypographyFont(reference)
+    return ResolveTypographyFont(reference)
+end
+
+function Preview.ResolveTypographyPresentation(target, canonicalOnly)
+    return ResolveTypography(target, canonicalOnly)
 end
 
 -- RGB and alpha are independent properties. Never read back rendered regions.
@@ -114,6 +200,32 @@ function Preview.BindWidget(widget, targets, apply)
         widget:SetCallback("OnRelease", ReleaseWidget)
     end
     Preview.Bind(widget, targets, apply)
+end
+
+local function ReleaseTypographyWidget(widget)
+    local binding = widget:GetUserData(typographyBindingKey)
+    local owner = typographyOwners[widget]
+    typographyOwners[widget] = nil
+    if owner then owner.apply(widget, true) end
+    if binding and binding.onRelease then binding.onRelease(widget, "OnRelease") end
+end
+
+function Preview.BindTypography(owner, targets, apply)
+    local targetSet = {}
+    for _, target in ipairs(targets) do targetSet[target] = true end
+    typographyOwners[owner] = { targets = targetSet, apply = apply }
+end
+
+function Preview.UnbindTypography(owner)
+    typographyOwners[owner] = nil
+end
+
+function Preview.BindTypographyWidget(widget, targets, apply)
+    if not widget:GetUserData(typographyBindingKey) then
+        widget:SetUserData(typographyBindingKey, { onRelease = widget.events and widget.events.OnRelease })
+        widget:SetCallback("OnRelease", ReleaseTypographyWidget)
+    end
+    Preview.BindTypography(widget, targets, apply)
 end
 
 -- Only the HEAD-stable UnitGrid surface is admitted by the v0.2 WIP gate.
@@ -188,12 +300,28 @@ local function Reapply(targets)
     end
 end
 
+local function ReapplyTypography(targets)
+    for owner, binding in pairs(typographyOwners) do
+        for target in pairs(binding.targets) do
+            if targets[target] then
+                binding.apply(owner)
+                break
+            end
+        end
+    end
+end
+
 local API = { version = 1 }
 ns.Ace.PresentationPreview = API
 
 function API.GetCapabilities()
     return { version = 1, transient = true, combatWrites = false,
-        properties = { color = "RGB array, exactly 3 finite numbers in [0,1]", alpha = "number in [0,1]" } }
+        properties = { color = "RGB array, exactly 3 finite numbers in [0,1]", alpha = "number in [0,1]" },
+        typography = {
+            targets = "GetTypographyTargets",
+            capabilities = "GetTypographyCapabilities",
+        },
+    }
 end
 
 function API.GetTargets()
@@ -268,5 +396,134 @@ function API.Refresh(target)
     if InCombat() then return false, "combat" end
     if target ~= nil and not IsTarget(target) then return false, "unknown_target" end
     Reapply(target and { [target] = true } or catalog)
+    return true
+end
+
+function API.GetTypographyCapabilities()
+    return {
+        version = 1,
+        transient = true,
+        combatWrites = false,
+        properties = {
+            font = "MediaRegistry font reference",
+            size = "finite number in [6,96]",
+            flags = "string",
+            color = "RGB array, exactly 3 finite numbers in [0,1]",
+            alpha = "number in [0,1]",
+            shadowEnabled = "boolean",
+        },
+    }
+end
+
+function API.GetTypographyTargets()
+    local targets = {}
+    for _, id in ipairs(typographyOrder) do
+        local definition = typographyCatalog[id]
+        targets[#targets + 1] = {
+            id = id,
+            label = definition.label,
+            area = definition.area,
+            properties = { "font", "size", "flags", "color", "alpha", "shadowEnabled" },
+        }
+    end
+    return targets
+end
+
+function API.GetTypographyPresentation(target)
+    if target ~= nil and not IsTypographyTarget(target) then return nil, "unknown_target" end
+    if target then return Copy(ResolveTypography(target)) end
+
+    local result = {}
+    for _, id in ipairs(typographyOrder) do
+        result[id] = Copy(ResolveTypography(id))
+    end
+    return result
+end
+
+function API.GetTypographyOverrides(target)
+    if target ~= nil and not IsTypographyTarget(target) then return nil, "unknown_target" end
+    return Copy(target and (typographyOverrides[target] or {}) or typographyOverrides)
+end
+
+local function ValidateTypographyColor(value)
+    if type(value) ~= "table" or getmetatable(value) ~= nil then return false end
+    for key in pairs(value) do
+        if key ~= 1 and key ~= 2 and key ~= 3 then return false end
+    end
+    return IsUnitNumber(value[1]) and IsUnitNumber(value[2]) and IsUnitNumber(value[3])
+end
+
+local function ValidateTypographyProperty(property, value)
+    if property == "font" then
+        if type(value) ~= "string" or not value:match("^[^:]+:font:.+") then
+            return false, "invalid_font_reference"
+        end
+        local registry = ns.MediaRegistry
+        local entry = registry and registry.GetEntry and registry.GetEntry(value, "font")
+        if not entry or entry.available ~= true or type(entry.path) ~= "string" or entry.path == "" then
+            return false, "unavailable_font"
+        end
+    elseif property == "size" then
+        if type(value) ~= "number" or value ~= value or value < 6 or value > 96 then
+            return false, "invalid_size"
+        end
+    elseif property == "flags" then
+        local supported = {
+            [""] = true,
+            ["OUTLINE"] = true,
+            ["THICKOUTLINE"] = true,
+            ["MONOCHROME"] = true,
+            ["OUTLINE,MONOCHROME"] = true,
+            ["THICKOUTLINE,MONOCHROME"] = true,
+        }
+        if type(value) ~= "string" or not supported[value] then return false, "invalid_flags" end
+    elseif property == "color" then
+        if not ValidateTypographyColor(value) then return false, "invalid_color" end
+    elseif property == "alpha" then
+        if not IsUnitNumber(value) then return false, "invalid_alpha" end
+    elseif property == "shadowEnabled" then
+        if type(value) ~= "boolean" then return false, "invalid_shadow" end
+    else
+        return false, "unknown_property"
+    end
+    return true
+end
+
+function API.SetTypographyPresentation(target, presentation)
+    if InCombat() then return false, "combat" end
+    if not IsTypographyTarget(target) then return false, "unknown_target" end
+    if type(presentation) ~= "table" or getmetatable(presentation) ~= nil then
+        return false, "invalid_presentation"
+    end
+
+    local normalized = {}
+    for property, value in pairs(presentation) do
+        if property == "style" then property = "flags" end
+        local valid, reason = ValidateTypographyProperty(property, value)
+        if not valid then return false, reason end
+        normalized[property] = Copy(value)
+    end
+    if not next(normalized) then return false, "empty_presentation" end
+
+    typographyOverrides[target] = typographyOverrides[target] or {}
+    for property, value in pairs(normalized) do
+        typographyOverrides[target][property] = value
+    end
+    ReapplyTypography({ [target] = true })
+    return true
+end
+
+function API.ClearTypography(target)
+    if InCombat() then return false, "combat" end
+    if target ~= nil and not IsTypographyTarget(target) then return false, "unknown_target" end
+
+    if target then
+        typographyOverrides[target] = nil
+        ReapplyTypography({ [target] = true })
+    else
+        local changed = typographyOverrides
+        typographyOverrides = {}
+        ReapplyTypography(changed)
+    end
     return true
 end
