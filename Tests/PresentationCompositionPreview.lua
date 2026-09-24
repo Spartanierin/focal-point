@@ -288,14 +288,19 @@ assert(api.ResetComposition(target))
 for _, owner in ipairs({ a, b }) do ace:Release(owner) end
 -- Target discovery and Inspector shell isolation.
 local discovered = api.GetTargets()
-Equal(#discovered, 3)
+Equal(#discovered, 4)
 Equal(discovered[1].id, "inspector_section")
 Equal(discovered[2].id, "inspector_shell")
 Equal(discovered[3].id, "sidebar_shell")
 Equal(discovered[3].label, "Shell")
 Equal(discovered[3].area, "Sidebar")
+Equal(discovered[4].id, "sidebar_unit_navigator_inset")
+Equal(discovered[4].label, "Unit Navigator Inset")
+Equal(discovered[4].area, "Sidebar")
 discovered[3].types[1] = "bad"
 Equal(api.GetTargets()[3].types[1], "surface")
+discovered[4].properties.surface[1] = "bad"
+Equal(api.GetTargets()[4].properties.surface[1], "color")
 local capsCopy = api.GetCapabilities()
 capsCopy.targets[3].properties.surface[1] = "bad"
 Equal(api.GetCapabilities().targets[3].properties.surface[1], "color")
@@ -393,6 +398,51 @@ composition.Release("sidebar_shell", sidebarWindow)
 assert(api.AddLayer("inspector_shell", "surface", { color = { 0.4, 0.5, 0.6 } }))
 assert(api.GetComposition("sidebar_shell") == nil)
 assert(api.ResetComposition("inspector_shell"))
+
+-- The UnitGrid inset is a distinct Sidebar target. Its canonical surface is
+-- neutralized while composed, but UnitNavigatorItem state remains external.
+local navigator = ace:Create("SimpleGroup")
+local navigatorStyle = ns.GUI.Helpers.FormWidgets.ResolveSectionStyle("toolbar_explorer_inset")
+local navigatorRenderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+navigatorRenderer.ApplySectionSurface(navigator, navigatorStyle)
+navigatorRenderer.ApplySectionBorder(navigator, navigatorStyle.border, navigatorStyle.surfaceInsets)
+ns.GUI.PresentationPreview.BindSidebarNavigatorInset(navigator)
+assert(navigator.frame._fpSectionFill:IsShown())
+assert(preview.Set("sidebar_unit_navigator_inset", "alpha", 0.5))
+local navigatorCompositionOK, navigatorCompositionReason = api.AddLayer("sidebar_unit_navigator_inset", "surface")
+Equal(navigatorCompositionOK, false)
+Equal(navigatorCompositionReason, "unit_navigator_inset_color_preview_active")
+assert(preview.Clear("sidebar_unit_navigator_inset"))
+assert(api.AddLayer("sidebar_unit_navigator_inset", "surface", { color = { 0.3, 0.2, 0.1 } }))
+assert(api.AddLayer("sidebar_unit_navigator_inset", "line", { edge = "bottom", thickness = 2 }))
+local navigatorSlots = navigator.frame._fpCompositionRegionsByTarget.sidebar_unit_navigator_inset
+assert(#navigatorSlots == 2)
+assert(navigatorSlots[1]:IsShown() and navigatorSlots[2]:IsShown())
+assert(not navigator.frame._fpSectionFill:IsShown())
+local navigatorBeforeReset = api.GetComposition("sidebar_unit_navigator_inset")
+local navigatorPreviewOK, navigatorPreviewReason = preview.Set("sidebar_unit_navigator_inset", "alpha", 0.5)
+Equal(navigatorPreviewOK, false)
+Equal(navigatorPreviewReason, "unit_navigator_inset_composition_active")
+assert(api.ResetComposition("sidebar_unit_navigator_inset"))
+assert(api.GetComposition("sidebar_unit_navigator_inset") == nil)
+assert(navigator.frame._fpSectionFill:IsShown())
+assert(navigatorSlots[1]:GetTexture() == nil and not navigatorSlots[1]:IsShown())
+assert(navigatorBeforeReset.layers[1].type == "surface")
+ace:Release(navigator)
+assert(api.GetComposition("sidebar_unit_navigator_inset") == nil)
+
+-- A descriptor may exist before the pooled UnitGrid owner is rebuilt.
+assert(api.AddLayer("sidebar_unit_navigator_inset", "surface", { color = { 0.4, 0.3, 0.2 } }))
+local lateNavigator = ace:Create("SimpleGroup")
+navigatorRenderer.ApplySectionSurface(lateNavigator, navigatorStyle)
+navigatorRenderer.ApplySectionBorder(lateNavigator, navigatorStyle.border, navigatorStyle.surfaceInsets)
+ns.GUI.PresentationPreview.BindSidebarNavigatorInset(lateNavigator)
+local lateNavigatorSlots = lateNavigator.frame._fpCompositionRegionsByTarget.sidebar_unit_navigator_inset
+assert(lateNavigatorSlots[1]:IsShown())
+assert(not lateNavigator.frame._fpSectionFill:IsShown())
+assert(api.ResetComposition("sidebar_unit_navigator_inset"))
+assert(lateNavigator.frame._fpSectionFill:IsShown())
+ace:Release(lateNavigator)
 
 Load("GUI/Helpers/PresentationCompositionPreview.lua")
 Equal(ns.Ace.PresentationCompositionPreview.GetComposition(target), nil)

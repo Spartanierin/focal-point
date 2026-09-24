@@ -36,17 +36,26 @@ local function ThumbBaseline()
     return { color[1], color[2], color[3], (color[4] or 1) * thumb.alpha }
 end
 
+local function NavigatorInsetBaseline()
+    local style = ns.GUI.Helpers.FormWidgets.ResolveSectionStyle("toolbar_explorer_inset")
+    local surface = style and style.surface
+    if not surface or (surface.material and surface.material ~= "color") then return nil end
+    return surface.fill
+end
+
 local order = {
     "sidebar_shell", "inspector_shell", "inspector_section_surface",
     "inspector_section_border", "inspector_section_accent", "inspector_slider_thumb",
+    "sidebar_unit_navigator_inset",
 }
 local catalog = {
-    sidebar_shell = { label = "Sidebar shell fill", baseline = ShellBaseline },
-    inspector_shell = { label = "Inspector shell fill", baseline = ShellBaseline },
-    inspector_section_surface = { label = "Inspector section fill", baseline = function() return SectionBaseline("fill") end },
-    inspector_section_border = { label = "Inspector section border", baseline = function() return SectionBaseline("border") end },
-    inspector_section_accent = { label = "Inspector section accent", baseline = function() return SectionBaseline("accent") end },
-    inspector_slider_thumb = { label = "Inspector slider thumb", baseline = ThumbBaseline },
+    sidebar_shell = { label = "Sidebar shell fill", area = "Sidebar", baseline = ShellBaseline },
+    inspector_shell = { label = "Inspector shell fill", area = "Inspector", baseline = ShellBaseline },
+    inspector_section_surface = { label = "Inspector section fill", area = "Inspector", baseline = function() return SectionBaseline("fill") end },
+    inspector_section_border = { label = "Inspector section border", area = "Inspector", baseline = function() return SectionBaseline("border") end },
+    inspector_section_accent = { label = "Inspector section accent", area = "Inspector", baseline = function() return SectionBaseline("accent") end },
+    inspector_slider_thumb = { label = "Inspector slider thumb", area = "Inspector", baseline = ThumbBaseline },
+    sidebar_unit_navigator_inset = { label = "Unit navigator inset", area = "Sidebar", baseline = NavigatorInsetBaseline },
 }
 
 local function IsUnitNumber(value)
@@ -107,6 +116,63 @@ function Preview.BindWidget(widget, targets, apply)
     Preview.Bind(widget, targets, apply)
 end
 
+-- Only the HEAD-stable UnitGrid surface is admitted by the v0.2 WIP gate.
+-- Keep this binding at the Sidebar builder, not every user of a shared style.
+local NAVIGATOR_INSET_TARGET = "sidebar_unit_navigator_inset"
+
+local function RestoreSidebarNavigatorInset(group, color)
+    local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+    if renderer and renderer.ApplySectionColors then
+        renderer.ApplySectionColors(group, { surface = { fill = color } })
+    end
+
+    -- The canonical toolbar_explorer_inset is fill-only. Re-show that existing
+    -- region after a composition release without changing its geometry.
+    local frame = group and group.frame
+    if not frame then return end
+    if frame._fpSectionFill then frame._fpSectionFill:Show() end
+    for _, name in ipairs({
+        "_fpSectionTopShade",
+        "_fpSectionBottomShade",
+        "_fpSectionAccent",
+        "_fpSectionDivider",
+        "_fpSectionBorderTop",
+        "_fpSectionBorderBottom",
+        "_fpSectionBorderLeft",
+        "_fpSectionBorderRight",
+    }) do
+        local region = frame[name]
+        if region and region.Hide then region:Hide() end
+    end
+end
+
+local function ApplySidebarNavigatorInset(group, canonicalOnly)
+    local composition = ns.GUI.PresentationCompositionPreview
+    if composition and composition.Apply(NAVIGATOR_INSET_TARGET, group, nil, canonicalOnly) then
+        return true
+    end
+
+    local color = Preview.ResolveColor(NAVIGATOR_INSET_TARGET, canonicalOnly)
+    if not color then return end
+    RestoreSidebarNavigatorInset(group, color)
+    return false
+end
+
+function Preview.BindSidebarNavigatorInset(group)
+    if not group then return end
+    local composition = ns.GUI.PresentationCompositionPreview
+    if composition then
+        composition.Bind(NAVIGATOR_INSET_TARGET, group, ApplySidebarNavigatorInset)
+    end
+    Preview.BindWidget(group, { NAVIGATOR_INSET_TARGET }, function(owner, canonicalOnly)
+        if canonicalOnly and composition then
+            composition.Release(NAVIGATOR_INSET_TARGET, owner)
+        end
+        ApplySidebarNavigatorInset(owner, canonicalOnly)
+    end)
+    ApplySidebarNavigatorInset(group)
+end
+
 local function InCombat()
     return InCombatLockdown and InCombatLockdown()
 end
@@ -133,7 +199,8 @@ end
 function API.GetTargets()
     local targets = {}
     for _, id in ipairs(order) do
-        targets[#targets + 1] = { id = id, label = catalog[id].label, properties = { "color", "alpha" } }
+        targets[#targets + 1] = { id = id, label = catalog[id].label, area = catalog[id].area,
+            properties = { "color", "alpha" } }
     end
     return targets
 end

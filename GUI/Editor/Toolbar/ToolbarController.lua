@@ -175,6 +175,10 @@ local function CreateWindowContent(window)
         end,
     })
 
+    if ns.GUI.PresentationPreview then
+        ns.GUI.PresentationPreview.BindSidebarNavigatorInset(groups.UnitGrid)
+    end
+
     return {
         window = window,
         scroll = scroll,
