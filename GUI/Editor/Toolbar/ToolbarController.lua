@@ -34,6 +34,66 @@ local EnsureStandardWindowCloseButton = FormWidgets and FormWidgets.EnsureStanda
 local StyleSidebarButton = EditorSidebarThemeHelpers.StyleSidebarButton
 local windowContext
 
+-- Private Header presentation; page_header and all other consumers stay canonical.
+local BRAND_PLAQUE_KEY = "fpNavigatorBrandPlaque"
+local BRAND_PLAQUE_TEXTURE = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Window\\fp_navigator_brand_plaque.tga"
+local function ApplyToolbarBrandPresentation(group, canonicalOnly)
+    if not group or not group.frame or not FormSectionSurfaceRenderer then return end
+    local binding = group:GetUserData(BRAND_PLAQUE_KEY)
+    local style
+    if canonicalOnly or not binding or not binding.enabled then
+        -- Resolve fresh on reset/release, including palette/style edits since bind.
+        style = FormWidgets.ResolveSectionStyle("page_header")
+    else
+        local width, height = group.frame:GetWidth(), group.frame:GetHeight()
+        if not width or not height or width <= 0 or height <= 0 then return end
+        local scale = math.min(width / 1024, height / 256)
+        local x, y = (width - 1024 * scale) / 2, (height - 256 * scale) / 2
+        style = {
+            surface = { material = "texture", texture = BRAND_PLAQUE_TEXTURE, tint = { 1, 1, 1, 1 } },
+            surfaceInsets = { left = x, right = x, top = y, bottom = y },
+            border = false,
+        }
+    end
+    FormSectionSurfaceRenderer.ApplySectionSurface(group, style)
+    FormSectionSurfaceRenderer.ApplySectionBorder(group, style and style.border, style and style.surfaceInsets)
+end
+
+local function EnsureToolbarBrandBinding(group)
+    if not group or not group.frame then return end
+    if not group:GetUserData(BRAND_PLAQUE_KEY) then
+        local onRelease = group.events and group.events.OnRelease
+        group:SetUserData(BRAND_PLAQUE_KEY, { enabled = true })
+        group:SetCallback("OnRelease", function(owner, event)
+            ApplyToolbarBrandPresentation(owner, true)
+            owner:SetUserData(BRAND_PLAQUE_KEY, nil)
+            if onRelease then onRelease(owner, event) end
+        end)
+    end
+    if not group.frame._fpBrandPlaqueSizeHook and group.frame.HookScript then
+        group.frame:HookScript("OnSizeChanged", function(frame)
+            local owner = frame.obj
+            if owner and owner.GetUserData and owner:GetUserData(BRAND_PLAQUE_KEY) then
+                ApplyToolbarBrandPresentation(owner)
+            end
+        end)
+        group.frame._fpBrandPlaqueSizeHook = true
+    end
+    ApplyToolbarBrandPresentation(group)
+end
+
+-- Internal product reset, not a Preview/Composition target or persisted setting.
+function ToolbarController.SetBrandPlaqueEnabled(enabled)
+    if InCombatLockdown and InCombatLockdown() then return false, "combat" end
+    if type(enabled) ~= "boolean" then return false, "invalid_enabled" end
+    local group = windowContext and windowContext.groups and windowContext.groups.Header
+    local binding = group and group:GetUserData(BRAND_PLAQUE_KEY)
+    if not binding then return false, "unavailable" end
+    binding.enabled = enabled == true
+    ApplyToolbarBrandPresentation(group)
+    return true
+end
+
 local SIDEBAR_SECTION_STYLES = {
     Workspace = "toolbar_workspace_panel",
     Editing = "toolbar_editing_panel",
@@ -269,6 +329,7 @@ local function CreateWindowContent(window)
         end,
     })
 
+    EnsureToolbarBrandBinding(groups.Header)
     EnsureToolbarSectionCompositionBindings(groups)
     EnsureToolbarSectionTypographyBindings(widgets)
     if ns.GUI.PresentationPreview then
@@ -289,6 +350,7 @@ local function RefreshBindingState()
     if ToolbarBinding and ToolbarBinding.RefreshWindowState then
         ToolbarBinding.RefreshWindowState(windowContext, BuildBindingDeps())
     end
+    EnsureToolbarBrandBinding(windowContext and windowContext.groups and windowContext.groups.Header)
 end
 
 local function CreateWindow(state, options)
