@@ -64,15 +64,45 @@ for _, target in ipairs(TARGET_ORDER) do
     owners[target] = setmetatable({}, { __mode = "k" })
 end
 
-local textures = {
-    parchment = { label = "FP window parchment", path = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_window_background.jpg" },
-    blizzard = { label = "FP BetterBlizzard", path = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp" },
+local MEDIA_TYPE_TEXTURE = "texture"
+local LEGACY_TEXTURE_IDS = {
+    parchment = "fp:texture:parchment",
+    blizzard = "fp:texture:blizzard",
 }
+local LEGACY_TEXTURE_LABELS = {
+    parchment = "FP window parchment",
+    blizzard = "FP BetterBlizzard",
+}
+
+local function NormalizeTextureId(value)
+    if type(value) ~= "string" or value == "" then return nil end
+    local registry = ns.MediaRegistry
+    if not registry or type(registry.GetEntry) ~= "function" then return nil end
+
+    local reference = LEGACY_TEXTURE_IDS[value] or value
+    local entry = registry.GetEntry(reference, MEDIA_TYPE_TEXTURE)
+    if not entry or entry.available ~= true or type(entry.path) ~= "string" or entry.path == "" then
+        return nil
+    end
+
+    return entry.id
+end
+
+local function ResolveTexturePath(value)
+    local registry = ns.MediaRegistry
+    if not registry or type(registry.ResolveReference) ~= "function" then return nil end
+
+    local reference = LEGACY_TEXTURE_IDS[value] or value
+    local result = registry.ResolveReference(reference, MEDIA_TYPE_TEXTURE)
+    if result and result.available == true and type(result.resolvedAsset) == "string" then
+        return result.resolvedAsset
+    end
+end
 local defaults = {
     surface = { color = { 1, 1, 1 }, alpha = 1,
         geometry = { mode = "inset", insets = { left = 0, right = 0, top = 0, bottom = 0 } } },
     line = { color = { 1, 1, 1 }, alpha = 1, edge = "top", offset = 0, thickness = 1 },
-    texture = { textureId = "parchment", tint = { 1, 1, 1 }, alpha = 1, mode = "stretch",
+    texture = { textureId = "fp:texture:parchment", tint = { 1, 1, 1 }, alpha = 1, mode = "stretch",
         geometry = { mode = "inset", insets = { left = 0, right = 0, top = 0, bottom = 0 } } },
 }
 local sharedCapabilities = {
@@ -145,7 +175,7 @@ local function ValidProperty(kind, property, value)
     elseif property == "offset" then return Number(value, 0, 8)
     elseif property == "thickness" then return Number(value, 1, 4)
     elseif property == "edge" then return type(value) == "string" and edges[value] == true
-    elseif property == "textureId" then return type(value) == "string" and textures[value] ~= nil
+    elseif property == "textureId" then return NormalizeTextureId(value) ~= nil
     elseif property == "mode" then return value == "stretch" end
     return false
 end
@@ -154,6 +184,8 @@ local function SetProperty(layer, property, value)
     if property == "insets" then
         -- Legacy input is an alias, never a second internal geometry value.
         layer.geometry = { mode = "inset", insets = Copy(value) }
+    elseif property == "textureId" then
+        layer.textureId = NormalizeTextureId(value) or value
     else
         layer[property] = Copy(value)
     end
@@ -468,13 +500,20 @@ local function ApplyLayers(target, owner, style, canonicalOnly)
         end
         if visible then
             if layer.type == "texture" then
-                region:SetTexture(textures[layer.textureId].path, "CLAMP", "CLAMP")
-                region:SetVertexColor(layer.tint[1], layer.tint[2], layer.tint[3], 1)
+                local texturePath = ResolveTexturePath(layer.textureId)
+                if not texturePath then
+                    visible = false
+                else
+                    region:SetTexture(texturePath, "CLAMP", "CLAMP")
+                    region:SetVertexColor(layer.tint[1], layer.tint[2], layer.tint[3], 1)
+                end
             else
                 region:SetColorTexture(layer.color[1], layer.color[2], layer.color[3], 1)
             end
-            region:SetAlpha(layer.alpha)
-            region:Show()
+            if visible then
+                region:SetAlpha(layer.alpha)
+                region:Show()
+            end
         end
     end
     for index = #state.descriptor.layers + 1, #slots do Neutralize(slots[index]) end
@@ -505,7 +544,23 @@ function API.GetCapabilities()
 end
 
 function API.GetTextureOptions()
-    return { { id = "parchment", label = textures.parchment.label }, { id = "blizzard", label = textures.blizzard.label } }
+    local registry = ns.MediaRegistry
+    if not registry or type(registry.GetAvailable) ~= "function" then return {} end
+
+    local options = {}
+    for _, entry in ipairs(registry.GetAvailable(MEDIA_TYPE_TEXTURE, { availableOnly = true }) or {}) do
+        options[#options + 1] = { id = entry.id, label = entry.name or entry.id }
+        for legacyId, canonicalId in pairs(LEGACY_TEXTURE_IDS) do
+            if entry.id == canonicalId then
+                options[#options + 1] = { id = legacyId, label = LEGACY_TEXTURE_LABELS[legacyId] }
+            end
+        end
+    end
+    table.sort(options, function(left, right)
+        if left.label ~= right.label then return left.label < right.label end
+        return left.id < right.id
+    end)
+    return options
 end
 
 function API.GetComposition(target)

@@ -6,6 +6,7 @@ local MediaRegistry = FocalPoint.MediaRegistry
 local MEDIA_TYPE_STATUSBAR = "statusbar"
 local MEDIA_TYPE_FONT = "font"
 local MEDIA_TYPE_DECORATION = "decoration"
+local MEDIA_TYPE_TEXTURE = "texture"
 local PROVIDER_FOCAL_POINT = "FocalPoint"
 local PROVIDER_BLIZZARD = "Blizzard"
 local PROVIDER_LIB_SHARED_MEDIA = "LibSharedMedia"
@@ -18,6 +19,7 @@ local DEFAULT_FONT_PATH = STANDARD_TEXT_FONT
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 local DEFAULT_DECORATION_PATH = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\shadow1.png"
 local DECORATION_ASSET_ROOT = "Interface\\AddOns\\FocalPoint\\Media\\Decorations\\"
+local GUI_TEXTURE_ASSET_ROOT = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\GUI\\"
 
 local SOURCE_ORDER = {
     ["Focal Point"] = 1,
@@ -606,6 +608,30 @@ local function RegisterDecorationManifest()
                     sortName = Trim(item.sortName) ~= "" and Trim(item.sortName):lower() or (label ~= "" and label:lower() or id:lower()),
                     verified = true,
                 })
+            end
+        end
+    end
+end
+
+local function RegisterGUITextureManifest()
+    local manifest = FocalPoint.GUITextureManifest
+    if type(manifest) ~= "table" then
+        return
+    end
+
+    for _, item in ipairs(manifest) do
+        if type(item) == "table" then
+            local id = Trim(item.id)
+            local label = Trim(item.label)
+            local file = Trim(item.file)
+            if id ~= "" and file ~= "" then
+                MediaRegistry.RegisterBuiltin(MEDIA_TYPE_TEXTURE, id, label ~= "" and label or id,
+                    GUI_TEXTURE_ASSET_ROOT .. file, {
+                        category = "GUI",
+                        sortName = Trim(item.sortName) ~= "" and Trim(item.sortName):lower()
+                            or (label ~= "" and label:lower() or id:lower()),
+                        verified = true,
+                    })
             end
         end
     end
@@ -1200,6 +1226,20 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_DECORATION, "addon-icon", "Focal Point 
 })
 
 RegisterDecorationManifest()
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_TEXTURE, "parchment", "FP window parchment",
+    "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_window_background.jpg", {
+        category = "GUI",
+        sortName = "parchment",
+        verified = true,
+    })
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_TEXTURE, "blizzard", "FP BetterBlizzard",
+    "Interface\\AddOns\\FocalPoint\\Media\\Textures\\BetterBlizzard.blp", {
+        category = "GUI",
+        sortName = "blizzard",
+        verified = true,
+    })
+RegisterGUITextureManifest()
 
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "standard", "Standard", DEFAULT_FONT_PATH, {
     source = "Blizzard",

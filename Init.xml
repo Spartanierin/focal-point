@@ -34,6 +34,7 @@
     <Script file="Services/ProfileTransfer.lua"/>
     <Script file="Services/ProfileAutomation.lua"/>
     <Script file="Media/Decorations/DecorationManifest.lua"/>
+    <Script file="Media/Textures/GUI/GUITextureManifest.lua"/>
     <Script file="Services/MediaRegistry.lua"/>
 
     <Script file="Engine/Core.lua"/>

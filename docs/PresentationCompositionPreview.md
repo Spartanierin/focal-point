@@ -187,12 +187,26 @@ size callbacks or layout mutations. No new host Frame, clipping or scroll system
 All slots use BACKGROUND and distinct sublevels -8..1; title/content remain in
 their existing layers/hierarchy. Native clipping/draw order require client testing.
 
-Texture IDs are `parchment` (existing `Media/Textures/fp_window_background.jpg`,
-also used by Manage Layouts) and `blizzard` (`Media/Textures/BetterBlizzard.blp`).
+Texture IDs include the compatibility IDs `parchment` (existing `Media/Textures/fp_window_background.jpg`,
+also used by Manage Layouts) and `blizzard` (`Media/Textures/BetterBlizzard.blp`), plus canonical IDs discovered from the GUI texture manifest.
 Stretch uses CLAMP wrapping, 0..1 texcoords and both tile flags false. Each reused
 slot fully resets texture, tint, alpha, blend, tile flags, coordinates, anchors,
-size and draw layer before configuration. No assets were added.
+size and draw layer before configuration. The registry is the single source of texture paths; no DesignTool-specific asset list is maintained.
 
+## GUI texture media
+
+`GetTextureOptions()` is backed by the FocalPoint `MediaRegistry` `texture` type.
+The Composer has no local GUI-texture table and does not discover files itself.
+The generated `Media/Textures/GUI/GUITextureManifest.lua` registers supported
+`.png`, `.tga` and `.blp` files through the same registry resolver as other media.
+
+Compatibility IDs `parchment` and `blizzard` remain valid input and option IDs. They normalize to
+the registered canonical references `fp:texture:parchment` and
+`fp:texture:blizzard`; discovered folder assets use
+`fp:texture:<normalized-full-filename-stem>` and retain resolution suffixes.
+The registry stores the internal asset path; the public option DTO exposes only
+an ID and label. To add a GUI texture, place it in `Media/Textures/GUI` and run
+`python Tools/generate_gui_texture_manifest.py` before reloading the addon.
 ## Presentation and lifecycle ownership
 
 The existing target dispatchers select normal presentation or composition. Composer
