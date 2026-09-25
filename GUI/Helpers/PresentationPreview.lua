@@ -61,7 +61,7 @@ local catalog = {
     sidebar_unit_navigator_inset = { label = "Unit navigator inset", area = "Sidebar", baseline = NavigatorInsetBaseline },
 }
 
-local typographyOrder = { "sidebar_section_heading", "inspector_section_heading", "inspector_label", "sidebar_label" }
+local typographyOrder = { "sidebar_section_heading", "inspector_section_heading", "inspector_label", "sidebar_label", "sidebar_brand" }
 local typographyPropertyOrder = { "font", "size", "flags", "color", "alpha", "shadowEnabled" }
 local typographyFlags = {
     "",
@@ -86,6 +86,7 @@ local typographyPropertyCapabilities = {
     shadowEnabled = { type = "boolean" },
 }
 local typographyCatalog = {
+    sidebar_brand = { label = "Brand", area = "Sidebar" },
     inspector_label = { label = "Label", area = "Inspector", role = "label", size = 12 },
     sidebar_label = { label = "Label", area = "Sidebar", role = "label", size = 12 },
     sidebar_section_heading = {
@@ -146,6 +147,9 @@ end
 local function TypographyBaseline(target)
     local definition = typographyCatalog[target]
     if not definition then return nil, "unknown_target" end
+    if target == "sidebar_brand" then
+        return ns.GUI.Skins.GetBrandTypography()
+    end
 
     local textStyles = ns.GUI and ns.GUI.Helpers and ns.GUI.Helpers.TextStyles
     local style = textStyles and textStyles.Get and textStyles.Get(definition.role)

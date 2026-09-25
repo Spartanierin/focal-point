@@ -13,9 +13,11 @@ loadfile=function(path, ...)
     return originalLoadfile(path,...)
 end
 arg={"."}
-local tool,api,ui,setCombat=assert(load(source:sub(1,boundary-1) ..
-    "\nreturn tool, api, ui, function(value) combat=value end", "@DesignTool/Tests/Workbench.lua"))()
+local tool,api,ui,setCombat,product=assert(load(source:sub(1,boundary-1) ..
+    "\nreturn tool, api, ui, function(value) combat=value end, product", "@DesignTool/Tests/Workbench.lua"))()
 loadfile,arg=originalLoadfile,originalArg
+-- The older Tool fixture only stubs Skins; additive product targets use its real resolver.
+assert(loadfile("GUI/GUISkin.lua"))("FocalPoint",product)
 local function Equal(a,b)
     if a==b then return end
     if type(a)=="table" and type(b)=="table" then
@@ -23,7 +25,7 @@ local function Equal(a,b)
         for k in pairs(b) do assert(a[k]~=nil) end
     else assert(false,tostring(a).." ~= "..tostring(b)) end
 end
-Equal(#tool.typographyOrder,4)
+assert(tool.typographyTargets.inspector_label and tool.typographyTargets.sidebar_label)
 tool.SetMode("typography")
 assert(tool.WorkspaceInit()); assert(tool.WorkspaceNew("T3 contract test"))
 for _,area in ipairs({"Inspector","Sidebar"}) do

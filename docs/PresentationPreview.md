@@ -19,6 +19,21 @@ values; registered state/style refreshes synchronously reapply the presentation.
 DesignTool discovery and Workspace Schema 3 are unchanged. Verify with
 `lua54 Tests/TypographyLabels.lua` and `lua54 Tests/TypographyLabelConsumer.lua`.
 
+Brand B2 adds `sidebar_brand` (Area `Sidebar`, label `Brand`) with the same six
+typography properties. Its only consumer is the Sidebar identity FontString;
+the existing separate logo image, version, plaque and section headings are excluded.
+`fp:font:achtung-polizei` registers the existing product font in MediaRegistry and
+public font discovery. Reset resolves current GUISkin brand colors/title and the
+canonical 18-unit hero style, font, flags, alpha and shadow. Explicit RGB removes
+inline color markup; without RGB override, canonical two-color branding remains.
+FontString alpha is independent of logo alpha. A local, bounded title slot retains
+the original canonical row allocation: oversized typography may clip, never grow
+the Header or move Options. The legacy inline-logo string is used once solely to
+measure that allocation before binding, then replaced with the standalone image.
+No frame/font snapshots supply typography defaults. DesignTool and Schema 3 are
+unchanged. Tests: `Tests/NavigatorBrandTypography.lua` and
+`Tests/TypographyBrandConsumer.lua`; native visual clipping requires ingame acceptance.
+
 - `version = 1`; `GetCapabilities()` and `GetTargets()` return detached metadata.
 - `GetBaseline(target)` returns `{ color = { r, g, b }, alpha = a }` from current
   canonical FP contracts. Reads never inspect rendered regions.

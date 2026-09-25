@@ -433,6 +433,21 @@ function Skins.GetBrandTitle(defaultText)
     return focalColor .. "Focal " .. pointColor .. "Point|r"
 end
 
+-- Canonical identity typography, independent of section headings and live regions.
+function Skins.GetBrandTypography()
+    local elements = ns.GUI.Layouts and ns.GUI.Layouts.FormElements
+    local title = elements and elements.Items and elements.Items.label and elements.Items.label.page_title_hero
+    local color = Skins.GetBrandColor("titleFocal") or Skins.GetBrandColor("white") or {}
+    return {
+        font = "fp:font:achtung-polizei",
+        size = title and title.size or 18,
+        flags = "",
+        color = { color.r or 1, color.g or 1, color.b or 1 },
+        alpha = 1,
+        shadowEnabled = true,
+    }
+end
+
 function Skins.GetEditorButtonVisuals(fallback)
     local skin = Skins.GetActiveSkin()
     local visuals = skin and skin.editorButtonVisuals or nil

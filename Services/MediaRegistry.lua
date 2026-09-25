@@ -1257,6 +1257,13 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "arial-narrow", "Arial Narrow", "
     verified = true,
 })
 
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "achtung-polizei", "Achtung! Polizei",
+    "Interface\\AddOns\\FocalPoint\\Media\\Achtung! Polizei.otf", {
+        category = "FocalPoint",
+        sortName = "achtung polizei",
+        verified = true,
+    })
+
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "morpheus", "Morpheus", "Fonts\\MORPHEUS.ttf", {
     source = "Blizzard",
     provider = PROVIDER_FOCAL_POINT,

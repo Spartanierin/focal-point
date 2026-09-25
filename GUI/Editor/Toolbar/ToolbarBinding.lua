@@ -31,9 +31,9 @@ local INTERACTION_MODE_BUTTONS = {
     text = "textModeButton",
 }
 
-local BRAND_TITLE_FONT = "Interface\\AddOns\\FocalPoint\\Media\\Achtung! Polizei.otf"
 local BRAND_FALLBACK_FONT = "Fonts\\FRIZQT__.TTF"
 local BRAND_LOGO_PATH = "Interface\\AddOns\\FocalPoint\\Media\\icon.tga"
+local BRAND_TYPOGRAPHY_KEY = "fpSidebarBrandTypography"
 
 local function ResolveConstantPath(root, path)
     if type(root) ~= "table" or type(path) ~= "table" then
@@ -55,26 +55,98 @@ local function T(key, fallback, deps)
     return (type(key) == "string" and L[key]) or fallback or ""
 end
 
-local function ApplyBrandTitleFont(widget)
-    local fontString = widget and widget.label or nil
-    if not fontString or type(fontString.SetFont) ~= "function" then
-        return false
+local function ApplyBrandFont(label, descriptor)
+    local preview = ns.GUI.PresentationPreview
+    local font = preview.ResolveTypographyFont(descriptor.font) or BRAND_FALLBACK_FONT
+    label:SetFont(BRAND_FALLBACK_FONT, descriptor.size, descriptor.flags)
+    if not label:SetFont(font, descriptor.size, descriptor.flags) then
+        label:SetFont(BRAND_FALLBACK_FONT, descriptor.size, descriptor.flags)
     end
+end
 
-    local _, size, flags = fontString:GetFont()
-    size = size or 18
-    flags = flags or ""
+local function ArrangeBrandLine(widget, width)
+    local binding = widget:GetUserData(BRAND_TYPOGRAPHY_KEY)
+    if not binding then return end
+    width = width or widget.frame:GetWidth() or 0
+    local image, label = widget.image, widget.label
+    image:ClearAllPoints()
+    image:SetPoint("LEFT", widget.frame, "LEFT", 0, 0)
+    image:SetSize(24, 24)
+    label:ClearAllPoints()
+    label:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", 28, 0)
+    label:SetWidth(math.max(0, width - 28))
+    label:SetHeight(binding.rowHeight)
+    label:SetWordWrap(false)
+    if label.SetMaxLines then label:SetMaxLines(1) end
+    label:SetJustifyV("MIDDLE")
+    -- A bounded FontString and local clipping never contribute new text metrics
+    -- to the parent's Table layout, even at size 96 or with wide display fonts.
+    if widget.frame.SetClipsChildren then widget.frame:SetClipsChildren(true) end
+    widget.frame:SetHeight(binding.rowHeight)
+    widget.frame.height = binding.rowHeight
+end
 
-    -- Establish a known-good font before assigning the inline logo markup.
-    local fallbackApplied = fontString:SetFont(BRAND_FALLBACK_FONT, size, flags)
-    if fontString:SetFont(BRAND_TITLE_FONT, size, flags) then
-        return true
+local function ApplyBrandTypography(widget, canonicalOnly)
+    local binding = widget:GetUserData(BRAND_TYPOGRAPHY_KEY)
+    if not binding then return end
+    local preview = ns.GUI.PresentationPreview
+    local descriptor = preview.ResolveTypographyPresentation("sidebar_brand", canonicalOnly)
+    local overrides = not canonicalOnly and ns.Ace.PresentationPreview.GetTypographyOverrides("sidebar_brand") or {}
+    local title = ns.GUI.Skins.GetBrandTitle(binding.addonName)
+    if overrides.color then title = title:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
+    local textStyles = ns.GUI.Helpers.TextStyles
+    ApplyBrandFont(widget.label, descriptor)
+    textStyles.ApplyFontString(widget.label, "identity", {
+        size = descriptor.size, flags = descriptor.flags, alpha = 1, shadow = descriptor.shadowEnabled,
+    })
+    widget.label:SetTextColor(descriptor.color[1], descriptor.color[2], descriptor.color[3], 1)
+    -- Region alpha also affects canonical inline RGB markup, without touching image.
+    widget.label:SetAlpha(descriptor.alpha)
+    widget:SetText(title)
+    -- Logo has an independent canonical asset/tint/alpha path, never descriptor alpha.
+    widget.image:SetTexture(BRAND_LOGO_PATH)
+    widget.image:SetTexCoord(0, 1, 0, 1)
+    widget.image:SetVertexColor(1, 1, 1, 1)
+    widget.image:SetAlpha(1)
+    widget.image:Show()
+end
+
+local function BindBrandTypography(widget, addonName)
+    local preview = ns.GUI.PresentationPreview
+    local binding = widget:GetUserData(BRAND_TYPOGRAPHY_KEY)
+    if not binding then
+        local canonical = ns.GUI.Skins.GetBrandTypography()
+        ApplyBrandFont(widget.label, canonical)
+        -- Measure the pre-B2 canonical row ONCE, before any override. This keeps
+        -- its existing allocation, including native inline-image baseline metrics.
+        -- The inline markup is only the measurement input, not the bound title.
+        widget:SetText(string.format("|T%s:24:24:0:0|t  %s", BRAND_LOGO_PATH, ns.GUI.Skins.GetBrandTitle(addonName)))
+        binding = { rowHeight = widget.frame:GetHeight(), addonName = addonName,
+            setText = widget.SetText, onWidthSet = widget.OnWidthSet,
+            onRelease = widget.events and widget.events.OnRelease }
+        widget:SetUserData(BRAND_TYPOGRAPHY_KEY, binding)
+        widget.SetText = function(owner, text)
+            owner.label:SetText(text)
+            ArrangeBrandLine(owner)
+        end
+        widget.OnWidthSet = ArrangeBrandLine
+        widget:SetCallback("OnRelease", function(owner, event)
+            owner.SetText, owner.OnWidthSet = binding.setText, binding.onWidthSet
+            owner:SetUserData(BRAND_TYPOGRAPHY_KEY, nil)
+            owner.image:SetTexture(nil)
+            owner.image:SetAlpha(1)
+            owner.imageshown = nil
+            owner.label:SetHeight(0)
+            owner.label:SetWordWrap(true)
+            if owner.label.SetMaxLines then owner.label:SetMaxLines(0) end
+            owner.label:SetJustifyV("TOP")
+            if owner.frame.SetClipsChildren then owner.frame:SetClipsChildren(false) end
+            if binding.onRelease then binding.onRelease(owner, event) end
+        end)
+        preview.BindTypographyWidget(widget, { "sidebar_brand" }, ApplyBrandTypography)
     end
-
-    if fallbackApplied then
-        fontString:SetFont(BRAND_FALLBACK_FONT, size, flags)
-    end
-    return false
+    binding.addonName = addonName
+    ApplyBrandTypography(widget)
 end
 
 local ResolveEditorMode
@@ -818,11 +890,8 @@ local function RefreshWindowState(context, deps)
     local normalizedCurrent = options.currentPath or (nsRef.GUI and nsRef.GUI.selectedPath) or ResolveConstantPath(C, { "Nav", "EDITOR" })
 
     if context.widgets.brandLine then
-        local skins = nsRef.GUI and nsRef.GUI.Skins or nil
         local addonName = T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)
-        local brandTitle = skins and skins.GetBrandTitle and skins.GetBrandTitle(addonName) or addonName
-        ApplyBrandTitleFont(context.widgets.brandLine)
-        context.widgets.brandLine:SetText(string.format("|T%s:24:24:0:0|t  %s", BRAND_LOGO_PATH, brandTitle))
+        BindBrandTypography(context.widgets.brandLine, addonName)
     end
     if context.widgets.versionLine then
         local skins = nsRef.GUI and nsRef.GUI.Skins or nil
