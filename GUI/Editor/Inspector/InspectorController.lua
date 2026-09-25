@@ -28,9 +28,18 @@ local INDICATOR_META = Shared.INDICATOR_META or {}
 local AddSpacer = Shared.AddSpacer
 local CreateSection = Shared.CreateSection
 local BuildLocalizedList = Shared.BuildLocalizedList
-local AddCheckBox = Shared.AddCheckBox
-local AddSlider = Shared.AddSlider
-local AddDropdown = Shared.AddDropdown
+local function LabelledControl(create, slot, disabledRole)
+    return function(parent, caption, ...)
+        local widget = create(parent, caption, ...)
+        if type(caption) == "string" and caption ~= "" then
+            FormWidgets.BindLabelTypography(widget, slot, "inspector_label", disabledRole)
+        end
+        return widget
+    end
+end
+local AddCheckBox = LabelledControl(Shared.AddCheckBox, "text", true)
+local AddSlider = LabelledControl(Shared.AddSlider, "label", true)
+local AddDropdown = LabelledControl(Shared.AddDropdown, "label", false)
 
 local AddColorPicker = Shared.AddColorPicker
 local BuildTextList = Shared.BuildTextList
@@ -1806,6 +1815,7 @@ function InspectorController.Build(container, state, options)
             label:SetWidth(options.labelWidth or PROPERTY_LABEL_WIDTH)
         end
         row:AddChild(label)
+        FormWidgets.BindLabelTypography(label, "label", "inspector_label")
 
         local value = AceGUI:Create("SimpleGroup")
         value:SetFullWidth(true)
@@ -2160,7 +2170,7 @@ function InspectorController.Build(container, state, options)
                 return currentValue and (L["OPTION_ON"] or "On") or (L["OPTION_OFF"] or "Off")
             end
 
-            checkbox = AddCheckBox(valueGroup, ResolveValueLabel(value), value, function(newValue)
+            checkbox = Shared.AddCheckBox(valueGroup, ResolveValueLabel(value), value, function(newValue)
                 if checkbox and checkbox.SetLabel then
                     checkbox:SetLabel(ResolveValueLabel(newValue))
                 end
@@ -2207,7 +2217,7 @@ function InspectorController.Build(container, state, options)
             local function ResolveValueLabel(currentValue)
                 return currentValue and (L["OPTION_ON"] or "On") or (L["OPTION_OFF"] or "Off")
             end
-            toggle = AddCheckBox(valueGroup, ResolveValueLabel(toggleOptions.value), toggleOptions.value, function(newValue)
+            toggle = Shared.AddCheckBox(valueGroup, ResolveValueLabel(toggleOptions.value), toggleOptions.value, function(newValue)
                 if toggle and toggle.SetLabel then
                     toggle:SetLabel(ResolveValueLabel(newValue))
                 end

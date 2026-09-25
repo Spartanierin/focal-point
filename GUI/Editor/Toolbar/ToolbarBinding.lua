@@ -533,6 +533,9 @@ local function CreateItemWidget(props, deps)
         if StyleCheckBox then
             StyleCheckBox(checkbox, false)
         end
+        if props.id == "expertMode" then
+            ns.GUI.Helpers.FormWidgets.BindLabelTypography(checkbox, "text", "sidebar_label", true)
+        end
         return checkbox
     end
 

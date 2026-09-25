@@ -930,6 +930,62 @@ function FormWidgets.ApplyTextStyle(target, role, size, alpha)
     end
 end
 
+-- Semantic opt-in only: the style name "label" is also used by values/help.
+-- Context contains product semantics, never snapshots of a rendered FontString.
+local labelTypographyKey = "fpLabelTypography"
+function FormWidgets.ApplyLabelTypography(widget, canonicalOnly)
+    local binding = widget and widget.GetUserData and widget:GetUserData(labelTypographyKey)
+    if not binding then return end
+    local preview = ns.GUI.PresentationPreview
+    local descriptor = preview.ResolveTypographyPresentation(binding.target, canonicalOnly)
+    local textStyles = GetTextStyles()
+    local slot = widget[binding.slot]
+    if not descriptor or not textStyles or not slot then return end
+    local api = ns.Ace and ns.Ace.PresentationPreview
+    local overrides = not canonicalOnly and api and api.GetTypographyOverrides(binding.target) or {}
+    local skins = ns.GUI.Skins
+    local resolvedFont = preview.ResolveTypographyFont(descriptor.font)
+    local font = overrides.font and resolvedFont
+        or (skins and skins.GetDefaultFont and skins.GetDefaultFont(resolvedFont))
+        or resolvedFont or STANDARD_TEXT_FONT
+    local role = binding.disabledRole and binding.disabled and "disabled" or "label"
+    local color = overrides.color or textStyles.Get(role)
+    textStyles.ApplyFontString(slot, role, {
+        font = font, size = descriptor.size, flags = descriptor.flags,
+        alpha = descriptor.alpha, shadow = descriptor.shadowEnabled,
+    })
+    slot:SetTextColor(color[1] or color.r, color[2] or color.g, color[3] or color.b, descriptor.alpha)
+end
+
+function FormWidgets.BindLabelTypography(widget, slot, target, disabledRole)
+    local preview = ns.GUI.PresentationPreview
+    if not preview or not preview.BindTypographyWidget or not widget or not widget[slot]
+        or (target ~= "inspector_label" and target ~= "sidebar_label") then return end
+    local binding = widget:GetUserData(labelTypographyKey)
+    if not binding then
+        binding = { originalSetDisabled = widget.SetDisabled, onRelease = widget.events and widget.events.OnRelease }
+        widget:SetUserData(labelTypographyKey, binding)
+        if binding.originalSetDisabled then
+            binding.setDisabled = function(owner, disabled)
+                local result = binding.originalSetDisabled(owner, disabled)
+                binding.disabled = disabled == true
+                FormWidgets.ApplyLabelTypography(owner)
+                return result
+            end
+            widget.SetDisabled = binding.setDisabled
+        end
+        widget:SetCallback("OnRelease", function(owner, event)
+            if owner.SetDisabled == binding.setDisabled then owner.SetDisabled = binding.originalSetDisabled end
+            owner:SetUserData(labelTypographyKey, nil)
+            if binding.onRelease then binding.onRelease(owner, event) end
+        end)
+    end
+    binding.slot, binding.target = slot, target
+    binding.disabledRole, binding.disabled = disabledRole == true, widget.disabled == true
+    preview.BindTypographyWidget(widget, { target }, FormWidgets.ApplyLabelTypography)
+    FormWidgets.ApplyLabelTypography(widget)
+end
+
 function FormWidgets.ApplyTextPresentation(owner, presentation)
     if not owner then
         return nil
@@ -1331,6 +1387,7 @@ function FormWidgets.StyleDropdown(dropdown, variant, valueRole)
         SetTextureColor(buttonPushed, style.buttonPushed or style.buttonNormal or style.border or chromeColors.fieldBorder)
         SetTextureColor(buttonHighlight, style.buttonHighlight or style.buttonNormal or style.border or chromeColors.fieldBorder)
     end
+    FormWidgets.ApplyLabelTypography(dropdown)
 end
 
 local function ColorEditBoxRegions(target, color)
@@ -1399,6 +1456,9 @@ function FormWidgets.StyleCheckBox(checkbox, disabled)
     if textStyles and textStyles.ApplyInteractiveWidgetText then
         textStyles.ApplyInteractiveWidgetText(checkbox, "label", disabled and true or false, { size = 12 })
     end
+    local binding = checkbox.GetUserData and checkbox:GetUserData(labelTypographyKey)
+    if binding then binding.disabled = disabled == true end
+    FormWidgets.ApplyLabelTypography(checkbox)
 end
 
 function FormWidgets.ApplyWindowChrome(window, options)

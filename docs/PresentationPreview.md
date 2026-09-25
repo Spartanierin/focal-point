@@ -6,6 +6,19 @@ Call functions with a dot, not a colon. No external frame access is needed.
 
 ## Contract
 
+Typography T3 adds `inspector_label` (Area `Inspector`) and `sidebar_label`
+(Area `Sidebar`), both displayed as `Label`. They use the existing `font`, `size`,
+`flags`, `color`, `alpha`, `shadowEnabled` descriptor and capabilities unchanged.
+Inspector owners are the static left-hand PropertyRow labels and static checkbox,
+slider and dropdown captions. Sidebar currently binds the active `Expert Mode`
+caption. Binding is semantic and slot-specific, never global by TextStyle name.
+Headings, values (including On/Off and template names), tree/navigation/buttons,
+brand/identity, help/context/warnings, Anchor Points and native ColorPicker captions
+are excluded. Reset resolves current product/skin defaults rather than saved region
+values; registered state/style refreshes synchronously reapply the presentation.
+DesignTool discovery and Workspace Schema 3 are unchanged. Verify with
+`lua54 Tests/TypographyLabels.lua` and `lua54 Tests/TypographyLabelConsumer.lua`.
+
 - `version = 1`; `GetCapabilities()` and `GetTargets()` return detached metadata.
 - `GetBaseline(target)` returns `{ color = { r, g, b }, alpha = a }` from current
   canonical FP contracts. Reads never inspect rendered regions.

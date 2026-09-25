@@ -61,7 +61,7 @@ local catalog = {
     sidebar_unit_navigator_inset = { label = "Unit navigator inset", area = "Sidebar", baseline = NavigatorInsetBaseline },
 }
 
-local typographyOrder = { "sidebar_section_heading", "inspector_section_heading" }
+local typographyOrder = { "sidebar_section_heading", "inspector_section_heading", "inspector_label", "sidebar_label" }
 local typographyPropertyOrder = { "font", "size", "flags", "color", "alpha", "shadowEnabled" }
 local typographyFlags = {
     "",
@@ -86,6 +86,8 @@ local typographyPropertyCapabilities = {
     shadowEnabled = { type = "boolean" },
 }
 local typographyCatalog = {
+    inspector_label = { label = "Label", area = "Inspector", role = "label", size = 12 },
+    sidebar_label = { label = "Label", area = "Sidebar", role = "label", size = 12 },
     sidebar_section_heading = {
         label = "Sidebar section heading",
         area = "Sidebar",
@@ -126,8 +128,15 @@ local function TypographyPropertyList()
     return Copy(typographyPropertyOrder)
 end
 
-local function DefaultFontReference()
+local function DefaultFontReference(role)
     local registry = ns.MediaRegistry
+    if role == "label" and registry and registry.GetAvailable then
+        local skins = ns.GUI and ns.GUI.Skins
+        local font = skins and skins.GetDefaultFont and skins.GetDefaultFont(STANDARD_TEXT_FONT)
+        for _, entry in ipairs(registry.GetAvailable("font", { availableOnly = true }) or {}) do
+            if entry.available and entry.path == font then return entry.id end
+        end
+    end
     if registry and registry.GetDefault then
         return registry.GetDefault("font") or "fp:font:standard"
     end
@@ -150,7 +159,7 @@ local function TypographyBaseline(target)
     end
 
     return {
-        font = DefaultFontReference(),
+        font = DefaultFontReference(definition.role),
         size = definition.size,
         flags = "",
         color = color,
