@@ -16,6 +16,7 @@ local function ApplyInspectorShellComposition(owner, canonicalOnly)
     if not active and ApplySidebarChrome then
         ApplySidebarChrome(owner, "inspector_shell")
     end
+    FormWidgets.ApplyNavigatorBrassBorder(owner)
 end
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry
 
@@ -144,6 +145,7 @@ function EditorController.UpdateActiveInspectorGeometry()
     end
 
     ApplyInspectorGeometry(inspector, ComputeInspectorGeometry())
+    FormWidgets.ApplyNavigatorBrassBorder(inspector)
 end
 
 function EditorController.ReleaseInspector()
@@ -268,6 +270,7 @@ local function EnsureInspector()
 
         if ApplySidebarChrome then
             ApplySidebarChrome(inspector, "inspector_shell")
+            FormWidgets.BindNavigatorBrassWindow(inspector, "inspector_shell")
             local composition = ns.GUI.PresentationCompositionPreview
             if composition then
                 composition.Bind("inspector_shell", inspector, ApplyInspectorShellComposition)

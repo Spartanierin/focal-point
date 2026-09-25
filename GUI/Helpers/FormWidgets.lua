@@ -520,6 +520,116 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
     end
 end
 
+-- Shared border-only host. Modern chrome retains its title/portrait behavior;
+-- Navigator uses the same NineSlice engine without entering that broader path.
+local function ApplyWindowNineSlice(frame, key, layout)
+    local nineSlice = frame[key]
+    if not nineSlice then
+        nineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
+        nineSlice:SetAllPoints(frame)
+        frame[key] = nineSlice
+    end
+    nineSlice:EnableMouse(false)
+    if nineSlice.SetFrameLevel and frame.GetFrameLevel then
+        nineSlice:SetFrameLevel(frame:GetFrameLevel() + 3)
+    end
+    if type(layout) == "string" then
+        NineSliceUtil.ApplyLayoutByName(nineSlice, layout)
+    else
+        NineSliceUtil.ApplyLayout(nineSlice, layout)
+    end
+    return nineSlice
+end
+
+local navigatorTextureRoot = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\Window\\"
+local function SetupNavigatorBrassPiece(_, piece, setup, definition)
+    piece:SetTexture(navigatorTextureRoot .. definition.file,
+        setup.tileHorizontal and "REPEAT" or "CLAMP", setup.tileVertical and "REPEAT" or "CLAMP")
+    piece:SetSize(definition.width, definition.height)
+    piece:SetTexCoord(setup.mirrorHorizontal and 1 or 0, setup.mirrorHorizontal and 0 or 1,
+        setup.mirrorVertical and 1 or 0, setup.mirrorVertical and 0 or 1)
+    piece:SetHorizTile(setup.tileHorizontal == true)
+    piece:SetVertTile(setup.tileVertical == true)
+    piece:SetVertexColor(1, 1, 1, 1)
+    piece:SetBlendMode("BLEND")
+end
+local navigatorCorner = { file = "fp_navigator_brass_corner.tga", width = 56, height = 56, layer = "OVERLAY" }
+local navigatorHorizontal = { file = "fp_navigator_brass_horizontal.tga", width = 112, height = 56, layer = "OVERLAY" }
+local navigatorVertical = { file = "fp_navigator_brass_vertical.tga", width = 56, height = 112, layer = "OVERLAY" }
+local navigatorBrassLayout = {
+    setupPieceVisualsFunction = SetupNavigatorBrassPiece,
+    TopLeftCorner = navigatorCorner, TopRightCorner = navigatorCorner,
+    BottomLeftCorner = navigatorCorner, BottomRightCorner = navigatorCorner,
+    TopEdge = navigatorHorizontal, BottomEdge = navigatorHorizontal,
+    LeftEdge = navigatorVertical, RightEdge = navigatorVertical,
+    -- Deliberately no Center: material remains owned by shell composition.
+}
+local navigatorBorderColors = {
+    _fpSidebarPanelBorderTop = "panelBorder", _fpSidebarPanelBorderBottom = "panelBorder",
+    _fpSidebarPanelBorderLeft = "panelBorder", _fpSidebarPanelBorderRight = "panelBorder",
+    _fpSidebarPanelInnerTop = "panelInnerBorder", _fpSidebarPanelInnerBottom = "panelInnerBorder",
+    _fpSidebarPanelInnerLeft = "panelInnerBorder", _fpSidebarPanelInnerRight = "panelInnerBorder",
+    _fpSidebarPanelTopShade = "panelTopShade", _fpSidebarPanelBottomShade = "panelBottomShade",
+}
+
+function FormWidgets.ApplyNavigatorBrassBorder(window)
+    local frame = window and window.frame
+    local target = window and window._fpNavigatorBrassTarget
+    if not frame or not target then return false end
+    local enabled = window._fpNavigatorBrassEnabled
+    if enabled then
+        if not NineSliceUtil or not NineSliceUtil.ApplyLayout then return false end
+        ApplyWindowNineSlice(frame, "_fpNavigatorBrassNineSlice", navigatorBrassLayout):Show()
+    elseif frame._fpNavigatorBrassNineSlice then
+        frame._fpNavigatorBrassNineSlice:Hide()
+    end
+    local composition = ns.GUI.PresentationCompositionPreview
+    local composed = composition and composition.GetColorConflictReason(target) ~= nil
+    local colors = GetChromeColors()
+    for key, colorKey in pairs(navigatorBorderColors) do
+        local region = frame[key]
+        if region then
+            if enabled or composed then
+                region:Hide()
+            else
+                local color = colors[colorKey] or (colorKey == "panelInnerBorder" and colors.sectionBorder)
+                if color then region:SetColorTexture(unpack(color)) end
+                region:Show()
+            end
+        end
+    end
+    return true
+end
+
+-- Internal acceptance/reset entry point; no persisted style, new UI or queue.
+function FormWidgets.SetNavigatorBrassEnabled(window, enabled)
+    if InCombatLockdown and InCombatLockdown() then return false, "combat" end
+    if not window or not window._fpNavigatorBrassTarget then return false, "not_navigator_window" end
+    if type(enabled) ~= "boolean" then return false, "invalid_enabled" end
+    window._fpNavigatorBrassEnabled = enabled
+    return FormWidgets.ApplyNavigatorBrassBorder(window)
+end
+
+function FormWidgets.BindNavigatorBrassWindow(window, target)
+    if not window or not window.frame or (target ~= "sidebar_shell" and target ~= "inspector_shell") then return end
+    if not window:GetUserData("fpNavigatorBrass") then
+        local previousRelease = window.events and window.events.OnRelease
+        window:SetUserData("fpNavigatorBrass", true)
+        window:SetCallback("OnRelease", function(owner, event)
+            local composition = ns.GUI.PresentationCompositionPreview
+            if composition then composition.Release(owner._fpNavigatorBrassTarget, owner) end
+            owner._fpNavigatorBrassEnabled = false
+            FormWidgets.ApplyNavigatorBrassBorder(owner)
+            owner._fpNavigatorBrassTarget, owner._fpNavigatorBrassEnabled = nil, nil
+            owner._fpSidebarCompositionBound = nil
+            if previousRelease then previousRelease(owner, event) end
+        end)
+        window._fpNavigatorBrassEnabled = true
+    end
+    window._fpNavigatorBrassTarget = target
+    FormWidgets.ApplyNavigatorBrassBorder(window)
+end
+
 function FormWidgets.ApplyModernWindowChrome(window, options)
     local frame = window and window.frame
     if not frame then
@@ -624,19 +734,7 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
         }
     end
     if useNineSlice then
-        local nineSlice = frame._fpModernNineSlice
-        if not nineSlice then
-            nineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
-            nineSlice:SetAllPoints(frame)
-            nineSlice:EnableMouse(false)
-            frame._fpModernNineSlice = nineSlice
-        end
-
-        nineSlice:EnableMouse(false)
-        if nineSlice.SetFrameLevel and frame.GetFrameLevel then
-            nineSlice:SetFrameLevel(frame:GetFrameLevel() + 3)
-        end
-        NineSliceUtil.ApplyLayoutByName(nineSlice, nineSliceLayout)
+        local nineSlice = ApplyWindowNineSlice(frame, "_fpModernNineSlice", nineSliceLayout)
         if usePortrait then
             local portraitTexture = options.portraitTexture
             local portrait = EnsureModernWindowPortrait(frame, portraitTexture)
@@ -2288,6 +2386,7 @@ function FormWidgets.ApplySidebarChrome(window, previewTarget)
         end
         content._fpSidebarAccent:SetColorTexture(unpack(chromeColors.accent or {}))
     end
+    if window._fpNavigatorBrassTarget then FormWidgets.ApplyNavigatorBrassBorder(window) end
 end
 
 function FormWidgets.CreateActionButton(text, variant, width, fullWidth)

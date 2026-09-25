@@ -120,6 +120,7 @@ local function ApplyToolbarShellComposition(window, canonicalOnly)
     if not active and ApplySidebarChrome then
         ApplySidebarChrome(window, "sidebar_shell")
     end
+    FormWidgets.ApplyNavigatorBrassBorder(window)
     return active
 end
 
@@ -305,6 +306,7 @@ local function CreateWindow(state, options)
     if ApplySidebarChrome then
         ApplySidebarChrome(window, "sidebar_shell")
     end
+    FormWidgets.BindNavigatorBrassWindow(window, "sidebar_shell")
     EnsureToolbarShellCompositionBinding(window)
     ApplyToolbarWindowPresentation(window)
     PositionWindow(window)
