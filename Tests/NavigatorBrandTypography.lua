@@ -79,7 +79,7 @@ assert(api.SetTypographyPresentation(target,patch)); patch.color[1]=99
 equal(brand.label.font,{"Fonts\\MORPHEUS.ttf",96,"THICKOUTLINE"})
 equal(brand.label.lastSetTextColor,{.12,.34,.56,1}); equal(brand.label.lastSetAlpha,{.23})
 equal(brand.label.shadowOffset,{0,0}); equal(brand.label.shadowColor,{0,0,0,0})
-equal(brand.label:GetText(),"Focal Point"); Logo(brand); Isolated()
+equal(brand.label:GetText(),"FOCAL POINT"); Logo(brand); Isolated()
 local detached=api.GetTypographyPresentation(target); detached.color[1]=99
 equal(api.GetTypographyPresentation(target).color,{.12,.34,.56})
 for _,size in ipairs({6,18,48,96}) do

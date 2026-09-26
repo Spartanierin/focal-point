@@ -430,7 +430,7 @@ function Skins.GetBrandTitle(defaultText)
         return focalColor .. defaultText .. "|r"
     end
 
-    return focalColor .. "Focal " .. pointColor .. "Point|r"
+    return focalColor .. "FOCAL " .. pointColor .. "POINT|r"
 end
 
 -- Canonical identity typography, independent of section headings and live regions.

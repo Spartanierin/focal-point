@@ -1264,6 +1264,27 @@ MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "achtung-polizei", "Achtung! Poli
         verified = true,
     })
 
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "cinzel-decorative-black", "Cinzel Decorative Black",
+    "Interface\\AddOns\\FocalPoint\\Media\\CinzelDecorative-Black.ttf", {
+        category = "FocalPoint",
+        sortName = "cinzel decorative black",
+        verified = true,
+    })
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "cinzel-decorative-bold", "Cinzel Decorative Bold",
+    "Interface\\AddOns\\FocalPoint\\Media\\CinzelDecorative-Bold.ttf", {
+        category = "FocalPoint",
+        sortName = "cinzel decorative bold",
+        verified = true,
+    })
+
+MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "cinzel-decorative-regular", "Cinzel Decorative Regular",
+    "Interface\\AddOns\\FocalPoint\\Media\\CinzelDecorative-Regular.ttf", {
+        category = "FocalPoint",
+        sortName = "cinzel decorative regular",
+        verified = true,
+    })
+
 MediaRegistry.RegisterBuiltin(MEDIA_TYPE_FONT, "morpheus", "Morpheus", "Fonts\\MORPHEUS.ttf", {
     source = "Blizzard",
     provider = PROVIDER_FOCAL_POINT,
