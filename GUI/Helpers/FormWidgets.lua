@@ -1537,6 +1537,11 @@ function FormWidgets.StyleCheckBox(checkbox, disabled)
     end
 
     local itemColors = GetItemColors()
+    local presentation = GetCheckboxPresentation()
+
+    SetTextureColor(checkbox.checkbg, presentation.box)
+    SetTextureColor(checkbox.check, presentation.checkmark)
+    SetTextureColor(checkbox.highlight, presentation.highlight)
 
     if checkbox.text and checkbox.text.SetTextColor then
         local color = disabled and itemColors.checkboxDisabled or itemColors.checkbox

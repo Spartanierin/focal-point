@@ -8,19 +8,6 @@ local ToSafeNumberValue = Utils.ToSafeNumberValue
 local FormatDisplayNumber = Utils.FormatDisplayNumber
 local ResolveBlizzardAbbreviation = Utils.ResolveBlizzardAbbreviation
 
-local PLACEHOLDER_COLORS = {
-    barR = 0.24,
-    barG = 0.28,
-    barB = 0.34,
-    barA = 0.62,
-    disabledBarA = 0.18,
-    bgR = 0.08,
-    bgG = 0.10,
-    bgB = 0.13,
-    bgA = 0.30,
-    disabledBgA = 0.10,
-}
-
 local EXIT_TRACE_DETAIL_LIMIT = 20
 local EXIT_TRACE_RESULT_ORDER = {
     "present-after-handle",
@@ -49,7 +36,27 @@ function Demo.IsDebugEnabled()
 end
 
 function Demo.GetPlaceholderColors()
-    return PLACEHOLDER_COLORS
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local canvasPresentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or {}
+    local presentation = canvasPresentation.placeholder and canvasPresentation.placeholder.unitFrame or {}
+    local bar = presentation.bar or {}
+    local background = presentation.background or {}
+    local barColor = bar.color or {}
+    local backgroundColor = background.color or {}
+
+    -- Complete warm defaults also cover early calls and partial skin palettes.
+    return {
+        barR = barColor[1] or 0.29,
+        barG = barColor[2] or 0.25,
+        barB = barColor[3] or 0.19,
+        barA = bar.enabledAlpha or 0.62,
+        disabledBarA = bar.disabledAlpha or 0.18,
+        bgR = backgroundColor[1] or 0.045,
+        bgG = backgroundColor[2] or 0.039,
+        bgB = backgroundColor[3] or 0.034,
+        bgA = background.enabledAlpha or 0.30,
+        disabledBgA = background.disabledAlpha or 0.10,
+    }
 end
 
 local function ResolveDecisionAlpha(decision, fallback)

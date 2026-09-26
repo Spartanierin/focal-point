@@ -75,6 +75,12 @@ local function EnsurePlaceholder(groupFrame)
     local placeholder = CreateFrame("Frame", nil, groupFrame, "BackdropTemplate")
     placeholder:SetAllPoints(groupFrame)
     placeholder:EnableMouse(false)
+    local skins = FocalPoint.GUI and FocalPoint.GUI.Skins
+    local canvasPresentation = skins and skins.GetCanvasInteractionPresentation and skins.GetCanvasInteractionPresentation() or {}
+    local presentation = canvasPresentation.placeholder and canvasPresentation.placeholder.aura or {}
+    local fill = presentation.fill or { 0.045, 0.039, 0.034, 0.20 }
+    local border = presentation.border or { 0.29, 0.25, 0.19, 0.38 }
+    local text = presentation.text or { 0.70, 0.68, 0.62, 0.72 }
     if placeholder.SetBackdrop then
         placeholder:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -82,14 +88,14 @@ local function EnsurePlaceholder(groupFrame)
             edgeSize = 1,
             insets = { left = 0, right = 0, top = 0, bottom = 0 },
         })
-        placeholder:SetBackdropColor(0.06, 0.08, 0.10, 0.20)
-        placeholder:SetBackdropBorderColor(0.70, 0.76, 0.86, 0.38)
+        placeholder:SetBackdropColor(fill[1], fill[2], fill[3], fill[4])
+        placeholder:SetBackdropBorderColor(border[1], border[2], border[3], border[4])
     end
 
     local label = placeholder:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("CENTER", placeholder, "CENTER", 0, 0)
     label:SetJustifyH("CENTER")
-    label:SetTextColor(0.72, 0.78, 0.88, 0.72)
+    label:SetTextColor(text[1], text[2], text[3], text[4])
     label:SetShadowColor(0, 0, 0, 0.85)
     label:SetShadowOffset(1, -1)
     placeholder.Label = label

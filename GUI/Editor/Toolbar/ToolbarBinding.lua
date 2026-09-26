@@ -364,13 +364,11 @@ local function ResolveLabelRole(props)
         return "sectionHeader"
     end
     if variant == "group_title" then
-        return "groupTitle"
+        return "sectionHeader"
     end
-    if variant == "group_description" then
-        return "description"
-    end
-    if variant == "footer_hint_muted" then
-        return "muted"
+    if variant == "group_description" or variant == "footer_hint_muted"
+        or variant == "description" or variant == "muted" then
+        return "help"
     end
     if variant == "status_value" then
         return "value"

@@ -35,6 +35,9 @@ unchanged. Tests: `Tests/NavigatorBrandTypography.lua` and
 `Tests/TypographyBrandConsumer.lua`; native visual clipping requires ingame acceptance.
 
 - `version = 1`; `GetCapabilities()` and `GetTargets()` return detached metadata.
+  Targets additionally report `area` (`Sidebar` or `Inspector`). This additive
+  metadata/coverage extension retains API version 1, existing IDs, labels and
+  the `properties = { "color", "alpha" }` contract.
 - `GetBaseline(target)` returns `{ color = { r, g, b }, alpha = a }` from current
   canonical FP contracts. Reads never inspect rendered regions.
 - `GetOverrides(target?)` returns detached explicit overrides, or an empty table.
@@ -77,6 +80,43 @@ inside the product MediaRegistry contract.
 | `inspector_section_border` | Four shared-renderer section edges; Chrome sectionBorder |
 | `inspector_section_accent` | Shared-renderer section accent; Chrome sectionAccent |
 | `inspector_slider_thumb` | Inspector FPCompactSlider thumb; Navigator aged brass and CompactSlider thumb alpha |
+| `sidebar_unit_navigator_inset` | Sidebar UnitGrid fill; `SectionStyles.toolbar_explorer_inset.surface.fill` |
+
+Both `sidebar_*` targets belong to `Sidebar`; all five `inspector_*` targets
+belong to `Inspector`. The first six entries retain their original API order.
+
+## v0.2 surface baseline gate
+
+Compared with HEAD `bf6a744` before implementation:
+
+| Proposed target | Canonical descriptor / property | Gate |
+| --- | --- | --- |
+| `sidebar_brand_header_surface` | `page_header.surface.fill` | WIP-BLOCKED |
+| `sidebar_brand_header_border` | `page_header.border.color` | WIP-BLOCKED |
+| `sidebar_brand_header_accent` | `page_header.surface.accent.color` | WIP-BLOCKED |
+| `sidebar_workspace_section_surface` | `toolbar_workspace_panel.surface.fill` | WIP-BLOCKED |
+| `sidebar_workspace_section_border` | `toolbar_workspace_panel.border.color` | WIP-BLOCKED |
+| `sidebar_workspace_section_accent` | `toolbar_workspace_panel.surface.accent.color` | WIP-BLOCKED |
+| `sidebar_editing_section_surface` | `toolbar_editing_panel.surface.fill` | WIP-BLOCKED |
+| `sidebar_editing_section_border` | `toolbar_editing_panel.border.color` | WIP-BLOCKED |
+| `sidebar_editing_section_accent` | `toolbar_editing_panel.surface.accent.color` | WIP-BLOCKED |
+| `sidebar_utility_section_surface` | `toolbar_global_panel.surface.fill` | WIP-BLOCKED |
+| `sidebar_utility_section_border` | `toolbar_global_panel.border.color` | WIP-BLOCKED |
+| `sidebar_utility_section_accent` | `toolbar_global_panel.surface.accent.color` | WIP-BLOCKED |
+| `sidebar_unit_navigator_inset` | `toolbar_explorer_inset.surface.fill` | SAFE |
+
+All descriptors are in `GUI/Layouts/FormElementDefinition.lua`. Each blocked
+property differs between HEAD and the pre-existing unstaged WIP. Those twelve
+targets are deliberately absent from the API; no old-color copy or WIP-derived
+baseline was added. Consolidate these descriptors before expanding coverage.
+The inset descriptor is identical to HEAD, including its no-border contract.
+Utility remains one future family for Options + Tools, not two target families.
+
+The Sidebar builder binds only `groups.UnitGrid`, after normal layout creation.
+Its one complete target set is registered through `BindWidget`; its callback
+passes only an effective fill descriptor to the existing `ApplySectionColors`.
+Reset/release reads the current canonical source. No shades, border, item states,
+material, geometry or other consumers of the same style are changed.
 
 Shell header fills, shades, borders, local separator lines and collapse-toggle
 decorations are excluded. Section texture fallbacks are not preview targets.
@@ -109,11 +149,16 @@ The public font fixture covers built-in, available LSM and unavailable entries.
 The external DesignTool additionally tests structural/value sync separation and
 continuous callbacks; no live client performance result is claimed for this rescue.
 
+
 Automated test: `lua54 Tests/PresentationPreview.lua` (includes existing slider tests).
 Uses actual FP renderers and AceGUI pooling with simulated native regions. Checks
-cover validation/copies, six targets, current-baseline reset after a skin change,
-combat rejection, geometry isolation, 50 section/slider pooling cycles and 25
-collapse/expand cycles. Syntax, XML and whitespace checks also passed for Block 1.
+cover validation/copies, seven targets and their areas, current-baseline reset
+after a skin change, combat rejection, geometry isolation, 50 inset/section/slider
+pooling cycles and 25 collapse/expand cycles. The Sidebar builder wiring is exercised
+with simulated window/layout surroundings; inset rendering and pooling use the real
+renderer/AceGUI. Blocked targets remain unavailable; Options + Tools and Navigator
+item states remain untouched. Multiple Inspector targets coexist on one owner.
+Syntax, XML and whitespace checks also passed for Block 1.
 
 In-game color/alpha changes for all six targets, independent control and reset
 were reported PASS by the user. These results were obtained on the development
@@ -123,6 +168,14 @@ Full in-game lifecycle coverage is not claimed. Separate acceptance remains for
 setting before opening, repeated selection/rebuild, collapse/expand, enabled and
 disabled sliders, close/reopen, layout/profile changes, combat and reload. The
 production adapter exposes only the API; no diagnostic command is installed.
+
+For v0.2 acceptance: reload, open `/fpdesign`, choose Sidebar, and test Shell and
+Unit navigator inset independently. Inspector must retain all five old targets.
+Exercise RGB/alpha (including zero), area switching with an open picker, Reset
+Target, cross-area Reset All and Copy Values, 20-50 selection/refresh/collapse
+changes, close/reopen, combat and reload. Confirm that Options + Tools and the
+Navigator item states remain unchanged when editing the inset. The twelve blocked
+targets cannot be tested until their baseline gate is resolved and they are added.
 
 ## Navigator canonical design promotion
 

@@ -24,27 +24,12 @@ and explicit reset resolve current styles. `/reload` starts with the plaque enab
 
 ## Asset provenance and extraction
 
-Source: `Media/Textures/Window/fp_navigator_brand_Master_1942x809.png`, RGB PNG
-without alpha. SHA256:
-`861A0302D2AAF467508B6ECF796D2B8FF40B8B931E87E5CEFA635DF34D4035F8`.
-The checkerboard is baked into the source. The master is never written.
+The Plaque A runtime asset is release-bound. Its source master and one-shot builder are DEV-only and are archived outside the active release tree. The committed runtime file remains unchanged.
 
-`Tools/build_navigator_brand.ps1` invokes the narrow, package-free C# builder.
-Row and column envelopes of the dark outer outline are intersected to recover
-the silhouette. This method is specific to the pinned, orthogonally convex
-plaque; it is not global color-key transparency. Every enclosed pixel is retained
-regardless of brightness, including bright studs, rivets and bevels. The extracted
-bounds are x=23..1915, y=183..658 (inclusive). A 1920x480 canvas at (10,181) keeps
-the complete outline plus transparent padding. Exact area integration reduces
-both axes by 1.875 in premultiplied alpha; exterior checker RGB does not bleed
-into edge pixels. The output is a top-origin, uncompressed 32-bit TGA with
-power-of-two dimensions and eight alpha bits.
+The release contains only the generated Plaque A runtime asset; extraction and build tooling are not part of the runtime tree.
 
 ## Offline validation
 
-- `powershell -File Tools/build_navigator_brand.ps1` builds the runtime file.
-- Add `-Check` to compare rebuilt bytes against the existing runtime asset.
-- Optional `-PreviewPath <temporary PNG>` renders dark/light background inspection.
 - `lua54 Tests/NavigatorBrandPlaque.lua` covers the real Header form/table layout,
   renderer and Toolbar, native metric doubles, content/geometry invariance,
   proportional resize, canonical style changes, combat rejection, 25 reopen and
@@ -52,9 +37,7 @@ power-of-two dimensions and eight alpha bits.
 - Regressions: `Tests/NavigatorBrassWindow.lua`, `Tests/TypographyLabels.lua` and
   `Tests/TypographyLabelConsumer.lua`; Lua syntax and `git diff --check`.
 
-The asset build validates the master hash before/after, silhouette bounds/area,
-interior material and all four studs/both rivet rails, bright metal preservation,
-transparent perimeter, antialiased alpha and deterministic runtime bytes.
+The committed Plaque A runtime asset remains the sole productive brand texture.
 Native client layering and visual quality remain an ingame acceptance gate.
 
 ## Ingame acceptance

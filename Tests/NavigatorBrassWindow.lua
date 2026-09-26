@@ -159,7 +159,7 @@ for _, owner in ipairs({ sidebar, inspector }) do
     Equal(ok, false); Equal(reason, "combat"); assert(border:IsShown())
     combat = false
     local target = owner._fpNavigatorBrassTarget
-    local ok, layer = api.AddLayer(target, "texture", { textureId = "fp:texture:fp-mahagony-256x256", alpha = .6 })
+    local ok, layer = api.AddLayer(target, "texture", { textureId = "fp:texture:fp-mahagony-128x128", alpha = .6 })
     assert(ok, layer)
     local descriptor = api.GetComposition(target)
     assert(border:IsShown()); Borders(owner, false)

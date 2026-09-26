@@ -93,9 +93,9 @@ local function ScrollOffsetToSliderValue(offset, maxScroll)
     return ClampScrollOffset(offset, maxScroll)
 end
 
-local function StyleLabel(label, size)
+local function StyleLabel(label, size, role)
     if ApplyTextStyle then
-        ApplyTextStyle(label, "label", size, 1)
+        ApplyTextStyle(label, role or "label", size, 1)
     else
         label:SetFont(STANDARD_TEXT_FONT, size, "")
     end
@@ -122,7 +122,11 @@ local function Paint(row)
     elseif item.node.enabled == false then
         row.label:SetTextColor(unpack(presentation.text.disabled))
     else
-        row.label:SetTextColor(unpack(presentation.text.normal))
+        if ApplyTextStyle then
+            ApplyTextStyle(row.label, row.textRole or "label", nil, 1)
+        else
+            row.label:SetTextColor(unpack(presentation.text.normal))
+        end
     end
     if item.selected then
         SetIconColor(row.icon, row.iconTint or presentation.icon.fallback, presentation.icon.selectedBrightness, presentation.icon.selectedAlpha)
@@ -198,6 +202,7 @@ local function UnbindRow(row)
     row.icon:SetTexture(nil)
     row.icon:Hide()
     row.iconTint = nil
+    row.textRole = nil
     row.background:Hide()
 end
 
@@ -313,6 +318,7 @@ function methods:SetRows(items)
     for index, item in ipairs(items) do
         local row = self:AcquireRow(index)
         row.item = item
+        row.textRole = item.node.type == "unit" and "identity" or "label"
         row.hovered = false
         row.frame:ClearAllPoints()
         row.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, -(index - 1) * Control.ROW_HEIGHT)
@@ -330,7 +336,7 @@ function methods:SetRows(items)
         row.label:SetPoint("RIGHT", item.toggleable and row.toggle or row.frame,
             item.toggleable and "LEFT" or "RIGHT", -4, 0)
         row.label:SetText(item.label)
-        StyleLabel(row.label, item.node.type == "unit" and 12 or 11)
+        StyleLabel(row.label, item.node.type == "unit" and 12 or 11, row.textRole)
         BindRowScripts(self, row)
         row.frame:EnableMouse(true)
         row.disclosure:EnableMouse(item.expandable)

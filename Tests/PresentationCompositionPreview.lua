@@ -104,18 +104,16 @@ local function HasTextureOption(options, id)
     end
     return false
 end
-local opts = api.GetTextureOptions(); assert(#opts >= 9)
+local opts = api.GetTextureOptions(); assert(#opts >= 6)
 assert(HasTextureOption(opts, "parchment")); assert(HasTextureOption(opts, "blizzard"))
 assert(HasTextureOption(opts, "fp:texture:parchment")); assert(HasTextureOption(opts, "fp:texture:blizzard"))
-assert(HasTextureOption(opts, "fp:texture:fp-forged-metal-512x512"))
+assert(HasTextureOption(opts, "fp:texture:fp-forged-metal-128x128"))
 opts[1].id = "bad"; assert(HasTextureOption(api.GetTextureOptions(), "parchment"))
 local registryTextureIds = {}
 for _, entry in ipairs(ns.MediaRegistry.GetAvailable("texture", { availableOnly = true })) do
     registryTextureIds[entry.id] = entry
 end
-for _, id in ipairs({ "fp:texture:fp-forged-metal-128x128", "fp:texture:fp-forged-metal-256x256",
-    "fp:texture:fp-forged-metal-512x512", "fp:texture:fp-mahagony-128x128",
-    "fp:texture:fp-mahagony-256x256" }) do
+for _, id in ipairs({ "fp:texture:fp-forged-metal-128x128", "fp:texture:fp-mahagony-128x128" }) do
     assert(registryTextureIds[id] and registryTextureIds[id].path:find("Media\\Textures\\GUI\\", 1, true))
     assert(ns.MediaRegistry.IsAvailable(id, "texture"))
     local resolved = ns.MediaRegistry.ResolveReference(id, "texture")
@@ -167,9 +165,9 @@ Equal(slots[3].lastSetVertexColor, { 0.2, 0.3, 0.4, 1 }); Equal(slots[3].lastSet
 assert(slots[3]:GetTexture():find("BetterBlizzard", 1, true))
 Equal(api.GetComposition(target).layers[3].textureId, "fp:texture:blizzard")
 Equal(slots[3].lastSetTexture[2], "CLAMP"); Equal(slots[3].lastSetTexture[3], "CLAMP")
-local forgedTexture = Add("texture", { textureId = "fp:texture:fp-forged-metal-512x512" })
-assert(slots[4]:GetTexture():find("fp_forged_metal_512x512.png", 1, true))
-Equal(api.GetComposition(target).layers[4].textureId, "fp:texture:fp-forged-metal-512x512")
+local forgedTexture = Add("texture", { textureId = "fp:texture:fp-forged-metal-128x128" })
+assert(slots[4]:GetTexture():find("fp_forged_metal_128x128.png", 1, true))
+Equal(api.GetComposition(target).layers[4].textureId, "fp:texture:fp-forged-metal-128x128")
 for _, edge in ipairs({ "top", "bottom", "left", "right" }) do
     assert(api.UpdateLayer(target, line, "edge", edge))
     local r = slots[2]

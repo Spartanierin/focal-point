@@ -2,47 +2,9 @@
 
 Implementation is ready for ingame acceptance; no live rendering approval is implied.
 
-## Reproducible assets
+## Runtime assets
 
-Run from the repository root using Windows PowerShell and System.Drawing (no packages):
-
-```powershell
-& Tools/build_navigator_brass.ps1
-& Tools/build_navigator_brass.ps1 -Check
-& Tools/build_navigator_brass.ps1 -Check -PreviewPath "$env:TEMP/navigator-brass-proof.png"
-```
-
-`-Check` regenerates in memory and compares the complete TGA bytes without writing
-runtime assets. Optional preview output shows two widths, mirrored corners and
-partial tiles. The script checks all three source hashes and never writes masters.
-
-Sources in `Media/Textures/Window`:
-
-| Master | Dimensions | Role |
-| --- | --- | --- |
-| `fp_navigator_corner_Master_1254x1254.png` | 1254 x 1254 | Canonical geometry, brass, patina and bevel |
-| `fp_navigator_horz_Master_2172x724.png` | 2172 x 724 | Retained art reference; pixels not needed in final build |
-| `fp_navigator_vert_Master_887x1774.png` | 887 x 1774 | Retained art reference; pixels not needed in final build |
-
-The tuning keeps the canonical source map, but crops quiet corner arms at about
-source coordinate 920 and assigns the ornamental band 40/128 texels instead of
-16/64. Thus more of the runtime corner is artwork, not elongated quiet arms.
-The arms straighten toward an independently sized rail profile, with reduced
-outer padding. Corner size increases from 32 to 56 UI units; ornament-band depth
-increases from about 8 to 17.5 UI units only near the corners. Straight rails end
-about 10.5 UI units inside the bounds. Content insets remain unchanged.
-16 x 16 area samples per output texel use premultiplied alpha; source alpha below
-16 is discarded to remove stray matte. No image generation is involved.
-
-Both edges use the same canonical horizontal corner-arm cross-section, transposed
-for the vertical edge. Quiet material variation
-comes from up to 150 source pixels along the adjacent corner arm, with periodic
-sin-squared blending capped at 18%. The final eight corner texels feather into the
-same endpoint profile. Checks compare both tile endpoints and both corner joins
-exactly, verify H/V pixel equality after transposition, and require visible widths
-within 6-8 UI units at alpha thresholds 16 and 128.
-Arbitrary partial tiles retain the same alpha/profile with subtle RGB variation;
-the preview and ingame check assess their final corner transition.
+The one-shot asset builder and high-resolution source masters are DEV-only and are archived outside the active release tree. The generated runtime files below are the release-bound assets.
 
 Runtime outputs are uncompressed 32-bit BGRA TGA, top-left origin, eight alpha bits,
 power-of-two dimensions:

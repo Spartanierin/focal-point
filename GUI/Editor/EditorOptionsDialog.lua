@@ -7,6 +7,7 @@ local AceGUI = LibStub("AceGUI-3.0")
 local L = FocalPoint.L or {}
 local FormWidgets = FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.FormWidgets or {}
 local TextStyles = FocalPoint.GUI.Helpers and FocalPoint.GUI.Helpers.TextStyles or {}
+local Skins = FocalPoint.GUI.Skins or {}
 
 local OptionsDialog = {}
 FocalPoint.GUI.Editor.OptionsDialog = OptionsDialog
@@ -147,6 +148,48 @@ end
 local function StyleCheckBox(widget, disabled)
     if FormWidgets.StyleCheckBox then
         FormWidgets.StyleCheckBox(widget, disabled == true)
+    end
+
+    local palette = Skins.GetFormPalette and Skins.GetFormPalette() or {}
+    local retail = palette.Checkbox and palette.Checkbox.retail
+    if not retail or not widget or not widget.frame then
+        return
+    end
+
+    local frame = widget.frame
+    local checkbg = widget.checkbg
+    local check = widget.check
+    local highlight = widget.highlight
+    if not checkbg or not check or not highlight then
+        return
+    end
+
+    checkbg:SetAtlas(retail.normal)
+    checkbg:SetSize(24, 24)
+    check:SetAtlas(retail.checked)
+    highlight:SetAtlas(retail.highlight)
+    highlight:SetBlendMode("BLEND")
+
+    if widget.text then
+        local statusColor
+        if disabled then
+            statusColor = Skins.GetTextColor and Skins.GetTextColor("disabled")
+        elseif widget:GetValue() then
+            statusColor = Skins.GetBrandColor and Skins.GetBrandColor("orangeStrong")
+        else
+            statusColor = Skins.GetTextColor and Skins.GetTextColor("help")
+        end
+        statusColor = statusColor or { 1, 1, 1, 1 }
+        widget.text:ClearAllPoints()
+        widget.text:SetPoint("LEFT", checkbg, "RIGHT", 8, 0)
+        widget.text:SetPoint("RIGHT")
+        widget.text:SetJustifyH("LEFT")
+        widget.text:SetTextColor(
+            statusColor[1] or statusColor.r or 1,
+            statusColor[2] or statusColor.g or 1,
+            statusColor[3] or statusColor.b or 1,
+            statusColor[4] or statusColor.a or 1
+        )
     end
 end
 
