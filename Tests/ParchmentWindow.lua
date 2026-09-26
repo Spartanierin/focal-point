@@ -200,10 +200,12 @@ local openAddObject=Upvalue(ensureHost,"OpenAddObjectPicker")
 openAddObject()
 local add=createdDialogs[#createdDialogs].dialog
 Check(add); Equal(add.window.frame:GetWidth(),420)
-local addHeight=add.window.frame:GetHeight(); assert(addHeight>=193 and addHeight<=377)
+local addHeight=add.window.frame:GetHeight(); assert(addHeight>=193 and addHeight<=560)
 CheckContent(add,{Bars=true,Content=true})
-for _,child in ipairs(add.body.children) do assert(child.type~="ScrollFrame") end
+assert(add.body.children[3].type=="ScrollFrame")
+assert(add.cancelButton.parent==add.body.children[4])
 add.cancelButton:Fire("OnClick"); assert(not add.window.frame:IsShown())
+assert(add.released and #add.body.children==0)
 openAddObject(); local recreated=createdDialogs[#createdDialogs].dialog
 assert(recreated~=add); Check(recreated); Equal(recreated.window.frame:GetHeight(),addHeight)
 CheckContent(recreated,{Bars=true,Content=true})

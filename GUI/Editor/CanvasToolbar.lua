@@ -538,16 +538,12 @@ local ADD_OBJECT_ACTION_HEIGHT = 30
 local ADD_OBJECT_BOTTOM_PADDING = 6
 local COMPACT_WINDOW_CHROME_HEIGHT = 57
 
-local function CalculatePickerContentHeight(rowHeights, minHeight, maxHeight)
-    if FormWidgets and FormWidgets.CalculateCompactPickerContentHeight then
-        return FormWidgets.CalculateCompactPickerContentHeight(rowHeights, {
-            minHeight = minHeight,
-            maxHeight = maxHeight,
-        })
-    end
-    return minHeight
-end
-local function AddPickerHeader(dialog, label)
+local COMPACT_BODY_TOP_PADDING = 6
+local ADD_OBJECT_MIN_SELECTION_HEIGHT = 68 - COMPACT_BODY_TOP_PADDING
+local ADD_OBJECT_MAX_WINDOW_HEIGHT = 560
+local ADD_OBJECT_SCREEN_MARGIN = 16
+
+local function AddPickerHeader(container, label)
     local header = FormWidgets and FormWidgets.CreateSectionTitle and FormWidgets.CreateSectionTitle(label, 12) or AceGUI:Create("Label")
     header:SetText(label)
     if FormWidgets and FormWidgets.ApplyTextStyle and header.label then
@@ -555,10 +551,10 @@ local function AddPickerHeader(dialog, label)
     end
     header:SetFullWidth(true)
     header:SetHeight(PICKER_SECTION_HEIGHT)
-    dialog.body:AddChild(header)
+    container:AddChild(header)
 end
 
-local function AddPickerButton(dialog, label, callback)
+local function AddPickerButton(dialog, container, label, callback)
     local buttonWidth = (tonumber(dialog and dialog.contentWidth) or 340) - 18
     local button = FormWidgets and FormWidgets.CreateActionButton
         and FormWidgets.CreateActionButton(label, "secondary", buttonWidth, false)
@@ -574,7 +570,7 @@ local function AddPickerButton(dialog, label, callback)
         FormWidgets.ApplyModalActionButtonVisual(button, "secondary")
     end
     button.text:SetJustifyH("CENTER")
-    dialog.body:AddChild(button)
+    container:AddChild(button)
 end
 
 local function OpenTextTemplateLibrary()
@@ -600,56 +596,77 @@ local function OpenAddObjectPicker()
         return
     end
 
-    local pickerRows = {}
-    local function AddPickerRows(count, includeHeader)
-        if includeHeader then
-            table.insert(pickerRows, PICKER_SECTION_HEIGHT)
-        end
-        for _ = 1, count do
-            table.insert(pickerRows, PICKER_BUTTON_HEIGHT)
+    -- Materialize availability once. Rendering and its measured layout consume
+    -- this same ordered snapshot, including only nonempty categories.
+    local categories = {}
+    local function AddCategory(label, entries)
+        if #entries > 0 then
+            categories[#categories + 1] = { label = label, entries = entries }
         end
     end
-
-    local availableUnitFrames = 0
+    local entries = {}
     for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
-        if CanAddUnitFrame(item.unitKey) then availableUnitFrames = availableUnitFrames + 1 end
+        if CanAddUnitFrame(item.unitKey) then
+            entries[#entries + 1] = {
+                label = item.labelKey and T(item.labelKey, item.fallback) or ResolveUnitLabel(item.unitKey),
+                action = AddUnitFrame, args = { item.unitKey },
+            }
+        end
     end
-    AddPickerRows(availableUnitFrames, availableUnitFrames > 0)
+    AddCategory(T("ADD_OBJECT_CATEGORY_UNIT_FRAMES", "Unit Frames"), entries)
 
-    local availableBars = 0
+    entries = {}
     for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
-        if (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then availableBars = availableBars + 1 end
+        if (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
+            entries[#entries + 1] = {
+                label = T(item.labelKey, item.fallback),
+                action = AddSingletonComponent, args = { unitKey, "bar", item.componentKey },
+            }
+        end
     end
-    AddPickerRows(availableBars, availableBars > 0)
+    AddCategory(T("ADD_OBJECT_CATEGORY_BARS", "Bars"), entries)
 
     local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
     local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
-    local availableVisuals = 0
+    entries = {}
     for _, item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
-        if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then availableVisuals = availableVisuals + 1 end
+        if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then
+            entries[#entries + 1] = {
+                label = T(item.labelKey, item.fallback),
+                action = AddSingletonComponent, args = { unitKey, "indicator", item.componentKey },
+            }
+        end
     end
-    AddPickerRows(availableVisuals, availableVisuals > 0)
+    AddCategory(T("ADD_OBJECT_CATEGORY_VISUALS", "Visuals"), entries)
 
-    local availableAuras = 0
+    entries = {}
     for _, item in ipairs(ADD_OBJECT_AURA_CAPABILITIES) do
-        if not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then availableAuras = availableAuras + 1 end
+        if not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then
+            entries[#entries + 1] = {
+                label = T(item.labelKey, item.fallback),
+                action = AddSingletonComponent, args = { unitKey, "aura", item.componentKey },
+            }
+        end
     end
-    AddPickerRows(availableAuras, availableAuras > 0)
-    AddPickerRows(2, true) -- Content: Text and Decoration are always available.
+    AddCategory(T("EDITOR_SECTION_AURAS", "Auras"), entries)
+    AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), {
+        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = OpenTextTemplateLibrary, args = {} },
+        { label = T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), action = InsertDecoration, args = {} },
+    })
 
-    local pickerContentHeight = CalculatePickerContentHeight(pickerRows, 68, 252)
-    local windowHeight = COMPACT_WINDOW_CHROME_HEIGHT
-        + ADD_OBJECT_DESCRIPTION_HEIGHT
-        + ADD_OBJECT_DESCRIPTION_GAP
-        + pickerContentHeight
-        + ADD_OBJECT_ACTION_HEIGHT
-        + ADD_OBJECT_BOTTOM_PADDING
+    -- Window and UIParent share a scale. Reserve the fixed regions before
+    -- assigning the remaining screen/comfort budget to the selection viewport.
+    local maxWindowHeight = math.min(ADD_OBJECT_MAX_WINDOW_HEIGHT,
+        UIParent:GetHeight() - 2 * ADD_OBJECT_SCREEN_MARGIN)
+    local fixedHeight = COMPACT_WINDOW_CHROME_HEIGHT + COMPACT_BODY_TOP_PADDING
+        + ADD_OBJECT_DESCRIPTION_HEIGHT + ADD_OBJECT_DESCRIPTION_GAP
+        + ADD_OBJECT_ACTION_HEIGHT + ADD_OBJECT_BOTTOM_PADDING
 
     CloseAddObjectPickerDialog()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("ADD_OBJECT_TITLE", "Add Object"),
         width = 420,
-        height = windowHeight,
+        height = maxWindowHeight,
         bodyLayout = "List",
         addBodySpacer = false,
         contentRoot = true,
@@ -674,61 +691,33 @@ local function OpenAddObjectPicker()
     descriptionGap:SetHeight(ADD_OBJECT_DESCRIPTION_GAP)
     dialog.body:AddChild(descriptionGap)
 
-    local hasUnitsHeader = false
-    for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
-        if CanAddUnitFrame(item.unitKey) then
-            if not hasUnitsHeader then
-                AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_UNIT_FRAMES", "Unit Frames"))
-                hasUnitsHeader = true
-            end
-            AddPickerButton(dialog, item.labelKey and T(item.labelKey, item.fallback) or ResolveUnitLabel(item.unitKey), function()
-                AddUnitFrame(item.unitKey)
+    -- Label height can change after width assignment (e.g. translated text).
+    fixedHeight = fixedHeight + math.max(0,
+        math.ceil(description.frame:GetHeight()) - ADD_OBJECT_DESCRIPTION_HEIGHT)
+    local maxSelectionHeight = math.max(1, maxWindowHeight - fixedHeight)
+    local selectionScroll = AceGUI:Create("ScrollFrame")
+    selectionScroll:SetLayout("List")
+    selectionScroll:SetFullWidth(true)
+    selectionScroll:SetHeight(maxSelectionHeight)
+    dialog.body:AddChild(selectionScroll)
+    selectionScroll:PauseLayout()
+    for _, category in ipairs(categories) do
+        AddPickerHeader(selectionScroll, category.label)
+        for _, entry in ipairs(category.entries) do
+            AddPickerButton(dialog, selectionScroll, entry.label, function()
+                entry.action(unpack(entry.args))
             end)
         end
     end
-
-    local hasBarsHeader = false
-    for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
-        if (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
-            if not hasBarsHeader then
-                AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_BARS", "Bars"))
-                hasBarsHeader = true
-            end
-            AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
-                AddSingletonComponent(unitKey, "bar", item.componentKey)
-            end)
-        end
-    end
-
-    local hasVisualsHeader = false
-    for _, item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
-        if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then
-            if not hasVisualsHeader then
-                AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_VISUALS", "Visuals"))
-                hasVisualsHeader = true
-            end
-            AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
-                AddSingletonComponent(unitKey, "indicator", item.componentKey)
-            end)
-        end
-    end
-
-    local hasAurasHeader = false
-    for _, item in ipairs(ADD_OBJECT_AURA_CAPABILITIES) do
-        if not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then
-            if not hasAurasHeader then
-                AddPickerHeader(dialog, T("EDITOR_SECTION_AURAS", "Auras"))
-                hasAurasHeader = true
-            end
-            AddPickerButton(dialog, T(item.labelKey, item.fallback), function()
-                AddSingletonComponent(unitKey, "aura", item.componentKey)
-            end)
-        end
-    end
-
-    AddPickerHeader(dialog, T("ADD_OBJECT_CATEGORY_CONTENT", "Content"))
-    AddPickerButton(dialog, T("ADD_OBJECT_TEXT_BUTTON", "Text"), OpenTextTemplateLibrary)
-    AddPickerButton(dialog, T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), InsertDecoration)
+    selectionScroll:ResumeLayout()
+    selectionScroll:DoLayout()
+    -- ScrollFrame's existing List/LayoutFinished contract measures the actual
+    -- rendered widgets and handles the narrower content when its bar is shown.
+    local selectionNeed = math.max(ADD_OBJECT_MIN_SELECTION_HEIGHT,
+        math.ceil(selectionScroll.content:GetHeight()))
+    local selectionHeight = math.min(selectionNeed, maxSelectionHeight)
+    selectionScroll:SetHeight(selectionHeight)
+    dialog.window:SetHeight(fixedHeight + selectionHeight)
 
     local actionContainer = AceGUI:Create("SimpleGroup")
     actionContainer:SetLayout("Flow")
@@ -755,12 +744,21 @@ local function OpenAddObjectPicker()
     bottomPadding:SetHeight(ADD_OBJECT_BOTTOM_PADDING)
     dialog.body:AddChild(bottomPadding)
     dialog.window:SetCallback("OnClose", function()
+        if dialog.released then return end
+        dialog.released = true
         if addObjectPickerDialog == dialog then
             addObjectPickerDialog = nil
         end
+        -- The factory owns recursive shell/child cleanup. Do not release the
+        -- shell separately; all close paths converge here, including X/Escape.
+        AceGUI:Release(dialog.window)
     end)
     addObjectPickerDialog = dialog
     dialog:Show()
+    dialog.body:DoLayout()
+    selectionScroll:FixScroll()
+    selectionScroll.scrollbar:SetValue(0)
+    selectionScroll:SetScroll(0)
 end
 
 local function ResolveCreateLayoutStatus(reason)
