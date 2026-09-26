@@ -60,6 +60,34 @@ Load("GUI/Layouts/FormElementDefinition.lua")
 for _,file in ipairs({"AceGUIContainer-Window","AceGUIContainer-ScrollFrame","AceGUIWidget-Label",
     "AceGUIWidget-Button","AceGUIWidget-CheckBox"}) do Load("Libraries/Ace3/AceGUI-3.0/widgets/"..file..".lua") end
 local widgets=ns.GUI.Helpers.FormWidgets
+local function CheckContent(dialog, headings)
+    local description=dialog.body.children[1].label
+    Equal(description.lastSetTextColor,{0.70,0.68,0.62,1})
+    Equal(description.font,{STANDARD_TEXT_FONT,11,""})
+    Equal(description.lastSetShadowOffset,{1,-1})
+    local found={}
+    local function Visit(widget)
+        if widget.label and headings[widget.label:GetText()] then
+            found[widget.label:GetText()]=true
+            Equal(widget.label.lastSetTextColor,{0.910,0.757,0.400,1})
+            Equal(widget.label.font,{STANDARD_TEXT_FONT,12,""})
+            Equal(widget.label.lastSetShadowOffset,{1,-1})
+        end
+        for _,child in ipairs(widget.children or {}) do Visit(child) end
+    end
+    Visit(dialog.body)
+    Equal(found,headings)
+end
+local skin=ns.GUI.Skins.GetActiveSkin()
+local styles=ns.GUI.Helpers.TextStyles
+for _,role in ipairs({"parchmentSectionHeader","parchmentSecondary"}) do
+    Equal(styles.TextColors[role],skin.textColors[role])
+end
+Equal({skin.textColors.parchmentSecondary.r,skin.textColors.parchmentSecondary.g,
+    skin.textColors.parchmentSecondary.b,1},skin.visual.TextSecondary)
+Equal(skin.textColors.parchmentSectionHeader,skin.textColors.sectionHeader)
+Equal(skin.textColors.help,{hex="B8AD95",wow="|cffB8AD95",r=0.722,g=0.678,b=0.584})
+Equal(skin.textColors.parchmentMuted,{hex="7A613D",wow="|cff7A613D",r=0.48,g=0.38,b=0.24})
 local function Points(region)
     local result={}; for p,v in pairs(region.points) do result[p]={v.relative,v.relativePoint,v.x,v.y} end; return result
 end
@@ -158,10 +186,11 @@ Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
 ns.GUI.Editor.LayoutManager.Open()
 local manager=createdDialogs[#createdDialogs].dialog
 Check(manager); Equal({manager.window.frame:GetWidth(),manager.window.frame:GetHeight()},{560,521})
-Equal(manager.body.children[1].label.lastSetTextColor,{0.40,0.30,0.17,1})
+CheckContent(manager,{["My Layouts"]=true,["Built-in Layouts"]=true})
 local managerGeometry=Geometry(manager.window)
 ns.GUI.Editor.LayoutManager.Close(); ns.GUI.Editor.LayoutManager.Open()
 Equal(Geometry(manager.window),managerGeometry); Check(manager)
+CheckContent(manager,{["My Layouts"]=true,["Built-in Layouts"]=true})
 -- The real Add Object entry point is a closure of the actual toolbar builder.
 ns.GUI.Editor.State={GetPrimaryUnit=function() return "player" end}
 ns.UnitFrameUtils={GetUnitDB=function() return {present=true} end}
@@ -172,11 +201,12 @@ openAddObject()
 local add=createdDialogs[#createdDialogs].dialog
 Check(add); Equal(add.window.frame:GetWidth(),420)
 local addHeight=add.window.frame:GetHeight(); assert(addHeight>=193 and addHeight<=377)
-Equal(add.body.children[1].label.lastSetTextColor,{0.40,0.30,0.17,1})
+CheckContent(add,{Bars=true,Content=true})
 for _,child in ipairs(add.body.children) do assert(child.type~="ScrollFrame") end
 add.cancelButton:Fire("OnClick"); assert(not add.window.frame:IsShown())
 openAddObject(); local recreated=createdDialogs[#createdDialogs].dialog
 assert(recreated~=add); Check(recreated); Equal(recreated.window.frame:GetHeight(),addHeight)
+CheckContent(recreated,{Bars=true,Content=true})
 -- Actual Options and Confirmation consumers keep the standard color chrome.
 Load("GUI/Editor/EditorOptionsDialog.lua")
 ns.GUI.Editor.OptionsDialog.Open()

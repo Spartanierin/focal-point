@@ -149,18 +149,20 @@ Skins.Builtin.default = Skins.Builtin.default or {
             b = 1.000,
         },
         parchmentSectionHeader = {
-            hex = "573B1F",
-            wow = "|cff573B1F",
-            r = 0.34,
-            g = 0.23,
-            b = 0.12,
+            -- Same canonical gold as sectionHeader / visual.BrandGold.
+            hex = "E8C166",
+            wow = "|cffE8C166",
+            r = 0.910,
+            g = 0.757,
+            b = 0.400,
         },
         parchmentSecondary = {
-            hex = "664D2B",
-            wow = "|cff664D2B",
-            r = 0.40,
-            g = 0.30,
-            b = 0.17,
+            -- Same warm secondary family as visual.TextSecondary.
+            hex = "B3AD9E",
+            wow = "|cffB3AD9E",
+            r = 0.70,
+            g = 0.68,
+            b = 0.62,
         },
         parchmentMuted = {
             hex = "7A613D",
