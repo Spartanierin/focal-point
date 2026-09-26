@@ -222,8 +222,13 @@ local function EnableEscapeClose(window)
 end
 
 local function AddField(container, labelText, valueText)
-    container:AddChild(CreateLabel(labelText, "help", 10, 96))
-    container:AddChild(CreateLabel(valueText ~= "" and valueText or "-", "label", 11, 245))
+    local field = AceGUI:Create("SimpleGroup")
+    field:SetLayout("List")
+    field:SetWidth(container.frame:GetWidth())
+    field:SetFullWidth(true)
+    field:AddChild(CreateLabel(labelText, "help", 10))
+    field:AddChild(CreateLabel(valueText ~= "" and valueText or "-", "label", 11))
+    container:AddChild(field)
 end
 
 local function RefreshDetails(context)
@@ -236,17 +241,24 @@ local function RefreshDetails(context)
     details:ReleaseChildren()
     details:AddChild(CreateSpacer(nil, 10))
     details:AddChild(CreateSpacer(14, 1))
+    local fields = AceGUI:Create("SimpleGroup")
+    fields:SetLayout("Table")
+    fields:SetUserData("table", { columns = { 1 }, spaceV = 8, align = "TOPLEFT" })
+    fields:SetWidth(352) -- 380-wide detail surface, with 14 on either side.
+    fields:SetFullWidth(false)
+    details:AddChild(fields)
 
     local item = context.state and context.state.selectedEntry or nil
     if not item then
-        details:AddChild(CreateLabel(T("INFO_TAG_LIBRARY_NO_SELECTION", "No tag selected."), "help", 11))
-        return
+        fields:AddChild(CreateLabel(T("INFO_TAG_LIBRARY_NO_SELECTION", "No tag selected."), "help", 11))
+    else
+        AddField(fields, T("INFO_TAG_LIBRARY_COL_TAG", "Tag"), item.token)
+        AddField(fields, T("INFO_TAG_LIBRARY_CATEGORY", "Category"), item.category)
+        AddField(fields, T("INFO_TAG_LIBRARY_COL_DESC", "Description"), item.description)
+        AddField(fields, T("INFO_TAG_LIBRARY_COL_EXAMPLE", "Example"), item.example)
     end
-
-    AddField(details, T("INFO_TAG_LIBRARY_COL_TAG", "Tag"), item.token)
-    AddField(details, T("INFO_TAG_LIBRARY_CATEGORY", "Category"), item.category)
-    AddField(details, T("INFO_TAG_LIBRARY_COL_DESC", "Description"), item.description)
-    AddField(details, T("INFO_TAG_LIBRARY_COL_EXAMPLE", "Example"), item.example)
+    details:DoLayout()
+    widgets.root:DoLayout()
 end
 
 local function BindSelectionRow(row, context, item)
@@ -357,7 +369,7 @@ function TagLibraryView.Create(context)
     root:SetFullHeight(true)
     window:AddChild(root)
 
-    local subtitle = CreateLabel(context.state.subtitle or "", "sectionHeader", 13)
+    local subtitle = CreateLabel(context.state.subtitle or "", "help", 11)
     root:AddChild(subtitle)
 
     local content = AceGUI:Create("SimpleGroup")
@@ -405,7 +417,7 @@ function TagLibraryView.Create(context)
     details:SetLayout("Flow")
     details:SetFullWidth(false)
     details:SetWidth(380)
-    details:SetHeight(402)
+    details:SetAutoAdjustHeight(true) -- Four fields grow with their actual text.
     content:AddChild(details)
     ApplySectionChrome(details, "Details", {
         fill = { 0.052, 0.059, 0.074, 0.70 },

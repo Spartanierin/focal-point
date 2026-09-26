@@ -140,10 +140,6 @@ local function EnableEscapeClose(window)
     end
 end
 
-local function FormatBool(value)
-    return value and T("MEDIA_LIBRARY_VALUE_YES", "Yes") or T("MEDIA_LIBRARY_VALUE_NO", "No")
-end
-
 local function GetSourceLabel(source)
     local key = SOURCE_LABEL_KEYS[source]
     return (key and T(key)) or tostring(source or "")
@@ -574,22 +570,46 @@ end
 local function RefreshMetadata(context)
     local widgets = context and context.widgets or {}
     local item = context and context.state and context.state.selectedItem or nil
-    local mediaType = context and context.state and context.state.mediaType
-    local hasPreview = mediaType == STATUSBAR or mediaType == FONT or mediaType == DECORATION
+    -- currentValue/currentItem remain the saved-value context. Derive result
+    -- membership from the existing browser selection; do not store a second one.
+    local inResults = false
+    for _, result in ipairs(context.state.items or {}) do
+        if item and result.value == item.value then inResults = true; break end
+    end
+    local canApply = item and item.selectable ~= false
+    local selectionHelp
+    if not item then
+        selectionHelp = T("MEDIA_LIBRARY_SELECTION_PROMPT", "Select a result to apply.")
+    elseif not canApply then
+        selectionHelp = inResults
+            and T("MEDIA_LIBRARY_SELECTION_UNAVAILABLE", "This selection cannot be applied.")
+            or T("MEDIA_LIBRARY_SELECTION_RETAINED_UNAVAILABLE", "Selection outside the results; Apply is unavailable.")
+    elseif not inResults then
+        selectionHelp = T("MEDIA_LIBRARY_SELECTION_RETAINED", "Selection outside the results; Apply uses the selection shown here.")
+    else
+        selectionHelp = T("MEDIA_LIBRARY_SELECTION_VISIBLE", "Apply uses the selected result.")
+    end
+    SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"),
+        item and Shorten(item.name or item.label, 72) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
+    widgets.selectionHelp:SetText(selectionHelp)
 
-    SetMetaLabel(widgets.selectedLabel, T("MEDIA_LIBRARY_SELECTED", "Selected"), item and Shorten(item.label, 86) or T("MEDIA_LIBRARY_STATUS_NONE", "No media selected"))
-    SetMetaLabel(widgets.nameLabel, T("MEDIA_LIBRARY_NAME", "Name"), item and Shorten(item.name, 44) or "n/a")
-    SetMetaLabel(widgets.sourceLabel, T("MEDIA_LIBRARY_SOURCE", "Source"), item and GetSourceLabel(item.source) or "n/a")
-    SetMetaLabel(widgets.providerLabel, T("MEDIA_LIBRARY_PROVIDER", "Provider"), item and item.provider or "n/a")
-    SetMetaLabel(widgets.valueLabel, T("MEDIA_LIBRARY_VALUE", "Value"), item and Shorten(item.value, 92) or "n/a")
-    SetMetaLabel(widgets.availableLabel, T("MEDIA_LIBRARY_AVAILABLE", "Available"), item and FormatBool(item.available == true) or "n/a")
-    SetMetaLabel(widgets.currentLabel, T("MEDIA_LIBRARY_CURRENT", "Current"), item and FormatBool(item.current == true) or "n/a")
-    SetMetaLabel(widgets.legacyLabel, T("MEDIA_LIBRARY_LEGACY", "Legacy"), item and FormatBool(item.legacy == true) or "n/a")
-    SetMetaLabel(widgets.missingLabel, T("MEDIA_LIBRARY_MISSING", "Missing"), item and FormatBool(item.missing == true) or "n/a")
-    SetMetaLabel(widgets.statusLabel, T("MEDIA_LIBRARY_STATUS", "Status"), item and BuildStatusText(item) or "n/a")
-    SetMetaLabel(widgets.previewStatusLabel, T("MEDIA_LIBRARY_PREVIEW_STATUS", "Preview Status"), hasPreview and BuildStatusText(item) or "n/a")
-    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), hasPreview and item and Shorten(item.resolvedAsset, 92) or "n/a")
-    SetMetaLabel(widgets.fallbackUsedLabel, T("MEDIA_LIBRARY_FALLBACK_USED", "Fallback Used"), hasPreview and item and FormatBool(item.missing == true or item.available ~= true or not item.resolvedAsset) or "n/a")
+    local source = item and GetSourceLabel(item.source) or "-"
+    if item and item.provider and item.provider ~= "" then
+        source = source .. " / " .. T("MEDIA_LIBRARY_PROVIDER", "Provider") .. ": " .. Shorten(item.provider, 40)
+    end
+    SetMetaLabel(widgets.sourceLabel, T("MEDIA_LIBRARY_SOURCE", "Source"), source)
+    local status = { BuildStatusText(item) }
+    if item then
+        if item.legacy and item.missing then status[#status + 1] = T("MEDIA_LIBRARY_STATUS_LEGACY", "Legacy") end
+        if item.legacy and item.available and not item.missing then status[#status + 1] = T("MEDIA_LIBRARY_STATUS_AVAILABLE", "Available") end
+        if item.current then status[#status + 1] = T("MEDIA_LIBRARY_CURRENT", "Current") end
+        if item.missing or item.available ~= true or not item.resolvedAsset then
+            status[#status + 1] = T("MEDIA_LIBRARY_FALLBACK_PREVIEW", "Fallback preview")
+        end
+    end
+    SetMetaLabel(widgets.statusLabel, T("MEDIA_LIBRARY_STATUS", "Status"), table.concat(status, " / "))
+    SetMetaLabel(widgets.valueLabel, T("MEDIA_LIBRARY_VALUE", "Value"), item and Shorten(item.value, 76) or "-")
+    SetMetaLabel(widgets.resolvedAssetLabel, T("MEDIA_LIBRARY_RESOLVED_ASSET", "Resolved Asset"), item and Shorten(item.resolvedAsset, 76) or "-")
 
     if widgets.metadata and widgets.metadata.DoLayout then
         widgets.metadata:DoLayout()
@@ -715,7 +735,7 @@ function MediaLibraryView.Create(context)
     root:AddChild(titleRow)
 
     titleRow:AddChild(CreateSpacer(12))
-    local title = CreateLabel(context.state.subtitle or "", "sectionHeader", 13, 650)
+    local title = CreateLabel(context.state.subtitle or "", "help", 11, 650)
     titleRow:AddChild(title)
 
     local filterRow = AceGUI:Create("SimpleGroup")
@@ -763,46 +783,25 @@ function MediaLibraryView.Create(context)
     ApplyCentralSectionChrome(preview)
 
     local metadata = AceGUI:Create("SimpleGroup")
-    metadata:SetLayout("Flow")
+    metadata:SetLayout("List")
     metadata:SetFullWidth(true)
-    LockContainerHeight(metadata, 104)
+    -- Root Flow: 24 + 52 + 270 + 112 + 86 + 38 + 6*3 = 600 <= 603.
+    LockContainerHeight(metadata, 86)
     root:AddChild(metadata)
     ApplyCentralSectionChrome(metadata)
 
-    metadata:AddChild(CreateSpacer(nil, 6))
-    metadata:AddChild(CreateSpacer(12, 1))
-
-    local primaryWidth = 330
-    local secondaryWidth = 310
+    -- Identity/action context first, availability second, diagnostics last.
+    -- Name is the selected identity; provider shares Source. Current/legacy/
+    -- missing/fallback are one status line, not competing boolean fields.
     local labels = {
         selectedLabel = CreateLabel("", "highlight", 11),
-        nameLabel = CreateLabel("", "label", 10, primaryWidth),
-        sourceLabel = CreateLabel("", "label", 10, secondaryWidth),
-        statusLabel = CreateLabel("", "help", 10, primaryWidth),
-        providerLabel = CreateLabel("", "help", 10, secondaryWidth),
-        currentLabel = CreateLabel("", "help", 10, primaryWidth),
-        legacyLabel = CreateLabel("", "help", 10, 150),
-        missingLabel = CreateLabel("", "help", 10, 160),
+        selectionHelp = CreateLabel("", "help", 10),
+        sourceLabel = CreateLabel("", "label", 10),
+        statusLabel = CreateLabel("", "help", 10),
         valueLabel = CreateLabel("", "help", 9),
-        previewStatusLabel = CreateLabel("", "help", 9, primaryWidth),
         resolvedAssetLabel = CreateLabel("", "help", 9),
-        fallbackUsedLabel = CreateLabel("", "help", 9, secondaryWidth),
     }
-
-    for _, key in ipairs({
-        "selectedLabel",
-        "nameLabel",
-        "sourceLabel",
-        "statusLabel",
-        "providerLabel",
-        "currentLabel",
-        "legacyLabel",
-        "missingLabel",
-        "previewStatusLabel",
-        "fallbackUsedLabel",
-        "valueLabel",
-        "resolvedAssetLabel",
-    }) do
+    for _, key in ipairs({ "selectedLabel", "selectionHelp", "sourceLabel", "statusLabel", "valueLabel", "resolvedAssetLabel" }) do
         metadata:AddChild(labels[key])
     end
 
@@ -834,18 +833,11 @@ function MediaLibraryView.Create(context)
         preview = preview,
         metadata = metadata,
         selectedLabel = labels.selectedLabel,
+        selectionHelp = labels.selectionHelp,
         statusLabel = labels.statusLabel,
         sourceLabel = labels.sourceLabel,
-        providerLabel = labels.providerLabel,
         valueLabel = labels.valueLabel,
-        nameLabel = labels.nameLabel,
-        availableLabel = labels.availableLabel,
-        currentLabel = labels.currentLabel,
-        legacyLabel = labels.legacyLabel,
-        missingLabel = labels.missingLabel,
-        previewStatusLabel = labels.previewStatusLabel,
         resolvedAssetLabel = labels.resolvedAssetLabel,
-        fallbackUsedLabel = labels.fallbackUsedLabel,
         cancelButton = cancelButton,
         applyButton = applyButton,
     }
