@@ -274,6 +274,19 @@ Skins.Builtin.default = Skins.Builtin.default or {
                 disabled = { 0.50, 0.50, 0.50, 1.00 },
             },
         },
+        -- Canonical colors for LayoutManager, MediaLibrary and SelectionRow.
+        ListSelectionRow = {
+            fill = { 0.065, 0.056, 0.048, 0.86 },
+            fillHover = { 0.105, 0.085, 0.060, 0.94 },
+            fillSelected = { 0.205, 0.145, 0.055, 0.98 },
+            border = { 0.23, 0.20, 0.16, 0.54 },
+            borderHover = { 0.48, 0.37, 0.20, 0.78 },
+            borderSelected = { 0.96, 0.73, 0.22, 0.98 },
+            marker = { 1.00, 0.80, 0.24, 1.00 },
+            markerMuted = { 0.58, 0.53, 0.42, 0.36 },
+            name = { 0.93, 0.91, 0.84, 1.00 },
+            nameSelected = { 1.00, 0.98, 0.88, 1.00 },
+        },
     },
     editorButtonVisuals = {
         states = {
