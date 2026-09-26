@@ -34,6 +34,13 @@ local INTERACTION_MODE_BUTTONS = {
 local BRAND_FALLBACK_FONT = "Fonts\\FRIZQT__.TTF"
 local BRAND_LOGO_PATH = "Interface\\AddOns\\FocalPoint\\Media\\icon.tga"
 local BRAND_TYPOGRAPHY_KEY = "fpSidebarBrandTypography"
+local BRAND_VERSION_KEY = "fpSidebarBrandVersion"
+local BRAND_LOGO_SIZE = 28
+local BRAND_TEXT_LEFT = 36
+local BRAND_TITLE_HEIGHT = 24
+local BRAND_LINE_GAP = 2
+local BRAND_CONTENT_LEFT = 16
+local BRAND_CONTENT_UP = 4
 
 local function ResolveConstantPath(root, path)
     if type(root) ~= "table" or type(path) ~= "table" then
@@ -69,13 +76,13 @@ local function ArrangeBrandLine(widget, width)
     if not binding then return end
     width = width or widget.frame:GetWidth() or 0
     local image, label = widget.image, widget.label
-    image:ClearAllPoints()
-    image:SetPoint("LEFT", widget.frame, "LEFT", 0, 0)
-    image:SetSize(24, 24)
+    local titleHeight = math.min(BRAND_TITLE_HEIGHT, binding.rowHeight)
+    local titleTop = math.max(0, binding.rowHeight - titleHeight - BRAND_CONTENT_UP)
+    local textLeft = BRAND_CONTENT_LEFT + BRAND_TEXT_LEFT
     label:ClearAllPoints()
-    label:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", 28, 0)
-    label:SetWidth(math.max(0, width - 28))
-    label:SetHeight(binding.rowHeight)
+    label:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", textLeft, -titleTop)
+    label:SetWidth(math.max(0, width - textLeft))
+    label:SetHeight(titleHeight)
     label:SetWordWrap(false)
     if label.SetMaxLines then label:SetMaxLines(1) end
     label:SetJustifyV("MIDDLE")
@@ -84,6 +91,57 @@ local function ArrangeBrandLine(widget, width)
     if widget.frame.SetClipsChildren then widget.frame:SetClipsChildren(true) end
     widget.frame:SetHeight(binding.rowHeight)
     widget.frame.height = binding.rowHeight
+    local version = binding.version
+    local versionBinding = version and version:GetUserData(BRAND_VERSION_KEY)
+    local textHeight = titleHeight
+    if versionBinding then
+        textHeight = textHeight + BRAND_LINE_GAP + versionBinding.rowHeight
+        version.label:ClearAllPoints()
+        version.label:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -BRAND_LINE_GAP)
+        version.label:SetWidth(math.max(0, width - textLeft))
+        version.label:SetHeight(versionBinding.rowHeight)
+        version.label:SetWordWrap(false)
+        if version.label.SetMaxLines then version.label:SetMaxLines(1) end
+        version.frame:SetHeight(versionBinding.rowHeight)
+        version.frame.height = versionBinding.rowHeight
+    end
+    -- Only the existing texture shares the Header content's drawing space: the
+    -- title keeps its own clipping while the logo spans both allocated rows.
+    image:SetParent(versionBinding and widget.frame:GetParent() or widget.frame)
+    image:ClearAllPoints()
+    image:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", BRAND_CONTENT_LEFT,
+        -titleTop - (textHeight - BRAND_LOGO_SIZE) / 2)
+    image:SetSize(BRAND_LOGO_SIZE, BRAND_LOGO_SIZE)
+end
+
+local function BindBrandVersion(widget, brand)
+    local binding = widget:GetUserData(BRAND_VERSION_KEY)
+    if not binding then
+        binding = { rowHeight = widget.frame:GetHeight(), setText = widget.SetText,
+            onWidthSet = widget.OnWidthSet, onRelease = widget.events and widget.events.OnRelease }
+        widget:SetUserData(BRAND_VERSION_KEY, binding)
+        widget.SetText = function(owner, text)
+            owner.label:SetText(text)
+            if binding.brand then ArrangeBrandLine(binding.brand) end
+        end
+        widget.OnWidthSet = function()
+            if binding.brand then ArrangeBrandLine(binding.brand) end
+        end
+        widget:SetCallback("OnRelease", function(owner, event)
+            local brandBinding = binding.brand and binding.brand:GetUserData(BRAND_TYPOGRAPHY_KEY)
+            if brandBinding then brandBinding.version = nil end
+            binding.brand = nil
+            owner.SetText, owner.OnWidthSet = binding.setText, binding.onWidthSet
+            owner:SetUserData(BRAND_VERSION_KEY, nil)
+            owner.label:ClearAllPoints()
+            owner.label:SetPoint("TOPLEFT", owner.frame, "TOPLEFT", 0, 0)
+            owner.label:SetHeight(0)
+            owner.label:SetWordWrap(true)
+            if owner.label.SetMaxLines then owner.label:SetMaxLines(0) end
+            if binding.onRelease then binding.onRelease(owner, event) end
+        end)
+    end
+    binding.brand = brand
 end
 
 local function ApplyBrandTypography(widget, canonicalOnly)
@@ -111,7 +169,7 @@ local function ApplyBrandTypography(widget, canonicalOnly)
     widget.image:Show()
 end
 
-local function BindBrandTypography(widget, addonName)
+local function BindBrandTypography(widget, addonName, version)
     local preview = ns.GUI.PresentationPreview
     local binding = widget:GetUserData(BRAND_TYPOGRAPHY_KEY)
     if not binding then
@@ -131,8 +189,12 @@ local function BindBrandTypography(widget, addonName)
         end
         widget.OnWidthSet = ArrangeBrandLine
         widget:SetCallback("OnRelease", function(owner, event)
+            local versionBinding = binding.version and binding.version:GetUserData(BRAND_VERSION_KEY)
+            if versionBinding then versionBinding.brand = nil end
+            binding.version = nil
             owner.SetText, owner.OnWidthSet = binding.setText, binding.onWidthSet
             owner:SetUserData(BRAND_TYPOGRAPHY_KEY, nil)
+            owner.image:SetParent(owner.frame)
             owner.image:SetTexture(nil)
             owner.image:SetAlpha(1)
             owner.imageshown = nil
@@ -146,6 +208,10 @@ local function BindBrandTypography(widget, addonName)
         preview.BindTypographyWidget(widget, { "sidebar_brand" }, ApplyBrandTypography)
     end
     binding.addonName = addonName
+    if version then
+        BindBrandVersion(version, widget)
+        binding.version = version
+    end
     ApplyBrandTypography(widget)
 end
 
@@ -889,15 +955,15 @@ local function RefreshWindowState(context, deps)
     local versionText = BuilderUI.GetAddonVersionText and BuilderUI.GetAddonVersionText() or "dev"
     local normalizedCurrent = options.currentPath or (nsRef.GUI and nsRef.GUI.selectedPath) or ResolveConstantPath(C, { "Nav", "EDITOR" })
 
-    if context.widgets.brandLine then
-        local addonName = T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)
-        BindBrandTypography(context.widgets.brandLine, addonName)
-    end
     if context.widgets.versionLine then
         local skins = nsRef.GUI and nsRef.GUI.Skins or nil
         local versionColor = skins and skins.GetTextColor and skins.GetTextColor("help", { wow = "|cffB8AD95" }) or { wow = "|cffB8AD95" }
         local colorCode = versionColor.wow or "|cffB8AD95"
         context.widgets.versionLine:SetText(string.format("%s%s|r  %s%s|r", colorCode, T("INFO_VERSION", "Version", deps), colorCode, versionText))
+    end
+    if context.widgets.brandLine then
+        local addonName = T("ADDON_NAME", C.ADDON_NAME or "FocalPoint", deps)
+        BindBrandTypography(context.widgets.brandLine, addonName, context.widgets.versionLine)
     end
     if context.widgets.toolsTitle then
         context.widgets.toolsTitle:SetText(T("EDITOR_CONTEXT_TOOLS", "Tools", deps))

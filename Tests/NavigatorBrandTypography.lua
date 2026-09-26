@@ -34,6 +34,11 @@ local baselineGeometry=geometry()
 local baselineVersion=contents().versionLine
 local baselinePlaque={copy(context.groups.Header.frame._fpSectionFill.lastSetTexCoord),
     context.groups.Header.frame._fpSectionFill:GetTexture()}
+-- Pre-B3 Header/Table allocations in this native-metric fixture.
+equal(context.groups.Header.frame:GetHeight(),67.75)
+equal(context.groups.Options.frame.points.TOP.x,-83.75)
+equal(brand.frame:GetHeight(),34); equal(version.frame:GetHeight(),13.75)
+equal(version.frame.points.TOP.x,-42)
 local labels={api.GetTypographyPresentation("sidebar_label"),api.GetTypographyPresentation("inspector_label"),
     api.GetTypographyPresentation("sidebar_section_heading"),api.GetTypographyPresentation("inspector_section_heading")}
 local targets={}; for _,t in ipairs(api.GetTypographyTargets()) do targets[t.id]=t end
@@ -58,12 +63,33 @@ equal(brand.label:GetText(),canonicalText)
 assert(canonicalText:find("|cffEA7500",1,true))
 local function Logo(widget)
     equal(widget.image:GetTexture(),"Interface\\AddOns\\FocalPoint\\Media\\icon.tga")
-    equal(widget.image.nativeWidth,24); equal(widget.image.nativeHeight,24)
-    equal(widget.image.points.LEFT.relative,widget.frame)
-    equal(widget.image.points.LEFT.relativePoint,"LEFT")
+    equal(widget.image.nativeWidth,28); equal(widget.image.nativeHeight,28)
+    equal(widget.image.points.TOPLEFT.relative,widget.frame)
+    equal(widget.image.points.TOPLEFT.relativePoint,"TOPLEFT")
     equal(widget.image.lastSetAlpha,{1}); equal(widget.image.lastSetVertexColor,{1,1,1,1})
     assert(widget.image:IsShown()); assert(not widget.label:GetText():find("|T",1,true))
-    equal(widget.label.points.TOPLEFT.x,28)
+    equal(widget.label.points.TOPLEFT.x,52)
+    equal(widget.label.points.TOPLEFT.y,-6)
+    equal(widget.image.points.TOPLEFT.x,16)
+    equal(widget.label:GetHeight(),24)
+    local binding=widget:GetUserData("fpSidebarBrandTypography")
+    local line=binding.version
+    if line then
+        equal(widget.image:GetParent(),widget.frame:GetParent())
+        equal(line.label.points.TOPLEFT.relative,widget.label)
+        equal(line.label.points.TOPLEFT.relativePoint,"BOTTOMLEFT")
+        equal(line.label.points.TOPLEFT.x,0); equal(line.label.points.TOPLEFT.y,-2)
+        equal(line.label:GetWidth(),widget.label:GetWidth())
+        local titleTop=-widget.label.points.TOPLEFT.y
+        local textHeight=widget.label:GetHeight()+2+line.label:GetHeight()
+        local logoTop=-widget.image.points.TOPLEFT.y
+        equal(logoTop+14,titleTop+textHeight/2)
+        assert(logoTop>=0 and logoTop+28<=binding.rowHeight+8+line.frame:GetHeight())
+        assert(widget.image.points.TOPLEFT.x+28<widget.label.points.TOPLEFT.x)
+        assert(line.label.maxLines==1)
+    else
+        equal(widget.image:GetParent(),widget.frame)
+    end
     assert(widget.frame.clipsChildren); equal(widget.label.maxLines,1)
 end
 local function Isolated()
@@ -74,6 +100,13 @@ local function Isolated()
         context.groups.Header.frame._fpSectionFill:GetTexture()},baselinePlaque)
 end
 Logo(brand)
+-- The chosen Cinzel/Gold presentation uses the existing contract unchanged.
+local cinzel="fp:font:cinzel-decorative-regular"
+assert(ns.MediaRegistry.IsAvailable(cinzel,"font"))
+assert(api.SetTypographyPresentation(target,{font=cinzel,size=18,color={.91,.757,.4}}))
+equal(brand.label.font[1],ns.MediaRegistry.ResolveReference(cinzel,"font").resolvedAsset)
+equal(brand.label:GetText(),"FOCAL POINT"); Logo(brand); Isolated()
+assert(api.ClearTypography(target))
 local patch={font="fp:font:morpheus",size=96,flags="THICKOUTLINE",color={.12,.34,.56},alpha=.23,shadowEnabled=false}
 assert(api.SetTypographyPresentation(target,patch)); patch.color[1]=99
 equal(brand.label.font,{"Fonts\\MORPHEUS.ttf",96,"THICKOUTLINE"})
@@ -136,6 +169,7 @@ for cycle=1,25 do
     equal(widget.SetText,originalText); equal(widget.OnWidthSet,originalWidth)
     equal(widget:GetUserData("fpSidebarBrandTypography"),nil)
     equal(widget.image:GetTexture(),nil); assert(not widget.frame.clipsChildren)
+    equal(widget.image:GetParent(),widget.frame)
     equal(widget.label.maxLines,0); equal(widget.label.lastSetAlpha,{1})
     local reused=ace:Create("Label"); equal(reused,widget)
     reused:SetText("Normal pooled label"); local normalHeight=reused.frame:GetHeight()
@@ -143,5 +177,22 @@ for cycle=1,25 do
     assert(not reused.frame.clipsChildren); ace:Release(reused)
 end
 equal(released,25)
+-- Paired Brand/Version owners restore their original Label methods on pooling.
+for cycle=1,10 do
+    local title=ns.GUI.Helpers.FormWidgets.CreateBodyText("", "sectionHeader",18,nil,180,false)
+    local meta=ns.GUI.Helpers.FormWidgets.CreateBodyText("Version 2.0.6", "help",11,nil,180,false)
+    local setText,onWidthSet=meta.SetText,meta.OnWidthSet
+    local height=meta.frame:GetHeight()
+    bind(title,"Focal Point",meta); Logo(title)
+    meta:SetText("Version 2.0.6"); meta:SetWidth(225)
+    equal(meta.frame:GetHeight(),height); Logo(title)
+    if cycle%2==0 then ace:Release(meta); ace:Release(title)
+    else ace:Release(title); ace:Release(meta) end
+    equal(meta.SetText,setText); equal(meta.OnWidthSet,onWidthSet)
+    equal(meta:GetUserData("fpSidebarBrandVersion"),nil)
+    equal(meta.label.maxLines,0)
+    local reused=ace:Create("Label"); reused:SetText("Ordinary label")
+    assert(api.ClearTypography(target)); ace:Release(reused)
+end
 assert(#env.errors==0,table.concat(env.errors,"\n"))
-print("PASS: Brand discovery/registry, six properties, isolated logo, two-color reset, fallback/combat/copies, bounded large-font layout, late binding and 25 pooled cycles")
+print("PASS: B3 28px logo, shared title/version axis, Cinzel, unchanged Header/Options/plaque, large-font isolation, reset/reopen and paired pooling")
