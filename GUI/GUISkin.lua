@@ -233,8 +233,9 @@ Skins.Builtin.default = Skins.Builtin.default or {
         CompactDialogContent = {
             parchment = {
                 material = "texture",
-                texture = "Interface\\AddOns\\FocalPoint\\Media\\Textures\\fp_window_background.jpg",
-                tint = { 1.00, 1.00, 1.00, 1.00 },
+                textureId = "fp:texture:fp-forged-metal-128x128",
+                tint = { 0.40, 0.40, 0.40, 0.96 },
+                headerTint = { 0.16, 0.16, 0.16, 1.00 },
                 tile = false,
             },
         },

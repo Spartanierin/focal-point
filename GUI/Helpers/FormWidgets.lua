@@ -1915,6 +1915,16 @@ function FormWidgets.CalculateCompactPickerContentHeight(rowHeights, options)
     return math.max(minHeight, math.min(maxHeight, contentHeight))
 end
 
+local function ResolveCompactDialogTexture(material)
+    if not material or material.material ~= "texture" then return nil end
+    if material.textureId then
+        local registry = ns.MediaRegistry
+        local resolved = registry and registry.ResolveReference(material.textureId, "texture")
+        return resolved and resolved.available and resolved.resolvedAsset or nil
+    end
+    return material.texture
+end
+
 local function ApplyCompactDialogWindowContentSurface(frame, material)
     if not frame then
         return
@@ -1922,8 +1932,9 @@ local function ApplyCompactDialogWindowContentSurface(frame, material)
 
     local surface = EnsureCompactDialogTexture(frame, "_fpCompactDialogWindowContentSurface", "BACKGROUND")
     SetCompactDialogPointPair(surface, "TOPLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    if material and material.material == "texture" and material.texture and surface.SetTexture then
-        surface:SetTexture(material.texture)
+    local texture = ResolveCompactDialogTexture(material)
+    if texture and surface.SetTexture then
+        surface:SetTexture(texture)
         surface:SetTexCoord(0, 1, 0, 1)
         SetCompactDialogTiling(surface, material.tile)
         surface:SetVertexColor(unpack(material.tint or { 1, 1, 1, 1 }))
@@ -1934,6 +1945,96 @@ local function ApplyCompactDialogWindowContentSurface(frame, material)
     SetCompactDialogTiling(surface, false)
     surface:SetTexture(nil)
     surface:Hide()
+end
+
+-- Dialog-only layout: reuse the production Brass assets and border host, never
+-- the Navigator binder or its composition targets. Smaller corners fit the
+-- existing 32px content top and 35px effective body left inset.
+local parchmentCorner = { file = "fp_navigator_brass_corner.tga", width = 28, height = 28, layer = "OVERLAY" }
+local parchmentHorizontal = { file = "fp_navigator_brass_horizontal.tga", width = 56, height = 28, layer = "OVERLAY" }
+local parchmentVertical = { file = "fp_navigator_brass_vertical.tga", width = 28, height = 56, layer = "OVERLAY" }
+local parchmentBrassLayout = {
+    setupPieceVisualsFunction = SetupNavigatorBrassPiece,
+    TopLeftCorner = parchmentCorner, TopRightCorner = parchmentCorner,
+    BottomLeftCorner = parchmentCorner, BottomRightCorner = parchmentCorner,
+    TopEdge = parchmentHorizontal, BottomEdge = parchmentHorizontal,
+    LeftEdge = parchmentVertical, RightEdge = parchmentVertical,
+}
+local parchmentChromeKey = "fpParchmentChrome"
+
+local function ReleaseParchmentWindowChrome(window, binding)
+    local frame = window.frame
+    if frame._fpParchmentNineSlice then frame._fpParchmentNineSlice:Hide() end
+    local shell = frame._fpCompactFormShell
+    if shell then
+        shell:Release()
+        frame._fpCompactFormShell = nil
+    end
+    -- Return only this adapter's material writes to neutral before another
+    -- consumer acquires the Window. Its normal presentation then applies afresh.
+    for _, key in ipairs({ "_fpPanelFill", "_fpPanelHeaderFill" }) do
+        local region = frame[key]
+        if region then
+            region:SetTexture(nil)
+            region:SetVertexColor(1, 1, 1, 1)
+            region:SetAlpha(1)
+        end
+    end
+    FormWidgets.RestoreDefaultWindowChrome(window)
+    if window.titletext then window.titletext:SetParent(binding.titleParent) end
+    if window.title then window.title:SetFrameLevel(binding.titleLevel) end
+    if window.closebutton then window.closebutton:SetFrameLevel(binding.closeLevel) end
+    window:SetUserData(parchmentChromeKey, nil)
+end
+
+local function ApplyParchmentWindowChrome(window)
+    local frame = window.frame
+    -- A pooled Window may previously have carried Modern chrome. Use its
+    -- existing restore contract locally; do not alter the Modern renderer.
+    FormWidgets.RestoreDefaultWindowChrome(window)
+    local binding = window:GetUserData(parchmentChromeKey)
+    if not binding then
+        binding = {
+            titleParent = window.titletext and window.titletext:GetParent(),
+            titleLevel = window.title and window.title:GetFrameLevel(),
+            closeLevel = window.closebutton and window.closebutton:GetFrameLevel(),
+        }
+        window:SetUserData(parchmentChromeKey, binding)
+        local previousRelease = window.events and window.events.OnRelease
+        window:SetCallback("OnRelease", function(owner, event)
+            ReleaseParchmentWindowChrome(owner, binding)
+            if previousRelease then previousRelease(owner, event) end
+        end)
+    end
+    FormWidgets.ApplyWindowChrome(window, { nativeFrameShell = true })
+    local material = GetCompactDialogContentSurface("parchment")
+    local texture = ResolveCompactDialogTexture(material)
+    for _, key in ipairs({ "_fpPanelFill", "_fpPanelHeaderFill" }) do
+        local region = frame[key]
+        region:SetTexture(texture, "CLAMP", "CLAMP")
+        region:SetTexCoord(0, 1, 0, 1)
+        SetCompactDialogTiling(region, false)
+        region:SetBlendMode("BLEND")
+        region:SetVertexColor(unpack(key == "_fpPanelHeaderFill" and material.headerTint or material.tint))
+        region:SetAlpha(1)
+    end
+    if frame._fpCompactFormShell then
+        ApplyCompactDialogWindowContentSurface(frame._fpCompactFormShell.frame, material)
+    end
+    if NineSliceUtil and NineSliceUtil.ApplyLayout then
+        ApplyWindowNineSlice(frame, "_fpParchmentNineSlice", parchmentBrassLayout):Show()
+        for _, suffix in ipairs({ "BorderTop", "BorderBottom", "BorderLeft", "BorderRight",
+            "InnerTop", "InnerBottom", "InnerLeft", "InnerRight", "TopShade", "BottomShade" }) do
+            frame["_fpPanel" .. suffix]:Hide()
+        end
+        -- Preserve every anchor/hitbox; only draw the existing title and X in
+        -- front of the ornament. Release restores their original parent/levels.
+        if window.title then
+            window.title:SetFrameLevel(frame:GetFrameLevel() + 4)
+            if window.titletext then window.titletext:SetParent(window.title) end
+        end
+        if window.closebutton then window.closebutton:SetFrameLevel(frame:GetFrameLevel() + 5) end
+    end
 end
 
 local SMALL_WINDOW_REGION_TYPE = "FocalPointSmallWindowRegion"
@@ -2099,6 +2200,8 @@ function FormWidgets.CreateCompactFormDialog(options)
     EnableCompactDialogEscapeClose(window)
 
     local shell = CreateCompactFormShell(window, options)
+    local isParchment = options.contentSurface == "parchment"
+    if isParchment then ApplyParchmentWindowChrome(window) end
     local statusTextRoles = {
         neutral = "help",
         error = "statusError",
@@ -2224,6 +2327,7 @@ function FormWidgets.CreateCompactFormDialog(options)
     end
 
     function dialog:Show()
+        if isParchment then ApplyParchmentWindowChrome(self.window) end
         FormWidgets.FocusWindow(self.window, { centerIfHidden = true, strata = options.strata or "FULLSCREEN_DIALOG" })
     end
 
