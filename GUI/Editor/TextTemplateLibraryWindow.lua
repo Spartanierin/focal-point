@@ -244,16 +244,16 @@ local function RefreshPreview(context)
     context.previewGroup:ReleaseChildren()
     local entry = FindEntry(context, context.selectedTemplateKey)
     if not entry then
-        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "section_title", 11, 388, 18))
+        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "sectionHeader", 11, 388, 18))
         context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12, 388, 72))
         return
     end
 
-    context.previewGroup:AddChild(CreateLabel(entry.templateName, "section_title", 14, 388, 22))
+    context.previewGroup:AddChild(CreateLabel(entry.templateName, "sectionHeader", 14, 388, 22))
     if type(entry.sourceLabel) == "string" and entry.sourceLabel ~= "" then
         context.previewGroup:AddChild(CreateLabel(entry.sourceLabel, "help", 10, 388, 14))
     end
-    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "section_title", 11, 388, 18))
+    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "sectionHeader", 11, 388, 18))
 
     local previewPanel = AceGUI:Create("InlineGroup")
     previewPanel:SetLayout("List")
@@ -489,7 +489,7 @@ local function BuildBody(context)
     listColumn:SetFullWidth(false)
     listColumn:SetWidth(220)
     LockContainerHeight(listColumn, 228)
-    listColumn:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATES", "Templates"), "section_title", 11, 202, 18))
+    listColumn:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATES", "Templates"), "sectionHeader", 11, 202, 18))
     local listGroup = AceGUI:Create("ScrollFrame")
     listGroup:SetLayout("List")
     listGroup:SetFullWidth(false)

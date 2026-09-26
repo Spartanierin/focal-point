@@ -197,7 +197,7 @@ local function CreateOptionRow(parent, labelText, widgetId)
 end
 
 local function CreateOptionHint(text)
-    return CreateLabel(text, "muted", 11, nil, true)
+    return CreateLabel(text, "help", 11, nil, true)
 end
 
 function Refresh()
