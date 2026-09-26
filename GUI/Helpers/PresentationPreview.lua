@@ -24,11 +24,10 @@ end
 local function SectionBaseline(part)
     local binding = ns.GUI.Editor.Inspector.InspectorBinding
     local style = binding.ResolveSectionPresentation()
-    -- Texture-backed fallback styles are deliberately outside this contract.
-    if not style or not style.surface or style.surface.material == "texture" then return nil end
-    if part == "border" then return style.border and style.border.color end
-    if part == "accent" then return style.surface.accent and style.surface.accent.color end
-    return style.surface.fill
+    if not style or not style.surface then return nil end
+    if part == "border" then return style.border and style.border.color or { 0, 0, 0, 0 } end
+    if part == "accent" then return style.surface.topShade or (style.surface.accent and style.surface.accent.color) end
+    return style.surface.material == "texture" and style.surface.tint or style.surface.fill
 end
 
 local function ThumbBaseline()
@@ -42,8 +41,8 @@ end
 local function NavigatorInsetBaseline()
     local style = ns.GUI.Helpers.FormWidgets.ResolveSectionStyle("toolbar_explorer_inset")
     local surface = style and style.surface
-    if not surface or (surface.material and surface.material ~= "color") then return nil end
-    return surface.fill
+    if not surface then return nil end
+    return surface.material == "texture" and surface.tint or surface.fill
 end
 
 local order = {
@@ -87,19 +86,22 @@ local typographyPropertyCapabilities = {
 }
 local typographyCatalog = {
     sidebar_brand = { label = "Brand", area = "Sidebar" },
-    inspector_label = { label = "Label", area = "Inspector", role = "label", size = 12 },
-    sidebar_label = { label = "Label", area = "Sidebar", role = "label", size = 12 },
+    inspector_label = { label = "Label", area = "Inspector", role = "label", size = 12,
+        color = { 0.8117647767066956, 0.7725490927696228, 0.6745098233222961 }, alpha = 0.9 },
+    sidebar_label = { label = "Label", area = "Sidebar", role = "label", size = 12,
+        color = { 0.8117647767066956, 0.7725490927696228, 0.6745098233222961 }, alpha = 0.9 },
     sidebar_section_heading = {
         label = "Sidebar section heading",
         area = "Sidebar",
         role = "sectionHeader",
-        size = 13,
+        size = 14, flags = "OUTLINE", alpha = 0.8,
     },
     inspector_section_heading = {
         label = "Inspector section heading",
         area = "Inspector",
         role = "strongHeading",
-        size = 13,
+        size = 14, flags = "OUTLINE", alpha = 0.8,
+        color = { 0.9098039865493774, 0.7568628191947937, 0.4000000357627869 },
     },
 }
 
@@ -157,7 +159,7 @@ local function TypographyBaseline(target)
         return nil, "baseline_unavailable"
     end
 
-    local color = { style.r, style.g, style.b }
+    local color = Copy(definition.color or { style.r, style.g, style.b })
     if not IsUnitNumber(color[1]) or not IsUnitNumber(color[2]) or not IsUnitNumber(color[3]) then
         return nil, "baseline_unavailable"
     end
@@ -165,9 +167,9 @@ local function TypographyBaseline(target)
     return {
         font = DefaultFontReference(definition.role),
         size = definition.size,
-        flags = "",
+        flags = definition.flags or "",
         color = color,
-        alpha = 1,
+        alpha = definition.alpha or 1,
         shadowEnabled = true,
     }
 end
@@ -272,30 +274,19 @@ end
 -- Keep this binding at the Sidebar builder, not every user of a shared style.
 local NAVIGATOR_INSET_TARGET = "sidebar_unit_navigator_inset"
 
-local function RestoreSidebarNavigatorInset(group, color)
+local function RestoreSidebarNavigatorInset(group, color, canonicalOnly)
     local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
-    if renderer and renderer.ApplySectionColors then
-        renderer.ApplySectionColors(group, { surface = { fill = color } })
+    local style = Copy(ns.GUI.Helpers.FormWidgets.ResolveSectionStyle("toolbar_explorer_inset"))
+    if not renderer or not style or not style.surface then return end
+    local field = style.surface.material == "texture" and "tint" or "fill"
+    style.surface[field] = color
+    if canonicalOnly then
+        renderer.ApplySectionSurface(group, style)
+        renderer.ApplySectionBorder(group, style.border, style.surfaceInsets)
+    else
+        renderer.ApplySectionColors(group, style)
     end
-
-    -- The canonical toolbar_explorer_inset is fill-only. Re-show that existing
-    -- region after a composition release without changing its geometry.
-    local frame = group and group.frame
-    if not frame then return end
-    if frame._fpSectionFill then frame._fpSectionFill:Show() end
-    for _, name in ipairs({
-        "_fpSectionTopShade",
-        "_fpSectionBottomShade",
-        "_fpSectionAccent",
-        "_fpSectionDivider",
-        "_fpSectionBorderTop",
-        "_fpSectionBorderBottom",
-        "_fpSectionBorderLeft",
-        "_fpSectionBorderRight",
-    }) do
-        local region = frame[name]
-        if region and region.Hide then region:Hide() end
-    end
+    if group.frame and group.frame._fpSectionFill then group.frame._fpSectionFill:Show() end
 end
 
 local function ApplySidebarNavigatorInset(group, canonicalOnly)
@@ -306,7 +297,7 @@ local function ApplySidebarNavigatorInset(group, canonicalOnly)
 
     local color = Preview.ResolveColor(NAVIGATOR_INSET_TARGET, canonicalOnly)
     if not color then return end
-    RestoreSidebarNavigatorInset(group, color)
+    RestoreSidebarNavigatorInset(group, color, canonicalOnly)
     return false
 end
 

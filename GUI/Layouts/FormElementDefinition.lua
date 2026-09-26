@@ -3,6 +3,19 @@ local _, ns = ...
 ns.GUI = ns.GUI or {}
 ns.GUI.Layouts = ns.GUI.Layouts or {}
 
+local function NavigatorSectionStyle()
+    return {
+        border = false,
+        surface = {
+            material = "texture",
+            textureId = "fp:texture:fp-mahagony-128x128",
+            tint = { 0.1960784494876862, 0.1960784494876862, 0.1960784494876862, 0.9 },
+            topShade = { 0.9490196704864502, 0.8156863451004028, 0.3607843220233917, 0.6 },
+            bottomShade = { 0.9490196704864502, 0.8156863451004028, 0.3607843220233917, 0.4 },
+        },
+    }
+end
+
 --[[
 Declarative "how" definitions for reusable form elements.
 
@@ -127,50 +140,16 @@ ns.GUI.Layouts.FormElements = {
                 },
             },
         },
-        toolbar_workspace_panel = {
-            border = {
-                color = { 0.35, 0.37, 0.40, 0.74 },
-                thickness = 1,
-                inset = 0,
-            },
-            surface = {
-                fill = { 0.10, 0.11, 0.13, 0.69 },
-                topShade = { 1.00, 1.00, 1.00, 0.04 },
-                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
-                accent = {
-                    color = { 0.74, 0.72, 0.62, 0.22 },
-                    edge = "top",
-                    thickness = 1,
-                    insetLeft = 8,
-                    insetRight = 8,
-                },
-            },
-        },
+        toolbar_workspace_panel = NavigatorSectionStyle(),
         toolbar_explorer_inset = {
             border = false,
             surface = {
-                fill = { 0.05, 0.055, 0.06, 0.92 },
+                material = "texture",
+                textureId = "fp:texture:parchment",
+                tint = { 0.6549019813537598, 0.6549019813537598, 0.6549019813537598, 0.99 },
             },
         },
-        toolbar_editing_panel = {
-            border = {
-                color = { 0.34, 0.37, 0.39, 0.74 },
-                thickness = 1,
-                inset = 0,
-            },
-            surface = {
-                fill = { 0.09, 0.11, 0.12, 0.70 },
-                topShade = { 1.00, 1.00, 1.00, 0.04 },
-                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
-                accent = {
-                    color = { 0.62, 0.71, 0.66, 0.20 },
-                    edge = "top",
-                    thickness = 1,
-                    insetLeft = 8,
-                    insetRight = 8,
-                },
-            },
-        },
+        toolbar_editing_panel = NavigatorSectionStyle(),
         toolbar_presets_panel = {
             border = {
                 color = { 0.35, 0.36, 0.39, 0.74 },
@@ -190,25 +169,7 @@ ns.GUI.Layouts.FormElements = {
                 },
             },
         },
-        toolbar_global_panel = {
-            border = {
-                color = { 0.34, 0.37, 0.40, 0.74 },
-                thickness = 1,
-                inset = 0,
-            },
-            surface = {
-                fill = { 0.10, 0.11, 0.13, 0.70 },
-                topShade = { 1.00, 1.00, 1.00, 0.04 },
-                bottomShade = { 0.00, 0.00, 0.00, 0.30 },
-                accent = {
-                    color = { 0.64, 0.70, 0.78, 0.20 },
-                    edge = "top",
-                    thickness = 1,
-                    insetLeft = 8,
-                    insetRight = 8,
-                },
-            },
-        },
+        toolbar_global_panel = NavigatorSectionStyle(),
         workspace_split = {
             border = false,
             surface = {

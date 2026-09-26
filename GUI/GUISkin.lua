@@ -45,11 +45,9 @@ Skins.Builtin.default = Skins.Builtin.default or {
         orangeMedium = { 0.910, 0.757, 0.400, 0.38 },
         orangeStrong = { 0.910, 0.757, 0.400, 0.85 },
         titleFocal = {
-            hex = "FFFFFF",
-            wow = "|cffFFFFFF",
-            r = 1.000,
-            g = 1.000,
-            b = 1.000,
+            r = 0.8274510502815247,
+            g = 0.6784313917160034,
+            b = 0.4078431725502014,
         },
         titlePoint = {
             hex = "EA7500",
@@ -190,6 +188,18 @@ Skins.Builtin.default = Skins.Builtin.default or {
             navigatorSecondary = NAVIGATOR.secondary,
         },
         Chrome = {
+            navigatorShellSurface = {
+                material = "texture",
+                textureId = "fp:texture:fp-forged-metal-128x128",
+                tint = { 0.3137255012989044, 0.3137255012989044, 0.3137255012989044, 0.92 },
+            },
+            inspectorSectionSurface = {
+                material = "texture",
+                textureId = "fp:texture:fp-mahagony-128x128",
+                tint = { 0.2117647230625153, 0.2117647230625153, 0.2117647230625153, 0.9 },
+                topShade = { 0.9490196704864502, 0.8156863451004028, 0.3607843220233917, 0.4 },
+                bottomShade = { 0.9490196704864502, 0.8156863451004028, 0.3607843220233917, 0.4 },
+            },
             panelBackground = NAVIGATOR.mahogany,
             panelBorder = NavigatorColor(NAVIGATOR.agedBrass, 0.82),
             panelInnerBorder = NavigatorColor(NAVIGATOR.blackenedMetal, 0.90),
@@ -421,29 +431,22 @@ function Skins.GetBrandColor(role, fallback)
 end
 
 function Skins.GetBrandTitle(defaultText)
-    local focal = Skins.GetBrandColor("titleFocal") or Skins.GetBrandColor("white") or {}
-    local point = Skins.GetBrandColor("titlePoint") or Skins.GetBrandColor("orange") or {}
-    local focalColor = focal.wow or "|cffFFFFFF"
-    local pointColor = point.wow or "|cffEA7500"
-
     if type(defaultText) == "string" and defaultText ~= "" and defaultText ~= "Focal Point" then
-        return focalColor .. defaultText .. "|r"
+        return defaultText
     end
-
-    return focalColor .. "FOCAL " .. pointColor .. "POINT|r"
+    -- RGB belongs exclusively to the Brand typography descriptor, including reset.
+    return "FOCAL POINT"
 end
 
 -- Canonical identity typography, independent of section headings and live regions.
 function Skins.GetBrandTypography()
-    local elements = ns.GUI.Layouts and ns.GUI.Layouts.FormElements
-    local title = elements and elements.Items and elements.Items.label and elements.Items.label.page_title_hero
     local color = Skins.GetBrandColor("titleFocal") or Skins.GetBrandColor("white") or {}
     return {
-        font = "fp:font:achtung-polizei",
-        size = title and title.size or 18,
+        font = "fp:font:cinzel-decorative-bold",
+        size = 19,
         flags = "",
         color = { color.r or 1, color.g or 1, color.b or 1 },
-        alpha = 1,
+        alpha = 0.9,
         shadowEnabled = true,
     }
 end

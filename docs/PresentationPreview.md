@@ -123,3 +123,49 @@ Full in-game lifecycle coverage is not claimed. Separate acceptance remains for
 setting before opening, repeated selection/rebuild, collapse/expand, enabled and
 disabled sliders, close/reopen, layout/profile changes, combat and reload. The
 production adapter exposes only the API; no diagnostic command is installed.
+
+## Navigator canonical design promotion
+
+The accepted Navigator materials now resolve from the existing product defaults,
+without loading a DesignTool workspace: forged-metal 128 for both shells,
+mahagony 128 for sections, and parchment for the Unit Navigator inset. The Sidebar
+surface covers its window; the Inspector surface retains its 12-unit bounds.
+Content insets, Brass, the cast-iron plaque and B3 brand geometry remain unchanged.
+The two 128px material assets and registry IDs are retained unchanged; larger
+material variants and source artwork are not part of this promotion.
+
+Target typography defaults provide subdued labels, 14px outlined section
+headings and Cinzel Decorative Bold 19 for the brand. Global label/heading roles
+are unchanged. Brand text has no inline color markup: its descriptor is the one
+color source. Fresh brand layout still measures the original B3 allocation before
+applying display typography, so the new font cannot move Options or the version.
+
+The material defaults supersede the earlier color-only baseline descriptions
+above. Shell/section/inset color previews recolor their canonical material.
+Inspector border preview remains optional (canonical border alpha is zero), and
+the accent preview addresses the canonical top line. Clear/reset resolves current
+product descriptors, including texture identity, rather than region snapshots.
+`ResetComposition` removes an override and restores those defaults; an explicitly
+empty composition remains an intentional override, not a product-default reset.
+
+`Tests/NavigatorDesignPromotion.lua` verifies exact accepted values, registry
+resolution and asset presence, shell bounds/underlay, absence of legacy chrome,
+fresh B3 allocation, typography clear, composition reset, reopen, rebuild and
+pooling with native-region doubles. It does not load DesignTool or SavedVariables.
+The existing presentation, composition, label, brand, plaque and Brass suites
+provide complementary regression coverage. Native font rendering requires the
+following user acceptance gate; offline tests do not establish visual equivalence.
+
+Golden visual acceptance:
+
+1. Back up workspace `Test` without overwriting its golden reference.
+2. Reset all five composition targets through `ResetComposition`, then clear all
+   typography overrides. Do not reapply DesignTool afterwards.
+3. `/reload`, then open Navigator fresh. Compare metal shells, Brass, dark wood
+   sections, gold lines, parchment inset, headings, labels, plaque, logo, brand
+   gold/Cinzel and version placement with the accepted design.
+4. Check Options-Y, reopen, Inspector rebuild and reset again.
+
+SavedVariables and the DesignTool repository remain read-only during promotion.
+Golden visual PASS is supplied by the user; no automatic workspace deletion,
+promotion, commit or release is performed.

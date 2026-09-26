@@ -45,13 +45,13 @@ local function ResolveInspectorSectionPresentation(style)
     local outerMarginX = rhythm.outerMarginX or 0
     local accentInsetX = rhythm.accentInsetX or 0
 
-    -- Keep Inspector grouping color-only; the shared renderer still owns the regions.
+    -- Canonical material and geometry; the shared renderer owns all regions.
     return {
-        border = {
+        border = not chrome.inspectorSectionSurface and {
             color = chrome.sectionBorder,
             thickness = 1,
             inset = 0,
-        },
+        } or false,
         surfaceInsets = {
             left = outerMarginX,
             right = outerMarginX,
@@ -66,7 +66,7 @@ local function ResolveInspectorSectionPresentation(style)
             top = 27,
             bottom = 13,
         },
-        surface = {
+        surface = chrome.inspectorSectionSurface or {
             fill = chrome.sectionFill,
             accent = {
                 color = chrome.sectionAccent,
@@ -141,19 +141,48 @@ local function ApplySectionPresentation(section, style, canonicalOnly, colorsOnl
     local composition = ns.GUI.PresentationCompositionPreview
     if composition and composition.Apply("inspector_section", section, resolved, canonicalOnly) then return resolved end
     local preview = ns.GUI.PresentationPreview
-    if preview and resolved and resolved.surface and resolved.surface.material ~= "texture" then
+    if preview and resolved and resolved.surface then
         -- Only this fresh Inspector descriptor is overlaid, never SectionStyles.
         resolved = ns.GUI.Helpers.FormRenderer.CloneLayoutValue(resolved)
-        resolved.surface.fill = preview.ResolveColor(sectionTargets[1], canonicalOnly) or resolved.surface.fill
-        if resolved.border then
-            resolved.border.color = preview.ResolveColor(sectionTargets[2], canonicalOnly) or resolved.border.color
+        local api = ns.Ace.PresentationPreview
+        local function HasOverride(target)
+            return not canonicalOnly and next(api.GetOverrides(target) or {}) ~= nil
         end
-        if resolved.surface.accent then
-            resolved.surface.accent.color = preview.ResolveColor(sectionTargets[3], canonicalOnly) or resolved.surface.accent.color
+        local fillKey = resolved.surface.material == "texture" and "tint" or "fill"
+        if HasOverride(sectionTargets[1]) then
+            resolved.surface[fillKey] = preview.ResolveColor(sectionTargets[1]) or resolved.surface[fillKey]
+        end
+        if HasOverride(sectionTargets[2]) then
+            local border = preview.ResolveColor(sectionTargets[2])
+            if border and border[4] > 0 then
+                resolved.border = resolved.border or { thickness = 1, inset = 0 }
+                resolved.border.color = border
+            else
+                resolved.border = false
+            end
+        end
+        if HasOverride(sectionTargets[3]) then
+            if resolved.surface.topShade then
+                resolved.surface.topShade = preview.ResolveColor(sectionTargets[3]) or resolved.surface.topShade
+            elseif resolved.surface.accent then
+                resolved.surface.accent.color = preview.ResolveColor(sectionTargets[3]) or resolved.surface.accent.color
+            end
         end
     end
     if colorsOnly then
         FormSectionSurfaceRenderer.ApplySectionColors(section, resolved)
+        -- An optional border preview may have created regions while the default
+        -- has no border. Resolve their presence again on clear, not just RGB.
+        if resolved.border and not section.frame._fpSectionBorderTop then
+            ApplySectionBorder(section, resolved.border, resolved.surfaceInsets)
+        else
+            for _, edge in ipairs({ "Top", "Bottom", "Left", "Right" }) do
+                local region = section.frame["_fpSectionBorder" .. edge]
+                if region then
+                    if resolved.border then region:Show() else region:Hide() end
+                end
+            end
+        end
     else
         if ApplySectionSurface then ApplySectionSurface(section, resolved) end
         if ApplySectionBorder then

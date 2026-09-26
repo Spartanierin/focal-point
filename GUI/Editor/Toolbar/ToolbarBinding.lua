@@ -173,8 +173,9 @@ local function BindBrandTypography(widget, addonName, version)
     local preview = ns.GUI.PresentationPreview
     local binding = widget:GetUserData(BRAND_TYPOGRAPHY_KEY)
     if not binding then
-        local canonical = ns.GUI.Skins.GetBrandTypography()
-        ApplyBrandFont(widget.label, canonical)
+        -- B3's allocation uses the original inline-logo metrics, independently
+        -- of the delivered Brand font/size. Typography never changes row bounds.
+        ApplyBrandFont(widget.label, { font = "fp:font:achtung-polizei", size = 18, flags = "" })
         -- Measure the pre-B2 canonical row ONCE, before any override. This keeps
         -- its existing allocation, including native inline-image baseline metrics.
         -- The inline markup is only the measurement input, not the bound title.
@@ -198,6 +199,7 @@ local function BindBrandTypography(widget, addonName, version)
             owner.image:SetTexture(nil)
             owner.image:SetAlpha(1)
             owner.imageshown = nil
+            owner.label:SetAlpha(1)
             owner.label:SetHeight(0)
             owner.label:SetWordWrap(true)
             if owner.label.SetMaxLines then owner.label:SetMaxLines(0) end

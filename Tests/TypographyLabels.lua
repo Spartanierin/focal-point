@@ -131,7 +131,7 @@ local otherSidebar = ns.GUI.Editor.ToolbarBinding.CreateItemWidget({id="notActiv
     {AceGUI=ace,StyleCheckBox=widgets.StyleCheckBox})
 assert(not otherSidebar:GetUserData("fpLabelTypography")); host:AddChild(otherSidebar)
 assert(api.SetTypographyPresentation("sidebar_label", {color={.41,.52,.63}}))
-Equal(sidebar.text.lastSetTextColor, {.41,.52,.63,1}); Applied(label.label)
+Equal(sidebar.text.lastSetTextColor, {.41,.52,.63,.9}); Applied(label.label)
 assert(api.SetTypographyPresentation("inspector_label", {size=20}))
 for _, entry in ipairs(excluded) do Equal(entry[1].lastSetTextColor,entry[2]); Equal(entry[1].font,entry[3]) end
 Equal({slider.lowtext.lastSetTextColor,slider.hightext.lastSetTextColor,slider.editbox.lastSetTextColor},sliderValues)
@@ -146,7 +146,9 @@ skin.textColors.label={r=.31,g=.42,b=.53}; skin.fonts.default="Fonts\\MORPHEUS.t
 assert(api.ClearTypography("inspector_label"))
 Equal(label.label.font, {"Fonts\\MORPHEUS.ttf",12,""})
 Equal(api.GetTypographyPresentation("inspector_label").font,"fp:font:morpheus")
-Equal(label.label.lastSetTextColor,{.31,.42,.53,1}); Equal(label.label.shadowOffset,{1,-1})
+-- Navigator target color stays canonical even when the general label role changes.
+Equal(label.label.lastSetTextColor,{0.8117647767066956,0.7725490927696228,0.6745098233222961,0.9})
+Equal(label.label.shadowOffset,{1,-1})
 skin.textColors.label,skin.fonts.default=oldColor,oldFont
 assert(api.ClearTypography())
 local collapseHost=ace:Create("SimpleGroup")
@@ -186,7 +188,7 @@ ns.GUI.Editor.Toolbar.Open({},{})
 assert(api.SetTypographyPresentation("sidebar_label",{color={.32,.43,.54},size=17}))
 for cycle=1,20 do
     ns.GUI.Editor.Toolbar.Hide(); ns.GUI.Editor.Toolbar.Open({},{})
-    Equal(expert.text.lastSetTextColor,{.32,.43,.54,1}); Equal(expert.text.font[2],17)
+    Equal(expert.text.lastSetTextColor,{.32,.43,.54,.9}); Equal(expert.text.font[2],17)
 end
 ace.Create,ns.GUI.Helpers.FormRenderer.BuildLayout=originalAceCreate,originalBuild
 assert(api.ClearTypography())

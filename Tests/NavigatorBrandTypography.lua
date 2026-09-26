@@ -21,7 +21,10 @@ ns.db={profile={General={}}}
 source=source:gsub('function native:GetStringHeight%(%) return self:GetText%(%)=="" and 1 or 14 end',[[
 function native:GetStringHeight()
     if self:GetText()=="" then return 1 end
-    if self:GetText():find("|T",1,true) then return 34 end
+    if self:GetText():find("|T",1,true) then
+        -- Cinzel has different metrics; B3 must reserve the original allocation.
+        return self.font and self.font[1]:find("Cinzel",1,true) and 42 or 34
+    end
     return (self.font and self.font[2] or 11)*1.25
 end]])
 local env,ns,ace,native,toolbar,context,geometry,contents,plaque,equal,copy,upvalue=
@@ -45,22 +48,22 @@ local targets={}; for _,t in ipairs(api.GetTypographyTargets()) do targets[t.id]
 equal(targets[target].area,"Sidebar"); equal(targets[target].label,"Brand")
 equal(targets[target].properties,{"font","size","flags","color","alpha","shadowEnabled"})
 targets[target].properties[1]="bad"; equal(api.GetTypographyTargets()[5].properties[1],"font")
-local fontId="fp:font:achtung-polizei"
+local fontId="fp:font:cinzel-decorative-bold"
 local entry=ns.MediaRegistry.GetEntry(fontId,"font")
-assert(entry.available); assert(entry.path:find("Achtung! Polizei.otf",1,true))
+assert(entry.available); assert(entry.path:find("CinzelDecorative-Bold.ttf",1,true))
 local discovered=false
 for _,font in ipairs(api.GetTypographyFontOptions()) do if font.id==fontId then discovered=true end end
 assert(discovered); equal(api.GetTypographyPresentation(target).font,fontId)
 equal(brand:GetUserData("fpSidebarBrandTypography").rowHeight,34)
-equal(brand.label.font,{entry.path,18,""})
+equal(brand.label.font,{entry.path,19,""})
 local canonicalText=brand.label:GetText()
-assert(canonicalText:find("|cffFFFFFF",1,true)); assert(not canonicalText:find("|T",1,true))
+assert(not canonicalText:find("|c",1,true)); assert(not canonicalText:find("|T",1,true))
 local bind=upvalue(ns.GUI.Editor.ToolbarBinding.RefreshWindowState,"BindBrandTypography")
--- Use the normal localized title to exercise both canonical Brand colors.
+-- The canonical title has no inline RGB overriding the typography descriptor.
 bind(brand,"Focal Point")
 canonicalText=ns.GUI.Skins.GetBrandTitle("Focal Point")
 equal(brand.label:GetText(),canonicalText)
-assert(canonicalText:find("|cffEA7500",1,true))
+equal(canonicalText,"FOCAL POINT")
 local function Logo(widget)
     equal(widget.image:GetTexture(),"Interface\\AddOns\\FocalPoint\\Media\\icon.tga")
     equal(widget.image.nativeWidth,28); equal(widget.image.nativeHeight,28)
@@ -120,7 +123,7 @@ for _,size in ipairs({6,18,48,96}) do
     toolbar.Hide(); toolbar.Open({},{})
     equal(brand.label.font[2],size); equal(brand.label.lastSetAlpha,{.23}); Logo(brand); Isolated()
 end
--- No RGB override: retain both skin colors while font/alpha/shadow remain editable.
+-- No RGB override: resolve the current canonical Brand color afresh.
 assert(api.ClearTypography(target)); bind(brand,"Focal Point")
 assert(api.SetTypographyPresentation(target,{alpha=0,size=96,shadowEnabled=false}))
 equal(brand.label:GetText(),canonicalText); equal(brand.label.lastSetAlpha,{0}); Logo(brand); Isolated()
@@ -130,7 +133,7 @@ skin.brand.titleFocal={wow="|cff336699",r=.2,g=.4,b=.6}
 skin.brand.titlePoint={wow="|cffCC8844",r=.8,g=.533,b=.267}
 assert(api.ClearTypography(target))
 equal(brand.label:GetText(),ns.GUI.Skins.GetBrandTitle("Focal Point"))
-equal(brand.label.lastSetAlpha,{1}); equal(brand.label.font,{entry.path,18,""})
+equal(brand.label.lastSetAlpha,{0.9}); equal(brand.label.font,{entry.path,19,""})
 equal(brand.label.shadowOffset,{1,-1}); equal(api.GetTypographyPresentation(target).color,{.2,.4,.6})
 skin.brand.titleFocal,skin.brand.titlePoint=originalFocal,originalPoint
 assert(api.ClearTypography(target))

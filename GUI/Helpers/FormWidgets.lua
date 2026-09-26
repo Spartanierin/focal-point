@@ -949,7 +949,7 @@ function FormWidgets.ApplyLabelTypography(widget, canonicalOnly)
         or (skins and skins.GetDefaultFont and skins.GetDefaultFont(resolvedFont))
         or resolvedFont or STANDARD_TEXT_FONT
     local role = binding.disabledRole and binding.disabled and "disabled" or "label"
-    local color = overrides.color or textStyles.Get(role)
+    local color = overrides.color or (role == "disabled" and textStyles.Get(role)) or descriptor.color
     textStyles.ApplyFontString(slot, role, {
         font = font, size = descriptor.size, flags = descriptor.flags,
         alpha = descriptor.alpha, shadow = descriptor.shadowEnabled,
@@ -2313,6 +2313,8 @@ function FormWidgets.CreateCompactConfirmation(options)
 end
 function FormWidgets.GetSidebarShellFill()
     local palette = GetFormPalette()
+    local surface = palette.Chrome and palette.Chrome.navigatorShellSurface
+    if surface and surface.material == "texture" then return surface.tint end
     return (palette.Chrome and palette.Chrome.panelBackground)
         or { 0.05, 0.06, 0.08, 0.84 }
 end
@@ -2323,7 +2325,15 @@ function FormWidgets.ApplySidebarShellFill(window, target, canonicalOnly)
     local preview = ns.GUI.PresentationPreview
     local color = target and preview and preview.ResolveColor(target, canonicalOnly)
         or FormWidgets.GetSidebarShellFill()
-    fill:SetColorTexture(unpack(color))
+    local surface = GetChromeColors().navigatorShellSurface
+    if surface and surface.material == "texture" then
+        fill:SetVertexColor(unpack(color))
+    else
+        fill:SetVertexColor(1, 1, 1, 1)
+        fill:SetColorTexture(unpack(color))
+    end
+    fill:SetAlpha(1)
+    fill:Show()
 end
 
 function FormWidgets.ApplySidebarChrome(window, previewTarget)
@@ -2345,6 +2355,21 @@ function FormWidgets.ApplySidebarChrome(window, previewTarget)
         frame._fpSidebarPanelFill = frame:CreateTexture(nil, "ARTWORK")
         frame._fpSidebarPanelFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
         frame._fpSidebarPanelFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 12)
+    end
+    local shellSurface = chromeColors.navigatorShellSurface
+    if shellSurface and shellSurface.material == "texture" then
+        local fill = frame._fpSidebarPanelFill
+        local resolved = ns.MediaRegistry and ns.MediaRegistry.ResolveReference(shellSurface.textureId, "texture")
+        local inset = previewTarget == "sidebar_shell" and 0 or 12
+        fill:ClearAllPoints()
+        fill:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+        fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+        fill:SetTexture(resolved and resolved.available and resolved.resolvedAsset or nil, "CLAMP", "CLAMP")
+        fill:SetTexCoord(0, 1, 0, 1)
+        fill:SetHorizTile(false)
+        fill:SetVertTile(false)
+        fill:SetBlendMode("BLEND")
+        fill:SetDrawLayer("BACKGROUND", -8)
     end
     FormWidgets.ApplySidebarShellFill(window, previewTarget)
     if previewTarget and ns.GUI.PresentationPreview then
@@ -2445,6 +2470,15 @@ function FormWidgets.ApplySidebarChrome(window, previewTarget)
             content._fpSidebarAccent:SetHeight(1)
         end
         content._fpSidebarAccent:SetColorTexture(unpack(chromeColors.accent or {}))
+    end
+    if GetChromeColors().navigatorShellSurface then
+        -- Match the material-only shell formerly shown by Composition. Content
+        -- anchors stay at 12; only the Sidebar surface reaches the Window bounds.
+        for _, key in ipairs({ "_fpSidebarPanelHeaderFill", "_fpSidebarPanelTopShade",
+            "_fpSidebarPanelBottomShade", "_editorSidebar", "_editorSidebarBorder" }) do
+            if frame[key] then frame[key]:Hide() end
+        end
+        if content and content._fpSidebarAccent then content._fpSidebarAccent:Hide() end
     end
     if window._fpNavigatorBrassTarget then FormWidgets.ApplyNavigatorBrassBorder(window) end
 end

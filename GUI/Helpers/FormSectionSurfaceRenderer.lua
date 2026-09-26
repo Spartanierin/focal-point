@@ -150,10 +150,16 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     end
 
     local surfaceMaterial = surface.material or "color"
-    if surfaceMaterial == "texture" and type(surface.texture) == "string" then
+    local texture = surface.texture
+    if surfaceMaterial == "texture" and surface.textureId then
+        local registry = ns.MediaRegistry
+        local resolved = registry and registry.ResolveReference(surface.textureId, "texture")
+        texture = resolved and resolved.available and resolved.resolvedAsset or nil
+    end
+    if surfaceMaterial == "texture" and type(texture) == "string" then
         local fill = EnsureTexture("_fpSectionFill", "BACKGROUND")
         SetSurfaceBounds(fill, frame, left, right, top, bottom)
-        fill:SetTexture(surface.texture)
+        fill:SetTexture(texture)
         fill:SetTexCoord(0, 1, 0, 1)
         fill:SetBlendMode("BLEND")
         fill:SetVertexColor(unpack(surface.tint or { 1, 1, 1, 1 }))
@@ -239,21 +245,31 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     end
 end
 
--- Recolor already-created color surfaces without touching anchors or padding.
+-- Recolor the canonical material without touching anchors or padding.
 function FormSectionSurfaceRenderer.ApplySectionColors(group, style)
     local frame = group and group.frame
     local surface = style and style.surface
-    if not frame or not surface or surface.material == "texture" then return end
+    if not frame or not surface then return end
     local function ColorRegion(name, color)
         if frame[name] and color then frame[name]:SetColorTexture(unpack(color)) end
     end
-    ColorRegion("_fpSectionFill", surface.fill)
+    if surface.material == "texture" then
+        if frame._fpSectionFill and surface.tint then frame._fpSectionFill:SetVertexColor(unpack(surface.tint)) end
+    else
+        ColorRegion("_fpSectionFill", surface.fill)
+    end
+    ColorRegion("_fpSectionTopShade", surface.topShade)
+    ColorRegion("_fpSectionBottomShade", surface.bottomShade)
     ColorRegion("_fpSectionAccent", surface.accent and surface.accent.color)
     local border = style.border
     if type(border) == "table" then
         local color = border.color or ResolveItemColor(border.colorKey)
         for _, edge in ipairs({ "Top", "Bottom", "Left", "Right" }) do
             ColorRegion("_fpSectionBorder" .. edge, color)
+        end
+    elseif border == false then
+        for _, edge in ipairs({ "Top", "Bottom", "Left", "Right" }) do
+            ColorRegion("_fpSectionBorder" .. edge, { 0, 0, 0, 0 })
         end
     end
 end

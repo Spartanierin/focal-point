@@ -4,6 +4,9 @@ local env = dofile("Tests/FPCompactSlider.lua")
 local ns, ace, native = env.ns, env.ace, env.native
 ns.Ace = {}
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+local textureNS = {}
+assert(loadfile("Media/Textures/GUI/GUITextureManifest.lua"))("FocalPoint", textureNS)
+assert(loadfile("Services/MediaRegistry.lua"))("FocalPoint", textureNS)
 local fontEntries = {
     { id = "fp:font:standard", name = "Focal Point Standard", path = "Fonts\\FRIZQT__.TTF", available = true },
     { id = "fp:font:morpheus", name = "Morpheus", path = "Fonts\\MORPHEUS.ttf", available = true },
@@ -29,6 +32,7 @@ ns.MediaRegistry = {
         return result
     end,
     GetEntry = function(reference, mediaType)
+        if mediaType == "texture" then return textureNS.MediaRegistry.GetEntry(reference, mediaType) end
         if mediaType ~= "font" then return nil end
         for _, entry in ipairs(fontEntries) do
             if entry.id == reference then return entry end
@@ -48,7 +52,7 @@ for _, method in ipairs({ "SetPoint", "ClearAllPoints", "SetWidth", "SetHeight" 
         return original(self, ...)
     end
 end
-for _, method in ipairs({ "SetAllPoints", "SetFrameStrata", "SetFrameLevel", "SetIgnoreParentAlpha",
+for _, method in ipairs({ "SetAllPoints", "SetFrameStrata", "SetFrameLevel", "SetIgnoreParentAlpha", "SetDrawLayer",
     "SetTexture", "SetTexCoord", "SetBlendMode", "SetColorTexture" }) do
     native[method] = function(self, ...) self["last" .. method] = { ... } end
 end
@@ -56,7 +60,7 @@ function native:GetParent() return self.parent end
 function native:GetRegions() end
 function native:GetFrameStrata() return "DIALOG" end
 function native:GetFrameLevel() return 1 end
-function native:GetFont() return table.unpack(self.font or { STANDARD_TEXT_FONT, 13, "" }) end
+function native:GetFont() return table.unpack(self.font or { STANDARD_TEXT_FONT, 14, "OUTLINE" }) end
 function native:SetFont(...) self.font = { ... } end
 function native:SetShadowOffset(...) self.shadowOffset = { ... } end
 function native:SetShadowColor(...) self.shadowColor = { ... } end
@@ -69,6 +73,7 @@ Load("GUI/Helpers/PresentationPreview.lua")
 Load("GUI/Helpers/FormWidgets.lua")
 Load("GUI/Helpers/FormSectionSurfaceRenderer.lua")
 Load("GUI/Helpers/FormRenderer.lua")
+Load("GUI/Layouts/FormElementDefinition.lua")
 Load("GUI/Editor/Inspector/InspectorBinding.lua")
 Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIContainer-SimpleGroup.lua")
 Load("GUI/AppShell.lua")
@@ -94,9 +99,20 @@ local function RGBA(target)
     local b = assert(api.GetBaseline(target))
     return { b.color[1], b.color[2], b.color[3], b.alpha }
 end
-local function Color(region, expected) Equal(region.lastSetColorTexture, expected) end
+local function Color(region, expected)
+    assert(region)
+    if region.lastSetTexture and region.lastSetTexture[1] then
+        Equal(region.lastSetVertexColor, expected)
+    else
+        Equal(region.lastSetColorTexture, expected)
+    end
+end
 local red = { 1, 0, 0 }
-Equal(#api.GetTargets(), 6)
+Equal(#api.GetTargets(), 7)
+for _, target in ipairs(api.GetTargets()) do
+    Equal(target.area, target.id:match("^sidebar_") and "Sidebar" or "Inspector")
+    Equal(target.properties, { "color", "alpha" })
+end
 Equal(api.GetCapabilities().version, 1)
 local typographyCapabilities = api.GetTypographyCapabilities()
 Equal(typographyCapabilities.properties.size, { type = "number", min = 6, max = 96 })
@@ -166,7 +182,9 @@ local original = api.GetBaseline("sidebar_shell")
 local copy = api.GetBaseline("sidebar_shell"); copy.color[1] = 99
 Equal(api.GetBaseline("sidebar_shell"), original)
 local targets = api.GetTargets(); targets[1].properties[1] = "width"
+targets[1].area = "wrong"
 Equal(api.GetTargets()[1].properties[1], "color")
+Equal(api.GetTargets()[1].area, "Sidebar")
 
 -- Store before any instance exists. Input and output values must be detached.
 assert(api.Set("sidebar_shell", "color", red)); red[1] = 0
@@ -192,11 +210,13 @@ Equal(geometryWrites, beforeGeometry)
 -- All section regions use the real shared renderer. Reapply must not layout.
 local section = ace:Create("SimpleGroup")
 binding.ApplyInspectorSectionStructure(section, "default")
+assert(api.Set("inspector_section_border", "alpha", 0.25))
+assert(api.Clear("inspector_section_border"))
 local edge = section.frame._fpSectionBorderTop
 local sections = {
     inspector_section_surface = section.frame._fpSectionFill,
     inspector_section_border = edge,
-    inspector_section_accent = section.frame._fpSectionAccent,
+    inspector_section_accent = section.frame._fpSectionTopShade,
 }
 beforeGeometry = geometryWrites
 for target, region in pairs(sections) do
@@ -208,6 +228,169 @@ for target, region in pairs(sections) do
     assert(api.Clear(target)); Color(region, RGBA(target))
 end
 Equal(geometryWrites, beforeGeometry)
+
+-- All three targets on the same owner survive rebinding and independent clears.
+binding.ApplyInspectorSectionStructure(section, "default")
+beforeGeometry = geometryWrites
+for target in pairs(sections) do assert(api.Set(target, "color", { 0.3, 0.5, 0.7 })) end
+assert(api.Set("inspector_section_accent", "alpha", 0))
+assert(api.Clear("inspector_section_border"))
+Color(sections.inspector_section_surface, { 0.3, 0.5, 0.7, RGBA("inspector_section_surface")[4] })
+Color(sections.inspector_section_accent, { 0.3, 0.5, 0.7, 0 })
+Color(edge, RGBA("inspector_section_border"))
+assert(api.ClearAll())
+Equal(geometryWrites, beforeGeometry)
+
+-- v0.2 admits only the unchanged inset descriptor, not the twelve WIP targets.
+local insetId = "sidebar_unit_navigator_inset"
+local styles = ns.GUI.Layouts.FormElements.SectionStyles
+local canonicalStyles = Clone(styles)
+for _, family in ipairs({ "brand_header", "workspace_section", "editing_section", "utility_section" }) do
+    for _, part in ipairs({ "surface", "border", "accent" }) do
+        local id = "sidebar_" .. family .. "_" .. part
+        local value, reason = api.GetBaseline(id)
+        Equal(value, nil); Equal(reason, "unknown_target")
+        local ok; ok, reason = api.Set(id, "alpha", 0.4)
+        Equal(ok, false); Equal(reason, "unknown_target")
+    end
+end
+Equal(RGBA(insetId), styles.toolbar_explorer_inset.surface.tint)
+local insetCopy = api.GetBaseline(insetId); insetCopy.color[1] = 99; insetCopy.alpha = 99
+Equal(RGBA(insetId), styles.toolbar_explorer_inset.surface.tint)
+assert(api.Set(insetId, "alpha", 0)) -- before the Sidebar exists
+local surfaceRenderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+local function Surface(style)
+    local group = ace:Create("SimpleGroup")
+    surfaceRenderer.ApplySectionSurface(group, styles[style])
+    surfaceRenderer.ApplySectionBorder(group, styles[style].border)
+    return group
+end
+local inset = Surface("toolbar_explorer_inset")
+local options, tools = Surface("toolbar_global_panel"), Surface("toolbar_global_panel")
+local brand = Surface("page_header")
+local itemState = Clone(ns.GUI.Layouts.FormElements.ComponentStyles.Navigation.UnitNavigatorItem.states)
+-- Exercise the real Sidebar builder; simulate only the surrounding window/layout.
+local oldCreate, oldBuild = ace.Create, ns.GUI.Helpers.FormRenderer.BuildLayout
+ace.Create = function(self, kind)
+    if kind ~= "Window" and kind ~= "ScrollFrame" then return oldCreate(self, kind) end
+    local group = oldCreate(self, "SimpleGroup")
+    function group:SetTitle() end
+    function group:EnableResize() end
+    function group:Show() self.frame:Show() end
+    return group
+end
+local headingWidgets = {}
+for _, id in ipairs({ "unitLabel", "compositionTitle", "editingTitle", "toolsTitle" }) do
+    local owner = ace:Create("SimpleGroup")
+    owner.label = owner.frame:CreateFontString()
+    owner.label:SetText(id)
+    headingWidgets[id] = owner
+end
+ns.GUI.Helpers.FormRenderer.BuildLayout = function()
+    return { UnitGrid = inset, Options = options, Secondary = tools, Header = brand }, headingWidgets
+end
+for _, method in ipairs({ "SetClampedToScreen", "SetToplevel", "Raise" }) do native[method] = function() end end
+ns.GUI.Editor.SidebarGeometry = { left = 0, top = 0 }
+UIParent:SetHeight(900)
+Load("GUI/Editor/Toolbar/ToolbarController.lua")
+ns.GUI.Editor.Toolbar.Open({}, {})
+ace.Create, ns.GUI.Helpers.FormRenderer.BuildLayout = oldCreate, oldBuild
+-- Real Sidebar and Inspector owner apply, including the final FontString RGB.
+local sidebarHeading, inspectorHeading = "sidebar_section_heading", "inspector_section_heading"
+local inspectorTextOwner = ace:Create("SimpleGroup")
+inspectorTextOwner.titletext = inspectorTextOwner.frame:CreateFontString()
+inspectorTextOwner.titletext:SetText("Inspector title")
+binding.ApplyInspectorSectionStructure(inspectorTextOwner, "default")
+local function TypographyColor(region, descriptor)
+    Equal(region.lastSetTextColor, { descriptor.color[1], descriptor.color[2], descriptor.color[3], descriptor.alpha })
+end
+local inspectorBaseline = api.GetTypographyPresentation(inspectorHeading)
+local sidebarBaseline = api.GetTypographyPresentation(sidebarHeading)
+local typographyPatch = { font = "lsm:font:fixture", size = 22, flags = "THICKOUTLINE",
+    color = { 0.2, 0.4, 0.6 }, alpha = 0.35, shadowEnabled = false }
+beforeGeometry = geometryWrites
+assert(api.SetTypographyPresentation(sidebarHeading, typographyPatch))
+for id, owner in pairs(headingWidgets) do
+    TypographyColor(owner.label, typographyPatch)
+    Equal(owner.label.font, { "Interface\\AddOns\\Fixture\\Font.ttf", 22, "THICKOUTLINE" })
+    Equal(owner.label.shadowOffset, { 0, 0 }); Equal(owner.label.shadowColor, { 0, 0, 0, 0 })
+    Equal(owner.label:GetText(), id)
+end
+Equal(geometryWrites, beforeGeometry)
+TypographyColor(inspectorTextOwner.titletext, inspectorBaseline)
+assert(api.SetTypographyPresentation(inspectorHeading, typographyPatch))
+TypographyColor(inspectorTextOwner.titletext, typographyPatch)
+Equal(inspectorTextOwner.titletext.font, { "Interface\\AddOns\\Fixture\\Font.ttf", 22, "THICKOUTLINE" })
+Equal(inspectorTextOwner.titletext.shadowOffset, { 0, 0 })
+Equal(inspectorTextOwner.titletext:GetText(), "Inspector title")
+typographyPatch.color[1] = 0.9
+Equal(api.GetTypographyPresentation(sidebarHeading).color, { 0.2, 0.4, 0.6 })
+local descriptorCopy = api.GetTypographyPresentation(sidebarHeading)
+descriptorCopy.color[1] = 0.9
+Equal(api.GetTypographyPresentation(sidebarHeading).color, { 0.2, 0.4, 0.6 })
+local overridesBeforeInvalid = api.GetTypographyOverrides()
+for _, patch in ipairs({ { color = { 1, 0 } }, { color = { 1, 0, 0, 1 } },
+    { alpha = -1 }, { alpha = 0/0 }, { shadowEnabled = 1 }, { font = "Fonts\\Raw.ttf" },
+    { size = 20, flags = "BAD" } }) do
+    local ok, reason = api.SetTypographyPresentation(sidebarHeading, patch)
+    Equal(ok, false); assert(type(reason) == "string")
+    Equal(api.GetTypographyOverrides(), overridesBeforeInvalid)
+end
+assert(api.ClearTypography(sidebarHeading))
+for _, owner in pairs(headingWidgets) do
+    TypographyColor(owner.label, sidebarBaseline)
+    Equal(owner.label.font, { STANDARD_TEXT_FONT, 14, "OUTLINE" })
+    Equal(owner.label.shadowOffset, { 1, -1 })
+end
+Equal(api.GetTypographyPresentation(inspectorHeading).alpha, 0.35)
+combat = true
+for _, call in ipairs({ function() return api.SetTypographyPresentation(inspectorHeading, { alpha = 0.8 }) end,
+    function() return api.ClearTypography(inspectorHeading) end, api.ClearAllTypography }) do
+    local ok, reason = call(); Equal(ok, false); Equal(reason, "combat")
+end
+Equal(api.GetTypographyPresentation(inspectorHeading).alpha, 0.35)
+combat = false
+assert(api.ClearTypography(inspectorHeading))
+TypographyColor(inspectorTextOwner.titletext, inspectorBaseline)
+Color(inset.frame._fpSectionFill, { 0.6549019813537598, 0.6549019813537598, 0.6549019813537598, 0 })
+local insetReleased = 0
+for cycle = 1, 50 do
+    ns.GUI.PresentationPreview.BindSidebarNavigatorInset(inset)
+    ns.GUI.PresentationPreview.BindSidebarNavigatorInset(inset)
+    beforeGeometry = geometryWrites
+    assert(api.Set(insetId, "color", { 1, 0, 1 }))
+    assert(api.Set(insetId, "alpha", 0.3))
+    Color(inset.frame._fpSectionFill, { 1, 0, 1, 0.3 })
+    assert(api.Clear(insetId, "color"))
+    Color(inset.frame._fpSectionFill, { 0.6549019813537598, 0.6549019813537598, 0.6549019813537598, 0.3 })
+    Color(options.frame._fpSectionFill, styles.toolbar_global_panel.surface.tint)
+    Color(tools.frame._fpSectionFill, styles.toolbar_global_panel.surface.tint)
+    Color(brand.frame._fpSectionAccent, styles.page_header.surface.accent.color)
+    Color(sidebar.frame._fpSidebarPanelFill, RGBA("sidebar_shell"))
+    Equal(geometryWrites, beforeGeometry)
+    local old = inset
+    ace:Release(inset); insetReleased = insetReleased + 1
+    Color(old.frame._fpSectionFill, RGBA(insetId))
+    assert(api.Set(insetId, "color", { 0, 1, 0 }))
+    Color(old.frame._fpSectionFill, RGBA(insetId)) -- no writes to released owner
+    inset = Surface("toolbar_explorer_inset"); Equal(inset, old)
+    ns.GUI.PresentationPreview.BindSidebarNavigatorInset(inset)
+    Color(inset.frame._fpSectionFill, { 0, 1, 0, 0.3 })
+end
+Equal(insetReleased, 50)
+beforeGeometry = geometryWrites
+assert(api.ClearAll()); Color(inset.frame._fpSectionFill, RGBA(insetId))
+Equal(geometryWrites, beforeGeometry)
+Equal(styles, canonicalStyles)
+Equal(ns.GUI.Layouts.FormElements.ComponentStyles.Navigation.UnitNavigatorItem.states, itemState)
+combat = true
+for _, call in ipairs({ function() return api.Set(insetId, "alpha", 1) end,
+    function() return api.Clear(insetId) end, api.ClearAll }) do
+    local ok, reason = call(); Equal(ok, false); Equal(reason, "combat")
+end
+Equal(api.GetOverrides(), {})
+combat = false
+ace:Release(inset); assert(api.Clear(insetId))
 
 -- A released section cannot receive previews while used by a different owner.
 local released = 0
@@ -295,8 +478,8 @@ assert(api.ClearAll())
 Equal(ns.GUI.Skins.GetActiveSkin(), canonical)
 local alternate = Clone(canonical)
 alternate.formPalette.Navigator.navigatorBlackenedMetal = { 0.2, 0.3, 0.4, 0.6 }
-alternate.formPalette.Chrome.panelBackground = { 0.2, 0.3, 0.4, 0.6 }
-alternate.formPalette.Chrome.sectionFill = { 0.4, 0.3, 0.2, 0.7 }
+alternate.formPalette.Chrome.navigatorShellSurface.tint = { 0.2, 0.3, 0.4, 0.6 }
+alternate.formPalette.Chrome.inspectorSectionSurface.tint = { 0.4, 0.3, 0.2, 0.7 }
 ns.GUI.Skins.Register("preview_test", alternate)
 assert(api.Set("sidebar_shell", "color", { 1, 0, 0 }))
 ns.GUI.Skins.SetActiveSkin("preview_test")
@@ -326,6 +509,12 @@ inspector.frame:Show()
 Color(inspector.frame._fpSidebarPanelFill, { 0, 1, 0, 0.6 })
 assert(api.ClearAll())
 assert(api.Set("inspector_shell", "color", { 0, 1, 0 }))
+ace:Release(inspectorTextOwner)
+for _, owner in pairs(headingWidgets) do ace:Release(owner) end
+assert(api.SetTypographyPresentation(sidebarHeading, { color = { 1, 0, 0 } }))
+for _, owner in pairs(headingWidgets) do TypographyColor(owner.label, sidebarBaseline) end
+assert(api.ClearTypography(sidebarHeading))
+print("PASS: typography public built-in/LSM DTOs, resolvable IDs, copies, real Sidebar/Inspector font/color/alpha/size/flags/shadow owners, isolation, reset, release and combat")
 Load("GUI/Helpers/PresentationPreview.lua") -- fresh addon Lua state has no overrides
 api = ns.Ace.PresentationPreview
 -- T1.2 verifies the public Typography contract on real Sidebar/Inspector owners.
@@ -387,4 +576,4 @@ ns.GUI.Editor.Toolbar.Hide()
 print("PASS: T1.2 public font DTOs, Sidebar RGB apply, Inspector isolation, resolver compatibility and typography state")
 Equal(ns.Ace.PresentationPreview.GetOverrides(), {})
 assert(#env.errors == 0, table.concat(env.errors, "\n"))
-print("PASS: six preview targets, copies/validation, canonical reset/skin switch, combat, geometry isolation and 50 section + slider pooling cycles")
+print("PASS: seven preview targets/areas, WIP gate, Sidebar builder binding, inset isolation, multi-target owner, copies/validation, canonical reset/skin switch, combat, geometry isolation, 50 inset + section + slider pooling cycles")

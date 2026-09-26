@@ -157,7 +157,8 @@ local line = Add("line", { edge = "left", thickness = 4, offset = 8 })
 for _, initial in ipairs({ { edge = "diagonal" }, { offset = -1 }, { offset = 9 }, { thickness = 0 }, { thickness = 5 } }) do
     Rejected("invalid_property", function() return api.AddLayer(target, "line", initial) end)
 end
-for _, initial in ipairs({ { textureId = "Interface\\anything.blp" }, { textureId = "fp:texture:missing" },
+-- MediaRegistry retains legacy path compatibility; reject invalid IDs/types.
+for _, initial in ipairs({ { textureId = false }, { textureId = "fp:texture:missing" },
     { mode = "tile" }, { tint = { 1, 2, 1 } } }) do
     Rejected("invalid_property", function() return api.AddLayer(target, "texture", initial) end)
 end
@@ -217,18 +218,20 @@ for _, r in ipairs(slots) do Neutral(r) end
 assert(not a.frame._fpSectionFill or not a.frame._fpSectionFill:IsShown())
 assert(api.ResetComposition(target)); Equal(api.GetComposition(target), nil)
 assert(a.frame._fpSectionFill:IsShown())
-Equal(a.frame._fpSectionFill.lastSetColorTexture, ns.GUI.Skins.GetFormPalette().Chrome.sectionFill)
+Equal(a.frame._fpSectionFill.lastSetVertexColor, ns.GUI.Skins.GetFormPalette().Chrome.inspectorSectionSurface.tint)
 local canonicalStyle = binding.ResolveSectionPresentation()
-Equal(a.frame._fpSectionBorderTop.lastSetColorTexture, canonicalStyle.border.color)
-Equal(a.frame._fpSectionAccent.lastSetColorTexture, canonicalStyle.surface.accent.color)
+assert(not canonicalStyle.border)
+assert(not a.frame._fpSectionBorderTop or not a.frame._fpSectionBorderTop:IsShown())
+Equal(a.frame._fpSectionTopShade.lastSetColorTexture, canonicalStyle.surface.topShade)
+Equal(a.frame._fpSectionBottomShade.lastSetColorTexture, canonicalStyle.surface.bottomShade)
 -- Canonical reset resolves current data; it does not copy a cached palette.
 local defaultTexture = Add("texture")
 Equal(api.GetComposition(target).layers[#api.GetComposition(target).layers].textureId, "fp:texture:parchment")
 local palette = ns.GUI.Skins.GetFormPalette()
-local old = palette.Chrome.sectionFill
-palette.Chrome.sectionFill = { 0.7, 0.6, 0.5, 0.4 }
-assert(api.ResetComposition(target)); Equal(a.frame._fpSectionFill.lastSetColorTexture, palette.Chrome.sectionFill)
-palette.Chrome.sectionFill = old
+local old = palette.Chrome.inspectorSectionSurface.tint
+palette.Chrome.inspectorSectionSurface.tint = { 0.7, 0.6, 0.5, 0.4 }
+assert(api.ResetComposition(target)); Equal(a.frame._fpSectionFill.lastSetVertexColor, palette.Chrome.inspectorSectionSurface.tint)
+palette.Chrome.inspectorSectionSurface.tint = old
 assert(api.ClearComposition(target)); assert(api.ResetComposition(target))
 Equal(functionalWrites, beforeGeometry)
 

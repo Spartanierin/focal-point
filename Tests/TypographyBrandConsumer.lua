@@ -100,12 +100,12 @@ Equal(accepted,false); Equal(reason,"unavailable_font")
 Equal(api.GetTypographyOverrides("sidebar_brand"),before)
 tool.ResetTypography()
 Equal(registry.GetDefault("font"),"fp:font:standard")
-Equal(api.GetTypographyPresentation("sidebar_brand").font,"fp:font:achtung-polizei")
+Equal(api.GetTypographyPresentation("sidebar_brand").font,"fp:font:cinzel-decorative-bold")
 print("PASS: Font Pack registry, resolver paths/TTF headers, availability, public/Tool discovery, sorting, defensive DTOs, rejection and existing defaults")
 local sharedId
 for id,label in pairs(fonts) do if label=="Wide Fixture" then sharedId=id end end
 assert(sharedId and sharedId:find("lsm:font:",1,true))
-Equal(api.GetTypographyPresentation("sidebar_brand").font,"fp:font:achtung-polizei")
+Equal(api.GetTypographyPresentation("sidebar_brand").font,"fp:font:cinzel-decorative-bold")
 local isolated={api.GetTypographyOverrides("sidebar_label"),api.GetTypographyOverrides("inspector_label"),
     api.GetTypographyOverrides("sidebar_section_heading"),api.GetTypographyOverrides("inspector_section_heading")}
 assert(tool.WorkspaceNew("Brand B2 contract"))
@@ -121,7 +121,7 @@ assert(tool.WorkspaceSave())
 Equal(FocalPointDesignToolDB.designs["Brand B2 contract"].schemaVersion,3)
 Equal(FocalPointDesignToolDB.designs["Brand B2 contract"].typography.sidebar_brand,saved)
 tool.ResetTypography(); Equal(api.GetTypographyOverrides("sidebar_brand"),{})
-Equal(api.GetTypographyPresentation("sidebar_brand").font,"fp:font:achtung-polizei")
+Equal(api.GetTypographyPresentation("sidebar_brand").font,"fp:font:cinzel-decorative-bold")
 assert(tool.WorkspaceLoad("Brand B2 contract")); Equal(api.GetTypographyOverrides("sidebar_brand"),saved)
 setCombat(true); tool.SetTypographyProperty("size",42); tool.ResetTypography()
 assert(not tool.WorkspaceLoad("Brand B2 contract")); setCombat(false)

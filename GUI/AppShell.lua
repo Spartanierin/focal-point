@@ -270,7 +270,16 @@ local function ApplyEditorToolbarFill(layer, canonicalOnly)
     local preview = ns.GUI.PresentationPreview
     local color = preview and preview.ResolveColor("sidebar_shell", canonicalOnly)
         or ns.GUI.Helpers.FormWidgets.GetSidebarShellFill()
-    layer._editorSidebar:SetColorTexture(unpack(color))
+    local surface = ns.GUI.Skins.GetFormPalette().Chrome.navigatorShellSurface
+    if surface and surface.material == "texture" then
+        local resolved = ns.MediaRegistry and ns.MediaRegistry.ResolveReference(surface.textureId, "texture")
+        layer._editorSidebar:SetTexture(resolved and resolved.available and resolved.resolvedAsset or nil, "CLAMP", "CLAMP")
+        layer._editorSidebar:SetTexCoord(0, 1, 0, 1)
+        layer._editorSidebar:SetVertexColor(unpack(color))
+    else
+        layer._editorSidebar:SetVertexColor(1, 1, 1, 1)
+        layer._editorSidebar:SetColorTexture(unpack(color))
+    end
 end
 
 local function ApplyEditorToolbarComposition(layer, canonicalOnly)
