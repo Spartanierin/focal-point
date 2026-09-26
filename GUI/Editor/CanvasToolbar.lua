@@ -24,7 +24,7 @@ local LAYOUT_DROPDOWN_WIDTH = 156
 local LAYOUT_ADD_X = 430
 local LAYOUT_ADD_WIDTH = 30
 local LAYOUT_ACTIVATE_X = 468
-local LAYOUT_MANAGE_WIDTH = 118
+local LAYOUT_MANAGE_WIDTH = 148
 
 local context
 local newLayoutDialog
@@ -990,6 +990,8 @@ local function EnsureHost()
     inset:SetColorTexture(unpack(chromeColors.canvasToolbarInset or {}))
     host.inset = inset
 
+    FormWidgets.ApplyCanvasToolbarPresentation(host)
+
     local widgets = {
         addObjectButton = CreateButton(T("ADD_OBJECT_BUTTON", "+ Add Object"), INSERT_ADD_OBJECT_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
@@ -1166,6 +1168,7 @@ function CanvasToolbar.Show()
 
     CanvasToolbar.UpdateGeometry()
     CanvasToolbar.Refresh()
+    FormWidgets.ApplyCanvasToolbarPresentation(current.host)
     current.host:Show()
 end
 

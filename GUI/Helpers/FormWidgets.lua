@@ -584,6 +584,73 @@ local navigatorBrassLayout = {
     LeftEdge = navigatorVertical, RightEdge = navigatorVertical,
     -- Deliberately no Center: material remains owned by shell composition.
 }
+
+-- The native Canvas toolbar owns its lifetime; no Navigator targets or AceGUI
+-- release callbacks. Keep the same artwork proportions within its 50px height.
+local canvasCorner = { file = navigatorCorner.file, width = 24, height = 24, layer = "OVERLAY" }
+local canvasHorizontal = { file = navigatorHorizontal.file, width = 48, height = 24, layer = "OVERLAY" }
+local canvasVertical = { file = navigatorVertical.file, width = 24, height = 48, layer = "OVERLAY" }
+local canvasBrassLayout = {
+    setupPieceVisualsFunction = SetupNavigatorBrassPiece,
+    TopLeftCorner = canvasCorner, TopRightCorner = canvasCorner,
+    BottomLeftCorner = canvasCorner, BottomRightCorner = canvasCorner,
+    TopEdge = canvasHorizontal, BottomEdge = canvasHorizontal,
+    LeftEdge = canvasVertical, RightEdge = canvasVertical,
+}
+
+function FormWidgets.RestoreCanvasToolbarPresentation(frame)
+    if not frame then return end
+    if frame._fpCanvasBrassNineSlice then frame._fpCanvasBrassNineSlice:Hide() end
+    if frame._fpCanvasMaterial then frame._fpCanvasMaterial:Hide() end
+    for _, snapshot in ipairs(frame._fpCanvasPresentationSnapshot or {}) do
+        if snapshot.shown then snapshot.region:Show() else snapshot.region:Hide() end
+    end
+    frame._fpCanvasPresentationSnapshot = nil
+end
+
+function FormWidgets.ApplyCanvasToolbarPresentation(frame)
+    if not frame then return false end
+    local material = GetChromeColors().navigatorShellSurface
+    local registry = ns.MediaRegistry
+    local resolved = material and material.material == "texture" and registry
+        and registry.ResolveReference(material.textureId, "texture")
+    if not (resolved and resolved.available and NineSliceUtil and NineSliceUtil.ApplyLayout) then
+        FormWidgets.RestoreCanvasToolbarPresentation(frame)
+        return false
+    end
+
+    if not frame._fpCanvasPresentationSnapshot then
+        local snapshots = {}
+        for _, key in ipairs({ "bg", "border", "inset" }) do
+            local region = frame[key]
+            if region then snapshots[#snapshots + 1] = { region = region, shown = region:IsShown() } end
+        end
+        frame._fpCanvasPresentationSnapshot = snapshots
+    end
+    for _, snapshot in ipairs(frame._fpCanvasPresentationSnapshot) do snapshot.region:Hide() end
+
+    local surface = frame._fpCanvasMaterial
+    if not surface then
+        surface = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+        frame._fpCanvasMaterial = surface
+    end
+    -- The 24px Brass slices have ~1.7px transparent outer padding. Start the
+    -- material under the rail rather than exposing it outside the metal edge.
+    surface:ClearAllPoints()
+    surface:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -2)
+    surface:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+    surface:SetTexture(resolved.resolvedAsset, "CLAMP", "CLAMP")
+    surface:SetTexCoord(0, 1, 0, 1)
+    surface:SetHorizTile(false)
+    surface:SetVertTile(false)
+    surface:SetBlendMode("BLEND")
+    surface:SetVertexColor(unpack(material.tint))
+    surface:SetAlpha(1)
+    surface:Show()
+    ApplyWindowNineSlice(frame, "_fpCanvasBrassNineSlice", canvasBrassLayout):Show()
+    return true
+end
+
 local navigatorBorderColors = {
     _fpSidebarPanelBorderTop = "panelBorder", _fpSidebarPanelBorderBottom = "panelBorder",
     _fpSidebarPanelBorderLeft = "panelBorder", _fpSidebarPanelBorderRight = "panelBorder",
