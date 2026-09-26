@@ -9,6 +9,8 @@ local CreateFrame = CreateFrame
 local FormWidgets = {}
 ns.GUI.Helpers.FormWidgets = FormWidgets
 
+local ApplyDialogWindowChrome, ResetDialogWindowChrome
+
 local function GetFormPalette()
     local skins = ns.GUI and ns.GUI.Skins or nil
     if skins and skins.GetFormPalette then
@@ -188,6 +190,11 @@ local function FindNativeTitleBackground(frame)
     end
 
     return nil
+end
+
+local function GetDialogWindowMaterial()
+    -- Retain the W1 storage key as a compatibility reference, not a consumer mode.
+    return GetCompactDialogContentSurface("parchment")
 end
 
 local function FindNativeDialogBackground(frame)
@@ -478,6 +485,7 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
         return
     end
 
+    if ResetDialogWindowChrome then ResetDialogWindowChrome(window) end
     ResetModernWindowTitleBar(frame)
     ResetModernPortraitBackground(frame)
     ResetModernWindowPortrait(frame)
@@ -1467,6 +1475,12 @@ function FormWidgets.ApplyWindowChrome(window, options)
     end
 
     options = options or {}
+    if options.focalPointDialog then
+        return ApplyDialogWindowChrome(window)
+    end
+    if ResetDialogWindowChrome and ResetDialogWindowChrome(window) then
+        FormWidgets.RestoreDefaultWindowChrome(window)
+    end
     if options.nativeFrameShell then
         options = {
             shellInset = 0,
@@ -1950,26 +1964,25 @@ end
 -- Dialog-only layout: reuse the production Brass assets and border host, never
 -- the Navigator binder or its composition targets. Smaller corners fit the
 -- existing 32px content top and 35px effective body left inset.
-local parchmentCorner = { file = "fp_navigator_brass_corner.tga", width = 28, height = 28, layer = "OVERLAY" }
-local parchmentHorizontal = { file = "fp_navigator_brass_horizontal.tga", width = 56, height = 28, layer = "OVERLAY" }
-local parchmentVertical = { file = "fp_navigator_brass_vertical.tga", width = 28, height = 56, layer = "OVERLAY" }
-local parchmentBrassLayout = {
+local dialogCorner = { file = "fp_navigator_brass_corner.tga", width = 28, height = 28, layer = "OVERLAY" }
+local dialogHorizontal = { file = "fp_navigator_brass_horizontal.tga", width = 56, height = 28, layer = "OVERLAY" }
+local dialogVertical = { file = "fp_navigator_brass_vertical.tga", width = 28, height = 56, layer = "OVERLAY" }
+local dialogBrassLayout = {
     setupPieceVisualsFunction = SetupNavigatorBrassPiece,
-    TopLeftCorner = parchmentCorner, TopRightCorner = parchmentCorner,
-    BottomLeftCorner = parchmentCorner, BottomRightCorner = parchmentCorner,
-    TopEdge = parchmentHorizontal, BottomEdge = parchmentHorizontal,
-    LeftEdge = parchmentVertical, RightEdge = parchmentVertical,
+    TopLeftCorner = dialogCorner, TopRightCorner = dialogCorner,
+    BottomLeftCorner = dialogCorner, BottomRightCorner = dialogCorner,
+    TopEdge = dialogHorizontal, BottomEdge = dialogHorizontal,
+    LeftEdge = dialogVertical, RightEdge = dialogVertical,
 }
-local parchmentChromeKey = "fpParchmentChrome"
+-- Keep W1's private region/userdata keys so its existing host is reused.
+local dialogChromeKey = "fpParchmentChrome"
 
-local function ReleaseParchmentWindowChrome(window, binding)
+ResetDialogWindowChrome = function(window)
+    local binding = window:GetUserData(dialogChromeKey)
+    if not binding or not binding.active then return false end
+    binding.active = false
     local frame = window.frame
     if frame._fpParchmentNineSlice then frame._fpParchmentNineSlice:Hide() end
-    local shell = frame._fpCompactFormShell
-    if shell then
-        shell:Release()
-        frame._fpCompactFormShell = nil
-    end
     -- Return only this adapter's material writes to neutral before another
     -- consumer acquires the Window. Its normal presentation then applies afresh.
     for _, key in ipairs({ "_fpPanelFill", "_fpPanelHeaderFill" }) do
@@ -1980,34 +1993,35 @@ local function ReleaseParchmentWindowChrome(window, binding)
             region:SetAlpha(1)
         end
     end
-    FormWidgets.RestoreDefaultWindowChrome(window)
     if window.titletext then window.titletext:SetParent(binding.titleParent) end
     if window.title then window.title:SetFrameLevel(binding.titleLevel) end
     if window.closebutton then window.closebutton:SetFrameLevel(binding.closeLevel) end
-    window:SetUserData(parchmentChromeKey, nil)
+    return true
 end
 
-local function ApplyParchmentWindowChrome(window)
+ApplyDialogWindowChrome = function(window)
     local frame = window.frame
     -- A pooled Window may previously have carried Modern chrome. Use its
     -- existing restore contract locally; do not alter the Modern renderer.
     FormWidgets.RestoreDefaultWindowChrome(window)
-    local binding = window:GetUserData(parchmentChromeKey)
+    local binding = window:GetUserData(dialogChromeKey)
     if not binding then
         binding = {
             titleParent = window.titletext and window.titletext:GetParent(),
             titleLevel = window.title and window.title:GetFrameLevel(),
             closeLevel = window.closebutton and window.closebutton:GetFrameLevel(),
         }
-        window:SetUserData(parchmentChromeKey, binding)
+        window:SetUserData(dialogChromeKey, binding)
         local previousRelease = window.events and window.events.OnRelease
         window:SetCallback("OnRelease", function(owner, event)
-            ReleaseParchmentWindowChrome(owner, binding)
+            FormWidgets.RestoreDefaultWindowChrome(owner)
+            owner:SetUserData(dialogChromeKey, nil)
             if previousRelease then previousRelease(owner, event) end
         end)
     end
     FormWidgets.ApplyWindowChrome(window, { nativeFrameShell = true })
-    local material = GetCompactDialogContentSurface("parchment")
+    binding.active = true
+    local material = GetDialogWindowMaterial()
     local texture = ResolveCompactDialogTexture(material)
     for _, key in ipairs({ "_fpPanelFill", "_fpPanelHeaderFill" }) do
         local region = frame[key]
@@ -2018,11 +2032,8 @@ local function ApplyParchmentWindowChrome(window)
         region:SetVertexColor(unpack(key == "_fpPanelHeaderFill" and material.headerTint or material.tint))
         region:SetAlpha(1)
     end
-    if frame._fpCompactFormShell then
-        ApplyCompactDialogWindowContentSurface(frame._fpCompactFormShell.frame, material)
-    end
     if NineSliceUtil and NineSliceUtil.ApplyLayout then
-        ApplyWindowNineSlice(frame, "_fpParchmentNineSlice", parchmentBrassLayout):Show()
+        ApplyWindowNineSlice(frame, "_fpParchmentNineSlice", dialogBrassLayout):Show()
         for _, suffix in ipairs({ "BorderTop", "BorderBottom", "BorderLeft", "BorderRight",
             "InnerTop", "InnerBottom", "InnerLeft", "InnerRight", "TopShade", "BottomShade" }) do
             frame["_fpPanel" .. suffix]:Hide()
@@ -2102,7 +2113,7 @@ local function CreateSmallWindowScrollRegion(parent, layout, anchors)
     end
     return region
 end
-local function CreateCompactFormShell(window, options)
+local function CreateCompactFormShell(window, options, dialogMaterial)
     RegisterSmallWindowRegion()
     local previousShell = window.frame._fpCompactFormShell
     if previousShell and previousShell.Release then previousShell:Release() end
@@ -2123,7 +2134,7 @@ local function CreateCompactFormShell(window, options)
     local contentFrame = AcquireShellFrame("content", shellFrame)
     contentFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
     contentFrame:SetPoint("BOTTOMRIGHT", shellFrame, "BOTTOMRIGHT", -contentInset, 0)
-    local contentMaterial = GetCompactDialogContentSurface(options.contentSurface)
+    local contentMaterial = dialogMaterial or GetCompactDialogContentSurface(options.contentSurface)
     local transparent = { 0, 0, 0, 0 }
     ApplyCompactDialogWindowContentSurface(shellFrame, contentMaterial)
     FormWidgets.ApplySurfacePresentation({ frame = contentFrame }, "Body", {
@@ -2199,9 +2210,18 @@ function FormWidgets.CreateCompactFormDialog(options)
     FormWidgets.EnsureStandardWindowCloseButton(window)
     EnableCompactDialogEscapeClose(window)
 
-    local shell = CreateCompactFormShell(window, options)
-    local isParchment = options.contentSurface == "parchment"
-    if isParchment then ApplyParchmentWindowChrome(window) end
+    local useDialogPresentation = options.dialogPresentation ~= false or options.contentSurface == "parchment"
+    local shell = CreateCompactFormShell(window, options, useDialogPresentation and GetDialogWindowMaterial() or nil)
+    -- Shell ownership stays here; direct utility Windows only bind chrome.
+    local previousRelease = window.events and window.events.OnRelease
+    window:SetCallback("OnRelease", function(owner, event)
+        if owner.frame._fpCompactFormShell == shell then
+            shell:Release()
+            owner.frame._fpCompactFormShell = nil
+        end
+        if previousRelease then previousRelease(owner, event) end
+    end)
+    if useDialogPresentation then ApplyDialogWindowChrome(window) end
     local statusTextRoles = {
         neutral = "help",
         error = "statusError",
@@ -2327,7 +2347,10 @@ function FormWidgets.CreateCompactFormDialog(options)
     end
 
     function dialog:Show()
-        if isParchment then ApplyParchmentWindowChrome(self.window) end
+        if useDialogPresentation then
+            ApplyDialogWindowChrome(self.window)
+            ApplyCompactDialogWindowContentSurface(self.shell.frame, GetDialogWindowMaterial())
+        end
         FormWidgets.FocusWindow(self.window, { centerIfHidden = true, strata = options.strata or "FULLSCREEN_DIALOG" })
     end
 

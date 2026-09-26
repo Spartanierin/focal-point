@@ -749,6 +749,7 @@ local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, op
         existingContext.window:SetWidth(options.windowWidth or 420)
         existingContext.window:SetHeight(options.windowHeight or 210)
         existingContext.window:SetCallback("OnClose", nil)
+        ApplyWindowChrome(existingContext.window, { focalPointDialog = true })
         ApplyDialogState(existingContext, options.state)
         EnableDialogEscapeClose(existingContext.window)
         FocusWindow(existingContext.window)
@@ -766,7 +767,7 @@ local function OpenTextBuilderLayoutDialog(existingContext, layoutDefinition, op
         window.frame:SetClampedToScreen(true)
     end
 
-    ApplyWindowChrome(window)
+    ApplyWindowChrome(window, { focalPointDialog = true })
     if EnsureStandardWindowCloseButton then
         EnsureStandardWindowCloseButton(window)
     end

@@ -129,7 +129,7 @@ local function Check(dialog)
     Equal(w.closebutton.points.TOPRIGHT.x,2); Equal(w.closebutton.points.TOPRIGHT.y,1)
     assert(not w.sizer_se:IsShown()); Equal(border.Center,nil)
 end
-local plain=widgets.CreateCompactFormDialog({title="Control",width=560,height=521})
+local plain=widgets.CreateCompactFormDialog({title="Control",width=560,height=521,dialogPresentation=false})
 local dialog=widgets.CreateCompactFormDialog({title="Parchment",width=560,height=521,contentSurface="parchment"})
 Check(dialog)
 -- Compare numeric geometry; native region identities naturally differ.
@@ -148,7 +148,7 @@ ace:Release(previous)
 assert(not previous.frame._fpParchmentNineSlice:IsShown()); Equal(previous.frame._fpCompactFormShell,nil)
 Equal(previous.titletext:GetParent(),previous.frame); Equal(previous.title:GetFrameLevel(),titleLevel)
 Equal(previous.closebutton:GetFrameLevel(),closeLevel)
-local pooled=widgets.CreateCompactFormDialog({title="Other",width=360,formContentHeight=286})
+local pooled=widgets.CreateCompactFormDialog({title="Other",width=360,formContentHeight=286,dialogPresentation=false})
 Equal(pooled.window,previous); assert(not previous.frame._fpParchmentNineSlice:IsShown())
 assert(previous.frame._fpPanelBorderTop:IsShown()); Equal(previous.frame._fpPanelFill:GetTexture(),nil)
 Equal(previous.frame._fpPanelFill.lastSetVertexColor,{1,1,1,1})
@@ -207,21 +207,17 @@ add.cancelButton:Fire("OnClick"); assert(not add.window.frame:IsShown())
 openAddObject(); local recreated=createdDialogs[#createdDialogs].dialog
 assert(recreated~=add); Check(recreated); Equal(recreated.window.frame:GetHeight(),addHeight)
 CheckContent(recreated,{Bars=true,Content=true})
--- Actual Options and Confirmation consumers keep the standard color chrome.
+-- Options and Confirmations now consume the same dialog presentation as W1.
 Load("GUI/Editor/EditorOptionsDialog.lua")
 ns.GUI.Editor.OptionsDialog.Open()
 local options=createdDialogs[#createdDialogs].dialog
 Equal({options.window.frame:GetWidth(),options.window.frame:GetHeight()},{360,349})
 local confirm=widgets.CreateCompactConfirmation({title="Confirm",message="Unchanged",primary={text="OK"},cancel={text="Cancel"}})
 for _,other in ipairs({options,confirm}) do
-    local w=other.window
-    assert(not w:GetUserData("fpParchmentChrome"))
-    assert(not w.frame._fpParchmentNineSlice or not w.frame._fpParchmentNineSlice:IsShown())
-    Equal(w.frame._fpPanelFill:GetTexture(),nil)
-    Equal(w.frame._fpPanelFill.lastSetColorTexture,ns.GUI.Skins.GetFormPalette().Chrome.panelBackground)
-    assert(w.frame._fpPanelBorderTop:IsShown())
-    assert(not other.shell.frame._fpCompactDialogWindowContentSurface:IsShown())
+    Check(other)
 end
 widgets.CreateCompactFormDialog=createDialog
 assert(#env.errors==0,table.concat(env.errors,"\n"))
-print("PASS: real Manage Layouts/Add Object/Options/Confirmation, Parchment-only material/Brass, Window geometry/title/X, idempotence, recreate/reopen/pooling and Modern/Navigator isolation")
+print("PASS: unchanged W1/W2 consumers, shared Options/Confirmation chrome, Window geometry/title/X, idempotence, recreate/reopen/pooling and Modern/Navigator isolation")
+return {ns=ns,ace=ace,native=native,Equal=Equal,Count=Count,Load=Load,Upvalue=Upvalue,
+    Check=Check,Geometry=Geometry,widgets=widgets,options=options,manager=manager,env=env}
