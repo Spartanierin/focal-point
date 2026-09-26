@@ -2,6 +2,7 @@
 -- Native rendering, clipboard behavior and pixel geometry still need in-game QA.
 local _, ns = ...
 local dialogs, windowPool = {}, {}
+local statusTargets = {}
 local AceGUI = {}
 local function Noop() end
 local function Frame()
@@ -52,6 +53,12 @@ function AceGUI:GetWidgetVersion() return 1 end -- row painting is outside this 
 function AceGUI:ClearFocus() self.FocusedWidget:ClearFocus(); self.FocusedWidget=nil end
 LibStub = function(name) assert(name=="AceGUI-3.0"); return AceGUI end
 local forms = {}
+local function ContainsWidget(parent, target)
+    for _, child in ipairs(parent.children or {}) do
+        if child == target or ContainsWidget(child, target) then return true end
+    end
+    return false
+end
 function forms.FocusWindow(window) window:Show() end
 function forms.CreateCompactFormDialog(options)
     local body=AceGUI:Create("Region")
@@ -60,8 +67,11 @@ function forms.CreateCompactFormDialog(options)
     function dialog.shell:Release() AceGUI:Release(self.body); self.frame:Hide() end
     dialog.window.frame._fpCompactFormShell=dialog.shell
     function dialog:SetStatus(text, role, target)
+        assert(target, "SetStatus requires the dialog's explicit status target")
+        assert(ContainsWidget(self.body, target), "SetStatus target does not belong to this dialog")
+        statusTargets[self] = target
         self.statusRole = (role == "error" or role == "success") and role or "neutral"
-        if target then target:SetText(text) end
+        target:SetText(text)
     end
     function dialog:SetActions(actions, actionContainer)
         assert(actionContainer)
@@ -83,8 +93,30 @@ Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
 local manager=ns.GUI.Editor.LayoutManager
 assert(manager.Open())
 local library=dialogs[1]
-local actions, list=library.body.children[1], library.body.children[2]
-local importButton, exportButton=actions.children[1], actions.children[2]
+local actions, list, importButton, exportButton
+local function FindLibraryAreas(widget)
+    local importAction, exportAction, hasLayoutRows
+    for _, child in ipairs(widget.children or {}) do
+        if child.kind == "Button" then
+            if child:GetText() == (ns.L.LAYOUT_TRANSFER_IMPORT or "LAYOUT_TRANSFER_IMPORT") then importAction=child end
+            if child:GetText() == (ns.L.LAYOUT_TRANSFER_EXPORT or "LAYOUT_TRANSFER_EXPORT") then exportAction=child end
+        elseif child.kind == "FocalPointLayoutManagerRow" and child.item and child.item.id then
+            hasLayoutRows=true
+        end
+    end
+    if widget.kind == "SimpleGroup" and importAction and exportAction then
+        assert(not actions, "multiple Layout Manager import/export action areas found")
+        actions, importButton, exportButton=widget, importAction, exportAction
+    end
+    if widget.kind == "ScrollFrame" and hasLayoutRows then
+        assert(not list, "multiple Layout Manager layout lists found")
+        list=widget
+    end
+    for _, child in ipairs(widget.children or {}) do FindLibraryAreas(child) end
+end
+FindLibraryAreas(library.body)
+assert(actions, "Layout Manager import/export action area not found")
+assert(list, "Layout Manager ScrollFrame with layout rows not found")
 local function Row(id)
     for _, row in ipairs(list.children) do if row.item and row.item.id==id then return row end end
 end
@@ -119,10 +151,12 @@ for _=1,3 do
     edit:SetText("broken")
     before=Snapshot()
     Click(dialog.primaryButton)
-    assert(before==Snapshot() and dialog.status:GetText()~="" and dialog.statusRole=="error")
+    local statusTarget=assert(statusTargets[dialog], "import error did not address a status target")
+    assert(before==Snapshot() and statusTarget:GetText()~="" and dialog.statusRole=="error")
     edit:SetText(encoded)
     Click(dialog.primaryButton)
-    assert(dialog.status:GetText():match("Imported:") and dialog.primaryButton.disabled and dialog.statusRole=="success")
+    assert(statusTargets[dialog]==statusTarget, "import error and success used different status widgets")
+    assert(statusTarget:GetText():match("Imported:") and dialog.primaryButton.disabled and dialog.statusRole=="success")
     assert(active==ns.LayoutTransferCodec.Encode(ns.db.char))
     local selected
     for _, row in ipairs(list.children) do if row.selected then selected=row.item end end

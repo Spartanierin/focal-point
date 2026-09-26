@@ -15,6 +15,38 @@ local codec, transfer = ns.LayoutTransferCodec, ns.LayoutTransfer
 local function Equal(left, right)
     assert(assert(codec.Encode(left)) == assert(codec.Encode(right)), "data changed")
 end
+local function EqualTemplates(actual, expected)
+    for name, text in pairs(expected) do
+        assert(actual[name] == text, "template changed or missing: " .. name)
+    end
+    for name in pairs(actual) do
+        assert(expected[name] ~= nil, "unexpected template: " .. name)
+    end
+end
+-- Dictionary roles must stay separate even when the same string is a key and a value.
+for _, keyDictionary in ipairs({false, true}) do
+    for _, valueDictionary in ipairs({false, true}) do
+        local input = {
+            templates = { ["Cast Time"] = "[cast:time]" },
+            repeats = {{OtherKeyLong=1}, {OtherKeyLong=2}, {OtherKeyLong=3}},
+        }
+        if keyDictionary then
+            input.keys = {{["Cast Time"]=1}, {["Cast Time"]=2}, {["Cast Time"]=3}}
+        end
+        if valueDictionary then input.refs = {"Cast Time", "Cast Time", "Cast Time"} end
+        local decoded = assert(codec.Decode(assert(codec.Encode(input))))
+        EqualTemplates(decoded.templates, input.templates)
+        Equal(decoded, input)
+    end
+end
+-- A wrong key reference must neither collide with nor replace an existing key.
+local collisionInput = {
+    templates = { ["Cast Time"] = "[cast:time]", OtherKeyLong = "keep this content" },
+    refs = {"Cast Time", "Cast Time", "Cast Time"},
+    repeats = {{OtherKeyLong=1}, {OtherKeyLong=2}, {OtherKeyLong=3}},
+}
+EqualTemplates(assert(codec.Decode(assert(codec.Encode(collisionInput)))).templates, collisionInput.templates)
+print("PASS: key-only/value-only/both/neither dictionaries, original key/content and collision isolation")
 local defaults = ns:GetDefaultDB()
 local payload = ns.LayoutService.CopyPayload({Units=defaults.profile.Units, TextTemplates=defaults.profile.TextTemplates})
 payload.Units.player.decorations = {{id="decoration1", target="FRAME", point="CENTER", texture="fp:decoration:missing", width=99}, {id="decoration2", target="PORTRAIT", point="CENTER", texture="fp:decoration:missing", width=99}}
@@ -39,6 +71,8 @@ local document = assert(codec.Decode(encoded))
 assert(document.addonVersion == "2.0.5-test")
 assert(document.name == "My Layout" and document.formatVersion == 1)
 assert(not document.createdFrom and not document.id)
+assert(document.payload.TextTemplates["Cast Time"] == "[cast:time]")
+EqualTemplates(document.payload.TextTemplates, payload.TextTemplates)
 Equal(document.payload, payload)
 assert(not transfer.Export("builtin:default"))
 assert(not transfer.Export("profile:legacy"))
@@ -52,6 +86,7 @@ for _ = 1, 3 do
     ids[id] = true
     local record = ns.db.global.UserLayouts[id]
     assert(record.name == name and name ~= "My Layout")
+    EqualTemplates(record.payload.TextTemplates, payload.TextTemplates)
     Equal(record.payload, ns.LayoutService.CopyPayload(payload))
     Equal(before.char, ns.db.char)
     Equal(before.profile, ns.db.profile)
@@ -106,7 +141,14 @@ local dictionaryLimit = codec.MaxDictionaryBytes
 codec.MaxDictionaryBytes = 3
 RejectRaw("d1:s4:abcdd0:t0:", "too-large")
 codec.MaxDictionaryBytes = dictionaryLimit
-Reject(string.rep("x", codec.MaxBytes + 1), "too-large")
+local transportPrefix = "FocalPointLayout:" .. codec.SchemaVersion .. ":"
+local maxTransport = #transportPrefix + math.ceil(codec.MaxBytes / 3) * 4
+Reject(string.rep("x", maxTransport + 1), "too-large")
+-- Base64 rounding allows one extra raw byte within the transport limit.
+-- This must reach the raw-size guard rather than the outer transport guard.
+local oversizedRawTransport = transportPrefix .. EncodeBase64(string.rep("\0", codec.MaxBytes + 1))
+assert(#oversizedRawTransport <= maxTransport, "raw-size fixture exceeds transport limit")
+Reject(oversizedRawTransport, "too-large")
 for _, change in ipairs({
     function(d) d.transferSchema=7 end,
     function(d) d.formatVersion=999 end,

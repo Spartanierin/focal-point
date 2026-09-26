@@ -128,7 +128,8 @@ function Codec.Encode(document)
             if kind == "boolean" then Append(value and "b1" or "b0")
             elseif kind == "number" and Finite(value) then local n=string.format("%.17g",value); Append("n"..#n..":"..n)
             elseif kind == "string" then
-                local id = role == "key" and keyLookup[value] or valueLookup[value]
+                local lookup = role == "key" and keyLookup or valueLookup
+                local id = lookup[value]
                 if id then Append((role == "key" and "k" or "v")..id..":") else Append("s"..#value..":"..value) end
             elseif kind == "table" and not getmetatable(value) and not seen[value] then
                 seen[value] = true; local keys=SortedKeys(value); Append("t"..#keys..":")
