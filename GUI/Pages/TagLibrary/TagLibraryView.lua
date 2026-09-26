@@ -340,6 +340,7 @@ function TagLibraryView.Create(context)
     end
     if FormWidgets.ApplyModernWindowChrome then
         FormWidgets.ApplyModernWindowChrome(window, {
+            focalPointTool = true,
             nineSlice = true,
             portrait = true,
             portraitTexture = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png",

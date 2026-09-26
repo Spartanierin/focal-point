@@ -10,6 +10,7 @@ local FormWidgets = {}
 ns.GUI.Helpers.FormWidgets = FormWidgets
 
 local ApplyDialogWindowChrome, ResetDialogWindowChrome
+local ApplyToolWindowPresentation
 
 local function GetFormPalette()
     local skins = ns.GUI and ns.GUI.Skins or nil
@@ -306,10 +307,7 @@ local function EnsureModernWindowTopTileStreaks(frame)
     return streaks
 end
 
-local function ApplyModernPortraitBackground(frame)
-    EnsureModernWindowBackground(frame)
-    EnsureModernWindowTopTileStreaks(frame)
-
+local function HideModernDialogBackground(frame)
     local dialogBackground = frame._fpModernDialogBackground
     if not dialogBackground then
         local region = FindNativeDialogBackground(frame)
@@ -328,6 +326,12 @@ local function ApplyModernPortraitBackground(frame)
         dialogBackground.region:Hide()
         dialogBackground.region:SetAlpha(0)
     end
+end
+
+local function ApplyModernPortraitBackground(frame)
+    EnsureModernWindowBackground(frame)
+    EnsureModernWindowTopTileStreaks(frame)
+    HideModernDialogBackground(frame)
 end
 
 local function ResetModernPortraitBackground(frame)
@@ -374,6 +378,14 @@ end
 local function ResetModernWindowTitleBar(frame)
     if not frame then
         return
+    end
+
+    for _, key in ipairs({ "_fpToolBody", "_fpToolTitlebar" }) do
+        if frame[key] then frame[key]:Hide() end
+    end
+    if frame._fpToolChromeActive then
+        if frame._fpModernNineSlice then frame._fpModernNineSlice:Hide() end
+        frame._fpToolChromeActive = nil
     end
 
     for _, key in ipairs(FP_MODERN_WINDOW_SLOT_KEYS) do
@@ -646,19 +658,22 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
 
     local useNineSlice = options and options.nineSlice == true
     local usePortrait = options and options.portrait == true
+    local useToolPresentation = useNineSlice and options.focalPointTool == true
     local nineSliceLayout = usePortrait and "PortraitFrameTemplate" or "ButtonFrameTemplateNoPortrait"
     if useNineSlice then
-        if not NineSliceUtil or not NineSliceUtil.ApplyLayoutByName then
+        if not NineSliceUtil
+            or (useToolPresentation and not NineSliceUtil.ApplyLayout)
+            or (not useToolPresentation and not NineSliceUtil.ApplyLayoutByName) then
             return
         end
-        if NineSliceUtil.GetLayout and not NineSliceUtil.GetLayout(nineSliceLayout) then
+        if not useToolPresentation and NineSliceUtil.GetLayout and not NineSliceUtil.GetLayout(nineSliceLayout) then
             return
         end
     end
 
     FormWidgets.RestoreDefaultWindowChrome(window)
 
-    if usePortrait then
+    if usePortrait and not useToolPresentation then
         ApplyModernPortraitBackground(frame)
     end
 
@@ -742,8 +757,9 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
         }
     end
     if useNineSlice then
-        local nineSlice = ApplyWindowNineSlice(frame, "_fpModernNineSlice", nineSliceLayout)
-        if usePortrait then
+        local nineSlice = useToolPresentation and ApplyToolWindowPresentation(window)
+            or ApplyWindowNineSlice(frame, "_fpModernNineSlice", nineSliceLayout)
+        if usePortrait and not useToolPresentation then
             local portraitTexture = options.portraitTexture
             local portrait = EnsureModernWindowPortrait(frame, portraitTexture)
             if portrait.SetFrameLevel and frame.GetFrameLevel then
@@ -1974,6 +1990,57 @@ local dialogBrassLayout = {
     TopEdge = dialogHorizontal, BottomEdge = dialogHorizontal,
     LeftEdge = dialogVertical, RightEdge = dialogVertical,
 }
+
+-- Presentation only: the Modern owner retains its title/close/drag geometry,
+-- snapshots and content host. Consume the same material and 28px Brass as U1.
+ApplyToolWindowPresentation = function(window)
+    local frame = window.frame
+    HideModernDialogBackground(frame)
+    local material = GetDialogWindowMaterial()
+    local texture = ResolveCompactDialogTexture(material)
+    for _, key in ipairs({ "_fpToolBody", "_fpToolTitlebar" }) do
+        local region = frame[key]
+        if not region then
+            region = frame:CreateTexture(nil, "BACKGROUND", nil, key == "_fpToolBody" and -7 or -6)
+            frame[key] = region
+        end
+        region:ClearAllPoints()
+        region:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+        if key == "_fpToolBody" then
+            region:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+        else
+            region:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+            region:SetHeight(24)
+        end
+        region:SetTexture(texture, "CLAMP", "CLAMP")
+        region:SetTexCoord(0, 1, 0, 1)
+        region:SetHorizTile(false)
+        region:SetVertTile(false)
+        region:SetBlendMode("BLEND")
+        region:SetVertexColor(unpack(key == "_fpToolBody" and material.tint or material.headerTint))
+        region:SetAlpha(1)
+        region:Show()
+    end
+    local titleColor = GetTextStyles() and GetTextStyles().Get("sectionHeader")
+    if window.titletext and titleColor then
+        window.titletext:SetTextColor(titleColor.r, titleColor.g, titleColor.b, 1)
+    end
+    local border = ApplyWindowNineSlice(frame, "_fpModernNineSlice", dialogBrassLayout)
+    -- Named Blizzard layouts can leave a center on a previously used host.
+    if border.Center then border.Center:Hide() end
+    frame._fpToolChromeActive = true
+    if not window:GetUserData("fpToolChromeRelease") then
+        window:SetUserData("fpToolChromeRelease", true)
+        local previousRelease = window.events and window.events.OnRelease
+        window:SetCallback("OnRelease", function(owner, event)
+            FormWidgets.RestoreDefaultWindowChrome(owner)
+            owner:SetUserData("fpToolChromeRelease", nil)
+            if previousRelease then previousRelease(owner, event) end
+        end)
+    end
+    return border
+end
+
 -- Keep W1's private region/userdata keys so its existing host is reused.
 local dialogChromeKey = "fpParchmentChrome"
 
