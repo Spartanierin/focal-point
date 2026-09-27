@@ -10,6 +10,40 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.1.0
+
+### Added
+
+* Added Achtung! Polizei and Cinzel Decorative Black, Bold, and Regular to the built-in font selection for your own text designs.
+
+### Changed
+
+* Refreshed the editor's Navigator and Inspector with warmer wood and metal surfaces, ornamental brass frames, and a quieter background for controls and content. Canvas hover outlines and resize handles now use matching warm accents.
+* Updated the Focal Point branding with a dark metal plaque, a separate logo, and a refined uppercase title and version display.
+* Brought dialogs and tool windows into a shared Focal Point visual style, with brass chrome, dark forged-metal surfaces, and more consistent headings, spacing, and action placement. Standard action buttons use native WoW styling for familiar hover, pressed, and disabled states.
+* Refined typography across the editor so unit names, section headings, control labels, values, and help text are easier to distinguish. Updated sliders and Editor Options checkboxes, including clearer checkbox text states.
+
+### Improved
+
+* Made the Unit Navigator's selected editing scope clearer and strengthened the distinction between unit headings and object entries in the Composition Tree.
+* Removed redundant frame refreshes and repeated selection updates when switching between individual units. Selection responds with less unnecessary work while special cases retain the full updates they require.
+* Made Add Object adapt to the available window height. Longer object lists now scroll while the dialog's description and actions remain accessible.
+* Unified selection rows across Layout, Media, Text Template, and Tag libraries. Tag entries separate the tag from its description, and the details panel gives descriptions and examples more room to wrap naturally.
+* Simplified the Media Library's source and status details. It now explains which selection Apply will use, including when that selection is outside the current filtered results or cannot be applied.
+* Made Tag Library selection updates more responsive by updating existing rows instead of rebuilding the entire list.
+* Matched the Canvas Toolbar to the editor's brass presentation and widened Manage Layouts so its label is shown in full. The active layout automation hint is now highlighted, making automatic layout selection easier to recognize.
+* Made dialog errors and success messages easier to distinguish with dedicated text colors, including feedback from layout imports and other layout actions.
+* Made text styling more consistent when the editor refreshes or reuses controls, so headings, alignment, and shadow settings retain their intended appearance.
+* Aligned unit-frame and aura placeholders with the warmer editor palette, with complete fallback colors for unit-frame previews when presentation data is incomplete.
+
+### Fixed
+
+* Fixed layout exports incorrectly remapping text-template names during export/import roundtrips. Names such as Cast Time now remain paired with their original template content.
+
+### Removed
+
+* Removed `footerFrame.lua`. It knows what it did.
+
 ## 2.0.6
 
 ### Improved
