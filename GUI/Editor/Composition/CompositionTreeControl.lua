@@ -155,6 +155,16 @@ function methods:SetKeyboardActive(active)
     self.frame:SetPropagateKeyboardInput(true)
 end
 
+local function IsMouseOverFrame(frame)
+    if frame and frame.IsMouseOver then
+        return frame:IsMouseOver()
+    end
+    if MouseIsOver then
+        return MouseIsOver(frame) == true
+    end
+    return false
+end
+
 local function BindRowScripts(control, row)
     local function Enter()
         row.hovered = true
@@ -164,7 +174,7 @@ local function BindRowScripts(control, row)
     local function Leave()
         row.hovered = false
         Paint(row)
-        if not MouseIsOver(control.frame) then control:SetKeyboardActive(false) end
+        if not IsMouseOverFrame(control.frame) then control:SetKeyboardActive(false) end
     end
     for _, frame in ipairs({ row.frame, row.disclosure, row.toggle }) do
         frame:SetScript("OnEnter", Enter)
@@ -448,11 +458,11 @@ local function CreateControl()
     self.scroll:SetScript("OnMouseWheel", OnMouseWheel)
     self.frame:SetScript("OnEnter", function() self:SetKeyboardActive(true) end)
     self.frame:SetScript("OnLeave", function()
-        if not MouseIsOver(self.frame) then self:SetKeyboardActive(false) end
+        if not IsMouseOverFrame(self.frame) then self:SetKeyboardActive(false) end
     end)
     self.scrollbar:SetScript("OnEnter", function() self:SetKeyboardActive(true) end)
     self.scrollbar:SetScript("OnLeave", function()
-        if not MouseIsOver(self.frame) then self:SetKeyboardActive(false) end
+        if not IsMouseOverFrame(self.frame) then self:SetKeyboardActive(false) end
     end)
     self.frame:SetScript("OnHide", function()
         self:StopThumbDrag()
