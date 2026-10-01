@@ -801,14 +801,23 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildMissingTemplateMessages(textId)
-        local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.ScanActiveProfileTemplateAssignments
+        local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.Scan
         if type(scanner) ~= "function" or textId == nil then
             return {}
         end
 
+        local resolver = ns.ActiveLayoutResolver
+        local payload = resolver and resolver.GetActivePayloadRoot and resolver.GetActivePayloadRoot(ns.db)
+        if type(payload) ~= "table" then
+            return {}
+        end
+        local readContext = {
+            GetTemplates = function() return payload.TextTemplates end,
+            GetUnits = function() return payload.Units end,
+        }
         local primaryMissing = nil
         local missingStates = {}
-        for _, entry in ipairs(scanner(ns.db) or {}) do
+        for _, entry in ipairs(scanner(readContext) or {}) do
             if entry.unit == selectedUnit and entry.textId == textId and entry.isMissing then
                 if entry.isPrimary then
                     primaryMissing = entry.templateName
@@ -820,7 +829,7 @@ function InspectorController.Build(container, state, options)
 
         local messages = {}
         if type(primaryMissing) == "string" and primaryMissing ~= "" then
-            messages[#messages + 1] = string.format("Template \"%s\" is not installed in the active profile.", primaryMissing)
+            messages[#messages + 1] = string.format("Template \"%s\" is not installed in the active layout.", primaryMissing)
         end
         if #missingStates > 0 then
             table.sort(missingStates)

@@ -145,6 +145,12 @@ Load("GUI/Pages/TextBuilder/TextBuilderDefinition.lua")
 local templates={Sample="[name]"}; local mutationCalls={}
 ns.db.GetCurrentProfile=function() return "Test" end
 ns.UnitFrameUtils={GetTextTemplatesDB=function() return templates end}
+local builderPayload={TextTemplates=templates,Units={}}
+ns.ActiveLayoutResolver={
+    GetStoredActiveLayoutId=function() return ns.db.char.activeLayoutId end,
+    GetActiveLayout=function() return {name="Tool fixture",readOnly=false,payload=builderPayload} end,
+    EnsureEditableForMutation=function() return builderPayload,ns.db.char.activeLayoutId end,
+}
 ns.TextTemplateMutations={
     CreateTemplate=function(_,name,text) templates[name]=text; mutationCalls.create=name; return {ok=true} end,
     UpdateTemplate=function(_,name,text) templates[name]=text; mutationCalls.update=name; return {ok=true} end,
@@ -183,8 +189,10 @@ assert(closeContext.window.frame._fpParchmentNineSlice:IsShown())
 assert(not closeContext.window.frame._fpToolChromeActive)
 closeContext.cancelButton:Fire("OnClick"); assert(builderContext.window.frame:IsShown())
 builder.HideWindow(); closeContext.discardCloseButton:Fire("OnClick"); assert(not builderContext.window.frame:IsShown())
--- Restore a clean draft before the repeated open/close checks.
-builderContext.templateEdit:SetText(templates.Sample); builderContext.templateEdit:Fire("OnTextChanged",templates.Sample)
+-- Discard now clears the draft rather than only hiding the tool.
+assert(not builder.HasUnsavedChanges())
+Equal(builderContext.templateEdit:GetText(),"")
+assert(builderContext.state.editingLayoutId==nil and builderContext.state.draftBaseline==nil)
 NoErrors()
 
 local warmCount

@@ -240,7 +240,18 @@ local openDelete=assert(Closure(controller.OpenWindow,"OpenDeleteTemplateConfirm
 local saveOK=false; local saves,applies=0,{}
 Replace(openApply,"SaveCurrentTemplate",function() saves=saves+1; return saveOK end)
 Replace(openApply,"ApplyTemplateToTextElement",function(_,opts) applies[#applies+1]=opts and "stored" or "saved" end)
-local parent={window=ace:Create("Window")}
+local parent={window=ace:Create("Window"),templateEdit=ace:Create("EditBox"),
+    templateNameEdit=ace:Create("EditBox"),templateSelect=ace:Create("Dropdown"),
+    previewValue=ace:Create("Label")}
+ns.ActiveLayoutResolver={
+    GetStoredActiveLayoutId=function() return "layout:dialog-fixture" end,
+    EnsureEditableForMutation=function() return {},"layout:dialog-fixture" end,
+}
+local function BeginDialogDraft()
+    parent.state={editingLayoutId="layout:dialog-fixture",draftToken={},
+        draftBaseline={template="",templateName=""},selectedTemplate="",template="",templateName=""}
+end
+BeginDialogDraft()
 openApply(parent)
 local apply=Upvalue(openApply,"unsavedApplyDialogContext")
 apply.saveApplyButton:Fire("OnClick"); Equal(saves,1); Equal(#applies,0); assert(apply.window.frame:IsShown())
@@ -248,6 +259,7 @@ saveOK=true; apply.saveApplyButton:Fire("OnClick"); Equal(applies,{"saved"}); as
 openApply(parent); apply.applyStoredButton:Fire("OnClick"); Equal(applies,{"saved","stored"})
 openApply(parent); apply.cancelButton:Fire("OnClick"); Equal(#applies,2)
 for _,button in ipairs({"saveCloseButton","discardCloseButton","cancelButton"}) do
+    BeginDialogDraft()
     parent.window:Show(); openClose(parent)
     local close=Upvalue(openClose,"unsavedCloseDialogContext")
     close[button]:Fire("OnClick")
@@ -258,11 +270,11 @@ Replace(openDelete,"GetTemplates",function() return {Sample="[name]"} end)
 local mutations=Upvalue(openDelete,"TextTemplateMutations")
 mutations.DeleteTemplate=function(_,name) calls.templateDelete=name; return {ok=true} end
 ns.L.INFO_TEXT_BUILDER_DELETE_CONFIRM_PROMPT="Delete %s?"
-openDelete("Sample")
+openDelete(parent,"Sample")
 local deletion=Upvalue(openDelete,"deleteDialogContext")
 Equal(deletion.widgets.message.label:GetText(),"Delete Sample?")
 deletion.cancelButton:Fire("OnClick"); Equal(calls.templateDelete,nil)
-openDelete("Sample"); deletion.deleteConfirmButton:Fire("OnClick"); Equal(calls.templateDelete,"Sample")
+openDelete(parent,"Sample"); deletion.deleteConfirmButton:Fire("OnClick"); Equal(calls.templateDelete,"Sample")
 assert(not deletion.window.frame:IsShown())
 
 local utility=ace:Create("Window"); utility:SetWidth(560); utility:SetHeight(230); utility:EnableResize(false)

@@ -21,6 +21,22 @@ local CreateEditorDeps = PageDependencyFactory.CreateEditorDeps
 
 local BuildScrollableTabContent = LayoutHelpers.BuildScrollableTabContent
 
+-- Layout activation consumes this boundary without knowing individual tool state.
+function B.CanActivateLayout()
+    local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
+    if page and page.HasUnsavedChanges and page.HasUnsavedChanges() then
+        return false, "unsaved-changes"
+    end
+    return true
+end
+
+function B.OnActiveLayoutChanged(oldId, newId)
+    local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
+    if oldId ~= newId and page and page.InvalidateLayoutContext then
+        page.InvalidateLayoutContext()
+    end
+end
+
 -- Shared placeholder used whenever a page module is unavailable.
 function B.BuildPlaceholderPage(container, title)
     local page = ns.GUI.Pages and ns.GUI.Pages.Shared and ns.GUI.Pages.Shared.Placeholder

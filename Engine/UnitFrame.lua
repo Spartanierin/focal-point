@@ -2915,6 +2915,14 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
         return false, "same-layout"
     end
 
+    local controller = self.GUIController
+    if controller and controller.CanActivateLayout then
+        local allowed, guardReason = controller.CanActivateLayout(currentLayoutId, layoutId)
+        if not allowed then
+            return false, guardReason or "activation-blocked"
+        end
+    end
+
     if InCombatLockdown and InCombatLockdown() then
         self._pendingLayoutActivation = {
             layoutId = layoutId,
@@ -2935,6 +2943,9 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
         return self:ResyncActiveLayout(reason or "layout-activate", options)
     end)
     if ok and resyncOk ~= false then
+        if controller and controller.OnActiveLayoutChanged then
+            controller.OnActiveLayoutChanged(currentLayoutId, layoutId)
+        end
         return true, "applied"
     end
 
