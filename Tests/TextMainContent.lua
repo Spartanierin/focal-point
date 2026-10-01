@@ -119,6 +119,47 @@ Test("Legacy -> same Shared: clears snapshot once; subsequent call is idempotent
     result=mutations.AssignMainTemplate(context,"player","text_1","Health")
     assert(result.ok and result.changed==false)
 end)
+-- Local saves require no main binding or usable previous local expression.
+for index,source in ipairs({{name="",tag="OLD"},{tag="OLD"},{name="",tag=""},{}}) do
+    Test("Local -> Local source variant "..index..", identity and roundtrips",function()
+        local context,payload,text=Fixture();text.templateName=source.name;text.tag=source.tag
+        payload.TextTemplates.Health=nil -- unrelated main templates are not required
+        local before=clone(payload);local states=text.stateTemplates
+        local read=mutations.GetMainTemplateExpression(context,"player","text_1")
+        assert(not read.ok and read.errorCode=="invalid_template_name" and Equal(payload,before))
+        resolver.Resolve(text,nil,Runtime(payload)) -- warm the old local candidate
+        local result=mutations.SetLocalMainContent(context,"player","text_1","NEW")
+        assert(result.ok and result.changed and result.cacheInvalidated)
+        Retained(payload,text,before,states,"","NEW")
+        assert(resolver.Resolve(text,nil,Runtime(payload))=="NEW")
+        Roundtrips(payload);States(payload,text,"NEW")
+    end)
+end
+Test("Local -> Local idempotence does not invalidate cache",function()
+    local context,payload,text=Fixture();text.templateName="";text.tag="SAME"
+    local before=clone(payload);local states=text.stateTemplates;local calls=0
+    local invalidate=resolver.Invalidate
+    resolver.Invalidate=function(...) calls=calls+1;return invalidate(...) end
+    local ok,result=pcall(mutations.SetLocalMainContent,context,"player","text_1","SAME")
+    resolver.Invalidate=invalidate
+    assert(ok,result);assert(result.ok and result.changed==false and calls==0)
+    Retained(payload,text,before,states,"","SAME")
+end)
+Test("Shared -> Local can be saved locally again",function()
+    local context,payload,text=Fixture();local states=text.stateTemplates
+    assert(mutations.SetLocalMainContent(context,"player","text_1","FIRST").ok)
+    local before=clone(payload)
+    local result=mutations.SetLocalMainContent(context,"player","text_1","SECOND")
+    assert(result.ok and result.changed)
+    Retained(payload,text,before,states,"","SECOND")
+end)
+for _,name in ipairs({false,42,{}," \t"}) do
+    Test("ambiguous main reference is not treated as Local: "..tostring(name),function()
+        local context,payload,text=Fixture();text.templateName=name;local before=clone(ns.db)
+        local result=mutations.SetLocalMainContent(context,"player","text_1","NEW")
+        assert(not result.ok and result.errorCode=="invalid_template_name" and Equal(ns.db,before))
+    end)
+end
 local operations={
     localContent=function(c,u,k) return mutations.SetLocalMainContent(c,u,k,"LOCAL") end,
     shared=function(c,u,k) return mutations.AssignMainTemplate(c,u,k,"Health") end,
@@ -158,11 +199,36 @@ for operation,run in pairs(operations) do
         end)
     end
 end
+for index,case in ipairs(cases) do
+    if index<=6 or index>=11 then
+        Test("Local save: "..case[1].." leaves database unchanged",function()
+            local context,payload,text=Fixture();text.templateName="";text.tag="OLD"
+            local replacement=case[2](context,payload,text)
+            if replacement~=nil then context=replacement end
+            local before=clone(ns.db)
+            local result=mutations.SetLocalMainContent(context,"player","text_1","NEW")
+            assert(not result.ok and result.errorCode==case[3] and Equal(ns.db,before))
+        end)
+    end
+end
+for _,key in ipairs({"AltPower","ClassPower"}) do
+    Test("Local save: implicit legacy role "..key.." rejected",function()
+        local context,payload,text=Fixture();text.templateName="";text.role=nil
+        payload.Units.player.Texts[key]=text;local before=clone(ns.db)
+        local result=mutations.SetLocalMainContent(context,"player",key,"NEW")
+        assert(not result.ok and result.errorCode=="unsupported_text_role" and Equal(ns.db,before))
+    end)
+end
 for _,value in ipairs({false,""," \t\n"}) do
     Test("invalid local expression "..tostring(value),function()
         local context=Fixture();local before=clone(ns.db)
         local result=mutations.SetLocalMainContent(context,"player","text_1",value)
         assert(not result.ok and result.errorCode=="invalid_local_content");assert(Equal(ns.db,before))
+    end)
+    Test("Local save rejects invalid expression "..tostring(value),function()
+        local context,payload,text=Fixture();text.templateName="";local before=clone(ns.db)
+        local result=mutations.SetLocalMainContent(context,"player","text_1",value)
+        assert(not result.ok and result.errorCode=="invalid_local_content" and Equal(ns.db,before))
     end)
     Test("invalid target template name "..tostring(value),function()
         local context=Fixture();local before=clone(ns.db)
@@ -170,7 +236,7 @@ for _,value in ipairs({false,""," \t\n"}) do
         assert(not result.ok and result.errorCode=="invalid_template_name");assert(Equal(ns.db,before))
     end)
 end
-for _,name in ipairs({"","Missing"}) do
+for _,name in ipairs({"Missing"}) do
     Test("broken main source never seeds from snapshot: "..name,function()
         local context,payload,text=Fixture();text.templateName=name;local before=clone(ns.db)
         local result=mutations.GetMainTemplateExpression(context,"player","text_1")

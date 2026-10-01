@@ -447,7 +447,7 @@ local function ConfirmMainContentTarget(target, templateName, expression)
         return false, "text_element_not_found"
     end
     if target.textConfig.role ~= target.role or target.textConfig.templateName ~= target.templateName
-        or target.textConfig.tag ~= target.tag or target.templates[templateName] ~= expression
+        or target.textConfig.tag ~= target.tag or (templateName ~= nil and target.templates[templateName] ~= expression)
     then
         return false, "invalid_context"
     end
@@ -494,6 +494,10 @@ function Mutations.SetLocalMainContent(context, unitKey, textKey, expression)
     if not target then return Result(false, { errorCode = reason }) end
     if type(expression) ~= "string" or not expression:find("%S") then
         return Result(false, { errorCode = "invalid_local_content" })
+    end
+    if target.templateName == nil or target.templateName == "" then
+        -- Local content has no main template to validate; keep all target checks.
+        return CommitMainContent(target, nil, nil, "", expression)
     end
     local sourceExpression
     sourceExpression, reason = ReadMainTemplate(target, target.templateName)
