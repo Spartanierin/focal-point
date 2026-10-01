@@ -113,10 +113,70 @@ local function GetActiveLayout()
     return resolver and resolver.GetActiveLayout and resolver.GetActiveLayout(ns.db)
 end
 
+-- A copied UI address, never a persisted binding or an Engine mutation context.
+local function ValidateEditContext(request)
+    if type(request) ~= "table" or type(request.layoutId) ~= "string"
+        or not (request.layoutId:match("^layout:.+") or request.layoutId:match("^builtin:.+"))
+        or (request.kind ~= "object" and request.kind ~= "shared-template" and request.kind ~= "new-template")
+    then
+        return nil, "invalid_context"
+    end
+    if request.layoutId ~= GetActiveLayoutId() then return nil, "layout_mismatch" end
+    local layout = GetActiveLayout()
+    if not layout then return nil, "invalid_context" end
+    local snapshot = { kind = request.kind, layoutId = request.layoutId }
+    if request.kind ~= "new-template" then
+        local payload = layout.payload
+        if request.layoutId:match("^layout:") then
+            -- Existence must come from stored composition, not enriched projection.
+            local store = ns.UserLayoutStore
+            local record = store and store.GetRawReadOnly and store.GetRawReadOnly(request.layoutId, ns.db)
+            payload = type(record) == "table" and record.payload or nil
+        end
+        if type(payload) ~= "table" then return nil, "invalid_context" end
+        if request.kind == "object" then
+            if type(request.unitKey) ~= "string" or request.unitKey == ""
+                or type(request.textKey) ~= "string" or request.textKey == ""
+            then
+                return nil, "invalid_context"
+            end
+            local unit = type(payload.Units) == "table" and payload.Units[request.unitKey] or nil
+            if type(unit) ~= "table" then return nil, "unit_not_found" end
+            if type(unit.Texts) ~= "table" or type(unit.Texts[request.textKey]) ~= "table" then
+                return nil, "text_element_not_found"
+            end
+            snapshot.unitKey, snapshot.textKey = request.unitKey, request.textKey
+        else
+            if Trim(request.templateName) == "" then return nil, "invalid_context" end
+            if type(payload.TextTemplates) ~= "table" or type(payload.TextTemplates[request.templateName]) ~= "string" then
+                return nil, "template_not_found"
+            end
+            snapshot.templateName = request.templateName
+        end
+    end
+    if snapshot.layoutId ~= GetActiveLayoutId() then return nil, "layout_mismatch" end
+    return snapshot
+end
+
+local function IsSameEditContext(left, right)
+    if type(left) ~= "table" or type(right) ~= "table"
+        or left.kind ~= right.kind or left.layoutId ~= right.layoutId
+    then
+        return false
+    end
+    if left.kind == "object" then
+        return left.unitKey == right.unitKey and left.textKey == right.textKey
+    elseif left.kind == "shared-template" then
+        return left.templateName == right.templateName
+    end
+    return left.kind == "new-template"
+end
+
 local function IsCurrentDraft(context)
     local state = context and context.state
     return state and state.editingLayoutId ~= nil
         and state.editingLayoutId == GetActiveLayoutId()
+        and (state.editContext == nil or state.editContext.layoutId == state.editingLayoutId)
 end
 
 local function CanEditDraft(context)
@@ -299,6 +359,7 @@ local function ResetApplyUnits(state)
 end
 
 local function ClearTemplateSelection(state)
+    state.editContext = { kind = "new-template", layoutId = state.editingLayoutId }
     state.selectedTemplateEntry = nil
     state.selectedTemplate = ""
     state.templateName = ""
@@ -418,6 +479,7 @@ local function SetTemplateSelection(state, entry)
         return false
     end
 
+    state.editContext = { kind = "shared-template", layoutId = state.editingLayoutId, templateName = entry.templateName }
     state.selectedTemplateEntry = selection
     state.selectedTemplate = entry.templateName
     state.selectedTemplateProfileName = entry.profileName or state.activeProfileName
@@ -438,6 +500,7 @@ local function SetTemplateSelectionIdentity(state, entry)
         return false
     end
 
+    state.editContext = { kind = "shared-template", layoutId = state.editingLayoutId, templateName = entry.templateName }
     state.selectedTemplateEntry = selection
     state.selectedTemplate = entry.templateName
     state.selectedTemplateProfileName = entry.profileName or state.activeProfileName
@@ -505,14 +568,14 @@ end
 
 local function CaptureDraft(context)
     local state = context.state
-    return { token = state.draftToken, layoutId = state.editingLayoutId, selection = state.selectedTemplate }
+    return { token = state.draftToken, layoutId = state.editingLayoutId, selection = state.selectedTemplate, editContext = state.editContext }
 end
 
 local function ValidateDraft(context, expected, allowStaleLayout)
     local state = context and context.state
     if not state or (not allowStaleLayout and not IsCurrentDraft(context)) or (expected and (
         expected.token ~= state.draftToken or expected.layoutId ~= state.editingLayoutId
-        or expected.selection ~= state.selectedTemplate)) then
+        or expected.selection ~= state.selectedTemplate or expected.editContext ~= state.editContext)) then
         SetStatus(T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID"), "error")
         return false
     end
@@ -1257,6 +1320,7 @@ local function ResetDraft(context)
     state.selectedTemplateEntry, state.selectedTemplateProfileName = nil, nil
     state.activeProfileName, state._profileContextChanged = nil, nil
     state.editingLayoutId, state.draftBaseline = nil, nil
+    state.editContext = nil
     state.applyUnits = {}
     RenewDraftToken(state)
     context.lastTemplateCursorPosition = nil
@@ -1792,9 +1856,29 @@ local function CreateWindow(state, deps)
     return context
 end
 
-function TextBuilderController.OpenWindow(deps)
-    local state = GetTextBuilderState(deps)
+function TextBuilderController.OpenWindow(deps, editContext)
+    local previousState = windowContext and windowContext.state
+    if editContext == nil and previousState and IsCurrentDraft(windowContext)
+        and previousState.editContext == nil and IsSelectedTemplateDirty(windowContext)
+    then
+        -- A legacy draft entered after layout invalidation has no target yet.
+        RefreshWindowState()
+        FocusWindow(windowContext.window)
+        return true
+    end
+    local request = editContext
+    if request == nil then
+        request = previousState and IsCurrentDraft(windowContext) and previousState.editContext
+            or { kind = "new-template", layoutId = GetActiveLayoutId() }
+    end
+    local snapshot, reason = ValidateEditContext(request)
+    if not snapshot then return false, reason end
+    local sameTarget = previousState and IsSameEditContext(previousState.editContext, snapshot)
+    if not sameTarget and windowContext and IsSelectedTemplateDirty(windowContext) then
+        return false, "unsaved-changes"
+    end
 
+    local state = GetTextBuilderState(deps)
     if not windowContext or not windowContext.window or not windowContext.window.frame then
         CreateWindow(state, deps)
     else
@@ -1802,9 +1886,15 @@ function TextBuilderController.OpenWindow(deps)
         windowContext.getGUIState = deps and deps.GetGUIState
     end
 
-    SyncDesiredTemplateUsage(windowContext)
+    if not sameTarget then
+        if previousState or editContext ~= nil then ResetDraft(windowContext) end
+        state.editContext = snapshot
+        BindDraft(state)
+        SyncDesiredTemplateUsage(windowContext)
+    end
     RefreshWindowState()
     FocusWindow(windowContext.window)
+    return true
 end
 
 function TextBuilderController.InsertTextIntoDraft(text)

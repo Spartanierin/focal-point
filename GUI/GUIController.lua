@@ -56,15 +56,15 @@ function B.OpenProfilesWindow()
     }))
 end
 
-function B.OpenTextBuilderWindow()
+function B.OpenTextBuilderWindow(editContext)
     local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
     if not page or not page.OpenWindow then
-        return
+        return false, "builder-unavailable"
     end
 
-    page.OpenWindow(CreateTextBuilderDeps({
+    return page.OpenWindow(CreateTextBuilderDeps({
         GetGUIState = GetGUIState,
-    }))
+    }), editContext)
 end
 
 function B.BuildEditorPage(container)
