@@ -57,6 +57,7 @@ end
 Load("Data/Defaults.lua")
 Load("Services/CompositionPresenceStorage.lua")
 Load("Services/LayoutService.lua")
+Load("Engine/UnitFrame/Shared/UnitFrameUtils.lua")
 Load("Services/UserLayoutStore.lua")
 Load("Services/LayoutMigration.lua")
 Load("Services/ActiveLayoutResolver.lua")
@@ -228,5 +229,33 @@ FocalPoint.db = existingDatabase
 local existingResult = FocalPoint.LayoutMigration.MigrateAll(existingDatabase)
 AssertEqual(existingResult.migratedProfiles, 0, "existing layout migration count")
 assert(existingDatabase.global.UserLayouts.existing == existing, "existing user layout was overwritten")
+
+-- Check stored object keys before any comparison can fill defaults or deduplicate.
+-- Expectations come from the source maps, not from NormalizeUnitTexts.
+for _, mode in ipairs({"missing-default", "extra-default", "missing-identical", "extra-empty"}) do
+    local health = FocalPoint.LayoutService.Clone(FocalPoint:GetDefaultDB().profile.Units.target.Texts.Health)
+    local pair = {enabled=true, templateName="Shared", tag="[name]"}
+    local profile = {Units={target={Texts={Named={tag="keep"}}}}}
+    if mode == "missing-identical" then
+        profile.Units.target.Texts={text_1=pair,text_2=FocalPoint.LayoutService.Clone(pair)}
+    end
+    if mode == "missing-default" then profile.Units.target.Texts.Health=health end
+    local before = FocalPoint.LayoutService.Clone(profile)
+    local checkDB, checkPayload = MigrateProfile(profile)
+    local texts = checkPayload.Units.target.Texts
+    AssertEqual(CountEntries(texts), CountEntries(profile.Units.target.Texts), mode .. " initial count")
+    for key in pairs(profile.Units.target.Texts) do assert(texts[key], "migration lost " .. key) end
+    assert(FocalPoint.LayoutMigration.VerifyUserLayouts(checkDB).complete == true)
+    if mode == "missing-default" then texts.Health=nil
+    elseif mode == "extra-default" then texts.Health=health
+    elseif mode == "missing-identical" then texts.text_2=nil
+    else texts.text_3={} end
+    local payloadBefore = FocalPoint.LayoutService.Clone(checkPayload)
+    local result = FocalPoint.LayoutMigration.VerifyUserLayouts(checkDB)
+    assert(result.complete == false, mode .. " must be detected")
+    assert(result.profiles.mismatch == 1, mode .. " must report a payload mismatch")
+    assert(DeepEqual(profile,before), mode .. " changed legacy source")
+    assert(DeepEqual(checkPayload,payloadBefore), mode .. " verification changed layout")
+end
 
 print("Layout migration golden test: PASS")

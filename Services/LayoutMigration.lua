@@ -290,8 +290,28 @@ local function DeepEqual(left, right)
     return true
 end
 
+local function CollectTextKeys(payload)
+    local keys = {}
+    local units = type(payload.Units) == "table" and payload.Units or {}
+    for unitKey, unitConfig in pairs(units) do
+        local texts = type(unitConfig) == "table" and unitConfig.Texts or nil
+        if type(texts) == "table" and next(texts) ~= nil then
+            keys[unitKey] = {}
+            for textKey in pairs(texts) do
+                keys[unitKey][textKey] = true
+            end
+        end
+    end
+    return keys
+end
+
 local function PayloadsEqual(left, right, defaults)
     if not (LayoutService.NormalizePayload and type(left) == "table" and type(right) == "table") then
+        return false
+    end
+
+    -- Compare object identity before defaults can hide missing or extra text keys.
+    if not DeepEqual(CollectTextKeys(left), CollectTextKeys(right)) then
         return false
     end
 

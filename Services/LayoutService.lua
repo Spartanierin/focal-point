@@ -173,7 +173,7 @@ local function ApplyLegacyAliases(unitConfig)
     return unitConfig
 end
 
-local function MaterializeLegacyTexts(defaultTexts, sourceTexts)
+local function MaterializeSourceTexts(defaultTexts, sourceTexts)
     local materialized = {}
     if type(sourceTexts) ~= "table" then
         return materialized
@@ -217,7 +217,7 @@ function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit)
         end
     end
 
-    materialized.Texts = MaterializeLegacyTexts(
+    materialized.Texts = MaterializeSourceTexts(
         type(defaultUnit) == "table" and defaultUnit.Texts or nil,
         sourceUnit.Texts
     )
@@ -455,7 +455,7 @@ function LayoutService.ProjectUserLayout(layoutId, rawRecord, defaults)
     end
 
     local name = IsNonEmptyString(rawRecord.name) and rawRecord.name or layoutId
-    return BuildEnvelope(
+    local envelope = BuildEnvelope(
         layoutId,
         name,
         LAYOUT_SOURCES.USER_LAYOUT,
@@ -463,6 +463,18 @@ function LayoutService.ProjectUserLayout(layoutId, rawRecord, defaults)
         rawRecord.payload,
         defaults
     )
+
+    -- Canonical layouts own their text keys; defaults only enrich existing objects.
+    local sourceUnits = rawRecord.payload.Units
+    for unitKey, unitConfig in pairs(envelope.payload.Units) do
+        local sourceUnit = type(sourceUnits) == "table" and sourceUnits[unitKey] or nil
+        unitConfig.Texts = MaterializeSourceTexts(
+            unitConfig.Texts,
+            type(sourceUnit) == "table" and sourceUnit.Texts or nil
+        )
+        NormalizeUnitTexts(unitConfig)
+    end
+    return envelope
 end
 
 function LayoutService.ProjectUserLayoutSummary(layoutId, rawRecord)
