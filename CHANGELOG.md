@@ -10,6 +10,22 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.1.1
+
+### Added
+
+- Added initial compatibility with World of Warcraft: Forever.
+
+### Fixed
+
+- Updated the bundled LibRangeCheck-3.0 library to a Forever-compatible upstream version, resolving a load-time event registration error.
+- Fixed a Composition Tree mouse-over compatibility issue that could cause a Lua error on Forever.
+
+### Notes
+
+- No intended feature or behavior changes for Retail.
+- The compatibility changes were tested on both Retail and Forever.
+
 ## 2.1.0
 
 ### Added
