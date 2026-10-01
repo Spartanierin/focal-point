@@ -362,6 +362,154 @@ local function ValidateTemplateText(templateText)
     return type(templateText) == "string"
 end
 
+-- New main-source operations use an explicit expectedLayoutId, not legacy getters.
+-- Validation must not materialize defaults or mutate presence fields on failure.
+local function ResolveMainContentTarget(context, unitKey, textKey)
+    local db = FocalPoint.db
+    local layouts = FocalPoint.ActiveLayoutResolver
+    local store = FocalPoint.UserLayoutStore
+    local roles = FocalPoint.TextElementRoles
+    local resolver = FocalPoint.TextTemplateResolver
+    if type(context) ~= "table" or not IsNonEmptyString(context.expectedLayoutId)
+        or type(db) ~= "table" or not (layouts and layouts.GetStoredActiveLayoutId)
+        or not (store and store.GetRawReadOnly) or not (roles and roles.Resolve)
+        or not (resolver and resolver.Invalidate)
+    then
+        return nil, "invalid_context"
+    end
+
+    local layoutId = context.expectedLayoutId
+    if layouts.GetStoredActiveLayoutId(db) ~= layoutId then
+        return nil, "layout_mismatch"
+    end
+    if not layoutId:match("^layout:") then
+        return nil, "readonly_layout"
+    end
+    local record = store.GetRawReadOnly(layoutId, db)
+    local payload = type(record) == "table" and record.payload or nil
+    if type(payload) ~= "table" or type(payload.Units) ~= "table" or type(payload.TextTemplates) ~= "table" then
+        return nil, "invalid_context"
+    end
+    local unitConfig = IsNonEmptyString(unitKey) and payload.Units[unitKey] or nil
+    if type(unitConfig) ~= "table" then
+        return nil, "unit_not_found"
+    end
+    local texts = unitConfig.Texts
+    local textConfig = type(texts) == "table" and IsNonEmptyString(textKey) and texts[textKey] or nil
+    if type(textConfig) ~= "table" then
+        return nil, "text_element_not_found"
+    end
+    local target = {
+        context = context, db = db, layoutId = layoutId, record = record, payload = payload,
+        units = payload.Units, unitKey = unitKey, unitConfig = unitConfig,
+        texts = texts, textKey = textKey, textConfig = textConfig, templates = payload.TextTemplates,
+        role = textConfig.role, templateName = textConfig.templateName, tag = textConfig.tag,
+        resolver = resolver,
+    }
+    local role = roles.Resolve(textKey, textConfig)
+    if role == "altpower" or role == "classpower" then
+        return nil, "unsupported_text_role"
+    end
+    return target
+end
+
+local function ReadMainTemplate(target, templateName)
+    if not ValidateTemplateName(templateName) or not templateName:find("%S") then
+        return nil, "invalid_template_name"
+    end
+    local expression = target.templates[templateName]
+    if expression == nil then
+        return nil, "template_not_found"
+    end
+    if not ValidateTemplateText(expression) or not expression:find("%S") then
+        return nil, "invalid_template_text"
+    end
+    return expression
+end
+
+local function ConfirmMainContentTarget(target, templateName, expression)
+    -- Final identity check has no context getters, materialization or callbacks.
+    local db = FocalPoint.db
+    local char = type(db) == "table" and rawget(db, "char") or nil
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    local records = type(global) == "table" and rawget(global, "UserLayouts") or nil
+    if db ~= target.db or target.context.expectedLayoutId ~= target.layoutId
+        or type(char) ~= "table" or rawget(char, "activeLayoutId") ~= target.layoutId
+        or type(records) ~= "table" or rawget(records, target.layoutId) ~= target.record
+        or target.record.payload ~= target.payload or target.payload.Units ~= target.units
+        or target.payload.TextTemplates ~= target.templates
+    then
+        return false, "layout_mismatch"
+    end
+    if target.units[target.unitKey] ~= target.unitConfig or target.unitConfig.Texts ~= target.texts
+        or target.texts[target.textKey] ~= target.textConfig
+    then
+        return false, "text_element_not_found"
+    end
+    if target.textConfig.role ~= target.role or target.textConfig.templateName ~= target.templateName
+        or target.textConfig.tag ~= target.tag or target.templates[templateName] ~= expression
+    then
+        return false, "invalid_context"
+    end
+    return true
+end
+
+-- Read the bound main expression only: no state resolution, rendering or tag fallback.
+function Mutations.GetMainTemplateExpression(context, unitKey, textKey)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey)
+    if not target then return Result(false, { errorCode = reason }) end
+    local expression
+    expression, reason = ReadMainTemplate(target, target.templateName)
+    if not expression then return Result(false, { errorCode = reason }) end
+    local current
+    current, reason = ConfirmMainContentTarget(target, target.templateName, expression)
+    if not current then return Result(false, { errorCode = reason }) end
+    return Result(true, { layoutId = target.layoutId, unitKey = unitKey, textKey = textKey,
+        templateName = target.templateName, expression = expression })
+end
+
+local function CommitMainContent(target, checkedTemplate, checkedExpression, templateName, expression)
+    local current, reason = ConfirmMainContentTarget(target, checkedTemplate, checkedExpression)
+    if not current then return Result(false, { errorCode = reason }) end
+    local textConfig = target.textConfig
+    local changed = textConfig.templateName ~= templateName or textConfig.tag ~= expression
+    if changed then
+        textConfig.templateName = templateName
+        textConfig.tag = expression
+    end
+    local result = Result(true, { layoutId = target.layoutId, unitKey = target.unitKey,
+        textKey = target.textKey, templateName = templateName, changed = changed })
+    if changed then
+        -- Data is committed. A later refresh failure must not report a failed mutation.
+        local ok, err = pcall(target.resolver.Invalidate, textConfig)
+        result.cacheInvalidated = ok
+        if not ok then result.cacheInvalidationError = tostring(err) end
+    end
+    -- As with the existing mutations, the caller runs its normal live/Inspector refresh.
+    return result
+end
+
+function Mutations.SetLocalMainContent(context, unitKey, textKey, expression)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey)
+    if not target then return Result(false, { errorCode = reason }) end
+    if type(expression) ~= "string" or not expression:find("%S") then
+        return Result(false, { errorCode = "invalid_local_content" })
+    end
+    local sourceExpression
+    sourceExpression, reason = ReadMainTemplate(target, target.templateName)
+    if not sourceExpression then return Result(false, { errorCode = reason }) end
+    return CommitMainContent(target, target.templateName, sourceExpression, "", expression)
+end
+
+function Mutations.AssignMainTemplate(context, unitKey, textKey, templateName)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey)
+    if not target then return Result(false, { errorCode = reason }) end
+    local expression
+    expression, reason = ReadMainTemplate(target, templateName)
+    if not expression then return Result(false, { errorCode = reason }) end
+    return CommitMainContent(target, templateName, expression, templateName, "")
+end
+
 local function ForEachTemplateReference(context, templateName, callback)
     local usage = FocalPoint.TextTemplateUsage
     local references = usage and usage.FindReferences and usage.FindReferences(context, templateName) or {}
