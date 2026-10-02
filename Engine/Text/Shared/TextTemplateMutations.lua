@@ -299,11 +299,10 @@ local function RemoveStateTemplateReference(textConfig, stateKey, templateName)
     return true
 end
 
-function Mutations.BuildTextElementConfig(template, linkedTemplateName)
+local function BuildBaseTextElementConfig(template)
     local textConfig = {
         enabled = true,
         tag = template or "",
-        templateName = linkedTemplateName or "",
         font = "fp:font:standard",
         fontStyle = "NONE",
         fontSize = 12,
@@ -325,6 +324,17 @@ function Mutations.BuildTextElementConfig(template, linkedTemplateName)
     return textConfig
 end
 
+function Mutations.BuildTextElementConfig(template, linkedTemplateName)
+    local textConfig = BuildBaseTextElementConfig(template)
+    textConfig.templateName = linkedTemplateName or ""
+    return textConfig
+end
+
+function Mutations.BuildEntityTextElementConfig(template, templateId)
+    local textConfig = BuildBaseTextElementConfig(template)
+    textConfig.templateId = templateId
+    return textConfig
+end
 function Mutations.GetNextTextKey(context, unitKey)
     local unitConfig = GetUnitConfigFromContext(context, unitKey)
     local texts = unitConfig and unitConfig.Texts or nil
@@ -590,6 +600,56 @@ local function BindMain(contract, target)
 end
 BindMain(LegacyMain, Mutations)
 BindMain(EntityMain, Entity)
+
+local function ResolveEntityCreateTarget(context, unitKey)
+    if type(context) ~= "table" or type(context.db) ~= "table"
+        or not IsNonEmptyString(context.expectedLayoutId) then
+        return nil, "invalid_context"
+    end
+    local db = context.db
+    local char = rawget(db, "char")
+    local layoutId = context.expectedLayoutId
+    if type(char) ~= "table" or rawget(char, "activeLayoutId") ~= layoutId then
+        return nil, "layout_mismatch"
+    end
+    if not layoutId:match("^layout:") then return nil, "readonly_layout" end
+    local global = rawget(db, "global")
+    local layouts = type(global) == "table" and rawget(global, "UserLayouts")
+    local record = type(layouts) == "table" and rawget(layouts, layoutId)
+    local payload = type(record) == "table" and rawget(record, "payload")
+    local units = type(payload) == "table" and rawget(payload, "Units")
+    if type(payload) ~= "table" or type(units) ~= "table" or payload.TextTemplates ~= nil then
+        return nil, "invalid_context"
+    end
+    local unitConfig = IsNonEmptyString(unitKey) and rawget(units, unitKey) or nil
+    if type(unitConfig) ~= "table" then return nil, "unit_not_found" end
+    return {db = db, layoutId = layoutId, record = record, payload = payload,
+        units = units, unitKey = unitKey, unitConfig = unitConfig}
+end
+
+function Entity.CreateTextFromTemplate(context, unitKey, templateId, options)
+    local target, reason = ResolveEntityCreateTarget(context, unitKey)
+    if not target then return Result(false, {errorCode = reason}) end
+    local entity, err = ResolveLibrary().ResolveTemplateEntity(templateId, target.db)
+    if not entity then return Result(false, {errorCode = err.errorCode}) end
+    if not entity.content:find("%S") then return Result(false, {errorCode = "invalid_template_text"}) end
+
+    local unitConfig = target.unitConfig
+    unitConfig.Texts = type(unitConfig.Texts) == "table" and unitConfig.Texts or {}
+    local textKey = Mutations.GetNextTextKey({GetUnitConfig = function() return unitConfig end}, unitKey)
+    if not IsNonEmptyString(textKey) or unitConfig.Texts[textKey] ~= nil then
+        return Result(false, {errorCode = "text_key_unavailable", unitKey = unitKey})
+    end
+
+    local textConfig = Mutations.BuildEntityTextElementConfig(entity.content, entity.templateId)
+    if type(options) == "table" and type(options.anchorTo) == "string" and options.anchorTo ~= "" then
+        textConfig.anchorTo = options.anchorTo
+    end
+    unitConfig.Texts[textKey] = textConfig
+    NormalizeUnitTexts(unitConfig)
+    return Result(true, {templateId = entity.templateId, unitKey = unitKey,
+        textKey = textKey, changed = true})
+end
 
 -- R1: stage the record and namespace privately. The final section only writes
 -- raw tables; no record/ID helper or caller callback runs inside the commit.

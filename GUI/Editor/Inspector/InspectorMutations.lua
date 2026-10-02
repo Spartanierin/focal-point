@@ -560,10 +560,35 @@ local function BuildTextTemplateMutationContext(context)
     }
 end
 
+local function BuildEntityTextMutationContext(context, textKey)
+    if type(context) ~= "table" or context.entity ~= true then return nil end
+    local db = FocalPoint.db
+    local char = type(db) == "table" and db.char or nil
+    local layoutId = type(char) == "table" and char.activeLayoutId or nil
+    local global = type(db) == "table" and db.global or nil
+    local layouts = type(global) == "table" and global.UserLayouts or nil
+    local record = type(layouts) == "table" and layouts[layoutId] or nil
+    local payload = type(record) == "table" and record.payload or nil
+    local units = type(payload) == "table" and payload.Units or nil
+    local unit = type(units) == "table" and units[context.unitKey] or nil
+    local texts = type(unit) == "table" and unit.Texts or nil
+    local text = type(texts) == "table" and texts[textKey] or nil
+    if type(layoutId) ~= "string" or type(text) ~= "table" then return nil end
+    return {
+        db = db,
+        expectedLayoutId = layoutId,
+        expectedTextConfig = text,
+        GetUnits = function() return units end,
+        GetUnitConfig = function(unitKey) return type(units) == "table" and units[unitKey] or nil end,
+    }
+end
 function InspectorMutations.AssignTextStateTemplate(context, textKey, stateKey, templateName)
     local mutations = FocalPoint.TextTemplateMutations
     if type(context) ~= "table" or type(mutations) ~= "table" or type(mutations.AssignStateTemplate) ~= "function" then
         return Result(false, { errorCode = "invalid_context" })
+    end
+    if context.entity == true and mutations.Entity and type(mutations.Entity.AssignStateTemplate) == "function" then
+        return mutations.Entity.AssignStateTemplate(BuildEntityTextMutationContext(context, textKey), context.unitKey, textKey, stateKey, templateName)
     end
     return mutations.AssignStateTemplate(BuildTextTemplateMutationContext(context), context.unitKey, textKey, stateKey, templateName)
 end
@@ -572,6 +597,9 @@ function InspectorMutations.UnassignTextStateTemplate(context, textKey, stateKey
     local mutations = FocalPoint.TextTemplateMutations
     if type(context) ~= "table" or type(mutations) ~= "table" or type(mutations.UnassignStateTemplate) ~= "function" then
         return Result(false, { errorCode = "invalid_context" })
+    end
+    if context.entity == true and mutations.Entity and type(mutations.Entity.UnassignStateTemplate) == "function" then
+        return mutations.Entity.UnassignStateTemplate(BuildEntityTextMutationContext(context, textKey), context.unitKey, textKey, stateKey)
     end
     return mutations.UnassignStateTemplate(BuildTextTemplateMutationContext(context), context.unitKey, textKey, stateKey)
 end

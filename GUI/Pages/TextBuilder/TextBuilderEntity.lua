@@ -63,6 +63,14 @@ local function Open(request,db,active)
     s.baseline={name=s.name,content=s.content}; s.nameDirty=false;s.contentDirty=false
     return s
 end
+local function PublishReturn(session, result)
+    local returnContext = session and session.returnContext
+    local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+    if libraryWindow and type(libraryWindow.NotifyEntityReturn) == "function" then
+        libraryWindow.NotifyEntityReturn(returnContext, result)
+    end
+end
+
 function R2.SetIdGenerator(generator) R2.idGenerator=generator end
 function R2.IsRequest(r) return type(r)=="table" and r.entity==true end
 function R2.Open(r,db,active) return Open(r,db,active) end
@@ -122,6 +130,7 @@ function R2.Save(s)
     if not c then return {ok=false,errorCode=e} end
     s.context=c;s.kind=c.kind;s.templateId=result.templateId;s.expected=Copy({name=s.name,content=s.content})
     s.baseline={name=s.name,content=s.content};s.nameDirty=false;s.contentDirty=false;Renew(s)
+    PublishReturn(s,result)
     return {ok=true,changed=true,created=true,templateId=result.templateId,refresh=true}
 end
 function R2.Decide(s,decision,capture)
@@ -163,6 +172,7 @@ function R2.Copy(s)
     local r=Entity.CopyTemplate(s.db,s.templateId,R2.idGenerator);if not r or not r.ok then return r end
     local n,e=Open({entity=true,kind="shared-template",layoutId=s.activeLayoutId,templateId=r.templateId,returnContext=s.returnContext},s.db,s.activeLayoutId)
     if not n then return {ok=false,errorCode=e} end
+    PublishReturn(s,{templateId=r.templateId,changed=true})
     return {ok=true,changed=true,copied=true,templateId=r.templateId,session=n,refresh=true}
 end
 

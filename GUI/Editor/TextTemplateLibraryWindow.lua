@@ -12,6 +12,9 @@ local TextTemplateLibraryWindow = {}
 ns.GUI.Editor.TextTemplateLibraryWindow = TextTemplateLibraryWindow
 
 local windowContext
+local OpenEntityEditor
+local pendingEntityReturns = setmetatable({}, {__mode = "k"})
+local lastEntityReturn
 
 local function T(key, fallback)
     local L = ns.L or {}
@@ -179,6 +182,77 @@ local function BuildTemplateEntries()
     return entries
 end
 
+local function ResolveActiveEntityLayoutId()
+    local char = ns.db and ns.db.char
+    return type(char) == "table" and char.activeLayoutId or nil
+end
+
+local function BuildEntityTemplateEntries()
+    local library = ns.TextTemplateLibrary or {}
+    local rows = library.Entity and library.Entity.List and library.Entity.List(ns.db) or {}
+    local entries = {}
+    for _, row in ipairs(rows or {}) do
+        if type(row) == "table" and type(row.value) == "string" and type(row.label) == "string" then
+            entries[#entries + 1] = {
+                key = "entity:" .. row.value,
+                templateId = row.value,
+                templateName = row.label,
+                templateText = row.content,
+                sourceType = row.readOnly and "builtin" or "user",
+                sourceLabel = row.readOnly and T("INSERT_TEXT_SOURCE_BUILTIN", "Built-in") or T("INSERT_TEXT_SOURCE_USER", "User"),
+                readOnly = row.readOnly == true,
+            }
+        end
+    end
+    return entries
+end
+
+local function FindInitialEntityEntryKey(entries, templateId)
+    if type(entries) ~= "table" or type(templateId) ~= "string" or templateId == "" then return nil end
+    for _, entry in ipairs(entries) do
+        if entry.templateId == templateId then return entry.key end
+    end
+    return nil
+end
+
+local function BuildEntityMutationContext()
+    local layoutId = ResolveActiveEntityLayoutId()
+    local global = ns.db and ns.db.global
+    local layouts = type(global) == "table" and global.UserLayouts or nil
+    local record = type(layouts) == "table" and layouts[layoutId] or nil
+    local payload = type(record) == "table" and record.payload or nil
+    local units = type(payload) == "table" and payload.Units or nil
+    return {
+        db = ns.db,
+        expectedLayoutId = layoutId,
+        GetUnits = function() return units end,
+        GetUnitConfig = function(unitKey) return type(units) == "table" and units[unitKey] or nil end,
+    }
+end
+
+local function NotifyEntityReturn(context, result)
+    local returnContext = type(context) == "table" and context.returnContext or nil
+    local token = type(returnContext) == "table" and returnContext.originToken or nil
+    if type(token) ~= "table" or getmetatable(token) ~= nil or next(token) ~= nil then return end
+    local returned = {
+        pickerMode = returnContext.pickerMode,
+        layoutId = returnContext.layoutId,
+        unitKey = returnContext.unitKey,
+        textKey = returnContext.textKey,
+        originToken = token,
+        templateId = result and result.templateId,
+    }
+    lastEntityReturn = returned
+    local origin = pendingEntityReturns[token]
+    if origin then
+        origin.returnedTemplateId = returned.templateId
+        origin.returnedTextKey = result and result.textKey
+    end
+    local toolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.CanvasToolbar
+    if toolbar and type(toolbar.AcceptEntityReturn) == "function" then
+        toolbar.AcceptEntityReturn(returnContext, result)
+    end
+end
 local function GetEntryLabel(entry)
     if type(entry) ~= "table" then
         return ""
@@ -266,6 +340,11 @@ local function RefreshPreview(context)
 
     context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATE_STRING", "Template"), "label", 10, 388, 14))
     context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 360), "help", 11, 388, 42))
+    if context.entity then
+        local editButton = CreateButton(T("INSERT_TEXT_EDIT_TEMPLATE", "Edit Template"), "utility", 140)
+        editButton:SetCallback("OnClick", OpenEntityEditor)
+        context.previewGroup:AddChild(editButton)
+    end
 end
 
 local function SetStatus(context, message, role)
@@ -322,13 +401,54 @@ local function RefreshRows(context)
     end
 end
 
+local SelectText
+
+local function SubmitEntityTemplate(context, unitKey, entry)
+    local mutations = ns.TextTemplateMutations and ns.TextTemplateMutations.Entity or nil
+    local mutationContext = BuildEntityMutationContext()
+    if type(mutations) ~= "table" or type(mutationContext.expectedLayoutId) ~= "string" then
+        SetStatus(context, ResolveMutationStatus({errorCode = "invalid_context"}))
+        return
+    end
+    local result
+    if context.mode == "change" then
+        local textKey = context.targetTextKey
+        if type(textKey) ~= "string" or textKey == "" then
+            SetStatus(context, T("INSERT_TEXT_STATUS_SELECT_TEXT", "Select a text object first."))
+            return
+        end
+        if entry.templateId == context.initialTemplateId then
+            NotifyEntityReturn(context, {templateId = entry.templateId, changed = false, textKey = textKey})
+            SelectText(unitKey, textKey)
+            context.dialog:Close()
+            return
+        end
+        result = mutations.AssignMainTemplate(mutationContext, unitKey, textKey, entry.templateId)
+    else
+        local anchorTo = ns.TextTemplateMutations.ResolveTextAnchorTarget
+            and ns.TextTemplateMutations.ResolveTextAnchorTarget(mutationContext, context.anchorSelection)
+            or "Frame"
+        result = mutations.CreateTextFromTemplate(mutationContext, unitKey, entry.templateId, {anchorTo = anchorTo})
+    end
+    if type(result) ~= "table" or not result.ok then
+        SetStatus(context, ResolveMutationStatus(result))
+        return
+    end
+    NotifyEntityReturn(context, result)
+    if ns.RefreshUnitFrame then ns:RefreshUnitFrame(result.unitKey or unitKey) end
+    SelectText(result.unitKey or unitKey, result.textKey or context.targetTextKey)
+    if ns.GUI and ns.GUI.RequestRefreshOptions then ns.GUI:RequestRefreshOptions("TextTemplateLibrary.ApplyEntityTemplate") end
+    context.dialog:Close()
+end
 local function RefreshWindow(context)
     if type(context) ~= "table" then
         return
     end
-    context.entries = BuildTemplateEntries()
+    context.entries = context.entity and BuildEntityTemplateEntries() or BuildTemplateEntries()
     if not FindEntry(context, context.selectedTemplateKey) then
-        context.selectedTemplateKey = FindInitialEntryKey(context.entries, context.initialTemplateName)
+        context.selectedTemplateKey = context.entity
+            and FindInitialEntityEntryKey(context.entries, context.initialTemplateId)
+            or FindInitialEntryKey(context.entries, context.initialTemplateName)
             or (context.entries[1] and context.entries[1].key or nil)
     end
     RefreshRows(context)
@@ -338,7 +458,7 @@ local function RefreshWindow(context)
     end
 end
 
-local function SelectText(unitKey, textKey)
+SelectText = function(unitKey, textKey)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
     if objectSelection and type(objectSelection.SelectObject) == "function" then
         return objectSelection.SelectObject({
@@ -361,6 +481,10 @@ local function SubmitSelectedTemplate(context)
     if type(entry) ~= "table" then
         SetStatus(context, T("INSERT_TEXT_STATUS_SELECT_TEMPLATE", "Select a text template first."))
         return
+    end
+
+    if context.entity then
+        return SubmitEntityTemplate(context, unitKey, entry)
     end
 
     local mutations = ns.TextTemplateMutations or {}
@@ -421,25 +545,64 @@ local function SubmitSelectedTemplate(context)
     context.dialog:Close()
 end
 
-local function OpenTextBuilder()
-    if windowContext and windowContext.dialog then
-        windowContext.dialog:Close()
-    end
+local function BuildEntityReturnContext(context)
+    return {
+        pickerMode = context.mode,
+        layoutId = ResolveActiveEntityLayoutId(),
+        unitKey = context.targetUnit,
+        textKey = context.targetTextKey,
+        originToken = context.originToken,
+        anchorContext = type(context.anchorSelection) == "table" and {
+            kind = context.anchorSelection.kind,
+            unitKey = context.anchorSelection.unit,
+            textKey = context.anchorSelection.textKey,
+            objectKey = context.anchorSelection.objectKey,
+            sectionKey = context.anchorSelection.sectionKey,
+        } or nil,
+    }
+end
+
+local function OpenEntityBuilder(context, request)
     local controller = ns.GUIController or {}
-    if controller.OpenTextBuilderWindow then
-        controller.OpenTextBuilderWindow()
+    if type(controller.OpenTextBuilderWindow) ~= "function" then return false end
+    request.returnContext = BuildEntityReturnContext(context)
+    local accepted = controller.OpenTextBuilderWindow(request)
+    if accepted ~= true then
+        SetStatus(context, T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID", "The active profile is not available."))
+        return false
     end
+    pendingEntityReturns[context.originToken] = context
+    context.dialog:Close()
+    return true
+end
+
+local function OpenTextBuilder()
+    local context = windowContext
+    if not context then return end
+    if context.entity then
+        OpenEntityBuilder(context, {entity = true, kind = "new-template", layoutId = ResolveActiveEntityLayoutId()})
+        return
+    end
+    if context.dialog then context.dialog:Close() end
+    local controller = ns.GUIController or {}
+    if controller.OpenTextBuilderWindow then controller.OpenTextBuilderWindow() end
+end
+
+OpenEntityEditor = function()
+    local context = windowContext
+    local entry = context and FindEntry(context, context.selectedTemplateKey)
+    if not context or not entry or not entry.templateId then return end
+    OpenEntityBuilder(context, {entity = true, kind = "shared-template",
+        layoutId = ResolveActiveEntityLayoutId(), templateId = entry.templateId})
 end
 
 local function BuildFooter(context)
-    context.dialog:SetActions({
+    local actions = {
         primary = {
             text = ResolvePrimaryLabel(context),
             role = "primary_action",
             width = 82,
-            onClick = function()
-                SubmitSelectedTemplate(context)
-            end,
+            onClick = function() SubmitSelectedTemplate(context) end,
         },
         secondary = {
             text = T("INSERT_TEXT_CREATE_NEW_TEMPLATE", "Create New Template"),
@@ -451,11 +614,10 @@ local function BuildFooter(context)
             text = T("INSERT_TEXT_CANCEL", "Cancel"),
             role = "utility",
             width = 82,
-            onClick = function()
-                context.dialog:Close()
-            end,
+            onClick = function() context.dialog:Close() end,
         },
-    }, context.actionContainer)
+    }
+    context.dialog:SetActions(actions, context.actionContainer)
     context.primaryButton = context.dialog.primaryButton
 end
 
@@ -555,7 +717,11 @@ function TextTemplateLibraryWindow.Open(options)
         targetUnit = options.unit,
         anchorSelection = options.anchorSelection,
         targetTextKey = options.textKey,
+        entity = options.entity == true,
+        originToken = type(options.returnContext) == "table" and options.returnContext.originToken or (type(options.originToken) == "table" and options.originToken or {}),
         initialTemplateName = options.initialTemplateName,
+        initialTemplateId = options.initialTemplateId,
+        returnContext = options.returnContext,
         selectedTemplateKey = nil,
     }
     windowContext = context
@@ -566,6 +732,25 @@ function TextTemplateLibraryWindow.Open(options)
     dialog:Show()
 end
 
+function TextTemplateLibraryWindow.NotifyEntityReturn(returnContext, result)
+    if type(returnContext) ~= "table" or type(returnContext.originToken) ~= "table"
+        or getmetatable(returnContext.originToken) ~= nil or next(returnContext.originToken) ~= nil then
+        return false
+    end
+    lastEntityReturn = {
+        pickerMode = returnContext.pickerMode,
+        layoutId = returnContext.layoutId,
+        unitKey = returnContext.unitKey,
+        textKey = returnContext.textKey,
+        originToken = returnContext.originToken,
+        templateId = type(result) == "table" and result.templateId or nil,
+    }
+    return true
+end
+
+function TextTemplateLibraryWindow.GetLastEntityReturn()
+    return lastEntityReturn
+end
 function TextTemplateLibraryWindow.Refresh()
     RefreshWindow(windowContext)
 end

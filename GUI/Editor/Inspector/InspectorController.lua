@@ -608,7 +608,25 @@ function InspectorController.Build(container, state, options)
         return type(units) == "table" and units[normalizedUnit] or nil
     end
 
-    local function BuildTextStateTemplateOptions(currentValue)
+    local function BuildTextStateTemplateOptions(currentValue, entityMode)
+        if entityMode == true then
+            local values = { __none = L["TEXT_STATE_TEMPLATE_NONE"] or "None" }
+            local order = { "__none" }
+            local rows = ns.TextTemplateLibrary and ns.TextTemplateLibrary.Entity
+                and ns.TextTemplateLibrary.Entity.List and ns.TextTemplateLibrary.Entity.List(ns.db) or {}
+            for _, row in ipairs(rows or {}) do
+                if type(row) == "table" and type(row.value) == "string" and type(row.label) == "string" then
+                    values[row.value] = row.label
+                    order[#order + 1] = row.value
+                end
+            end
+            if type(currentValue) == "string" and currentValue ~= "" and values[currentValue] == nil then
+                values[currentValue] = string.format("%s: %s", L["MEDIA_LIBRARY_MISSING"] or "Missing", currentValue)
+                order[#order + 1] = currentValue
+            end
+            return {values = values, order = order,
+                value = (type(currentValue) == "string" and currentValue ~= "") and currentValue or "__none"}
+        end
         local values = {
             __none = L["TEXT_STATE_TEMPLATE_NONE"] or "None",
         }
@@ -751,6 +769,8 @@ function InspectorController.Build(container, state, options)
         end,
         getFirstAuraKey = GetFirstAuraKey,
     }) or {}
+
+    inspectorContext.entity = options.entity == true
 
     local isQuick = inspectorContext.isQuick == true
     local isExpert = inspectorContext.isExpert == true
@@ -1075,11 +1095,16 @@ function InspectorController.Build(container, state, options)
     local function SetTextStateTemplate(textKey, stateKey, value, section, dropdown)
         local function SyncStoredTemplateValue()
             local textConfig = type(unitConfig.Texts) == "table" and unitConfig.Texts[textKey] or nil
-            local stateTemplates = type(textConfig) == "table" and textConfig.stateTemplates or nil
+            local stateTemplates = type(textConfig) == "table" and (inspectorContext.entity and textConfig.stateTemplateIds or textConfig.stateTemplates) or nil
             SyncDropdownToStoredValue(dropdown, type(stateTemplates) == "table" and stateTemplates[stateKey] or "__none")
         end
-
-        if value ~= "__none" and type(GetActiveProfileTextTemplates()[value]) ~= "string" then
+        local entitySelectionValid = value == "__none"
+        if inspectorContext.entity and value ~= "__none" then
+            local entity = ns.TextTemplateLibrary and ns.TextTemplateLibrary.ResolveTemplateEntity
+                and ns.TextTemplateLibrary.ResolveTemplateEntity(value, ns.db)
+            entitySelectionValid = entity ~= nil
+        end
+        if value ~= "__none" and ((not inspectorContext.entity and type(GetActiveProfileTextTemplates()[value]) ~= "string") or (inspectorContext.entity and not entitySelectionValid)) then
             SyncStoredTemplateValue()
             return { ok = true, changed = false }
         end
@@ -3738,7 +3763,30 @@ function InspectorController.Build(container, state, options)
         end
 
         local templateLabel = ((type(linkedTemplateName) == "string" and linkedTemplateName ~= "") and linkedTemplateName or (L["EDITOR_TEXT_DIRECT_TEMPLATE"] or "Direct Template"))
+        if inspectorContext.entity then
+            local entity = textConfig.templateId and ns.TextTemplateLibrary and ns.TextTemplateLibrary.ResolveTemplateEntity
+                and ns.TextTemplateLibrary.ResolveTemplateEntity(textConfig.templateId, ns.db)
+            templateLabel = entity and entity.name or (L["MEDIA_LIBRARY_MISSING"] or "Missing")
+        end
         if isScopedObject then
+            if inspectorContext.entity then
+                AddPropertyActionButtonRow(contentSection, L["EDITOR_EDIT_TEXT"] or "Text bearbeiten", L["EDITOR_EDIT_TEXT"] or "Text bearbeiten", "InspectorAction", 142, function()
+                    local controller = ns.GUIController or {}
+                    local char = ns.db and ns.db.char
+                    local layoutId = type(char) == "table" and char.activeLayoutId or nil
+                    if type(controller.OpenTextBuilderWindow) == "function" then
+                        controller.OpenTextBuilderWindow({
+                            entity = true,
+                            kind = "object",
+                            layoutId = layoutId,
+                            unitKey = selectedUnit,
+                            textKey = selectedTextId,
+                            returnContext = {pickerMode = "change", layoutId = layoutId,
+                                unitKey = selectedUnit, textKey = selectedTextId, originToken = {}},
+                        })
+                    end
+                end)
+            end
             AddPropertyValueTextRow(contentSection, L["EDITOR_OPTION_TEMPLATE"] or "Template", templateLabel)
             AddPropertyActionButtonRow(contentSection, L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", "InspectorAction", 142, function()
                 local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
@@ -3747,7 +3795,9 @@ function InspectorController.Build(container, state, options)
                         mode = "change",
                         unit = selectedUnit,
                         textKey = selectedTextId,
+                        entity = inspectorContext.entity == true,
                         initialTemplateName = type(textConfig.templateName) == "string" and textConfig.templateName or nil,
+                        initialTemplateId = textConfig.templateId,
                     })
                 end
             end)
@@ -3777,7 +3827,9 @@ function InspectorController.Build(container, state, options)
                         mode = "change",
                         unit = selectedUnit,
                         textKey = selectedTextId,
+                        entity = inspectorContext.entity == true,
                         initialTemplateName = type(textConfig.templateName) == "string" and textConfig.templateName or nil,
+                        initialTemplateId = textConfig.templateId,
                     })
                 end
             end)
@@ -4064,8 +4116,8 @@ function InspectorController.Build(container, state, options)
                     textSection:AddChild(stateTemplateTitle)
                 end
 
-                local stateTemplates = type(textConfig.stateTemplates) == "table" and textConfig.stateTemplates or nil
-                local deadTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.dead or nil)
+                local stateTemplates = type(textConfig) == "table" and (inspectorContext.entity and textConfig.stateTemplateIds or textConfig.stateTemplates) or nil
+                local deadTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.dead or nil, inspectorContext.entity)
                 local deadTemplateDropdown
                 if isScopedObject then
                     deadTemplateDropdown = AddPropertyDropdownRow(advancedSection, L["TEXT_DEAD_TEMPLATE"] or "Dead Template", {
@@ -4082,7 +4134,7 @@ function InspectorController.Build(container, state, options)
                     end, textConfig.enabled == false, "text_dead_template")
                 end
 
-                local ghostTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.ghost or nil)
+                local ghostTemplateOptions = BuildTextStateTemplateOptions(stateTemplates and stateTemplates.ghost or nil, inspectorContext.entity)
                 local ghostTemplateDropdown
                 if isScopedObject then
                     ghostTemplateDropdown = AddPropertyDropdownRow(advancedSection, L["TEXT_GHOST_TEMPLATE"] or "Ghost Template", {

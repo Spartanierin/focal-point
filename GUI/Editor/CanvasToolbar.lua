@@ -29,6 +29,7 @@ local LAYOUT_MANAGE_WIDTH = 148
 local context
 local newLayoutDialog
 local addObjectPickerDialog
+local entityAddOriginToken
 
 local function GetChromeColors()
     local skins = ns.GUI and ns.GUI.Skins or nil
@@ -554,7 +555,7 @@ local function AddPickerHeader(container, label)
     container:AddChild(header)
 end
 
-local function AddPickerButton(dialog, container, label, callback)
+local function AddPickerButton(dialog, container, label, callback, closeBefore)
     local buttonWidth = (tonumber(dialog and dialog.contentWidth) or 340) - 18
     local button = FormWidgets and FormWidgets.CreateActionButton
         and FormWidgets.CreateActionButton(label, "secondary", buttonWidth, false)
@@ -563,7 +564,7 @@ local function AddPickerButton(dialog, container, label, callback)
     button:SetFullWidth(true)
     button:SetHeight(PICKER_BUTTON_HEIGHT)
     button:SetCallback("OnClick", function()
-        CloseAddObjectPickerDialog()
+        if closeBefore ~= false then CloseAddObjectPickerDialog() end
         callback()
     end)
     if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
@@ -573,21 +574,32 @@ local function AddPickerButton(dialog, container, label, callback)
     container:AddChild(button)
 end
 
-local function OpenTextTemplateLibrary()
+local function OpenTextTemplateLibrary(entityMode)
     local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
     if libraryWindow and libraryWindow.Open then
         local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
         local selectedObject = objectSelection and type(objectSelection.GetSelectedObject) == "function" and objectSelection.GetSelectedObject() or nil
+        local layoutId = ResolveActiveLayoutId()
+        local returnContext
+        if entityMode == true and entityAddOriginToken then
+            returnContext = {pickerMode = "add", layoutId = layoutId,
+                unitKey = ResolveSelectedObjectUnit(), originToken = entityAddOriginToken,
+                anchorContext = type(selectedObject) == "table" and {kind = selectedObject.kind,
+                    unitKey = selectedObject.unit, textKey = selectedObject.textKey,
+                    objectKey = selectedObject.objectKey, sectionKey = selectedObject.sectionKey} or nil}
+        end
         libraryWindow.Open({
+            entity = entityMode == true,
             unit = ResolveSelectedObjectUnit(),
             anchorSelection = selectedObject,
+            returnContext = returnContext,
         })
     elseif ns.Info then
         ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added."))
     end
 end
 
-local function OpenAddObjectPicker()
+local function OpenAddObjectPicker(entityMode)
     local unitKey = ResolveSelectedObjectUnit()
     if type(unitKey) ~= "string" or unitKey == "" then
         if ns.Info then
@@ -650,7 +662,7 @@ local function OpenAddObjectPicker()
     end
     AddCategory(T("EDITOR_SECTION_AURAS", "Auras"), entries)
     AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), {
-        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = OpenTextTemplateLibrary, args = {} },
+        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = function() OpenTextTemplateLibrary(entityMode) end, args = {}, closeBefore = entityMode ~= true },
         { label = T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), action = InsertDecoration, args = {} },
     })
 
@@ -706,7 +718,7 @@ local function OpenAddObjectPicker()
         for _, entry in ipairs(category.entries) do
             AddPickerButton(dialog, selectionScroll, entry.label, function()
                 entry.action(unpack(entry.args))
-            end)
+            end, entry.closeBefore)
         end
     end
     selectionScroll:ResumeLayout()
@@ -1135,6 +1147,22 @@ function CanvasToolbar.UpdateGeometry()
     current.host:ClearAllPoints()
     current.host:SetPoint("TOP", parent, "TOP", ResolveCanvasCenterOffset(), -TOOLBAR_TOP_OFFSET)
     current.host:SetSize(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
+end
+
+function CanvasToolbar.OpenEntityAddObjectPicker()
+    entityAddOriginToken = {}
+    return OpenAddObjectPicker(true)
+end
+
+function CanvasToolbar.OpenEntityTextTemplateLibrary()
+    return OpenTextTemplateLibrary(true)
+end
+
+function CanvasToolbar.AcceptEntityReturn(returnContext, result)
+    if type(returnContext) ~= "table" or returnContext.originToken ~= entityAddOriginToken then return false end
+    entityAddOriginToken = nil
+    CloseAddObjectPickerDialog()
+    return true
 end
 
 function CanvasToolbar.Refresh()
