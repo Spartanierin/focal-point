@@ -198,5 +198,6 @@
     <Script file="GUI/Pages/Profiles/ProfilesController.lua"/>
     <Script file="GUI/Pages/Shared/PlaceholderController.lua"/>
     <Script file="GUI/Pages/TextBuilder/TextBuilderController.lua"/>
+    <Script file="GUI/Pages/TextBuilder/TextBuilderEntity.lua"/>
     <Script file="GUI/GUIMainController.lua"/>
 </Ui>
