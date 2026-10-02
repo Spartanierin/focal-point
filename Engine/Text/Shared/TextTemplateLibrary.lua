@@ -209,6 +209,68 @@ function Library.CopyUserTemplateRecord(sourceId, newId, db)
     return Library.CreateUserTemplateRecord(newId, record, db)
 end
 
+-- E2: isolated catalogs and entity lookup, independent of runtime rendering.
+-- An entry list detects duplicate IDs before a Lua map could overwrite them.
+local function EntityError(code, id, kind)
+    return {errorCode = code, templateId = id, kind = kind}
+end
+
+function Library.CreateBuiltInTemplateCatalog(entries)
+    if not IsPlainTable(entries) then return nil, EntityError("invalid-builtin-definitions") end
+    local count = 0
+    for key in pairs(entries) do
+        if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then
+            return nil, EntityError("invalid-builtin-definitions")
+        end
+        count = count + 1
+    end
+    local records = {}
+    for i = 1, count do
+        local entry = entries[i]
+        if not IsPlainTable(entry) then return nil, EntityError("invalid-builtin-definitions") end
+        local id = entry.templateId
+        if Library.GetTemplateIdKind(id) ~= "builtin" then
+            return nil, EntityError("invalid-builtin-template-id", id)
+        end
+        if records[id] ~= nil then return nil, EntityError("duplicate-builtin-template-id", id, "builtin") end
+        local record, reason = Library.CopyTemplateRecord(entry.record)
+        if not record then return nil, EntityError(reason, id, "builtin") end
+        records[id] = record
+    end
+    -- Canonical records remain private; neither individual nor list reads alias them.
+    return {
+        GetRecord = function(id)
+            if Library.GetTemplateIdKind(id) ~= "builtin" or records[id] == nil then return nil end
+            return Library.CopyTemplateRecord(records[id])
+        end,
+        ListRecords = function()
+            local copies = {}
+            for id, record in pairs(records) do copies[id] = Library.CopyTemplateRecord(record) end
+            return copies
+        end,
+    }
+end
+
+function Library.ResolveTemplateEntity(templateId, db)
+    local kind = Library.GetTemplateIdKind(templateId)
+    if not kind then return nil, EntityError("invalid-template-id", templateId) end
+    local record, reason
+    if kind == "builtin" then
+        local catalog = FocalPoint.BuiltInTextTemplates
+        if type(catalog) ~= "table" or type(catalog.GetRecord) ~= "function" then
+            return nil, EntityError("builtin-catalog-unavailable", templateId, kind)
+        end
+        record = catalog.GetRecord(templateId)
+        reason = "builtin-template-not-found"
+    else
+        record, reason = Library.GetUserTemplateRecord(templateId, db)
+        if reason == "template-not-found" then reason = "user-template-not-found" end
+    end
+    if not record then return nil, EntityError(reason, templateId, kind) end
+    return {templateId = templateId, name = record.name, content = record.content,
+        kind = kind, readOnly = kind == "builtin"}
+end
+
 local function SortKeys(left, right)
     local leftType = type(left)
     local rightType = type(right)

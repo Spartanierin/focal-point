@@ -91,6 +91,7 @@
     <Script file="Engine/Text/Shared/TextElementTemplates.lua"/>
     <Script file="Engine/Text/Shared/TextElementPreview.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateLibrary.lua"/>
+    <Script file="Data/BuiltInTextTemplates.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateUsage.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateValidation.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateMutations.lua"/>
