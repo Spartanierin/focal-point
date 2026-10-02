@@ -9,13 +9,22 @@ end
 local TEXTURE_BLIZZARD = "fp:statusbar:better-blizzard"
 local TEXTURE_SIMPLE_GRAY = "fp:statusbar:simple-gray"
 
+-- removeTexts selects concrete objects for newly materialized built-in compositions.
+-- Template definitions, roles and existing UserLayouts are unaffected.
 FocalPoint.Themes = {
     default = {
         id = "default",
         labelKey = "THEME_DEFAULT",
         descriptionKey = "THEME_DEFAULT_DESC",
         applyDefaults = true,
-        units = {},
+        units = {
+            player = { removeTexts = { "Status", "NormalAbsorb", "HealingAbsorb", "Level", "Race" } },
+            target = { removeTexts = { "Status", "NormalAbsorb", "HealingAbsorb", "Class", "Level" } },
+            targettarget = { removeTexts = { "Status", "Class", "Level" } },
+            focus = { removeTexts = { "Status", "Class", "Level" } },
+            focustarget = { removeTexts = { "Status", "Class", "Level" } },
+            boss = { removeTexts = { "Status", "Level", "Race" } },
+        },
     },
     classic = {
         id = "classic",
@@ -29,6 +38,7 @@ FocalPoint.Themes = {
         },
         units = {
             player = {
+                removeTexts = { "Health", "Status", "text_4", "Name", "NormalAbsorb", "HealingAbsorb", "Level", "Class", "Race" },
                 frame = {
                     alpha = 0.96,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.42),
@@ -253,6 +263,7 @@ FocalPoint.Themes = {
                 },
             },
             target = {
+                removeTexts = { "Health", "Status", "Name", "NormalAbsorb", "HealingAbsorb", "Class", "Level", "Race" },
                 frame = {
                     alpha = 0.96,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.42),
@@ -446,6 +457,7 @@ FocalPoint.Themes = {
                 },
             },
             targettarget = {
+                removeTexts = { "Health", "Status", "Name", "Class", "Level", "Race" },
                 frame = {
                     alpha = 0.95,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.38),
@@ -631,6 +643,7 @@ FocalPoint.Themes = {
                 },
             },
             focus = {
+                removeTexts = { "Health", "Status", "Name", "Class", "Level", "Race" },
                 frame = {
                     alpha = 0.96,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.42),
@@ -812,6 +825,7 @@ FocalPoint.Themes = {
                 },
             },
             focustarget = {
+                removeTexts = { "Health", "Status", "Name", "Class", "Level", "Race" },
                 frame = {
                     alpha = 0.95,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.38),
@@ -990,6 +1004,7 @@ FocalPoint.Themes = {
                 },
             },
             pet = {
+                removeTexts = { "Status", "Race", "Level", "Class" },
                 frame = {
                     alpha = 0.94,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.36),
@@ -1112,6 +1127,7 @@ FocalPoint.Themes = {
                 },
             },
             boss = {
+                removeTexts = { "Class", "Status", "Level", "Race" },
                 frame = {
                     alpha = 0.96,
                     backgroundColor = Color(0.04, 0.05, 0.07, 0.4),
@@ -1296,6 +1312,7 @@ FocalPoint.Themes = {
         descriptionKey = "THEME_MINIMAL_DESC",
         units = {
             player = {
+                removeTexts = { "Status", "NormalAbsorb", "HealingAbsorb", "Level", "Race" },
                 frame = {
                     width = 220,
                     height = 44,
@@ -1377,6 +1394,7 @@ FocalPoint.Themes = {
                 },
             },
             target = {
+                removeTexts = { "Status", "NormalAbsorb", "HealingAbsorb", "Class", "Level" },
                 frame = {
                     width = 220,
                     height = 44,
@@ -1488,6 +1506,7 @@ FocalPoint.Themes = {
                 },
             },
             focus = {
+                removeTexts = { "Status", "Class", "Level" },
                 frame = {
                     width = 220,
                     height = 44,
@@ -1599,6 +1618,7 @@ FocalPoint.Themes = {
                 },
             },
             targettarget = {
+                removeTexts = { "Status", "Class", "Level" },
                 frame = {
                     width = 196,
                     height = 40,
@@ -1710,6 +1730,7 @@ FocalPoint.Themes = {
                 },
             },
             focustarget = {
+                removeTexts = { "Status", "Class", "Level" },
                 frame = {
                     width = 196,
                     height = 40,
@@ -1821,6 +1842,7 @@ FocalPoint.Themes = {
                 },
             },
             pet = {
+                removeTexts = { "Status", "Race", "Level" },
                 frame = {
                     width = 186,
                     height = 42,
@@ -1884,6 +1906,7 @@ FocalPoint.Themes = {
                 },
             },
             boss = {
+                removeTexts = { "Class", "Status", "Level", "Race" },
                 frame = {
                     width = 204,
                     height = 42,
@@ -2007,6 +2030,7 @@ FocalPoint.Themes = {
         descriptionKey = "THEME_MODERN_DESC",
         units = {
             player = {
+                removeTexts = { "Status", "NormalAbsorb", "HealingAbsorb", "Level", "Race" },
                 frame = {
                     width = 286,
                     height = 62,
@@ -2110,6 +2134,7 @@ FocalPoint.Themes = {
                 },
             },
             target = {
+                removeTexts = { "Status", "NormalAbsorb", "HealingAbsorb", "Level", "Race" },
                 frame = {
                     width = 286,
                     height = 62,
@@ -2243,6 +2268,7 @@ FocalPoint.Themes = {
                 },
             },
             focus = {
+                removeTexts = { "Status", "Level", "Race" },
                 frame = {
                     width = 286,
                     height = 62,
@@ -2376,6 +2402,7 @@ FocalPoint.Themes = {
                 },
             },
             targettarget = {
+                removeTexts = { "Status", "Level", "Race" },
                 frame = {
                     width = 236,
                     height = 50,
@@ -2509,6 +2536,7 @@ FocalPoint.Themes = {
                 },
             },
             focustarget = {
+                removeTexts = { "Status", "Level", "Race" },
                 frame = {
                     width = 236,
                     height = 50,
@@ -2642,6 +2670,7 @@ FocalPoint.Themes = {
                 },
             },
             pet = {
+                removeTexts = { "Status", "Race", "Level", "Class" },
                 frame = {
                     width = 210,
                     height = 46,
@@ -2717,6 +2746,7 @@ FocalPoint.Themes = {
                 },
             },
             boss = {
+                removeTexts = { "Level", "Race", "Status", "AltPower" },
                 frame = {
                     width = 244,
                     height = 50,

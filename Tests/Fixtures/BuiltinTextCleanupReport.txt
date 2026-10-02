@@ -1,0 +1,335 @@
+Pre-E6 Cleanup Block 2 - technisches Abnahmeinventar
+Referenz vor Block 2: Commit 5f6329d.
+118 eindeutige Objektentscheidungen: 0 missing / 0 ambiguous / 0 doppelte Identitaeten.
+Classic/Target: Race nur einmal; zwei ueberzaehlige Listeneintraege entfallen.
+Modern/Boss: Alt Power bezeichnet ausdruecklich textKey AltPower.
+Erzeugt durch: lua54 Tests/BuiltinTextCleanup.lua --report
+Offline geprueft; Ingame-Abnahme noch offen.
+
+OBJEKTZAHLEN: Preset | Vorher | Entfernt | Nachher | Aktiv entfernt
+default | 73 | 22 | 51 | 0
+minimal | 75 | 26 | 49 | 0
+classic | 95 | 43 | 52 | 4
+modern | 75 | 27 | 48 | 0
+
+DROP-MATRIX: Preset | Unit | textKey | Composition-Label | enabled | templateName | tag | stateTemplates | explizite Rolle | aufgeloeste Rolle
+default | player | Status | Status | false | nil |  | nil:nil | nil | status
+default | player | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+default | player | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+default | player | Level | Level | false | nil |  | nil:nil | nil | level
+default | player | Race | Race | false | nil |  | nil:nil | nil | race
+default | target | Status | Status | false | nil |  | nil:nil | nil | status
+default | target | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+default | target | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+default | target | Class | Class | false | nil |  | nil:nil | nil | class
+default | target | Level | Level | false | nil |  | nil:nil | nil | level
+default | targettarget | Status | Status | false | nil |  | nil:nil | nil | status
+default | targettarget | Class | Class | false | nil |  | nil:nil | nil | class
+default | targettarget | Level | Level | false | nil |  | nil:nil | nil | level
+default | focus | Status | Status | false | nil |  | nil:nil | nil | status
+default | focus | Class | Class | false | nil |  | nil:nil | nil | class
+default | focus | Level | Level | false | nil |  | nil:nil | nil | level
+default | focustarget | Status | Status | false | nil |  | nil:nil | nil | status
+default | focustarget | Class | Class | false | nil |  | nil:nil | nil | class
+default | focustarget | Level | Level | false | nil |  | nil:nil | nil | level
+default | boss | Status | Status | false | nil | nil | nil:nil | nil | status
+default | boss | Level | Level | false | nil | nil | nil:nil | nil | level
+default | boss | Race | Race | false | nil | nil | nil:nil | nil | race
+minimal | player | Status | Status | false | nil |  | nil:nil | nil | status
+minimal | player | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+minimal | player | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+minimal | player | Level | Level | false | nil |  | nil:nil | nil | level
+minimal | player | Race | Race | false | nil |  | nil:nil | nil | race
+minimal | target | Status | Status | false | nil |  | nil:nil | nil | status
+minimal | target | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+minimal | target | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+minimal | target | Class | Class | false | nil |  | nil:nil | nil | class
+minimal | target | Level | Level | false | nil |  | nil:nil | nil | level
+minimal | targettarget | Status | Status | false | nil |  | nil:nil | nil | status
+minimal | targettarget | Class | Class | false | nil |  | nil:nil | nil | class
+minimal | targettarget | Level | Level | false | nil |  | nil:nil | nil | level
+minimal | pet | Status | Status | false | Status | [status] [status:timer] | nil:nil | nil | status
+minimal | pet | Race | Creature | false | Creature | [creature] | nil:nil | nil | race
+minimal | pet | Level | Level | false | nil | [level] | nil:nil | nil | level
+minimal | focus | Status | Status | false | nil |  | nil:nil | nil | status
+minimal | focus | Class | Class | false | nil |  | nil:nil | nil | class
+minimal | focus | Level | Level | false | nil |  | nil:nil | nil | level
+minimal | focustarget | Status | Status | false | nil |  | nil:nil | nil | status
+minimal | focustarget | Class | Class | false | nil |  | nil:nil | nil | class
+minimal | focustarget | Level | Level | false | nil |  | nil:nil | nil | level
+minimal | boss | Class | Class | false | nil | [color:blizz_yellow][level][rc] [creature] | nil:nil | nil | class
+minimal | boss | Status | Status | false | nil | nil | nil:nil | nil | status
+minimal | boss | Level | Level | false | nil | nil | nil:nil | nil | level
+minimal | boss | Race | Race | false | nil | nil | nil:nil | nil | race
+classic | player | Health | Health | false | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]% | {string:dead=string:Dead/Ghost Timer;string:ghost=string:Dead/Ghost Timer;} | nil | health
+classic | player | Status | Status | false |  |  | boolean:false | nil | status
+classic | player | text_4 | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | nil
+classic | player | Name | Unit Name Player | false | Unit Name Player | [status] [status:timer] [name] | boolean:false | nil | name
+classic | player | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+classic | player | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+classic | player | Level | Level | false | nil |  | nil:nil | nil | level
+classic | player | Class | Player Level and Class | false | Player Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [race] | boolean:false | nil | class
+classic | player | Race | Race | false |  |  | boolean:false | nil | race
+classic | target | Health | Health | false | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]% | {string:dead=string:Dead Target;} | nil | health
+classic | target | Status | Status | false |  |  | boolean:false | nil | status
+classic | target | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer] | boolean:false | nil | name
+classic | target | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+classic | target | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+classic | target | Class | Class | false |  | [level] [class] | nil:nil | nil | class
+classic | target | Level | Level | false | nil |  | nil:nil | nil | level
+classic | target | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+classic | targettarget | Health | Dead Target | false |  | [hp:cur:abbr] || [hp:perc]% | {string:dead=string:Dead Target;} | nil | health
+classic | targettarget | Status | Status | false |  |  | boolean:false | nil | status
+classic | targettarget | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer] | boolean:false | nil | name
+classic | targettarget | Class | Class | false |  | [level] | nil:nil | nil | class
+classic | targettarget | Level | Level | false | nil |  | nil:nil | nil | level
+classic | targettarget | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+classic | pet | Status | Status | false | Status | [status] [status:timer] | nil:nil | nil | status
+classic | pet | Race | Creature | false | Creature | [creature] | nil:nil | nil | race
+classic | pet | Level | Level | false | nil | [level] | nil:nil | nil | level
+classic | pet | Class | Class | false | nil | nil | nil:nil | nil | class
+classic | focus | Health | Health | false | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]% | {string:dead=string:Dead Target;} | nil | health
+classic | focus | Status | Status | false |  |  | boolean:false | nil | status
+classic | focus | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer] | boolean:false | nil | name
+classic | focus | Class | Class | false |  | [level] [class] | nil:nil | nil | class
+classic | focus | Level | Level | false | nil |  | nil:nil | nil | level
+classic | focus | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+classic | focustarget | Health | Dead Target | false |  | [hp:cur:abbr] || [hp:perc]% | {string:dead=string:Dead Target;} | nil | health
+classic | focustarget | Status | Status | false |  |  | boolean:false | nil | status
+classic | focustarget | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer] | boolean:false | nil | name
+classic | focustarget | Class | Class | false |  | [level] | nil:nil | nil | class
+classic | focustarget | Level | Level | false | nil |  | nil:nil | nil | level
+classic | focustarget | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+classic | boss | Class | Class | false |  | [level] [creature] | nil:nil | nil | class
+classic | boss | Status | Status | false |  |  | boolean:false | nil | status
+classic | boss | Level | Level | false | nil | nil | nil:nil | nil | level
+classic | boss | Race | Race | false |  |  | boolean:false | nil | race
+modern | player | Status | Status | false | nil |  | nil:nil | nil | status
+modern | player | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+modern | player | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+modern | player | Level | Level | false | nil |  | nil:nil | nil | level
+modern | player | Race | Race | false | nil |  | nil:nil | nil | race
+modern | target | Status | Status | false | nil |  | nil:nil | nil | status
+modern | target | NormalAbsorb | Absorb Value | false | Absorb Value | [absorb:cur:abbr] | nil:nil | nil | nil
+modern | target | HealingAbsorb | Healing Absorb Value | false | Healing Absorb Value | [healabsorb:cur:abbr] | nil:nil | nil | nil
+modern | target | Level | Level | false | nil |  | nil:nil | nil | level
+modern | target | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+modern | targettarget | Status | Status | false | nil |  | nil:nil | nil | status
+modern | targettarget | Level | Level | false | nil |  | nil:nil | nil | level
+modern | targettarget | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+modern | pet | Status | Status | false | Status | [status] [status:timer] | nil:nil | nil | status
+modern | pet | Race | Creature | false | Creature | [creature] | nil:nil | nil | race
+modern | pet | Level | Level | false | nil | [level] | nil:nil | nil | level
+modern | pet | Class | Class | false | nil | nil | nil:nil | nil | class
+modern | focus | Status | Status | false | nil |  | nil:nil | nil | status
+modern | focus | Level | Level | false | nil |  | nil:nil | nil | level
+modern | focus | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+modern | focustarget | Status | Status | false | nil |  | nil:nil | nil | status
+modern | focustarget | Level | Level | false | nil |  | nil:nil | nil | level
+modern | focustarget | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature] | nil:nil | nil | race
+modern | boss | Level | Level | false | nil | nil | nil:nil | nil | level
+modern | boss | Race | Race | false | nil | nil | nil:nil | nil | race
+modern | boss | Status | Status | false | nil | nil | nil:nil | nil | status
+modern | boss | AltPower | AltPower | false | nil | nil | nil:nil | nil | altpower
+
+RESTBESTAND: Preset | Unit | textKey | Composition-Label | enabled | templateName | tag
+default | player | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+default | player | CastName | Cast Name | true | Cast Name | [cast:name]
+default | player | CastTime | Cast Time | true | Cast Time | [cast:time]
+default | player | Class | Player Level and Class | true | Player Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [race]
+default | player | ClassPower | Class Power | true | Class Power | [classpower:cur] / [classpower:max]
+default | player | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%
+default | player | Name | Unit Name Player | true | Unit Name Player | [status] [status:timer] [name]
+default | player | Power | Power | true | Power | [power:cur:abbr]/[power:max:abbr]
+default | target | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+default | target | CastName | Cast Name | true | Cast Name | [cast:name]
+default | target | CastTime | Cast Time | true | Cast Time | [cast:time]
+default | target | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%
+default | target | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer]
+default | target | Power | Power | true | Power | [power:cur:abbr]/[power:max:abbr]
+default | target | Race | Target Level and Class | true | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+default | targettarget | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+default | targettarget | CastName | Cast Name | true | Cast Name | [cast:name]
+default | targettarget | CastTime | Cast Time | true | Cast Time | [cast:time]
+default | targettarget | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%
+default | targettarget | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer]
+default | targettarget | Power | Power | true | Power | [power:cur:abbr]/[power:max:abbr]
+default | targettarget | Race | Target Level and Class | true | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+default | pet | CastName | Cast Name | false | Cast Name | [cast:name]
+default | pet | CastTime | Cast Time | false | Cast Time | [cast:time]
+default | pet | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%
+default | pet | Level | Level | true | nil | [level]
+default | pet | Name | Unit Name Player | true | Unit Name Player | [status] [status:timer] [name]
+default | pet | Power | Power | true | Power | [power:cur:abbr]/[power:max:abbr]
+default | pet | Race | Creature | true | Creature | [creature]
+default | pet | Status | Status | true | Status | [status] [status:timer]
+default | focus | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+default | focus | CastName | Cast Name | true | Cast Name | [cast:name]
+default | focus | CastTime | Cast Time | true | Cast Time | [cast:time]
+default | focus | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%
+default | focus | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer]
+default | focus | Power | Power | true | Power | [power:cur:abbr]/[power:max:abbr]
+default | focus | Race | Target Level and Class | true | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+default | focustarget | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+default | focustarget | CastName | Cast Name | true | Cast Name | [cast:name]
+default | focustarget | CastTime | Cast Time | true | Cast Time | [cast:time]
+default | focustarget | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%
+default | focustarget | Name | Unit Name Target | true | Unit Name Target | [name] [status] [status:timer]
+default | focustarget | Power | Power | true | Power | [power:cur:abbr]/[power:max:abbr]
+default | focustarget | Race | Target Level and Class | true | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+default | boss | AltPower | AltPower | false | nil | nil
+default | boss | CastName | CastName | false | nil | nil
+default | boss | CastTime | CastTime | false | nil | nil
+default | boss | Class | (not present in tree) | true | nil | [color:blizz_yellow][level][rc] [creature]
+default | boss | Health | Health | true | Health | [hp:cur:abbr]/[hp:max:abbr]
+default | boss | Name | Name | true | nil | [name] [status]
+default | boss | Power | (not present in tree) | true | Power | [power:cur:abbr]
+minimal | player | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+minimal | player | CastName | Cast Name | true | Cast Name | [cast:name]
+minimal | player | CastTime | Cast Time | true | Cast Time | [cast:time]
+minimal | player | Class | Player Level and Class | true | Player Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [race]
+minimal | player | ClassPower | Class Power | true | Class Power | [classpower:cur] / [classpower:max]
+minimal | player | Health | Health | true | Health | [hp:cur:abbr]
+minimal | player | Name | Unit Name Player | true | Unit Name Player | [name]
+minimal | player | Power | Power | false | Power | [power:cur:abbr]/[power:max:abbr]
+minimal | target | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+minimal | target | CastName | Cast Name | true | Cast Name | [cast:name]
+minimal | target | CastTime | Cast Time | true | Cast Time | [cast:time]
+minimal | target | Health | Health | true | Health | [hp:cur:abbr]
+minimal | target | Name | Unit Name Target | true | Unit Name Target | [name]
+minimal | target | Power | Power | false | Power | [power:cur:abbr]/[power:max:abbr]
+minimal | target | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+minimal | targettarget | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+minimal | targettarget | CastName | Cast Name | true | Cast Name | [cast:name]
+minimal | targettarget | CastTime | Cast Time | true | Cast Time | [cast:time]
+minimal | targettarget | Health | Health | true | Health | [hp:cur:abbr]
+minimal | targettarget | Name | Unit Name Target | true | Unit Name Target | [name]
+minimal | targettarget | Power | Power | false | Power | [power:cur:abbr]/[power:max:abbr]
+minimal | targettarget | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+minimal | pet | AltPower | AltPower | false | nil | nil
+minimal | pet | CastName | Cast Name | false | Cast Name | [cast:name]
+minimal | pet | CastTime | Cast Time | false | Cast Time | [cast:time]
+minimal | pet | Class | Class | false | nil | nil
+minimal | pet | Health | Health | true | Health | [hp:cur:abbr]
+minimal | pet | Name | Unit Name Player | true | Unit Name Player | [name]
+minimal | pet | Power | Power | false | Power | [power:cur:abbr]/[power:max:abbr]
+minimal | focus | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+minimal | focus | CastName | Cast Name | true | Cast Name | [cast:name]
+minimal | focus | CastTime | Cast Time | true | Cast Time | [cast:time]
+minimal | focus | Health | Health | true | Health | [hp:cur:abbr]
+minimal | focus | Name | Unit Name Target | true | Unit Name Target | [name]
+minimal | focus | Power | Power | false | Power | [power:cur:abbr]/[power:max:abbr]
+minimal | focus | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+minimal | focustarget | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+minimal | focustarget | CastName | Cast Name | true | Cast Name | [cast:name]
+minimal | focustarget | CastTime | Cast Time | true | Cast Time | [cast:time]
+minimal | focustarget | Health | Health | true | Health | [hp:cur:abbr]
+minimal | focustarget | Name | Unit Name Target | true | Unit Name Target | [name]
+minimal | focustarget | Power | Power | false | Power | [power:cur:abbr]/[power:max:abbr]
+minimal | focustarget | Race | Target Level and Class | false | Target Level and Class | [color:blizz_yellow][level][rc] [color:class][class][rc] [creature]
+minimal | boss | AltPower | AltPower | false | nil | nil
+minimal | boss | CastName | CastName | true | nil | [cast:name]
+minimal | boss | CastTime | CastTime | true | nil | [cast:time]
+minimal | boss | Health | Health | true | Health | [hp:cur:abbr]
+minimal | boss | Name | Name | true | nil | [name] [status]
+minimal | boss | Power | Power | false | Power | [power:cur:abbr]
+classic | player | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+classic | player | CastName | Cast Name | true | Cast Name | [cast:name]
+classic | player | CastTime | Cast Time | true | Cast Time | [cast:time]
+classic | player | ClassPower | Class Power | true | Class Power | [classpower:cur] / [classpower:max]
+classic | player | Power | Power | true | Power | [power:cur]/[power:max]
+classic | player | text_1 | Health w/o perc | true | Health w/o perc | [hp:cur:abbr]/[hp:max:abbr]
+classic | player | text_2 | Power perc | true | Power perc | [power:perc]%
+classic | player | text_3 | Unit Name w/o status | true | Unit Name w/o status | [name]
+classic | target | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+classic | target | CastName | Cast Name | true | Cast Name | [cast:name]
+classic | target | CastTime | Cast Time | true | Cast Time | [cast:time]
+classic | target | Power | Power | true | Power | [power:cur]/[power:max]
+classic | target | text_1 | Health w/o perc | true | Health w/o perc | [hp:cur:abbr]/[hp:max:abbr]
+classic | target | text_2 | Power perc | true | Power perc | [power:perc]%
+classic | target | text_3 | Unit Name w/o status | true | Unit Name w/o status | [name]
+classic | targettarget | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+classic | targettarget | CastName | Cast Name | false | Cast Name | [cast:name]
+classic | targettarget | CastTime | Cast Time | false | Cast Time | [cast:time]
+classic | targettarget | Power | Power | true | Power | [power:cur:abbr]
+classic | targettarget | text_3 | Power perc | true | Power perc | [power:perc]%
+classic | targettarget | text_4 | Unit Name w/o status | true | Unit Name w/o status | [name]
+classic | targettarget | text_5 | Health current | true | Health current | [hp:cur:abbr]
+classic | pet | AltPower | AltPower | false | nil | nil
+classic | pet | CastName | Cast Name | false | Cast Name | [cast:name]
+classic | pet | CastTime | Cast Time | false | Cast Time | [cast:time]
+classic | pet | Health | Health current | true | Health current | [hp:cur:abbr]
+classic | pet | Name | Unit Name Player | true | Unit Name Player | [status] [status:timer] [name]
+classic | pet | Power | Power | true | Power | [power:cur:abbr]
+classic | pet | text_1 | Power perc | true | Power perc | [power:perc]%
+classic | pet | text_2 | Unit Name w/o status | true | Unit Name w/o status | [name]
+classic | focus | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+classic | focus | CastName | Cast Name | true | Cast Name | [cast:name]
+classic | focus | CastTime | Cast Time | true | Cast Time | [cast:time]
+classic | focus | Power | Power | true | Power | [power:cur]/[power:max]
+classic | focus | text_1 | Health w/o perc | true | Health w/o perc | [hp:cur:abbr]/[hp:max:abbr]
+classic | focus | text_2 | Power perc | true | Power perc | [power:perc]%
+classic | focus | text_3 | Unit Name w/o status | true | Unit Name w/o status | [name]
+classic | focustarget | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+classic | focustarget | CastName | Cast Name | false | Cast Name | [cast:name]
+classic | focustarget | CastTime | Cast Time | false | Cast Time | [cast:time]
+classic | focustarget | Power | Power | true | Power | [power:cur:abbr]
+classic | focustarget | text_2 | Power perc | true | Power perc | [power:perc]%
+classic | focustarget | text_3 | Unit Name w/o status | true | Unit Name w/o status | [name]
+classic | focustarget | text_4 | Health current | true | Health current | [hp:cur:abbr]
+classic | boss | AltPower | AltPower | false |  |
+classic | boss | CastName | Cast Name | false | Cast Name | [cast:name]
+classic | boss | CastTime | Cast Time | false | Cast Time | [cast:time]
+classic | boss | Health | Health | true |  | [hp:cur:abbr] / [hp:max:abbr] || [hp:perc]%
+classic | boss | Name | Name | true | nil | [name] [status]
+classic | boss | Power | Power | true | Power | [power:cur:abbr]
+classic | boss | text_1 | Power perc | true | Power perc | [power:perc]%
+classic | boss | text_2 | Unit Name w/o status | true | Unit Name w/o status | [name]
+modern | player | AltPower | Alt Power | true | Alt Power | [altpower:cur] / [altpower:max]
+modern | player | CastName | Cast Name | true | Cast Name | [cast:name]
+modern | player | CastTime | Cast Time | true | Cast Time | [cast:time]
+modern | player | Class | Player Level and Class | true | Player Level and Class | [guild]
+modern | player | ClassPower | Class Power | true | Class Power | [classpower:cur] / [classpower:max]
+modern | player | Health | Health | true | Health | [hp:cur:abbr] / [hp:max:abbr] || [hp:perc]%
+modern | player | Name | Unit Name Player | true | Unit Name Player | [name]
+modern | player | Power | Power | true | Power | [power:cur]/[power:max]
+modern | target | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+modern | target | CastName | Cast Name | true | Cast Name | [cast:name]
+modern | target | CastTime | Cast Time | true | Cast Time | [cast:time]
+modern | target | Class | Class | true | nil | [level] [class]
+modern | target | Health | Health | true | Health | [hp:cur:abbr] / [hp:max:abbr] || [hp:perc]%
+modern | target | Name | Unit Name Target | true | Unit Name Target | [name]
+modern | target | Power | Power | true | Power | [power:cur]/[power:max]
+modern | targettarget | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+modern | targettarget | CastName | Cast Name | true | Cast Name | [cast:name]
+modern | targettarget | CastTime | Cast Time | true | Cast Time | [cast:time]
+modern | targettarget | Class | Class | true | nil | [level]
+modern | targettarget | Health | Health | true | Health | [hp:cur:abbr] || [hp:perc]%
+modern | targettarget | Name | Unit Name Target | true | Unit Name Target | [name]
+modern | targettarget | Power | Power | true | Power | [power:cur:abbr]
+modern | pet | AltPower | AltPower | false | nil | nil
+modern | pet | CastName | Cast Name | false | Cast Name | [cast:name]
+modern | pet | CastTime | Cast Time | false | Cast Time | [cast:time]
+modern | pet | Health | Health | true | Health | [hp:cur:abbr]
+modern | pet | Name | Unit Name Player | true | Unit Name Player | [name]
+modern | pet | Power | Power | true | Power | [power:cur:abbr]
+modern | focus | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+modern | focus | CastName | Cast Name | true | Cast Name | [cast:name]
+modern | focus | CastTime | Cast Time | true | Cast Time | [cast:time]
+modern | focus | Class | Class | true | nil | [level] [class]
+modern | focus | Health | Health | true | Health | [hp:cur:abbr] / [hp:max:abbr] || [hp:perc]%
+modern | focus | Name | Unit Name Target | true | Unit Name Target | [name]
+modern | focus | Power | Power | true | Power | [power:cur]/[power:max]
+modern | focustarget | AltPower | Alt Power | false | Alt Power | [altpower:cur] / [altpower:max]
+modern | focustarget | CastName | Cast Name | true | Cast Name | [cast:name]
+modern | focustarget | CastTime | Cast Time | true | Cast Time | [cast:time]
+modern | focustarget | Class | Class | true | nil | [level]
+modern | focustarget | Health | Health | true | Health | [hp:cur:abbr] || [hp:perc]%
+modern | focustarget | Name | Unit Name Target | true | Unit Name Target | [name]
+modern | focustarget | Power | Power | true | Power | [power:cur:abbr]
+modern | boss | CastName | CastName | true | nil | [cast:name]
+modern | boss | CastTime | CastTime | true | nil | [cast:time]
+modern | boss | Class | Class | true | nil | [level] [creature]
+modern | boss | Health | Health | true | Health | [hp:cur:abbr] / [hp:max:abbr] || [hp:perc]%
+modern | boss | Name | Name | true | nil | [name] [status]
+modern | boss | Power | Power | true | Power | [power:cur:abbr]

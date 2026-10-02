@@ -234,6 +234,13 @@ function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
             storage.MigrateLegacyUnitPresence(sourceUnit)
         end
         LayoutService.MergeInto(materialized, sourceUnit)
+        -- An explicit Texts map owns its object set; defaults only fill existing objects.
+        if type(sourceUnit.Texts) == "table" then
+            materialized.Texts = MaterializeSourceTexts(
+                type(defaultUnit) == "table" and defaultUnit.Texts or nil,
+                sourceUnit.Texts
+            )
+        end
     end
     return NormalizeUnit(materialized)
 end

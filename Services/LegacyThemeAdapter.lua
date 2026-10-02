@@ -161,6 +161,13 @@ function Adapter.ApplyThemeToUnitConfig(unitConfig, unitTheme)
     ApplyTexts(unitConfig, unitTheme.texts)
     ApplyAuras(unitConfig, unitTheme.auras)
 
+    -- Apply explicit preset decisions after the inherited text configuration.
+    if type(unitTheme.removeTexts) == "table" and type(unitConfig.Texts) == "table" then
+        for _, textKey in ipairs(unitTheme.removeTexts) do
+            unitConfig.Texts[textKey] = nil
+        end
+    end
+
     return unitConfig
 end
 

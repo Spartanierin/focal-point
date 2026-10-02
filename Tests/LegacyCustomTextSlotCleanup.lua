@@ -37,7 +37,7 @@ end
 -- Captured before this change; covers every other payload field and template.
 local golden={default='110545:27395:44286', classic='127572:61586:63094',
     minimal='111418:15423:22279', modern='111660:26567:31254'}
-Test('Create defaults and all shipped presets omit only Custom1-3', function()
+Test('Create defaults and all shipped presets omit Custom1-3', function()
     for _,u in pairs(ns:GetDefaultDB().profile.Units) do
         for _,k in ipairs({'Custom1','Custom2','Custom3'}) do assert(u.Texts[k]==nil, 'Create default still contains '..k) end
     end
@@ -46,7 +46,11 @@ Test('Create defaults and all shipped presets omit only Custom1-3', function()
         for _,u in pairs(preset.layout.Units) do
             for _,k in ipairs({'Custom1','Custom2','Custom3'}) do assert(u.Texts[k]==nil, id..' contains '..k) end
         end
-        assert(Fingerprint(preset.layout)==golden[id], id..' changed outside Custom1-3')
+        -- Block 2 adds explicit removal directives; preserve the frozen Block 1 baseline.
+        local historicalTheme=Copy(ns.Themes[id])
+        for _,unit in pairs(historicalTheme.units) do unit.removeTexts=nil end
+        local historical=ns.LegacyThemeAdapter.MaterializePreviewLayout(historicalTheme,ns:GetDefaultDB())
+        assert(Fingerprint(historical)==golden[id], id..' historical baseline changed')
     end
     assert(Equal(before,ns.Themes))
 end)
