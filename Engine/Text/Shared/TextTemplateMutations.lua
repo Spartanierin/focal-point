@@ -591,6 +591,125 @@ end
 BindMain(LegacyMain, Mutations)
 BindMain(EntityMain, Entity)
 
+-- R1: stage the record and namespace privately. The final section only writes
+-- raw tables; no record/ID helper or caller callback runs inside the commit.
+local function PlainForkTable(value)
+    return type(value) == "table" and getmetatable(value) == nil
+end
+local function ForkTargetIsRaw(target)
+    for _, value in ipairs({target.context, target.record, target.payload, target.units,
+        target.unitConfig, target.texts, target.textConfig, target.stateIds or {}}) do
+        if not PlainForkTable(value) then return false end
+    end
+    return target.context.expectedTextConfig == nil or target.context.expectedTextConfig == target.textConfig
+end
+local function PrepareMainFork(target, sourceId, expected, content, generator)
+    local library = ResolveLibrary()
+    local source, reason = library.ResolveTemplateEntity(sourceId, target.db)
+    if not source then return nil, reason.errorCode end
+    target.checkedEntity = source
+    if not library.TemplateRecordsEqual({name = source.name, content = source.content}, expected) then
+        return nil, "template-conflict"
+    end
+    if content == source.content then return {changed = false, id = sourceId} end
+    local record = {name = source.name, content = content}
+    local valid
+    valid, reason = library.ValidateTemplateRecord(record)
+    if not valid then return nil, reason end
+    local global = rawget(target.db, "global")
+    local records, state = rawget(global, "TextTemplates"), rawget(global, "TextTemplateIdState")
+    if records ~= nil and not PlainForkTable(records) then return nil, "invalid-template-store" end
+    if state ~= nil and not PlainForkTable(state) then return nil, "invalid-id-state" end
+    local baseline, copies, stateSnapshot = {}, {}, {}
+    for id, value in pairs(records or {}) do
+        if library.GetTemplateIdKind(id) ~= "user" then return nil, "invalid-user-template-id" end
+        local copy, err = library.CopyTemplateRecord(value)
+        if not copy then return nil, err end
+        baseline[id] = {name = copy.name, content = copy.content}
+        copies[id] = copy
+    end
+    for key, value in pairs(state or {}) do stateSnapshot[key] = value end
+    local private = {global = {TextTemplates = copies,
+        TextTemplateIdState = state and {namespace = stateSnapshot.namespace} or nil}}
+    local id
+    if generator then id, reason = generator:Reserve(private, {})
+    else id, reason = library.ReserveUserTemplateId(private, {}) end
+    if not id then return nil, reason end
+    valid, reason = library.CreateUserTemplateRecord(id, record, private)
+    if not valid then return nil, reason end
+    -- Detach the commit values from injected helpers' private working tables.
+    local created
+    created, reason = library.CopyTemplateRecord(private.global.TextTemplates[id])
+    if not created then return nil, reason end
+    if created.name ~= record.name or created.content ~= content then return nil, "template-conflict" end
+    local nextState = private.global.TextTemplateIdState
+    if not PlainForkTable(nextState) or type(nextState.namespace) ~= "string"
+        or #nextState.namespace ~= 32 or not nextState.namespace:match("^[0-9a-f]+$")
+        or not id:match("^tpl:u:" .. nextState.namespace .. ":")
+        or (state and nextState.namespace ~= stateSnapshot.namespace) then return nil, "invalid-id-state" end
+    return {changed = true, id = id, record = created, global = global, records = records,
+        baseline = baseline, state = state, stateSnapshot = stateSnapshot,
+        nextState = {namespace = nextState.namespace}}
+end
+local function ConfirmForkStore(target, prepared)
+    if rawget(target.db, "global") ~= prepared.global
+        or rawget(prepared.global, "TextTemplates") ~= prepared.records
+        or rawget(prepared.global, "TextTemplateIdState") ~= prepared.state then return false end
+    local records, state = prepared.records, prepared.state
+    if records ~= nil and not PlainForkTable(records) then return false end
+    if state ~= nil and not PlainForkTable(state) then return false end
+    for key, value in pairs(prepared.stateSnapshot) do
+        if rawget(state, key) ~= value then return false end
+    end
+    for key, value in pairs(state or {}) do
+        if prepared.stateSnapshot[key] ~= value then return false end
+    end
+    if records and rawget(records, prepared.id) ~= nil then return false end
+    for id, before in pairs(prepared.baseline) do
+        local record = rawget(records, id)
+        if not PlainForkTable(record) or rawget(record, "name") ~= before.name
+            or rawget(record, "content") ~= before.content then return false end
+        for key in pairs(record) do if key ~= "name" and key ~= "content" then return false end end
+    end
+    for id in pairs(records or {}) do if not prepared.baseline[id] then return false end end
+    return true
+end
+function Entity.ForkMainTemplate(context, unitKey, textKey, sourceTemplateId, expectedRecord, content, generator)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey, EntityMain)
+    if not target then return Result(false, {errorCode = reason}) end
+    if not ForkTargetIsRaw(target) or target.templateName ~= sourceTemplateId then
+        return Result(false, {errorCode = "invalid_context"})
+    end
+    local expectedText = context.expectedTextConfig
+    local ok, prepared
+    ok, prepared, reason = pcall(PrepareMainFork, target, sourceTemplateId, expectedRecord, content, generator)
+    if not ok then return Result(false, {errorCode = "fork-preparation-failed"}) end
+    if not prepared then return Result(false, {errorCode = reason}) end
+    -- All fallible helpers have finished. Preserve E4's target/source/state guard.
+    if not ForkTargetIsRaw(target) or context.expectedTextConfig ~= expectedText then
+        return Result(false, {errorCode = "invalid_context"})
+    end
+    local current
+    current, reason = ConfirmMainContentTarget(target)
+    if not current then return Result(false, {errorCode = reason}) end
+    if prepared.changed and not ConfirmForkStore(target, prepared) then
+        return Result(false, {errorCode = "template-conflict"})
+    end
+    local result = Result(true, {changed = prepared.changed, layoutId = target.layoutId,
+        unitKey = unitKey, textKey = textKey, templateId = prepared.id})
+    if not prepared.changed then return result end
+    local records = prepared.records or {}
+    rawset(records, prepared.id, prepared.record)
+    if not prepared.records then rawset(prepared.global, "TextTemplates", records) end
+    if not prepared.state then rawset(prepared.global, "TextTemplateIdState", prepared.nextState) end
+    rawset(target.textConfig, "templateId", prepared.id)
+    -- As in E4, a refresh failure cannot undo or misreport the committed data.
+    local invalidated, err = pcall(target.resolver.Invalidate, target.textConfig)
+    result.cacheInvalidated = invalidated
+    if not invalidated then result.cacheInvalidationError = tostring(err) end
+    return result
+end
+
 local function ChangeEntityState(context, unitKey, textKey, stateKey, id, remove)
     if not IsNonEmptyString(stateKey) then return Result(false, {errorCode = "state_key_invalid"}) end
     local target, reason = ResolveMainContentTarget(context, unitKey, textKey, EntityMain, true)

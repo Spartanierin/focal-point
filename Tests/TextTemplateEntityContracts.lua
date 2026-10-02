@@ -308,4 +308,110 @@ Test('active legacy resolver is unchanged and does not auto-detect IDs', functio
     assert(ns.TextTemplateResolver.Resolve({templateName = 'old'}, nil,
         {GetTemplate = function(name) assert(name == 'old'); return 'legacy' end}) == 'legacy')
 end)
+
+Test('R1 fork is atomic, lossless and invalidates a warm binding only for its object', function()
+    local db,ctx,text,layouts=Fixture(); ctx.expectedTextConfig=text
+    layouts['layout:B']={payload={Units={target={Texts={x=Copy(text)}}}}}
+    local before=Copy(db); local states=text.stateTemplateIds
+    local content=string.rep('long',200)..'\000\001\n'
+    assert(R.Resolve(text,nil,{db=db})=='[hp:cur]')
+    local result=Ok(M.ForkMainTemplate(ctx,'player','Health',A,L.GetUserTemplateRecord(A,db),content,Generator()))
+    assert(result.changed and result.cacheInvalidated and L.GetTemplateIdKind(result.templateId)=='user')
+    assert(result.templateId~=A and result.templateId~=B)
+    assert(text.templateId==result.templateId and text.stateTemplateIds==states)
+    assert(Equal(db.global.TextTemplates[result.templateId],{name='Same',content=content}))
+    assert(R.Resolve(text,nil,{db=db})==content)
+    assert(R.Resolve(layouts['layout:A'].payload.Units.player.Texts.duplicate,nil,{db=db})=='[hp:cur]')
+    before.global.TextTemplates[result.templateId]={name='Same',content=content}
+    before.global.TextTemplateIdState=Copy(db.global.TextTemplateIdState)
+    before.global.UserLayouts['layout:A'].payload.Units.player.Texts.Health.templateId=result.templateId
+    assert(Equal(db,before),'fork changed fields outside its record, ID state and main FK')
+end)
+Test('R1 no-op never reserves or invalidates; Built-in fork creates a User entity', function()
+    local db,ctx,text=Fixture(); local before=Copy(db)
+    local invalidate=ns.TextTemplateResolver.Invalidate
+    ns.TextTemplateResolver.Invalidate=function() error('no-op invalidated') end
+    local no=Ok(M.ForkMainTemplate(ctx,'player','Health',A,L.GetUserTemplateRecord(A,db),'[hp:cur]',
+        {Reserve=function() error('no-op reserved') end}))
+    ns.TextTemplateResolver.Invalidate=invalidate
+    assert(no.changed==false and no.cacheInvalidated==nil and Equal(db,before))
+    text.templateId=builtin
+    local source=assert(L.ResolveTemplateEntity(builtin,db))
+    local fork=Ok(M.ForkMainTemplate(ctx,'player','Health',builtin,
+        {name=source.name,content=source.content},'',Generator()))
+    assert(fork.changed and L.GetTemplateIdKind(fork.templateId)=='user')
+    assert(db.global.TextTemplates[fork.templateId].name==source.name and text.tag=='inline')
+    assert(L.ResolveTemplateEntity(builtin,db).content==source.content)
+    -- An existing namespace/store keeps its identity on the next fork.
+    local store,state=db.global.TextTemplates,db.global.TextTemplateIdState
+    Ok(M.ForkMainTemplate(ctx,'player','Health',fork.templateId,store[fork.templateId],'next',Generator()))
+    assert(db.global.TextTemplates==store and db.global.TextTemplateIdState==state)
+end)
+Test('R1 rejects all pre-reservation conflicts without writes', function()
+    local cases={
+        function(db,ctx) ctx.expectedLayoutId='layout:B' end,
+        function(db,ctx) ctx.expectedLayoutId='builtin:default'; db.char.activeLayoutId=ctx.expectedLayoutId end,
+        function(db,ctx,text,layouts) layouts['layout:A'].payload.Units.player.Texts.Health=nil end,
+        function(db,ctx,text) text.templateId=B end,
+        function(db) db.global.TextTemplates[A]=nil end,
+        function(db) db.global.TextTemplates[A].content='changed' end,
+        function(db,ctx,text) text.role='altpower' end,
+        function(db,ctx) ctx.expectedTextConfig={} end,
+    }
+    for _,change in ipairs(cases) do
+        local db,ctx,text,layouts=Fixture(); local expected=Copy(db.global.TextTemplates[A])
+        change(db,ctx,text,layouts)
+        FailUnchanged(db,function() return M.ForkMainTemplate(ctx,'player','Health',A,expected,'new',
+            {Reserve=function() error('invalid request reached reservation') end}) end)
+    end
+end)
+Test('R1 final checks reject injected layout, object, FK, source, state and store conflicts', function()
+    local cases={
+        function(db) db.char.activeLayoutId='layout:B' end,
+        function(db,ctx,text,layouts) layouts['layout:A'].payload.Units.player.Texts.Health=Copy(text) end,
+        function(db,ctx,text) text.templateId=B end,
+        function(db) db.global.TextTemplates[A].name='changed' end,
+        function(db) db.global.TextTemplates=Copy(db.global.TextTemplates) end,
+        function(db,ctx,text) text.stateTemplateIds.dead=B end,
+        function(db,ctx,text) text.tag='external' end,
+        function(db,ctx,text,layouts,id) db.global.TextTemplates[id]={name='Collision',content='external'} end,
+        function(db) db.global.TextTemplateIdState={namespace=string.rep('c',32)} end,
+        function(db,ctx) ctx.expectedTextConfig={} end,
+    }
+    for _,change in ipairs(cases) do
+        local db,ctx,text,layouts=Fixture(); ctx.expectedTextConfig=text
+        local expected=Copy(db.global.TextTemplates[A]); local injected, reservedId
+        local generator=Generator()
+        local result=M.ForkMainTemplate(ctx,'player','Health',A,expected,'new',{Reserve=function(_,private,reserved)
+            assert(private~=db and private.global~=db.global)
+            local id=assert(generator:Reserve(private,reserved)); reservedId=id
+            assert(db.global.TextTemplates[id]==nil and db.global.TextTemplateIdState==nil)
+            change(db,ctx,text,layouts,id); injected=Copy(db)
+            return id
+        end})
+        assert(reservedId and not result.ok and Equal(db,injected),'fork added writes after a conflict')
+    end
+end)
+Test('R1 helper failure and post-creation conflict never persist a half-fork', function()
+    local db,ctx=Fixture(); local expected=Copy(db.global.TextTemplates[A])
+    FailUnchanged(db,function() return M.ForkMainTemplate(ctx,'player','Health',A,expected,'new',
+        {Reserve=function(_,private,reserved) Generator():Reserve(private,reserved); error('injected') end}) end)
+    local create=L.CreateUserTemplateRecord; local injected
+    L.CreateUserTemplateRecord=function(id,record,private)
+        local ok,reason=create(id,record,private)
+        db.global.TextTemplates[A].content='external'; injected=Copy(db)
+        return ok,reason
+    end
+    local result=M.ForkMainTemplate(ctx,'player','Health',A,expected,'new',Generator())
+    L.CreateUserTemplateRecord=create
+    assert(not result.ok and Equal(db,injected))
+end)
+Test('R1 post-commit invalidation failure reports committed data', function()
+    local db,ctx,text=Fixture(); local invalidate=ns.TextTemplateResolver.Invalidate
+    ns.TextTemplateResolver.Invalidate=function() error('refresh failure') end
+    local result=M.ForkMainTemplate(ctx,'player','Health',A,Copy(db.global.TextTemplates[A]),'new',Generator())
+    ns.TextTemplateResolver.Invalidate=invalidate
+    assert(result.ok and result.changed and result.cacheInvalidated==false and result.cacheInvalidationError)
+    assert(text.templateId==result.templateId and db.global.TextTemplates[result.templateId].content=='new')
+end)
 print('TextTemplateEntityContracts: ' .. passed .. ' groups passed')

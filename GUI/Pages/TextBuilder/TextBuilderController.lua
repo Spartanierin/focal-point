@@ -577,22 +577,96 @@ local function DraftMatches(state, expected)
         and expected.editContext == state.editContext))
 end
 
--- E5 target address only: no window open, selection dispatch or mutation path.
--- E6 adopts this snapshot contract and removes name-based ValidateEditContext.
+-- Explicit Entity boundary only: no active window/selection/save dispatch.
+-- Object references stay transient and private; names are never identity.
 TextBuilderController.EntityContext = {}
 local EntityContext = TextBuilderController.EntityContext
-function EntityContext.Snapshot(request, db, activeLayoutId)
-    if type(request) ~= "table" or request.kind ~= "shared-template" or type(db) ~= "table" then
+local entityContextTargets = setmetatable({}, {__mode = "k"})
+local function EntityAddress(request, db, activeLayoutId)
+    if type(request) ~= "table" or type(request.layoutId) ~= "string"
+        or not request.layoutId:match("^layout:.+") or type(request.unitKey) ~= "string"
+        or request.unitKey == "" or type(request.textKey) ~= "string" or request.textKey == "" then
         return nil, "invalid_context"
     end
+    local char = rawget(db, "char")
+    if request.layoutId ~= activeLayoutId or type(char) ~= "table"
+        or rawget(char, "activeLayoutId") ~= activeLayoutId then return nil, "layout_mismatch" end
+    local global = rawget(db, "global")
+    local layouts = type(global) == "table" and rawget(global, "UserLayouts")
+    local record = type(layouts) == "table" and rawget(layouts, request.layoutId)
+    local payload = type(record) == "table" and rawget(record, "payload")
+    local units = type(payload) == "table" and rawget(payload, "Units")
+    local unit = type(units) == "table" and rawget(units, request.unitKey)
+    local texts = type(unit) == "table" and rawget(unit, "Texts")
+    local text = type(texts) == "table" and rawget(texts, request.textKey)
+    if type(text) ~= "table" then return nil, "text_element_not_found" end
+    return {layoutId = request.layoutId, unitKey = request.unitKey, textKey = request.textKey},
+        nil, text, record
+end
+local function EntityReturnSnapshot(request)
+    if request == nil then return nil end
+    if type(request) ~= "table" then return nil, "invalid_context" end
+    local result = {}
+    for _, key in ipairs({"pickerMode", "layoutId", "unitKey", "textKey"}) do
+        if request[key] ~= nil and type(request[key]) ~= "string" then return nil, "invalid_context" end
+        result[key] = request[key]
+    end
+    if result.pickerMode ~= nil and result.pickerMode ~= "add" and result.pickerMode ~= "change" then
+        return nil, "invalid_context"
+    end
+    if request.anchorContext ~= nil then
+        if type(request.anchorContext) ~= "table" then return nil, "invalid_context" end
+        result.anchorContext = {}
+        for _, key in ipairs({"kind", "unitKey", "textKey", "objectKey", "sectionKey"}) do
+            local value = request.anchorContext[key]
+            if value ~= nil and type(value) ~= "string" then return nil, "invalid_context" end
+            result.anchorContext[key] = value
+        end
+    end
+    -- The existing draft token is an opaque empty table, not a widget/container.
+    local token = request.originToken
+    if token ~= nil and (type(token) ~= "table" or getmetatable(token) ~= nil or next(token) ~= nil) then
+        return nil, "invalid_context"
+    end
+    result.originToken = token
+    return result
+end
+function EntityContext.Snapshot(request, db, activeLayoutId)
+    if type(request) ~= "table" or type(db) ~= "table" then return nil, "invalid_context" end
+    local kind = request.kind
+    if kind ~= "object" and kind ~= "shared-template" and kind ~= "new-template" then return nil, "invalid_context" end
     if request.layoutId ~= nil then
         if type(request.layoutId) ~= "string" or not (request.layoutId:match("^layout:.+")
             or request.layoutId:match("^builtin:.+")) then return nil, "invalid_context" end
         if request.layoutId ~= activeLayoutId then return nil, "layout_mismatch" end
     end
-    local entity, reason = ns.TextTemplateLibrary.ResolveTemplateEntity(request.templateId, db)
-    if not entity then return nil, reason.errorCode end
-    return {kind = "shared-template", templateId = entity.templateId, layoutId = request.layoutId}
+    local snapshot = {kind = kind, layoutId = request.layoutId}
+    local identity = {db = db}
+    if kind == "object" then
+        local address, reason, text, record = EntityAddress(request, db, activeLayoutId)
+        if not address then return nil, reason end
+        snapshot.unitKey, snapshot.textKey = address.unitKey, address.textKey
+        identity.text, identity.record, identity.mainId = text, record, rawget(text, "templateId")
+    elseif kind == "shared-template" then
+        local entity, reason = ns.TextTemplateLibrary.ResolveTemplateEntity(request.templateId, db)
+        if not entity then return nil, reason.errorCode end
+        snapshot.templateId = entity.templateId
+    end
+    if request.bindingTarget ~= nil then
+        if kind ~= "shared-template" then return nil, "invalid_context" end
+        local binding, reason, text, record = EntityAddress(request.bindingTarget, db, activeLayoutId)
+        if not binding then return nil, reason end
+        local expected = request.bindingTarget.expectedTemplateId
+        if expected ~= snapshot.templateId or rawget(text, "templateId") ~= expected then return nil, "invalid_context" end
+        binding.expectedTemplateId = expected
+        snapshot.bindingTarget = binding
+        identity.text, identity.record, identity.mainId = text, record, expected
+    end
+    local reason
+    snapshot.returnContext, reason = EntityReturnSnapshot(request.returnContext)
+    if reason then return nil, reason end
+    entityContextTargets[snapshot] = identity
+    return snapshot
 end
 function EntityContext.Same(left, right)
     return type(left) == "table" and type(right) == "table"
@@ -600,14 +674,56 @@ function EntityContext.Same(left, right)
         and ns.TextTemplateLibrary.GetTemplateIdKind(left.templateId) ~= nil
         and left.templateId == right.templateId
 end
-EntityContext.CaptureDraft = CaptureDraft
+local function SameEntityFields(left, right, keys)
+    if left == nil or right == nil then return left == right end
+    for _, key in ipairs(keys) do if left[key] ~= right[key] then return false end end
+    return true
+end
+function EntityContext.SameSession(left, right)
+    local a, b = entityContextTargets[left], entityContextTargets[right]
+    if not a or not b or a.db ~= b.db or a.text ~= b.text or a.record ~= b.record or a.mainId ~= b.mainId then return false end
+    if not SameEntityFields(left, right, {"kind", "layoutId", "unitKey", "textKey", "templateId"})
+        or not SameEntityFields(left.bindingTarget, right.bindingTarget, {"layoutId", "unitKey", "textKey", "expectedTemplateId"})
+        or not SameEntityFields(left.returnContext, right.returnContext, {"pickerMode", "layoutId", "unitKey", "textKey", "originToken"}) then return false end
+    return SameEntityFields(left.returnContext and left.returnContext.anchorContext,
+        right.returnContext and right.returnContext.anchorContext, {"kind", "unitKey", "textKey", "objectKey", "sectionKey"})
+end
+local function EntityTargetIsCurrent(snapshot, activeLayoutId)
+    local identity = entityContextTargets[snapshot]
+    if not identity then return false end
+    if snapshot.layoutId ~= nil and snapshot.layoutId ~= activeLayoutId then return false end
+    if not identity.text then return true end
+    local address = snapshot.kind == "object" and snapshot or snapshot.bindingTarget
+    local current, _, text, record = EntityAddress(address, identity.db, activeLayoutId)
+    return current ~= nil and text == identity.text and record == identity.record
+        and rawget(text, "templateId") == identity.mainId
+end
+-- A navigation layoutId/returnContext alone never produces a mutation target.
+-- R2 can pass this explicit context to ForkMainTemplate without losing the
+-- captured object identity. No save/UI caller is switched over here.
+function EntityContext.GetBindingTarget(snapshot, activeLayoutId)
+    local identity = entityContextTargets[snapshot]
+    if not identity or not identity.text or not EntityTargetIsCurrent(snapshot, activeLayoutId)
+        or not ns.TextTemplateLibrary.GetTemplateIdKind(identity.mainId) then return nil, "invalid_context" end
+    local address = snapshot.kind == "object" and snapshot or snapshot.bindingTarget
+    return {db = identity.db, expectedLayoutId = address.layoutId, expectedTextConfig = identity.text},
+        address.unitKey, address.textKey, identity.mainId
+end
+function EntityContext.CaptureDraft(context)
+    local captured = CaptureDraft(context)
+    local identity = entityContextTargets[captured.editContext]
+    if identity then
+        captured.entitySession = EntityContext.Snapshot(captured.editContext, identity.db, captured.layoutId)
+    end
+    return captured
+end
 function EntityContext.IsCurrentDraft(context, expected, activeLayoutId)
     local state = type(context) == "table" and context.state
     return type(expected) == "table" and state ~= nil and type(state.draftToken) == "table"
         and state.editingLayoutId ~= nil and state.editingLayoutId == activeLayoutId
-        and type(state.editContext) == "table" and state.editContext.kind == "shared-template"
-        and (state.editContext.layoutId == nil or state.editContext.layoutId == activeLayoutId)
-        and DraftMatches(state, expected) or false
+        and DraftMatches(state, expected)
+        and EntityContext.SameSession(state.editContext, expected.entitySession)
+        and EntityTargetIsCurrent(state.editContext, activeLayoutId) or false
 end
 
 local function ValidateDraft(context, expected, allowStaleLayout)

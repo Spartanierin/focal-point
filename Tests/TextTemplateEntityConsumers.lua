@@ -6,6 +6,8 @@ local f = assert(load(source:sub(1, stop - 1) .. '\nreturn f', '@E5/BuilderFixtu
 local ns = f.ns
 f.Load('Data/BuiltInTextTemplates.lua')
 f.Load('Engine/Text/Shared/TextTemplateValidation.lua')
+f.Load('Engine/Text/Shared/TextElementRoles.lua')
+f.Load('Engine/Text/Shared/TextTemplateResolver.lua')
 local L = ns.TextTemplateLibrary
 local VM, Context = L.Entity, ns.GUI.Pages.TextBuilder.EntityContext
 local function Id(n) return 'tpl:u:' .. string.rep('a',32) .. ':1-2-' .. string.rep('b',32) .. ':' .. n end
@@ -70,4 +72,102 @@ Test('existing draft snapshots reject stale tokens, A-B-A, layout and lifecycle 
     state.draftToken={}; state.editContext=nil; state.editingLayoutId=nil
     assert(not Context.IsCurrentDraft(context,captured,'layout:a'))
 end)
-print('TextTemplateEntityConsumers: 5 groups passed')
+
+Test('R1 contexts separate edit, binding and whitelisted return addresses', function()
+    db.char={activeLayoutId='layout:a'}; db.global.UserLayouts=layouts
+    local object=assert(Context.Snapshot({kind='object',layoutId='layout:a',unitKey='player',textKey='x'},db,'layout:a'))
+    assert(object.kind=='object' and object.templateId==nil)
+    assert(Context.Snapshot({kind='new-template'},db,'layout:a').kind=='new-template')
+    local token={}; local request={kind='shared-template',templateId=a,layoutId='layout:a',
+        bindingTarget={layoutId='layout:a',unitKey='player',textKey='x',expectedTemplateId=a,widget={}},
+        returnContext={pickerMode='change',layoutId='layout:a',unitKey='player',textKey='x',originToken=token,
+            callback=function() end,widget={},anchorContext={kind='text',objectKey='x',widget={}}}}
+    local snapshot=assert(Context.Snapshot(request,db,'layout:a'))
+    assert(snapshot.bindingTarget~=request.bindingTarget and snapshot.bindingTarget.widget==nil)
+    assert(snapshot.returnContext~=request.returnContext and snapshot.returnContext.callback==nil and snapshot.returnContext.widget==nil)
+    assert(snapshot.returnContext.originToken==token and snapshot.returnContext.anchorContext.widget==nil)
+    request.bindingTarget.textKey='outside'; request.returnContext.anchorContext.objectKey='outside'
+    assert(snapshot.bindingTarget.textKey=='x' and snapshot.returnContext.anchorContext.objectKey=='x')
+    local layoutOnly=assert(Context.Snapshot({kind='shared-template',templateId=a,layoutId='layout:a'},db,'layout:a'))
+    assert(layoutOnly.bindingTarget==nil and not Context.SameSession(snapshot,layoutOnly))
+    assert(Context.GetBindingTarget(layoutOnly,'layout:a')==nil)
+    local mutation,unit,key,source=Context.GetBindingTarget(snapshot,'layout:a')
+    assert(mutation.db==db and mutation.expectedLayoutId=='layout:a')
+    assert(mutation.expectedTextConfig==layouts['layout:a'].payload.Units.player.Texts.x)
+    assert(unit=='player' and key=='x' and source==a)
+    assert(Context.Snapshot({kind='shared-template',templateId=a,bindingTarget={layoutId='layout:a'}},db,'layout:a')==nil)
+    assert(Context.Snapshot({kind='shared-template',templateId=a,bindingTarget={layoutId='layout:a',unitKey='player',textKey='x',expectedTemplateId=b}},db,'layout:a')==nil)
+    assert(Context.Snapshot({kind='new-template',returnContext={originToken={widget={}}}},db,'layout:a')==nil)
+end)
+Test('R1 entity equality differs from edit-session equality and is rename-stable', function()
+    local texts=layouts['layout:a'].payload.Units.player.Texts
+    texts.z={templateId=a}
+    local function Shared(key,token)
+        return assert(Context.Snapshot({kind='shared-template',templateId=a,
+            bindingTarget={layoutId='layout:a',unitKey='player',textKey=key,expectedTemplateId=a},
+            returnContext={pickerMode='change',originToken=token}},db,'layout:a'))
+    end
+    local token={}; local x=Shared('x',token); local z=Shared('z',token)
+    assert(Context.Same(x,z) and not Context.SameSession(x,z))
+    assert(not Context.SameSession(x,Shared('x',{})))
+    assert(Context.SameSession(x,Shared('x',token)))
+    assert(L.UpdateUserTemplateRecord(a,L.GetUserTemplateRecord(a,db),{name='Renamed again'},db))
+    assert(Context.SameSession(x,Shared('x',token)))
+end)
+Test('R1 twenty reopen cycles, A-B-A, binding changes and delete/recreate reject stale callbacks', function()
+    local function Snapshot(kind,key)
+        local request={kind=kind}
+        if kind=='object' then request.layoutId='layout:a';request.unitKey='player';request.textKey=key
+        elseif kind=='shared-template' then request.templateId=a;request.bindingTarget={layoutId='layout:a',unitKey='player',textKey=key,expectedTemplateId=a} end
+        return assert(Context.Snapshot(request,db,'layout:a'))
+    end
+    local state={editingLayoutId='layout:a',draftToken={},editContext=Snapshot('object','x')}
+    local window={state=state}; local stale=Context.CaptureDraft(window)
+    for i=1,20 do
+        state.editContext=Snapshot(i%2==0 and 'object' or 'shared-template',i%3==0 and 'z' or 'x')
+        state.draftToken={}
+        assert(not Context.IsCurrentDraft(window,stale,'layout:a'))
+        local fresh=Context.CaptureDraft(window)
+        assert(Context.IsCurrentDraft(window,fresh,'layout:a'))
+        stale=fresh
+    end
+    for _,kind in ipairs({'object','shared-template'}) do
+        state.editContext=Snapshot(kind,'x');state.draftToken={}
+        local old=Context.CaptureDraft(window)
+        local texts=layouts['layout:a'].payload.Units.player.Texts
+        texts.x={templateId=a,stateTemplateIds={dead=b},enabled=false}
+        assert(not Context.IsCurrentDraft(window,old,'layout:a'),'recreated object authorized stale callback')
+        assert(Context.GetBindingTarget(state.editContext,'layout:a')==nil)
+        local replacement=Snapshot(kind,'x')
+        assert(not Context.SameSession(state.editContext,replacement))
+        state.editContext=replacement;state.draftToken={}
+        local fresh=Context.CaptureDraft(window)
+        assert(Context.IsCurrentDraft(window,fresh,'layout:a'))
+        texts.x.templateId=b
+        assert(not Context.IsCurrentDraft(window,fresh,'layout:a'))
+        texts.x.templateId=a
+    end
+    state.editContext=Snapshot('new-template');state.draftToken={}
+    assert(Context.IsCurrentDraft(window,Context.CaptureDraft(window),'layout:a'))
+end)
+
+Test('R1 binding context feeds the canonical fork and cannot authorize a replacement object', function()
+    local request={kind='shared-template',templateId=a,bindingTarget={layoutId='layout:a',unitKey='player',textKey='x',expectedTemplateId=a}}
+    local snapshot=assert(Context.Snapshot(request,db,'layout:a'))
+    local mutation,unit,key,source=Context.GetBindingTarget(snapshot,'layout:a')
+    local expected=assert(L.GetUserTemplateRecord(source,db))
+    local generator=assert(L.CreateUserTemplateIdGenerator({time=function() return 10 end,
+        uptime=function() return 1 end,random=function() return 3 end}))
+    local result=ns.TextTemplateMutations.Entity.ForkMainTemplate(mutation,unit,key,source,expected,'forked',generator)
+    assert(result.ok,result.errorCode)
+    assert(result.changed and layouts['layout:a'].payload.Units.player.Texts.x.templateId==result.templateId)
+    assert(Context.GetBindingTarget(snapshot,'layout:a')==nil)
+    assert(L.GetUserTemplateRecord(a,db).content==expected.content)
+    assert(layouts['layout:a'].payload.Units.player.Texts.z.templateId==a)
+    -- Even a previously handed-out mutation context retains the old raw identity.
+    layouts['layout:a'].payload.Units.player.Texts.x={templateId=a}
+    local rejected=ns.TextTemplateMutations.Entity.ForkMainTemplate(mutation,unit,key,source,expected,'stale',
+        {Reserve=function() error('stale object reached reservation') end})
+    assert(not rejected.ok and layouts['layout:a'].payload.Units.player.Texts.x.templateId==a)
+end)
+print('TextTemplateEntityConsumers: 9 groups passed')
