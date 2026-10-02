@@ -31,7 +31,7 @@ local function BuildFieldTypes()
     return types
 end
 
-local function ValidateConfig(config, types, collection, dynamicFields)
+local function ValidateConfig(config, types, collection, dynamicFields, stateField)
     if type(config) ~= "table" then return false end
     for key, value in pairs(config) do
         local kind = type(value)
@@ -50,7 +50,7 @@ local function ValidateConfig(config, types, collection, dynamicFields)
                 end
             end
             local isDecorations = key == "decorations"
-            if not ValidateConfig(value, types, key == "Texts" or key == "stateTemplates" or isDecorations, dynamicFields or isDecorations) then return false end
+            if not ValidateConfig(value, types, key == "Texts" or key == stateField or isDecorations, dynamicFields or isDecorations, stateField) then return false end
         elseif kind ~= "number" and kind ~= "string" and kind ~= "boolean" then
             return false
         end
@@ -58,14 +58,12 @@ local function ValidateConfig(config, types, collection, dynamicFields)
     return true
 end
 
-local function ValidatePayload(payload)
-    if not OnlyKeys(payload, {Units=true, TextTemplates=true}) then return false, "payload-invalid" end
-    if type(payload.Units) ~= "table" or not next(payload.Units) then return false, "units-invalid" end
-    if type(payload.TextTemplates) ~= "table" then return false, "templates-invalid" end
+local function ValidateUnits(units, stateField)
+    if type(units) ~= "table" or not next(units) then return false, "units-invalid" end
     local types = BuildFieldTypes()
     if not types then return false, "service-unavailable" end
-    for unitKey, config in pairs(payload.Units) do
-        if not UNITS[unitKey] or not ValidateConfig(config, types) then return false, "units-invalid" end
+    for unitKey, config in pairs(units) do
+        if not UNITS[unitKey] or not ValidateConfig(config, types, nil, nil, stateField) then return false, "units-invalid" end
         if config.scale ~= nil and config.scale <= 0 then return false, "units-invalid" end
         for key in pairs(config) do if type(key) ~= "string" then return false, "units-invalid" end end
         if config.Texts ~= nil then
@@ -81,6 +79,21 @@ local function ValidatePayload(payload)
             end
         end
     end
+    return true
+end
+
+-- E5 explicit target validation, not an alternate active Import/Export dispatch.
+function Transfer.ValidateEntityPayload(payload)
+    if not OnlyKeys(payload, {Units=true}) then return false, "payload-invalid" end
+    return ValidateUnits(payload.Units, "stateTemplateIds")
+end
+
+local function ValidatePayload(payload)
+    if not OnlyKeys(payload, {Units=true, TextTemplates=true}) then return false, "payload-invalid" end
+    if type(payload.Units) ~= "table" or not next(payload.Units) then return false, "units-invalid" end
+    if type(payload.TextTemplates) ~= "table" then return false, "templates-invalid" end
+    local valid, reason = ValidateUnits(payload.Units, "stateTemplates")
+    if not valid then return false, reason end
     for name, text in pairs(payload.TextTemplates) do
         if type(name) ~= "string" or name == "" or type(text) ~= "string" then return false, "templates-invalid" end
     end

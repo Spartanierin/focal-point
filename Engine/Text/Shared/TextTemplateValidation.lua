@@ -319,14 +319,14 @@ function Validation.ValidateProfile(context)
 end
 
 -- E4 opt-in target validation. Absence is complete; never repair or project.
-function Validation.ValidateEntityLayouts(layouts, db)
+local function ValidateEntityGraph(layouts, resolve)
     local issues = {}
     local library = FocalPoint.TextTemplateLibrary
     local function Issue(code, layoutId, unitKey, textKey, kind, stateKey, id)
         issues[#issues + 1] = {severity = "error", code = code, layoutId = layoutId,
             unitKey = unitKey, textKey = textKey, referenceKind = kind, stateKey = stateKey, templateId = id}
     end
-    if type(db) ~= "table" then Issue("invalid_context") end
+    if type(resolve) ~= "function" then Issue("invalid_context") end
     if type(layouts) == "table" then
         for _, layoutId in ipairs(SortedKeys(layouts)) do
             local record = layouts[layoutId]
@@ -340,7 +340,7 @@ function Validation.ValidateEntityLayouts(layouts, db)
         local function Check(id, kind, stateKey)
             if not library.GetTemplateIdKind(id) then
                 Issue("invalid_template_id", layoutId, unitKey, textKey, kind, stateKey, id)
-            elseif type(db) == "table" and not library.ResolveTemplateEntity(id, db) then
+            elseif type(resolve) == "function" and not resolve(id) then
                 Issue("missing_template_entity", layoutId, unitKey, textKey, kind, stateKey, id)
             end
         end
@@ -360,6 +360,27 @@ function Validation.ValidateEntityLayouts(layouts, db)
         end
     end, function(layoutId, unitKey, textKey) Issue("invalid_layout_structure", layoutId, unitKey, textKey) end)
     return {valid = #issues == 0, errorCount = #issues, warningCount = 0, issues = issues}
+end
+
+function Validation.ValidateEntityLayouts(layouts, db)
+    local resolve
+    if type(db) == "table" then
+        resolve = function(id) return FocalPoint.TextTemplateLibrary.ResolveTemplateEntity(id, db) end
+    end
+    return ValidateEntityGraph(layouts, resolve)
+end
+
+-- Explicit transport graph validation: imported definitions may intentionally
+-- conflict with the local catalog. Never install them just to validate FKs.
+function Validation.ValidateEntityResourceGraph(layouts, definitions)
+    local resolve
+    if type(definitions) == "table" then
+        resolve = function(id)
+            local record = definitions[id]
+            return FocalPoint.TextTemplateLibrary.ValidateTemplateRecord(record) and record or nil
+        end
+    end
+    return ValidateEntityGraph(layouts, resolve)
 end
 
 return Validation

@@ -571,11 +571,48 @@ local function CaptureDraft(context)
     return { token = state.draftToken, layoutId = state.editingLayoutId, selection = state.selectedTemplate, editContext = state.editContext }
 end
 
+local function DraftMatches(state, expected)
+    return state and (not expected or (expected.token == state.draftToken
+        and expected.layoutId == state.editingLayoutId and expected.selection == state.selectedTemplate
+        and expected.editContext == state.editContext))
+end
+
+-- E5 target address only: no window open, selection dispatch or mutation path.
+-- E6 adopts this snapshot contract and removes name-based ValidateEditContext.
+TextBuilderController.EntityContext = {}
+local EntityContext = TextBuilderController.EntityContext
+function EntityContext.Snapshot(request, db, activeLayoutId)
+    if type(request) ~= "table" or request.kind ~= "shared-template" or type(db) ~= "table" then
+        return nil, "invalid_context"
+    end
+    if request.layoutId ~= nil then
+        if type(request.layoutId) ~= "string" or not (request.layoutId:match("^layout:.+")
+            or request.layoutId:match("^builtin:.+")) then return nil, "invalid_context" end
+        if request.layoutId ~= activeLayoutId then return nil, "layout_mismatch" end
+    end
+    local entity, reason = ns.TextTemplateLibrary.ResolveTemplateEntity(request.templateId, db)
+    if not entity then return nil, reason.errorCode end
+    return {kind = "shared-template", templateId = entity.templateId, layoutId = request.layoutId}
+end
+function EntityContext.Same(left, right)
+    return type(left) == "table" and type(right) == "table"
+        and left.kind == "shared-template" and right.kind == "shared-template"
+        and ns.TextTemplateLibrary.GetTemplateIdKind(left.templateId) ~= nil
+        and left.templateId == right.templateId
+end
+EntityContext.CaptureDraft = CaptureDraft
+function EntityContext.IsCurrentDraft(context, expected, activeLayoutId)
+    local state = type(context) == "table" and context.state
+    return type(expected) == "table" and state ~= nil and type(state.draftToken) == "table"
+        and state.editingLayoutId ~= nil and state.editingLayoutId == activeLayoutId
+        and type(state.editContext) == "table" and state.editContext.kind == "shared-template"
+        and (state.editContext.layoutId == nil or state.editContext.layoutId == activeLayoutId)
+        and DraftMatches(state, expected) or false
+end
+
 local function ValidateDraft(context, expected, allowStaleLayout)
     local state = context and context.state
-    if not state or (not allowStaleLayout and not IsCurrentDraft(context)) or (expected and (
-        expected.token ~= state.draftToken or expected.layoutId ~= state.editingLayoutId
-        or expected.selection ~= state.selectedTemplate or expected.editContext ~= state.editContext)) then
+    if not DraftMatches(state, expected) or (not allowStaleLayout and not IsCurrentDraft(context)) then
         SetStatus(T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID"), "error")
         return false
     end

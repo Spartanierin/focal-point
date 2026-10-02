@@ -303,6 +303,75 @@ local function SortedKeys(source)
     return keys
 end
 
+-- E5 opt-in view data. Value is identity; label/content are disposable snapshots.
+-- Active legacy Library/Inspector/Picker callers below do not use this contract.
+Library.Entity = {}
+local EntityView = Library.Entity
+function EntityView.Selection(db, id)
+    if type(db) ~= "table" then return nil, "invalid_context" end
+    local entity, reason = Library.ResolveTemplateEntity(id, db)
+    if not entity then return nil, reason end
+    return {value = id, label = entity.name, content = entity.content, readOnly = entity.readOnly}
+end
+
+function EntityView.List(db)
+    local records, _, reason = ReadEntityStore(db)
+    if reason then return nil, reason end
+    local catalog = FocalPoint.BuiltInTextTemplates
+    if not (catalog and catalog.ListRecords) then return nil, "builtin-catalog-unavailable" end
+    local ids, rows = {}, {}
+    for id in pairs(catalog.ListRecords()) do ids[id] = true end
+    for id in pairs(records or {}) do
+        if Library.GetTemplateIdKind(id) ~= "user" then return nil, "invalid-user-template-id" end
+        ids[id] = true
+    end
+    for _, id in ipairs(SortedKeys(ids)) do
+        local row, err = EntityView.Selection(db, id)
+        if not row then return nil, err end
+        rows[#rows + 1] = row
+    end
+    table.sort(rows, function(a, b)
+        if a.label ~= b.label then return a.label < b.label end
+        return a.value < b.value
+    end)
+    return rows
+end
+
+local function LabelReferences(references, db)
+    for _, reference in ipairs(references) do
+        local entity = Library.ResolveTemplateEntity(reference.templateId, db)
+        reference.label = entity and entity.name or nil
+        reference.isMissing = entity == nil
+    end
+    return references
+end
+
+function EntityView.Usage(layouts, db, id)
+    if type(db) ~= "table" or not Library.GetTemplateIdKind(id) then return nil, "invalid_context" end
+    return LabelReferences(FocalPoint.TextTemplateUsage.ScanEntities(layouts, id), db)
+end
+
+function EntityView.InspectText(layouts, db, layoutId, unitKey, textKey)
+    if type(layouts) ~= "table" or type(db) ~= "table" then return nil, "invalid_context" end
+    local record = layouts[layoutId]
+    local units = type(record) == "table" and type(record.payload) == "table" and record.payload.Units
+    local unit = type(units) == "table" and units[unitKey]
+    if type(unit) ~= "table" or type(unit.Texts) ~= "table" or type(unit.Texts[textKey]) ~= "table" then
+        return nil, "text_element_not_found"
+    end
+    local references, issues = {}, {}
+    for _, ref in ipairs(FocalPoint.TextTemplateUsage.ScanEntities({[layoutId] = record})) do
+        if ref.unitKey == unitKey and ref.textKey == textKey then references[#references + 1] = ref end
+    end
+    local validation = FocalPoint.TextTemplateValidation.ValidateEntityLayouts({[layoutId] = record}, db)
+    for _, issue in ipairs(validation.issues) do
+        if issue.unitKey == nil or (issue.unitKey == unitKey and (issue.textKey == nil or issue.textKey == textKey)) then
+            issues[#issues + 1] = issue
+        end
+    end
+    return {references = LabelReferences(references, db), issues = issues}
+end
+
 local function ResolveThemeLabel(themeId, theme)
     if type(theme) ~= "table" then
         return tostring(themeId or "")
