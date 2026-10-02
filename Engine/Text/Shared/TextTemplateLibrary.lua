@@ -4,6 +4,211 @@ FocalPoint.TextTemplateLibrary = FocalPoint.TextTemplateLibrary or {}
 
 local Library = FocalPoint.TextTemplateLibrary
 
+-- E1: explicit entity operations only. Legacy library/runtime paths below never
+-- call these helpers. Loading this module neither creates stores nor draws IDs.
+local MAX_ID_INTEGER = 9007199254740991
+local function IsPlainTable(value)
+    return type(value) == "table" and getmetatable(value) == nil
+end
+
+local function IsToken(value)
+    return type(value) == "string" and #value == 32 and value:match("^[0-9a-f]+$") ~= nil
+end
+
+local function IsIdInteger(value, allowZero)
+    if type(value) ~= "string" or #value > 16 or not value:match("^%d+$") then return false end
+    if #value > 1 and value:sub(1, 1) == "0" then return false end
+    local number = tonumber(value)
+    return number ~= nil and number <= MAX_ID_INTEGER and number >= (allowZero and 0 or 1)
+end
+
+function Library.GetTemplateIdKind(id)
+    if type(id) ~= "string" then return nil end
+    if id:match("^tpl:b:[a-z0-9][a-z0-9._%-]*$") then return "builtin" end
+    local namespace, seconds, milliseconds, randomToken, counter = id:match(
+        "^tpl:u:([0-9a-f]+):(%d+)%-(%d+)%-([0-9a-f]+):(%d+)$")
+    if IsToken(namespace) and IsToken(randomToken) and IsIdInteger(seconds, true)
+        and IsIdInteger(milliseconds, true) and IsIdInteger(counter, false) then
+        return "user"
+    end
+    return nil
+end
+
+-- Persisted data is lossless: content may be empty (as in legacy records).
+-- New editor input can impose stricter rules; these helpers never trim content.
+-- Extra fields are rejected, rather than silently becoming persisted metadata.
+function Library.ValidateTemplateRecord(record)
+    if not IsPlainTable(record) then return false, "invalid-template-record" end
+    if type(record.name) ~= "string" or not record.name:find("%S") then
+        return false, "invalid-template-name"
+    end
+    if type(record.content) ~= "string" then return false, "invalid-template-content" end
+    for key in pairs(record) do
+        if key ~= "name" and key ~= "content" then return false, "invalid-template-record" end
+    end
+    return true
+end
+
+function Library.CopyTemplateRecord(record)
+    local valid, reason = Library.ValidateTemplateRecord(record)
+    if not valid then return nil, reason end
+    return {name = record.name, content = record.content}
+end
+
+-- Data equality is NOT entity identity. Callers must compare IDs separately.
+function Library.TemplateRecordsEqual(left, right)
+    return Library.ValidateTemplateRecord(left) and Library.ValidateTemplateRecord(right)
+        and left.name == right.name and left.content == right.content or false
+end
+
+local function ReadEntityStore(db)
+    -- AceDB's DBObject and global section may have defaulting metatables.
+    -- Peek through sv without initializing a missing section on a read/failure.
+    if type(db) ~= "table" then return nil, nil, "invalid-db" end
+    local global = rawget(db, "global")
+    if global == nil then
+        local saved = rawget(db, "sv")
+        global = type(saved) == "table" and rawget(saved, "global") or nil
+    end
+    if global ~= nil and type(global) ~= "table" then return nil, nil, "invalid-global" end
+    local records = global and rawget(global, "TextTemplates")
+    if records ~= nil and not IsPlainTable(records) then return nil, nil, "invalid-template-store" end
+    return records, global
+end
+
+local function EnsureEntityGlobal(db, global)
+    if global then return global end
+    -- Let AceDB attach its lazy section to SavedVariables before writing.
+    global = db.global
+    if global == nil then global = {}; db.global = global end
+    return global
+end
+
+local function RandomToken(random)
+    local parts = {}
+    for i = 1, 16 do
+        local byte = random(0, 255)
+        if type(byte) ~= "number" or byte ~= byte or byte < 0 or byte > 255 or byte % 1 ~= 0 then
+            error("invalid random source", 0)
+        end
+        parts[i] = string.format("%02x", byte)
+    end
+    return table.concat(parts)
+end
+
+local function ClockInteger(clock, scale)
+    local value = clock()
+    if type(value) ~= "number" or value ~= value or value < 0 or value > MAX_ID_INTEGER / scale then
+        error("invalid clock source", 0)
+    end
+    return string.format("%.0f", math.floor(value * scale))
+end
+
+-- One generator instance represents one addon runtime. The default instance is
+-- retained below, never persisted. Dependency injection uses the same path.
+-- WoW sources: time() (also UserLayoutStore), GetTime() (runtime clock),
+-- math.random(0,255) (Lua PRNG). No global randomseed and no cryptographic claim.
+function Library.CreateUserTemplateIdGenerator(sources)
+    sources = sources or {time = time, uptime = GetTime, random = math.random}
+    if type(sources) ~= "table" or type(sources.time) ~= "function"
+        or type(sources.uptime) ~= "function" or type(sources.random) ~= "function" then
+        return nil, "id-source-unavailable"
+    end
+    local clock, uptime, random = sources.time, sources.uptime, sources.random
+    local sessionNonce, counter = nil, 0
+    local generator = {}
+    function generator:Reserve(db, reserved)
+        local records, global, reason = ReadEntityStore(db)
+        if reason then return nil, reason end
+        if not IsPlainTable(reserved) then return nil, "invalid-id-reservations" end
+        local state = global and rawget(global, "TextTemplateIdState")
+        if state ~= nil and (not IsPlainTable(state) or not IsToken(state.namespace)) then
+            return nil, "invalid-id-state"
+        end
+        local namespace = state and state.namespace
+        local ok, candidateNamespace, candidateNonce = pcall(function()
+            local nextNamespace = namespace or RandomToken(random)
+            local nextNonce = sessionNonce or (ClockInteger(clock, 1) .. "-"
+                .. ClockInteger(uptime, 1000) .. "-" .. RandomToken(random))
+            return nextNamespace, nextNonce
+        end)
+        if not ok then return nil, "id-source-unavailable" end
+        sessionNonce = candidateNonce
+        -- Bounded collision handling; consumed counters are never rolled back.
+        for _ = 1, 128 do
+            if counter >= MAX_ID_INTEGER then return nil, "id-counter-exhausted" end
+            counter = counter + 1
+            local id = "tpl:u:" .. candidateNamespace .. ":" .. sessionNonce .. ":" .. string.format("%.0f", counter)
+            if (not records or rawget(records, id) == nil) and rawget(reserved, id) == nil then
+                if not state then
+                    global = EnsureEntityGlobal(db, global)
+                    global.TextTemplateIdState = {namespace = candidateNamespace}
+                end
+                reserved[id] = true
+                return id
+            end
+        end
+        return nil, "id-collision-limit"
+    end
+    return generator
+end
+
+local userIdGenerator
+function Library.ReserveUserTemplateId(db, reserved)
+    if not userIdGenerator then
+        local reason
+        userIdGenerator, reason = Library.CreateUserTemplateIdGenerator()
+        if not userIdGenerator then return nil, reason end
+    end
+    return userIdGenerator:Reserve(db or FocalPoint.db, reserved)
+end
+
+function Library.GetUserTemplateRecord(id, db)
+    if Library.GetTemplateIdKind(id) ~= "user" then return nil, "invalid-user-template-id" end
+    local records, _, reason = ReadEntityStore(db or FocalPoint.db)
+    if reason then return nil, reason end
+    local record = records and rawget(records, id)
+    if record == nil then return nil, "template-not-found" end
+    return Library.CopyTemplateRecord(record) -- never hand out a mutable store record
+end
+
+function Library.CreateUserTemplateRecord(id, record, db)
+    if Library.GetTemplateIdKind(id) ~= "user" then return false, "invalid-user-template-id" end
+    local copy, reason = Library.CopyTemplateRecord(record)
+    if not copy then return false, reason end
+    db = db or FocalPoint.db
+    local records, global, storeReason = ReadEntityStore(db)
+    if storeReason then return false, storeReason end
+    if records and rawget(records, id) ~= nil then return false, "template-id-exists" end
+    global = EnsureEntityGlobal(db, global)
+    if not records then records = {}; global.TextTemplates = records end
+    records[id] = copy
+    return true
+end
+
+function Library.UpdateUserTemplateRecord(id, expectedRecord, changes, db)
+    local current, reason = Library.GetUserTemplateRecord(id, db)
+    if not current then return false, reason end
+    if not Library.TemplateRecordsEqual(current, expectedRecord) then return false, "template-conflict" end
+    if not IsPlainTable(changes) then return false, "invalid-template-record" end
+    for key, value in pairs(changes) do
+        if key ~= "name" and key ~= "content" then return false, "invalid-template-record" end
+        current[key] = value
+    end
+    local valid
+    valid, reason = Library.ValidateTemplateRecord(current)
+    if not valid then return false, reason end
+    local records = ReadEntityStore(db or FocalPoint.db)
+    records[id] = current
+    return true
+end
+
+function Library.CopyUserTemplateRecord(sourceId, newId, db)
+    local record, reason = Library.GetUserTemplateRecord(sourceId, db)
+    if not record then return false, reason end
+    return Library.CreateUserTemplateRecord(newId, record, db)
+end
+
 local function SortKeys(left, right)
     local leftType = type(left)
     local rightType = type(right)
