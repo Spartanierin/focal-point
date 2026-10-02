@@ -292,4 +292,51 @@ function Usage.GetActiveProfileTemplateUsageSummary(db)
     }
 end
 
+-- E4 explicit prepared-layout traversal; no projection, defaulting or persistence.
+-- Shared with ID validation so both inspect precisely the same stored objects.
+function Usage.VisitEntityTexts(layouts, visit, invalid)
+    local function Bad(layoutId, unitKey, textKey)
+        if invalid then invalid(layoutId, unitKey, textKey) end
+    end
+    if type(layouts) ~= "table" then Bad(); return end
+    for _, layoutId in ipairs(SortedKeys(layouts)) do
+        local record = layouts[layoutId]
+        local payload = type(record) == "table" and record.payload
+        local units = type(payload) == "table" and payload.Units
+        if type(units) ~= "table" then Bad(layoutId)
+        else
+            for _, unitKey in ipairs(SortedKeys(units)) do
+                local unit = units[unitKey]
+                local texts = type(unit) == "table" and unit.Texts
+                if type(unit) ~= "table" or (texts ~= nil and type(texts) ~= "table") then Bad(layoutId, unitKey)
+                else
+                    for _, textKey in ipairs(SortedKeys(texts)) do
+                        if type(texts[textKey]) ~= "table" then Bad(layoutId, unitKey, textKey)
+                        else visit(layoutId, unitKey, textKey, texts[textKey]) end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function Usage.ScanEntities(layouts, templateId)
+    local references = {}
+    Usage.VisitEntityTexts(layouts, function(layoutId, unitKey, textKey, text)
+        local function Add(id, kind, stateKey)
+            if IsNonEmptyString(id) and (templateId == nil or templateId == id) then
+                references[#references + 1] = {layoutId = layoutId, unitKey = unitKey, textKey = textKey,
+                    templateId = id, referenceKind = kind, stateKey = stateKey, enabled = text.enabled}
+            end
+        end
+        Add(text.templateId, "main")
+        if type(text.stateTemplateIds) == "table" then
+            for _, stateKey in ipairs(SortedKeys(text.stateTemplateIds)) do
+                Add(text.stateTemplateIds[stateKey], "state", stateKey)
+            end
+        end
+    end)
+    return references
+end
+
 return Usage

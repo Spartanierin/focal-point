@@ -2,13 +2,26 @@ local _, FocalPoint = ...
 
 FocalPoint.TextTemplateResolver = FocalPoint.TextTemplateResolver or {}
 local Resolver = FocalPoint.TextTemplateResolver
-local BindingCache = setmetatable({}, { __mode = "k" })
+-- Explicit contracts share the same candidate, fallback and dependency engine.
+-- E6 removes the legacy descriptor/wrappers after every caller has moved to IDs.
+local LegacyBinding = {main = "templateName", states = "stateTemplates", reference = "templateName",
+    cache = setmetatable({}, { __mode = "k" })}
+local EntityBinding = {main = "templateId", states = "stateTemplateIds", reference = "templateId",
+    cache = setmetatable({}, { __mode = "k" })}
+local BindingCache = LegacyBinding.cache
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
 end
 
-local function GetTemplateText(templateName, context)
+local function GetTemplateText(templateName, context, binding)
+    if binding == EntityBinding then
+        -- No global-db fallback and no layout-local map. Read content on every
+        -- resolution; only reference candidates are cached, never entity records.
+        if type(context) ~= "table" or type(context.db) ~= "table" then return nil end
+        local entity = FocalPoint.TextTemplateLibrary.ResolveTemplateEntity(templateName, context.db)
+        return entity and entity.content or nil
+    end
     if not IsNonEmptyString(templateName) or type(context) ~= "table" or type(context.GetTemplate) ~= "function" then
         return nil
     end
@@ -48,28 +61,30 @@ local function AddStateFallbacks(state, stateKeys)
     end
 end
 
-local function BuildStateReference(textConfig, state)
-    if type(textConfig) ~= "table" or type(textConfig.stateTemplates) ~= "table" or not IsNonEmptyString(state) then
+local function BuildStateReference(textConfig, state, binding)
+    binding = binding or LegacyBinding
+    if type(textConfig) ~= "table" or type(textConfig[binding.states]) ~= "table" or not IsNonEmptyString(state) then
         return nil
     end
 
-    local templateName = textConfig.stateTemplates[state]
+    local templateName = textConfig[binding.states][state]
     if IsNonEmptyString(templateName) then
         return {
             kind = "state",
             state = state,
-            templateName = templateName,
+            [binding.reference] = templateName,
         }
     end
 
     return nil
 end
 
-local function BuildTemplateReference(textConfig)
-    if type(textConfig) == "table" and IsNonEmptyString(textConfig.templateName) then
+local function BuildTemplateReference(textConfig, binding)
+    binding = binding or LegacyBinding
+    if type(textConfig) == "table" and IsNonEmptyString(textConfig[binding.main]) then
         return {
             kind = "template",
-            templateName = textConfig.templateName,
+            [binding.reference] = textConfig[binding.main],
         }
     end
 
@@ -87,16 +102,16 @@ local function BuildInlineReference(textConfig)
     return nil
 end
 
-local function BuildRuntimeCandidates(textConfig, state)
+local function BuildRuntimeCandidates(textConfig, state, binding)
     local candidates = {}
     local stateKeys = {}
     AddStateFallbacks(state, stateKeys)
 
     for _, stateKey in ipairs(stateKeys) do
-        candidates[#candidates + 1] = BuildStateReference(textConfig, stateKey)
+        candidates[#candidates + 1] = BuildStateReference(textConfig, stateKey, binding)
     end
 
-    candidates[#candidates + 1] = BuildTemplateReference(textConfig)
+    candidates[#candidates + 1] = BuildTemplateReference(textConfig, binding)
     candidates[#candidates + 1] = BuildInlineReference(textConfig)
 
     return candidates
@@ -118,19 +133,19 @@ local function SortedKeys(source)
     return keys
 end
 
-local function BuildDependencyCandidates(textConfig)
+local function BuildDependencyCandidates(textConfig, binding)
     local candidates = {}
     if type(textConfig) ~= "table" then
         return candidates
     end
 
-    if type(textConfig.stateTemplates) == "table" then
-        for _, stateKey in ipairs(SortedKeys(textConfig.stateTemplates)) do
-            candidates[#candidates + 1] = BuildStateReference(textConfig, stateKey)
+    if type(textConfig[binding.states]) == "table" then
+        for _, stateKey in ipairs(SortedKeys(textConfig[binding.states])) do
+            candidates[#candidates + 1] = BuildStateReference(textConfig, stateKey, binding)
         end
     end
 
-    candidates[#candidates + 1] = BuildTemplateReference(textConfig)
+    candidates[#candidates + 1] = BuildTemplateReference(textConfig, binding)
     candidates[#candidates + 1] = BuildInlineReference(textConfig)
     return candidates
 end
@@ -139,23 +154,23 @@ local function GetStateKey(state)
     return IsNonEmptyString(state) and state or ""
 end
 
-local function GetRuntimeCandidates(textConfig, state)
+local function GetRuntimeCandidates(textConfig, state, contract)
     if type(textConfig) ~= "table" then
         return nil
     end
 
-    local binding = BindingCache[textConfig]
+    local binding = contract.cache[textConfig]
     if type(binding) ~= "table" then
         binding = {
             states = {},
         }
-        BindingCache[textConfig] = binding
+        contract.cache[textConfig] = binding
     end
 
     local stateKey = GetStateKey(state)
     local candidates = binding.states[stateKey]
     if type(candidates) ~= "table" then
-        candidates = BuildRuntimeCandidates(textConfig, state)
+        candidates = BuildRuntimeCandidates(textConfig, state, contract)
         binding.states[stateKey] = candidates
     end
 
@@ -165,6 +180,7 @@ end
 function Resolver.Invalidate(textConfig)
     if type(textConfig) == "table" then
         BindingCache[textConfig] = nil
+        EntityBinding.cache[textConfig] = nil
     end
 end
 
@@ -189,7 +205,7 @@ function Resolver.InvalidateAllUnitTexts(units)
     end
 end
 
-function Resolver.ResolveReference(textConfig, state)
+local function ResolveReference(binding, textConfig, state)
     if type(textConfig) ~= "table" then
         return nil
     end
@@ -198,22 +214,22 @@ function Resolver.ResolveReference(textConfig, state)
     AddStateFallbacks(state, stateKeys)
 
     for _, stateKey in ipairs(stateKeys) do
-        local reference = BuildStateReference(textConfig, stateKey)
+        local reference = BuildStateReference(textConfig, stateKey, binding)
         if reference then
             return reference
         end
     end
 
-    return BuildTemplateReference(textConfig) or BuildInlineReference(textConfig)
+    return BuildTemplateReference(textConfig, binding) or BuildInlineReference(textConfig)
 end
 
-function Resolver.ResolveTemplateText(reference, context)
+local function ResolveTemplateText(binding, reference, context)
     if type(reference) ~= "table" then
         return ""
     end
 
     if reference.kind == "state" or reference.kind == "template" then
-        return NormalizeText(GetTemplateText(reference.templateName, context) or "", context)
+        return NormalizeText(GetTemplateText(reference[binding.reference], context, binding) or "", context)
     end
 
     if reference.kind == "inline" then
@@ -223,13 +239,13 @@ function Resolver.ResolveTemplateText(reference, context)
     return ""
 end
 
-function Resolver.Resolve(textConfig, state, context)
+local function Resolve(binding, textConfig, state, context)
     if type(textConfig) ~= "table" then
         return ""
     end
 
-    for _, reference in ipairs(GetRuntimeCandidates(textConfig, state) or {}) do
-        local resolvedText = Resolver.ResolveTemplateText(reference, context)
+    for _, reference in ipairs(GetRuntimeCandidates(textConfig, state, binding) or {}) do
+        local resolvedText = ResolveTemplateText(binding, reference, context)
         if IsNonEmptyString(resolvedText) then
             return resolvedText
         end
@@ -294,15 +310,15 @@ local function ScanTemplateDependencies(template, dependencies, context)
     return foundToken
 end
 
-function Resolver.ResolveDependencies(textConfig, context)
+local function ResolveDependencies(binding, textConfig, context)
     local dependencies = {}
     local sawTemplate = false
     local sawToken = false
 
     if type(textConfig) == "table" then
-        for _, reference in ipairs(BuildDependencyCandidates(textConfig)) do
+        for _, reference in ipairs(BuildDependencyCandidates(textConfig, binding)) do
             if reference then
-                local template = Resolver.ResolveTemplateText(reference, context)
+                local template = ResolveTemplateText(binding, reference, context)
                 if template ~= "" then
                     sawTemplate = true
                     sawToken = ScanTemplateDependencies(template, dependencies, context) or sawToken
@@ -321,3 +337,14 @@ function Resolver.ResolveDependencies(textConfig, context)
 
     return dependencies
 end
+
+local function BindContract(binding, target)
+    target.ResolveReference = function(config, state) return ResolveReference(binding, config, state) end
+    target.ResolveTemplateText = function(reference, context) return ResolveTemplateText(binding, reference, context) end
+    target.Resolve = function(config, state, context) return Resolve(binding, config, state, context) end
+    target.ResolveDependencies = function(config, context) return ResolveDependencies(binding, config, context) end
+    return target
+end
+BindContract(LegacyBinding, Resolver)
+-- Explicit opt-in only; no active consumer switches format based on object fields.
+Resolver.Entity = BindContract(EntityBinding, {Invalidate = Resolver.Invalidate})

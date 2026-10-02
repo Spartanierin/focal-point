@@ -364,30 +364,45 @@ end
 
 -- New main-source operations use an explicit expectedLayoutId, not legacy getters.
 -- Validation must not materialize defaults or mutate presence fields on failure.
-local function ResolveMainContentTarget(context, unitKey, textKey)
+local LegacyMain = {field = "templateName", empty = ""}
+local EntityMain = {field = "templateId"}
+local function ResolveMainContentTarget(context, unitKey, textKey, contract, stateOperation)
+    contract = contract or LegacyMain
     local db = FocalPoint.db
+    if contract == EntityMain then db = type(context) == "table" and context.db or nil end
     local layouts = FocalPoint.ActiveLayoutResolver
     local store = FocalPoint.UserLayoutStore
     local roles = FocalPoint.TextElementRoles
     local resolver = FocalPoint.TextTemplateResolver
     if type(context) ~= "table" or not IsNonEmptyString(context.expectedLayoutId)
-        or type(db) ~= "table" or not (layouts and layouts.GetStoredActiveLayoutId)
-        or not (store and store.GetRawReadOnly) or not (roles and roles.Resolve)
+        or type(db) ~= "table" or (contract == EntityMain and type(context.db) ~= "table")
+        or (contract == LegacyMain and (not (layouts and layouts.GetStoredActiveLayoutId)
+            or not (store and store.GetRawReadOnly))) or not (roles and roles.Resolve)
         or not (resolver and resolver.Invalidate)
     then
         return nil, "invalid_context"
     end
 
     local layoutId = context.expectedLayoutId
-    if layouts.GetStoredActiveLayoutId(db) ~= layoutId then
+    local char = rawget(db, "char")
+    local activeId
+    if contract == EntityMain then activeId = type(char) == "table" and rawget(char, "activeLayoutId")
+    else activeId = layouts.GetStoredActiveLayoutId(db) end
+    if activeId ~= layoutId then
         return nil, "layout_mismatch"
     end
     if not layoutId:match("^layout:") then
         return nil, "readonly_layout"
     end
-    local record = store.GetRawReadOnly(layoutId, db)
+    local record
+    if contract == EntityMain then
+        local global = rawget(db, "global")
+        local records = type(global) == "table" and rawget(global, "UserLayouts")
+        record = type(records) == "table" and rawget(records, layoutId)
+    else record = store.GetRawReadOnly(layoutId, db) end
     local payload = type(record) == "table" and record.payload or nil
-    if type(payload) ~= "table" or type(payload.Units) ~= "table" or type(payload.TextTemplates) ~= "table" then
+    if type(payload) ~= "table" or type(payload.Units) ~= "table" or (contract == LegacyMain and type(payload.TextTemplates) ~= "table")
+        or (contract == EntityMain and payload.TextTemplates ~= nil) then
         return nil, "invalid_context"
     end
     local unitConfig = IsNonEmptyString(unitKey) and payload.Units[unitKey] or nil
@@ -399,21 +414,42 @@ local function ResolveMainContentTarget(context, unitKey, textKey)
     if type(textConfig) ~= "table" then
         return nil, "text_element_not_found"
     end
+    if contract == EntityMain and (textConfig.templateName ~= nil or textConfig.stateTemplates ~= nil
+        or (textConfig.stateTemplateIds ~= nil and type(textConfig.stateTemplateIds) ~= "table")) then
+        return nil, "invalid_context"
+    end
     local target = {
-        context = context, db = db, layoutId = layoutId, record = record, payload = payload,
+        context = context, contract = contract, db = db, layoutId = layoutId, record = record, payload = payload,
         units = payload.Units, unitKey = unitKey, unitConfig = unitConfig,
         texts = texts, textKey = textKey, textConfig = textConfig, templates = payload.TextTemplates,
-        role = textConfig.role, templateName = textConfig.templateName, tag = textConfig.tag,
+        role = textConfig.role, templateName = textConfig[contract.field], tag = textConfig.tag,
         resolver = resolver,
     }
+    if contract == EntityMain then
+        target.stateIds = textConfig.stateTemplateIds
+        target.stateSnapshot = {}
+        for state, id in pairs(target.stateIds or {}) do
+            if not IsNonEmptyString(state) or not ResolveLibrary().GetTemplateIdKind(id) then
+                return nil, "invalid_context"
+            end
+            target.stateSnapshot[state] = id
+        end
+    end
     local role = roles.Resolve(textKey, textConfig)
-    if role == "altpower" or role == "classpower" then
+    if not stateOperation and (role == "altpower" or role == "classpower") then
         return nil, "unsupported_text_role"
     end
     return target
 end
 
 local function ReadMainTemplate(target, templateName)
+    if target.contract == EntityMain then
+        local entity, reason = ResolveLibrary().ResolveTemplateEntity(templateName, target.db)
+        if not entity then return nil, reason.errorCode end
+        if not entity.content:find("%S") then return nil, "invalid_template_text" end
+        target.checkedEntity = entity
+        return entity.content
+    end
     if not ValidateTemplateName(templateName) or not templateName:find("%S") then
         return nil, "invalid_template_name"
     end
@@ -430,6 +466,7 @@ end
 local function ConfirmMainContentTarget(target, templateName, expression)
     -- Final identity check has no context getters, materialization or callbacks.
     local db = FocalPoint.db
+    if target.contract == EntityMain then db = target.context.db end
     local char = type(db) == "table" and rawget(db, "char") or nil
     local global = type(db) == "table" and rawget(db, "global") or nil
     local records = type(global) == "table" and rawget(global, "UserLayouts") or nil
@@ -446,17 +483,39 @@ local function ConfirmMainContentTarget(target, templateName, expression)
     then
         return false, "text_element_not_found"
     end
-    if target.textConfig.role ~= target.role or target.textConfig.templateName ~= target.templateName
-        or target.textConfig.tag ~= target.tag or (templateName ~= nil and target.templates[templateName] ~= expression)
+    if target.textConfig.role ~= target.role or target.textConfig[target.contract.field] ~= target.templateName
+        or target.textConfig.tag ~= target.tag or (target.contract == LegacyMain and templateName ~= nil and target.templates[templateName] ~= expression)
     then
         return false, "invalid_context"
+    end
+    if target.contract == EntityMain then
+        if target.textConfig.stateTemplateIds ~= target.stateIds
+            or target.textConfig.templateName ~= nil or target.textConfig.stateTemplates ~= nil then
+            return false, "invalid_context"
+        end
+        for state, id in pairs(target.stateSnapshot) do
+            if target.stateIds[state] ~= id then return false, "invalid_context" end
+        end
+        for state, id in pairs(target.stateIds or {}) do
+            if target.stateSnapshot[state] ~= id then return false, "invalid_context" end
+        end
+        -- E2 already resolved the entity. Final commit guard only inspects raw
+        -- User storage; Built-in records are immutable private catalog snapshots.
+        local entity = target.checkedEntity
+        if entity and entity.kind == "user" then
+            local templates = rawget(global, "TextTemplates")
+            local record = type(templates) == "table" and rawget(templates, entity.templateId)
+            if type(record) ~= "table" or record.name ~= entity.name or record.content ~= entity.content then
+                return false, "invalid_context"
+            end
+        end
     end
     return true
 end
 
 -- Read the bound main expression only: no state resolution, rendering or tag fallback.
-function Mutations.GetMainTemplateExpression(context, unitKey, textKey)
-    local target, reason = ResolveMainContentTarget(context, unitKey, textKey)
+local function GetMainTemplateExpression(contract, context, unitKey, textKey)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey, contract)
     if not target then return Result(false, { errorCode = reason }) end
     local expression
     expression, reason = ReadMainTemplate(target, target.templateName)
@@ -465,20 +524,20 @@ function Mutations.GetMainTemplateExpression(context, unitKey, textKey)
     current, reason = ConfirmMainContentTarget(target, target.templateName, expression)
     if not current then return Result(false, { errorCode = reason }) end
     return Result(true, { layoutId = target.layoutId, unitKey = unitKey, textKey = textKey,
-        templateName = target.templateName, expression = expression })
+        [contract.field] = target.templateName, expression = expression })
 end
 
 local function CommitMainContent(target, checkedTemplate, checkedExpression, templateName, expression)
     local current, reason = ConfirmMainContentTarget(target, checkedTemplate, checkedExpression)
     if not current then return Result(false, { errorCode = reason }) end
     local textConfig = target.textConfig
-    local changed = textConfig.templateName ~= templateName or textConfig.tag ~= expression
+    local changed = textConfig[target.contract.field] ~= templateName or textConfig.tag ~= expression
     if changed then
-        textConfig.templateName = templateName
+        textConfig[target.contract.field] = templateName
         textConfig.tag = expression
     end
     local result = Result(true, { layoutId = target.layoutId, unitKey = target.unitKey,
-        textKey = target.textKey, templateName = templateName, changed = changed })
+        textKey = target.textKey, [target.contract.field] = templateName, changed = changed })
     if changed then
         -- Data is committed. A later refresh failure must not report a failed mutation.
         local ok, err = pcall(target.resolver.Invalidate, textConfig)
@@ -489,29 +548,136 @@ local function CommitMainContent(target, checkedTemplate, checkedExpression, tem
     return result
 end
 
-function Mutations.SetLocalMainContent(context, unitKey, textKey, expression)
-    local target, reason = ResolveMainContentTarget(context, unitKey, textKey)
+local function SetLocalMainContent(contract, context, unitKey, textKey, expression)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey, contract)
     if not target then return Result(false, { errorCode = reason }) end
     if type(expression) ~= "string" or not expression:find("%S") then
         return Result(false, { errorCode = "invalid_local_content" })
     end
-    if target.templateName == nil or target.templateName == "" then
+    if target.templateName == nil or (contract == LegacyMain and target.templateName == "") then
         -- Local content has no main template to validate; keep all target checks.
-        return CommitMainContent(target, nil, nil, "", expression)
+        return CommitMainContent(target, nil, nil, contract.empty, expression)
     end
     local sourceExpression
     sourceExpression, reason = ReadMainTemplate(target, target.templateName)
     if not sourceExpression then return Result(false, { errorCode = reason }) end
-    return CommitMainContent(target, target.templateName, sourceExpression, "", expression)
+    return CommitMainContent(target, target.templateName, sourceExpression, contract.empty, expression)
 end
 
-function Mutations.AssignMainTemplate(context, unitKey, textKey, templateName)
-    local target, reason = ResolveMainContentTarget(context, unitKey, textKey)
+local function AssignMainTemplate(contract, context, unitKey, textKey, templateName)
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey, contract)
     if not target then return Result(false, { errorCode = reason }) end
     local expression
     expression, reason = ReadMainTemplate(target, templateName)
     if not expression then return Result(false, { errorCode = reason }) end
     return CommitMainContent(target, templateName, expression, templateName, "")
+end
+
+-- Temporary explicit E4 boundary. E6 retains Entity and removes LegacyMain
+-- and these legacy wrappers once the active callers and persisted graph cut over.
+Mutations.Entity = {}
+local Entity = Mutations.Entity
+local function BindMain(contract, target)
+    target.GetMainTemplateExpression = function(context, unit, key)
+        return GetMainTemplateExpression(contract, context, unit, key)
+    end
+    target.SetLocalMainContent = function(context, unit, key, expression)
+        return SetLocalMainContent(contract, context, unit, key, expression)
+    end
+    target.AssignMainTemplate = function(context, unit, key, id)
+        return AssignMainTemplate(contract, context, unit, key, id)
+    end
+end
+BindMain(LegacyMain, Mutations)
+BindMain(EntityMain, Entity)
+
+local function ChangeEntityState(context, unitKey, textKey, stateKey, id, remove)
+    if not IsNonEmptyString(stateKey) then return Result(false, {errorCode = "state_key_invalid"}) end
+    local target, reason = ResolveMainContentTarget(context, unitKey, textKey, EntityMain, true)
+    if not target then return Result(false, {errorCode = reason}) end
+    if not remove then
+        local entity, err = ResolveLibrary().ResolveTemplateEntity(id, target.db)
+        if not entity then return Result(false, {errorCode = err.errorCode}) end
+        target.checkedEntity = entity
+    end
+    local valid
+    valid, reason = ConfirmMainContentTarget(target)
+    if not valid then return Result(false, {errorCode = reason}) end
+    local text = target.textConfig
+    local states = text.stateTemplateIds
+    local old = states and states[stateKey]
+    local changed = old ~= id
+    if changed then
+        if not states then states = {}; text.stateTemplateIds = states end
+        states[stateKey] = id
+        if next(states) == nil then text.stateTemplateIds = nil end
+    end
+    local result = Result(true, {changed = changed, layoutId = target.layoutId,
+        unitKey = unitKey, textKey = textKey, stateKey = stateKey, templateId = id})
+    if changed then
+        local ok, err = pcall(target.resolver.Invalidate, text)
+        result.cacheInvalidated = ok
+        if not ok then result.cacheInvalidationError = tostring(err) end
+    end
+    return result
+end
+function Entity.AssignStateTemplate(context, unit, key, state, id)
+    return ChangeEntityState(context, unit, key, state, id, false)
+end
+function Entity.UnassignStateTemplate(context, unit, key, state)
+    return ChangeEntityState(context, unit, key, state, nil, true)
+end
+
+-- Entity record operations reuse E1 validation, optimistic snapshots and ID
+-- generation. Only Delete adds the required whole-graph usage check.
+function Entity.CreateTemplate(db, name, content, generator)
+    local library = ResolveLibrary()
+    local record = {name = name, content = content}
+    local valid, reason = library.ValidateTemplateRecord(record)
+    if not valid or type(db) ~= "table" then return Result(false, {errorCode = reason or "invalid_context"}) end
+    local id
+    if generator then id, reason = generator:Reserve(db, {})
+    else id, reason = library.ReserveUserTemplateId(db, {}) end
+    if not id then return Result(false, {errorCode = reason}) end
+    valid, reason = library.CreateUserTemplateRecord(id, record, db)
+    return Result(valid, {errorCode = reason, templateId = id, changed = valid})
+end
+local function ChangeEntityRecord(db, id, expected, changes)
+    if type(db) ~= "table" then return Result(false, {errorCode = "invalid_context"}) end
+    local ok, reason = ResolveLibrary().UpdateUserTemplateRecord(id, expected, changes, db)
+    return Result(ok, {errorCode = reason, templateId = id, changed = ok})
+end
+function Entity.UpdateTemplate(db, id, expected, content)
+    if type(content) ~= "string" then return Result(false, {errorCode = "invalid-template-content"}) end
+    return ChangeEntityRecord(db, id, expected, {content = content})
+end
+function Entity.RenameTemplate(db, id, expected, name)
+    if type(name) ~= "string" then return Result(false, {errorCode = "invalid-template-name"}) end
+    return ChangeEntityRecord(db, id, expected, {name = name})
+end
+function Entity.CopyTemplate(db, id, generator)
+    if type(db) ~= "table" then return Result(false, {errorCode = "invalid_context"}) end
+    local entity, reason = ResolveLibrary().ResolveTemplateEntity(id, db)
+    if not entity then return Result(false, {errorCode = reason.errorCode}) end
+    return Entity.CreateTemplate(db, entity.name, entity.content, generator)
+end
+function Entity.DeleteTemplate(db, id, expected)
+    local library = ResolveLibrary()
+    if type(db) ~= "table" then return Result(false, {errorCode = "invalid_context"}) end
+    local record, reason = library.GetUserTemplateRecord(id, db)
+    if not record then return Result(false, {errorCode = reason}) end
+    if not library.TemplateRecordsEqual(record, expected) then return Result(false, {errorCode = "template-conflict"}) end
+    local global = rawget(db, "global")
+    local layouts = type(global) == "table" and rawget(global, "UserLayouts")
+    -- Missing/malformed/legacy graphs are not evidence of zero usage.
+    if not FocalPoint.TextTemplateValidation.ValidateEntityLayouts(layouts, db).valid then
+        return Result(false, {errorCode = "invalid_context"})
+    end
+    local count = #FocalPoint.TextTemplateUsage.ScanEntities(layouts, id)
+    if count > 0 then return Result(false, {errorCode = "template_in_use", affectedReferences = count}) end
+    local ok
+    ok, reason = library.DeleteUserTemplateRecord(id, expected, db)
+    return Result(ok, {errorCode = reason, templateId = id, changed = ok})
 end
 
 local function ForEachTemplateReference(context, templateName, callback)

@@ -318,4 +318,48 @@ function Validation.ValidateProfile(context)
     }
 end
 
+-- E4 opt-in target validation. Absence is complete; never repair or project.
+function Validation.ValidateEntityLayouts(layouts, db)
+    local issues = {}
+    local library = FocalPoint.TextTemplateLibrary
+    local function Issue(code, layoutId, unitKey, textKey, kind, stateKey, id)
+        issues[#issues + 1] = {severity = "error", code = code, layoutId = layoutId,
+            unitKey = unitKey, textKey = textKey, referenceKind = kind, stateKey = stateKey, templateId = id}
+    end
+    if type(db) ~= "table" then Issue("invalid_context") end
+    if type(layouts) == "table" then
+        for _, layoutId in ipairs(SortedKeys(layouts)) do
+            local record = layouts[layoutId]
+            local payload = type(record) == "table" and record.payload
+            if type(payload) == "table" and payload.TextTemplates ~= nil then
+                Issue("legacy_template_store", layoutId)
+            end
+        end
+    end
+    FocalPoint.TextTemplateUsage.VisitEntityTexts(layouts, function(layoutId, unitKey, textKey, text)
+        local function Check(id, kind, stateKey)
+            if not library.GetTemplateIdKind(id) then
+                Issue("invalid_template_id", layoutId, unitKey, textKey, kind, stateKey, id)
+            elseif type(db) == "table" and not library.ResolveTemplateEntity(id, db) then
+                Issue("missing_template_entity", layoutId, unitKey, textKey, kind, stateKey, id)
+            end
+        end
+        if text.templateName ~= nil or text.stateTemplates ~= nil then
+            Issue("legacy_template_fields", layoutId, unitKey, textKey)
+        end
+        if text.tag ~= nil and type(text.tag) ~= "string" then Issue("invalid_tag", layoutId, unitKey, textKey) end
+        if text.templateId ~= nil then Check(text.templateId, "main") end
+        if text.stateTemplateIds ~= nil then
+            if type(text.stateTemplateIds) ~= "table" then Issue("invalid_state_template_ids", layoutId, unitKey, textKey)
+            else
+                for _, stateKey in ipairs(SortedKeys(text.stateTemplateIds)) do
+                    if not IsNonEmptyString(stateKey) then Issue("invalid_state_key", layoutId, unitKey, textKey, "state", stateKey) end
+                    Check(text.stateTemplateIds[stateKey], "state", stateKey)
+                end
+            end
+        end
+    end, function(layoutId, unitKey, textKey) Issue("invalid_layout_structure", layoutId, unitKey, textKey) end)
+    return {valid = #issues == 0, errorCount = #issues, warningCount = 0, issues = issues}
+end
+
 return Validation

@@ -203,6 +203,16 @@ function Library.UpdateUserTemplateRecord(id, expectedRecord, changes, db)
     return true
 end
 
+-- Low-level E1 store primitive; the mutation layer must check whole-graph usage.
+function Library.DeleteUserTemplateRecord(id, expectedRecord, db)
+    local current, reason = Library.GetUserTemplateRecord(id, db)
+    if not current then return false, reason end
+    if not Library.TemplateRecordsEqual(current, expectedRecord) then return false, "template-conflict" end
+    local records = ReadEntityStore(db or FocalPoint.db)
+    records[id] = nil
+    return true
+end
+
 function Library.CopyUserTemplateRecord(sourceId, newId, db)
     local record, reason = Library.GetUserTemplateRecord(sourceId, db)
     if not record then return false, reason end
