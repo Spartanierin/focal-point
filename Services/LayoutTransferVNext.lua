@@ -1,7 +1,7 @@
 local addonName, ns = ...
 
 -- E5 preparation only. Intentionally absent from Init.xml; no active buttons,
--- store writes, activation, format detection or legacy conversion live here.
+-- store writes, activation or automatic format detection live here.
 local Next = {SchemaVersion = 2, FormatVersion = 2}
 ns.LayoutTransferVNext = Next
 local Codec, Library = ns.LayoutTransferCodec, ns.TextTemplateLibrary
@@ -194,5 +194,97 @@ function Next.PrepareImport(text, db, options)
     result.idState = private.global.TextTemplateIdState
     -- E6 must reprepare/revalidate against current storage before an atomic commit.
     -- No commit function exists in E5; returned snapshots are not a second library.
+    return result
+end
+
+-- E5b accepts only the explicit legacy layout document contract. Profile/preset
+-- transfers are unrelated formats. Codec envelope 1 can carry either document
+-- schema; this API never guesses from template fields or changes active routing.
+function Next.ConvertLegacyDocument(decoded, db, generator)
+    local result = {ready = false, diagnostics = {}}
+    if type(decoded) ~= "table" then Diagnose(result, "document-invalid"); return result end
+    local legacy, reason = Snapshot(decoded)
+    if not legacy then Diagnose(result, reason); return result end
+    if not OnlyKeys(legacy, {transferSchema=true, formatVersion=true, addonVersion=true,
+        name=true, payload=true}) then Diagnose(result, "document-invalid"); return result end
+    if legacy.transferSchema ~= 1 then Diagnose(result, "transfer-version"); return result end
+    if legacy.formatVersion ~= 1 then Diagnose(result, "layout-version"); return result end
+    if not OnlyKeys(legacy.payload, {Units=true, TextTemplates=true}) then
+        Diagnose(result, "payload-invalid"); return result
+    end
+    -- E5b imports a layout's reachable resources, not every record in its old
+    -- container. Filter this codec-owned copy BEFORE E3 reserves any IDs. E3's
+    -- separate whole-stock migration contract remains unchanged.
+    local referenced = {}
+    Usage.VisitEntityTexts(Layouts(legacy.payload), function(_, _, _, text)
+        local function Add(name)
+            if type(name) == "string" and name ~= "" then referenced[name] = true end
+        end
+        Add(text.templateName)
+        if type(text.stateTemplates) == "table" then
+            for _, name in pairs(text.stateTemplates) do Add(name) end
+        end
+    end)
+    if type(legacy.payload.TextTemplates) == "table" then
+        local dependencies = {}
+        for name in pairs(referenced) do dependencies[name] = legacy.payload.TextTemplates[name] end
+        legacy.payload.TextTemplates = dependencies
+    end
+    -- Missing records remain missing: E3 diagnoses the untouched concrete
+    -- references, and still rejects malformed Main/State fields and structures.
+    -- No legacy ValidatePayload/CopyPayload: the old validator rejects whole-map
+    -- false and normalization is not the source contract. E3 already implements
+    -- the proven raw name/string/false interpretation and lossless inverse check.
+    local private
+    private, reason = PrivateStore(db)
+    if not private then Diagnose(result, reason); return result end
+    local migration = ns.TextTemplateEntityMigration
+    if not (migration and migration.Prepare) then Diagnose(result, "service-unavailable"); return result end
+    local layoutId = "layout:legacy-transfer"
+    private.global.UserLayouts = {[layoutId] = {name = legacy.name, formatVersion = 1, payload = legacy.payload}}
+    local prepared = migration.Prepare(private, generator)
+    if not prepared.ready then result.diagnostics = prepared.diagnostics; return result end
+    local payload, mapping = prepared.layouts[layoutId].payload, prepared.mappings[layoutId]
+    local dependencies = {}
+    -- Mapping contains only referenced local names. No target-library records
+    -- or unreferenced legacy records become resources in the converted graph.
+    for _, id in pairs(mapping) do
+        dependencies[id] = Library.CopyTemplateRecord(prepared.templates[id])
+    end
+    local document = {transferSchema = Next.SchemaVersion, formatVersion = Next.FormatVersion,
+        addonVersion = legacy.addonVersion, name = legacy.name, payload = payload, templates = dependencies}
+    if not ValidateGraph(document, result) then return result end
+    -- Bound the exact converted resource graph through the unchanged codec.
+    local snapshot
+    snapshot, reason = Snapshot(document)
+    if not snapshot then Diagnose(result, reason); return result end
+    result.ready, result.document = true, snapshot
+    result.mappings, result.idState = mapping, prepared.idState
+    return result
+end
+
+function Next.PrepareLegacyImport(text, db, generator)
+    local decoded, reason = Codec.Decode(text)
+    if decoded == nil then
+        local result = {ready = false, conflicts = {}, diagnostics = {}}
+        Diagnose(result, reason); return result
+    end
+    local converted = Next.ConvertLegacyDocument(decoded, db, generator)
+    if not converted.ready then
+        return {ready = false, conflicts = {}, diagnostics = converted.diagnostics}
+    end
+    local encoded
+    encoded, reason = Codec.Encode(converted.document)
+    if not encoded then
+        local result = {ready = false, conflicts = {}, diagnostics = {}}
+        Diagnose(result, reason); return result
+    end
+    local result = Next.PrepareImport(encoded, db)
+    if result.ready then
+        -- Metadata for E6; recordsToCreate comes solely from ordinary vNext
+        -- dependency preparation. No separate legacy library-import channel.
+        result.mappings = converted.mappings
+        result.idState = converted.idState
+    end
     return result
 end
