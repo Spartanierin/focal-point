@@ -412,7 +412,7 @@ local function ResolvePreconditions(db)
         return nil, nil, nil, "user-layout-store-unavailable"
     end
 
-    local layouts = UserLayoutStore.EnsureStore()
+    local layouts = UserLayoutStore.EnsureStore(db)
     if type(layouts) ~= "table" then
         return nil, nil, nil, "user-layout-store-unavailable"
     end
@@ -472,13 +472,13 @@ local function EnsureMappedSource(map, deletedMap, layouts, source, sourceId, re
     return true, "new"
 end
 
-local function StoreMigratedLayout(layouts, record)
-    local layoutId = UserLayoutStore.GenerateId()
+local function StoreMigratedLayout(layouts, record, db)
+    local layoutId = UserLayoutStore.GenerateId(db)
     if type(layoutId) ~= "string" or layoutId == "" then
         return nil, "id-failed"
     end
 
-    local storedId = UserLayoutStore.PutRaw(layoutId, record)
+    local storedId = UserLayoutStore.PutRaw(layoutId, record, db)
     if storedId ~= layoutId or type(layouts[layoutId]) ~= "table" then
         return nil, "store-write-failed"
     end
@@ -660,7 +660,7 @@ function LayoutMigration.MigrateProfiles(db, context)
                         id = profileName,
                     },
                 }
-                local layoutId, reason = StoreMigratedLayout(layouts, record)
+                local layoutId, reason = StoreMigratedLayout(layouts, record, resolvedDB)
                 if layoutId then
                     state.profileMap[profileName] = layoutId
                     result.migratedProfiles = result.migratedProfiles + 1
@@ -723,7 +723,7 @@ function LayoutMigration.MigrateUserPresets(db, context)
                         id = presetId,
                     },
                 }
-                local layoutId, reason = StoreMigratedLayout(layouts, record)
+                local layoutId, reason = StoreMigratedLayout(layouts, record, resolvedDB)
                 if layoutId then
                     state.userPresetMap[presetId] = layoutId
                     result.migratedUserPresets = result.migratedUserPresets + 1

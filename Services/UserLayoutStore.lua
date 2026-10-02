@@ -37,8 +37,8 @@ function Store.GetRawReadOnly(id, db)
     return layouts[id]
 end
 
-function Store.EnsureStore()
-    local db = FocalPoint.db
+function Store.EnsureStore(db)
+    db = ResolveDB(db)
     if type(db) ~= "table" then
         return nil
     end
@@ -83,8 +83,8 @@ function Store.ListRaw()
     return layouts
 end
 
-function Store.GenerateId()
-    local layouts = Store.EnsureStore() or {}
+function Store.GenerateId(db)
+    local layouts = Store.EnsureStore(db) or {}
     local timestamp = date and date("!%Y%m%d%H%M%S") or tostring(time and time() or 0)
     local counter = 1
     local id
@@ -97,12 +97,12 @@ function Store.GenerateId()
     return id
 end
 
-function Store.PutRaw(id, record)
+function Store.PutRaw(id, record, db)
     if type(id) ~= "string" or id == "" or type(record) ~= "table" then
         return nil
     end
 
-    local layouts = Store.EnsureStore()
+    local layouts = Store.EnsureStore(db)
     if type(layouts) ~= "table" then
         return nil
     end
