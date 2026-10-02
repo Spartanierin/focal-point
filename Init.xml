@@ -3,6 +3,7 @@
     xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
 
     <Script file="FocalPoint.lua"/>
+    <Script file="Data/LegacyCustomTextSlots.lua"/>
     <Script file="Data/Defaults.lua"/>
 
     <Script file="Services/Integrations/SlashCommands.lua"/>

@@ -1459,9 +1459,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -1573,9 +1570,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -1687,9 +1681,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -1801,9 +1792,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -1893,9 +1881,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
             },
             boss = {
@@ -1984,9 +1969,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -2232,9 +2214,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -2368,9 +2347,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -2504,9 +2480,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -2640,9 +2613,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {
@@ -2744,9 +2714,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
             },
             boss = {
@@ -2857,9 +2824,6 @@ FocalPoint.Themes = {
                     AltPower = { enabled = false },
                     Level = { enabled = false },
                     Race = { enabled = false },
-                    Custom1 = { enabled = false },
-                    Custom2 = { enabled = false },
-                    Custom3 = { enabled = false },
                 },
                 auras = {
                     Buffs = {

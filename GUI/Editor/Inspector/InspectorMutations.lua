@@ -250,6 +250,7 @@ local function GetDefaultTextConfig(context, textKey)
         and defaults.profile.Units[unitKey]
         and defaults.profile.Units[unitKey].Texts
         and defaults.profile.Units[unitKey].Texts[textKey]
+        or (FocalPoint.LegacyCustomTextSlots and FocalPoint.LegacyCustomTextSlots.Get(unitKey, textKey))
 end
 
 local function GetDefaultTextPosition(context, textKey)
