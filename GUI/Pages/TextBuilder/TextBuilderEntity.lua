@@ -6,8 +6,33 @@ local Builder = ns.GUI.Pages.TextBuilder
 local Context = Builder.EntityContext
 local Library = ns.TextTemplateLibrary
 local Entity = ns.TextTemplateMutations and ns.TextTemplateMutations.Entity
+local AceGUI = LibStub("AceGUI-3.0")
+local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
+local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer or {}
 local R2 = {}
 Builder.EntityBuilder = R2
+
+local function T(key, fallback)
+    local value = ns.L and ns.L[key]
+    return type(value) == "string" and value ~= "" and value or fallback or key
+end
+
+local function GetResultPanelDefinition()
+    local layouts = ns.GUI and ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder
+    for _, definition in ipairs(layouts and layouts.Form or {}) do
+        if definition.section == "Preview" then
+            return definition
+        end
+    end
+end
+
+local function CreateResultPanel(host)
+    local definition = GetResultPanelDefinition()
+    if not definition or type(FormRenderer.CreateLayoutGroup) ~= "function" then
+        return nil
+    end
+    return FormRenderer.CreateLayoutGroup(host, definition)
+end
 
 local function Copy(record)
     return type(record) == "table" and {name=record.name, content=record.content} or nil
@@ -70,8 +95,10 @@ local function PublishReturn(session, result)
     local returnContext = session and session.returnContext
     local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
     if libraryWindow and type(libraryWindow.NotifyEntityReturn) == "function" then
-        libraryWindow.NotifyEntityReturn(returnContext, result)
+        local accepted, reopened = libraryWindow.NotifyEntityReturn(returnContext, result)
+        return accepted == true and reopened == true
     end
+    return false
 end
 
 function R2.SetIdGenerator(generator) R2.idGenerator=generator end
@@ -135,7 +162,8 @@ function R2.Save(s)
     if not c then return {ok=false,errorCode=e} end
     s.context=c;s.kind=c.kind;s.templateId=result.templateId;s.expected=Copy({name=s.name,content=s.content})
     s.baseline={name=s.name,content=s.content};s.nameDirty=false;s.contentDirty=false;Renew(s)
-    PublishReturn(s,result)
+    local returnedToPicker = PublishReturn(s,result)
+    if returnedToPicker and Builder.HideWindow then Builder.HideWindow() end
     return {ok=true,changed=true,created=true,templateId=result.templateId,refresh=true}
 end
 function R2.Decide(s,decision,capture)
@@ -146,12 +174,12 @@ function R2.Decide(s,decision,capture)
         s.expected.content=s.content;s.baseline.content=s.content;s.contentDirty=false;Renew(s);return {ok=true,changed=r.changed,refresh=true}
     elseif decision=="copy" then
         local target={db=s.db,expectedLayoutId=s.activeLayoutId,expectedTextConfig=s.text}
-        local r=Entity.ForkMainTemplate(target,s.context.unitKey,s.context.textKey,s.templateId,s.expected,s.content,R2.idGenerator)
+        local r=Entity.ForkMainTemplate(target,s.context.unitKey,s.context.textKey,s.templateId,s.expected,s.content,R2.idGenerator,s.readOnly==true)
         if not r or not r.ok then return r end
         local nc,ne=Snap(s,{entity=true,kind="object",layoutId=s.activeLayoutId,unitKey=s.context.unitKey,textKey=s.context.textKey,returnContext=s.returnContext})
         if not nc then return {ok=false,errorCode=ne} end
         s.context=nc;s.templateId=r.templateId;s.text=Text(s.db,s.context);local rec=Record(s.db,s.templateId)
-        s.name,s.content,s.expected=rec.name,rec.content,Copy(rec);s.baseline={name=s.name,content=s.content};s.contentDirty=false;Renew(s)
+        s.name,s.content,s.readOnly,s.expected=rec.name,rec.content,rec.readOnly,Copy(rec);s.baseline={name=s.name,content=s.content};s.contentDirty=false;Renew(s)
         return {ok=true,changed=r.changed,forked=true,templateId=r.templateId,refresh=true}
     end
     return {ok=false,errorCode="invalid_decision"}
@@ -180,7 +208,8 @@ function R2.Copy(s)
     local r=Entity.CopyTemplate(s.db,s.templateId,R2.idGenerator);if not r or not r.ok then return r end
     local n,e=Open({entity=true,kind="shared-template",layoutId=s.activeLayoutId,templateId=r.templateId,returnContext=s.returnContext},s.db,s.activeLayoutId)
     if not n then return {ok=false,errorCode=e} end
-    PublishReturn(s,{templateId=r.templateId,changed=true})
+    local returnedToPicker = PublishReturn(s,{templateId=r.templateId,changed=true})
+    if returnedToPicker and Builder.HideWindow then Builder.HideWindow() end
     return {ok=true,changed=true,copied=true,templateId=r.templateId,session=n,refresh=true}
 end
 
@@ -191,6 +220,9 @@ local r2Decision
 local r2CloseDialog
 local r2DeleteDialog
 local r2Closing = false
+local consumerContext
+local consumerClosing = false
+local CloseConsumer
 local function InvalidateSession(context)
     if context and context.r2Session then
         context.r2Session.invalidated = true
@@ -227,6 +259,8 @@ end
 local function R2Refresh(context)
     local s=context and context.r2Session
     if not s then return end
+    local isObject = s.kind == "object"
+    local hasEntity = s.templateId ~= nil
     local rows=R2.List(s.db) or {};local list={}
     for _,row in ipairs(rows) do list[row.value]=row.label end
     context.r2ListSync=true
@@ -235,13 +269,23 @@ local function R2Refresh(context)
     context.r2ListSync=false
     R2Text(context,s.content);R2Name(context,s.name)
     context.templateEdit:SetDisabled(s.readOnly)
-    context.templateNameEdit:SetDisabled(s.readOnly or s.kind=="object" or s.kind=="new-template" and false)
+    if context.templatesTitle then
+        context.templatesTitle:SetText(T("INFO_TEXT_BUILDER_TEMPLATES", "Text Templates"))
+    end
+    if context.templateSelect.SetLabel then
+        context.templateSelect:SetLabel(T("INFO_TEXT_BUILDER_SAVED_TEMPLATES", "Text Template"))
+    end
+    if context.templateNameEdit.SetLabel then
+        context.templateNameEdit:SetLabel(T("INFO_TEXT_BUILDER_TEMPLATE_NAME", "Template Name"))
+    end
     context.newTemplateButton:SetDisabled(false)
     context.saveButton:SetDisabled(s.readOnly and s.kind~="new-template" or not R2.IsDirty(s))
     context.updateTemplateButton:SetDisabled(s.kind~="shared-template" or s.readOnly or not s.nameDirty)
     context.deleteTemplateButton:SetDisabled(s.kind~="shared-template" or s.readOnly or R2.IsDirty(s))
     context.applyTemplateButton:SetDisabled(s.kind~="shared-template" or R2.IsDirty(s))
-    if context.applyTemplateButton.SetText then context.applyTemplateButton:SetText("Kopie erstellen") end
+    if context.applyTemplateButton.SetText then
+        context.applyTemplateButton:SetText(T("INFO_TEXT_BUILDER_APPLY_TEMPLATE", "Make a Copy"))
+    end
     if context.templateOwnerLabel then
         local label=s.kind=="object" and (s.templateId and "Wiederverwendete Vorlage" or "Eigener lokaler Text")
             or s.kind=="new-template" and "Neue Entity" or (s.readOnly and "Built-in / schreibgeschützt" or "Eigene Entity")
@@ -251,9 +295,18 @@ local function R2Refresh(context)
     for unit,checkbox in pairs(context.usageCheckboxes or {}) do
         checkbox:SetDisabled(true);checkbox:SetValue(false)
     end
+    if context.usageTitle then
+        context.usageTitle:SetText(T("INFO_TEXT_BUILDER_TEMPLATE_USAGE", "Usage"))
+    end
+    if context.usageLead then
+        context.usageLead:SetText(T("INFO_TEXT_BUILDER_USAGE_LEAD", "Used by"))
+    end
     if context.usageHint then
-        context.usageHint:SetText(string.format("Main: %d | State: %d | Deaktiviert: %d",
-            usage.main,usage.state,usage.disabled))
+        context.usageHint:SetText(string.format(
+            T("INFO_TEXT_BUILDER_USAGE_SUMMARY", "Used by %d references across your layouts"),
+            usage.main + usage.state) .. "\n" .. string.format(
+            T("INFO_TEXT_BUILDER_USAGE_DETAIL", "Main: %d | State: %d | Disabled: %d"),
+            usage.main, usage.state, usage.disabled))
     end
     if context.previewValue and ns.TextElementPreview then
         context.previewValue:SetText(ns.TextElementPreview.BuildTemplatePreview(s.content))
@@ -267,11 +320,11 @@ local function R2InstallDecisionLayout()
     ns.GUI.Layouts.TextBuilder.SharedDecision = {
         {section="Root",properties={sectionKind="root",type="stack_block",variant="window_content"},items={}},
         {section="Message",properties={parentSection="Root",sectionKind="section",type="stack_block",variant="section_stack"},items={
-            {id="message",widget="label",text="Die Vorlage wird von diesem Layout wiederverwendet. Was soll gespeichert werden?"}}},
+            {id="message",widget="label",text=T("INFO_TEXT_BUILDER_SHARED_DECISION_MESSAGE", "This template is used by other texts. What should be saved?")}}},
         {section="Actions",properties={parentSection="Root",sectionKind="widget_group",type="action_row",variant="triple_button"},items={
-            {id="all",widget="button",text="Vorlage überall ändern"},
-            {id="copy",widget="button",text="Für dieses Layout eigene Kopie"},
-            {id="cancel",widget="button",text="Abbrechen"}}},
+            {id="all",widget="button",text=T("INFO_TEXT_BUILDER_SHARED_UPDATE_ALL", "Change Template Everywhere")},
+            {id="copy",widget="button",text=T("INFO_TEXT_BUILDER_SHARED_FORK", "Change Only This Text")},
+            {id="cancel",widget="button",text=T("INFO_COMMON_CANCEL", "Cancel")}}},
     }
 end
 
@@ -311,6 +364,7 @@ local function BindR2Window(context, session)
         R2Refresh(context)
     end)
     context.templateSelect:SetCallback("OnValueChanged",function(_,_,id)
+        if session.kind == "object" then return end
         if context.r2ListSync or id==session.templateId then return end
         if R2.IsDirty(session) then R2Status("Ungespeicherte Entity-Änderungen");R2Refresh(context);return end
         local next,reason=R2.Open({entity=true,kind="shared-template",layoutId=session.activeLayoutId,templateId=id},session.db,session.activeLayoutId)
@@ -337,7 +391,11 @@ local function BindR2Window(context, session)
     context.applyTemplateButton:SetCallback("OnClick",function()
         local result=RefreshResult(R2.Copy(session))
         if context.r2Session ~= session or not Current(session) then return end
-        if result and result.ok then InvalidateSession(context);session=result.session;context.r2Session=session;R2Refresh(context);R2Status("Kopie erstellt")
+        if result and result.ok then
+            if result.session then
+                InvalidateSession(context);session=result.session;context.r2Session=session
+            end
+            R2Refresh(context);R2Status("Kopie erstellt")
         else R2Status("Kopie fehlgeschlagen") end
     end)
     R2Refresh(context)
@@ -348,7 +406,8 @@ local function OpenR2CloseConfirm(context)
     local layout=ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.UnsavedCloseConfirm
     if not openDialog or not layout then return end
     local s=context.r2Session;local capture=R2.Capture(s)
-    r2CloseDialog=openDialog(r2CloseDialog,layout,{title="Ungespeicherte Entity-Änderungen",windowWidth=560,windowHeight=230})
+    r2CloseDialog=openDialog(r2CloseDialog,layout,{title=context.consumer and T("INFO_TEXT_UNSAVED_TITLE", "Unsaved Changes") or "Ungespeicherte Entity-Änderungen",
+        windowWidth=560,windowHeight=230,state={message=context.consumer and T("INFO_TEXT_UNSAVED_CLOSE_PROMPT", "This text has unsaved changes. Do you want to save them before closing?") or nil}})
     if not r2CloseDialog then return end
     r2CloseDialog.saveCloseButton:SetCallback("OnClick",function()
         if not R2.Valid(s,capture) then return end
@@ -357,22 +416,245 @@ local function OpenR2CloseConfirm(context)
         if result and result.decisionRequired then
             r2CloseDialog.window:Hide();OpenR2Decision(context,true)
         elseif result and result.ok then
-            r2CloseDialog.window:Hide();InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false
+            r2CloseDialog.window:Hide()
+            if context.consumer then
+                CloseConsumer(context)
+            else
+                InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false
+            end
         end
     end)
     r2CloseDialog.discardCloseButton:SetCallback("OnClick",function()
         if not R2.Valid(s,capture) then return end
-        r2CloseDialog.window:Hide();InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false;r2Window=nil
+        r2CloseDialog.window:Hide()
+        if context.consumer then
+            CloseConsumer(context)
+        else
+            InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false;r2Window=nil
+        end
     end)
     r2CloseDialog.cancelButton:SetCallback("OnClick",function() r2CloseDialog.window:Hide();context.window:Show() end)
+end
+
+local function ConsumerText(text, role, size, height)
+    local label = FormWidgets.CreateBodyText
+        and FormWidgets.CreateBodyText(text or "", role or "label", size or 11, nil, nil, true)
+        or AceGUI:Create("Label")
+    label:SetText(text or "")
+    label:SetFullWidth(true)
+    if height then label:SetHeight(height) end
+    return label
+end
+
+local function ConsumerStatus(context, message, role)
+    if context and context.status then
+        context.status:SetText(message or " ")
+        if FormWidgets.ApplyTextStyle and context.status.label then
+            FormWidgets.ApplyTextStyle(context.status.label, role == "error" and "statusError" or "help", 10, 1)
+        end
+    end
+end
+
+local function ConsumerRefresh(context)
+    local session = context and context.r2Session
+    if not session then return end
+    if context.nameEdit then
+        context.nameSync = true
+        context.nameEdit:SetText(session.name or "")
+        context.nameSync = false
+    end
+    context.contentSync = true
+    context.contentEdit:SetText(session.content or "")
+    context.contentSync = false
+    context.preview:SetText(ns.TextElementPreview and ns.TextElementPreview.BuildTemplatePreview(session.content or "") or session.content or "")
+    local valid = session.kind == "new-template"
+        and type(session.name) == "string" and session.name:find("%S")
+        and type(session.content) == "string" and session.content ~= ""
+        or session.kind == "object" and session.templateId == nil
+    context.dialog.primaryButton:SetDisabled(not valid)
+end
+
+local function ConsumerInsert(context, token)
+    local session = context and context.r2Session
+    if type(token) ~= "string" or not session or not R2.Valid(session, context.tagCapture) then
+        return false
+    end
+    local edit = context.contentEdit.editbox
+    local cursor = edit and edit.GetCursorPosition and edit:GetCursorPosition() or #(session.content or "")
+    cursor = math.max(0, math.min(cursor, #(session.content or "")))
+    local value = (session.content or ""):sub(1, cursor) .. token .. (session.content or ""):sub(cursor + 1)
+    local ok = R2.SetContent(session, value)
+    if not ok then return false end
+    ConsumerRefresh(context)
+    if edit and edit.SetCursorPosition then edit:SetCursorPosition(cursor + #token) end
+    return true
+end
+
+CloseConsumer = function(context)
+    if not context or consumerContext ~= context or context.released then return end
+    context.released = true
+    consumerClosing = true
+    InvalidateSession(context)
+    context.r2Session = nil
+    consumerContext = nil
+    if context.window and not context.window.isQueuedForRelease then
+        AceGUI:Release(context.window)
+    end
+    consumerClosing = false
+end
+
+local function CancelConsumer(context)
+    if not context or context.released or not context.r2Session then return end
+    if R2.IsDirty(context.r2Session) then
+        OpenR2CloseConfirm(context)
+    else
+        CloseConsumer(context)
+    end
+end
+
+local function OpenConsumerDialog(session, mode)
+    if consumerContext and consumerContext.dialog and consumerContext.dialog.window.frame:IsShown() then
+        return false, "unsaved-changes"
+    end
+    local isNew = mode == "new-template"
+    local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
+        title = isNew and T("INFO_TEXT_NEW_TEMPLATE_TITLE", "New Template") or T("INFO_TEXT_EDIT_TEXT_TITLE", "Edit Text"),
+        description = isNew and T("INFO_TEXT_NEW_TEMPLATE_DESCRIPTION", "Create a text template.") or T("INFO_TEXT_EDIT_TEXT_DESCRIPTION", "Edit this local text."),
+        width = 520,
+        height = isNew and 340 or 430,
+        formContentHeight = isNew and 276 or 366,
+        bodyLayout = "List",
+        contentRoot = true,
+    }) or nil
+    if not dialog then return false, "consumer_dialog_unavailable" end
+
+    local context = {dialog = dialog, window = dialog.window, r2Session = session, consumer = true}
+    local body = dialog.body
+    body:ReleaseChildren()
+    body:SetLayout("List")
+
+    if isNew then
+        local nameEdit = AceGUI:Create("EditBox")
+        nameEdit:SetLabel(T("INFO_TEXT_TEMPLATE_NAME", "Template Name"))
+        nameEdit:SetFullWidth(true)
+        context.nameEdit = nameEdit
+        body:AddChild(nameEdit)
+    end
+
+    local contentEdit = AceGUI:Create("EditBox")
+    contentEdit:SetLabel(T("INFO_TEXT_EXPRESSION", "Expression"))
+    contentEdit:SetFullWidth(true)
+    context.contentEdit = contentEdit
+    body:AddChild(contentEdit)
+
+    local tagButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(
+        T("INFO_TEXT_BUILDER_ADD_TAG", "+ Add Tag"), "secondary", 180, false) or AceGUI:Create("Button")
+    tagButton:SetText(T("INFO_TEXT_BUILDER_ADD_TAG", "+ Add Tag"))
+    tagButton:SetFullWidth(false)
+    tagButton:SetWidth(180)
+    context.tagButton = tagButton
+    body:AddChild(tagButton)
+
+    local previewSurface = CreateResultPanel(body)
+    if not previewSurface then
+        AceGUI:Release(dialog.window)
+        return false, "result_panel_unavailable"
+    end
+    previewSurface:SetFullWidth(true)
+    local preview = ConsumerText(" ", "highlight", 16, 94)
+    context.preview = preview
+    context.previewSurface = previewSurface
+    previewSurface:AddChild(ConsumerText(T("INFO_TEXT_BUILDER_PREVIEW", "Preview"), "sectionHeader", 11, 18))
+    previewSurface:AddChild(preview)
+    body:AddChild(previewSurface)
+
+    local status = ConsumerText(" ", "help", 10, 18)
+    context.status = status
+    body:AddChild(status)
+
+    local actions = AceGUI:Create("SimpleGroup")
+    actions:SetLayout("Flow")
+    actions:SetFullWidth(true)
+    actions:SetHeight(30)
+    context.actionContainer = actions
+    body:AddChild(actions)
+    dialog:SetActions({
+        primary = {text = isNew and T("INFO_TEXT_CREATE", "Create") or T("INFO_TEXT_SAVE", "Save"), role = "primary_action", width = 110,
+            onClick = function()
+                local result = RefreshResult(R2.Save(session))
+                if not result or not result.ok then
+                    ConsumerStatus(context, T("INFO_TEXT_STATUS_SAVE_FAILED", "Could not save the text."), "error")
+                    return
+                end
+                CloseConsumer(context)
+            end},
+        cancel = {text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 100,
+            onClick = function() CancelConsumer(context) end},
+    }, actions)
+
+    if context.nameEdit then
+        context.nameEdit:SetCallback("OnTextChanged", function(_, _, value)
+            if context.nameSync then return end
+            local ok = R2.SetName(session, value or "")
+            if not ok then ConsumerStatus(context, T("INFO_TEXT_STATUS_INVALID_NAME", "Enter a template name."), "error") end
+            ConsumerRefresh(context)
+        end)
+    end
+    contentEdit:SetCallback("OnTextChanged", function(_, _, value)
+        if context.contentSync then return end
+        local ok = R2.SetContent(session, value or "")
+        if not ok then ConsumerStatus(context, T("INFO_TEXT_STATUS_EDIT_FAILED", "This text cannot be edited."), "error") end
+        ConsumerRefresh(context)
+    end)
+    tagButton:SetCallback("OnClick", function()
+        local tags = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TagLibrary
+        if not tags or not tags.Open then return end
+        context.tagCapture = R2.Capture(session)
+        tags.Open({owner = "TextBuilder", onApply = function(token)
+            return ConsumerInsert(context, token)
+        end})
+    end)
+    dialog.window:SetCallback("OnClose", function()
+        if consumerClosing or consumerContext ~= context or context.released then return end
+        if not context.r2Session then
+            CloseConsumer(context)
+            return
+        end
+        CancelConsumer(context)
+    end)
+    consumerContext = context
+    ConsumerRefresh(context)
+    dialog:Show()
+    return true
 end
 
 function R2.OpenWindow(deps, request)
     if r2Window and R2.IsDirty(r2Window.r2Session) then return false, "unsaved-changes" end
     local active = ns.ActiveLayoutResolver.GetStoredActiveLayoutId(ns.db)
+    local explicitRequest = request ~= nil
     request = request or {entity=true,kind="new-template",layoutId=active}
     local session, reason = R2.Open(request, ns.db)
     if not session then return false, reason end
+    if consumerContext then
+        if R2.IsDirty(consumerContext.r2Session) then return false, "unsaved-changes" end
+        CloseConsumer(consumerContext)
+    end
+    if r2Window then
+        local oldWindow = r2Window
+        InvalidateSession(oldWindow)
+        if oldWindow.window then
+            r2Closing = true
+            oldWindow.window:Hide()
+            r2Closing = false
+        end
+        r2Window = nil
+    end
+    if explicitRequest and session.kind == "new-template" then
+        return OpenConsumerDialog(session, "new-template")
+    end
+    if explicitRequest and session.kind == "object" and session.templateId == nil then
+        return OpenConsumerDialog(session, "edit-text")
+    end
     local context = Builder.CreateEntityWindow(deps)
     if not context then return false, "builder_window_unavailable" end
     InvalidateSession(context)
@@ -396,8 +678,15 @@ function R2.OpenWindow(deps, request)
     return true
 end
 Builder.OpenWindow=R2.OpenWindow
-Builder.HasUnsavedChanges=function() return r2Window and R2.IsDirty(r2Window.r2Session) or false end
+Builder.HasUnsavedChanges=function()
+    return (r2Window and R2.IsDirty(r2Window.r2Session))
+        or (consumerContext and R2.IsDirty(consumerContext.r2Session)) or false
+end
 Builder.HideWindow=function()
+    if consumerContext then
+        CancelConsumer(consumerContext)
+        return consumerContext == nil
+    end
     local context=r2Window
     if not context then return true end
     if R2.IsDirty(context.r2Session) then OpenR2CloseConfirm(context);return false end
@@ -405,14 +694,22 @@ Builder.HideWindow=function()
     return true
 end
 Builder.InvalidateLayoutContext=function()
+    if consumerContext then CloseConsumer(consumerContext) end
     if r2Decision then r2Decision.window:Hide() end
     if r2CloseDialog then r2CloseDialog.window:Hide() end
     if r2DeleteDialog then r2DeleteDialog.window:Hide() end
     InvalidateSession(r2Window)
     Builder.HideWindow()
 end
-Builder.RefreshWindowState=function() R2Refresh(r2Window) end
+Builder.RefreshWindowState=function()
+    if consumerContext then ConsumerRefresh(consumerContext) end
+    if r2Window then R2Refresh(r2Window) end
+end
 Builder.InsertTextIntoDraft=function(text)
+    if consumerContext then
+        consumerContext.tagCapture = R2.Capture(consumerContext.r2Session)
+        return ConsumerInsert(consumerContext, text)
+    end
     local context=r2Window;local session=context and context.r2Session
     if type(text)~="string" or not Current(session) or session.readOnly then return false end
     local edit=context.templateEdit.editbox

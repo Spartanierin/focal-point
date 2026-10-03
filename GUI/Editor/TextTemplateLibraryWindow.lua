@@ -6,13 +6,13 @@ ns.GUI.Editor = ns.GUI.Editor or {}
 local AceGUI = LibStub("AceGUI-3.0")
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
 local TextStyles = ns.GUI.Helpers and ns.GUI.Helpers.TextStyles or {}
+local FormRenderer = ns.GUI.Helpers and ns.GUI.Helpers.FormRenderer or {}
 local SelectionRow = ns.GUI.Widgets and ns.GUI.Widgets.SelectionRow or {}
 
 local TextTemplateLibraryWindow = {}
 ns.GUI.Editor.TextTemplateLibraryWindow = TextTemplateLibraryWindow
 
 local windowContext
-local OpenEntityEditor
 local pendingEntityReturns = setmetatable({}, {__mode = "k"})
 local lastEntityReturn
 
@@ -73,6 +73,21 @@ local function CreateLabel(text, role, size, width, height)
     end
     ApplyLabelText(label, role or "label", size or 11)
     return label
+end
+
+local function CreateResultPanel(host)
+    local layouts = ns.GUI and ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder
+    local definition
+    for _, candidate in ipairs(layouts and layouts.Form or {}) do
+        if candidate.section == "Preview" then
+            definition = candidate
+            break
+        end
+    end
+    if not definition or type(FormRenderer.CreateLayoutGroup) ~= "function" then
+        return nil
+    end
+    return FormRenderer.CreateLayoutGroup(host, definition)
 end
 
 local function CreateButton(text, role, width)
@@ -334,13 +349,19 @@ local function GetEntryLabel(entry)
     if type(entry) ~= "table" then
         return ""
     end
+    return entry.templateName or ""
+end
+
+local function GetEntryTypeLabel(entry)
+    if type(entry) ~= "table" then
+        return ""
+    end
     if entry.sourceType == "activeLayout" then
-        return entry.templateName
+        return T("INSERT_TEXT_SOURCE_CURRENT_LAYOUT", "Current layout")
     end
-    if type(entry.sourceLabel) == "string" and entry.sourceLabel ~= "" then
-        return entry.templateName .. " - " .. entry.sourceLabel
-    end
-    return entry.templateName
+    return entry.readOnly
+        and T("INSERT_TEXT_TYPE_BUILTIN_READ_ONLY", "Built-in · Read-only")
+        or T("INSERT_TEXT_TYPE_USER_TEMPLATE", "User Template")
 end
 
 local function FindEntry(context, entryKey)
@@ -399,33 +420,36 @@ local function RefreshPreview(context)
     context.previewGroup:ReleaseChildren()
     local entry = FindEntry(context, context.selectedTemplateKey)
     if not entry then
+        context.previewPanel = nil
         context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "sectionHeader", 11, 388, 18))
         context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12, 388, 72))
         return
     end
 
     context.previewGroup:AddChild(CreateLabel(entry.templateName, "sectionHeader", 14, 388, 22))
-    if type(entry.sourceLabel) == "string" and entry.sourceLabel ~= "" then
-        context.previewGroup:AddChild(CreateLabel(entry.sourceLabel, "help", 10, 388, 14))
-    end
     context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "sectionHeader", 11, 388, 18))
 
-    local previewPanel = AceGUI:Create("InlineGroup")
-    previewPanel:SetLayout("List")
-    previewPanel:SetTitle(" ")
+    local previewPanel = CreateResultPanel(context.previewGroup)
+    if not previewPanel then
+        context.previewPanel = nil
+        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12, 388, 72))
+        return
+    end
+    context.previewPanel = previewPanel
     previewPanel:SetFullWidth(false)
     previewPanel:SetWidth(388)
-    LockContainerHeight(previewPanel, 96)
-    previewPanel:AddChild(CreateLabel(BuildRenderedPreview(entry.templateText), "highlight", 17, 368, 68))
+    previewPanel:AddChild(CreateLabel(BuildRenderedPreview(entry.templateText), "highlight", 17, 368, 48))
     context.previewGroup:AddChild(previewPanel)
 
-    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATE_STRING", "Template"), "label", 10, 388, 14))
-    context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 360), "help", 11, 388, 42))
-    if context.entity then
-        local editButton = CreateButton(T("INSERT_TEXT_EDIT_TEMPLATE", "Edit Template"), "utility", 140)
-        editButton:SetCallback("OnClick", OpenEntityEditor)
-        context.previewGroup:AddChild(editButton)
-    end
+    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_DETAILS", "Details"), "sectionHeader", 11, 388, 18))
+    context.previewGroup:AddChild(CreateLabel(
+        T("INSERT_TEXT_NAME", "Name") .. ": " .. tostring(entry.templateName or ""),
+        "label", 10, 388, 14))
+    context.previewGroup:AddChild(CreateLabel(
+        GetEntryTypeLabel(entry),
+        "help", 10, 388, 14))
+    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_EXPRESSION", "Expression"), "label", 10, 388, 14))
+    context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 360), "help", 11, 388, 28))
 end
 
 local function SetStatus(context, message, role)
@@ -458,7 +482,7 @@ local function RefreshRows(context)
     for _, entry in ipairs(context.entries) do
         local binding = {
             key = entry.key,
-            label = GetEntryLabel(entry),
+            label = GetEntryLabel(entry) .. " | " .. tostring(entry.sourceLabel or ""),
             selected = entry.key == context.selectedTemplateKey,
             onSelect = function(entryKey)
                 local previousTemplateKey = context.selectedTemplateKey
@@ -674,14 +698,6 @@ local function OpenTextBuilder()
     if controller.OpenTextBuilderWindow then controller.OpenTextBuilderWindow() end
 end
 
-OpenEntityEditor = function()
-    local context = windowContext
-    local entry = context and FindEntry(context, context.selectedTemplateKey)
-    if not context or not entry or not entry.templateId then return end
-    OpenEntityBuilder(context, {entity = true, kind = "shared-template",
-        layoutId = ResolveActiveEntityLayoutId(), templateId = entry.templateId})
-end
-
 local function BuildFooter(context)
     local actions = {
         primary = {
@@ -784,7 +800,7 @@ function TextTemplateLibraryWindow.Open(options)
     local mode = options.mode == "change" and "change" or "add"
 
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
-        title = mode == "change" and T("INSERT_TEXT_CHANGE_TITLE", "Change Text") or T("INSERT_TEXT_TITLE", "Add Text"),
+        title = mode == "change" and T("INSERT_TEXT_CHANGE_TITLE", "Choose Template") or T("INSERT_TEXT_TITLE", "Add Text"),
         description = mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
         width = 700,
         mode = "picker",
@@ -824,15 +840,38 @@ function TextTemplateLibraryWindow.NotifyEntityReturn(returnContext, result)
         or getmetatable(returnContext.originToken) ~= nil or next(returnContext.originToken) ~= nil then
         return false
     end
+    local token = returnContext.originToken
+    local origin = pendingEntityReturns[token]
+    if origin then
+        local valid = ValidateEntityPickerTarget(origin)
+        if not valid then
+            pendingEntityReturns[token] = nil
+            return false
+        end
+    end
+    local templateId = type(result) == "table" and result.templateId or nil
+    if type(templateId) ~= "string" or templateId == "" then
+        return false
+    end
     lastEntityReturn = {
         pickerMode = returnContext.pickerMode,
         layoutId = returnContext.layoutId,
         unitKey = returnContext.unitKey,
         textKey = returnContext.textKey,
         originToken = returnContext.originToken,
-        templateId = type(result) == "table" and result.templateId or nil,
+        templateId = templateId,
     }
-    return true
+    if not origin then
+        return true, false
+    end
+    origin.returnedTemplateId = templateId
+    origin.selectedTemplateKey = "entity:" .. templateId
+    RefreshWindow(origin)
+    if origin.dialog and origin.dialog.Show then
+        origin.dialog:Show()
+    end
+    pendingEntityReturns[token] = nil
+    return true, true
 end
 
 function TextTemplateLibraryWindow.GetLastEntityReturn()

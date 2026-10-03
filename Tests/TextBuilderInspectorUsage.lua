@@ -59,10 +59,10 @@ local makeLabel=assert(load("return function(inspectorContext,textConfig,linkedT
     "@Inspector/TemplateLabel","t",setmetatable({ns=ns,L={EDITOR_TEXT_DIRECT_TEMPLATE="Direct Template",
         MEDIA_LIBRARY_MISSING="Missing"}},{__index=_G})))()
 local objectLocal={tag="[name]"}
-assert(makeLabel({entity=true},objectLocal,nil)=="Direct Template")
+assert(makeLabel({entity=true},objectLocal,nil)=="Local")
 assert(objectLocal.templateId==nil)
-assert(makeLabel({entity=true},{templateId="tpl:u:custom-001"},nil)=="User text")
-assert(makeLabel({entity=true},{templateId="tpl:b:default-001"},nil)=="Built-in text")
+assert(makeLabel({entity=true},{templateId="tpl:u:custom-001"},nil):find("User text",1,true))
+assert(makeLabel({entity=true},{templateId="tpl:b:default-001"},nil):find("Built-in text",1,true))
 assert(makeLabel({entity=true},{templateId="tpl:b:unknown-999"},nil)=="Missing")
 assert(#resolveCalls==3 and resolveCalls[1]=="tpl:u:custom-001"
     and resolveCalls[2]=="tpl:b:default-001" and resolveCalls[3]=="tpl:b:unknown-999")

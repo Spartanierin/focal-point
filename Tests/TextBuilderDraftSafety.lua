@@ -18,6 +18,8 @@ for _, path in ipairs({
     "Engine/Text/Shared/TextTemplateUsage.lua", "Engine/Text/Shared/TextTemplateMutations.lua",
     "GUI/Helpers/GUIState.lua", "GUI/Helpers/LayoutHelpers.lua", "GUI/Helpers/PageDependencyFactory.lua", "GUI/GUIController.lua",
     "GUI/Helpers/FormSectionSurfaceRenderer.lua", "GUI/Helpers/FormRenderer.lua",
+    "GUI/Widgets/SelectionRow.lua", "GUI/Editor/TextTemplateLibraryWindow.lua",
+    "GUI/Editor/Inspector/InspectorBinding.lua",
     "GUI/Pages/TextBuilder/TextBuilderDefinition.lua", "GUI/Pages/TextBuilder/TextBuilderController.lua",
     "Services/LayoutAssignmentService.lua", "Engine/UnitFrame.lua",
 }) do Load(path) end
@@ -55,22 +57,39 @@ local create=builder.CreateEntityWindow
 builder.CreateEntityWindow=function(...) c=create(...);return c end
 local openDialog=builder.OpenLayoutDialog
 builder.OpenLayoutDialog=function(...)dialog=openDialog(...);return dialog end
+local function SyncConsumer()
+    local consumer=f.Upvalue(builder.RefreshWindowState,"consumerContext")
+    if not consumer then return false end
+    c={consumer=consumer,window=consumer.window,r2Session=consumer.r2Session,
+        templateEdit=consumer.contentEdit,templateNameEdit=consumer.nameEdit,
+        saveButton=consumer.dialog.primaryButton,cancelButton=consumer.dialog.cancelButton,
+        tagLibraryButton=consumer.tagButton,preview=consumer.preview,
+        previewSurface=consumer.previewSurface}
+    return true
+end
 local function Open(kind,key)
     local request=kind and {entity=true,kind=kind,layoutId=ns.db.char.activeLayoutId,
         unitKey=kind=="object" and "player" or nil,textKey=kind=="object" and key or nil,
         templateId=kind=="shared-template" and key or nil}
-    local ok,reason=ns.GUIController.OpenTextBuilderWindow(request);assert(ok,reason);NoErrors();return c.r2Session
+    local ok,reason=ns.GUIController.OpenTextBuilderWindow(request);assert(ok,reason);NoErrors()
+    SyncConsumer()
+    return c.r2Session
 end
 local function Click(w)assert(w);w:Fire("OnClick");NoErrors()end
 local function Edit(w,text)w:SetText(text);w:Fire("OnTextChanged",text);NoErrors()end
 local function Close()
     builder.HideWindow();if builder.HasUnsavedChanges()then Click(dialog.discardCloseButton)end
     assert(not builder.HasUnsavedChanges() and not c.window.frame:IsShown())
+    if c.consumer then
+        assert(c.consumer.released and f.Upvalue(builder.RefreshWindowState,"consumerContext")==nil)
+    end
+    builder.HideWindow();assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 end
 local function Activate(id,options)local ok,why=ns:ActivateLayout(id,"test",options);assert(ok,why);NoErrors()end
 Activate("layout:b",{silent=true});Activate("layout:a",{silent=true})
 local s=Open();assert(s.kind=="new-template")
-Edit(c.templateNameEdit,"Same");Edit(c.templateEdit,"new");local count=refreshes
+Edit(c.templateNameEdit,"Same");Edit(c.templateEdit,"new")
+local count=refreshes
 Click(c.saveButton);assert(c.r2Session.templateId and refreshes>count)
 local created=c.r2Session.templateId
 count=refreshes;Click(c.saveButton);assert(refreshes==count,"no-op refreshed")
@@ -79,12 +98,6 @@ assert(ns.db.global.TextTemplates[created].name=="Renamed" and c.r2Session.templ
 Click(c.applyTemplateButton);local copied=c.r2Session.templateId;assert(copied~=created)
 Click(c.deleteTemplateButton);Click(dialog.deleteConfirmButton)
 assert(ns.db.global.TextTemplates[copied]==nil and c.r2Session.kind=="new-template")
-Open("object","shared");Edit(c.templateEdit,"all layouts");Click(c.saveButton)
-assert(dialog.widgets.all and ns.db.global.TextTemplates[A].content=="A")
-Click(dialog.widgets.all);assert(ns.db.global.TextTemplates[A].content=="all layouts")
-assert(a.Units.player.Texts.shared.templateId==A and b.Units.player.Texts.shared.templateId==A)
-Edit(c.templateEdit,"fork");Click(c.saveButton);Click(dialog.widgets.copy)
-assert(a.Units.player.Texts.shared.templateId~=A and b.Units.player.Texts.shared.templateId==A)
 Close();s=Open("object","localText")
 Edit(c.templateEdit,"dirty")
 for _,options in ipairs({{},{silent=true}})do
@@ -123,7 +136,7 @@ for i=1,30 do
     s=Open("object","localText");capture=R.Capture(s);Click(c.tagLibraryButton);local old=tagApply
     Edit(c.templateEdit,"cycle "..i);Close()
     Activate("layout:b",{silent=i%2==0});Open("shared-template",A)
-    assert(c.templateEdit:GetText()=="all layouts");Close();Activate("layout:a")
+    assert(c.templateEdit:GetText()=="A");Close();Activate("layout:a")
     assert(not R.Valid(s,capture) and not old("stale"))
 end
 -- A synchronous refresh may switch layout and open a new window session.
@@ -141,6 +154,102 @@ assert(c.window.frame:IsShown() and c.r2Session.activeLayoutId=="layout:b")
 Close();Activate("layout:a")
 Open("shared-template","tpl:b:default-013");assert(c.templateEdit.disabled and c.saveButton.disabled)
 assert(not builder.InsertTextIntoDraft("forbidden"));Close()
+
+-- A real Inspector section is released before the consumer is opened.  The
+-- canonical result-panel factory must reset the pooled section state and use
+-- the result-panel padding/material, not the Inspector presentation.
+local inspector=ns.GUI.Editor.Inspector.InspectorBinding
+local inspectorSection=LibStub("AceGUI-3.0"):Create("InlineGroup")
+inspectorSection:SetTitle("Inspector")
+inspector.ApplyInspectorSectionStructure(inspectorSection,"muted")
+local inspectorPadding=inspectorSection._fpSectionPadding
+assert(inspectorSection.frame._fpSectionFill and inspectorPadding)
+LibStub("AceGUI-3.0"):Release(inspectorSection)
+
+-- The picker preview is checked against the same preloaded pool before the
+-- manager -> consumer transition.
+local pooledPicker=ns.GUI.Editor.TextTemplateLibraryWindow
+pooledPicker.Open({mode="change",unit="player",textKey="localText"})
+local pooledPickerContext=f.Upvalue(pooledPicker.Open,"windowContext")
+local pooledEntry=assert(pooledPickerContext.entries[1])
+pooledPickerContext.rowBindings[pooledEntry.key].onSelect(pooledEntry.key)
+assert(pooledPickerContext.previewPanel and pooledPickerContext.previewPanel.Variant=="result_stack")
+assert(pooledPickerContext.previewPanel.frame._fpSectionFill
+    and pooledPickerContext.previewPanel._fpSectionPadding.left==8
+    and pooledPickerContext.previewPanel._fpSectionPadding.top==5)
+pooledPickerContext.dialog:Close()
+
+-- Switching from the reusable manager to a consumer hides the old manager
+-- session; the new consumer owns the visible window.
+Open("shared-template",A)
+local oldManagerWindow=c.window
+assert(oldManagerWindow.frame:IsShown())
+Open("new-template")
+assert(not oldManagerWindow.frame:IsShown() and c.consumer and c.window.frame:IsShown())
+assert(c.previewSurface.frame._fpSectionFill and c.previewSurface._fpSectionPadding)
+assert(c.previewSurface._fpSectionPadding.left==8 and c.previewSurface._fpSectionPadding.right==8
+    and c.previewSurface._fpSectionPadding.top==5 and c.previewSurface._fpSectionPadding.bottom==5)
+assert(c.previewSurface._fpSectionPadding.left~=inspectorPadding.left
+    or c.previewSurface._fpSectionPadding.top~=inspectorPadding.top)
+assert(c.previewSurface._fpOwnerGroup==nil and c.previewSurface._fpPaddingAwareWidthWrapped)
+Close()
+
+-- Block 1 consumer UX: local text uses a compact edit form, never a manager.
+s=Open("new-template")
+assert(c.window.frame:GetWidth()==520 and c.window.frame:GetHeight()==340)
+assert(c.previewSurface and c.previewSurface.Variant=="result_stack")
+assert(c.previewSurface.frame._fpSectionFill and c.previewSurface._fpSectionPadding)
+assert(c.previewSurface._fpPaddingAwareWidthWrapped)
+local firstPreviewLayout={c.previewSurface.frame:GetWidth(),c.previewSurface.frame:GetHeight(),
+    c.previewSurface.content:GetWidth(),c.previewSurface.content:GetHeight(),c.preview.frame:GetHeight()}
+Close()
+s=Open("new-template")
+local secondPreviewLayout={c.previewSurface.frame:GetWidth(),c.previewSurface.frame:GetHeight(),
+    c.previewSurface.content:GetWidth(),c.previewSurface.content:GetHeight(),c.preview.frame:GetHeight()}
+Equal(firstPreviewLayout,secondPreviewLayout)
+local initialPreview=c.preview.label:GetText()
+Edit(c.templateNameEdit,"Preview Template");Edit(c.templateEdit,"preview expression")
+assert(c.preview.label:GetText()~=initialPreview)
+Close()
+s=Open("object","localText")
+assert(c.window.frame:GetWidth()==520 and c.window.frame:GetHeight()==430)
+assert(c.previewSurface and c.previewSurface.Variant=="result_stack")
+assert(c.previewSurface.frame._fpSectionFill and c.previewSurface._fpSectionPadding)
+assert(c.previewSurface._fpPaddingAwareWidthWrapped)
+local lossless=string.rep("z",520)
+Edit(c.templateEdit,lossless);Click(c.saveButton)
+assert(a.Units.player.Texts.localText.tag==lossless and a.Units.player.Texts.localText.templateId==nil)
+s=Open("object","localText")
+assert(c.templateNameEdit==nil and c.templateSelect==nil and c.tagLibraryButton)
+assert(c.templateEdit:GetText()==a.Units.player.Texts.localText.tag)
+Close()
+
+-- Creating a template from Add/Change returns to the picker. Creation does
+-- not apply it until the user confirms the returned selection.
+local picker=ns.GUI.Editor.TextTemplateLibraryWindow
+local function CreateFromPicker(mode,textKey,name,content)
+    local token={}
+    picker.Open({entity=true,mode=mode,unit="player",textKey=textKey,
+        initialTemplateId=nil,returnContext={pickerMode=mode,layoutId="layout:a",
+            unitKey="player",textKey=textKey,originToken=token}})
+    local pc=f.Upvalue(picker.Open,"windowContext")
+    pc.dialog.secondaryButton:Fire("OnClick");NoErrors()
+    assert(SyncConsumer() and c.r2Session and c.r2Session.kind=="new-template")
+    Edit(c.templateNameEdit,name);Edit(c.templateEdit,content)
+    Click(c.saveButton)
+    assert(not c.window.frame:IsShown() and pc.dialog.window.frame:IsShown())
+    assert(type(pc.selectedTemplateKey)=="string" and pc.selectedTemplateKey:match("^entity:"))
+    return pc
+end
+local addPicker=CreateFromPicker("add",nil,"Returned Add Template","[name]")
+assert(a.Units.player.Texts.text_1==nil)
+addPicker.primaryButton:Fire("OnClick");NoErrors()
+assert(a.Units.player.Texts.text_1 and a.Units.player.Texts.text_1.templateId)
+local changePicker=CreateFromPicker("change","localText","Returned Change Template","[hp:cur]")
+assert(a.Units.player.Texts.localText.templateId==nil)
+changePicker.primaryButton:Fire("OnClick");NoErrors()
+assert(a.Units.player.Texts.localText.templateId)
+
 local function NoDraft(value)
     if type(value)~="table" then return end
     assert(value.draftToken==nil and value.baseline==nil and value.editContext==nil)

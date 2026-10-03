@@ -663,7 +663,7 @@ local function ForkTargetIsRaw(target)
     end
     return target.context.expectedTextConfig == nil or target.context.expectedTextConfig == target.textConfig
 end
-local function PrepareMainFork(target, sourceId, expected, content, generator)
+local function PrepareMainFork(target, sourceId, expected, content, generator, forceCopy)
     local library = ResolveLibrary()
     local source, reason = library.ResolveTemplateEntity(sourceId, target.db)
     if not source then return nil, reason.errorCode end
@@ -671,7 +671,7 @@ local function PrepareMainFork(target, sourceId, expected, content, generator)
     if not library.TemplateRecordsEqual({name = source.name, content = source.content}, expected) then
         return nil, "template-conflict"
     end
-    if content == source.content then return {changed = false, id = sourceId} end
+    if content == source.content and not forceCopy then return {changed = false, id = sourceId} end
     local record = {name = source.name, content = content}
     local valid
     valid, reason = library.ValidateTemplateRecord(record)
@@ -734,7 +734,7 @@ local function ConfirmForkStore(target, prepared)
     for id in pairs(records or {}) do if not prepared.baseline[id] then return false end end
     return true
 end
-function Entity.ForkMainTemplate(context, unitKey, textKey, sourceTemplateId, expectedRecord, content, generator)
+function Entity.ForkMainTemplate(context, unitKey, textKey, sourceTemplateId, expectedRecord, content, generator, forceCopy)
     local target, reason = ResolveMainContentTarget(context, unitKey, textKey, EntityMain)
     if not target then return Result(false, {errorCode = reason}) end
     if not ForkTargetIsRaw(target) or target.templateName ~= sourceTemplateId then
@@ -742,7 +742,7 @@ function Entity.ForkMainTemplate(context, unitKey, textKey, sourceTemplateId, ex
     end
     local expectedText = context.expectedTextConfig
     local ok, prepared
-    ok, prepared, reason = pcall(PrepareMainFork, target, sourceTemplateId, expectedRecord, content, generator)
+    ok, prepared, reason = pcall(PrepareMainFork, target, sourceTemplateId, expectedRecord, content, generator, forceCopy == true)
     if not ok then return Result(false, {errorCode = "fork-preparation-failed"}) end
     if not prepared then return Result(false, {errorCode = reason}) end
     -- All fallible helpers have finished. Preserve E4's target/source/state guard.

@@ -354,6 +354,7 @@ ns.GUI.Layouts.TextBuilder.Form = {
         items = {
             { id = "usageTitle", widget = "label", itemVariant = "section_title", textKey = "INFO_TEXT_BUILDER_TEMPLATE_USAGE" },
             { id = "usageLead", widget = "label", itemVariant = "usage_label", textKey = "INFO_TEXT_BUILDER_USAGE_LEAD" },
+            { id = "usageHint", widget = "label", itemVariant = "usage_label", text = " " },
         },
     },
     {

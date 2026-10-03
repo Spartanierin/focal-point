@@ -168,6 +168,9 @@ end
 
 -- Real picker builders, rows, preview and both modes/empty state.
 Load("GUI/Widgets/SelectionRow.lua")
+Load("GUI/Helpers/FormSectionSurfaceRenderer.lua")
+Load("GUI/Helpers/FormRenderer.lua")
+Load("GUI/Pages/TextBuilder/TextBuilderDefinition.lua")
 Load("GUI/Editor/TextTemplateLibraryWindow.lua")
 local templates={}
 ns.TextTemplateLibrary={Entity={List=function() return templates end}}
@@ -176,14 +179,29 @@ for _,mode in ipairs({"add","change"}) do
         templates=populated and {{value="tpl:b:default-001",label="Sample",content="Sample preview",readOnly=true}} or {}
         ns.GUI.Editor.TextTemplateLibraryWindow.Open({mode=mode,unit="player",textKey="test"})
         Check(latest,700,367)
+        if mode=="change" then
+            assert(latest.window.titletext:GetText()=="Choose Template")
+        end
         assert(Find(latest.body,"ScrollFrame"))
         CheckText(latest.body,"Templates","sectionHeader",11)
         CheckText(latest.body,"Preview","sectionHeader",11)
         if populated then
             CheckText(latest.body,"Sample","sectionHeader",14)
-            CheckText(latest.body,"Built-in","help",10)
-            CheckText(latest.body,"Template","label",10)
+            CheckText(latest.body,"Details","sectionHeader",11)
+            CheckText(latest.body,"Name: Sample","label",10)
+            CheckText(latest.body,"Expression","label",10)
             CheckText(latest.body,"Sample preview","highlight",17)
+            local pickerContext=Upvalue(ns.GUI.Editor.TextTemplateLibraryWindow.Open,"windowContext")
+            local sampleBinding=pickerContext.rowBindings["entity:tpl:b:default-001"]
+            assert(sampleBinding.label=="Sample | Built-in")
+            assert(not sampleBinding.description and not sampleBinding.detail)
+            assert(not Find(latest.body,"Label","Source"))
+            assert(pickerContext.previewPanel.Variant=="result_stack")
+            assert(pickerContext.previewPanel.frame._fpSectionFill)
+            assert(pickerContext.previewPanel._fpSectionPadding)
+            assert(pickerContext.previewPanel._fpPaddingAwareWidthWrapped)
+            assert(not Find(latest.body,"Button","Edit Template"))
+            assert(not Find(latest.body,"Button","View Built-in"))
         end
         latest.cancelButton:Fire("OnClick")
     end

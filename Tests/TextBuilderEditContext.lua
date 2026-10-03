@@ -28,7 +28,16 @@ local factoryDialog=builder.OpenLayoutDialog
 builder.OpenLayoutDialog=function(...)dialog=factoryDialog(...);return dialog end
 local function NoErrors()assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))end
 local function Click(w)w:Fire("OnClick");NoErrors()end
-local function Open(request)local ok,reason=ns.GUIController.OpenTextBuilderWindow(request);assert(ok,reason);NoErrors();return c.r2Session end
+local function Open(request)
+    local ok,reason=ns.GUIController.OpenTextBuilderWindow(request);assert(ok,reason);NoErrors()
+    local consumer=f.Upvalue(builder.RefreshWindowState,"consumerContext")
+    if consumer then
+        c={window=consumer.window,r2Session=consumer.r2Session,templateEdit=consumer.contentEdit,
+            templateNameEdit=consumer.nameEdit,saveButton=consumer.dialog.primaryButton,
+            cancelButton=consumer.dialog.cancelButton,tagLibraryButton=consumer.tagButton}
+    end
+    return c.r2Session
+end
 local function Close()builder.HideWindow();if builder.HasUnsavedChanges()then Click(dialog.discardCloseButton)end end
 local function Object(key)return {entity=true,kind="object",layoutId="layout:a",unitKey="player",textKey=key}end
 assert(Open().kind=="new-template");Close()

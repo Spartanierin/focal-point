@@ -3742,11 +3742,21 @@ function InspectorController.Build(container, state, options)
         if inspectorContext.entity and textConfig.templateId ~= nil then
             local entity = textConfig.templateId and ns.TextTemplateLibrary and ns.TextTemplateLibrary.ResolveTemplateEntity
                 and ns.TextTemplateLibrary.ResolveTemplateEntity(textConfig.templateId, ns.db)
-            templateLabel = entity and entity.name or (L["MEDIA_LIBRARY_MISSING"] or "Missing")
+            if entity then
+                local typeLabel = entity.readOnly
+                    and (L["INFO_TEXT_BUILDER_BUILTIN_READ_ONLY"] or "Built-in · Read-only")
+                    or (L["INFO_TEXT_BUILDER_USER_TEMPLATE"] or "User Template")
+                templateLabel = entity.name .. " · " .. typeLabel
+            else
+                templateLabel = L["MEDIA_LIBRARY_MISSING"] or "Missing"
+            end
+        elseif inspectorContext.entity then
+            templateLabel = L["EDITOR_TEMPLATE_LOCAL"] or "Local"
         end
         if isScopedObject then
-            if inspectorContext.entity then
-                AddPropertyActionButtonRow(contentSection, L["EDITOR_EDIT_TEXT"] or "Text bearbeiten", L["EDITOR_EDIT_TEXT"] or "Text bearbeiten", "InspectorAction", 142, function()
+            if inspectorContext.entity and textConfig.templateId == nil then
+                AddPropertyValueTextRow(contentSection, L["EDITOR_OPTION_TEXT"] or "Text", L["INFO_TEXT_BUILDER_LOCAL_TEXT"] or "Local Text")
+                AddPropertyActionButtonRow(contentSection, L["EDITOR_EDIT_TEXT"] or "Edit Text...", L["EDITOR_EDIT_TEXT"] or "Edit Text...", "InspectorAction", 142, function()
                     local controller = ns.GUIController or {}
                     local char = ns.db and ns.db.char
                     local layoutId = type(char) == "table" and char.activeLayoutId or nil
@@ -3764,7 +3774,7 @@ function InspectorController.Build(container, state, options)
                 end)
             end
             AddPropertyValueTextRow(contentSection, L["EDITOR_OPTION_TEMPLATE"] or "Template", templateLabel)
-            AddPropertyActionButtonRow(contentSection, L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", L["EDITOR_CHANGE_TEXT_TEMPLATE"] or "Change Text...", "InspectorAction", 142, function()
+            AddPropertyActionButtonRow(contentSection, L["EDITOR_CHOOSE_TEMPLATE"] or "Choose Template...", L["EDITOR_CHOOSE_TEMPLATE"] or "Choose Template...", "InspectorAction", 142, function()
                 local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
                 if library and type(library.Open) == "function" then
                     library.Open({
