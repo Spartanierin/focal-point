@@ -788,7 +788,7 @@ local function ResolveCreateLayoutStatus(reason)
         return T("LAYOUT_CREATE_COMBAT_BLOCKED", "Create layouts outside combat.")
     end
     if reason == "dirty-text-builder" then
-        return T("LAYOUT_CREATE_DIRTY_TEXT_BUILDER", "Save or discard Text Builder changes before creating a layout.")
+        return T("LAYOUT_CREATE_DIRTY_TEXT_BUILDER", "Save or discard text changes before creating a layout.")
     end
     if reason == "activation-failed" then
         return T("LAYOUT_CREATE_ACTIVATION_FAILED", "The layout was created, but could not be activated.")
@@ -1089,7 +1089,7 @@ local function EnsureHost()
                 end
                 if HasDirtyTextBuilderDraft() then
                     if ns.Info then
-                        ns:Info("Save or discard Text Builder changes before activating another layout.")
+                        ns:Info("Save or discard text changes before activating another layout.")
                     end
                     RefreshLayoutControls(context)
                     return

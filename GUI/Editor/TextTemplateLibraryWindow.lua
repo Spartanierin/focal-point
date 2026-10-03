@@ -13,6 +13,9 @@ local TextTemplateLibraryWindow = {}
 ns.GUI.Editor.TextTemplateLibraryWindow = TextTemplateLibraryWindow
 
 local windowContext
+local managerContext
+local managerRenameDialog
+local managerDeleteDialog
 local pendingEntityReturns = setmetatable({}, {__mode = "k"})
 local lastEntityReturn
 
@@ -792,6 +795,496 @@ local function BuildBody(context)
     body:AddChild(actionContainer)
 end
 
+-- The manager is intentionally local to this existing template window module.
+-- It shares the picker rows, compact window shell and canonical result panel;
+-- it never carries an object or layout binding context.
+local function ManagerR2()
+    return ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TextBuilder
+        and ns.GUI.Pages.TextBuilder.EntityBuilder
+end
+
+local function BuildManagerEntries()
+    local library = ns.TextTemplateLibrary or {}
+    local rows = library.Entity and library.Entity.List and library.Entity.List(ns.db) or {}
+    local user, builtin = {}, {}
+    for _, row in ipairs(rows or {}) do
+        if type(row) == "table" and type(row.value) == "string" and type(row.label) == "string" then
+            local entry = {
+                key = "entity:" .. row.value,
+                templateId = row.value,
+                templateName = row.label,
+                templateText = row.content,
+                readOnly = row.readOnly == true,
+            }
+            if entry.readOnly then builtin[#builtin + 1] = entry else user[#user + 1] = entry end
+        end
+    end
+    local function SortEntries(left, right)
+        if left.templateName ~= right.templateName then
+            return left.templateName < right.templateName
+        end
+        return left.templateId < right.templateId
+    end
+    table.sort(user, SortEntries)
+    table.sort(builtin, SortEntries)
+    return user, builtin
+end
+
+local function FindManagerEntry(context, templateId)
+    if not context or type(templateId) ~= "string" then return nil end
+    for _, entry in ipairs(context.userEntries or {}) do
+        if entry.templateId == templateId then return entry end
+    end
+    for _, entry in ipairs(context.builtinEntries or {}) do
+        if entry.templateId == templateId then return entry end
+    end
+end
+
+local function ManagerStatus(message, role)
+    if managerContext and managerContext.dialog and managerContext.statusTarget then
+        managerContext.dialog:SetStatus(message or " ", role, managerContext.statusTarget)
+    end
+end
+
+local function ManagerGroup(parent, height, layout)
+    local group = AceGUI:Create("SimpleGroup")
+    group:SetLayout(layout or "List")
+    group:SetFullWidth(true)
+    LockContainerHeight(group, height)
+    parent:AddChild(group)
+    return group
+end
+
+local function ManagerText(parent, text, role, size, height)
+    local slot = ManagerGroup(parent, height)
+    local label = CreateLabel(text, role, size)
+    slot:AddChild(label)
+    return label, slot
+end
+
+local function AddManagerHeader(parent, text)
+    local row = ManagerGroup(parent, 24, "Flow")
+    row:AddChild(CreateLabel(text, "sectionHeader", 12, 210))
+    local divider = AceGUI:Create("SimpleGroup")
+    divider:SetFullWidth(false)
+    divider:SetWidth(220)
+    LockContainerHeight(divider, 1)
+    row:AddChild(divider)
+    local line = divider._fpDivider
+    if not line then
+        line = divider.frame:CreateTexture(nil, "ARTWORK")
+        divider._fpDivider = line
+        divider.frame:HookScript("OnHide", function() line:Hide() end)
+    end
+    line:ClearAllPoints()
+    line:SetPoint("LEFT", divider.frame, "LEFT", 0, 0)
+    line:SetPoint("RIGHT", divider.frame, "RIGHT", 0, 0)
+    line:SetHeight(1)
+    local palette = ns.GUI.Skins.GetFormPalette() or {}
+    line:SetColorTexture(unpack(palette.Chrome.sectionBorder))
+    line:Show()
+    return row
+end
+
+local function ManagerUsage(templateId)
+    local library = ns.TextTemplateLibrary
+    local references = library.Entity.Usage(ns.db.global.UserLayouts or {}, ns.db, templateId) or {}
+    local summary = {texts = 0, layouts = 0, main = 0, state = 0, disabled = 0}
+    local layouts = {}
+    for _, reference in ipairs(references) do
+        local layout = layouts[reference.layoutId]
+        if not layout then
+            layout = {}; layouts[reference.layoutId] = layout
+            summary.layouts = summary.layouts + 1
+        end
+        local unit = layout[reference.unitKey]
+        if not unit then unit = {}; layout[reference.unitKey] = unit end
+        if not unit[reference.textKey] then
+            unit[reference.textKey] = true
+            summary.texts = summary.texts + 1
+            if reference.enabled == false then summary.disabled = summary.disabled + 1 end
+        end
+        local kind = reference.referenceKind == "state" and "state" or "main"
+        summary[kind] = summary[kind] + 1
+    end
+    return summary
+end
+
+-- These transient manager dialogs own and release their complete widget tree.
+local function BindManagerDialogClose(context, dialog, kind)
+    dialog.window:SetCallback("OnClose", function()
+        if dialog.released then return end
+        dialog.released = true
+        if kind == "rename" then
+            if managerRenameDialog == dialog then managerRenameDialog = nil end
+            if context.renameDialog == dialog then
+                context.renameDialog, context.renameEdit, context.renameStatus = nil, nil, nil
+            end
+        else
+            if managerDeleteDialog == dialog then managerDeleteDialog = nil end
+            if context.deleteDialog == dialog then context.deleteDialog = nil end
+        end
+        AceGUI:ClearFocus()
+        AceGUI:Release(dialog.window)
+    end)
+end
+
+local function ManagerSession(entry)
+    local r = ManagerR2()
+    local active = ResolveActiveEntityLayoutId()
+    return r.Open({entity = true, kind = "shared-template", layoutId = active,
+        templateId = entry.templateId}, ns.db, active)
+end
+
+local function OpenManagerRename(context, entry)
+    if managerRenameDialog then managerRenameDialog:Close() end
+    local r = ManagerR2()
+    local session = ManagerSession(entry)
+    if not session then return end
+    local capture = r.Capture(session)
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = T("INFO_TEXT_MANAGER_RENAME", "Rename"), width = 420, height = 210,
+        bodyLayout = "List", contentRoot = true,
+    })
+    managerRenameDialog, context.renameDialog = dialog, dialog
+    local edit = AceGUI:Create("EditBox")
+    edit:SetLabel(T("INFO_TEXT_TEMPLATE_NAME", "Template Name"))
+    edit:SetFullWidth(true)
+    edit:SetText(entry.templateName)
+    dialog.body:AddChild(edit)
+    ManagerGroup(dialog.body, 8)
+    local status = ManagerText(dialog.body, " ", "help", 10, 34)
+    local actions = ManagerGroup(dialog.body, 30, "Flow")
+    context.renameEdit, context.renameStatus = edit, status
+    dialog:SetActions({
+        primary = {text = T("INFO_TEXT_MANAGER_RENAME", "Rename"), role = "primary_action", width = 110,
+            onClick = function()
+                if dialog.released then return end
+                if managerContext ~= context or context.selectedTemplateId ~= entry.templateId
+                    or not r.Valid(session, capture) then
+                    dialog:SetStatus(T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID"), "error", status)
+                    return
+                end
+                local name = Trim(edit:GetText() or "")
+                if name == "" then
+                    dialog:SetStatus(T("INFO_TEXT_STATUS_INVALID_NAME", "Enter a template name."), "error", status)
+                    return
+                end
+                local ok = r.SetName(session, name)
+                if ok then capture = r.Capture(session) end
+                local result = ok and r.Rename(session)
+                if result and result.ok then
+                    dialog:Close()
+                    TextTemplateLibraryWindow.Refresh()
+                    ManagerStatus(T("INFO_TEXT_MANAGER_STATUS_RENAMED", "Template renamed."), "success")
+                else
+                    dialog:SetStatus(T("INFO_TEXT_MANAGER_STATUS_FAILED", "Template operation failed."), "error", status)
+                end
+            end},
+        cancel = {text = T("INFO_COMMON_CANCEL", "Cancel"), width = 100,
+            onClick = function() dialog:Close() end},
+    }, actions)
+    BindManagerDialogClose(context, dialog, "rename")
+    dialog:Show()
+    edit:SetFocus()
+end
+
+local function ManagerDeleteSuccessor(context, id)
+    for index, entry in ipairs(context.userEntries) do
+        if entry.templateId == id then
+            local nextEntry = context.userEntries[index + 1] or context.userEntries[index - 1]
+                or context.builtinEntries[1]
+            return nextEntry and nextEntry.templateId
+        end
+    end
+end
+
+local function OpenManagerDelete(context, entry)
+    if managerDeleteDialog then managerDeleteDialog:Close() end
+    local r = ManagerR2()
+    local session = ManagerSession(entry)
+    if not session then return end
+    local capture = r.Capture(session)
+    local dialog = FormWidgets.CreateCompactConfirmation({
+        title = T("INFO_TEXT_MANAGER_DELETE", "Delete"),
+        message = string.format(T("INFO_TEXT_MANAGER_DELETE_PROMPT", 'Delete the template "%s"?'), entry.templateName),
+        primary = {text = T("INFO_TEXT_MANAGER_DELETE", "Delete"), role = "danger", width = 100},
+        cancel = {text = T("INFO_COMMON_CANCEL", "Cancel"), width = 100},
+    })
+    managerDeleteDialog, context.deleteDialog = dialog, dialog
+    dialog.primaryButton:SetCallback("OnClick", function()
+        if dialog.released then return end
+        if managerContext ~= context or context.selectedTemplateId ~= entry.templateId
+            or not r.Valid(session, capture) then
+            dialog:SetStatus(T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID"), "error", dialog.confirmationStatus)
+            return
+        end
+        local successor = ManagerDeleteSuccessor(context, entry.templateId)
+        local result = r.Delete(session)
+        if result and result.ok then
+            dialog:Close()
+            context.selectedTemplateId = successor
+            TextTemplateLibraryWindow.Refresh()
+            ManagerStatus(T("INFO_TEXT_MANAGER_STATUS_DELETED", "Template deleted."), "success")
+        else
+            dialog:SetStatus(result and result.errorCode == "template_in_use"
+                and T("INFO_TEXT_BUILDER_STATUS_TEMPLATE_IN_USE")
+                or T("INFO_TEXT_MANAGER_STATUS_FAILED", "Template operation failed."), "error", dialog.confirmationStatus)
+        end
+    end)
+    BindManagerDialogClose(context, dialog, "delete")
+    dialog:Show()
+end
+
+local function RefreshManagerActions(context, entry)
+    local container = context.actionContainer
+    container:ReleaseChildren()
+    context.actionButtons = {}
+    if not entry then return end
+    local previous
+    local function Add(key, label, role, width, action, disabled)
+        local button = CreateButton(label, role, width)
+        context.actionButtons[key] = button
+        button:SetDisabled(disabled == true)
+        button:SetCallback("OnClick", function()
+            if managerContext ~= context or context.selectedTemplateId ~= entry.templateId
+                or button.disabled then return end
+            action()
+        end)
+        -- The paused local action bar keeps these explicit anchors.
+        container:AddChild(button)
+        button.frame:ClearAllPoints()
+        if key == "delete" then
+            button.frame:SetPoint("RIGHT", container.content, "RIGHT", 0, 0)
+        elseif previous then
+            button.frame:SetPoint("LEFT", previous, "RIGHT", 8, 0)
+        else
+            button.frame:SetPoint("LEFT", container.content, "LEFT", 0, 0)
+        end
+        if key ~= "delete" then previous = button.frame end
+    end
+    if not entry.readOnly then
+        Add("edit", T("INFO_TEXT_MANAGER_EDIT", "Edit"), "utility", 84, function()
+            local ok = ManagerR2().OpenTemplateEditor(entry.templateId, true)
+            if not ok then
+                TextTemplateLibraryWindow.ShowManager(entry.templateId)
+                ManagerStatus(T("INFO_TEXT_MANAGER_STATUS_FAILED"), "error")
+            end
+        end)
+        Add("rename", T("INFO_TEXT_MANAGER_RENAME", "Rename"), "utility", 108,
+            function() OpenManagerRename(context, entry) end)
+    end
+    Add("duplicate", T("INFO_TEXT_MANAGER_DUPLICATE", "Duplicate"), "utility", 112, function()
+        local session = ManagerSession(entry)
+        local result = session and ManagerR2().Copy(session)
+        if result and result.ok then
+            context.selectedTemplateId = result.templateId
+            TextTemplateLibraryWindow.Refresh()
+            ManagerStatus(T("INFO_TEXT_MANAGER_STATUS_DUPLICATED", "Template duplicated."), "success")
+        else
+            ManagerStatus(T("INFO_TEXT_MANAGER_STATUS_FAILED", "Template operation failed."), "error")
+        end
+    end)
+    if not entry.readOnly then
+        Add("delete", T("INFO_TEXT_MANAGER_DELETE", "Delete"), "danger", 92,
+            function() OpenManagerDelete(context, entry) end, context.usage.texts > 0)
+    end
+end
+
+local function RefreshManagerDetails()
+    local context = managerContext
+    if not context or not context.detailGroup then return end
+    local entry = FindManagerEntry(context, context.selectedTemplateId)
+    context.nameLabel:SetText(entry and entry.templateName
+        or T("INFO_TEXT_MANAGER_SELECTED", "Select a template to view its details."))
+    context.typeLabel:SetText(entry and (entry.readOnly and T("INFO_TEXT_MANAGER_BUILTIN_TYPE", "Built-in · Read-only")
+        or T("INFO_TEXT_MANAGER_USER_TYPE", "My Template")) or "")
+    context.expressionTitle:SetText(entry and T("INFO_TEXT_MANAGER_EXPRESSION", "Expression") or "")
+    context.expression:SetText(entry and tostring(entry.templateText or "") or "")
+    context.expressionScroll:DoLayout()
+    context.expressionScroll:SetScroll(0)
+    context.previewTitle:SetText(entry and T("INFO_TEXT_BUILDER_PREVIEW", "Preview") or "")
+    context.previewValue:SetText(entry and BuildRenderedPreview(entry.templateText) or "")
+    context.previewValue.label:SetHeight(70)
+    context.previewPanel.frame:SetAlpha(entry and 1 or 0)
+    context.usage = entry and not entry.readOnly and ManagerUsage(entry.templateId) or nil
+    local usage = context.usage
+    context.usageLabel:SetText(usage and string.format(
+        T("INFO_TEXT_MANAGER_USAGE_SUMMARY", "Used by %d texts in %d layouts"), usage.texts, usage.layouts)
+        .. "\n" .. string.format(T("INFO_TEXT_MANAGER_USAGE_DETAIL", "Main: %d · State: %d · Disabled texts: %d"),
+            usage.main, usage.state, usage.disabled) or "")
+    context.detailGroup:DoLayout()
+    RefreshManagerActions(context, entry)
+end
+
+local function ManagerSelect(templateId)
+    local context = managerContext
+    if not context or not FindManagerEntry(context, templateId) then return end
+    context.selectedTemplateId = templateId
+    for id, row in pairs(context.rows) do
+        row.binding.selected = id == templateId
+        row:Bind(row.binding)
+    end
+    ManagerStatus("")
+    RefreshManagerDetails()
+end
+
+local function RefreshManagerList()
+    local context = managerContext
+    if not context or not context.listGroup then return end
+    context.userEntries, context.builtinEntries = BuildManagerEntries()
+    if not FindManagerEntry(context, context.selectedTemplateId) then
+        local first = context.userEntries[1] or context.builtinEntries[1]
+        context.selectedTemplateId = first and first.templateId
+    end
+    local scroll = context.listGroup
+    scroll:PauseLayout()
+    context.headers = context.headers or {}
+    -- Retain the two heading/divider widgets while rebuilding only the rows.
+    for index = #scroll.children, 1, -1 do
+        local child = scroll.children[index]
+        if child == context.headers.user or child == context.headers.builtin then
+            table.remove(scroll.children, index)
+        end
+    end
+    scroll:ReleaseChildren()
+    context.rows = {}
+    local function AddRows(entries, heading, builtin)
+        local key = builtin and "builtin" or "user"
+        local text = string.format("%s (%d)", heading, #entries)
+        local header = context.headers[key]
+        if header then
+            header.children[1]:SetText(text)
+            scroll:AddChild(header)
+            header.children[2]._fpDivider:Show()
+        else
+            context.headers[key] = AddManagerHeader(scroll, text)
+        end
+        if not builtin and #entries == 0 then
+            scroll:AddChild(CreateLabel(T("INFO_TEXT_MANAGER_EMPTY", "No user templates yet."), "help", 11))
+        end
+        for _, entry in ipairs(entries) do
+            local row = SelectionRow.Create({key = entry.key, label = entry.templateName,
+                detail = builtin and T("INFO_TEXT_MANAGER_READ_ONLY", "Read-only") or T("INFO_TEXT_MANAGER_USER_TYPE", "My Template"),
+                selected = entry.templateId == context.selectedTemplateId,
+                onSelect = function() ManagerSelect(entry.templateId) end})
+            row:SetFullWidth(true)
+            context.rows[entry.templateId] = row
+            scroll:AddChild(row)
+        end
+    end
+    AddRows(context.userEntries, T("INFO_TEXT_MANAGER_MY_TEMPLATES", "My Templates"), false)
+    ManagerGroup(scroll, 8)
+    AddRows(context.builtinEntries, T("INFO_TEXT_MANAGER_BUILTIN_TEMPLATES", "Built-in Templates"), true)
+    scroll:ResumeLayout()
+    scroll:DoLayout()
+end
+
+local function BuildManagerBody(context)
+    local body = context.dialog.body
+    body:ReleaseChildren()
+    body:SetLayout("List")
+    ManagerText(body, T("INFO_TEXT_MANAGER_DESCRIPTION", "Manage reusable text templates."), "help", 11, 24)
+    local newRow = ManagerGroup(body, 32, "Flow")
+    local newButton = CreateButton(T("INFO_TEXT_MANAGER_NEW_TEMPLATE", "New Template"), "primary_action", 160)
+    context.newButton = newButton
+    newButton:SetCallback("OnClick", function()
+        TextTemplateLibraryWindow.HideManager()
+        local ok = ns.GUIController.OpenTextBuilderWindow({entity = true, kind = "new-template",
+            layoutId = ResolveActiveEntityLayoutId(), managerReturn = true})
+        if not ok then
+            TextTemplateLibraryWindow.ShowManager()
+            ManagerStatus(T("INFO_TEXT_MANAGER_STATUS_FAILED"), "error")
+        end
+    end)
+    newRow:AddChild(newButton)
+    ManagerGroup(body, 8)
+    local list = AceGUI:Create("ScrollFrame")
+    list:SetLayout("List")
+    list:SetFullWidth(true)
+    LockContainerHeight(list, 242)
+    context.listGroup = list
+    body:AddChild(list)
+    ManagerGroup(body, 10)
+    local detail = ManagerGroup(body, 256)
+    context.detailGroup = detail
+    context.nameLabel = ManagerText(detail, " ", "sectionHeader", 15, 24)
+    context.typeLabel = ManagerText(detail, " ", "help", 10, 16)
+    context.expressionTitle = ManagerText(detail, " ", "sectionHeader", 11, 18)
+    local expression = AceGUI:Create("ScrollFrame")
+    expression:SetLayout("List")
+    expression:SetFullWidth(true)
+    LockContainerHeight(expression, 48)
+    context.expressionScroll = expression
+    detail:AddChild(expression)
+    context.expression = CreateLabel(" ", "label", 11)
+    context.expression.label:SetWordWrap(true)
+    expression:AddChild(context.expression)
+    ManagerGroup(detail, 8)
+    context.previewTitle = ManagerText(detail, " ", "sectionHeader", 11, 18)
+    local preview = CreateResultPanel(detail)
+    preview:SetFullWidth(true)
+    LockContainerHeight(preview, 80)
+    if preview.frame.SetClipsChildren then preview.frame:SetClipsChildren(true) end
+    context.previewPanel = preview
+    context.previewValue = CreateLabel(" ", "highlight", 17)
+    context.previewValue:SetJustifyH("CENTER")
+    context.previewValue:SetJustifyV("MIDDLE")
+    context.previewValue.label:SetWordWrap(true)
+    preview:AddChild(context.previewValue)
+    detail:AddChild(preview)
+    ManagerGroup(detail, 8)
+    context.usageLabel = ManagerText(detail, " ", "help", 10, 36)
+    context.statusTarget = ManagerText(body, " ", "help", 10, 20)
+    ManagerGroup(body, 8)
+    -- No layout owns these button anchors; visibility follows the selected type.
+    context.actionContainer = ManagerGroup(body, 34)
+    context.actionContainer:PauseLayout()
+    ManagerGroup(body, 8)
+end
+
+function TextTemplateLibraryWindow.OpenManager()
+    if managerContext and managerContext.dialog then
+        return TextTemplateLibraryWindow.ShowManager()
+    end
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = T("INFO_TEXT_MANAGER_TITLE", "Texts Manager"),
+        width = 560, height = 720, bodyLayout = "List", contentRoot = true,
+    })
+    if not dialog then return false, "manager-unavailable" end
+    managerContext = {dialog = dialog, window = dialog.window}
+    BuildManagerBody(managerContext)
+    dialog.window:SetCallback("OnClose", function()
+        if managerRenameDialog then managerRenameDialog:Close() end
+        if managerDeleteDialog then managerDeleteDialog:Close() end
+        -- Temporary hide for New/Edit preserves the selected ID and scroll.
+        if not managerContext.returnPending then managerContext.selectedTemplateId = nil end
+    end)
+    FormWidgets.CenterWindow(dialog.window)
+    RefreshManagerList()
+    RefreshManagerDetails()
+    dialog:Show()
+    return true
+end
+
+function TextTemplateLibraryWindow.HideManager()
+    if managerContext and managerContext.window then
+        managerContext.returnPending = true
+        managerContext.window:Hide()
+    end
+end
+
+function TextTemplateLibraryWindow.ShowManager(templateId)
+    local context = managerContext
+    if not context or not context.dialog then return false end
+    context.returnPending = nil
+    if templateId then context.selectedTemplateId = templateId end
+    RefreshManagerList()
+    RefreshManagerDetails()
+    context.dialog:Show()
+    return true
+end
+
 function TextTemplateLibraryWindow.Open(options)
     if windowContext and windowContext.dialog then
         windowContext.dialog:Close()
@@ -879,12 +1372,15 @@ function TextTemplateLibraryWindow.GetLastEntityReturn()
 end
 function TextTemplateLibraryWindow.Refresh()
     RefreshWindow(windowContext)
+    RefreshManagerList()
+    RefreshManagerDetails()
 end
 
 function TextTemplateLibraryWindow.Close()
     if windowContext and windowContext.dialog then
         windowContext.dialog:Close()
     end
+    TextTemplateLibraryWindow.HideManager()
 end
 
 return TextTemplateLibraryWindow

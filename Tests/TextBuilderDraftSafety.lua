@@ -87,18 +87,12 @@ local function Close()
 end
 local function Activate(id,options)local ok,why=ns:ActivateLayout(id,"test",options);assert(ok,why);NoErrors()end
 Activate("layout:b",{silent=true});Activate("layout:a",{silent=true})
-local s=Open();assert(s.kind=="new-template")
-Edit(c.templateNameEdit,"Same");Edit(c.templateEdit,"new")
-local count=refreshes
-Click(c.saveButton);assert(c.r2Session.templateId and refreshes>count)
-local created=c.r2Session.templateId
-count=refreshes;Click(c.saveButton);assert(refreshes==count,"no-op refreshed")
-Edit(c.templateNameEdit,"Renamed");Click(c.updateTemplateButton)
-assert(ns.db.global.TextTemplates[created].name=="Renamed" and c.r2Session.templateId==created)
-Click(c.applyTemplateButton);local copied=c.r2Session.templateId;assert(copied~=created)
-Click(c.deleteTemplateButton);Click(dialog.deleteConfirmButton)
-assert(ns.db.global.TextTemplates[copied]==nil and c.r2Session.kind=="new-template")
-Close();s=Open("object","localText")
+assert(ns.GUIController.OpenTextBuilderWindow());NoErrors()
+local manager=ns.GUI.Editor.TextTemplateLibraryWindow
+local managerContext=f.Upvalue(manager.OpenManager,"managerContext")
+assert(managerContext and managerContext.window.frame:IsShown())
+manager.HideManager()
+local s=Open("object","localText")
 Edit(c.templateEdit,"dirty")
 for _,options in ipairs({{},{silent=true}})do
     local ok,why=ns:ActivateLayout("layout:b","direct",options);assert(not ok and why=="unsaved-changes")
@@ -112,8 +106,7 @@ ns.GUI.Pages.TagLibrary={Open=function(options)tagApply=options.onApply end}
 s=Open("object","localText");Click(c.tagLibraryButton);assert(tagApply("[name]"))
 Close();s=Open("object","localText");Click(c.tagLibraryButton);local staleTag=tagApply
 local capture=R.Capture(s);Open("shared-template",B);assert(not R.Valid(s,capture) and not staleTag("stale"))
-Click(c.deleteTemplateButton);local staleDelete=dialog.deleteConfirmButton.events.OnClick
-Open("object","localText");staleDelete();assert(ns.db.global.TextTemplates[B])
+Close();s=Open("object","localText")
 -- Specialization, queue-time and post-combat activation use the same guard.
 function GetSpecialization()return 1 end
 C_SpecializationInfo={GetSpecializationInfo=function()return 71 end}
@@ -152,8 +145,9 @@ Click(dialog.saveCloseButton)
 assert(a.Units.player.Texts.localText.tag=="saved before refresh switch")
 assert(c.window.frame:IsShown() and c.r2Session.activeLayoutId=="layout:b")
 Close();Activate("layout:a")
-Open("shared-template","tpl:b:default-013");assert(c.templateEdit.disabled and c.saveButton.disabled)
-assert(not builder.InsertTextIntoDraft("forbidden"));Close()
+local builtInOk,builtInReason=ns.GUIController.OpenTextBuilderWindow({entity=true,
+    kind="shared-template",layoutId=ns.db.char.activeLayoutId,templateId="tpl:b:default-013"})
+assert(not builtInOk and builtInReason=="read_only");NoErrors()
 
 -- A real Inspector section is released before the consumer is opened.  The
 -- canonical result-panel factory must reset the pooled section state and use
@@ -181,11 +175,14 @@ pooledPickerContext.dialog:Close()
 
 -- Switching from the reusable manager to a consumer hides the old manager
 -- session; the new consumer owns the visible window.
-Open("shared-template",A)
-local oldManagerWindow=c.window
-assert(oldManagerWindow.frame:IsShown())
+assert(ns.GUIController.OpenTextBuilderWindow());NoErrors()
+local managerWindow=f.Upvalue(ns.GUI.Editor.TextTemplateLibraryWindow.OpenManager,"managerContext").window
+assert(managerWindow.frame:IsShown())
+local managerEditOk,managerEditReason=R.OpenTemplateEditor(A,true)
+assert(managerEditOk,managerEditReason);assert(SyncConsumer())
+assert(not managerWindow.frame:IsShown())
 Open("new-template")
-assert(not oldManagerWindow.frame:IsShown() and c.consumer and c.window.frame:IsShown())
+assert(c.consumer and c.window.frame:IsShown())
 assert(c.previewSurface.frame._fpSectionFill and c.previewSurface._fpSectionPadding)
 assert(c.previewSurface._fpSectionPadding.left==8 and c.previewSurface._fpSectionPadding.right==8
     and c.previewSurface._fpSectionPadding.top==5 and c.previewSurface._fpSectionPadding.bottom==5)

@@ -40,7 +40,10 @@ local function Open(request)
 end
 local function Close()builder.HideWindow();if builder.HasUnsavedChanges()then Click(dialog.discardCloseButton)end end
 local function Object(key)return {entity=true,kind="object",layoutId="layout:a",unitKey="player",textKey=key}end
-assert(Open().kind=="new-template");Close()
+assert(ns.GUIController.OpenTextBuilderWindow());NoErrors()
+local managerContext=f.Upvalue(ns.GUI.Editor.TextTemplateLibraryWindow.OpenManager,"managerContext")
+assert(managerContext and managerContext.window.frame:IsShown())
+ns.GUI.Editor.TextTemplateLibraryWindow.HideManager()
 local request=Object("shared");request.callback=function()error("untrusted")end
 local s=Open(request);assert(s.content=="shared" and s.context.callback==nil and s.context~=request)
 request.textKey="localText";assert(s.context.textKey=="shared")

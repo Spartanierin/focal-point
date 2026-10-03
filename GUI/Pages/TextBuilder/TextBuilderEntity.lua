@@ -223,6 +223,7 @@ local r2Closing = false
 local consumerContext
 local consumerClosing = false
 local CloseConsumer
+local OpenConsumerDialog
 local function InvalidateSession(context)
     if context and context.r2Session then
         context.r2Session.invalidated = true
@@ -470,6 +471,7 @@ local function ConsumerRefresh(context)
     local valid = session.kind == "new-template"
         and type(session.name) == "string" and session.name:find("%S")
         and type(session.content) == "string" and session.content ~= ""
+        or session.kind == "shared-template" and not session.readOnly
         or session.kind == "object" and session.templateId == nil
     context.dialog.primaryButton:SetDisabled(not valid)
 end
@@ -492,6 +494,8 @@ end
 
 CloseConsumer = function(context)
     if not context or consumerContext ~= context or context.released then return end
+    local returnManager = context.returnManager == true
+    local selectedTemplateId = context.r2Session and context.r2Session.templateId
     context.released = true
     consumerClosing = true
     InvalidateSession(context)
@@ -501,6 +505,10 @@ CloseConsumer = function(context)
         AceGUI:Release(context.window)
     end
     consumerClosing = false
+    if returnManager then
+        local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+        if library and library.ShowManager then library.ShowManager(selectedTemplateId) end
+    end
 end
 
 local function CancelConsumer(context)
@@ -512,14 +520,19 @@ local function CancelConsumer(context)
     end
 end
 
-local function OpenConsumerDialog(session, mode)
+OpenConsumerDialog = function(session, mode, returnManager)
     if consumerContext and consumerContext.dialog and consumerContext.dialog.window.frame:IsShown() then
         return false, "unsaved-changes"
     end
     local isNew = mode == "new-template"
+    local isTemplateEdit = mode == "edit-template"
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
-        title = isNew and T("INFO_TEXT_NEW_TEMPLATE_TITLE", "New Template") or T("INFO_TEXT_EDIT_TEXT_TITLE", "Edit Text"),
-        description = isNew and T("INFO_TEXT_NEW_TEMPLATE_DESCRIPTION", "Create a text template.") or T("INFO_TEXT_EDIT_TEXT_DESCRIPTION", "Edit this local text."),
+        title = isNew and T("INFO_TEXT_NEW_TEMPLATE_TITLE", "New Template")
+            or isTemplateEdit and T("INFO_TEXT_MANAGER_EDIT", "Edit")
+            or T("INFO_TEXT_EDIT_TEXT_TITLE", "Edit Text"),
+        description = isNew and T("INFO_TEXT_NEW_TEMPLATE_DESCRIPTION", "Create a text template.")
+            or isTemplateEdit and T("INFO_TEXT_MANAGER_EDIT_DESCRIPTION", "Edit this template.")
+            or T("INFO_TEXT_EDIT_TEXT_DESCRIPTION", "Edit this local text."),
         width = 520,
         height = isNew and 340 or 430,
         formContentHeight = isNew and 276 or 366,
@@ -528,7 +541,7 @@ local function OpenConsumerDialog(session, mode)
     }) or nil
     if not dialog then return false, "consumer_dialog_unavailable" end
 
-    local context = {dialog = dialog, window = dialog.window, r2Session = session, consumer = true}
+    local context = {dialog = dialog, window = dialog.window, r2Session = session, consumer = true, returnManager = returnManager == true}
     local body = dialog.body
     body:ReleaseChildren()
     body:SetLayout("List")
@@ -628,10 +641,26 @@ local function OpenConsumerDialog(session, mode)
     return true
 end
 
+function R2.OpenTemplateEditor(templateId, returnManager)
+    local active = ns.ActiveLayoutResolver.GetStoredActiveLayoutId(ns.db)
+    local session, reason = R2.Open({entity=true, kind="shared-template", layoutId=active, templateId=templateId}, ns.db, active)
+    if not session then return false, reason end
+    if returnManager then
+        local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+        if library and library.HideManager then library.HideManager() end
+    end
+    return OpenConsumerDialog(session, "edit-template", returnManager)
+end
+
 function R2.OpenWindow(deps, request)
     if r2Window and R2.IsDirty(r2Window.r2Session) then return false, "unsaved-changes" end
     local active = ns.ActiveLayoutResolver.GetStoredActiveLayoutId(ns.db)
     local explicitRequest = request ~= nil
+    local returnManager = type(request) == "table" and request.managerReturn == true
+    if not explicitRequest then
+        local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+        if library and library.OpenManager then return library.OpenManager() end
+    end
     request = request or {entity=true,kind="new-template",layoutId=active}
     local session, reason = R2.Open(request, ns.db)
     if not session then return false, reason end
@@ -650,7 +679,19 @@ function R2.OpenWindow(deps, request)
         r2Window = nil
     end
     if explicitRequest and session.kind == "new-template" then
-        return OpenConsumerDialog(session, "new-template")
+        if returnManager then
+            local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+            if library and library.HideManager then library.HideManager() end
+        end
+        return OpenConsumerDialog(session, "new-template", returnManager)
+    end
+    if explicitRequest and session.kind == "shared-template" then
+        if session.readOnly then return false, "read_only" end
+        if returnManager then
+            local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+            if library and library.HideManager then library.HideManager() end
+        end
+        return OpenConsumerDialog(session, "edit-template", returnManager)
     end
     if explicitRequest and session.kind == "object" and session.templateId == nil then
         return OpenConsumerDialog(session, "edit-text")
