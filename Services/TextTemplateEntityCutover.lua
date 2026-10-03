@@ -88,6 +88,21 @@ local function Error(code, detail)
     return result
 end
 
+-- Pre-AceDB startup evidence is intentionally process-local and one-way.
+-- Only an actually absent or empty raw SavedVariables table can mint it.
+local PreAceDBStartProofs = setmetatable({}, {__mode = 'k'})
+
+function Cutover.CapturePreAceDBStart(savedVariables)
+    if savedVariables ~= nil
+        and (not IsPlain(savedVariables) or next(savedVariables) ~= nil)
+    then
+        return nil, 'saved-variables-not-fresh'
+    end
+    local proof = {}
+    PreAceDBStartProofs[proof] = true
+    return proof
+end
+
 local function RawSavedVariables(db)
     if type(db) ~= 'table' then return nil end
     local saved = rawget(db, 'sv')
@@ -281,9 +296,35 @@ local function ValidateTarget(global)
     return ValidatePreparedLayouts(rawget(global, 'UserLayouts'), records, state)
 end
 
-local function ClassifyRaw(raw)
+local function IsAceDBFreshIntermediate(raw, proof)
+    if type(proof) ~= 'table' or PreAceDBStartProofs[proof] ~= true
+        or type(raw) ~= 'table' or rawget(raw, 'global') ~= nil
+    then
+        return false
+    end
+    local profileKeys = rawget(raw, 'profileKeys')
+    if not IsPlain(profileKeys) or next(profileKeys) == nil then
+        return false
+    end
+    for characterKey, profileName in pairs(profileKeys) do
+        if not IsKey(characterKey) or type(profileName) ~= 'string' or profileName == '' then
+            return false
+        end
+    end
+    for key in pairs(raw) do
+        if key ~= 'profileKeys' then
+            return false
+        end
+    end
+    return true
+end
+
+local function ClassifyRaw(raw, preAceDBStartProof)
     local global = RawGlobal(raw)
     if global == nil then
+        if IsAceDBFreshIntermediate(raw, preAceDBStartProof) then
+            return {ok = true, classification = 'empty', preAceDBStart = true}
+        end
         if IsEmptyValue(raw) then
             return {ok = true, classification = 'empty'}
         end
@@ -429,7 +470,8 @@ local function NormalizeEmptyWorking(working)
     return global
 end
 
-local function ValidateSourceRoots(raw)
+local function ValidateSourceRoots(raw, preAceDBStartProof)
+    if IsAceDBFreshIntermediate(raw, preAceDBStartProof) then return true end
     local global = RawGlobal(raw)
     if IsEmptyValue(raw) then return true end
     return IsPlain(global) and IsPlain(rawget(global, 'UserLayouts'))
@@ -586,6 +628,7 @@ function Cutover.Prepare(db, options)
     local optionTable = type(options) == 'table' and options or {}
     local generator = rawget(optionTable, 'generator')
     local failureAt = rawget(optionTable, 'testCommitFailureAt')
+    local preAceDBStartProof = rawget(optionTable, 'preAceDBStartProof')
     if failureAt ~= nil and type(failureAt) ~= 'number' then
         return Error('invalid-options')
     end
@@ -594,7 +637,7 @@ function Cutover.Prepare(db, options)
     if not raw then return Error('invalid-db') end
     local aliasOk, aliasCode = ValidateAceDBAlias(db)
     if not aliasOk then return Error(aliasCode) end
-    local ok, classification = pcall(ClassifyRaw, raw)
+    local ok, classification = pcall(ClassifyRaw, raw, preAceDBStartProof)
     if not ok then return Error('invalid-saved-data', {detail = tostring(classification)}) end
     if classification.ok and classification.classification == 'complete' then
         return {ok = true, changed = false, classification = 'complete'}
@@ -647,7 +690,7 @@ function Cutover.Prepare(db, options)
     local valid, code = ValidateTarget(preparedGlobal)
     if not valid then return Error('target-validation-failed', {detailCode = code}) end
     if not SameGuard(db, raw, guard) then return Error('live-conflict') end
-    if not SameRoots(raw, roots) or not ValidateSourceRoots(raw) then
+    if not SameRoots(raw, roots) or not ValidateSourceRoots(raw, preAceDBStartProof) then
         return Error('live-conflict')
     end
     return Commit(db, roots, backup, prepared, legacyMetadata, failureAt)

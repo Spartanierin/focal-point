@@ -325,6 +325,65 @@ Test('validation rejects broken target graphs', function()
     assert(Equal(db, before))
 end)
 
+Test('AceDB pre-start proof authorizes only the real fresh intermediate', function()
+    strmatch = string.match
+    function CreateFrame()
+        return {RegisterEvent = function() end, SetScript = function() end}
+    end
+    function GetRealmName() return 'Test realm' end
+    function UnitName() return 'Test player' end
+    function UnitClass() return 'Mage', 'MAGE' end
+    function UnitRace() return 'Human', 'Human' end
+    function UnitFactionGroup() return 'Alliance' end
+    function GetLocale() return 'enUS' end
+    function GetCurrentRegion() return 3 end
+    dofile('Libraries/LibStub/LibStub.lua')
+    dofile('Libraries/CallbackHandler-1.0/CallbackHandler-1.0.lua')
+    dofile('Libraries/Ace3/AceDB-3.0/AceDB-3.0.lua')
+    local aceDB = LibStub('AceDB-3.0')
+    local defaults = {global = {UserLayouts = {}}}
+
+    local saved = {}
+    local proof = assert(cutover.CapturePreAceDBStart(saved))
+    assert(next(saved) == nil)
+    local db = aceDB:New(saved, defaults, true)
+    assert(type(saved.profileKeys) == 'table' and next(saved.profileKeys) ~= nil)
+    local result = Ok(cutover.Prepare(db, {
+        generator = Generator(),
+        preAceDBStartProof = proof,
+    }))
+    assert(result.changed == true and saved.global and saved.global.UserLayouts)
+    assert(saved.preAceDBStartProof == nil)
+
+    local name = 'TextTemplateEntityCutoverAceDBAbsent'
+    _G[name] = nil
+    proof = assert(cutover.CapturePreAceDBStart(_G[name]))
+    db = aceDB:New(name, defaults, true)
+    saved = _G[name]
+    assert(type(saved.profileKeys) == 'table' and next(saved.profileKeys) ~= nil)
+    result = Ok(cutover.Prepare(db, {
+        generator = Generator(),
+        preAceDBStartProof = proof,
+    }))
+    assert(result.changed == true and saved.global and saved.global.UserLayouts)
+    _G[name] = nil
+
+    saved = {}
+    db = aceDB:New(saved, defaults, true)
+    local before = Copy(saved)
+    result = cutover.Prepare(db, {generator = Generator()})
+    assert(not result.ok and result.errorCode == 'invalid-global')
+    assert(Equal(saved, before))
+
+    saved = {profileKeys = {['Existing - Realm'] = 'Existing'}}
+    local rejectedProof, reason = cutover.CapturePreAceDBStart(saved)
+    assert(rejectedProof == nil and reason == 'saved-variables-not-fresh')
+    db = aceDB:New(saved, defaults, true)
+    before = Copy(saved)
+    result = cutover.Prepare(db, {generator = Generator()})
+    assert(not result.ok and result.errorCode == 'invalid-global')
+    assert(Equal(saved, before))
+end)
 Test('empty first start is prepared only on the private copy', function()
     local cases = {
         {},
