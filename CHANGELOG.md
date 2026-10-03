@@ -10,6 +10,25 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.0
+
+### Added
+
+* Added a central Texts Manager for creating, editing, renaming, duplicating, and deleting your own text templates.
+* Added clear text workflows for choosing a template, creating a new template, and editing object-local text.
+* Added template previews and usage information for reusable text templates.
+
+### Changed
+
+* Separated built-in templates from your own templates. Built-in templates are now stable, read-only choices.
+* Updated existing layouts and text templates to the new reusable template model while preserving their content and assignments.
+* Extended layout transfer so template resources remain available when layouts are exported and imported.
+
+### Fixed
+
+* Improved text editing and template lifecycle safety across layout changes, refreshes, dialog reuse, and stale callbacks.
+* Improved migration and import recovery so incomplete operations leave the existing layout data unchanged.
+
 ## 2.1.1
 
 ### Added
