@@ -175,13 +175,6 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
         end
 
     local function HandleSidebarNavigate(path)
-        if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.PROFILES) then
-            if FocalPoint.GUIController and FocalPoint.GUIController.OpenProfilesWindow then
-                FocalPoint.GUIController.OpenProfilesWindow()
-            end
-            return
-        end
-
         if path == (FocalPoint.Constants and FocalPoint.Constants.Nav and FocalPoint.Constants.Nav.TEXT_BUILDER) then
             if FocalPoint.GUIController and FocalPoint.GUIController.OpenTextBuilderWindow then
                 FocalPoint.GUIController.OpenTextBuilderWindow()
@@ -850,11 +843,6 @@ function FocalPoint:CloseConfig()
         self:RefreshEditorSelectionVisuals()
     end
 
-    local profilesPage = self.GUI and self.GUI.Pages and self.GUI.Pages.Profiles
-    if profilesPage and profilesPage.HideWindow then
-        profilesPage.HideWindow()
-    end
-
     local textBuilderPage = self.GUI and self.GUI.Pages and self.GUI.Pages.TextBuilder
     if textBuilderPage and textBuilderPage.HideWindow then
         textBuilderPage.HideWindow()
@@ -895,6 +883,7 @@ local function CreateMainHostWidget()
 end
 
 function FocalPoint:CreateGUI()
+    if FocalPoint.entityStartupReady == false then return false, "entity-startup-blocked" end
     if self._creatingGUI then
         return
     end
@@ -1067,6 +1056,7 @@ function FocalPoint:CreateGUI()
 end
 
 function FocalPoint:OpenConfig()
+    if FocalPoint.entityStartupReady == false then return false, "entity-startup-blocked" end
     local editorPath = self.Constants and self.Constants.Nav and self.Constants.Nav.EDITOR or "editor"
     local alreadyVisible = IsMainHostVisible(self)
     local currentPath = ResolveDefaultGUIPath(self.GUI and self.GUI.selectedPath)

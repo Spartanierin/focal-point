@@ -15,6 +15,30 @@ local LAYOUT_FORMAT_VERSION = 1
 local DELETED_PROFILE_MAP_KEY = "deletedProfileMap"
 local DELETED_USER_PRESET_MAP_KEY = "deletedUserPresetMap"
 
+-- Historical profile preparation is the only consumer of this name-based view.
+local function LegacyDefaults()
+    local defaults = FocalPoint:GetDefaultDB()
+    local templates, names = {}, {}
+    local catalog = FocalPoint.BuiltInTextTemplates
+    for id, entity in pairs(catalog and catalog.ListRecords() or {}) do
+        names[id] = entity.name
+        if id:match("^tpl:b:default%-") then templates[entity.name] = entity.content end
+    end
+    defaults.profile.TextTemplates = templates
+    for _, unit in pairs(defaults.profile.Units or {}) do
+        for _, text in pairs(unit.Texts or {}) do
+            text.templateName = names[text.templateId]
+            text.templateId = nil
+            if type(text.stateTemplateIds) == "table" then
+                text.stateTemplates = {}
+                for state, id in pairs(text.stateTemplateIds) do text.stateTemplates[state] = names[id] end
+            end
+            text.stateTemplateIds = nil
+        end
+    end
+    return defaults
+end
+
 local function Clone(value)
     return LayoutService.Clone and LayoutService.Clone(value) or value
 end
@@ -306,7 +330,7 @@ local function CollectTextKeys(payload)
 end
 
 local function PayloadsEqual(left, right, defaults)
-    if not (LayoutService.NormalizePayload and type(left) == "table" and type(right) == "table") then
+    if not (LayoutService.NormalizeLegacyPayload and type(left) == "table" and type(right) == "table") then
         return false
     end
 
@@ -315,8 +339,8 @@ local function PayloadsEqual(left, right, defaults)
         return false
     end
 
-    local normalizedLeft = LayoutService.NormalizePayload(left, defaults)
-    local normalizedRight = LayoutService.NormalizePayload(right, defaults)
+    local normalizedLeft = LayoutService.NormalizeLegacyPayload(left, defaults)
+    local normalizedRight = LayoutService.NormalizeLegacyPayload(right, defaults)
     return DeepEqual(normalizedLeft, normalizedRight), normalizedLeft, normalizedRight
 end
 
@@ -626,7 +650,7 @@ function LayoutMigration.MigrateProfiles(db, context)
         return result
     end
 
-    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB() or nil
+    local defaults = LegacyDefaults()
     local usedNames = context.usedNames or BuildUsedNames(layouts)
     context.usedNames = usedNames
 
@@ -685,7 +709,7 @@ function LayoutMigration.MigrateUserPresets(db, context)
     end
 
     local rawPresets = type(resolvedDB.global) == "table" and resolvedDB.global.UserPresets or nil
-    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB() or nil
+    local defaults = LegacyDefaults()
     local usedNames = context.usedNames or BuildUsedNames(layouts)
     context.usedNames = usedNames
 
@@ -706,8 +730,8 @@ function LayoutMigration.MigrateUserPresets(db, context)
             local rawPreset = rawPresets[presetId]
             local payload = type(rawPreset) == "table"
                 and type(rawPreset.layout) == "table"
-                and LayoutService.NormalizePayload
-                and LayoutService.NormalizePayload(rawPreset.layout, defaults)
+                and LayoutService.NormalizeLegacyPayload
+                and LayoutService.NormalizeLegacyPayload(rawPreset.layout, defaults)
                 or nil
             if type(payload) ~= "table" then
                 AppendError(result, "userPreset", presetId, "payload-invalid")
@@ -775,7 +799,7 @@ function LayoutMigration.VerifyUserLayouts(db)
         return result
     end
 
-    local defaults = FocalPoint.GetDefaultDB and FocalPoint:GetDefaultDB() or nil
+    local defaults = LegacyDefaults()
     local layouts = GetReadOnlyUserLayouts(db)
     local isComplete = state.version >= ADDITIVE_MIGRATION_VERSION
 
@@ -815,8 +839,8 @@ function LayoutMigration.VerifyUserLayouts(db)
         local rawPreset = type(rawPresets) == "table" and rawPresets[presetId] or nil
         local legacyPayload = type(rawPreset) == "table"
             and type(rawPreset.layout) == "table"
-            and LayoutService.NormalizePayload
-            and LayoutService.NormalizePayload(rawPreset.layout, defaults)
+            and LayoutService.NormalizeLegacyPayload
+            and LayoutService.NormalizeLegacyPayload(rawPreset.layout, defaults)
             or nil
         VerifyMappedPayload(
             result,

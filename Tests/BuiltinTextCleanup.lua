@@ -6,7 +6,7 @@ for _, path in ipairs({
     'Data/Defaults.lua', 'Data/Themes.lua', 'Services/CompositionPresenceStorage.lua',
     'Services/LayoutService.lua', 'Services/LegacyThemeAdapter.lua', 'Services/PresetService.lua',
     'Engine/Text/Shared/TextTemplateLibrary.lua', 'Data/BuiltInTextTemplates.lua',
-    'Engine/Text/Shared/TextElementRoles.lua', 'Engine/Text/Shared/TextTemplateMutations.lua',
+    'Engine/Text/Shared/TextElementRoles.lua', 'Engine/Text/Shared/TextTemplateResolver.lua', 'Engine/Text/Shared/TextTemplateMutations.lua',
     'Engine/UnitFrame/Shared/UnitFrameUtils.lua', 'GUI/Editor/SidebarShared.lua',
     'GUI/Editor/Composition/LegacyAssociationMap.lua', 'GUI/Editor/Composition/CompositionOwnership.lua',
     'GUI/Editor/Composition/CompositionPresence.lua', 'GUI/Editor/Composition/CompositionTreeAdapter.lua',
@@ -60,6 +60,7 @@ local function Test(name,run) run(); passed=passed+1; print('PASS: '..name) end
 local defaults=ns:GetDefaultDB()
 local defaultsBefore, themesBefore = Clone(defaults), Clone(ns.Themes)
 local catalogBefore=ns.BuiltInTextTemplates.ListRecords()
+local Historical = dofile("Tests/Fixtures/EntityPresentationBaseline.lua")
 local baseline, expected, projected, labels, counts, active = {},{},{},{},{},{}
 for _,p in ipairs(order) do
     -- Same historical theme, with only the new object-removal directives disabled.
@@ -73,7 +74,7 @@ for _,p in ipairs(order) do
 end
 Test('historical baseline is unchanged outside removal directives',function()
     for _,p in ipairs(order) do
-        assert(Fingerprint(baseline[p])==fixture.before[p].fingerprint, p..' baseline changed')
+        assert(Fingerprint(Historical(ns,baseline[p],p))==fixture.before[p].fingerprint, p..' baseline changed')
         assert(Count(baseline[p])==fixture.before[p].count)
     end
 end)
@@ -88,7 +89,7 @@ Test('118 explicit mappings, zero missing/ambiguous/duplicate identities',functi
         for _,label in pairs(labels[r.preset][r.unit]) do if label==r.label then matching=matching+1 end end
         assert(matching==1 and labels[r.preset][r.unit][r.textKey]==r.label, 'ambiguous/missing label: '..id)
         for _,field in ipairs({'enabled','templateName','tag','stateTemplates'}) do
-            assert(Equal(t[field],r[field]), id..' changed '..field)
+            assert(Equal(Historical(ns,baseline[r.preset],r.preset).Units[r.unit].Texts[r.textKey][field],r[field]), id..' changed '..field)
         end
         assert(t.role==r.explicitRole and ns.TextElementRoles.Resolve(r.textKey,t)==r.role)
         assert(expected[r.preset].Units[r.unit].Texts[r.textKey]~=nil)
@@ -101,7 +102,7 @@ end)
 Test('key Class, label and template name are separate identities',function()
     assert(labels.default.player.Class=='Player Level and Class')
     assert(labels.default.target.Class=='Class')
-    assert(projected.classic.Units.target.Texts.Class.templateName=='')
+    assert(projected.classic.Units.target.Texts.Class.templateId==nil)
     assert(labels.classic.target.Race=='Target Level and Class')
     assert(labels.modern.boss.AltPower=='AltPower')
 end)
@@ -144,7 +145,7 @@ Test('active approved redundancies disappear; retained displays and dynamic iden
         assert(baseline.classic.Units[u].Texts.Name.enabled==true and after.Units[u].Texts.Name==nil)
         local kept=false
         for k,t in pairs(after.Units[u].Texts) do
-            if t.templateName=='Unit Name w/o status' and t.enabled==true then
+            if t.templateId=='tpl:b:classic-004' and t.enabled==true then
                 assert(Equal(t,baseline.classic.Units[u].Texts[k])); kept=true
             end
         end
@@ -185,9 +186,10 @@ Test('templates, built-in IDs, role support, Add Object and source inputs remain
         assert(ns.TextElementRoles.Resolve(r.textKey,projected[r.preset].Units[r.unit].Texts[r.textKey])==r.role)
     end
     local unit=Clone(expected.classic.Units.player)
-    local context={GetTemplates=function()return baseline.classic.TextTemplates end,GetUnitConfig=function()return unit end}
-    local result=ns.TextTemplateMutations.CreateTextFromTemplate(context,'player','Health')
-    assert(result.ok and result.textKey=='text_4' and unit.Texts.text_4.templateName=='Health')
+    local db={char={activeLayoutId='layout:test'},global={UserLayouts={['layout:test']={formatVersion=2,payload={Units={player=unit}}}}}}
+    local context={db=db,expectedLayoutId='layout:test'}
+    local result=ns.TextTemplateMutations.CreateTextFromTemplate(context,'player','tpl:b:default-013')
+    assert(result.ok and result.textKey=='text_4' and unit.Texts.text_4.templateId=='tpl:b:default-013')
 end)
 print('BuiltinTextCleanup: '..passed..' groups passed; 118 unique decisions')
 if arg and arg[1]=='--report' then

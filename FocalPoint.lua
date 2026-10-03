@@ -1260,29 +1260,22 @@ function FocalPoint:RefreshProfileSettings(reason, options)
 end
 
 function FocalPointAddon:OnInitialize()
+    -- Capture evidence before AceDB creates profileKeys; never infer freshness
+    -- from a partially populated saved database after New.
+    local cutover = FocalPoint.TextTemplateEntityCutover
+    local proof = cutover and cutover.CapturePreAceDBStart(rawget(_G, "FocalPointDB"))
+    FocalPoint.entityStartupReady = false
     FocalPoint.db = LibStub("AceDB-3.0"):New("FocalPointDB", FocalPoint:GetDefaultDB(), true)
-
-    -- Materialize legacy profiles before startup normalizers can alter their source payloads.
-    local layoutMigration = FocalPoint.LayoutMigration
-    if type(layoutMigration) == "table"
-        and type(layoutMigration.EnsureBackup) == "function"
-        and type(layoutMigration.MigrateAll) == "function"
-    then
-        local backupCallOk, backupOk, backupReason = pcall(layoutMigration.EnsureBackup, FocalPoint.db)
-        if not backupCallOk then
-            FocalPoint:Warn(string.format("Layout migration backup failed: %s", tostring(backupOk)))
-        elseif backupOk ~= true then
-            FocalPoint:Warn(string.format("Layout migration backup unavailable: %s", tostring(backupReason or "unknown")))
-        else
-            local migrationCallOk, result = pcall(layoutMigration.MigrateAll, FocalPoint.db)
-            if not migrationCallOk then
-                FocalPoint:Warn(string.format("Layout migration failed: %s", tostring(result)))
-            elseif type(result) ~= "table" or result.complete ~= true then
-                local errorCount = type(result) == "table" and type(result.errors) == "table" and #result.errors or "unknown"
-                FocalPoint:Warn(string.format("Layout migration incomplete: %s error(s)", tostring(errorCount)))
-            end
-        end
+    local callOk, result = pcall(function()
+        return cutover.Prepare(FocalPoint.db, {preAceDBStartProof = proof})
+    end)
+    FocalPoint.entityStartupDiagnostic = result
+    if not callOk or type(result) ~= "table" or result.ok ~= true then
+        FocalPoint:Error("Text entity startup blocked: " .. tostring(
+            type(result) == "table" and result.errorCode or result))
+        return
     end
+    FocalPoint.entityStartupReady = true
 
     local preserveLegacyIntent = ShouldPreserveMigratedLegacyProfile()
     if not preserveLegacyIntent then
@@ -1317,14 +1310,6 @@ function FocalPointAddon:OnInitialize()
     MigrateClassificationIndicatorEffects()
     NormalizeAbsorbConfig()
     EnsureCastBarInterruptibleColorDefaults()
-    EnsureTextTemplateDefaults()
-    NormalizeLegacyTextTemplateNames()
-    EnsureTextTemplateLinks()
-    if not preserveLegacyIntent then
-        EnsureCoreTextDefaults()
-    end
-    EnsureNoEmptyTextElements()
-    RemoveLegacyDuplicateTextElements()
     InitRangeCheck()
 
     FocalPoint.LDS = FocalPoint.LDS or LibStub("LibDualSpec-1.0", true)
@@ -1376,6 +1361,7 @@ function FocalPointAddon:OnInitialize()
 end
 
 function FocalPointAddon:OnEnable()
+    if FocalPoint.entityStartupReady ~= true then return end
     FocalPoint.startupDiagnostics = {}
 
     local function RunStartupStep(label, fn)

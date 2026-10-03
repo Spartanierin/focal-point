@@ -10,6 +10,9 @@ Load("Services/UserLayoutStore.lua")
 Load("Services/LayoutMutations.lua")
 Load("Services/LayoutTransferCodec.lua")
 Load("Services/LayoutTransfer.lua")
+for _, path in ipairs({"Engine/Text/Shared/TextTemplateLibrary.lua","Data/BuiltInTextTemplates.lua",
+    "Engine/Text/Shared/TextTemplateUsage.lua","Engine/Text/Shared/TextTemplateValidation.lua",
+    "Services/TextTemplateEntityMigration.lua","Services/LayoutTransferVNext.lua"}) do Load(path) end
 C_AddOns = {GetAddOnMetadata=function() return "2.0.5-test" end}
 local codec, transfer = ns.LayoutTransferCodec, ns.LayoutTransfer
 local function Equal(left, right)
@@ -52,14 +55,16 @@ local payload = ns.LayoutService.CopyPayload({Units=defaults.profile.Units, Text
 payload.Units.player.decorations = {{id="decoration1", target="FRAME", point="CENTER", texture="fp:decoration:missing", width=99}, {id="decoration2", target="PORTRAIT", point="CENTER", texture="fp:decoration:missing", width=99}}
 payload.Units.player.Texts.Health.font = "lsm:font:missing"
 payload.Units.player.Texts.Color = {enabled=true, tag="[name]", font="lsm:font:missing"}
-payload.TextTemplates["Custom ü"] = "[name]\n[hp:cur] | literal \\ \0"
 ns.db = {
     profile={General={secret="must stay here"}},
-    global={UserLayouts={ ["layout:original"]={name="My Layout", formatVersion=1, payload=payload, createdFrom={id="private-character"}} },
+    global={UserLayouts={ ["layout:original"]={name="My Layout", formatVersion=2, payload=payload, createdFrom={id="private-character"}} },
         UserPresets={legacy={metadata={name="Legacy"}, layout={}}}, ProfileAutomation={enabled=true}, LayoutMigration={version=2}},
     char={activeLayoutId="layout:original", LayoutAssignments={specialization={[71]="layout:original"}}},
     profileKeys={private="private"},
 }
+local customId = "tpl:u:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1-2-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1"
+payload.Units.player.Texts.Color.templateId = customId
+ns.db.global.TextTemplates = {[customId]={name="Custom", content="[name]\n[hp:cur] | literal \\ \0"}}
 ns.ActivateLayout = function() error("activation forbidden") end
 ns.ProfileTransfer = setmetatable({}, {__index=function() error("legacy transfer forbidden") end})
 local before = ns.LayoutService.Clone(ns.db)
@@ -69,10 +74,10 @@ Equal(before, ns.db)
 assert(encoded == transfer.Export("layout:original"), "non-deterministic export")
 local document = assert(codec.Decode(encoded))
 assert(document.addonVersion == "2.0.5-test")
-assert(document.name == "My Layout" and document.formatVersion == 1)
+assert(document.name == "My Layout" and document.formatVersion == 2)
 assert(not document.createdFrom and not document.id)
-assert(document.payload.TextTemplates["Cast Time"] == "[cast:time]")
-EqualTemplates(document.payload.TextTemplates, payload.TextTemplates)
+assert(document.templates["tpl:b:default-013"].name == "Cast Time" and document.templates["tpl:b:default-013"].content == "[cast:time]")
+assert(document.payload.TextTemplates == nil)
 Equal(document.payload, payload)
 assert(not transfer.Export("builtin:default"))
 assert(not transfer.Export("profile:legacy"))
@@ -86,7 +91,7 @@ for _ = 1, 3 do
     ids[id] = true
     local record = ns.db.global.UserLayouts[id]
     assert(record.name == name and name ~= "My Layout")
-    EqualTemplates(record.payload.TextTemplates, payload.TextTemplates)
+    assert(record.payload.TextTemplates == nil)
     Equal(record.payload, ns.LayoutService.CopyPayload(payload))
     Equal(before.char, ns.db.char)
     Equal(before.profile, ns.db.profile)

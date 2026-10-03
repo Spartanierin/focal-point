@@ -17,21 +17,10 @@ local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
 end
 
-local function GetEditorTemplateState(templateName, context)
-    if not IsNonEmptyString(templateName) then
-        return nil
-    end
-
-    if type(context) ~= "table" or type(context.GetTemplate) ~= "function" then
-        return "active"
-    end
-
-    local ok, templateText = pcall(context.GetTemplate, templateName)
-    if ok and IsNonEmptyString(templateText) then
-        return "active"
-    end
-
-    return "invalid"
+local function GetEditorTemplateState(templateId, context)
+    if not IsNonEmptyString(templateId) then return nil end
+    local entity = FocalPoint.TextTemplateLibrary.ResolveTemplateEntity(templateId, context and context.db)
+    return entity and "active" or "invalid"
 end
 
 local function GetStateTemplateState(stateTemplates, context)
@@ -150,12 +139,12 @@ function Status.ResolveEditorRenderableState(textConfig, context)
         return "inactive"
     end
 
-    local stateTemplateState = GetStateTemplateState(textConfig.stateTemplates, context)
+    local stateTemplateState = GetStateTemplateState(textConfig.stateTemplateIds, context)
     if stateTemplateState then
         return stateTemplateState
     end
 
-    local templateState = GetEditorTemplateState(textConfig.templateName, context)
+    local templateState = GetEditorTemplateState(textConfig.templateId, context)
     if templateState then
         return templateState
     end

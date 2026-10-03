@@ -575,6 +575,7 @@ local function AddPickerButton(dialog, container, label, callback, closeBefore)
 end
 
 local function OpenTextTemplateLibrary(entityMode)
+    entityMode = true
     local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
     if libraryWindow and libraryWindow.Open then
         local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
@@ -1079,7 +1080,7 @@ local function EnsureHost()
 
     if ToolbarBinding then
         if widgets.addObjectButton then
-            widgets.addObjectButton:SetCallback("OnClick", OpenAddObjectPicker)
+            widgets.addObjectButton:SetCallback("OnClick", function() CanvasToolbar.OpenEntityAddObjectPicker() end)
         end
         if widgets.layoutDropdown then
             widgets.layoutDropdown:SetCallback("OnValueChanged", function(_, _, value)

@@ -770,7 +770,7 @@ function InspectorController.Build(container, state, options)
         getFirstAuraKey = GetFirstAuraKey,
     }) or {}
 
-    inspectorContext.entity = options.entity == true
+    inspectorContext.entity = true
 
     local isQuick = inspectorContext.isQuick == true
     local isExpert = inspectorContext.isExpert == true
@@ -821,39 +821,15 @@ function InspectorController.Build(container, state, options)
     end
 
     local function BuildMissingTemplateMessages(textId)
-        local scanner = ns.TextTemplateUsage and ns.TextTemplateUsage.Scan
-        if type(scanner) ~= "function" or textId == nil then
-            return {}
-        end
-
-        local resolver = ns.ActiveLayoutResolver
-        local payload = resolver and resolver.GetActivePayloadRoot and resolver.GetActivePayloadRoot(ns.db)
-        if type(payload) ~= "table" then
-            return {}
-        end
-        local readContext = {
-            GetTemplates = function() return payload.TextTemplates end,
-            GetUnits = function() return payload.Units end,
-        }
-        local primaryMissing = nil
-        local missingStates = {}
-        for _, entry in ipairs(scanner(readContext) or {}) do
-            if entry.unit == selectedUnit and entry.textId == textId and entry.isMissing then
-                if entry.isPrimary then
-                    primaryMissing = entry.templateName
-                elseif entry.isState then
-                    missingStates[#missingStates + 1] = string.format("%s -> %s", tostring(entry.stateKey or "?"), tostring(entry.templateName or "?"))
-                end
-            end
-        end
-
+        local payload = ns.ActiveLayoutResolver.GetActivePayloadRoot(ns.db)
+        if not payload or not textId then return {} end
         local messages = {}
-        if type(primaryMissing) == "string" and primaryMissing ~= "" then
-            messages[#messages + 1] = string.format("Template \"%s\" is not installed in the active layout.", primaryMissing)
-        end
-        if #missingStates > 0 then
-            table.sort(missingStates)
-            messages[#messages + 1] = "Missing state templates: " .. table.concat(missingStates, ", ")
+        for _, ref in ipairs(ns.TextTemplateUsage.ScanEntities({active={payload=payload}})) do
+            if ref.unitKey == selectedUnit and ref.textKey == textId
+                and not ns.TextTemplateLibrary.ResolveTemplateEntity(ref.templateId, ns.db) then
+                messages[#messages+1] = "Missing template: " .. ref.templateId
+                    .. (ref.stateKey and (" (" .. ref.stateKey .. ")") or "")
+            end
         end
         return messages
     end
@@ -3763,7 +3739,7 @@ function InspectorController.Build(container, state, options)
         end
 
         local templateLabel = ((type(linkedTemplateName) == "string" and linkedTemplateName ~= "") and linkedTemplateName or (L["EDITOR_TEXT_DIRECT_TEMPLATE"] or "Direct Template"))
-        if inspectorContext.entity then
+        if inspectorContext.entity and textConfig.templateId ~= nil then
             local entity = textConfig.templateId and ns.TextTemplateLibrary and ns.TextTemplateLibrary.ResolveTemplateEntity
                 and ns.TextTemplateLibrary.ResolveTemplateEntity(textConfig.templateId, ns.db)
             templateLabel = entity and entity.name or (L["MEDIA_LIBRARY_MISSING"] or "Missing")

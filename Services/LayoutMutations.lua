@@ -4,7 +4,7 @@ FocalPoint.LayoutMutations = FocalPoint.LayoutMutations or {}
 local Mutations = FocalPoint.LayoutMutations
 
 local MAX_NAME_LENGTH = 64
-local LAYOUT_FORMAT_VERSION = 1
+local LAYOUT_FORMAT_VERSION = 2
 
 local function Trim(value)
     if type(value) ~= "string" then
@@ -61,7 +61,7 @@ end
 local function IsValidLayoutPayload(payload)
     return type(payload) == "table"
         and type(payload.Units) == "table"
-        and type(payload.TextTemplates) == "table"
+        and payload.TextTemplates == nil
 end
 
 local function ShortenForSuffix(baseName, suffix)

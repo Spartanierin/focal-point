@@ -1456,4 +1456,11 @@ function Mutations.CopyProfileTemplateToProfile(db, sourceProfileName, templateN
     }, targetProfileName)
 end
 
+-- E6 exposes one mutation contract. Historical name/profile writers are not APIs.
+for _, name in ipairs({"CreateProfileContext", "CreateActiveLayoutContext", "CountTemplateReferences",
+    "MaterializeTemplateEntry", "AssignTemplate", "UnassignTemplate", "ApplyTemplateToUnits",
+    "CopyTemplateEntryToProfile", "CopyProfileTemplateToProfile", "CopyTemplate"}) do
+    Mutations[name] = nil
+end
+for name, operation in pairs(Entity) do Mutations[name] = operation end
 return Mutations

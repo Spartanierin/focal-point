@@ -196,7 +196,7 @@ ns.GUI.Editor.State={GetPrimaryUnit=function() return "player" end}
 ns.UnitFrameUtils={GetUnitDB=function() return {present=true} end}
 Load("GUI/Editor/CanvasToolbar.lua")
 local ensureHost=Upvalue(ns.GUI.Editor.CanvasToolbar.UpdateGeometry,"EnsureHost")
-local openAddObject=Upvalue(ensureHost,"OpenAddObjectPicker")
+local openAddObject=ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker
 openAddObject()
 local add=createdDialogs[#createdDialogs].dialog
 Check(add); Equal(add.window.frame:GetWidth(),420)

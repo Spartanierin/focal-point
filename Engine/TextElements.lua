@@ -629,10 +629,7 @@ end
 local function ResolveConfiguredTemplate(frame, textConfig)
     return ResolveConfiguredTemplateShared(frame, textConfig, {
         GetLiveValue = GetLiveValue,
-        GetTemplate = function(templateName)
-            local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
-            return type(templates) == "table" and templates[templateName] or nil
-        end,
+        db = FocalPoint.db,
     })
 end
 
@@ -661,10 +658,7 @@ end
 
 ResolveTextDependencies = function(frame, textKey, textConfig, textRole)
     return ResolveTextDependenciesShared and ResolveTextDependenciesShared(frame, textConfig, {
-        GetTemplate = function(templateName)
-            local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
-            return type(templates) == "table" and templates[templateName] or nil
-        end,
+        db = FocalPoint.db,
         GetTokenDependencies = GetTokenDependencies,
         GetBasicTagDependencies = GetBasicTagDependencies,
         GetRoleDependencies = function()

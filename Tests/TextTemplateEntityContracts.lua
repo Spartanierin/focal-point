@@ -78,7 +78,7 @@ Test('dead, ghost, ghost-to-dead, main and inline fallback', function()
     assert(R.Resolve(text, 'ghost', ctx) == 'inline')
 end)
 Test('persisted absence is complete despite available default dead binding', function()
-    assert(ns:GetDefaultDB().profile.Units.target.Texts.Health.stateTemplates.dead)
+    assert(ns:GetDefaultDB().profile.Units.target.Texts.Health.stateTemplateIds.dead)
     local db, _, _, layouts = Fixture()
     local text = {tag = 'persisted'}
     layouts['layout:A'].payload.Units.target = {Texts = {Health = text}}
@@ -302,11 +302,11 @@ Test('E3 prepared records are directly consumable without projection or normaliz
     end
     assert(Equal(db, before)); ns.GetDefaultDB = getDefaults
 end)
-Test('active legacy resolver is unchanged and does not auto-detect IDs', function()
+Test('canonical runtime is Entity-only and ignores legacy names', function()
     local db = Fixture()
-    assert(ns.TextTemplateResolver.Resolve({templateId = A, tag = 'old inline'}, nil, {db = db}) == 'old inline')
+    assert(ns.TextTemplateResolver.Resolve({templateId = A, tag = 'old inline'}, nil, {db = db}) == '[hp:cur]')
     assert(ns.TextTemplateResolver.Resolve({templateName = 'old'}, nil,
-        {GetTemplate = function(name) assert(name == 'old'); return 'legacy' end}) == 'legacy')
+        {GetTemplate = function(name) assert(name == 'old'); return 'legacy' end}) == '')
 end)
 
 Test('R1 fork is atomic, lossless and invalidates a warm binding only for its object', function()

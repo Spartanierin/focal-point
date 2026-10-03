@@ -32,7 +32,6 @@
     <Script file="Services/PresetMutations.lua"/>
     <Script file="Services/ProfileLayoutService.lua"/>
     <Script file="Services/ThemeService.lua"/>
-    <Script file="Services/ProfileTransfer.lua"/>
     <Script file="Services/ProfileAutomation.lua"/>
     <Script file="Media/Decorations/DecorationManifest.lua"/>
     <Script file="Media/Textures/GUI/GUITextureManifest.lua"/>
@@ -96,6 +95,9 @@
     <Script file="Engine/Text/Shared/TextTemplateUsage.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateValidation.lua"/>
     <Script file="Engine/Text/Shared/TextTemplateMutations.lua"/>
+    <Script file="Services/TextTemplateEntityMigration.lua"/>
+    <Script file="Services/TextTemplateEntityCutover.lua"/>
+    <Script file="Services/LayoutTransferVNext.lua"/>
     <Script file="Engine/Text/Shared/TextElementDirectTemplate.lua"/>
     <Script file="Engine/Text/Runtime/TextElementFactory.lua"/>
     <Script file="Engine/Text/Runtime/TextElementState.lua"/>
@@ -188,14 +190,12 @@
     <Script file="GUI/Layouts/UnitPortraitDefinition.lua"/>
     <Script file="GUI/Layouts/UnitClassificationIndicatorLayouts.lua"/>
     <Script file="GUI/Layouts/FormElementDefinition.lua"/>
-    <Script file="GUI/Pages/Profiles/ProfilesDefinition.lua"/>
     <Script file="GUI/Editor/Toolbar/ToolbarDefinition.lua"/>
     <Script file="GUI/Pages/TextBuilder/TextBuilderDefinition.lua"/>
     <Script file="GUI/Pages/TagLibrary/TagLibraryView.lua"/>
     <Script file="GUI/Pages/TagLibrary/TagLibraryController.lua"/>
     <Script file="GUI/GUIController.lua"/>
     <Script file="GUI/Pages/Profiles/LayoutsPresetsController.lua"/>
-    <Script file="GUI/Pages/Profiles/ProfilesController.lua"/>
     <Script file="GUI/Pages/Shared/PlaceholderController.lua"/>
     <Script file="GUI/Pages/TextBuilder/TextBuilderController.lua"/>
     <Script file="GUI/Pages/TextBuilder/TextBuilderEntity.lua"/>

@@ -1,7 +1,6 @@
 local addonName, ns = ...
 
--- E5 preparation only. Intentionally absent from Init.xml; no active buttons,
--- store writes, activation or automatic format detection live here.
+-- Versioned resource-graph preparation and the common atomic import commit.
 local Next = {SchemaVersion = 2, FormatVersion = 2}
 ns.LayoutTransferVNext = Next
 local Codec, Library = ns.LayoutTransferCodec, ns.TextTemplateLibrary
@@ -192,8 +191,8 @@ function Next.PrepareImport(text, db, options)
     end
     result.ready, result.preparedLayout, result.recordsToCreate, result.remappings = true, layout, create, remappings
     result.idState = private.global.TextTemplateIdState
-    -- E6 must reprepare/revalidate against current storage before an atomic commit.
-    -- No commit function exists in E5; returned snapshots are not a second library.
+    -- Import reprepares and revalidates against live storage before publication.
+    -- These detached snapshots never become a parallel runtime library.
     return result
 end
 
@@ -287,4 +286,87 @@ function Next.PrepareLegacyImport(text, db, generator)
         result.idState = converted.idState
     end
     return result
+end
+
+-- One commit path for both explicitly versioned document contracts.
+local function Copy(value, seen)
+    if type(value) ~= "table" then return value end
+    assert(not getmetatable(value), "invalid-store")
+    seen = seen or {}; assert(not seen[value], "cyclic-store"); seen[value] = true
+    local result = {}
+    for key, entry in pairs(value) do result[key] = Copy(entry, seen) end
+    seen[value] = nil
+    return result
+end
+local function Equal(a, b)
+    if a == b then return true end
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for key, value in pairs(a) do if not Equal(value, rawget(b,key)) then return false end end
+    for key in pairs(b) do if rawget(a,key) == nil then return false end end
+    return true
+end
+function Next.Import(text, db, options)
+    options = type(options) == "table" and options or {}
+    local generator, forks = rawget(options,"generator"), rawget(options,"forks")
+    local failureAt = rawget(options,"testCommitFailureAt")
+    if failureAt ~= nil and type(failureAt) ~= "number" then return false,"invalid-options" end
+    local global = type(db) == "table" and rawget(db,"global")
+    local saved = type(db) == "table" and rawget(db,"sv")
+    if type(global) ~= "table" or getmetatable(global)
+        or (saved and rawget(saved,"global") ~= global) then return false,"invalid-global" end
+    local keys = {"UserLayouts","TextTemplates","TextTemplateIdState"}
+    local refs, before = {}, {}
+    for _, key in ipairs(keys) do refs[key] = rawget(global,key) end
+    local copied; copied, before = pcall(Copy, refs)
+    if not copied then return false,"invalid-store" end
+    if type(before.UserLayouts) ~= "table" then return false,"invalid-layout-store" end
+    local document, reason = Codec.Decode(text)
+    if document == nil then return false,reason end
+    if type(document) ~= "table" then return false,"transfer-version" end
+    local prepared
+    if document.transferSchema == 2 and document.formatVersion == 2 then
+        prepared = Next.PrepareImport(text,db,{generator=generator,forks=forks})
+    elseif document.transferSchema == 1 and document.formatVersion == 1 then
+        prepared = Next.PrepareLegacyImport(text,db,generator)
+    else return false,"transfer-version" end
+    if not prepared.ready then
+        return false, prepared.conflicts and #prepared.conflicts > 0 and "resource-conflict"
+            or prepared.diagnostics[1] and prepared.diagnostics[1].errorCode or "import-invalid", nil, prepared
+    end
+    local valid, name = ns.LayoutMutations.ValidateLayoutName(prepared.preparedLayout.name)
+    if not valid and name == "duplicate-name" then
+        name = ns.LayoutMutations.SuggestLayoutCopyName(prepared.preparedLayout.name)
+        valid, name = ns.LayoutMutations.ValidateLayoutName(name)
+    end
+    if not valid then return false,name end
+    local private = {global={UserLayouts={},TextTemplates=Copy(before.TextTemplates or {}),
+        TextTemplateIdState=Copy(prepared.idState)}}
+    for id, record in pairs(refs.UserLayouts) do private.global.UserLayouts[id] = record end
+    local id = ns.UserLayoutStore.GenerateId(private)
+    if type(id) ~= "string" or not id:match("^layout:") or private.global.UserLayouts[id] then return false,"id-failed" end
+    prepared.preparedLayout.name = name
+    private.global.UserLayouts[id] = prepared.preparedLayout
+    for templateId, record in pairs(prepared.recordsToCreate) do
+        if private.global.TextTemplates[templateId] ~= nil then return false,"resource-conflict" end
+        private.global.TextTemplates[templateId] = record
+    end
+    local validation = Validation.ValidateEntityLayouts(private.global.UserLayouts,private)
+    if not validation.valid then return false,validation.issues[1].code end
+    if rawget(db,"sv") ~= saved or rawget(db,"global") ~= global
+        or (saved and rawget(saved,"global") ~= global) then return false,"live-conflict" end
+    for _, key in ipairs(keys) do
+        if rawget(global,key) ~= refs[key] or not Equal(rawget(global,key),before[key]) then return false,"live-conflict" end
+    end
+    -- No callbacks, ID generators, validators or option reads in the write phase.
+    local ok = pcall(function()
+        for index, key in ipairs(keys) do
+            rawset(global,key,private.global[key])
+            if failureAt == index then error("injected-commit-failure") end
+        end
+    end)
+    if not ok then
+        for _, key in ipairs(keys) do rawset(global,key,refs[key]) end
+        return false,"store-write-failed"
+    end
+    return true,id,name
 end

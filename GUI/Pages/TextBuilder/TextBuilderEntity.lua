@@ -28,6 +28,9 @@ local function Text(db, c)
     return type(ts)=="table" and rawget(ts,c.textKey) or nil
 end
 local function Current(s)
+    if not s or s.invalidated then return false end
+    local char = type(s.db) == "table" and rawget(s.db, "char")
+    if type(char) ~= "table" or rawget(char, "activeLayoutId") ~= s.activeLayoutId then return false end
     if s.kind=="new-template" then return true end
     if s.kind=="shared-template" then
         local r=Record(s.db,s.templateId)
@@ -84,12 +87,14 @@ function R2.Valid(s,a)
         and a.templateId==s.templateId and Current(s)
 end
 function R2.SetContent(s,v)
+    if not Current(s) then return false,"stale_context" end
     if type(v)~="string" then return false,"invalid_template_content" end
     if s.readOnly then return false,"read_only" end
     if s.nameDirty and s.kind=="shared-template" then return false,"name_unconfirmed" end
     s.content=v;s.contentDirty=v~=s.baseline.content;Renew(s);return true,s.contentDirty
 end
 function R2.SetName(s,v)
+    if not Current(s) then return false,"stale_context" end
     if type(v)~="string" then return false,"invalid_template_name" end
     if s.readOnly then return false,"read_only" end
     s.name=v;s.nameDirty=v~=s.baseline.name;Renew(s);return true,s.nameDirty
@@ -152,6 +157,7 @@ function R2.Decide(s,decision,capture)
     return {ok=false,errorCode="invalid_decision"}
 end
 function R2.Rename(s)
+    if not Current(s) then return {ok=false,errorCode="stale_context"} end
     if s.kind~="shared-template" or not s.templateId then return {ok=false,errorCode="invalid_context"} end
     if s.readOnly then return {ok=false,errorCode="read_only"} end
     if s.name==s.baseline.name then return {ok=true,changed=false} end
@@ -159,6 +165,7 @@ function R2.Rename(s)
     s.expected.name=s.name;s.baseline.name=s.name;s.nameDirty=false;Renew(s);return {ok=true,changed=r.changed,refresh=true}
 end
 function R2.Delete(s)
+    if not Current(s) then return {ok=false,errorCode="stale_context"} end
     if s.kind~="shared-template" or not s.templateId then return {ok=false,errorCode="invalid_context"} end
     if s.readOnly then return {ok=false,errorCode="read_only"} end
     if R2.IsDirty(s) then return {ok=false,errorCode="dirty_draft"} end
@@ -168,6 +175,7 @@ function R2.Delete(s)
     return {ok=true,changed=true,session=n,refresh=true}
 end
 function R2.Copy(s)
+    if not Current(s) then return {ok=false,errorCode="stale_context"} end
     if s.kind~="shared-template" or not s.templateId then return {ok=false,errorCode="invalid_context"} end
     local r=Entity.CopyTemplate(s.db,s.templateId,R2.idGenerator);if not r or not r.ok then return r end
     local n,e=Open({entity=true,kind="shared-template",layoutId=s.activeLayoutId,templateId=r.templateId,returnContext=s.returnContext},s.db,s.activeLayoutId)
@@ -177,33 +185,27 @@ function R2.Copy(s)
 end
 
 
--- R2 UI adapter: reuse the already-created TextBuilder window and its dialog
--- factory. No legacy request is routed here; only entity=true enters this path.
-local LegacyOpenWindow = Builder.OpenWindow
-local LegacyHideWindow = Builder.HideWindow
-local LegacyHasUnsavedChanges = Builder.HasUnsavedChanges
+-- Canonical Entity window; reuses only the existing presentation factory.
 local r2Window
 local r2Decision
+local r2CloseDialog
+local r2DeleteDialog
 local r2Closing = false
-
-local function FindUpvalue(fn, wanted, seen)
-    if type(fn) ~= "function" then return nil end
-    seen = seen or {}
-    if seen[fn] then return nil end
-    seen[fn] = true
-    for i=1,160 do
-        local name, value = debug.getupvalue(fn, i)
-        if not name then break end
-        if name == wanted then return value end
-        if type(value) == "function" then
-            local found = FindUpvalue(value, wanted, seen)
-            if found ~= nil then return found end
-        end
+local function InvalidateSession(context)
+    if context and context.r2Session then
+        context.r2Session.invalidated = true
+        Renew(context.r2Session)
+        context.r2Session = nil
     end
 end
-
-local function EntityContextFromWindow()
-    return FindUpvalue(LegacyOpenWindow, "windowContext")
+local function RefreshResult(result)
+    if result and result.ok and result.refresh and result.changed then
+        if ns.RefreshAllUnitFrames then ns:RefreshAllUnitFrames() end
+        if ns.GUI and ns.GUI.RequestRefreshOptions then ns.GUI:RequestRefreshOptions("TextBuilder.Entity") end
+        local library = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow
+        if library and library.Refresh then library.Refresh() end
+    end
+    return result
 end
 
 local function R2Text(context, value)
@@ -253,6 +255,9 @@ local function R2Refresh(context)
         context.usageHint:SetText(string.format("Main: %d | State: %d | Deaktiviert: %d",
             usage.main,usage.state,usage.disabled))
     end
+    if context.previewValue and ns.TextElementPreview then
+        context.previewValue:SetText(ns.TextElementPreview.BuildTemplatePreview(s.content))
+    end
     if context.window and context.window.DoLayout then context.window:DoLayout() end
 end
 
@@ -260,10 +265,10 @@ local function R2InstallDecisionLayout()
     ns.GUI.Layouts = ns.GUI.Layouts or {}
     ns.GUI.Layouts.TextBuilder = ns.GUI.Layouts.TextBuilder or {}
     ns.GUI.Layouts.TextBuilder.SharedDecision = {
-        {section="Root",properties={sectionKind="root",type="stack_block"},items={}},
-        {section="Message",properties={parentSection="Root",sectionKind="section",type="stack_block"},items={
+        {section="Root",properties={sectionKind="root",type="stack_block",variant="window_content"},items={}},
+        {section="Message",properties={parentSection="Root",sectionKind="section",type="stack_block",variant="section_stack"},items={
             {id="message",widget="label",text="Die Vorlage wird von diesem Layout wiederverwendet. Was soll gespeichert werden?"}}},
-        {section="Actions",properties={parentSection="Root",sectionKind="widget_group",type="action_row"},items={
+        {section="Actions",properties={parentSection="Root",sectionKind="widget_group",type="action_row",variant="triple_button"},items={
             {id="all",widget="button",text="Vorlage überall ändern"},
             {id="copy",widget="button",text="Für dieses Layout eigene Kopie"},
             {id="cancel",widget="button",text="Abbrechen"}}},
@@ -272,7 +277,7 @@ end
 
 local function OpenR2Decision(context, closeAfter)
     R2InstallDecisionLayout()
-    local openDialog=FindUpvalue(LegacyOpenWindow,"OpenTextBuilderLayoutDialog")
+    local openDialog=Builder.OpenLayoutDialog
     if not openDialog then R2Status("Shared-Decision-Dialog nicht verfügbar");return end
     local s=context.r2Session;local capture=R2.Capture(s);s.pendingCapture=capture
     r2Decision=openDialog(r2Decision,ns.GUI.Layouts.TextBuilder.SharedDecision,{
@@ -280,10 +285,11 @@ local function OpenR2Decision(context, closeAfter)
     if not r2Decision then return end
     local function Decide(which)
         if not R2.Valid(s,capture) then return end
-        local result=R2.Decide(s,which,capture)
+        local result=RefreshResult(R2.Decide(s,which,capture))
+        if context.r2Session ~= s or not Current(s) then return end
         if not result or not result.ok then R2Status("Speichern fehlgeschlagen");return end
-        r2Decision.window:Hide();R2Refresh(context);R2Status("Entity geloescht")
-        if closeAfter then r2Closing=true;context.window:Hide();r2Closing=false end
+        r2Decision.window:Hide();R2Refresh(context);R2Status("Gespeichert")
+        if closeAfter then InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false end
     end
     r2Decision.widgets.all:SetCallback("OnClick",function() Decide("all") end)
     r2Decision.widgets.copy:SetCallback("OnClick",function() Decide("copy") end)
@@ -309,70 +315,36 @@ local function BindR2Window(context, session)
         if R2.IsDirty(session) then R2Status("Ungespeicherte Entity-Änderungen");R2Refresh(context);return end
         local next,reason=R2.Open({entity=true,kind="shared-template",layoutId=session.activeLayoutId,templateId=id},session.db,session.activeLayoutId)
         if not next then R2Status("Auswahl ungültig: "..tostring(reason));return end
-        context.r2Session=next;session=next;R2Refresh(context)
+        InvalidateSession(context);context.r2Session=next;session=next;R2Refresh(context)
     end)
     context.newTemplateButton:SetCallback("OnClick",function()
+        if R2.IsDirty(session) then R2Status("Unsaved changes");return end
         local next,reason=R2.Open({entity=true,kind="new-template",layoutId=session.activeLayoutId,returnContext=session.returnContext},session.db,session.activeLayoutId)
         if not next then R2Status(tostring(reason));return end
-        context.r2Session=next;session=next;R2Refresh(context)
+        InvalidateSession(context);context.r2Session=next;session=next;R2Refresh(context)
     end)
     context.saveButton:SetCallback("OnClick",function()
-        local result=R2.Save(session)
+        local result=RefreshResult(R2.Save(session))
         if result and result.decisionRequired then OpenR2Decision(context,false)
-        elseif result and result.ok then R2Refresh(context);R2Status("Entity geloescht")
+        elseif result and result.ok then R2Refresh(context);R2Status("Gespeichert")
         else R2Status("Speichern fehlgeschlagen") end
     end)
     context.updateTemplateButton:SetCallback("OnClick",function()
-        local result=R2.Rename(session)
-        if result and result.ok then R2Refresh(context);R2Status("Entity geloescht") else R2Status("Rename fehlgeschlagen") end
+        local result=RefreshResult(R2.Rename(session))
+        if result and result.ok then R2Refresh(context);R2Status("Gespeichert") else R2Status("Rename fehlgeschlagen") end
     end)
     context.deleteTemplateButton:SetCallback("OnClick",function() R2.OpenDeleteConfirm(context) end)
     context.applyTemplateButton:SetCallback("OnClick",function()
-        local result=R2.Copy(session)
-        if result and result.ok then session=result.session;context.r2Session=session;R2Refresh(context);R2Status("Kopie erstellt")
+        local result=RefreshResult(R2.Copy(session))
+        if context.r2Session ~= session or not Current(session) then return end
+        if result and result.ok then InvalidateSession(context);session=result.session;context.r2Session=session;R2Refresh(context);R2Status("Kopie erstellt")
         else R2Status("Kopie fehlgeschlagen") end
     end)
     R2Refresh(context)
 end
 
-function R2.OpenWindow(deps, request)
-    local session,reason=R2.Open(request,ns.db)
-    if not session then return false,reason end
-    local ok,err=LegacyOpenWindow(deps)
-    if not ok and err then return false,err end
-    local context=EntityContextFromWindow()
-    if not context then return false,"builder_window_unavailable" end
-    BindR2Window(context,session)
-    context.window:SetTitle("Text Builder – Entity")
-    return true
-end
-
-Builder.OpenWindow=function(deps,request)
-    if R2.IsRequest(request) then return R2.OpenWindow(deps,request) end
-    return LegacyOpenWindow(deps,request)
-end
-
-Builder.HasUnsavedChanges=function()
-    if r2Window and r2Window.r2Session then return R2.IsDirty(r2Window.r2Session) end
-    return LegacyHasUnsavedChanges()
-end
-
-Builder.HideWindow=function()
-    if r2Window and r2Window.r2Session then
-        if R2.IsDirty(r2Window.r2Session) then
-            R2Status("Ungespeicherte Entity-Änderungen")
-            return false
-        end
-        r2Window.window:Hide();return true
-    end
-    return LegacyHideWindow()
-end
-
-
-local r2CloseDialog
-
 local function OpenR2CloseConfirm(context)
-    local openDialog=FindUpvalue(LegacyOpenWindow,"OpenTextBuilderLayoutDialog")
+    local openDialog=Builder.OpenLayoutDialog
     local layout=ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.UnsavedCloseConfirm
     if not openDialog or not layout then return end
     local s=context.r2Session;local capture=R2.Capture(s)
@@ -380,74 +352,95 @@ local function OpenR2CloseConfirm(context)
     if not r2CloseDialog then return end
     r2CloseDialog.saveCloseButton:SetCallback("OnClick",function()
         if not R2.Valid(s,capture) then return end
-        local result=R2.Save(s)
+        local result=RefreshResult(R2.Save(s))
+        if context.r2Session ~= s or not Current(s) then return end
         if result and result.decisionRequired then
             r2CloseDialog.window:Hide();OpenR2Decision(context,true)
         elseif result and result.ok then
-            r2CloseDialog.window:Hide();r2Closing=true;context.window:Hide();r2Closing=false
+            r2CloseDialog.window:Hide();InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false
         end
     end)
     r2CloseDialog.discardCloseButton:SetCallback("OnClick",function()
         if not R2.Valid(s,capture) then return end
-        r2CloseDialog.window:Hide();context.r2Session=nil;r2Closing=true;context.window:Hide();r2Closing=false;r2Window=nil
+        r2CloseDialog.window:Hide();InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false;r2Window=nil
     end)
     r2CloseDialog.cancelButton:SetCallback("OnClick",function() r2CloseDialog.window:Hide();context.window:Show() end)
 end
 
-local PreviousR2OpenWindow=R2.OpenWindow
-R2.OpenWindow=function(deps,request)
-    local result,reason=PreviousR2OpenWindow(deps,request)
-    if not result then return result,reason end
-    local context=EntityContextFromWindow()
-    if context and context.window then
-        context.window:SetCallback("OnClose",function()
-            if r2Closing then return end
-            if context.r2Session and R2.IsDirty(context.r2Session) then
-                context.window:Show();OpenR2CloseConfirm(context)
-            else
-                r2Window=nil
-            end
+function R2.OpenWindow(deps, request)
+    if r2Window and R2.IsDirty(r2Window.r2Session) then return false, "unsaved-changes" end
+    local active = ns.ActiveLayoutResolver.GetStoredActiveLayoutId(ns.db)
+    request = request or {entity=true,kind="new-template",layoutId=active}
+    local session, reason = R2.Open(request, ns.db)
+    if not session then return false, reason end
+    local context = Builder.CreateEntityWindow(deps)
+    if not context then return false, "builder_window_unavailable" end
+    InvalidateSession(context)
+    BindR2Window(context,session)
+    context.window:SetCallback("OnClose",function()
+        if r2Closing then return end
+        if R2.IsDirty(context.r2Session) then context.window:Show();OpenR2CloseConfirm(context)
+        else InvalidateSession(context);r2Window=nil end
+    end)
+    if context.tagLibraryButton then
+        context.tagLibraryButton:SetCallback("OnClick",function()
+            local capture=R2.Capture(context.r2Session)
+            local session=context.r2Session
+            local tags=ns.GUI.Pages.TagLibrary
+            if tags and tags.Open then tags.Open({owner="TextBuilder",onApply=function(token)
+                if not R2.Valid(session,capture) then return false end
+                return Builder.InsertTextIntoDraft(token)
+            end}) end
         end)
     end
-    return result
+    return true
 end
-
-local PreviousBuilderOpenWindow=Builder.OpenWindow
-Builder.OpenWindow=function(deps,request)
-    if R2.IsRequest(request) then return R2.OpenWindow(deps,request) end
-    r2Window=nil
-    return LegacyOpenWindow(deps,request)
-end
-
-
-
+Builder.OpenWindow=R2.OpenWindow
+Builder.HasUnsavedChanges=function() return r2Window and R2.IsDirty(r2Window.r2Session) or false end
 Builder.HideWindow=function()
-    if r2Window and r2Window.r2Session then
-        if R2.IsDirty(r2Window.r2Session) then
-            OpenR2CloseConfirm(r2Window)
-            return false
-        end
-        r2Closing=true;r2Window.window:Hide();r2Closing=false;r2Window=nil
-        return true
-    end
-    return LegacyHideWindow()
+    local context=r2Window
+    if not context then return true end
+    if R2.IsDirty(context.r2Session) then OpenR2CloseConfirm(context);return false end
+    InvalidateSession(context);r2Closing=true;context.window:Hide();r2Closing=false;r2Window=nil
+    return true
+end
+Builder.InvalidateLayoutContext=function()
+    if r2Decision then r2Decision.window:Hide() end
+    if r2CloseDialog then r2CloseDialog.window:Hide() end
+    if r2DeleteDialog then r2DeleteDialog.window:Hide() end
+    InvalidateSession(r2Window)
+    Builder.HideWindow()
+end
+Builder.RefreshWindowState=function() R2Refresh(r2Window) end
+Builder.InsertTextIntoDraft=function(text)
+    local context=r2Window;local session=context and context.r2Session
+    if type(text)~="string" or not Current(session) or session.readOnly then return false end
+    local edit=context.templateEdit.editbox
+    local cursor=edit and edit.GetCursorPosition and edit:GetCursorPosition() or #session.content
+    cursor=math.max(0,math.min(cursor,#session.content))
+    local ok=R2.SetContent(session,session.content:sub(1,cursor)..text..session.content:sub(cursor+1))
+    if not ok then return false end
+    R2Refresh(context)
+    if edit and edit.SetCursorPosition then edit:SetCursorPosition(cursor+#text) end
+    return true
 end
 
 function R2.OpenDeleteConfirm(context)
-    local openDialog=FindUpvalue(LegacyOpenWindow,"OpenTextBuilderLayoutDialog")
+    local openDialog=Builder.OpenLayoutDialog
     local layout=ns.GUI.Layouts and ns.GUI.Layouts.TextBuilder and ns.GUI.Layouts.TextBuilder.DeleteConfirm
     local s=context and context.r2Session
     if not openDialog or not layout or not s then return end
     local capture=R2.Capture(s)
-    r2Decision=openDialog(r2Decision,layout,{title="Entity loeschen",windowWidth=420,windowHeight=210,
+    r2DeleteDialog=openDialog(r2DeleteDialog,layout,{title="Entity loeschen",windowWidth=420,windowHeight=210,
         state={message="Diese Entity wirklich loeschen? Verwendung wird vorher geprueft."}})
-    if not r2Decision then return end
-    r2Decision.deleteConfirmButton:SetCallback("OnClick",function()
+    if not r2DeleteDialog then return end
+    r2DeleteDialog.deleteConfirmButton:SetCallback("OnClick",function()
         if not R2.Valid(s,capture) then return end
-        local result=R2.Delete(s)
+        local result=RefreshResult(R2.Delete(s))
+        if context.r2Session ~= s then return end
         if not result or not result.ok then R2Status("Loeschen blockiert");return end
-        r2Decision.window:Hide();context.r2Session=result.session;R2Refresh(context);R2Status("Entity geloescht")
+        r2DeleteDialog.window:Hide();InvalidateSession(context);BindR2Window(context,result.session);R2Status("Deleted")
     end)
-    r2Decision.cancelButton:SetCallback("OnClick",function() r2Decision.window:Hide() end)
+    r2DeleteDialog.cancelButton:SetCallback("OnClick",function() r2DeleteDialog.window:Hide() end)
 end
 

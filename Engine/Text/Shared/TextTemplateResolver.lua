@@ -2,36 +2,18 @@ local _, FocalPoint = ...
 
 FocalPoint.TextTemplateResolver = FocalPoint.TextTemplateResolver or {}
 local Resolver = FocalPoint.TextTemplateResolver
--- Explicit contracts share the same candidate, fallback and dependency engine.
--- E6 removes the legacy descriptor/wrappers after every caller has moved to IDs.
-local LegacyBinding = {main = "templateName", states = "stateTemplates", reference = "templateName",
-    cache = setmetatable({}, { __mode = "k" })}
 local EntityBinding = {main = "templateId", states = "stateTemplateIds", reference = "templateId",
     cache = setmetatable({}, { __mode = "k" })}
-local BindingCache = LegacyBinding.cache
+local BindingCache = EntityBinding.cache
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
 end
 
-local function GetTemplateText(templateName, context, binding)
-    if binding == EntityBinding then
-        -- No global-db fallback and no layout-local map. Read content on every
-        -- resolution; only reference candidates are cached, never entity records.
-        if type(context) ~= "table" or type(context.db) ~= "table" then return nil end
-        local entity = FocalPoint.TextTemplateLibrary.ResolveTemplateEntity(templateName, context.db)
-        return entity and entity.content or nil
-    end
-    if not IsNonEmptyString(templateName) or type(context) ~= "table" or type(context.GetTemplate) ~= "function" then
-        return nil
-    end
-
-    local ok, templateText = pcall(context.GetTemplate, templateName)
-    if ok and IsNonEmptyString(templateText) then
-        return templateText
-    end
-
-    return nil
+local function GetTemplateText(templateId, context)
+    if type(context) ~= "table" or type(context.db) ~= "table" then return nil end
+    local entity = FocalPoint.TextTemplateLibrary.ResolveTemplateEntity(templateId, context.db)
+    return entity and entity.content or nil
 end
 
 local function NormalizeText(text, context)
@@ -62,7 +44,7 @@ local function AddStateFallbacks(state, stateKeys)
 end
 
 local function BuildStateReference(textConfig, state, binding)
-    binding = binding or LegacyBinding
+    binding = binding or EntityBinding
     if type(textConfig) ~= "table" or type(textConfig[binding.states]) ~= "table" or not IsNonEmptyString(state) then
         return nil
     end
@@ -80,7 +62,7 @@ local function BuildStateReference(textConfig, state, binding)
 end
 
 local function BuildTemplateReference(textConfig, binding)
-    binding = binding or LegacyBinding
+    binding = binding or EntityBinding
     if type(textConfig) == "table" and IsNonEmptyString(textConfig[binding.main]) then
         return {
             kind = "template",
@@ -345,6 +327,6 @@ local function BindContract(binding, target)
     target.ResolveDependencies = function(config, context) return ResolveDependencies(binding, config, context) end
     return target
 end
-BindContract(LegacyBinding, Resolver)
--- Explicit opt-in only; no active consumer switches format based on object fields.
-Resolver.Entity = BindContract(EntityBinding, {Invalidate = Resolver.Invalidate})
+BindContract(EntityBinding, Resolver)
+-- The explicit Entity API and the canonical runtime share one contract.
+Resolver.Entity = Resolver

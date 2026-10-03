@@ -185,7 +185,7 @@ Test('unreferenced malformed container records are ignored without repairing ref
     Bad(Convert(source),'invalid-template-record')
 end)
 Test('raw absence never projects Defaults and no normalization helper is called',function()
-    assert(ns:GetDefaultDB().profile.Units.target.Texts.Health.stateTemplates.dead)
+    assert(ns:GetDefaultDB().profile.Units.target.Texts.Health.stateTemplateIds.dead)
     local normalize,copy,project=ns.LayoutService.NormalizePayload,ns.LayoutService.CopyPayload,ns.LayoutService.ProjectUserLayout
     local function Forbidden() error('projection/normalization forbidden') end
     ns.LayoutService.NormalizePayload=Forbidden;ns.LayoutService.CopyPayload=Forbidden;ns.LayoutService.ProjectUserLayout=Forbidden
@@ -237,6 +237,15 @@ Test('Legacy encode/decode to shared preparation to E4 validation/resolver round
 end)
 Test('Default snapshot and shipped Classic text overrides preserve historical false',function()
     local defaults=ns:GetDefaultDB().profile
+    local historical=dofile('Tests/Fixtures/LegacyTextBindings.lua')
+    defaults.TextTemplates=historical.defaultTemplates
+    for unit, config in pairs(defaults.Units) do
+        for key, text in pairs(config.Texts) do
+            text.templateId=nil;text.stateTemplateIds=nil
+            local old=historical.defaults[unit][key] or {}
+            text.templateName=old.templateName;text.stateTemplates=old.stateTemplates
+        end
+    end
     for _,kind in ipairs({'default','classic'}) do
         local payload={Units=Copy(defaults.Units),TextTemplates=Copy(defaults.TextTemplates)}
         if kind=='classic' then
@@ -244,12 +253,15 @@ Test('Default snapshot and shipped Classic text overrides preserve historical fa
             -- channels rejected by the pre-existing layout-transfer contract.
             -- That unrelated limitation must not be silently repaired here.
             local full=ns.LegacyThemeAdapter.MaterializePreviewLayout(ns.Themes.classic,ns:GetDefaultDB())
-            Bad(Convert({transferSchema=1,formatVersion=1,addonVersion='2.0.6',name='Classic full',payload=full}), 'units-invalid')
+            Bad(Convert({transferSchema=1,formatVersion=1,addonVersion='2.0.6',name='Classic full',payload={Units=full.Units,TextTemplates=historical.defaultTemplates}}))
             -- Exercise actual shipped text overrides on valid layout frame data.
             for unitKey,themeUnit in pairs(ns.Themes.classic.units) do
-                ns.LegacyThemeAdapter.ApplyThemeToUnitConfig(payload.Units[unitKey],{texts=themeUnit.texts})
+                for key, old in pairs(historical.classic[unitKey] or {}) do
+                    local text=payload.Units[unitKey].Texts[key] or {};payload.Units[unitKey].Texts[key]=text
+                    ns.LayoutService.MergeInto(text,old)
+                end
             end
-            ns.LayoutService.MergeInto(payload.TextTemplates,ns.Themes.classic.textTemplates)
+            ns.LayoutService.MergeInto(payload.TextTemplates,historical.classicTemplates)
             local maps,entries=0,0
             for _,unit in pairs(payload.Units) do
                 for _,text in pairs(unit.Texts or {}) do
@@ -278,11 +290,12 @@ Test('Default snapshot and shipped Classic text overrides preserve historical fa
         end
     end
 end)
-Test('actual active Legacy Export produces a document accepted by the converter',function()
+Test('historical encoded document remains accepted while legacy export is disabled',function()
     local source=Fixture();local db={global={UserLayouts={['layout:export']={
         name=source.name,formatVersion=1,payload=source.payload}}}}
     local oldDb=ns.db;ns.db=db;local before=Copy(db)
-    local encoded=assert(ns.LayoutTransfer.Export('layout:export'))
+    assert(ns.LayoutTransfer.Export('layout:export')==nil)
+    local encoded=assert(Codec.Encode(source))
     local result=Next.PrepareLegacyImport(encoded,{},Generator());assert(result.ready)
     Equal(db,before);ns.db=oldDb
     assert(result.preparedLayout.payload.Units.target.Texts.Health.tag=='fallback')
@@ -296,12 +309,12 @@ Test('non-document input and generator failure expose diagnostics without partia
         uptime=function() return 1 end,random=function() return 6 end}))
     Bad(Convert(Fixture(),{},fail),'id-reservation-failure')
 end)
-Test('active Legacy validator/routing and startup boundary stay unchanged',function()
+Test('versioned Legacy reader is loaded for the common Entity import path',function()
     local source=Fixture();source.payload.Units.target.Texts.Health.stateTemplates=false
     local ok,reason=ns.LayoutTransfer.Import(assert(Codec.Encode(source)))
-    assert(ok==false and reason=='units-invalid')
+    assert(ok==false and reason=='invalid-global')
     assert(Next.PrepareLegacyImport(assert(Codec.Encode(source)),{},Generator()).ready)
     local f=assert(io.open('Init.xml'));local init=f:read('*a');f:close()
-    assert(not init:find('LayoutTransferVNext',1,true) and not init:find('TextTemplateEntityMigration',1,true))
+    assert(init:find('LayoutTransferVNext',1,true) and init:find('TextTemplateEntityMigration',1,true))
 end)
 print('LayoutTransferLegacyEntities: '..passed..' groups passed')

@@ -5,7 +5,10 @@ for _, path in ipairs({
     "Data/Defaults.lua", "Data/Themes.lua", "Services/CompositionPresenceStorage.lua",
     "Services/LayoutService.lua", "Services/LegacyThemeAdapter.lua", "Services/PresetService.lua",
     "Services/UserLayoutStore.lua", "Services/ActiveLayoutResolver.lua", "Services/LayoutMutations.lua",
-    "Services/LayoutTransferCodec.lua", "Services/LayoutTransfer.lua",
+    "Engine/Text/Shared/TextTemplateLibrary.lua", "Data/BuiltInTextTemplates.lua",
+    "Engine/Text/Shared/TextElementRoles.lua", "Engine/Text/Shared/TextTemplateUsage.lua",
+    "Engine/Text/Shared/TextTemplateValidation.lua", "Services/TextTemplateEntityMigration.lua",
+    "Services/LayoutTransferCodec.lua", "Services/LayoutTransferVNext.lua", "Services/LayoutTransfer.lua",
     "Engine/Text/Shared/TextTemplateResolver.lua", "Engine/UnitFrame/Shared/UnitFrameUtils.lua",
     "Engine/Text/Shared/TextTemplateMutations.lua", "GUI/Editor/Inspector/InspectorMutations.lua",
 }) do Load(path) end
@@ -30,7 +33,7 @@ local function Test(name, run)
     else failed=failed+1; print("FAIL: " .. name .. ": " .. tostring(reason)) end
 end
 local function Styled()
-    return {enabled=true, templateName="Shared", tag="[name]", font="fp:font:standard",
+    return {enabled=true, templateId="tpl:b:default-013", tag="[name]", font="fp:font:standard",
         fontSize=17, fontStyle="OUTLINE", outline=true, shadowOffsetX=2, shadowOffsetY=-2,
         color={0.8,0.7,0.6,1}, anchorTo="HealthBar", point="RIGHT", relativePoint="RIGHT",
         offsetX=-9, offsetY=3, role="name"}
@@ -49,26 +52,26 @@ Test("identical linked objects / same position, 20 normalizations", function()
     local a=Styled(); Preserve({text_1=a, text_2=Clone(a)})
 end)
 Test("identical local expressions, 20 normalizations", function()
-    local a=Styled(); a.templateName=""; Preserve({text_1=a, text_2=Clone(a)})
+    local a=Styled(); a.templateId=nil; Preserve({text_1=a, text_2=Clone(a)})
 end)
 for field, value in pairs({fontStyle="THICKOUTLINE", outline=false, shadowOffsetX=5,
     shadowOffsetY=7, color={1,0,0,1}, anchorTo="Frame", role="health",
-    stateTemplates={dead="Dead"}}) do
+    stateTemplateIds={dead="tpl:b:default-005"}}) do
     Test("distinct " .. field, function()
         local a,b=Styled(),Styled(); b[field]=value; Preserve({text_1=a, text_2=b})
     end)
 end
 Test("empty table, CustomN and CENTER object beside legacy key", function()
-    Preserve({text_1={}, Custom1={templateName="Shared"}, Health=Styled(),
-        text_2={templateName="Shared", anchorTo="HealthBar", point="CENTER", relativePoint="CENTER"}})
+    Preserve({text_1={}, Custom1={templateId="tpl:b:default-013"}, Health=Styled(),
+        text_2={templateId="tpl:b:default-013", anchorTo="HealthBar", point="CENTER", relativePoint="CENTER"}})
 end)
 Test("invalid entries removed; resolver candidates invalidated", function()
     local text=Styled(); local unit={Texts={text_1=text, bad=false, number=42, string="invalid"}}
-    local context={GetTemplate=function(name) return name end}
-    assert(ns.TextTemplateResolver.Resolve(text, nil, context) == "Shared")
-    text.templateName="Other"
+    local context={db={}}
+    assert(ns.TextTemplateResolver.Resolve(text, nil, context) == ns.BuiltInTextTemplates.GetRecord("tpl:b:default-013").content)
+    text.templateId="tpl:b:default-014"
     ns.UnitFrameUtils.NormalizeUnitTexts(unit)
-    assert(ns.TextTemplateResolver.Resolve(text, nil, context) == "Other", "stale resolver cache")
+    assert(ns.TextTemplateResolver.Resolve(text, nil, context) == ns.BuiltInTextTemplates.GetRecord("tpl:b:default-014").content, "stale resolver cache")
     SameKeys(unit.Texts, {text_1=true}); assert(unit.Texts.text_1 == text)
     ns.UnitFrameUtils.NormalizeUnitTexts(nil); ns.UnitFrameUtils.NormalizeUnitTexts({Texts=false})
 end)
@@ -83,34 +86,34 @@ local function CheckProjection(payload)
     return projected
 end
 Test("reduced, empty, absent Texts and absent unit; explicit empty fields", function()
-    local payload={Units={player={Texts={Health={templateName="",tag=""},text_1=Styled(),text_2=Styled()}},
-        target={Texts={}},focus={}}, TextTemplates={Shared="[name]"}}
+    local payload={Units={player={Texts={Health={templateId=nil,tag=""},text_1=Styled(),text_2=Styled()}},
+        target={Texts={}},focus={}}}
     local projected=CheckProjection(payload)
-    assert(projected.Units.player.Texts.Health.templateName == "")
+    assert(projected.Units.player.Texts.Health.templateId == nil)
     assert(projected.Units.player.Texts.Health.tag == "")
     assert(projected.Units.player.width == defaults.profile.Units.player.width, "other defaults lost")
 end)
 Test("Spartanierin-like reduced composition across all units", function()
-    local payload={Units={},TextTemplates={Shared="[name]"}}
+    local payload={Units={}}
     for unitKey in pairs(defaults.profile.Units) do
-        payload.Units[unitKey]={Texts={Name={templateName="",tag="[name]"},text_1=Styled()}}
+        payload.Units[unitKey]={Texts={Name={templateId=nil,tag="[name]"},text_1=Styled()}}
     end
     CheckProjection(payload)
 end)
 Test("Demo-like six objects; existing field inheritance preserved", function()
     local payload={Units={player={Texts={Name={tag="[name]"},text_1=Styled(),text_2=Styled(),text_3=Styled()}},
-        target={Texts={Name={tag="[name]"},Health={templateName="",tag="[hp:cur]"}}}},TextTemplates={}}
+        target={Texts={Name={tag="[name]"},Health={templateId=nil,tag="[hp:cur]"}}}}}
     for unitKey in pairs(defaults.profile.Units) do
         payload.Units[unitKey]=payload.Units[unitKey] or {enabled=false,present=false,Texts={}}
     end
     local projected=CheckProjection(payload)
-    assert(projected.Units.target.Texts.Health.stateTemplates.dead == "Dead Target")
+    assert(projected.Units.target.Texts.Health.stateTemplateIds == nil, "projection invented state FKs")
 end)
 local function Source()
     local a=Styled()
-    local payload={Units={player={Texts={text_1=a,text_2=Clone(a)}}},TextTemplates={Shared="[name]"}}
+    local payload={Units={player={Texts={text_1=a,text_2=Clone(a)}}}}
     ns.db={profile={},char={activeLayoutId="layout:original"},global={UserLayouts={
-        ["layout:original"]={name="Original",formatVersion=1,payload=payload}}}}
+        ["layout:original"]={name="Original",formatVersion=2,payload=payload}}}}
     ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot()
     return payload
 end
@@ -150,46 +153,30 @@ Test("builtin-to-user keeps the intended initial composition", function()
 end)
 local function Context(text)
     local unit={Texts={text_1=text,keep={enabled=true,tag="keep"}}}
-    return {GetUnitConfig=function() return unit end,
-        GetTemplates=function() return {Shared="[name]",Other="other"} end}, unit
+    ns.db={char={activeLayoutId="layout:test"},global={UserLayouts={
+        ["layout:test"]={formatVersion=2,payload={Units={player=unit}}}}}}
+    return {db=ns.db,expectedLayoutId="layout:test"},unit
 end
 for _,state in ipairs({false,true}) do
     for _,otherRefs in ipairs({false,true}) do
-        Test((state and "state" or "main") .. " unassign, other references=" .. tostring(otherRefs), function()
+        Test((state and "state" or "main").." unassign, other references="..tostring(otherRefs),function()
             local text=Styled()
-            if state then text.templateName=otherRefs and "Other" or ""; text.stateTemplates={dead="Shared"}
-            elseif otherRefs then text.stateTemplates={dead="Other"} end
-            if state and otherRefs then text.stateTemplates.offline="Other" end
-            local context,unit=Context(text); local expected=Clone(unit.Texts)
-            if state then
-                expected.text_1.stateTemplates.dead=nil
-                if not otherRefs then expected.text_1.stateTemplates=nil end
-            else expected.text_1.templateName="" end
+            if state then text.templateId=otherRefs and "tpl:b:default-014" or nil;text.stateTemplateIds={dead="tpl:b:default-005"}
+            elseif otherRefs then text.stateTemplateIds={dead="tpl:b:default-005"} end
+            if state and otherRefs then text.stateTemplateIds.offline="tpl:b:default-004" end
+            local context,unit=Context(text);local expected=Clone(unit.Texts)
+            if state then expected.text_1.stateTemplateIds.dead=nil;if not otherRefs then expected.text_1.stateTemplateIds=nil end
+            else expected.text_1.templateId=nil end
             local result=state and mutations.UnassignStateTemplate(context,"player","text_1","dead")
-                or mutations.UnassignTemplate(context,"player","text_1")
-            assert(result.ok and result.changed)
-            assert(unit.Texts.text_1 == text, "unassign deleted object")
-            assert(Equal(unit.Texts,expected), "unassign changed more than requested reference")
+                or mutations.SetLocalMainContent(context,"player","text_1",text.tag)
+            assert(result.ok and result.changed,result.errorCode)
+            assert(unit.Texts.text_1==text and Equal(unit.Texts,expected))
         end)
     end
 end
-Test("unassign empty fallback does not disable named object", function()
-    local text=Styled(); text.tag=""
-    local context,unit=Context(text); unit.Texts.Named=unit.Texts.text_1; unit.Texts.text_1=nil
-    local expected=Clone(text); expected.templateName=""
-    assert(mutations.UnassignTemplate(context,"player","Named").ok)
-    assert(unit.Texts.Named == text and Equal(text,expected))
-end)
-Test("bulk unit unassign preserves objects and unrelated references", function()
-    local text=Styled(); text.stateTemplates={dead="Shared",offline="Other"}
-    local context,unit=Context(text); local expected=Clone(unit.Texts)
-    expected.text_1.templateName=""; expected.text_1.stateTemplates.dead=""
-    assert(mutations.ApplyTemplateToUnits(context,{selectedTemplateName="Shared",unitsToRemove={"player"}}).ok)
-    assert(unit.Texts.text_1 == text and Equal(unit.Texts,expected))
-    text.stateTemplates=nil
-    text.templateName="Shared"
-    assert(mutations.ApplyTemplateToUnits(context,{selectedTemplateName="Shared",unitsToRemove={"player"}}).ok)
-    assert(unit.Texts.text_1 == text and text.enabled == true and text.tag == "[name]")
+Test("retired name/bulk/profile writers are not exposed",function()
+    assert(mutations.ApplyTemplateToUnits==nil and mutations.UnassignTemplate==nil)
+    assert(mutations.CopyProfileTemplateToProfile==nil and mutations.CreateProfileContext==nil)
 end)
 Test("explicit Inspector delete removes only selected object", function()
     local text=Styled(); local _,unit=Context(text)

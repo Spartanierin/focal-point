@@ -170,10 +170,10 @@ end
 Load("GUI/Widgets/SelectionRow.lua")
 Load("GUI/Editor/TextTemplateLibraryWindow.lua")
 local templates={}
-ns.ActiveLayoutResolver.GetActiveTextTemplates=function() return templates end
+ns.TextTemplateLibrary={Entity={List=function() return templates end}}
 for _,mode in ipairs({"add","change"}) do
     for _,populated in ipairs({false,true}) do
-        templates=populated and {Sample="Sample preview"} or {}
+        templates=populated and {{value="tpl:b:default-001",label="Sample",content="Sample preview",readOnly=true}} or {}
         ns.GUI.Editor.TextTemplateLibraryWindow.Open({mode=mode,unit="player",textKey="test"})
         Check(latest,700,367)
         assert(Find(latest.body,"ScrollFrame"))
@@ -181,12 +181,51 @@ for _,mode in ipairs({"add","change"}) do
         CheckText(latest.body,"Preview","sectionHeader",11)
         if populated then
             CheckText(latest.body,"Sample","sectionHeader",14)
+            CheckText(latest.body,"Built-in","help",10)
             CheckText(latest.body,"Template","label",10)
             CheckText(latest.body,"Sample preview","highlight",17)
         end
         latest.cancelButton:Fire("OnClick")
     end
 end
+
+-- A Change Text picker keeps the object context captured at open time. A
+-- layout switch while it is open must neither retarget nor mutate either
+-- layout; a fresh picker on the new layout remains usable.
+local picker=ns.GUI.Editor.TextTemplateLibraryWindow
+local oldDb,oldMutations=ns.db,ns.TextTemplateMutations
+local oldRefresh,oldRequest=ns.RefreshUnitFrame,ns.GUI.RequestRefreshOptions
+local oldSelection=ns.GUI.Editor.ObjectSelection
+local textA={templateId="tpl:b:default-001"}; local textB={templateId="tpl:b:default-001"}
+ns.db={char={activeLayoutId="layout:a"},global={UserLayouts={
+    ["layout:a"]={payload={Units={player={Texts={x=textA}}}}},
+    ["layout:b"]={payload={Units={player={Texts={x=textB}}}}},
+}}}
+local entityCalls={}
+ns.TextTemplateMutations={Entity={AssignMainTemplate=function(context,unit,textKey,templateId)
+    entityCalls[#entityCalls+1]={layoutId=context.expectedLayoutId,unitKey=unit,textKey=textKey,templateId=templateId}
+    return {ok=true,changed=true,unitKey=unit,textKey=textKey}
+end}}
+ns.RefreshUnitFrame=function() end; ns.GUI.RequestRefreshOptions=function() end
+ns.GUI.Editor.ObjectSelection={SelectObject=function() return true end}
+templates={{value="tpl:b:default-001",label="Current",content="Current",readOnly=true},
+    {value="tpl:b:default-002",label="Replacement",content="Replacement",readOnly=true}}
+picker.Open({mode="change",unit="player",textKey="x",initialTemplateId="tpl:b:default-001"})
+local pickerContext=Upvalue(picker.Open,"windowContext")
+pickerContext.rowBindings["entity:tpl:b:default-002"].onSelect("entity:tpl:b:default-002")
+ns.db.char.activeLayoutId="layout:b"
+latest.primaryButton:Fire("OnClick")
+Equal(#entityCalls,0); Equal(textA.templateId,"tpl:b:default-001"); Equal(textB.templateId,"tpl:b:default-001")
+templates={{value="tpl:b:default-001",label="Current",content="Current",readOnly=true},
+    {value="tpl:b:default-002",label="Replacement",content="Replacement",readOnly=true}}
+picker.Open({mode="change",unit="player",textKey="x",initialTemplateId="tpl:b:default-001"})
+pickerContext=Upvalue(picker.Open,"windowContext")
+pickerContext.rowBindings["entity:tpl:b:default-002"].onSelect("entity:tpl:b:default-002")
+latest.primaryButton:Fire("OnClick")
+Equal(#entityCalls,1); Equal(entityCalls[1],{layoutId="layout:b",unitKey="player",textKey="x",templateId="tpl:b:default-002"})
+ns.db,ns.TextTemplateMutations=oldDb,oldMutations
+ns.RefreshUnitFrame,ns.GUI.RequestRefreshOptions=oldRefresh,oldRequest
+ns.GUI.Editor.ObjectSelection=oldSelection
 
 -- Direct utility chrome has no dependency on a Compact shell or its children.
 Load("Data/Constants.lua")

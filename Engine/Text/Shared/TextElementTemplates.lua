@@ -114,7 +114,6 @@ function Templates.ResolveConfigured(frame, textConfig, deps)
     deps = deps or {}
 
     local GetLiveValue = deps.GetLiveValue
-    local GetTemplate = deps.GetTemplate
 
     if type(textConfig) ~= "table" then
         return ""
@@ -122,7 +121,7 @@ function Templates.ResolveConfigured(frame, textConfig, deps)
 
     local statusKey = GetLiveValue and GetLiveValue(frame, "statusKey", "") or ""
     return TemplateResolver.Resolve and TemplateResolver.Resolve(textConfig, statusKey, {
-        GetTemplate = GetTemplate,
+        db = deps.db,
         NormalizeText = NormalizeTemplateText,
     }) or ""
 end
@@ -137,7 +136,7 @@ function Templates.ResolveDependencies(frame, textConfig, deps)
     end
 
     return TemplateResolver.ResolveDependencies and TemplateResolver.ResolveDependencies(textConfig, {
-        GetTemplate = deps.GetTemplate,
+        db = deps.db,
         NormalizeText = NormalizeTemplateText,
         GetTokenDependencies = deps.GetTokenDependencies,
         GetBasicTagDependencies = deps.GetBasicTagDependencies,

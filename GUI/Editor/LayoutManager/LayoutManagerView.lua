@@ -1010,12 +1010,29 @@ local function OpenTransferDialog(export)
         edit:SetFocus()
         edit:HighlightText()
     end
+    local forkApproval, approvalText
     dialog:SetActions({
         primary = {
             text = T(export and "LAYOUT_TRANSFER_SELECT_ALL" or "LAYOUT_TRANSFER_IMPORT"),
             onClick = function()
                 if export then SelectText(); return end
-                local ok, id, name = transfer.Import(edit:GetText())
+                local input = edit:GetText()
+                local ok, id, name, preparation = transfer.Import(input,
+                    {forks = approvalText == input and forkApproval or nil})
+                forkApproval, approvalText = nil, nil
+                if not ok and id == "resource-conflict" and preparation then
+                    local approvals = {}
+                    for _, conflict in ipairs(preparation.conflicts or {}) do
+                        if conflict.kind ~= "builtin" then approvals = nil; break end
+                        approvals[conflict.templateId] = conflict.incoming
+                    end
+                    if approvals and next(approvals) then
+                        forkApproval, approvalText = approvals, input
+                        dialog.primaryButton:SetText("Import with own copies")
+                        dialog:SetStatus("Built-in templates differ. Confirm import as separate user templates.", "warning", statusTarget)
+                        return
+                    end
+                end
                 if not ok then
                     dialog:SetStatus(TransferError(id), "error", statusTarget)
                     return
@@ -1033,6 +1050,8 @@ local function OpenTransferDialog(export)
         dialog.primaryButton:SetDisabled(true)
         edit:SetCallback("OnTextChanged", function()
             local text = edit:GetText() or ""
+            forkApproval, approvalText = nil, nil
+            dialog.primaryButton:SetText(T("LAYOUT_TRANSFER_IMPORT"))
             dialog:SetStatus("", nil, statusTarget)
             dialog.primaryButton:SetDisabled(Trim(text) == "")
         end)

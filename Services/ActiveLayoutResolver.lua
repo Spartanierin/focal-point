@@ -4,7 +4,7 @@ FocalPoint.ActiveLayoutResolver = FocalPoint.ActiveLayoutResolver or {}
 local Resolver = FocalPoint.ActiveLayoutResolver
 
 local DEFAULT_ACTIVE_LAYOUT_ID = "builtin:default"
-local LAYOUT_FORMAT_VERSION = 1
+local LAYOUT_FORMAT_VERSION = 2
 
 local function IsNonEmptyString(value)
     return type(value) == "string" and value ~= ""
@@ -102,8 +102,8 @@ local function ResolveMutableUserLayoutPayload(db, layoutId)
     if type(payload.Units) ~= "table" then
         return nil, "missing-user-layout-units"
     end
-    if type(payload.TextTemplates) ~= "table" then
-        return nil, "missing-user-layout-text-templates"
+    if record.formatVersion ~= 2 or payload.TextTemplates ~= nil then
+        return nil, "invalid-entity-layout"
     end
 
     local storage = FocalPoint.CompositionPresenceStorage
@@ -120,7 +120,7 @@ end
 local function IsValidLayoutPayload(payload)
     return type(payload) == "table"
         and type(payload.Units) == "table"
-        and type(payload.TextTemplates) == "table"
+        and payload.TextTemplates == nil
 end
 
 local function BuildRuntimeRoot(db, layoutId)
@@ -300,11 +300,6 @@ function Resolver.GetActiveUnits(db)
     return type(units) == "table" and units or nil, reason
 end
 
-function Resolver.GetActiveTextTemplates(db)
-    local payload, reason = Resolver.GetActivePayloadRoot(db)
-    local templates = type(payload) == "table" and payload.TextTemplates or nil
-    return type(templates) == "table" and templates or nil, reason
-end
 
 function Resolver.GetEditableActiveUnits(db)
     local payload, layoutId, created, reason = Resolver.EnsureEditableForMutation(db)
@@ -312,11 +307,6 @@ function Resolver.GetEditableActiveUnits(db)
     return type(units) == "table" and units or nil, layoutId, created, reason
 end
 
-function Resolver.GetEditableActiveTextTemplates(db)
-    local payload, layoutId, created, reason = Resolver.EnsureEditableForMutation(db)
-    local templates = type(payload) == "table" and payload.TextTemplates or nil
-    return type(templates) == "table" and templates or nil, layoutId, created, reason
-end
 
 function Resolver.IsCoreCutoverEnabled()
     return true

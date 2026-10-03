@@ -145,25 +145,13 @@ local function GetTextConfig(frame, textKey)
     return texts[textKey]
 end
 
-local function GetActiveProfileTemplate(templateName)
-    if type(templateName) ~= "string" or templateName == "" then
-        return nil
-    end
-
-    local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
-    if type(templates) == "table" then
-        return templates[templateName]
-    end
-
-    return nil
-end
 
 local function IsEditorRenderableText(frame, textKey, textConfig)
     if TextStatus.IsEditorRenderable then
         return TextStatus.IsEditorRenderable(textConfig, {
             textKey = textKey,
             unitConfig = frame and frame.config,
-            GetTemplate = GetActiveProfileTemplate,
+            db = FocalPoint.db,
         })
     end
 

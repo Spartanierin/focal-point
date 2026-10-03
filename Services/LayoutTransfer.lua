@@ -119,47 +119,10 @@ function Transfer.Export(layoutId)
     if type(layoutId) ~= "string" or not layoutId:match("^layout:") then return nil, "user-layout-required" end
     local record = ns.UserLayoutStore.GetRawReadOnly(layoutId)
     if type(record) ~= "table" then return nil, "layout-not-found" end
-    local document = {
-        transferSchema = ns.LayoutTransferCodec.SchemaVersion,
-        addonVersion = C_AddOns and C_AddOns.GetAddOnMetadata(addonName, "Version") or "unknown",
-        name = record.name,
-        formatVersion = record.formatVersion,
-        payload = record.payload,
-    }
-    -- Serialize before traversing configuration so cycles/metatables and limits
-    -- are rejected even for a damaged local record. Export never normalizes it.
-    local encoded, reason = ns.LayoutTransferCodec.Encode(document)
-    if not encoded then return nil, reason end
-    local valid
-    valid, reason = ValidateDocument(document)
-    if not valid then return nil, reason end
-    return encoded
+    if record.formatVersion ~= 2 then return nil, "layout-version" end
+    return ns.LayoutTransferVNext.Export(record, ns.db)
 end
 
-function Transfer.Import(text)
-    local document, reason = ns.LayoutTransferCodec.Decode(text)
-    if document == nil then return false, reason end
-    local valid
-    valid, reason = ValidateDocument(document)
-    if not valid then return false, reason end
-    local ok, payload = pcall(ns.LayoutService.CopyPayload, document.payload)
-    if not ok then return false, "payload-invalid" end
-    valid, reason = ValidatePayload(payload)
-    if not valid then return false, reason end
-    -- The only persisted operation is the canonical write of one new record.
-    -- No resolver, activation, assignment, automation or migration calls.
-    local id = ns.UserLayoutStore.GenerateId()
-    if type(id) ~= "string" or not id:match("^layout:") or ns.UserLayoutStore.GetRawReadOnly(id) ~= nil then
-        return false, "store-write-failed"
-    end
-    local name
-    valid, name = ns.LayoutMutations.ValidateLayoutName(document.name)
-    if not valid and name == "duplicate-name" then
-        name = ns.LayoutMutations.SuggestLayoutCopyName(document.name)
-        valid, name = ns.LayoutMutations.ValidateLayoutName(name)
-    end
-    if not valid then return false, name end
-    local stored = ns.UserLayoutStore.PutRaw(id, {name=name, payload=payload, formatVersion=FORMAT_VERSION})
-    if stored ~= id then return false, "store-write-failed" end
-    return true, id, name
+function Transfer.Import(text, options)
+    return ns.LayoutTransferVNext.Import(text, ns.db, options)
 end

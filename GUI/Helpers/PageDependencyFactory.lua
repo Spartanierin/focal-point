@@ -6,12 +6,6 @@ ns.GUI.Helpers = ns.GUI.Helpers or {}
 local PageDependencyFactory = {}
 ns.GUI.Helpers.PageDependencyFactory = PageDependencyFactory
 
-function PageDependencyFactory.CreateProfilesDeps(config)
-    return {
-        GetGUIState = config.GetGUIState,
-    }
-end
-
 function PageDependencyFactory.CreateTextBuilderDeps(config)
     return {
         GetGUIState = config.GetGUIState,

@@ -167,5 +167,22 @@ for _=1,3 do
     assert(AceGUI.FocusedWidget==nil)
     assert(manager.Open())
 end
+-- Real two-click Built-in conflict approval; edits revoke the captured snapshot.
+local doc=assert(ns.LayoutTransferCodec.Decode(encoded))
+local builtin="tpl:b:default-013"
+assert(doc.templates[builtin]);doc.templates[builtin].content="remote cast time"
+local conflicting=assert(ns.LayoutTransferCodec.Encode(doc))
+Click(importButton)
+local conflictDialog=dialogs[#dialogs];local conflictEdit=FindChild(conflictDialog.body,"MultiLineEditBox")
+conflictEdit:SetText(conflicting);before=Snapshot();Click(conflictDialog.primaryButton)
+assert(before==Snapshot() and conflictDialog.primaryButton:GetText()=="Import with own copies")
+conflictEdit:SetText(conflicting);Click(conflictDialog.primaryButton)
+assert(before==Snapshot(),"editing must revoke the first approval")
+time=function()return 1700000000 end
+GetTime=function()return 1 end
+Click(conflictDialog.primaryButton)
+assert(conflictDialog.statusRole=="success",statusTargets[conflictDialog]:GetText())
+assert(ns.TextTemplateLibrary.ResolveTemplateEntity(builtin,ns.db).content=="[cast:time]")
+assert(active==ns.LayoutTransferCodec.Encode(ns.db.char))
 manager.Close()
 print("PASS: manager export gating, import error/success, selection without activation, close/reopen and transfer widget release")

@@ -182,6 +182,9 @@ local function MaterializeSourceTexts(defaultTexts, sourceTexts)
     for textKey, sourceText in pairs(sourceTexts) do
         if type(sourceText) == "table" then
             materialized[textKey] = LayoutService.Clone(type(defaultTexts) == "table" and defaultTexts[textKey] or nil) or {}
+            -- A persisted object owns its bindings; defaults only supply style.
+            materialized[textKey].templateId = nil
+            materialized[textKey].stateTemplateIds = nil
             LayoutService.MergeInto(materialized[textKey], sourceText)
         else
             materialized[textKey] = sourceText
@@ -253,7 +256,7 @@ local function ResolveLayoutDefaults(defaults)
     }
 end
 
-function LayoutService.NormalizePayload(payload, defaults)
+function LayoutService.NormalizeLegacyPayload(payload, defaults)
     local layoutDefaults = ResolveLayoutDefaults(defaults)
     local sourceUnits = type(payload) == "table" and payload.Units or nil
     local sourceTemplates = type(payload) == "table" and payload.TextTemplates or nil
@@ -265,6 +268,32 @@ function LayoutService.NormalizePayload(payload, defaults)
     if type(sourceTemplates) == "table" then
         LayoutService.MergeInto(normalized.TextTemplates, sourceTemplates)
     end
+
+    if type(layoutDefaults.Units) == "table" then
+        for unitKey, defaultUnit in pairs(layoutDefaults.Units) do
+            normalized.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, sourceUnits and sourceUnits[unitKey])
+        end
+    elseif type(sourceUnits) == "table" then
+        normalized.Units = LayoutService.Clone(sourceUnits) or {}
+        for _, unitConfig in pairs(normalized.Units) do
+            NormalizeUnit(unitConfig)
+        end
+    end
+
+    local storage = FocalPoint.CompositionPresenceStorage
+    if type(storage) == "table" and type(storage.EnsurePayload) == "function" then
+        storage.EnsurePayload(normalized)
+    end
+
+    return normalized
+end
+
+function LayoutService.NormalizePayload(payload, defaults)
+    local layoutDefaults = ResolveLayoutDefaults(defaults)
+    local sourceUnits = type(payload) == "table" and payload.Units or nil
+    local normalized = {
+        Units = {},
+    }
 
     if type(layoutDefaults.Units) == "table" then
         for unitKey, defaultUnit in pairs(layoutDefaults.Units) do

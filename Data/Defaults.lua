@@ -35,26 +35,6 @@ function FocalPoint:GetDefaultDB()
             Minimap = {
                 hide = false,
             },
-            TextTemplates = {
-                ["Alt Power"] = "[altpower:cur] / [altpower:max]",
-                ["Class Power"] = "[classpower:cur] / [classpower:max]",
-                ["Unit Name Focus"] = "[name] [status] [status:timer]",
-                ["Unit Name Target"] = "[name] [status] [status:timer]",
-                ["Dead/Ghost Timer"] = "[dead] [dead:timer]",
-                ["Cast Name"] = "[cast:name]",
-                Power = "[power:cur:abbr]/[power:max:abbr]",
-                ["Absorb Value"] = "[absorb:cur:abbr]",
-                ["Healing Absorb Value"] = "[healabsorb:cur:abbr]",
-                ["Unit Name Player"] = "[status] [status:timer] [name]",
-                Health = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
-                ["Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
-                ["Cast Time"] = "[cast:time]",
-                Status = "[status] [status:timer]",
-                ["Dead Target"] = "[dead]",
-                ["Focus Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
-                ["Target Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
-                Creature = "[creature]",
-            },
             Units = {
                 player = {
                     present = true,
@@ -416,14 +396,14 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Unit Name Player",
+                            templateId = "tpl:b:default-010",
                         },
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
-                            stateTemplates = {
-                                dead = "Dead/Ghost Timer",
-                                ghost = "Dead/Ghost Timer",
+                            stateTemplateIds = {
+                                dead = "tpl:b:default-005",
+                                ghost = "tpl:b:default-005",
                             },
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -451,7 +431,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         NormalAbsorb = {
                             enabled = false,
@@ -484,7 +464,7 @@ function FocalPoint:GetDefaultDB()
                             monochrome = false,
                             fontStyle = "NONE",
                             overflowMode = "NONE",
-                            templateName = "Absorb Value",
+                            templateId = "tpl:b:default-008",
                         },
                         HealingAbsorb = {
                             enabled = false,
@@ -517,7 +497,7 @@ function FocalPoint:GetDefaultDB()
                             monochrome = false,
                             fontStyle = "NONE",
                             overflowMode = "NONE",
-                            templateName = "Healing Absorb Value",
+                            templateId = "tpl:b:default-009",
                         },
                         Power = {
                             enabled = true,
@@ -548,7 +528,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         AltPower = {
                             enabled = true,
@@ -579,7 +559,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Alt Power",
+                            templateId = "tpl:b:default-001",
                         },
                         ClassPower = {
                             enabled = true,
@@ -610,7 +590,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Class Power",
+                            templateId = "tpl:b:default-002",
                         },
                         Level = {
                             enabled = false,
@@ -672,7 +652,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Player Level and Class",
+                            templateId = "tpl:b:default-012",
                         },
                         Race = {
                             enabled = false,
@@ -763,7 +743,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Name",
+                            templateId = "tpl:b:default-006",
                         },
                         CastTime = {
                             enabled = true,
@@ -794,7 +774,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Time",
+                            templateId = "tpl:b:default-013",
                         },
                     },
                 },
@@ -1134,13 +1114,13 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Unit Name Target",
+                            templateId = "tpl:b:default-004",
                         },
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
-                            stateTemplates = {
-                                dead = "Dead Target",
+                            stateTemplateIds = {
+                                dead = "tpl:b:default-015",
                             },
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -1168,7 +1148,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         NormalAbsorb = {
                             enabled = false,
@@ -1201,7 +1181,7 @@ function FocalPoint:GetDefaultDB()
                             monochrome = false,
                             fontStyle = "NONE",
                             overflowMode = "NONE",
-                            templateName = "Absorb Value",
+                            templateId = "tpl:b:default-008",
                         },
                         HealingAbsorb = {
                             enabled = false,
@@ -1234,7 +1214,7 @@ function FocalPoint:GetDefaultDB()
                             monochrome = false,
                             fontStyle = "NONE",
                             overflowMode = "NONE",
-                            templateName = "Healing Absorb Value",
+                            templateId = "tpl:b:default-009",
                         },
                         Power = {
                             enabled = true,
@@ -1265,7 +1245,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         AltPower = {
                             enabled = true,
@@ -1296,7 +1276,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Alt Power",
+                            templateId = "tpl:b:default-001",
                         },
                         Level = {
                             enabled = false,
@@ -1388,7 +1368,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Target Level and Class",
+                            templateId = "tpl:b:default-017",
                         },
                         Status = {
                             enabled = false,
@@ -1449,7 +1429,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Name",
+                            templateId = "tpl:b:default-006",
                         },
                         CastTime = {
                             enabled = true,
@@ -1480,7 +1460,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Time",
+                            templateId = "tpl:b:default-013",
                         },
                     },
                 },
@@ -1820,13 +1800,13 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Unit Name Target",
+                            templateId = "tpl:b:default-004",
                         },
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
-                            stateTemplates = {
-                                dead = "Dead Target",
+                            stateTemplateIds = {
+                                dead = "tpl:b:default-015",
                             },
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -1854,7 +1834,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         Power = {
                             enabled = true,
@@ -1885,7 +1865,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         AltPower = {
                             enabled = true,
@@ -1916,7 +1896,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Alt Power",
+                            templateId = "tpl:b:default-001",
                         },
                         Level = {
                             enabled = false,
@@ -2008,7 +1988,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Target Level and Class",
+                            templateId = "tpl:b:default-017",
                         },
                         Status = {
                             enabled = false,
@@ -2069,7 +2049,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Name",
+                            templateId = "tpl:b:default-006",
                         },
                         CastTime = {
                             enabled = true,
@@ -2100,7 +2080,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Time",
+                            templateId = "tpl:b:default-013",
                         },
                     },
                 },
@@ -2440,13 +2420,13 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Unit Name Target",
+                            templateId = "tpl:b:default-004",
                         },
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
-                            stateTemplates = {
-                                dead = "Dead Target",
+                            stateTemplateIds = {
+                                dead = "tpl:b:default-015",
                             },
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -2474,7 +2454,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         Power = {
                             enabled = true,
@@ -2505,7 +2485,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         AltPower = {
                             enabled = true,
@@ -2536,7 +2516,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Alt Power",
+                            templateId = "tpl:b:default-001",
                         },
                         Level = {
                             enabled = false,
@@ -2628,7 +2608,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Target Level and Class",
+                            templateId = "tpl:b:default-017",
                         },
                         Status = {
                             enabled = false,
@@ -2689,7 +2669,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Name",
+                            templateId = "tpl:b:default-006",
                         },
                         CastTime = {
                             enabled = true,
@@ -2720,7 +2700,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Time",
+                            templateId = "tpl:b:default-013",
                         },
                     },
                 },
@@ -3055,13 +3035,13 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Unit Name Target",
+                            templateId = "tpl:b:default-004",
                         },
                         Health = {
                             enabled = true,
                             tag = "[hp:cur:abbr]/[hp:max:abbr] || [hp:perc]%",
-                            stateTemplates = {
-                                dead = "Dead Target",
+                            stateTemplateIds = {
+                                dead = "tpl:b:default-015",
                             },
                             anchorTo = "HealthBar",
                             point = "RIGHT",
@@ -3089,7 +3069,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         Power = {
                             enabled = true,
@@ -3120,7 +3100,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         AltPower = {
                             enabled = true,
@@ -3151,7 +3131,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Alt Power",
+                            templateId = "tpl:b:default-001",
                         },
                         Level = {
                             enabled = false,
@@ -3243,7 +3223,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Target Level and Class",
+                            templateId = "tpl:b:default-017",
                         },
                         Status = {
                             enabled = false,
@@ -3304,7 +3284,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Name",
+                            templateId = "tpl:b:default-006",
                         },
                         CastTime = {
                             enabled = true,
@@ -3335,7 +3315,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Time",
+                            templateId = "tpl:b:default-013",
                         },
                     },
                 },
@@ -3607,7 +3587,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Unit Name Player",
+                            templateId = "tpl:b:default-010",
                         },
                         Health = {
                             enabled = true,
@@ -3638,7 +3618,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         Power = {
                             enabled = true,
@@ -3669,7 +3649,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         Level = {
                             enabled = true,
@@ -3730,7 +3710,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Creature",
+                            templateId = "tpl:b:default-018",
                         },
                         Status = {
                             enabled = true,
@@ -3761,7 +3741,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Status",
+                            templateId = "tpl:b:default-014",
                         },
                         CastName = {
                             enabled = false,
@@ -3792,7 +3772,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Name",
+                            templateId = "tpl:b:default-006",
                         },
                         CastTime = {
                             enabled = false,
@@ -3823,7 +3803,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Cast Time",
+                            templateId = "tpl:b:default-013",
                         },
                     },
                     useReactionColorNpcHealth = false,
@@ -3894,7 +3874,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Health",
+                            templateId = "tpl:b:default-011",
                         },
                         Power = {
                             enabled = true,
@@ -3925,7 +3905,7 @@ function FocalPoint:GetDefaultDB()
                             outline = false,
                             thickOutline = false,
                             monochrome = false,
-                            templateName = "Power",
+                            templateId = "tpl:b:default-007",
                         },
                         Class = {
                             enabled = true,

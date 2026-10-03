@@ -5,13 +5,15 @@ local ns={L={THEME_DEFAULT="Default"}}
 local function Load(path) assert(loadfile(path))("FocalPoint",ns) end
 for _,path in ipairs({"Data/Defaults.lua","Services/CompositionPresenceStorage.lua",
     "Services/LayoutService.lua","Services/UserLayoutStore.lua","Services/ActiveLayoutResolver.lua",
+    "Engine/Text/Shared/TextTemplateLibrary.lua","Data/BuiltInTextTemplates.lua",
     "Engine/Text/Shared/TextTemplateUsage.lua"}) do Load(path) end
-local payload={TextTemplates={Present="[name]"},Units={player={Texts={
-    Test={templateName="Missing main",stateTemplates={dead="Missing state"}},
-    Clean={templateName="Present"},
+local main,state="tpl:b:missing-main","tpl:b:missing-state"
+local payload={Units={player={Texts={
+    Test={templateId=main,stateTemplateIds={dead=state}},
+    Clean={templateId="tpl:b:default-001"}, Local={tag="[name]"},
 }}}}
 ns.db={char={activeLayoutId="layout:test"},global={UserLayouts={
-    ["layout:test"]={name="Test",formatVersion=1,payload=payload},
+    ["layout:test"]={name="Test",formatVersion=2,payload=payload},
 }},profile={TextTemplates={["Missing main"]="legacy main",["Missing state"]="legacy state"},
     Units={player={Texts={Clean={templateName="Legacy missing"}}}}}}
 local file=assert(io.open("GUI/Editor/Inspector/InspectorController.lua"))
@@ -32,12 +34,36 @@ ns.TextTemplateUsage.ScanActiveProfileTemplateAssignments=function() error("lega
 local messages=build("Test")
 assert(calls==1,"Inspector must capture exactly one canonical payload")
 assert(#messages==2)
-assert(messages[1]:find('"Missing main"',1,true) and messages[1]:find("active layout",1,true))
-assert(messages[2]:find("dead -> Missing state",1,true))
+assert(messages[1]:find(main,1,true))
+assert(messages[2]:find(state,1,true) and messages[2]:find("(dead)",1,true))
+assert(#build("Local")==0)
 calls=0; assert(#build("Clean")==0 and calls==1,"legacy-only missing reference leaked into layout warnings")
-payload.TextTemplates["Missing main"]="[name]"
-payload.TextTemplates["Missing state"]="[status]"
+payload.Units.player.Texts.Test.templateId="tpl:b:default-001"
+payload.Units.player.Texts.Test.stateTemplateIds.dead="tpl:b:default-002"
 assert(#build("Test")==0)
 resolver.GetActivePayloadRoot=function() return nil,"unavailable" end
 assert(#build("Clean")==0,"missing layout must not fall back to profile")
-print("PASS: Inspector main/state warnings use one canonical layout read; no profile fallback or mutation context")
+
+-- Exercise the actual template-label branch from the current Inspector source.
+-- This keeps the test coupled to the product branch without reimplementing it.
+local labelFirst=assert(source:find("        local templateLabel = ",1,true))
+local labelLast=assert(source:find("        if isScopedObject then",labelFirst,true))
+local resolveCalls={}
+ns.TextTemplateLibrary={ResolveTemplateEntity=function(templateId)
+    resolveCalls[#resolveCalls+1]=templateId
+    if templateId=="tpl:u:custom-001" then return {name="User text"} end
+    if templateId=="tpl:b:default-001" then return {name="Built-in text"} end
+end}
+local makeLabel=assert(load("return function(inspectorContext,textConfig,linkedTemplateName)\n"
+    ..source:sub(labelFirst,labelLast-1).."\nreturn templateLabel\nend",
+    "@Inspector/TemplateLabel","t",setmetatable({ns=ns,L={EDITOR_TEXT_DIRECT_TEMPLATE="Direct Template",
+        MEDIA_LIBRARY_MISSING="Missing"}},{__index=_G})))()
+local objectLocal={tag="[name]"}
+assert(makeLabel({entity=true},objectLocal,nil)=="Direct Template")
+assert(objectLocal.templateId==nil)
+assert(makeLabel({entity=true},{templateId="tpl:u:custom-001"},nil)=="User text")
+assert(makeLabel({entity=true},{templateId="tpl:b:default-001"},nil)=="Built-in text")
+assert(makeLabel({entity=true},{templateId="tpl:b:unknown-999"},nil)=="Missing")
+assert(#resolveCalls==3 and resolveCalls[1]=="tpl:u:custom-001"
+    and resolveCalls[2]=="tpl:b:default-001" and resolveCalls[3]=="tpl:b:unknown-999")
+print("PASS: Inspector main/state warnings use one canonical layout read; no profile fallback or mutation context; object-local and entity labels distinguish missing IDs")

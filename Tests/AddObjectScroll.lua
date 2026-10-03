@@ -45,7 +45,7 @@ end
 local shared=ns.GUI.Editor.SidebarShared
 local indicators=shared.BuildIndicatorList
 shared.BuildIndicatorList=function(unit) indicatorCalls=indicatorCalls+1; return indicators(unit) end
-local open=f.Upvalue(f.Upvalue(ns.GUI.Editor.CanvasToolbar.UpdateGeometry,"EnsureHost"),"OpenAddObjectPicker")
+local open=ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker
 local last
 local create=f.widgets.CreateCompactFormDialog
 f.widgets.CreateCompactFormDialog=function(options) last=create(options); return last end
@@ -173,7 +173,10 @@ ns.InspectorMutations={
     AddComponent=function(context,key) Record("component",context.unitKey,key); return {ok=true} end,
     AddDecoration=function(context) Record("decoration",context.unitKey); return {ok=true,newDecorationId="test"} end,
 }
-ns.GUI.Editor.TextTemplateLibraryWindow={Open=function(options) Record("text",options.unit) end}
+ns.GUI.Editor.TextTemplateLibraryWindow={Open=function(options)
+    assert(not last.released and options.entity and options.returnContext.originToken)
+    calls[#calls+1]={"text",options.unit}
+end}
 local expected={}
 for _,key in ipairs({"pet","targettarget","focus","focustarget","boss"}) do expected[#expected+1]={"unit",key,true} end
 for _,key in ipairs({"PowerBar","CastBar","ClassPowerBar","AlternativePowerBar","NormalAbsorbBar","HealingAbsorbBar","Portrait","RaidTargetIcon","LeaderIcon","RoleIcon","CombatIndicator","RestingIndicator","ReadyCheckIndicator","Buffs","Debuffs"}) do expected[#expected+1]={"component","player",key} end
@@ -182,7 +185,9 @@ for index,expect in ipairs(expected) do
     Setup("max"); d,s=Open(640,22,5)
     local options={}; for _,child in ipairs(s.children) do if child.type=="Button" then options[#options+1]=child end end
     options[index]:Fire("OnClick")
-    Equal(#calls,index); Equal(calls[index],expect); assert(d.released); Equal(#s.children,0)
+    Equal(#calls,index); Equal(calls[index],expect)
+    if expect[1]=="text" then Close(d,s) end
+    assert(d.released); Equal(#s.children,0)
     NoErrors()
 end
 

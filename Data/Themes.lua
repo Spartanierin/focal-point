@@ -30,12 +30,6 @@ FocalPoint.Themes = {
         id = "classic",
         labelKey = "THEME_CLASSIC",
         descriptionKey = "THEME_CLASSIC_DESC",
-        textTemplates = {
-            ["Health current"] = "[hp:cur:abbr]",
-            ["Health w/o perc"] = "[hp:cur:abbr]/[hp:max:abbr]",
-            ["Power perc"] = "[power:perc]%",
-            ["Unit Name w/o status"] = "[name]",
-        },
         units = {
             player = {
                 removeTexts = { "Health", "Status", "text_4", "Name", "NormalAbsorb", "HealingAbsorb", "Level", "Class", "Race" },
@@ -115,7 +109,7 @@ FocalPoint.Themes = {
                         offsetY = 0,
                         point = "LEFT",
                         relativePoint = "LEFT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Health = {
                         enabled = false,
@@ -131,14 +125,14 @@ FocalPoint.Themes = {
                     },
                     AltPower = {
                         enabled = false,
-                        stateTemplates = {
+                        stateTemplateIds = {
                             dead = false,
                             ghost = false,
                         },
                     },
                     Race = {
-                        stateTemplates = false,
-                        templateName = "",
+                        stateTemplateIds = false,
+                        templateId = false,
                     },
                     Class = {
                         enabled = false,
@@ -147,11 +141,11 @@ FocalPoint.Themes = {
                         offsetX = -6,
                         point = "RIGHT",
                         relativePoint = "RIGHT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Status = {
-                        stateTemplates = false,
-                        templateName = "",
+                        stateTemplateIds = false,
+                        templateId = false,
                     },
                     text_1 = {
                         anchorTo = "HealthBar",
@@ -170,12 +164,12 @@ FocalPoint.Themes = {
                         shadowEnabled = true,
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
-                        stateTemplates = {
-                            dead = "Dead/Ghost Timer",
-                            ghost = "Dead/Ghost Timer",
+                        stateTemplateIds = {
+                            dead = "tpl:b:default-005",
+                            ghost = "tpl:b:default-005",
                         },
                         tag = "[hp:cur:abbr]/[hp:max:abbr]",
-                        templateName = "Health w/o perc",
+                        templateId = "tpl:b:classic-002",
                     },
                     text_2 = {
                         anchorTo = "PowerBar",
@@ -195,7 +189,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_3 = {
                         anchorTo = "HealthBar",
@@ -215,7 +209,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                     text_4 = {
                         anchorTo = "HealthBar",
@@ -235,7 +229,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
-                        templateName = "Target Level and Class",
+                        templateId = "tpl:b:default-017",
                     },
                 },
                 auras = {
@@ -327,7 +321,7 @@ FocalPoint.Themes = {
                         overflowMode = "ELLIPSIS",
                         point = "LEFT",
                         relativePoint = "LEFT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Health = {
                         enabled = false,
@@ -356,11 +350,11 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[level] [class]",
-                        templateName = "",
+                        templateId = false,
                     },
                     Status = {
-                        stateTemplates = false,
-                        templateName = "",
+                        stateTemplateIds = false,
+                        templateId = false,
                     },
                     CastName = {
                         fontSize = 12,
@@ -385,12 +379,12 @@ FocalPoint.Themes = {
                         shadowEnabled = true,
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
-                        stateTemplates = {
-                            dead = "Dead Target",
+                        stateTemplateIds = {
+                            dead = "tpl:b:default-015",
                             ghost = false,
                         },
                         tag = "[hp:cur:abbr]/[hp:max:abbr]",
-                        templateName = "Health w/o perc",
+                        templateId = "tpl:b:classic-002",
                     },
                     text_2 = {
                         anchorTo = "PowerBar",
@@ -410,7 +404,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_3 = {
                         anchorTo = "HealthBar",
@@ -430,7 +424,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                 },
                 auras = {
@@ -522,7 +516,7 @@ FocalPoint.Themes = {
                         overflowMode = "ELLIPSIS",
                         point = "LEFT",
                         relativePoint = "LEFT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Health = {
                         enabled = false,
@@ -531,7 +525,7 @@ FocalPoint.Themes = {
                         point = "LEFT",
                         relativePoint = "LEFT",
                         tag = "[hp:cur:abbr] || [hp:perc]%",
-                        templateName = "",
+                        templateId = false,
                     },
                     Power = {
                         font = "fp:font:arial-narrow",
@@ -552,11 +546,11 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[level]",
-                        templateName = "",
+                        templateId = false,
                     },
                     Status = {
-                        stateTemplates = false,
-                        templateName = "",
+                        stateTemplateIds = false,
+                        templateId = false,
                     },
                     CastName = {
                         enabled = false,
@@ -584,7 +578,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_4 = {
                         anchorTo = "HealthBar",
@@ -604,7 +598,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                     text_5 = {
                         anchorTo = "HealthBar",
@@ -624,7 +618,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[hp:cur:abbr]",
-                        templateName = "Health current",
+                        templateId = "tpl:b:classic-001",
                     },
                 },
                 auras = {
@@ -697,7 +691,7 @@ FocalPoint.Themes = {
                         offsetY = 0,
                         point = "LEFT",
                         relativePoint = "LEFT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Health = {
                         enabled = false,
@@ -725,11 +719,11 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[level] [class]",
-                        templateName = "",
+                        templateId = false,
                     },
                     Status = {
-                        stateTemplates = false,
-                        templateName = "",
+                        stateTemplateIds = false,
+                        templateId = false,
                     },
                     CastName = {
                         fontSize = 12,
@@ -755,7 +749,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[hp:cur:abbr]/[hp:max:abbr]",
-                        templateName = "Health w/o perc",
+                        templateId = "tpl:b:classic-002",
                     },
                     text_2 = {
                         anchorTo = "PowerBar",
@@ -775,7 +769,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_3 = {
                         anchorTo = "HealthBar",
@@ -795,7 +789,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                 },
                 auras = {
@@ -883,7 +877,7 @@ FocalPoint.Themes = {
                         overflowMode = "CLIP",
                         point = "LEFT",
                         relativePoint = "LEFT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Health = {
                         enabled = false,
@@ -892,7 +886,7 @@ FocalPoint.Themes = {
                         point = "LEFT",
                         relativePoint = "LEFT",
                         tag = "[hp:cur:abbr] || [hp:perc]%",
-                        templateName = "",
+                        templateId = false,
                     },
                     Power = {
                         font = "fp:font:arial-narrow",
@@ -913,11 +907,11 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[level]",
-                        templateName = "",
+                        templateId = false,
                     },
                     Status = {
-                        stateTemplates = false,
-                        templateName = "",
+                        stateTemplateIds = false,
+                        templateId = false,
                     },
                     CastName = {
                         enabled = false,
@@ -945,7 +939,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_3 = {
                         anchorTo = "HealthBar",
@@ -965,7 +959,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                     text_4 = {
                         anchorTo = "HealthBar",
@@ -985,7 +979,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[hp:cur:abbr]",
-                        templateName = "Health current",
+                        templateId = "tpl:b:classic-001",
                     },
                 },
                 auras = {
@@ -1048,7 +1042,7 @@ FocalPoint.Themes = {
                         overflowMode = "CLIP",
                         point = "LEFT",
                         relativePoint = "LEFT",
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                     },
                     Health = {
                         font = "fp:font:arial-narrow",
@@ -1058,7 +1052,7 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[hp:cur:abbr]",
-                        templateName = "Health current",
+                        templateId = "tpl:b:classic-001",
                     },
                     Power = {
                         font = "fp:font:arial-narrow",
@@ -1102,7 +1096,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_2 = {
                         anchorTo = "HealthBar",
@@ -1122,7 +1116,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                 },
             },
@@ -1193,7 +1187,7 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[hp:cur:abbr] / [hp:max:abbr] || [hp:perc]%",
-                        templateName = "",
+                        templateId = false,
                     },
                     Power = {
                         font = "fp:font:arial-narrow",
@@ -1204,24 +1198,24 @@ FocalPoint.Themes = {
                         relativePoint = "RIGHT",
                     },
                     AltPower = {
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                         tag = "",
-                        templateName = "",
+                        templateId = false,
                     },
                     Race = {
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                         tag = "",
-                        templateName = "",
+                        templateId = false,
                     },
                     Class = {
                         enabled = false,
                         tag = "[level] [creature]",
-                        templateName = "",
+                        templateId = false,
                     },
                     Status = {
-                        stateTemplates = false,
+                        stateTemplateIds = false,
                         tag = "",
-                        templateName = "",
+                        templateId = false,
                     },
                     CastName = {
                         anchorTo = "CastBar",
@@ -1232,7 +1226,7 @@ FocalPoint.Themes = {
                         point = "LEFT",
                         relativePoint = "LEFT",
                         tag = "[cast:name]",
-                        templateName = "Cast Name",
+                        templateId = "tpl:b:default-006",
                     },
                     CastTime = {
                         anchorTo = "CastBar",
@@ -1243,7 +1237,7 @@ FocalPoint.Themes = {
                         point = "RIGHT",
                         relativePoint = "RIGHT",
                         tag = "[cast:time]",
-                        templateName = "Cast Time",
+                        templateId = "tpl:b:default-013",
                     },
                     text_1 = {
                         anchorTo = "PowerBar",
@@ -1263,7 +1257,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[power:perc]%",
-                        templateName = "Power perc",
+                        templateId = "tpl:b:classic-003",
                     },
                     text_2 = {
                         anchorTo = "HealthBar",
@@ -1283,7 +1277,7 @@ FocalPoint.Themes = {
                         shadowOffsetX = 1,
                         shadowOffsetY = -1,
                         tag = "[name]",
-                        templateName = "Unit Name w/o status",
+                        templateId = "tpl:b:classic-004",
                     },
                 },
                 auras = {

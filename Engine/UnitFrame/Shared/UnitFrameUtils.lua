@@ -92,14 +92,6 @@ function Utils.GetGeneralDB()
     return profile.General
 end
 
-function Utils.GetTextTemplatesDB()
-    local resolver = FocalPoint.ActiveLayoutResolver
-    if resolver and resolver.GetActiveTextTemplates then
-        return resolver.GetActiveTextTemplates(FocalPoint.db)
-    end
-
-    return nil
-end
 
 function Utils.GetUnitDB(unit)
     local units = Utils.GetUnitsDB()

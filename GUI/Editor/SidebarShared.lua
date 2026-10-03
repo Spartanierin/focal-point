@@ -615,19 +615,15 @@ local function FormatTextEntry(textId, textConfig)
         return nil
     end
 
-    local templateName = textConfig.templateName
-    if type(templateName) == "string" and templateName ~= "" then
-        return templateName
-    end
-
-    if type(textConfig.stateTemplates) == "table" then
-        for _, linkedTemplateName in pairs(textConfig.stateTemplates) do
-            if type(linkedTemplateName) == "string" and linkedTemplateName ~= "" then
-                return linkedTemplateName
-            end
+    local library = ns.TextTemplateLibrary
+    local entity = textConfig.templateId and library and library.ResolveTemplateEntity(textConfig.templateId, ns.db)
+    if entity then return entity.name end
+    if type(textConfig.stateTemplateIds) == "table" and library then
+        for _, id in pairs(textConfig.stateTemplateIds) do
+            local stateEntity = library.ResolveTemplateEntity(id, ns.db)
+            if stateEntity then return stateEntity.name end
         end
     end
-
     return GetFallbackTemplateLabel(textConfig)
 end
 
@@ -770,9 +766,7 @@ local function BuildSortedTextIds(texts)
     end
 
     for textId, textConfig in pairs(texts) do
-        if HasMeaningfulTextIdentity(textConfig)
-            and not IsInactiveGeneratedTemplateDuplicate(textId, textConfig, texts)
-            and not IsLegacyCustomTemplateDuplicate(textId, textConfig, texts)
+        if type(textConfig) == "table"
         then
             textIds[#textIds + 1] = textId
         end

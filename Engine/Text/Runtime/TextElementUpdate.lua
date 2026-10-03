@@ -133,6 +133,7 @@ local function IsTextEditPreviewAvailable(frame, key, textConfig)
         return Status.IsEditorRenderable(textConfig, {
             textKey = key,
             unitConfig = frame and frame.config,
+            db = FocalPoint.db,
         })
     end
 

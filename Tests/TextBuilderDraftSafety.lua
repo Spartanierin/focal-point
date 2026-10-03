@@ -25,261 +25,126 @@ local function Payload(text)
     return { TextTemplates = {Shared=text, Other="other", Unused="delete me"},
         Units = {player={Texts={}}, target={Texts={}}} }
 end
-local a, b = Payload("A"), Payload("B")
-ns.db = {profile={General={}, TextTemplates={Legacy="legacy"}, Units={}},
-    char={activeLayoutId="layout:a"}, global={UserLayouts={
-        ["layout:a"]={name="A",formatVersion=1,payload=a},
-        ["layout:b"]={name="B",formatVersion=1,payload=b},
-    }}, GetCurrentProfile=function() return "Same profile" end}
-local resolver, mutations, builder = ns.ActiveLayoutResolver, ns.TextTemplateMutations, ns.GUI.Pages.TextBuilder
-resolver.InvalidateActiveRuntimeRoot()
-local combat, failResync, refreshes = false, false, 0
-function InCombatLockdown() return combat end
-ns.GUI.RequestRefreshOptions = function() refreshes=refreshes+1; builder.RefreshWindowState() end
-ns.RebuildFramesForActiveProfile = function()
-    if failResync then error("simulated frame rebuild failure") end
+local a, b = Payload("A"), Payload("B") -- fixture boundary retained for dependent suites
+-- E6 replaces the retired name-list/bulk-apply model with the canonical entity window.
+for _,path in ipairs({"Engine/Text/Shared/TextElementRoles.lua", "Engine/Text/Shared/TextTemplateResolver.lua",
+    "Engine/Text/Shared/TextTemplateValidation.lua", "Data/BuiltInTextTemplates.lua",
+    "GUI/Pages/TextBuilder/TextBuilderEntity.lua"}) do Load(path) end
+local builder=ns.GUI.Pages.TextBuilder
+local R=builder.EntityBuilder
+local function Id(n) return "tpl:u:"..string.rep("a",32)..":1-2-"..string.rep("b",32)..":"..n end
+local A,B=Id(1),Id(2)
+a={Units={player={Texts={shared={templateId=A},localText={tag="local"}}}}}
+b={Units={player={Texts={shared={templateId=A}}}}}
+ns.db={profile={General={}},char={activeLayoutId="layout:a"},global={TextTemplates={
+    [A]={name="Same",content="A"},[B]={name="Same",content="B"}},UserLayouts={
+    ["layout:a"]={name="A",formatVersion=2,payload=a},["layout:b"]={name="B",formatVersion=2,payload=b}}}}
+R.SetIdGenerator(assert(ns.TextTemplateLibrary.CreateUserTemplateIdGenerator({time=function()return 10 end,uptime=function()return 1 end,random=function()return 3 end})))
+ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot()
+local combat,failResync,refreshes=false,false,0
+function InCombatLockdown()return combat end
+ns.GUI.RequestRefreshOptions=function() refreshes=refreshes+1;builder.RefreshWindowState() end
+ns.RefreshAllUnitFrames=function()refreshes=refreshes+1 end
+ns.RebuildFramesForActiveProfile=function() if failResync then error("rebuild failure") end end
+ns.RefreshEditorSelectionVisuals=function()end
+ns.RefreshEditorInteractionVisuals=function()end
+ns.GUI.Helpers.OptionRefresh={Live=function()end}
+local function NoErrors()assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))end
+local c,dialog
+local create=builder.CreateEntityWindow
+builder.CreateEntityWindow=function(...) c=create(...);return c end
+local openDialog=builder.OpenLayoutDialog
+builder.OpenLayoutDialog=function(...)dialog=openDialog(...);return dialog end
+local function Open(kind,key)
+    local request=kind and {entity=true,kind=kind,layoutId=ns.db.char.activeLayoutId,
+        unitKey=kind=="object" and "player" or nil,textKey=kind=="object" and key or nil,
+        templateId=kind=="shared-template" and key or nil}
+    local ok,reason=ns.GUIController.OpenTextBuilderWindow(request);assert(ok,reason);NoErrors();return c.r2Session
 end
-ns.RefreshEditorSelectionVisuals = function() end
-ns.GUI.Helpers.OptionRefresh = {Live=function() end}
-ns.RefreshEditorInteractionVisuals = function() end
-local function Closure(fn, name, seen)
-    seen=seen or {}; if seen[fn] then return end; seen[fn]=true
-    local children={}
-    for i=1,200 do
-        local key,value=debug.getupvalue(fn,i); if not key then break end
-        if key==name then return value end
-        if type(value)=="function" then children[#children+1]=value end
-    end
-    for _,child in ipairs(children) do local value=Closure(child,name,seen); if value then return value end end
-end
-local function NoErrors() assert(#f.env.errors==0,table.concat(f.env.errors,"\n")) end
-local c
-local function Open()
-    ns.GUIController.OpenTextBuilderWindow()
-    c=assert(f.Upvalue(builder.OpenWindow,"windowContext"))
-    NoErrors()
-end
-local function Click(widget) assert(widget); widget:Fire("OnClick"); NoErrors() end
-local function Edit(widget,text) widget:SetText(text); widget:Fire("OnTextChanged",text); NoErrors() end
-local function Select(name)
-    local key=table.concat({"profile","Same profile","Same profile","",name},"\031")
-    c.templateSelect:Fire("OnValueChanged",key); NoErrors()
-end
-local function Dialog(name) return assert(Closure(builder.HideWindow,name) or Closure(builder.OpenWindow,name)) end
-local function Discard()
-    builder.HideWindow(); NoErrors()
-    if builder.HasUnsavedChanges() then Click(Dialog("unsavedCloseDialogContext").discardCloseButton) end
+local function Click(w)assert(w);w:Fire("OnClick");NoErrors()end
+local function Edit(w,text)w:SetText(text);w:Fire("OnTextChanged",text);NoErrors()end
+local function Close()
+    builder.HideWindow();if builder.HasUnsavedChanges()then Click(dialog.discardCloseButton)end
     assert(not builder.HasUnsavedChanges() and not c.window.frame:IsShown())
-    assert(c.state.editingLayoutId==nil and c.state.draftBaseline==nil)
-    Equal(c.state.applyUnits,{}); Equal(c.templateEdit:GetText(),"")
-    Equal(c.state.selectedTemplate,""); Equal(c.state.templateName,"")
 end
-local function Activate(id, options)
-    local ok, reason=ns:ActivateLayout(id,"test",options); assert(ok,reason); NoErrors()
-    Equal(ns.db.char.activeLayoutId,id); Equal(resolver.GetActiveRuntimeRoot().layoutId,id)
+local function Activate(id,options)local ok,why=ns:ActivateLayout(id,"test",options);assert(ok,why);NoErrors()end
+Activate("layout:b",{silent=true});Activate("layout:a",{silent=true})
+local s=Open();assert(s.kind=="new-template")
+Edit(c.templateNameEdit,"Same");Edit(c.templateEdit,"new");local count=refreshes
+Click(c.saveButton);assert(c.r2Session.templateId and refreshes>count)
+local created=c.r2Session.templateId
+count=refreshes;Click(c.saveButton);assert(refreshes==count,"no-op refreshed")
+Edit(c.templateNameEdit,"Renamed");Click(c.updateTemplateButton)
+assert(ns.db.global.TextTemplates[created].name=="Renamed" and c.r2Session.templateId==created)
+Click(c.applyTemplateButton);local copied=c.r2Session.templateId;assert(copied~=created)
+Click(c.deleteTemplateButton);Click(dialog.deleteConfirmButton)
+assert(ns.db.global.TextTemplates[copied]==nil and c.r2Session.kind=="new-template")
+Open("object","shared");Edit(c.templateEdit,"all layouts");Click(c.saveButton)
+assert(dialog.widgets.all and ns.db.global.TextTemplates[A].content=="A")
+Click(dialog.widgets.all);assert(ns.db.global.TextTemplates[A].content=="all layouts")
+assert(a.Units.player.Texts.shared.templateId==A and b.Units.player.Texts.shared.templateId==A)
+Edit(c.templateEdit,"fork");Click(c.saveButton);Click(dialog.widgets.copy)
+assert(a.Units.player.Texts.shared.templateId~=A and b.Units.player.Texts.shared.templateId==A)
+Close();s=Open("object","localText")
+Edit(c.templateEdit,"dirty")
+for _,options in ipairs({{},{silent=true}})do
+    local ok,why=ns:ActivateLayout("layout:b","direct",options);assert(not ok and why=="unsaved-changes")
 end
-local function RejectActivation(id, options)
-    local root=resolver.GetActiveRuntimeRoot(); local token=c.state.draftToken
-    local ok,reason=ns:ActivateLayout(id,"test",options)
-    assert(not ok and reason=="unsaved-changes", tostring(reason))
-    Equal(resolver.GetActiveRuntimeRoot(),root); assert(c.state.draftToken==token)
-    Equal(ns.db.char.activeLayoutId,"layout:a"); Equal(b.TextTemplates.Shared,"B")
-end
-
--- No initialized Builder context: the general boundary must permit activation.
-assert(ns.GUIController.CanActivateLayout())
-Activate("layout:b",{silent=true}); Activate("layout:a",{silent=true})
-assert(f.Upvalue(builder.OpenWindow,"windowContext")==nil)
-Open(); assert(not builder.HasUnsavedChanges()); Equal(c.state.editingLayoutId,"layout:a")
-Select("Shared"); Equal(c.templateEdit:GetText(),"A")
-local baseline, token=c.state.draftBaseline,c.state.draftToken
-Edit(c.templateEdit,"A draft"); assert(builder.HasUnsavedChanges())
-assert(c.state.draftBaseline==baseline); assert(c.state.draftToken==token)
-RejectActivation("layout:b"); RejectActivation("layout:b",{silent=true})
-combat=true; RejectActivation("layout:b"); assert(ns._pendingLayoutActivation==nil); combat=false
-Click(c.newTemplateButton); Equal(c.templateEdit:GetText(),"A draft")
-Select("Other"); Equal(c.state.selectedTemplate,"Shared"); Equal(c.templateEdit:GetText(),"A draft")
-Click(c.deleteTemplateButton); Equal(c.templateEdit:GetText(),"A draft")
-builder.HideWindow(); Click(Dialog("unsavedCloseDialogContext").cancelButton)
-assert(c.state.draftToken==token); Equal(c.templateEdit:GetText(),"A draft"); assert(builder.HasUnsavedChanges())
-Edit(c.templateEdit,"A"); assert(not builder.HasUnsavedChanges())
-Select("Shared"); assert(c.state.draftToken==token) -- same selection is not a new lifecycle
-Edit(c.templateEdit,"saved A"); Click(c.saveButton)
-Equal(a.TextTemplates.Shared,"saved A"); assert(not builder.HasUnsavedChanges())
-assert(c.state.draftToken~=token)
-Edit(c.templateEdit,"discard saved draft"); Discard(); Open(); Equal(c.templateEdit:GetText(),"")
-
-Click(c.newTemplateButton); Equal(c.templateEdit:GetText(),""); assert(not builder.HasUnsavedChanges())
-Edit(c.templateNameEdit,"New display"); assert(builder.HasUnsavedChanges())
-Edit(c.templateNameEdit,""); assert(not builder.HasUnsavedChanges())
-Edit(c.templateEdit,"new body"); assert(builder.HasUnsavedChanges()); Discard(); Open()
-Equal(c.templateEdit:GetText(),"")
-Click(c.newTemplateButton); Edit(c.templateNameEdit,"Created"); Edit(c.templateEdit,"created body")
-Click(c.saveButton); Equal(a.TextTemplates.Created,"created body"); assert(not builder.HasUnsavedChanges())
--- Rename preserves unsaved content and its baseline while expiring callbacks.
-local oldBaseline=c.state.draftBaseline; local oldToken=c.state.draftToken
-Edit(c.templateEdit,"unsaved after rename"); Edit(c.templateNameEdit,"Renamed")
-Click(c.updateTemplateButton)
-assert(a.TextTemplates.Created==nil); Equal(a.TextTemplates.Renamed,"created body")
-Equal(c.templateEdit:GetText(),"unsaved after rename"); assert(c.state.draftBaseline==oldBaseline)
-assert(c.state.draftToken~=oldToken and builder.HasUnsavedChanges())
-Click(c.saveButton); Equal(a.TextTemplates.Renamed,"unsaved after rename")
-Click(c.deleteTemplateButton); Click(Dialog("deleteDialogContext").deleteConfirmButton)
-assert(a.TextTemplates.Renamed==nil and not builder.HasUnsavedChanges())
-
--- A clean switch always invalidates, even without a GUI refresh.
-Select("Shared"); token=c.state.draftToken
-local beforeRefresh=refreshes
-Activate("layout:b",{silent=true}); Equal(refreshes,beforeRefresh)
-assert(c.state.draftToken~=token); Equal(c.state.selectedTemplate,""); Equal(c.templateEdit:GetText(),"")
-Equal(c.state.editingLayoutId,"layout:b"); Select("Shared"); Equal(c.templateEdit:GetText(),"B")
-Activate("layout:a"); Select("Shared")
-
--- Capture real dialog closures, then return to the same layout/template: no ABA revival.
-Click(c.deleteTemplateButton)
-local deleteDialog=Dialog("deleteDialogContext"); local oldDelete=deleteDialog.deleteConfirmButton.events.OnClick
-Click(deleteDialog.cancelButton)
-Edit(c.templateEdit,"pending edit"); Click(c.applyTemplateButton)
-local applyDialog=Dialog("unsavedApplyDialogContext")
-local oldApply,oldSaveApply=applyDialog.applyStoredButton.events.OnClick,applyDialog.saveApplyButton.events.OnClick
-Click(applyDialog.cancelButton)
-builder.HideWindow(); local closeDialog=Dialog("unsavedCloseDialogContext")
-local oldDiscard,oldSaveClose=closeDialog.discardCloseButton.events.OnClick,closeDialog.saveCloseButton.events.OnClick
-Click(closeDialog.discardCloseButton)
-Activate("layout:b"); Activate("layout:a"); Open(); Select("Shared")
-local snapshot=ns.LayoutService.Clone(a); token=c.state.draftToken
-for _,callback in ipairs({oldDelete,oldApply,oldSaveApply,oldDiscard,oldSaveClose}) do callback() end
-Equal(a,snapshot); assert(c.state.draftToken==token); assert(c.window.frame:IsShown()); NoErrors()
--- Saving expires another open decision; cancellation/reopening cannot revive its closure.
-Edit(c.templateEdit,"next save"); builder.HideWindow(); oldDiscard=Dialog("unsavedCloseDialogContext").discardCloseButton.events.OnClick
-Click(c.saveButton); token=c.state.draftToken
-Edit(c.templateEdit,"after save"); builder.HideWindow(); oldDiscard()
-assert(c.state.draftToken==token); Equal(c.templateEdit:GetText(),"after save"); assert(builder.HasUnsavedChanges())
-Click(Dialog("unsavedCloseDialogContext").discardCloseButton); Open(); Select("Shared")
-
--- Unexpected layout writes bypassing ActivateLayout must never redirect mutations.
-Edit(c.templateEdit,"must never reach B"); Click(c.applyTemplateButton)
-applyDialog=Dialog("unsavedApplyDialogContext")
-local staleSaveApply=applyDialog.saveApplyButton.events.OnClick
-ns.db.char.activeLayoutId="layout:b"; resolver.SetActiveRuntimeRoot(assert(resolver.ResolveRuntimeRoot(ns.db,"layout:b")))
-snapshot=ns.LayoutService.Clone(b)
-Click(c.saveButton); Click(c.deleteTemplateButton); Click(c.applyTemplateButton); staleSaveApply()
-Equal(b,snapshot); Equal(c.state.editingLayoutId,"layout:a"); assert(builder.HasUnsavedChanges())
-Discard(); Open(); Equal(c.state.editingLayoutId,"layout:b"); Equal(c.templateEdit:GetText(),"")
-Activate("layout:a"); Select("Shared")
-
--- Real spec service calls the same activation path; its early dirty feedback remains.
-GetSpecialization=function() return 1 end
-GetSpecializationInfo=function() return 71,"Arms" end
+combat=true;local ok,why=ns:ActivateLayout("layout:b","combat");assert(not ok and why=="unsaved-changes");combat=false
+builder.HideWindow();Click(dialog.cancelButton);assert(builder.HasUnsavedChanges())
+builder.HideWindow();Click(dialog.saveCloseButton);assert(a.Units.player.Texts.localText.tag=="dirty" and not c.window.frame:IsShown())
+-- Tag callbacks and dialogs own one session, even for A -> B -> A.
+local tagApply
+ns.GUI.Pages.TagLibrary={Open=function(options)tagApply=options.onApply end}
+s=Open("object","localText");Click(c.tagLibraryButton);assert(tagApply("[name]"))
+Close();s=Open("object","localText");Click(c.tagLibraryButton);local staleTag=tagApply
+local capture=R.Capture(s);Open("shared-template",B);assert(not R.Valid(s,capture) and not staleTag("stale"))
+Click(c.deleteTemplateButton);local staleDelete=dialog.deleteConfirmButton.events.OnClick
+Open("object","localText");staleDelete();assert(ns.db.global.TextTemplates[B])
+-- Specialization, queue-time and post-combat activation use the same guard.
+function GetSpecialization()return 1 end
+C_SpecializationInfo={GetSpecializationInfo=function()return 71 end}
 assert(ns.LayoutAssignmentService.SetSpecializationAssignment(71,"layout:b"))
 Edit(c.templateEdit,"spec dirty")
-local ok,reason=ns.LayoutAssignmentService.EvaluateCurrentSpecializationAssignment("test-spec")
-assert(not ok and reason=="dirty-text-builder"); Equal(ns.db.char.activeLayoutId,"layout:a")
-Edit(c.templateEdit,a.TextTemplates.Shared)
-combat=true
-ok,reason=ns.LayoutAssignmentService.EvaluateCurrentSpecializationAssignment("test-spec")
-assert(not ok and reason=="pending"); Equal(ns._pendingLayoutActivation.layoutId,"layout:b")
-Edit(c.templateEdit,"dirty after queue"); combat=false
+ok,why=ns.LayoutAssignmentService.EvaluateCurrentSpecializationAssignment("test");assert(not ok and why=="dirty-text-builder",tostring(why))
+Close();Open("object","localText");combat=true
+ok,why=ns.LayoutAssignmentService.EvaluateCurrentSpecializationAssignment("test");assert(not ok and why=="pending",tostring(why))
+Edit(c.templateEdit,"queued dirty");combat=false
 ns._layoutActivationEventFrame:Run("OnEvent","PLAYER_REGEN_ENABLED")
-assert(ns._pendingLayoutActivation==nil); Equal(ns.db.char.activeLayoutId,"layout:a")
-Click(c.saveButton); ns._layoutActivationEventFrame:Run("OnEvent","PLAYER_REGEN_ENABLED")
-Equal(ns.db.char.activeLayoutId,"layout:a")
-combat=true; ok,reason=ns:ActivateLayout("layout:b","test",{silent=true}); assert(not ok and reason=="pending")
-token=c.state.draftToken; combat=false; ns._layoutActivationEventFrame:Run("OnEvent","PLAYER_REGEN_ENABLED")
-Equal(ns.db.char.activeLayoutId,"layout:b"); assert(c.state.draftToken~=token and ns._pendingLayoutActivation==nil)
-Activate("layout:a"); Select("Shared")
-
--- Real unit assignment mutations: Save & Apply retains its existing deferred
--- checkbox resync behavior, but failed saves and stale contexts cannot apply.
-local applyCalls=0
-local realApply=mutations.ApplyTemplateToUnits
-mutations.ApplyTemplateToUnits=function(...)
-    applyCalls=applyCalls+1
-    return realApply(...)
+assert(ns.db.char.activeLayoutId=="layout:a" and ns._pendingLayoutActivation==nil)
+Close();s=Open("object","localText");capture=R.Capture(s)
+failResync=true;ok,why=ns:ActivateLayout("layout:b","rollback");failResync=false
+assert(not ok and why=="resync-error" and R.Valid(s,capture))
+combat=true;ok,why=ns:ActivateLayout("layout:b","queue",{silent=true});assert(not ok and why=="pending")
+combat=false;ns._layoutActivationEventFrame:Run("OnEvent","PLAYER_REGEN_ENABLED")
+assert(ns.db.char.activeLayoutId=="layout:b" and not R.Valid(s,capture))
+Activate("layout:a")
+for i=1,30 do
+    s=Open("object","localText");capture=R.Capture(s);Click(c.tagLibraryButton);local old=tagApply
+    Edit(c.templateEdit,"cycle "..i);Close()
+    Activate("layout:b",{silent=i%2==0});Open("shared-template",A)
+    assert(c.templateEdit:GetText()=="all layouts");Close();Activate("layout:a")
+    assert(not R.Valid(s,capture) and not old("stale"))
 end
-c.usageCheckboxes.player:Fire("OnValueChanged",true)
-Click(c.applyTemplateButton); assert(applyCalls==1)
-local usage=ns.TextTemplateUsage.GetTemplateUsage(mutations.CreateActiveLayoutContext(ns.db),"Shared")
-assert(#usage.references>0)
-Edit(c.templateEdit,"save and apply")
-c.usageCheckboxes.target:Fire("OnValueChanged",true)
-Click(c.applyTemplateButton); Click(Dialog("unsavedApplyDialogContext").saveApplyButton)
-Equal(a.TextTemplates.Shared,"save and apply"); assert(not builder.HasUnsavedChanges())
-assert(c.state.applyUnits.target==false and next(a.Units.target.Texts)==nil,
-    "deferred Save & Apply checkbox behavior changed")
-local callsBefore=applyCalls
-Edit(c.templateEdit,""); Click(c.applyTemplateButton)
-Click(Dialog("unsavedApplyDialogContext").saveApplyButton)
-Equal(applyCalls,callsBefore); Equal(a.TextTemplates.Shared,"save and apply")
-Click(Dialog("unsavedApplyDialogContext").cancelButton)
-Edit(c.templateEdit,a.TextTemplates.Shared)
--- A pending tag-library insertion also belongs to its captured draft.
-local tagApply
-ns.GUI.Pages.TagLibrary={Open=function(options) tagApply=options.onApply end,Close=function() end}
-Click(c.tagLibraryButton); assert(tagApply)
-Select("Other"); local draft=c.templateEdit:GetText()
-assert(not tagApply("[name]")); Equal(c.templateEdit:GetText(),draft)
-Select("Shared")
-
--- A synchronous refresh following Save must not authorize Apply/Close in a
--- different context. The completed save stays in A; its continuation is rejected.
-Edit(c.templateEdit,"saved before context change"); Click(c.applyTemplateButton)
-local afterSaveApply=Dialog("unsavedApplyDialogContext").saveApplyButton
-callsBefore=applyCalls; snapshot=ns.LayoutService.Clone(b)
-ns.RefreshEditorInteractionVisuals=function() Activate("layout:b",{silent=true}) end
-Click(afterSaveApply)
-ns.RefreshEditorInteractionVisuals=function() end
-Equal(a.TextTemplates.Shared,"saved before context change"); Equal(b,snapshot); Equal(applyCalls,callsBefore)
-Equal(c.state.editingLayoutId,"layout:b"); assert(c.window.frame:IsShown())
-Activate("layout:a"); Select("Shared")
-
--- A failed activation restores root/ID and does not rebind or clear a clean draft.
-local root=resolver.GetActiveRuntimeRoot(); token=c.state.draftToken; baseline=c.state.draftBaseline
-failResync=true; ok,reason=ns:ActivateLayout("layout:b","rollback"); failResync=false
-assert(not ok and reason=="resync-error"); Equal(ns.db.char.activeLayoutId,"layout:a")
-assert(resolver.GetActiveRuntimeRoot()==root and c.state.draftToken==token and c.state.draftBaseline==baseline)
-Equal(c.state.editingLayoutId,"layout:a"); Equal(c.templateEdit:GetText(),a.TextTemplates.Shared)
-ok,reason=ns:ActivateLayout("layout:a"); assert(not ok and reason=="same-layout"); assert(c.state.draftToken==token)
-
--- Built-ins remain inspectable and cannot create writable drafts or copies.
-Activate("builtin:default"); local builtin=assert(resolver.GetActivePayloadRoot(ns.db))
-local builtinName=next(builtin.TextTemplates); assert(builtinName); Select(builtinName)
-assert(c.templateEdit.disabled and c.templateNameEdit.disabled and c.newTemplateButton.disabled)
-assert(c.saveButton.disabled and c.deleteTemplateButton.disabled and c.applyTemplateButton.disabled)
-assert(not c.templateSelect.disabled); Equal(c.templateEdit:GetText(),builtin.TextTemplates[builtinName])
-snapshot=ns.LayoutService.Clone(ns.db.global.UserLayouts)
-Click(c.newTemplateButton); Click(c.saveButton); Click(c.updateTemplateButton); Click(c.deleteTemplateButton); Click(c.applyTemplateButton)
-assert(not builder.InsertTextIntoDraft("forbidden")); Equal(ns.db.global.UserLayouts,snapshot)
-assert(not builder.HasUnsavedChanges()); Discard(); Activate("layout:a"); Open()
-
--- Repeated real widget/context lifecycle; no persisted draft fields or pending actions.
-for i=1,20 do
-    Select("Shared"); Edit(c.templateEdit,"cycle "..i); Discard()
-    Activate("layout:b",{silent=i%2==0}); Open(); Select("Shared"); Equal(c.templateEdit:GetText(),"B")
-    Discard(); Activate("layout:a"); Open(); Equal(c.templateEdit:GetText(),"")
-    assert(not builder.HasUnsavedChanges())
+-- A synchronous refresh may switch layout and open a new window session.
+-- The completed save stays committed; its old Close continuation owns nothing.
+s=Open("object","localText");Edit(c.templateEdit,"saved before refresh switch")
+builder.HideWindow()
+local refresh=ns.GUI.RequestRefreshOptions
+ns.GUI.RequestRefreshOptions=function()
+    ns.GUI.RequestRefreshOptions=refresh
+    Activate("layout:b",{silent=true});Open("shared-template",A)
 end
--- Existing concrete Add Object / Change Text / state-template mutation contracts.
-local mutationContext=mutations.CreateActiveLayoutContext(ns.db)
-local result=mutations.CreateTextFromTemplate(mutationContext,"target","Other",{anchorTo="HealthBar"})
-assert(result.ok,result.errorCode)
-local textKey=result.textKey
-Equal(a.Units.target.Texts[textKey].templateName,"Other")
-Equal(a.Units.target.Texts[textKey].anchorTo,"HealthBar")
-assert(mutations.AssignTemplate(mutationContext,"target",textKey,"Shared").ok)
-assert(mutations.AssignStateTemplate(mutationContext,"target",textKey,"dead","Other").ok)
-assert(mutations.RenameTemplate(mutationContext,"Other","Other renamed").ok)
-Equal(a.Units.target.Texts[textKey].templateName,"Shared")
-Equal(a.Units.target.Texts[textKey].stateTemplates.dead,"Other renamed")
-assert(mutations.UpdateTemplate(mutationContext,"Other renamed","updated").ok)
-local blockedDelete=mutations.DeleteTemplate(mutationContext,"Other renamed")
-assert(not blockedDelete.ok and blockedDelete.errorCode=="template_in_use")
-assert(mutations.UnassignStateTemplate(mutationContext,"target",textKey,"dead").ok)
-assert(mutations.DeleteTemplate(mutationContext,"Other renamed").ok)
-local function NoDraftFields(value)
+Click(dialog.saveCloseButton)
+assert(a.Units.player.Texts.localText.tag=="saved before refresh switch")
+assert(c.window.frame:IsShown() and c.r2Session.activeLayoutId=="layout:b")
+Close();Activate("layout:a")
+Open("shared-template","tpl:b:default-013");assert(c.templateEdit.disabled and c.saveButton.disabled)
+assert(not builder.InsertTextIntoDraft("forbidden"));Close()
+local function NoDraft(value)
     if type(value)~="table" then return end
-    assert(value.draftToken==nil and value.draftBaseline==nil and value.editingLayoutId==nil)
-    for _,child in pairs(value) do NoDraftFields(child) end
+    assert(value.draftToken==nil and value.baseline==nil and value.editContext==nil)
+    for _,v in pairs(value)do NoDraft(v)end
 end
-NoDraftFields(ns.db); NoErrors()
-print("PASS: TextBuilder layout/draft/readonly safety, stale dialogs, direct/silent/spec/combat/rollback and 20 lifecycle cycles")
+NoDraft(ns.db);NoErrors()
+print("PASS: real Entity Builder CRUD/fork/local/tag/save-close, stale callbacks, direct/spec/combat/rollback and 30 lifecycle cycles")

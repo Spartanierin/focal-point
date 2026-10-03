@@ -2283,6 +2283,7 @@ function FocalPoint:DeactivateUnitFrame(unit, preserveForReuse)
 end
 
 function FocalPoint:SpawnUnitFrame(unit, options)
+    if FocalPoint.entityStartupReady == false then return false, "entity-startup-blocked" end
     options = options or {}
     self.frames = self.frames or {}
     self.framePool = self.framePool or {}
@@ -2650,7 +2651,7 @@ end
 local function IsValidLayoutPayload(payload)
     return type(payload) == "table"
         and type(payload.Units) == "table"
-        and type(payload.TextTemplates) == "table"
+        and payload.TextTemplates == nil
 end
 
 local STARTER_UNIT_KEYS = {
@@ -2720,8 +2721,8 @@ local function BuildStarterTextConfig(layoutService, sourceConfig, tag, point, o
     local textConfig = CloneLayoutValue(layoutService, sourceConfig) or {}
     textConfig.enabled = true
     textConfig.tag = tag
-    textConfig.templateName = ""
-    textConfig.stateTemplates = nil
+    textConfig.templateId = nil
+    textConfig.stateTemplateIds = nil
     textConfig.anchorTo = "HealthBar"
     textConfig.point = point
     textConfig.relativePoint = point
@@ -2762,13 +2763,11 @@ local function BuildNewLayoutPayload(addon)
     local defaults = addon and addon.GetDefaultDB and addon:GetDefaultDB() or nil
     local payload = layoutService.NormalizePayload({
         Units = {},
-        TextTemplates = {},
     }, defaults)
     if not IsValidLayoutPayload(payload) then
         return nil
     end
 
-    payload.TextTemplates = {}
 
     local unitOrder = addon and addon.Constants and addon.Constants.UnitOrder or {}
     local seen = {}
@@ -2854,7 +2853,7 @@ function FocalPoint:CreateBlankLayout(name, options)
     local record = {
         name = normalizedNameOrReason,
         payload = blankPayload,
-        formatVersion = 1,
+        formatVersion = 2,
     }
     local storedId = userLayoutStore.PutRaw(newLayoutId, record)
     if storedId ~= newLayoutId then
@@ -2894,6 +2893,7 @@ function FocalPoint:ResyncActiveLayout(reason, options)
 end
 
 function FocalPoint:ActivateLayout(layoutId, reason, options)
+    if FocalPoint.entityStartupReady == false then return false, "entity-startup-blocked" end
     options = type(options) == "table" and options or {}
     if type(layoutId) ~= "string" or layoutId == "" then
         return false, "invalid-layout"

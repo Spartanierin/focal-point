@@ -204,10 +204,9 @@ local function GetUnitLabel(unit)
 end
 
 local function GetTextLabel(textId, textConfig)
-    if type(textConfig) == "table" and type(textConfig.templateName) == "string" and textConfig.templateName ~= "" then
-        return textConfig.templateName
-    end
-    return tostring(textId)
+    local id = type(textConfig) == "table" and textConfig.templateId
+    local entity = id and ns.TextTemplateLibrary and ns.TextTemplateLibrary.ResolveTemplateEntity(id, ns.db)
+    return entity and entity.name or tostring(textId)
 end
 
 local function GetDecorationLabel(decoration, index)

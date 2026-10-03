@@ -51,10 +51,36 @@ end)
 ns.db = setmetatable({}, {__index = function() error("unexpected database read") end,
     __newindex = function() error("unexpected database write") end})
 Load("Data/BuiltInTextTemplates.lua")
+local expectedDefaults = {
+                ["Alt Power"] = "[altpower:cur] / [altpower:max]",
+                ["Class Power"] = "[classpower:cur] / [classpower:max]",
+                ["Unit Name Focus"] = "[name] [status] [status:timer]",
+                ["Unit Name Target"] = "[name] [status] [status:timer]",
+                ["Dead/Ghost Timer"] = "[dead] [dead:timer]",
+                ["Cast Name"] = "[cast:name]",
+                Power = "[power:cur:abbr]/[power:max:abbr]",
+                ["Absorb Value"] = "[absorb:cur:abbr]",
+                ["Healing Absorb Value"] = "[healabsorb:cur:abbr]",
+                ["Unit Name Player"] = "[status] [status:timer] [name]",
+                Health = "[hp:cur:abbr]/[hp:max:abbr] | [hp:perc]%",
+                ["Player Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [race]",
+                ["Cast Time"] = "[cast:time]",
+                Status = "[status] [status:timer]",
+                ["Dead Target"] = "[dead]",
+                ["Focus Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
+                ["Target Level and Class"] = "[color:blizz_yellow][level][rc] [color:class][class][rc] [creature]",
+                Creature = "[creature]",
+            }
+local expectedClassic = {
+            ["Health current"] = "[hp:cur:abbr]",
+            ["Health w/o perc"] = "[hp:cur:abbr]/[hp:max:abbr]",
+            ["Power perc"] = "[power:perc]%",
+            ["Unit Name w/o status"] = "[name]",
+        }
 Test("22 fixed IDs cover all declared sources without heuristic merging", function()
     local records, seen, count = ns.BuiltInTextTemplates.ListRecords(), {}, 0
     for _, spec in ipairs(expected) do
-        local source = spec[3] and ns.Themes[spec[3]].textTemplates or defaults
+        local source = spec[3] and expectedClassic or expectedDefaults
         assert(not seen[spec[1]] and library.GetTemplateIdKind(spec[1]) == "builtin")
         seen[spec[1]] = true
         assert(library.ValidateTemplateRecord(records[spec[1]]))
@@ -133,15 +159,14 @@ Test("fixture rename/content preserve ID; equality is only name/content", functi
     local value = library.ResolveTemplateEntity("tpl:b:default-013")
     assert(library.TemplateRecordsEqual(Record(value.name, value.content), Record("Cast Time", "[cast:time]")))
 end)
-Test("data is derived once without content double maintenance or snapshot aliasing", function()
+Test("canonical catalog is independent of theme mutations and returns detached records", function()
     local before = library.ResolveTemplateEntity("tpl:b:classic-001")
-    local original = ns.Themes.classic.textTemplates["Health current"]
-    ns.Themes.classic.textTemplates["Health current"] = "changed fixture"
-    assert(library.ResolveTemplateEntity(before.templateId).content == original)
+    local records = ns.BuiltInTextTemplates.ListRecords()
+    records[before.templateId].content = "changed fixture"
+    ns.Themes.classic.textTemplates = {["Health current"] = "legacy shadow"}
     Load("Data/BuiltInTextTemplates.lua")
-    assert(library.ResolveTemplateEntity(before.templateId).content == "changed fixture" and before.content == original)
-    ns.Themes.classic.textTemplates["Health current"] = original
-    Load("Data/BuiltInTextTemplates.lua")
+    assert(library.ResolveTemplateEntity(before.templateId).content == before.content)
+    ns.Themes.classic.textTemplates = nil
 end)
 Test("manifest order, unchanged legacy definitions and no persistence side effects", function()
     local f = assert(io.open("Init.xml")); local xml = f:read("*a"); f:close()
@@ -149,7 +174,7 @@ Test("manifest order, unchanged legacy definitions and no persistence side effec
     assert(xml:find('file="Data/Defaults.lua"', 1, true) < data)
     assert(xml:find('file="Data/Themes.lua"', 1, true) < data)
     assert(xml:find('file="Engine/Text/Shared/TextTemplateLibrary.lua"', 1, true) < data)
-    assert(#library.ListIntegratedTemplateDefinitions() == 22)
+    assert(#library.Entity.List({global={TextTemplates={}}}) == 22)
     assert(Equal(ns:GetDefaultDB().profile.TextTemplates, defaults) and next(ns.db) == nil)
 end)
 print("TextTemplateEntityLookup: " .. passed .. " passed")

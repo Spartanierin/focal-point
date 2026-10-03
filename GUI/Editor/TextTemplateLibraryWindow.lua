@@ -215,8 +215,9 @@ local function FindInitialEntityEntryKey(entries, templateId)
     return nil
 end
 
-local function BuildEntityMutationContext()
-    local layoutId = ResolveActiveEntityLayoutId()
+local function BuildEntityMutationContext(context)
+    local target = type(context) == "table" and context.entityPickerTarget or nil
+    local layoutId = type(target) == "table" and target.layoutId or ResolveActiveEntityLayoutId()
     local global = ns.db and ns.db.global
     local layouts = type(global) == "table" and global.UserLayouts or nil
     local record = type(layouts) == "table" and layouts[layoutId] or nil
@@ -225,9 +226,85 @@ local function BuildEntityMutationContext()
     return {
         db = ns.db,
         expectedLayoutId = layoutId,
+        expectedTextConfig = type(target) == "table" and target.textConfig or nil,
         GetUnits = function() return units end,
         GetUnitConfig = function(unitKey) return type(units) == "table" and units[unitKey] or nil end,
     }
+end
+
+local function CaptureEntityPickerTarget(options, mode)
+    local layoutId = type(options.layoutId) == "string" and options.layoutId or ResolveActiveEntityLayoutId()
+    local target = {
+        layoutId = layoutId,
+        unitKey = options.unit,
+        textKey = options.textKey,
+    }
+    local global = ns.db and ns.db.global
+    local layouts = type(global) == "table" and global.UserLayouts or nil
+    local record = type(layouts) == "table" and layouts[layoutId] or nil
+    local payload = type(record) == "table" and record.payload or nil
+    local units = type(payload) == "table" and payload.Units or nil
+    local unit = type(units) == "table" and units[options.unit] or nil
+    local texts = type(unit) == "table" and unit.Texts or nil
+    target.textConfig = mode == "change" and type(texts) == "table" and texts[options.textKey] or nil
+
+    local entityContext = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TextBuilder
+        and ns.GUI.Pages.TextBuilder.EntityContext
+    if mode == "change" and entityContext and type(entityContext.Snapshot) == "function" then
+        target.snapshot, target.snapshotError = entityContext.Snapshot({
+            kind = "object",
+            layoutId = layoutId,
+            unitKey = options.unit,
+            textKey = options.textKey,
+            returnContext = options.returnContext,
+        }, ns.db, layoutId)
+    end
+    return target
+end
+
+local function ValidateEntityPickerTarget(context)
+    local target = type(context) == "table" and context.entityPickerTarget or nil
+    local activeLayoutId = ResolveActiveEntityLayoutId()
+    if type(target) ~= "table" or type(target.layoutId) ~= "string"
+        or target.layoutId ~= activeLayoutId then
+        return false, "layout_mismatch"
+    end
+    if context.mode ~= "change" then
+        return true
+    end
+    if target.snapshotError then
+        return false, target.snapshotError
+    end
+    local entityContext = ns.GUI and ns.GUI.Pages and ns.GUI.Pages.TextBuilder
+        and ns.GUI.Pages.TextBuilder.EntityContext
+    if target.snapshot and entityContext and type(entityContext.Snapshot) == "function"
+        and type(entityContext.SameSession) == "function" then
+        local current, reason = entityContext.Snapshot({
+            kind = "object",
+            layoutId = target.layoutId,
+            unitKey = target.unitKey,
+            textKey = target.textKey,
+            returnContext = context.returnContext,
+        }, ns.db, activeLayoutId)
+        if not current then
+            return false, reason or "invalid_context"
+        end
+        if not entityContext.SameSession(target.snapshot, current) then
+            return false, "stale_context"
+        end
+        return true
+    end
+    local global = ns.db and ns.db.global
+    local layouts = type(global) == "table" and global.UserLayouts or nil
+    local record = type(layouts) == "table" and layouts[target.layoutId] or nil
+    local payload = type(record) == "table" and record.payload or nil
+    local units = type(payload) == "table" and payload.Units or nil
+    local unit = type(units) == "table" and units[target.unitKey] or nil
+    local texts = type(unit) == "table" and unit.Texts or nil
+    if type(texts) ~= "table" or texts[target.textKey] ~= target.textConfig then
+        return false, "stale_context"
+    end
+    return true
 end
 
 local function NotifyEntityReturn(context, result)
@@ -298,6 +375,10 @@ local function ResolveMutationStatus(result)
         return T("INFO_TEXT_BUILDER_STATUS_UNIT_NOT_FOUND", "Unit configuration was not found.")
     end
     if errorCode == "invalid_context" then
+        return T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID", "The active profile is not available.")
+    end
+    if errorCode == "layout_mismatch" or errorCode == "stale_context"
+        or errorCode == "text_element_not_found" then
         return T("INFO_TEXT_BUILDER_STATUS_CONTEXT_INVALID", "The active profile is not available.")
     end
     return T("INSERT_TEXT_STATUS_FAILED", "Text could not be added.")
@@ -405,7 +486,12 @@ local SelectText
 
 local function SubmitEntityTemplate(context, unitKey, entry)
     local mutations = ns.TextTemplateMutations and ns.TextTemplateMutations.Entity or nil
-    local mutationContext = BuildEntityMutationContext()
+    local valid, reason = ValidateEntityPickerTarget(context)
+    if not valid then
+        SetStatus(context, ResolveMutationStatus({errorCode = reason}))
+        return
+    end
+    local mutationContext = BuildEntityMutationContext(context)
     if type(mutations) ~= "table" or type(mutationContext.expectedLayoutId) ~= "string" then
         SetStatus(context, ResolveMutationStatus({errorCode = "invalid_context"}))
         return
@@ -717,11 +803,12 @@ function TextTemplateLibraryWindow.Open(options)
         targetUnit = options.unit,
         anchorSelection = options.anchorSelection,
         targetTextKey = options.textKey,
-        entity = options.entity == true,
+        entity = true,
         originToken = type(options.returnContext) == "table" and options.returnContext.originToken or (type(options.originToken) == "table" and options.originToken or {}),
         initialTemplateName = options.initialTemplateName,
         initialTemplateId = options.initialTemplateId,
         returnContext = options.returnContext,
+        entityPickerTarget = CaptureEntityPickerTarget(options, mode),
         selectedTemplateKey = nil,
     }
     windowContext = context

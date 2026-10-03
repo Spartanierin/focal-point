@@ -80,17 +80,6 @@ local function GetTagPreviewFallback(token)
     return "[" .. tostring(token or "") .. "]"
 end
 
-local function GetActiveProfileTemplate(templateName)
-    if not IsNonEmptyString(templateName) then
-        return nil
-    end
-
-    local templates = UnitUtils.GetTextTemplatesDB and UnitUtils.GetTextTemplatesDB() or nil
-    if type(templates) == "table" then
-        return templates[templateName]
-    end
-    return nil
-end
 
 function Preview.BuildTemplatePreview(template)
     template = NormalizeTemplateText(template)
@@ -114,7 +103,7 @@ function Preview.ResolveConfiguredTemplate(textConfig, state)
 
     if TemplateResolver.Resolve then
         return TemplateResolver.Resolve(textConfig, state or "", {
-            GetTemplate = GetActiveProfileTemplate,
+            db = FocalPoint.db,
             NormalizeText = NormalizeTemplateText,
         })
     end

@@ -1504,6 +1504,7 @@ function FocalPoint:ToggleFrameLock(options)
 end
 
 function FocalPoint:StartTagTicker()
+    if FocalPoint.entityStartupReady == false then return false, "entity-startup-blocked" end
     if self.tagTicker then
         return
     end

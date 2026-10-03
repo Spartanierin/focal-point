@@ -1985,14 +1985,14 @@ local function CreateWindow(state, deps)
     end
     if window.closebutton and window.closebutton.SetScript then
         window.closebutton:SetScript("OnClick", function()
-            RequestClose(windowContext)
+            TextBuilderController.HideWindow()
         end)
     end
     CenterWindow(window)
 
     local context = CreateWindowContent(window, state, deps)
     windowContext = context
-    WireWindowCallbacks(context)
+    if not state.entity then WireWindowCallbacks(context) end
 
     window:SetCallback("OnClose", function()
         if not isPerformingClose and windowContext and IsSelectedTemplateDirty(windowContext) then
@@ -2008,6 +2008,14 @@ local function CreateWindow(state, deps)
 
     return context
 end
+
+-- Shared presentation construction: no legacy Open, selection or mutation runs.
+function TextBuilderController.CreateEntityWindow(deps)
+    if not windowContext then CreateWindow({entity = true}, deps) end
+    FocusWindow(windowContext.window)
+    return windowContext
+end
+TextBuilderController.OpenLayoutDialog = OpenTextBuilderLayoutDialog
 
 function TextBuilderController.OpenWindow(deps, editContext)
     local previousState = windowContext and windowContext.state

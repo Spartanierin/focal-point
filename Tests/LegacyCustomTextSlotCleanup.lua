@@ -3,6 +3,9 @@ local ns = {}
 local function Load(path) assert(loadfile(path))('FocalPoint', ns) end
 for _, p in ipairs({'Data/Defaults.lua', 'Data/Themes.lua', 'Services/LayoutService.lua',
     'Services/LegacyThemeAdapter.lua', 'Services/PresetService.lua'}) do Load(p) end
+Load('Engine/Text/Shared/TextTemplateLibrary.lua')
+Load('Data/BuiltInTextTemplates.lua')
+local Historical = dofile('Tests/Fixtures/EntityPresentationBaseline.lua')
 local Copy = ns.LayoutService.Clone
 local function Equal(a, b)
     if a == b then return true end
@@ -50,7 +53,7 @@ Test('Create defaults and all shipped presets omit Custom1-3', function()
         local historicalTheme=Copy(ns.Themes[id])
         for _,unit in pairs(historicalTheme.units) do unit.removeTexts=nil end
         local historical=ns.LegacyThemeAdapter.MaterializePreviewLayout(historicalTheme,ns:GetDefaultDB())
-        assert(Fingerprint(historical)==golden[id], id..' historical baseline changed')
+        assert(Fingerprint(Historical(ns,historical,id))==golden[id], id..' historical baseline changed')
     end
     assert(Equal(before,ns.Themes))
 end)
@@ -59,6 +62,7 @@ Load('Services/LegacyCustomTextSlotCleanup.lua')
 Load('GUI/Editor/Inspector/InspectorMutations.lua')
 Load('Engine/Text/Shared/TextTemplateMutations.lua')
 Load('Engine/Text/Shared/TextElementRoles.lua')
+Load('Engine/Text/Shared/TextTemplateResolver.lua')
 Load('Engine/UnitFrame/Runtime/UnitFrameBuild.lua')
 Load('Engine/Text/Shared/TextTemplateLibrary.lua')
 Load('Services/TextTemplateEntityMigration.lua')
@@ -140,9 +144,10 @@ Test('Activate-and-go and Add Object remain intact',function()
     local unit={showAlternativePowerBar=true,showClassPowerBar=true,Texts={}}
     ns.UnitFrameBuild.EnsurePlayerAltPowerText(unit); ns.UnitFrameBuild.EnsurePlayerClassPowerText(unit)
     assert(unit.Texts.AltPower and unit.Texts.ClassPower and Count(unit.Texts)==2)
-    local context={GetTemplates=function()return {New='[name]'}end,GetUnitConfig=function()return unit end}
-    local r=ns.TextTemplateMutations.CreateTextFromTemplate(context,'player','New')
-    assert(r.ok and r.textKey=='text_1' and unit.Texts.text_1.templateName=='New')
+    local db={char={activeLayoutId='layout:test'},global={UserLayouts={['layout:test']={formatVersion=2,payload={Units={player=unit}}}}}}
+    local context={db=db,expectedLayoutId='layout:test'}
+    local r=ns.TextTemplateMutations.CreateTextFromTemplate(context,'player','tpl:b:default-013')
+    assert(r.ok and r.textKey=='text_1' and unit.Texts.text_1.templateId=='tpl:b:default-013')
 end)
 Test('invalid/cyclic source fails without partial copy',function()
     for _,db in ipairs({{}, {global={UserLayouts=false}}}) do local r=cleanup.ApplyCopy(db); assert(not r.ready and r.db==nil) end

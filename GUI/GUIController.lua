@@ -15,7 +15,6 @@ local GUIState = ns.GUI.Helpers.GUIState
 local PageDependencyFactory = ns.GUI.Helpers.PageDependencyFactory
 
 local GetGUIState = GUIState.GetState
-local CreateProfilesDeps = PageDependencyFactory.CreateProfilesDeps
 local CreateTextBuilderDeps = PageDependencyFactory.CreateTextBuilderDeps
 local CreateEditorDeps = PageDependencyFactory.CreateEditorDeps
 
@@ -45,18 +44,8 @@ function B.BuildPlaceholderPage(container, title)
     end
 end
 
-function B.OpenProfilesWindow()
-    local page = ns.GUI.Pages and ns.GUI.Pages.Profiles
-    if not page or not page.OpenWindow then
-        return
-    end
-
-    page.OpenWindow(CreateProfilesDeps({
-        GetGUIState = GetGUIState,
-    }))
-end
-
 function B.OpenTextBuilderWindow(editContext)
+    if ns.entityStartupReady == false then return false, "entity-startup-blocked" end
     local page = ns.GUI.Pages and ns.GUI.Pages.TextBuilder
     if not page or not page.OpenWindow then
         return false, "builder-unavailable"
@@ -68,6 +57,7 @@ function B.OpenTextBuilderWindow(editContext)
 end
 
 function B.BuildEditorPage(container)
+    if ns.entityStartupReady == false then return false, "entity-startup-blocked" end
     local deps = CreateEditorDeps({
         GetEditorState = ns.GUI.Editor and ns.GUI.Editor.State and ns.GUI.Editor.State.Get,
         BuildScrollableTabContent = BuildScrollableTabContent,

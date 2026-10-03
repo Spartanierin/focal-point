@@ -119,6 +119,13 @@ local function ApplyTexts(unitConfig, texts)
         unitConfig.Texts[key] = unitConfig.Texts[key] or {}
         if type(textConfig) == "table" then
             MergeInto(unitConfig.Texts[key], textConfig)
+            if textConfig.templateId == false then unitConfig.Texts[key].templateId = nil end
+            if textConfig.stateTemplateIds == false then unitConfig.Texts[key].stateTemplateIds = nil end
+            local states = unitConfig.Texts[key].stateTemplateIds
+            if type(states) == "table" then
+                for state, id in pairs(states) do if id == false then states[state] = nil end end
+                if next(states) == nil then unitConfig.Texts[key].stateTemplateIds = nil end
+            end
         end
     end
 end
@@ -176,7 +183,6 @@ function Adapter.MaterializePreviewLayout(theme, defaults)
     local defaultUnits = defaultProfile and defaultProfile.Units
     local layout = {
         Units = {},
-        TextTemplates = Clone(defaultProfile and defaultProfile.TextTemplates) or {},
     }
 
     if type(defaultUnits) ~= "table" then
@@ -191,9 +197,6 @@ function Adapter.MaterializePreviewLayout(theme, defaults)
         layout.Units[unitKey] = unitConfig
     end
 
-    if type(theme) == "table" and type(theme.textTemplates) == "table" then
-        MergeInto(layout.TextTemplates, theme.textTemplates)
-    end
 
     return layout
 end

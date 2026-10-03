@@ -14,7 +14,7 @@ local BUILT_IN_PRESET_ORDER = {
     "modern",
 }
 
-local FORMAT_VERSION = 1
+local FORMAT_VERSION = 2
 local PRESET_VERSION = 1
 
 local function Clone(value)
