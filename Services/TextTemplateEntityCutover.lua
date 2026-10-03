@@ -199,6 +199,20 @@ local function ValidateUserStore(records, state)
     return true
 end
 
+local function CanonicalizeLegacyBuiltIn(record)
+    local library = FocalPoint.TextTemplateLibrary
+    local catalog = FocalPoint.BuiltInTextTemplates
+    if type(catalog) ~= 'table' or type(catalog.ListRecords) ~= 'function' then return nil end
+    local match
+    for id, builtin in pairs(catalog.ListRecords()) do
+        if library.TemplateRecordsEqual(record, builtin) then
+            if match ~= nil then return nil end
+            match = id
+        end
+    end
+    return match
+end
+
 local function ValidateBackup(backup)
     if not IsPlain(backup) or backup.version ~= BACKUP_VERSION
         or backup.snapshot ~= 'SavedVariables'
@@ -676,7 +690,9 @@ function Cutover.Prepare(db, options)
         return Error('entity-preparation-unavailable')
     end
     local prepared
-    ok, prepared = pcall(migration.Prepare, working, generator)
+    ok, prepared = pcall(migration.Prepare, working, generator, {
+        canonicalizeBuiltIn = CanonicalizeLegacyBuiltIn,
+    })
     if not ok then return Error('entity-preparation-failed', {detail = tostring(prepared)}) end
     if type(prepared) ~= 'table' or prepared.ready ~= true then
         return Error('entity-preparation-failed', {diagnostics = prepared and prepared.diagnostics})

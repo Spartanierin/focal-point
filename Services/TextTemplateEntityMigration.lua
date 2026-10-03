@@ -61,6 +61,30 @@ local function Finish(result)
     return result
 end
 
+local function ResolveBuiltIn(library, resolver, record)
+    if type(resolver) ~= 'function' then return nil end
+    local ok, id = pcall(resolver, record)
+    if not ok or library.GetTemplateIdKind(id) ~= 'builtin' then return nil end
+    local catalog = FocalPoint.BuiltInTextTemplates
+    if type(catalog) ~= 'table' or type(catalog.GetRecord) ~= 'function' then return nil end
+    local builtin = catalog.GetRecord(id)
+    return builtin and library.TemplateRecordsEqual(builtin, record) and id or nil
+end
+
+local function IsPreparedEntity(id, templates, allowBuiltIns)
+    local library = FocalPoint.TextTemplateLibrary
+    local kind = library.GetTemplateIdKind(id)
+    if kind == 'user' then
+        return library.ValidateTemplateRecord(templates[id])
+    end
+    if kind == 'builtin' and allowBuiltIns then
+        local catalog = FocalPoint.BuiltInTextTemplates
+        return type(catalog) == 'table' and type(catalog.GetRecord) == 'function'
+            and library.ValidateTemplateRecord(catalog.GetRecord(id))
+    end
+    return false
+end
+
 -- The active modern UserLayout runtime reads bindings and records from the
 -- same raw payload. Do not combine projected state names with a raw template map.
 local function MaterializeStateIds(result, text, layoutId, unitKey, textKey, mapping)
@@ -89,13 +113,12 @@ end
 
 -- Prepared states are fully materialized: absence means no explicit binding,
 -- never "fill from defaults later". E4/E6 must preserve this boundary.
-function Migration.ValidatePreparedStateIds(stateIds, templates)
+function Migration.ValidatePreparedStateIds(stateIds, templates, allowBuiltIns)
     if stateIds == nil then return true end
     if not IsTable(stateIds) or not IsTable(templates) then return false end
     local library = FocalPoint.TextTemplateLibrary
     for stateKey, id in pairs(stateIds) do
-        if not IsKey(stateKey) or library.GetTemplateIdKind(id) ~= 'user'
-            or not library.ValidateTemplateRecord(templates[id]) then return false end
+        if not IsKey(stateKey) or not IsPreparedEntity(id, templates, allowBuiltIns) then return false end
     end
     return true
 end
@@ -104,9 +127,11 @@ end
 -- templates includes copies of existing E1 records plus the newly mapped ones.
 -- idState is the prepared E1 namespace, for the later atomic E6 publication.
 -- Optional generator uses the E1 :Reserve contract for deterministic tests.
-function Migration.Prepare(sourceDb, generator)
+function Migration.Prepare(sourceDb, generator, options)
     local result = {ready = false, diagnostics = {}, templates = {}, layouts = {}, mappings = {}}
     local library = FocalPoint.TextTemplateLibrary
+    local optionTable = type(options) == 'table' and options or {}
+    local builtInResolver = rawget(optionTable, 'canonicalizeBuiltIn')
     local global = type(sourceDb) == 'table' and rawget(sourceDb, 'global') or nil
     if global == nil and type(sourceDb) == 'table' then
         local saved = rawget(sourceDb, 'sv')
@@ -135,7 +160,8 @@ function Migration.Prepare(sourceDb, generator)
     if #result.diagnostics > 0 then return Finish(result) end
 
     -- Canonical raw UserLayouts only: no defaults/projection, legacy reimport,
-    -- createdFrom inference, merging of identities or builtin matching.
+    -- createdFrom inference or identity merging. Built-in matching is opt-in
+    -- and is supplied explicitly by the E6A cutover only.
     for _, layoutId in ipairs(Keys(result.layouts)) do
         local layout = result.layouts[layoutId]
         local payload = IsTable(layout) and layout.payload or nil
@@ -148,11 +174,16 @@ function Migration.Prepare(sourceDb, generator)
                 if not library.ValidateTemplateRecord(record) then
                     Add(result, 'invalid-template-record', layoutId, nil, nil, nil, name)
                 else
-                    local id
-                    if generator then id = generator:Reserve(reservationDb, reserved)
-                    else id = library.ReserveUserTemplateId(reservationDb, reserved) end
+                    local canonicalId = ResolveBuiltIn(library, builtInResolver, record)
+                    local id = canonicalId
+                    if not id then
+                        if generator then id = generator:Reserve(reservationDb, reserved)
+                        else id = library.ReserveUserTemplateId(reservationDb, reserved) end
+                    end
                     if id == nil then
                         Add(result, 'id-reservation-failure', layoutId, nil, nil, nil, name)
+                    elseif library.GetTemplateIdKind(id) == 'builtin' and canonicalId == id then
+                        mapping[name] = id
                     elseif library.GetTemplateIdKind(id) ~= 'user' or result.templates[id] ~= nil then
                         Add(result, 'prepared-id-invariant-failure', layoutId, nil, nil, nil, name)
                     else
@@ -200,22 +231,31 @@ function Migration.Prepare(sourceDb, generator)
         restored.payload.TextTemplates = Copy(original.payload.TextTemplates)
         for name, content in pairs(original.payload.TextTemplates) do
             local id = mapping[name]
-            if not id or seen[id] or (snapshot.templates and snapshot.templates[id])
-                or not library.TemplateRecordsEqual(result.templates[id], {name = name, content = content}) then
+            local mappedKind = library.GetTemplateIdKind(id)
+            local expectedRecord = {name = name, content = content}
+            local mappedRecord
+            if mappedKind == 'builtin' then
+                local catalog = FocalPoint.BuiltInTextTemplates
+                mappedRecord = catalog and catalog.GetRecord and catalog.GetRecord(id) or nil
+            else
+                mappedRecord = result.templates[id]
+            end
+            if not id or (mappedKind == 'user' and seen[id]) or (snapshot.templates and snapshot.templates[id])
+                or not library.TemplateRecordsEqual(mappedRecord, expectedRecord) then
                 Add(result, 'prepared-id-invariant-failure', layoutId, nil, nil, nil, name)
-            else seen[id] = true end
+            elseif mappedKind == 'user' then seen[id] = true end
         end
         for unitKey, unit in pairs(original.payload.Units) do
             for textKey, old in pairs(unit.Texts or {}) do
                 local text = target.payload.Units[unitKey].Texts[textKey]
                 local expected = old.templateName and old.templateName ~= '' and mapping[old.templateName] or nil
                 if text.templateName ~= nil or text.stateTemplates ~= nil or text.templateId ~= expected
-                    or (text.templateId and not result.templates[text.templateId]) then
+                    or (text.templateId and not IsPreparedEntity(text.templateId, result.templates, builtInResolver ~= nil)) then
                     Add(result, 'prepared-id-invariant-failure', layoutId, unitKey, textKey)
                 end
                 local expectedStates = MaterializeStateIds(result, old, layoutId, unitKey,
                     textKey, mapping)
-                if not Migration.ValidatePreparedStateIds(text.stateTemplateIds, result.templates)
+                if not Migration.ValidatePreparedStateIds(text.stateTemplateIds, result.templates, builtInResolver ~= nil)
                     or not Equal(text.stateTemplateIds, expectedStates) then
                     Add(result, 'prepared-id-invariant-failure', layoutId, unitKey, textKey)
                 end
