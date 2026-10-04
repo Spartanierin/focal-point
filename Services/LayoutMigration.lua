@@ -869,4 +869,25 @@ function LayoutMigration.VerifyUserLayouts(db)
     return result
 end
 
+-- E6A has already materialized the entity layouts. Prepare the complete aura
+-- update on detached records and publish one root only after every layout passes.
+function LayoutMigration.CanonicalizeAuraAnchors(db)
+    local global = type(db) == "table" and db.global
+    local layouts = type(global) == "table" and global.UserLayouts
+    if type(layouts) ~= "table" then return false, "aura-layout-store-invalid" end
+    local prepared, changed = {}, false
+    for id, record in pairs(layouts) do
+        if type(record) ~= "table" or record.formatVersion ~= 2 then
+            return false, "aura-layout-version-invalid"
+        end
+        local copy = Clone(record)
+        local ok, result = LayoutService.CanonicalizeAuraAnchors(copy.payload)
+        if not ok then return false, result end
+        prepared[id] = result and copy or record
+        changed = changed or result
+    end
+    if changed then global.UserLayouts = prepared end
+    return true, changed
+end
+
 return LayoutMigration

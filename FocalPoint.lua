@@ -1275,6 +1275,11 @@ function FocalPointAddon:OnInitialize()
             type(result) == "table" and result.errorCode or result))
         return
     end
+    local auraCallOk, auraOk, auraResult = pcall(FocalPoint.LayoutMigration.CanonicalizeAuraAnchors, FocalPoint.db)
+    if not auraCallOk or not auraOk then
+        FocalPoint:Error("Aura anchor startup blocked: " .. tostring(auraCallOk and auraResult or auraOk))
+        return
+    end
     FocalPoint.entityStartupReady = true
 
     local preserveLegacyIntent = ShouldPreserveMigratedLegacyProfile()

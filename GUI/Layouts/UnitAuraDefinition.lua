@@ -10,11 +10,6 @@ ns.GUI.Layouts.UnitAuras.Lists = {
         INSIDE = "VALUE_PORTRAIT_PLACEMENT_INSIDE",
         ATTACHED = "VALUE_PORTRAIT_PLACEMENT_ATTACHED",
     },
-    anchorTo = {
-        Frame = "VALUE_ANCHOR_TARGET_FRAME",
-        HealthBar = "VALUE_ANCHOR_TARGET_HEALTH_BAR",
-        PowerBar = "VALUE_ANCHOR_TARGET_POWER_BAR",
-    },
     anchorPoints = {
         TOPLEFT = "VALUE_ANCHOR_TOPLEFT",
         TOP = "VALUE_ANCHOR_TOP",

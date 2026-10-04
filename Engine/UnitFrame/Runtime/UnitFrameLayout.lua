@@ -83,14 +83,27 @@ function Layout.ProjectRootCenterToConfigCenter(frame, config, rootX, rootY)
         (tonumber(rootY) or 0) - ResolveVerticalExtensionOffset("CENTER", bottomExtensionHeight, 1)
 end
 
+-- Local UI coordinates, before the owner's effective scale is applied.
+function Layout.ComputeFrameRect(metrics)
+    return {
+        left = 0, bottom = 0, right = metrics.width,
+        top = metrics.height + math.max(0, tonumber(metrics.bottomExtensionHeight) or 0),
+    }
+end
+
+function Layout.GetRectAnchor(rect, point)
+    local x = point:find("LEFT", 1, true) and rect.left or point:find("RIGHT", 1, true) and rect.right or (rect.left + rect.right) / 2
+    local y = point:find("TOP", 1, true) and rect.top or point:find("BOTTOM", 1, true) and rect.bottom or (rect.top + rect.bottom) / 2
+    return x, y
+end
+
 -- Base frame layout keeps the generic frame visibility, position, and
 -- backdrop setup isolated from the more detailed element configuration.
 
 function Layout.ApplyBaseFrame(owner, frame, config, metrics)
-    local width = metrics.width
-    local baseHeight = metrics.height
-    local bottomExtensionHeight = tonumber(metrics.bottomExtensionHeight) or 0
-    local height = baseHeight + math.max(0, bottomExtensionHeight)
+    local rect = Layout.ComputeFrameRect(metrics)
+    local width = rect.right
+    local height = rect.top
     local alpha = metrics.alpha
     local scale = metrics.scale
     local frameLevel = metrics.frameLevel

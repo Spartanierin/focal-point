@@ -8,6 +8,57 @@ local DEFAULT_LANE_SPACING = 3
 -- health bar, or power bar. This keeps the orchestration layer from owning
 -- low-level left/right reserve math inline.
 
+-- These defaults and this order are also consumed by UnitFrame.ApplyConfig.
+local RESERVE_COMPONENTS = {
+    { "Portrait", 40, 4, "LEFT", "INSIDE" },
+    { "RaidTargetIcon", 18, 2, "RIGHT", "ATTACHED" },
+    { "LeaderIcon", 16, 2, "LEFT", "ATTACHED" },
+    { "RoleIcon", 16, 2, "RIGHT", "ATTACHED" },
+    { "CombatIndicator", 16, 2, "RIGHT", "ATTACHED" },
+    { "RestingIndicator", 16, 2, "LEFT", "ATTACHED" },
+    { "ReadyCheckIndicator", 16, 2, "RIGHT", "ATTACHED" },
+}
+
+-- Pure canonical editor inputs. Visibility represents enabled editor holders,
+-- including conditional placeholders, not live unit data or selection previews.
+function InsideLayout.ResolveGeometryInputs(config)
+    config = config or {}
+    local inputs = { entries = {}, byKey = {} }
+    for _, defaults in ipairs(RESERVE_COMPONENTS) do
+        local key = defaults[1]
+        local source = config[key] or {}
+        local options = {
+            _elementKey = key,
+            enabled = source.present == true and source.enabled ~= false,
+            size = tonumber(source.size) or defaults[2],
+            scale = tonumber(source.scale) or 1,
+            padding = tonumber(source.padding) or defaults[3],
+            insideSide = source.insideSide or defaults[4],
+            insideAnchorTo = source.insideAnchorTo or "Frame",
+            placement = source.placement or defaults[5],
+            customLayout = (key == "CombatIndicator" or key == "RestingIndicator")
+                and source.effect == "FRAME_OVERLAY" or false,
+        }
+        local entry = { options = options, visible = options.enabled }
+        inputs.byKey[key] = options
+        if key == "Portrait" then inputs.portrait = entry
+        else inputs.entries[#inputs.entries + 1] = entry end
+    end
+    return inputs
+end
+
+local function CaptureVisibility(entries)
+    local result = {}
+    for _, entry in ipairs(entries or {}) do
+        local holder = entry.holder
+        result[#result + 1] = {
+            options = entry.options,
+            visible = holder and holder.IsShown and holder:IsShown() or false,
+        }
+    end
+    return result
+end
+
 local function GetEntryEffectiveSize(entry)
     local options = (entry and entry.options) or {}
     return (tonumber(options.size) or 0) * (tonumber(options.scale) or 1)
@@ -65,11 +116,7 @@ function InsideLayout.GetAreaReserveForVisibility(frameReserve, healthReserve, p
     return frameReserve
 end
 
-function InsideLayout.ApplyVisibleReserve(frameReserve, healthReserve, powerReserve, area, side, holder, size, scale, padding)
-    if not holder or not holder.IsShown or not holder:IsShown() then
-        return
-    end
-
+local function AddReserve(frameReserve, healthReserve, powerReserve, area, side, size, scale, padding)
     local targetReserve = InsideLayout.GetAreaReserveForVisibility(frameReserve, healthReserve, powerReserve, area)
     local effectiveSize = (tonumber(size) or 0) * (tonumber(scale) or 1)
     local effectivePadding = tonumber(padding) or 0
@@ -79,6 +126,12 @@ function InsideLayout.ApplyVisibleReserve(frameReserve, healthReserve, powerRese
         targetReserve.left = (targetReserve.left or 0) + requiredReserve
     else
         targetReserve.right = (targetReserve.right or 0) + requiredReserve
+    end
+end
+
+function InsideLayout.ApplyVisibleReserve(frameReserve, healthReserve, powerReserve, area, side, holder, size, scale, padding)
+    if holder and holder.IsShown and holder:IsShown() then
+        AddReserve(frameReserve, healthReserve, powerReserve, area, side, size, scale, padding)
     end
 end
 
@@ -100,7 +153,7 @@ function InsideLayout.ResolveAnchor(frame, area, reserves)
     return frame, 0, 0
 end
 
-function InsideLayout.BuildHorizontalLaneBlock(entries)
+function InsideLayout.ComputeLaneBlock(entries)
     local block = {
         width = 0,
         items = {},
@@ -111,12 +164,9 @@ function InsideLayout.BuildHorizontalLaneBlock(entries)
     end
 
     local visibleIndex = 0
-    for _, entry in ipairs(entries) do
-        local holder = entry and entry.holder
+    for index, entry in ipairs(entries) do
         local options = entry and entry.options or {}
-        if holder
-            and holder.IsShown
-            and holder:IsShown()
+        if entry.visible
             and options.enabled
             and not options.customLayout
             and options.placement == "INSIDE"
@@ -134,8 +184,7 @@ function InsideLayout.BuildHorizontalLaneBlock(entries)
             block.width = block.width + effectiveSize
 
             table.insert(block.items, {
-                entry = entry,
-                holder = holder,
+                index = index,
                 options = options,
                 effectiveSize = effectiveSize,
                 spacingBefore = spacingBefore,
@@ -147,19 +196,12 @@ function InsideLayout.BuildHorizontalLaneBlock(entries)
     return block
 end
 
-function InsideLayout.ApplyVisibleEntryReserves(frameReserve, healthReserve, powerReserve, entries)
-    if not entries then
-        return
-    end
-
+local function AccumulateEntryReserves(frameReserve, healthReserve, powerReserve, entries)
     local grouped = {}
 
-    for _, entry in ipairs(entries) do
-        local holder = entry and entry.holder
+    for _, entry in ipairs(entries or {}) do
         local options = entry and entry.options or {}
-        if holder
-            and holder.IsShown
-            and holder:IsShown()
+        if entry.visible
             and options.enabled
             and options.placement == "INSIDE"
         then
@@ -177,7 +219,7 @@ function InsideLayout.ApplyVisibleEntryReserves(frameReserve, healthReserve, pow
     end
 
     for _, group in pairs(grouped) do
-        local block = InsideLayout.BuildHorizontalLaneBlock(group.entries)
+        local block = InsideLayout.ComputeLaneBlock(group.entries)
         local targetReserve = InsideLayout.GetAreaReserveForVisibility(frameReserve, healthReserve, powerReserve, group.area)
         if group.side == "LEFT" then
             targetReserve.left = (targetReserve.left or 0) + block.width
@@ -185,6 +227,33 @@ function InsideLayout.ApplyVisibleEntryReserves(frameReserve, healthReserve, pow
             targetReserve.right = (targetReserve.right or 0) + block.width
         end
     end
+end
+
+-- Pure reserves from explicit visibility snapshots, never runtime holders.
+function InsideLayout.ComputeReserves(portrait, entries)
+    local frameReserve = { left = 0, right = 0 }
+    local healthReserve = { left = 0, right = 0 }
+    local powerReserve = { left = 0, right = 0 }
+    local options = portrait and portrait.options or {}
+    if portrait and portrait.visible and options.enabled and options.placement == "INSIDE" then
+        AddReserve(frameReserve, healthReserve, powerReserve, options.insideAnchorTo,
+            options.insideSide, options.size, options.scale, options.padding)
+    end
+    AccumulateEntryReserves(frameReserve, healthReserve, powerReserve, entries)
+    return frameReserve, healthReserve, powerReserve
+end
+
+function InsideLayout.BuildHorizontalLaneBlock(entries)
+    local block = InsideLayout.ComputeLaneBlock(CaptureVisibility(entries))
+    for _, item in ipairs(block.items) do
+        item.entry = entries[item.index]
+        item.holder = item.entry.holder
+    end
+    return block
+end
+
+function InsideLayout.ApplyVisibleEntryReserves(frameReserve, healthReserve, powerReserve, entries)
+    AccumulateEntryReserves(frameReserve, healthReserve, powerReserve, CaptureVisibility(entries))
 end
 
 function InsideLayout.ApplyHorizontalLane(frame, entries, area, side)

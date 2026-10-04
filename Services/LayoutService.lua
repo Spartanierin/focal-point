@@ -69,6 +69,71 @@ function LayoutService.MergeInto(target, source)
     return target
 end
 
+-- One boundary transformation for persisted layouts, projections and imports.
+-- Geometry is the shared data-free editor contract, never live unit state.
+function LayoutService.CanonicalizeAuraAnchors(payload)
+    if type(payload) ~= "table" or type(payload.Units) ~= "table" then
+        return false, "aura-layout-invalid"
+    end
+    local changes = {}
+    local points = { TOPLEFT=true, TOP=true, TOPRIGHT=true, LEFT=true, CENTER=true,
+        RIGHT=true, BOTTOMLEFT=true, BOTTOM=true, BOTTOMRIGHT=true }
+    local function Finite(value)
+        return type(value) == "number" and value == value and math.abs(value) < math.huge
+    end
+    for unitKey, unit in pairs(payload.Units) do
+        if type(unit) ~= "table" then return false, "aura-unit-invalid" end
+        local geometry
+        for _, key in ipairs({ "Buffs", "Debuffs" }) do
+            local aura = unit[key]
+            if aura ~= nil and type(aura) ~= "table" then return false, "aura-config-invalid" end
+            if aura then
+                local target = aura.placement == "INSIDE" and (aura.insideAnchorTo or "Frame")
+                    or (aura.anchorTo or "Frame")
+                local change = { aura = aura }
+                if target == "HealthBar" or target == "PowerBar" then
+                    local bars, layout = FocalPoint.UnitFrameBarLayout, FocalPoint.UnitFrameLayout
+                    if not (bars and bars.ComputeCanonicalRects and layout and layout.GetRectAnchor) then
+                        return false, "aura-geometry-unavailable"
+                    end
+                    if not geometry then
+                        -- Match the existing active-root presence materialization,
+                        -- without adding unrelated fields to the source payload.
+                        local inputs = LayoutService.Clone(unit)
+                        local storage = FocalPoint.CompositionPresenceStorage
+                        if storage and storage.EnsureUnit then storage.EnsureUnit(inputs) end
+                        local ok, value = pcall(bars.ComputeCanonicalRects, inputs, unitKey)
+                        if not ok then return false, "aura-geometry-invalid" end
+                        geometry = value
+                    end
+                    local point = aura.relativePoint or aura.point or "TOPLEFT"
+                    if not points[point] then return false, "aura-anchor-point-invalid" end
+                    local cx, cy = layout.GetRectAnchor(geometry[target], point)
+                    local fx, fy = layout.GetRectAnchor(geometry.Frame, point)
+                    change.x = (tonumber(aura.offsetX) or 0) + (cx - fx)
+                    change.y = (tonumber(aura.offsetY) or 0) + (cy - fy)
+                    if not (Finite(change.x) and Finite(change.y)) then return false, "aura-offset-invalid" end
+                    change.disable = target == "PowerBar" and not geometry.powerBarEnabled
+                elseif target ~= "Frame" then
+                    return false, "aura-anchor-target-invalid"
+                end
+                if change.x ~= nil or aura.anchorTo ~= "Frame" or aura.insideAnchorTo ~= "Frame" then
+                    changes[#changes + 1] = change
+                end
+            end
+        end
+    end
+    -- Validate every group before the first write. Frame-target offsets and
+    -- inactive targets never participate in either geometry or visibility.
+    for _, change in ipairs(changes) do
+        local aura = change.aura
+        if change.x ~= nil then aura.offsetX, aura.offsetY = change.x, change.y end
+        if change.disable then aura.enabled = false end
+        aura.anchorTo, aura.insideAnchorTo = "Frame", "Frame"
+    end
+    return true, #changes > 0
+end
+
 local function NormalizeUnitTexts(unitConfig)
     local utils = FocalPoint.UnitFrameUtils
     if type(utils) == "table" and type(utils.NormalizeUnitTexts) == "function" then
@@ -311,6 +376,8 @@ function LayoutService.NormalizePayload(payload, defaults)
         storage.EnsurePayload(normalized)
     end
 
+    local ok, reason = LayoutService.CanonicalizeAuraAnchors(normalized)
+    assert(ok, reason)
     return normalized
 end
 
@@ -788,7 +855,12 @@ function LayoutService.BuildPreviewUnitConfig(layout, unitKey)
     if type(layout) ~= "table" or type(layout.Units) ~= "table" then
         return nil
     end
-    return LayoutService.Clone(layout.Units[unitKey])
+    local unit = LayoutService.Clone(layout.Units[unitKey])
+    if unit then
+        local ok, reason = LayoutService.CanonicalizeAuraAnchors({Units = {[unitKey] = unit}})
+        assert(ok, reason)
+    end
+    return unit
 end
 
 return LayoutService

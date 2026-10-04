@@ -129,6 +129,14 @@ function Preview.ShouldRepresentInEditor(unit, objectRef)
     return resolved.isPersistent == true or resolved.isConditional == true
 end
 
+-- The existing data-free editor fallback; no unit/API/editor-state reads.
+function Preview.HasCanonicalSecondaryPower(unit, unitConfig)
+    return unit == "player"
+        and type(unitConfig) == "table"
+        and unitConfig.alternativePowerBarPresent == true
+        and unitConfig.showAlternativePowerBar == true
+end
+
 function Preview.ShouldForceSecondaryPowerPreview(unit)
     if unit ~= "player" then
         return false
@@ -137,10 +145,7 @@ function Preview.ShouldForceSecondaryPowerPreview(unit)
     local unitConfig = FocalPoint.UnitFrameUtils
         and FocalPoint.UnitFrameUtils.GetUnitDB
         and FocalPoint.UnitFrameUtils.GetUnitDB(unit)
-    if type(unitConfig) ~= "table"
-        or unitConfig.alternativePowerBarPresent ~= true
-        or unitConfig.showAlternativePowerBar ~= true
-    then
+    if not Preview.HasCanonicalSecondaryPower(unit, unitConfig) then
         return false
     end
 

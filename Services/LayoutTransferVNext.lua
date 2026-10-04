@@ -73,6 +73,8 @@ function Next.Export(layout, db)
     local valid
     valid, reason = ValidateHeader(document)
     if not valid then return nil, reason end
+    valid, reason = ns.LayoutService.CanonicalizeAuraAnchors(document.payload)
+    if not valid then return nil, reason end
     local validation = Validation.ValidateEntityLayouts(Layouts(document.payload), db)
     if not validation.valid then return nil, validation.issues[1].code end
     for _, ref in ipairs(Usage.ScanEntities(Layouts(document.payload))) do
@@ -126,6 +128,8 @@ function Next.PrepareImport(text, db, options)
     local document, reason = Codec.Decode(text)
     if not document then Diagnose(result, reason); return result end
     if not ValidateGraph(document, result) then return result end
+    local auraOk, auraReason = ns.LayoutService.CanonicalizeAuraAnchors(document.payload)
+    if not auraOk then Diagnose(result, auraReason); return result end
     local private
     private, reason = PrivateStore(db)
     if not private then Diagnose(result, reason); return result end

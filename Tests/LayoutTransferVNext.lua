@@ -1,6 +1,6 @@
 -- lua54 Tests/LayoutTransferVNext.lua
 local ns={L={}};local function Load(p) assert(loadfile(p))('FocalPoint',ns) end
-for _, p in ipairs({'Data/Defaults.lua','Data/Themes.lua','Services/LayoutMutations.lua',
+for _, p in ipairs({'Data/Defaults.lua','Data/Themes.lua','Services/LayoutService.lua','Services/LayoutMutations.lua',
     'Engine/Text/Shared/TextTemplateLibrary.lua','Data/BuiltInTextTemplates.lua',
     'Engine/Text/Shared/TextTemplateUsage.lua','Engine/Text/Shared/TextTemplateValidation.lua',
     'Services/TextTemplateEntityMigration.lua','Services/LayoutTransferCodec.lua',

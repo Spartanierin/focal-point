@@ -12,11 +12,8 @@ local AUTO_ANCHOR_PAIRS = {
     bottom = { left = { "TOPRIGHT", "BOTTOMLEFT" }, center = { "TOP", "BOTTOM" }, right = { "TOPLEFT", "BOTTOMRIGHT" } },
 }
 
-local function GetRectAnchor(rect, point)
-    local x = point:find("LEFT", 1, true) and rect.left or point:find("RIGHT", 1, true) and rect.right or (rect.left + rect.right) / 2
-    local y = point:find("TOP", 1, true) and rect.top or point:find("BOTTOM", 1, true) and rect.bottom or (rect.top + rect.bottom) / 2
-    return x, y
-end
+local GetRectAnchor = FocalPoint.UnitFrameLayout.GetRectAnchor
+AnchorGeometry.GetRectAnchor = GetRectAnchor
 
 function AnchorGeometry.ResolveAutoAnchorGeometry(childRect, ownerRect)
     if type(childRect) ~= "table" or type(ownerRect) ~= "table" then

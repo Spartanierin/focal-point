@@ -59,20 +59,96 @@ end
 -- Health and power bar layout stays separate from live value refresh so the
 -- main runtime can focus on orchestration.
 
-function BarLayout.ApplyHealthAndPower(owner, frame, options)
+-- Shared input defaults; powerBarHeight remains available even when hidden.
+function BarLayout.ResolveGeometryConfig(config)
+    config = config or {}
+    local showPowerBar = config.powerBarPresent == true and config.showPowerBar and true or false
+    local showAlternative = config.alternativePowerBarPresent == true and config.showAlternativePowerBar and true or false
+    return {
+        width = config.width or 220,
+        height = config.height or 40,
+        borderInset = 1,
+        showPowerBar = showPowerBar,
+        powerBarHeight = config.powerBarHeight or 8,
+        alternativePowerBarEnabled = showAlternative,
+        alternativePowerBarHeight = showAlternative and (config.alternativePowerBarHeight or 5) or 0,
+    }
+end
+
+-- Offsets are the canonical arithmetic used by SetPoint AND rect projection.
+-- Computing a latent power rect never enables its runtime frame.
+function BarLayout.ComputeOffsets(options)
     local borderInset = options.borderInset
     local showPowerBar = options.showPowerBar
     local powerBarHeight = options.powerBarHeight
     local alternativePowerBarVisible = options.alternativePowerBarVisible
     local alternativePowerBarHeight = options.alternativePowerBarHeight
-    local healthBarReverseFill = options.healthBarReverseFill == true
-    local powerBarReverseFill = options.powerBarReverseFill == true
     local frameLeftReserve = tonumber(options.frameLeftReserve) or 0
     local frameRightReserve = tonumber(options.frameRightReserve) or 0
     local healthLeftReserve = tonumber(options.healthLeftReserve) or 0
     local healthRightReserve = tonumber(options.healthRightReserve) or 0
     local powerLeftReserve = tonumber(options.powerLeftReserve) or 0
     local powerRightReserve = tonumber(options.powerRightReserve) or 0
+    local healthLeftOffset = borderInset + frameLeftReserve + healthLeftReserve
+    local healthRightOffset = -(borderInset + frameRightReserve + healthRightReserve)
+    local healthBottomY = borderInset
+    if showPowerBar then
+        healthBottomY = healthBottomY + powerBarHeight
+    end
+    if alternativePowerBarVisible then
+        healthBottomY = healthBottomY + alternativePowerBarHeight
+    end
+
+    local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
+    local powerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
+    local powerBottomOffset = borderInset
+    if alternativePowerBarVisible then
+        powerBottomOffset = powerBottomOffset + alternativePowerBarHeight
+    end
+
+    return {
+        health = { left = healthLeftOffset, right = healthRightOffset, top = -borderInset, bottom = healthBottomY },
+        power = { left = powerLeftOffset, right = powerRightOffset, bottom = powerBottomOffset, height = powerBarHeight },
+    }
+end
+
+function BarLayout.ComputeRects(frameRect, options)
+    local offsets = BarLayout.ComputeOffsets(options)
+    local health, power = offsets.health, offsets.power
+    return {
+        left = frameRect.left + health.left, right = frameRect.right + health.right,
+        bottom = frameRect.bottom + health.bottom, top = frameRect.top + health.top,
+    }, {
+        left = frameRect.left + power.left, right = frameRect.right + power.right,
+        bottom = frameRect.bottom + power.bottom,
+        top = frameRect.bottom + power.bottom + power.height,
+    }
+end
+
+-- Pure data-free editor geometry in owner-local UI units. Config is already
+-- materialized by the caller's existing layout path; this never normalizes it.
+function BarLayout.ComputeCanonicalRects(config, unitKey)
+    local options = BarLayout.ResolveGeometryConfig(config)
+    options.alternativePowerBarVisible = Preview.HasCanonicalSecondaryPower(unitKey, config)
+    local inputs = FocalPoint.UnitFrameInsideLayout.ResolveGeometryInputs(config)
+    local f, h, p = FocalPoint.UnitFrameInsideLayout.ComputeReserves(inputs.portrait, inputs.entries)
+    options.frameLeftReserve, options.frameRightReserve = f.left, f.right
+    options.healthLeftReserve, options.healthRightReserve = h.left, h.right
+    options.powerLeftReserve, options.powerRightReserve = p.left, p.right
+    local frameRect = FocalPoint.UnitFrameLayout.ComputeFrameRect({
+        width = options.width, height = options.height,
+        bottomExtensionHeight = options.alternativePowerBarVisible and options.alternativePowerBarHeight or 0,
+    })
+    local health, power = BarLayout.ComputeRects(frameRect, options)
+    return { Frame = frameRect, HealthBar = health, PowerBar = power,
+        powerBarEnabled = options.showPowerBar, options = options }
+end
+
+function BarLayout.ApplyHealthAndPower(owner, frame, options)
+    local showPowerBar = options.showPowerBar
+    local healthBarReverseFill = options.healthBarReverseFill == true
+    local powerBarReverseFill = options.powerBarReverseFill == true
+    local geometry = BarLayout.ComputeOffsets(options)
     local isPlaceholder = Preview.IsPlaceholderPreviewEnabled and Preview.IsPlaceholderPreviewEnabled(frame)
     local isEnabledPlaceholder = isPlaceholder and IsPlaceholderUnitEnabled(frame)
     local placeholderColors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
@@ -99,18 +175,11 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
             health.bg:SetShown(options.healthBackgroundShown)
         end
 
-        local healthLeftOffset = borderInset + frameLeftReserve + healthLeftReserve
-        local healthRightOffset = -(borderInset + frameRightReserve + healthRightReserve)
-        local healthBottomY = borderInset
-        if showPowerBar then
-            healthBottomY = healthBottomY + powerBarHeight
-        end
-        if alternativePowerBarVisible then
-            healthBottomY = healthBottomY + alternativePowerBarHeight
-        end
-
-        health:SetPoint("TOPLEFT", frame, "TOPLEFT", healthLeftOffset, -borderInset)
-        health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", healthRightOffset, -borderInset)
+        local healthLeftOffset = geometry.health.left
+        local healthRightOffset = geometry.health.right
+        local healthBottomY = geometry.health.bottom
+        health:SetPoint("TOPLEFT", frame, "TOPLEFT", healthLeftOffset, geometry.health.top)
+        health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", healthRightOffset, geometry.health.top)
         health:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", healthLeftOffset, healthBottomY)
         health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", healthRightOffset, healthBottomY)
 
@@ -153,16 +222,12 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         end
 
         if showPowerBar then
-            local powerLeftOffset = borderInset + frameLeftReserve + powerLeftReserve
-            local powerRightOffset = -(borderInset + frameRightReserve + powerRightReserve)
-            local powerBottomOffset = borderInset
-            if alternativePowerBarVisible then
-                powerBottomOffset = powerBottomOffset + alternativePowerBarHeight
-            end
-
+            local powerLeftOffset = geometry.power.left
+            local powerRightOffset = geometry.power.right
+            local powerBottomOffset = geometry.power.bottom
             power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
             power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
-            power:SetHeight(powerBarHeight)
+            power:SetHeight(geometry.power.height)
             power:Show()
         else
             if power.bg then

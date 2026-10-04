@@ -891,28 +891,25 @@ function UF:RegisterPortraitEvents(frame)
     return RegisterPortraitEvents(frame)
 end
 
-local function IsPowerBarShown(config)
-    return type(config) == "table" and config.powerBarPresent == true and config.showPowerBar and true or false
-end
-
 function UF:ApplyConfig(frame)
     local config = frame.config
     if not config then
         return
     end
-    local width = config.width or 220
-    local height = config.height or 40
+    local barGeometry = BarLayout.ResolveGeometryConfig(config)
+    local width = barGeometry.width
+    local height = barGeometry.height
     local alpha = config.alpha or 1
     local scale = config.scale or 1
     local frameLevel = config.frameLevel or 1
     local frameStrata = config.frameStrata or "MEDIUM"
-    local showPowerBar = IsPowerBarShown(config)
-    local powerBarHeight = showPowerBar and (config.powerBarHeight or 8) or 0
+    local showPowerBar = barGeometry.showPowerBar
+    local powerBarHeight = showPowerBar and barGeometry.powerBarHeight or 0
     local healthBarReverseFill = config.healthBarReverseFill
     local powerBarReverseFill = config.powerBarReverseFill
     local alternativePowerBarReverseFill = config.alternativePowerBarReverseFill
-    local showAlternativePowerBar = config.alternativePowerBarPresent == true and config.showAlternativePowerBar and true or false
-    local alternativePowerBarHeight = showAlternativePowerBar and (config.alternativePowerBarHeight or 5) or 0
+    local showAlternativePowerBar = barGeometry.alternativePowerBarEnabled
+    local alternativePowerBarHeight = barGeometry.alternativePowerBarHeight
     local showClassPowerBar = config.classPowerBarPresent == true and config.showClassPowerBar and true or false
     local classPowerBarHeight = showClassPowerBar and (config.classPowerBarHeight or 12) or 0
     local classPowerBarWidth = tonumber(config.classPowerBarWidth) or 100
@@ -926,8 +923,9 @@ function UF:ApplyConfig(frame)
     local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil
     local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame._fpUnit) or nil
     local classPowerBarVisible = showClassPowerBar and liveClassPowerInfo ~= nil
-    local borderInset = 1
+    local borderInset = barGeometry.borderInset
 
+    local insideGeometry = InsideLayout.ResolveGeometryInputs(config)
     local portraitConfig = config.Portrait or {}
     local raidTargetConfig = config.RaidTargetIcon or {}
     local leaderConfig = config.LeaderIcon or {}
@@ -936,13 +934,11 @@ function UF:ApplyConfig(frame)
     local restingConfig = config.RestingIndicator or {}
     local readyCheckConfig = config.ReadyCheckIndicator or {}
     local classificationConfig = config.ClassificationIndicator or {}
-    local portraitEnabled = portraitConfig.present == true and portraitConfig.enabled ~= false
-    local portraitPlacement = portraitConfig.placement or "INSIDE"
-    local portraitSize = tonumber(portraitConfig.size) or 40
-    local portraitScale = tonumber(portraitConfig.scale) or 1
-    local portraitPadding = tonumber(portraitConfig.padding) or 4
-    local portraitInsideSide = portraitConfig.insideSide or "LEFT"
-    local portraitInsideAnchorTo = portraitConfig.insideAnchorTo or "Frame"
+    local portraitEnabled = insideGeometry.byKey.Portrait.enabled
+    local portraitPlacement = insideGeometry.byKey.Portrait.placement
+    local portraitPadding = insideGeometry.byKey.Portrait.padding
+    local portraitInsideSide = insideGeometry.byKey.Portrait.insideSide
+    local portraitInsideAnchorTo = insideGeometry.byKey.Portrait.insideAnchorTo
 
     local portraitPoint = portraitConfig.point or "RIGHT"
     local portraitRelativePoint = portraitConfig.relativePoint or "LEFT"
@@ -950,7 +946,7 @@ function UF:ApplyConfig(frame)
     local portraitOffsetY = tonumber(portraitConfig.offsetY) or 0
     local portraitAnchorTo = portraitConfig.anchorTo or "Frame"
 
-    local portraitEffectiveSize = portraitEnabled and (portraitSize * portraitScale) or 0
+    local portraitEffectiveSize = portraitEnabled and (insideGeometry.byKey.Portrait.size * insideGeometry.byKey.Portrait.scale) or 0
     local portraitInside = portraitEnabled and portraitPlacement == "INSIDE"
     local portraitAttached = portraitEnabled and portraitPlacement == "ATTACHED"
     local portraitReservedSpace = portraitInside and (portraitEffectiveSize + portraitPadding) or 0
@@ -958,73 +954,71 @@ function UF:ApplyConfig(frame)
     -- Important: GUI uses fallback=true for new RTM configs. Treat a missing
     -- enabled flag as active as well, otherwise the UI can look enabled while
     -- the engine silently considers the element disabled on older profiles.
-    local raidTargetEnabled = raidTargetConfig.present == true and raidTargetConfig.enabled ~= false
-    local raidTargetSize = tonumber(raidTargetConfig.size) or 18
-    local raidTargetScale = tonumber(raidTargetConfig.scale) or 1
+    local raidTargetEnabled = insideGeometry.byKey.RaidTargetIcon.enabled
+    local raidTargetSize = insideGeometry.byKey.RaidTargetIcon.size
+    local raidTargetScale = insideGeometry.byKey.RaidTargetIcon.scale
     local raidTargetPoint = raidTargetConfig.point or "TOP"
     local raidTargetRelativePoint = raidTargetConfig.relativePoint or "TOP"
     local raidTargetOffsetX = tonumber(raidTargetConfig.offsetX) or 0
     local raidTargetOffsetY = tonumber(raidTargetConfig.offsetY) or 8
     local raidTargetAnchorTo = raidTargetConfig.anchorTo or "Frame"
 
-    local leaderEnabled = leaderConfig.present == true and leaderConfig.enabled ~= false
-    local leaderPlacement = leaderConfig.placement or "ATTACHED"
-    local leaderSize = tonumber(leaderConfig.size) or 16
-    local leaderScale = tonumber(leaderConfig.scale) or 1
-    local leaderPadding = tonumber(leaderConfig.padding) or 2
-    local leaderInsideSide = leaderConfig.insideSide or "LEFT"
+    local leaderEnabled = insideGeometry.byKey.LeaderIcon.enabled
+    local leaderPlacement = insideGeometry.byKey.LeaderIcon.placement
+    local leaderSize = insideGeometry.byKey.LeaderIcon.size
+    local leaderScale = insideGeometry.byKey.LeaderIcon.scale
+    local leaderPadding = insideGeometry.byKey.LeaderIcon.padding
+    local leaderInsideSide = insideGeometry.byKey.LeaderIcon.insideSide
     local leaderPoint = leaderConfig.point or "TOPLEFT"
     local leaderRelativePoint = leaderConfig.relativePoint or "TOP"
     local leaderOffsetX = tonumber(leaderConfig.offsetX) or 0
     local leaderOffsetY = tonumber(leaderConfig.offsetY) or 0
     local leaderAnchorTo = leaderConfig.anchorTo or "Frame"
 
-    local roleEnabled = roleConfig.present == true and roleConfig.enabled ~= false
-    local rolePlacement = roleConfig.placement or "ATTACHED"
-    local roleSize = tonumber(roleConfig.size) or 16
-    local roleScale = tonumber(roleConfig.scale) or 1
-    local rolePadding = tonumber(roleConfig.padding) or 2
-    local roleInsideSide = roleConfig.insideSide or "RIGHT"
+    local roleEnabled = insideGeometry.byKey.RoleIcon.enabled
+    local rolePlacement = insideGeometry.byKey.RoleIcon.placement
+    local roleSize = insideGeometry.byKey.RoleIcon.size
+    local roleScale = insideGeometry.byKey.RoleIcon.scale
+    local rolePadding = insideGeometry.byKey.RoleIcon.padding
+    local roleInsideSide = insideGeometry.byKey.RoleIcon.insideSide
     local rolePoint = roleConfig.point or "TOPRIGHT"
     local roleRelativePoint = roleConfig.relativePoint or "TOP"
     local roleOffsetX = tonumber(roleConfig.offsetX) or 0
     local roleOffsetY = tonumber(roleConfig.offsetY) or 0
     local roleAnchorTo = roleConfig.anchorTo or "Frame"
 
-    local combatEnabled = combatConfig.present == true and combatConfig.enabled ~= false
-    local combatEffect = combatConfig.effect or "ICON"
-    local combatUsesOverlay = combatEffect == "FRAME_OVERLAY"
-    local combatPlacement = combatConfig.placement or "ATTACHED"
-    local combatSize = tonumber(combatConfig.size) or 16
-    local combatScale = tonumber(combatConfig.scale) or 1
-    local combatPadding = tonumber(combatConfig.padding) or 2
-    local combatInsideSide = combatConfig.insideSide or "RIGHT"
+    local combatEnabled = insideGeometry.byKey.CombatIndicator.enabled
+    local combatUsesOverlay = insideGeometry.byKey.CombatIndicator.customLayout
+    local combatPlacement = insideGeometry.byKey.CombatIndicator.placement
+    local combatSize = insideGeometry.byKey.CombatIndicator.size
+    local combatScale = insideGeometry.byKey.CombatIndicator.scale
+    local combatPadding = insideGeometry.byKey.CombatIndicator.padding
+    local combatInsideSide = insideGeometry.byKey.CombatIndicator.insideSide
     local combatPoint = combatConfig.point or "TOP"
     local combatRelativePoint = combatConfig.relativePoint or "TOP"
     local combatOffsetX = tonumber(combatConfig.offsetX) or 0
     local combatOffsetY = tonumber(combatConfig.offsetY) or 0
     local combatAnchorTo = combatConfig.anchorTo or "Frame"
 
-    local restingEnabled = restingConfig.present == true and restingConfig.enabled ~= false
-    local restingEffect = restingConfig.effect or "ICON"
-    local restingUsesOverlay = restingEffect == "FRAME_OVERLAY"
-    local restingPlacement = restingConfig.placement or "ATTACHED"
-    local restingSize = tonumber(restingConfig.size) or 16
-    local restingScale = tonumber(restingConfig.scale) or 1
-    local restingPadding = tonumber(restingConfig.padding) or 2
-    local restingInsideSide = restingConfig.insideSide or "LEFT"
+    local restingEnabled = insideGeometry.byKey.RestingIndicator.enabled
+    local restingUsesOverlay = insideGeometry.byKey.RestingIndicator.customLayout
+    local restingPlacement = insideGeometry.byKey.RestingIndicator.placement
+    local restingSize = insideGeometry.byKey.RestingIndicator.size
+    local restingScale = insideGeometry.byKey.RestingIndicator.scale
+    local restingPadding = insideGeometry.byKey.RestingIndicator.padding
+    local restingInsideSide = insideGeometry.byKey.RestingIndicator.insideSide
     local restingPoint = restingConfig.point or "TOPLEFT"
     local restingRelativePoint = restingConfig.relativePoint or "TOP"
     local restingOffsetX = tonumber(restingConfig.offsetX) or 0
     local restingOffsetY = tonumber(restingConfig.offsetY) or 0
     local restingAnchorTo = restingConfig.anchorTo or "Frame"
 
-    local readyCheckEnabled = readyCheckConfig.present == true and readyCheckConfig.enabled ~= false
-    local readyCheckPlacement = readyCheckConfig.placement or "ATTACHED"
-    local readyCheckSize = tonumber(readyCheckConfig.size) or 16
-    local readyCheckScale = tonumber(readyCheckConfig.scale) or 1
-    local readyCheckPadding = tonumber(readyCheckConfig.padding) or 2
-    local readyCheckInsideSide = readyCheckConfig.insideSide or "RIGHT"
+    local readyCheckEnabled = insideGeometry.byKey.ReadyCheckIndicator.enabled
+    local readyCheckPlacement = insideGeometry.byKey.ReadyCheckIndicator.placement
+    local readyCheckSize = insideGeometry.byKey.ReadyCheckIndicator.size
+    local readyCheckScale = insideGeometry.byKey.ReadyCheckIndicator.scale
+    local readyCheckPadding = insideGeometry.byKey.ReadyCheckIndicator.padding
+    local readyCheckInsideSide = insideGeometry.byKey.ReadyCheckIndicator.insideSide
     local readyCheckPoint = readyCheckConfig.point or "TOPRIGHT"
     local readyCheckRelativePoint = readyCheckConfig.relativePoint or "TOP"
     local readyCheckOffsetX = tonumber(readyCheckConfig.offsetX) or 0
@@ -1055,15 +1049,15 @@ function UF:ApplyConfig(frame)
     end
 
     if raidTargetEnabled then
-        local raidTargetPlacement = raidTargetConfig.placement or "ATTACHED"
-        ApplyReserveToArea(frameReserve, healthReserve, powerReserve, raidTargetConfig.insideAnchorTo or "Frame", raidTargetConfig.insideSide or "RIGHT", true, raidTargetPlacement, raidTargetSize, raidTargetScale, tonumber(raidTargetConfig.padding) or 2)
+        local raidTargetPlacement = insideGeometry.byKey.RaidTargetIcon.placement
+        ApplyReserveToArea(frameReserve, healthReserve, powerReserve, insideGeometry.byKey.RaidTargetIcon.insideAnchorTo, insideGeometry.byKey.RaidTargetIcon.insideSide, true, raidTargetPlacement, raidTargetSize, raidTargetScale, insideGeometry.byKey.RaidTargetIcon.padding)
     end
 
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, leaderConfig.insideAnchorTo or "Frame", leaderInsideSide, leaderEnabled, leaderPlacement, leaderSize, leaderScale, leaderPadding)
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, roleConfig.insideAnchorTo or "Frame", roleInsideSide, roleEnabled, rolePlacement, roleSize, roleScale, rolePadding)
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, combatConfig.insideAnchorTo or "Frame", combatInsideSide, combatEnabled and not combatUsesOverlay, combatPlacement, combatSize, combatScale, combatPadding)
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, restingConfig.insideAnchorTo or "Frame", restingInsideSide, restingEnabled and not restingUsesOverlay, restingPlacement, restingSize, restingScale, restingPadding)
-    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, readyCheckConfig.insideAnchorTo or "Frame", readyCheckInsideSide, readyCheckEnabled, readyCheckPlacement, readyCheckSize, readyCheckScale, readyCheckPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, insideGeometry.byKey.LeaderIcon.insideAnchorTo, leaderInsideSide, leaderEnabled, leaderPlacement, leaderSize, leaderScale, leaderPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, insideGeometry.byKey.RoleIcon.insideAnchorTo, roleInsideSide, roleEnabled, rolePlacement, roleSize, roleScale, rolePadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, insideGeometry.byKey.CombatIndicator.insideAnchorTo, combatInsideSide, combatEnabled and not combatUsesOverlay, combatPlacement, combatSize, combatScale, combatPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, insideGeometry.byKey.RestingIndicator.insideAnchorTo, restingInsideSide, restingEnabled and not restingUsesOverlay, restingPlacement, restingSize, restingScale, restingPadding)
+    ApplyReserveToArea(frameReserve, healthReserve, powerReserve, insideGeometry.byKey.ReadyCheckIndicator.insideAnchorTo, readyCheckInsideSide, readyCheckEnabled, readyCheckPlacement, readyCheckSize, readyCheckScale, readyCheckPadding)
 
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
@@ -1322,17 +1316,17 @@ function UF:ApplyConfig(frame)
         })
     end
 
-    local overlayEntries = {
-        {
+    local overlayEntriesByKey = {
+        RaidTargetIcon = {
             holder = frame.Elements.RaidTargetIcon,
             options = {
                 enabled = raidTargetEnabled,
-                placement = raidTargetConfig.placement or "ATTACHED",
+                placement = insideGeometry.byKey.RaidTargetIcon.placement,
                 size = raidTargetSize,
                 scale = raidTargetScale,
-                padding = tonumber(raidTargetConfig.padding) or 2,
-                insideSide = raidTargetConfig.insideSide or "RIGHT",
-                insideAnchorTo = raidTargetConfig.insideAnchorTo or "Frame",
+                padding = insideGeometry.byKey.RaidTargetIcon.padding,
+                insideSide = insideGeometry.byKey.RaidTargetIcon.insideSide,
+                insideAnchorTo = insideGeometry.byKey.RaidTargetIcon.insideAnchorTo,
                 frameLeftReserve = frameReserve.left,
                 frameRightReserve = frameReserve.right,
                 healthLeftReserve = healthReserve.left,
@@ -1351,7 +1345,7 @@ function UF:ApplyConfig(frame)
                 end,
             },
         },
-        {
+        LeaderIcon = {
             holder = frame.Elements.LeaderIcon,
             options = {
                 enabled = leaderEnabled,
@@ -1360,7 +1354,7 @@ function UF:ApplyConfig(frame)
                 scale = leaderScale,
                 padding = leaderPadding,
                 insideSide = leaderInsideSide,
-                insideAnchorTo = leaderConfig.insideAnchorTo or "Frame",
+                insideAnchorTo = insideGeometry.byKey.LeaderIcon.insideAnchorTo,
                 frameLeftReserve = frameReserve.left,
                 frameRightReserve = frameReserve.right,
                 healthLeftReserve = healthReserve.left,
@@ -1379,7 +1373,7 @@ function UF:ApplyConfig(frame)
                 end,
             },
         },
-        {
+        RoleIcon = {
             holder = frame.Elements.RoleIcon,
             options = {
                 enabled = roleEnabled,
@@ -1388,7 +1382,7 @@ function UF:ApplyConfig(frame)
                 scale = roleScale,
                 padding = rolePadding,
                 insideSide = roleInsideSide,
-                insideAnchorTo = roleConfig.insideAnchorTo or "Frame",
+                insideAnchorTo = insideGeometry.byKey.RoleIcon.insideAnchorTo,
                 frameLeftReserve = frameReserve.left,
                 frameRightReserve = frameReserve.right,
                 healthLeftReserve = healthReserve.left,
@@ -1407,7 +1401,7 @@ function UF:ApplyConfig(frame)
                 end,
             },
         },
-        {
+        CombatIndicator = {
             holder = frame.Elements.CombatIndicator,
             options = {
                 enabled = combatEnabled,
@@ -1416,7 +1410,7 @@ function UF:ApplyConfig(frame)
                 scale = combatScale,
                 padding = combatPadding,
                 insideSide = combatInsideSide,
-                insideAnchorTo = combatConfig.insideAnchorTo or "Frame",
+                insideAnchorTo = insideGeometry.byKey.CombatIndicator.insideAnchorTo,
                 frameLeftReserve = frameReserve.left,
                 frameRightReserve = frameReserve.right,
                 healthLeftReserve = healthReserve.left,
@@ -1436,7 +1430,7 @@ function UF:ApplyConfig(frame)
                 end,
             },
         },
-        {
+        RestingIndicator = {
             holder = frame.Elements.RestingIndicator,
             options = {
                 enabled = restingEnabled,
@@ -1445,7 +1439,7 @@ function UF:ApplyConfig(frame)
                 scale = restingScale,
                 padding = restingPadding,
                 insideSide = restingInsideSide,
-                insideAnchorTo = restingConfig.insideAnchorTo or "Frame",
+                insideAnchorTo = insideGeometry.byKey.RestingIndicator.insideAnchorTo,
                 frameLeftReserve = frameReserve.left,
                 frameRightReserve = frameReserve.right,
                 healthLeftReserve = healthReserve.left,
@@ -1465,7 +1459,7 @@ function UF:ApplyConfig(frame)
                 end,
             },
         },
-        {
+        ReadyCheckIndicator = {
             holder = frame.Elements.ReadyCheckIndicator,
             options = {
                 enabled = readyCheckEnabled,
@@ -1474,7 +1468,7 @@ function UF:ApplyConfig(frame)
                 scale = readyCheckScale,
                 padding = readyCheckPadding,
                 insideSide = readyCheckInsideSide,
-                insideAnchorTo = readyCheckConfig.insideAnchorTo or "Frame",
+                insideAnchorTo = insideGeometry.byKey.ReadyCheckIndicator.insideAnchorTo,
                 frameLeftReserve = frameReserve.left,
                 frameRightReserve = frameReserve.right,
                 healthLeftReserve = healthReserve.left,
@@ -1494,6 +1488,11 @@ function UF:ApplyConfig(frame)
             },
         },
     }
+
+    local overlayEntries = {}
+    for _, input in ipairs(insideGeometry.entries) do
+        overlayEntries[#overlayEntries + 1] = overlayEntriesByKey[input.options._elementKey]
+    end
 
     ApplyOverlayIndicatorBatch(self, frame, overlayEntries)
 

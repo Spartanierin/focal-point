@@ -442,7 +442,6 @@ function InspectorController.Build(container, state, options)
     local classificationEffectList = BuildLocalizedList(classificationLayouts.Lists and classificationLayouts.Lists.effect)
     local statusIndicatorEffectList = BuildLocalizedList(statusIndicatorLayouts.Lists and statusIndicatorLayouts.Lists.effect)
     local auraPlacementList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.placement)
-    local auraAnchorTargetList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.anchorTo)
     local auraAnchorPointList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.anchorPoints)
     local auraInsideSideList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.insideSide)
     local auraGrowthXList = BuildLocalizedList(auraLayouts.Lists and auraLayouts.Lists.growthX)
@@ -5150,14 +5149,6 @@ function InspectorController.Build(container, state, options)
             local inside = (auraConfig.placement or "ATTACHED") == "INSIDE"
             if inside then
                 if isScopedObject then
-                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
-                        list = auraAnchorTargetList,
-                        value = auraConfig.insideAnchorTo or "Frame",
-                        onChanged = function(value)
-                            SetAuraField(selectedAuraKey, "insideAnchorTo", value)
-                        end,
-                        anchorKey = "aura_inside_anchor_to",
-                    }, disabled)
                     AddPropertyDropdownRow(positionSection, L["OPTION_INSIDE_SIDE"] or "Inside Side", {
                         list = auraInsideSideList,
                         value = auraConfig.insideSide or "LEFT",
@@ -5167,79 +5158,63 @@ function InspectorController.Build(container, state, options)
                         anchorKey = "aura_inside_side",
                     }, disabled)
                 else
-                    AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.insideAnchorTo or "Frame", function(value)
-                        SetAuraField(selectedAuraKey, "insideAnchorTo", value)
-                    end, disabled, "aura_inside_anchor_to")
-
                     AddDropdown(auraSection, L["OPTION_INSIDE_SIDE"] or "Inside Side", auraInsideSideList, auraConfig.insideSide or "LEFT", function(value)
                         SetAuraField(selectedAuraKey, "insideSide", value)
                     end, disabled, "aura_inside_side")
                 end
-            else
-                if isScopedObject then
-                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", {
-                        list = auraAnchorTargetList,
-                        value = auraConfig.anchorTo or "Frame",
-                        onChanged = function(value)
-                            SetAuraField(selectedAuraKey, "anchorTo", value)
-                        end,
-                        anchorKey = "aura_anchor_to",
-                    }, disabled)
-                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
-                        list = auraAnchorPointList,
-                        value = auraConfig.point or "BOTTOMLEFT",
-                        onChanged = function(value)
-                            SetAuraField(selectedAuraKey, "point", value)
-                        end,
-                        anchorKey = "aura_point",
-                    }, disabled)
-                    AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
-                        list = auraAnchorPointList,
-                        value = auraConfig.relativePoint or "TOPLEFT",
-                        onChanged = function(value)
-                            SetAuraField(selectedAuraKey, "relativePoint", value)
-                        end,
-                        anchorKey = "aura_relative_point",
-                    }, disabled)
-                    local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
-                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
-                            return
-                        end
-                        SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
-                    end, disabled, "aura_offset_x")
-                    local offsetYControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
-                        if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
-                            return
-                        end
-                        SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
-                    end, disabled, "aura_offset_y")
-                    RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
-                        kind = "aura",
-                        unit = state and state.selectedUnit,
-                        auraKey = selectedAuraKey,
-                        objectKey = selectedAuraKey,
-                    }, offsetXControl, offsetYControl)
-                else
-                    AddDropdown(auraSection, L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", auraAnchorTargetList, auraConfig.anchorTo or "Frame", function(value)
-                        SetAuraField(selectedAuraKey, "anchorTo", value)
-                    end, disabled, "aura_anchor_to")
-
-                    AddDropdown(auraSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", auraAnchorPointList, auraConfig.point or "BOTTOMLEFT", function(value)
+            end
+            -- Aura groups always use Frame; position controls apply to both placements.
+            if isScopedObject then
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
+                    list = auraAnchorPointList,
+                    value = auraConfig.point or "TOPLEFT",
+                    onChanged = function(value)
                         SetAuraField(selectedAuraKey, "point", value)
-                    end, disabled, "aura_point")
-
-                    AddDropdown(auraSection, L["OPTION_ANCHOR_TO"] or "Anchor To", auraAnchorPointList, auraConfig.relativePoint or "TOPLEFT", function(value)
+                    end,
+                    anchorKey = "aura_point",
+                }, disabled)
+                AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TO"] or "Anchor To", {
+                    list = auraAnchorPointList,
+                    value = auraConfig.relativePoint or auraConfig.point or "TOPLEFT",
+                    onChanged = function(value)
                         SetAuraField(selectedAuraKey, "relativePoint", value)
-                    end, disabled, "aura_relative_point")
+                    end,
+                    anchorKey = "aura_relative_point",
+                }, disabled)
+                local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                        return
+                    end
+                    SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_offset_x")
+                local offsetYControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 0, function(value)
+                    if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                        return
+                    end
+                    SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_offset_y")
+                RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+                    kind = "aura",
+                    unit = state and state.selectedUnit,
+                    auraKey = selectedAuraKey,
+                    objectKey = selectedAuraKey,
+                }, offsetXControl, offsetYControl)
+            else
+                AddDropdown(auraSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", auraAnchorPointList, auraConfig.point or "TOPLEFT", function(value)
+                    SetAuraField(selectedAuraKey, "point", value)
+                end, disabled, "aura_point")
 
-                    AddSlider(auraSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
-                        SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
-                    end, disabled, "aura_offset_x")
+                AddDropdown(auraSection, L["OPTION_ANCHOR_TO"] or "Anchor To", auraAnchorPointList, auraConfig.relativePoint or auraConfig.point or "TOPLEFT", function(value)
+                    SetAuraField(selectedAuraKey, "relativePoint", value)
+                end, disabled, "aura_relative_point")
 
-                    AddSlider(auraSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 4, function(value)
-                        SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
-                    end, disabled, "aura_offset_y")
-                end
+                AddSlider(auraSection, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(auraConfig.offsetX) or 0, function(value)
+                    SetAuraField(selectedAuraKey, "offsetX", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_offset_x")
+
+                AddSlider(auraSection, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(auraConfig.offsetY) or 0, function(value)
+                    SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
+                end, disabled, "aura_offset_y")
             end
         end
     end

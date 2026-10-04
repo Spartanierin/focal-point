@@ -10,6 +10,20 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.1
+
+### Compatibility
+
+* Added support for World of Warcraft: Forever (Interface 16001).
+
+### Changed
+
+* Aura groups now use the Unit Frame as a stable positioning reference. Anchor points, offsets, and growth remain configurable for both Inside and Attached placement.
+
+### Fixed
+
+* Existing Health Bar / Power Bar anchored aura layouts are migrated to the Unit Frame while preserving their configured position, including older layout imports. Groups previously hidden by a disabled Power Bar remain hidden after migration and can be re-enabled with their new Frame anchor.
+
 ## 2.2.0
 
 ### Added

@@ -114,6 +114,8 @@ local function ResolveMutableUserLayoutPayload(db, layoutId)
         storage.EnsurePayload(payload)
     end
 
+    local ok, reason = FocalPoint.LayoutService.CanonicalizeAuraAnchors(payload)
+    if not ok then return nil, reason end
     return payload, nil, record
 end
 
