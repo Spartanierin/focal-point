@@ -19,7 +19,7 @@ local function Fixture()
     local db={global={TextTemplates={[A]={name='Same',content='A'},[B]={name='Same',content='B'},
         [Unused]={name='unused',content='extra'}},UserLayouts={}}}
     local layout={name='Example',formatVersion=2,payload={Units={player={
-        castBarWidthMode='CUSTOM',castBarWidth=600,Texts={
+        castBarWidthMode='CUSTOM',castBarWidth=600,castBarOffsetX=12000,castBarOffsetY=-9000,scale=1.5,Texts={
         x={templateId=A,tag='inline',stateTemplateIds={dead=B,ghost=Builtin},enabled=false,fontSize=17},
         y={templateId=B,tag='fallback'},z={tag='local'},again={templateId=A}}}}}}
     return db,layout
@@ -166,5 +166,31 @@ Test('vNext is loaded productively while the codec envelope remains version 1',f
     assert(ok==false and codec.SchemaVersion==1)
     local file=assert(io.open('Init.xml'));local init=file:read('*a');file:close()
     assert(init:find('LayoutTransferVNext',1,true))
+end)
+Test('large CastBar offsets survive transfer, projection, copy and active-root switching',function()
+    Load('Services/UserLayoutStore.lua');Load('Services/ActiveLayoutResolver.lua')
+    local source,layout=Fixture()
+    local result=Prepare(Export(source,layout),{global={}});assert(result.ready)
+    ns.db={global={UserLayouts={['layout:large']=result.preparedLayout}},char={activeLayoutId='layout:large'}}
+    local function Check(unit)
+        assert(unit.castBarOffsetX==12000 and unit.castBarOffsetY==-9000)
+        assert(unit.castBarWidthMode=='CUSTOM' and unit.castBarWidth==600 and unit.scale==1.5)
+    end
+    Check(ns.LayoutService.ProjectUserLayout('layout:large',result.preparedLayout).payload.Units.player)
+    local ok,id=ns.LayoutMutations.CopyLayout('layout:large','Large Copy');assert(ok,id)
+    Check(ns.db.global.UserLayouts[id].payload.Units.player)
+    local other=ns.LayoutService.Clone(result.preparedLayout)
+    other.payload.Units.player.castBarOffsetX=-7000;other.payload.Units.player.castBarOffsetY=6000
+    ns.db.global.UserLayouts['layout:other']=other
+    local resolver=ns.ActiveLayoutResolver
+    for _,key in ipairs({'layout:large','layout:other',id,'layout:large'})do
+        ns.db.char.activeLayoutId=key
+        local units=assert(resolver.GetActiveUnits(ns.db))
+        if key=='layout:other' then
+            assert(units.player.castBarOffsetX==-7000 and units.player.castBarOffsetY==6000)
+        else Check(units.player) end
+    end
+    ns.db=Copy(ns.db);resolver.InvalidateActiveRuntimeRoot()
+    Check(assert(resolver.GetActiveUnits(ns.db)).player)
 end)
 print('LayoutTransferVNext: '..passed..' groups passed')

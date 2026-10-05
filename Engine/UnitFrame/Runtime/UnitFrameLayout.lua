@@ -34,6 +34,12 @@ function Layout.GetFrameSizeInParent(frame, parent)
         (frame.GetHeight and frame:GetHeight() or 0) * ratio
 end
 
+function Layout.ProjectParentDeltaToFrame(frame, parent, x, y)
+    local ratio = GetScaleToParent(frame, parent)
+    if not ratio or ratio == 0 then return nil end
+    return x / ratio, y / ratio
+end
+
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
 end

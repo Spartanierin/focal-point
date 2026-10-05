@@ -343,6 +343,13 @@ function InspectorController.SetActiveCanvasDirectMoveOffsetValues(unitKey, obje
 
     controls.suppress = true
     local ok = pcall(function()
+        if objectRef.kind == "bar" and objectRef.objectKey == "CastBar" then
+            local frame = ns.frames and ns.frames[unitKey == "boss" and "boss1" or unitKey]
+            local config = ns.UnitFrameUtils.GetUnitDB(unitKey)
+            local minX, maxX, minY, maxY = ns.GUI.Editor.AnchorGeometry.ResolveCastBarOffsetRange(frame, config, offsetX, offsetY)
+            controls.offsetXControl:SetSliderValues(minX, maxX, 1)
+            controls.offsetYControl:SetSliderValues(minY, maxY, 1)
+        end
         controls.offsetXControl:SetValue(offsetX)
         controls.offsetYControl:SetValue(offsetY)
     end)
@@ -3695,14 +3702,16 @@ function InspectorController.Build(container, state, options)
             SetUnitField("castBarRelativePoint", value)
         end)
 
-        local offsetXControl = AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
+        local frame = ns.frames and ns.frames[state.selectedUnit == "boss" and "boss1" or state.selectedUnit]
+        local minX, maxX, minY, maxY = ns.GUI.Editor.AnchorGeometry.ResolveCastBarOffsetRange(frame, unitConfig)
+        local offsetXControl = AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", minX, maxX, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
             if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                 return
             end
             SetUnitField("castBarOffsetX", math.floor((value or 0) + 0.5))
         end)
 
-        local offsetYControl = AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
+        local offsetYControl = AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", minY, maxY, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
             if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                 return
             end

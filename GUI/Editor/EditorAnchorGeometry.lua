@@ -15,6 +15,28 @@ local AUTO_ANCHOR_PAIRS = {
 local GetRectAnchor = FocalPoint.UnitFrameLayout.GetRectAnchor
 AnchorGeometry.GetRectAnchor = GetRectAnchor
 
+-- Editor bounds only: cover opposite screen edges plus owner/child extents.
+-- Existing offsets remain editable even after resolution/scale changes.
+function AnchorGeometry.ResolveCastBarOffsetRange(frame, config, offsetX, offsetY)
+    config = config or {}
+    local owner = frame or {
+        GetEffectiveScale = function()
+            return UIParent:GetEffectiveScale() * (tonumber(config.scale) or 1)
+        end,
+    }
+    local screenWidth, screenHeight = FocalPoint.UnitFrameLayout.GetFrameSizeInParent(UIParent, owner)
+    local width = tonumber(config.width) or (frame and frame:GetWidth()) or 0
+    local height = (frame and frame:GetHeight()) or tonumber(config.height) or 0
+    local castHeight = tonumber(config.castBarHeight) or 10
+    local iconExtent = config.showCastBarIcon ~= false and (castHeight + 4) or 0
+    local castWidth = FocalPoint.UnitFrameCastBar.ResolveStatusBarWidth(width, config, 1)
+    local x = math.ceil(math.max(screenWidth + width + castWidth + iconExtent + 1,
+        math.abs(tonumber(offsetX) or tonumber(config.castBarOffsetX) or 0)))
+    local y = math.ceil(math.max(screenHeight + height + castHeight,
+        math.abs(tonumber(offsetY) or tonumber(config.castBarOffsetY) or 0)))
+    return -x, x, -y, y
+end
+
 function AnchorGeometry.ResolveAutoAnchorGeometry(childRect, ownerRect)
     if type(childRect) ~= "table" or type(ownerRect) ~= "table" then
         return nil

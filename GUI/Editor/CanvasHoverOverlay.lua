@@ -389,7 +389,7 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
     if objectRef.kind == "bar" then
         local objectKey = objectRef.objectKey
         if objectKey == "CastBar" then
-            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = "castBarOffsetX", offsetYField = "castBarOffsetY" }
+            return { kind = "unit", unitConfig = unitConfig, unitKey = unitKey, offsetXField = "castBarOffsetX", offsetYField = "castBarOffsetY", unboundedOffsets = true }
         end
         if objectKey == "ClassPowerBar" then
             return {
@@ -478,13 +478,22 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
     return nil
 end
 
-local function ClampDirectMoveOffset(value)
-    return math.max(-DIRECT_MOVE_LIMIT, math.min(DIRECT_MOVE_LIMIT, math.floor((tonumber(value) or 0) + 0.5)))
+local function ClampDirectMoveOffset(value, descriptor)
+    value = math.floor((tonumber(value) or 0) + 0.5)
+    if descriptor.unboundedOffsets then return value end
+    return math.max(-DIRECT_MOVE_LIMIT, math.min(DIRECT_MOVE_LIMIT, value))
 end
 
 local function GetDirectMoveOffsetConfig(descriptor)
     if descriptor and descriptor.kind == "aura" then
         return descriptor.auraConfig or {}
+    end
+    if descriptor and descriptor.kind == "indicator" then
+        local meta = descriptor.indicatorMeta[descriptor.indicatorKey]
+        return descriptor.unitConfig[meta.optionKey] or {}
+    end
+    if descriptor and descriptor.kind == "decoration" then
+        return descriptor.decorationConfig or {}
     end
     return descriptor and descriptor.unitConfig or {}
 end
@@ -514,7 +523,7 @@ local function ResolveDirectMoveAnchorOwner(state)
         return factory and factory.GetAnchorTarget and factory.GetAnchorTarget(frame, anchorTo) or frame
     end
     if descriptor.kind == "indicator" then
-        local config = descriptor.indicatorMeta and descriptor.unitConfig and descriptor.unitConfig[descriptor.indicatorMeta.optionKey]
+        local config = GetDirectMoveOffsetConfig(descriptor)
         local anchorTo = type(config) == "table" and config.anchorTo or nil
         return factory and factory.GetAnchorTarget and factory.GetAnchorTarget(frame, anchorTo) or frame
     end
@@ -734,8 +743,11 @@ local function BeginDirectMoveDrag(zone, gesture)
         end
 
         local cursorX, cursorY = GetCursorPositionInUiScale()
-        local offsetX = ClampDirectMoveOffset(activeState.startOffsetX + cursorX - activeState.startCursorX)
-        local offsetY = ClampDirectMoveOffset(activeState.startOffsetY + cursorY - activeState.startCursorY)
+        local deltaX, deltaY = FocalPoint.UnitFrameLayout.ProjectParentDeltaToFrame(
+            activeState.target, UIParent, cursorX - activeState.startCursorX, cursorY - activeState.startCursorY)
+        if not deltaX then return end
+        local offsetX = ClampDirectMoveOffset(activeState.startOffsetX + deltaX, activeState.descriptor)
+        local offsetY = ClampDirectMoveOffset(activeState.startOffsetY + deltaY, activeState.descriptor)
         if offsetX == activeState.currentOffsetX and offsetY == activeState.currentOffsetY then
             return
         end
