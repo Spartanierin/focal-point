@@ -902,6 +902,9 @@ local function SyncEditBoxText(context, widget, value, flagName)
     context[flagName] = false
 end
 
+-- Entity bindings share the same non-redundant input synchronization contract.
+TextBuilderController.SyncEditBoxText = SyncEditBoxText
+
 local function ApplyDialogState(context, state)
     if not context or type(state) ~= "table" then
         return

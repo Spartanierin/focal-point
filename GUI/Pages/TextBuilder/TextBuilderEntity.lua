@@ -242,15 +242,11 @@ local function RefreshResult(result)
 end
 
 local function R2Text(context, value)
-    context.r2Sync = true
-    context.templateEdit:SetText(value or "")
-    context.r2Sync = false
+    Builder.SyncEditBoxText(context, context.templateEdit, value, "r2Sync")
 end
 
 local function R2Name(context, value)
-    context.r2NameSync = true
-    context.templateNameEdit:SetText(value or "")
-    context.r2NameSync = false
+    Builder.SyncEditBoxText(context, context.templateNameEdit, value, "r2NameSync")
 end
 
 local function R2Status(message)
@@ -460,13 +456,9 @@ local function ConsumerRefresh(context)
     local session = context and context.r2Session
     if not session then return end
     if context.nameEdit then
-        context.nameSync = true
-        context.nameEdit:SetText(session.name or "")
-        context.nameSync = false
+        Builder.SyncEditBoxText(context, context.nameEdit, session.name, "nameSync")
     end
-    context.contentSync = true
-    context.contentEdit:SetText(session.content or "")
-    context.contentSync = false
+    Builder.SyncEditBoxText(context, context.contentEdit, session.content, "contentSync")
     context.preview:SetText(ns.TextElementPreview and ns.TextElementPreview.BuildTemplatePreview(session.content or "") or session.content or "")
     local valid = session.kind == "new-template"
         and type(session.name) == "string" and session.name:find("%S")
