@@ -669,6 +669,9 @@ local function EndDirectMoveDrag(zone, commit)
     if not state then
         return
     end
+    if state.selectionLocked and not IsSelectedObject(state.objectRef) then
+        commit = false
+    end
 
     zone._focalPointDirectDragState = nil
     zone:SetScript("OnUpdate", nil)
@@ -701,7 +704,7 @@ end
 
 local function BeginDirectMoveDrag(zone, gesture)
     local descriptor = gesture and gesture.directMove
-    local target = zone and zone._focalPointVisualTarget
+    local target = gesture and gesture.movementOwner or (zone and zone._focalPointVisualTarget)
     if not descriptor or not target or (InCombatLockdown and InCombatLockdown()) then
         return false
     end
@@ -713,10 +716,11 @@ local function BeginDirectMoveDrag(zone, gesture)
     end
 
     local state = {
-        frame = zone._focalPointOwnerFrame,
+        frame = gesture.ownerFrame or zone._focalPointOwnerFrame,
         target = target,
         descriptor = descriptor,
-        objectRef = zone._focalPointObjectRef,
+        objectRef = gesture.selectionTarget or zone._focalPointObjectRef,
+        selectionLocked = gesture.selectionLocked,
         points = points,
         startCursorX = cursorX,
         startCursorY = cursorY,
@@ -733,7 +737,8 @@ local function BeginDirectMoveDrag(zone, gesture)
             self:SetScript("OnUpdate", nil)
             return
         end
-        if not CanvasHoverOverlay.IsEditorActive() or (InCombatLockdown and InCombatLockdown()) then
+        if not CanvasHoverOverlay.IsEditorActive() or (InCombatLockdown and InCombatLockdown())
+            or (activeState.selectionLocked and not IsSelectedObject(activeState.objectRef)) then
             EndDirectMoveDrag(self, false)
             return
         end
@@ -774,9 +779,53 @@ local function CompleteOwnerGesture(zone, commit)
     else
         EndOwnerDrag(zone, commit)
     end
-    if commit then
+    if commit and not gesture.selectionLocked then
         SelectObjectRef(zone, gesture.selectionTarget)
     end
+end
+
+-- Canvas-only ownership: reuse the selected component's existing hit zone/descriptor.
+-- The click latch belongs to this pointer sequence and is reset on the next down.
+function CanvasHoverOverlay.RouteSelectedComponentPointer(hit, phase)
+    if phase == "down" then
+        CompleteOwnerGesture(hit, false)
+        hit._focalPointComponentMoveClick = nil
+        if not CanvasHoverOverlay.IsEditorActive() or not IsShiftDown()
+            or (InCombatLockdown and InCombatLockdown()) then return false end
+        local selection = FocalPoint.GUI.Editor.ObjectSelection
+        local selected = selection and selection.GetSelectedObject and selection.GetSelectedObject()
+        if not selected or selected.kind == "text" or selected.kind == "unit" then return false end
+        local frame = hit._focalPointOwnerFrame
+        if not frame or NormalizeUnitKey(frame._fpUnit) ~= NormalizeUnitKey(selected.unit) then
+            local frames = FocalPoint.frames or {}
+            frame = frames[selected.unit == "boss" and "boss1" or selected.unit]
+        end
+        for _, zone in pairs(frame and frame._focalPointCanvasHoverZones or {}) do
+            if RefsEqual(zone._focalPointObjectRef, selected) and zone._focalPointVisualTarget then
+                local descriptor = ResolveDirectMoveDescriptor(frame, selected)
+                if not descriptor then return false end
+                hit._focalPointComponentMoveClick = true
+                hit._focalPointGesture = {
+                    mode = "direct", selectionLocked = true, hitTarget = hit,
+                    selectionTarget = selected, ownerFrame = frame,
+                    movementOwner = zone._focalPointVisualTarget, directMove = descriptor,
+                }
+                return true
+            end
+        end
+        return false
+    end
+    if not hit._focalPointComponentMoveClick then return false end
+    if phase == "start" then
+        local gesture = hit._focalPointGesture
+        if gesture and IsSelectedObject(gesture.selectionTarget) and CanvasHoverOverlay.IsEditorActive() then
+            BeginDirectMoveDrag(hit, gesture)
+        end
+    else
+        CompleteOwnerGesture(hit, phase == "up" and CanvasHoverOverlay.IsEditorActive()
+            and not (InCombatLockdown and InCombatLockdown()))
+    end
+    return true
 end
 
 local function EnsureHitZone(frame, key)
@@ -818,6 +867,7 @@ local function EnsureHitZone(frame, key)
             return
         end
         if button == "LeftButton" then
+            if CanvasHoverOverlay.RouteSelectedComponentPointer(self, "up") then return end
             if self._focalPointMovesUnit then
                 CompleteOwnerGesture(self, true)
             else
@@ -837,6 +887,7 @@ local function EnsureHitZone(frame, key)
         if not CanvasHoverOverlay.IsEditorActive() then
             return
         end
+        if button == "LeftButton" and CanvasHoverOverlay.RouteSelectedComponentPointer(self, "down") then return end
         if button == "LeftButton" and self._focalPointMovesUnit then
             local directMove = IsShiftDown() and ResolveDirectMoveDescriptor(self._focalPointOwnerFrame, self._focalPointObjectRef) or nil
             local gesture = {
@@ -853,6 +904,7 @@ local function EnsureHitZone(frame, key)
         if not CanvasHoverOverlay.IsEditorActive() then
             return
         end
+        if CanvasHoverOverlay.RouteSelectedComponentPointer(self, "start") then return end
         local gesture = self._focalPointGesture
         if not gesture or not self._focalPointMovesUnit then
             return
@@ -873,6 +925,7 @@ local function EnsureHitZone(frame, key)
         ) == true
     end)
     zone:SetScript("OnDragStop", function(self)
+        if CanvasHoverOverlay.RouteSelectedComponentPointer(self, "up") then return end
         CompleteOwnerGesture(self, true)
     end)
     zone:SetScript("OnMouseWheel", function(self, delta)

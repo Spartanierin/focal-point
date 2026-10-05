@@ -1053,6 +1053,13 @@ local function IsDragContextStillValid(state)
 end
 
 EndTextDrag = function(overlay, commit)
+    local canvas = FocalPoint.GUI.Editor.CanvasHoverOverlay
+    if overlay and canvas and canvas.RouteSelectedComponentPointer
+        and canvas.RouteSelectedComponentPointer(overlay, commit and "up" or "cancel") then
+        if activeDragOverlay == overlay then activeDragOverlay = nil end
+        overlay._focalPointSuppressClick = true
+        return
+    end
     local state = overlay and overlay._focalPointTextDragState
     if not state then
         return
@@ -1201,6 +1208,13 @@ function TextEditorOverlay.BeginDrag(overlay)
     if not overlay or IsCombatLocked() or not IsEditorActive() then
         return false
     end
+    overlay._focalPointSuppressClick = nil
+    local canvas = FocalPoint.GUI.Editor.CanvasHoverOverlay
+    if canvas and canvas.RouteSelectedComponentPointer and canvas.RouteSelectedComponentPointer(overlay, "down") then
+        activeDragOverlay = overlay
+        overlay._focalPointSuppressClick = true
+        return true
+    end
     HideGrowthIndicator(overlay)
     local frame = overlay._focalPointOwnerFrame
     local textKey = overlay._focalPointTextKey
@@ -1259,6 +1273,9 @@ function TextEditorOverlay.BeginDrag(overlay)
 end
 
 function TextEditorOverlay.StartDrag(overlay)
+    local canvas = FocalPoint.GUI.Editor.CanvasHoverOverlay
+    if overlay and canvas and canvas.RouteSelectedComponentPointer
+        and canvas.RouteSelectedComponentPointer(overlay, "start") then return true end
     local dragState = overlay and overlay._focalPointTextDragState
     if not dragState or dragState.dragging or IsCombatLocked() or not IsEditorActive() then
         return false
