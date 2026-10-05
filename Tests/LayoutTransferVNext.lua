@@ -18,7 +18,8 @@ local function Generator() return assert(L.CreateUserTemplateIdGenerator({time=f
 local function Fixture()
     local db={global={TextTemplates={[A]={name='Same',content='A'},[B]={name='Same',content='B'},
         [Unused]={name='unused',content='extra'}},UserLayouts={}}}
-    local layout={name='Example',formatVersion=2,payload={Units={player={Texts={
+    local layout={name='Example',formatVersion=2,payload={Units={player={
+        castBarWidthMode='CUSTOM',castBarWidth=600,Texts={
         x={templateId=A,tag='inline',stateTemplateIds={dead=B,ghost=Builtin},enabled=false,fontSize=17},
         y={templateId=B,tag='fallback'},z={tag='local'},again={templateId=A}}}}}}
     return db,layout

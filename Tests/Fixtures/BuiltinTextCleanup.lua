@@ -3,10 +3,10 @@
 -- Modern/boss: Alt Power explicitly means textKey AltPower, actual label AltPower.
 return {
     before = {
-        default = {count=73, fingerprint="110545:27395:44286"},
-        minimal = {count=75, fingerprint="111418:15423:22279"},
-        classic = {count=95, fingerprint="127572:61586:63094"},
-        modern = {count=75, fingerprint="111660:26567:31254"},
+        default = {count=73, fingerprint="110989:3280:28424"},
+        minimal = {count=75, fingerprint="111862:56829:13432"},
+        classic = {count=95, fingerprint="128016:37471:26090"},
+        modern = {count=75, fingerprint="112104:2452:9818"},
     },
     rows = {
         {["enabled"]=false, ["label"]="Status", ["preset"]="default", ["role"]="status", ["tag"]="", ["textKey"]="Status", ["unit"]="player"},

@@ -17,6 +17,7 @@ local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspe
 local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
 local EditorStateApi = ns.GUI.Editor and ns.GUI.Editor.State or {}
 local ObjectSelection = ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or {}
+local CastBar = ns.UnitFrameCastBar or {}
 
 local L = ns.L or {}
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets or {}
@@ -465,6 +466,10 @@ function InspectorController.Build(container, state, options)
     }
     local absorbSizeModeList = {
         MATCH_TARGET = L["OPTION_MATCH_TARGET"] or "Match Target",
+        CUSTOM = L["OPTION_CUSTOM"] or "Custom",
+    }
+    local castBarWidthModeList = {
+        MATCH_FRAME = L["OPTION_MATCH_FRAME"] or "Match Frame",
         CUSTOM = L["OPTION_CUSTOM"] or "Custom",
     }
     local absorbGrowthList = {
@@ -3538,6 +3543,35 @@ function InspectorController.Build(container, state, options)
                 AddMediaBrowserForField(castSection, MEDIA_TYPE_STATUSBAR, function()
                     return unitConfig.castBarTexture
                 end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
+            end
+
+            local castBarWidthMode = unitConfig.castBarWidthMode or "MATCH_FRAME"
+            local castBarWidthMin, castBarWidthMax, castBarWidthDefault = 20, 600, 120
+            if CastBar.GetWidthLimits then
+                castBarWidthMin, castBarWidthMax, castBarWidthDefault = CastBar.GetWidthLimits()
+            end
+            local castBarWidthControl
+            if usePropertyGroups then
+                AddPropertyDropdownRow(geometrySection, L["OPTION_WIDTH_MODE"] or "Width Mode", {
+                    list = castBarWidthModeList,
+                    value = castBarWidthMode,
+                    onChanged = function(value)
+                        SetUnitField("castBarWidthMode", value)
+                    end,
+                })
+            else
+                AddDropdown(geometrySection, L["OPTION_WIDTH_MODE"] or "Width Mode", castBarWidthModeList, castBarWidthMode, function(value)
+                    SetUnitField("castBarWidthMode", value)
+                end)
+            end
+            if usePropertyGroups then
+                castBarWidthControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", castBarWidthMin, castBarWidthMax, 1, tonumber(unitConfig.castBarWidth) or castBarWidthDefault, function(value)
+                    SetUnitField("castBarWidth", math.floor((value or 0) + 0.5))
+                end, castBarWidthMode ~= "CUSTOM")
+            else
+                castBarWidthControl = AddSlider(geometrySection, L["OPTION_WIDTH"] or "Width", castBarWidthMin, castBarWidthMax, 1, tonumber(unitConfig.castBarWidth) or castBarWidthDefault, function(value)
+                    SetUnitField("castBarWidth", math.floor((value or 0) + 0.5))
+                end, castBarWidthMode ~= "CUSTOM")
             end
 
             local castBarHeightControl

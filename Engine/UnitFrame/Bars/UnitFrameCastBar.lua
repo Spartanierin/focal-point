@@ -14,6 +14,10 @@ local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
 local UnpackColor = Utils.UnpackColor
 local ResolveInterruptState = Utils.ResolveInterruptState
 local TEXT_EDIT_PREVIEW_DURATION = 2.5
+local DEFAULT_WIDTH_MODE = "MATCH_FRAME"
+local DEFAULT_CUSTOM_WIDTH = 120
+local MIN_CUSTOM_WIDTH = 20
+local MAX_CUSTOM_WIDTH = 600
 
 -- Cast bar helpers keep timing/state logic together so runtime refresh code
 -- can stay focused on orchestration.
@@ -32,6 +36,26 @@ end
 
 function CastBar.IsTextEditMode()
     return IsTextEditMode()
+end
+
+function CastBar.ResolveWidthMode(config)
+    return config and config.castBarWidthMode == "CUSTOM" and "CUSTOM" or DEFAULT_WIDTH_MODE
+end
+
+function CastBar.ResolveStatusBarWidth(frameWidth, config, borderInset)
+    config = config or {}
+    if CastBar.ResolveWidthMode(config) == "CUSTOM" then
+        return math.max(MIN_CUSTOM_WIDTH, math.min(MAX_CUSTOM_WIDTH,
+            tonumber(config.castBarWidth) or DEFAULT_CUSTOM_WIDTH))
+    end
+
+    local iconSize = config.showCastBarIcon ~= false and (tonumber(config.castBarHeight) or 10) or 0
+    local iconGap = config.showCastBarIcon ~= false and 4 or 0
+    return math.max((tonumber(frameWidth) or 0) - (2 * (tonumber(borderInset) or 0)) - iconSize - iconGap, MIN_CUSTOM_WIDTH)
+end
+
+function CastBar.GetWidthLimits()
+    return MIN_CUSTOM_WIDTH, MAX_CUSTOM_WIDTH, DEFAULT_CUSTOM_WIDTH
 end
 
 function CastBar.ShouldRepresentInEditor(frame)
@@ -534,6 +558,7 @@ function CastBar.ApplyLayout(frame, options)
     local castBarHeight = options.castBarHeight
     local castBarIconSize = showCastBarIcon and castBarHeight or 0
     local castBarIconGap = showCastBarIcon and 4 or 0
+    local castBarWidth = CastBar.ResolveStatusBarWidth(options.width, options, options.borderInset)
 
     castBar:ClearAllPoints()
     castBar:SetFrameStrata(frame:GetFrameStrata())
@@ -558,7 +583,7 @@ function CastBar.ApplyLayout(frame, options)
         options.castBarOffsetX + options.borderInset + castBarIconSize + castBarIconGap,
         options.castBarOffsetY
     )
-    castBar:SetWidth(math.max(options.width - (options.borderInset * 2) - castBarIconSize - castBarIconGap, 20))
+    castBar:SetWidth(castBarWidth)
     castBar:SetHeight(castBarHeight)
 
     if castBar.icon then

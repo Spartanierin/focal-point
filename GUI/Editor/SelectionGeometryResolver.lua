@@ -9,6 +9,7 @@ FocalPoint.GUI.Editor.SelectionGeometryResolver = Resolver
 local Factory = FocalPoint.UnitFrameFactory or {}
 local Decoration = FocalPoint.UnitFrameDecoration or {}
 local AuraBlockLayout = FocalPoint.AuraBlockLayout or {}
+local CastBar = FocalPoint.UnitFrameCastBar or {}
 
 local BAR_SPECS = {
     HealthBar = { elementKey = "HealthBar" },
@@ -158,7 +159,11 @@ local function ResolveCast(frame, config)
     local iconSize = (not config or config.showCastBarIcon ~= false) and height or 0
     local iconGap = iconSize > 0 and 4 or 0
     local borderInset = Number(config and config.borderInset, 1)
-    local width = math.max(Number(config and config.width, frame.GetWidth and frame:GetWidth() or 0) - (borderInset * 2) - iconSize - iconGap, 20)
+    local width = CastBar.ResolveStatusBarWidth(
+        frame.GetWidth and frame:GetWidth() or 0,
+        config,
+        borderInset
+    )
     return PointGeometry(
         frame,
         (config and config.castBarPoint) or "BOTTOMLEFT",

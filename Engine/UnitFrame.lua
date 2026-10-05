@@ -1268,6 +1268,8 @@ function UF:ApplyConfig(frame)
         local showCastBar = config.showCastBar ~= false
         local showCastBarIcon = config.showCastBarIcon ~= false
         local castBarHeight = tonumber(config.castBarHeight) or 10
+        local castBarWidthMode = config.castBarWidthMode or "MATCH_FRAME"
+        local castBarWidth = tonumber(config.castBarWidth) or 120
         local castBarPoint = config.castBarPoint or "BOTTOMLEFT"
         local castBarRelativePoint = config.castBarRelativePoint or "TOPLEFT"
         local castBarOffsetX = tonumber(config.castBarOffsetX) or 0
@@ -1277,6 +1279,8 @@ function UF:ApplyConfig(frame)
             showCastBar = showCastBar,
             showCastBarIcon = showCastBarIcon,
             castBarHeight = castBarHeight,
+            castBarWidthMode = castBarWidthMode,
+            castBarWidth = castBarWidth,
             castBarPoint = castBarPoint,
             castBarRelativePoint = castBarRelativePoint,
             castBarOffsetX = castBarOffsetX,

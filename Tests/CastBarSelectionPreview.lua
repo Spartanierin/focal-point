@@ -54,6 +54,11 @@ end
 
 Load("Engine/UnitFrame/Shared/EditorVisualPolicy.lua", ns)
 Load("Engine/UnitFrame/Bars/UnitFrameCastBar.lua", ns)
+Load("GUI/Editor/Inspector/InspectorRefreshPolicy.lua", ns)
+ns.UnitFrameFactory = {}
+ns.UnitFrameDecoration = {}
+ns.AuraBlockLayout = {}
+Load("GUI/Editor/SelectionGeometryResolver.lua", ns)
 
 GetTime = function()
     return now
@@ -113,9 +118,11 @@ local function MakeFrame(config)
         config = config,
         Elements = { CastBar = castBar },
         Texts = {},
+        width = 220,
         frameStrata = "MEDIUM",
         frameLevel = 10,
     }
+    function frame:GetWidth() return self.width end
     function frame:GetFrameStrata() return self.frameStrata end
     function frame:GetFrameLevel() return self.frameLevel end
     return frame
@@ -132,6 +139,8 @@ local function Options(config)
         castBarHeight = 20,
         showCastBar = config.showCastBar ~= false,
         showCastBarIcon = config.showCastBarIcon ~= false,
+        castBarWidthMode = config.castBarWidthMode,
+        castBarWidth = config.castBarWidth,
         castTexture = "configured-texture",
         castBarColor = { 1, 0.7, 0.2, 1 },
         castBarInterruptibleColor = { 0.6, 0.6, 0.6, 1 },
@@ -145,6 +154,57 @@ end
 local function SelectOtherObject()
     selectedObject = { kind = "bar", unit = "target", objectKey = "HealthBar" }
 end
+
+local heightPolicy = ns.InspectorRefreshPolicy.Resolve("unit", "castBarHeight")
+local widthPolicy = ns.InspectorRefreshPolicy.Resolve("unit", "castBarWidth")
+local widthModePolicy = ns.InspectorRefreshPolicy.Resolve("unit", "castBarWidthMode")
+assert(heightPolicy.scope == "live" and widthPolicy.scope == "live",
+    "CastBar Height and Width must share the live value-change refresh policy")
+assert(widthModePolicy.scope == "section" and widthModePolicy.sectionKey == "cast",
+    "CastBar Width Mode must retain the structural section refresh")
+
+assert(ns.UnitFrameCastBar.ResolveStatusBarWidth(300, {
+    castBarHeight = 20,
+    showCastBarIcon = true,
+}, 1) == 274, "Match Frame width changed")
+assert(ns.UnitFrameCastBar.ResolveStatusBarWidth(300, {
+    castBarHeight = 20,
+    showCastBarIcon = false,
+}, 1) == 298, "Match Frame icon-free width changed")
+assert(ns.UnitFrameCastBar.ResolveStatusBarWidth(300, {
+    castBarWidthMode = "CUSTOM",
+    castBarWidth = 600,
+    castBarHeight = 8,
+    showCastBarIcon = true,
+}, 1) == 600, "Custom width not accepted")
+assert(ns.UnitFrameCastBar.ResolveStatusBarWidth(300, {
+    castBarWidthMode = "CUSTOM",
+    castBarWidth = 200,
+    castBarHeight = 30,
+    showCastBarIcon = false,
+}, 1) == 200, "Custom width depends on icon or height")
+
+local selectionFallbackFrame = {
+    config = {
+        castBarWidthMode = "CUSTOM",
+        castBarWidth = 600,
+        castBarHeight = 20,
+        showCastBarIcon = true,
+        castBarPoint = "BOTTOMLEFT",
+        castBarRelativePoint = "TOPLEFT",
+        castBarOffsetX = 0,
+        castBarOffsetY = 4,
+        width = 300,
+    },
+    Elements = {},
+}
+function selectionFallbackFrame:GetWidth() return 300 end
+local selectionGeometry = ns.GUI.Editor.SelectionGeometryResolver.Resolve(selectionFallbackFrame, {
+    kind = "bar",
+    objectKey = "CastBar",
+})
+assert(selectionGeometry.width == 600 and selectionGeometry.height == 20,
+    "Selection fallback did not consume Custom width")
 
 local function AssertPreview(frame, context)
     local cast = frame.Elements.CastBar
@@ -164,6 +224,12 @@ assert(state == "selection-simulated")
 assert(ns.UnitFrameCastBar.ShouldRepresentInEditor(frame))
 ns.UnitFrameCastBar.ApplyLayout(frame, Options(frame.config))
 AssertPreview(frame, "selection-simulated")
+
+frame = MakeFrame({ showCastBar = true, showCastBarIcon = true, castBarWidthMode = "CUSTOM", castBarWidth = 600 })
+ns.UnitFrameCastBar.ApplyLayout(frame, Options(frame.config))
+assert(frame.Elements.CastBar.width == 600, "Custom width not applied to StatusBar")
+assert(frame.Elements.CastBar.icon.width == 20 and frame.Elements.CastBar.icon.height == 20,
+    "Custom width changed icon size")
 
 selectedObject = nil
 frame = MakeFrame({ showCastBar = true, showCastBarIcon = true })

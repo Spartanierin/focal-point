@@ -36,6 +36,8 @@ local FIELD_POLICIES = {
         alternativePowerBackground = { scope = "section", sectionKey = "alt_power" },
         showClassPowerBar = { scope = "section", sectionKey = "class_power" },
         showCastBar = { scope = "section", sectionKey = "cast" },
+        castBarWidthMode = { scope = "section", sectionKey = "cast" },
+        castBarWidth = { scope = "live" },
         mouseEnabled = { scope = "section", sectionKey = "visibility" },
     },
     text = {
