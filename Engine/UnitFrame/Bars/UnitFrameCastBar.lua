@@ -55,7 +55,7 @@ function CastBar.ShouldRepresentInEditor(frame)
             enabled = true,
             hasLiveData = false,
         })
-        return state == "editor-simulated"
+        return state == "editor-simulated" or state == "selection-simulated"
     end
 
     return Preview.ShouldRepresentInEditor
