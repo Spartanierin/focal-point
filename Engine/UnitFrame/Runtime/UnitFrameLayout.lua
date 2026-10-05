@@ -8,6 +8,32 @@ local Utils = FocalPoint.UnitFrameUtils or {}
 local UnpackColor = Utils.UnpackColor
 local GetBossFrameIndex = Utils.GetBossFrameIndex
 
+local function GetScaleToParent(frame, parent)
+    local parentScale = parent.GetEffectiveScale and parent:GetEffectiveScale() or 1
+    local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
+    if parentScale == 0 then return nil end
+    return frameScale / parentScale
+end
+
+-- GetCenter coordinates and local extents must enter the parent's units before
+-- subtraction or edge comparisons. These helpers do not alter anchors/config.
+function Layout.GetFrameCenterOffsets(frame, parent)
+    if not (frame and frame.GetCenter and parent and parent.GetCenter) then return nil end
+    local x, y = frame:GetCenter()
+    local parentX, parentY = parent:GetCenter()
+    local ratio = GetScaleToParent(frame, parent)
+    if not (x and y and parentX and parentY and ratio) then return nil end
+    return x * ratio - parentX, y * ratio - parentY
+end
+
+function Layout.GetFrameSizeInParent(frame, parent)
+    if not (frame and parent) then return nil end
+    local ratio = GetScaleToParent(frame, parent)
+    if not ratio then return nil end
+    return (frame.GetWidth and frame:GetWidth() or 0) * ratio,
+        (frame.GetHeight and frame:GetHeight() or 0) * ratio
+end
+
 local function IsProtectedRoot(frame)
     return frame and frame.IsProtected and frame:IsProtected()
 end

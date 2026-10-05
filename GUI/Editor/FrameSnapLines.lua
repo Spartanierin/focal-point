@@ -49,22 +49,7 @@ function FrameSnapLines.IsSnappingEnabled()
 end
 
 local function GetFrameCenterOffsets(frame)
-    if not frame or not frame.GetCenter or not UIParent or not UIParent.GetCenter then
-        return nil, nil
-    end
-
-    local frameCenterX, frameCenterY = frame:GetCenter()
-    local parentCenterX, parentCenterY = UIParent:GetCenter()
-    local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
-    local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
-
-    if not frameCenterX or not frameCenterY or not parentCenterX or not parentCenterY or parentScale == 0 then
-        return nil, nil
-    end
-
-    return
-        (frameCenterX - parentCenterX) * (frameScale / parentScale),
-        (frameCenterY - parentCenterY) * (frameScale / parentScale)
+    return FocalPoint.UnitFrameLayout.GetFrameCenterOffsets(frame, UIParent)
 end
 
 local function GetBossStackOffset(frame)
@@ -160,8 +145,8 @@ local function AddFrameCandidates(candidatesX, candidatesY, movingFrame)
         return
     end
 
-    local movingWidth = movingFrame.GetWidth and movingFrame:GetWidth() or 0
-    local movingHeight = movingFrame.GetHeight and movingFrame:GetHeight() or 0
+    local layout = FocalPoint.UnitFrameLayout
+    local movingWidth, movingHeight = layout.GetFrameSizeInParent(movingFrame, UIParent)
 
     for _, frame in pairs(FocalPoint.frames) do
         if frame ~= movingFrame
@@ -170,8 +155,7 @@ local function AddFrameCandidates(candidatesX, candidatesY, movingFrame)
         then
             local centerX, centerY = GetFrameCenterOffsets(frame)
             if centerX and centerY then
-                local width = frame:GetWidth() or 0
-                local height = frame:GetHeight() or 0
+                local width, height = layout.GetFrameSizeInParent(frame, UIParent)
                 local left = centerX - (width / 2)
                 local right = centerX + (width / 2)
                 local top = centerY + (height / 2)

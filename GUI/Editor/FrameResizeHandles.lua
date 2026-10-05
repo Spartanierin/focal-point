@@ -200,17 +200,10 @@ local function GetFrameCenterOffsets(frame)
         return 0, 0
     end
 
-    if frame.GetCenter and UIParent and UIParent.GetCenter then
-        local frameCenterX, frameCenterY = frame:GetCenter()
-        local parentCenterX, parentCenterY = UIParent:GetCenter()
-        local parentScale = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
-        local frameScale = frame.GetEffectiveScale and frame:GetEffectiveScale() or 1
-
-        if frameCenterX and frameCenterY and parentCenterX and parentCenterY and parentScale ~= 0 then
-            return
-                (frameCenterX - parentCenterX) * (frameScale / parentScale),
-                (frameCenterY - parentCenterY) * (frameScale / parentScale)
-        end
+    local layout = FocalPoint.UnitFrameLayout
+    local x, y = layout.GetFrameCenterOffsets(frame, UIParent)
+    if x and y then
+        return x, y
     end
 
     if frame.GetPoint then
