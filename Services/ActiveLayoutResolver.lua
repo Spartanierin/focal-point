@@ -129,7 +129,7 @@ local function BuildRuntimeRoot(db, layoutId)
     db = ResolveDB(db)
     local sourceKind = SplitActiveLayoutId(layoutId)
     if sourceKind == "layout" then
-        local payload, reason = ResolveMutableUserLayoutPayload(db, layoutId)
+        local payload, reason, record = ResolveMutableUserLayoutPayload(db, layoutId)
         if not IsValidLayoutPayload(payload) then
             return nil, reason or "invalid-user-layout-payload"
         end
@@ -138,6 +138,11 @@ local function BuildRuntimeRoot(db, layoutId)
             layoutId = layoutId,
             source = sourceKind,
             payload = payload,
+            -- Identity of the data that passed the materialization boundary.
+            global = rawget(db, "global"),
+            store = FocalPoint.UserLayoutStore.PeekStore(db),
+            record = record,
+            units = payload.Units,
         }
     end
 
@@ -152,6 +157,7 @@ local function BuildRuntimeRoot(db, layoutId)
             layoutId = layoutId,
             source = sourceKind,
             payload = payload,
+            units = payload.Units,
         }
     end
 
@@ -163,13 +169,22 @@ local function IsRuntimeRootCurrent(root, db, layoutId)
         or root.db ~= db
         or root.layoutId ~= layoutId
         or not IsValidLayoutPayload(root.payload)
+        or root.units ~= root.payload.Units
     then
         return false
     end
 
     if root.source == "layout" then
-        local payload = ResolveMutableUserLayoutPayload(db, layoutId)
-        return payload == root.payload
+        -- A cache hit only verifies identity/structure. New data still goes
+        -- through BuildRuntimeRoot, including presence and aura migration.
+        local store = FocalPoint.UserLayoutStore.PeekStore(db)
+        local record = type(store) == "table" and rawget(store, layoutId) or nil
+        return root.global == rawget(db, "global")
+            and root.store == store
+            and type(record) == "table"
+            and root.record == record
+            and record.formatVersion == LAYOUT_FORMAT_VERSION
+            and record.payload == root.payload
     end
 
     return root.source == "builtin"
