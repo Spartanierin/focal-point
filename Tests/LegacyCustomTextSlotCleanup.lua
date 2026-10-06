@@ -37,6 +37,17 @@ local function Fingerprint(v)
     for i=1,#s do a=(a+s:byte(i))%65521; b=(b+a)%65521 end
     return #s..':'..a..':'..b
 end
+-- The historical payload predates the later CastBar width defaults.  Project
+-- only those two unit-level fields out of an independent analysis copy; all
+-- text, template and other layout fields remain part of the frozen contract.
+local function HistoricalFingerprintProjection(layout)
+    local projected=Copy(layout)
+    for _,unit in pairs(projected.Units or {}) do
+        unit.castBarWidthMode=nil
+        unit.castBarWidth=nil
+    end
+    return projected
+end
 -- Captured before this change; covers every other payload field and template.
 local golden={default='110545:27395:44286', classic='127572:61586:63094',
     minimal='111418:15423:22279', modern='111660:26567:31254'}
@@ -53,7 +64,20 @@ Test('Create defaults and all shipped presets omit Custom1-3', function()
         local historicalTheme=Copy(ns.Themes[id])
         for _,unit in pairs(historicalTheme.units) do unit.removeTexts=nil end
         local historical=ns.LegacyThemeAdapter.MaterializePreviewLayout(historicalTheme,ns:GetDefaultDB())
-        assert(Fingerprint(Historical(ns,historical,id))==golden[id], id..' historical baseline changed')
+        local historicalPayload=Historical(ns,historical,id)
+        local originalWidthMode=historicalPayload.Units.player.castBarWidthMode
+        local originalWidth=historicalPayload.Units.player.castBarWidth
+        local projected=HistoricalFingerprintProjection(historicalPayload)
+        assert(Fingerprint(projected)==golden[id], id..' historical baseline changed')
+        assert(historicalPayload.Units.player.castBarWidthMode==originalWidthMode
+            and historicalPayload.Units.player.castBarWidth==originalWidth,
+            id..' historical projection mutated its source')
+        local probe=Copy(projected)
+        local probeKey=id=='classic' and 'text_1' or 'Name'
+        local probeText=probe.Units.player.Texts[probeKey]
+        assert(probeText, id..' historical regression probe text missing')
+        probeText.tag=(probeText.tag or '')..'|legacy-fingerprint-probe'
+        assert(Fingerprint(probe)~=golden[id], id..' protected legacy text structure not detected')
     end
     assert(Equal(before,ns.Themes))
 end)
