@@ -6,16 +6,6 @@ local Service = FocalPoint.LayoutAssignmentService
 local eventFrame = nil
 local MIGRATION_KEY = "LayoutAssignmentMigration"
 
--- Only the new selection requests are cancelled here. Existing concrete-ID
--- manual/spec requests retain their queue semantics.
-function Service.CancelPendingCharacterSelection(db)
-    local pending = FocalPoint._pendingLayoutActivation
-    local request = pending and pending.options and pending.options.characterSelectionRequest
-    if request and request.db == (db or FocalPoint.db) then
-        FocalPoint._pendingLayoutActivation = nil
-    end
-end
-
 local function ResolveDB(db)
     return type(db) == "table" and db or FocalPoint.db
 end
@@ -82,24 +72,6 @@ local function EnsureSpecializationAssignments(db)
     return db.char.LayoutAssignments.specialization
 end
 
-local function PeekLayoutAssignments(db)
-    db = ResolveDB(db)
-    local char = type(db) == "table" and rawget(db, "char") or nil
-    local root = type(char) == "table" and rawget(char, "LayoutAssignments") or nil
-    return type(root) == "table" and root or nil
-end
-
-local function EnsureLayoutAssignments(db)
-    db = ResolveDB(db)
-    if type(db) ~= "table" then
-        return nil, "db-unavailable"
-    end
-
-    db.char = type(db.char) == "table" and db.char or {}
-    db.char.LayoutAssignments = type(db.char.LayoutAssignments) == "table" and db.char.LayoutAssignments or {}
-    return db.char.LayoutAssignments
-end
-
 function Service.GetAccountDefaultLayoutId(db)
     db = ResolveDB(db)
     local global = type(db) == "table" and rawget(db, "global") or nil
@@ -140,77 +112,6 @@ function Service.SetAccountDefaultLayoutId(layoutId, db)
 
     db.global = type(db.global) == "table" and db.global or {}
     db.global.defaultLayoutId = layoutId
-    return true
-end
-
-function Service.GetCharacterSelection(db)
-    local assignments = PeekLayoutAssignments(db)
-    local selection = type(assignments) == "table" and rawget(assignments, "characterSelection") or nil
-    if selection == nil then
-        return nil, "legacy"
-    end
-    if type(selection) ~= "table" then
-        return nil, "invalid"
-    end
-
-    local mode = rawget(selection, "mode")
-    if mode == "accountDefault" then
-        if rawget(selection, "layoutId") ~= nil then
-            return nil, "invalid"
-        end
-        return {mode = mode}, "ok"
-    end
-    if mode ~= "override" or type(rawget(selection, "layoutId")) ~= "string"
-        or rawget(selection, "layoutId") == "" then
-        return nil, "invalid"
-    end
-
-    local layoutId = rawget(selection, "layoutId")
-    local ok, reason = IsResolvableLayoutId(ResolveDB(db), layoutId)
-    if not ok then
-        return nil, "stale", layoutId, reason
-    end
-    return {mode = mode, layoutId = layoutId}, "ok"
-end
-
-function Service.SetCharacterSelection(selection, db)
-    db = ResolveDB(db)
-    if selection == nil then
-        local assignments = PeekLayoutAssignments(db)
-        if type(assignments) == "table" then
-            rawset(assignments, "characterSelection", nil)
-        end
-        Service.CancelPendingCharacterSelection(db)
-        return true
-    end
-    if type(selection) ~= "table" then
-        return false, "invalid-selection"
-    end
-
-    local mode = rawget(selection, "mode")
-    local value
-    if mode == "accountDefault" then
-        if rawget(selection, "layoutId") ~= nil then
-            return false, "invalid-selection"
-        end
-        value = {mode = mode}
-    elseif mode == "override" then
-        local layoutId = rawget(selection, "layoutId")
-        local ok, reason = IsResolvableLayoutId(db, layoutId)
-        if not ok then
-            return false, reason
-        end
-        value = {mode = mode, layoutId = layoutId}
-    else
-        return false, "invalid-selection"
-    end
-
-    local assignments, reason = EnsureLayoutAssignments(db)
-    if type(assignments) ~= "table" then
-        return false, reason or "assignment-store-unavailable"
-    end
-    rawset(assignments, "characterSelection", value)
-    Service.CancelPendingCharacterSelection(db)
     return true
 end
 
@@ -407,9 +308,6 @@ function Service.SetSpecializationAssignment(specID, layoutId, db)
     if layoutId == nil then
         assignments[specID] = nil
         assignments[tostring(specID)] = nil
-        local pending = FocalPoint._pendingLayoutActivation
-        local request = pending and pending.options and pending.options.characterSelectionRequest
-        if request and request.specID == specID then Service.CancelPendingCharacterSelection(ResolveDB(db)) end
         return true
     end
 
@@ -420,93 +318,7 @@ function Service.SetSpecializationAssignment(specID, layoutId, db)
 
     assignments[specID] = layoutId
     assignments[tostring(specID)] = nil
-    local pending = FocalPoint._pendingLayoutActivation
-    local request = pending and pending.options and pending.options.characterSelectionRequest
-    if request and request.specID == specID then Service.CancelPendingCharacterSelection(ResolveDB(db)) end
     return true
-end
-
-local function RawSpecAssignment(db, specID)
-    local assignments = PeekSpecializationAssignments(db)
-    return assignments and specID and (assignments[specID] or assignments[tostring(specID)]) or nil
-end
-
-local function CaptureSelectionRequest(selection)
-    local db = FocalPoint.db
-    local char = type(db) == "table" and rawget(db, "char")
-    if type(char) ~= "table" then return nil, "character-store-unavailable" end
-    local assignments = PeekLayoutAssignments(db)
-    local before = assignments and rawget(assignments, "characterSelection")
-    local specID = Service.GetCurrentSpecialization()
-    return {
-        db = db, char = char, assignments = assignments, before = before,
-        beforeMode = type(before) == "table" and before.mode or nil,
-        beforeId = type(before) == "table" and before.layoutId or nil,
-        activeId = rawget(char, "activeLayoutId"), specID = specID,
-        specLayoutId = RawSpecAssignment(db, specID),
-        selection = selection,
-    }
-end
-
-local function SelectionRequestIsCurrent(request)
-    if type(request) ~= "table" or FocalPoint.db ~= request.db
-        or rawget(request.db, "char") ~= request.char
-        or PeekLayoutAssignments(request.db) ~= request.assignments
-        or rawget(request.char, "activeLayoutId") ~= request.activeId
-        or Service.GetCurrentSpecialization() ~= request.specID
-        or RawSpecAssignment(request.db, request.specID) ~= request.specLayoutId then return false end
-    local before = request.assignments and rawget(request.assignments, "characterSelection")
-    return before == request.before and (type(before) ~= "table"
-        or (before.mode == request.beforeMode and before.layoutId == request.beforeId))
-end
-
-local function ApplySelectionRequest(request)
-    if not SelectionRequestIsCurrent(request) then return false, "stale-selection-request" end
-    if not FocalPoint.ActivateLayout then return false, "activate-layout-unavailable" end
-    local db = request.db
-    -- Resolve proposed intent on a detached preference view. Layout data stays
-    -- in its canonical store; no preference or runtime write during resolution.
-    local view = {global = db.global, char = {activeLayoutId = request.activeId}}
-    if db.GetCurrentProfile then view.GetCurrentProfile = function() return db:GetCurrentProfile() end end
-    local valid, reason = Service.SetCharacterSelection(request.selection, view)
-    if not valid then return false, reason end
-    local targetId
-    targetId, reason = FocalPoint.ActiveLayoutResolver.ResolveLayoutSelection(view)
-    if not targetId then return false, reason end
-
-    local oldAssignments = rawget(request.char, "LayoutAssignments")
-    local assignments = EnsureLayoutAssignments(db)
-    local oldSelection = rawget(assignments, "characterSelection")
-    rawset(assignments, "characterSelection", view.char.LayoutAssignments.characterSelection)
-    local called, ok, status = pcall(FocalPoint.ActivateLayout, FocalPoint, targetId,
-        "assignment:character-selection", {characterSelectionRequest = request})
-    if called and (ok or status == "same-layout") then
-        return true, status == "same-layout" and "selection-applied" or status
-    end
-    -- Pending intent lives only in the existing activation queue. On failure,
-    -- including activation rollback, restore the original preference identities.
-    rawset(assignments, "characterSelection", oldSelection)
-    rawset(request.char, "LayoutAssignments", oldAssignments)
-    return false, called and status or "selection-activation-error"
-end
-
-local function ApplyCharacterSelection(selection)
-    local request, reason = CaptureSelectionRequest(selection)
-    if not request then return false, reason end
-    return ApplySelectionRequest(request)
-end
-
-function Service.ApplyAccountDefaultForCurrentCharacter()
-    return ApplyCharacterSelection({mode = "accountDefault"})
-end
-
-function Service.ApplyCharacterLayoutOverride(layoutId)
-    return ApplyCharacterSelection({mode = "override", layoutId = layoutId})
-end
-
--- Called by the existing PLAYER_REGEN_ENABLED activation handler, not a queue.
-function Service.ApplyDeferredCharacterSelection(request)
-    return ApplySelectionRequest(request)
 end
 
 function Service.ClearAssignmentsForLayout(layoutId, db)
@@ -645,15 +457,16 @@ function Service.InitializeRuntime()
 
         local login = event == "PLAYER_ENTERING_WORLD" and not loginHandled
         if event == "PLAYER_ENTERING_WORLD" then loginHandled = true end
-        if event == "PLAYER_SPECIALIZATION_CHANGED" then Service.CancelPendingCharacterSelection() end
         local reason = event == "PLAYER_ENTERING_WORLD" and "assignment:login" or "assignment:spec-change"
         local _, status = Service.EvaluateCurrentSpecializationAssignment(reason)
         -- A valid spec mapping owns this event even if its activation is blocked,
         -- deferred or already active. Never insert a baseline switch before it.
         if login and (status == "missing" or status == "spec-unavailable"
             or status == "invalid-spec" or status == "stale") then
-            local selection, selectionStatus = Service.GetCharacterSelection()
-            if selectionStatus == "ok" then ApplyCharacterSelection(selection) end
+            local defaultId = Service.GetAccountDefaultLayoutId()
+            if defaultId and FocalPoint.ActivateLayout then
+                FocalPoint:ActivateLayout(defaultId, "assignment:account-default")
+            end
         end
     end)
 end

@@ -154,7 +154,8 @@ local function UpdateRowVisual(widget)
         status = T("LAYOUT_MANAGER_READ_ONLY", "Read-only")
     end
 
-    widget.nameText:SetText(Shorten(item and item.name or "", 48))
+    local marker = item and item.accountDefault and T("LAYOUT_ACCOUNT_DEFAULT_MARKER", " [Default]") or ""
+    widget.nameText:SetText(Shorten(item and item.name or "", marker ~= "" and 34 or 48) .. marker)
     widget.statusText:SetText(status)
 
     SetTextureColor(widget.marker, (selected or active) and colors.marker or colors.markerMuted)
@@ -335,6 +336,8 @@ local function BuildState()
     local layoutService = ns.LayoutService or {}
     local summaries = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
     local activeLayoutId = ResolveActiveLayoutId()
+    local assignments = ns.LayoutAssignmentService or {}
+    local defaultId = assignments.GetAccountDefaultLayoutId and assignments.GetAccountDefaultLayoutId(ns.db)
     local userLayouts = {}
     local builtinLayouts = {}
     local visible = {}
@@ -347,6 +350,7 @@ local function BuildState()
                 source = summary.source,
                 readOnly = summary.readOnly == true or summary.source == "builtin",
                 active = summary.id == activeLayoutId,
+                accountDefault = summary.id == defaultId,
             }
             visible[item.id] = true
             if summary.source == "userLayout" then
@@ -370,6 +374,7 @@ local function BuildState()
 
     return {
         activeLayoutId = activeLayoutId,
+        accountDefaultId = defaultId,
         selectedLayoutId = selectedLayoutId,
         userLayouts = userLayouts,
         builtinLayouts = builtinLayouts,
@@ -483,6 +488,23 @@ local function RefreshCanvasPicker()
     LayoutManager.Refresh()
 end
 
+local function ToggleAccountDefault()
+    local selected = context and FindSelectedItem(context.state)
+    local assignments = ns.LayoutAssignmentService or {}
+    if not selected or not assignments.SetAccountDefaultLayoutId then return end
+    local current = assignments.GetAccountDefaultLayoutId and assignments.GetAccountDefaultLayoutId(ns.db)
+    local target
+    if current ~= selected.id then target = selected.id end
+    local ok = assignments.SetAccountDefaultLayoutId(target)
+    local previousState = context.state
+    RefreshCanvasPicker()
+    -- The manager can also be open when no canvas host/binding is available.
+    if context.state == previousState then LayoutManager.Refresh() end
+    if not ok and context.dialog and context.dialog.SetStatus then
+        context.dialog:SetStatus(T("LAYOUT_MANAGER_DEFAULT_FAILED", "Account Default could not be changed."), "error", context.widgets.status)
+    end
+end
+
 local function SetButtonVisible(button, visible, width)
     if not button then
         return
@@ -541,6 +563,11 @@ local function LayoutFooterActions()
         else
             AnchorFooterButton(deleteButton, "LEFT", actionFrame, "LEFT", 12, 0)
         end
+        previous = deleteButton.frame
+    end
+    local defaultButton = context.widgets.defaultButton
+    if defaultButton and defaultButton.frame then
+        AnchorFooterButton(defaultButton, "LEFT", previous or actionFrame, previous and "RIGHT" or "LEFT", previous and gap or 12, 0)
     end
 end
 
@@ -1106,6 +1133,14 @@ local function RefreshActions()
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.deleteButton, "danger")
         end
     end
+    local defaultButton = context.widgets.defaultButton
+    if defaultButton then
+        SetButtonVisible(defaultButton, true, 125)
+        local isDefault = selected and selected.id == context.state.accountDefaultId
+        defaultButton:SetText(isDefault and T("LAYOUT_MANAGER_UNSET_ACCOUNT_DEFAULT", "Unset default")
+            or T("LAYOUT_MANAGER_SET_ACCOUNT_DEFAULT", "Set default"))
+        defaultButton:SetDisabled(not (selected and (isUserLayout or isBuiltin)))
+    end
     LayoutFooterActions()
     if context.window and context.window.DoLayout then
         context.window:DoLayout()
@@ -1255,6 +1290,14 @@ local function CreateWindow()
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(deleteButton, "danger")
     end
+    local defaultButton = AceGUI:Create("Button")
+    defaultButton:SetWidth(125)
+    defaultButton:SetFullWidth(false)
+    defaultButton:SetCallback("OnClick", ToggleAccountDefault)
+    defaultButton.frame:SetParent(actionContainer.frame)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(defaultButton, "utility")
+    end
     renameButton.frame:SetParent(actionContainer.frame)
     copyButton.frame:SetParent(actionContainer.frame)
     deleteButton.frame:SetParent(actionContainer.frame)
@@ -1267,6 +1310,7 @@ local function CreateWindow()
         status = status,
         importButton = importButton,
         exportButton = exportButton,
+        defaultButton = defaultButton,
         renameButton = renameButton,
         copyButton = copyButton,
         deleteButton = deleteButton,

@@ -164,6 +164,8 @@ local function BuildLayoutDropdownData()
     local layoutService = ns.LayoutService or {}
     local layouts = layoutService.ListLayoutSummaries and layoutService.ListLayoutSummaries({ db = ns.db }) or {}
     local activeLayoutId = ResolveActiveLayoutId()
+    local assignments = ns.LayoutAssignmentService or {}
+    local defaultId = assignments.GetAccountDefaultLayoutId and assignments.GetAccountDefaultLayoutId(ns.db)
     local values = {}
     local order = {}
     local known = {}
@@ -176,6 +178,9 @@ local function BuildLayoutDropdownData()
                 local name = ResolveLayoutDisplayName(layout)
                 local prefix = source == "userLayout" and "My: " or "Built-in: "
                 local label = prefix .. name
+                if layoutId == defaultId then
+                    label = label .. T("LAYOUT_ACCOUNT_DEFAULT_MARKER", " [Default]")
+                end
                 if layoutId == activeLayoutId then
                     activeName = name
                 end

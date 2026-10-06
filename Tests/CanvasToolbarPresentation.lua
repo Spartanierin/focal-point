@@ -217,6 +217,28 @@ assert(notices[#notices]:find("pending", 1, true))
 combat = false
 ns:ActivateLayout(pending); pending = nil; toolbar.Refresh()
 Equal(ns.db.char.activeLayoutId, "layout:one")
+-- Global-default marker decorates labels only; it never changes IDs or activation.
+local defaultId="builtin:default"
+ns.LayoutAssignmentService.GetAccountDefaultLayoutId=function() return defaultId end
+local currentId=ns.db.char.activeLayoutId
+toolbar.Refresh()
+Equal(dropdown.list["builtin:default"],"Built-in: Default [Default]")
+Equal(dropdown.list["layout:one"],"My: One")
+Equal(ns.db.char.activeLayoutId,currentId)
+-- Manager action refreshes both real surfaces, without triggering OnValueChanged.
+local manager=ns.GUI.Editor.LayoutManager
+local refreshList=f.Upvalue(manager.Refresh,"RefreshList")
+local managerContext=f.Upvalue(refreshList,"context")
+ns.LayoutAssignmentService.SetAccountDefaultLayoutId=function(id) defaultId=id; return true end
+managerContext.selectedLayoutId="layout:one"; manager.Refresh()
+managerContext.widgets.defaultButton:Fire("OnClick")
+Equal(defaultId,"layout:one")
+Equal(dropdown.list["builtin:default"],"Built-in: Default")
+Equal(dropdown.list["layout:one"],"My: One [Default]")
+Equal(ns.db.char.activeLayoutId,currentId)
+managerContext.widgets.defaultButton:Fire("OnClick")
+Equal(defaultId,nil); Equal(dropdown.list["layout:one"],"My: One")
+Equal(ns.db.char.activeLayoutId,currentId)
 forms.CreateCompactFormDialog = createDialog
 assert(#f.env.errors == 0, table.concat(f.env.errors, "\n"))
 print("PASS: Canvas material/8 slices, unchanged geometry/controls/callbacks, reset/fallback, 50 apply + 50 show/hide + 50 shell cycles, buttons/dropdown and simulated combat/layout activation")

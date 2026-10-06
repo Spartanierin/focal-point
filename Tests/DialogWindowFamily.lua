@@ -77,11 +77,67 @@ context.widgets.deleteButton:Fire("OnClick")
 Check(latest,430,173); latest.primaryButton:Fire("OnClick"); Equal(calls.delete,"layout:one")
 Equal(latest.statusRole,"error"); latest.cancelButton:Fire("OnClick")
 
+-- C1: one contextual global-default action; selecting a row does not activate it.
+local accountDefaultId, failDefault
+local setterCalls=0
+ns.LayoutAssignmentService = {
+    GetAccountDefaultLayoutId=function() return accountDefaultId, accountDefaultId and "ok" or "missing" end,
+    SetAccountDefaultLayoutId=function(id)
+        setterCalls=setterCalls+1
+        if failDefault then return false,"layout-unresolvable" end
+        accountDefaultId=id; return true
+    end,
+}
+local function LayoutRow(id)
+    for _,row in ipairs(context.widgets.scroll.children) do
+        if row.item and row.item.id==id then return row end
+    end
+    error("missing layout row: "..id)
+end
+context.selectedLayoutId="layout:one"; manager.Refresh()
+assert(context.widgets.characterStatus==nil and context.widgets.useSelectedButton==nil)
+assert(context.widgets.defaultButton.frame:IsShown(), "default footer button must be explicitly shown")
+assert(context.widgets.defaultButton.text:GetText()=="Set default")
+local activeBefore=ns.db.char.activeLayoutId
+context.widgets.defaultButton:Fire("OnClick")
+assert(accountDefaultId=="layout:one" and setterCalls==1 and ns.db.char.activeLayoutId==activeBefore)
+assert(context.widgets.defaultButton.text:GetText()=="Unset default")
+assert(LayoutRow("layout:one").nameText:GetText()=="One [Default]")
+LayoutRow("builtin:default"):Fire("OnClick")
+assert(context.widgets.defaultButton.frame:IsShown())
+assert(setterCalls==1 and accountDefaultId=="layout:one")
+assert(ns.db.char.activeLayoutId==activeBefore)
+assert(context.widgets.defaultButton.text:GetText()=="Set default")
+LayoutRow("layout:one"):Fire("OnClick")
+assert(context.widgets.defaultButton.text:GetText()=="Unset default")
+assert(context.widgets.defaultButton.frame:IsShown() and setterCalls==1)
+manager.Close(); manager.Open()
+LayoutRow("layout:one"):Fire("OnClick")
+assert(context.widgets.defaultButton.frame:IsShown())
+assert(context.widgets.defaultButton.text:GetText()=="Unset default")
+LayoutRow("builtin:default"):Fire("OnClick")
+assert(context.widgets.defaultButton.text:GetText()=="Set default")
+context.widgets.defaultButton:Fire("OnClick")
+assert(accountDefaultId=="builtin:default" and ns.db.char.activeLayoutId==activeBefore)
+assert(LayoutRow("layout:one").nameText:GetText()=="One")
+assert(LayoutRow("builtin:default").nameText:GetText()=="Default [Default]")
+context.widgets.defaultButton:Fire("OnClick")
+assert(accountDefaultId==nil and context.widgets.defaultButton.text:GetText()=="Set default")
+assert(context.widgets.defaultButton.frame:IsShown())
+assert(LayoutRow("builtin:default").nameText:GetText()=="Default")
+failDefault=true; context.widgets.defaultButton:Fire("OnClick")
+assert(accountDefaultId==nil and context.dialog.statusRole=="error")
+failDefault=false
+-- Existing footer geometry remains compact; the fourth action follows Delete for user layouts.
+context.selectedLayoutId="layout:one"; manager.Refresh()
+assert(context.widgets.defaultButton.frame.points.LEFT.relative==context.widgets.deleteButton.frame)
+
 -- Transfer uses the actual multiline control and release/focus callbacks.
 ns.L.LAYOUT_TRANSFER_IMPORTED="Imported: %s"
 local importOK=false
 ns.LayoutTransfer={Export=function(id) calls.export=id; return "payload" end,
     Import=function(value) calls.import=value; if importOK then return true,"layout:one","One" end; return false,"invalid-header" end}
+context.selectedLayoutId="layout:one"; manager.Refresh()
 context.widgets.exportButton:Fire("OnClick")
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 Check(latest,560,375)

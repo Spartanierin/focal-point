@@ -31,24 +31,25 @@ local function EventFrame(reset)
 end
 local passed=0
 for _,case in ipairs({
-    {name="legacy", target="builtin:default"},
-    {name="account", selection={mode="accountDefault"}, target="builtin:modern"},
-    {name="override", selection={mode="override",layoutId="builtin:classic"}, target="builtin:classic"},
-    {name="spec over account", selection={mode="accountDefault"}, spec="builtin:minimal", target="builtin:minimal"},
-    {name="spec over override", selection={mode="override",layoutId="builtin:classic"}, spec="builtin:minimal", target="builtin:minimal"},
+    {name="legacy", noDefault=true, target="builtin:default"},
+    {name="account default", target="builtin:modern"},
+    {name="spec priority", spec="builtin:minimal", target="builtin:minimal"},
+    {name="spec without default", noDefault=true, spec="builtin:minimal", target="builtin:minimal"},
 }) do
     local saved=LegacyDB()
     saved.char={["Test player - Test realm"]={activeLayoutId="builtin:default",LayoutAssignments={
-        characterSelection=case.selection,specialization={[71]=case.spec}}}}
-    saved.global.defaultLayoutId="builtin:modern"
+        specialization={[71]=case.spec}}}}
+    if not case.noDefault then saved.global.defaultLayoutId="builtin:modern" end
     roots,activations={},{}
     ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot(); EventFrame(true)
     assert(Start(saved).ok)
     assert(#roots==11 and #activations==0,case.name..": early startup changed")
     for _,id in ipairs(roots) do assert(id=="builtin:default",case.name..": early baseline activation") end
+    local assignmentsBefore=ns.db.char.LayoutAssignments
     local event=assert(EventFrame())
     event.scripts.OnEvent(event,"PLAYER_ENTERING_WORLD")
     assert(ns.db.char.activeLayoutId==case.target,case.name)
+    assert(ns.db.char.LayoutAssignments==assignmentsBefore,case.name..": login adoption/normalization")
     assert(#activations==(case.target=="builtin:default" and 0 or 1),case.name..": extra intermediate activation")
     if #activations==1 then assert(activations[1]==case.target) end
     -- Reload the prepared current database: the same final layout needs no resync.

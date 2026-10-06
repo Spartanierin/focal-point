@@ -19,21 +19,17 @@ ns.RebuildFramesForActiveProfile = function() if failResync then error("injected
 ns.RefreshEditorSelectionVisuals = function() end
 ns.GUI.RequestRefreshOptions = function() end
 local function Record(name) return {name=name, formatVersion=2, payload={Units={player={Texts={}}}}} end
-local function Reset(selection)
+local function Reset()
     combat, dirty, failResync, spec = false, false, false, 71
     transitions = {}
     ns.db = {profile={General={}}, char={activeLayoutId="layout:a", LayoutAssignments={
-        characterSelection=selection, specialization={}}}, global={defaultLayoutId="layout:b",
+        specialization={}}}, global={defaultLayoutId="layout:b",
         UserLayouts={["layout:a"]=Record("A"), ["layout:b"]=Record("B"), ["layout:c"]=Record("C")}}}
     ns._pendingLayoutActivation = nil
     R.InvalidateActiveRuntimeRoot()
     assert(R.EnsureActiveRuntimeRoot())
 end
 local function Active(id) assert(ns.db.char.activeLayoutId == id); assert(R.GetActiveRuntimeRoot().layoutId == id) end
-local function Selection(mode, id)
-    local s = ns.db.char.LayoutAssignments.characterSelection
-    if mode == nil then assert(s == nil) else assert(s.mode == mode and s.layoutId == id) end
-end
 local function Applied(ok, reason) assert(ok, tostring(reason)) end
 local function Pending(ok, reason) assert(not ok and reason == "pending", tostring(reason)) end
 local function Rejected(ok, reason) assert(not ok and reason ~= "pending", tostring(reason)) end
@@ -51,182 +47,100 @@ end
 local passed=0
 local function Test(name, fn) fn(); passed=passed+1; print("PASS: "..name) end
 
-Test("global preference setters never activate or change character intent", function()
-    Reset(); local root=R.GetActiveRuntimeRoot()
+Test("set/unset default never activates or mutates character state", function()
+    Reset(); local root=R.GetActiveRuntimeRoot(); local char=ns.db.char; local assignments=char.LayoutAssignments
     Applied(S.SetAccountDefaultLayoutId("layout:c")); Applied(S.SetAccountDefaultLayoutId(nil))
-    Active("layout:a"); Selection(nil); assert(R.GetActiveRuntimeRoot()==root and #transitions==0)
+    Active("layout:a"); assert(ns.db.char==char and char.LayoutAssignments==assignments)
+    assert(R.GetActiveRuntimeRoot()==root and #transitions==0)
 end)
-Test("user/builtin actions and same-ID mode changes", function()
-    Reset(); Applied(S.ApplyAccountDefaultForCurrentCharacter()); Active("layout:b"); Selection("accountDefault")
-    local root=R.GetActiveRuntimeRoot(); local count=#transitions
-    Applied(S.ApplyCharacterLayoutOverride("layout:b")); Selection("override","layout:b")
-    Applied(S.ApplyAccountDefaultForCurrentCharacter()); Selection("accountDefault")
-    assert(R.GetActiveRuntimeRoot()==root and #transitions==count)
-    Applied(S.ApplyCharacterLayoutOverride("builtin:modern")); Active("builtin:modern"); Selection("override","builtin:modern")
-    Applied(S.SetAccountDefaultLayoutId("builtin:classic")); Applied(S.ApplyAccountDefaultForCurrentCharacter())
-    Active("builtin:classic"); Selection("accountDefault")
-    Applied(S.SetAccountDefaultLayoutId(nil)); root=R.GetActiveRuntimeRoot()
-    Applied(S.ApplyAccountDefaultForCurrentCharacter()); Active("builtin:classic"); assert(R.GetActiveRuntimeRoot()==root)
+Test("login default once; absent/stale default retains legacy behavior", function()
+    for _,case in ipairs({{default="layout:b",target="layout:b"},{target="layout:a"},{default="layout:missing",target="layout:a"}}) do
+        Reset(); ns.db.global.defaultLayoutId=case.default
+        local char=ns.db.char; local assignments=char.LayoutAssignments
+        local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active(case.target)
+        assert(#transitions==(case.target=="layout:a" and 0 or 1))
+        assert(ns.db.char==char and char.LayoutAssignments==assignments and next(assignments)=="specialization")
+        ns:ActivateLayout("layout:a","manual"); transitions={}
+        event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player")
+        event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active("layout:a"); assert(#transitions==0)
+    end
 end)
-Test("system fallback retains Block A legacy-current and profile-map contract", function()
-    Reset(); ns.db.global.defaultLayoutId=nil; ns.db.char.activeLayoutId=nil; R.InvalidateActiveRuntimeRoot()
-    ns.db.GetCurrentProfile=function() return "Old" end
-    ns.db.global.LayoutMigration={profileMap={Old="layout:c"}}
-    Applied(S.ApplyAccountDefaultForCurrentCharacter()); Active("layout:c")
-    ns.db.char.activeLayoutId=nil; ns.db.global.LayoutMigration=nil; R.InvalidateActiveRuntimeRoot()
-    Applied(S.ApplyAccountDefaultForCurrentCharacter()); Active("builtin:default")
+Test("abandoned character preferences are inert, not migrated", function()
+    Reset(); local old={mode="override",layoutId="layout:c"}
+    ns.db.char.LayoutAssignments.characterSelection=old
+    local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    Active("layout:b"); assert(ns.db.char.LayoutAssignments.characterSelection==old)
 end)
-Test("guards, invalid targets and rebuild rollback restore exact selection/root", function()
-    Reset({mode="override",layoutId="layout:a"})
-    local selection=ns.db.char.LayoutAssignments.characterSelection; local root=R.GetActiveRuntimeRoot()
-    dirty=true; Rejected(S.ApplyAccountDefaultForCurrentCharacter()); dirty=false
-    assert(ns.db.char.LayoutAssignments.characterSelection==selection and R.GetActiveRuntimeRoot()==root)
-    failResync=true; Rejected(S.ApplyAccountDefaultForCurrentCharacter()); failResync=false
-    Active("layout:a"); assert(ns.db.char.LayoutAssignments.characterSelection==selection and R.GetActiveRuntimeRoot()==root)
-    Rejected(S.ApplyCharacterLayoutOverride("layout:missing"))
-    ns.db.global.defaultLayoutId="layout:missing"; Rejected(S.ApplyAccountDefaultForCurrentCharacter())
-    Active("layout:a"); assert(ns.db.char.LayoutAssignments.characterSelection==selection)
-    ns.db.char.LayoutAssignments.characterSelection={mode="override",layoutId="layout:missing"}
-    local frame=EventFrame(); frame:Run("OnEvent","PLAYER_ENTERING_WORLD")
-    Active("layout:a"); Selection("override","layout:missing"); assert(#transitions==0)
+Test("spec wins directly, including same-active, blocked and deferred activation", function()
+    for _,case in ipairs({{target="layout:c"},{target="layout:a"},{target="layout:c",dirty=true},{target="layout:c",combat=true}}) do
+        Reset(); Applied(S.SetSpecializationAssignment(71,case.target)); dirty=case.dirty; combat=case.combat
+        local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+        if combat then assert(ns._pendingLayoutActivation.layoutId=="layout:c"); FinishCombat() end
+        Active(dirty and "layout:a" or case.target)
+        for _,id in ipairs(transitions) do assert(id~="layout:b","A-to-default-to-spec") end
+    end
 end)
-Test("runtime-root publication rejection rolls back active ID and selection", function()
-    Reset(); local root=R.GetActiveRuntimeRoot(); local publish=R.SetActiveRuntimeRoot
-    R.SetActiveRuntimeRoot=function(nextRoot) if nextRoot.layoutId=="layout:b" then return false end; return publish(nextRoot) end
-    Rejected(S.ApplyAccountDefaultForCurrentCharacter())
-    R.SetActiveRuntimeRoot=publish
-    Active("layout:a"); Selection(nil); assert(R.GetActiveRuntimeRoot()==root)
+Test("manual activation stays ordinary; later unmapped spec never resets it", function()
+    Reset(); local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    Applied(ns:ActivateLayout("layout:c","manual")); Active("layout:c")
+    event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player"); Active("layout:c")
+    Applied(S.SetSpecializationAssignment(71,"layout:a")); event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player"); Active("layout:a")
+    Applied(S.SetSpecializationAssignment(71,nil)); event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player"); Active("layout:a")
 end)
-Test("publication and layout-changed exceptions cannot leave half-applied selection", function()
-    Reset(); local root=R.GetActiveRuntimeRoot(); local publish=R.SetActiveRuntimeRoot
-    R.SetActiveRuntimeRoot=function(nextRoot) if nextRoot.layoutId=="layout:b" then error("injected publication failure") end; return publish(nextRoot) end
-    Rejected(S.ApplyAccountDefaultForCurrentCharacter()); R.SetActiveRuntimeRoot=publish
-    Active("layout:a"); Selection(nil); assert(R.GetActiveRuntimeRoot()==root)
-    local changed=ns.GUIController.OnActiveLayoutChanged
-    ns.GUIController.OnActiveLayoutChanged=function() error("injected lifecycle failure") end
-    Rejected(S.ApplyAccountDefaultForCurrentCharacter()); ns.GUIController.OnActiveLayoutChanged=changed
-    Active("layout:a"); Selection(nil); assert(R.GetActiveRuntimeRoot()==root)
+Test("existing concrete-ID combat queue and replay guard remain unchanged", function()
+    Reset(); combat=true; local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    local pending=assert(ns._pendingLayoutActivation); assert(pending.layoutId=="layout:b" and next(pending.options)==nil)
+    Applied(S.SetAccountDefaultLayoutId("layout:c")) -- no new rule queue; pending activation remains concrete B
+    assert(ns._pendingLayoutActivation==pending); FinishCombat(); Active("layout:b")
+    Reset(); combat=true; event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    dirty=true; FinishCombat(); Active("layout:a")
+    Reset(); combat=true; event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    ns.db.global.UserLayouts["layout:b"]=nil; FinishCombat(); Active("layout:a")
+    Reset(); combat=true; Pending(ns:ActivateLayout("layout:b","manual"))
+    ns:ActivateLayout("layout:a","same-layout"); FinishCombat(); Active("layout:b")
 end)
-Test("combat intent is transient and default is freshly resolved", function()
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    local queue=ns._pendingLayoutActivation; assert(queue and queue.options.characterSelectionRequest)
-    Active("layout:a"); Selection(nil)
-    Applied(S.SetAccountDefaultLayoutId("layout:c")); assert(ns._pendingLayoutActivation==queue)
-    FinishCombat(); Active("layout:c"); Selection("accountDefault"); assert(ns._pendingLayoutActivation==nil)
-    Reset(); combat=true; Pending(S.ApplyCharacterLayoutOverride("layout:b"))
-    Selection(nil); FinishCombat(); Active("layout:b"); Selection("override","layout:b")
+Test("same-ID default does not rebuild; unavailable spec permits default", function()
+    Reset(); ns.db.global.defaultLayoutId="layout:a"; local root=R.GetActiveRuntimeRoot()
+    local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    assert(R.GetActiveRuntimeRoot()==root and #transitions==0)
+    Reset(); spec=nil; event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active("layout:b")
 end)
-Test("pending clear, deleted target and changed selection are safe", function()
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter()); Applied(S.SetAccountDefaultLayoutId(nil))
-    FinishCombat(); Active("layout:a"); Selection("accountDefault")
-    Reset(); combat=true; Pending(S.ApplyCharacterLayoutOverride("layout:b"))
-    ns.db.global.UserLayouts["layout:b"]=nil
-    FinishCombat(); Active("layout:a"); Selection(nil)
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    Applied(S.SetCharacterSelection({mode="override",layoutId="layout:c"}))
-    FinishCombat(); Active("layout:a"); Selection("override","layout:c")
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    ns.db.char.LayoutAssignments.characterSelection={mode="override",layoutId="layout:c"}
-    FinishCombat(); Active("layout:a"); Selection("override","layout:c")
+Test("guards and all activation rollback boundaries retain exact root and ID", function()
+    for _,failure in ipairs({"dirty","resync","publication-false","publication-error","callback"}) do
+        Reset(); local root=R.GetActiveRuntimeRoot(); local publish=R.SetActiveRuntimeRoot
+        local callback=ns.GUIController.OnActiveLayoutChanged
+        if failure=="dirty" then dirty=true
+        elseif failure=="resync" then failResync=true
+        elseif failure=="callback" then ns.GUIController.OnActiveLayoutChanged=function() error("callback failure") end
+        else R.SetActiveRuntimeRoot=function(nextRoot)
+            if nextRoot.layoutId=="layout:b" then
+                if failure=="publication-error" then error("publication failure") end
+                return false
+            end
+            return publish(nextRoot)
+        end end
+        Rejected(ns:ActivateLayout("layout:b","test"))
+        R.SetActiveRuntimeRoot=publish; ns.GUIController.OnActiveLayoutChanged=callback
+        Active("layout:a"); assert(R.GetActiveRuntimeRoot()==root)
+    end
 end)
-Test("latest new selection wins; legacy-to-legacy queue semantics stay unchanged", function()
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    Applied(S.ApplyCharacterLayoutOverride("layout:a")); FinishCombat(); Active("layout:a"); Selection("override","layout:a")
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    local ok, reason=ns:ActivateLayout("layout:a","manual")
-    assert(not ok and reason=="same-layout"); FinishCombat(); Active("layout:a"); Selection(nil)
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    Pending(ns:ActivateLayout("layout:c","manual")); FinishCombat(); Active("layout:c"); Selection(nil)
-    Reset(); combat=true; Pending(ns:ActivateLayout("layout:b","legacy-manual"))
-    ns:ActivateLayout("layout:a","legacy-same")
-    FinishCombat(); Active("layout:b") -- existing concrete-ID queue semantics unchanged
-    Reset(); combat=true; Pending(ns:ActivateLayout("layout:b","legacy-manual"))
-    Applied(S.ApplyCharacterLayoutOverride("layout:a"))
-    FinishCombat(); Active("layout:a"); Selection("override","layout:a")
-end)
-Test("spec/mapping changes invalidate rule request; existing spec queue still works", function()
-    Reset(); local event=EventFrame(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    spec=72; event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player")
-    FinishCombat(); Active("layout:a"); Selection(nil)
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    Applied(S.SetSpecializationAssignment(71,"layout:c"))
-    FinishCombat(); Active("layout:a"); Selection(nil)
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    Applied(S.SetSpecializationAssignment(71,"layout:c")); Pending(S.EvaluateCurrentSpecializationAssignment("test"))
-    FinishCombat(); Active("layout:c"); Selection(nil)
-end)
-Test("dirty draft at replay and DB replacement discard transient intent", function()
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter()); local root=R.GetActiveRuntimeRoot()
-    dirty=true; FinishCombat(); Active("layout:a"); Selection(nil); assert(R.GetActiveRuntimeRoot()==root)
-    Reset(); combat=true; Pending(S.ApplyAccountDefaultForCurrentCharacter())
-    ns.db=ns.LayoutService.Clone(ns.db); FinishCombat(); Selection(nil); assert(ns.db.char.activeLayoutId=="layout:a")
-end)
-Test("delete clears default only after success, keeps current/foreign character contracts", function()
-    Reset({mode="override",layoutId="layout:b"})
-    local remove=ns.UserLayoutStore.RemoveRaw
+Test("delete clears reference after success only and retains active/builtin protection", function()
+    Reset(); local remove=ns.UserLayoutStore.RemoveRaw
     ns.UserLayoutStore.RemoveRaw=function() return false end
-    Rejected(ns.LayoutMutations.DeleteUserLayout("layout:b"))
-    assert(ns.db.global.defaultLayoutId=="layout:b" and ns.db.global.UserLayouts["layout:b"])
+    Rejected(ns.LayoutMutations.DeleteUserLayout("layout:b")); assert(ns.db.global.defaultLayoutId=="layout:b")
     ns.UserLayoutStore.RemoveRaw=remove
-    local foreign={activeLayoutId="layout:b",LayoutAssignments={characterSelection={mode="override",layoutId="layout:b"}}}
-    ns.db.sv={char={Other=foreign}}
-    Applied(S.SetSpecializationAssignment(71,"layout:b"))
-    Applied(ns.LayoutMutations.DeleteUserLayout("layout:b"))
+    Applied(S.SetSpecializationAssignment(71,"layout:b")); Applied(ns.LayoutMutations.DeleteUserLayout("layout:b"))
     assert(ns.db.global.defaultLayoutId==nil and S.GetSpecializationAssignment(71)==nil)
-    local _,status=S.GetCharacterSelection(); assert(status=="stale")
-    assert(foreign.activeLayoutId=="layout:b" and foreign.LayoutAssignments.characterSelection.layoutId=="layout:b")
     Rejected(ns.LayoutMutations.DeleteUserLayout("layout:a")); Rejected(ns.LayoutMutations.DeleteUserLayout("builtin:default"))
-    Active("layout:a")
 end)
-Test("selection resolution stays outside current runtime reads", function()
-    Reset(); Applied(S.ApplyAccountDefaultForCurrentCharacter())
-    local root=R.GetActiveRuntimeRoot(); local resolve=R.ResolveLayoutSelection
-    R.ResolveLayoutSelection=function() error("selection resolution on runtime read") end
+Test("default resolution remains outside runtime reads", function()
+    Reset(); local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
+    local root=R.GetActiveRuntimeRoot(); local getter=S.GetAccountDefaultLayoutId
+    S.GetAccountDefaultLayoutId=function() error("default read in runtime hotpath") end
     for _=1,100 do
         assert(ns.UnitFrameUtils.GetUnitsDB()==root.payload.Units)
         assert(ns.UnitFrameUtils.GetUnitDB("player")==root.payload.Units.player)
-        assert(R.GetActiveRuntimeRoot()==root)
     end
-    R.ResolveLayoutSelection=resolve
-end)
-Test("login consumes explicit baseline once, Legacy remains untouched", function()
-    for _,case in ipairs({{nil,"layout:a"},{{mode="accountDefault"},"layout:b"},{{mode="override",layoutId="layout:c"},"layout:c"}}) do
-        Reset(case[1]); local root=R.GetActiveRuntimeRoot(); local event=EventFrame()
-        event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active(case[2])
-        assert(#transitions==(case[1] and 1 or 0))
-        if not case[1] then assert(R.GetActiveRuntimeRoot()==root) end
-        local ok, reason=ns:ActivateLayout("layout:a","manual"); assert(ok or reason=="same-layout"); transitions={}
-        event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player"); Active("layout:a")
-        event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active("layout:a"); assert(#transitions==0)
-    end
-end)
-Test("login goes A-to-C directly, never A-to-B-to-C, including blocked spec", function()
-    for _,selection in ipairs({{mode="accountDefault"},{mode="override",layoutId="layout:b"}}) do
-        Reset(selection); Applied(S.SetSpecializationAssignment(71,"layout:c")); local event=EventFrame()
-        event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active("layout:c")
-        assert(#transitions==1 and transitions[1]=="layout:c")
-        Applied(S.ApplyAccountDefaultForCurrentCharacter()); Active("layout:b")
-        event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player"); Active("layout:c")
-        Applied(S.SetSpecializationAssignment(71,nil)); event:Run("OnEvent","PLAYER_SPECIALIZATION_CHANGED","player"); Active("layout:c")
-        Reset(selection); Applied(S.SetSpecializationAssignment(71,"layout:c")); event=EventFrame(); dirty=true
-        event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active("layout:a"); assert(#transitions==0)
-        dirty=false
-    end
-end)
-Test("login deferred spec has no intermediate baseline and stale mapping follows existing cleanup", function()
-    Reset({mode="accountDefault"}); Applied(S.SetSpecializationAssignment(71,"layout:c"))
-    local event=EventFrame(); combat=true; event:Run("OnEvent","PLAYER_ENTERING_WORLD")
-    assert(ns._pendingLayoutActivation.layoutId=="layout:c" and not ns._pendingLayoutActivation.options.characterSelectionRequest)
-    FinishCombat(); Active("layout:c"); assert(#transitions==1)
-    Reset({mode="accountDefault"}); ns.db.char.LayoutAssignments.specialization[71]="layout:missing"
-    event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
-    assert(S.GetSpecializationAssignment(71)==nil); Active("layout:b")
-end)
-Test("same-active spec still wins over baseline and absent specialization permits login baseline", function()
-    Reset({mode="accountDefault"}); Applied(S.SetSpecializationAssignment(71,"layout:a"))
-    local event=EventFrame(); event:Run("OnEvent","PLAYER_ENTERING_WORLD")
-    Active("layout:a"); assert(#transitions==0)
-    Reset({mode="accountDefault"}); spec=nil; event=EventFrame()
-    event:Run("OnEvent","PLAYER_ENTERING_WORLD"); Active("layout:b"); assert(#transitions==1)
+    S.GetAccountDefaultLayoutId=getter
 end)
 print("AccountDefaultActivation: "..passed.." groups passed")
