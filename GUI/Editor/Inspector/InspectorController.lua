@@ -3610,6 +3610,16 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showCastBar == false)
         end
 
+        if usePropertyGroups then
+            AddPropertyColorRow(appearanceSection, L["OPTION_INTERRUPTIBLE_COLOR"] or L["OPTION_CAST_BAR_INTERRUPTIBLE_COLOR"] or "Interruptible Color", unitConfig.castBarInterruptibleColor, true, function(value)
+                SetUnitField("castBarInterruptibleColor", value)
+            end, unitConfig.showCastBar == false)
+        else
+            AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_INTERRUPTIBLE_COLOR"] or "Cast Bar Interruptible Color", unitConfig.castBarInterruptibleColor, true, function(value)
+                SetUnitField("castBarInterruptibleColor", value)
+            end, unitConfig.showCastBar == false)
+        end
+
         if actionsSection then
             AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "DestructiveAction", 148, function()
                 ApplyCastBarPresence(false)

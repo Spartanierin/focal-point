@@ -194,7 +194,7 @@ local LEGACY_FLAT_COMPONENT_EVIDENCE = {
         presentField = "castBarPresent",
         fields = {
             "showCastBar", "showCastBarIcon", "castBarHeight", "castBarWidthMode", "castBarWidth", "castBarPoint", "castBarRelativePoint",
-            "castBarOffsetX", "castBarOffsetY", "castBarTexture", "castBarColor",
+            "castBarOffsetX", "castBarOffsetY", "castBarTexture", "castBarColor", "castBarInterruptibleColor",
         },
     },
 }
