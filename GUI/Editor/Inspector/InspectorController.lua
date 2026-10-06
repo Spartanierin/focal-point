@@ -15,6 +15,7 @@ local InspectorAuraSelection = ns.InspectorAuraSelection or (ns.GUI.Editor.Inspe
 local InspectorMutations = ns.InspectorMutations or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or {}
 local InspectorRefreshPolicy = ns.InspectorRefreshPolicy or (ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.RefreshPolicy) or {}
 local MediaOptionAdapter = ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.MediaOptionAdapter or {}
+local OptionValues = ns.GUI.Helpers and ns.GUI.Helpers.OptionValues or {}
 local EditorStateApi = ns.GUI.Editor and ns.GUI.Editor.State or {}
 local ObjectSelection = ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or {}
 local CastBar = ns.UnitFrameCastBar or {}
@@ -3610,12 +3611,14 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showCastBar == false)
         end
 
+        local defaultCastBarInterruptibleColor = OptionValues.GetDefault({"Units", state and state.selectedUnit, "castBarInterruptibleColor"}, {0.6, 0.6, 0.6, 1.0})
+        local castBarInterruptibleColor = unitConfig.castBarInterruptibleColor or unitConfig.castBarUninterruptibleColor or defaultCastBarInterruptibleColor
         if usePropertyGroups then
-            AddPropertyColorRow(appearanceSection, L["OPTION_INTERRUPTIBLE_COLOR"] or L["OPTION_CAST_BAR_INTERRUPTIBLE_COLOR"] or "Interruptible Color", unitConfig.castBarInterruptibleColor, true, function(value)
+            AddPropertyColorRow(appearanceSection, L["OPTION_INTERRUPTIBLE_COLOR"] or L["OPTION_CAST_BAR_INTERRUPTIBLE_COLOR"] or "Interruptible Color", castBarInterruptibleColor, true, function(value)
                 SetUnitField("castBarInterruptibleColor", value)
             end, unitConfig.showCastBar == false)
         else
-            AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_INTERRUPTIBLE_COLOR"] or "Cast Bar Interruptible Color", unitConfig.castBarInterruptibleColor, true, function(value)
+            AddColorPicker(appearanceSection, L["OPTION_CAST_BAR_INTERRUPTIBLE_COLOR"] or "Cast Bar Interruptible Color", castBarInterruptibleColor, true, function(value)
                 SetUnitField("castBarInterruptibleColor", value)
             end, unitConfig.showCastBar == false)
         end
