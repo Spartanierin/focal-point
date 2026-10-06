@@ -193,6 +193,12 @@ function Mutations.DeleteUserLayout(layoutId)
         return false, "store-delete-failed"
     end
 
+    local db = FocalPoint.db
+    local global = type(db) == "table" and rawget(db, "global")
+    if type(global) == "table" and rawget(global, "defaultLayoutId") == layoutId then
+        FocalPoint.LayoutAssignmentService.SetAccountDefaultLayoutId(nil, db)
+    end
+
     local migration = FocalPoint.LayoutMigration or {}
     local migrationOk, migrationReason = true, "not-migrated"
     if type(migration.MarkDeletedUserLayout) == "function" then

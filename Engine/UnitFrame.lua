@@ -2626,6 +2626,14 @@ local function EnsureLayoutActivationEventFrame(addon)
         end
 
         addon._pendingLayoutActivation = nil
+        local request = pending.options and pending.options.characterSelectionRequest
+        if request then
+            local assignments = addon.LayoutAssignmentService
+            if assignments and assignments.ApplyDeferredCharacterSelection then
+                assignments.ApplyDeferredCharacterSelection(request)
+            end
+            return
+        end
         if addon.ActivateLayout then
             addon:ActivateLayout(pending.layoutId, pending.reason or "layout-pending", pending.options)
         end
@@ -2915,6 +2923,14 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
 
     local currentLayoutId = resolver.GetStoredActiveLayoutId and resolver.GetStoredActiveLayoutId(db) or nil
     if currentLayoutId == layoutId then
+        local assignments = self.LayoutAssignmentService
+        if options.characterSelectionRequest then
+            -- A conscious selection-mode change supersedes an older queued
+            -- activation even when its runtime target is already active.
+            self._pendingLayoutActivation = nil
+        elseif assignments and assignments.CancelPendingCharacterSelection then
+            assignments.CancelPendingCharacterSelection(db)
+        end
         return false, "same-layout"
     end
 
@@ -2939,15 +2955,21 @@ function FocalPoint:ActivateLayout(layoutId, reason, options)
     db.char = type(db.char) == "table" and db.char or {}
     local oldLayoutId = rawget(db.char, "activeLayoutId")
     local oldRuntimeRoot = resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
-    db.char.activeLayoutId = layoutId
-    resolver.SetActiveRuntimeRoot(targetRoot)
-
     local ok, resyncOk, resyncReason = pcall(function()
-        return self:ResyncActiveLayout(reason or "layout-activate", options)
+        db.char.activeLayoutId = layoutId
+        if not resolver.SetActiveRuntimeRoot(targetRoot) then return false, "runtime-root-publication-failed" end
+        local applied, applyReason = self:ResyncActiveLayout(reason or "layout-activate", options)
+        if applied ~= false and controller and controller.OnActiveLayoutChanged then
+            controller.OnActiveLayoutChanged(currentLayoutId, layoutId)
+        end
+        return applied, applyReason
     end)
     if ok and resyncOk ~= false then
-        if controller and controller.OnActiveLayoutChanged then
-            controller.OnActiveLayoutChanged(currentLayoutId, layoutId)
+        local assignments = self.LayoutAssignmentService
+        if options.characterSelectionRequest then
+            self._pendingLayoutActivation = nil
+        elseif assignments and assignments.CancelPendingCharacterSelection then
+            assignments.CancelPendingCharacterSelection(db)
         end
         return true, "applied"
     end
