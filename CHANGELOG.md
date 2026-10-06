@@ -10,6 +10,25 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.2
+
+### Added
+
+* Added a Cast Bar width mode that supports matching the unit frame or using a custom width.
+
+### Improved
+
+* Expanded Cast Bar positioning so it can be placed much farther away from its unit frame.
+* Improved dragging and snapping on scaled unit frames so frame and component positions remain consistent.
+* Reduced unnecessary repeated layout processing during runtime and editor updates.
+
+### Fixed
+
+* Fixed text template name and expression fields resetting the caret while typing.
+* Fixed Cast Bar selection previews that could show only the selection box instead of the configured bar, texture, and icon.
+* Fixed Shift-dragging a selected component changing the current selection or move target unexpectedly.
+* Fixed repeated Cast Bar preview clearing and rebuilding during editor overlay and selection updates.
+
 ## 2.2.1
 
 ### Compatibility
