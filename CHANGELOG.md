@@ -10,6 +10,18 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.3
+
+### Added
+
+* Added an Account Default Layout that can be used automatically when no specialization-specific Layout is assigned.
+* Added optional Weapon Enhancements to player Buff decorations, including temporary weapon imbues such as Flametongue.
+
+### Improved
+
+* Marked the Account Default in the Layout Manager and Canvas Layout picker.
+* Updated contributor and architecture documentation.
+
 ## 2.2.2
 
 ### Added
