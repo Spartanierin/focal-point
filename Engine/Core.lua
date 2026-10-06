@@ -606,6 +606,12 @@ local function UpdateTextEditCastPreview(frame)
         return
     end
 
+    -- The static preview also represents normal editor/selection state now.
+    -- Projecting overlays must not clear a representation still owned by that policy.
+    if castBar.ShouldRepresentInEditor and castBar.ShouldRepresentInEditor(frame) then
+        return
+    end
+
     if castBar.ClearTextEditPreview and castBar.ClearTextEditPreview(frame) and not (frame and frame._fpTextEditPresentationActive) then
         if FocalPoint.RefreshUnitFrame and frame and frame._fpUnit then
             FocalPoint:RefreshUnitFrame(frame._fpUnit)
