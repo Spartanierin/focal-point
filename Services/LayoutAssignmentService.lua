@@ -72,6 +72,136 @@ local function EnsureSpecializationAssignments(db)
     return db.char.LayoutAssignments.specialization
 end
 
+local function PeekLayoutAssignments(db)
+    db = ResolveDB(db)
+    local char = type(db) == "table" and rawget(db, "char") or nil
+    local root = type(char) == "table" and rawget(char, "LayoutAssignments") or nil
+    return type(root) == "table" and root or nil
+end
+
+local function EnsureLayoutAssignments(db)
+    db = ResolveDB(db)
+    if type(db) ~= "table" then
+        return nil, "db-unavailable"
+    end
+
+    db.char = type(db.char) == "table" and db.char or {}
+    db.char.LayoutAssignments = type(db.char.LayoutAssignments) == "table" and db.char.LayoutAssignments or {}
+    return db.char.LayoutAssignments
+end
+
+function Service.GetAccountDefaultLayoutId(db)
+    db = ResolveDB(db)
+    local global = type(db) == "table" and rawget(db, "global") or nil
+    local layoutId = type(global) == "table" and rawget(global, "defaultLayoutId") or nil
+    if layoutId == nil then
+        return nil, "missing"
+    end
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return nil, "stale", layoutId, "invalid-layout-id"
+    end
+
+    local ok, reason = IsResolvableLayoutId(db, layoutId)
+    if not ok then
+        return nil, "stale", layoutId, reason
+    end
+    return layoutId, "ok"
+end
+
+function Service.SetAccountDefaultLayoutId(layoutId, db)
+    db = ResolveDB(db)
+    if layoutId ~= nil then
+        local ok, reason = IsResolvableLayoutId(db, layoutId)
+        if not ok then
+            return false, reason
+        end
+    end
+
+    if type(db) ~= "table" then
+        return false, "db-unavailable"
+    end
+    if layoutId == nil then
+        local global = rawget(db, "global")
+        if type(global) == "table" then
+            rawset(global, "defaultLayoutId", nil)
+        end
+        return true
+    end
+
+    db.global = type(db.global) == "table" and db.global or {}
+    db.global.defaultLayoutId = layoutId
+    return true
+end
+
+function Service.GetCharacterSelection(db)
+    local assignments = PeekLayoutAssignments(db)
+    local selection = type(assignments) == "table" and rawget(assignments, "characterSelection") or nil
+    if selection == nil then
+        return nil, "legacy"
+    end
+    if type(selection) ~= "table" then
+        return nil, "invalid"
+    end
+
+    local mode = rawget(selection, "mode")
+    if mode == "accountDefault" then
+        if rawget(selection, "layoutId") ~= nil then
+            return nil, "invalid"
+        end
+        return {mode = mode}, "ok"
+    end
+    if mode ~= "override" or type(rawget(selection, "layoutId")) ~= "string"
+        or rawget(selection, "layoutId") == "" then
+        return nil, "invalid"
+    end
+
+    local layoutId = rawget(selection, "layoutId")
+    local ok, reason = IsResolvableLayoutId(ResolveDB(db), layoutId)
+    if not ok then
+        return nil, "stale", layoutId, reason
+    end
+    return {mode = mode, layoutId = layoutId}, "ok"
+end
+
+function Service.SetCharacterSelection(selection, db)
+    db = ResolveDB(db)
+    if selection == nil then
+        local assignments = PeekLayoutAssignments(db)
+        if type(assignments) == "table" then
+            rawset(assignments, "characterSelection", nil)
+        end
+        return true
+    end
+    if type(selection) ~= "table" then
+        return false, "invalid-selection"
+    end
+
+    local mode = rawget(selection, "mode")
+    local value
+    if mode == "accountDefault" then
+        if rawget(selection, "layoutId") ~= nil then
+            return false, "invalid-selection"
+        end
+        value = {mode = mode}
+    elseif mode == "override" then
+        local layoutId = rawget(selection, "layoutId")
+        local ok, reason = IsResolvableLayoutId(db, layoutId)
+        if not ok then
+            return false, reason
+        end
+        value = {mode = mode, layoutId = layoutId}
+    else
+        return false, "invalid-selection"
+    end
+
+    local assignments, reason = EnsureLayoutAssignments(db)
+    if type(assignments) ~= "table" then
+        return false, reason or "assignment-store-unavailable"
+    end
+    rawset(assignments, "characterSelection", value)
+    return true
+end
+
 local function GetSpecializationIndex()
     if C_SpecializationInfo and type(C_SpecializationInfo.GetSpecialization) == "function" then
         local ok, specIndex = pcall(C_SpecializationInfo.GetSpecialization)

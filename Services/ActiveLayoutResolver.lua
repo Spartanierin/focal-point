@@ -54,6 +54,27 @@ local function GetMigrationProfileMap(db)
     return type(profileMap) == "table" and profileMap or nil
 end
 
+local function ResolveLegacyActiveLayoutId(db)
+    local char = type(db) == "table" and rawget(db, "char") or nil
+    local current = type(char) == "table" and rawget(char, "activeLayoutId") or nil
+    if IsNonEmptyString(current) then
+        return current, "existing", false
+    end
+
+    local profileName = GetCurrentProfileName(db)
+    local profileMap = GetMigrationProfileMap(db)
+    local mappedLayoutId = profileMap and profileMap[profileName] or nil
+    if IsNonEmptyString(mappedLayoutId) and Resolver.IsResolvableLayoutId(db, mappedLayoutId) then
+        return mappedLayoutId, "mapped-profile", true
+    end
+
+    if Resolver.IsResolvableLayoutId(db, DEFAULT_ACTIVE_LAYOUT_ID) then
+        return DEFAULT_ACTIVE_LAYOUT_ID, "default-builtin", true
+    end
+
+    return nil, "default-unavailable", false
+end
+
 local function BuildUsedLayoutNames(db)
     local used = {}
     local UserLayoutStore = FocalPoint.UserLayoutStore or {}
@@ -236,6 +257,48 @@ function Resolver.IsResolvableLayoutId(db, layoutId)
     return Resolver.ResolveLayout(db, layoutId) ~= nil
 end
 
+function Resolver.ResolveLayoutSelection(db)
+    db = ResolveDB(db)
+    local assignments = FocalPoint.LayoutAssignmentService
+    if type(assignments) ~= "table" or type(assignments.GetCharacterSelection) ~= "function"
+        or type(assignments.GetAccountDefaultLayoutId) ~= "function" then
+        return nil, "selection-service-unavailable"
+    end
+
+    local selection, selectionStatus, staleId, staleReason = assignments.GetCharacterSelection(db)
+    if selectionStatus == "legacy" then
+        local layoutId = ResolveLegacyActiveLayoutId(db)
+        if layoutId then
+            return layoutId, "legacy"
+        end
+        return nil, "systemFallback"
+    end
+    if selectionStatus == "stale" then
+        return nil, "stale-character-override", staleId, staleReason
+    end
+    if selectionStatus ~= "ok" or type(selection) ~= "table" then
+        return nil, "invalid-character-selection", selectionStatus
+    end
+
+    if selection.mode == "override" then
+        return selection.layoutId, "character"
+    end
+
+    local defaultId, defaultStatus, staleDefaultId, defaultReason = assignments.GetAccountDefaultLayoutId(db)
+    if defaultStatus == "ok" then
+        return defaultId, "accountDefault"
+    end
+    if defaultStatus == "stale" then
+        return nil, "stale-account-default", staleDefaultId, defaultReason
+    end
+
+    local fallbackId, fallbackReason = ResolveLegacyActiveLayoutId(db)
+    if fallbackId then
+        return fallbackId, "systemFallback", fallbackReason
+    end
+    return nil, "systemFallback", fallbackReason
+end
+
 function Resolver.GetActiveLayout(db)
     db = ResolveDB(db)
     local layoutId = Resolver.GetStoredActiveLayoutId(db)
@@ -353,28 +416,20 @@ function Resolver.InitializeActiveLayoutId(db)
 
     db.char = type(db.char) == "table" and db.char or {}
 
-    local current = rawget(db.char, "activeLayoutId")
-    if IsNonEmptyString(current) then
-        if Resolver.IsResolvableLayoutId(db, current) then
-            return current, "existing"
+    local layoutId, reason, shouldStore = ResolveLegacyActiveLayoutId(db)
+    if not layoutId then
+        return nil, reason
+    end
+    if reason == "existing" then
+        if Resolver.IsResolvableLayoutId(db, layoutId) then
+            return layoutId, reason
         end
-        return current, "invalid-existing"
+        return layoutId, "invalid-existing"
     end
-
-    local profileName = GetCurrentProfileName(db)
-    local profileMap = GetMigrationProfileMap(db)
-    local mappedLayoutId = profileMap and profileMap[profileName] or nil
-    if IsNonEmptyString(mappedLayoutId) and Resolver.IsResolvableLayoutId(db, mappedLayoutId) then
-        db.char.activeLayoutId = mappedLayoutId
-        return mappedLayoutId, "mapped-profile"
+    if shouldStore then
+        db.char.activeLayoutId = layoutId
     end
-
-    if Resolver.IsResolvableLayoutId(db, DEFAULT_ACTIVE_LAYOUT_ID) then
-        db.char.activeLayoutId = DEFAULT_ACTIVE_LAYOUT_ID
-        return DEFAULT_ACTIVE_LAYOUT_ID, "default-builtin"
-    end
-
-    return nil, "default-unavailable"
+    return layoutId, reason
 end
 
 return Resolver
