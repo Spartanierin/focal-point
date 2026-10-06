@@ -1,79 +1,81 @@
-﻿# Text Architecture
+# Text Architecture
 
-STATUS: CURRENT - current text architecture for Focal Point 1.2.x.
+STATUS: CURRENT - canonical text, template, and tag architecture for Focal Point 2.2.x.
 
-## Purpose
+## Layers
 
-This document describes the current text flow. Old migration notes live in `Historical/0.x-Architecture/TEXT_ARCHITECTURE.md` and are not normative.
+- A text element owns presentation and placement: enabled state, anchor,
+  offsets, font, size, color, style, shadow, and overflow.
+- A template entity owns content: a name and expression containing tags or
+  inline colors.
+- `templateId` and state-template IDs provide stable entity identity.
+- `tag` remains a valid object-local direct-content path when no main template
+  ID exists.
 
-## Core terms
+Built-in template entities are read-only. User entities are independently
+identified and managed by the Texts Manager. Equal names or equal content do
+not imply identity.
 
-### Text Element
+## Modules
 
-An entry in `unitConfig.Texts`. It owns presentation and placement: `enabled`, `templateName` or `tag`, `anchorTo`, `point`, `relativePoint`, offsets, font, font size, style, color, shadow, and overflow.
+- `Engine/TextElements.lua`: integrates text runtime with UnitFrame.
+- `Engine/Text/Runtime/TextElementFactory.lua`: creates visible text objects.
+- `Engine/Text/Runtime/TextElementApply.lua`: applies presentation and layout.
+- `Engine/Text/Runtime/TextElementUpdate.lua`: writes rendered text.
+- `Engine/Text/Runtime/TextElementLiveValues.lua`: prepares runtime display
+  values.
+- `Engine/Text/Shared/TextElementRoles.lua`: role and placement metadata.
+- `Engine/Text/Shared/TextTemplateResolver.lua`: canonical content resolution.
+- `Engine/Text/Shared/TextTemplateLibrary.lua`: built-in/user entity catalog and
+  ID lookup.
+- `Engine/Text/Shared/TextTemplateMutations.lua`: entity and binding mutations.
+- `Engine/Text/Shared/TextTemplateUsage.lua`: usage scanning.
+- `Engine/Text/Shared/TextTemplateValidation.lua`: graph and input validation.
+- `GUI/Editor/TextTemplateLibraryWindow.lua`: Texts Manager and picker.
+- `GUI/Pages/TextBuilder/*`: draft and entity-builder consumer.
+- `GUI/Pages/TagLibrary/*`: tag reference and insertion.
 
-### Template
+## Runtime flow
 
-A content string from `db.profile.TextTemplates`. Templates may contain tags such as `[hp:cur]`, `[absorb:cur]`, or inline colors. Template content is content, not layout.
+1. UnitFrame build creates the text object.
+2. Apply paths set presentation and placement from the active layout.
+3. Health, Power, Cast, Aura, and other runtime modules prepare `LiveValues`.
+4. `TextTemplateResolver` resolves the entity, state template, or object-local
+   direct content.
+5. Token resolvers consume prepared display values.
+6. `TextElementUpdate` writes the final string to the FontString.
 
-### Direct Template / tag
+Text rendering does not reconstruct canonical values from the visual bars, and
+text updates do not require a layout rebuild.
 
-The `tag` field still exists as a fallback, expert, or migration path. The preferred product path is `templateName`.
+## Draft and context safety
 
-### State Templates
+The Text Builder captures a layout/object/entity context and a baseline. Save,
+apply, close, and return callbacks validate that context before mutation. A
+stale picker or builder cannot redirect a mutation to a newly active layout.
+Dirty drafts, combat deferral, and failed mutation results retain the existing
+guard behavior.
 
-`stateTemplates` provide alternate templates for states such as dead/ghost. They are part of the current text model and are managed by the template resolver and inspector mutations.
+The Texts Manager administers global template entities without changing object
+bindings when it lists, selects, copies, renames, or deletes. Delete validates
+current usage before removing a user entity.
 
-## Main modules
+## Tags and values
 
-- `Engine/TextElements.lua`: integrates the text system into UnitFrame runtime.
-- `Engine/Text/Runtime/TextElementApply.lua`: applies TextElement configuration to FontStrings.
-- `Engine/Text/Runtime/TextElementUpdate.lua`: updates visible text content.
-- `Engine/Text/Shared/TextElementTemplates.lua`: normalization, template helpers, and preview.
-- `Engine/Text/Shared/TextElementRoles.lua`: role and placement metadata for text elements.
-- `Engine/Text/Shared/TextTemplateResolver.lua`: canonical template resolution for profile templates, direct content, and state templates.
-- `Engine/Text/Shared/TextTemplateValidation.lua`: template validation and safety checks.
-- `Engine/Text/Shared/TextElementBasicTags.lua`: basic tags.
-- `Engine/Text/Shared/TextElementColors.lua`: inline color tags.
-- `Engine/Text/Shared/TextElementStatus.lua`: status and template-state logic.
-- `Engine/Text/Shared/TextTemplateMutations.lua`: create/update/rename/delete/assign/usage mutations.
-- `Engine/Text/Shared/TextTemplateLibrary.lua`: template entries from profiles, defaults, and presets.
-- `Engine/Text/Shared/TextTemplateUsage.lua`: usage and assignment scanning.
-- `GUI/Pages/TextBuilder/*`: template draft, save, apply, usage.
-- `GUI/Pages/TagDatabase/*`: tag reference.
-- `GUI/Editor/TextEditorOverlay.lua`: visible text objects can be selected, moved, resized/reset.
+Tags are display resolvers, not a general calculation layer. They should read
+prepared display fields such as `healthCurrentText`, `powerPercentText`, or
+`castTimeText`. Arithmetic, parsing, table-key use, and string reconstruction of
+secret or rendered values do not belong in token resolution.
 
-## Render path
+Inline color tags affect only segments in the content string. The text
+element's base color remains presentation state; `[rc]` returns inline color to
+that base color.
 
-1. UnitFrame build creates text objects.
-2. ApplyConfig applies presentation and placement.
-3. Health/Power/Cast/Aura runtime writes prepared values to `frame.LiveValues`.
-4. TextTemplateResolver chooses a template, state template, or direct string.
-5. Tag resolvers read prepared display values.
-6. TextElementUpdate writes rendered text into the FontString.
+Test/demo paths use explicit preview values and do not depend on live unit APIs.
 
-## Canonical sources
+## Compatibility boundary
 
-- Text configuration: `db.profile.Units[unit].Texts`.
-- Template content: `db.profile.TextTemplates`.
-- Runtime values: `frame.LiveValues`.
-- Font media: `MediaRegistry`.
-
-## Tag rules
-
-Tags are display resolvers. They should consume prepared values and should not reconstruct runtime truth. Details live in `Rules/Tag-System-Rules.md`.
-
-## Text Builder
-
-The Text Builder owns a draft state, dirty detection, save flow, and apply flow. Unsaved Apply is guarded by a confirmation dialog. Apply can assign or remove templates for units through `TextTemplateMutations.ApplyTemplateToUnits`.
-
-## Tag Database
-
-The Tag Database is currently a standalone tool with a copy dialog. This is CURRENT, but as a workflow it is less integrated than the Media Library. Improvements belong in future/2.0 documents, not in this current architecture document.
-
-## Legacy / hybrid paths
-
-- `tag` remains as a direct content path.
-- Old custom/migration names may still occur in defaults or profiles and are handled by runtime/mutations for compatibility.
-- These legacy paths are not the preferred product language for new workflows.
-
+Legacy direct tags, old names, and migration records remain supported where
+the current resolver or migration contract requires them. They are not the
+preferred product language for new workflows, and no current documentation
+should present the old slot-based model as the canonical architecture.

@@ -15,7 +15,7 @@ This is a release-facing rule set, not a draft guideline.
 
 ## Folder Responsibility Model
 - `GUI/Editor/<Feature>/...`: editor-internal feature runtime (for example Toolbar, Inspector).
-- `GUI/Pages/<Feature>/...`: standalone tool pages (for example Profiles, TextBuilder, TagDatabase).
+- `GUI/Pages/<Feature>/...`: standalone tool pages (for example TextBuilder and TagLibrary).
 - `GUI/Helpers/...`: narrow technical helpers only. No catch-all helper buckets. Domain orchestration must not be hidden here.
 - `GUI/Widgets/...`: reusable generic widget primitives.
 - `GUI/Layouts/...`: generic/system-wide declarative definitions only. If a definition is feature-owned, it should live with the feature.
@@ -42,12 +42,15 @@ Optional roles:
 - `State` must not hide UI build/orchestration logic.
 - `Style` and `Renderer` are optional roles; do not introduce them unless responsibility is clearly dominant.
 
-## Current Baseline (April 2026)
-- Pages use `*Controller.lua` + `*Definition.lua` naming.
-- Editor features use `*Controller.lua`; Toolbar already has `ToolbarBinding.lua` and `ToolbarDefinition.lua`.
-- Widgets use explicit `*Widget.lua` naming.
+## Current Baseline (2.2.x)
+- Layout Manager, assignment UI, Texts Manager, Text Builder, and Tag Library
+  reuse feature-owned controllers/views and existing local widget patterns.
+- Editor features use `*Controller.lua`; Toolbar has `ToolbarBinding.lua` and
+  `ToolbarDefinition.lua`.
+- Widgets use explicit `*Widget.lua` naming where a reusable widget exists.
 - States use explicit `*State.lua` naming where ownership is isolated.
-- Legacy/transitional names may still exist, but they are not baseline naming.
+- Legacy/transitional names may still exist, but they are not baseline naming
+  for new work.
 
 ## Anti-Patterns
 - `Draft` in production file names.

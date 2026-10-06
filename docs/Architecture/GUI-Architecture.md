@@ -1,88 +1,85 @@
-﻿# GUI Architecture
+# GUI Architecture
 
-STATUS: CURRENT - current GUI/editor architecture for Focal Point 1.2.x.
+STATUS: CURRENT - canonical GUI and editor architecture for Focal Point 2.2.x.
 
-## Purpose
+## Ownership model
 
-This document describes the implemented GUI structure. It is not a proposal for a new UI framework and does not invent abstractions that are not present in the code.
+- `*Controller.lua` owns feature orchestration and lifecycle.
+- `*Binding.lua` owns callback wiring, widget state, and refresh coordination.
+- `*Definition.lua` describes declarative structure and options.
+- `*State.lua` owns explicit state APIs.
+- `*Widget.lua` owns reusable widget behavior.
 
-## Role model
+These roles are conventions for new work. Existing local exceptions remain
+valid when changing them would be a refactor without product value.
 
-- `*Controller.lua`: window/feature orchestration, lifecycle, routing.
-- `*Binding.lua`: callback wiring, widget-state sync, refresh coordination.
-- `*Definition.lua`: declarative structure and layout description.
-- `*State.lua`: explicit state API.
-- `*Widget.lua`: reusable widget components.
+## GUI host and editor
 
-This role model is used most clearly in Toolbar, Pages, and parts of the Inspector. Some historical helper files remain as intentional exceptions.
+- `GUI/GUIMainController.lua` opens the main host.
+- `GUI/GUIController.lua` routes the editor and tools.
+- `GUI/AppShell.lua` owns shell chrome and host geometry.
+- `GUI/Editor/EditorController.lua` owns the editor surface and Inspector host.
+- `GUI/Editor/EditorState.lua` owns current unit and object selection.
+- `GUI/Editor/Composition/*` owns tree ownership, presence, and selection rows.
+- `GUI/Editor/CanvasToolbar.lua` routes layout, unit, demo, and editor actions.
 
-## Main modules
+Canvas selection is the primary editing context. The Composition Tree provides
+the structured alternative. The Inspector is a precision surface, not a second
+data source.
 
-### GUI Host
+## Layout Manager and assignments
 
-- `GUI/GUIMainController.lua`: main entry for the addon GUI.
-- `GUI/GUIController.lua`: opens tool pages such as Text Builder and Tag Database.
-- `GUI/AppShell.lua`: editor/tool shell, chrome, docking, and host geometry.
+`GUI/Editor/LayoutManager/LayoutManagerView.lua` reuses the existing manager
+window and list patterns for layout summaries, selection, rename/copy/delete,
+import/export, and Account Default actions.
 
-### Editor
+`GUI/Editor/LayoutAssignments/LayoutAssignmentView.lua` presents
+specialization-to-layout rules. Both surfaces call `LayoutMutations` or
+`LayoutAssignmentService`; they do not directly alter runtime frames.
 
-- `GUI/Editor/EditorController.lua`: editor surface and inspector host.
-- `GUI/Editor/EditorState.lua`: canonical selection for unit, multi-selection, text element, indicator, aura, and preset. Preset selection is also held here; the current field name `selectedThemeId` is legacy naming and does not mean that Theme is still the visible product model. The current product model is Profile/Preset.
-- `GUI/Editor/EditorInteractionMode.lua`: frame/text mode.
-- `GUI/Editor/FrameContextMenu.lua`: context menu for visible frames and text.
-- `GUI/Editor/TextEditorOverlay.lua`: object-centered text editing on visible frames.
+The manager displays resolved layout names from summaries and handles stale
+references defensively. Account Default can be set or cleared without changing
+the current character layout. “Use” actions delegate to the existing
+activation/assignment path and preserve combat, dirty-draft, and stale guards.
 
-### Toolbar
+## Inspector
 
-- `ToolbarController.lua`: window/lifecycle.
-- `ToolbarDefinition.lua`: declarative sidebar/tool structure.
-- `ToolbarBinding.lua`: widget state, presets, unit selection, demo/unlock, and global options.
+- `InspectorController.lua` builds current sections, rows, and controls.
+- `InspectorContext.lua` captures the selected layout/unit/object context.
+- `InspectorMutations.lua` writes component and text changes.
+- `InspectorRefreshPolicy.lua` chooses the smallest valid refresh scope.
+- selection helpers preserve text, indicator, and aura selection across rebuilds.
 
-### Inspector
+New Inspector properties belong in the existing section/control patterns and
+must go through the mutation layer. Small properties do not justify a new
+window, renderer, or layout system.
 
-- `InspectorController.lua`: builds sections for unit, bars, absorbs, text, indicators, decorations, and auras.
-- `InspectorContext.lua`: creates the current editing context from EditorState and profile data.
-- `InspectorMutations.lua`: writes configuration changes through a central mutation layer.
-- `InspectorRefreshPolicy.lua`: chooses between `live`, `section`, `sidebar`, `unitEnabled`, and `none`.
-- Selection helpers (`InspectorTextSelection`, `InspectorIndicatorSelection`, `InspectorAuraSelection`) keep element selection stable.
+## Text tools
 
-The Inspector is a precision tool. Direct editing exists for frames and text; other components are currently edited mainly through the Inspector.
+- `TextTemplateLibraryWindow.lua` is the Texts Manager and template picker.
+- `GUI/Pages/TextBuilder/*` owns draft creation/editing and entity-builder
+  return contexts.
+- `GUI/Pages/TagLibrary/*` owns tag discovery and insertion.
+- `GUI/Editor/MediaLibrary/*` is the reusable contextual picker pattern for
+  media selection.
 
-### Media Library
+Text drafts preserve baseline/context and reject stale returns. Manager and
+Builder operations call `TextTemplateMutations` and refresh through the
+existing GUI path.
 
-- `MediaLibraryController.lua`: opens a contextual picker with `mediaType`, current value, default/fallback, and `onApply`.
-- `MediaLibraryItems.lua`: builds available items from MediaRegistry and providers.
-- `MediaLibraryView.lua` and preview modules: list, preview, metadata, Apply/Cancel.
+## Stable UI patterns
 
-This is a strong pattern: the picker knows the caller context and writes the selected value back directly, without internal copy/paste.
+- context -> mutation/service -> existing refresh path;
+- summaries for list display, payloads only at an explicit edit boundary;
+- selection rows with deterministic release/reacquire behavior;
+- Media Library patterns for contextual pickers;
+- no timer/retry workaround for lifecycle or layout problems;
+- no second source of truth in a window or widget.
 
-### Tool Pages
+## Visual/runtime integration
 
-- `ProfilesController.lua`: profiles, import/export, Save as Preset, automation.
-- `LayoutsPresetsController.lua`: preset list, preview, apply, create profile, rename/delete for user presets.
-- `TextBuilderController.lua`: template draft, dirty state, save, apply, usage assignments.
-- `TagDatabaseController.lua`: tag reference and copy dialog. CURRENT, but currently more isolated as a workflow than the Media Library.
-
-## Data and control flow
-
-1. EditorState determines current unit/selection.
-2. InspectorContext reads profile and unit context.
-3. Controllers build widgets from definitions and helpers.
-4. User action calls a mutation or service.
-5. RefreshPolicy or a page controller updates runtime/UI.
-6. UnitFrame/runtime applies the changed configuration.
-
-## Stable patterns
-
-- Context -> Mutation -> RefreshPolicy instead of direct UI writes.
-- Media Library as a contextual picker.
-- TextEditorOverlay for visible text objects.
-- EditorState as central selection truth.
-- PresetUI + services for profile/preset workflows.
-
-## Known transition points
-
-- `FormWidgets.lua`, `FormRenderer.lua`, and SidebarShared are established helpers, but not a complete new GUI architecture.
-- Tag Database is currently more of a standalone tool than a contextual insert picker.
-- Some 1.x layouts are intentionally pragmatic and not automatically a 2.0 norm.
-
+When adding a visual component, preserve the component configuration schema,
+Inspector binding, preview/demo policy, runtime factory, layout/anchor path,
+refresh/visibility path, combat behavior, text/LiveValues dependencies, and
+clear/release lifecycle. The complete checklist is in
+`docs/Architecture/UnitFrame-Runtime-Lifecycle.md`.

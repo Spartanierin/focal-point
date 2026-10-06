@@ -1,47 +1,56 @@
-﻿# Focal Point Documentation
+# Focal Point Documentation
 
-STATUS: CURRENT - documentation entry point for the current repository state.
+STATUS: CURRENT - documentation entry point for the committed repository state.
 
-This documentation intentionally separates three layers:
-
-- CURRENT: documents what the current code actually implements.
-- HISTORICAL: old architecture notes, migration plans, theme-system drafts, and completed roadmaps. These files are preserved, but they are not normative.
-- FUTURE / DESIGN DIRECTION: discussed product and UX direction for later 2.0 work. These documents do not describe implemented architecture.
+Current documentation is written in English and is the source of truth for
+implemented behavior. Historical and future/design documents are explicitly
+labelled and are not normative for current code.
 
 ## Canonical current documents
 
-- `Architecture/Architecture-Overview.md`: system map, major modules, and data flows.
-- `Architecture/GUI-Architecture.md`: current GUI, editor, tool, and inspector structure.
-- `Architecture/Text-Architecture.md`: current text, template, and tag flow.
-- `Architecture/UnitFrame-Runtime-Lifecycle.md`: build/apply/refresh/visibility lifecycle for unit frames.
-- `Product/Product-Model.md`: product language for profiles, presets, demo, unlock, text, and the Health Family.
+- [Product Model](Product/Product-Model.md): layouts, assignment rules, text
+  entities, and current component vocabulary.
+- [Architecture Overview](Architecture/Architecture-Overview.md): services,
+  data flow, runtime root, transfer, and lifecycle boundaries.
+- [GUI Architecture](Architecture/GUI-Architecture.md): editor, Inspector,
+  Layout Manager, Texts Manager, and UI ownership patterns.
+- [Text Architecture](Architecture/Text-Architecture.md): templates, entities,
+  tags, draft safety, and runtime rendering.
+- [UnitFrame Runtime Lifecycle](Architecture/UnitFrame-Runtime-Lifecycle.md):
+  build, activation, refresh, visibility, combat, and visual integration.
+- [Tag System Rules](Rules/Tag-System-Rules.md): prepared values and tag
+  boundaries.
+- [Code Organization Rules](Rules/Code-Organization-Rules.md): file roles and
+  safe change boundaries.
+- [Contributor Guide](../CONTRIBUTING.md): workflow, code locations, tests, and
+  pull-request expectations.
 
-## Current rules and concepts
+## Current partial references
 
-- `Rules/Code-Organization-Rules.md`
-- `Rules/GUI-Visual-Role-Rules.md`
-- `Rules/Tag-System-Rules.md`
-- `Rules/Aura-Time-Classification.md`
-- `Architecture/Aura-System-Concept.md` is CURRENT/PARTIAL: it still documents important aura principles, but it does not replace current runtime documentation.
-- `Design/Editor-UX-Principles.md` is CURRENT/PARTIAL: valuable UX principles, not a complete 2.0 specification.
+The following documents describe valid local design or visual contracts but do
+not replace the architecture documents above:
 
-## 1.x-specific or partial design references
+- `Architecture/Aura-System-Concept.md`
+- `Design/Editor-UX-Principles.md`
+- `Design/FOCAL_POINT_VISUAL_LANGUAGE.md`
+- `Design/GUI-Aura-Layout.md`
+- `Design/GUI-Header-Layout.md`
+- `Design/GUI-Text-Style.md`
+- `Design/UI-Foundations.md`
+- `PresentationPreview.md`
+- `PresentationCompositionPreview.md`
+- `NavigatorBrandPlaque.md`
+- `NavigatorBrassWindow.md`
 
-- `Rules/GUI-Layout-Rules.md` is CURRENT/PARTIAL: relevant for existing 1.x surfaces, but not a rigid 2.0 norm.
-- `Design/GUI-Aura-Layout.md`, `Design/GUI-Header-Layout.md`, and `Design/GUI-Text-Style.md` are partial 1.x design references.
-- `Design/UI-Foundations.md` documents current UI foundations and requirements before larger 2.0 UI work.
+When a partial design note conflicts with committed code or the canonical
+architecture docs, the code and canonical docs win.
 
-## Future / 2.0 Design Direction
+## Historical and future material
 
-- `Roadmap/2.0-Design-Principles.md` is FUTURE / DESIGN DIRECTION. It describes direction and principles, not implemented architecture and not a final roadmap.
+- `Historical/` contains old architecture notes, migration plans, theme-system
+  drafts, completed roadmaps, and preserved assets. It is not current truth.
+- `Roadmap/` contains future/design direction, not an implemented contract.
 
-## Historical documents
-
-Historical documents live under `Historical/` and are preserved for traceability:
-
-- `Historical/0.x-Architecture/`: old architecture overviews and migration descriptions.
-- `Historical/Theme-System/`: earlier theme-system notes and implementation plans.
-- `Historical/Old-Roadmaps/`: old roadmaps and completed implementation plans.
-- `Historical/Skin-Backups/`: old skin/backup files.
-
-Historical documents must not be used as current technical truth unless a current document explicitly points to a still-valid detail.
+Historical documents may mention old profiles, presets, themes, text slots, or
+selection models for traceability. Current documents may mention those terms
+only when describing a compatibility boundary.

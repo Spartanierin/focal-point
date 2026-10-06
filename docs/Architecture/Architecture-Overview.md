@@ -1,80 +1,100 @@
-﻿# Architecture Overview
+# Architecture Overview
 
-STATUS: CURRENT - current system map for Focal Point 1.2.x.
+STATUS: CURRENT - canonical system map for Focal Point 2.2.x.
 
-## Purpose
+## Product boundary
 
-This document describes the implemented architecture. It replaces the old architecture overviews in `Historical/0.x-Architecture/` as the current orientation point.
+Focal Point exposes editable and read-only layouts. The runtime applies one
+resolved layout to unit frames. Profiles, presets, and legacy theme names may
+remain in storage or migration code, but they are compatibility inputs rather
+than a second current product model.
 
-## Major areas
+## Bootstrap and load order
 
-### Bootstrap and Core
+- `FocalPoint.toc` declares the supported Retail and Forever interface IDs and
+  loads `Libraries/Init.xml` and `Init.xml`.
+- `FocalPoint.lua` owns addon initialization, AceDB/SavedVariables setup,
+  startup diagnostics, and lifecycle entry points.
+- `Init.xml` loads layout services before runtime and GUI consumers, then loads
+  text, aura, unit-frame, and editor modules in dependency order.
 
-- `FocalPoint.toc` and `Init.xml` define load order and modules.
-- `FocalPoint.lua` sets up the addon, SavedVariables/AceDB, migrations, and global initialization.
-- `Engine/Core.lua` connects runtime, editor interaction, frame positioning, unlock, multi-selection, dragging, and central refresh actions.
+## Layout data flow
 
-### GUI and Editor
+1. AceDB provides the persisted store and current character context.
+2. `UserLayoutStore` owns user-layout records.
+3. `LayoutService` projects built-in and user sources into layout envelopes or
+   lightweight summaries.
+4. `ActiveLayoutResolver` resolves `activeLayoutId` and builds the
+   materialized `RuntimeRoot`.
+5. `FocalPoint:ActivateLayout` publishes the root and runs the normal resync
+   path atomically with rollback on failure.
+6. Unit-frame build, layout, visibility, and refresh consume that root.
 
-- `GUI/GUIMainController.lua`, `GUI/GUIController.lua`, and `GUI/AppShell.lua` provide the host, navigation, and window shell.
-- `GUI/Editor/*` contains editor-specific runtime: Toolbar, Inspector, frame editing, text overlay, and Media Library.
-- `GUI/Pages/*` contains standalone tools: Profiles/Layouts, Text Builder, and Tag Database.
+`activeLayoutId` is the persisted selection of the applied layout. `RuntimeRoot`
+is the materialized runtime truth. `ActiveRuntimeRootReads` and resolver read
+APIs are read-only; they do not activate layouts or mutate character intent.
 
-### Services
+## Assignment flow
 
-- `Services/MediaRegistry.lua`: canonical media resolution for status bars, fonts, and decorations.
-- `Services/PresetService.lua` and `Services/UserPresetStore.lua`: unified read view for built-in and user presets.
-- `Services/ProfileLayoutService.lua`: creates profiles from presets.
-- `Services/ProfileAutomation.lua`: handles mappings such as Specialization -> Profile.
-- `Services/ProfileTransfer.lua`: profile export/import.
-- `Services/ThemeService.lua` and `Services/LegacyThemeAdapter.lua`: still-present 1.x/legacy bridge for preset application, not the long-term product model for Style.
+`LayoutAssignmentService` owns selection rules:
 
-### UnitFrame Runtime
+- specialization assignments are character-scoped and may win at login or
+  specialization change;
+- Account Default is an optional global layout reference;
+- if no valid specialization assignment exists, login may use Account Default;
+- otherwise the existing active-layout initialization fallback remains in use.
 
-- `Engine/UnitFrame.lua` is the central orchestrator for ApplyConfig, components, and text application.
-- `Engine/UnitFrame/Runtime/*` owns build, factory, layout, visibility, refresh, state, and lifecycle diagnostics.
-- `Engine/UnitFrame/Bars/*` owns Health, Power, Cast, ClassPower, and AbsorbBars.
-- `Engine/UnitFrame/Indicators/*` owns Portrait, Indicators, Decorations, and visual indicator helpers.
+Assignment evaluation delegates activation to the normal `ActivateLayout` path.
+It respects stale references, combat deferral, dirty Text Builder drafts, and
+existing activation guards. It does not mass-mutate characters.
 
-### Text Runtime
+## Layout mutations and transfer
 
-- `Engine/TextElements.lua` integrates the text runtime into UnitFrames.
-- `Engine/Text/Shared/*` contains resolvers, templates, tags, status/color logic, and mutations.
-- `Engine/Text/Runtime/*` contains apply/update/state for visible text objects.
-- `GUI/Pages/TextBuilder/*` and `GUI/Pages/TagDatabase/*` are tools for template creation and tag reference.
+- `LayoutMutations` owns create, rename, copy, delete, and related layout
+  changes.
+- `LayoutTransfer` is the public transfer boundary.
+- `LayoutTransferVNext` carries the current entity-aware layout document and
+  reachable template resources.
+- `LayoutTransferCodec` bounds and serializes transfer envelopes.
+- legacy transfer conversion is explicit and fail-closed; it never guesses a
+  layout from names or reconstructs missing resources.
 
-### Auras
+Account Default and other local account preferences are deliberately outside
+the exported layout payload.
 
-- `Engine/Auras/*` contains runtime, layout, managed backend, and legacy/demo rendering.
-- On WoW 12.1, the live path uses Blizzard Managed Auras for supported groups. Demo/Unlock use Focal Point data with shared visual semantics.
+## Runtime areas
 
-## Canonical data flows
+- `Engine/UnitFrame.lua` coordinates activation, resync, component application,
+  and runtime-root consumption.
+- `Engine/UnitFrame/Runtime/*` owns build, factory, layout, refresh, state,
+  visibility, and lifecycle diagnostics.
+- `Engine/UnitFrame/Bars/*` owns Health, Power, Absorb, Class Power, and Cast
+  Bar behavior.
+- `Engine/TextElements.lua` and `Engine/Text/*` own text application,
+  prepared values, template resolution, and entity mutations.
+- `Engine/Auras/*` owns aura scanning, filtering, sorting, layout, and the
+  Managed Aura backend.
 
-### Config to runtime
+## GUI areas
 
-1. AceDB/SavedVariables store profiles and global data.
-2. Profile config lives under `db.profile`, especially `Units`, `TextTemplates`, and `General`.
-3. UnitFrame build creates frames and components.
-4. `ApplyConfig` reads unit configuration and applies layout, style, and components.
-5. Refresh paths update LiveValues, auras, text, and visibility.
+- `GUI/Editor/*` contains Canvas editing, Composition Tree, Toolbar, Inspector,
+  Layout Manager, assignment UI, media pickers, and text library windows.
+- `GUI/Pages/TextBuilder/*` contains the draft/consumer workflow.
+- `GUI/Pages/TagLibrary/*` contains the tag reference workflow.
+- `GUI/Editor/TextTemplateLibraryWindow.lua` is the Texts Manager and template
+  picker entry point.
 
-### Runtime to visuals/text
+The GUI writes through mutation/services and requests the existing refresh
+paths. It does not create a parallel runtime root, resolver, or persistence
+model.
 
-- Health/Power/Cast/Aura runtime reads WoW or demo data.
-- Canonical runtime values live in `frame.LiveValues` and component-specific runtime fields.
-- Visuals consume runtime values directly or through their bar/aura helpers.
-- Text consumes prepared display values and does not reconstruct truth from rendered bars.
+## Canonical invariants
 
-## Canonical sources
-
-- Profile/layout truth: `db.profile.Units`, `db.profile.TextTemplates`, `db.profile.General`.
-- User-preset truth: `db.global.UserPresets` through `UserPresetStore`.
-- Spec automation truth: `db.global.ProfileAutomation` through `ProfileAutomation`.
-- Media truth: `MediaRegistry`.
-- Health Family live values: `UnitFrameHealth` writes `frame.LiveValues`; bars and tags consume them.
-
-## Legacy and transition points
-
-- ThemeService/LegacyThemeAdapter remain as a 1.x bridge for preset application.
-- Old theme-system documents are historical.
-- Direct `tag` strings in TextElements remain as fallback/expert/migration paths; template-first is the preferred product path.
+- configuration comes from the selected layout;
+- `activeLayoutId` identifies the applied layout;
+- `RuntimeRoot` is the materialized runtime truth;
+- Account Default is a selection rule, not a layout kind;
+- Current RuntimeRoot reads remain read-only;
+- runtime values are prepared before text/tag rendering;
+- failed activation, transfer, and migration paths fail closed without partial
+  publication.

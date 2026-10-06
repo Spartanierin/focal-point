@@ -82,7 +82,8 @@ The new brass suite separately covers shell composition and reset behavior.
 Ingame gate: `/reload`, open Editor; inspect Sidebar and Inspector at their respective
 285/315 widths, all four corners, both edge directions, partial-tile seams, alpha and
 UI scale. Check mahogany underneath, scroll/click/content, open/close and composition
-edits/reset. Check Media Library, Tag Library and Text Builder Modern windows.
+edits/reset. Check Media Library, Tag Library, Texts Manager, and Text Builder
+windows.
 Then repeat 20–50 lifecycle cycles if the first visual pass is satisfactory.
 
 No staging, commit, tag, push, deployment or ZIP belongs to this implementation gate.

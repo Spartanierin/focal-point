@@ -1,80 +1,98 @@
-﻿# Product Model
+# Product Model
 
-STATUS: CURRENT - canonical product language for Focal Point 1.2.x.
+STATUS: CURRENT - canonical product language for Focal Point 2.2.x.
 
 ## Core model
 
-Focal Point is a visual unit-frame editor. Users edit profiles that describe visible unit frames. Presets and automation help with starting points, reuse, and switching, but they do not replace the active profile.
+Focal Point is a visual in-game editor for unit-frame layouts. A layout is the
+user-facing design object: it contains unit-frame composition, geometry,
+components, text bindings, and presentation settings.
 
-## Terms
+The product exposes layouts, not profiles or presets. Older profile/preset
+storage and import paths remain as compatibility boundaries, but they are not
+current product concepts.
 
-### Unit Frame
+## Layouts
 
-A configured frame for a WoW unit such as Player, Target, Focus, Boss, TargetTarget, or FocusTarget. It consists of visual components such as Health Bar, Power Bar, Absorb Bars, Cast Bar, Text, Auras, Indicators, and Decorations.
+- Built-in layouts are read-only starting points.
+- User layouts are editable and can be renamed, copied, deleted, imported, and
+  exported.
+- A layout contains unit-frame configuration and entity-based text bindings.
+- Built-in and user layout IDs are distinct and must never be merged by name or
+  content.
+- Layout export contains the selected layout and its reachable template
+  resources. Local account preferences are not part of the export.
 
-### Profile
+## Active layout and assignment rules
 
-The active, editable layout. Normal editor changes are written to the current profile. A profile is the canonical working truth for visible frames.
+`activeLayoutId` identifies the layout currently applied to the character.
+`ActiveLayoutResolver` resolves it into a runtime root; it does not infer an
+active layout from a label or a profile name.
 
-### Preset
+Specialization automation and the Account Default are selection rules:
 
-A reusable layout template. A preset is not a permanent binding. When a preset is applied or used to create a profile, the result is an editable profile state.
+1. a valid specialization mapping wins at login or specialization change;
+2. otherwise a valid Account Default may be applied at login;
+3. otherwise the existing initialization fallback is retained.
 
-### Built-in Preset
+Account Default is an optional global layout reference. It can be set or
+cleared, is not a layout type, is not a character mass-mutation operation, and
+is not included in layout export. A stale reference is rejected defensively.
 
-A bundled template. Built-in presets are read-only. They can be previewed, applied, or used as the starting point for a new profile.
+The saved character rule remains separate from the active layout. It may be a
+legacy existing selection, an Account Default rule, or a Character Override.
+The UI does not silently migrate a legacy selection.
 
-### User Preset
+## Unit frame
 
-A user-saved template, for example through `Profile -> Save as Preset`. User presets are manageable, but they are also not permanent bindings to profiles.
+A layout may define frames for units such as Player, Target, Focus, Pet, and
+Boss. Components include:
 
-### Preview Preset
+- Health, Power, Alternative Power, Class Power, and Cast Bars;
+- Normal Absorb and Healing Absorb Bars;
+- text elements and text templates;
+- auras, portraits, indicators, and decorations.
 
-A temporary preview state used to inspect a preset before applying it permanently to a profile or creating a profile from it.
+The Canvas is the primary editing surface. The Inspector provides precise
+component and presentation controls.
 
-### Create Profile
+## Texts and templates
 
-Creates a new profile from a preset. After creation, the new profile is a normal editable profile.
+Text elements own placement and presentation. Templates own content and tags.
+The Texts Manager administers built-in and user template entities; the Text
+Builder consumer handles create/edit drafts and object or layout usage.
 
-### Automation
+Built-in template entities are read-only. User entities have stable IDs and
+remain independent even when names or content are equal. Object-local text is a
+valid direct `tag` value without a main template ID.
 
-Automatically switches profiles, for example Specialization -> Profile. `Unassigned` means: keep the current profile.
+The runtime resolves entity IDs and direct content through the canonical text
+resolver. It consumes prepared `LiveValues`; it does not reconstruct canonical
+values from rendered bars.
 
-### Demo
+## Demo and editor modes
 
-Demo shows artificial data for design work, independent of whether live units currently exist. Demo does not change the product model of profiles.
-
-### Unlock / Editor
-
-Unlock makes frames visible and movable. Disabled units can become visible in the editor so they can be configured.
-
-### Text Elements and Templates
-
-Text Elements are visible text objects with position, font, color, and other presentation values. Templates describe content, including tags. Product workflows should keep users close to visible text and reusable templates without forcing them to understand technical internals too early.
-
-## Workflow
-
-Canonical workflow:
-
-1. Edit a profile.
-2. Use `Save as Preset` when needed.
-3. Preview a preset.
-4. Create a new profile from a preset or apply a preset.
-5. Optionally configure automation that selects profiles.
+Demo supplies explicit preview values for design work. Unlock makes configured
+frames visible and movable when live units are absent. Neither mode changes the
+layout data model or becomes a second source of truth.
 
 ## Health Family
 
-The Health Family includes:
+The Health Family is one functional family with independent geometry:
 
-- Health Bar
-- Normal Absorb Bar
-- Healing Absorb Bar
+- Health Bar;
+- Normal Absorb Bar;
+- Healing Absorb Bar.
 
-Normal Absorb and Healing Absorb belong conceptually to the Health Family, but they are geometrically independent bars. They may look like layers or be positioned separately. No artificial product mode such as `Layer/Separate` is required.
+Health values and absorb values are prepared by the health runtime and exposed
+through `UnitFrame.LiveValues`. Text tags consume those prepared values. A
+separate incoming-heals component is not currently implemented.
 
-Canonical live values are produced by the health runtime path (`UnitFrameHealth` and `frame.LiveValues`). Visuals and text consume these values. Text does not reconstruct truth from rendered bars.
+## Cast Bar
 
-## Style / Stylist
-
-Style or Stylist is a long-term FUTURE layer for visual transformations. It is not currently part of the implemented Profile/Preset model and must not be documented as existing architecture.
-
+The committed Cast Bar supports Match Frame and Custom Width, free positioning
+with large offsets, scale-correct editor dragging, texture, color, icon, and
+CastName/CastTime text. Editor selection preview and live/detailed preview use
+the existing visual-policy path. Interruptibility-related color behavior is
+documented only to the extent implemented by the committed configuration and
+runtime; external or unmerged changes are not part of this product model.
