@@ -184,6 +184,12 @@ function AuraEvents.Register(frame, refreshFunc)
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("UNIT_AURA")
 
+    if frame._fpUnit == "player" then
+        eventFrame:RegisterEvent("WEAPON_ENCHANT_CHANGED")
+        eventFrame:RegisterEvent("WEAPON_SLOT_CHANGED")
+        eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    end
+
     if frame._fpUnit == "target" then
         eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
     elseif frame._fpUnit == "targettarget" then
@@ -201,6 +207,33 @@ function AuraEvents.Register(frame, refreshFunc)
     eventFrame:SetScript("OnEvent", function(_, event, unit, updateInfo)
         local owner = eventFrame.owner
         if not owner or not owner.config then
+            return
+        end
+
+        if event == "PLAYER_REGEN_ENABLED" then
+            local weapons = FocalPoint.WeaponEnhancements
+            local managed = owner.ManagedAuraBackend and owner.ManagedAuraBackend.PlayerBuffs
+            if weapons and (not InCombatLockdown or not InCombatLockdown())
+                and ((managed and managed.weaponConfigPending)
+                    or (not managed and weapons.IsEnabled(owner, "Buffs", owner.config.Buffs))) then
+                QueueAuraRefresh(owner, refreshFunc, 0, false)
+            end
+            return
+        end
+
+        if event == "WEAPON_ENCHANT_CHANGED" or event == "WEAPON_SLOT_CHANGED" then
+            local weapons = FocalPoint.WeaponEnhancements
+            if weapons then
+                weapons.Invalidate(owner)
+                local managed = owner.ManagedAuraBackend and owner.ManagedAuraBackend.PlayerBuffs
+                local applied = managed and managed.active and managed.weaponConfig
+                if weapons.IsEnabled(owner, "Buffs", owner.config.Buffs)
+                    or weapons.IsEnabled(owner, "Buffs", applied) then
+                    -- Native slots update themselves; this refresh selects the bounded
+                    -- container variant/budget, or the existing fallback renderer.
+                    QueueAuraRefresh(owner, refreshFunc, 0, false)
+                end
+            end
             return
         end
 
@@ -235,6 +268,7 @@ function AuraEvents.Register(frame, refreshFunc)
         end
 
         if event == "PLAYER_ENTERING_WORLD" then
+            if FocalPoint.WeaponEnhancements then FocalPoint.WeaponEnhancements.Invalidate(owner) end
             local AuraCache = FocalPoint.AuraCache or {}
             BumpReconcileToken(owner)
             if AuraCache.ClearAll then

@@ -52,6 +52,18 @@ EqualTemplates(assert(codec.Decode(assert(codec.Encode(collisionInput)))).templa
 print("PASS: key-only/value-only/both/neither dictionaries, original key/content and collision isolation")
 local defaults = ns:GetDefaultDB()
 local payload = ns.LayoutService.CopyPayload({Units=defaults.profile.Units, TextTemplates=defaults.profile.TextTemplates})
+-- Additive source option: old layouts/defaults stay off; Copy and the full
+-- export/import roundtrip below retain an explicit value even on non-player units.
+for _, unit in pairs(defaults.profile.Units) do
+    if unit.Buffs then assert(unit.Buffs.showWeaponEnhancements == nil) end
+end
+local oldPayload = ns.LayoutService.Clone(payload)
+oldPayload.Units.player.Buffs.showWeaponEnhancements = nil
+assert(ns.LayoutService.CopyPayload(oldPayload).Units.player.Buffs.showWeaponEnhancements == nil)
+assert(ns.LayoutService.NormalizePayload(oldPayload, defaults).Units.player.Buffs.showWeaponEnhancements == nil)
+payload.Units.player.Buffs.showWeaponEnhancements = true
+payload.Units.target.Buffs.showWeaponEnhancements = true
+assert(ns.LayoutService.CopyPayload(payload).Units.player.Buffs.showWeaponEnhancements == true)
 payload.Units.player.decorations = {{id="decoration1", target="FRAME", point="CENTER", texture="fp:decoration:missing", width=99}, {id="decoration2", target="PORTRAIT", point="CENTER", texture="fp:decoration:missing", width=99}}
 payload.Units.player.Texts.Health.font = "lsm:font:missing"
 payload.Units.player.Texts.Color = {enabled=true, tag="[name]", font="lsm:font:missing"}

@@ -142,6 +142,17 @@ function AuraContainer.Create(parent)
     countText:Hide()
     frame.CountText = countText
 
+    frame:SetScript("OnEnter", function(self)
+        local entry = self.AuraData
+        if entry and entry.kind == "weaponEnhancement" and not entry.preview and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetInventoryItem("player", entry.inventorySlot)
+            GameTooltip:Show()
+        end
+    end)
+    frame:SetScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
     return frame
 end
 
@@ -189,6 +200,8 @@ function AuraContainer.ApplyData(container, aura, config)
     end
 
     AuraContainer.ApplyLayout(container, config)
+    if GameTooltip and GameTooltip:IsOwned(container) then GameTooltip:Hide() end
+    container:EnableMouse(aura.kind == "weaponEnhancement" and not aura.preview)
     container.AuraData = aura
     container.BoundAuraInstanceId = aura.auraInstanceId or 0
     container.RenderState = "bound"
@@ -311,6 +324,8 @@ function AuraContainer.Clear(container)
     end
 
     container:SetScript("OnUpdate", nil)
+    if GameTooltip and GameTooltip:IsOwned(container) then GameTooltip:Hide() end
+    container:EnableMouse(false)
     container.AuraData = nil
     container.BoundAuraInstanceId = 0
     container.RenderState = "cleared"

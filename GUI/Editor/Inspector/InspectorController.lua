@@ -4976,6 +4976,19 @@ function InspectorController.Build(container, state, options)
             end, disabled, "aura_icon_size")
         end
 
+        if selectedAuraKey == "Buffs" then
+            local addWeaponOption = isScopedObject and AddPropertyCheckBoxRow or AddCheckBox
+            local label = L["OPTION_AURA_WEAPON_ENHANCEMENTS"] or "Weapon Enhancements"
+            if selectedUnit ~= "player" then
+                label = label .. " (" .. (L["OPTION_PLAYER_ONLY"] or "Player only") .. ")"
+            end
+            addWeaponOption(displaySection, label, auraConfig.showWeaponEnhancements == true, function(value)
+                if selectedUnit == "player" then
+                    SetAuraField(selectedAuraKey, "showWeaponEnhancements", value == true)
+                end
+            end, disabled or selectedUnit ~= "player", "aura_weapon_enhancements")
+        end
+
         local auraIconsPerRowControl
         if isScopedObject then
             auraIconsPerRowControl = AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_ICONS_PER_ROW"] or "Icons Per Row", 1, 20, tonumber(auraConfig.iconsPerRow) or 5, function(value)

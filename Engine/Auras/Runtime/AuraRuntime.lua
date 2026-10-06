@@ -193,7 +193,7 @@ local function ShouldUseManagedLiveRender(frame, groupKey, liveResult)
     return not IsLocalAuraPreviewSelected(frame, frame._fpUnit, groupKey)
 end
 
-local function PrepareAuraResult(frame, groupKey, auraList, groupConfig)
+local function PrepareAuraResult(frame, groupKey, auraList, groupConfig, preview)
     local AuraFilters = FocalPoint.AuraFilters or {}
     local AuraSorting = FocalPoint.AuraSorting or {}
 
@@ -208,6 +208,7 @@ local function PrepareAuraResult(frame, groupKey, auraList, groupConfig)
         allAuras = allAuras,
         visibleAuras = visibleAuras,
         sortedAuras = sortedAuras,
+        preview = preview,
     }
 end
 
@@ -236,6 +237,10 @@ local function ApplyPreparedAuraResult(prepared)
         BackendResolver.ClearManagedGroup(frame, groupKey)
     end
 
+    local weapons = FocalPoint.WeaponEnhancements
+    if weapons and (not prepared.preview or #allAuras > 0) then
+        sortedAuras = weapons.Prepend(frame, groupKey, groupConfig, sortedAuras, prepared.preview)
+    end
     if AuraRenderer.RenderGroup then
         AuraRenderer.RenderGroup(frame, groupKey, sortedAuras, groupConfig)
     end
@@ -294,7 +299,7 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
             simulatedAuras = Preview.GetTestAuras and Preview.GetTestAuras(frame, groupKey) or nil
         end
         if simulatedAuras ~= nil then
-            local preparedPreview = PrepareAuraResult(frame, groupKey, simulatedAuras, groupConfig)
+            local preparedPreview = PrepareAuraResult(frame, groupKey, simulatedAuras, groupConfig, true)
             if Demo.TouchDebug then
                 Demo.TouchDebug(frame, "auraRefresh")
             end
@@ -304,7 +309,7 @@ function AuraRuntime.RefreshAuraGroup(frame, unit, groupKey)
 
     local localPreviewAuras = ResolveLocalAuraPreview(frame, unit, groupKey)
     if localPreviewAuras ~= nil then
-        local preparedPreview = PrepareAuraResult(frame, groupKey, localPreviewAuras, groupConfig)
+        local preparedPreview = PrepareAuraResult(frame, groupKey, localPreviewAuras, groupConfig, true)
         if Demo.TouchDebug then
             Demo.TouchDebug(frame, "auraRefresh")
         end
@@ -452,5 +457,6 @@ function AuraRuntime.Reset(frame)
         BackendResolver.ClearManagedGroup(frame, "Debuffs")
     end
 
+    if FocalPoint.WeaponEnhancements then FocalPoint.WeaponEnhancements.Invalidate(frame) end
     Log(frame, "reset")
 end

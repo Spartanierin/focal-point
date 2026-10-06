@@ -106,6 +106,7 @@
     <Script file="Engine/Text/Runtime/TextElementApply.lua"/>
     <Script file="Engine/Text/Runtime/TextElementLiveValues.lua"/>
     <Script file="Engine/TextElements.lua"/>
+    <Script file="Engine/Auras/Runtime/WeaponEnhancements.lua"/>
     <Script file="Engine/Auras/Runtime/AuraScan.lua"/>
     <Script file="Engine/Auras/Runtime/AuraFilters.lua"/>
     <Script file="Engine/Auras/Runtime/AuraSorting.lua"/>

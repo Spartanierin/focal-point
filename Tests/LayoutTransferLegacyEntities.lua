@@ -39,6 +39,13 @@ local function Bad(result,code)
         error('missing diagnostic '..code)
     end
 end
+Test('additive weapon source survives explicit legacy conversion and preparation',function()
+    local source=Fixture();source.payload.Units.target.Buffs={showWeaponEnhancements=true}
+    local converted=Convert(source);assert(converted.ready)
+    assert(converted.document.payload.Units.target.Buffs.showWeaponEnhancements==true)
+    local prepared=Prepare(source);assert(prepared.ready)
+    assert(prepared.preparedLayout.payload.Units.target.Buffs.showWeaponEnhancements==true)
+end)
 Test('explicit Legacy conversion and preparation contracts exist',function()
     assert(Next.ConvertLegacyDocument and Next.PrepareLegacyImport,'E5b contracts missing')
 end)

@@ -910,7 +910,7 @@ local function BuildGroupOptions(config, definition, filterSpec, state)
         templateNames = { "CustomAuraButtonTemplate" },
         candidateFilters = filterSpec.candidateFilters,
         initializeFrame = function(button)
-            ConfigureButton(button, config, state)
+            ConfigureButton(button, state and state.buttonConfig or config, state)
         end,
     }
 end
@@ -933,6 +933,7 @@ local function BuildConfigSignature(config)
     config = config or {}
     return table.concat({
         tostring(config.enabled ~= false),
+        tostring(config.showWeaponEnhancements == true),
         tostring(config.showOnlyMine == true),
         tostring(config.showStealableOnly == true),
         tostring(config.hidePermanentAuras == true),
@@ -1005,6 +1006,101 @@ local function AddManagedAuraGroup(container, config, definition, filterSpec, st
     return false
 end
 
+local function PositionManagedContainer(container, visualRoot, config, metrics)
+    container:SetSize(ResolveIconGridWidth(metrics), ResolveIconGridHeight(metrics))
+    container:SetFrameStrata(visualRoot:GetFrameStrata())
+    container:SetFrameLevel(visualRoot:GetFrameLevel() + 1)
+    container:ClearAllPoints()
+    local timerReserve = ResolveTimerReserve(metrics)
+    local leftOverhang = metrics and metrics.leftOverhang or 0
+    local rightOverhang = metrics and metrics.rightOverhang or 0
+    local growthX = config and config.growthX or "RIGHT"
+    local growthY = config and config.growthY or "DOWN"
+    if growthX == "LEFT" and growthY == "UP" then
+        container:SetPoint("BOTTOMRIGHT", visualRoot, "BOTTOMRIGHT", -rightOverhang, timerReserve)
+    elseif growthX == "LEFT" then
+        container:SetPoint("TOPRIGHT", visualRoot, "TOPRIGHT", -rightOverhang, 0)
+    elseif growthY == "UP" then
+        container:SetPoint("BOTTOMLEFT", visualRoot, "BOTTOMLEFT", leftOverhang, timerReserve)
+    else
+        container:SetPoint("TOPLEFT", visualRoot, "TOPLEFT", leftOverhang, 0)
+    end
+    ApplyContainerFlowLayout(container, config)
+end
+
+-- Retail cannot remove/disable individual enchant slots publicly. Prebuild a
+-- bounded set (none/MH/OH/both) once, using the same native renderer and root.
+-- Selection uses public container methods, never private slot removal.
+local function PrepareWeaponVariants(state, config, definition, filterSpec, sortSpec, metrics, changed)
+    if not state.weaponVariants and not state.weaponVariantsUnavailable then
+        local base = state.baseContainer
+        local slots = AuraContainerItemEnchantmentSlot
+        if not (base.AddItemEnchantment and base.SetItemEnchantmentLayout and base.SetItemEnchantmentSortMethod
+            and base.SetEnabled and slots and AuraContainerItemEnchantmentSortMethod
+            and AuraContainerSortDirection and CustomAuraContainerItemEnchantmentPlacement) then
+            state.weaponVariantsUnavailable = true
+            return
+        end
+        state.weaponVariants = {[0] = base}
+        for mask = 1, 3 do
+            local variant = CreateManagedContainer(state.visualRoot)
+            if not variant then state.weaponVariantsUnavailable = true; break end
+            variant:Hide()
+            TryCall(variant, "SetEnabled", false)
+            state.weaponVariants[mask] = variant
+            local ok = TryCall(variant, "SetUnit", "player")
+                and AddManagedAuraGroup(variant, config, definition, filterSpec, state)
+            for bit, slot in ipairs({slots.MainHand, slots.OffHand}) do
+                if mask == 3 or mask == bit then
+                    ok = TryCall(variant, "AddItemEnchantment", slot, {
+                        templateNames = {"CustomAuraButtonTemplate"}, hidePermanent = false,
+                        initializeFrame = function(button) ConfigureButton(button, state.buttonConfig, state) end,
+                    }) and ok
+                end
+            end
+            ok = TryCall(variant, "SetItemEnchantmentSortMethod", AuraContainerItemEnchantmentSortMethod.Slot,
+                AuraContainerSortDirection.Normal) and ok
+            if not ok then state.weaponVariantsUnavailable = true; break end
+        end
+        changed = true
+    end
+    if state.weaponVariantsUnavailable or not changed then return end
+    local budget = ResolveMaxFrameCount(config)
+    for mask = 1, 3 do
+        local variant = state.weaponVariants[mask]
+        PositionManagedContainer(variant, state.visualRoot, config, metrics)
+        local auraLayout = BuildLayoutOptions(config)
+        -- The native flow already carries trailing elementSpacing across groups.
+        local enchantLayout = BuildLayoutOptions(config)
+        enchantLayout.placement = CustomAuraContainerItemEnchantmentPlacement.BeforeAuraGroups
+        local ok = TryCall(variant, "SetAuraGroupMaxFrameCount", definition.auraGroupKey, math.max(0, budget - (mask == 3 and 2 or 1)))
+            and ApplyManagedFilterSpec(variant, definition, filterSpec)
+            and ApplyManagedSortMethod(variant, definition, config, sortSpec)
+            and TryCall(variant, "SetAuraGroupLayout", definition.auraGroupKey, auraLayout)
+            and TryCall(variant, "SetItemEnchantmentLayout", enchantLayout)
+        if not ok then state.weaponVariantsUnavailable = true; return end
+    end
+end
+
+local function SelectWeaponVariant(frame, state, config)
+    local weapons = FocalPoint.WeaponEnhancements
+    local mask = weapons and weapons.GetMask(frame, config) or 0
+    local target = state.weaponVariants and state.weaponVariants[mask] or state.baseContainer
+    if mask ~= 0 and state.weaponVariantsUnavailable then return false end
+    if state.weaponVariants then
+        for _, variant in pairs(state.weaponVariants) do
+            if variant ~= target then
+                TryCall(variant, "SetEnabled", false)
+                variant:Hide()
+            end
+        end
+    end
+    state.container = target
+    if target.SetEnabled then TryCall(target, "SetEnabled", true) end
+    target:Show()
+    return true
+end
+
 function Managed.IsAvailable()
     return type(CreateFrame) == "function" and Managed.unavailable ~= true
 end
@@ -1043,6 +1139,12 @@ function Managed.ClearGroup(frame, groupKey)
         state.container:Hide()
     end
     if state then
+        if state.weaponVariants then
+            for _, variant in pairs(state.weaponVariants) do
+                TryCall(variant, "SetEnabled", false)
+                variant:Hide()
+            end
+        end
         state.active = false
     end
     HideDebugOverlay(state)
@@ -1074,6 +1176,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         state = {
             visualRoot = visualRoot,
             container = container,
+            baseContainer = container,
             configured = false,
             active = false,
             buttons = setmetatable({}, { __mode = "k" }),
@@ -1085,7 +1188,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
         HideDebugOverlay(state)
     end
 
-    local container = state.container
+    local container = state.baseContainer or state.container
     local visualRoot = state.visualRoot or container
     if not container then
         RecordDiagnostic(unit, groupKey, "managed_unavailable", 0, "container_failed", state)
@@ -1108,6 +1211,14 @@ function Managed.EnsureGroup(frame, groupKey, config)
         IncrementManagedCounter("ensureFastPath")
     end
     if InCombatLockdown and InCombatLockdown() then
+        if unit == "player" and groupKey == "Buffs" and state.configured and state.buttonConfig then
+            if state.signature ~= signature and (config.showWeaponEnhancements == true
+                or state.weaponConfig.showWeaponEnhancements == true) then
+                state.weaponConfigPending = true
+            end
+            if not SelectWeaponVariant(frame, state, state.weaponConfig) then return false end
+            container = state.container
+        end
         if state.configured and state.active and state.signature == signature then
             if visualRoot.Show then
                 visualRoot:Show()
@@ -1128,6 +1239,13 @@ function Managed.EnsureGroup(frame, groupKey, config)
         return state.configured == true
     end
 
+    state.buttonConfig = config
+    if unit == "player" and groupKey == "Buffs" then
+        state.weaponConfig = state.weaponConfig or {}
+        state.weaponConfig.showWeaponEnhancements = config.showWeaponEnhancements == true
+        state.weaponConfig.iconsPerRow = config.iconsPerRow
+        state.weaponConfig.maxRows = config.maxRows
+    end
     local width, height, _iconSize, spacingX, spacingY, iconsPerRow, metrics = ResolveBlockSize(config)
     local maxFrameCount = ResolveMaxFrameCount(config)
     local maxRows = math.max(math.floor(tonumber(config and config.maxRows) or 0), 0)
@@ -1146,25 +1264,7 @@ function Managed.EnsureGroup(frame, groupKey, config)
     visualRoot:SetFrameLevel(frame:GetFrameLevel() + 25)
     AuraBlockLayout.ApplyAnchor(visualRoot, frame, config, groupKey)
 
-    container:SetSize(ResolveIconGridWidth(metrics), ResolveIconGridHeight(metrics))
-    container:SetFrameStrata(visualRoot:GetFrameStrata())
-    container:SetFrameLevel(visualRoot:GetFrameLevel() + 1)
-    container:ClearAllPoints()
-    local timerReserve = ResolveTimerReserve(metrics)
-    local leftOverhang = metrics and metrics.leftOverhang or 0
-    local rightOverhang = metrics and metrics.rightOverhang or 0
-    local growthX = config and config.growthX or "RIGHT"
-    local growthY = config and config.growthY or "DOWN"
-    if growthX == "LEFT" and growthY == "UP" then
-        container:SetPoint("BOTTOMRIGHT", visualRoot, "BOTTOMRIGHT", -rightOverhang, timerReserve)
-    elseif growthX == "LEFT" then
-        container:SetPoint("TOPRIGHT", visualRoot, "TOPRIGHT", -rightOverhang, 0)
-    elseif growthY == "UP" then
-        container:SetPoint("BOTTOMLEFT", visualRoot, "BOTTOMLEFT", leftOverhang, timerReserve)
-    else
-        container:SetPoint("TOPLEFT", visualRoot, "TOPLEFT", leftOverhang, 0)
-    end
-    ApplyContainerFlowLayout(container, config)
+    PositionManagedContainer(container, visualRoot, config, metrics)
 
     if container.SetUnit and (not IsDerivedManagedGroup(unit, groupKey) or state.configured ~= true) then
         if not TryCall(container, "SetUnit", unit) then
@@ -1223,6 +1323,15 @@ function Managed.EnsureGroup(frame, groupKey, config)
         IncrementManagedCounter("layoutApplyFailed")
     end
 
+    if unit == "player" and groupKey == "Buffs" then
+        PrepareWeaponVariants(state, config, definition, filterSpec, sortSpec, metrics, signatureChanged)
+        if not SelectWeaponVariant(frame, state, config) then
+            Managed.ClearGroup(frame, groupKey)
+            return false
+        end
+        container = state.container
+    end
+    state.weaponConfigPending = nil
     state.active = true
     state.signature = signature
     visualRoot:Show()
