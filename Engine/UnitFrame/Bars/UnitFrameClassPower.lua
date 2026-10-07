@@ -381,6 +381,19 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
         return fallbackR, fallbackG, fallbackB
     end
 
+    if info.token == "RUNES" then
+        local spec = ToSafeNumberValue(GetSpecializationIndex())
+        local runeColors = FocalPoint.oUF and FocalPoint.oUF.colors and FocalPoint.oUF.colors.runes
+        if (spec == 1 or spec == 2 or spec == 3) and runeColors then
+            -- FP interprets Blizzard Blood/Frost/Unholy atlas art using the existing
+            -- oUF rune palette; these are not official Blizzard RGB API values.
+            local r, g, b = UnpackColorTable(runeColors[spec])
+            if r and g and b then
+                return r, g, b
+            end
+        end
+    end
+
     -- Named resource tokens are canonical; numeric aliases may name a different resource.
     local color = PowerBarColor and info.token and PowerBarColor[info.token] or nil
     if not color and PowerBarColor and info.typeId then
@@ -557,6 +570,8 @@ function ClassPower.ApplyLayout(frame, options)
         r = placeholderColors.barR or 0.24
         g = placeholderColors.barG or 0.28
         b = placeholderColors.barB or 0.34
+    elseif options.useBlizzardColorClassPower == false then
+        r, g, b = options.classPowerR, options.classPowerG, options.classPowerB
     else
         r, g, b = GetClassPowerColor(
             {

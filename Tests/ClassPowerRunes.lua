@@ -60,13 +60,14 @@ local function Frame()
     ns.UnitFrameFactory.CreateClassPowerBar(frame)
     return frame
 end
-local function Apply(frame)
+local function Apply(frame,mode,rgba)
+    rgba=rgba or {1,1,1,1}
     C.RefreshValues(ns.UnitFrame,frame)
     local info=C.GetInfo("player",frame)
-    C.ApplyLayout(frame,{classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
+    C.ApplyLayout(frame,{useBlizzardColorClassPower=mode,classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
         liveClassPowerSegments=info and info.segments,liveClassPowerCurrent=info and info.current,
         liveClassPowerMax=info and info.max,liveClassPowerType=info and info.typeId,
-        liveClassPowerToken=info and info.token,classPowerR=1,classPowerG=1,classPowerB=1,classPowerA=1})
+        liveClassPowerToken=info and info.token,classPowerR=rgba[1],classPowerG=rgba[2],classPowerB=rgba[3],classPowerA=rgba[4]})
     return info,frame.Elements.ClassPowerBar
 end
 Test("DK ordered six-state snapshot, independent timing, queued rune and aggregate",function()
@@ -129,6 +130,20 @@ Test("tenths update independently; same displayed tenth avoids redundant text wr
     now=100.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"4.9")
     assert(not h.Bars[1].Countdown:IsShown() and not h.Bars[4].Countdown:IsShown())
     now=105.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"");assert(not h:GetScript("OnUpdate"))
+end)
+Test("custom color applies equally to six runes without changing recharge state",function()
+    Defaults();PowerBarColor={RUNES={r=.2,g=.3,b=.4}}
+    local frame=Frame();local info,h=Apply(frame,false)
+    for i=1,6 do Equal(h.Bars[i].lastSetStatusBarColor,{1,1,1,1})end
+    local snapshot=Copy(info);local tick=assert(h:GetScript("OnUpdate"))
+    now=100.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"4.9")
+    Eq(h.Bars[3].Countdown:GetText(),"7.9");Equal(info,snapshot)
+    Apply(frame,true)
+    for i=1,6 do Equal(h.Bars[i].lastSetStatusBarColor,{.2,.3,.4,1})end
+    Eq(h.Bars[2].Countdown:GetText(),"4.9")
+    Apply(frame,false)
+    for i=1,6 do Equal(h.Bars[i].lastSetStatusBarColor,{1,1,1,1})end
+    Eq(h.Bars[2].Countdown:GetText(),"4.9")
 end)
 Test("timer hotpath: 600 ticks, no API/DB/template/global text calls or snapshot mutation",function()
     Defaults();for i=1,6 do cooldowns[i]={90+i,20,false}end
@@ -252,6 +267,71 @@ Test("existing aggregate providers, shard fractional fill and secondary separati
     end
     frame.LiveValues.altPowerCurrentRaw=72;frame.LiveValues.altPowerMaxRaw=100
     Defaults();Apply(frame);Eq(frame.LiveValues.altPowerCurrentRaw,72);Eq(frame.LiveValues.altPowerMaxRaw,100)
+end)
+-- Read the shipped oUF palette, rather than a second product color table.
+local paletteFile=assert(io.open("Libraries/oUF/colors.lua"));local paletteSource=paletteFile:read("*a");paletteFile:close()
+local paletteBody=assert(paletteSource:match("runes = (%b{})"))
+local runePalette=assert(load("return "..paletteBody,"@oUF.RunePalette","t",{oUF={
+    CreateColor=function(_,r,g,b)return {GetRGB=function()return r/255,g/255,b/255 end}end}}))()
+local function AssertPaint(holder,rgb,alpha)
+    for i=1,6 do Equal(holder.Bars[i].lastSetStatusBarColor,{rgb[1],rgb[2],rgb[3],alpha})end
+end
+Test("oUF Blood/Frost/Unholy colors, auto modes and spec refresh; custom ignores spec",function()
+    Defaults();local oldOUF=ns.oUF;local oldQueue=ns.UnitFrameState.QueueRefresh
+    ns.oUF={colors={runes=runePalette}};PowerBarColor={RUNES={r=.5,g=.5,b=.5}}
+    local expected={{247/255,65/255,57/255},{148/255,203/255,247/255},{173/255,235/255,66/255}}
+    local frame=Frame();local before=Copy(ns.db);local mode;local rgba={.23,.34,.45,0}
+    local function PaintNow()local info,h=Apply(frame,mode,rgba);return info,h end
+    ns.UnitFrameState.QueueRefresh=function(owner,event,scopes)
+        Eq(owner,frame);Eq(event,"PLAYER_SPECIALIZATION_CHANGED");Eq(table.concat(scopes,","),"bars,texts,layout")
+        PaintNow()
+    end
+    C.RegisterEvents(ns.UnitFrame,frame)
+    local info,h=PaintNow();local snapshot=Copy(info)
+    for _,api in ipairs({"modern","legacy"})do
+        C_SpecializationInfo=api=="modern" and {GetSpecialization=function()return spec end} or nil
+        for _,setting in ipairs({{}, {mode=true}, {mode=false}})do
+            mode=setting.mode
+            for index=1,3 do
+                spec=index
+                for _,alpha in ipairs({0,.6,1})do
+                    rgba[4]=alpha
+                    frame.ClassPowerEventFrame:GetScript("OnEvent")(frame.ClassPowerEventFrame,"PLAYER_SPECIALIZATION_CHANGED","player")
+                    AssertPaint(h,mode==false and rgba or expected[index],alpha)
+                    Eq(h.Bars[2].Countdown:GetText(),"5.0");Near(h.Bars[2]:GetValue(),.5)
+                end
+            end
+        end
+    end
+    Equal(info,snapshot);Equal(ns.db,before)
+    ns.UnitFrameState.QueueRefresh=oldQueue;ns.oUF=oldOUF;C_SpecializationInfo=nil
+end)
+Test("unknown spec or unavailable rune palette uses existing resource fallback",function()
+    Defaults();local oldOUF=ns.oUF;ns.oUF={colors={runes=runePalette}}
+    PowerBarColor={RUNES={r=.5,g=.5,b=.5}};local frame=Frame()
+    for _,unknown in ipairs({0,4,-1,1.5,"invalid"})do
+        spec=unknown;local _,h=Apply(frame,true);AssertPaint(h,{.5,.5,.5},1)
+    end
+    spec=nil;local _,h=Apply(frame);AssertPaint(h,{.5,.5,.5},1)
+    spec=1
+    for _,colors in ipairs({{}, {runes={}}, {runes={[1]={r="bad"}}}})do
+        ns.oUF={colors=colors};_,h=Apply(frame,true);AssertPaint(h,{.5,.5,.5},1)
+    end
+    ns.oUF=oldOUF
+end)
+Test("detailed rune demo follows spec; neutral placeholder ignores rune palette",function()
+    Defaults();local oldOUF=ns.oUF;ns.oUF={colors={runes=runePalette}}
+    PowerBarColor={RUNES={r=.5,g=.5,b=.5}}
+    local frame=Frame();local demo=ns.UnitFrameDemoEnvironment
+    ns.guiTestModeEnabled=true;GetRuneCooldown=function()error("demo must not read live rune API")end
+    demo.ApplyFrameSnapshot(nil,frame,{},"detailed","color-test")
+    for i=1,3 do
+        spec=i;local _,h=Apply(frame,true);AssertPaint(h,{runePalette[i]:GetRGB()},1)
+    end
+    ns.guiTestModeEnabled=false;ns.framesUnlocked=true
+    demo.ApplyFrameSnapshot(nil,frame,{},"placeholder","color-test");assert(demo.IsPlaceholder(frame))
+    local _,h=Apply(frame,true);local p=demo.GetPlaceholderColors();AssertPaint(h,{p.barR,p.barG,p.barB},p.barA)
+    ns.oUF=oldOUF;Defaults()
 end)
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 print("Class Power Runes: "..count.." groups PASS")

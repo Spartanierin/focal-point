@@ -152,12 +152,13 @@ end)
 
 Load("Engine/UnitFrame/Bars/UnitFrameClassPower.lua")
 local classPower=ns.UnitFrameClassPower
-local function Paint(token,typeId)
+local function Paint(token,typeId,mode,alpha)
     local frame=CreateFrame("Frame");frame._fpUnit="player"
     local holder=CreateFrame("Frame",nil,frame);holder.Bars={CreateFrame("StatusBar",nil,holder)}
     frame.Elements={ClassPowerBar=holder}
     classPower.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=1,liveClassPowerMax=1,
-        liveClassPowerToken=token,liveClassPowerType=typeId,classPowerR=.2,classPowerG=.3,classPowerB=.4,classPowerA=.6})
+        useBlizzardColorClassPower=mode,liveClassPowerToken=token,liveClassPowerType=typeId,
+        classPowerR=.2,classPowerG=.3,classPowerB=.4,classPowerA=alpha or .6})
     return holder.Bars[1].lastSetStatusBarColor,frame
 end
 Test("named resource colors win over numeric aliases; alpha and fallbacks remain",function()
@@ -179,7 +180,7 @@ Test("named resource colors win over numeric aliases; alpha and fallbacks remain
     Equal(Paint("UNKNOWN",98),{.6,.4,.2,.6})
     ns.oUF=nil
     Equal(Paint("UNKNOWN",98),{.2,.3,.4,.6})
-    -- Explicit classPowerColor RGB remains a fallback; alpha is not replaced.
+    -- In automatic mode, configured RGB remains a fallback; alpha is not replaced.
     -- Both live and simulated GetInfo yield the same canonical color token.
     UnitClass=function()return "Rogue","ROGUE" end
     UnitPower=function()return 3 end;UnitPowerMax=function()return 5 end

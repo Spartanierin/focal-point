@@ -79,6 +79,8 @@ local function UnpackConfiguredColor(color, fallback)
     return SanitizeRGBA(r, g, b, a, fallbackR, fallbackG, fallbackB, fallbackA)
 end
 
+Colors.UnpackConfiguredColor = UnpackConfiguredColor
+
 function Colors.IsUnitDeadByHealth(unit)
     if not unit or not UnitHealth or not UnitHealthMax then
         return false

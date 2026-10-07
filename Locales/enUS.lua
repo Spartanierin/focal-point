@@ -708,6 +708,7 @@ L["OPTION_LOW_HEALTH_COLOR_DESC"] = "Sets the health-bar color at 0% health. The
 L["OPTION_HEALTH_BACKGROUND_COLOR_DESC"] = "Sets the background color of the health bar."
 L["OPTION_USE_CLASS_COLORS"] = "Use Class Colors"
 L["OPTION_CLASS_COLOR"] = "Class Color"
+L["OPTION_BLIZZARD_STANDARD"] = "Blizzard Standard"
 L["OPTION_USE_CLASS_COLORS_HEALTH_DESC"] = "Uses the unit's Blizzard class color for the health bar and disables manual color selection."
 L["OPTION_USE_CLASS_COLORS_POWER_DESC"] = "Uses the unit's Blizzard resource color for the power bar and disables manual color selection."
 L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] = "Use Reaction Colors for NPC Health"

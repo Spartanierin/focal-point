@@ -79,6 +79,7 @@ local function Namespace(baseline)
         UnitFrameClassificationIndicator={ApplyLayout=Noop},
     }
     for _, path in ipairs({
+        "Engine/UnitFrame/Shared/UnitFrameColors.lua",
         "Engine/UnitFrame/Shared/UnitFramePreview.lua",
         "Engine/UnitFrame/Runtime/UnitFrameLayout.lua",
         "Engine/UnitFrame/Runtime/UnitFrameInsideLayout.lua",

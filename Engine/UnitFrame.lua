@@ -1059,7 +1059,7 @@ function UF:ApplyConfig(frame)
 
     local healthR, healthG, healthB, healthA = UnpackColor(config.healthColor, { 0.1, 0.8, 0.1, 1 })
     local powerR, powerG, powerB, powerA = UnpackColor(config.powerColor, { 0.2, 0.4, 0.9, 1 })
-    local classPowerR, classPowerG, classPowerB, classPowerA = UnpackColor(config.classPowerColor, { powerR, powerG, powerB, powerA })
+    local classPowerR, classPowerG, classPowerB, classPowerA = Colors.UnpackConfiguredColor(config.classPowerColor, { powerR, powerG, powerB, powerA })
 
     local healthBackgroundEnabled = config.healthBackground ~= false
     local healthBgR, healthBgG, healthBgB, healthBgA = UnpackColor(config.healthBackgroundColor, { 0, 0, 0, 0.35 })
@@ -1247,6 +1247,7 @@ function UF:ApplyConfig(frame)
         liveClassPowerToken = liveClassPowerInfo and liveClassPowerInfo.token or nil,
         liveClassPowerCurrent = liveClassPowerInfo and liveClassPowerInfo.current or 0,
         liveClassPowerMax = liveClassPowerInfo and liveClassPowerInfo.max or 0,
+        useBlizzardColorClassPower = config.useBlizzardColorClassPower,
         classPowerTexture = classPowerTexture,
         classPowerR = classPowerR,
         classPowerG = classPowerG,

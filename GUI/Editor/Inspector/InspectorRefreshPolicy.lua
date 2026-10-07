@@ -35,6 +35,7 @@ local FIELD_POLICIES = {
         showAlternativePowerBar = { scope = "section", sectionKey = "alt_power" },
         alternativePowerBackground = { scope = "section", sectionKey = "alt_power" },
         showClassPowerBar = { scope = "section", sectionKey = "class_power" },
+        useBlizzardColorClassPower = { scope = "section", sectionKey = "class_power" },
         showCastBar = { scope = "section", sectionKey = "cast" },
         castBarWidthMode = { scope = "section", sectionKey = "cast" },
         castBarWidth = { scope = "live" },

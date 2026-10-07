@@ -730,6 +730,7 @@ L["OPTION_HEALTH_ALPHA_DESC"] = "Legt die Transparenz des Gesundheitsbalkens fes
 L["OPTION_POWER_ALPHA_DESC"] = "Legt die Transparenz des Ressourcenbalkens fest, ohne die Frame-Transparenz zu ändern."
 L["OPTION_USE_CLASS_COLORS"] = "Klassenfarben verwenden"
 L["OPTION_CLASS_COLOR"] = "Klassenfarbe"
+L["OPTION_BLIZZARD_STANDARD"] = "Blizzard Standard"
 L["OPTION_USE_CLASS_COLORS_HEALTH_DESC"] = "Verwendet für den Gesundheitsbalken die Blizzard-Klassenfarbe der Einheit und deaktiviert die manuelle Farbauswahl."
 L["OPTION_USE_CLASS_COLORS_POWER_DESC"] = "Verwendet für den Ressourcenbalken die Blizzard-Ressourcenfarbe der Einheit und deaktiviert die manuelle Farbauswahl."
 L["OPTION_REACTION_COLOR"] = "Reaktionsfarbe"

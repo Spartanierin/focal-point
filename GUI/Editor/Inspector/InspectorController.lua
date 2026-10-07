@@ -3300,10 +3300,20 @@ function InspectorController.Build(container, state, options)
         if usePropertyGroups then
             AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
                 SetUnitField("classPowerColor", value)
-            end, unitConfig.showClassPowerBar ~= true)
+            end, unitConfig.showClassPowerBar ~= true or unitConfig.useBlizzardColorClassPower ~= false)
         else
             AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerColor or unitConfig.powerColor, true, function(value)
                 SetUnitField("classPowerColor", value)
+            end, unitConfig.showClassPowerBar ~= true or unitConfig.useBlizzardColorClassPower ~= false)
+        end
+
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard", unitConfig.useBlizzardColorClassPower ~= false, function(value)
+                SetUnitField("useBlizzardColorClassPower", value and true or false, rootSection)
+            end, unitConfig.showClassPowerBar ~= true)
+        else
+            AddCheckBox(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard", unitConfig.useBlizzardColorClassPower ~= false, function(value)
+                SetUnitField("useBlizzardColorClassPower", value and true or false, rootSection)
             end, unitConfig.showClassPowerBar ~= true)
         end
 

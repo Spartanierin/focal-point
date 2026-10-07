@@ -178,6 +178,7 @@ function FocalPoint:GetDefaultDB()
                         g = 0.01176470704376698,
                         b = 0,
                     },
+                    useBlizzardColorClassPower = true,
                     classPowerColor = {
                         0.8196079134941101,
                         nil,

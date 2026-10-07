@@ -3,6 +3,10 @@
 local bindings = dofile("Tests/Fixtures/LegacyTextBindings.lua")
 return function(ns, layout, preset)
     local copy = ns.LayoutService.Clone(layout)
+    -- The frozen payload predates the explicit automatic Class Power color mode.
+    -- Verify its unchanged automatic meaning before projecting only this new field.
+    assert(copy.Units.player.useBlizzardColorClassPower == true, "built-in Class Power mode changed")
+    copy.Units.player.useBlizzardColorClassPower = nil
     local function merge(a,b)
         for k,v in pairs(b or {}) do
             if type(v)=="table" then a[k]=a[k] or {};merge(a[k],v) else a[k]=v end
