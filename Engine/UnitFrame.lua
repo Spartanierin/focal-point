@@ -919,7 +919,7 @@ function UF:ApplyConfig(frame)
     local classPowerBarOffsetY = tonumber(config.classPowerBarOffsetY) or 5
     local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetSecondaryPowerValues(frame._fpUnit)
     local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil
-    local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame._fpUnit) or nil
+    local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame._fpUnit, frame) or nil
     local classPowerBarVisible = showClassPowerBar and liveClassPowerInfo ~= nil
     local borderInset = barGeometry.borderInset
 
@@ -1242,6 +1242,7 @@ function UF:ApplyConfig(frame)
         classPowerBarRelativePoint = classPowerBarRelativePoint,
         classPowerBarOffsetX = classPowerBarOffsetX,
         classPowerBarOffsetY = classPowerBarOffsetY,
+        liveClassPowerSegments = liveClassPowerInfo and liveClassPowerInfo.segments or nil,
         liveClassPowerType = liveClassPowerInfo and liveClassPowerInfo.typeId or nil,
         liveClassPowerToken = liveClassPowerInfo and liveClassPowerInfo.token or nil,
         liveClassPowerCurrent = liveClassPowerInfo and liveClassPowerInfo.current or 0,

@@ -3958,6 +3958,8 @@ function Visibility.ClearFrameContentValuesOnly(frame, reason)
             power:SetValue(0)
         end
 
+        local classPowerRuntime = FocalPoint.UnitFrameClassPower
+        if classPowerRuntime and classPowerRuntime.Clear then classPowerRuntime.Clear(frame) end
         local classPower = frame.Elements.ClassPowerBar
         if classPower then
             for index = 1, #(classPower.Bars or {}) do
@@ -4040,6 +4042,8 @@ function Visibility.ClearFrameVisualState(frame, reason)
             end
         end
 
+        local classPowerRuntime = FocalPoint.UnitFrameClassPower
+        if classPowerRuntime and classPowerRuntime.Clear then classPowerRuntime.Clear(frame) end
         local classPower = frame.Elements.ClassPowerBar
         if classPower then
             classPower:Hide()

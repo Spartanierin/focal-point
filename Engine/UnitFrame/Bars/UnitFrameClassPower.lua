@@ -27,6 +27,9 @@ local POWER_ID_ENERGY = Enum and Enum.PowerType and Enum.PowerType.Energy or 3
 local POWER_ID_ESSENCE = Enum and Enum.PowerType and Enum.PowerType.Essence or 19
 local POWER_ID_HOLY_POWER = Enum and Enum.PowerType and Enum.PowerType.HolyPower or 9
 local POWER_ID_MAELSTROM = Enum and Enum.PowerType and Enum.PowerType.Maelstrom or 11
+local POWER_ID_RUNES = Enum and Enum.PowerType and Enum.PowerType.Runes or 5
+local RUNE_COUNT = 6
+
 local POWER_ID_SOUL_SHARDS = Enum and Enum.PowerType and Enum.PowerType.SoulShards or 7
 
 local POWER_TOKEN_ARCANE_CHARGES = "ARCANE_CHARGES"
@@ -130,6 +133,48 @@ local function GetNumericPowerInfo(typeId, token, current)
     return BuildInfo(typeId, token, current, max)
 end
 
+-- Verified Retail PlayerScript/RuneFrame contract: API indices 1..6, seconds,
+-- ready flag, and possibly a depleted rune whose recharge has not started yet.
+-- Forever (Interface 16001) is deliberately excluded until its contract is verified.
+local function CanReadRunes()
+    if type(GetRuneCooldown) ~= "function" or not GetBuildInfo then return false end
+    local _, _, _, interface = GetBuildInfo()
+    return type(interface) == "number" and interface >= 120000
+        and (not WOW_PROJECT_ID or WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
+end
+
+local function IsPlainNumber(value)
+    return not (issecretvalue and issecretvalue(value))
+        and type(value) == "number" and value == value and math.abs(value) < math.huge
+end
+
+local function GetRuneInfo()
+    if not CanReadRunes() then return nil end
+    local segments, current = {}, 0
+    for index = 1, RUNE_COUNT do
+        local ok, start, duration, ready = pcall(GetRuneCooldown, index)
+        if not ok or (issecretvalue and issecretvalue(ready)) or type(ready) ~= "boolean" then
+            return nil
+        end
+        if issecretvalue and (issecretvalue(start) or issecretvalue(duration)) then return nil end
+        local segment = { index = index, ready = ready }
+        if ready then
+            current = current + 1
+        elseif start ~= nil then
+            if not IsPlainNumber(start) or not IsPlainNumber(duration) or start < 0 or duration < 0 then
+                return nil
+            end
+            if duration > 0 then
+                segment.startTime, segment.duration = start, duration
+            end
+        end
+        segments[index] = segment
+    end
+    local info = BuildInfo(POWER_ID_RUNES, "RUNES", current, RUNE_COUNT)
+    info.segments = segments
+    return info
+end
+
 local function GetWarlockSoulShards()
     if not UnitPower then
         return 0
@@ -180,7 +225,9 @@ local function GetLiveClassPowerInfo()
         return nil
     end
 
-    if classToken == "DEMONHUNTER" then
+    if classToken == "DEATHKNIGHT" then
+        return GetRuneInfo()
+    elseif classToken == "DEMONHUNTER" then
         return GetDemonHunterSoulFragmentsInfo()
     elseif classToken == "DRUID" then
         if UnitPowerType and UnitPowerType("player") == POWER_ID_ENERGY and IsKnownSpell(SPELL_SHRED) then
@@ -250,8 +297,31 @@ function ClassPower.ShouldForcePreview(unit)
     return false
 end
 
-local function GetPreviewClassPowerInfo()
+local function GetPreviewClassPowerInfo(frame)
     local classToken = GetPlayerClassToken()
+    if classToken == "DEATHKNIGHT" then
+        local info = frame and frame._classPowerPreviewInfo
+        local now = GetTime()
+        if not info then
+            info = BuildInfo(POWER_ID_RUNES, "RUNES", 3, RUNE_COUNT)
+            info.segments = {}
+            for index = 1, RUNE_COUNT do
+                info.segments[index] = { index = index, ready = index <= 3,
+                    startTime = index > 3 and (now - (index - 4) * 2) or nil,
+                    duration = index > 3 and 10 or nil }
+            end
+            if frame then frame._classPowerPreviewInfo = info end
+        end
+        local current = 0
+        for _, segment in ipairs(info.segments) do
+            if not segment.ready and now >= segment.startTime + segment.duration then
+                segment.ready, segment.startTime, segment.duration = true, nil, nil
+            end
+            if segment.ready then current = current + 1 end
+        end
+        info.current, info.safeCurrent = current, current
+        return info
+    end
     local previewInfo = PREVIEW_INFO_BY_CLASS[classToken or ""] or {
         current = 3,
         max = 5,
@@ -262,20 +332,25 @@ local function GetPreviewClassPowerInfo()
     return BuildInfo(previewInfo.typeId, previewInfo.token, previewInfo.current, previewInfo.max)
 end
 
-function ClassPower.GetInfo(unit)
+function ClassPower.GetInfo(unit, frame)
     if unit ~= "player" then
         return nil
     end
 
+    -- Detailed DK preview owns a stable synthetic snapshot, independent of APIs.
+    if GetPlayerClassToken() == "DEATHKNIGHT" and Demo.IsDetailed and Demo.IsDetailed(frame or { unit = unit }) then
+        return GetPreviewClassPowerInfo(frame)
+    end
     local liveInfo = GetLiveClassPowerInfo()
     if liveInfo then
+        if frame then frame._classPowerPreviewInfo = nil end
         return liveInfo
     end
 
     if ClassPower.ShouldForcePreview(unit) then
-        return GetPreviewClassPowerInfo()
+        return GetPreviewClassPowerInfo(frame)
     end
-
+    if frame then frame._classPowerPreviewInfo = nil end
     return nil
 end
 
@@ -333,9 +408,11 @@ function ClassPower.RefreshValues(owner, frame)
         return
     end
 
-    local info = ClassPower.GetInfo(frame._fpUnit)
+    local info = ClassPower.GetInfo(frame._fpUnit, frame)
     frame.LiveValues = frame.LiveValues or {}
 
+    if not info or not info.segments then ClassPower.Clear(frame) end
+    frame.LiveValues.classPowerSegments = info and info.segments or nil
     if not info then
         frame.LiveValues.classPowerVisible = false
         frame.LiveValues.classPowerCurrentRaw = 0
@@ -364,6 +441,73 @@ function ClassPower.RefreshValues(owner, frame)
     frame.LiveValues.classPowerToken = info.token
 end
 
+-- Same local visual-driver pattern as CastRuntime: cached timing only, no API,
+-- DB, templates, allocations of state tables, or global refresh in OnUpdate.
+local function UpdateSegments(holder)
+    local segments = holder.segments
+    if not segments or not holder:IsVisible() then
+        holder:SetScript("OnUpdate", nil)
+        return
+    end
+    local now, active = GetTime(), false
+    for index = 1, #segments do
+        local segment, bar = segments[index], holder.Bars[index]
+        local remaining = segment.startTime and math.max(0, segment.startTime + segment.duration - now) or nil
+        local charging = not segment.ready and remaining and remaining > 0
+        if charging then
+            bar:SetValue(math.max(0, math.min(1, (now - segment.startTime) / segment.duration)))
+            local seconds = math.ceil(remaining)
+            if bar._countdownSeconds ~= seconds then
+                bar.Countdown:SetText(tostring(seconds))
+                bar._countdownSeconds = seconds
+            end
+            bar.Countdown:Show()
+            active = true
+        else
+            bar:SetValue((segment.ready or remaining == 0) and 1 or 0)
+            bar.Countdown:SetText("")
+            bar.Countdown:Hide()
+            bar._countdownSeconds = nil
+        end
+    end
+    holder:SetScript("OnUpdate", active and UpdateSegments or nil)
+end
+
+function ClassPower.Clear(frame)
+    if not frame then return end
+    frame._classPowerPreviewInfo = nil
+    if frame.LiveValues then frame.LiveValues.classPowerSegments = nil end
+    local holder = frame.Elements and frame.Elements.ClassPowerBar
+    if not holder or not holder._segmentTimingInitialized then return end
+    local hadSegments = holder.segments ~= nil
+    holder.segments = nil
+    holder:SetScript("OnUpdate", nil)
+    for _, bar in ipairs(holder.Bars or {}) do
+        if hadSegments then bar:SetValue(0) end
+        bar._countdownSeconds = nil
+        if bar.Countdown then
+            bar.Countdown:SetText("")
+            bar.Countdown:Hide()
+        end
+    end
+end
+
+local function PrepareSegmentWidgets(holder)
+    if holder._segmentTimingInitialized then return end
+    holder._segmentTimingInitialized = true
+    -- FontStrings belong to the existing bars, never to frame.Texts or entities.
+    for _, bar in ipairs(holder.Bars) do
+        local text = bar:CreateFontString(nil, "OVERLAY")
+        text:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+        text:SetPoint("CENTER", bar, "CENTER", 0, 0)
+        text:SetTextColor(1, 1, 1, 1)
+        text:Hide()
+        bar.Countdown = text
+    end
+    holder:HookScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+    holder:HookScript("OnShow", UpdateSegments)
+end
+
 function ClassPower.ApplyLayout(frame, options)
     if not frame or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
@@ -376,11 +520,16 @@ function ClassPower.ApplyLayout(frame, options)
     holder:ClearAllPoints()
 
     if not isVisible then
+        ClassPower.Clear(frame)
         holder:Hide()
         for index = 1, #bars do
             bars[index]:Hide()
         end
         return
+    end
+
+    if not options.liveClassPowerSegments then
+        ClassPower.Clear(frame)
     end
 
     local width = math.max(40, tonumber(options.classPowerBarWidth) or 100)
@@ -470,6 +619,11 @@ function ClassPower.ApplyLayout(frame, options)
             bar:Hide()
         end
     end
+    if options.liveClassPowerSegments then
+        PrepareSegmentWidgets(holder)
+        holder.segments = options.liveClassPowerSegments
+        UpdateSegments(holder)
+    end
 end
 
 function ClassPower.RegisterEvents(owner, frame)
@@ -480,6 +634,12 @@ function ClassPower.RegisterEvents(owner, frame)
     local eventFrame = CreateFrame("Frame", nil, frame)
     eventFrame.owner = frame
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    if CanReadRunes() and GetPlayerClassToken() == "DEATHKNIGHT" then
+        eventFrame:RegisterEvent("RUNE_POWER_UPDATE")
+        eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+        eventFrame:RegisterEvent("PLAYER_ALIVE")
+        eventFrame:RegisterEvent("PLAYER_UNGHOST")
+    end
     eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
     eventFrame:RegisterEvent("SPELLS_CHANGED")
     eventFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
