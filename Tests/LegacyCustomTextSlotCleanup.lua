@@ -165,9 +165,12 @@ Test('Activate-and-go and Add Object remain intact',function()
         if type(value)~='table' then return value end
         local result={}; for k,v in pairs(value) do result[k]=CopyTable(v) end; return result
     end
+    -- Initial defaults belong to creation, never to a later runtime build.
+    local defaults=ns:GetDefaultDB().profile.Units.player.Texts
+    assert(defaults.AltPower and defaults.ClassPower)
     local unit={showAlternativePowerBar=true,showClassPowerBar=true,Texts={}}
-    ns.UnitFrameBuild.EnsurePlayerAltPowerText(unit); ns.UnitFrameBuild.EnsurePlayerClassPowerText(unit)
-    assert(unit.Texts.AltPower and unit.Texts.ClassPower and Count(unit.Texts)==2)
+    local projected=ns.LayoutService.NormalizePayload({Units={player=unit}},ns:GetDefaultDB())
+    assert(next(projected.Units.player.Texts)==nil)
     local db={char={activeLayoutId='layout:test'},global={UserLayouts={['layout:test']={formatVersion=2,payload={Units={player=unit}}}}}}
     local context={db=db,expectedLayoutId='layout:test'}
     local r=ns.TextTemplateMutations.CreateTextFromTemplate(context,'player','tpl:b:default-013')

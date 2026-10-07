@@ -306,9 +306,10 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
         return fallbackR, fallbackG, fallbackB
     end
 
-    local color = PowerBarColor and info.typeId and PowerBarColor[info.typeId] or nil
-    if not color and PowerBarColor and info.token then
-        color = PowerBarColor[info.token]
+    -- Named resource tokens are canonical; numeric aliases may name a different resource.
+    local color = PowerBarColor and info.token and PowerBarColor[info.token] or nil
+    if not color and PowerBarColor and info.typeId then
+        color = PowerBarColor[info.typeId]
     end
     if not color and FocalPoint.oUF and FocalPoint.oUF.colors and FocalPoint.oUF.colors.power then
         color = FocalPoint.oUF.colors.power[info.token] or FocalPoint.oUF.colors.power[info.typeId]

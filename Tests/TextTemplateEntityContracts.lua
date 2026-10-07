@@ -150,7 +150,7 @@ Test('main assign/local/local preserve object keys, states, style and compositio
     assert(payload.composition == composition and text.enabled == false and text.fontSize == 17)
     assert(Equal(texts.duplicate, other) and text.templateName == nil)
 end)
-Test('main and state failures are atomic; context/layout/role safety', function()
+Test('main and state failures are atomic; context/layout safety', function()
     local db, ctx, text = Fixture()
     FailUnchanged(db, function() return M.AssignMainTemplate(ctx, 'player', 'Health', missing) end)
     FailUnchanged(db, function() return M.AssignMainTemplate(ctx, 'player', 'missing', A) end)
@@ -161,7 +161,8 @@ Test('main and state failures are atomic; context/layout/role safety', function(
     FailUnchanged(db, function() return M.AssignMainTemplate(ctx, 'player', 'Health', A) end, 'readonly_layout')
     ctx.expectedLayoutId = 'layout:A'; db.char.activeLayoutId = ctx.expectedLayoutId
     text.role = 'classpower'
-    FailUnchanged(db, function() return M.SetLocalMainContent(ctx, 'player', 'Health', 'x') end, 'unsupported_text_role')
+    Ok(M.SetLocalMainContent(ctx, 'player', 'Health', 'x'))
+    assert(text.role == 'classpower' and text.tag == 'x' and text.templateId == nil)
 end)
 Test('state assign/unassign preserves main and object; no false/ghost FK', function()
     local db, ctx, text = Fixture()

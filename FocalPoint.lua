@@ -541,13 +541,6 @@ local function EnsureAlternativePowerDefaults()
                     unitDB[key] = unitDefaults[key]
                 end
             end
-
-            if type(unitDefaults.Texts) == "table" then
-                unitDB.Texts = unitDB.Texts or {}
-                if unitDB.Texts.AltPower == nil and unitDefaults.Texts.AltPower ~= nil then
-                    unitDB.Texts.AltPower = CopyTable(unitDefaults.Texts.AltPower)
-                end
-            end
         end
     end
 end

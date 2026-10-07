@@ -188,8 +188,6 @@ local cases={
     {"invalid template value",function(c,p) ns.db.global.TextTemplates[ids.Health]={} end,"invalid-template-name"},
     {"empty template value",function(c,p) ns.db.global.TextTemplates[ids.Health].content="" end,"invalid_template_text"},
     {"blank template value",function(c,p) ns.db.global.TextTemplates[ids.Health].content=" \t\n" end,"invalid_template_text"},
-    {"explicit altpower",function(c,p,t) t.role="altpower" end,"unsupported_text_role"},
-    {"explicit classpower",function(c,p,t) t.role="classpower" end,"unsupported_text_role"},
 }
 for operation,run in pairs(operations) do
     for _,case in ipairs(cases) do
@@ -203,16 +201,26 @@ for operation,run in pairs(operations) do
         end)
     end
     for _,key in ipairs({"AltPower","ClassPower"}) do
-        Test(operation..": implicit legacy "..key.." role rejected",function()
+        Test(operation..": implicit resource role "..key.." supports main content",function()
             local context,payload,text=Fixture();text.role=nil;payload.Units.player.Texts[key]=text
-            local before=clone(ns.db);local result=run(context,"player",key)
-            assert(not result.ok and result.errorCode=="unsupported_text_role")
-            assert(Equal(ns.db,before))
+            local before=clone(payload);local states=text.stateTemplateIds
+            local result=run(context,"player",key)
+            assert(result.ok, result.errorCode)
+            if operation~="read" then
+                for _,k in ipairs({key,"text_1"}) do
+                    before.Units.player.Texts[k].templateId=operation=="shared" and ids.Health or nil
+                    before.Units.player.Texts[k].tag=operation=="shared" and "" or "LOCAL"
+                end
+            else
+                assert(result.expression=="CURRENT")
+            end
+            assert(Equal(payload,before) and text.stateTemplateIds==states)
+            assert(payload.Units.player.Texts[key]==text)
         end)
     end
 end
 for index,case in ipairs(cases) do
-    if index<=6 or index>=11 then
+    if index<=6 then
         Test("Local save: "..case[1].." leaves database unchanged",function()
             local context,payload,text=Fixture();text.templateId=nil;text.tag="OLD"
             local replacement=case[2](context,payload,text)
@@ -224,11 +232,20 @@ for index,case in ipairs(cases) do
     end
 end
 for _,key in ipairs({"AltPower","ClassPower"}) do
-    Test("Local save: implicit legacy role "..key.." rejected",function()
-        local context,payload,text=Fixture();text.templateId=nil;text.role=nil
-        payload.Units.player.Texts[key]=text;local before=clone(ns.db)
-        local result=mutations.SetLocalMainContent(context,"player",key,"NEW")
-        assert(not result.ok and result.errorCode=="unsupported_text_role" and Equal(ns.db,before))
+    Test("resource role "..key.." preserves identity, states and transfer",function()
+        local context,payload,text=Fixture()
+        text.role=key=="AltPower" and "altpower" or "classpower"
+        text.anchorTo=key=="AltPower" and "AlternativePowerBar" or "ClassPowerBar"
+        local before=clone(payload);local states=text.stateTemplateIds
+        assert(mutations.AssignMainTemplate(context,"player","text_1",ids.Ghost).ok)
+        Retained(payload,text,before,states,ids.Ghost,"")
+        Roundtrips(payload)
+        before=clone(payload)
+        assert(mutations.SetLocalMainContent(context,"player","text_1","NEW").ok)
+        Retained(payload,text,before,states,nil,"NEW")
+        before=clone(payload)
+        assert(mutations.SetLocalMainContent(context,"player","text_1","AGAIN").ok)
+        Retained(payload,text,before,states,nil,"AGAIN")
     end)
 end
 for _,value in ipairs({false,""," \t\n"}) do
@@ -264,17 +281,23 @@ end)
 for _,mode in ipairs({"layout","object","payload","template"}) do
     Test("recheck before commit detects changed "..mode,function()
         local context,payload,text=Fixture();local original=clone(text)
-        local resolve=ns.TextElementRoles.Resolve
-        ns.TextElementRoles.Resolve=function(...)
-            local role=resolve(...)
+        -- Inject at entity lookup, which still runs after target capture. Role
+        -- resolution no longer participates in main-content permission checks.
+        local library=ns.TextTemplateLibrary
+        local resolve=library.ResolveTemplateEntity
+        local injected=false
+        library.ResolveTemplateEntity=function(...)
+            local entity,reason=resolve(...)
+            injected=true
             if mode=="layout" then ns.db.char.activeLayoutId="layout:other"
             elseif mode=="object" then payload.Units.player.Texts.text_1=clone(text)
             elseif mode=="payload" then ns.db.global.UserLayouts["layout:test"].payload=clone(payload)
             else ns.db.global.TextTemplates[ids.Health].content="" end
-            return role
+            return entity,reason
         end
         local ok,result=pcall(mutations.AssignMainTemplate,context,"player","text_1",ids.Health)
-        ns.TextElementRoles.Resolve=resolve
+        library.ResolveTemplateEntity=resolve
+        assert(injected,"stale-target injection did not execute")
         assert(ok,result);assert(not result.ok,"stale target accepted")
         assert(Equal(text,original),"old object written after identity change")
         assert(ns.db.global.UserLayouts["layout:test"].payload.Units.player.Texts.text_1.tag=="OLD SNAPSHOT")

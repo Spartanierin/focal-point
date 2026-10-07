@@ -103,8 +103,6 @@ local ApplyBaseFrameLayout = Layout.ApplyBaseFrame
 local ApplyHealthAndPowerLayout = BarLayout.ApplyHealthAndPower
 local ApplyAlternativePowerLayout = BarLayout.ApplyAlternativePower
 local ApplyClassPowerLayout = ClassPower.ApplyLayout
-local EnsurePlayerAltPowerText = BuildRuntime.EnsurePlayerAltPowerText
-local EnsurePlayerClassPowerText = BuildRuntime.EnsurePlayerClassPowerText
 local BuildElements = BuildRuntime.CreateElements
 local RegisterBuildEvents = BuildRuntime.RegisterEvents
 local ApplyRefreshFlow = RefreshRuntime.Apply
@@ -1929,13 +1927,6 @@ function UF:Build(unit, options)
             error(string.format("Build step failed for %s [%s]: %s", tostring(unit), tostring(label), tostring(result)))
         end
         return result
-    end
-
-    if unit == "player" and config.showAlternativePowerBar then
-        EnsurePlayerAltPowerText(config)
-    end
-    if unit == "player" and config.showClassPowerBar then
-        EnsurePlayerClassPowerText(config)
     end
 
     local frame = RunBuildStep("CreateBaseFrame", function()

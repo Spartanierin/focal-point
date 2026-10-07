@@ -544,8 +544,6 @@ function Update.UpdateElement(frame, key, deps)
         local UnpackColor = deps.UnpackColor
         local GetLiveValue = deps.GetLiveValue
         local ToSafeNumber = deps.ToSafeNumber
-        local GetSecondaryPowerDisplayValues = deps.GetSecondaryPowerDisplayValues
-        local FormatNumber = deps.FormatNumber
         local TemplateContainsToken = deps.TemplateContainsToken
         local GetClassTextColor = deps.GetClassTextColor
         local ApplyDirectTemplate = deps.ApplyDirectTemplate
@@ -594,69 +592,24 @@ function Update.UpdateElement(frame, key, deps)
             return
         end
 
-        local altPowerType = GetLiveValue and GetLiveValue(frame, "altPowerType", nil) or nil
-        local altPowerMaxRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxRaw", 0) or 0) or 0
-        local altPowerCurrentRaw = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentRaw", 0) or 0) or 0
-        local altPowerVisible = GetLiveValue and GetLiveValue(frame, "altPowerVisible", false) or false
-        local altPowerCurrentSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerCurrentSafe", 0) or 0) or 0
-        local altPowerMaxSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxSafe", 0) or 0) or 0
-        local altPowerCurrentText = GetLiveValue and GetLiveValue(frame, "altPowerCurrentText", nil) or nil
-        local altPowerMaxText = GetLiveValue and GetLiveValue(frame, "altPowerMaxText", nil) or nil
-        local altPowerAvailable = altPowerType ~= nil and ToSafeNumber and ToSafeNumber(altPowerMaxRaw) > 0
-        local classPowerVisible = GetLiveValue and GetLiveValue(frame, "classPowerVisible", false) or false
-        local classPowerMaxSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerMaxSafe", 0) or 0) or 0
-        local classPowerCurrentSafe = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerCurrentSafe", 0) or 0) or 0
-        local classPowerCurrentText = GetLiveValue and GetLiveValue(frame, "classPowerCurrentText", nil) or nil
-        local classPowerMaxText = GetLiveValue and GetLiveValue(frame, "classPowerMaxText", nil) or nil
-
+        -- Resource roles own availability, not content. Render their configured
+        -- entity/local expression through the same resolver as other text objects.
         if textRole == "altpower" then
-            textObject:SetTextColor(r, g, b, a)
-            local livePowerType, liveCurrentText, liveMaxText, liveMaxNumber = GetSecondaryPowerDisplayValues and GetSecondaryPowerDisplayValues(frame._fpUnit)
-            liveMaxNumber = ToSafeNumber and ToSafeNumber(liveMaxNumber) or 0
-            liveCurrentText = type(liveCurrentText) == "string" and liveCurrentText or "0"
-            liveMaxText = type(liveMaxText) == "string" and liveMaxText or "0"
-
-            if livePowerType ~= nil and liveMaxNumber > 0 then
-                ApplyOverflow(textObject, liveCurrentText .. " / " .. liveMaxText, textConfig.overflowMode)
-                textObject:Show()
-            elseif altPowerVisible and (ToSafeNumber and ToSafeNumber(altPowerMaxSafe) or 0) > 0 then
-                ApplyOverflow(
-                    textObject,
-                    (type(altPowerCurrentText) == "string" and altPowerCurrentText or (FormatNumber and FormatNumber(altPowerCurrentSafe) or altPowerCurrentSafe))
-                        .. " / " ..
-                    (type(altPowerMaxText) == "string" and altPowerMaxText or (FormatNumber and FormatNumber(altPowerMaxSafe) or altPowerMaxSafe)),
-                    textConfig.overflowMode
-                )
-                textObject:Show()
-            elseif altPowerAvailable then
-                ApplyOverflow(
-                    textObject,
-                    (FormatNumber and FormatNumber(altPowerCurrentRaw) or altPowerCurrentRaw) .. " / " .. (FormatNumber and FormatNumber(altPowerMaxRaw) or altPowerMaxRaw),
-                    textConfig.overflowMode
-                )
-                textObject:Show()
-            else
-                textObject:SetText("")
+            local visible = GetLiveValue and GetLiveValue(frame, "altPowerVisible", false)
+            local powerType = GetLiveValue and GetLiveValue(frame, "altPowerType", nil)
+            local safeMax = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxSafe", 0) or 0) or 0
+            local rawMax = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "altPowerMaxRaw", 0) or 0) or 0
+            if not ((visible and safeMax > 0) or (powerType ~= nil and rawMax > 0)) then
+                ClearAndHideText(textObject)
+                return
             end
-            return
-        end
-
-        if textRole == "classpower" then
-            textObject:SetTextColor(r, g, b, a)
-
-            if classPowerVisible and (ToSafeNumber and ToSafeNumber(classPowerMaxSafe) or 0) > 0 then
-                ApplyOverflow(
-                    textObject,
-                    (type(classPowerCurrentText) == "string" and classPowerCurrentText or (FormatNumber and FormatNumber(classPowerCurrentSafe) or classPowerCurrentSafe))
-                        .. " / " ..
-                    (type(classPowerMaxText) == "string" and classPowerMaxText or (FormatNumber and FormatNumber(classPowerMaxSafe) or classPowerMaxSafe)),
-                    textConfig.overflowMode
-                )
-                textObject:Show()
-            else
-                textObject:SetText("")
+        elseif textRole == "classpower" then
+            local visible = GetLiveValue and GetLiveValue(frame, "classPowerVisible", false)
+            local max = ToSafeNumber and ToSafeNumber(GetLiveValue and GetLiveValue(frame, "classPowerMaxSafe", 0) or 0) or 0
+            if not visible or max <= 0 then
+                ClearAndHideText(textObject)
+                return
             end
-            return
         end
 
         if textRole == "class" or (TemplateContainsToken and TemplateContainsToken(template, "class")) then

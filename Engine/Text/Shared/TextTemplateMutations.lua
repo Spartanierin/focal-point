@@ -445,10 +445,6 @@ local function ResolveMainContentTarget(context, unitKey, textKey, contract, sta
             target.stateSnapshot[state] = id
         end
     end
-    local role = roles.Resolve(textKey, textConfig)
-    if not stateOperation and (role == "altpower" or role == "classpower") then
-        return nil, "unsupported_text_role"
-    end
     return target
 end
 

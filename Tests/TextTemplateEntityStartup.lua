@@ -51,10 +51,24 @@ end
 local result=Start(LegacyDB())
 assert(result.ok and ns.entityStartupReady and calls.automation==1 and calls.StartTagTicker==1 and calls.SpawnUnitFrame==11)
 assert(ns.db.global.TextTemplateEntityMigration.complete)
+-- Canonical absence survives the real AceDB initialize/enable login path.
+Load("GUI/Editor/Inspector/InspectorMutations.lua")
+local resourceUnit
+for _,record in pairs(ns.db.global.UserLayouts) do
+    if record.payload.Units.player then resourceUnit=record.payload.Units.player;break end
+end
+assert(resourceUnit)
+resourceUnit.showAlternativePowerBar=true;resourceUnit.showClassPowerBar=true
+local resourceDefaults=ns:GetDefaultDB().profile.Units.player.Texts
+for _,key in ipairs({"AltPower","ClassPower"}) do
+    resourceUnit.Texts[key]=Copy(resourceDefaults[key])
+    assert(ns.InspectorMutations.DeleteTextInstance({unitKey="player",unitConfig=resourceUnit},key).ok)
+end
 local before=Copy(ns.db.global);local roots=ns.db.global.UserLayouts
 calls={};ns.Ace:OnInitialize();ns.Ace:OnEnable()
 assert(ns.entityStartupDiagnostic.ok and not ns.entityStartupDiagnostic.changed)
 assert(Equal(before,ns.db.global) and roots==ns.db.global.UserLayouts)
+assert(resourceUnit.Texts.AltPower==nil and resourceUnit.Texts.ClassPower==nil)
 for _,name in ipairs({"OnProfileChanged","OnProfileCopied","OnProfileReset"})do
     local count=0;ns.RefreshProfileSettings=function()count=count+1;return true end
     ns.db.callbacks:Fire(name,ns.db);assert(count==1 and Equal(before,ns.db.global))
