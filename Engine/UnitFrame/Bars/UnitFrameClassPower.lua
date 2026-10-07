@@ -456,9 +456,10 @@ local function UpdateSegments(holder)
         local charging = not segment.ready and remaining and remaining > 0
         if charging then
             bar:SetValue(math.max(0, math.min(1, (now - segment.startTime) / segment.duration)))
-            local seconds = math.ceil(remaining)
+            -- Cache the displayed tenth; positive recharge never displays 0.0.
+            local seconds = math.max(0.1, math.floor(remaining * 10 + 0.5) / 10)
             if bar._countdownSeconds ~= seconds then
-                bar.Countdown:SetText(tostring(seconds))
+                bar.Countdown:SetText(string.format("%.1f", seconds))
                 bar._countdownSeconds = seconds
             end
             bar.Countdown:Show()

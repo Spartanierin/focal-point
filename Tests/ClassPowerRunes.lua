@@ -99,14 +99,36 @@ Test("independent fill and timer, ready and queued without countdown, expiry sto
     Defaults();local frame=Frame();local info,h=Apply(frame)
     for i=1,10 do Eq(h.Bars[i]:IsShown(),i<=6)end
     Eq(h.Bars[1]:GetValue(),1);assert(not h.Bars[1].Countdown:IsShown())
-    Near(h.Bars[2]:GetValue(),.5);Eq(h.Bars[2].Countdown:GetText(),"5")
-    Near(h.Bars[3]:GetValue(),.2);Eq(h.Bars[3].Countdown:GetText(),"8")
+    Near(h.Bars[2]:GetValue(),.5);Eq(h.Bars[2].Countdown:GetText(),"5.0")
+    Near(h.Bars[3]:GetValue(),.2);Eq(h.Bars[3].Countdown:GetText(),"8.0")
     Eq(h.Bars[4]:GetValue(),0);assert(not h.Bars[4].Countdown:IsShown())
     local oldSnapshot=Copy(info);local updates=h:GetScript("OnUpdate");assert(updates)
     now=105;updates(h);Eq(h.Bars[2]:GetValue(),1);assert(not h.Bars[2].Countdown:IsShown())
-    assert(h:GetScript("OnUpdate"));Eq(h.Bars[3].Countdown:GetText(),"3")
+    assert(h:GetScript("OnUpdate"));Eq(h.Bars[3].Countdown:GetText(),"3.0")
     now=109;updates(h);assert(not h:GetScript("OnUpdate"))
     Eq(h.Bars[4]:GetValue(),0);Equal(info,oldSnapshot) -- renderer never rewrites API truth
+end)
+Test("tenths update independently; same displayed tenth avoids redundant text writes",function()
+    Defaults();local frame=Frame();local _,h=Apply(frame);local tick=assert(h:GetScript("OnUpdate"))
+    local text=h.Bars[2].Countdown;local setText=text.SetText;local writes=0
+    text.SetText=function(self,value)writes=writes+1;setText(self,value)end
+    now=100.01;tick(h);Eq(text:GetText(),"5.0");Eq(writes,0)
+    now=100.1;tick(h);Eq(text:GetText(),"4.9");Eq(writes,1)
+    Eq(h.Bars[3].Countdown:GetText(),"7.9");Eq(h.Bars[6].Countdown:GetText(),"6.9")
+    now=100.11;tick(h);Eq(writes,1)
+    now=100.2;tick(h);Eq(text:GetText(),"4.8");Eq(writes,2)
+    now=104.99;tick(h);Eq(text:GetText(),"0.1");assert(text:IsShown())
+    now=105;tick(h);Eq(text:GetText(),"");assert(not text:IsShown())
+    Eq(h.Bars[3].Countdown:GetText(),"3.0");assert(h:GetScript("OnUpdate"))
+    now=109;tick(h);assert(not h:GetScript("OnUpdate"))
+    for i=1,6 do Eq(h.Bars[i].Countdown:GetText(),"");assert(not h.Bars[i].Countdown:IsShown())end
+    -- A single active recharge has the same rounding and final stop contract.
+    Defaults();for i=1,6 do cooldowns[i]={0,0,true}end
+    cooldowns[2]={95,10,false};cooldowns[4]={nil,nil,false}
+    frame=Frame();_,h=Apply(frame);tick=assert(h:GetScript("OnUpdate"))
+    now=100.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"4.9")
+    assert(not h.Bars[1].Countdown:IsShown() and not h.Bars[4].Countdown:IsShown())
+    now=105.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"");assert(not h:GetScript("OnUpdate"))
 end)
 Test("timer hotpath: 600 ticks, no API/DB/template/global text calls or snapshot mutation",function()
     Defaults();for i=1,6 do cooldowns[i]={90+i,20,false}end
@@ -148,7 +170,7 @@ end)
 Test("hidden holder stops timing, re-show computes from same cached timing",function()
     Defaults();local frame=Frame();local _,h=Apply(frame)
     h:Hide();assert(not h:GetScript("OnUpdate"));now=102;h:Show()
-    assert(h:GetScript("OnUpdate"));Eq(h.Bars[2].Countdown:GetText(),"3")
+    assert(h:GetScript("OnUpdate"));Eq(h.Bars[2].Countdown:GetText(),"3.0")
     now=120;h:Hide();h:Show();assert(not h:GetScript("OnUpdate"))
 end)
 Test("Detailed DK preview independent of API, stable starts, live return and placeholder",function()
