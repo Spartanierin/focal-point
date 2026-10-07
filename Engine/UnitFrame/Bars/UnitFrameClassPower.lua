@@ -416,6 +416,125 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
     return fallbackR, fallbackG, fallbackB
 end
 
+-- Presentation-only baseline and event evidence; never a second rune provider.
+local function StopSegmentHighlight(bar)
+    if not bar.ReadyHighlight then return end
+    bar.ReadyHighlight.animation:Stop()
+    bar.ReadyHighlight:SetAlpha(0)
+    bar.ReadyHighlight:Hide()
+end
+
+local function ResetHighlights(holder)
+    if not holder then return end
+    holder._readyTransitions = nil
+    for _, bar in ipairs(holder.Bars or {}) do StopSegmentHighlight(bar) end
+end
+
+local function PlaySegmentHighlight(bar)
+    if not bar or not bar:IsVisible() then
+        return
+    end
+    local r, g, b, a = bar:GetStatusBarColor()
+    if not a or a <= 0 then return end
+    local texture = bar.ReadyHighlight
+    if not texture then
+        texture = bar:CreateTexture(nil, "OVERLAY")
+        texture:SetTexture("Interface\\Buttons\\WHITE8X8")
+        texture:SetAllPoints(bar)
+        local animation = texture:CreateAnimationGroup()
+        animation:SetLooping("NONE")
+        local fadeIn = animation:CreateAnimation("Alpha")
+        fadeIn:SetOrder(1)
+        fadeIn:SetDuration(0.025)
+        fadeIn:SetFromAlpha(0)
+        fadeIn:SetToAlpha(0.65)
+        local fadeOut = animation:CreateAnimation("Alpha")
+        fadeOut:SetOrder(2)
+        fadeOut:SetDuration(0.100)
+        fadeOut:SetFromAlpha(0.65)
+        fadeOut:SetToAlpha(0)
+        animation:SetScript("OnFinished", function()
+            texture:SetAlpha(0); texture:Hide()
+        end)
+        texture.animation = animation
+        bar.ReadyHighlight = texture
+    end
+    StopSegmentHighlight(bar)
+    -- Tint comes from the already painted segment; vertex alpha preserves config alpha.
+    texture:SetVertexColor(r + (1 - r) * 0.6, g + (1 - g) * 0.6, b + (1 - b) * 0.6, a)
+    texture:SetAlpha(0)
+    texture:Show()
+    texture.animation:Play()
+end
+
+local function GetHighlightContext(frame, holder)
+    if frame._fpUnit ~= "player" or not holder:IsVisible()
+        or GetPlayerClassToken() ~= "DEATHKNIGHT" or not CanReadRunes()
+        or frame._classPowerPreviewInfo
+        or (Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame))
+        or FocalPoint.guiTestModeEnabled
+    then return nil end
+    local config = frame.config
+    if not config or config.classPowerBarPresent ~= true or config.showClassPowerBar ~= true then return nil end
+    local resolver = FocalPoint.ActiveLayoutResolver
+    local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
+    if not root then return nil end
+    return root, config, GetSpecializationIndex(), FocalPoint.framesUnlocked == true
+end
+
+local function MatchHighlightContext(frame, holder)
+    local root, config, spec, editor = GetHighlightContext(frame, holder)
+    local state = holder._readyTransitions
+    if not root or (state and (state.root ~= root or state.config ~= config
+        or state.spec ~= spec or state.editor ~= editor or state.unit ~= frame._fpUnit)) then
+        ResetHighlights(holder)
+        state = nil
+    end
+    return state, root, config, spec, editor
+end
+
+local function ObserveReadySnapshot(frame, segments, max, qualified)
+    local holder = frame.Elements.ClassPowerBar
+    if not holder._highlightLifecycle then
+        holder._highlightLifecycle = true
+        holder:HookScript("OnHide", function() ResetHighlights(holder) end)
+        holder:HookScript("OnShow", function() ResetHighlights(holder) end)
+        for _, bar in ipairs(holder.Bars) do
+            bar:HookScript("OnHide", function() ResetHighlights(holder) end)
+        end
+    end
+    local state, root, config, spec, editor = MatchHighlightContext(frame, holder)
+    if not root or max ~= RUNE_COUNT or type(segments) ~= "table" or #segments ~= RUNE_COUNT then
+        ResetHighlights(holder)
+        return
+    end
+    for index = 1, RUNE_COUNT do
+        local segment = segments[index]
+        if type(segment) ~= "table" or segment.index ~= index
+            or (issecretvalue and issecretvalue(segment.ready)) or type(segment.ready) ~= "boolean" then
+            ResetHighlights(holder)
+            return
+        end
+    end
+    if not state then
+        state = { root = root, config = config, spec = spec, editor = editor,
+            unit = frame._fpUnit, runeEventObserved = false }
+        holder._readyTransitions = state
+    elseif qualified then
+        for index = 1, RUNE_COUNT do
+            if state.runeEventObserved and state.segments[index].ready == false and segments[index].ready then
+                PlaySegmentHighlight(holder.Bars[index])
+            end
+        end
+    end
+    -- Consume even an unchanged snapshot: never carry stale evidence forward.
+    state.runeEventObserved = false
+    for index = 1, RUNE_COUNT do
+        if not segments[index].ready then StopSegmentHighlight(holder.Bars[index]) end
+    end
+    state.segments = segments
+end
+
 function ClassPower.RefreshValues(owner, frame)
     if not frame or not frame._fpUnit or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
@@ -423,6 +542,7 @@ function ClassPower.RefreshValues(owner, frame)
 
     local info = ClassPower.GetInfo(frame._fpUnit, frame)
     frame.LiveValues = frame.LiveValues or {}
+    ObserveReadySnapshot(frame, info and info.segments, info and info.max, true)
 
     if not info or not info.segments then ClassPower.Clear(frame) end
     frame.LiveValues.classPowerSegments = info and info.segments or nil
@@ -492,6 +612,7 @@ function ClassPower.Clear(frame)
     frame._classPowerPreviewInfo = nil
     if frame.LiveValues then frame.LiveValues.classPowerSegments = nil end
     local holder = frame.Elements and frame.Elements.ClassPowerBar
+    ResetHighlights(holder)
     if not holder or not holder._segmentTimingInitialized then return end
     local hadSegments = holder.segments ~= nil
     holder.segments = nil
@@ -607,6 +728,11 @@ function ClassPower.ApplyLayout(frame, options)
             bar:SetHeight(height)
             bar:SetStatusBarTexture(options.classPowerTexture)
             bar:SetStatusBarColor(r or 1, g or 1, b or 1, isPlaceholder and (placeholderColors.barA or 0.62) or (options.classPowerA or 1))
+            if bar.ReadyHighlight then
+                local cr, cg, cb, ca = bar:GetStatusBarColor()
+                bar.ReadyHighlight:SetVertexColor(cr + (1 - cr) * 0.6, cg + (1 - cg) * 0.6, cb + (1 - cb) * 0.6, ca)
+                if ca <= 0 then StopSegmentHighlight(bar) end
+            end
             if bar.bg then
                 bar.bg:SetTexture(options.classPowerTexture)
                 if isPlaceholder then
@@ -640,6 +766,8 @@ function ClassPower.ApplyLayout(frame, options)
         holder.segments = options.liveClassPowerSegments
         UpdateSegments(holder)
     end
+    -- Render-only snapshots may seed/resync, but never qualify a transition.
+    ObserveReadySnapshot(frame, options.liveClassPowerSegments, options.liveClassPowerMax, false)
 end
 
 function ClassPower.RegisterEvents(owner, frame)
@@ -679,6 +807,20 @@ function ClassPower.RegisterEvents(owner, frame)
 
         if isUnitEvent and unit and unit ~= currentOwner._fpUnit then
             return
+        end
+
+        local holder = currentOwner.Elements and currentOwner.Elements.ClassPowerBar
+        if holder then
+            local transition = MatchHighlightContext(currentOwner, holder)
+            if event == "RUNE_POWER_UPDATE" then
+                -- Payload may be secret. The event invalidates the six-rune snapshot;
+                -- only its subsequent canonical false -> true comparison can flash.
+                if transition then
+                    transition.runeEventObserved = true
+                end
+            elseif not isUnitEvent or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
+                ResetHighlights(holder)
+            end
         end
 
         if State.QueueRefresh then

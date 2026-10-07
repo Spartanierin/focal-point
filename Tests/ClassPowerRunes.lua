@@ -333,5 +333,235 @@ Test("detailed rune demo follows spec; neutral placeholder ignores rune palette"
     local _,h=Apply(frame,true);local p=demo.GetPlaceholderColors();AssertPaint(h,{p.barR,p.barG,p.barB},p.barA)
     ns.oUF=oldOUF;Defaults()
 end)
+
+-- Animation doubles assert scheduling/reset only, not native WoW rendering.
+function native:GetStatusBarColor() return table.unpack(self.lastSetStatusBarColor or {1,1,1,1}) end
+local animationCount = 0
+function native:CreateAnimationGroup()
+    animationCount = animationCount + 1
+    local group = { children = {}, scripts = {}, plays = 0 }
+    function group:SetLooping(value) self.looping = value end
+    function group:SetScript(event, fn) self.scripts[event] = fn end
+    function group:CreateAnimation(kind)
+        Eq(kind, "Alpha")
+        local child = {}
+        for _, name in ipairs({"Order", "Duration", "FromAlpha", "ToAlpha"}) do
+            child["Set"..name] = function(self, value) self[name] = value end
+        end
+        self.children[#self.children+1] = child
+        return child
+    end
+    function group:Play() self.plays = self.plays + 1; self.playing = true end
+    function group:Stop() self.playing = false end
+    function group:Finish() self.playing = false; self.scripts.OnFinished(self) end
+    return group
+end
+local function Plays(holder, index)
+    local texture = holder.Bars[index].ReadyHighlight
+    return texture and texture.animation.plays or 0
+end
+local function Quiet(holder)
+    for _, bar in ipairs(holder.Bars) do
+        if bar.ReadyHighlight then
+            assert(not bar.ReadyHighlight.animation.playing)
+            assert(not bar.ReadyHighlight:IsShown())
+            Eq(bar.ReadyHighlight.lastSetAlpha[1], 0)
+        end
+    end
+end
+local function HighlightCase(fn)
+    Defaults()
+    local frame = Frame()
+    local _, holder = Apply(frame)
+    local queue = ns.UnitFrameState.QueueRefresh
+    -- Deliberately retain only the last reason, as the shared queue does.
+    local reason
+    ns.UnitFrameState.QueueRefresh = function(_, event) reason = event end
+    C.RegisterEvents(ns.UnitFrame, frame)
+    local function Event(event, index)
+        frame.ClassPowerEventFrame:Run("OnEvent", event, index)
+    end
+    fn(frame, holder, Event, function() return reason end)
+    ns.UnitFrameState.QueueRefresh = queue
+end
+Test("highlight: initial snapshot, qualified ready once, no unqualified or repeated ready", function()
+    HighlightCase(function(frame, h, event)
+        for i=1,6 do Eq(Plays(h,i),0) end
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        Eq(Plays(h,2),1)
+        event("RUNE_POWER_UPDATE",2);Apply(frame);Apply(frame);Eq(Plays(h,2),1)
+        cooldowns[3]={0,0,true};event("UNIT_AURA","player");Apply(frame);Eq(Plays(h,3),0)
+        event("RUNE_POWER_UPDATE",3);Apply(frame);Eq(Plays(h,3),0)
+        cooldowns[2]={nil,nil,false};event("RUNE_POWER_UPDATE",2);Apply(frame);Quiet(h)
+        event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),1)
+    end)
+end)
+Test("highlight: countdown expiry is not ready; spent without timing needs event and flag", function()
+    HighlightCase(function(frame,h,event)
+        now=120;h:GetScript("OnUpdate")(h);Eq(h.Bars[2]:GetValue(),1)
+        Eq(Plays(h,2),0);event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
+        cooldowns[2]={0,0,true};cooldowns[4]={0,0,true}
+        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",4);Apply(frame)
+        Eq(Plays(h,2),1);Eq(Plays(h,4),1)
+    end)
+end)
+Test("highlight: batching retains rune invalidation despite unrelated final queue reason", function()
+    HighlightCase(function(frame,h,event,reason)
+        cooldowns[2]={0,0,true};cooldowns[3]={0,0,true};cooldowns[4]={0,0,true}
+        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",3)
+        event("UNIT_AURA","player");Eq(reason(),"UNIT_AURA");Apply(frame)
+        Eq(Plays(h,2),1);Eq(Plays(h,3),1);Eq(Plays(h,4),1);Eq(Plays(h,6),0)
+        Apply(frame);Eq(Plays(h,2),1);Eq(Plays(h,3),1)
+    end)
+end)
+Test("highlight: resync after rune event cancels evidence", function()
+    for _,boundary in ipairs({"PLAYER_ENTERING_WORLD","PLAYER_ALIVE","PLAYER_UNGHOST",
+        "PLAYER_SPECIALIZATION_CHANGED","UNIT_MAXPOWER","UNIT_DISPLAYPOWER"}) do
+        HighlightCase(function(frame,h,event)
+            cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2)
+            event(boundary,boundary:match("^UNIT_") and "player" or nil);Apply(frame);Eq(Plays(h,2),0)
+        end)
+    end
+end)
+Test("highlight: opaque event payload is never inspected, formatted or stored", function()
+    HighlightCase(function(frame,h,event)
+        local function Forbidden() error("event payload inspected") end
+        local secret=setmetatable({}, {__tostring=Forbidden,__lt=Forbidden,__le=Forbidden,__mod=Forbidden})
+        local old=issecretvalue
+        issecretvalue=function(value)
+            if rawequal(value,secret) then Forbidden() end
+            return old(value)
+        end
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",secret);Apply(frame)
+        Eq(Plays(h,2),1)
+        assert(not h._readyTransitions.runeEventObserved)
+        event("RUNE_POWER_UPDATE",secret);Apply(frame);Eq(Plays(h,2),1)
+        issecretvalue=old
+    end)
+end)
+Test("highlight: early event is consumed by unchanged snapshot, never retried", function()
+    HighlightCase(function(frame,h,event)
+        event("RUNE_POWER_UPDATE");Apply(frame)
+        assert(not h._readyTransitions.runeEventObserved);Eq(Plays(h,2),0)
+        cooldowns[2]={0,0,true};Apply(frame);Eq(Plays(h,2),0)
+        cooldowns[2]={nil,nil,false};Apply(frame)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame);Eq(Plays(h,2),1)
+        Apply(frame);Eq(Plays(h,2),1)
+    end)
+end)
+Test("highlight: invalid API breaks baseline, recovery is initial snapshot", function()
+    HighlightCase(function(frame,h,event)
+        cooldowns[2]={0,0,"invalid"};event("RUNE_POWER_UPDATE",2);Apply(frame);Quiet(h)
+        assert(not h._readyTransitions)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
+    end)
+end)
+Test("highlight: root/config/spec/editor context changes discard evidence", function()
+    for _,change in ipairs({
+        function(frame) frame.config=Copy(frame.config) end,
+        function() ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(ns.db)) end,
+        function() spec=2 end,
+        function() ns.framesUnlocked=true end,
+    }) do
+        HighlightCase(function(frame,h,event)
+            event("RUNE_POWER_UPDATE",2);change(frame);cooldowns[2]={0,0,true};Apply(frame)
+            Eq(Plays(h,2),0);Quiet(h)
+        end)
+    end
+end)
+Test("highlight: 50 clear/hide/reuse cycles cancel animation and reinitialize quietly", function()
+    HighlightCase(function(frame,h,event)
+        for cycle=1,50 do
+            cooldowns[2]={nil,nil,false};Apply(frame)
+            cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),cycle)
+            if cycle%2==0 then C.Clear(frame) else h:Hide();h:Show() end
+            Quiet(h);assert(not h._readyTransitions)
+            event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),cycle)
+        end
+    end)
+end)
+Test("highlight: demo/live boundary and resource switch never reuse rune evidence", function()
+    HighlightCase(function(frame,h,event)
+        event("RUNE_POWER_UPDATE",2);ns.guiTestModeEnabled=true
+        ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","highlight-test")
+        Apply(frame);assert(not h._readyTransitions);Quiet(h)
+        ns.guiTestModeEnabled=false
+        ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"live","highlight-test")
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
+        class="ROGUE";UnitPower=function()return 4 end;UnitPowerMax=function()return 5 end
+        event("UNIT_POWER_UPDATE","player");Apply(frame);assert(not h._readyTransitions);Quiet(h)
+        class="DEATHKNIGHT";event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
+    end)
+end)
+Test("highlight: native one-shot shape, resolved colors/alpha and zero per-frame callbacks", function()
+    for _,mode in ipairs({true,false}) do
+        for currentSpec=1,3 do
+            HighlightCase(function(frame,h,event)
+                spec=currentSpec;local oldOUF=ns.oUF;ns.oUF={colors={runes=runePalette}}
+                Apply(frame,mode,{.2,.3,.4,.6})
+                local color=h.Bars[2].lastSetStatusBarColor
+                local before=Copy(color);local created=animationCount
+                cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame,mode,{.2,.3,.4,.6})
+                local texture=assert(h.Bars[2].ReadyHighlight);local group=texture.animation
+                Eq(animationCount,created+1);Eq(group.looping,"NONE");Eq(#group.children,2)
+                Near(group.children[1].Duration+group.children[2].Duration,.125)
+                Equal(texture.lastSetVertexColor,{color[1]+(1-color[1])*.6,color[2]+(1-color[2])*.6,color[3]+(1-color[3])*.6,.6})
+                Equal(before,h.Bars[2].lastSetStatusBarColor);assert(not texture:GetScript("OnUpdate"))
+                local oldAPI=GetRuneCooldown;GetRuneCooldown=function()error("animation API")end
+                group:Finish();Quiet(h);GetRuneCooldown=oldAPI
+                ns.oUF=oldOUF
+            end)
+        end
+    end
+    HighlightCase(function(frame,h,event)
+        Apply(frame,false,{.2,.3,.4,0});cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2)
+        Apply(frame,false,{.2,.3,.4,0});Eq(Plays(h,2),0);Quiet(h)
+    end)
+end)
+
+
+Test("highlight: max mismatch and secret snapshot reset instead of manufacturing transitions", function()
+    HighlightCase(function(frame,h,event)
+        local original=C.GetInfo
+        C.GetInfo=function(...) local info=original(...);info.max=5;return info end
+        event("RUNE_POWER_UPDATE",2);Apply(frame);assert(not h._readyTransitions)
+        C.GetInfo=original;cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
+        cooldowns[2]={nil,nil,false};Apply(frame)
+        local secret={};local old=issecretvalue;issecretvalue=function(value)return value==secret end
+        cooldowns[2]={0,0,secret};event("RUNE_POWER_UPDATE",2);Apply(frame);assert(not h._readyTransitions)
+        issecretvalue=old;cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
+    end)
+end)
+Test("highlight: active color/alpha sync and individual segment reuse", function()
+    HighlightCase(function(frame,h,event)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        local texture=assert(h.Bars[2].ReadyHighlight)
+        Apply(frame,false,{.1,.2,.3,.4})
+        Equal(texture.lastSetVertexColor,{.1+.9*.6,.2+.8*.6,.3+.7*.6,.4})
+        Apply(frame,false,{.1,.2,.3,0});Quiet(h)
+        cooldowns[2]={nil,nil,false};Apply(frame)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        h.Bars[2]:Hide();Quiet(h);assert(not h._readyTransitions)
+        h.Bars[2]:Show();event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),2)
+    end)
+end)
+Test("highlight: real shared queue coalesces unrelated refresh without losing evidence", function()
+    local realQueue=ns.UnitFrameState.QueueRefresh
+    HighlightCase(function(frame,h,event)
+        local oldTimer,oldRefresh=C_Timer,ns.UnitFrame.Refresh
+        local pending={};C_Timer={After=function(_,fn)pending[#pending+1]=fn end}
+        ns.UnitFrameState.QueueRefresh=realQueue
+        local commits=0
+        ns.UnitFrame.Refresh=function(_,owner,request)
+            Eq(owner,frame);Eq(request.reason,"UNIT_AURA");commits=commits+1;Apply(owner)
+        end
+        cooldowns[2]={0,0,true};cooldowns[3]={0,0,true}
+        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",3);event("UNIT_AURA","player")
+        Eq(#pending,1);pending[1]();Eq(commits,1);Eq(Plays(h,2),1);Eq(Plays(h,3),1)
+        Apply(frame);Eq(Plays(h,2),1)
+        C_Timer=oldTimer;ns.UnitFrame.Refresh=oldRefresh
+    end)
+end)
+
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 print("Class Power Runes: "..count.." groups PASS")
