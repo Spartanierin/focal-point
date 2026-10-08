@@ -65,6 +65,7 @@ local function Apply(frame,mode,rgba)
     C.RefreshValues(ns.UnitFrame,frame)
     local info=C.GetInfo("player",frame)
     C.ApplyLayout(frame,{useBlizzardColorClassPower=mode,classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
+        liveClassPowerGainValid=info and info.comboPointGainValid,
         liveClassPowerSegments=info and info.segments,liveClassPowerCurrent=info and info.current,
         liveClassPowerMax=info and info.max,liveClassPowerType=info and info.typeId,
         liveClassPowerToken=info and info.token,classPowerR=rgba[1],classPowerG=rgba[2],classPowerB=rgba[3],classPowerA=rgba[4]})
@@ -563,5 +564,140 @@ Test("highlight: real shared queue coalesces unrelated refresh without losing ev
     end)
 end)
 
+
+-- Combo Points share the real provider, snapshot path, renderer and animation.
+local function ComboCase(fn)
+    Defaults();class="ROGUE"
+    local values={current=2,max=5}
+    UnitPower=function()return values.current end
+    UnitPowerMax=function()return values.max end
+    local frame=Frame();local _,h=Apply(frame)
+    local queue=ns.UnitFrameState.QueueRefresh
+    ns.UnitFrameState.QueueRefresh=function()end
+    C.RegisterEvents(ns.UnitFrame,frame)
+    local function Event(event,unit,token)
+        frame.ClassPowerEventFrame:Run("OnEvent",event,unit,token)
+    end
+    local function Gain()Event("UNIT_POWER_UPDATE","player","COMBO_POINTS");Apply(frame)end
+    fn(frame,h,values,Event,Gain)
+    ns.UnitFrameState.QueueRefresh=queue
+end
+Test("combo: initial/identical, single and multiple gains, spend and renewed gain",function()
+    ComboCase(function(frame,h,v,event,gain)
+        Apply(frame);for i=1,10 do Eq(Plays(h,i),0)end
+        v.current=3;gain();Eq(Plays(h,3),1);Eq(Plays(h,2),0)
+        Apply(frame);gain();Eq(Plays(h,3),1)
+        v.current=2;gain();Quiet(h)
+        v.current=4;gain();Eq(Plays(h,3),2);Eq(Plays(h,4),1);Eq(Plays(h,5),0)
+    end)
+end)
+Test("combo: no event, wrong token/unit, early event and render-only resync never flash",function()
+    ComboCase(function(frame,h,v,event,gain)
+        event("UNIT_POWER_UPDATE","player","COMBO_POINTS");Apply(frame)
+        v.current=3;Apply(frame);Eq(Plays(h,3),0)
+        v.current=4;event("UNIT_POWER_UPDATE","player","ENERGY");Apply(frame);Eq(Plays(h,4),0)
+        v.current=5;event("UNIT_POWER_UPDATE","target","COMBO_POINTS");Apply(frame);Eq(Plays(h,5),0)
+        v.current=2;Apply(frame)
+        -- A rendering-only snapshot may resync but cannot qualify gains.
+        event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
+        v.current=4;local info=C.GetInfo("player",frame)
+        C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=4,liveClassPowerMax=5,
+            liveClassPowerToken=info.token,liveClassPowerGainValid=info.comboPointGainValid})
+        Eq(Plays(h,3),0);Eq(Plays(h,4),0);Apply(frame);Eq(Plays(h,3),0)
+    end)
+end)
+Test("combo: fractional progress only flashes newly completed boundaries",function()
+    ComboCase(function(frame,h,v,event,gain)
+        v.current=2.7;gain();Eq(Plays(h,3),0)
+        v.current=3;gain();Eq(Plays(h,3),1)
+        v.current=3.8;gain();Eq(Plays(h,4),0)
+    end)
+end)
+Test("combo: actual shared queue batching and lost intermediate states are conservative",function()
+    local realQueue=ns.UnitFrameState.QueueRefresh
+    ComboCase(function(frame,h,v,event,gain)
+        local oldTimer,oldRefresh=C_Timer,ns.UnitFrame.Refresh
+        local pending={};C_Timer={After=function(_,fn)pending[#pending+1]=fn end}
+        ns.UnitFrameState.QueueRefresh=realQueue
+        ns.UnitFrame.Refresh=function(_,owner)Apply(owner)end
+        v.current=3;event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
+        v.current=4;event("UNIT_POWER_UPDATE","player","COMBO_POINTS");event("UNIT_AURA","player")
+        Eq(#pending,1);pending[1]();Eq(Plays(h,3),1);Eq(Plays(h,4),1)
+        pending={};v.current=2;event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
+        v.current=4;event("UNIT_POWER_UPDATE","player","COMBO_POINTS");pending[1]()
+        Eq(Plays(h,3),1);Eq(Plays(h,4),1)
+        C_Timer=oldTimer;ns.UnitFrame.Refresh=oldRefresh
+    end)
+end)
+Test("combo: secret/missing event payload cannot qualify or preserve pending evidence",function()
+    ComboCase(function(frame,h,v,event,gain)
+        local secret=setmetatable({},{__tostring=function()error("secret formatting")end,
+            __eq=function()error("secret comparison")end})
+        local old=issecretvalue;issecretvalue=function(value)return rawequal(value,secret)end
+        for _,args in ipairs({{secret,"COMBO_POINTS"},{"player",secret},{"player"}})do
+            v.current=2;Apply(frame)
+            event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
+            v.current=3;event("UNIT_POWER_UPDATE",args[1],args[2]);Apply(frame)
+            Eq(Plays(h,3),0)
+        end
+        issecretvalue=old
+    end)
+end)
+Test("combo: invalid API values/fallback zero and recovery never manufacture gain",function()
+    ComboCase(function(frame,h,v,event,gain)
+        local secret={};local old=issecretvalue;issecretvalue=function(value)return rawequal(value,secret)end
+        for _,invalid in ipairs({false,"0",secret,0/0,math.huge,-1,6})do
+            v.current=invalid;gain();assert(not h._readyTransitions)
+            v.current=3;gain();Eq(Plays(h,3),0)
+        end
+        v.current=nil;gain();assert(not h._readyTransitions)
+        v.current=4;gain();Eq(Plays(h,4),0)
+        v.max=secret;gain();assert(not h._readyTransitions)
+        v.max=5;gain();Eq(Plays(h,4),0)
+        issecretvalue=old
+    end)
+end)
+Test("combo: max/spec/layout/resource/demo/editor transitions invalidate evidence",function()
+    local changes={
+        function(frame,v)v.max=6 end,
+        function()spec=2 end,
+        function(frame)frame.config=Copy(frame.config)end,
+        function()ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(ns.db))end,
+        function()class="PALADIN"end,
+        function()ns.framesUnlocked=true end,
+        function(frame)ns.guiTestModeEnabled=true;ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","combo-test")end,
+    }
+    for _,change in ipairs(changes)do
+        ComboCase(function(frame,h,v,event,gain)
+            event("UNIT_POWER_UPDATE","player","COMBO_POINTS");change(frame,v);v.current=3;Apply(frame)
+            Eq(Plays(h,3),0);Quiet(h)
+        end)
+    end
+end)
+Test("combo: 50 clear/hide/reuse cycles, ordinary aggregate refresh preserves animation",function()
+    ComboCase(function(frame,h,v,event,gain)
+        for cycle=1,50 do
+            v.current=2;Apply(frame);v.current=3;gain();Eq(Plays(h,3),cycle)
+            local texture=assert(h.Bars[3].ReadyHighlight)
+            Apply(frame);assert(texture.animation.playing);Eq(Plays(h,3),cycle)
+            if cycle%2==0 then C.Clear(frame)else h:Hide();h:Show()end
+            Quiet(h);assert(not h._readyTransitions)
+            gain();Eq(Plays(h,3),cycle)
+        end
+    end)
+end)
+Test("combo: shared 125ms animation, custom/Blizzard color and alpha zero",function()
+    ComboCase(function(frame,h,v,event,gain)
+        local old=PowerBarColor;PowerBarColor={COMBO_POINTS={r=.2,g=.3,b=.4}}
+        Apply(frame,true);v.current=3;gain()
+        local texture=assert(h.Bars[3].ReadyHighlight)
+        Equal(texture.lastSetVertexColor,{.2+.8*.6,.3+.7*.6,.4+.6*.6,1})
+        Near(texture.animation.children[1].Duration+texture.animation.children[2].Duration,.125)
+        v.current=2;Apply(frame,false,{.1,.2,.3,0})
+        v.current=3;event("UNIT_POWER_UPDATE","player","COMBO_POINTS");Apply(frame,false,{.1,.2,.3,0})
+        Eq(Plays(h,3),1);Quiet(h)
+        PowerBarColor=old
+    end)
+end)
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 print("Class Power Runes: "..count.." groups PASS")

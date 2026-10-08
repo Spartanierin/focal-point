@@ -1245,6 +1245,7 @@ function UF:ApplyConfig(frame)
         liveClassPowerSegments = liveClassPowerInfo and liveClassPowerInfo.segments or nil,
         liveClassPowerType = liveClassPowerInfo and liveClassPowerInfo.typeId or nil,
         liveClassPowerToken = liveClassPowerInfo and liveClassPowerInfo.token or nil,
+        liveClassPowerGainValid = liveClassPowerInfo and liveClassPowerInfo.comboPointGainValid or false,
         liveClassPowerCurrent = liveClassPowerInfo and liveClassPowerInfo.current or 0,
         liveClassPowerMax = liveClassPowerInfo and liveClassPowerInfo.max or 0,
         useBlizzardColorClassPower = config.useBlizzardColorClassPower,
