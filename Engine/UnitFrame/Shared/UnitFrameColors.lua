@@ -6,7 +6,6 @@ local Colors = FocalPoint.UnitFrameColors
 local Utils = FocalPoint.UnitFrameUtils or {}
 local IsSafeTrue = Utils.IsSafeTrue
 local UnpackColor = Utils.UnpackColor
-local ToSafeNumberValue = Utils.ToSafeNumberValue
 
 -- Color helpers stay side-effect free.
 -- They resolve health and power colors without touching frame state.
@@ -356,8 +355,7 @@ local function ResolveUnitHealthCurveColor(unit, curve, fallbackR, fallbackG, fa
     return nil
 end
 
-local function ResolvePredictionCurveColor(frame, curve, fallbackR, fallbackG, fallbackB, fallbackA)
-    local values = frame and frame.HealthPredictionValues
+local function ResolvePredictionCurveColor(values, curve, fallbackR, fallbackG, fallbackB, fallbackA)
     if not values or not curve or not values.EvaluateCurrentHealthPercent then
         return nil
     end
@@ -376,9 +374,12 @@ local function ResolvePredictionCurveColor(frame, curve, fallbackR, fallbackG, f
 end
 
 local function GetHealthPercent(currentHealth, maxHealth)
-    local current = ToSafeNumberValue and ToSafeNumberValue(currentHealth) or 0
-    local maximum = ToSafeNumberValue and ToSafeNumberValue(maxHealth) or 0
-    if maximum <= 0 then
+    -- Never infer zero health from a lossy Safe-value conversion.
+    if issecretvalue and (issecretvalue(currentHealth) or issecretvalue(maxHealth)) then return nil end
+    if type(currentHealth) ~= "number" or type(maxHealth) ~= "number" then return nil end
+    local current, maximum = currentHealth, maxHealth
+    if current ~= current or maximum ~= maximum or current == math.huge or current == -math.huge
+        or maximum == math.huge or maximum <= 0 then
         return nil
     end
 
@@ -392,7 +393,7 @@ local function GetHealthPercent(currentHealth, maxHealth)
     return percent
 end
 
-function Colors.GetResolvedHealthBarColor(frame, config)
+function Colors.GetResolvedHealthBarColor(frame, config, currentHealth, maxHealth, liveUnit, prediction)
     local hasCustomHealthColor = config
         and config.useClassColorHealth == false
         and HasConfiguredColor(config.healthColor)
@@ -429,49 +430,22 @@ function Colors.GetResolvedHealthBarColor(frame, config)
             curve:AddPoint(0.75, BuildCurveColor(1.0, 0.84, 0.18, math.max(lowA or 1, healthA or 1)))
             curve:AddPoint(1, BuildCurveColor(healthR, healthG, healthB, healthA))
 
-            local resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction
-            if not hasCustomHealthColor then
-                resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction = ResolvePredictionCurveColor(
-                    frame,
-                    curve,
-                    healthR,
-                    healthG,
-                    healthB,
-                    healthA
-                )
-                if resolvedFromPrediction then
-                    return resolvedR, resolvedG, resolvedB, resolvedA
-                end
+            local resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromPrediction = ResolvePredictionCurveColor(
+                prediction, curve, healthR, healthG, healthB, healthA
+            )
+            if resolvedFromPrediction then
+                return resolvedR, resolvedG, resolvedB, resolvedA
             end
 
-            local percent = GetHealthPercent(
-                frame and frame.LiveValues and frame.LiveValues.healthCurrentSafe,
-                frame and frame.LiveValues and frame.LiveValues.healthMaxSafe
-            )
-            if percent then
-                return ResolveCurveColor(curve, percent, healthR, healthG, healthB, healthA)
-            end
-
-            percent = GetHealthPercent(
-                frame and frame.LiveValues and frame.LiveValues.healthBarCurrentSafe,
-                frame and frame.LiveValues and frame.LiveValues.healthBarMaxSafe
-            )
+            local percent = GetHealthPercent(currentHealth, maxHealth)
             if percent then
                 return ResolveCurveColor(curve, percent, healthR, healthG, healthB, healthA)
             end
 
             local resolvedFromUnit
-            if not hasCustomHealthColor then
-                resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromUnit = ResolveUnitHealthCurveColor(
-                    frame and frame._fpUnit,
-                    curve,
-                    healthR,
-                    healthG,
-                    healthB,
-                    healthA
-                )
-            end
-
+            resolvedR, resolvedG, resolvedB, resolvedA, resolvedFromUnit = ResolveUnitHealthCurveColor(
+                liveUnit, curve, healthR, healthG, healthB, healthA
+            )
             if resolvedFromUnit then
                 return resolvedR, resolvedG, resolvedB, resolvedA
             end

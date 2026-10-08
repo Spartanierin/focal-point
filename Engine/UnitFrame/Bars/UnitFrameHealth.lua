@@ -90,6 +90,7 @@ local function ResolveTotalAbsorb(frame, unit, unitExists, previewValues)
         local values = frame.HealthPredictionValues
         if values then
             local updateOk = pcall(UnitGetDetailedHealPrediction, unit, "player", values)
+            frame._healthColorPredictionUnit = updateOk and unit or nil
             if updateOk and values.GetDamageAbsorbs then
                 local absorbOk, damageAbsorbAmount = pcall(values.GetDamageAbsorbs, values)
                 if absorbOk then
@@ -149,6 +150,10 @@ end
 -- Health helpers keep value formatting and health-bar updates together.
 
 function Health.GetCurrentValues(frame)
+    if frame then
+        frame._healthColorPredictionUnit = nil
+        if frame.LiveValues then frame.LiveValues.healthColorUnit = nil end
+    end
     if not frame or not frame._fpUnit then
         return 0, 1
     end
@@ -172,18 +177,20 @@ function Health.GetCurrentValues(frame)
         local values = frame.HealthPredictionValues
         if values then
             local updateOk = pcall(UnitGetDetailedHealPrediction, unit, "player", values)
+            frame._healthColorPredictionUnit = updateOk and unit or nil
             if updateOk and values.GetCurrentHealth and values.GetMaximumHealth then
                 local currentOk, currentHealth = pcall(values.GetCurrentHealth, values)
                 local maxOk, maxHealth = pcall(values.GetMaximumHealth, values)
                 if currentOk and maxOk and type(currentHealth) == "number" and type(maxHealth) == "number" then
-                    return currentHealth, maxHealth
+                    return currentHealth, maxHealth, true
                 end
             end
         end
     end
 
     if unitExists and UnitHealth and UnitHealthMax then
-        return UnitHealth(unit) or 0, UnitHealthMax(unit) or 1
+        local currentHealth, maxHealth = UnitHealth(unit), UnitHealthMax(unit)
+        return currentHealth or 0, maxHealth or 1, type(currentHealth) == "number" and type(maxHealth) == "number"
     end
 
     return 0, 1
@@ -196,7 +203,10 @@ function Health.UpdateBarValue(frame)
 
     frame.LiveValues = frame.LiveValues or {}
 
-    local currentHealth, maxHealth = Health.GetCurrentValues(frame)
+    local currentHealth, maxHealth, liveSource = Health.GetCurrentValues(frame)
+    -- Provenance only: the existing raw values remain the sole health snapshot.
+    -- The normal LiveValues clear also invalidates this marker.
+    frame.LiveValues.healthColorUnit = liveSource and frame._fpUnit or nil
     frame.Elements.HealthBar:SetMinMaxValues(0, maxHealth)
     frame.Elements.HealthBar:SetValue(currentHealth)
     if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
@@ -272,11 +282,29 @@ function Health.UpdateBarColor(frame)
         return
     end
 
+    local unit = frame._fpUnit
+    local unitExists = DoesUnitSeemPresent(unit)
+    local visualState = ResolveBarVisualState(frame, "HealthBar", true, unitExists)
+    local simulated = VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState)
+    local previewValues
+    if simulated then
+        previewValues = ResolveSimulationValues(frame, visualState)
+    else
+        previewValues = (Demo.GetUnitValues and Demo.GetUnitValues(frame)) or (IsPreviewModeEnabled() and Preview.GetTestValues(frame) or nil)
+    end
+    local values = frame.LiveValues
+    local currentHealth, maxHealth, liveUnit, prediction
+    if previewValues then
+        currentHealth, maxHealth = previewValues.healthCurrent or 100, previewValues.healthMax or 100
+    elseif not simulated and unitExists then
+        liveUnit = unit
+        if values and values.healthColorUnit == unit then
+            currentHealth, maxHealth = values.healthCurrentRaw, values.healthMaxRaw
+            if frame._healthColorPredictionUnit == unit then prediction = frame.HealthPredictionValues end
+        end
+    end
     local healthR, healthG, healthB, healthA = GetResolvedHealthBarColor(
-        frame,
-        config,
-        frame.LiveValues and frame.LiveValues.healthCurrentRaw,
-        frame.LiveValues and frame.LiveValues.healthMaxRaw
+        frame, config, currentHealth, maxHealth, liveUnit, prediction
     )
     frame.Elements.HealthBar:SetStatusBarColor(healthR, healthG, healthB, 1)
     frame.Elements.HealthBar:SetAlpha(healthA or 1)
@@ -355,6 +383,9 @@ function Health.RegisterEvents(owner, frame)
         end
 
         local function Queue(scope, options)
+            -- A queued unit/health change must not reuse the previous calculator or snapshot.
+            currentOwner._healthColorPredictionUnit = nil
+            if currentOwner.LiveValues then currentOwner.LiveValues.healthColorUnit = nil end
             if State.QueueRefresh then
                 State.QueueRefresh(currentOwner, event, scope, options)
             else
