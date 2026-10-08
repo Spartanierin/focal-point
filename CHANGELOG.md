@@ -10,6 +10,27 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.4
+
+### Added
+
+* Added individual Death Knight rune recharge progress and countdowns on Retail, with timers displayed to one decimal place.
+* Added a Class Power color mode: use Blizzard Standard resource colors or choose one fixed custom color for the layout, while retaining the configured opacity.
+* Added Left to Right and Right to Left Segment Growth for Class Power. Rune timers and highlights follow their individual rune segments; ready runes are not dynamically reordered.
+* Added brief segment highlights for runes becoming ready and resource gains for Rogue Combo Points, Holy Power, Windwalker Chi, Arcane Charges, and Essence on Retail.
+* Added an interruptible Cast Bar color picker to the Inspector. Thanks to mipli / Athalus for [PR #8](https://github.com/Spartanierin/focal-point/pull/8).
+* Added a brief Cast Bar flash when an interruption or failure event matches the active normal cast. Successful completions and stops without a matching failure event do not trigger the flash.
+
+### Improved
+
+* Added distinct Blood, Frost, and Unholy rune colors in Blizzard Standard mode.
+
+### Fixed
+
+* Fixed Class Power and Secondary Power texts ignoring their configured expressions and displaying a fixed current / maximum value instead. Shared templates and object-local expressions now use the normal text evaluation path.
+* Fixed deleted resource texts being recreated during frame initialization or layout changes.
+* Fixed automatic resource colors preferring numeric aliases over named resource colors, including incorrect Combo Point colors.
+
 ## 2.2.3
 
 ### Added
