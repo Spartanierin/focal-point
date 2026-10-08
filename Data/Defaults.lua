@@ -96,6 +96,7 @@ function FocalPoint:GetDefaultDB()
                     classPowerBarHeight = 12,
                     classPowerBarWidth = 100,
                     classPowerBarSpacing = 2,
+                    classPowerBarGrowth = "LEFT_TO_RIGHT",
                     classPowerBarAnchorTo = "Frame",
                     classPowerBarPoint = "TOPLEFT",
                     classPowerBarRelativePoint = "TOPLEFT",

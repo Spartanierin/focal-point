@@ -495,6 +495,10 @@ local function PlaySegmentHighlight(bar)
     texture.animation:Play()
 end
 
+local function ResolveSegmentGrowth(value)
+    return value == "RIGHT_TO_LEFT" and "RIGHT_TO_LEFT" or "LEFT_TO_RIGHT"
+end
+
 local function GetHighlightContext(frame, holder)
     local class, spec = GetPlayerClassToken(), GetSpecializationIndex()
     local token, typeId = GetAggregateHighlightResource(class, spec)
@@ -510,19 +514,20 @@ local function GetHighlightContext(frame, holder)
     local resolver = FocalPoint.ActiveLayoutResolver
     local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
     if not root then return nil end
-    return root, config, spec, FocalPoint.framesUnlocked == true, token, typeId
+    return root, config, spec, FocalPoint.framesUnlocked == true, token, typeId, ResolveSegmentGrowth(config.classPowerBarGrowth)
 end
 
 local function MatchHighlightContext(frame, holder)
-    local root, config, spec, editor, token, typeId = GetHighlightContext(frame, holder)
+    local root, config, spec, editor, token, typeId, growth = GetHighlightContext(frame, holder)
     local state = holder._readyTransitions
     if not root or (state and (state.root ~= root or state.config ~= config
         or state.spec ~= spec or state.editor ~= editor or state.unit ~= frame._fpUnit
-        or state.class ~= GetPlayerClassToken() or state.token ~= token or state.typeId ~= typeId)) then
+        or state.class ~= GetPlayerClassToken() or state.token ~= token or state.typeId ~= typeId
+        or state.growth ~= growth)) then
         ResetHighlights(holder)
         state = nil
     end
-    return state, root, config, spec, editor, token, typeId
+    return state, root, config, spec, editor, token, typeId, growth
 end
 
 local function ObserveReadySnapshot(frame, segments, max, qualified, current, gainValid, snapshotToken, snapshotType)
@@ -535,7 +540,7 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, ga
             bar:HookScript("OnHide", function() ResetHighlights(holder) end)
         end
     end
-    local state, root, config, spec, editor, token, typeId = MatchHighlightContext(frame, holder)
+    local state, root, config, spec, editor, token, typeId, growth = MatchHighlightContext(frame, holder)
     if token and token ~= "RUNES" then
         if not root or snapshotToken ~= token or snapshotType ~= typeId or gainValid ~= true or not IsPlainNumber(current) or not IsPlainNumber(max)
             or current < 0 or current > max or max < 1 or max > #holder.Bars or max % 1 ~= 0 then
@@ -545,7 +550,7 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, ga
         if state and state.max ~= max then ResetHighlights(holder); state = nil end
         if not state then
             state = { root = root, config = config, spec = spec, editor = editor,
-                unit = frame._fpUnit, class = GetPlayerClassToken(), token = token, typeId = typeId, max = max }
+                unit = frame._fpUnit, class = GetPlayerClassToken(), token = token, typeId = typeId, growth = growth, max = max }
             holder._readyTransitions = state
         elseif qualified and state.powerEventObserved and current > state.current then
             for index = math.floor(state.current) + 1, math.floor(current) do
@@ -571,7 +576,7 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, ga
     end
     if not state then
         state = { root = root, config = config, spec = spec, editor = editor,
-            unit = frame._fpUnit, class = "DEATHKNIGHT", token = token, typeId = typeId, runeEventObserved = false }
+            unit = frame._fpUnit, class = "DEATHKNIGHT", token = token, typeId = typeId, growth = growth, runeEventObserved = false }
         holder._readyTransitions = state
     elseif qualified then
         for index = 1, RUNE_COUNT do
@@ -729,6 +734,7 @@ function ClassPower.ApplyLayout(frame, options)
     local width = math.max(40, tonumber(options.classPowerBarWidth) or 100)
     local height = math.max(4, tonumber(options.classPowerBarHeight) or 12)
     local spacing = math.max(0, tonumber(options.classPowerBarSpacing) or 2)
+    local rightToLeft = ResolveSegmentGrowth(options.classPowerBarGrowth) == "RIGHT_TO_LEFT"
     local anchorParent = GetAnchorTarget and GetAnchorTarget(frame, options.classPowerBarAnchorTo) or frame
     local isPlaceholder = Demo.IsPlaceholder and Demo.IsPlaceholder(frame)
     local placeholderColors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
@@ -777,7 +783,14 @@ function ClassPower.ApplyLayout(frame, options)
         bar:ClearAllPoints()
 
         if index <= maxValue then
-            if index == 1 then
+            -- Bars[index] keeps its resource/rune identity; only its position moves.
+            if rightToLeft then
+                if index == 1 then
+                    bar:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, 0)
+                else
+                    bar:SetPoint("TOPRIGHT", bars[index - 1], "TOPLEFT", -spacing, 0)
+                end
+            elseif index == 1 then
                 bar:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
             else
                 bar:SetPoint("TOPLEFT", bars[index - 1], "TOPRIGHT", spacing, 0)

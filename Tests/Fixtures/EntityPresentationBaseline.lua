@@ -7,6 +7,9 @@ return function(ns, layout, preset)
     -- Verify its unchanged automatic meaning before projecting only this new field.
     assert(copy.Units.player.useBlizzardColorClassPower == true, "built-in Class Power mode changed")
     copy.Units.player.useBlizzardColorClassPower = nil
+    -- Segment Growth also postdates this fingerprint; the default preserves its order.
+    assert(copy.Units.player.classPowerBarGrowth == "LEFT_TO_RIGHT", "built-in Class Power growth changed")
+    copy.Units.player.classPowerBarGrowth = nil
     local function merge(a,b)
         for k,v in pairs(b or {}) do
             if type(v)=="table" then a[k]=a[k] or {};merge(a[k],v) else a[k]=v end

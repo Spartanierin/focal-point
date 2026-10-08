@@ -3346,6 +3346,21 @@ function InspectorController.Build(container, state, options)
         end
         RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "ClassPowerBar" }, "classPowerBarHeight", classPowerBarHeightControl)
 
+        local classPowerGrowth = unitConfig.classPowerBarGrowth == "RIGHT_TO_LEFT" and "RIGHT_TO_LEFT" or "LEFT_TO_RIGHT"
+        if usePropertyGroups then
+            AddPropertyDropdownRow(geometrySection, L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", {
+                list = absorbGrowthList,
+                value = classPowerGrowth,
+                onChanged = function(value)
+                    SetUnitField("classPowerBarGrowth", value)
+                end,
+            }, unitConfig.showClassPowerBar ~= true)
+        else
+            AddDropdown(geometrySection, L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList, classPowerGrowth, function(value)
+                SetUnitField("classPowerBarGrowth", value)
+            end, unitConfig.showClassPowerBar ~= true)
+        end
+
         if isExpert then
             if usePropertyGroups then
                 AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)

@@ -1237,6 +1237,7 @@ function UF:ApplyConfig(frame)
         classPowerBarHeight = classPowerBarHeight,
         classPowerBarWidth = classPowerBarWidth,
         classPowerBarSpacing = classPowerBarSpacing,
+        classPowerBarGrowth = config.classPowerBarGrowth,
         classPowerBarAnchorTo = classPowerBarAnchorTo,
         classPowerBarPoint = classPowerBarPoint,
         classPowerBarRelativePoint = classPowerBarRelativePoint,
