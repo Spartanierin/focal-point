@@ -65,7 +65,7 @@ local function Apply(frame,mode,rgba)
     C.RefreshValues(ns.UnitFrame,frame)
     local info=C.GetInfo("player",frame)
     C.ApplyLayout(frame,{useBlizzardColorClassPower=mode,classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
-        liveClassPowerGainValid=info and info.comboPointGainValid,
+        liveClassPowerGainValid=info and info.aggregateGainValid,
         liveClassPowerSegments=info and info.segments,liveClassPowerCurrent=info and info.current,
         liveClassPowerMax=info and info.max,liveClassPowerType=info and info.typeId,
         liveClassPowerToken=info and info.token,classPowerR=rgba[1],classPowerG=rgba[2],classPowerB=rgba[3],classPowerA=rgba[4]})
@@ -602,7 +602,7 @@ Test("combo: no event, wrong token/unit, early event and render-only resync neve
         event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
         v.current=4;local info=C.GetInfo("player",frame)
         C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=4,liveClassPowerMax=5,
-            liveClassPowerToken=info.token,liveClassPowerGainValid=info.comboPointGainValid})
+            liveClassPowerToken=info.token,liveClassPowerGainValid=info.aggregateGainValid})
         Eq(Plays(h,3),0);Eq(Plays(h,4),0);Apply(frame);Eq(Plays(h,3),0)
     end)
 end)
@@ -699,5 +699,208 @@ Test("combo: shared 125ms animation, custom/Blizzard color and alpha zero",funct
         PowerBarColor=old
     end)
 end)
+
+-- Block 3: same aggregate contract, exercised independently for each live provider.
+local resources = {
+    {class="PALADIN",spec=1,token="HOLY_POWER",id=9,key="HolyPower",max=5},
+    {class="MONK",spec=3,token="CHI",id=12,key="Chi",max=6},
+    {class="MAGE",spec=1,token="ARCANE_CHARGES",id=16,key="ArcaneCharges",max=4},
+    {class="EVOKER",spec=1,token="ESSENCE",id=19,key="Essence",max=6},
+}
+local function AggregateCase(resource,fn)
+    Defaults();class,spec=resource.class,resource.spec
+    local oldEnum=Enum
+    Enum={PowerType={HolyPower=9,Chi=12,ArcaneCharges=16,Essence=19}}
+    local values={current=2,max=resource.max}
+    UnitPower=function()return values.current end
+    UnitPowerMax=function()return values.max end
+    local frame=Frame();local info,h=Apply(frame)
+    Eq(info.token,resource.token);Eq(info.typeId,resource.id);assert(info.aggregateGainValid)
+    local queue=ns.UnitFrameState.QueueRefresh
+    ns.UnitFrameState.QueueRefresh=function()end
+    C.RegisterEvents(ns.UnitFrame,frame)
+    for _,name in ipairs({"PLAYER_SPECIALIZATION_CHANGED","PLAYER_ALIVE","PLAYER_UNGHOST"})do
+        assert(frame.ClassPowerEventFrame.registeredEvents[name],name)
+    end
+    local function Event(event,unit,token)frame.ClassPowerEventFrame:Run("OnEvent",event,unit,token)end
+    local function Gain()Event("UNIT_POWER_UPDATE","player",resource.token);Apply(frame)end
+    fn(frame,h,values,Event,Gain)
+    ns.UnitFrameState.QueueRefresh=queue;Enum=oldEnum
+end
+for _,resource in ipairs(resources)do
+    Test(resource.token..": initial, single/multiple gains, spend, unchanged and fractional boundaries",function()
+        AggregateCase(resource,function(frame,h,v,event,gain)
+            for i=1,10 do Eq(Plays(h,i),0)end
+            v.current=0;gain();v.current=1;gain();Eq(Plays(h,1),1);h.Bars[1].ReadyHighlight.animation:Finish()
+            v.current=2;Apply(frame);v.current=3;gain();Eq(Plays(h,3),1)
+            gain();Apply(frame);Eq(Plays(h,3),1)
+            v.current=2;gain();Quiet(h);v.current=4;gain()
+            Eq(Plays(h,3),2);Eq(Plays(h,4),1);Eq(Plays(h,2),0)
+            v.current=2.2;gain();v.current=2.9;gain();Eq(Plays(h,3),2)
+            Near(h.Bars[3]:GetValue(),.9)
+            v.current=3;gain();Eq(Plays(h,3),3)
+        end)
+    end)
+    Test(resource.token..": event qualification, early evidence, charge-only and render-only refresh",function()
+        AggregateCase(resource,function(frame,h,v,event,gain)
+            for _,args in ipairs({{"UNIT_POWER_UPDATE","player","ENERGY"},
+                {"UNIT_POWER_UPDATE","target",resource.token},
+                {"UNIT_POWER_POINT_CHARGE","player"},{"UNIT_AURA","player"}})do
+                v.current=2;Apply(frame);v.current=3
+                event(table.unpack(args));Apply(frame);Eq(Plays(h,3),0)
+            end
+            v.current=2;Apply(frame);gain();v.current=3;Apply(frame);Eq(Plays(h,3),0)
+            v.current=2;Apply(frame);event("UNIT_POWER_UPDATE","player",resource.token);v.current=3
+            local info=C.GetInfo("player",frame)
+            C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=3,liveClassPowerMax=v.max,
+                liveClassPowerToken=info.token,liveClassPowerType=info.typeId,liveClassPowerGainValid=info.aggregateGainValid})
+            Apply(frame);Eq(Plays(h,3),0)
+            local old=issecretvalue;local secret=setmetatable({},{__eq=function()error("secret compare")end,
+                __tostring=function()error("secret format")end})
+            issecretvalue=function(value)return rawequal(value,secret)end
+            for _,args in ipairs({{secret,resource.token},{"player",secret},{"player"},{}})do
+                v.current=2;Apply(frame);event("UNIT_POWER_UPDATE","player",resource.token)
+                v.current=3;event("UNIT_POWER_UPDATE",args[1],args[2]);Apply(frame);Eq(Plays(h,3),0)
+            end
+            issecretvalue=old
+        end)
+    end)
+    Test(resource.token..": invalid original current/max discards baseline before recovery",function()
+        AggregateCase(resource,function(frame,h,v,event,gain)
+            local old=issecretvalue;local secret={}
+            issecretvalue=function(value)return rawequal(value,secret)end
+            for _,field in ipairs({"current","max"})do
+                local invalid={false,"0",secret,0/0,math.huge,-1}
+                invalid[#invalid+1]=field=="current" and resource.max+1 or 11
+                if field=="max" then invalid[#invalid+1]=0;invalid[#invalid+1]=3.5 end
+                for i=1,#invalid+1 do
+                    v[field]=invalid[i];event("UNIT_POWER_UPDATE","player",resource.token)
+                    C.RefreshValues(ns.UnitFrame,frame);assert(not h._readyTransitions)
+                    v.current=3;v.max=resource.max;gain();Eq(Plays(h,3),0)
+                end
+            end
+            issecretvalue=old
+        end)
+    end)
+    Test(resource.token..": max/spec/layout/resource identity and lifecycle resync discard pending gains",function()
+        local changes={
+            function(frame,h,v)v.max=resource.max+1 end,
+            function()spec=spec==1 and 2 or 1 end,
+            function(frame)frame.config=Copy(frame.config)end,
+            function()ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(ns.db))end,
+            function()ns.framesUnlocked=true end,
+            function(frame,h)h:Hide();h:Show()end,
+            function(frame)C.Clear(frame)end,
+            function()class="ROGUE"end,
+            function()Enum.PowerType[resource.key]=resource.id+100 end,
+        }
+        for _,change in ipairs(changes)do
+            AggregateCase(resource,function(frame,h,v,event)
+                event("UNIT_POWER_UPDATE","player",resource.token);change(frame,h,v);v.current=3;Apply(frame)
+                Eq(Plays(h,3),0);Quiet(h)
+            end)
+        end
+        for _,boundary in ipairs({"PLAYER_ENTERING_WORLD","PLAYER_ALIVE","PLAYER_UNGHOST",
+            "PLAYER_SPECIALIZATION_CHANGED","PLAYER_LEVEL_UP","SPELLS_CHANGED","TRAIT_CONFIG_UPDATED",
+            "UNIT_MAXPOWER","UNIT_DISPLAYPOWER"})do
+            AggregateCase(resource,function(frame,h,v,event)
+                event("UNIT_POWER_UPDATE","player",resource.token);v.current=3
+                event(boundary,"player");Apply(frame);Eq(Plays(h,3),0)
+            end)
+        end
+        -- Even a nominally valid measurement must belong to this resource/type.
+        for _,field in ipairs({"token","typeId"})do
+            AggregateCase(resource,function(frame,h,v,event,gain)
+                local original=C.GetInfo
+                C.GetInfo=function(...)local info=original(...);info[field]=field=="token" and "OTHER" or 100;return info end
+                v.current=3;gain();assert(not h._readyTransitions);Eq(Plays(h,3),0)
+                C.GetInfo=original;gain();Eq(Plays(h,3),0)
+            end)
+        end
+    end)
+    Test(resource.token..": actual queue coalescing and combat/post-combat consume evidence once",function()
+        local realQueue=ns.UnitFrameState.QueueRefresh
+        AggregateCase(resource,function(frame,h,v,event)
+            local oldTimer,oldRefresh,oldCombat=C_Timer,ns.UnitFrame.Refresh,InCombatLockdown
+            local pending={};C_Timer={After=function(_,fn)pending[#pending+1]=fn end}
+            ns.UnitFrameState.QueueRefresh=realQueue
+            ns.UnitFrame.Refresh=function(_,owner,request)Eq(request.reason,"UNIT_AURA");Apply(owner)end
+            InCombatLockdown=function()return true end
+            v.current=3;event("UNIT_POWER_UPDATE","player",resource.token)
+            v.current=4;event("UNIT_POWER_UPDATE","player",resource.token);event("UNIT_AURA","player")
+            Eq(#pending,1);pending[1]();Eq(Plays(h,3),1);Eq(Plays(h,4),1)
+            pending={};v.current=2;event("UNIT_POWER_UPDATE","player",resource.token)
+            v.current=4;event("UNIT_POWER_UPDATE","player",resource.token);event("UNIT_AURA","player")
+            Eq(#pending,1);pending[1]();Eq(Plays(h,3),1);Eq(Plays(h,4),1)
+            v.current=2;Apply(frame);v.current=3
+            InCombatLockdown=function()return false end
+            C.RefreshValues(ns.UnitFrame,frame);Eq(Plays(h,3),1)
+            C_Timer=oldTimer;ns.UnitFrame.Refresh=oldRefresh;InCombatLockdown=oldCombat
+        end)
+    end)
+    Test(resource.token..": 50 reuse/demo cycles, no new hooks/widgets, unchanged 125ms color/alpha",function()
+        AggregateCase(resource,function(frame,h,v,event,gain)
+            local hooks=native.HookScript;native.HookScript=function()error("duplicate lifecycle hook")end
+            local created=animationCount;local bars=h.Bars;local before=Copy(ns.db)
+            for cycle=1,50 do
+                v.current=2;Apply(frame,false,{.2,.3,.4,.6})
+                v.current=3;event("UNIT_POWER_UPDATE","player",resource.token);Apply(frame,false,{.2,.3,.4,.6})
+                Eq(Plays(h,3),cycle);local texture=assert(h.Bars[3].ReadyHighlight)
+                Equal(texture.lastSetVertexColor,{.2+.8*.6,.3+.7*.6,.4+.6*.6,.6})
+                Near(texture.animation.children[1].Duration+texture.animation.children[2].Duration,.125)
+                assert(not texture:GetScript("OnUpdate") and not h:GetScript("OnUpdate"))
+                Apply(frame);assert(texture.animation.playing)
+                event("UNIT_POWER_UPDATE","player",resource.token)
+                if cycle%3==0 then
+                    ns.guiTestModeEnabled=true
+                    ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","aggregate-test");Apply(frame)
+                    ns.guiTestModeEnabled=false
+                    ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"live","aggregate-test")
+                    now=now+1;ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"live","aggregate-test")
+                elseif cycle%3==1 then C.Clear(frame)else h:Hide();h:Show()end
+                Quiet(h);assert(not h._readyTransitions);gain();Eq(Plays(h,3),cycle)
+            end
+            Eq(animationCount,created+1);Eq(h.Bars,bars);Equal(before,ns.db)
+            native.HookScript=hooks
+            v.current=2;Apply(frame,false,{.2,.3,.4,0});v.current=3
+            event("UNIT_POWER_UPDATE","player",resource.token);Apply(frame,false,{.2,.3,.4,0})
+            Eq(Plays(h,3),50);Quiet(h)
+            local oldColors=PowerBarColor;PowerBarColor={[resource.token]={r=.4,g=.5,b=.6}}
+            v.current=2;Apply(frame,true);v.current=3;gain()
+            Equal(h.Bars[3].ReadyHighlight.lastSetVertexColor,{.4+.6*.6,.5+.5*.6,.6+.4*.6,1})
+            local oldPower,oldMax,oldDB,oldText=UnitPower,UnitPowerMax,ns.UnitFrameUtils.GetUnitDB,ns.UnitFrame.UpdateTextElements
+            local oldResolve=ns.TextTemplateResolver.Resolve
+            local function Forbidden()error("animation hotpath API/DB/text/template call")end
+            UnitPower,UnitPowerMax=Forbidden,Forbidden;ns.UnitFrameUtils.GetUnitDB=Forbidden
+            ns.UnitFrame.UpdateTextElements=Forbidden;ns.TextTemplateResolver.Resolve=Forbidden
+            h.Bars[3].ReadyHighlight.animation:Finish();Quiet(h)
+            UnitPower,UnitPowerMax=oldPower,oldMax;ns.UnitFrameUtils.GetUnitDB=oldDB
+            ns.UnitFrame.UpdateTextElements=oldText;ns.TextTemplateResolver.Resolve=oldResolve;PowerBarColor=oldColors
+        end)
+    end)
+    Test(resource.token..": Forever/other client/missing Enum or API never qualifies fallback values",function()
+        for _,change in ipairs({function()interface=16001 end,function()WOW_PROJECT_ID=2 end,
+            function()Enum.PowerType[resource.key]=nil end,function()UnitPower=nil end})do
+            AggregateCase(resource,function(frame,h,v,event,gain)
+                event("UNIT_POWER_UPDATE","player",resource.token);change();v.current=3;Apply(frame)
+                Eq(Plays(h,3),0);assert(not h._readyTransitions)
+            end)
+        end
+    end)
+end
+Test("shards: fractional display unchanged, no gain highlight or secondary mutation",function()
+    AggregateCase(resources[1],function(frame,h,v,event)
+        class,spec="WARLOCK",3;UnitPowerDisplayMod=function()return 10 end
+        UnitPower=function(_,_,raw)return raw and v.current*10 or math.floor(v.current)end
+        frame.LiveValues.altPowerCurrentRaw=72
+        for _,current in ipairs({2.2,2.9,3,4})do
+            v.current=current;event("UNIT_POWER_UPDATE","player","SOUL_SHARDS")
+            local info=Apply(frame);Near(info.current,current);assert(not info.aggregateGainValid and not h._readyTransitions)
+            Eq(Plays(h,3),0);Eq(Plays(h,4),0)
+            Near(h.Bars[3]:GetValue(),math.min(1,current-2));Eq(frame.LiveValues.altPowerCurrentRaw,72)
+        end
+    end)
+end)
+
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 print("Class Power Runes: "..count.." groups PASS")

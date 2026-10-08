@@ -125,6 +125,24 @@ local function IsPlainNumber(value)
         and type(value) == "number" and value == value and math.abs(value) < math.huge
 end
 
+-- Only the four newly verified Retail resources join the existing Rogue path.
+-- An Enum fallback is sufficient for display, never for highlight capability.
+local function CanHighlightRetailPower()
+    if not GetBuildInfo or type(UnitPower) ~= "function" or type(UnitPowerMax) ~= "function" then return false end
+    local _, _, _, interface = GetBuildInfo()
+    return type(interface) == "number" and interface >= 120000
+        and (not WOW_PROJECT_ID or WOW_PROJECT_ID == WOW_PROJECT_MAINLINE)
+end
+
+local function GetAggregateHighlightResource(class, spec)
+    if class == "ROGUE" then return POWER_TOKEN_COMBO_POINTS, POWER_ID_COMBO_POINTS end
+    if not CanHighlightRetailPower() or not (Enum and Enum.PowerType) then return nil end
+    if class == "PALADIN" then return POWER_TOKEN_HOLY_POWER, Enum.PowerType.HolyPower end
+    if class == "MONK" and spec == SPEC_MONK_WINDWALKER then return POWER_TOKEN_CHI, Enum.PowerType.Chi end
+    if class == "MAGE" and spec == SPEC_MAGE_ARCANE then return POWER_TOKEN_ARCANE_CHARGES, Enum.PowerType.ArcaneCharges end
+    if class == "EVOKER" then return POWER_TOKEN_ESSENCE, Enum.PowerType.Essence end
+end
+
 local function GetNumericPowerInfo(typeId, token, current)
     if not UnitPowerMax then
         return nil
@@ -132,19 +150,19 @@ local function GetNumericPowerInfo(typeId, token, current)
 
     local observedMax = UnitPowerMax("player", typeId)
     local observedCurrent = current
-    local max = ToSafeNumberValue(observedMax)
     if current == nil and UnitPower then
         observedCurrent = UnitPower("player", typeId)
-        current = ToSafeNumberValue(observedCurrent)
     end
-
+    local gainToken, gainType = GetAggregateHighlightResource(GetPlayerClassToken(), GetSpecializationIndex())
+    -- Validate original API values before display fallback/normalization.
+    local gainValid = gainType ~= nil and gainType == typeId and gainToken == token
+        and IsPlainNumber(observedCurrent) and IsPlainNumber(observedMax)
+        and observedCurrent >= 0 and observedCurrent <= observedMax
+        and observedMax >= 1 and observedMax <= 10 and observedMax % 1 == 0
+    local max = ToSafeNumberValue(observedMax)
+    if current == nil and UnitPower then current = ToSafeNumberValue(observedCurrent) end
     local info = BuildInfo(typeId, token, current, max)
-    if info and token == POWER_TOKEN_COMBO_POINTS and GetPlayerClassToken() == "ROGUE" then
-        -- Display fallbacks are not observations. Only plain API numbers qualify gains.
-        info.comboPointGainValid = IsPlainNumber(observedCurrent) and IsPlainNumber(observedMax)
-            and observedCurrent >= 0 and observedCurrent <= observedMax
-            and observedMax >= 1 and observedMax <= 10 and observedMax % 1 == 0
-    end
+    if info then info.aggregateGainValid = gainValid end
     return info
 end
 
@@ -478,8 +496,11 @@ local function PlaySegmentHighlight(bar)
 end
 
 local function GetHighlightContext(frame, holder)
+    local class, spec = GetPlayerClassToken(), GetSpecializationIndex()
+    local token, typeId = GetAggregateHighlightResource(class, spec)
+    if class == "DEATHKNIGHT" and CanReadRunes() then token, typeId = "RUNES", POWER_ID_RUNES end
     if frame._fpUnit ~= "player" or not holder:IsVisible()
-        or (GetPlayerClassToken() ~= "ROGUE" and (GetPlayerClassToken() ~= "DEATHKNIGHT" or not CanReadRunes()))
+        or not token or not typeId
         or frame._classPowerPreviewInfo
         or (Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame))
         or FocalPoint.guiTestModeEnabled
@@ -489,22 +510,22 @@ local function GetHighlightContext(frame, holder)
     local resolver = FocalPoint.ActiveLayoutResolver
     local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
     if not root then return nil end
-    return root, config, GetSpecializationIndex(), FocalPoint.framesUnlocked == true
+    return root, config, spec, FocalPoint.framesUnlocked == true, token, typeId
 end
 
 local function MatchHighlightContext(frame, holder)
-    local root, config, spec, editor = GetHighlightContext(frame, holder)
+    local root, config, spec, editor, token, typeId = GetHighlightContext(frame, holder)
     local state = holder._readyTransitions
     if not root or (state and (state.root ~= root or state.config ~= config
         or state.spec ~= spec or state.editor ~= editor or state.unit ~= frame._fpUnit
-        or state.class ~= GetPlayerClassToken())) then
+        or state.class ~= GetPlayerClassToken() or state.token ~= token or state.typeId ~= typeId)) then
         ResetHighlights(holder)
         state = nil
     end
-    return state, root, config, spec, editor
+    return state, root, config, spec, editor, token, typeId
 end
 
-local function ObserveReadySnapshot(frame, segments, max, qualified, current, comboValid)
+local function ObserveReadySnapshot(frame, segments, max, qualified, current, gainValid, snapshotToken, snapshotType)
     local holder = frame.Elements.ClassPowerBar
     if not holder._highlightLifecycle then
         holder._highlightLifecycle = true
@@ -514,9 +535,9 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, co
             bar:HookScript("OnHide", function() ResetHighlights(holder) end)
         end
     end
-    local state, root, config, spec, editor = MatchHighlightContext(frame, holder)
-    if GetPlayerClassToken() == "ROGUE" then
-        if not root or comboValid ~= true or not IsPlainNumber(current) or not IsPlainNumber(max)
+    local state, root, config, spec, editor, token, typeId = MatchHighlightContext(frame, holder)
+    if token and token ~= "RUNES" then
+        if not root or snapshotToken ~= token or snapshotType ~= typeId or gainValid ~= true or not IsPlainNumber(current) or not IsPlainNumber(max)
             or current < 0 or current > max or max < 1 or max > #holder.Bars or max % 1 ~= 0 then
             ResetHighlights(holder)
             return
@@ -524,7 +545,7 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, co
         if state and state.max ~= max then ResetHighlights(holder); state = nil end
         if not state then
             state = { root = root, config = config, spec = spec, editor = editor,
-                unit = frame._fpUnit, class = "ROGUE", max = max }
+                unit = frame._fpUnit, class = GetPlayerClassToken(), token = token, typeId = typeId, max = max }
             holder._readyTransitions = state
         elseif qualified and state.powerEventObserved and current > state.current then
             for index = math.floor(state.current) + 1, math.floor(current) do
@@ -550,7 +571,7 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, co
     end
     if not state then
         state = { root = root, config = config, spec = spec, editor = editor,
-            unit = frame._fpUnit, class = "DEATHKNIGHT", runeEventObserved = false }
+            unit = frame._fpUnit, class = "DEATHKNIGHT", token = token, typeId = typeId, runeEventObserved = false }
         holder._readyTransitions = state
     elseif qualified then
         for index = 1, RUNE_COUNT do
@@ -594,7 +615,7 @@ function ClassPower.RefreshValues(owner, frame)
     local info = ClassPower.GetInfo(frame._fpUnit, frame)
     frame.LiveValues = frame.LiveValues or {}
     ObserveReadySnapshot(frame, info and info.segments, info and info.max, true,
-        info and info.current, info and info.comboPointGainValid)
+        info and info.current, info and info.aggregateGainValid, info and info.token, info and info.typeId)
 
     if not info or not info.segments then ClearRuneTiming(frame) end
     frame.LiveValues.classPowerSegments = info and info.segments or nil
@@ -806,7 +827,7 @@ function ClassPower.ApplyLayout(frame, options)
     end
     -- Render-only snapshots may seed/resync, but never qualify a transition.
     ObserveReadySnapshot(frame, options.liveClassPowerSegments, options.liveClassPowerMax, false,
-        options.liveClassPowerCurrent, options.liveClassPowerGainValid)
+        options.liveClassPowerCurrent, options.liveClassPowerGainValid, options.liveClassPowerToken, options.liveClassPowerType)
 end
 
 function ClassPower.RegisterEvents(owner, frame)
@@ -820,7 +841,9 @@ function ClassPower.RegisterEvents(owner, frame)
     if CanReadRunes() and GetPlayerClassToken() == "DEATHKNIGHT" then
         eventFrame:RegisterEvent("RUNE_POWER_UPDATE")
     end
-    if (CanReadRunes() and GetPlayerClassToken() == "DEATHKNIGHT") or GetPlayerClassToken() == "ROGUE" then
+    local class = GetPlayerClassToken()
+    if (CanReadRunes() and class == "DEATHKNIGHT") or class == "ROGUE"
+        or (CanHighlightRetailPower() and (class == "PALADIN" or class == "MONK" or class == "MAGE" or class == "EVOKER")) then
         eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
         eventFrame:RegisterEvent("PLAYER_ALIVE")
         eventFrame:RegisterEvent("PLAYER_UNGHOST")
@@ -856,18 +879,18 @@ function ClassPower.RegisterEvents(owner, frame)
 
         local holder = currentOwner.Elements and currentOwner.Elements.ClassPowerBar
         if holder then
-            local transition = MatchHighlightContext(currentOwner, holder)
+            local transition, _, _, _, _, token = MatchHighlightContext(currentOwner, holder)
             if event == "RUNE_POWER_UPDATE" then
                 -- Payload may be secret. The event invalidates the six-rune snapshot;
                 -- only its subsequent canonical false -> true comparison can flash.
                 if transition then
                     transition.runeEventObserved = true
                 end
-            elseif event == "UNIT_POWER_UPDATE" and GetPlayerClassToken() == "ROGUE" then
+            elseif event == "UNIT_POWER_UPDATE" and token and token ~= "RUNES" then
                 if not readableUnit or (issecretvalue and issecretvalue(powerToken))
                     or type(unit) ~= "string" or type(powerToken) ~= "string" then
                     ResetHighlights(holder)
-                elseif unit == "player" and powerToken == POWER_TOKEN_COMBO_POINTS and transition then
+                elseif unit == "player" and powerToken == token and transition then
                     transition.powerEventObserved = true
                 end
             elseif not isUnitEvent or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
