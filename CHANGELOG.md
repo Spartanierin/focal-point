@@ -10,6 +10,17 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.4a
+
+### Improved
+
+* Improved the Death Knight rune display by dynamically grouping ready runes at the selected Segment Growth start side and ordering recharging runes by their expected completion time.
+
+### Fixed
+
+* Fixed Low Health Color not updating correctly when using a custom Health Bar color under Midnight.
+* Fixed the Death Knight Ready Flash appearing on the wrong segment after repositioning. The flash now starts after the rune reaches its new position.
+
 ## 2.2.4
 
 ### Added

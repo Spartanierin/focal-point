@@ -25,12 +25,42 @@ local function Left(bar,holder)
     if point:find("RIGHT",1,true) then result=result-bar:GetWidth() end
     return result
 end
+local function RuneOrder(holder,direction)
+    local width=(holder:GetWidth()-5*2)/6
+    local order={}
+    for index=1,6 do
+        local x=Left(holder.Bars[index],holder)
+        local physical=math.floor(x/(width+2)+.5)
+        Near(x,physical*(width+2))
+        assert(physical>=0 and physical<6)
+        local slot=direction=="RIGHT_TO_LEFT" and 6-physical or physical+1
+        assert(not order[slot],"overlapping rune slots")
+        order[slot]=index
+    end
+    return order
+end
 local function Positions(holder,n,direction)
     local width=(holder:GetWidth()-(n-1)*2)/n
+    local runeOrder=holder.segments and RuneOrder(holder,direction)
+    local previousGroup,previousEnd,previousIndex=0,0,0
+    if runeOrder then
+        for _,index in ipairs(runeOrder)do
+            local s=holder.segments[index]
+            local group=s.ready and 1 or (s.startTime and 2 or 3)
+            local ending=group==2 and s.startTime+s.duration or 0
+            assert(group>=previousGroup,"ready/recharge/spent grouping")
+            if group==previousGroup then
+                assert(ending>=previousEnd,"earliest completion first")
+                if ending==previousEnd then assert(index>previousIndex,"stable API tie-breaker")end
+            end
+            previousGroup,previousEnd,previousIndex=group,ending,index
+        end
+    end
     for i=1,n do
         local bar=holder.Bars[i];assert(bar:IsShown())
         local slot=direction=="RIGHT_TO_LEFT" and n-i or i-1
-        Near(Left(bar,holder),slot*(width+2));Near(bar:GetWidth(),width)
+        if not runeOrder then Near(Left(bar,holder),slot*(width+2))end
+        Near(bar:GetWidth(),width)
         assert(not bar.lastSetReverseFill and not bar.lastSetOrientation)
     end
     for i=n+1,#holder.Bars do assert(not holder.Bars[i]:IsShown())end
@@ -57,7 +87,7 @@ Test("aggregate 0..max, fractional fill and gains keep logical indices in both d
     h.ComboCase(Check)
     for _,resource in ipairs(h.resources)do h.AggregateCase(resource,Check)end
 end)
-Test("all DK specs mirror the same six API indices, timers and flashes without sorting",function()
+Test("all DK specs group visual slots while preserving six API identities, timers and flashes",function()
     for spec=1,3 do
         h.HighlightCase(function(frame,holder,event)
             h.Spec(spec)
@@ -78,6 +108,57 @@ Test("all DK specs mirror the same six API indices, timers and flashes without s
         end)
     end
 end)
+Test("DK 0..6 ready, sparse indices, both growth sides and immutable snapshots",function()
+    h.HighlightCase(function(frame,holder)
+        local sequence={6,2,5,1,4,3}
+        local bars={table.unpack(holder.Bars)}
+        for _,direction in ipairs(directions)do
+            frame.config.classPowerBarGrowth=direction
+            for ready=0,6 do
+                for i=1,6 do h.Runes()[i]={nil,nil,false}end
+                for i=1,ready do h.Runes()[sequence[i]]={0,0,true}end
+                local info=Apply(frame);local snapshot=h.Copy(info.segments)
+                Positions(holder,6,direction)
+                local order=RuneOrder(holder,direction)
+                for slot,index in ipairs(order)do
+                    Eq(info.segments[index].ready,slot<=ready)
+                    Eq(holder.Bars[index],bars[index]);Eq(info.segments[index].index,index)
+                    Eq(bars[index].Countdown:GetText(),"");Eq(Plays(holder,index),0)
+                end
+                local before=h.Copy(ns.db);Apply(frame)
+                Equal(snapshot,info.segments);Equal(before,ns.db)
+            end
+        end
+    end)
+end)
+Test("DK completion time beats start time; ready, recharge and spent ties use API index",function()
+    h.HighlightCase(function(frame,holder)
+        local runes=h.Runes()
+        runes[1]={95,20,false};runes[2]={99,3,false};runes[3]={0,0,true}
+        runes[4]={90,12,false};runes[5]={nil,nil,false};runes[6]={0,0,true}
+        for _,direction in ipairs(directions)do
+            frame.config.classPowerBarGrowth=direction;Apply(frame)
+            Equal(RuneOrder(holder,direction),{3,6,2,4,1,5})
+            Eq(holder.Bars[1].Countdown:GetText(),"15.0")
+            Eq(holder.Bars[2].Countdown:GetText(),"2.0");Eq(holder.Bars[4].Countdown:GetText(),"2.0")
+            Eq(holder.Bars[5].Countdown:GetText(),"")
+            -- No reordering/anchoring from a countdown tick, even across expiry.
+            local setPoint,clear=h.native.SetPoint,h.native.ClearAllPoints
+            h.native.SetPoint=function()error("anchor mutation in countdown tick")end
+            h.native.ClearAllPoints=function()error("anchor clear in countdown tick")end
+            for i=1,4 do h.Advance();holder:GetScript("OnUpdate")(holder)end
+            h.native.SetPoint,h.native.ClearAllPoints=setPoint,clear
+            Equal(RuneOrder(holder,direction),{3,6,2,4,1,5})
+            -- Reset fixture time for the mirrored case without replacing widgets.
+            h.Defaults();runes=h.Runes()
+            runes[1]={95,20,false};runes[2]={99,3,false};runes[3]={0,0,true}
+            runes[4]={90,12,false};runes[5]={nil,nil,false};runes[6]={0,0,true}
+        end
+        runes[2]={0,0,false};Apply(frame)
+        Equal(RuneOrder(holder,"RIGHT_TO_LEFT"),{3,6,4,1,2,5})
+    end)
+end)
+
 Test("growth mutation on the same config cancels pending and active DK/aggregate flashes",function()
     local function Check(frame,holder,queueReady,spend)
         local config=frame.config

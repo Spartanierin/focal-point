@@ -26,7 +26,7 @@ end
 
 Require("Title", "Focal Point")
 Require("Interface", "120100, 16001")
-Require("Version", "2.2.4")
+Require("Version", "2.2.4a")
 Require("Author", "Spartanierin")
 Require("Notes")
 Require("SavedVariables", "FocalPointDB")

@@ -530,6 +530,18 @@ local function MatchHighlightContext(frame, holder)
     return state, root, config, spec, editor, token, typeId, growth
 end
 
+local function SameRuneSnapshot(previous, current)
+    for index = 1, RUNE_COUNT do
+        local a, b = previous[index], current[index]
+        if a.ready ~= b.ready then return false end
+        -- Compare the two existing snapshots, never secret timing or derived Safe values.
+        if issecretvalue and (issecretvalue(a.startTime) or issecretvalue(b.startTime)
+            or issecretvalue(a.duration) or issecretvalue(b.duration)) then return false end
+        if a.startTime ~= b.startTime or a.duration ~= b.duration then return false end
+    end
+    return true
+end
+
 local function ObserveReadySnapshot(frame, segments, max, qualified, current, gainValid, snapshotToken, snapshotType)
     local holder = frame.Elements.ClassPowerBar
     if not holder._highlightLifecycle then
@@ -579,9 +591,22 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, ga
             unit = frame._fpUnit, class = "DEATHKNIGHT", token = token, typeId = typeId, growth = growth, runeEventObserved = false }
         holder._readyTransitions = state
     elseif qualified then
+        -- A new value refresh supersedes any unconsumed presentation intent.
+        state.pendingReady = nil
         for index = 1, RUNE_COUNT do
             if state.runeEventObserved and state.segments[index].ready == false and segments[index].ready then
-                PlaySegmentHighlight(holder.Bars[index])
+                state.pendingReady = state.pendingReady or {}
+                state.pendingReady[index] = true
+            end
+        end
+    else
+        -- ApplyLayout calls this only after every final anchor and timer update.
+        -- Consume once, and only against the matching snapshot/context. No new event.
+        local pending = state.pendingReady
+        state.pendingReady = nil
+        if pending and SameRuneSnapshot(state.segments, segments) then
+            for index = 1, RUNE_COUNT do
+                if pending[index] then PlaySegmentHighlight(holder.Bars[index]) end
             end
         end
     end
@@ -707,6 +732,29 @@ local function PrepareSegmentWidgets(holder)
     holder:HookScript("OnShow", UpdateSegments)
 end
 
+-- Only the existing provider/preview snapshots enter here: ready is readable and
+-- recharge timing is validated. Sort API indices, never the canonical records.
+-- This mapping is local to layout application, not countdown ticks or saved state.
+local function GetRuneVisualSlots(segments)
+    if not segments then return nil end
+    local order, slots = {}, {}
+    for index = 1, #segments do order[index] = index end
+    table.sort(order, function(a, b)
+        local left, right = segments[a], segments[b]
+        local leftGroup = left.ready and 1 or (left.startTime and 2 or 3)
+        local rightGroup = right.ready and 1 or (right.startTime and 2 or 3)
+        if leftGroup ~= rightGroup then return leftGroup < rightGroup end
+        if leftGroup == 2 then
+            local leftEnd = left.startTime + left.duration
+            local rightEnd = right.startTime + right.duration
+            if leftEnd ~= rightEnd then return leftEnd < rightEnd end
+        end
+        return a < b
+    end)
+    for slot, index in ipairs(order) do slots[index] = slot end
+    return slots
+end
+
 function ClassPower.ApplyLayout(frame, options)
     if not frame or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
@@ -772,6 +820,7 @@ function ClassPower.ApplyLayout(frame, options)
 
     local usableWidth = width - ((maxValue - 1) * spacing)
     local segmentWidth = maxValue > 0 and (usableWidth / maxValue) or usableWidth
+    local runeSlots = GetRuneVisualSlots(options.liveClassPowerSegments)
     local numActive = currentValue + 0.9
     local borderR = options.classPowerBorderR or 0
     local borderG = options.classPowerBorderG or 0
@@ -784,7 +833,13 @@ function ClassPower.ApplyLayout(frame, options)
 
         if index <= maxValue then
             -- Bars[index] keeps its resource/rune identity; only its position moves.
-            if rightToLeft then
+            if runeSlots then
+                -- Ready -> earliest recharge end -> spent, from the growth start side.
+                -- Direct holder anchors avoid transient cycles when slots exchange.
+                local offset = (runeSlots[index] - 1) * (segmentWidth + spacing)
+                local point = rightToLeft and "TOPRIGHT" or "TOPLEFT"
+                bar:SetPoint(point, holder, point, rightToLeft and -offset or offset, 0)
+            elseif rightToLeft then
                 if index == 1 then
                     bar:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, 0)
                 else
@@ -838,7 +893,8 @@ function ClassPower.ApplyLayout(frame, options)
         holder.segments = options.liveClassPowerSegments
         UpdateSegments(holder)
     end
-    -- Render-only snapshots may seed/resync, but never qualify a transition.
+    -- Render-only snapshots may consume a matching qualified intent after reanchor;
+    -- they never independently qualify a transition.
     ObserveReadySnapshot(frame, options.liveClassPowerSegments, options.liveClassPowerMax, false,
         options.liveClassPowerCurrent, options.liveClassPowerGainValid, options.liveClassPowerToken, options.liveClassPowerType)
 end

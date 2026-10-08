@@ -386,6 +386,49 @@ local function HighlightCase(fn)
     fn(frame, holder, Event, function() return reason end)
     ns.UnitFrameState.QueueRefresh = queue
 end
+Test("visual regrouping carries an active flash with its API widget, without replay or stale hide",function()
+    HighlightCase(function(frame,h,event)
+        local bars={table.unpack(h.Bars)};local texts={}
+        for i=1,6 do texts[i]=bars[i].Countdown end
+        local before=Copy(ns.db)
+        cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+        local flash=assert(bars[3].ReadyHighlight);local animation=flash.animation
+        local _,parent,_,firstX=bars[3]:GetPoint(1)
+        Eq(parent,h);assert(animation.playing and flash:IsShown());Eq(Plays(h,3),1)
+        -- Another rune becomes ready while rune 3's 125ms animation is running.
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+        local _,newParent,_,secondX=bars[3]:GetPoint(1)
+        Eq(newParent,h);assert(secondX>firstX);assert(animation.playing and flash:IsShown())
+        Eq(Plays(h,3),1);Eq(Plays(h,2),1);Eq(bars[3].ReadyHighlight,flash)
+        -- Spending an earlier ready rune moves the same live flash back again.
+        cooldowns[1]={100,10,false};event("RUNE_POWER_UPDATE");Apply(frame)
+        local _,_,_,thirdX=bars[3]:GetPoint(1);assert(thirdX<secondX)
+        assert(animation.playing and flash:IsShown());Eq(Plays(h,3),1)
+        for i=1,6 do Eq(h.Bars[i],bars[i]);Eq(bars[i].Countdown,texts[i]);Eq(h.segments[i].index,i)end
+        Eq(bars[1].Countdown:GetText(),"10.0");Eq(bars[3].Countdown:GetText(),"")
+        Near(animation.children[1].Duration+animation.children[2].Duration,.125)
+        -- Finishing one moved flash must never hide the other rune's flash.
+        animation:Finish();assert(not flash:IsShown());assert(bars[2].ReadyHighlight:IsShown())
+        assert(bars[2].ReadyHighlight.animation.playing);Eq(Plays(h,2),1)
+        Apply(frame);assert(bars[2].ReadyHighlight.animation.playing);Equal(before,ns.db)
+    end)
+end)
+Test("invalid/secret timing never reaches slot sorting and recovery creates no flash",function()
+    HighlightCase(function(frame,h,event)
+        local old=issecretvalue
+        local secret=setmetatable({},{__add=function()error("secret addition")end,
+            __lt=function()error("secret ordering")end,__eq=function()error("secret equality")end})
+        issecretvalue=function(value)return rawequal(value,secret)end
+        for _,row in ipairs({{secret,10,false},{95,secret,false},{95,10,secret},
+            {95,math.huge,false},{0/0,10,false},{95,-1,false}})do
+            cooldowns[3]=row;event("RUNE_POWER_UPDATE",secret);Apply(frame)
+            AssertClear(frame);assert(not h:IsShown());Quiet(h)
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE",secret);Apply(frame)
+            Eq(Plays(h,3),0);Eq(h.Bars[3]:GetValue(),1);Eq(h.Bars[3].Countdown:GetText(),"")
+        end
+        issecretvalue=old
+    end)
+end)
 Test("highlight: initial snapshot, qualified ready once, no unqualified or repeated ready", function()
     HighlightCase(function(frame, h, event)
         for i=1,6 do Eq(Plays(h,i),0) end
@@ -900,6 +943,107 @@ Test("shards: fractional display unchanged, no gain highlight or secondary mutat
             Eq(Plays(h,3),0);Eq(Plays(h,4),0)
             Near(h.Bars[3]:GetValue(),math.min(1,current-2));Eq(frame.LiveValues.altPowerCurrentRaw,72)
         end
+    end)
+end)
+
+local function RenderRuneSnapshot(frame)
+    local info=C.GetInfo("player",frame)
+    C.ApplyLayout(frame,{classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
+        classPowerBarGrowth=frame.config.classPowerBarGrowth,
+        liveClassPowerSegments=info and info.segments,liveClassPowerMax=info and info.max,
+        liveClassPowerCurrent=info and info.current,liveClassPowerToken=info and info.token,
+        liveClassPowerType=info and info.typeId})
+end
+Test("DK deferred flash: Play sees every final anchor, matching API widget and ready timer",function()
+    for _,growth in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"})do
+        for _,indices in ipairs({{3},{2,3}})do
+            HighlightCase(function(frame,h,event)
+                frame.config.classPowerBarGrowth=growth;Apply(frame)
+                local bars={table.unpack(h.Bars)};local observed=0
+                local create=native.CreateAnimationGroup
+                native.CreateAnimationGroup=function(texture)
+                    local group=create(texture);local play=group.Play
+                    group.Play=function(self)
+                        local index;for i=1,6 do if bars[i]==texture:GetParent()then index=i end end
+                        assert(index==3 or (#indices==2 and index==2));observed=observed+1
+                        local expected=#indices==1 and {1,3,5,2,6,4} or {1,2,3,5,6,4}
+                        for slot,api in ipairs(expected)do
+                            Eq(h.Bars[api],bars[api]);Eq(h.segments[api].index,api)
+                            local point,parent,relative,x=bars[api]:GetPoint(1)
+                            Eq(parent,h);Eq(point,growth=="RIGHT_TO_LEFT" and "TOPRIGHT" or "TOPLEFT")
+                            Eq(relative,point);Near(x,(slot-1)*(bars[api]:GetWidth()+2)*(growth=="RIGHT_TO_LEFT" and -1 or 1))
+                        end
+                        assert(h.segments[index].ready);Eq(bars[index].Countdown:GetText(),"")
+                        return play(self)
+                    end
+                    return group
+                end
+                local reads=calls
+                for _,index in ipairs(indices)do cooldowns[index]={0,0,true}end
+                event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+                Eq(observed,0);assert(h._readyTransitions.pendingReady)
+                RenderRuneSnapshot(frame);Eq(observed,#indices);Eq(calls-reads,12)
+                assert(not h._readyTransitions.pendingReady and not h._readyTransitions.runeEventObserved)
+                RenderRuneSnapshot(frame);Eq(observed,#indices) -- no double consume
+                native.CreateAnimationGroup=create
+            end)
+        end
+    end
+end)
+Test("DK deferred flash: any changed snapshot cancels intent and seeds a fresh baseline",function()
+    for _,change in ipairs({
+        function()cooldowns[2]={0,0,true}end,
+        function()cooldowns[2]={96,10,false}end,
+        function()cooldowns[2]={95,11,false}end,
+        function()cooldowns[4]={100,10,false}end,
+        function()cooldowns[3]={100,10,false}end,
+    })do
+        HighlightCase(function(frame,h,event)
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+            assert(h._readyTransitions.pendingReady);change();RenderRuneSnapshot(frame)
+            for i=1,6 do Eq(Plays(h,i),0)end
+            assert(not h._readyTransitions.pendingReady)
+            Apply(frame);Eq(Plays(h,3),0)
+            cooldowns[3]={100,10,false};Apply(frame)
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame);Eq(Plays(h,3),1)
+        end)
+    end
+end)
+Test("DK deferred flash: intermediate context/lifecycle/value refresh invalidates pending intent",function()
+    for _,change in ipairs({
+        function(frame,h)h:Hide();h:Show()end,
+        function(frame)C.Clear(frame)end,
+        function(frame)frame.config=Copy(frame.config)end,
+        function(frame)frame.config.classPowerBarGrowth="RIGHT_TO_LEFT"end,
+        function()spec=2 end,
+        function()ns.framesUnlocked=true end,
+        function()ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(ns.db))end,
+        function(frame)ns.guiTestModeEnabled=true;ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","deferred")end,
+        function(frame)C.RefreshValues(ns.UnitFrame,frame)end,
+        function()GetRuneCooldown=nil end,
+    })do
+        HighlightCase(function(frame,h,event)
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+            assert(h._readyTransitions.pendingReady);change(frame,h);RenderRuneSnapshot(frame)
+            Eq(Plays(h,3),0);assert(not h._readyTransitions or not h._readyTransitions.pendingReady)
+        end)
+    end
+end)
+Test("DK deferred flash: 50 combat/clear/reuse cycles, no stale intent or widget growth",function()
+    HighlightCase(function(frame,h,event)
+        local bars={table.unpack(h.Bars)};local oldCombat=InCombatLockdown
+        local animations=animationCount
+        for cycle=1,50 do
+            InCombatLockdown=function()return cycle%2==0 end
+            cooldowns[3]={98,10,false};Apply(frame)
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+            Eq(Plays(h,3),cycle-1);RenderRuneSnapshot(frame);Eq(Plays(h,3),cycle)
+            local flash=h.Bars[3].ReadyHighlight
+            RenderRuneSnapshot(frame);assert(flash.animation.playing);Eq(Plays(h,3),cycle)
+            C.Clear(frame);RenderRuneSnapshot(frame);Eq(Plays(h,3),cycle);Quiet(h)
+            for i=1,6 do Eq(h.Bars[i],bars[i])end
+        end
+        Eq(animationCount,animations+1);InCombatLockdown=oldCombat
     end)
 end)
 
