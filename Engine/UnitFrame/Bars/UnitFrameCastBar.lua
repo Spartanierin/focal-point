@@ -115,7 +115,97 @@ local function IsCastbarTextElement(frame, key, textConfig)
     return false
 end
 
+-- A short, cast-local tail. Only the event handler may start it; STOP is not evidence.
+function CastBar.CancelEndFlash(frame)
+    local bar = frame and frame.Elements and frame.Elements.CastBar
+    if not bar or not bar.endFlash then return false end
+    bar.endFlash = nil -- invalidate callbacks before stopping the animation
+    bar.EndFlash.animation:Stop()
+    bar.EndFlash:Hide()
+    bar.EndFlash:SetAlpha(0)
+    bar.isCasting = false
+    bar.castID = nil
+    CastBar.ClearVisuals(frame)
+    bar:Hide()
+    return true
+end
+
+local function EditorActive()
+    return FocalPoint.IsEditorActive and FocalPoint:IsEditorActive() == true
+end
+
+function CastBar.KeepEndFlash(frame)
+    local bar = frame and frame.Elements and frame.Elements.CastBar
+    local tail = bar and bar.endFlash
+    if not tail then return false end
+    if frame.config ~= tail.config or frame._fpUnit ~= tail.unit
+        or frame.config.enabled == false or frame.config.showCastBar == false or not bar:IsVisible()
+        or (bar.GetEffectiveAlpha and bar:GetEffectiveAlpha() <= 0)
+        or EditorActive() ~= tail.editor or FocalPoint.guiTestModeEnabled ~= tail.demo
+        or FocalPoint.framesUnlocked ~= tail.unlocked
+        or (RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar"))
+    then
+        CastBar.CancelEndFlash(frame)
+        return false
+    end
+    return true
+end
+
+function CastBar.TryEndFlash(frame, castBarID)
+    local bar = frame and frame.Elements and frame.Elements.CastBar
+    -- Check secrecy before any comparison. GUID/spell/actor payloads are never used.
+    if (issecretvalue and issecretvalue(castBarID)) or type(castBarID) ~= "number"
+        or not bar or (issecretvalue and issecretvalue(bar.castID))
+        or type(bar.castID) ~= "number" or bar.castID ~= castBarID
+        or bar.endFlash or bar.endFlashInvalidated or not bar.isCasting
+        or bar.isChannel or bar.isPreview or bar.isTextEditPreview
+        or not frame.config or frame.config.enabled == false or frame.config.showCastBar == false
+        or EditorActive() or FocalPoint.guiTestModeEnabled == true
+        or not bar:IsVisible() or bar:GetAlpha() <= 0
+        or (bar.GetEffectiveAlpha and bar:GetEffectiveAlpha() <= 0)
+        or (RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(frame, "CastBar"))
+    then return false end
+
+    local r, g, b, a = UnpackColor(frame.config.castBarInterruptibleColor
+        or frame.config.castBarUninterruptibleColor, { 0.60, 0.60, 0.60, 1.00 })
+    if a <= 0 then return false end
+    local texture = bar.EndFlash
+    if not texture then
+        texture = bar:CreateTexture(nil, "OVERLAY")
+        texture:SetTexture("Interface\\Buttons\\WHITE8X8")
+        texture:SetAllPoints(bar)
+        local animation = texture:CreateAnimationGroup()
+        animation:SetLooping("NONE")
+        local fadeIn = animation:CreateAnimation("Alpha")
+        fadeIn:SetOrder(1)
+        fadeIn:SetDuration(0.025)
+        fadeIn:SetFromAlpha(0)
+        fadeIn:SetToAlpha(0.65)
+        local fadeOut = animation:CreateAnimation("Alpha")
+        fadeOut:SetOrder(2)
+        fadeOut:SetDuration(0.100)
+        fadeOut:SetFromAlpha(0.65)
+        fadeOut:SetToAlpha(0)
+        texture.animation = animation
+        bar.EndFlash = texture
+        bar:HookScript("OnHide", function() CastBar.CancelEndFlash(frame) end)
+    end
+    local tail = { config = frame.config, unit = frame._fpUnit, editor = EditorActive(),
+        demo = FocalPoint.guiTestModeEnabled, unlocked = FocalPoint.framesUnlocked }
+    bar.endFlash = tail
+    texture.animation:SetScript("OnFinished", function()
+        if bar.endFlash == tail and CastBar.KeepEndFlash(frame) then CastBar.Stop(frame) end
+    end)
+    -- Keep the existing bar value, icon and base color; tint only the transient overlay.
+    texture:SetVertexColor(r + (1 - r) * 0.6, g + (1 - g) * 0.6, b + (1 - b) * 0.6, a)
+    texture:SetAlpha(0)
+    texture:Show()
+    texture.animation:Play()
+    return true
+end
+
 function CastBar.ClearVisuals(frame)
+    CastBar.CancelEndFlash(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return
@@ -161,6 +251,7 @@ function CastBar.ApplyStateColor(castBar, interruptState, baseColor, interruptib
 end
 
 function CastBar.ApplyTextEditPreview(frame)
+    CastBar.CancelEndFlash(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return false
@@ -217,6 +308,7 @@ function CastBar.ApplyTextEditPreview(frame)
 end
 
 function CastBar.ClearTextEditPreview(frame)
+    CastBar.CancelEndFlash(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar or castBar.isTextEditPreview ~= true then
         return false
@@ -375,6 +467,7 @@ function CastBar.GetActiveTiming(unit, castBar, allowEstimatedTiming)
 end
 
 function CastBar.Start(frame)
+    if CastBar.KeepEndFlash(frame) then return end
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     local unit = frame and frame._fpUnit
     if not castBar or not unit then
@@ -400,6 +493,7 @@ function CastBar.Start(frame)
     castBar.startTime = startTime
     castBar.endTime = endTime
     castBar.isCasting = true
+    castBar.endFlashInvalidated = nil
     castBar.isChannel = isChannel and true or false
     castBar.isPreview = false
     castBar.interruptState = interruptState or "UNKNOWN"
@@ -432,6 +526,7 @@ function CastBar.Start(frame)
 end
 
 function CastBar.StartPreview(frame)
+    CastBar.CancelEndFlash(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return
@@ -480,6 +575,7 @@ function CastBar.StartPreview(frame)
 end
 
 function CastBar.Stop(frame)
+    CastBar.CancelEndFlash(frame)
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return
@@ -543,6 +639,7 @@ function CastBar.QueueRefresh(frame)
 end
 
 function CastBar.ApplyLayout(frame, options)
+    if CastBar.KeepEndFlash(frame) then return end
     local castBar = frame and frame.Elements and frame.Elements.CastBar
     if not castBar then
         return

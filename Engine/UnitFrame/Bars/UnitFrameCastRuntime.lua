@@ -35,6 +35,8 @@ function Runtime.Refresh(owner, frame)
         return
     end
 
+    if Cast.KeepEndFlash(frame) then return end
+
     local now = GetTime and GetTime() or 0
     local isChannel, startTime, endTime, spellIcon, interruptState, castID, castToken = GetActiveCastTiming(unit, castBar)
     local hasCast = type(startTime) == "number" and type(endTime) == "number"
@@ -42,6 +44,7 @@ function Runtime.Refresh(owner, frame)
     if hasCast then
         local duration = math.max(endTime - startTime, 0.001)
 
+        castBar.endFlashInvalidated = nil
         castBar.isCasting = true
         castBar.isChannel = isChannel
         castBar.isPreview = false
@@ -97,12 +100,16 @@ function Runtime.RegisterEvents(owner, frame)
     eventFrame.elapsed = 0
 
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_START")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_STOP")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_FAILED")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_DELAYED")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
+    if C_EventUtils and C_EventUtils.IsEventValid and C_EventUtils.IsEventValid("UNIT_SPELLCAST_EMPOWER_START") then
+        eventFrame:RegisterEvent("UNIT_SPELLCAST_EMPOWER_START")
+    end
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
     eventFrame:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
 
@@ -132,6 +139,8 @@ function Runtime.RegisterEvents(owner, frame)
             StopCastBar(currentOwner)
             return
         end
+
+        if Cast.KeepEndFlash(currentOwner) then return end
 
         local now = GetTime and GetTime() or 0
         if castBar.isTextEditPreview == true then
@@ -194,7 +203,7 @@ function Runtime.RegisterEvents(owner, frame)
         owner:RefreshCastBar(currentOwner)
     end)
 
-    eventFrame:SetScript("OnEvent", function(_, event, unit)
+    eventFrame:SetScript("OnEvent", function(_, event, unit, castGUID, spellID, detail, interruptCastBarID)
         local currentOwner = eventFrame.owner
         if not currentOwner then
             return
@@ -202,6 +211,13 @@ function Runtime.RegisterEvents(owner, frame)
         if RuntimeActivity.ShouldRunComponent and not RuntimeActivity.ShouldRunComponent(currentOwner, "CastBar") then
             StopCastBar(currentOwner)
             return
+        end
+
+        if issecretvalue and issecretvalue(unit) then return end
+
+        local function Invalidate()
+            Cast.CancelEndFlash(currentOwner)
+            currentOwner.Elements.CastBar.endFlashInvalidated = true
         end
 
         local function Queue(scope, options)
@@ -212,7 +228,13 @@ function Runtime.RegisterEvents(owner, frame)
             end
         end
 
+        if event == "PLAYER_SPECIALIZATION_CHANGED" then
+            Invalidate()
+            return
+        end
+
         if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+            Invalidate()
             Queue({ "castbar", "layout" })
             return
         end
@@ -223,24 +245,40 @@ function Runtime.RegisterEvents(owner, frame)
                     return
                 end
             end
+            Invalidate()
             Queue({ "castbar", "layout" })
             return
         end
 
         if event == "UNIT_PET" then
             if currentOwner._fpUnit == "pet" and unit == "player" then
+                Invalidate()
                 Queue({ "castbar", "layout" })
             end
             return
         end
 
         if event == "PLAYER_ENTERING_WORLD" then
+            Invalidate()
             Queue({ "castbar", "layout" })
             return
         end
 
         if unit and unit ~= currentOwner._fpUnit then
             return
+        end
+
+        if event == "UNIT_SPELLCAST_EMPOWER_START" then
+            Invalidate() -- cancellation only; do not add an Empower runtime path
+            return
+        end
+
+        if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" then
+            Invalidate()
+        elseif unit == currentOwner._fpUnit and event == "UNIT_SPELLCAST_INTERRUPTED" then
+            Cast.TryEndFlash(currentOwner, interruptCastBarID)
+        elseif unit == currentOwner._fpUnit and event == "UNIT_SPELLCAST_FAILED" then
+            Cast.TryEndFlash(currentOwner, detail)
         end
 
         if event == "UNIT_SPELLCAST_STOP"
