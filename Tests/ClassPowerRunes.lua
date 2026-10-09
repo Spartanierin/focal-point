@@ -66,6 +66,9 @@ local function Apply(frame,mode,rgba)
     local info=C.GetInfo("player",frame)
     C.ApplyLayout(frame,{useBlizzardColorClassPower=mode,classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
         classPowerBarGrowth=frame.config.classPowerBarGrowth,
+        classPowerRuneTimerFont=frame.config.classPowerRuneTimerFont,
+        classPowerRuneTimerFontSize=frame.config.classPowerRuneTimerFontSize,
+        classPowerRuneTimerFontStyle=frame.config.classPowerRuneTimerFontStyle,
         liveClassPowerGainValid=info and info.aggregateGainValid,
         liveClassPowerSegments=info and info.segments,liveClassPowerCurrent=info and info.current,
         liveClassPowerMax=info and info.max,liveClassPowerType=info and info.typeId,

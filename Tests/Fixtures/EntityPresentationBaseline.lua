@@ -10,6 +10,13 @@ return function(ns, layout, preset)
     -- Segment Growth also postdates this fingerprint; the default preserves its order.
     assert(copy.Units.player.classPowerBarGrowth == "LEFT_TO_RIGHT", "built-in Class Power growth changed")
     copy.Units.player.classPowerBarGrowth = nil
+    -- Rune typography fields postdate the frozen layout, with identical old visuals.
+    assert(copy.Units.player.classPowerRuneTimerFont == "fp:font:standard", "built-in rune font changed")
+    assert(copy.Units.player.classPowerRuneTimerFontSize == 10, "built-in rune font size changed")
+    assert(copy.Units.player.classPowerRuneTimerFontStyle == "OUTLINE", "built-in rune outline changed")
+    copy.Units.player.classPowerRuneTimerFont = nil
+    copy.Units.player.classPowerRuneTimerFontSize = nil
+    copy.Units.player.classPowerRuneTimerFontStyle = nil
     local function merge(a,b)
         for k,v in pairs(b or {}) do
             if type(v)=="table" then a[k]=a[k] or {};merge(a[k],v) else a[k]=v end

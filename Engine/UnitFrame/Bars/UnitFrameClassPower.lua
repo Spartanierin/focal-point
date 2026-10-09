@@ -287,51 +287,51 @@ local function GetLiveClassPowerInfo()
     return nil
 end
 
-function ClassPower.ShouldForcePreview(unit)
-    if unit ~= "player" then
-        return false
-    end
-
-    local unitConfig = FocalPoint.UnitFrameUtils
-        and FocalPoint.UnitFrameUtils.GetUnitDB
-        and FocalPoint.UnitFrameUtils.GetUnitDB(unit)
-    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview({
-        _fpUnit = unit,
-        config = unitConfig,
-    }, {
-        kind = "bar",
-        unit = unit,
-        objectKey = "ClassPowerBar",
+function ClassPower.ShouldForcePreview(unit, frame)
+    if unit ~= "player" then return false end
+    local unitConfig = frame and frame.config or (Utils.GetUnitDB and Utils.GetUnitDB(unit))
+    local context = frame or { _fpUnit = unit, config = unitConfig }
+    local selectionPreview = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(context, {
+        kind = "bar", unit = unit, objectKey = "ClassPowerBar",
     }) == true
-    if type(unitConfig) ~= "table"
-        or unitConfig.classPowerBarPresent ~= true
-        or (unitConfig.showClassPowerBar ~= true and not selectionPreview)
-    then
+    if type(unitConfig) ~= "table" or unitConfig.classPowerBarPresent ~= true
+        or (unitConfig.showClassPowerBar ~= true and not selectionPreview) then
         return false
     end
 
-    if Demo.IsDetailed and Demo.IsDetailed({ unit = "player" }) then
-        return true
-    end
-
+    -- Resolve the actual context; a fresh proxy has no committed demo runtime.
+    local mode = Demo.ResolveMode and Demo.ResolveMode(context, "classPower")
+    if mode == "disabled" then return false end
+    if mode == "detailed" then return true end
     if VisualPolicy.Resolve then
-        local state = VisualPolicy.Resolve({ unit = unit, config = unitConfig }, "ClassPowerBar", {
-            enabled = true,
-            hasLiveData = false,
-        })
-        return state == "editor-simulated"
+        local state = VisualPolicy.Resolve(context, "ClassPowerBar", { enabled = true, hasLiveData = false })
+        return state == "editor-simulated" or (selectionPreview and state == "selection-simulated")
     end
-
     return false
 end
 
-local function GetPreviewClassPowerInfo(frame)
+local function GetPreviewClassPowerInfo(frame, previewMode)
     local classToken = GetPlayerClassToken()
-    if classToken == "DEATHKNIGHT" then
+    -- Selection previews the local timer presentation, regardless of the player's
+    -- live resource. Detailed mode retains the existing class-specific provider.
+    if classToken == "DEATHKNIGHT" or previewMode == "selection" then
+        local config = frame and frame.config or nil
+        local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+        local scope = previewMode == "selection" and editorState and editorState.GetPropertyScope and editorState.GetPropertyScope() or nil
+        local resolver = FocalPoint.ActiveLayoutResolver
+        local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
+        local font = config and config.classPowerRuneTimerFont
+        local size = config and config.classPowerRuneTimerFontSize
+        local style = config and config.classPowerRuneTimerFontStyle
         local info = frame and frame._classPowerPreviewInfo
         local now = GetTime()
-        if not info then
+        if not info or info.previewMode ~= previewMode or info.previewScope ~= scope
+            or info.previewConfig ~= config or info.previewRoot ~= root or info.previewClass ~= classToken
+            or info.previewFont ~= font or info.previewSize ~= size or info.previewStyle ~= style then
             info = BuildInfo(POWER_ID_RUNES, "RUNES", 3, RUNE_COUNT)
+            info.previewMode, info.previewScope, info.previewConfig = previewMode, scope, config
+            info.previewRoot, info.previewClass = root, classToken
+            info.previewFont, info.previewSize, info.previewStyle = font, size, style
             info.segments = {}
             for index = 1, RUNE_COUNT do
                 info.segments[index] = { index = index, ready = index <= 3,
@@ -356,27 +356,33 @@ local function GetPreviewClassPowerInfo(frame)
         typeId = POWER_ID_COMBO_POINTS,
         token = POWER_TOKEN_COMBO_POINTS,
     }
-
     return BuildInfo(previewInfo.typeId, previewInfo.token, previewInfo.current, previewInfo.max)
 end
 
 function ClassPower.GetInfo(unit, frame)
-    if unit ~= "player" then
-        return nil
+    if unit ~= "player" then return nil end
+    local mode = Demo.ResolveMode and Demo.ResolveMode(frame or { _fpUnit = unit }, "classPower")
+    if GetPlayerClassToken() == "DEATHKNIGHT" and mode == "detailed" then
+        return GetPreviewClassPowerInfo(frame, "detailed")
     end
-
-    -- Detailed DK preview owns a stable synthetic snapshot, independent of APIs.
-    if GetPlayerClassToken() == "DEATHKNIGHT" and Demo.IsDetailed and Demo.IsDetailed(frame or { unit = unit }) then
-        return GetPreviewClassPowerInfo(frame)
+    local config = frame and frame.config
+    if config and config.classPowerBarPresent == true and config.showClassPowerBar == true
+        and VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+            kind = "bar", unit = unit, objectKey = "ClassPowerBar",
+        }) then
+        return GetPreviewClassPowerInfo(frame, "selection")
+    end
+    local previous = frame and frame._classPowerPreviewInfo
+    if previous and (previous.previewMode == "selection" or previous.previewMode == "detailed") then
+        frame._classPowerPreviewInfo = nil
     end
     local liveInfo = GetLiveClassPowerInfo()
     if liveInfo then
         if frame then frame._classPowerPreviewInfo = nil end
         return liveInfo
     end
-
-    if ClassPower.ShouldForcePreview(unit) then
-        return GetPreviewClassPowerInfo(frame)
+    if ClassPower.ShouldForcePreview(unit, frame) then
+        return GetPreviewClassPowerInfo(frame, "fallback")
     end
     if frame then frame._classPowerPreviewInfo = nil end
     return nil
@@ -716,6 +722,43 @@ function ClassPower.Clear(frame)
     ClearRuneTiming(frame)
 end
 
+-- Layout-only styling: countdown ticks continue to consume only rune timing.
+local function ApplyRuneTimerStyle(holder, options)
+    local fallbackFont = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+    local font = fallbackFont
+    local reference = options.classPowerRuneTimerFont
+    local media = FocalPoint.MediaRegistry
+    if type(reference) == "string" and reference ~= "" and media and media.ResolveReference then
+        local resolved = media.ResolveReference(reference, "font", "fp:font:standard")
+        if resolved and resolved.available and type(resolved.resolvedAsset) == "string" and resolved.resolvedAsset ~= "" then
+            font = resolved.resolvedAsset
+        end
+    end
+    local size = options.classPowerRuneTimerFontSize
+    if type(size) ~= "number" or not (size >= 6 and size <= 32) then size = 10 end
+    local style = options.classPowerRuneTimerFontStyle
+    if style ~= "NONE" and style ~= "OUTLINE" and style ~= "THICKOUTLINE"
+        and style ~= "MONOCHROME" and style ~= "OUTLINE_MONOCHROME" and style ~= "THICKOUTLINE_MONOCHROME" then
+        style = "OUTLINE"
+    end
+    -- Loaded after this module in Init.xml; resolve the pure helper at apply time.
+    local utils = FocalPoint.TextElementUtils
+    local flags = utils and utils.BuildFontFlags and utils.BuildFontFlags({fontStyle = style}) or "OUTLINE"
+    for _, bar in ipairs(holder.Bars) do
+        local text = bar.Countdown
+        local currentFont, currentSize, currentFlags = text:GetFont()
+        if currentFont ~= font or currentSize ~= size or (currentFlags or "") ~= flags then
+            local ok, applied = pcall(text.SetFont, text, font, size, flags ~= "" and flags or nil)
+            if not ok or applied == false then
+                ok, applied = pcall(text.SetFont, text, fallbackFont, size, flags ~= "" and flags or nil)
+                if not ok or applied == false then
+                    text:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+                end
+            end
+        end
+    end
+end
+
 local function PrepareSegmentWidgets(holder)
     if holder._segmentTimingInitialized then return end
     holder._segmentTimingInitialized = true
@@ -890,6 +933,7 @@ function ClassPower.ApplyLayout(frame, options)
     end
     if options.liveClassPowerSegments then
         PrepareSegmentWidgets(holder)
+        ApplyRuneTimerStyle(holder, options)
         holder.segments = options.liveClassPowerSegments
         UpdateSegments(holder)
     end

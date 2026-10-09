@@ -3238,12 +3238,14 @@ function InspectorController.Build(container, state, options)
         local generalSection = classPowerSection
         local appearanceSection = classPowerSection
         local backgroundSection = classPowerSection
+        local runeTimerSection
         local geometrySection = classPowerSection
         local positionSection = classPowerSection
         local actionsSection
         if usePropertyGroups then
             generalSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            runeTimerSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
             backgroundSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if isExpert then
@@ -3345,6 +3347,56 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showClassPowerBar ~= true)
         end
         RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "ClassPowerBar" }, "classPowerBarHeight", classPowerBarHeightControl)
+
+        runeTimerSection = runeTimerSection or AddFramedObjectPropertyGroup(rootSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+        local runeTimerDisabled = unitConfig.showClassPowerBar ~= true
+        local runeFontValue = unitConfig.classPowerRuneTimerFont or DEFAULT_FONT_REFERENCE
+        local runeFontOptions = BuildFontOptions(runeFontValue)
+        local runeFontControl
+        local function SetRuneTimerFont(value)
+            local result = SetUnitField("classPowerRuneTimerFont", value)
+            if not (result and result.ok == false) then
+                local storedValue = result and result.newValue or unitConfig.classPowerRuneTimerFont or value
+                if runeFontControl and type(runeFontControl._fpSetPropertyValueText) == "function" then
+                    runeFontControl._fpSetPropertyValueText(ResolveOptionValueLabel(BuildFontOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(runeFontControl, storedValue)
+                end
+            end
+            return result
+        end
+        local function SetRuneTimerSize(value)
+            SetUnitField("classPowerRuneTimerFontSize", math.floor((value or 10) + 0.5))
+        end
+        local function SetRuneTimerStyle(value)
+            SetUnitField("classPowerRuneTimerFontStyle", value)
+        end
+        if usePropertyGroups then
+            runeFontControl = AddPropertyPickerValueRow(runeTimerSection, L["OPTION_FONT"] or "Font", ResolveOptionValueLabel(runeFontOptions, runeFontOptions.value or runeFontValue), function()
+                OpenMediaBrowserForField({
+                    mediaType = MEDIA_TYPE_FONT,
+                    currentValue = function() return unitConfig.classPowerRuneTimerFont or DEFAULT_FONT_REFERENCE end,
+                    fallbackReference = DEFAULT_FONT_REFERENCE,
+                    title = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font",
+                    onApply = SetRuneTimerFont,
+                })
+            end, runeTimerDisabled or not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font",
+            })
+            AddPropertyCompactSliderRow(runeTimerSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(unitConfig.classPowerRuneTimerFontSize) or 10, SetRuneTimerSize, runeTimerDisabled)
+            AddPropertyDropdownRow(runeTimerSection, L["OPTION_FONT_OUTLINE"] or "Font Outline", {
+                list = fontStyleList,
+                value = unitConfig.classPowerRuneTimerFontStyle or "OUTLINE",
+                onChanged = SetRuneTimerStyle,
+            }, runeTimerDisabled)
+        else
+            runeFontControl = AddDropdown(runeTimerSection, L["OPTION_FONT"] or "Font", runeFontOptions, runeFontOptions.value, SetRuneTimerFont, runeTimerDisabled)
+            AddMediaBrowserForField(runeTimerSection, MEDIA_TYPE_FONT, function()
+                return unitConfig.classPowerRuneTimerFont or DEFAULT_FONT_REFERENCE
+            end, DEFAULT_FONT_REFERENCE, L["MEDIA_LIBRARY_BROWSE_FONT_TITLE"] or "Choose Font", runeTimerDisabled, SetRuneTimerFont)
+            AddSlider(runeTimerSection, L["OPTION_FONT_SIZE"] or "Font Size", 6, 32, 1, tonumber(unitConfig.classPowerRuneTimerFontSize) or 10, SetRuneTimerSize, runeTimerDisabled)
+            AddDropdown(runeTimerSection, L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList, unitConfig.classPowerRuneTimerFontStyle or "OUTLINE", SetRuneTimerStyle, runeTimerDisabled)
+        end
 
         local classPowerGrowth = unitConfig.classPowerBarGrowth == "RIGHT_TO_LEFT" and "RIGHT_TO_LEFT" or "LEFT_TO_RIGHT"
         if usePropertyGroups then

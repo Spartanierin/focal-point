@@ -10,6 +10,20 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.5
+
+### Added
+
+* Added a shared font, size, and outline setting for all six Death Knight rune countdowns in the Class Power Inspector, using the existing font/media selection. Sizes range from 6 to 32; defaults remain the standard font, size 10, and OUTLINE.
+
+### Improved
+
+* Added simulated rune countdowns when selecting the Class Power Bar in the editor, including on non-Death Knight characters, so timer styling can be previewed without spending runes. The preview restarts when reselected or when its font settings change.
+
+### Fixed
+
+* Fixed configured Class Power Bars not appearing in Detailed Demo mode on Warriors without a natural segmented resource.
+
 ## 2.2.4a
 
 ### Improved
