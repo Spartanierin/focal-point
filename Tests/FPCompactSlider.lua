@@ -72,7 +72,11 @@ function native:ClearFocus()
 end
 function native:SetThumbTexture() self.thumb = CreateFrame("Texture", nil, self) end
 function native:GetThumbTexture() return self.thumb end
-function native:CreateTexture() return CreateFrame("Texture", nil, self) end
+function native:CreateTexture(name, layer, template, sublevel)
+    local texture = CreateFrame("Texture", name, self)
+    texture.drawLayer = {layer, sublevel or 0}
+    return texture
+end
 function native:SetAtlas(atlas, useSize)
     self.atlas = atlas
     if useSize then self:SetSize(20, 26) end -- mock atlas dimensions, not a live asset assertion

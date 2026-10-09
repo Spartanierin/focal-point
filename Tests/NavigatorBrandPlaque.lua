@@ -27,6 +27,11 @@ local function Upvalue(fn,name)
     error("Missing upvalue "..name)
 end
 local hooks,textures=0,0
+-- PresentationPreview has already populated the pool before this test's wrappers.
+for owner in pairs(ace.objPools.SimpleGroup or {}) do
+    local fill=owner.frame._fpSectionFill
+    if fill then Equal(fill.drawLayer,{"BACKGROUND",0}) end
+end
 function native:HookScript(event,fn)
     hooks=hooks+1; local previous=self.scripts[event]
     self:SetScript(event,function(frame,...) if previous then previous(frame,...) end; fn(frame,...) end)
@@ -41,7 +46,7 @@ for _,method in ipairs({"SetWidth","SetHeight"}) do
 end
 local createTexture=native.CreateTexture
 function native:CreateTexture(name,layer,template,sublevel)
-    textures=textures+1; local t=createTexture(self); t.drawLayer={layer,sublevel or 0}; return t
+    textures=textures+1; return createTexture(self,name,layer,template,sublevel)
 end
 function native:GetStringHeight() return self:GetText()=="" and 1 or 14 end
 function native:GetStringWidth() return #(self:GetText() or "")*7 end
