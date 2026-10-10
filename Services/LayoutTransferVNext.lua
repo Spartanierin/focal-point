@@ -215,6 +215,8 @@ function Next.ConvertLegacyDocument(decoded, db, generator)
     if not OnlyKeys(legacy.payload, {Units=true, TextTemplates=true}) then
         Diagnose(result, "payload-invalid"); return result
     end
+    local barsValid, barsReason = ns.LayoutService.ValidateSegmentedBarPayload(legacy.payload)
+    if not barsValid then Diagnose(result, barsReason); return result end
     -- E5b imports a layout's reachable resources, not every record in its old
     -- container. Filter this codec-owned copy BEFORE E3 reserves any IDs. E3's
     -- separate whole-stock migration contract remains unchanged.

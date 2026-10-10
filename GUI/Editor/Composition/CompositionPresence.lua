@@ -123,6 +123,9 @@ function Presence.IsOwnPresent(unitConfig, objectRef)
     end
 
     local kind = objectRef.kind
+    if kind == "segmentedBar" then
+        return objectRef.unit == "player" and Ownership.FindSegmentedBar(unitConfig, objectRef.objectKey) ~= nil
+    end
     if kind == "unit" then
         return NormalizeUnitKey(objectRef.unit) ~= nil
             and type(unitConfig) == "table"

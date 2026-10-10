@@ -429,6 +429,7 @@ function State.ResetDerivedFrameState(frame)
 
     local classPower = FocalPoint.UnitFrameClassPower
     if classPower and classPower.Clear then classPower.Clear(frame) end
+    if FocalPoint.UnitFrameSegmentedBars then FocalPoint.UnitFrameSegmentedBars.Clear(frame) end
     frame.LiveValues = WipeTable(frame.LiveValues)
     -- Legacy compatibility path: frame.TestValues is still cleared here until
     -- remaining consumers are migrated to runtime/demo snapshot values.

@@ -3929,6 +3929,7 @@ end
 -- Visibility helpers handle visual cleanup and delayed refresh scheduling.
 
 function Visibility.ClearFrameContentValuesOnly(frame, reason)
+    if FocalPoint.UnitFrameSegmentedBars then FocalPoint.UnitFrameSegmentedBars.Clear(frame) end
     if not frame then
         return
     end
@@ -3999,6 +4000,7 @@ function Visibility.ClearFrameContentValuesOnly(frame, reason)
 end
 
 function Visibility.ClearFrameVisualState(frame, reason)
+    if FocalPoint.UnitFrameSegmentedBars then FocalPoint.UnitFrameSegmentedBars.Clear(frame) end
     if not frame then
         return
     end

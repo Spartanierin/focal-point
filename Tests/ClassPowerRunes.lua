@@ -8,6 +8,7 @@ local f = assert(load(source:sub(1, stop - 1).."\nreturn f", "@Runes/Fixture"))(
 local ns, Load, native = f.ns, f.Load, f.native
 Load("Engine/UnitFrame/Runtime/UnitFrameFactory.lua")
 Load("Engine/UnitFrame/Runtime/UnitFrameState.lua")
+Load("Engine/UnitFrame/Bars/UnitFrameSegmentRenderer.lua")
 Load("Engine/UnitFrame/Bars/UnitFrameClassPower.lua")
 Load("Engine/UnitFrame.lua")
 Load("Engine/UnitFrame/Runtime/UnitFrameVisibility.lua")
@@ -63,7 +64,7 @@ end
 local function Apply(frame,mode,rgba)
     rgba=rgba or {1,1,1,1}
     C.RefreshValues(ns.UnitFrame,frame)
-    local info=C.GetInfo("player",frame)
+    local info=C.GetSnapshotInfo(ns.UnitFrame,frame)
     C.ApplyLayout(frame,{useBlizzardColorClassPower=mode,classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
         classPowerBarGrowth=frame.config.classPowerBarGrowth,
         classPowerRuneTimerFont=frame.config.classPowerRuneTimerFont,
@@ -647,7 +648,7 @@ Test("combo: no event, wrong token/unit, early event and render-only resync neve
         v.current=2;Apply(frame)
         -- A rendering-only snapshot may resync but cannot qualify gains.
         event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
-        v.current=4;local info=C.GetInfo("player",frame)
+        v.current=4;local info=C.GetSnapshotInfo(ns.UnitFrame,frame)
         C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=4,liveClassPowerMax=5,
             liveClassPowerToken=info.token,liveClassPowerGainValid=info.aggregateGainValid})
         Eq(Plays(h,3),0);Eq(Plays(h,4),0);Apply(frame);Eq(Plays(h,3),0)
@@ -798,7 +799,7 @@ for _,resource in ipairs(resources)do
             end
             v.current=2;Apply(frame);gain();v.current=3;Apply(frame);Eq(Plays(h,3),0)
             v.current=2;Apply(frame);event("UNIT_POWER_UPDATE","player",resource.token);v.current=3
-            local info=C.GetInfo("player",frame)
+            local info=C.GetSnapshotInfo(ns.UnitFrame,frame)
             C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=3,liveClassPowerMax=v.max,
                 liveClassPowerToken=info.token,liveClassPowerType=info.typeId,liveClassPowerGainValid=info.aggregateGainValid})
             Apply(frame);Eq(Plays(h,3),0)
@@ -950,7 +951,7 @@ Test("shards: fractional display unchanged, no gain highlight or secondary mutat
 end)
 
 local function RenderRuneSnapshot(frame)
-    local info=C.GetInfo("player",frame)
+    local info=C.GetSnapshotInfo(ns.UnitFrame,frame)
     C.ApplyLayout(frame,{classPowerBarVisible=info~=nil,classPowerBarWidth=180,classPowerBarHeight=14,
         classPowerBarGrowth=frame.config.classPowerBarGrowth,
         liveClassPowerSegments=info and info.segments,liveClassPowerMax=info and info.max,
@@ -987,28 +988,57 @@ Test("DK deferred flash: Play sees every final anchor, matching API widget and r
                 Eq(observed,0);assert(h._readyTransitions.pendingReady)
                 RenderRuneSnapshot(frame);Eq(observed,#indices);Eq(calls-reads,12)
                 assert(not h._readyTransitions.pendingReady and not h._readyTransitions.runeEventObserved)
-                RenderRuneSnapshot(frame);Eq(observed,#indices) -- no double consume
+                RenderRuneSnapshot(frame);Eq(observed,#indices);Eq(calls-reads,12) -- no second validation/play
                 native.CreateAnimationGroup=create
             end)
         end
     end
 end)
-Test("DK deferred flash: any changed snapshot cancels intent and seeds a fresh baseline",function()
+Test("DK deferred flash: independent S2 rejects changed runes without a second source refresh",function()
     for _,change in ipairs({
         function()cooldowns[2]={0,0,true}end,
         function()cooldowns[2]={96,10,false}end,
         function()cooldowns[2]={95,11,false}end,
         function()cooldowns[4]={100,10,false}end,
         function()cooldowns[3]={100,10,false}end,
+        function()cooldowns[3]={nil,nil,false};cooldowns[2]={0,0,true}end,
     })do
         HighlightCase(function(frame,h,event)
             cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+            local snapshot=frame.LiveValues.classPowerSnapshot
             assert(h._readyTransitions.pendingReady);change();RenderRuneSnapshot(frame)
             for i=1,6 do Eq(Plays(h,i),0)end
-            assert(not h._readyTransitions.pendingReady)
+            assert(not h._readyTransitions)
+            Eq(frame.LiveValues.classPowerSnapshot,snapshot) -- S2 is a guard, not a new publication
             Apply(frame);Eq(Plays(h,3),0)
             cooldowns[3]={100,10,false};Apply(frame)
             cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame);Eq(Plays(h,3),1)
+        end)
+    end
+end)
+Test("DK confirmation: secret, malformed and throwing S2 fail closed without retries",function()
+    for _,failure in ipairs({"secret-ready","secret-time","malformed","throw"})do
+        HighlightCase(function(frame,h,event)
+            local api,secretCheck=GetRuneCooldown,issecretvalue
+            local secret={};local invalid=false
+            issecretvalue=function(value)return value==secret or (secretCheck and secretCheck(value))end
+            GetRuneCooldown=function(index)
+                if invalid and index==3 then
+                    if failure=="throw" then error("unavailable confirmation")end
+                    if failure=="secret-ready" then return 0,0,secret end
+                    if failure=="secret-time" then return secret,10,false end
+                    return 0,-1,false
+                end
+                return api(index)
+            end
+            Apply(frame)
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+            local snapshot=frame.LiveValues.classPowerSnapshot
+            assert(h._readyTransitions.pendingReady);invalid=true
+            RenderRuneSnapshot(frame);assert(not h._readyTransitions)
+            Eq(frame.LiveValues.classPowerSnapshot,snapshot);Eq(Plays(h,3),0)
+            local reads=calls;RenderRuneSnapshot(frame);Eq(calls,reads);Eq(Plays(h,3),0)
+            GetRuneCooldown,issecretvalue=api,secretCheck
         end)
     end
 end)

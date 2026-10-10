@@ -306,7 +306,7 @@ function InspectorController.SetActiveCanvasDecorationSizeValues(unitKey, object
     return ok == true
 end
 
-local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, offsetXControl, offsetYControl, pointControl, relativePointControl)
+local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, offsetXControl, offsetYControl, pointControl, relativePointControl, onSynced)
     local selected = ObjectSelection.GetSelectedObject and ObjectSelection.GetSelectedObject() or nil
     if not IsSameInspectorObject(selected, objectRef) then
         return
@@ -318,6 +318,7 @@ local function RegisterActiveCanvasDirectMoveOffsetControls(unitKey, objectRef, 
         offsetYControl = offsetYControl,
         pointControl = pointControl,
         relativePointControl = relativePointControl,
+        onSynced = onSynced,
         suppress = false,
     }
 end
@@ -351,10 +352,15 @@ function InspectorController.SetActiveCanvasDirectMoveOffsetValues(unitKey, obje
             controls.offsetXControl:SetSliderValues(minX, maxX, 1)
             controls.offsetYControl:SetSliderValues(minY, maxY, 1)
         end
+        if objectRef.kind == "segmentedBar" then
+            controls.offsetXControl:SetSliderValues(math.min(-500, offsetX), math.max(500, offsetX), 1)
+            controls.offsetYControl:SetSliderValues(math.min(-500, offsetY), math.max(500, offsetY), 1)
+        end
         controls.offsetXControl:SetValue(offsetX)
         controls.offsetYControl:SetValue(offsetY)
     end)
     controls.suppress = false
+    if ok and controls.onSynced then controls.onSynced() end
     return ok == true
 end
 
@@ -2307,6 +2313,203 @@ function InspectorController.Build(container, state, options)
 
 
     if buildContextOnly then
+        return
+    end
+
+    if ResolvePropertyScope() and ResolvePropertyScope().kind == "segmentedBar" then
+        AddScopedObjectInspectorBody("segmented_bars", L["EDITOR_SEGMENTED_BAR"] or "Segmented Bar", function(body)
+            local ref, record = InspectorContext.GetSegmentedBarSelection(inspectorContext)
+            if not ref or not record then
+                AddPropertyLabel(body, L["EDITOR_SEGMENTED_BAR_UNAVAILABLE"] or "This instance is no longer selected or available.")
+                return
+            end
+            local generalSection = AddFramedObjectPropertyGroup(body, L["SECTION_GENERAL"] or "General", false)
+            AddPropertyLabel(generalSection, (L["EDITOR_SEGMENTED_BAR_UNIT"] or "Unit") .. ": " .. ref.unit)
+            AddPropertyLabel(generalSection, (L["EDITOR_SEGMENTED_BAR_ID"] or "Instance ID") .. ": " .. ref.objectKey)
+            local enabledLabel = AddPropertyLabel(generalSection, record.enabled and (L["EDITOR_SEGMENTED_BAR_ENABLED"] or "Enabled")
+                or (L["EDITOR_SEGMENTED_BAR_DISABLED"] or "Disabled"))
+            if not ns.UnitFrameSegmentedBars then
+                AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_NO_VISUAL"] or "Visual runtime and canvas representation are not available yet.")
+            end
+            local sourceFrame = ns.frames and ns.frames[ref.unit]
+            if sourceFrame and sourceFrame.config ~= unitConfig then sourceFrame = nil end
+            local resolvedSource = ns.UnitFrameSegmentedBars and ns.UnitFrameSegmentedBars.ResolveDataSource
+                and ns.UnitFrameSegmentedBars.ResolveDataSource(record, sourceFrame)
+            -- Fixed bindings are unambiguous even before a runtime frame exists.
+            if record.dataSource.id ~= "auto" then resolvedSource = record.dataSource.id end
+            local mutations = ns.LayoutMutations and ns.LayoutMutations.SegmentedBars
+            local context = mutations and mutations.CaptureContext(ref.unit)
+            local scope = ResolvePropertyScope()
+            local xControl, yControl
+            local controls, syncing, bindingActive = {}, false, true
+            local function IsCurrentBinding()
+                local selected = ObjectSelection.GetSelectedObject()
+                return bindingActive and ResolvePropertyScope() == scope and IsSameInspectorObject(selected, ref)
+                    and activeCanvasDirectMoveOffsetControls
+                    and activeCanvasDirectMoveOffsetControls.offsetXControl == xControl
+                    and xControl:GetUserData("focalPointAnchorKey") == "segmentedBar_offsetX"
+            end
+            local defaults = {anchorTo="Frame",point="TOPLEFT",relativePoint="TOPLEFT",width=100,height=12,
+                offsetX=0,offsetY=0,texture="fp:statusbar:flat-white",color={1,1,1,1},background=true,
+                backgroundColor={0,0,0,.35},useBlizzardColor=false,spacing=2,growth="LEFT_TO_RIGHT",
+                runeTimerFont=DEFAULT_FONT_REFERENCE,runeTimerFontSize=10,runeTimerFontStyle="OUTLINE"}
+            local geometry = {anchorTo=true,point=true,relativePoint=true,width=true,height=true,offsetX=true,offsetY=true}
+            local function Value(current, field)
+                if field == "dataSource" then return current.dataSource.id end
+                if current[field] ~= nil then return current[field] end
+                return defaults[field]
+            end
+            local function SyncControl(current, field)
+                local control, value = controls[field], Value(current, field)
+                if not control then return end
+                syncing = true
+                if field == "color" or field == "backgroundColor" then
+                    control:SetColor(unpack(value))
+                elseif control._fpSetPropertyValueText then
+                    local options = field == "texture" and BuildStatusBarTextureOptions(value) or BuildFontOptions(value)
+                    control._fpSetPropertyValueText(ResolveOptionValueLabel(options, value))
+                else
+                    control:SetValue(value)
+                    if field == "enabled" or field == "background" or field == "useBlizzardColor" then
+                        control:SetLabel(value and (L["OPTION_ON"] or "On") or (L["OPTION_OFF"] or "Off"))
+                    end
+                end
+                syncing = false
+            end
+            local function UpdateDisabled(current)
+                for field, control in pairs(controls) do
+                    control:SetDisabled(not context or (field ~= "enabled" and field ~= "dataSource" and not current.enabled)
+                        or (field == "backgroundColor" and current.background == false)
+                        or (field == "color" and current.useBlizzardColor == true))
+                end
+                if enabledLabel then
+                    enabledLabel:SetText(current.enabled and (L["EDITOR_SEGMENTED_BAR_ENABLED"] or "Enabled")
+                        or (L["EDITOR_SEGMENTED_BAR_DISABLED"] or "Disabled"))
+                end
+            end
+            local function Change(field, value)
+                if syncing or not IsCurrentBinding() or IsActiveCanvasDirectMoveOffsetControlSuppressed(xControl) then return end
+                local _, current = InspectorContext.GetSegmentedBarSelection(inspectorContext)
+                if not current or (field ~= "enabled" and field ~= "dataSource" and not current.enabled) then return end
+                if field == "color" and current.useBlizzardColor == true then return end
+                local result
+                if field == "enabled" then result = mutations.SetEnabled(context, ref.objectKey, value)
+                elseif field == "dataSource" then
+                    result = mutations.SetDataSource(context, ref.objectKey, {id=value,scope="player"})
+                elseif geometry[field] then result = mutations.SetGeometry(context, ref.objectKey, {[field]=value})
+                else result = mutations.SetStyle(context, ref.objectKey, {[field]=value}) end
+                if not result.ok then
+                    ReportMutationError(result)
+                    SyncControl(current, field)
+                    return result
+                end
+                context = mutations.CaptureContext(ref.unit)
+                local _, updated = InspectorContext.GetSegmentedBarSelection(inspectorContext)
+                SyncControl(updated, field)
+                UpdateDisabled(updated)
+                ApplyMutation("segmentedBar", field, result, body, function()
+                    local frame = ns.frames and ns.frames[ref.unit]
+                    if frame and frame.config == unitConfig and ns.UnitFrameSegmentedBars then
+                        ns.UnitFrameSegmentedBars.Apply(frame)
+                        local canvas = ns.GUI.Editor.CanvasHoverOverlay
+                        if canvas then canvas.UpdateFrame(frame) end
+                    end
+                    if field == "enabled" then NotifyCompositionTreeChanged() end
+                end)
+                if field == "dataSource" and result.changed then
+                    bindingActive = false
+                    RebuildLocalSection(body)
+                end
+                return result
+            end
+            local function Dropdown(parent, field, label, list)
+                controls[field] = AddPropertyDropdownRow(parent, label, {
+                    list=list,value=Value(record, field),anchorKey="segmentedBar_" .. field,
+                    onChanged=function(value) Change(field, value) end,
+                }, false)
+            end
+            local function Slider(parent, field, label, minimum, maximum)
+                local value = Value(record, field)
+                controls[field] = AddPropertyCompactSliderRow(parent, label,
+                    math.min(minimum, value), math.max(maximum, value), 1, value,
+                    function(newValue) Change(field, newValue) end, false, "segmentedBar_" .. field)
+            end
+            local function Media(parent, field, label, mediaType, buildOptions)
+                local value, options = Value(record, field), buildOptions(Value(record, field))
+                if IsMediaBrowserAvailable() then
+                    controls[field] = AddPropertyPickerValueRow(parent, label, ResolveOptionValueLabel(options, value), function()
+                        if not IsCurrentBinding() then return end
+                        local _, current = InspectorContext.GetSegmentedBarSelection(inspectorContext)
+                        if not current or not current.enabled then return end
+                        OpenMediaBrowserForField({
+                            mediaType=mediaType,currentValue=Value(current, field),fallbackReference=defaults[field],
+                            onApply=function(selected) return Change(field, selected) end,
+                        })
+                    end, false)
+                    controls[field]:SetUserData("focalPointAnchorKey", "segmentedBar_" .. field)
+                else
+                    Dropdown(parent, field, label, options)
+                end
+            end
+            controls.enabled = AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", record.enabled,
+                function(value) Change("enabled", value) end, false, "segmentedBar_enabled")
+            Dropdown(generalSection, "dataSource", L["EDITOR_SEGMENTED_BAR_SOURCE"] or "Data Source", {
+                auto=L["EDITOR_SEGMENTED_BAR_SOURCE_AUTO"] or "Automatic (Class Resource)",
+                runes=L["EDITOR_SEGMENTED_BAR_SOURCE_RUNES"] or "Runes (Death Knight)",
+                holyPower=L["EDITOR_SEGMENTED_BAR_SOURCE_HOLY_POWER"] or "Holy Power (Paladin)",
+            })
+            if record.dataSource.id == "auto" then
+                local resolvedLabel = resolvedSource == "runes" and (L["EDITOR_SEGMENTED_BAR_SOURCE_RUNES"] or "Runes (Death Knight)")
+                    or resolvedSource == "holyPower" and (L["EDITOR_SEGMENTED_BAR_SOURCE_HOLY_POWER"] or "Holy Power (Paladin)")
+                    or (L["EDITOR_SEGMENTED_BAR_SOURCE_UNKNOWN"] or "Unavailable")
+                AddPropertyLabel(generalSection, (L["EDITOR_SEGMENTED_BAR_RESOLVED_SOURCE"] or "Resolved Source") .. ": " .. resolvedLabel)
+            end
+            if resolvedSource then
+                AddPropertyLabel(generalSection, resolvedSource == "runes"
+                    and (L["EDITOR_SEGMENTED_BAR_RUNES_REQUIREMENT"] or "Live display requires a Death Knight with available rune data.")
+                    or (L["EDITOR_SEGMENTED_BAR_HOLY_POWER_REQUIREMENT"] or "Live display requires a Paladin with available Holy Power data."))
+            end
+            AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_SOURCE_HINT"]
+                or "Without matching live data, the bar stays hidden. Its source and settings remain saved and editable.")
+            local appearanceSection = AddFramedObjectPropertyGroup(body, L["SECTION_APPEARANCE"] or "Appearance", true)
+            Media(appearanceSection, "texture", L["OPTION_TEXTURE"] or "Texture", MEDIA_TYPE_STATUSBAR, BuildStatusBarTextureOptions)
+            controls.useBlizzardColor = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard",
+                Value(record, "useBlizzardColor"), function(value) Change("useBlizzardColor", value) end,
+                false, "segmentedBar_useBlizzardColor")
+            controls.color = AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", Value(record, "color"), true,
+                function(value) Change("color", {value.r,value.g,value.b,value.a}) end, false, "segmentedBar_color")
+            controls.background = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BACKGROUND"] or "Background", Value(record, "background"),
+                function(value) Change("background", value) end, false, "segmentedBar_background")
+            controls.backgroundColor = AddPropertyColorRow(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color",
+                Value(record, "backgroundColor"), true, function(value) Change("backgroundColor", {value.r,value.g,value.b,value.a}) end,
+                false, "segmentedBar_backgroundColor")
+            local geometrySection = AddFramedObjectPropertyGroup(body, L["SECTION_GEOMETRY"] or "Geometry", true)
+            Slider(geometrySection, "width", L["OPTION_WIDTH"] or "Width", 40, 512)
+            Slider(geometrySection, "height", L["OPTION_HEIGHT"] or "Height", 4, 128)
+            Slider(geometrySection, "spacing", L["OPTION_CLASS_POWER_BAR_SPACING"] or "Segment Spacing", 0, 20)
+            local positionSection = AddFramedObjectPropertyGroup(body, L["SECTION_POSITION"] or "Position", true)
+            local targets = {Frame=L["SECTION_FRAME"] or "Frame"}
+            for _, item in ipairs(unitConfig.segmentedBars or {}) do
+                if item.id ~= ref.objectKey then targets["SegmentedBar:" .. item.id] = item.id end
+            end
+            Dropdown(positionSection, "anchorTo", L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", targets)
+            Dropdown(positionSection, "point", L["OPTION_ANCHOR_FROM"] or "Anchor From", textAnchorPointList)
+            Dropdown(positionSection, "relativePoint", L["OPTION_ANCHOR_TO"] or "Anchor To", textAnchorPointList)
+            Slider(positionSection, "offsetX", L["OPTION_X_OFFSET"] or "X Offset", -500, 500)
+            Slider(positionSection, "offsetY", L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500)
+            xControl, yControl = controls.offsetX, controls.offsetY
+            Dropdown(positionSection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
+            if resolvedSource == "runes" then
+                local timerSection = AddFramedObjectPropertyGroup(body, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+                Media(timerSection, "runeTimerFont", L["OPTION_FONT"] or "Font", MEDIA_TYPE_FONT, BuildFontOptions)
+                Slider(timerSection, "runeTimerFontSize", L["OPTION_FONT_SIZE"] or "Font Size", 6, 32)
+                Dropdown(timerSection, "runeTimerFontStyle", L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList)
+            end
+            UpdateDisabled(record)
+            RegisterActiveCanvasDirectMoveOffsetControls(ref.unit, ref, xControl, yControl, nil, nil, function()
+                if IsCurrentBinding() then context = mutations.CaptureContext(ref.unit) end
+            end)
+        end)
         return
     end
 

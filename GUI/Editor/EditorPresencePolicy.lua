@@ -136,6 +136,16 @@ function Presence.ResolveObject(unitKey, objectRef)
     end
 
     local kind = objectRef.kind
+    if kind == "segmentedBar" then
+        local ownership = ns.CompositionOwnership
+        local record = normalizedUnit == "player" and ownership
+            and ownership.FindSegmentedBar(GetUnitConfig(normalizedUnit), objectRef.objectKey)
+        local implemented = ns.UnitFrameSegmentedBars ~= nil
+        return Result(record and implemented and CONDITIONAL or "unavailable", {
+            kind=kind, unit=normalizedUnit, objectKey=objectRef.objectKey,
+            recordFound=record ~= nil and record ~= false, runtimeAvailable=record and implemented or false,
+            reason=record and (implemented and "rune-snapshot-required" or "runtime-not-implemented") or "instance-not-found"})
+    end
     if kind == "text" then
         return Presence.ResolveText(normalizedUnit, objectRef.textKey or objectRef.objectKey)
     end

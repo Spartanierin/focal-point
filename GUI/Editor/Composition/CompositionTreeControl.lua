@@ -9,6 +9,7 @@ local methods = {}
 local ApplyTextStyle = ns.GUI.Helpers.FormWidgets.ApplyTextStyle
 
 local ICON_PATH_BY_NODE_TYPE = {
+    segmentedBar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
     unit = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_unit.png",
     healthbar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
     normalAbsorbBar = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_bar.png",
@@ -24,6 +25,7 @@ local ICON_PATH_BY_NODE_TYPE = {
 }
 
 local ICON_ROLE_BY_NODE_TYPE = {
+    segmentedBar = "bar",
     unit = "unit",
     healthbar = "bar",
     normalAbsorbBar = "bar",

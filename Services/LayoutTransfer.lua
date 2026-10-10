@@ -60,6 +60,8 @@ end
 
 local function ValidateUnits(units, stateField)
     if type(units) ~= "table" or not next(units) then return false, "units-invalid" end
+    local valid, reason = ns.LayoutService.ValidateSegmentedBarPayload({Units=units})
+    if not valid then return false, reason end
     local types = BuildFieldTypes()
     if not types then return false, "service-unavailable" end
     for unitKey, config in pairs(units) do

@@ -386,6 +386,19 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
         return nil
     end
 
+    if objectRef.kind == "segmentedBar" then
+        if frame.config ~= unitConfig then return nil end
+        local mutations = FocalPoint.LayoutMutations and FocalPoint.LayoutMutations.SegmentedBars
+        local runtime = FocalPoint.UnitFrameSegmentedBars
+        local holder = runtime and runtime.GetVisibleHolder(frame, objectRef.objectKey)
+        local context = mutations and mutations.CaptureContext(unitKey)
+        if not holder or not context then return nil end
+        return {kind="segmentedBar",unitConfig=unitConfig,unitKey=unitKey,id=objectRef.objectKey,
+            segmentConfig=holder._segmentedBarRecord,context=context,holder=holder,
+            scope=FocalPoint.GUI.Editor.State.GetPropertyScope(),
+            offsetXField="offsetX",offsetYField="offsetY",unboundedOffsets=true}
+    end
+
     if objectRef.kind == "bar" then
         local objectKey = objectRef.objectKey
         if objectKey == "CastBar" then
@@ -485,6 +498,7 @@ local function ClampDirectMoveOffset(value, descriptor)
 end
 
 local function GetDirectMoveOffsetConfig(descriptor)
+    if descriptor and descriptor.kind == "segmentedBar" then return descriptor.segmentConfig end
     if descriptor and descriptor.kind == "aura" then
         return descriptor.auraConfig or {}
     end
@@ -639,6 +653,13 @@ local function ClearAuraDirectMovePreview(state)
 end
 
 local function CommitDirectMove(state, anchorPosition)
+    if state and state.descriptor and state.descriptor.kind == "segmentedBar" then
+        local d = state.descriptor
+        local result = FocalPoint.LayoutMutations.SegmentedBars.SetGeometry(d.context, d.id,
+            {offsetX=state.currentOffsetX,offsetY=state.currentOffsetY})
+        if result.ok then result.newValue = {offsetX=state.currentOffsetX,offsetY=state.currentOffsetY} end
+        return result
+    end
     local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
     local workflow = FocalPoint.LayoutEditWorkflow
     if not (state and state.descriptor and mutations and workflow and workflow.RequestEditableLayoutForMutation) then return nil end
@@ -664,6 +685,15 @@ local function CommitDirectMove(state, anchorPosition)
     end)
     return result
 end
+local function IsSegmentMoveCurrent(state)
+    local d = state and state.descriptor
+    if not d or d.kind ~= "segmentedBar" then return true end
+    return FocalPoint.LayoutMutations.SegmentedBars.IsContextCurrent(d.context)
+        and state.frame.config == d.unitConfig
+        and FocalPoint.GUI.Editor.State.GetPropertyScope() == d.scope
+        and FocalPoint.UnitFrameSegmentedBars.GetVisibleHolder(state.frame, d.id) == state.target
+end
+
 local function EndDirectMoveDrag(zone, commit)
     local state = zone and zone._focalPointDirectDragState
     if not state then
@@ -672,12 +702,23 @@ local function EndDirectMoveDrag(zone, commit)
     if state.selectionLocked and not IsSelectedObject(state.objectRef) then
         commit = false
     end
+    local current = IsSegmentMoveCurrent(state)
+    if not current then commit = false end
 
     zone._focalPointDirectDragState = nil
     zone:SetScript("OnUpdate", nil)
     local anchorPosition = commit == true and state.dragging and ResolveDirectMoveAutoAnchor(state) or nil
     local result = commit == true and state.dragging and CommitDirectMove(state, anchorPosition) or nil
     if not (result and result.ok ~= false) then
+        -- A recycled/rebound holder must never receive the old preview anchors.
+        if not current then
+            local config = GetActiveUnitConfig(state.frame)
+            local runtime = FocalPoint.UnitFrameSegmentedBars
+            if config == state.frame.config and runtime.GetVisibleHolder(state.frame, state.descriptor.id) == state.target then
+                runtime.Apply(state.frame)
+            end
+            return
+        end
         if ClearAuraDirectMovePreview(state) then
             local layout = FocalPoint.AuraBlockLayout
             layout.ApplyAnchor(state.target, state.frame, state.descriptor.auraConfig, state.descriptor.auraKey)
@@ -688,7 +729,9 @@ local function EndDirectMoveDrag(zone, commit)
     end
 
     ClearAuraDirectMovePreview(state)
-    if FocalPoint.RefreshUnitFrame then
+    if state.descriptor.kind == "segmentedBar" then
+        FocalPoint.UnitFrameSegmentedBars.Apply(state.frame)
+    elseif FocalPoint.RefreshUnitFrame then
         FocalPoint:RefreshUnitFrame(state.descriptor.unitKey)
     end
     CanvasHoverOverlay.UpdateFrame(state.frame)
@@ -730,6 +773,7 @@ local function BeginDirectMoveDrag(zone, gesture)
         currentOffsetY = tonumber(GetDirectMoveOffsetConfig(descriptor)[descriptor.offsetYField]) or 0,
         dragging = true,
     }
+    if not IsSegmentMoveCurrent(state) then return false end
     zone._focalPointDirectDragState = state
     zone:SetScript("OnUpdate", function(self)
         local activeState = self._focalPointDirectDragState
@@ -737,7 +781,7 @@ local function BeginDirectMoveDrag(zone, gesture)
             self:SetScript("OnUpdate", nil)
             return
         end
-        if not CanvasHoverOverlay.IsEditorActive() or (InCombatLockdown and InCombatLockdown())
+        if not IsSegmentMoveCurrent(activeState) or not CanvasHoverOverlay.IsEditorActive() or (InCombatLockdown and InCombatLockdown())
             or (activeState.selectionLocked and not IsSelectedObject(activeState.objectRef)) then
             EndDirectMoveDrag(self, false)
             return
@@ -938,6 +982,9 @@ local function EnsureHitZone(frame, key)
 end
 
 local function ResolveZoneGeometry(frame, target, objectRef, isSelected)
+    if objectRef and objectRef.kind == "segmentedBar" then
+        return SelectionGeometryResolver.Resolve(frame, objectRef)
+    end
     if objectRef and (objectRef.kind == "aura" or (isSelected and (objectRef.kind == "bar" or objectRef.kind == "indicator" or objectRef.kind == "decoration"))) and SelectionGeometryResolver.Resolve then
         return SelectionGeometryResolver.Resolve(frame, objectRef)
     end
@@ -1036,6 +1083,22 @@ local function UpdateBars(frame, seen)
             objectKey = item.objectKey,
             sectionKey = item.sectionKey,
         }, item.level, item.movesUnit)
+    end
+end
+
+local function UpdateSegmentedBars(frame, seen)
+    local runtime = FocalPoint.UnitFrameSegmentedBars
+    if not runtime then return end
+    for _, record in ipairs(frame.config and frame.config.segmentedBars or {}) do
+        local holder = runtime.GetVisibleHolder(frame, record.id)
+        if holder then
+            local key = "segmentedBar:" .. record.id
+            seen[key] = true
+            PositionZone(EnsureHitZone(frame, key), frame, holder, {
+                kind = "segmentedBar", unit = frame._fpUnit,
+                objectKey = record.id, sectionKey = "segmented_bars",
+            }, 32, false)
+        end
     end
 end
 
@@ -1141,6 +1204,7 @@ function CanvasHoverOverlay.UpdateFrame(frame)
 
     local seen = {}
     UpdateBars(frame, seen)
+    UpdateSegmentedBars(frame, seen)
     UpdateAuras(frame, seen)
     UpdateIndicators(frame, seen)
     UpdateDecorations(frame, seen)

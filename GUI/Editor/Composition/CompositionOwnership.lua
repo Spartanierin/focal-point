@@ -190,6 +190,15 @@ local function HasDecoration(unitConfig, decorationId)
     return false
 end
 
+-- Read-only identity lookup; C1a owns validation, C1b owns mutations.
+function Ownership.FindSegmentedBar(unitConfig, id)
+    local records = type(unitConfig) == "table" and unitConfig.segmentedBars
+    if type(records) ~= "table" or type(id) ~= "string" then return nil end
+    for _, record in ipairs(records) do
+        if type(record) == "table" and record.id == id then return record end
+    end
+end
+
 local function BuildCurrentObjects(unitConfig, unit)
     local objects = {}
     for _, barKey in ipairs(BAR_ORDER) do
@@ -235,6 +244,11 @@ local function BuildCurrentObjects(unitConfig, unit)
         end
     end
 
+    if unit == "player" then
+        for _, record in ipairs(unitConfig.segmentedBars or {}) do
+            objects[#objects + 1] = {kind="segmentedBar", unit=unit, objectKey=record.id, sectionKey="segmented_bars"}
+        end
+    end
     return objects
 end
 
@@ -269,6 +283,7 @@ local function IsSameObject(left, right)
     if leftKind == "bar" then
         return GetObjectKey(left) == GetObjectKey(right)
     end
+    if leftKind == "segmentedBar" then return left.objectKey == right.objectKey end
     return false
 end
 
@@ -278,6 +293,9 @@ local function IsKnownCurrentObject(unitConfig, objectRef)
     end
 
     local kind = objectRef.kind
+    if kind == "segmentedBar" then
+        return objectRef.unit == "player" and Ownership.FindSegmentedBar(unitConfig, objectRef.objectKey) ~= nil
+    end
     if kind == "unit" then
         return true
     end

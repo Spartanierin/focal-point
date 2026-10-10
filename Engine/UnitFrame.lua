@@ -919,7 +919,7 @@ function UF:ApplyConfig(frame)
     local classPowerBarOffsetY = tonumber(config.classPowerBarOffsetY) or 5
     local liveAltPowerType, liveAltPowerCurrent, liveAltPowerMax, liveAltPowerMin = GetSecondaryPowerValues(frame._fpUnit)
     local alternativePowerBarVisible = showAlternativePowerBar and liveAltPowerType ~= nil
-    local liveClassPowerInfo = ClassPower.GetInfo and ClassPower.GetInfo(frame._fpUnit, frame) or nil
+    local liveClassPowerInfo = ClassPower.GetSnapshotInfo and ClassPower.GetSnapshotInfo(self, frame) or nil
     local classPowerBarVisible = showClassPowerBar and liveClassPowerInfo ~= nil
     local borderInset = barGeometry.borderInset
 
@@ -1268,6 +1268,7 @@ function UF:ApplyConfig(frame)
         classPowerBorderB = classPowerBorderB,
         classPowerBorderA = classPowerBorderA,
     })
+    if FocalPoint.UnitFrameSegmentedBars then FocalPoint.UnitFrameSegmentedBars.Apply(frame) end
 
     if frame.Elements.CastBar then
         local showCastBar = config.showCastBar ~= false
@@ -1831,7 +1832,10 @@ function UF:ApplyRangeFade(frame)
 end
 
 function UF:ApplyTestValues(frame)
-    self:RefreshUnitBarValues(frame)
+    -- Power/secondary-power keep their existing update order. Class Power was
+    -- already published by the bar refresh (or initialized by first ApplyConfig).
+    Power.RefreshUnitBarValues(self, frame)
+    if ClassPower.GetSnapshotInfo then ClassPower.GetSnapshotInfo(self, frame) end
 
     if IsPreviewModeEnabled()
         and frame

@@ -516,6 +516,48 @@ local function AddSingletonComponent(unitKey, kind, componentKey)
     end)
 end
 
+local function BuildSegmentedBarAddAction(unitKey)
+    local mutations = ns.LayoutMutations and ns.LayoutMutations.SegmentedBars
+    local workflow, resolver = ns.LayoutEditWorkflow, ns.ActiveLayoutResolver
+    if unitKey ~= "player" or not (mutations and mutations.CaptureContext and mutations.Add
+        and workflow and workflow.RequestEditableLayoutForMutation and resolver and resolver.GetActiveRuntimeRoot) then return nil end
+    local db, root, layoutId = ns.db, resolver.GetActiveRuntimeRoot(), ResolveActiveLayoutId()
+    local originToken = entityAddOriginToken
+    local builtin = type(layoutId) == "string" and layoutId:match("^builtin:") ~= nil
+    local mutationContext = not builtin and mutations.CaptureContext(unitKey) or nil
+    local consumed = false
+    local function Failed()
+        if ns.Info then ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added.")) end
+    end
+    local function Add()
+        if ns.db ~= db or entityAddOriginToken ~= originToken then Failed(); return end
+        if builtin then
+            -- The existing workflow has created AND activated the editable copy.
+            local current = resolver.GetActiveRuntimeRoot()
+            local from = current and current.record and current.record.createdFrom
+            if not from or from.id ~= layoutId then Failed(); return end
+            mutationContext = mutations.CaptureContext(unitKey)
+        end
+        if not mutationContext then Failed(); return end
+        local result = mutations.Add(mutationContext)
+        if not (result and result.ok and result.id) then Failed(); return end
+        entityAddOriginToken = nil
+        SelectSingletonComponent(unitKey, "segmentedBar", result.id)
+    end
+    return function()
+        if consumed then return end
+        consumed = true
+        if ns.db ~= db or ResolveActiveLayoutId() ~= layoutId or resolver.GetActiveRuntimeRoot() ~= root
+            or entityAddOriginToken ~= originToken then Failed(); return end
+        if builtin then
+            local ready, reason = workflow.RequestEditableLayoutForMutation(Add)
+            if not ready and reason ~= "confirmation-open" then Failed() end
+        else
+            Add() -- C1b owns the editable workflow, final context check and publication.
+        end
+    end
+end
+
 local function AddUnitFrame(unitKey)
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
     local workflow = ns.LayoutEditWorkflow
@@ -606,6 +648,7 @@ local function OpenTextTemplateLibrary(entityMode)
 end
 
 local function OpenAddObjectPicker(entityMode)
+    local picker
     local unitKey = ResolveSelectedObjectUnit()
     if type(unitKey) ~= "string" or unitKey == "" then
         if ns.Info then
@@ -641,6 +684,17 @@ local function OpenAddObjectPicker(entityMode)
                 action = AddSingletonComponent, args = { unitKey, "bar", item.componentKey },
             }
         end
+    end
+    local addSegmentedBar = BuildSegmentedBarAddAction(unitKey)
+    if addSegmentedBar then
+        entries[#entries + 1] = {
+            label = T("EDITOR_SEGMENTED_BAR", "Segmented Bar"), args = {}, closeBefore = false,
+            action = function()
+                if addObjectPickerDialog ~= picker then return end
+                CloseAddObjectPickerDialog()
+                addSegmentedBar()
+            end,
+        }
     end
     AddCategory(T("ADD_OBJECT_CATEGORY_BARS", "Bars"), entries)
 
@@ -772,6 +826,7 @@ local function OpenAddObjectPicker(entityMode)
         AceGUI:Release(dialog.window)
     end)
     addObjectPickerDialog = dialog
+    picker = dialog
     dialog:Show()
     dialog.body:DoLayout()
     selectionScroll:FixScroll()

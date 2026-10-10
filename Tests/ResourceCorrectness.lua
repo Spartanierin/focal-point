@@ -150,6 +150,7 @@ Test("deleted resource texts stay absent across build, layout reentry and saved-
     assert(not unit.Texts.AltPower and not unit.Texts.ClassPower and Count(unit.Texts)==3)
 end)
 
+Load("Engine/UnitFrame/Bars/UnitFrameSegmentRenderer.lua")
 Load("Engine/UnitFrame/Bars/UnitFrameClassPower.lua")
 local classPower=ns.UnitFrameClassPower
 local function Paint(token,typeId,mode,alpha)

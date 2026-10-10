@@ -110,6 +110,15 @@ local function ResolveAuraList(context, unitKey, unitConfig)
     return {}
 end
 
+function InspectorContext.GetSegmentedBarSelection(context)
+    local selection = FocalPoint.GUI.Editor.ObjectSelection
+    local ref = selection and selection.GetSelectedObject()
+    if not ref or ref.kind ~= "segmentedBar" or ref.unit ~= context.unitKey then return nil end
+    local ownership = FocalPoint.CompositionOwnership
+    local record = ownership and ownership.FindSegmentedBar(context.unitConfig, ref.objectKey)
+    return ref, record
+end
+
 function InspectorContext.GetMode(context)
     return context and context.mode or "quick"
 end

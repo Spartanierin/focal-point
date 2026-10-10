@@ -24,6 +24,7 @@ local function FormatNodeLabel(node)
 end
 
 local CLICKABLE_NODE_TYPES = {
+    segmentedBar = true,
     unit = true,
     healthbar = true,
     powerbar = true,
@@ -60,6 +61,7 @@ local function IsClickableNode(node)
     if target.kind == "unit" then
         return true
     end
+    if target.kind == "segmentedBar" then return type(target.objectKey) == "string" and target.objectKey ~= "" end
     if target.kind == "text" then
         return type(target.textKey) == "string" and target.textKey ~= ""
     end
@@ -181,6 +183,9 @@ local function BuildObjectRef(node)
     local unit = node.unit
     local sectionKey = node.inspectorTarget.sectionKey
     local targetKind = node.inspectorTarget.kind
+    if targetKind == "segmentedBar" then
+        return {kind=targetKind, unit=unit, objectKey=node.inspectorTarget.objectKey, sectionKey=sectionKey}
+    end
     if node.type == "unit" then
         return {
             kind = "unit",
@@ -289,6 +294,11 @@ function IsActiveNode(node, state)
         return false
     end
     local scope = state.propertyScope
+    if node.inspectorTarget.kind == "segmentedBar" then
+        local selected = ObjectSelection.GetSelectedObject()
+        return selected ~= nil and selected.kind == "segmentedBar" and selected.unit == node.unit
+            and selected.objectKey == node.inspectorTarget.objectKey
+    end
     if node.type == "unit" then
         return state.selectedUnit == node.unit
             and (type(scope) ~= "table" or scope.sectionKey == "frame")

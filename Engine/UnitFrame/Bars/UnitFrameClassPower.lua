@@ -2,6 +2,7 @@ local _, FocalPoint = ...
 
 FocalPoint.UnitFrameClassPower = FocalPoint.UnitFrameClassPower or {}
 local ClassPower = FocalPoint.UnitFrameClassPower
+local Renderer = FocalPoint.UnitFrameSegmentRenderer
 
 local Factory = FocalPoint.UnitFrameFactory or {}
 local State = FocalPoint.UnitFrameState or {}
@@ -88,17 +89,23 @@ local function IsKnownSpell(spellID)
     return C_SpellBook and C_SpellBook.IsSpellKnown and spellID and C_SpellBook.IsSpellKnown(spellID) or false
 end
 
+local function IsPlainNumber(value)
+    return not (issecretvalue and issecretvalue(value))
+        and type(value) == "number" and value == value and math.abs(value) < math.huge
+end
+
 local function GetPlayerAuraApplications(spellID)
     if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and spellID) then
-        return nil
+        return nil, false
     end
 
     local auraInfo = C_UnitAuras.GetPlayerAuraBySpellID(spellID)
+    if issecretvalue and issecretvalue(auraInfo) then return nil, false end
     if type(auraInfo) ~= "table" then
-        return nil
+        return nil, auraInfo == nil
     end
 
-    return ToSafeNumberValue(auraInfo.applications)
+    return ToSafeNumberValue(auraInfo.applications), IsPlainNumber(auraInfo.applications)
 end
 
 local function BuildInfo(typeId, token, current, max)
@@ -117,12 +124,10 @@ local function BuildInfo(typeId, token, current, max)
         max = rawMax,
         safeCurrent = safeCurrent,
         safeMax = safeMax,
+        rawCurrent = rawCurrent, rawMax = rawMax,
+        currentKnown = IsPlainNumber(rawCurrent),
+        maxKnown = IsPlainNumber(rawMax),
     }
-end
-
-local function IsPlainNumber(value)
-    return not (issecretvalue and issecretvalue(value))
-        and type(value) == "number" and value == value and math.abs(value) < math.huge
 end
 
 -- Only the four newly verified Retail resources join the existing Rogue path.
@@ -143,7 +148,7 @@ local function GetAggregateHighlightResource(class, spec)
     if class == "EVOKER" then return POWER_TOKEN_ESSENCE, Enum.PowerType.Essence end
 end
 
-local function GetNumericPowerInfo(typeId, token, current)
+local function GetNumericPowerInfo(typeId, token, current, currentKnown)
     if not UnitPowerMax then
         return nil
     end
@@ -162,7 +167,12 @@ local function GetNumericPowerInfo(typeId, token, current)
     local max = ToSafeNumberValue(observedMax)
     if current == nil and UnitPower then current = ToSafeNumberValue(observedCurrent) end
     local info = BuildInfo(typeId, token, current, max)
-    if info then info.aggregateGainValid = gainValid end
+    if info then
+        info.aggregateGainValid = gainValid
+        info.rawCurrent, info.rawMax = observedCurrent, observedMax
+        info.currentKnown = currentKnown ~= false and IsPlainNumber(observedCurrent)
+        info.maxKnown = IsPlainNumber(observedMax)
+    end
     return info
 end
 
@@ -204,19 +214,21 @@ local function GetRuneInfo()
 end
 
 local function GetWarlockSoulShards()
-    if not UnitPower then
-        return 0
-    end
-
-    local current = ToSafeNumberValue(UnitPower("player", POWER_ID_SOUL_SHARDS))
+    if not UnitPower then return 0, false end
+    local observed = UnitPower("player", POWER_ID_SOUL_SHARDS)
+    local known = IsPlainNumber(observed)
+    local current = ToSafeNumberValue(observed)
     if GetSpecializationIndex() == SPEC_WARLOCK_DESTRUCTION and UnitPowerDisplayMod then
-        local displayMod = ToSafeNumberValue(UnitPowerDisplayMod(POWER_ID_SOUL_SHARDS))
+        local observedMod = UnitPowerDisplayMod(POWER_ID_SOUL_SHARDS)
+        local displayMod = ToSafeNumberValue(observedMod)
+        known = known and IsPlainNumber(observedMod)
         if displayMod > 0 then
-            current = ToSafeNumberValue(UnitPower("player", POWER_ID_SOUL_SHARDS, true)) / displayMod
+            observed = UnitPower("player", POWER_ID_SOUL_SHARDS, true)
+            known = known and IsPlainNumber(observed)
+            current = ToSafeNumberValue(observed) / displayMod
         end
     end
-
-    return current
+    return current, known
 end
 
 local function GetShamanMaelstromWeaponInfo()
@@ -224,9 +236,12 @@ local function GetShamanMaelstromWeaponInfo()
         return nil
     end
 
-    local current = GetPlayerAuraApplications(SPELL_MAELSTROM_WEAPON) or 0
+    local current, known = GetPlayerAuraApplications(SPELL_MAELSTROM_WEAPON)
+    current = current or 0
     local max = C_Spell and C_Spell.GetSpellMaxCumulativeAuraApplications and C_Spell.GetSpellMaxCumulativeAuraApplications(SPELL_MAELSTROM_WEAPON) or 10
-    return BuildInfo(POWER_ID_MAELSTROM, POWER_TOKEN_MAELSTROM, current, max)
+    local info = BuildInfo(POWER_ID_MAELSTROM, POWER_TOKEN_MAELSTROM, current, max)
+    if info then info.currentKnown = known end
+    return info
 end
 
 local function GetDemonHunterSoulFragmentsInfo()
@@ -234,9 +249,10 @@ local function GetDemonHunterSoulFragmentsInfo()
         return nil
     end
 
-    local current = GetPlayerAuraApplications(SPELL_DARK_HEART)
-    if current == nil and GetPlayerAuraApplications(SPELL_VOID_METAMORPHOSIS) then
-        current = 0
+    local current, known = GetPlayerAuraApplications(SPELL_DARK_HEART)
+    if current == nil then
+        local metamorphosis, readable = GetPlayerAuraApplications(SPELL_VOID_METAMORPHOSIS)
+        if metamorphosis then current, known = 0, known and readable end
     end
 
     if current == nil then
@@ -244,7 +260,9 @@ local function GetDemonHunterSoulFragmentsInfo()
     end
 
     local max = C_Spell and C_Spell.GetSpellMaxCumulativeAuraApplications and C_Spell.GetSpellMaxCumulativeAuraApplications(SPELL_DARK_HEART) or 5
-    return BuildInfo(nil, POWER_TOKEN_SOUL_FRAGMENTS, current, max)
+    local info = BuildInfo(nil, POWER_TOKEN_SOUL_FRAGMENTS, current, max)
+    if info then info.currentKnown = known end
+    return info
 end
 
 local function GetLiveClassPowerInfo()
@@ -363,14 +381,14 @@ function ClassPower.GetInfo(unit, frame)
     if unit ~= "player" then return nil end
     local mode = Demo.ResolveMode and Demo.ResolveMode(frame or { _fpUnit = unit }, "classPower")
     if GetPlayerClassToken() == "DEATHKNIGHT" and mode == "detailed" then
-        return GetPreviewClassPowerInfo(frame, "detailed")
+        return GetPreviewClassPowerInfo(frame, "detailed"), "preview"
     end
     local config = frame and frame.config
     if config and config.classPowerBarPresent == true and config.showClassPowerBar == true
         and VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
             kind = "bar", unit = unit, objectKey = "ClassPowerBar",
         }) then
-        return GetPreviewClassPowerInfo(frame, "selection")
+        return GetPreviewClassPowerInfo(frame, "selection"), "preview"
     end
     local previous = frame and frame._classPowerPreviewInfo
     if previous and (previous.previewMode == "selection" or previous.previewMode == "detailed") then
@@ -379,10 +397,10 @@ function ClassPower.GetInfo(unit, frame)
     local liveInfo = GetLiveClassPowerInfo()
     if liveInfo then
         if frame then frame._classPowerPreviewInfo = nil end
-        return liveInfo
+        return liveInfo, "live"
     end
     if ClassPower.ShouldForcePreview(unit, frame) then
-        return GetPreviewClassPowerInfo(frame, "fallback")
+        return GetPreviewClassPowerInfo(frame, "fallback"), "preview"
     end
     if frame then frame._classPowerPreviewInfo = nil end
     return nil
@@ -410,15 +428,16 @@ local function UnpackColorTable(color)
     return nil, nil, nil
 end
 
-local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
+-- Pure palette resolution: no class/spec/aura reads. Unresolved variant palettes
+-- return fallback RGB plus the palette for the existing Legacy wrapper only.
+function ClassPower.ResolveResourceColor(info, spec, fallbackR, fallbackG, fallbackB)
     if type(info) ~= "table" then
         return fallbackR, fallbackG, fallbackB
     end
 
     if info.token == "RUNES" then
-        local spec = ToSafeNumberValue(GetSpecializationIndex())
         local runeColors = FocalPoint.oUF and FocalPoint.oUF.colors and FocalPoint.oUF.colors.runes
-        if (spec == 1 or spec == 2 or spec == 3) and runeColors then
+        if IsPlainNumber(spec) and (spec == 1 or spec == 2 or spec == 3) and runeColors then
             -- FP interprets Blizzard Blood/Frost/Unholy atlas art using the existing
             -- oUF rune palette; these are not official Blizzard RGB API values.
             local r, g, b = UnpackColorTable(runeColors[spec])
@@ -438,8 +457,7 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
     end
 
     if type(color) == "table" and type(color[1]) == "table" then
-        local metamorphosisActive = GetPlayerAuraApplications(SPELL_VOID_METAMORPHOSIS) ~= nil
-        color = color[metamorphosisActive and 2 or 1] or color[1]
+        return fallbackR, fallbackG, fallbackB, color
     end
 
     local r, g, b = UnpackColorTable(color)
@@ -450,55 +468,27 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
     return fallbackR, fallbackG, fallbackB
 end
 
--- Presentation-only baseline and event evidence; never a second rune provider.
-local function StopSegmentHighlight(bar)
-    if not bar.ReadyHighlight then return end
-    bar.ReadyHighlight.animation:Stop()
-    bar.ReadyHighlight:SetAlpha(0)
-    bar.ReadyHighlight:Hide()
+-- Preserve Legacy resource-specific observation and nil/true/false mode semantics.
+local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
+    local spec = type(info) == "table" and info.token == "RUNES"
+        and ToSafeNumberValue(GetSpecializationIndex()) or nil
+    local r, g, b, variants = ClassPower.ResolveResourceColor(info, spec, fallbackR, fallbackG, fallbackB)
+    if variants then
+        local metamorphosisActive = GetPlayerAuraApplications(SPELL_VOID_METAMORPHOSIS) ~= nil
+        r, g, b = UnpackColorTable(variants[metamorphosisActive and 2 or 1] or variants[1])
+        if not (r and g and b) then return fallbackR, fallbackG, fallbackB end
+    end
+    return r, g, b
 end
+
+-- Presentation-only baseline and event evidence; never a second rune provider.
+local StopSegmentHighlight = Renderer.StopHighlight
+local PlaySegmentHighlight = Renderer.PlayHighlight
 
 local function ResetHighlights(holder)
     if not holder then return end
     holder._readyTransitions = nil
     for _, bar in ipairs(holder.Bars or {}) do StopSegmentHighlight(bar) end
-end
-
-local function PlaySegmentHighlight(bar)
-    if not bar or not bar:IsVisible() then
-        return
-    end
-    local r, g, b, a = bar:GetStatusBarColor()
-    if not a or a <= 0 then return end
-    local texture = bar.ReadyHighlight
-    if not texture then
-        texture = bar:CreateTexture(nil, "OVERLAY")
-        texture:SetTexture("Interface\\Buttons\\WHITE8X8")
-        texture:SetAllPoints(bar)
-        local animation = texture:CreateAnimationGroup()
-        animation:SetLooping("NONE")
-        local fadeIn = animation:CreateAnimation("Alpha")
-        fadeIn:SetOrder(1)
-        fadeIn:SetDuration(0.025)
-        fadeIn:SetFromAlpha(0)
-        fadeIn:SetToAlpha(0.65)
-        local fadeOut = animation:CreateAnimation("Alpha")
-        fadeOut:SetOrder(2)
-        fadeOut:SetDuration(0.100)
-        fadeOut:SetFromAlpha(0.65)
-        fadeOut:SetToAlpha(0)
-        animation:SetScript("OnFinished", function()
-            texture:SetAlpha(0); texture:Hide()
-        end)
-        texture.animation = animation
-        bar.ReadyHighlight = texture
-    end
-    StopSegmentHighlight(bar)
-    -- Tint comes from the already painted segment; vertex alpha preserves config alpha.
-    texture:SetVertexColor(r + (1 - r) * 0.6, g + (1 - g) * 0.6, b + (1 - b) * 0.6, a)
-    texture:SetAlpha(0)
-    texture:Show()
-    texture.animation:Play()
 end
 
 local function ResolveSegmentGrowth(value)
@@ -611,6 +601,15 @@ local function ObserveReadySnapshot(frame, segments, max, qualified, current, ga
         local pending = state.pendingReady
         state.pendingReady = nil
         if pending and SameRuneSnapshot(state.segments, segments) then
+            -- The canonical snapshot is shared with rendering, so comparing it
+            -- with itself cannot detect a rune changing since qualification.
+            -- Only a pending DK flash needs this independent, post-anchor check.
+            -- It validates S1; it never publishes another source or transition.
+            local confirmation = GetRuneInfo()
+            if not confirmation or not SameRuneSnapshot(segments, confirmation.segments) then
+                ResetHighlights(holder)
+                return
+            end
             for index = 1, RUNE_COUNT do
                 if pending[index] then PlaySegmentHighlight(holder.Bars[index]) end
             end
@@ -629,18 +628,51 @@ local function ClearRuneTiming(frame)
     frame._classPowerPreviewInfo = nil
     if frame.LiveValues then frame.LiveValues.classPowerSegments = nil end
     local holder = frame.Elements and frame.Elements.ClassPowerBar
-    if not holder or not holder._segmentTimingInitialized then return end
-    local hadSegments = holder.segments ~= nil
-    holder.segments = nil
-    holder:SetScript("OnUpdate", nil)
-    for _, bar in ipairs(holder.Bars or {}) do
-        if hadSegments then bar:SetValue(0) end
-        bar._countdownSeconds = nil
-        if bar.Countdown then
-            bar.Countdown:SetText("")
-            bar.Countdown:Hide()
-        end
+    Renderer.ClearTiming(holder)
+end
+
+-- Context, not elapsed time or a queue token, validates render-only consumers.
+-- Every RefreshValues call publishes a fresh observation, including direct refreshes.
+local function SnapshotContext(frame)
+    local resolver = FocalPoint.ActiveLayoutResolver
+    local editor = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    local config = frame.config or {}
+    local selection = VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+        kind = "bar", unit = frame._fpUnit, objectKey = "ClassPowerBar",
+    }) == true
+    local mode = Demo.ResolveMode and Demo.ResolveMode(frame, "classPower")
+    return {
+        unit = frame._fpUnit, config = frame.config,
+        root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot(),
+        class = GetPlayerClassToken(), spec = GetSpecializationIndex(),
+        mode = mode, selection = selection,
+        scope = selection and editor and editor.GetPropertyScope and editor.GetPropertyScope() or nil,
+        unlocked = FocalPoint.framesUnlocked == true, demo = FocalPoint.guiTestModeEnabled == true,
+        enabled = config.enabled, present = config.classPowerBarPresent, shown = config.showClassPowerBar,
+        -- Only synthetic timer presentation restarts on these style changes.
+        font = (selection or mode == "detailed") and config.classPowerRuneTimerFont or nil,
+        size = (selection or mode == "detailed") and config.classPowerRuneTimerFontSize or nil,
+        style = (selection or mode == "detailed") and config.classPowerRuneTimerFontStyle or nil,
+        runeAPI = GetRuneCooldown, powerAPI = UnitPower, maxAPI = UnitPowerMax,
+    }
+end
+
+local function SameSnapshotContext(a, b)
+    for key, value in pairs(a) do if b[key] ~= value then return false end end
+    for key, value in pairs(b) do if a[key] ~= value then return false end end
+    return true
+end
+
+-- Explicit first-apply/context-change initialization. A cached unavailable source
+-- is also a valid observation; repeated consumers must not retry its API.
+function ClassPower.GetSnapshotInfo(owner, frame)
+    if not frame or not frame._fpUnit or not frame.Elements or not frame.Elements.ClassPowerBar then return nil end
+    local snapshot = frame.LiveValues and frame.LiveValues.classPowerSnapshot
+    if not snapshot or not SameSnapshotContext(snapshot.context, SnapshotContext(frame)) then
+        ResetHighlights(frame.Elements.ClassPowerBar)
+        return ClassPower.RefreshValues(owner, frame)
     end
+    return snapshot.info
 end
 
 function ClassPower.RefreshValues(owner, frame)
@@ -648,12 +680,20 @@ function ClassPower.RefreshValues(owner, frame)
         return
     end
 
-    local info = ClassPower.GetInfo(frame._fpUnit, frame)
+    local info, source = ClassPower.GetInfo(frame._fpUnit, frame)
     frame.LiveValues = frame.LiveValues or {}
     ObserveReadySnapshot(frame, info and info.segments, info and info.max, true,
         info and info.current, info and info.aggregateGainValid, info and info.token, info and info.typeId)
 
     if not info or not info.segments then ClearRuneTiming(frame) end
+    frame.LiveValues.classPowerSnapshot = {
+        context = SnapshotContext(frame), info = info, source = source or "unavailable",
+        -- Synthetic values never become authoritative gameplay data.
+        sourceInfo = source == "live" and info or nil,
+        available = info ~= nil,
+        currentKnown = info ~= nil and info.currentKnown == true,
+        maxKnown = info ~= nil and info.maxKnown == true,
+    }
     frame.LiveValues.classPowerSegments = info and info.segments or nil
     if not info then
         frame.LiveValues.classPowerVisible = false
@@ -681,98 +721,14 @@ function ClassPower.RefreshValues(owner, frame)
     frame.LiveValues.classPowerMaxAbbr = ResolveBlizzardAbbreviation(info.max, frame.LiveValues.classPowerMaxText)
     frame.LiveValues.classPowerType = info.typeId
     frame.LiveValues.classPowerToken = info.token
+    return info
 end
 
--- Same local visual-driver pattern as CastRuntime: cached timing only, no API,
--- DB, templates, allocations of state tables, or global refresh in OnUpdate.
-local function UpdateSegments(holder)
-    local segments = holder.segments
-    if not segments or not holder:IsVisible() then
-        holder:SetScript("OnUpdate", nil)
-        return
-    end
-    local now, active = GetTime(), false
-    for index = 1, #segments do
-        local segment, bar = segments[index], holder.Bars[index]
-        local remaining = segment.startTime and math.max(0, segment.startTime + segment.duration - now) or nil
-        local charging = not segment.ready and remaining and remaining > 0
-        if charging then
-            bar:SetValue(math.max(0, math.min(1, (now - segment.startTime) / segment.duration)))
-            -- Cache the displayed tenth; positive recharge never displays 0.0.
-            local seconds = math.max(0.1, math.floor(remaining * 10 + 0.5) / 10)
-            if bar._countdownSeconds ~= seconds then
-                bar.Countdown:SetText(string.format("%.1f", seconds))
-                bar._countdownSeconds = seconds
-            end
-            bar.Countdown:Show()
-            active = true
-        else
-            bar:SetValue((segment.ready or remaining == 0) and 1 or 0)
-            bar.Countdown:SetText("")
-            bar.Countdown:Hide()
-            bar._countdownSeconds = nil
-        end
-    end
-    holder:SetScript("OnUpdate", active and UpdateSegments or nil)
-end
-
-function ClassPower.Clear(frame)
+function ClassPower.Clear(frame, preserveSnapshot)
     if not frame then return end
     ResetHighlights(frame.Elements and frame.Elements.ClassPowerBar)
+    if frame.LiveValues and not preserveSnapshot then frame.LiveValues.classPowerSnapshot = nil end
     ClearRuneTiming(frame)
-end
-
--- Layout-only styling: countdown ticks continue to consume only rune timing.
-local function ApplyRuneTimerStyle(holder, options)
-    local fallbackFont = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-    local font = fallbackFont
-    local reference = options.classPowerRuneTimerFont
-    local media = FocalPoint.MediaRegistry
-    if type(reference) == "string" and reference ~= "" and media and media.ResolveReference then
-        local resolved = media.ResolveReference(reference, "font", "fp:font:standard")
-        if resolved and resolved.available and type(resolved.resolvedAsset) == "string" and resolved.resolvedAsset ~= "" then
-            font = resolved.resolvedAsset
-        end
-    end
-    local size = options.classPowerRuneTimerFontSize
-    if type(size) ~= "number" or not (size >= 6 and size <= 32) then size = 10 end
-    local style = options.classPowerRuneTimerFontStyle
-    if style ~= "NONE" and style ~= "OUTLINE" and style ~= "THICKOUTLINE"
-        and style ~= "MONOCHROME" and style ~= "OUTLINE_MONOCHROME" and style ~= "THICKOUTLINE_MONOCHROME" then
-        style = "OUTLINE"
-    end
-    -- Loaded after this module in Init.xml; resolve the pure helper at apply time.
-    local utils = FocalPoint.TextElementUtils
-    local flags = utils and utils.BuildFontFlags and utils.BuildFontFlags({fontStyle = style}) or "OUTLINE"
-    for _, bar in ipairs(holder.Bars) do
-        local text = bar.Countdown
-        local currentFont, currentSize, currentFlags = text:GetFont()
-        if currentFont ~= font or currentSize ~= size or (currentFlags or "") ~= flags then
-            local ok, applied = pcall(text.SetFont, text, font, size, flags ~= "" and flags or nil)
-            if not ok or applied == false then
-                ok, applied = pcall(text.SetFont, text, fallbackFont, size, flags ~= "" and flags or nil)
-                if not ok or applied == false then
-                    text:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-                end
-            end
-        end
-    end
-end
-
-local function PrepareSegmentWidgets(holder)
-    if holder._segmentTimingInitialized then return end
-    holder._segmentTimingInitialized = true
-    -- FontStrings belong to the existing bars, never to frame.Texts or entities.
-    for _, bar in ipairs(holder.Bars) do
-        local text = bar:CreateFontString(nil, "OVERLAY")
-        text:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-        text:SetPoint("CENTER", bar, "CENTER", 0, 0)
-        text:SetTextColor(1, 1, 1, 1)
-        text:Hide()
-        bar.Countdown = text
-    end
-    holder:HookScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
-    holder:HookScript("OnShow", UpdateSegments)
 end
 
 -- Only the existing provider/preview snapshots enter here: ready is readable and
@@ -798,6 +754,9 @@ local function GetRuneVisualSlots(segments)
     return slots
 end
 
+-- Pure slot projection shared by rune consumers; API-index identity is unchanged.
+ClassPower.GetRuneVisualSlots = GetRuneVisualSlots
+
 function ClassPower.ApplyLayout(frame, options)
     if not frame or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
@@ -810,7 +769,7 @@ function ClassPower.ApplyLayout(frame, options)
     holder:ClearAllPoints()
 
     if not isVisible then
-        ClassPower.Clear(frame)
+        ClassPower.Clear(frame, true)
         holder:Hide()
         for index = 1, #bars do
             bars[index]:Hide()
@@ -829,16 +788,6 @@ function ClassPower.ApplyLayout(frame, options)
     local anchorParent = GetAnchorTarget and GetAnchorTarget(frame, options.classPowerBarAnchorTo) or frame
     local isPlaceholder = Demo.IsPlaceholder and Demo.IsPlaceholder(frame)
     local placeholderColors = Demo.GetPlaceholderColors and Demo.GetPlaceholderColors() or {}
-
-    holder:SetSize(width, height)
-    holder:SetPoint(
-        options.classPowerBarPoint or "BOTTOMRIGHT",
-        anchorParent or frame,
-        options.classPowerBarRelativePoint or "BOTTOMRIGHT",
-        tonumber(options.classPowerBarOffsetX) or -5,
-        tonumber(options.classPowerBarOffsetY) or 5
-    )
-    holder:Show()
 
     local maxValue = math.max(1, math.floor((options.liveClassPowerMax or 0) + 0.5))
     local currentValue = tonumber(options.liveClassPowerCurrent) or 0
@@ -861,82 +810,33 @@ function ClassPower.ApplyLayout(frame, options)
         )
     end
 
-    local usableWidth = width - ((maxValue - 1) * spacing)
-    local segmentWidth = maxValue > 0 and (usableWidth / maxValue) or usableWidth
-    local runeSlots = GetRuneVisualSlots(options.liveClassPowerSegments)
-    local numActive = currentValue + 0.9
-    local borderR = options.classPowerBorderR or 0
-    local borderG = options.classPowerBorderG or 0
-    local borderB = options.classPowerBorderB or 0
-    local borderA = options.classPowerBorderA or 0.85
-
-    for index = 1, #bars do
-        local bar = bars[index]
-        bar:ClearAllPoints()
-
-        if index <= maxValue then
-            -- Bars[index] keeps its resource/rune identity; only its position moves.
-            if runeSlots then
-                -- Ready -> earliest recharge end -> spent, from the growth start side.
-                -- Direct holder anchors avoid transient cycles when slots exchange.
-                local offset = (runeSlots[index] - 1) * (segmentWidth + spacing)
-                local point = rightToLeft and "TOPRIGHT" or "TOPLEFT"
-                bar:SetPoint(point, holder, point, rightToLeft and -offset or offset, 0)
-            elseif rightToLeft then
-                if index == 1 then
-                    bar:SetPoint("TOPRIGHT", holder, "TOPRIGHT", 0, 0)
-                else
-                    bar:SetPoint("TOPRIGHT", bars[index - 1], "TOPLEFT", -spacing, 0)
-                end
-            elseif index == 1 then
-                bar:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
-            else
-                bar:SetPoint("TOPLEFT", bars[index - 1], "TOPRIGHT", spacing, 0)
-            end
-
-            bar:SetWidth(segmentWidth)
-            bar:SetHeight(height)
-            bar:SetStatusBarTexture(options.classPowerTexture)
-            bar:SetStatusBarColor(r or 1, g or 1, b or 1, isPlaceholder and (placeholderColors.barA or 0.62) or (options.classPowerA or 1))
-            if bar.ReadyHighlight then
-                local cr, cg, cb, ca = bar:GetStatusBarColor()
-                bar.ReadyHighlight:SetVertexColor(cr + (1 - cr) * 0.6, cg + (1 - cg) * 0.6, cb + (1 - cb) * 0.6, ca)
-                if ca <= 0 then StopSegmentHighlight(bar) end
-            end
-            if bar.bg then
-                bar.bg:SetTexture(options.classPowerTexture)
-                if isPlaceholder then
-                    bar.bg:SetVertexColor(placeholderColors.bgR or 0.08, placeholderColors.bgG or 0.10, placeholderColors.bgB or 0.13, placeholderColors.bgA or 0.30)
-                else
-                    bar.bg:SetVertexColor(options.classPowerBgR or 0, options.classPowerBgG or 0, options.classPowerBgB or 0, options.classPowerBgA or 0.35)
-                end
-                bar.bg:SetShown(options.classPowerBackgroundShown ~= false)
-            end
-            if bar.border then
-                bar.border:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
-                bar.border:Show()
-            end
-
-            if index > numActive then
-                bar:SetValue(0)
-            else
-                bar:SetValue(math.max(0, math.min(1, currentValue - index + 1)))
-            end
-
-            bar:Show()
-        else
-            if bar.border then
-                bar.border:Hide()
-            end
-            bar:Hide()
-        end
-    end
-    if options.liveClassPowerSegments then
-        PrepareSegmentWidgets(holder)
-        ApplyRuneTimerStyle(holder, options)
-        holder.segments = options.liveClassPowerSegments
-        UpdateSegments(holder)
-    end
+    Renderer.Apply(holder, {
+        width = width, height = height, spacing = spacing,
+        rightToLeft = rightToLeft,
+        anchorParent = anchorParent or frame,
+        point = options.classPowerBarPoint or "BOTTOMRIGHT",
+        relativePoint = options.classPowerBarRelativePoint or "BOTTOMRIGHT",
+        x = tonumber(options.classPowerBarOffsetX) or -5,
+        y = tonumber(options.classPowerBarOffsetY) or 5,
+        max = maxValue, current = currentValue,
+        visualSlots = GetRuneVisualSlots(options.liveClassPowerSegments),
+        segments = options.liveClassPowerSegments,
+        texture = options.classPowerTexture,
+        r = r, g = g, b = b,
+        a = isPlaceholder and (placeholderColors.barA or 0.62) or (options.classPowerA or 1),
+        bgR = isPlaceholder and (placeholderColors.bgR or 0.08) or (options.classPowerBgR or 0),
+        bgG = isPlaceholder and (placeholderColors.bgG or 0.10) or (options.classPowerBgG or 0),
+        bgB = isPlaceholder and (placeholderColors.bgB or 0.13) or (options.classPowerBgB or 0),
+        bgA = isPlaceholder and (placeholderColors.bgA or 0.30) or (options.classPowerBgA or 0.35),
+        backgroundShown = options.classPowerBackgroundShown,
+        borderR = options.classPowerBorderR or 0,
+        borderG = options.classPowerBorderG or 0,
+        borderB = options.classPowerBorderB or 0,
+        borderA = options.classPowerBorderA or 0.85,
+        timerFont = options.classPowerRuneTimerFont,
+        timerFontSize = options.classPowerRuneTimerFontSize,
+        timerFontStyle = options.classPowerRuneTimerFontStyle,
+    })
     -- Render-only snapshots may consume a matching qualified intent after reanchor;
     -- they never independently qualify a transition.
     ObserveReadySnapshot(frame, options.liveClassPowerSegments, options.liveClassPowerMax, false,

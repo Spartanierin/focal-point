@@ -80,7 +80,9 @@
     <Script file="Engine/UnitFrame/Runtime/UnitFrameFactory.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameHealth.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFramePower.lua"/>
+    <Script file="Engine/UnitFrame/Bars/UnitFrameSegmentRenderer.lua"/>
     <Script file="Engine/UnitFrame/Bars/UnitFrameClassPower.lua"/>
+    <Script file="Engine/UnitFrame/Bars/UnitFrameSegmentedBars.lua"/>
     <Script file="Engine/UnitFrame.lua"/>
     <Script file="Engine/Text/Shared/TextElementUtils.lua"/>
     <Script file="Engine/Text/Shared/TextElementStatus.lua"/>

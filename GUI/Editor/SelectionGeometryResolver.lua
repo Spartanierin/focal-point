@@ -461,7 +461,11 @@ function Resolver.Resolve(frame, objectRef)
     end
 
     local config = frame.config or {}
-    if objectRef.kind == "bar" then
+    if objectRef.kind == "segmentedBar" then
+        local runtime = FocalPoint.UnitFrameSegmentedBars
+        local holder = runtime and runtime.GetVisibleHolder(frame, objectRef.objectKey)
+        return FrameGeometry(holder, "segmented-bar-holder")
+    elseif objectRef.kind == "bar" then
         return ResolveBar(frame, objectRef, config)
     elseif objectRef.kind == "indicator" then
         return ResolveIndicator(frame, objectRef, config)

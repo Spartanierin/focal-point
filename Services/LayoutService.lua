@@ -69,6 +69,146 @@ function LayoutService.MergeInto(target, source)
     return target
 end
 
+-- C1a: pure data contract, shared by transfer/copy and future instance mutations.
+-- No defaults create records. IDs are opaque and scoped to (layout, unit).
+local SEGMENT_POINTS = {TOPLEFT=true,TOP=true,TOPRIGHT=true,LEFT=true,CENTER=true,RIGHT=true,
+    BOTTOMLEFT=true,BOTTOM=true,BOTTOMRIGHT=true}
+local SEGMENT_FIELDS = {id=true,enabled=true,dataSource=true,anchorTo=true,point=true,relativePoint=true,
+    offsetX=true,offsetY=true,width=true,height=true,spacing=true,growth=true,color=true,useBlizzardColor=true,
+    texture=true,background=true,backgroundColor=true,runeTimerFont=true,runeTimerFontSize=true,runeTimerFontStyle=true}
+local function SegmentError(path, reason)
+    return false, "segmented-bars-invalid: " .. path .. ": " .. reason
+end
+local function PlainTable(value) return type(value) == "table" and getmetatable(value) == nil end
+local function SegmentNumber(value, low, high)
+    return type(value) == "number" and value == value and value >= low and value <= high
+end
+local function SegmentId(value)
+    return type(value) == "string" and #value <= 78 and value:match("^segmented%-bar%-%w[%w_%-]*$") ~= nil
+end
+
+function LayoutService.ValidateSegmentedBars(collection, unitKey, path)
+    path = path or ("Units." .. tostring(unitKey) .. ".segmentedBars")
+    if collection == nil then return true end
+    if not PlainTable(collection) then return SegmentError(path, "expected-array") end
+    local count = 0
+    for key in pairs(collection) do
+        if not SegmentNumber(key, 1, 1000000000) or key % 1 ~= 0 then
+            return SegmentError(path, "invalid-array-key")
+        end
+        count = count + 1
+    end
+    for index = 1, count do
+        if rawget(collection, index) == nil then return SegmentError(path, "array-hole") end
+    end
+    if count > 0 and unitKey ~= "player" then return SegmentError(path, "unsupported-unit") end
+    local ids, targets = {}, {}
+    for index = 1, count do
+        local record, at = collection[index], path .. "[" .. index .. "]"
+        if not PlainTable(record) then return SegmentError(at, "expected-record") end
+        for key in pairs(record) do
+            if not SEGMENT_FIELDS[key] then return SegmentError(at, "unknown-field") end
+        end
+        if not SegmentId(record.id) then return SegmentError(at .. ".id", "invalid-id") end
+        if ids[record.id] then return SegmentError(at .. ".id", "duplicate-id") end
+        ids[record.id] = index
+        if type(record.enabled) ~= "boolean" then return SegmentError(at .. ".enabled", "expected-boolean") end
+        local source = record.dataSource
+        if not PlainTable(source) then return SegmentError(at .. ".dataSource", "expected-source") end
+        for key in pairs(source) do
+            if key ~= "id" and key ~= "scope" then return SegmentError(at .. ".dataSource", "unknown-field") end
+        end
+        if source.id ~= "auto" and source.id ~= "runes" and source.id ~= "holyPower" then return SegmentError(at .. ".dataSource.id", "unsupported-source") end
+        if source.scope ~= "player" then return SegmentError(at .. ".dataSource.scope", "unsupported-scope") end
+        for _, field in ipairs({"point", "relativePoint"}) do
+            if record[field] ~= nil and not SEGMENT_POINTS[record[field]] then return SegmentError(at .. "." .. field, "invalid-point") end
+        end
+        for field, minimum in pairs({width=40,height=4,spacing=0,offsetX=-1000000000,offsetY=-1000000000}) do
+            if record[field] ~= nil and not SegmentNumber(record[field], minimum, 1000000000) then
+                return SegmentError(at .. "." .. field, "invalid-number")
+            end
+        end
+        if record.growth ~= nil and record.growth ~= "LEFT_TO_RIGHT" and record.growth ~= "RIGHT_TO_LEFT" then
+            return SegmentError(at .. ".growth", "invalid-growth")
+        end
+        for _, field in ipairs({"texture", "runeTimerFont"}) do
+            if record[field] ~= nil and (type(record[field]) ~= "string" or record[field] == "") then
+                return SegmentError(at .. "." .. field, "invalid-media-reference")
+            end
+        end
+        if record.useBlizzardColor ~= nil and type(record.useBlizzardColor) ~= "boolean" then
+            return SegmentError(at .. ".useBlizzardColor", "expected-boolean")
+        end
+        if record.background ~= nil and type(record.background) ~= "boolean" then
+            return SegmentError(at .. ".background", "expected-boolean")
+        end
+        if record.runeTimerFontSize ~= nil and not SegmentNumber(record.runeTimerFontSize, 6, 32) then
+            return SegmentError(at .. ".runeTimerFontSize", "invalid-number")
+        end
+        local fontStyles = {NONE=true,OUTLINE=true,THICKOUTLINE=true,MONOCHROME=true,
+            OUTLINE_MONOCHROME=true,THICKOUTLINE_MONOCHROME=true}
+        if record.runeTimerFontStyle ~= nil and not fontStyles[record.runeTimerFontStyle] then
+            return SegmentError(at .. ".runeTimerFontStyle", "invalid-font-style")
+        end
+        for _, field in ipairs({"color", "backgroundColor"}) do
+            local color = record[field]
+            if color ~= nil then
+                if not PlainTable(color) then return SegmentError(at .. "." .. field, "expected-rgba") end
+                for key in pairs(color) do
+                    if not SegmentNumber(key, 1, 4) or key % 1 ~= 0 then return SegmentError(at .. "." .. field, "expected-rgba") end
+                end
+                for channel = 1, 4 do
+                    if not SegmentNumber(color[channel], 0, 1) then return SegmentError(at .. "." .. field, "invalid-channel") end
+                end
+            end
+        end
+        local anchor = record.anchorTo
+        if anchor ~= nil and anchor ~= "Frame" then
+            local target = type(anchor) == "string" and anchor:match("^SegmentedBar:(.+)$")
+            if not target or not SegmentId(target) then return SegmentError(at .. ".anchorTo", "unsupported-anchor") end
+            if target == record.id then return SegmentError(at .. ".anchorTo", "self-anchor") end
+            targets[record.id] = target
+        end
+    end
+    -- Iterative walk avoids recursion on long imported anchor chains. Only Frame
+    -- and this collection are allowed, so no mixed Legacy/instance cycle exists.
+    local complete = {}
+    for id in pairs(ids) do
+        local visiting, current = {}, id
+        while current and not complete[current] do
+            local at = path .. "[" .. ids[current] .. "].anchorTo"
+            if visiting[current] then return SegmentError(at, "anchor-cycle") end
+            visiting[current] = true
+            local target = targets[current]
+            if target and not ids[target] then return SegmentError(at, "missing-anchor-target") end
+            current = target
+        end
+        for visited in pairs(visiting) do complete[visited] = true end
+    end
+    return true
+end
+
+-- Validate only this extension; existing payload/Legacy rules stay with their owners.
+function LayoutService.ValidateSegmentedBarPayload(payload)
+    local units = type(payload) == "table" and payload.Units
+    if type(units) ~= "table" then return true end
+    for unitKey, config in pairs(units) do
+        if type(config) == "table" then
+            local ok, reason = LayoutService.ValidateSegmentedBars(config.segmentedBars, unitKey)
+            if not ok then return false, reason end
+        end
+    end
+    return true
+end
+
+local function SourceSegmentedBars(config, unitKey)
+    local collection
+    if type(config) == "table" then collection = config.segmentedBars end
+    local ok, reason = LayoutService.ValidateSegmentedBars(collection, unitKey)
+    assert(ok, reason)
+    return LayoutService.Clone(collection)
+end
+
 -- One boundary transformation for persisted layouts, projections and imports.
 -- Geometry is the shared data-free editor contract, never live unit state.
 function LayoutService.CanonicalizeAuraAnchors(payload)
@@ -259,11 +399,12 @@ local function MaterializeSourceTexts(defaultTexts, sourceTexts)
     return materialized
 end
 
-function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit)
+function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit, unitKey)
     if type(legacyUnit) ~= "table" then
         return nil
     end
 
+    local segmentedBars = SourceSegmentedBars(legacyUnit, unitKey)
     local sourceUnit = ApplyLegacyAliases(LayoutService.Clone(legacyUnit) or {})
     local storage = FocalPoint.CompositionPresenceStorage
     if type(storage) == "table" and type(storage.MigrateLegacyUnitPresence) == "function" then
@@ -271,7 +412,9 @@ function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit)
     end
 
     local materialized = LayoutService.Clone(defaultUnit) or {}
+    materialized.segmentedBars = nil
     LayoutService.MergeInto(materialized, sourceUnit)
+    materialized.segmentedBars = segmentedBars
 
     for _, component in pairs(LEGACY_FLAT_COMPONENT_EVIDENCE) do
         if not HasLegacyFieldEvidence(sourceUnit, component.fields) then
@@ -293,8 +436,10 @@ function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit)
     return NormalizeUnit(materialized)
 end
 
-function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
+function LayoutService.MaterializeUnit(defaultUnit, unitConfig, unitKey)
+    local segmentedBars = SourceSegmentedBars(unitConfig, unitKey)
     local materialized = LayoutService.Clone(defaultUnit) or {}
+    materialized.segmentedBars = nil
     if type(unitConfig) == "table" then
         local sourceUnit = LayoutService.Clone(unitConfig) or {}
         local storage = FocalPoint.CompositionPresenceStorage
@@ -310,6 +455,7 @@ function LayoutService.MaterializeUnit(defaultUnit, unitConfig)
             )
         end
     end
+    materialized.segmentedBars = segmentedBars
     return NormalizeUnit(materialized)
 end
 
@@ -322,6 +468,8 @@ local function ResolveLayoutDefaults(defaults)
 end
 
 function LayoutService.NormalizeLegacyPayload(payload, defaults)
+    local valid, reason = LayoutService.ValidateSegmentedBarPayload(payload)
+    assert(valid, reason)
     local layoutDefaults = ResolveLayoutDefaults(defaults)
     local sourceUnits = type(payload) == "table" and payload.Units or nil
     local sourceTemplates = type(payload) == "table" and payload.TextTemplates or nil
@@ -336,7 +484,7 @@ function LayoutService.NormalizeLegacyPayload(payload, defaults)
 
     if type(layoutDefaults.Units) == "table" then
         for unitKey, defaultUnit in pairs(layoutDefaults.Units) do
-            normalized.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, sourceUnits and sourceUnits[unitKey])
+            normalized.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, sourceUnits and sourceUnits[unitKey], unitKey)
         end
     elseif type(sourceUnits) == "table" then
         normalized.Units = LayoutService.Clone(sourceUnits) or {}
@@ -354,6 +502,8 @@ function LayoutService.NormalizeLegacyPayload(payload, defaults)
 end
 
 function LayoutService.NormalizePayload(payload, defaults)
+    local valid, reason = LayoutService.ValidateSegmentedBarPayload(payload)
+    assert(valid, reason)
     local layoutDefaults = ResolveLayoutDefaults(defaults)
     local sourceUnits = type(payload) == "table" and payload.Units or nil
     local normalized = {
@@ -362,7 +512,7 @@ function LayoutService.NormalizePayload(payload, defaults)
 
     if type(layoutDefaults.Units) == "table" then
         for unitKey, defaultUnit in pairs(layoutDefaults.Units) do
-            normalized.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, sourceUnits and sourceUnits[unitKey])
+            normalized.Units[unitKey] = LayoutService.MaterializeUnit(defaultUnit, sourceUnits and sourceUnits[unitKey], unitKey)
         end
     elseif type(sourceUnits) == "table" then
         normalized.Units = LayoutService.Clone(sourceUnits) or {}
@@ -837,7 +987,8 @@ function LayoutService.MaterializeFromLegacyProfile(profile, defaults)
             if type(sourceUnit) == "table" then
                 normalized.Units[unitKey] = LayoutService.MaterializeLegacyUnit(
                     type(layoutDefaults.Units) == "table" and layoutDefaults.Units[unitKey] or nil,
-                    sourceUnit
+                    sourceUnit,
+                    unitKey
                 )
             end
         end

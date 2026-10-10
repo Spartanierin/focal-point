@@ -147,14 +147,14 @@ function Factory.CreateAlternativePowerBar(frame)
     frame.alternativePower = power
 end
 
-function Factory.CreateClassPowerBar(frame)
+local function CreateSegmentHolder(frame, count)
     local holder = CreateFrame("Frame", nil, frame)
     holder:SetFrameStrata(frame:GetFrameStrata())
     holder:SetFrameLevel(frame:GetFrameLevel() + 4)
     holder.Bars = {}
     holder:Hide()
 
-    for index = 1, 10 do
+    for index = 1, count do
         local bar = CreateFrame("StatusBar", nil, holder)
         bar:SetMinMaxValues(0, 1)
         bar:Hide()
@@ -177,6 +177,15 @@ function Factory.CreateClassPowerBar(frame)
         holder.Bars[index] = bar
     end
 
+    return holder
+end
+
+function Factory.CreateSegmentedBar(frame)
+    return CreateSegmentHolder(frame, 6)
+end
+
+function Factory.CreateClassPowerBar(frame)
+    local holder = CreateSegmentHolder(frame, 10)
     frame.Elements.ClassPowerBar = holder
     frame.classPower = holder
 end

@@ -14,6 +14,7 @@ ns.MediaRegistry=nil;h.Load("Services/MediaRegistry.lua")
 for _,path in ipairs({
     "Engine/UnitFrame/Shared/UnitFrameColors.lua",
     "Engine/UnitFrame/Shared/UnitFramePreview.lua",
+    "Engine/UnitFrame/Bars/UnitFramePower.lua",
     "Engine/UnitFrame/Runtime/UnitFrameLayout.lua",
     "Engine/UnitFrame/Runtime/UnitFrameInsideLayout.lua",
     "Engine/UnitFrame/Bars/UnitFrameBarLayout.lua",
@@ -28,8 +29,7 @@ h.Load("Engine/UnitFrame.lua")
 local UF=ns.UnitFrame
 -- Unrelated health/text/aura/cast rendering is not part of this fixture.
 UF.ApplyRangeFade=Noop;UF.RefreshLiveValues=Noop;UF.UpdateTextElements=Noop
-UF.UpdateHealthBarColor=Noop;UF.UpdatePowerBarColor=Noop
-UF.RefreshUnitBarValues=function(self,frame)C.RefreshValues(self,frame)end
+UF.UpdateHealthBarColor=Noop;UF.UpdatePowerBarColor=Noop;UF.RefreshHealthBar=Noop
 UF.UpdateTextEditCastPreview=Noop;UF.RefreshCastBar=Noop;UF.RefreshAuras=Noop
 local frame,scope,selected
 ns.GUI.Editor.State.GetPropertyScope=function()return scope end

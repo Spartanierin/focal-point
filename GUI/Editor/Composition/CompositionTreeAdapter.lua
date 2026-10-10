@@ -553,6 +553,19 @@ function Adapter.BuildUnitTree(unit)
     AddIndicatorBranch(root, normalizedUnit, unitConfig, anchorNodes)
     AddDecorationBranch(root, normalizedUnit, unitConfig, anchorNodes)
 
+    if normalizedUnit == "player" then
+        for index, record in ipairs(unitConfig.segmentedBars or {}) do
+            local target = {kind="segmentedBar", unit=normalizedUnit, objectKey=record.id, sectionKey="segmented_bars"}
+            if IsPresent(unitConfig, target) then
+                local node = BuildNode(root.id .. "/segmentedBar:" .. record.id, "segmentedBar", normalizedUnit,
+                    root.id, (L["EDITOR_SEGMENTED_BAR"] or "Segmented Bar") .. ": " .. record.id,
+                    index, false, target, record.enabled)
+                if PresencePolicy then node.presence = PresencePolicy.ResolveObject(normalizedUnit, target) end
+                AddChild(root, node)
+            end
+        end
+    end
+
     return root
 end
 

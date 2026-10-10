@@ -766,6 +766,9 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     end
     if needsLayout and owner.ApplyConfig then
         owner:ApplyConfig(frame)
+    elseif needsBars and FocalPoint.UnitFrameSegmentedBars then
+        -- Scoped value refreshes publish the same snapshot without a layout pass.
+        FocalPoint.UnitFrameSegmentedBars.Apply(frame)
     end
     if needsFull and owner.ApplyTestValues then
         owner:ApplyTestValues(frame)

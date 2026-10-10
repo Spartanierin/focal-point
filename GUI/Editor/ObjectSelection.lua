@@ -275,6 +275,15 @@ function ObjectSelection.GetSelectedObject()
     end
 
     local scopeKind = type(scope) == "table" and scope.kind or nil
+    if scopeKind == "segmentedBar" then
+        local resolver = ns.ActiveLayoutResolver
+        local root = resolver and resolver.GetActiveRuntimeRoot()
+        local ref = {kind="segmentedBar", unit=selectedUnit, objectKey=scope.objectKey, sectionKey="segmented_bars"}
+        if scope.unit == selectedUnit and scope.unitConfig == GetUnitConfig(selectedUnit)
+            and scope.runtimeRoot == root and IsCompositionPresent(selectedUnit, ref) then return ref end
+        -- Preserve the unavailable scope for the read-only Inspector, never select a different object.
+        return {kind="segmentedBar", unit=selectedUnit, sectionKey="segmented_bars", unavailable=true}
+    end
     if scopeKind == "aura" then
         local auraKey = scope.auraKey or scope.objectKey
         if IsValidAura(selectedUnit, auraKey) then
@@ -383,6 +392,17 @@ function ObjectSelection.SelectObject(objectRef, selectionContext)
     end
     local previousUnit = GetSelectedUnit()
     local previousObject = ObjectSelection.GetSelectedObject()
+
+    if kind == "segmentedBar" then
+        if not IsCompositionPresent(unit, objectRef) or not SelectUnit(unit) then return false end
+        ClearTextSelection()
+        local scope = EditorState.SetPropertyScope("segmentedBar", "segmented_bars", objectRef.objectKey)
+        if not scope then return false end
+        scope.unit, scope.unitConfig = unit, GetUnitConfig(unit)
+        local resolver = ns.ActiveLayoutResolver
+        scope.runtimeRoot = resolver and resolver.GetActiveRuntimeRoot()
+        return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
+    end
 
     if kind == "unit" then
         if not SelectUnit(unit) then
