@@ -2926,7 +2926,7 @@ function InspectorController.Build(container, state, options)
                 disabled = unitConfig.useLowHealthColor == false,
             })
 
-            if isExpert and unitConfig.useLowHealthColor then
+            if isExpert and unitConfig.useLowHealthColor ~= false then
                 local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig.lowHealthColorThreshold)
                 AddPropertyDropdownRow(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", {
                     list = lowHealthThresholdList,
@@ -2945,7 +2945,7 @@ function InspectorController.Build(container, state, options)
                 SetUnitField("healthLowColor", value)
             end, unitConfig.useLowHealthColor == false)
 
-            if isExpert and unitConfig.useLowHealthColor then
+            if isExpert and unitConfig.useLowHealthColor ~= false then
                 local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig.lowHealthColorThreshold)
                 AddDropdown(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", lowHealthThresholdList, thresholdValueString, function(value)
                     SetUnitField("lowHealthColorThreshold", tonumber(value))
