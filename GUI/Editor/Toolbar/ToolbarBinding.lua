@@ -811,6 +811,16 @@ local function ApplyTreeToggleMutation(context, node, nextEnabled)
             return { ok = false, errorCode = "invalid_context" }
         end
         return InspectorMutations.SetDecorationField(context, target.decorationId, "enabled", enabled)
+    elseif node.type == "segmentedBar" then
+        local mutations = ns.LayoutMutations and ns.LayoutMutations.SegmentedBars
+        if target.kind ~= "segmentedBar" or target.unit ~= "player" or context.unitKey ~= "player"
+            or type(target.objectKey) ~= "string" or not mutations
+            or type(mutations.CaptureContext) ~= "function" or type(mutations.SetEnabled) ~= "function" then
+            return { ok = false, errorCode = "invalid_context" }
+        end
+        local handle, reason = mutations.CaptureContext("player")
+        if not handle then return { ok = false, errorCode = reason or "invalid_context" } end
+        return mutations.SetEnabled(handle, target.objectKey, enabled)
     end
 
     return { ok = false, errorCode = "unsupported_target" }
@@ -845,11 +855,22 @@ local function BuildCompositionTree(context, deps)
         return
     end
 
+    local nsRef = ResolveAddon(deps)
+    local resolver = nsRef.ActiveLayoutResolver
+    local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
+    local playerConfig = root and root.units and root.units.player or nil
+
     CompositionTreeView.Build(treeHost, context.state, {
         minHeight = 112,
         maxHeight = 416,
         onToggle = function(node, nextEnabled)
-            local nsRef = ResolveAddon(deps)
+            if node.type == "segmentedBar" then
+                local current = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
+                if not root or current ~= root or not playerConfig
+                    or not current.units or current.units.player ~= playerConfig then
+                    return { ok = false, errorCode = "stale-context" }
+                end
+            end
             local workflow = nsRef.LayoutEditWorkflow
             if not (workflow and workflow.RequestEditableLayoutForMutation) then
                 return { ok = false, errorCode = "layout-edit-workflow-unavailable" }

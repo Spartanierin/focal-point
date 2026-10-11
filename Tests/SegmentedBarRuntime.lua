@@ -108,17 +108,93 @@ Test("unavailable, non-rune source and invalid anchor never fabricate geometry o
     frame.config.segmentedBars[1].spacing=1000;B.Apply(frame);assert(not a:IsShown())
     frame=Setup("WARRIOR");UF:Refresh(frame);a,b=Holders(frame);assert(not a:IsShown() and not b:IsShown())
 end)
-Test("canvas uses actual per-instance geometry; stale/disabled/missing instances have none",function()
+Test("canvas uses visible holders and validated hidden editor anchors",function()
     local frame=Setup();UF:Refresh(frame);local a,b=Holders(frame)
     local resolve=ns.GUI.Editor.SelectionGeometryResolver.Resolve
     local ref={kind="segmentedBar",unit="player",objectKey="segmented-bar-b"}
     Eq(resolve(frame,ref).target,b);Eq(B.GetVisibleHolder(frame,"segmented-bar-a"),a)
-    frame.config.segmentedBars[2].enabled=false;assert(not resolve(frame,ref));B.Apply(frame);assert(not resolve(frame,ref))
+    frame.config.segmentedBars[2].enabled=false;assert(not resolve(frame,ref));B.Apply(frame)
+    local hidden=assert(resolve(frame,ref));Eq(hidden.target,nil);Eq(hidden.width,190);Eq(hidden.height,18)
+    local p=hidden.points[1];Eq(p.point,"TOPLEFT");Eq(p.relativeTo,a)
+    Eq(p.relativePoint,"BOTTOMRIGHT");Eq(p.offsetX,3);Eq(p.offsetY,-5)
+    a:ClearAllPoints();assert(not resolve(frame,ref));B.Apply(frame)
+    frame.config.segmentedBars[1].enabled=false;B.Apply(frame)
+    assert(resolve(frame,ref) and not a:IsShown() and not b:IsShown())
     frame.config.segmentedBars[2].enabled=true;B.Apply(frame);Eq(resolve(frame,ref).target,b)
     frame.config=f.Copy(frame.config);assert(not resolve(frame,ref))
     ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units.player=frame.config
     UF:Refresh(frame);Eq(resolve(frame,ref).target,b)
     ref.objectKey="missing";assert(not resolve(frame,ref))
+end)
+Test("canvas guards reject stale bindings and preserve auto editor geometry",function()
+    local frame=Setup();frame.config.segmentedBars[2].dataSource={id="auto",scope="player"}
+    UF:Refresh(frame)
+    local resolve=ns.GUI.Editor.SelectionGeometryResolver.Resolve
+    local ref={kind="segmentedBar",unit="player",objectKey="segmented-bar-b"}
+    local a,b=Holders(frame)
+    local geometry=resolve(frame,ref)
+    Eq(geometry.source,"segmented-bar-holder");Eq(geometry.target,b)
+    frame.config.segmentedBars[2].enabled=false;B.Apply(frame)
+    geometry=resolve(frame,ref)
+    Eq(geometry.source,"segmented-bar-config");Eq(geometry.points[1].relativeTo,a)
+    b:ClearAllPoints();Eq(resolve(frame,ref),nil)
+    B.Apply(frame)
+    b:SetSize(1,1);geometry=resolve(frame,ref)
+    Eq(geometry.source,"segmented-bar-config");Eq(geometry.width,190);Eq(geometry.height,18)
+    B.Apply(frame)
+    a:SetSize(1,1);Eq(resolve(frame,ref),nil)
+    B.Apply(frame)
+    local bound=b._segmentedBarRecord;b._segmentedBarRecord={}
+    Eq(resolve(frame,ref),nil)
+    b._segmentedBarRecord=bound
+    local state=frame._segmentedBars;state.config={}
+    Eq(resolve(frame,ref),nil)
+    state.config=frame.config
+    local root=ns.ActiveLayoutResolver.GetActiveRuntimeRoot();root.units.player={}
+    Eq(resolve(frame,ref),nil)
+    root.units.player=frame.config
+    ref.objectKey="missing";Eq(resolve(frame,ref),nil)
+    ref.objectKey="segmented-bar-b"
+    local oldWidth=frame.config.segmentedBars[2].width
+    frame.config.segmentedBars[2].width=0
+    Eq(resolve(frame,ref),nil)
+    frame.config.segmentedBars[2].width=oldWidth
+    geometry=resolve(frame,ref);Eq(geometry.source,"segmented-bar-config")
+end)
+Test("canvas rejects invalid anchor fields on selected and chained holders",function()
+    local frame=Setup();UF:Refresh(frame);local a,b=Holders(frame)
+    frame.config.segmentedBars[2].enabled=false;B.Apply(frame)
+    local resolve=ns.GUI.Editor.SelectionGeometryResolver.Resolve
+    local ref={kind="segmentedBar",unit="player",objectKey="segmented-bar-b"}
+    local cases={
+        {field="relativeTo",actual=frame},
+        {field="point",actual="LEFT"},
+        {field="relativePoint",actual="TOPLEFT"},
+        {field="x",actual=4},
+        {field="y",actual=-4},
+    }
+    local getPoint=b.GetPoint
+    for _,case in ipairs(cases)do
+        b.GetPoint=function(self,index)
+            local point,relativeTo,relativePoint,x,y=getPoint(self,index)
+            if case.field=="point"then point=case.actual
+            elseif case.field=="relativeTo"then relativeTo=case.actual
+            elseif case.field=="relativePoint"then relativePoint=case.actual
+            elseif case.field=="x"then x=case.actual
+            else y=case.actual end
+            return point,relativeTo,relativePoint,x,y
+        end
+        Eq(resolve(frame,ref),nil)
+    end
+    b.GetPoint=nil
+    local original=a.GetPoint
+    a.GetPoint=function(self,index)
+        local _,relativeTo,relativePoint,x,y=original(self,index)
+        return "LEFT",relativeTo,relativePoint,x,y
+    end
+    Eq(resolve(frame,ref),nil)
+    a.GetPoint=nil
+    Eq(resolve(frame,ref).source,"segmented-bar-config")
 end)
 Test("50 clear/hide/show/layout/reuse cycles retain holders and never play new highlights",function()
     local frame,legacy=Setup();UF:Refresh(frame);local a,b=Holders(frame)
@@ -137,7 +213,7 @@ Test("50 clear/hide/show/layout/reuse cycles retain holders and never play new h
     ns.UnitFrameState.ResetDerivedFrameState(frame)
     assert(not a:IsShown() and not b:IsShown() and not a:GetScript("OnUpdate"))
 end)
-Test("canvas hit zones select stable instance IDs and disappear when unavailable",function()
+Test("canvas hit zones select stable IDs for disabled and unavailable instances",function()
     local frame=Setup();UF:Refresh(frame);local a,b=Holders(frame)
     ns.framesUnlocked=true;frame.MoveOverlay=CreateFrame("Frame",nil,frame);frame.MoveOverlay:Show()
     local canvas=ns.GUI.Editor.CanvasHoverOverlay
@@ -153,8 +229,17 @@ Test("canvas hit zones select stable instance IDs and disappear when unavailable
         assert(not zone._focalPointMovesUnit)
     end
     frame.config.segmentedBars[2].enabled=false;B.Apply(frame);canvas.UpdateFrame(frame)
-    assert(not frame._focalPointCanvasHoverZones["segmentedBar:segmented-bar-b"]:IsShown())
+    local hidden=frame._focalPointCanvasHoverZones["segmentedBar:segmented-bar-b"]
+    assert(hidden:IsShown());Eq(hidden:GetWidth(),190);Eq(select(2,hidden:GetPoint(1)),a)
+    hidden:Run("OnMouseUp","LeftButton");Eq(selected.objectKey,"segmented-bar-b")
     assert(frame._focalPointCanvasHoverZones["segmentedBar:segmented-bar-a"]:IsShown())
+    local api=GetRuneCooldown;GetRuneCooldown=nil;UF:Refresh(frame);canvas.UpdateFrame(frame)
+    assert(frame._focalPointCanvasHoverZones["segmentedBar:segmented-bar-a"]:IsShown())
+    GetRuneCooldown=api
+    local combat=InCombatLockdown;InCombatLockdown=function()return true end
+    selected=nil;hidden:Run("OnMouseUp","LeftButton");Eq(selected,nil)
+    canvas.UpdateFrame(frame);assert(not hidden:IsShown());InCombatLockdown=combat
+    ns.framesUnlocked=false;canvas.UpdateFrame(frame);assert(not hidden:IsShown())
     selection.SelectObject=selectObject;ns.framesUnlocked=false
 end)
 Test("anchor graph reversal clears old anchors; invalid cycle fails closed",function()

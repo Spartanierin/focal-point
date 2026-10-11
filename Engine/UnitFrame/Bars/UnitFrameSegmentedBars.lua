@@ -20,18 +20,18 @@ local function SnapshotClass(snapshot, frame)
     return class
 end
 
--- Binding identity only; availability is checked separately against the observation.
+local ResolveAutoSource
+
+-- Fixed bindings keep their identity; Automatic consumes only the published observation.
 -- Inspector and runtime share this mapping without fetching gameplay state.
 function Bars.ResolveDataSource(record, frame)
     local source = record and record.dataSource
     if not source or source.scope ~= "player" then return nil end
-    if source.id == "runes" or source.id == "holyPower" then return source.id end
+    if source.id == "runes" or source.id == "holyPower" or source.id == "arcaneCharges"
+        or source.id == "chi" or source.id == "comboPoints" then return source.id end
     if source.id ~= "auto" then return nil end
     local snapshot = frame and frame.LiveValues and frame.LiveValues.classPowerSnapshot
-    local class = SnapshotClass(snapshot, frame)
-    if class == "DEATHKNIGHT" then return "runes" end
-    if class == "PALADIN" then return "holyPower" end
-    return nil
+    return ResolveAutoSource(snapshot, frame)
 end
 
 -- Holy Power consumes only the published live observation, never a synthetic
@@ -45,6 +45,92 @@ local function HasHolyPower(snapshot, info, frame)
         and info.currentKnown == true and info.maxKnown == true
         and PlainNumber(info.current) and PlainNumber(info.max)
         and info.max >= 1 and info.max % 1 == 0 and info.current >= 0 and info.current <= info.max
+end
+
+local function HasArcaneCharges(snapshot, info, frame)
+    local context = snapshot and snapshot.context
+    if not info or not context or snapshot.source ~= "live" or snapshot.sourceInfo ~= info
+        or context.unit ~= "player" or context.config ~= frame.config
+        or SnapshotClass(snapshot, frame) ~= "MAGE" or not PlainNumber(context.spec)
+        or context.spec ~= (_G.SPEC_MAGE_ARCANE or 1)
+        or (issecretvalue and (issecretvalue(info.token) or issecretvalue(info.typeId)))
+        or info.token ~= "ARCANE_CHARGES"
+        or info.typeId ~= (Enum and Enum.PowerType and Enum.PowerType.ArcaneCharges or 16)
+        or snapshot.currentKnown ~= true or snapshot.maxKnown ~= true
+        or info.currentKnown ~= true or info.maxKnown ~= true
+        or not PlainNumber(info.rawCurrent) or not PlainNumber(info.rawMax)
+        or not PlainNumber(info.current) or not PlainNumber(info.max) then return false end
+    return info.current == info.rawCurrent and info.max == info.rawMax
+        and info.max >= 1 and info.max <= 6 and info.max % 1 == 0
+        and info.current >= 0 and info.current <= info.max and info.current % 1 == 0
+end
+
+local function HasChi(snapshot, info, frame)
+    local context = snapshot and snapshot.context
+    if not info or not context or snapshot.source ~= "live" or snapshot.sourceInfo ~= info
+        or context.unit ~= "player" or context.config ~= frame.config
+        or SnapshotClass(snapshot, frame) ~= "MONK" or not PlainNumber(context.spec)
+        or context.spec ~= (_G.SPEC_MONK_WINDWALKER or 3)
+        or (issecretvalue and (issecretvalue(info.token) or issecretvalue(info.typeId)))
+        or info.token ~= "CHI"
+        or info.typeId ~= (Enum and Enum.PowerType and Enum.PowerType.Chi or 12)
+        or snapshot.currentKnown ~= true or snapshot.maxKnown ~= true
+        or info.currentKnown ~= true or info.maxKnown ~= true
+        or not PlainNumber(info.rawCurrent) or not PlainNumber(info.rawMax)
+        or not PlainNumber(info.current) or not PlainNumber(info.max) then return false end
+    return info.current == info.rawCurrent and info.max == info.rawMax
+        and info.max >= 1 and info.max <= 6 and info.max % 1 == 0
+        and info.current >= 0 and info.current <= info.max and info.current % 1 == 0
+end
+
+local function HasComboPoints(snapshot, info, frame)
+    local context = snapshot and snapshot.context
+    local class = SnapshotClass(snapshot, frame)
+    -- The Druid Energy/Shred gate runs in the sole live provider before this
+    -- snapshot is published; it is not re-read by this visual consumer.
+    if not info or not context or snapshot.source ~= "live" or snapshot.sourceInfo ~= info
+        or context.unit ~= "player" or context.config ~= frame.config
+        or (class ~= "ROGUE" and class ~= "DRUID")
+        or (issecretvalue and (issecretvalue(info.token) or issecretvalue(info.typeId)))
+        or info.token ~= "COMBO_POINTS"
+        or info.typeId ~= (Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 4)
+        or snapshot.currentKnown ~= true or snapshot.maxKnown ~= true
+        or info.currentKnown ~= true or info.maxKnown ~= true
+        or not PlainNumber(info.rawCurrent) or not PlainNumber(info.rawMax)
+        or not PlainNumber(info.current) or not PlainNumber(info.max) then return false end
+    return info.current == info.rawCurrent and info.max == info.rawMax
+        and info.max >= 1 and info.max <= 6 and info.max % 1 == 0
+        and info.current >= 0 and info.current <= info.max and info.current % 1 == 0
+end
+
+ResolveAutoSource = function(snapshot, frame)
+    local info = snapshot and snapshot.info
+    local class = frame and SnapshotClass(snapshot, frame)
+    if not info or snapshot.available ~= true or snapshot.currentKnown ~= true
+        or snapshot.maxKnown ~= true or not class then return nil end
+    if issecretvalue and (issecretvalue(info.token) or issecretvalue(info.typeId)) then return nil end
+    if class == "DEATHKNIGHT" then
+        if (snapshot.source == "live" and snapshot.sourceInfo == info or snapshot.source == "preview")
+            and not (issecretvalue and issecretvalue(info.segments))
+            and info.token == "RUNES" and type(info.segments) == "table" and #info.segments == 6
+            and PlainNumber(info.current) and PlainNumber(info.max) and info.max == 6
+            and info.current >= 0 and info.current <= 6 and info.current % 1 == 0 then
+            return "runes"
+        end
+    elseif class == "PALADIN" then
+        if HasHolyPower(snapshot, info, frame) and PlainNumber(info.rawCurrent) and PlainNumber(info.rawMax)
+            and info.current == info.rawCurrent and info.max == info.rawMax
+            and info.max <= 6 and info.current % 1 == 0 then
+            return "holyPower"
+        end
+    elseif class == "MAGE" then
+        if HasArcaneCharges(snapshot, info, frame) then return "arcaneCharges" end
+    elseif class == "MONK" then
+        if HasChi(snapshot, info, frame) then return "chi" end
+    elseif class == "ROGUE" or class == "DRUID" then
+        if HasComboPoints(snapshot, info, frame) then return "comboPoints" end
+    end
+    return nil
 end
 
 local function ClearHolder(holder)
@@ -119,6 +205,9 @@ function Bars.Apply(frame)
     local hasRunes = info and info.token == "RUNES" and info.segments and #info.segments == 6
     local slots = hasRunes and ClassPower.GetRuneVisualSlots(info.segments) or nil
     local hasHolyPower = HasHolyPower(snapshot, info, frame)
+    local hasArcaneCharges = HasArcaneCharges(snapshot, info, frame)
+    local hasChi = HasChi(snapshot, info, frame)
+    local hasComboPoints = HasComboPoints(snapshot, info, frame)
     for _, record in ipairs(records) do
         local holder = state.byId[record.id]
         local anchor = record.anchorTo
@@ -138,7 +227,10 @@ function Bars.Apply(frame)
             end
             local runes = resolvedSource == "runes" and hasRunes
             local holyPower = resolvedSource == "holyPower" and hasHolyPower
-            local max = runes and 6 or (holyPower and info.max)
+            local arcaneCharges = resolvedSource == "arcaneCharges" and hasArcaneCharges
+            local chi = resolvedSource == "chi" and hasChi
+            local comboPoints = resolvedSource == "comboPoints" and hasComboPoints
+            local max = runes and 6 or ((holyPower or arcaneCharges or chi or comboPoints) and info.max)
             -- The storage contract permits oversized spacing; do not pass negative
             -- segment widths into native widgets or silently change saved geometry.
             if record.enabled and config.enabled ~= false and source.scope == "player"

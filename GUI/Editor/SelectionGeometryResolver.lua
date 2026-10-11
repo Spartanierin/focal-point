@@ -99,6 +99,59 @@ local function PointGeometry(relativeTo, point, relativePoint, width, height, of
     }
 end
 
+local function SegmentedEditorGeometry(frame, id)
+    if frame._fpUnit ~= "player" or type(id) ~= "string" then return nil end
+    local config, state = frame.config, frame._segmentedBars
+    local root = FocalPoint.ActiveLayoutResolver and FocalPoint.ActiveLayoutResolver.GetActiveRuntimeRoot()
+    if not (root and root.units and root.units.player == config) then return nil end
+    if not (state and state.config == config) then return nil end
+    local validCall, validRecords = pcall(FocalPoint.LayoutService.ValidateSegmentedBars,
+        config.segmentedBars, "player")
+    if not validCall or validRecords ~= true then
+        return nil
+    end
+
+    local records = {}
+    for _, record in ipairs(config.segmentedBars) do records[record.id] = record end
+    local record = records[id]
+    if not record then return nil end
+    if not state.byId[id] then return nil end
+    if state.byId[id]._segmentedBarRendered then return nil end
+    local firstTarget
+    local current = id
+    while current do
+        local item, holder = records[current], state.byId[current]
+        if not (item and holder and holder._segmentedBarRecord == item) then
+            return nil
+        end
+        if not (holder.GetParent and holder:GetParent() == frame) then return nil end
+        if not (holder.GetNumPoints and holder:GetNumPoints() == 1) then return nil end
+        local anchor = item.anchorTo
+        local nextId = anchor and anchor:match("^SegmentedBar:(.+)$")
+        local target = nextId and state.byId[nextId] or frame
+        local point, relativeTo, relativePoint, x, y = holder:GetPoint(1)
+        local width, height = item.width or 100, item.height or 12
+        if (issecretvalue and (issecretvalue(width) or issecretvalue(height)))
+            or type(width) ~= "number" or type(height) ~= "number"
+            or width ~= width or height ~= height or width < 40 or height < 4
+            or width > 1000000000 or height > 1000000000 then return nil end
+        if relativeTo ~= target or point ~= (item.point or "TOPLEFT")
+            or relativePoint ~= (item.relativePoint or "TOPLEFT")
+            or x ~= (item.offsetX or 0) or y ~= (item.offsetY or 0) then
+            return nil
+        end
+        -- This editor zone has its own validated record size. A hidden selected
+        -- holder's native size need not match it; anchor targets still must.
+        if current ~= id and (holder:GetWidth() ~= width or holder:GetHeight() ~= height) then
+            return nil
+        end
+        if current == id then firstTarget = target end
+        current = nextId
+    end
+    return PointGeometry(firstTarget, record.point or "TOPLEFT", record.relativePoint or "TOPLEFT",
+        record.width or 100, record.height or 12, record.offsetX, record.offsetY, "segmented-bar-config")
+end
+
 local function StretchGeometry(relativeTo, insetLeft, insetRight, bottomOffset, height, source)
     if not relativeTo then
         return nil
@@ -462,9 +515,19 @@ function Resolver.Resolve(frame, objectRef)
 
     local config = frame.config or {}
     if objectRef.kind == "segmentedBar" then
+        local root = FocalPoint.ActiveLayoutResolver and FocalPoint.ActiveLayoutResolver.GetActiveRuntimeRoot()
+        if objectRef.unit ~= "player" or frame._fpUnit ~= "player" then return nil end
+        if not (root and root.units and root.units.player == frame.config) then return nil end
+        local validCall, validRecords = pcall(FocalPoint.LayoutService.ValidateSegmentedBars,
+            config.segmentedBars, "player")
+        if not validCall or validRecords ~= true then
+            return nil
+        end
         local runtime = FocalPoint.UnitFrameSegmentedBars
         local holder = runtime and runtime.GetVisibleHolder(frame, objectRef.objectKey)
-        return FrameGeometry(holder, "segmented-bar-holder")
+        local geometry = FrameGeometry(holder, "segmented-bar-holder")
+        if geometry then return geometry end
+        return SegmentedEditorGeometry(frame, objectRef.objectKey)
     elseif objectRef.kind == "bar" then
         return ResolveBar(frame, objectRef, config)
     elseif objectRef.kind == "indicator" then

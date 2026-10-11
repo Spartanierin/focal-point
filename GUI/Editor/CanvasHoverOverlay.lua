@@ -910,6 +910,8 @@ local function EnsureHitZone(frame, key)
         if not CanvasHoverOverlay.IsEditorActive() then
             return
         end
+        if self._focalPointObjectRef and self._focalPointObjectRef.kind == "segmentedBar"
+            and InCombatLockdown and InCombatLockdown() then return end
         if button == "LeftButton" then
             if CanvasHoverOverlay.RouteSelectedComponentPointer(self, "up") then return end
             if self._focalPointMovesUnit then
@@ -1088,16 +1090,15 @@ end
 
 local function UpdateSegmentedBars(frame, seen)
     local runtime = FocalPoint.UnitFrameSegmentedBars
-    if not runtime then return end
+    if not runtime or (InCombatLockdown and InCombatLockdown()) then return end
     for _, record in ipairs(frame.config and frame.config.segmentedBars or {}) do
         local holder = runtime.GetVisibleHolder(frame, record.id)
-        if holder then
+        local ref = {kind = "segmentedBar", unit = frame._fpUnit,
+            objectKey = record.id, sectionKey = "segmented_bars"}
+        if SelectionGeometryResolver.Resolve(frame, ref) then
             local key = "segmentedBar:" .. record.id
             seen[key] = true
-            PositionZone(EnsureHitZone(frame, key), frame, holder, {
-                kind = "segmentedBar", unit = frame._fpUnit,
-                objectKey = record.id, sectionKey = "segmented_bars",
-            }, 32, false)
+            PositionZone(EnsureHitZone(frame, key), frame, holder, ref, 32, false)
         end
     end
 end

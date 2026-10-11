@@ -133,6 +133,21 @@ local function IsPresent(unitConfig, objectRef)
     return true
 end
 
+function Adapter.GetSegmentedBarDisplayLabel(unitConfig, id)
+    if type(unitConfig) ~= "table" or type(id) ~= "string" then return nil end
+    local position = 0
+    for _, record in ipairs(unitConfig.segmentedBars or {}) do
+        local target = {kind="segmentedBar", unit="player", objectKey=record.id, sectionKey="segmented_bars"}
+        if IsPresent(unitConfig, target) then
+            position = position + 1
+            if record.id == id then
+                return (L["EDITOR_SEGMENTED_BAR"] or "Class Resource Bar") .. " " .. position
+            end
+        end
+    end
+    return nil
+end
+
 local function IsUnitPresent(unit, unitConfig)
     return IsPresent(unitConfig, {
         kind = "unit",
@@ -558,7 +573,7 @@ function Adapter.BuildUnitTree(unit)
             local target = {kind="segmentedBar", unit=normalizedUnit, objectKey=record.id, sectionKey="segmented_bars"}
             if IsPresent(unitConfig, target) then
                 local node = BuildNode(root.id .. "/segmentedBar:" .. record.id, "segmentedBar", normalizedUnit,
-                    root.id, (L["EDITOR_SEGMENTED_BAR"] or "Segmented Bar") .. ": " .. record.id,
+                    root.id, Adapter.GetSegmentedBarDisplayLabel(unitConfig, record.id),
                     index, false, target, record.enabled)
                 if PresencePolicy then node.presence = PresencePolicy.ResolveObject(normalizedUnit, target) end
                 AddChild(root, node)

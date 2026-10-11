@@ -32,6 +32,13 @@ Test("pure validator accepts absence, empty and two ordered records without muta
     assert(S.ValidateSegmentedBars(nil,"target"));assert(S.ValidateSegmentedBars({},"target"))
     local records=Records();local before=Copy(records)
     assert(S.ValidateSegmentedBars(records,"player"));Equal(records,before)
+    records[1].dataSource={id="arcaneCharges",scope="player"}
+    assert(S.ValidateSegmentedBars(records,"player"))
+    records[1].dataSource={id="chi",scope="player"}
+    assert(S.ValidateSegmentedBars(records,"player"))
+    records[1].dataSource={id="comboPoints",scope="player"}
+    assert(S.ValidateSegmentedBars(records,"player"))
+    records=Records()
     records[1].enabled=false;assert(S.ValidateSegmentedBars(records,"player"))
     records[1],records[2]=records[2],records[1];assert(S.ValidateSegmentedBars(records,"player"))
     assert(records[1].id=="segmented-bar-copy")

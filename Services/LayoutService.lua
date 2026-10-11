@@ -118,7 +118,8 @@ function LayoutService.ValidateSegmentedBars(collection, unitKey, path)
         for key in pairs(source) do
             if key ~= "id" and key ~= "scope" then return SegmentError(at .. ".dataSource", "unknown-field") end
         end
-        if source.id ~= "auto" and source.id ~= "runes" and source.id ~= "holyPower" then return SegmentError(at .. ".dataSource.id", "unsupported-source") end
+        if source.id ~= "auto" and source.id ~= "runes" and source.id ~= "holyPower"
+            and source.id ~= "arcaneCharges" and source.id ~= "chi" and source.id ~= "comboPoints" then return SegmentError(at .. ".dataSource.id", "unsupported-source") end
         if source.scope ~= "player" then return SegmentError(at .. ".dataSource.scope", "unsupported-scope") end
         for _, field in ipairs({"point", "relativePoint"}) do
             if record[field] ~= nil and not SEGMENT_POINTS[record[field]] then return SegmentError(at .. "." .. field, "invalid-point") end

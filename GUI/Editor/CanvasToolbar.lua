@@ -688,7 +688,7 @@ local function OpenAddObjectPicker(entityMode)
     local addSegmentedBar = BuildSegmentedBarAddAction(unitKey)
     if addSegmentedBar then
         entries[#entries + 1] = {
-            label = T("EDITOR_SEGMENTED_BAR", "Segmented Bar"), args = {}, closeBefore = false,
+            label = T("EDITOR_SEGMENTED_BAR", "Class Resource Bar"), args = {}, closeBefore = false,
             action = function()
                 if addObjectPickerDialog ~= picker then return end
                 CloseAddObjectPickerDialog()

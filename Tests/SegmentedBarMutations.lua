@@ -61,7 +61,7 @@ end)
 Test("invalid initial source, scope, anchors and runtime fields are atomic",function()
     Setup()
     for _,bad in ipairs({false,"bad",{id="segmented-bar-1"},
-        {enabled=true,dataSource={id="chi",scope="player"}},
+        {enabled=true,dataSource={id="essence",scope="player"}},
         {enabled=true,dataSource={id="runes",scope="target"}},
         {enabled=true,dataSource={id="runes",scope="player"},anchorTo="SegmentedBar:segmented-bar-missing"},
         {enabled=true,dataSource={id="runes",scope="player"},snapshot={ready=true}}})do

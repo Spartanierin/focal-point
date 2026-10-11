@@ -33,7 +33,10 @@ Test("Inspector auto resolution and independent color switch preserve alpha/font
     assert(M.Add(Context()).ok);h.Select(h.Nodes()[1])
     assert(loadfile("Engine/UnitFrame/Bars/UnitFrameSegmentedBars.lua"))("FocalPoint",ns)
     local B=ns.UnitFrameSegmentedBars;local applied=0;B.Apply=function()applied=applied+1 end
-    local frame={config=u,LiveValues={classPowerSnapshot={context={class="DEATHKNIGHT",config=u,unit="player"}}}}
+    local frame={config=u,LiveValues={classPowerSnapshot={
+        context={class="DEATHKNIGHT",config=u,unit="player"},
+        info={token="RUNES",current=3,max=6,segments={{},{},{},{},{},{}}},source="preview",
+        available=true,currentKnown=true,maxKnown=true}}}
     ns.frames={player=frame}
     local power,rune,cl,sp=UnitPower,GetRuneCooldown,UnitClassBase,GetSpecialization
     local function Forbidden()error("Inspector queried gameplay")end
@@ -54,7 +57,7 @@ Test("Inspector auto resolution and independent color switch preserve alpha/font
     for _,class in ipairs({"PALADIN","WARRIOR"})do
         frame.LiveValues.classPowerSnapshot.context.class=class
         local text,controls,view=h.Build(true);assert(not controls.runeTimerFont and controls.dataSource:GetValue()=="auto")
-        assert(text:find(class=="PALADIN" and "Holy Power (Paladin)" or "Unavailable",1,true))
+        assert(text:find("Unavailable",1,true))
         h.ui.ace:Release(view)
     end
     frame.LiveValues.classPowerSnapshot=nil
@@ -150,7 +153,7 @@ Test("unsupported/secret context and synthetic tokens cannot manufacture an auto
     context.class="DEATHKNIGHT";context.spec=secret;B.Apply(frame);assert(a:IsShown())
     issecretvalue=oldSecret;context.spec=1
     snapshot.source="preview";snapshot.sourceInfo=nil;context.class="PALADIN"
-    B.Apply(frame);assert(not a:IsShown());Eq(B.ResolveDataSource(frame.config.segmentedBars[1],frame),"holyPower")
+    B.Apply(frame);assert(not a:IsShown());Eq(B.ResolveDataSource(frame.config.segmentedBars[1],frame),nil)
     context.class="DEATHKNIGHT";B.Apply(frame);assert(a:IsShown())
     snapshot.currentKnown=false;B.Apply(frame);assert(not a:IsShown());f.NoTiming(a)
     snapshot.currentKnown=true;snapshot.source="unavailable";B.Apply(frame);assert(not a:IsShown())

@@ -185,6 +185,7 @@ local DEFAULT_STATUSBAR_REFERENCE = "fp:statusbar:blizzard-default"
 local DEFAULT_DECORATION_REFERENCE = "fp:decoration:shadow1"
 local deleteTextInstanceDialog
 local deleteDecorationDialog
+local deleteSegmentedBarDialog
 local function NormalizeInspectorUnitKey(unitKey)
     if type(unitKey) ~= "string" or unitKey == "" then
         return nil
@@ -1240,6 +1241,15 @@ function InspectorController.Build(container, state, options)
             deleteDecorationDialog.window:Hide()
         end
         deleteDecorationDialog = nil
+    end
+
+    local function CloseDeleteSegmentedBarDialog()
+        if deleteSegmentedBarDialog and deleteSegmentedBarDialog.Close then
+            deleteSegmentedBarDialog:Close()
+        elseif deleteSegmentedBarDialog and deleteSegmentedBarDialog.window and deleteSegmentedBarDialog.window.Hide then
+            deleteSegmentedBarDialog.window:Hide()
+        end
+        deleteSegmentedBarDialog = nil
     end
 
     local function SelectUnitRootAfterTextDelete(unitKey)
@@ -2317,19 +2327,19 @@ function InspectorController.Build(container, state, options)
     end
 
     if ResolvePropertyScope() and ResolvePropertyScope().kind == "segmentedBar" then
-        AddScopedObjectInspectorBody("segmented_bars", L["EDITOR_SEGMENTED_BAR"] or "Segmented Bar", function(body)
+        local selectedRef = InspectorContext.GetSegmentedBarSelection(inspectorContext)
+        local title = selectedRef and ns.CompositionTreeAdapter
+            and ns.CompositionTreeAdapter.GetSegmentedBarDisplayLabel(unitConfig, selectedRef.objectKey)
+            or (L["EDITOR_SEGMENTED_BAR"] or "Class Resource Bar")
+        AddScopedObjectInspectorBody("segmented_bars", title, function(body)
             local ref, record = InspectorContext.GetSegmentedBarSelection(inspectorContext)
             if not ref or not record then
                 AddPropertyLabel(body, L["EDITOR_SEGMENTED_BAR_UNAVAILABLE"] or "This instance is no longer selected or available.")
                 return
             end
             local generalSection = AddFramedObjectPropertyGroup(body, L["SECTION_GENERAL"] or "General", false)
-            AddPropertyLabel(generalSection, (L["EDITOR_SEGMENTED_BAR_UNIT"] or "Unit") .. ": " .. ref.unit)
-            AddPropertyLabel(generalSection, (L["EDITOR_SEGMENTED_BAR_ID"] or "Instance ID") .. ": " .. ref.objectKey)
-            local enabledLabel = AddPropertyLabel(generalSection, record.enabled and (L["EDITOR_SEGMENTED_BAR_ENABLED"] or "Enabled")
-                or (L["EDITOR_SEGMENTED_BAR_DISABLED"] or "Disabled"))
             if not ns.UnitFrameSegmentedBars then
-                AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_NO_VISUAL"] or "Visual runtime and canvas representation are not available yet.")
+                AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_NO_VISUAL"] or "Class Resource Bar preview is unavailable.")
             end
             local sourceFrame = ns.frames and ns.frames[ref.unit]
             if sourceFrame and sourceFrame.config ~= unitConfig then sourceFrame = nil end
@@ -2381,10 +2391,6 @@ function InspectorController.Build(container, state, options)
                     control:SetDisabled(not context or (field ~= "enabled" and field ~= "dataSource" and not current.enabled)
                         or (field == "backgroundColor" and current.background == false)
                         or (field == "color" and current.useBlizzardColor == true))
-                end
-                if enabledLabel then
-                    enabledLabel:SetText(current.enabled and (L["EDITOR_SEGMENTED_BAR_ENABLED"] or "Enabled")
-                        or (L["EDITOR_SEGMENTED_BAR_DISABLED"] or "Disabled"))
                 end
             end
             local function Change(field, value)
@@ -2457,20 +2463,36 @@ function InspectorController.Build(container, state, options)
                 auto=L["EDITOR_SEGMENTED_BAR_SOURCE_AUTO"] or "Automatic (Class Resource)",
                 runes=L["EDITOR_SEGMENTED_BAR_SOURCE_RUNES"] or "Runes (Death Knight)",
                 holyPower=L["EDITOR_SEGMENTED_BAR_SOURCE_HOLY_POWER"] or "Holy Power (Paladin)",
+                arcaneCharges=L["EDITOR_SEGMENTED_BAR_SOURCE_ARCANE_CHARGES"] or "Arcane Charges (Mage)",
+                chi=L["EDITOR_SEGMENTED_BAR_SOURCE_CHI"] or "Chi (Monk)",
+                comboPoints=L["EDITOR_SEGMENTED_BAR_SOURCE_COMBO_POINTS"] or "Combo Points (Rogue/Druid)",
             })
             if record.dataSource.id == "auto" then
                 local resolvedLabel = resolvedSource == "runes" and (L["EDITOR_SEGMENTED_BAR_SOURCE_RUNES"] or "Runes (Death Knight)")
                     or resolvedSource == "holyPower" and (L["EDITOR_SEGMENTED_BAR_SOURCE_HOLY_POWER"] or "Holy Power (Paladin)")
+                    or resolvedSource == "arcaneCharges" and (L["EDITOR_SEGMENTED_BAR_SOURCE_ARCANE_CHARGES"] or "Arcane Charges (Mage)")
+                    or resolvedSource == "chi" and (L["EDITOR_SEGMENTED_BAR_SOURCE_CHI"] or "Chi (Monk)")
+                    or resolvedSource == "comboPoints" and (L["EDITOR_SEGMENTED_BAR_SOURCE_COMBO_POINTS"] or "Combo Points (Rogue/Druid)")
                     or (L["EDITOR_SEGMENTED_BAR_SOURCE_UNKNOWN"] or "Unavailable")
                 AddPropertyLabel(generalSection, (L["EDITOR_SEGMENTED_BAR_RESOLVED_SOURCE"] or "Resolved Source") .. ": " .. resolvedLabel)
             end
             if resolvedSource then
-                AddPropertyLabel(generalSection, resolvedSource == "runes"
-                    and (L["EDITOR_SEGMENTED_BAR_RUNES_REQUIREMENT"] or "Live display requires a Death Knight with available rune data.")
-                    or (L["EDITOR_SEGMENTED_BAR_HOLY_POWER_REQUIREMENT"] or "Live display requires a Paladin with available Holy Power data."))
+                local requirement = resolvedSource == "runes"
+                    and (L["EDITOR_SEGMENTED_BAR_RUNES_REQUIREMENT"] or "Requires live Death Knight rune data.")
+                    or resolvedSource == "holyPower"
+                    and (L["EDITOR_SEGMENTED_BAR_HOLY_POWER_REQUIREMENT"] or "Requires live Paladin Holy Power data.")
+                    or resolvedSource == "arcaneCharges"
+                    and (L["EDITOR_SEGMENTED_BAR_ARCANE_CHARGES_REQUIREMENT"] or "Requires live Arcane Mage charge data.")
+                    or resolvedSource == "chi"
+                    and (L["EDITOR_SEGMENTED_BAR_CHI_REQUIREMENT"] or "Requires live Windwalker Monk Chi data.")
+                    or resolvedSource == "comboPoints"
+                    and (L["EDITOR_SEGMENTED_BAR_COMBO_POINTS_REQUIREMENT"] or "Requires live Rogue combo points, or Druid combo points with Energy and known Shred.")
+                if requirement then AddPropertyLabel(generalSection, requirement) end
             end
-            AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_SOURCE_HINT"]
-                or "Without matching live data, the bar stays hidden. Its source and settings remain saved and editable.")
+            if not resolvedSource then
+                AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_SOURCE_HINT"]
+                    or "Available live class resource data is required.")
+            end
             local appearanceSection = AddFramedObjectPropertyGroup(body, L["SECTION_APPEARANCE"] or "Appearance", true)
             Media(appearanceSection, "texture", L["OPTION_TEXTURE"] or "Texture", MEDIA_TYPE_STATUSBAR, BuildStatusBarTextureOptions)
             controls.useBlizzardColor = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard",
@@ -2505,6 +2527,69 @@ function InspectorController.Build(container, state, options)
                 Slider(timerSection, "runeTimerFontSize", L["OPTION_FONT_SIZE"] or "Font Size", 6, 32)
                 Dropdown(timerSection, "runeTimerFontStyle", L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList)
             end
+            local actionsSection = AddFramedObjectPropertyGroup(body, L["SECTION_ACTIONS"] or "Actions", true)
+            local deleteLabel = L["EDITOR_DELETE_SEGMENTED_BAR_BUTTON"] or "Delete Class Resource Bar"
+            AddPropertyActionButtonRow(actionsSection, deleteLabel, deleteLabel, "DestructiveAction", 172, function()
+                if not context or not mutations or type(mutations.Delete) ~= "function"
+                    or not (FormWidgets and type(FormWidgets.CreateCompactConfirmation) == "function")
+                    or ResolvePropertyScope() ~= scope
+                    or not IsSameInspectorObject(ObjectSelection.GetSelectedObject(), ref) then return end
+                CloseDeleteSegmentedBarDialog()
+                local deleteContext = context
+                local dialog = FormWidgets.CreateCompactConfirmation({
+                    title = L["EDITOR_DELETE_SEGMENTED_BAR_CONFIRM_TITLE"] or "Delete Class Resource Bar?",
+                    message = L["EDITOR_DELETE_SEGMENTED_BAR_CONFIRM_DESCRIPTION"] or "This removes the selected segmented bar from this unit frame.",
+                    primary = {
+                        text = L["EDITOR_DELETE_SEGMENTED_BAR_CONFIRM_BUTTON"] or "Delete",
+                        role = "danger", width = 104,
+                        onClick = function(activeDialog)
+                            local result
+                            if ResolvePropertyScope() ~= scope
+                                or not IsSameInspectorObject(ObjectSelection.GetSelectedObject(), ref) then
+                                result = {ok = false, errorCode = "stale-context"}
+                            else
+                                result = mutations.Delete(deleteContext, ref.objectKey)
+                            end
+                            if not (result and result.ok and result.changed) then
+                                local errorCode = result and result.errorCode
+                                local message = errorCode == "anchor-in-use"
+                                    and (L["EDITOR_DELETE_SEGMENTED_BAR_ANCHOR_IN_USE"] or "Another segmented bar uses this one as its anchor.")
+                                    or errorCode == "combat-blocked"
+                                    and (L["EDITOR_DELETE_SEGMENTED_BAR_COMBAT_BLOCKED"] or "Cannot delete a segmented bar during combat.")
+                                    or (errorCode == "stale-context" or errorCode == "instance-not-found")
+                                    and (L["EDITOR_DELETE_SEGMENTED_BAR_STALE"] or "This segmented bar selection is no longer current.")
+                                    or ResolveMutationErrorMessage(result)
+                                if activeDialog and activeDialog.SetStatus then
+                                    activeDialog:SetStatus(message, "error", activeDialog.confirmationStatus)
+                                end
+                                return
+                            end
+                            bindingActive = false
+                            local frame = ns.frames and ns.frames[ref.unit]
+                            if frame and frame.config == unitConfig and ns.UnitFrameSegmentedBars then
+                                ns.UnitFrameSegmentedBars.Apply(frame)
+                                local canvas = ns.GUI.Editor.CanvasHoverOverlay
+                                if canvas then canvas.UpdateFrame(frame) end
+                            end
+                            SelectUnitRoot(ref.unit)
+                            NotifyCompositionTreeChanged()
+                            NotifySidebarChanged("segmented_bars")
+                            CloseDeleteSegmentedBarDialog()
+                        end,
+                    },
+                    cancel = {
+                        text = L["INFO_COMMON_CANCEL"] or "Cancel",
+                        role = "utility", width = 104,
+                        onClick = CloseDeleteSegmentedBarDialog,
+                    },
+                })
+                if not dialog then return end
+                dialog.window:SetCallback("OnClose", function()
+                    if deleteSegmentedBarDialog == dialog then deleteSegmentedBarDialog = nil end
+                end)
+                deleteSegmentedBarDialog = dialog
+                dialog:Show()
+            end, not context)
             UpdateDisabled(record)
             RegisterActiveCanvasDirectMoveOffsetControls(ref.unit, ref, xControl, yControl, nil, nil, function()
                 if IsCurrentBinding() then context = mutations.CaptureContext(ref.unit) end

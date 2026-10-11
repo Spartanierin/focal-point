@@ -33,11 +33,11 @@ local function FindButton(widget,label)
 end
 local function Open()
     toolbar.OpenEntityAddObjectPicker()
-    local dialog=assert(dialogs[#dialogs]);local button=FindButton(dialog.body,"Segmented Bar")
+    local dialog=assert(dialogs[#dialogs]);local button=FindButton(dialog.body,"Class Resource Bar")
     return dialog,button
 end
 local function ClickAdd()
-    local dialog,button=Open();assert(button,"missing Segmented Bar entry")
+    local dialog,button=Open();assert(button,"missing Class Resource Bar entry")
     button:Fire("OnClick");assert(dialog.released)
 end
 local count=0
@@ -45,15 +45,16 @@ local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
 local exported,expected
 Test("real picker adds two IDs and selects each; record/tree/Inspector and disabled selection agree",function()
     local db,unit=Setup();ClickAdd();local a=unit.segmentedBars[1].id
-    assert(h.selection.GetSelectedObject().objectKey==a);assert(h.BuildInspector():find(a,1,true))
+    assert(h.selection.GetSelectedObject().objectKey==a);assert(h.BuildInspector():find("Class Resource Bar 1",1,true))
     ClickAdd();local b=unit.segmentedBars[2].id;assert(a~=b)
     h.Equal(unit.segmentedBars[1].dataSource,{id="auto",scope="player"});assert(unit.segmentedBars[1].useBlizzardColor==true)
     assert(#h.Nodes()==2 and h.Nodes()[1].inspectorTarget.objectKey==a and h.Nodes()[2].inspectorTarget.objectKey==b)
-    assert(h.selection.GetSelectedObject().objectKey==b and h.BuildInspector():find(b,1,true))
+    assert(h.selection.GetSelectedObject().objectKey==b and h.BuildInspector():find("Class Resource Bar 2",1,true))
     assert(refreshes==2 and #errors==0)
     assert(M.SetEnabled(assert(M.CaptureContext("player")),a,false).ok)
     assert(h.selection.SelectObject({kind="segmentedBar",unit="player",objectKey=a}))
-    assert(h.BuildInspector():find("Disabled",1,true) and h.Nodes()[1].enabled==false)
+    local disabledText,disabledControls=h.BuildInspector()
+    assert(disabledText:find("Class Resource Bar 1",1,true) and disabledControls.enabled and h.Nodes()[1].enabled==false)
     assert(M.SetEnabled(assert(M.CaptureContext("player")),a,true).ok)
     exported=assert(ns.LayoutTransfer.Export("layout:existing"));expected=h.Copy(unit.segmentedBars)
     local ok,id=ns.LayoutTransfer.Import(exported);assert(ok,id)

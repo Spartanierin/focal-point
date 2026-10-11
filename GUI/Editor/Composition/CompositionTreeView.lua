@@ -89,6 +89,7 @@ local TOGGLE_FIELD_BY_NODE_TYPE = {
     debuffs = { target = "aura", field = "enabled" },
     indicatorElement = { target = "indicator", field = "enabled" },
     decorationElement = { target = "decoration", field = "enabled" },
+    segmentedBar = { target = "segmentedBar", field = "enabled" },
 }
 
 local function GetToggleSpec(node)
@@ -109,6 +110,11 @@ local function GetToggleSpec(node)
         return nil
     end
     if spec.target == "decoration" and not (node.inspectorTarget and node.inspectorTarget.decorationId) then
+        return nil
+    end
+    if spec.target == "segmentedBar" and not (node.inspectorTarget
+        and node.inspectorTarget.kind == "segmentedBar" and node.inspectorTarget.unit == "player"
+        and type(node.inspectorTarget.objectKey) == "string") then
         return nil
     end
     return spec
