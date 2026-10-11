@@ -36,8 +36,8 @@ show selection outline when the editor exposes them for configuration.
 - Canvas-first editing with Composition Tree selection;
 - editable user layouts and read-only built-in layouts;
 - specialization assignments and optional Account Default;
-- Health, Power, Alternative Power, Class Power, Cast, Absorb, Aura, Portrait,
-  Indicator, Decoration, and Text components;
+- Health, Power, Alternative Power, Class Power, Class Resource Bars, Cast,
+  Absorb, Aura, Portrait, Indicator, Decoration, and Text components;
 - entity-based text templates, object-local text, Texts Manager, and Tag Library;
 - Media Library for fonts and status-bar textures;
 - Demo and Unlock preview/editing modes;

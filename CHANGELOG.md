@@ -10,6 +10,21 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.6
+
+### Added
+
+* Added multiple independently configurable Class Resource Bars for the player frame, with Runes, Holy Power, Arcane Charges, Chi, and Combo Points as data sources. Automatic selects a matching live class resource when available.
+
+### Changed
+
+* Changed the Legacy Death Knight rune display to use fixed visual slots. Its flash now starts when a visible rune recharge countdown ends, rather than on an API-confirmed ready transition.
+
+### Improved
+
+* Named and numbered Class Resource Bars consistently in the Composition Tree and Inspector, with an Enabled toggle and Delete action for each instance.
+* Kept Canvas selection outlines and click targets available in the unlocked editor when a configured Class Resource Bar is disabled or its live data source is unavailable.
+
 ## 2.2.5
 
 ### Added
