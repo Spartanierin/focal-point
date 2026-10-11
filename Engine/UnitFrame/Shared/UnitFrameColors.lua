@@ -393,6 +393,19 @@ local function GetHealthPercent(currentHealth, maxHealth)
     return percent
 end
 
+local function GetLowHealthColorThreshold(config)
+    if config and config.lowHealthColorThreshold then
+        local threshold = tonumber(config.lowHealthColorThreshold)
+        if threshold == nil or threshold >= 1 then
+            return 1.0
+        elseif threshold <= 0 then
+            return 0.0
+        end
+        return threshold
+    end
+    return 1.0
+end
+
 function Colors.GetResolvedHealthBarColor(frame, config, currentHealth, maxHealth, liveUnit, prediction)
     local hasCustomHealthColor = config
         and config.useClassColorHealth == false
@@ -416,9 +429,9 @@ function Colors.GetResolvedHealthBarColor(frame, config, currentHealth, maxHealt
         return healthR, healthG, healthB, healthA
     end
 
-    local lowHealthColorThreshold = config and config.lowHealthColorThreshold or 1.0
+    local lowHealthColorThreshold = GetLowHealthColorThreshold(config)
     local currentHealthRatio = GetHealthPercent(currentHealth, maxHealth) or 1.0
-    if currentHealthRatio and lowHealthColorThreshold < currentHealthRatio then
+    if lowHealthColorThreshold < currentHealthRatio then
         return healthR, healthG, healthB, healthA
     end
 
