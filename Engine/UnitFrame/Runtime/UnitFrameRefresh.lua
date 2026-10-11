@@ -761,11 +761,13 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     local needsCastbar = needsFull or HasScope(refreshRequest, "castbar")
     local needsVisibility = needsFull or HasScope(refreshRequest, "visibility")
 
+    local classPowerHandoff
     if needsBars and owner.RefreshUnitBarValues then
         owner:RefreshUnitBarValues(frame)
+        classPowerHandoff = frame.LiveValues and frame.LiveValues.classPowerSnapshot
     end
     if needsLayout and owner.ApplyConfig then
-        owner:ApplyConfig(frame)
+        owner:ApplyConfig(frame, classPowerHandoff)
     elseif needsBars and FocalPoint.UnitFrameSegmentedBars then
         -- Scoped value refreshes publish the same snapshot without a layout pass.
         FocalPoint.UnitFrameSegmentedBars.Apply(frame)

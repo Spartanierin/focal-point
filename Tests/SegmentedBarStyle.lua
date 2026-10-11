@@ -105,7 +105,10 @@ Test("two simultaneous styles share rune identity/timebase, with no Legacy chang
         backgroundColor={.1,.2,.3,.4},spacing=1,runeTimerFont="fp:font:standard",runeTimerFontSize=6,runeTimerFontStyle="NONE"})
     local api=GetRuneCooldown;GetRuneCooldown=function()error("style apply queried gameplay")end
     r.B.Apply(frame);local a,b=r.Holders(frame)
-    assert(a.segments==snapshot.info.segments and b.segments==a.segments and legacy.segments==a.segments)
+    assert(a.segments==snapshot.info.segments and b.segments==a.segments)
+    local binding=assert(legacy._runeSlotBinding)
+    Eq(binding.snapshot,snapshot)
+    for slot=1,6 do Eq(legacy.segments[slot],a.segments[binding.slotToApi[slot]])end
     CheckFont(a,"Fonts\\MORPHEUS.ttf",18,"THICKOUTLINE,MONOCHROME")
     CheckFont(b,STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF",6,"")
     for i=1,6 do

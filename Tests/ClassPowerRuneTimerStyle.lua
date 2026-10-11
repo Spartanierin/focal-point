@@ -6,6 +6,7 @@ end
 local h=assert(load(Read("Tests/ClassPowerRunes.lua")..[[
 return {ns=ns,Load=Load,f=f,native=native,Apply=Apply,Defaults=Defaults,Frame=Frame,
     HighlightCase=HighlightCase,Plays=Plays,Quiet=Quiet,Eq=Eq,Equal=Equal,Copy=Copy,
+    RuneBar=RuneBar,RuneSlot=RuneSlot,TotalPlays=TotalPlays,
     Runes=function()return cooldowns end,Time=function(value)now=value end}
 ]],"@RuneStyle/Fixture"))()
 local ns,C=h.ns,h.ns.UnitFrameClassPower
@@ -30,8 +31,8 @@ local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
 Test("missing/default styles, independent values, no text entity, unchanged bar alpha",function()
     h.Defaults();local frame=h.Frame();frame.config.Texts={};SetStyle(frame,{})
     local _,holder=Apply(frame,false,{.2,.3,.4,0});Style(holder,standard,10,"OUTLINE")
-    Eq(holder.Bars[2].Countdown:GetText(),"5.0");Eq(holder.Bars[3].Countdown:GetText(),"8.0")
-    Eq(holder.Bars[6].Countdown:GetText(),"7.0");assert(not next(frame.Texts))
+    Eq(h.RuneBar(holder,2).Countdown:GetText(),"5.0");Eq(h.RuneBar(holder,3).Countdown:GetText(),"8.0")
+    Eq(h.RuneBar(holder,6).Countdown:GetText(),"7.0");assert(not next(frame.Texts))
     for i=1,6 do Equal(holder.Bars[i].lastSetStatusBarColor,{.2,.3,.4,0})end
     local before=h.Copy(frame.config);Apply(frame);Equal(frame.config,before)
 end)
@@ -40,7 +41,7 @@ Test("real media/all font flags, live changes, no redundant SetFont, default ret
     for style,expected in pairs({NONE="",OUTLINE="OUTLINE",THICKOUTLINE="THICKOUTLINE",MONOCHROME="MONOCHROME",
         OUTLINE_MONOCHROME="OUTLINE,MONOCHROME",THICKOUTLINE_MONOCHROME="THICKOUTLINE,MONOCHROME"})do
         SetStyle(frame,{custom[1],14,style});local _,holder=Apply(frame)
-        Style(holder,"Fonts\\MORPHEUS.ttf",14,expected);Eq(holder.Bars[2].Countdown:GetText(),"5.0")
+        Style(holder,"Fonts\\MORPHEUS.ttf",14,expected);Eq(h.RuneBar(holder,2).Countdown:GetText(),"5.0")
         local original=h.native.SetFont;local writes=0
         h.native.SetFont=function(self,...)writes=writes+1;return original(self,...)end
         Apply(frame);Eq(writes,0);h.native.SetFont=original
@@ -86,24 +87,33 @@ Test("600 countdown ticks/Show: no media, flags, font writes, DB, template, tag 
     h.Time(120);tick(holder);assert(not holder:GetScript("OnUpdate"));Equal(holder.segments,before)
     for _,restoreCall in ipairs(restore)do restoreCall()end
 end)
-Test("50 style/layout/clear/hide cycles, LTR/RTL, combat, API identity and ready flash",function()
+Test("50 style/layout/clear/hide cycles, LTR/RTL, combat, API identity and visual flash",function()
     local combat=InCombatLockdown
     for _,direction in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"})do
         h.HighlightCase(function(frame,holder,event)
             local bars={table.unpack(holder.Bars)};frame.config.classPowerBarGrowth=direction
+            for api=1,6 do if api~=3 then h.Runes()[api]={0,0,true} end end
             for cycle=1,50 do
                 InCombatLockdown=function()return cycle%2==0 end
                 ns.db.char.activeLayoutId="layout:style-"..cycle
+                h.Time(100)
                 h.Runes()[3]={98,10,false};C.Clear(frame)
                 local values=cycle%2==0 and {} or custom;SetStyle(frame,values);Apply(frame)
                 Style(holder,values[1] and "Fonts\\MORPHEUS.ttf" or standard,values[2] or 10,
                     values[3] and "THICKOUTLINE,MONOCHROME" or "OUTLINE")
-                local plays=h.Plays(holder,3);h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
-                Eq(h.Plays(holder,3),plays+1);Eq(holder.Bars[3].Countdown:GetText(),"")
-                for i=1,6 do Eq(holder.Bars[i],bars[i]);Eq(holder.segments[i].index,i)end
-                local flash=assert(holder.Bars[3].ReadyHighlight);assert(flash.animation.playing)
-                SetStyle(frame,custom);Apply(frame);Eq(h.Plays(holder,3),plays+1)
-                assert(flash.animation.playing);Eq(flash,holder.Bars[3].ReadyHighlight)
+                local plays=h.TotalPlays(holder);h.Time(109);assert(holder:GetScript("OnUpdate"))(holder)
+                Eq(h.TotalPlays(holder),plays+1)
+                local flashingSlot=h.RuneSlot(holder,3)
+                local flash=assert(holder.Bars[flashingSlot].ReadyHighlight)
+                assert(flash.animation.playing)
+                h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+                Eq(h.TotalPlays(holder),plays+1);Eq(h.RuneBar(holder,3).Countdown:GetText(),"")
+                for i=1,6 do
+                    Eq(holder.Bars[i],bars[i]);Eq(holder.segments[i].index,holder._runeSlotBinding.slotToApi[i])
+                end
+                assert(h.RuneSlot(holder,3)~=flashingSlot and not flash.animation.playing)
+                SetStyle(frame,custom);Apply(frame);Eq(h.TotalPlays(holder),plays+1)
+                Eq(flash,holder.Bars[flashingSlot].ReadyHighlight)
                 holder:Hide();assert(not holder:GetScript("OnUpdate"));holder:Show()
                 C.Clear(frame);h.Quiet(holder)
             end
@@ -125,7 +135,7 @@ Test("Demo/placeholder/selection preview, ready-only style change and fresh-fram
     for i=1,6 do h.Runes()[i]={0,0,true}end
     SetStyle(frame,{custom[1],18,"NONE"});Apply(frame);Style(holder,"Fonts\\MORPHEUS.ttf",18,"")
     assert(not holder:GetScript("OnUpdate"))
-    h.Runes()[2]={99,10,false};Apply(frame);Eq(holder.Bars[2].Countdown:GetText(),"9.0")
+    h.Runes()[2]={99,10,false};Apply(frame);Eq(h.RuneBar(holder,2).Countdown:GetText(),"9.0")
     local saved=h.Copy(frame.config);local fresh=h.Frame();fresh.config=saved;Apply(fresh)
     Style(fresh.Elements.ClassPowerBar,"Fonts\\MORPHEUS.ttf",18,"");assert(fresh.Elements.ClassPowerBar~=holder)
     local force=C.ShouldForcePreview;C.ShouldForcePreview=function()return true end

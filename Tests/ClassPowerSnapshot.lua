@@ -45,29 +45,59 @@ Test("first ApplyConfig initializes once; ApplyTestValues and repeated layout ap
     UF:Refresh(frame);Eq(reads,2);Eq(runeReads,12)
     UF:Refresh(frame,{scopes={layout=true},reason="layout-only"});Eq(reads,2)
 end)
-Test("real queue bundles events once; final rune anchor precedes one Ready play",function()
+Test("real queue bundles events once; final rune anchor precedes Ready consumption without API flash",function()
     for _,growth in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"})do
         local frame,holder=Setup();frame.config.classPowerBarGrowth=growth
+        UF:CreateAlternativePowerBar(frame)
+        local api=GetRuneCooldown;local ready=false
+        GetRuneCooldown=function(index)
+            if ready and index==3 then runeReads=runeReads+1;return 0,0,true end
+            return api(index)
+        end
         UF:Refresh(frame);UF:Refresh(frame)
         C.RegisterEvents(UF,frame)
         local oldTimer=C_Timer;local pending={}
         C_Timer={After=function(_,fn)pending[#pending+1]=fn end}
-        local api=GetRuneCooldown
-        GetRuneCooldown=function(index)if index==3 then runeReads=runeReads+1;return 0,0,true end;return api(index)end
-        -- Capability function changed only in the double: publish baseline before the event.
+        local native=h.fixture.native
+        local setPoint,clearAllPoints,present=native.SetPoint,native.ClearAllPoints,C.PresentReady
+        local healthPoints,altClears,runePoints,presentations=0,0,0,0
+        native.SetPoint=function(self,...)
+            if self==frame.Elements.HealthBar then healthPoints=healthPoints+1 end
+            if self==holder.Bars[3] then runePoints=runePoints+1 end
+            return setPoint(self,...)
+        end
+        native.ClearAllPoints=function(self,...)
+            if self==frame.Elements.AlternativePowerBar then altClears=altClears+1 end
+            return clearAllPoints(self,...)
+        end
+        C.PresentReady=function(owner,handoff)
+            presentations=presentations+1
+            Eq(handoff,owner.LiveValues.classPowerSnapshot)
+            assert(holder._readyConsumer.lastRevision<handoff.revision,"early revision consumption")
+            assert(healthPoints>=8 and altClears>=2 and runePoints>=1,
+                string.format("Ready before final layout: health=%d alt=%d rune=%d",healthPoints,altClears,runePoints))
+            Eq(h.fixture.Plays(holder,3),0)
+            present(owner,handoff)
+            Eq(h.fixture.Plays(holder,3),0)
+        end
+        -- Keep the provider identity stable while changing the observed rune.
         local readsBefore=reads;local apiBefore=runeReads
+        ready=true
         frame.ClassPowerEventFrame:Run("OnEvent","RUNE_POWER_UPDATE")
         frame.ClassPowerEventFrame:Run("OnEvent","UNIT_AURA","player")
-        Eq(#pending,1);pending[1]();Eq(reads,readsBefore+1);Eq(runeReads,apiBefore+12)
-        assert(holder.segments[3].ready);Eq(holder.Bars[3].Countdown:GetText(),"")
-        Eq(h.fixture.Plays(holder,3),1)
+        Eq(#pending,1);pending[1]();Eq(reads,readsBefore+1);Eq(runeReads,apiBefore+6)
+        Eq(presentations,1)
+        native.SetPoint,native.ClearAllPoints,C.PresentReady=setPoint,clearAllPoints,present
+        local slot=assert(holder._runeSlotBinding.apiToSlot[3])
+        assert(holder.segments[slot].ready);Eq(holder.Bars[slot].Countdown:GetText(),"")
+        Eq(h.fixture.Plays(holder,3),0)
         UF:ApplyTestValues(frame);UF:ApplyConfig(frame)
-        Eq(reads,readsBefore+1);Eq(h.fixture.Plays(holder,3),1)
-        Eq(runeReads,apiBefore+12) -- no retry or second confirmation on repeated presentation
+        Eq(reads,readsBefore+1);Eq(h.fixture.Plays(holder,3),0)
+        Eq(runeReads,apiBefore+6) -- no second gameplay read on repeated presentation
         C_Timer=oldTimer
     end
 end)
-Test("full and queued refresh reject S1 ready-3 to S2 spent-3/ready-2 without republishing",function()
+Test("full and queued refresh preserve S1 source without a DK API flash",function()
     for _,growth in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"})do
         for _,queued in ipairs({false,true})do
             local frame,holder=Setup();frame.config.classPowerBarGrowth=growth
@@ -87,7 +117,7 @@ Test("full and queued refresh reject S1 ready-3 to S2 spent-3/ready-2 without re
             if not queued then ns.UnitFrameState.QueueRefresh=function()end end
             local published
             UF.ApplyConfig=function(self,owner,...)
-                assert(holder._readyTransitions.pendingReady[3])
+                assert(owner.LiveValues.classPowerSnapshot.readyTransitions[1].apiIndex==3)
                 published=owner.LiveValues.classPowerSnapshot
                 stage=2 -- source changes after qualification, before the actual renderer
                 return apply(self,owner,...)
@@ -95,13 +125,16 @@ Test("full and queued refresh reject S1 ready-3 to S2 spent-3/ready-2 without re
             local beforeReads,beforeRunes=reads,runeReads
             stage=1;frame.ClassPowerEventFrame:Run("OnEvent","RUNE_POWER_UPDATE")
             if queued then Eq(#callbacks,1);callbacks[1]()else UF:Refresh(frame)end
-            Eq(reads,beforeReads+1);Eq(runeReads,beforeRunes+12)
+            Eq(reads,beforeReads+1);Eq(runeReads,beforeRunes+6)
             Eq(frame.LiveValues.classPowerSnapshot,published);assert(published.info.segments[3].ready)
-            assert(not holder._readyTransitions)
+            assert(holder._readyConsumer and holder._readyConsumer.lastRevision==published.revision)
             for i=1,6 do Eq(h.fixture.Plays(holder,i),0)end
             UF.ApplyConfig=apply
             -- A normal refresh seeds the actual current baseline; no stale intent survives.
-            UF:Refresh(frame);assert(not holder.segments[3].ready and holder.segments[2].ready)
+            UF:Refresh(frame)
+            local binding=assert(holder._runeSlotBinding)
+            assert(not holder.segments[binding.apiToSlot[3]].ready
+                and holder.segments[binding.apiToSlot[2]].ready)
             for i=1,6 do Eq(h.fixture.Plays(holder,i),0)end
             ns.UnitFrameState.QueueRefresh=queue;C_Timer=timer
         end
@@ -188,6 +221,86 @@ Test("derived aura/shard display fallbacks retain unknown versus known-zero vali
     C.RefreshValues(UF,frame);assert(not frame.LiveValues.classPowerSnapshot.currentKnown)
     UnitPower=function()return 0 end;C.RefreshValues(UF,frame);assert(frame.LiveValues.classPowerSnapshot.currentKnown)
     C_UnitAuras,C_SpellBook,UnitPower,UnitPowerMax,UnitPowerDisplayMod,issecretvalue=oldAuras,oldSpells,oldPower,oldMax,oldMod,oldSecret
+end)
+Test("source revision and IDs serve two readers; spent stops only its API widget",function()
+    local frame,holder=Setup();local api=GetRuneCooldown
+    local ready2,ready3=false,false
+    GetRuneCooldown=function(index)
+        if (ready2 and index==2) or (ready3 and index==3) then
+            runeReads=runeReads+1;return 0,0,true
+        end
+        return api(index)
+    end
+    UF:Refresh(frame);C.RegisterEvents(UF,frame)
+    local first=frame.LiveValues.classPowerSnapshot
+    local queue=ns.UnitFrameState.QueueRefresh;ns.UnitFrameState.QueueRefresh=function()end
+    ready2,ready3=true,true
+    frame.ClassPowerEventFrame:Run("OnEvent","RUNE_POWER_UPDATE")
+    local before=runeReads;C.RefreshValues(UF,frame)
+    Eq(runeReads,before+6)
+    local snapshot=frame.LiveValues.classPowerSnapshot
+    Eq(snapshot.epoch,first.epoch);Eq(snapshot.revision,first.revision+1)
+    Eq(#snapshot.readyTransitions,2)
+    Eq(snapshot.readyTransitions[1].apiIndex,2);Eq(snapshot.readyTransitions[2].apiIndex,3)
+    assert(snapshot.readyTransitions[1].id~=snapshot.readyTransitions[2].id)
+    Eq(snapshot.readyTransitions[1].id.epoch,snapshot.epoch)
+    Eq(snapshot.readyTransitions[2].id.epoch,snapshot.epoch)
+    local function Reader(source)return source.readyTransitions[1],source.readyTransitions[2]end
+    local a,b=Reader(snapshot);local c,d=Reader(snapshot)
+    Eq(a,c);Eq(b,d);Eq(#snapshot.readyTransitions,2)
+    Eq(h.fixture.Plays(holder,2),0)
+    UF:ApplyConfig(frame,snapshot)
+    Eq(runeReads,before+6);Eq(h.fixture.Plays(holder,2),0);Eq(h.fixture.Plays(holder,3),0)
+    Eq(#snapshot.readyTransitions,2)
+    UF:ApplyConfig(frame,snapshot);Eq(runeReads,before+6);Eq(h.fixture.Plays(holder,2),0)
+    ready2=false;UF:Refresh(frame,{scopes={bars=true},reason="observed-spent"})
+    Eq(h.fixture.Plays(holder,2),0);Eq(h.fixture.Plays(holder,3),0)
+    Eq(#frame.LiveValues.classPowerSnapshot.readyTransitions,0)
+    ns.UnitFrameState.QueueRefresh=queue
+end)
+Test("bars-only observation and rebinding cannot replay a Ready transition",function()
+    local frame,holder=Setup();local api=GetRuneCooldown;local ready=false
+    GetRuneCooldown=function(index)
+        if ready and index==2 then runeReads=runeReads+1;return 0,0,true end
+        return api(index)
+    end
+    UF:Refresh(frame);C.RegisterEvents(UF,frame)
+    local queue=ns.UnitFrameState.QueueRefresh;ns.UnitFrameState.QueueRefresh=function()end
+    ready=true;frame.ClassPowerEventFrame:Run("OnEvent","RUNE_POWER_UPDATE")
+    UF:Refresh(frame,{scopes={bars=true},reason="bars-only"})
+    local source=frame.LiveValues.classPowerSnapshot
+    Eq(#source.readyTransitions,1);Eq(h.fixture.Plays(holder,2),0)
+    UF:ApplyConfig(frame);Eq(h.fixture.Plays(holder,2),0)
+    C.Clear(frame,true)
+    Eq(frame.LiveValues.classPowerSnapshot,source) -- consumer clear preserves source
+    UF:ApplyConfig(frame,source);Eq(h.fixture.Plays(holder,2),0)
+    holder:Hide();holder:Show();UF:ApplyConfig(frame,source)
+    Eq(h.fixture.Plays(holder,2),0)
+    ready=false;UF:Refresh(frame)
+    ready=true;frame.ClassPowerEventFrame:Run("OnEvent","RUNE_POWER_UPDATE")
+    UF:Refresh(frame);Eq(h.fixture.Plays(holder,2),0)
+    ns.UnitFrameState.QueueRefresh=queue
+end)
+Test("unchanged and context observations advance or invalidate without edges",function()
+    local frame=Setup();UF:Refresh(frame)
+    local first=frame.LiveValues.classPowerSnapshot
+    C.RefreshValues(UF,frame)
+    local same=frame.LiveValues.classPowerSnapshot
+    Eq(same.epoch,first.epoch);Eq(same.revision,first.revision+1)
+    Eq(#same.readyTransitions,0)
+    h.fixture.Spec(2);C.RefreshValues(UF,frame)
+    local changed=frame.LiveValues.classPowerSnapshot
+    assert(changed.epoch~=same.epoch);Eq(changed.revision,1);Eq(#changed.readyTransitions,0)
+    ns.guiTestModeEnabled=true;C.RefreshValues(UF,frame)
+    local preview=frame.LiveValues.classPowerSnapshot
+    Eq(preview.source,"preview");Eq(#preview.readyTransitions,0)
+    ns.guiTestModeEnabled=false
+    GetRuneCooldown=function()return nil,nil,nil end
+    C.RefreshValues(UF,frame)
+    Eq(frame.LiveValues.classPowerSnapshot.source,"unavailable")
+    Eq(#frame.LiveValues.classPowerSnapshot.readyTransitions,0)
+    C.Clear(frame);assert(not frame.LiveValues.classPowerSnapshot)
+    assert(not frame.LiveValues.classPowerTransitionState)
 end)
 C.GetInfo=getInfo;ns.UnitFramePower.RefreshUnitBarValues=refreshPower
 print("Class Power Snapshot: "..count.." groups PASS")

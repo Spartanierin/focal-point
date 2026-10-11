@@ -68,6 +68,7 @@ local isolated=setmetatable({TextElementUtils=h.ns.TextElementUtils}, {
     end,
 })
 local environment=setmetatable({math=math,string=string,type=type,ipairs=ipairs,pcall=pcall,
+    issecretvalue=function()return false end,
     STANDARD_TEXT_FONT="Fonts\\FRIZQT__.TTF",GetTime=function()return clock end}, {
     __index=function(_,key)error("unexpected renderer global access: "..key)end,
 })

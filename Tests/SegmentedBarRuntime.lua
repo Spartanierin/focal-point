@@ -38,7 +38,9 @@ Test("two independent holders consume one canonical refresh, no additional gamep
     UF:Refresh(frame);Eq(reads,6)
     local a,b=Holders(frame);assert(a~=b and a~=legacy and b~=legacy)
     Eq(a.segments,frame.LiveValues.classPowerSnapshot.info.segments);Eq(b.segments,a.segments)
-    Eq(legacy.segments,a.segments)
+    local binding=assert(legacy._runeSlotBinding)
+    Eq(binding.snapshot.info.segments,a.segments)
+    for slot=1,6 do Eq(legacy.segments[slot],a.segments[binding.slotToApi[slot]])end
     Eq(a:GetWidth(),130);Eq(b:GetWidth(),190);Eq(a:GetHeight(),14);Eq(b:GetHeight(),18)
     Equal(a.Bars[2].lastSetStatusBarColor,{.2,.4,.6,0});Equal(b.Bars[2].lastSetStatusBarColor,{.8,.6,.4,.7})
     Eq(a.Bars[2].Countdown:GetText(),"5.0");Eq(b.Bars[3].Countdown:GetText(),"8.0")

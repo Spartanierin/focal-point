@@ -266,7 +266,7 @@ function Power.RegisterAlternativeEvents(owner, frame)
             State.QueueRefresh(currentOwner, event, { "bars", "texts", "layout" })
         else
             owner:RefreshUnitBarValues(currentOwner)
-            owner:ApplyConfig(currentOwner)
+            owner:ApplyConfig(currentOwner, currentOwner.LiveValues and currentOwner.LiveValues.classPowerSnapshot)
             if owner.RefreshLiveValues then
                 owner:RefreshLiveValues(currentOwner)
             end

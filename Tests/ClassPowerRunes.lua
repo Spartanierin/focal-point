@@ -30,6 +30,28 @@ function native:GetValue() return self.value end
 function native:Show() local was=self.shown;self.shown=true;if not was then self:Run("OnShow") end end
 function native:GetFrameStrata() return "MEDIUM" end
 function native:IsVisible() return self:IsShown() and (not self.parent or self.parent:IsVisible()) end
+-- Animation doubles assert scheduling/reset only, not native WoW rendering.
+function native:GetStatusBarColor() return table.unpack(self.lastSetStatusBarColor or {1,1,1,1}) end
+local animationCount = 0
+function native:CreateAnimationGroup()
+    animationCount = animationCount + 1
+    local group = { children = {}, scripts = {}, plays = 0 }
+    function group:SetLooping(value) self.looping = value end
+    function group:SetScript(event, fn) self.scripts[event] = fn end
+    function group:CreateAnimation(kind)
+        Eq(kind, "Alpha")
+        local child = {}
+        for _, name in ipairs({"Order", "Duration", "FromAlpha", "ToAlpha"}) do
+            child["Set"..name] = function(self, value) self[name] = value end
+        end
+        self.children[#self.children+1] = child
+        return child
+    end
+    function group:Play() self.plays = self.plays + 1; self.playing = true end
+    function group:Stop() self.playing = false end
+    function group:Finish() self.playing = false; self.scripts.OnFinished(self) end
+    return group
+end
 local now, class, spec, interface, calls = 100, "DEATHKNIGHT", 1, 120100, 0
 GetTime=function()return now end
 GetBuildInfo=function()return "12.1.0","x","x",interface end
@@ -73,8 +95,16 @@ local function Apply(frame,mode,rgba)
         liveClassPowerGainValid=info and info.aggregateGainValid,
         liveClassPowerSegments=info and info.segments,liveClassPowerCurrent=info and info.current,
         liveClassPowerMax=info and info.max,liveClassPowerType=info and info.typeId,
-        liveClassPowerToken=info and info.token,classPowerR=rgba[1],classPowerG=rgba[2],classPowerB=rgba[3],classPowerA=rgba[4]})
+        liveClassPowerToken=info and info.token,classPowerR=rgba[1],classPowerG=rgba[2],classPowerB=rgba[3],classPowerA=rgba[4]},
+        frame.LiveValues.classPowerSnapshot)
     return info,frame.Elements.ClassPowerBar
+end
+local function RuneSlot(holder, apiIndex)
+    local binding=assert(holder._runeSlotBinding,"missing rendered rune binding")
+    return assert(binding.apiToSlot[apiIndex],"missing API slot")
+end
+local function RuneBar(holder, apiIndex)
+    return holder.Bars[RuneSlot(holder,apiIndex)]
 end
 Test("DK ordered six-state snapshot, independent timing, queued rune and aggregate",function()
     Defaults();local info=C.GetInfo("player")
@@ -102,54 +132,78 @@ Test("API missing/throwing/malformed/secret, unsupported client, no fabricated l
     Defaults();interface=16001;local before=calls;assert(C.GetInfo("player")==nil);Eq(calls,before)
     interface=120100;WOW_PROJECT_ID=2;assert(C.GetInfo("player")==nil);WOW_PROJECT_ID=1
 end)
+Test("invalid six-rune projection clears its binding before sorting or painting",function()
+    Defaults();local frame=Frame();local info,h=Apply(frame)
+    local snapshot=frame.LiveValues.classPowerSnapshot
+    local oldSecret=issecretvalue;local secret={}
+    issecretvalue=function(value)return rawequal(value,secret) or (oldSecret and oldSecret(value))end
+    for _,damage in ipairs({
+        function(segments)segments[3].index=2 end,
+        function(segments)segments[3].duration=nil end,
+        function(segments)segments[3].startTime=secret end,
+    })do
+        local segments=Copy(info.segments);damage(segments)
+        snapshot.info.segments=segments
+        local before=calls
+        C.ApplyLayout(frame,{classPowerBarVisible=true,classPowerBarWidth=180,classPowerBarHeight=14,
+            liveClassPowerMax=6,liveClassPowerCurrent=2,liveClassPowerToken="RUNES",
+            liveClassPowerSegments=segments},snapshot)
+        Eq(calls,before)
+        assert(not h._runeSlotBinding and not h.segments and not h:GetScript("OnUpdate"))
+        assert(not h:IsShown())
+        info,h=Apply(frame);snapshot=frame.LiveValues.classPowerSnapshot
+        assert(h._runeSlotBinding and h:IsShown())
+    end
+    issecretvalue=oldSecret
+end)
 Test("independent fill and timer, ready and queued without countdown, expiry stops work",function()
     Defaults();local frame=Frame();local info,h=Apply(frame)
     for i=1,10 do Eq(h.Bars[i]:IsShown(),i<=6)end
-    Eq(h.Bars[1]:GetValue(),1);assert(not h.Bars[1].Countdown:IsShown())
-    Near(h.Bars[2]:GetValue(),.5);Eq(h.Bars[2].Countdown:GetText(),"5.0")
-    Near(h.Bars[3]:GetValue(),.2);Eq(h.Bars[3].Countdown:GetText(),"8.0")
-    Eq(h.Bars[4]:GetValue(),0);assert(not h.Bars[4].Countdown:IsShown())
+    Eq(RuneBar(h,1):GetValue(),1);assert(not RuneBar(h,1).Countdown:IsShown())
+    Near(RuneBar(h,2):GetValue(),.5);Eq(RuneBar(h,2).Countdown:GetText(),"5.0")
+    Near(RuneBar(h,3):GetValue(),.2);Eq(RuneBar(h,3).Countdown:GetText(),"8.0")
+    Eq(RuneBar(h,4):GetValue(),0);assert(not RuneBar(h,4).Countdown:IsShown())
     local oldSnapshot=Copy(info);local updates=h:GetScript("OnUpdate");assert(updates)
-    now=105;updates(h);Eq(h.Bars[2]:GetValue(),1);assert(not h.Bars[2].Countdown:IsShown())
-    assert(h:GetScript("OnUpdate"));Eq(h.Bars[3].Countdown:GetText(),"3.0")
+    now=105;updates(h);Eq(RuneBar(h,2):GetValue(),1);assert(not RuneBar(h,2).Countdown:IsShown())
+    assert(h:GetScript("OnUpdate"));Eq(RuneBar(h,3).Countdown:GetText(),"3.0")
     now=109;updates(h);assert(not h:GetScript("OnUpdate"))
-    Eq(h.Bars[4]:GetValue(),0);Equal(info,oldSnapshot) -- renderer never rewrites API truth
+    Eq(RuneBar(h,4):GetValue(),0);Equal(info,oldSnapshot) -- renderer never rewrites API truth
 end)
 Test("tenths update independently; same displayed tenth avoids redundant text writes",function()
     Defaults();local frame=Frame();local _,h=Apply(frame);local tick=assert(h:GetScript("OnUpdate"))
-    local text=h.Bars[2].Countdown;local setText=text.SetText;local writes=0
+    local text=RuneBar(h,2).Countdown;local setText=text.SetText;local writes=0
     text.SetText=function(self,value)writes=writes+1;setText(self,value)end
     now=100.01;tick(h);Eq(text:GetText(),"5.0");Eq(writes,0)
     now=100.1;tick(h);Eq(text:GetText(),"4.9");Eq(writes,1)
-    Eq(h.Bars[3].Countdown:GetText(),"7.9");Eq(h.Bars[6].Countdown:GetText(),"6.9")
+    Eq(RuneBar(h,3).Countdown:GetText(),"7.9");Eq(RuneBar(h,6).Countdown:GetText(),"6.9")
     now=100.11;tick(h);Eq(writes,1)
     now=100.2;tick(h);Eq(text:GetText(),"4.8");Eq(writes,2)
     now=104.99;tick(h);Eq(text:GetText(),"0.1");assert(text:IsShown())
     now=105;tick(h);Eq(text:GetText(),"");assert(not text:IsShown())
-    Eq(h.Bars[3].Countdown:GetText(),"3.0");assert(h:GetScript("OnUpdate"))
+    Eq(RuneBar(h,3).Countdown:GetText(),"3.0");assert(h:GetScript("OnUpdate"))
     now=109;tick(h);assert(not h:GetScript("OnUpdate"))
     for i=1,6 do Eq(h.Bars[i].Countdown:GetText(),"");assert(not h.Bars[i].Countdown:IsShown())end
     -- A single active recharge has the same rounding and final stop contract.
     Defaults();for i=1,6 do cooldowns[i]={0,0,true}end
     cooldowns[2]={95,10,false};cooldowns[4]={nil,nil,false}
     frame=Frame();_,h=Apply(frame);tick=assert(h:GetScript("OnUpdate"))
-    now=100.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"4.9")
-    assert(not h.Bars[1].Countdown:IsShown() and not h.Bars[4].Countdown:IsShown())
-    now=105.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"");assert(not h:GetScript("OnUpdate"))
+    now=100.1;tick(h);Eq(RuneBar(h,2).Countdown:GetText(),"4.9")
+    assert(not RuneBar(h,1).Countdown:IsShown() and not RuneBar(h,4).Countdown:IsShown())
+    now=105.1;tick(h);Eq(RuneBar(h,2).Countdown:GetText(),"");assert(not h:GetScript("OnUpdate"))
 end)
 Test("custom color applies equally to six runes without changing recharge state",function()
     Defaults();PowerBarColor={RUNES={r=.2,g=.3,b=.4}}
     local frame=Frame();local info,h=Apply(frame,false)
     for i=1,6 do Equal(h.Bars[i].lastSetStatusBarColor,{1,1,1,1})end
     local snapshot=Copy(info);local tick=assert(h:GetScript("OnUpdate"))
-    now=100.1;tick(h);Eq(h.Bars[2].Countdown:GetText(),"4.9")
-    Eq(h.Bars[3].Countdown:GetText(),"7.9");Equal(info,snapshot)
+    now=100.1;tick(h);Eq(RuneBar(h,2).Countdown:GetText(),"4.9")
+    Eq(RuneBar(h,3).Countdown:GetText(),"7.9");Equal(info,snapshot)
     Apply(frame,true)
     for i=1,6 do Equal(h.Bars[i].lastSetStatusBarColor,{.2,.3,.4,1})end
-    Eq(h.Bars[2].Countdown:GetText(),"4.9")
+    Eq(RuneBar(h,2).Countdown:GetText(),"4.9")
     Apply(frame,false)
     for i=1,6 do Equal(h.Bars[i].lastSetStatusBarColor,{1,1,1,1})end
-    Eq(h.Bars[2].Countdown:GetText(),"4.9")
+    Eq(RuneBar(h,2).Countdown:GetText(),"4.9")
 end)
 Test("timer hotpath: 600 ticks, no API/DB/template/global text calls or snapshot mutation",function()
     Defaults();for i=1,6 do cooldowns[i]={90+i,20,false}end
@@ -169,6 +223,7 @@ end)
 local function AssertClear(frame)
     local h=frame.Elements.ClassPowerBar
     assert(not h.segments and not h:GetScript("OnUpdate") and not frame._classPowerPreviewInfo)
+    assert(not h._runeSlotBinding)
     assert(not frame.LiveValues or not frame.LiveValues.classPowerSegments)
     for _,bar in ipairs(h.Bars)do if bar.Countdown then assert(not bar.Countdown:IsShown());Eq(bar.Countdown:GetText(),"")end end
 end
@@ -191,7 +246,7 @@ end)
 Test("hidden holder stops timing, re-show computes from same cached timing",function()
     Defaults();local frame=Frame();local _,h=Apply(frame)
     h:Hide();assert(not h:GetScript("OnUpdate"));now=102;h:Show()
-    assert(h:GetScript("OnUpdate"));Eq(h.Bars[2].Countdown:GetText(),"3.0")
+    assert(h:GetScript("OnUpdate"));Eq(RuneBar(h,2).Countdown:GetText(),"3.0")
     now=120;h:Hide();h:Show();assert(not h:GetScript("OnUpdate"))
 end)
 Test("Detailed DK preview independent of API, stable starts, live return and placeholder",function()
@@ -238,9 +293,9 @@ Test("normal ClassPower expression/tag and deletion are independent of segment t
     bind(frame,"ClassPower",text)
     ns.TextElementState.Reset(frame);ns.UnitFrame:UpdateTextElement(frame,"ClassPower")
     Eq(frame.Texts.ClassPower:GetText(),"READY 2")
-    local h=frame.Elements.ClassPowerBar;local timer=h.Bars[2].Countdown
+    local h=frame.Elements.ClassPowerBar;local timer=RuneBar(h,2).Countdown
     assert(ns.InspectorMutations.DeleteTextInstance({unitKey="player",unitConfig=frame.config},"ClassPower").ok)
-    Apply(frame);Eq(h.Bars[2].Countdown,timer);assert(timer:IsShown() and h:GetScript("OnUpdate"))
+    Apply(frame);Eq(RuneBar(h,2).Countdown,timer);assert(timer:IsShown() and h:GetScript("OnUpdate"))
     assert(frame.config.Texts.ClassPower==nil)
     for _,config in pairs(frame.config.Texts)do assert(config~=timer)end
 end)
@@ -304,7 +359,7 @@ Test("oUF Blood/Frost/Unholy colors, auto modes and spec refresh; custom ignores
                     rgba[4]=alpha
                     frame.ClassPowerEventFrame:GetScript("OnEvent")(frame.ClassPowerEventFrame,"PLAYER_SPECIALIZATION_CHANGED","player")
                     AssertPaint(h,mode==false and rgba or expected[index],alpha)
-                    Eq(h.Bars[2].Countdown:GetText(),"5.0");Near(h.Bars[2]:GetValue(),.5)
+                    Eq(RuneBar(h,2).Countdown:GetText(),"5.0");Near(RuneBar(h,2):GetValue(),.5)
                 end
             end
         end
@@ -340,36 +395,19 @@ Test("detailed rune demo follows spec; neutral placeholder ignores rune palette"
     ns.oUF=oldOUF;Defaults()
 end)
 
--- Animation doubles assert scheduling/reset only, not native WoW rendering.
-function native:GetStatusBarColor() return table.unpack(self.lastSetStatusBarColor or {1,1,1,1}) end
-local animationCount = 0
-function native:CreateAnimationGroup()
-    animationCount = animationCount + 1
-    local group = { children = {}, scripts = {}, plays = 0 }
-    function group:SetLooping(value) self.looping = value end
-    function group:SetScript(event, fn) self.scripts[event] = fn end
-    function group:CreateAnimation(kind)
-        Eq(kind, "Alpha")
-        local child = {}
-        for _, name in ipairs({"Order", "Duration", "FromAlpha", "ToAlpha"}) do
-            child["Set"..name] = function(self, value) self[name] = value end
-        end
-        self.children[#self.children+1] = child
-        return child
-    end
-    function group:Play() self.plays = self.plays + 1; self.playing = true end
-    function group:Stop() self.playing = false end
-    function group:Finish() self.playing = false; self.scripts.OnFinished(self) end
-    return group
-end
 local function Plays(holder, index)
     local texture = holder.Bars[index].ReadyHighlight
     return texture and texture.animation.plays or 0
 end
+local function TotalPlays(holder)
+    local total=0
+    for index=1,6 do total=total+Plays(holder,index)end
+    return total
+end
 local function Quiet(holder)
     for _, bar in ipairs(holder.Bars) do
         if bar.ReadyHighlight then
-            assert(not bar.ReadyHighlight.animation.playing)
+            assert(not bar.ReadyHighlight.animation.playing, "flash still playing after clear; plays="..tostring(bar.ReadyHighlight.animation.plays))
             assert(not bar.ReadyHighlight:IsShown())
             Eq(bar.ReadyHighlight.lastSetAlpha[1], 0)
         end
@@ -390,31 +428,35 @@ local function HighlightCase(fn)
     fn(frame, holder, Event, function() return reason end)
     ns.UnitFrameState.QueueRefresh = queue
 end
-Test("visual regrouping carries an active flash with its API widget, without replay or stale hide",function()
+Test("fixed slots stop an active countdown flash before rebinding its widget",function()
     HighlightCase(function(frame,h,event)
         local bars={table.unpack(h.Bars)};local texts={}
         for i=1,6 do texts[i]=bars[i].Countdown end
         local before=Copy(ns.db)
+        cooldowns[2]={100,10,false};cooldowns[3]={99,2,false};Apply(frame)
+        local slot=RuneSlot(h,3);local bar=bars[slot]
+        local tick=assert(h:GetScript("OnUpdate"));now=101;tick(h)
+        local flash=assert(bar.ReadyHighlight);local animation=flash.animation
+        local point,parent,relativePoint,firstX=bar:GetPoint(1)
+        Eq(parent,h);assert(animation.playing and flash:IsShown());Eq(TotalPlays(h),1)
         cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
-        local flash=assert(bars[3].ReadyHighlight);local animation=flash.animation
-        local _,parent,_,firstX=bars[3]:GetPoint(1)
-        Eq(parent,h);assert(animation.playing and flash:IsShown());Eq(Plays(h,3),1)
-        -- Another rune becomes ready while rune 3's 125ms animation is running.
+        Eq(TotalPlays(h),1) -- API-ready is no longer a second flash in Block 1.
+        assert(RuneSlot(h,3)~=slot and not animation.playing and not flash:IsShown())
+        Eq(RuneBar(h,3).Countdown:GetText(),"")
+        local nextPoint,nextParent,nextRelative,nextX=bar:GetPoint(1)
+        Eq(nextPoint,point);Eq(nextParent,parent);Eq(nextRelative,relativePoint);Eq(nextX,firstX)
+        -- Further source sorting changes data bindings, never widget positions.
         cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
-        local _,newParent,_,secondX=bars[3]:GetPoint(1)
-        Eq(newParent,h);assert(secondX>firstX);assert(animation.playing and flash:IsShown())
-        Eq(Plays(h,3),1);Eq(Plays(h,2),1);Eq(bars[3].ReadyHighlight,flash)
-        -- Spending an earlier ready rune moves the same live flash back again.
         cooldowns[1]={100,10,false};event("RUNE_POWER_UPDATE");Apply(frame)
-        local _,_,_,thirdX=bars[3]:GetPoint(1);assert(thirdX<secondX)
-        assert(animation.playing and flash:IsShown());Eq(Plays(h,3),1)
-        for i=1,6 do Eq(h.Bars[i],bars[i]);Eq(bars[i].Countdown,texts[i]);Eq(h.segments[i].index,i)end
-        Eq(bars[1].Countdown:GetText(),"10.0");Eq(bars[3].Countdown:GetText(),"")
+        Eq(TotalPlays(h),1);assert(not animation.playing and not flash:IsShown())
+        for i=1,6 do
+            Eq(h.Bars[i],bars[i]);Eq(bars[i].Countdown,texts[i])
+            Eq(h.segments[i].index,h._runeSlotBinding.slotToApi[i])
+        end
+        Eq(RuneBar(h,1).Countdown:GetText(),"9.0");Eq(RuneBar(h,3).Countdown:GetText(),"")
         Near(animation.children[1].Duration+animation.children[2].Duration,.125)
-        -- Finishing one moved flash must never hide the other rune's flash.
-        animation:Finish();assert(not flash:IsShown());assert(bars[2].ReadyHighlight:IsShown())
-        assert(bars[2].ReadyHighlight.animation.playing);Eq(Plays(h,2),1)
-        Apply(frame);assert(bars[2].ReadyHighlight.animation.playing);Equal(before,ns.db)
+        animation:Finish();assert(not flash:IsShown())
+        Apply(frame);Eq(TotalPlays(h),1);Equal(before,ns.db)
     end)
 end)
 Test("invalid/secret timing never reaches slot sorting and recovery creates no flash",function()
@@ -428,191 +470,145 @@ Test("invalid/secret timing never reaches slot sorting and recovery creates no f
             cooldowns[3]=row;event("RUNE_POWER_UPDATE",secret);Apply(frame)
             AssertClear(frame);assert(not h:IsShown());Quiet(h)
             cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE",secret);Apply(frame)
-            Eq(Plays(h,3),0);Eq(h.Bars[3]:GetValue(),1);Eq(h.Bars[3].Countdown:GetText(),"")
+            Eq(TotalPlays(h),0);Eq(RuneBar(h,3):GetValue(),1);Eq(RuneBar(h,3).Countdown:GetText(),"")
         end
         issecretvalue=old
     end)
 end)
-Test("highlight: initial snapshot, qualified ready once, no unqualified or repeated ready", function()
-    HighlightCase(function(frame, h, event)
-        for i=1,6 do Eq(Plays(h,i),0) end
-        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
-        Eq(Plays(h,2),1)
-        event("RUNE_POWER_UPDATE",2);Apply(frame);Apply(frame);Eq(Plays(h,2),1)
-        cooldowns[3]={0,0,true};event("UNIT_AURA","player");Apply(frame);Eq(Plays(h,3),0)
-        event("RUNE_POWER_UPDATE",3);Apply(frame);Eq(Plays(h,3),0)
-        cooldowns[2]={nil,nil,false};event("RUNE_POWER_UPDATE",2);Apply(frame);Quiet(h)
-        event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),1)
-    end)
-end)
-Test("highlight: countdown expiry is not ready; spent without timing needs event and flag", function()
+Test("visual DK flash: positive countdown ends once on the same widget; API-ready never replays",function()
     HighlightCase(function(frame,h,event)
-        now=120;h:GetScript("OnUpdate")(h);Eq(h.Bars[2]:GetValue(),1)
-        Eq(Plays(h,2),0);event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
-        cooldowns[2]={0,0,true};cooldowns[4]={0,0,true}
-        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",4);Apply(frame)
-        Eq(Plays(h,2),1);Eq(Plays(h,4),1)
+        local bar=RuneBar(h,2);local slot=RuneSlot(h,2);local tick=assert(h:GetScript("OnUpdate"))
+        now=104;tick(h);Eq(Plays(h,slot),0);assert(bar.Countdown:IsShown())
+        now=105;tick(h);Eq(bar:GetValue(),1);assert(not bar.Countdown:IsShown())
+        Eq(Plays(h,slot),1);assert(bar.ReadyHighlight:GetParent()==bar)
+        now=106;tick(h);Eq(Plays(h,slot),1)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(TotalPlays(h),1)
+        cooldowns[2]={110,5,false};now=110;Apply(frame)
+        local nextSlot=RuneSlot(h,2);local nextTick=assert(h:GetScript("OnUpdate"))
+        now=114;nextTick(h);Eq(TotalPlays(h),1)
+        now=115;nextTick(h);Eq(TotalPlays(h),2);assert(Plays(h,nextSlot)>0)
     end)
 end)
-Test("highlight: batching retains rune invalidation despite unrelated final queue reason", function()
+Test("visual DK flash: expired initial, render apply, invalid data and alpha zero stay quiet",function()
+    HighlightCase(function(frame,h,event)
+        now=120;Apply(frame);Eq(TotalPlays(h),0) -- initial already expired
+        cooldowns[2]={120,5,false};Apply(frame)
+        now=125;Apply(frame);Eq(TotalPlays(h),0) -- layout/style apply is not a tick
+        cooldowns[2]={nil,nil,false};Apply(frame)
+        cooldowns[2]={130,5,false};now=130;Apply(frame)
+        local tick=assert(h:GetScript("OnUpdate"));now=135;tick(h);Eq(TotalPlays(h),1)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(TotalPlays(h),1)
+        cooldowns[2]={140,5,false};now=140;Apply(frame,false,{1,1,1,0})
+        tick=assert(h:GetScript("OnUpdate"));now=145;tick(h);Eq(TotalPlays(h),1)
+        Apply(frame,false,{1,1,1,1});Eq(TotalPlays(h),1)
+        local old=issecretvalue;local secret={}
+        issecretvalue=function(value)return rawequal(value,secret) or (old and old(value))end
+        cooldowns[2]={secret,5,false};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        Eq(TotalPlays(h),1);issecretvalue=old
+    end)
+end)
+Test("visual DK flash: four staggered widgets retain API identity in both growth directions",function()
+    for _,growth in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"}) do
+        HighlightCase(function(frame,h)
+            frame.config.classPowerBarGrowth=growth
+            cooldowns[2]={100,1,false};cooldowns[3]={100,2,false}
+            cooldowns[4]={100,3,false};cooldowns[6]={100,4,false}
+            Apply(frame)
+            local bars={table.unpack(h.Bars)}
+            for step,index in ipairs({2,3,4,6}) do
+                local tick=assert(h:GetScript("OnUpdate"));now=100+step;tick(h)
+                local slot=RuneSlot(h,index)
+                Eq(Plays(h,slot),1);Eq(bars[slot]:GetValue(),1)
+                assert(not bars[slot].Countdown:IsShown())
+                Eq(TotalPlays(h),step)
+            end
+            for index=1,6 do Eq(h.Bars[index],bars[index])end
+            assert(RuneSlot(h,2)~=2)
+        end)
+    end
+end)
+Test("visual DK flash: demo, hide, clear and 50 reused timers do not replay",function()
+    HighlightCase(function(frame,h)
+        local bars={table.unpack(h.Bars)}
+        for api=1,6 do if api~=2 then cooldowns[api]={0,0,true} end end
+        for cycle=1,50 do
+            cooldowns[2]={now,1,false};Apply(frame)
+            local tick=assert(h:GetScript("OnUpdate"))
+            if cycle%2==0 then
+                h:Hide();now=now+1;h:Show()
+                Eq(TotalPlays(h),math.floor(cycle/2))
+            else
+                now=now+1;tick(h);Eq(TotalPlays(h),math.floor((cycle+1)/2))
+            end
+            C.Clear(frame);Quiet(h)
+            for i=1,6 do Eq(h.Bars[i],bars[i])end
+        end
+        local plays=TotalPlays(h)
+        ns.guiTestModeEnabled=true
+        ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","visual-flash")
+        Apply(frame);now=now+20
+        local tick=h:GetScript("OnUpdate");if tick then tick(h)end
+        Eq(TotalPlays(h),plays)
+        ns.guiTestModeEnabled=false
+    end)
+end)
+local function ReadyEdges(frame)
+    return #frame.LiveValues.classPowerSnapshot.readyTransitions
+end
+Test("DK source: event-qualified edges occur once and never replay from render-only applies",function()
+    HighlightCase(function(frame,h,event)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        Eq(ReadyEdges(frame),1);Eq(Plays(h,2),0)
+        event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(ReadyEdges(frame),0)
+        cooldowns[3]={0,0,true};event("UNIT_AURA","player");Apply(frame)
+        Eq(ReadyEdges(frame),0)
+        event("RUNE_POWER_UPDATE",3);Apply(frame);Eq(ReadyEdges(frame),0)
+        cooldowns[2]={nil,nil,false};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(ReadyEdges(frame),0)
+    end)
+end)
+Test("DK source: batched rune evidence survives unrelated queue reason",function()
     HighlightCase(function(frame,h,event,reason)
         cooldowns[2]={0,0,true};cooldowns[3]={0,0,true};cooldowns[4]={0,0,true}
-        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",3)
+        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",3)
         event("UNIT_AURA","player");Eq(reason(),"UNIT_AURA");Apply(frame)
-        Eq(Plays(h,2),1);Eq(Plays(h,3),1);Eq(Plays(h,4),1);Eq(Plays(h,6),0)
-        Apply(frame);Eq(Plays(h,2),1);Eq(Plays(h,3),1)
+        Eq(ReadyEdges(frame),3);Eq(Plays(h,2),0);Eq(Plays(h,3),0)
+        Apply(frame);Eq(ReadyEdges(frame),0)
     end)
 end)
-Test("highlight: resync after rune event cancels evidence", function()
+Test("DK source: resync and context changes discard stale event evidence",function()
     for _,boundary in ipairs({"PLAYER_ENTERING_WORLD","PLAYER_ALIVE","PLAYER_UNGHOST",
         "PLAYER_SPECIALIZATION_CHANGED","UNIT_MAXPOWER","UNIT_DISPLAYPOWER"}) do
         HighlightCase(function(frame,h,event)
             cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2)
-            event(boundary,boundary:match("^UNIT_") and "player" or nil);Apply(frame);Eq(Plays(h,2),0)
+            event(boundary,boundary:match("^UNIT_") and "player" or nil)
+            Apply(frame);Eq(ReadyEdges(frame),0);Eq(Plays(h,2),0)
         end)
     end
 end)
-Test("highlight: opaque event payload is never inspected, formatted or stored", function()
+Test("DK source: opaque payload and early evidence remain conservative",function()
     HighlightCase(function(frame,h,event)
-        local function Forbidden() error("event payload inspected") end
-        local secret=setmetatable({}, {__tostring=Forbidden,__lt=Forbidden,__le=Forbidden,__mod=Forbidden})
-        local old=issecretvalue
-        issecretvalue=function(value)
-            if rawequal(value,secret) then Forbidden() end
-            return old(value)
-        end
+        local secret=setmetatable({}, {__tostring=function()error("payload formatted")end})
         cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",secret);Apply(frame)
-        Eq(Plays(h,2),1)
-        assert(not h._readyTransitions.runeEventObserved)
-        event("RUNE_POWER_UPDATE",secret);Apply(frame);Eq(Plays(h,2),1)
-        issecretvalue=old
+        Eq(ReadyEdges(frame),1);Eq(Plays(h,2),0)
+        event("RUNE_POWER_UPDATE",secret);Apply(frame);Eq(ReadyEdges(frame),0)
     end)
-end)
-Test("highlight: early event is consumed by unchanged snapshot, never retried", function()
     HighlightCase(function(frame,h,event)
-        event("RUNE_POWER_UPDATE");Apply(frame)
-        assert(not h._readyTransitions.runeEventObserved);Eq(Plays(h,2),0)
-        cooldowns[2]={0,0,true};Apply(frame);Eq(Plays(h,2),0)
+        event("RUNE_POWER_UPDATE");Apply(frame);Eq(ReadyEdges(frame),0)
+        cooldowns[2]={0,0,true};Apply(frame);Eq(ReadyEdges(frame),0)
         cooldowns[2]={nil,nil,false};Apply(frame)
-        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame);Eq(Plays(h,2),1)
-        Apply(frame);Eq(Plays(h,2),1)
+        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+        Eq(ReadyEdges(frame),1);Eq(Plays(h,2),0)
     end)
 end)
-Test("highlight: invalid API breaks baseline, recovery is initial snapshot", function()
+Test("DK source: invalid API breaks baseline and recovery starts without an edge",function()
     HighlightCase(function(frame,h,event)
-        cooldowns[2]={0,0,"invalid"};event("RUNE_POWER_UPDATE",2);Apply(frame);Quiet(h)
-        assert(not h._readyTransitions)
-        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
-    end)
-end)
-Test("highlight: root/config/spec/editor context changes discard evidence", function()
-    for _,change in ipairs({
-        function(frame) frame.config=Copy(frame.config) end,
-        function() ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(ns.db)) end,
-        function() spec=2 end,
-        function() ns.framesUnlocked=true end,
-    }) do
-        HighlightCase(function(frame,h,event)
-            event("RUNE_POWER_UPDATE",2);change(frame);cooldowns[2]={0,0,true};Apply(frame)
-            Eq(Plays(h,2),0);Quiet(h)
-        end)
-    end
-end)
-Test("highlight: 50 clear/hide/reuse cycles cancel animation and reinitialize quietly", function()
-    HighlightCase(function(frame,h,event)
-        for cycle=1,50 do
-            cooldowns[2]={nil,nil,false};Apply(frame)
-            cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),cycle)
-            if cycle%2==0 then C.Clear(frame) else h:Hide();h:Show() end
-            Quiet(h);assert(not h._readyTransitions)
-            event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),cycle)
-        end
-    end)
-end)
-Test("highlight: demo/live boundary and resource switch never reuse rune evidence", function()
-    HighlightCase(function(frame,h,event)
-        event("RUNE_POWER_UPDATE",2);ns.guiTestModeEnabled=true
-        ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","highlight-test")
-        Apply(frame);assert(not h._readyTransitions);Quiet(h)
-        ns.guiTestModeEnabled=false
-        ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"live","highlight-test")
-        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
-        class="ROGUE";UnitPower=function()return 4 end;UnitPowerMax=function()return 5 end
-        event("UNIT_POWER_UPDATE","player");Apply(frame);assert(not h._readyTransitions);Quiet(h)
-        class="DEATHKNIGHT";event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
-    end)
-end)
-Test("highlight: native one-shot shape, resolved colors/alpha and zero per-frame callbacks", function()
-    for _,mode in ipairs({true,false}) do
-        for currentSpec=1,3 do
-            HighlightCase(function(frame,h,event)
-                spec=currentSpec;local oldOUF=ns.oUF;ns.oUF={colors={runes=runePalette}}
-                Apply(frame,mode,{.2,.3,.4,.6})
-                local color=h.Bars[2].lastSetStatusBarColor
-                local before=Copy(color);local created=animationCount
-                cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame,mode,{.2,.3,.4,.6})
-                local texture=assert(h.Bars[2].ReadyHighlight);local group=texture.animation
-                Eq(animationCount,created+1);Eq(group.looping,"NONE");Eq(#group.children,2)
-                Near(group.children[1].Duration+group.children[2].Duration,.125)
-                Equal(texture.lastSetVertexColor,{color[1]+(1-color[1])*.6,color[2]+(1-color[2])*.6,color[3]+(1-color[3])*.6,.6})
-                Equal(before,h.Bars[2].lastSetStatusBarColor);assert(not texture:GetScript("OnUpdate"))
-                local oldAPI=GetRuneCooldown;GetRuneCooldown=function()error("animation API")end
-                group:Finish();Quiet(h);GetRuneCooldown=oldAPI
-                ns.oUF=oldOUF
-            end)
-        end
-    end
-    HighlightCase(function(frame,h,event)
-        Apply(frame,false,{.2,.3,.4,0});cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2)
-        Apply(frame,false,{.2,.3,.4,0});Eq(Plays(h,2),0);Quiet(h)
-    end)
-end)
-
-
-Test("highlight: max mismatch and secret snapshot reset instead of manufacturing transitions", function()
-    HighlightCase(function(frame,h,event)
-        local original=C.GetInfo
-        C.GetInfo=function(...) local info=original(...);info.max=5;return info end
-        event("RUNE_POWER_UPDATE",2);Apply(frame);assert(not h._readyTransitions)
-        C.GetInfo=original;cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
-        cooldowns[2]={nil,nil,false};Apply(frame)
-        local secret={};local old=issecretvalue;issecretvalue=function(value)return value==secret end
-        cooldowns[2]={0,0,secret};event("RUNE_POWER_UPDATE",2);Apply(frame);assert(not h._readyTransitions)
-        issecretvalue=old;cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),0)
-    end)
-end)
-Test("highlight: active color/alpha sync and individual segment reuse", function()
-    HighlightCase(function(frame,h,event)
+        cooldowns[2]={0,0,"invalid"};event("RUNE_POWER_UPDATE",2);Apply(frame)
+        assert(not h._readyConsumer)
         cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
-        local texture=assert(h.Bars[2].ReadyHighlight)
-        Apply(frame,false,{.1,.2,.3,.4})
-        Equal(texture.lastSetVertexColor,{.1+.9*.6,.2+.8*.6,.3+.7*.6,.4})
-        Apply(frame,false,{.1,.2,.3,0});Quiet(h)
-        cooldowns[2]={nil,nil,false};Apply(frame)
-        cooldowns[2]={0,0,true};event("RUNE_POWER_UPDATE",2);Apply(frame)
-        h.Bars[2]:Hide();Quiet(h);assert(not h._readyTransitions)
-        h.Bars[2]:Show();event("RUNE_POWER_UPDATE",2);Apply(frame);Eq(Plays(h,2),2)
+        Eq(ReadyEdges(frame),0);Eq(Plays(h,2),0)
     end)
 end)
-Test("highlight: real shared queue coalesces unrelated refresh without losing evidence", function()
-    local realQueue=ns.UnitFrameState.QueueRefresh
-    HighlightCase(function(frame,h,event)
-        local oldTimer,oldRefresh=C_Timer,ns.UnitFrame.Refresh
-        local pending={};C_Timer={After=function(_,fn)pending[#pending+1]=fn end}
-        ns.UnitFrameState.QueueRefresh=realQueue
-        local commits=0
-        ns.UnitFrame.Refresh=function(_,owner,request)
-            Eq(owner,frame);Eq(request.reason,"UNIT_AURA");commits=commits+1;Apply(owner)
-        end
-        cooldowns[2]={0,0,true};cooldowns[3]={0,0,true}
-        event("RUNE_POWER_UPDATE",2);event("RUNE_POWER_UPDATE",3);event("UNIT_AURA","player")
-        Eq(#pending,1);pending[1]();Eq(commits,1);Eq(Plays(h,2),1);Eq(Plays(h,3),1)
-        Apply(frame);Eq(Plays(h,2),1)
-        C_Timer=oldTimer;ns.UnitFrame.Refresh=oldRefresh
-    end)
-end)
-
-
 -- Combo Points share the real provider, snapshot path, renderer and animation.
 local function ComboCase(fn)
     Defaults();class="ROGUE"
@@ -639,7 +635,7 @@ Test("combo: initial/identical, single and multiple gains, spend and renewed gai
         v.current=4;gain();Eq(Plays(h,3),2);Eq(Plays(h,4),1);Eq(Plays(h,5),0)
     end)
 end)
-Test("combo: no event, wrong token/unit, early event and render-only resync never flash",function()
+Test("combo: no event, wrong token/unit and render-only apply cannot qualify a gain",function()
     ComboCase(function(frame,h,v,event,gain)
         event("UNIT_POWER_UPDATE","player","COMBO_POINTS");Apply(frame)
         v.current=3;Apply(frame);Eq(Plays(h,3),0)
@@ -649,9 +645,12 @@ Test("combo: no event, wrong token/unit, early event and render-only resync neve
         -- A rendering-only snapshot may resync but cannot qualify gains.
         event("UNIT_POWER_UPDATE","player","COMBO_POINTS")
         v.current=4;local info=C.GetSnapshotInfo(ns.UnitFrame,frame)
+        local revision=frame.LiveValues.classPowerSnapshot.revision
         C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=4,liveClassPowerMax=5,
             liveClassPowerToken=info.token,liveClassPowerGainValid=info.aggregateGainValid})
-        Eq(Plays(h,3),0);Eq(Plays(h,4),0);Apply(frame);Eq(Plays(h,3),0)
+        Eq(frame.LiveValues.classPowerSnapshot.revision,revision)
+        Eq(Plays(h,3),0);Eq(Plays(h,4),0)
+        Apply(frame);Eq(Plays(h,3),1);Eq(Plays(h,4),1)
     end)
 end)
 Test("combo: fractional progress only flashes newly completed boundaries",function()
@@ -695,12 +694,12 @@ Test("combo: invalid API values/fallback zero and recovery never manufacture gai
     ComboCase(function(frame,h,v,event,gain)
         local secret={};local old=issecretvalue;issecretvalue=function(value)return rawequal(value,secret)end
         for _,invalid in ipairs({false,"0",secret,0/0,math.huge,-1,6})do
-            v.current=invalid;gain();assert(not h._readyTransitions)
+            v.current=invalid;gain();assert(not h._readyConsumer)
             v.current=3;gain();Eq(Plays(h,3),0)
         end
-        v.current=nil;gain();assert(not h._readyTransitions)
+        v.current=nil;gain();assert(not h._readyConsumer)
         v.current=4;gain();Eq(Plays(h,4),0)
-        v.max=secret;gain();assert(not h._readyTransitions)
+        v.max=secret;gain();assert(not h._readyConsumer)
         v.max=5;gain();Eq(Plays(h,4),0)
         issecretvalue=old
     end)
@@ -729,7 +728,7 @@ Test("combo: 50 clear/hide/reuse cycles, ordinary aggregate refresh preserves an
             local texture=assert(h.Bars[3].ReadyHighlight)
             Apply(frame);assert(texture.animation.playing);Eq(Plays(h,3),cycle)
             if cycle%2==0 then C.Clear(frame)else h:Hide();h:Show()end
-            Quiet(h);assert(not h._readyTransitions)
+            Quiet(h);assert(not h._readyConsumer)
             gain();Eq(Plays(h,3),cycle)
         end
     end)
@@ -802,13 +801,14 @@ for _,resource in ipairs(resources)do
             local info=C.GetSnapshotInfo(ns.UnitFrame,frame)
             C.ApplyLayout(frame,{classPowerBarVisible=true,liveClassPowerCurrent=3,liveClassPowerMax=v.max,
                 liveClassPowerToken=info.token,liveClassPowerType=info.typeId,liveClassPowerGainValid=info.aggregateGainValid})
-            Apply(frame);Eq(Plays(h,3),0)
+            Apply(frame);Eq(Plays(h,3),1) -- only the authoritative refresh qualifies
+            local qualifiedPlays=Plays(h,3)
             local old=issecretvalue;local secret=setmetatable({},{__eq=function()error("secret compare")end,
                 __tostring=function()error("secret format")end})
             issecretvalue=function(value)return rawequal(value,secret)end
             for _,args in ipairs({{secret,resource.token},{"player",secret},{"player"},{}})do
                 v.current=2;Apply(frame);event("UNIT_POWER_UPDATE","player",resource.token)
-                v.current=3;event("UNIT_POWER_UPDATE",args[1],args[2]);Apply(frame);Eq(Plays(h,3),0)
+                v.current=3;event("UNIT_POWER_UPDATE",args[1],args[2]);Apply(frame);Eq(Plays(h,3),qualifiedPlays)
             end
             issecretvalue=old
         end)
@@ -823,7 +823,8 @@ for _,resource in ipairs(resources)do
                 if field=="max" then invalid[#invalid+1]=0;invalid[#invalid+1]=3.5 end
                 for i=1,#invalid+1 do
                     v[field]=invalid[i];event("UNIT_POWER_UPDATE","player",resource.token)
-                    C.RefreshValues(ns.UnitFrame,frame);assert(not h._readyTransitions)
+                    C.RefreshValues(ns.UnitFrame,frame)
+                    assert(not frame.LiveValues.classPowerTransitionState.baseline)
                     v.current=3;v.max=resource.max;gain();Eq(Plays(h,3),0)
                 end
             end
@@ -861,7 +862,7 @@ for _,resource in ipairs(resources)do
             AggregateCase(resource,function(frame,h,v,event,gain)
                 local original=C.GetInfo
                 C.GetInfo=function(...)local info=original(...);info[field]=field=="token" and "OTHER" or 100;return info end
-                v.current=3;gain();assert(not h._readyTransitions);Eq(Plays(h,3),0)
+                v.current=3;gain();assert(not h._readyConsumer);Eq(Plays(h,3),0)
                 C.GetInfo=original;gain();Eq(Plays(h,3),0)
             end)
         end
@@ -906,7 +907,7 @@ for _,resource in ipairs(resources)do
                     ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"live","aggregate-test")
                     now=now+1;ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"live","aggregate-test")
                 elseif cycle%3==1 then C.Clear(frame)else h:Hide();h:Show()end
-                Quiet(h);assert(not h._readyTransitions);gain();Eq(Plays(h,3),cycle)
+                Quiet(h);assert(not h._readyConsumer);gain();Eq(Plays(h,3),cycle)
             end
             Eq(animationCount,created+1);Eq(h.Bars,bars);Equal(before,ns.db)
             native.HookScript=hooks
@@ -931,7 +932,7 @@ for _,resource in ipairs(resources)do
             function()Enum.PowerType[resource.key]=nil end,function()UnitPower=nil end})do
             AggregateCase(resource,function(frame,h,v,event,gain)
                 event("UNIT_POWER_UPDATE","player",resource.token);change();v.current=3;Apply(frame)
-                Eq(Plays(h,3),0);assert(not h._readyTransitions)
+                Eq(Plays(h,3),0);assert(not h._readyConsumer)
             end)
         end
     end)
@@ -943,7 +944,10 @@ Test("shards: fractional display unchanged, no gain highlight or secondary mutat
         frame.LiveValues.altPowerCurrentRaw=72
         for _,current in ipairs({2.2,2.9,3,4})do
             v.current=current;event("UNIT_POWER_UPDATE","player","SOUL_SHARDS")
-            local info=Apply(frame);Near(info.current,current);assert(not info.aggregateGainValid and not h._readyTransitions)
+            local info=Apply(frame);Near(info.current,current)
+            assert(not info.aggregateGainValid)
+            Eq(#frame.LiveValues.classPowerSnapshot.readyTransitions,0)
+            assert(not h._readyConsumer)
             Eq(Plays(h,3),0);Eq(Plays(h,4),0)
             Near(h.Bars[3]:GetValue(),math.min(1,current-2));Eq(frame.LiveValues.altPowerCurrentRaw,72)
         end
@@ -956,129 +960,51 @@ local function RenderRuneSnapshot(frame)
         classPowerBarGrowth=frame.config.classPowerBarGrowth,
         liveClassPowerSegments=info and info.segments,liveClassPowerMax=info and info.max,
         liveClassPowerCurrent=info and info.current,liveClassPowerToken=info and info.token,
-        liveClassPowerType=info and info.typeId})
+        liveClassPowerType=info and info.typeId}, frame.LiveValues.classPowerSnapshot)
 end
-Test("DK deferred flash: Play sees every final anchor, matching API widget and ready timer",function()
-    for _,growth in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"})do
-        for _,indices in ipairs({{3},{2,3}})do
-            HighlightCase(function(frame,h,event)
-                frame.config.classPowerBarGrowth=growth;Apply(frame)
-                local bars={table.unpack(h.Bars)};local observed=0
-                local create=native.CreateAnimationGroup
-                native.CreateAnimationGroup=function(texture)
-                    local group=create(texture);local play=group.Play
-                    group.Play=function(self)
-                        local index;for i=1,6 do if bars[i]==texture:GetParent()then index=i end end
-                        assert(index==3 or (#indices==2 and index==2));observed=observed+1
-                        local expected=#indices==1 and {1,3,5,2,6,4} or {1,2,3,5,6,4}
-                        for slot,api in ipairs(expected)do
-                            Eq(h.Bars[api],bars[api]);Eq(h.segments[api].index,api)
-                            local point,parent,relative,x=bars[api]:GetPoint(1)
-                            Eq(parent,h);Eq(point,growth=="RIGHT_TO_LEFT" and "TOPRIGHT" or "TOPLEFT")
-                            Eq(relative,point);Near(x,(slot-1)*(bars[api]:GetWidth()+2)*(growth=="RIGHT_TO_LEFT" and -1 or 1))
-                        end
-                        assert(h.segments[index].ready);Eq(bars[index].Countdown:GetText(),"")
-                        return play(self)
-                    end
-                    return group
-                end
-                local reads=calls
-                for _,index in ipairs(indices)do cooldowns[index]={0,0,true}end
-                event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
-                Eq(observed,0);assert(h._readyTransitions.pendingReady)
-                RenderRuneSnapshot(frame);Eq(observed,#indices);Eq(calls-reads,12)
-                assert(not h._readyTransitions.pendingReady and not h._readyTransitions.runeEventObserved)
-                RenderRuneSnapshot(frame);Eq(observed,#indices);Eq(calls-reads,12) -- no second validation/play
-                native.CreateAnimationGroup=create
-            end)
-        end
-    end
-end)
-Test("DK deferred flash: independent S2 rejects changed runes without a second source refresh",function()
-    for _,change in ipairs({
-        function()cooldowns[2]={0,0,true}end,
-        function()cooldowns[2]={96,10,false}end,
-        function()cooldowns[2]={95,11,false}end,
-        function()cooldowns[4]={100,10,false}end,
-        function()cooldowns[3]={100,10,false}end,
-        function()cooldowns[3]={nil,nil,false};cooldowns[2]={0,0,true}end,
-    })do
+Test("DK source still qualifies Ready, but legacy API transitions never play",function()
+    for _,growth in ipairs({"LEFT_TO_RIGHT","RIGHT_TO_LEFT"}) do
         HighlightCase(function(frame,h,event)
-            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
+            frame.config.classPowerBarGrowth=growth;Apply(frame)
+            local reads=calls
+            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE")
+            C.RefreshValues(ns.UnitFrame,frame)
             local snapshot=frame.LiveValues.classPowerSnapshot
-            assert(h._readyTransitions.pendingReady);change();RenderRuneSnapshot(frame)
-            for i=1,6 do Eq(Plays(h,i),0)end
-            assert(not h._readyTransitions)
-            Eq(frame.LiveValues.classPowerSnapshot,snapshot) -- S2 is a guard, not a new publication
-            Apply(frame);Eq(Plays(h,3),0)
-            cooldowns[3]={100,10,false};Apply(frame)
-            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame);Eq(Plays(h,3),1)
+            Eq(#snapshot.readyTransitions,1);Eq(snapshot.readyTransitions[1].apiIndex,3)
+            Eq(calls-reads,6)
+            RenderRuneSnapshot(frame);Eq(Plays(h,3),0);Eq(calls-reads,6)
+            RenderRuneSnapshot(frame);Eq(Plays(h,3),0);Eq(calls-reads,6)
+            assert(h._readyConsumer.lastRevision==snapshot.revision)
         end)
     end
 end)
-Test("DK confirmation: secret, malformed and throwing S2 fail closed without retries",function()
-    for _,failure in ipairs({"secret-ready","secret-time","malformed","throw"})do
-        HighlightCase(function(frame,h,event)
-            local api,secretCheck=GetRuneCooldown,issecretvalue
-            local secret={};local invalid=false
-            issecretvalue=function(value)return value==secret or (secretCheck and secretCheck(value))end
-            GetRuneCooldown=function(index)
-                if invalid and index==3 then
-                    if failure=="throw" then error("unavailable confirmation")end
-                    if failure=="secret-ready" then return 0,0,secret end
-                    if failure=="secret-time" then return secret,10,false end
-                    return 0,-1,false
-                end
-                return api(index)
-            end
-            Apply(frame)
-            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
-            local snapshot=frame.LiveValues.classPowerSnapshot
-            assert(h._readyTransitions.pendingReady);invalid=true
-            RenderRuneSnapshot(frame);assert(not h._readyTransitions)
-            Eq(frame.LiveValues.classPowerSnapshot,snapshot);Eq(Plays(h,3),0)
-            local reads=calls;RenderRuneSnapshot(frame);Eq(calls,reads);Eq(Plays(h,3),0)
-            GetRuneCooldown,issecretvalue=api,secretCheck
-        end)
-    end
-end)
-Test("DK deferred flash: intermediate context/lifecycle/value refresh invalidates pending intent",function()
-    for _,change in ipairs({
-        function(frame,h)h:Hide();h:Show()end,
-        function(frame)C.Clear(frame)end,
-        function(frame)frame.config=Copy(frame.config)end,
-        function(frame)frame.config.classPowerBarGrowth="RIGHT_TO_LEFT"end,
-        function()spec=2 end,
-        function()ns.framesUnlocked=true end,
-        function()ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(ns.db))end,
-        function(frame)ns.guiTestModeEnabled=true;ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","deferred")end,
-        function(frame)C.RefreshValues(ns.UnitFrame,frame)end,
-        function()GetRuneCooldown=nil end,
-    })do
-        HighlightCase(function(frame,h,event)
-            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
-            assert(h._readyTransitions.pendingReady);change(frame,h);RenderRuneSnapshot(frame)
-            Eq(Plays(h,3),0);assert(not h._readyTransitions or not h._readyTransitions.pendingReady)
-        end)
-    end
-end)
-Test("DK deferred flash: 50 combat/clear/reuse cycles, no stale intent or widget growth",function()
+Test("DK local completion uses no API, and later API-ready has no second Play",function()
     HighlightCase(function(frame,h,event)
-        local bars={table.unpack(h.Bars)};local oldCombat=InCombatLockdown
-        local animations=animationCount
-        for cycle=1,50 do
-            InCombatLockdown=function()return cycle%2==0 end
-            cooldowns[3]={98,10,false};Apply(frame)
-            cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");C.RefreshValues(ns.UnitFrame,frame)
-            Eq(Plays(h,3),cycle-1);RenderRuneSnapshot(frame);Eq(Plays(h,3),cycle)
-            local flash=h.Bars[3].ReadyHighlight
-            RenderRuneSnapshot(frame);assert(flash.animation.playing);Eq(Plays(h,3),cycle)
-            C.Clear(frame);RenderRuneSnapshot(frame);Eq(Plays(h,3),cycle);Quiet(h)
-            for i=1,6 do Eq(h.Bars[i],bars[i])end
-        end
-        Eq(animationCount,animations+1);InCombatLockdown=oldCombat
+        cooldowns[3]={100,1,false};Apply(frame)
+        local tick=assert(h:GetScript("OnUpdate"))
+        local api=GetRuneCooldown;GetRuneCooldown=function()error("tick queried rune API")end
+        now=101;tick(h);GetRuneCooldown=api
+        Eq(Plays(h,3),1);Eq(h.Bars[3]:GetValue(),1)
+        cooldowns[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+        Eq(Plays(h,3),1)
+        Apply(frame);Eq(Plays(h,3),1)
     end)
 end)
-
+Test("DK invalid source and context transitions never manufacture visual completion",function()
+    HighlightCase(function(frame,h,event)
+        local old=issecretvalue;local secret={}
+        issecretvalue=function(value)return rawequal(value,secret) or (old and old(value))end
+        cooldowns[3]={secret,1,false};event("RUNE_POWER_UPDATE");Apply(frame)
+        Eq(Plays(h,3),0);assert(not h:GetScript("OnUpdate"))
+        issecretvalue=old
+        cooldowns[3]={100,1,false};Apply(frame)
+        ns.guiTestModeEnabled=true
+        ns.UnitFrameDemoEnvironment.ApplyFrameSnapshot(nil,frame,{},"detailed","visual-completion")
+        Apply(frame);now=101
+        local tick=h:GetScript("OnUpdate");if tick then tick(h)end
+        Eq(Plays(h,3),0)
+        ns.guiTestModeEnabled=false
+    end)
+end)
 assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 print("Class Power Runes: "..count.." groups PASS")

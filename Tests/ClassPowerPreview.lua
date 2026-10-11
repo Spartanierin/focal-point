@@ -92,11 +92,18 @@ end)
 local function NoFlashes(holder)
     for i=1,6 do Eq(h.Plays(holder,i),0)end
 end
+local function ApiBar(holder,apiIndex)
+    local binding=holder._runeSlotBinding
+    return holder.Bars[binding and binding.apiToSlot[apiIndex] or apiIndex]
+end
 local function Timers(holder)
     assert(holder:IsShown());Eq(#holder.segments,6)
-    Eq(holder.Bars[4].Countdown:GetText(),"10.0")
-    Eq(holder.Bars[5].Countdown:GetText(),"8.0");Eq(holder.Bars[6].Countdown:GetText(),"6.0")
-    for i=1,6 do Eq(holder.segments[i].index,i);Eq(holder.Bars[i].Countdown:GetParent(),holder.Bars[i])end
+    Eq(ApiBar(holder,4).Countdown:GetText(),"10.0")
+    Eq(ApiBar(holder,5).Countdown:GetText(),"8.0");Eq(ApiBar(holder,6).Countdown:GetText(),"6.0")
+    for slot=1,6 do
+        Eq(holder.segments[slot].index,holder._runeSlotBinding and holder._runeSlotBinding.slotToApi[slot] or slot)
+        Eq(holder.Bars[slot].Countdown:GetParent(),holder.Bars[slot])
+    end
     NoFlashes(holder)
 end
 Test("detailed fallback respects presence/show; unsupported live specs remain synthetic only in preview",function()
@@ -116,7 +123,7 @@ Test("DK detailed toggle uses six synthetic timers without querying rune API",fu
     GetRuneCooldown=function()error("synthetic preview queried runes")end
     ns:ToggleTestMode();Timers(holder);Eq(f._classPowerPreviewInfo.previewMode,"detailed")
     GetRuneCooldown=api;ns:ToggleTestMode();assert(not f._classPowerPreviewInfo)
-    Eq(holder.Bars[2].Countdown:GetText(),"5.0");Eq(holder.Bars[4].Countdown:GetText(),"")
+    Eq(ApiBar(holder,2).Countdown:GetText(),"5.0");Eq(ApiBar(holder,4).Countdown:GetText(),"")
     NoFlashes(holder)
 end)
 Test("selected Canvas bar on Warrior/DK: actual layout applies font/size/outline, no rune API",function()
@@ -132,7 +139,7 @@ Test("selected Canvas bar on Warrior/DK: actual layout applies font/size/outline
             Eq(font,"Fonts\\MORPHEUS.ttf");Eq(size,18);Eq(flags,"THICKOUTLINE,MONOCHROME")
         end
         GetRuneCooldown=api;Select("HealthBar");Refresh();assert(not f._classPowerPreviewInfo)
-        if class=="WARRIOR" then assert(not holder.segments)else Eq(holder.Bars[2].Countdown:GetText(),"5.0")end
+        if class=="WARRIOR" then assert(not holder.segments)else Eq(ApiBar(holder,2).Countdown:GetText(),"5.0")end
     end
 end)
 Test("finite preview does not auto-recharge; reselect and each style field restart once",function()

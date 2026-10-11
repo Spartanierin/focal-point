@@ -7,7 +7,9 @@ local h=assert(load(Read("Tests/ClassPowerRunes.lua")..[[
 return {ns=ns,Load=Load,f=f,native=native,Apply=Apply,Defaults=Defaults,Frame=Frame,
     HighlightCase=HighlightCase,ComboCase=ComboCase,AggregateCase=AggregateCase,resources=resources,
     Plays=Plays,Quiet=Quiet,Eq=Eq,Equal=Equal,Near=Near,Copy=Copy,
-    Runes=function()return cooldowns end,Spec=function(value)spec=value end,
+    RuneBar=RuneBar,RuneSlot=RuneSlot,TotalPlays=TotalPlays,
+    Runes=function()return cooldowns end,RuneReads=function()return calls end,
+    Spec=function(value)spec=value end,
     Advance=function()now=now+1 end}
 ]],"@Growth/RunesFixture"))()
 local ns,C=h.ns,h.ns.UnitFrameClassPower
@@ -28,14 +30,15 @@ end
 local function RuneOrder(holder,direction)
     local width=(holder:GetWidth()-5*2)/6
     local order={}
-    for index=1,6 do
-        local x=Left(holder.Bars[index],holder)
+    for widget=1,6 do
+        local x=Left(holder.Bars[widget],holder)
         local physical=math.floor(x/(width+2)+.5)
         Near(x,physical*(width+2))
         assert(physical>=0 and physical<6)
         local slot=direction=="RIGHT_TO_LEFT" and 6-physical or physical+1
         assert(not order[slot],"overlapping rune slots")
-        order[slot]=index
+        order[slot]=holder.segments[widget].index
+        if holder._runeSlotBinding then Eq(widget,slot) end
     end
     return order
 end
@@ -45,7 +48,8 @@ local function Positions(holder,n,direction)
     local previousGroup,previousEnd,previousIndex=0,0,0
     if runeOrder then
         for _,index in ipairs(runeOrder)do
-            local s=holder.segments[index]
+            local s=holder._runeSlotBinding and holder._runeSlotBinding.snapshot.info.segments[index]
+                or holder.segments[index]
             local group=s.ready and 1 or (s.startTime and 2 or 3)
             local ending=group==2 and s.startTime+s.duration or 0
             assert(group>=previousGroup,"ready/recharge/spent grouping")
@@ -59,7 +63,7 @@ local function Positions(holder,n,direction)
     for i=1,n do
         local bar=holder.Bars[i];assert(bar:IsShown())
         local slot=direction=="RIGHT_TO_LEFT" and n-i or i-1
-        if not runeOrder then Near(Left(bar,holder),slot*(width+2))end
+        Near(Left(bar,holder),slot*(width+2))
         Near(bar:GetWidth(),width)
         assert(not bar.lastSetReverseFill and not bar.lastSetOrientation)
     end
@@ -94,16 +98,19 @@ Test("all DK specs group visual slots while preserving six API identities, timer
             local bars={table.unpack(holder.Bars)}
             for _,direction in ipairs(directions)do
                 frame.config.classPowerBarGrowth=direction;Apply(frame);Positions(holder,6,direction)
-                for i=1,6 do Eq(holder.Bars[i],bars[i]);Eq(holder.segments[i].index,i)end
-                Eq(bars[1]:GetValue(),1);Eq(bars[5]:GetValue(),1)
-                Near(bars[2]:GetValue(),.5);Eq(bars[2].Countdown:GetText(),"5.0")
-                Near(bars[3]:GetValue(),.2);Eq(bars[3].Countdown:GetText(),"8.0")
-                Eq(bars[4]:GetValue(),0);Eq(bars[4].Countdown:GetText(),"")
-                Near(bars[6]:GetValue(),1/8);Eq(bars[6].Countdown:GetText(),"7.0")
+                for slot=1,6 do
+                    Eq(holder.Bars[slot],bars[slot])
+                    Eq(holder.segments[slot].index,holder._runeSlotBinding.slotToApi[slot])
+                end
+                Eq(h.RuneBar(holder,1):GetValue(),1);Eq(h.RuneBar(holder,5):GetValue(),1)
+                Near(h.RuneBar(holder,2):GetValue(),.5);Eq(h.RuneBar(holder,2).Countdown:GetText(),"5.0")
+                Near(h.RuneBar(holder,3):GetValue(),.2);Eq(h.RuneBar(holder,3).Countdown:GetText(),"8.0")
+                Eq(h.RuneBar(holder,4):GetValue(),0);Eq(h.RuneBar(holder,4).Countdown:GetText(),"")
+                Near(h.RuneBar(holder,6):GetValue(),1/8);Eq(h.RuneBar(holder,6).Countdown:GetText(),"7.0")
                 for i=1,6 do Eq(Plays(holder,i),0)end
             end
             h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
-            Eq(Plays(holder,3),1);Eq(Plays(holder,2),0);Eq(bars[3].Countdown:GetText(),"")
+            Eq(h.TotalPlays(holder),0);Eq(h.RuneBar(holder,3).Countdown:GetText(),"")
             Positions(holder,6,"RIGHT_TO_LEFT")
         end)
     end
@@ -122,8 +129,9 @@ Test("DK 0..6 ready, sparse indices, both growth sides and immutable snapshots",
                 local order=RuneOrder(holder,direction)
                 for slot,index in ipairs(order)do
                     Eq(info.segments[index].ready,slot<=ready)
-                    Eq(holder.Bars[index],bars[index]);Eq(info.segments[index].index,index)
-                    Eq(bars[index].Countdown:GetText(),"");Eq(Plays(holder,index),0)
+                    Eq(holder.Bars[slot],bars[slot]);Eq(info.segments[index].index,index)
+                    Eq(holder.segments[slot],info.segments[index])
+                    Eq(bars[slot].Countdown:GetText(),"");Eq(Plays(holder,slot),0)
                 end
                 local before=h.Copy(ns.db);Apply(frame)
                 Equal(snapshot,info.segments);Equal(before,ns.db)
@@ -139,9 +147,9 @@ Test("DK completion time beats start time; ready, recharge and spent ties use AP
         for _,direction in ipairs(directions)do
             frame.config.classPowerBarGrowth=direction;Apply(frame)
             Equal(RuneOrder(holder,direction),{3,6,2,4,1,5})
-            Eq(holder.Bars[1].Countdown:GetText(),"15.0")
-            Eq(holder.Bars[2].Countdown:GetText(),"2.0");Eq(holder.Bars[4].Countdown:GetText(),"2.0")
-            Eq(holder.Bars[5].Countdown:GetText(),"")
+            Eq(h.RuneBar(holder,1).Countdown:GetText(),"15.0")
+            Eq(h.RuneBar(holder,2).Countdown:GetText(),"2.0");Eq(h.RuneBar(holder,4).Countdown:GetText(),"2.0")
+            Eq(h.RuneBar(holder,5).Countdown:GetText(),"")
             -- No reordering/anchoring from a countdown tick, even across expiry.
             local setPoint,clear=h.native.SetPoint,h.native.ClearAllPoints
             h.native.SetPoint=function()error("anchor mutation in countdown tick")end
@@ -159,26 +167,76 @@ Test("DK completion time beats start time; ready, recharge and spent ties use AP
     end)
 end)
 
-Test("growth mutation on the same config cancels pending and active DK/aggregate flashes",function()
+Test("Legacy DK projects one snapshot permutation onto fixed widgets in both growth directions",function()
+    for _,direction in ipairs(directions)do
+        h.HighlightCase(function(frame,holder)
+            frame.config.classPowerBarGrowth=direction
+            local runes=h.Runes()
+            runes[1],runes[5]={0,0,true},{0,0,true}
+            runes[2],runes[3],runes[4]={90,20,false},{95,10,false},{95,10,false}
+            runes[6]={nil,nil,false}
+            local bars={table.unpack(holder.Bars)}
+            local before=h.RuneReads();local info=Apply(frame)
+            Eq(h.RuneReads(),before+6)
+            local binding=assert(holder._runeSlotBinding)
+            Eq(binding.snapshot,frame.LiveValues.classPowerSnapshot)
+            Equal(binding.slotToApi,{1,5,3,4,2,6})
+            for api=1,6 do
+                local slot=binding.apiToSlot[api]
+                Eq(binding.slotToApi[slot],api)
+                Eq(holder.segments[slot],info.segments[api])
+                Eq(holder.Bars[slot],bars[slot])
+            end
+            Positions(holder,6,direction)
+            Eq(bars[3].Countdown:GetText(),"5.0")
+            Eq(bars[5].Countdown:GetText(),"10.0")
+
+            -- Only data moves: the old slot 3 timer must not survive its new API binding.
+            runes[2]={99,4,false}
+            before=h.RuneReads();info=Apply(frame);Eq(h.RuneReads(),before+6)
+            binding=assert(holder._runeSlotBinding)
+            Equal(binding.slotToApi,{1,5,2,3,4,6})
+            Eq(bars[3].Countdown:GetText(),"3.0")
+            Eq(bars[5].Countdown:GetText(),"5.0")
+            for slot=1,6 do
+                Eq(holder.Bars[slot],bars[slot])
+                Eq(holder.segments[slot],info.segments[binding.slotToApi[slot]])
+            end
+            assert(holder:GetScript("OnUpdate"));Positions(holder,6,direction)
+            Eq(h.TotalPlays(holder),0)
+        end)
+    end
+end)
+
+Test("growth keeps slot ownership; DK rebinding stops active flash and aggregates retain theirs",function()
     local function Check(frame,holder,queueReady,spend)
         local config=frame.config
         queueReady();frame.config.classPowerBarGrowth="RIGHT_TO_LEFT";Apply(frame)
-        Eq(frame.config,config);Eq(Plays(holder,3),0);Quiet(holder)
-        Eq(holder._readyTransitions.growth,"RIGHT_TO_LEFT")
-        spend();Apply(frame);queueReady();Apply(frame);Eq(Plays(holder,3),1)
+        Eq(frame.config,config);Eq(Plays(holder,3),1)
         local texture=holder.Bars[3].ReadyHighlight
-        frame.config.classPowerBarGrowth="LEFT_TO_RIGHT";Apply(frame);Quiet(holder)
-        Eq(Plays(holder,3),1);Eq(holder.Bars[3].ReadyHighlight,texture)
-        -- An event from before another change cannot be carried into a later snapshot.
+        assert(texture.animation.playing)
+        spend();Apply(frame);Quiet(holder)
+        queueReady();Apply(frame);Eq(Plays(holder,3),2)
+        frame.config.classPowerBarGrowth="LEFT_TO_RIGHT";Apply(frame)
+        Eq(Plays(holder,3),2);Eq(holder.Bars[3].ReadyHighlight,texture)
+        assert(texture.animation.playing) -- the same API widget moved
+        -- A later source refresh without layout publishes data but cannot play.
         spend();Apply(frame);queueReady();frame.config.classPowerBarGrowth="RIGHT_TO_LEFT"
-        C.RefreshValues(ns.UnitFrame,frame);Eq(Plays(holder,3),1);Quiet(holder)
+        C.RefreshValues(ns.UnitFrame,frame);Eq(Plays(holder,3),2);Quiet(holder)
     end
     h.HighlightCase(function(frame,holder,event)
-        Check(frame,holder,function()h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE")end,
-            function()h.Runes()[3]={98,10,false}end)
+        h.Runes()[3]={GetTime(),1,false};Apply(frame)
+        local tick=assert(holder:GetScript("OnUpdate"));h.Advance();tick(holder)
+        local texture=assert(holder.Bars[3].ReadyHighlight)
+        Eq(Plays(holder,3),1);assert(texture.animation.playing)
+        frame.config.classPowerBarGrowth="RIGHT_TO_LEFT";Apply(frame)
+        Eq(Plays(holder,3),1);Eq(holder.Bars[3].ReadyHighlight,texture)
+        h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+        Eq(Plays(holder,3),1);assert(not texture.animation.playing)
+        assert(h.RuneSlot(holder,3)~=3 and not texture:IsShown())
     end)
     local function Aggregate(frame,holder,v,event)
-        local token=assert(holder._readyTransitions.token)
+        local token=assert(frame.LiveValues.classPowerSnapshot.info.token)
         Check(frame,holder,function()v.current=3;event("UNIT_POWER_UPDATE","player",token)end,function()v.current=2 end)
     end
     h.ComboCase(Aggregate)
@@ -188,31 +246,36 @@ Test("missing/invalid growth preserves legacy anchors and normalized highlight c
     h.ComboCase(function(frame,holder,v,event,gain)
         for _,value in ipairs({false,"invalid",1,"LEFT_TO_RIGHT"})do
             frame.config.classPowerBarGrowth=value;Apply(frame);Positions(holder,5,"LEFT_TO_RIGHT")
-            Eq(holder._readyTransitions.growth,"LEFT_TO_RIGHT")
+            assert(holder._readyConsumer and holder._readyConsumer.lastRevision==frame.LiveValues.classPowerSnapshot.revision)
         end
         frame.config.classPowerBarGrowth=nil;Apply(frame);Positions(holder,5,"LEFT_TO_RIGHT")
         v.current=3;gain();Eq(Plays(holder,3),1)
     end)
 end)
-Test("50 mirrored clear/hide/layout/spec/combat/reuse cycles retain widgets and fresh baselines",function()
+Test("50 mirrored visual countdown/clear/hide/layout/spec/combat cycles retain widgets",function()
     h.HighlightCase(function(frame,holder,event)
         frame.config.classPowerBarGrowth="RIGHT_TO_LEFT";Apply(frame)
+        for api=1,6 do if api~=3 then h.Runes()[api]={0,0,true} end end
         local bars={table.unpack(holder.Bars)};local texts={};for i=1,6 do texts[i]=bars[i].Countdown end
         local hook=h.native.HookScript;h.native.HookScript=function()error("new lifecycle hook")end
         local combat=InCombatLockdown
         for cycle=1,50 do
             local direction=directions[cycle%2+1]
-            frame.config.classPowerBarGrowth=direction;h.Runes()[3]={98,10,false};Apply(frame)
-            local before=Plays(holder,3)
-            h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame);Eq(Plays(holder,3),before+1)
-            local texture=bars[3].ReadyHighlight
+            frame.config.classPowerBarGrowth=direction;h.Runes()[3]={GetTime(),1,false};Apply(frame)
+            local slot=h.RuneSlot(holder,3);local before=h.TotalPlays(holder)
+            local slotPlays=Plays(holder,slot)
+            local tick=assert(holder:GetScript("OnUpdate"));h.Advance();tick(holder)
+            Eq(Plays(holder,slot),slotPlays+1);Eq(h.TotalPlays(holder),before+1)
+            local texture=bars[slot].ReadyHighlight
+            h.Runes()[3]={0,0,true};event("RUNE_POWER_UPDATE");Apply(frame)
+            Eq(h.TotalPlays(holder),before+1);assert(not texture.animation.playing)
             if cycle%4==0 then C.Clear(frame)
             elseif cycle%4==1 then holder:Hide();holder:Show()
             elseif cycle%4==2 then frame.config=h.Copy(frame.config)
             else h.Spec(cycle%3+1);event("PLAYER_SPECIALIZATION_CHANGED","player")end
             InCombatLockdown=function()return cycle%2==0 end
-            Apply(frame);Positions(holder,6,direction);Quiet(holder);Eq(Plays(holder,3),before+1)
-            Eq(bars[3].ReadyHighlight,texture)
+            C.Clear(frame);Apply(frame);Positions(holder,6,direction);Quiet(holder);Eq(h.TotalPlays(holder),before+1)
+            Eq(bars[slot].ReadyHighlight,texture)
             for i=1,6 do Eq(holder.Bars[i],bars[i]);Eq(bars[i].Countdown,texts[i])end
         end
         h.native.HookScript=hook;InCombatLockdown=combat
@@ -224,7 +287,10 @@ Test("detailed demo, placeholder, selection preview and live return share mirror
         local demo=ns.UnitFrameDemoEnvironment
         ns.guiTestModeEnabled=true;demo.ApplyFrameSnapshot(nil,frame,{},"detailed","growth")
         Apply(frame);Positions(holder,6,"RIGHT_TO_LEFT")
-        for i=1,6 do Eq(holder.segments[i].index,i);Eq(Plays(holder,i),0)end
+        for slot=1,6 do
+            Eq(holder.segments[slot].index,holder._runeSlotBinding.slotToApi[slot])
+            Eq(Plays(holder,slot),0)
+        end
         ns.guiTestModeEnabled=false;ns.framesUnlocked=true
         demo.ApplyFrameSnapshot(nil,frame,{},"placeholder","growth");Apply(frame)
         Positions(holder,6,"RIGHT_TO_LEFT");local colors=demo.GetPlaceholderColors()
@@ -234,7 +300,7 @@ Test("detailed demo, placeholder, selection preview and live return share mirror
         -- Existing selection-preview fallback, no fabricated live Rune API result.
         local api,preview=GetRuneCooldown,C.ShouldForcePreview
         GetRuneCooldown=nil;C.ShouldForcePreview=function()return true end
-        Apply(frame);Positions(holder,6,"RIGHT_TO_LEFT");assert(not holder._readyTransitions)
+        Apply(frame);Positions(holder,6,"RIGHT_TO_LEFT");assert(not holder._readyConsumer)
         GetRuneCooldown=api;C.ShouldForcePreview=preview
         Apply(frame);Positions(holder,6,"RIGHT_TO_LEFT");for i=1,6 do Eq(Plays(holder,i),0)end
     end)

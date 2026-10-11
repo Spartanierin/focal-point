@@ -13,6 +13,7 @@ local function StopSegmentHighlight(bar)
     bar.ReadyHighlight.animation:Stop()
     bar.ReadyHighlight:SetAlpha(0)
     bar.ReadyHighlight:Hide()
+    bar._visualRechargeFlashActive = nil
 end
 
 local function PlaySegmentHighlight(bar)
@@ -40,6 +41,7 @@ local function PlaySegmentHighlight(bar)
         fadeOut:SetToAlpha(0)
         animation:SetScript("OnFinished", function()
             texture:SetAlpha(0); texture:Hide()
+            bar._visualRechargeFlashActive = nil
         end)
         texture.animation = animation
         bar.ReadyHighlight = texture
@@ -50,6 +52,7 @@ local function PlaySegmentHighlight(bar)
     texture:SetAlpha(0)
     texture:Show()
     texture.animation:Play()
+    return true
 end
 
 Renderer.StopHighlight = StopSegmentHighlight
@@ -59,8 +62,12 @@ function Renderer.ClearTiming(holder)
     if not holder or not holder._segmentTimingInitialized then return end
     local hadSegments = holder.segments ~= nil
     holder.segments = nil
+    holder._legacyRuneVisualFlash = nil
+    holder._legacyRuneFlashEpoch = nil
     holder:SetScript("OnUpdate", nil)
     for _, bar in ipairs(holder.Bars or {}) do
+        bar._visualRechargeStart, bar._visualRechargeDuration = nil, nil
+        bar._visualRechargePositive, bar._visualRechargeFired = nil, nil
         if hadSegments then bar:SetValue(0) end
         bar._countdownSeconds = nil
         if bar.Countdown then
@@ -72,7 +79,8 @@ end
 
 -- Same local visual-driver pattern as CastRuntime: cached timing only, no API,
 -- DB, templates, allocations of state tables, or global refresh in OnUpdate.
-local function UpdateSegments(holder)
+local VisualTick
+local function UpdateSegments(holder, fromTick)
     local segments = holder.segments
     if not segments or not holder:IsVisible() then
         holder:SetScript("OnUpdate", nil)
@@ -81,7 +89,22 @@ local function UpdateSegments(holder)
     local now, active = GetTime(), false
     for index = 1, #segments do
         local segment, bar = segments[index], holder.Bars[index]
-        local remaining = segment.startTime and math.max(0, segment.startTime + segment.duration - now) or nil
+        local start, duration = segment.startTime, segment.duration
+        local validTime = not (issecretvalue and (issecretvalue(start) or issecretvalue(duration)))
+            and type(start) == "number" and type(duration) == "number"
+            and start == start and duration == duration and start < math.huge
+            and duration < math.huge and start >= 0 and duration > 0
+        local remaining = validTime and math.max(0, start + duration - now) or nil
+        if holder._legacyRuneVisualFlash and validTime and not segment.ready then
+            if bar._visualRechargeStart ~= start or bar._visualRechargeDuration ~= duration then
+                if bar._visualRechargeFlashActive then StopSegmentHighlight(bar) end
+                bar._visualRechargeStart, bar._visualRechargeDuration = start, duration
+                bar._visualRechargePositive, bar._visualRechargeFired = nil, nil
+            end
+        else
+            bar._visualRechargeStart, bar._visualRechargeDuration = nil, nil
+            bar._visualRechargePositive, bar._visualRechargeFired = nil, nil
+        end
         local charging = not segment.ready and remaining and remaining > 0
         if charging then
             bar:SetValue(math.max(0, math.min(1, (now - segment.startTime) / segment.duration)))
@@ -92,16 +115,26 @@ local function UpdateSegments(holder)
                 bar._countdownSeconds = seconds
             end
             bar.Countdown:Show()
+            if holder._legacyRuneVisualFlash then bar._visualRechargePositive = true end
             active = true
         else
             bar:SetValue((segment.ready or remaining == 0) and 1 or 0)
             bar.Countdown:SetText("")
             bar.Countdown:Hide()
             bar._countdownSeconds = nil
+            if holder._legacyRuneVisualFlash and remaining == 0
+                and not segment.ready and bar._visualRechargePositive
+                and not bar._visualRechargeFired then
+                bar._visualRechargeFired = true
+                if fromTick and PlaySegmentHighlight(bar) then
+                    bar._visualRechargeFlashActive = true
+                end
+            end
         end
     end
-    holder:SetScript("OnUpdate", active and UpdateSegments or nil)
+    holder:SetScript("OnUpdate", active and VisualTick or nil)
 end
+VisualTick = function(holder) UpdateSegments(holder, true) end
 
 -- Layout-only styling: countdown ticks continue to consume only rune timing.
 local function ApplyTimerStyle(holder, options)
@@ -152,7 +185,12 @@ local function PrepareSegmentWidgets(holder)
         text:Hide()
         bar.Countdown = text
     end
-    holder:HookScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+    holder:HookScript("OnHide", function(self)
+        self:SetScript("OnUpdate", nil)
+        for _, bar in ipairs(self.Bars) do
+            bar._visualRechargePositive, bar._visualRechargeFired = nil, nil
+        end
+    end)
     holder:HookScript("OnShow", UpdateSegments)
 end
 
@@ -169,6 +207,17 @@ function Renderer.Apply(holder, options)
     local usableWidth = width - ((maxValue - 1) * spacing)
     local segmentWidth = maxValue > 0 and (usableWidth / maxValue) or usableWidth
     local visualSlots = options.visualSlots
+    local visualFlash = options.legacyRuneVisualFlash == true
+    if (holder._legacyRuneVisualFlash or visualFlash)
+        and (not visualFlash or holder._legacyRuneFlashEpoch ~= options.legacyRuneFlashEpoch) then
+        for _, bar in ipairs(bars) do
+            if bar._visualRechargeFlashActive then StopSegmentHighlight(bar) end
+            bar._visualRechargeStart, bar._visualRechargeDuration = nil, nil
+            bar._visualRechargePositive, bar._visualRechargeFired = nil, nil
+        end
+    end
+    holder._legacyRuneVisualFlash = visualFlash
+    holder._legacyRuneFlashEpoch = visualFlash and options.legacyRuneFlashEpoch or nil
     local numActive = currentValue + 0.9
     local borderR = options.borderR
     local borderG = options.borderG

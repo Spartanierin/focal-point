@@ -52,6 +52,11 @@ local r=assert(load(Read("Tests/SegmentedBarRuntime.lua")..
     "\nreturn {ns=ns,UF=UF,Setup=Setup,B=B,f=f,Holders=Holders}","@Sources/Runtime"))()
 local ns,UF,B,f=r.ns,r.UF,r.B,r.f
 local Eq,Equal=f.Eq,f.Equal
+local function CheckLegacyProjection(legacy,segments)
+    local binding=assert(legacy._runeSlotBinding)
+    Eq(binding.snapshot.info.segments,segments)
+    for slot=1,6 do Eq(legacy.segments[slot],segments[binding.slotToApi[slot]])end
+end
 f.Load("Services/LayoutMutations.lua");f.Load("GUI/Editor/LayoutEditWorkflow.lua")
 local M=ns.LayoutMutations.SegmentedBars
 local function Context()return assert(M.CaptureContext("player"))end
@@ -171,7 +176,8 @@ Test("50 Rune-Holy-Rune/pool/layout/spec/combat/hide cycles clear local timing a
         B.Apply(frame);assert(a:IsShown());NoTiming(a)
         f.Class("DEATHKNIGHT");frame.config.segmentedBars=f.Copy(original)
         UF:Refresh(frame);a,b=r.Holders(frame)
-        Eq(a.segments,frame.LiveValues.classPowerSnapshot.info.segments);Eq(b.segments,a.segments);Eq(legacy.segments,a.segments)
+        Eq(a.segments,frame.LiveValues.classPowerSnapshot.info.segments);Eq(b.segments,a.segments)
+        CheckLegacyProjection(legacy,a.segments)
         Eq(a.Bars[2].Countdown:GetText(),"5.0");assert(a:GetScript("OnUpdate"))
         for _,holder in ipairs({a,b})do
             assert(widgets[holder],"unexpected holder allocation")
@@ -196,7 +202,7 @@ Test("in-place source switch clears rune timing before aggregate Apply without r
     assert(M.SetDataSource(Context(),frame.config.segmentedBars[1].id,Runes()).ok)
     f.Class("DEATHKNIGHT");UF:Refresh(frame)
     Eq(a.Bars[2].Countdown,timer);assert(timer:IsShown() and a:GetScript("OnUpdate"))
-    Eq(a.segments,legacy.segments);Eq(timer:GetText(),"5.0")
+    CheckLegacyProjection(legacy,a.segments);Eq(timer:GetText(),"5.0")
     UnitPower,UnitPowerMax=api,max
 end)
 

@@ -889,7 +889,7 @@ function UF:RegisterPortraitEvents(frame)
     return RegisterPortraitEvents(frame)
 end
 
-function UF:ApplyConfig(frame)
+function UF:ApplyConfig(frame, classPowerHandoff)
     local config = frame.config
     if not config then
         return
@@ -1232,7 +1232,7 @@ function UF:ApplyConfig(frame)
 
     ApplyAlternativePowerLayout(frame, alternativePowerLayoutOptions)
 
-    ApplyClassPowerLayout(frame, {
+    local classPowerNeedsPresentation = ApplyClassPowerLayout(frame, {
         classPowerBarVisible = classPowerBarVisible,
         classPowerBarHeight = classPowerBarHeight,
         classPowerBarWidth = classPowerBarWidth,
@@ -1267,7 +1267,7 @@ function UF:ApplyConfig(frame)
         classPowerBorderG = classPowerBorderG,
         classPowerBorderB = classPowerBorderB,
         classPowerBorderA = classPowerBorderA,
-    })
+    }, classPowerHandoff, true)
     if FocalPoint.UnitFrameSegmentedBars then FocalPoint.UnitFrameSegmentedBars.Apply(frame) end
 
     if frame.Elements.CastBar then
@@ -1632,6 +1632,11 @@ function UF:ApplyConfig(frame)
         and FocalPoint.GUI.Editor.TextEditorOverlay
     if textEditorOverlay and textEditorOverlay.UpdateFrame then
         textEditorOverlay.UpdateFrame(frame)
+    end
+
+    -- Consume the same source handoff after all ApplyConfig geometry has settled.
+    if classPowerNeedsPresentation then
+        ClassPower.PresentReady(frame, classPowerHandoff)
     end
 
 end

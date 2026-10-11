@@ -481,13 +481,14 @@ local function GetClassPowerColor(info, fallbackR, fallbackG, fallbackB)
     return r, g, b
 end
 
--- Presentation-only baseline and event evidence; never a second rune provider.
+-- The source owns event evidence and qualification. Holders only present it.
 local StopSegmentHighlight = Renderer.StopHighlight
 local PlaySegmentHighlight = Renderer.PlayHighlight
+local SnapshotContext
 
 local function ResetHighlights(holder)
     if not holder then return end
-    holder._readyTransitions = nil
+    holder._readyConsumer = nil
     for _, bar in ipairs(holder.Bars or {}) do StopSegmentHighlight(bar) end
 end
 
@@ -495,145 +496,18 @@ local function ResolveSegmentGrowth(value)
     return value == "RIGHT_TO_LEFT" and "RIGHT_TO_LEFT" or "LEFT_TO_RIGHT"
 end
 
-local function GetHighlightContext(frame, holder)
-    local class, spec = GetPlayerClassToken(), GetSpecializationIndex()
-    local token, typeId = GetAggregateHighlightResource(class, spec)
-    if class == "DEATHKNIGHT" and CanReadRunes() then token, typeId = "RUNES", POWER_ID_RUNES end
-    if frame._fpUnit ~= "player" or not holder:IsVisible()
-        or not token or not typeId
-        or frame._classPowerPreviewInfo
-        or (Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame))
-        or FocalPoint.guiTestModeEnabled
-    then return nil end
-    local config = frame.config
-    if not config or config.classPowerBarPresent ~= true or config.showClassPowerBar ~= true then return nil end
-    local resolver = FocalPoint.ActiveLayoutResolver
-    local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
-    if not root then return nil end
-    return root, config, spec, FocalPoint.framesUnlocked == true, token, typeId, ResolveSegmentGrowth(config.classPowerBarGrowth)
-end
-
-local function MatchHighlightContext(frame, holder)
-    local root, config, spec, editor, token, typeId, growth = GetHighlightContext(frame, holder)
-    local state = holder._readyTransitions
-    if not root or (state and (state.root ~= root or state.config ~= config
-        or state.spec ~= spec or state.editor ~= editor or state.unit ~= frame._fpUnit
-        or state.class ~= GetPlayerClassToken() or state.token ~= token or state.typeId ~= typeId
-        or state.growth ~= growth)) then
-        ResetHighlights(holder)
-        state = nil
-    end
-    return state, root, config, spec, editor, token, typeId, growth
-end
-
-local function SameRuneSnapshot(previous, current)
-    for index = 1, RUNE_COUNT do
-        local a, b = previous[index], current[index]
-        if a.ready ~= b.ready then return false end
-        -- Compare the two existing snapshots, never secret timing or derived Safe values.
-        if issecretvalue and (issecretvalue(a.startTime) or issecretvalue(b.startTime)
-            or issecretvalue(a.duration) or issecretvalue(b.duration)) then return false end
-        if a.startTime ~= b.startTime or a.duration ~= b.duration then return false end
-    end
-    return true
-end
-
-local function ObserveReadySnapshot(frame, segments, max, qualified, current, gainValid, snapshotToken, snapshotType)
-    local holder = frame.Elements.ClassPowerBar
-    if not holder._highlightLifecycle then
-        holder._highlightLifecycle = true
-        holder:HookScript("OnHide", function() ResetHighlights(holder) end)
-        holder:HookScript("OnShow", function() ResetHighlights(holder) end)
-        for _, bar in ipairs(holder.Bars) do
-            bar:HookScript("OnHide", function() ResetHighlights(holder) end)
-        end
-    end
-    local state, root, config, spec, editor, token, typeId, growth = MatchHighlightContext(frame, holder)
-    if token and token ~= "RUNES" then
-        if not root or snapshotToken ~= token or snapshotType ~= typeId or gainValid ~= true or not IsPlainNumber(current) or not IsPlainNumber(max)
-            or current < 0 or current > max or max < 1 or max > #holder.Bars or max % 1 ~= 0 then
-            ResetHighlights(holder)
-            return
-        end
-        if state and state.max ~= max then ResetHighlights(holder); state = nil end
-        if not state then
-            state = { root = root, config = config, spec = spec, editor = editor,
-                unit = frame._fpUnit, class = GetPlayerClassToken(), token = token, typeId = typeId, growth = growth, max = max }
-            holder._readyTransitions = state
-        elseif qualified and state.powerEventObserved and current > state.current then
-            for index = math.floor(state.current) + 1, math.floor(current) do
-                PlaySegmentHighlight(holder.Bars[index])
-            end
-        end
-        state.powerEventObserved = false
-        state.current = current
-        for index = math.floor(current) + 1, #holder.Bars do StopSegmentHighlight(holder.Bars[index]) end
-        return
-    end
-    if not root or max ~= RUNE_COUNT or type(segments) ~= "table" or #segments ~= RUNE_COUNT then
-        ResetHighlights(holder)
-        return
-    end
-    for index = 1, RUNE_COUNT do
-        local segment = segments[index]
-        if type(segment) ~= "table" or segment.index ~= index
-            or (issecretvalue and issecretvalue(segment.ready)) or type(segment.ready) ~= "boolean" then
-            ResetHighlights(holder)
-            return
-        end
-    end
-    if not state then
-        state = { root = root, config = config, spec = spec, editor = editor,
-            unit = frame._fpUnit, class = "DEATHKNIGHT", token = token, typeId = typeId, growth = growth, runeEventObserved = false }
-        holder._readyTransitions = state
-    elseif qualified then
-        -- A new value refresh supersedes any unconsumed presentation intent.
-        state.pendingReady = nil
-        for index = 1, RUNE_COUNT do
-            if state.runeEventObserved and state.segments[index].ready == false and segments[index].ready then
-                state.pendingReady = state.pendingReady or {}
-                state.pendingReady[index] = true
-            end
-        end
-    else
-        -- ApplyLayout calls this only after every final anchor and timer update.
-        -- Consume once, and only against the matching snapshot/context. No new event.
-        local pending = state.pendingReady
-        state.pendingReady = nil
-        if pending and SameRuneSnapshot(state.segments, segments) then
-            -- The canonical snapshot is shared with rendering, so comparing it
-            -- with itself cannot detect a rune changing since qualification.
-            -- Only a pending DK flash needs this independent, post-anchor check.
-            -- It validates S1; it never publishes another source or transition.
-            local confirmation = GetRuneInfo()
-            if not confirmation or not SameRuneSnapshot(segments, confirmation.segments) then
-                ResetHighlights(holder)
-                return
-            end
-            for index = 1, RUNE_COUNT do
-                if pending[index] then PlaySegmentHighlight(holder.Bars[index]) end
-            end
-        end
-    end
-    -- Consume even an unchanged snapshot: never carry stale evidence forward.
-    state.runeEventObserved = false
-    for index = 1, RUNE_COUNT do
-        if not segments[index].ready then StopSegmentHighlight(holder.Bars[index]) end
-    end
-    state.segments = segments
-end
-
 local function ClearRuneTiming(frame)
     if not frame then return end
     frame._classPowerPreviewInfo = nil
     if frame.LiveValues then frame.LiveValues.classPowerSegments = nil end
     local holder = frame.Elements and frame.Elements.ClassPowerBar
+    if holder then holder._runeSlotBinding = nil end
     Renderer.ClearTiming(holder)
 end
 
 -- Context, not elapsed time or a queue token, validates render-only consumers.
 -- Every RefreshValues call publishes a fresh observation, including direct refreshes.
-local function SnapshotContext(frame)
+SnapshotContext = function(frame)
     local resolver = FocalPoint.ActiveLayoutResolver
     local editor = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
     local config = frame.config or {}
@@ -663,6 +537,183 @@ local function SameSnapshotContext(a, b)
     return true
 end
 
+-- This identity contains gameplay source boundaries, never growth, visibility or
+-- presentation style. An epoch changes when any of these boundaries changes.
+local SOURCE_FIELDS = { "unit", "root", "class", "spec", "mode", "selection", "scope",
+    "demo", "runeAPI", "powerAPI", "maxAPI", "source", "token", "typeId" }
+
+local function SourceKey(context, source, info)
+    return {
+        unit = context.unit, root = context.root, class = context.class, spec = context.spec,
+        mode = context.mode, selection = context.selection, scope = context.scope,
+        demo = context.demo, runeAPI = context.runeAPI, powerAPI = context.powerAPI,
+        maxAPI = context.maxAPI, source = source, token = info and info.token,
+        typeId = info and info.typeId,
+    }
+end
+
+local function SameSourceKey(a, b)
+    if not a or not b then return false end
+    for _, field in ipairs(SOURCE_FIELDS) do
+        if a[field] ~= b[field] then return false end
+    end
+    return true
+end
+
+local function ValidSourceInfo(info, source)
+    if source ~= "live" or type(info) ~= "table" then return false end
+    if info.token == "RUNES" then
+        if info.currentKnown ~= true or info.maxKnown ~= true
+            or info.max ~= RUNE_COUNT or type(info.segments) ~= "table" or #info.segments ~= RUNE_COUNT then return false end
+        for index = 1, RUNE_COUNT do
+            local segment = info.segments[index]
+            if type(segment) ~= "table" or segment.index ~= index
+                or (issecretvalue and (issecretvalue(segment.ready)
+                    or issecretvalue(segment.startTime) or issecretvalue(segment.duration)))
+                or type(segment.ready) ~= "boolean" then
+                return false
+            end
+            if (segment.startTime == nil) ~= (segment.duration == nil) then return false end
+            if segment.startTime ~= nil and (not IsPlainNumber(segment.startTime)
+                or not IsPlainNumber(segment.duration)
+                or segment.startTime < 0 or segment.duration < 0) then return false end
+        end
+        return true
+    end
+    return info.aggregateGainValid == true and info.currentKnown == true and info.maxKnown == true
+        and IsPlainNumber(info.current) and IsPlainNumber(info.max)
+        and info.current >= 0 and info.current <= info.max
+        and info.max >= 1 and info.max <= 10 and info.max % 1 == 0
+end
+
+local function PublishTransitions(frame, context, info, source)
+    local values = frame.LiveValues
+    local key = SourceKey(context, source, info)
+    local state = values.classPowerTransitionState
+    if not state or not SameSourceKey(state.key, key) then
+        state = { epoch = {}, revision = 0, nextId = 0, key = key }
+        values.classPowerTransitionState = state
+    end
+    state.revision = state.revision + 1
+    local transitions = {}
+    local valid = context.unit == "player" and context.root ~= nil and not context.demo
+        and not (Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame))
+        and ValidSourceInfo(info, source)
+    if valid and state.baseline and state.max == info.max and state.eventObserved then
+        if info.token == "RUNES" then
+            for index = 1, RUNE_COUNT do
+                if state.baseline[index].ready == false and info.segments[index].ready then
+                    state.nextId = state.nextId + 1
+                    transitions[#transitions + 1] = {
+                        id = { epoch = state.epoch, sequence = state.nextId },
+                        revision = state.revision, apiIndex = index,
+                    }
+                end
+            end
+        elseif info.current > state.baseline then
+            for index = math.floor(state.baseline) + 1, math.floor(info.current) do
+                state.nextId = state.nextId + 1
+                transitions[#transitions + 1] = {
+                    id = { epoch = state.epoch, sequence = state.nextId },
+                    revision = state.revision, apiIndex = index,
+                }
+            end
+        end
+    end
+    state.baseline = valid and (info.segments or info.current) or nil
+    state.max = valid and info.max or nil
+    state.eventObserved = false
+    return state.epoch, state.revision, transitions, valid
+end
+
+local function InvalidateSource(frame)
+    if frame.LiveValues then frame.LiveValues.classPowerTransitionState = nil end
+end
+
+local function StopSpentHighlights(holder, info)
+    if info.token == "RUNES" then
+        local binding = holder._runeSlotBinding
+        if not binding then
+            ResetHighlights(holder)
+            return
+        end
+        for apiIndex = 1, RUNE_COUNT do
+            local slot = binding.apiToSlot[apiIndex]
+            local bar = slot and holder.Bars[slot]
+            if bar and not info.segments[apiIndex].ready and not bar._visualRechargeFlashActive then
+                StopSegmentHighlight(bar)
+            end
+        end
+    else
+        for index = math.floor(info.current) + 1, #holder.Bars do
+            StopSegmentHighlight(holder.Bars[index])
+        end
+    end
+end
+
+-- A bars-only source refresh still stops an observed spent flash immediately.
+-- It never claims a transition or advances the consumer's play cursor.
+local function StopObservedHighlights(frame, epoch, info, valid)
+    local holder = frame.Elements and frame.Elements.ClassPowerBar
+    local consumer = holder and holder._readyConsumer
+    if not consumer then return end
+    if not valid or consumer.epoch ~= epoch or consumer.config ~= frame.config
+        or consumer.editor ~= (FocalPoint.framesUnlocked == true) then
+        ResetHighlights(holder)
+    else
+        StopSpentHighlights(holder, info)
+    end
+end
+
+local function ApplyReadyConsumer(frame, handoff)
+    local holder = frame.Elements.ClassPowerBar
+    if not holder._highlightLifecycle then
+        holder._highlightLifecycle = true
+        holder:HookScript("OnHide", function() ResetHighlights(holder) end)
+        holder:HookScript("OnShow", function() ResetHighlights(holder) end)
+        for _, bar in ipairs(holder.Bars) do
+            bar:HookScript("OnHide", function() ResetHighlights(holder) end)
+        end
+    end
+    local snapshot = frame.LiveValues and frame.LiveValues.classPowerSnapshot
+    local info = snapshot and snapshot.info
+    local config = frame.config
+    if not snapshot or snapshot.source ~= "live" or snapshot.sourceInfo ~= info
+        or not snapshot.context.root or FocalPoint.guiTestModeEnabled
+        or (Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame))
+        or frame._classPowerPreviewInfo
+        or not SameSnapshotContext(snapshot.context, SnapshotContext(frame))
+        or frame._fpUnit ~= "player" or not holder:IsVisible()
+        or not config or config.classPowerBarPresent ~= true or config.showClassPowerBar ~= true
+        or not ValidSourceInfo(info, snapshot.source) then
+        ResetHighlights(holder)
+        return
+    end
+    local state = holder._readyConsumer
+    if not state or state.epoch ~= snapshot.epoch or state.config ~= config
+        or state.editor ~= (FocalPoint.framesUnlocked == true) then
+        if state then ResetHighlights(holder) end
+        -- A newly bound consumer starts at the current revision; it never replays.
+        state = { epoch = snapshot.epoch, config = config,
+            editor = FocalPoint.framesUnlocked == true, lastRevision = snapshot.revision }
+        holder._readyConsumer = state
+    else
+        local newRevision = snapshot.revision > state.lastRevision
+        state.lastRevision = snapshot.revision
+        if info.token ~= "RUNES" and newRevision and handoff == snapshot
+            and #snapshot.readyTransitions > 0 then
+            for _, transition in ipairs(snapshot.readyTransitions) do
+                if transition.revision == snapshot.revision then
+                    PlaySegmentHighlight(holder.Bars[transition.apiIndex])
+                end
+            end
+        end
+    end
+    StopSpentHighlights(holder, info)
+end
+
+ClassPower.PresentReady = ApplyReadyConsumer
+
 -- Explicit first-apply/context-change initialization. A cached unavailable source
 -- is also a valid observation; repeated consumers must not retry its API.
 function ClassPower.GetSnapshotInfo(owner, frame)
@@ -682,12 +733,13 @@ function ClassPower.RefreshValues(owner, frame)
 
     local info, source = ClassPower.GetInfo(frame._fpUnit, frame)
     frame.LiveValues = frame.LiveValues or {}
-    ObserveReadySnapshot(frame, info and info.segments, info and info.max, true,
-        info and info.current, info and info.aggregateGainValid, info and info.token, info and info.typeId)
+    local context = SnapshotContext(frame)
+    local epoch, revision, readyTransitions, valid = PublishTransitions(frame, context, info, source or "unavailable")
 
     if not info or not info.segments then ClearRuneTiming(frame) end
     frame.LiveValues.classPowerSnapshot = {
-        context = SnapshotContext(frame), info = info, source = source or "unavailable",
+        context = context, info = info, source = source or "unavailable",
+        epoch = epoch, revision = revision, readyTransitions = readyTransitions,
         -- Synthetic values never become authoritative gameplay data.
         sourceInfo = source == "live" and info or nil,
         available = info ~= nil,
@@ -695,6 +747,7 @@ function ClassPower.RefreshValues(owner, frame)
         maxKnown = info ~= nil and info.maxKnown == true,
     }
     frame.LiveValues.classPowerSegments = info and info.segments or nil
+    StopObservedHighlights(frame, epoch, info, valid)
     if not info then
         frame.LiveValues.classPowerVisible = false
         frame.LiveValues.classPowerCurrentRaw = 0
@@ -727,7 +780,10 @@ end
 function ClassPower.Clear(frame, preserveSnapshot)
     if not frame then return end
     ResetHighlights(frame.Elements and frame.Elements.ClassPowerBar)
-    if frame.LiveValues and not preserveSnapshot then frame.LiveValues.classPowerSnapshot = nil end
+    if frame.LiveValues and not preserveSnapshot then
+        frame.LiveValues.classPowerSnapshot = nil
+        InvalidateSource(frame)
+    end
     ClearRuneTiming(frame)
 end
 
@@ -757,7 +813,41 @@ end
 -- Pure slot projection shared by rune consumers; API-index identity is unchanged.
 ClassPower.GetRuneVisualSlots = GetRuneVisualSlots
 
-function ClassPower.ApplyLayout(frame, options)
+-- Legacy DK only: the source stays API-indexed while the six widgets stay in
+-- fixed growth-order slots. This is a presentation view of one snapshot.
+local function ProjectRuneSlots(segments)
+    if type(segments) ~= "table" or #segments ~= RUNE_COUNT then return nil end
+    for apiIndex = 1, RUNE_COUNT do
+        local segment = segments[apiIndex]
+        if type(segment) ~= "table"
+            or (issecretvalue and (issecretvalue(segment.index) or issecretvalue(segment.ready)
+                or issecretvalue(segment.startTime) or issecretvalue(segment.duration)))
+            or segment.index ~= apiIndex
+            or type(segment.ready) ~= "boolean"
+            or (segment.startTime == nil) ~= (segment.duration == nil)
+            or (segment.startTime ~= nil and (not IsPlainNumber(segment.startTime)
+                or not IsPlainNumber(segment.duration)
+                or segment.startTime < 0 or segment.duration <= 0)) then
+            return nil
+        end
+    end
+    local apiToSlot = GetRuneVisualSlots(segments)
+    local slotToApi, segmentsBySlot, fixedSlots = {}, {}, {}
+    for apiIndex = 1, RUNE_COUNT do
+        local slot = apiToSlot and apiToSlot[apiIndex]
+        if type(slot) ~= "number" or slot % 1 ~= 0 or slot < 1 or slot > RUNE_COUNT
+            or slotToApi[slot] then return nil end
+        slotToApi[slot] = apiIndex
+        segmentsBySlot[slot] = segments[apiIndex]
+        fixedSlots[slot] = slot
+    end
+    for slot = 1, RUNE_COUNT do
+        if not slotToApi[slot] then return nil end
+    end
+    return apiToSlot, slotToApi, segmentsBySlot, fixedSlots
+end
+
+function ClassPower.ApplyLayout(frame, options, handoff, deferReadyConsumer)
     if not frame or not frame.Elements or not frame.Elements.ClassPowerBar then
         return
     end
@@ -810,6 +900,59 @@ function ClassPower.ApplyLayout(frame, options)
         )
     end
 
+    local snapshot = frame.LiveValues and frame.LiveValues.classPowerSnapshot
+    local runeLayout = frame._fpUnit == "player" and snapshot and snapshot.context
+        and snapshot.context.class == "DEATHKNIGHT" and options.liveClassPowerToken == "RUNES"
+    local visualSlots
+    local segments = options.liveClassPowerSegments
+    local slotToApi, apiToSlot
+    if runeLayout then
+        if snapshot.available ~= true or (snapshot.source ~= "live" and snapshot.source ~= "preview")
+            or (snapshot.source == "live" and (snapshot.sourceInfo ~= snapshot.info
+                or not ValidSourceInfo(snapshot.info, snapshot.source)))
+            or type(snapshot.info) ~= "table" or snapshot.info.segments ~= segments
+            or snapshot.info.max ~= RUNE_COUNT or maxValue ~= RUNE_COUNT then
+            ClassPower.Clear(frame, true)
+            holder:Hide()
+            for _, bar in ipairs(bars) do bar:Hide() end
+            return
+        end
+        local fixedSlots, projected
+        apiToSlot, slotToApi, projected, fixedSlots = ProjectRuneSlots(segments)
+        if not apiToSlot then
+            ClassPower.Clear(frame, true)
+            holder:Hide()
+            for _, bar in ipairs(bars) do bar:Hide() end
+            return
+        end
+        visualSlots, segments = fixedSlots, projected
+        local previous = holder._runeSlotBinding
+        local rebound = holder.segments ~= nil and not previous
+        if previous then
+            for slot = 1, RUNE_COUNT do
+                if previous.slotToApi[slot] ~= slotToApi[slot] then
+                    StopSegmentHighlight(bars[slot])
+                    rebound = true
+                end
+            end
+        end
+        if rebound then Renderer.ClearTiming(holder) end
+    else
+        visualSlots = GetRuneVisualSlots(segments)
+    end
+    -- A binding is published only after the renderer has painted its slot data.
+    holder._runeSlotBinding = nil
+    local legacyRuneVisualFlash = frame._fpUnit == "player" and snapshot
+        and snapshot.source == "live" and snapshot.sourceInfo == snapshot.info
+        and snapshot.context and snapshot.context.class == "DEATHKNIGHT"
+        and snapshot.context.root and not snapshot.context.demo and not snapshot.context.selection
+        and snapshot.info and snapshot.info.token == "RUNES" and snapshot.info.max == RUNE_COUNT
+        and snapshot.info.segments == options.liveClassPowerSegments
+        and FocalPoint.guiTestModeEnabled ~= true and not frame._classPowerPreviewInfo
+        and not (Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame))
+        and not (VisualPolicy.IsSelectionPreview and VisualPolicy.IsSelectionPreview(frame, {
+            kind = "bar", unit = "player", objectKey = "ClassPowerBar",
+        }))
     Renderer.Apply(holder, {
         width = width, height = height, spacing = spacing,
         rightToLeft = rightToLeft,
@@ -819,8 +962,10 @@ function ClassPower.ApplyLayout(frame, options)
         x = tonumber(options.classPowerBarOffsetX) or -5,
         y = tonumber(options.classPowerBarOffsetY) or 5,
         max = maxValue, current = currentValue,
-        visualSlots = GetRuneVisualSlots(options.liveClassPowerSegments),
-        segments = options.liveClassPowerSegments,
+        visualSlots = visualSlots,
+        legacyRuneVisualFlash = legacyRuneVisualFlash == true,
+        legacyRuneFlashEpoch = legacyRuneVisualFlash and snapshot.epoch or nil,
+        segments = segments,
         texture = options.classPowerTexture,
         r = r, g = g, b = b,
         a = isPlaceholder and (placeholderColors.barA or 0.62) or (options.classPowerA or 1),
@@ -837,10 +982,15 @@ function ClassPower.ApplyLayout(frame, options)
         timerFontSize = options.classPowerRuneTimerFontSize,
         timerFontStyle = options.classPowerRuneTimerFontStyle,
     })
-    -- Render-only snapshots may consume a matching qualified intent after reanchor;
-    -- they never independently qualify a transition.
-    ObserveReadySnapshot(frame, options.liveClassPowerSegments, options.liveClassPowerMax, false,
-        options.liveClassPowerCurrent, options.liveClassPowerGainValid, options.liveClassPowerToken, options.liveClassPowerType)
+    if runeLayout then
+        holder._runeSlotBinding = {
+            snapshot = snapshot, apiToSlot = apiToSlot, slotToApi = slotToApi,
+        }
+    end
+    if deferReadyConsumer then
+        return true
+    end
+    ApplyReadyConsumer(frame, handoff)
 end
 
 function ClassPower.RegisterEvents(owner, frame)
@@ -891,24 +1041,26 @@ function ClassPower.RegisterEvents(owner, frame)
         end
 
         local holder = currentOwner.Elements and currentOwner.Elements.ClassPowerBar
-        if holder then
-            local transition, _, _, _, _, token = MatchHighlightContext(currentOwner, holder)
-            if event == "RUNE_POWER_UPDATE" then
-                -- Payload may be secret. The event invalidates the six-rune snapshot;
-                -- only its subsequent canonical false -> true comparison can flash.
-                if transition then
-                    transition.runeEventObserved = true
-                end
-            elseif event == "UNIT_POWER_UPDATE" and token and token ~= "RUNES" then
-                if not readableUnit or (issecretvalue and issecretvalue(powerToken))
-                    or type(unit) ~= "string" or type(powerToken) ~= "string" then
-                    ResetHighlights(holder)
-                elseif unit == "player" and powerToken == token and transition then
-                    transition.powerEventObserved = true
-                end
-            elseif not isUnitEvent or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
+        local values = currentOwner.LiveValues
+        local snapshot = values and values.classPowerSnapshot
+        local state = values and values.classPowerTransitionState
+        local valid = snapshot and state and snapshot.epoch == state.epoch
+            and state.baseline and snapshot.source == "live"
+            and SameSourceKey(state.key, SourceKey(SnapshotContext(currentOwner), snapshot.source, snapshot.info))
+        if event == "RUNE_POWER_UPDATE" then
+            -- The payload may be secret; only the event and later S1 comparison matter.
+            if valid and state.key.token == "RUNES" then state.eventObserved = true end
+        elseif event == "UNIT_POWER_UPDATE" and valid and state.key.token ~= "RUNES" then
+            if not readableUnit or (issecretvalue and issecretvalue(powerToken))
+                or type(unit) ~= "string" or type(powerToken) ~= "string" then
+                InvalidateSource(currentOwner)
                 ResetHighlights(holder)
+            elseif unit == "player" and powerToken == state.key.token then
+                state.eventObserved = true
             end
+        elseif not isUnitEvent or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
+            InvalidateSource(currentOwner)
+            ResetHighlights(holder)
         end
 
         if State.QueueRefresh then
@@ -918,7 +1070,7 @@ function ClassPower.RegisterEvents(owner, frame)
                 owner:RefreshUnitBarValues(currentOwner)
             end
             if owner.ApplyConfig then
-                owner:ApplyConfig(currentOwner)
+                owner:ApplyConfig(currentOwner, currentOwner.LiveValues and currentOwner.LiveValues.classPowerSnapshot)
             end
             if owner.RefreshLiveValues then
                 owner:RefreshLiveValues(currentOwner)
