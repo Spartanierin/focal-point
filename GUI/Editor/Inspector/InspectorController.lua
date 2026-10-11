@@ -498,18 +498,14 @@ function InspectorController.Build(container, state, options)
         ["0.3"] = L["OPTION_LOW_HEALTH_THRESHOLD_30"] or "30%",
     }
 
-    local function IsValidLowHealthThresholdValue(value)
+    local function GetValidLowHealthThresholdValueString(value)
         if value == 1 then
             value = "1.0"
         elseif type(value) ~= "string" then
             value = tostring(value)
         end
 
-        return lowHealthThresholdList[value] ~= nil
-    end
-
-    local function GetValidLowHealthThresholdValueString(value)
-        if IsValidLowHealthThresholdValue(value) then
+        if lowHealthThresholdList[value] ~= nil then
             return tostring(value)
         end
         return "1.0"
