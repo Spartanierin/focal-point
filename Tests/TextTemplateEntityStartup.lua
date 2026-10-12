@@ -74,6 +74,34 @@ for _,name in ipairs({"OnProfileChanged","OnProfileCopied","OnProfileReset"})do
     ns.db.callbacks:Fire(name,ns.db);assert(count==1 and Equal(before,ns.db.global))
 end
 result=Start(nil);assert(result.ok and ns.entityStartupReady and calls.StartTagTicker==1)
+local freshBackup=Copy(FocalPointDB.global.TextTemplateEntityMigrationBackup)
+local freshMarker=Copy(FocalPointDB.global.TextTemplateEntityMigration)
+for reload=1,4 do
+    local aceDB=LibStub("AceDB-3.0")
+    -- Earlier Start calls in this harness leave obsolete DBObjects registered.
+    aceDB.db_registry=setmetatable({[ns.db]=true},{__mode="k"})
+    aceDB.frame.scripts.OnEvent(aceDB.frame,"PLAYER_LOGOUT")
+    assert(FocalPointDB.global.UserLayouts==nil,"AceDB did not elide empty layouts")
+    assert(next(FocalPointDB.global.TextTemplates)==nil)
+    local saved=Copy(FocalPointDB) -- Simulated SavedVariables round trip, no file I/O.
+    result=Start(saved)
+    assert(result.ok and result.changed==false and ns.entityStartupReady)
+    assert(calls.StartTagTicker==1 and calls.SpawnUnitFrame==11)
+    assert(Equal(FocalPointDB.global.TextTemplateEntityMigrationBackup,freshBackup))
+    assert(Equal(FocalPointDB.global.TextTemplateEntityMigration,freshMarker))
+    assert(next(FocalPointDB.global.UserLayouts)==nil)
+end
+local legacyForLogout=LegacyDB()
+legacyForLogout.char=nil -- The legacy fixture otherwise uses a direct, non-AceDB char shape.
+result=Start(legacyForLogout);assert(result.ok and ns.entityStartupReady)
+local nonemptyBackup=Copy(FocalPointDB.global.TextTemplateEntityMigrationBackup)
+local aceDB=LibStub("AceDB-3.0")
+aceDB.db_registry=setmetatable({[ns.db]=true},{__mode="k"})
+aceDB.frame.scripts.OnEvent(aceDB.frame,"PLAYER_LOGOUT")
+assert(next(FocalPointDB.global.UserLayouts)~=nil)
+result=Start(Copy(FocalPointDB))
+assert(result.ok and result.changed==false and ns.entityStartupReady)
+assert(Equal(FocalPointDB.global.TextTemplateEntityMigrationBackup,nonemptyBackup))
 result=Start({global={UserLayouts=false}})
 assert(not result.ok and ns.entityStartupReady==false and calls.error==1)
 assert(calls.Init==nil and calls.automation==nil and calls.SpawnUnitFrame==nil and calls.StartTagTicker==nil)

@@ -310,6 +310,38 @@ local function ValidateTarget(global)
     return ValidatePreparedLayouts(rawget(global, 'UserLayouts'), records, state)
 end
 
+local function IsElidedEmptyTarget(raw, global, backup)
+    if rawget(global, 'UserLayouts') ~= nil
+        or not IsPlain(rawget(global, 'TextTemplates'))
+        or next(rawget(global, 'TextTemplates')) ~= nil
+        or rawget(global, 'TextTemplateIdState') ~= nil
+    then
+        return false
+    end
+    local originalLayouts = rawget(rawget(backup.savedVariables, 'global'), 'UserLayouts')
+    if not IsPlain(originalLayouts) or next(originalLayouts) ~= nil then return false end
+    for key in pairs(global) do
+        if key ~= 'TextTemplates' and key ~= MARKER_KEY and key ~= BACKUP_KEY then
+            return false
+        end
+    end
+    local characters = rawget(raw, 'char')
+    if characters ~= nil then
+        if not IsPlain(characters) then return false end
+        for _, character in pairs(characters) do
+            if not IsPlain(character)
+                or (rawget(character, 'activeLayoutId') ~= nil
+                    and rawget(character, 'activeLayoutId') ~= 'builtin:default')
+                or (rawget(character, 'LayoutAssignments') ~= nil
+                    and not IsEmptyValue(rawget(character, 'LayoutAssignments')))
+            then
+                return false
+            end
+        end
+    end
+    return true
+end
+
 local function IsAceDBFreshIntermediate(raw, proof)
     if type(proof) ~= 'table' or PreAceDBStartProofs[proof] ~= true
         or type(raw) ~= 'table' or rawget(raw, 'global') ~= nil
@@ -360,7 +392,13 @@ local function ClassifyRaw(raw, preAceDBStartProof)
             end
             local backupOk, backupCode = ValidateBackup(backup)
             if not backupOk then return Error(backupCode) end
-            local ok, code = ValidateTarget(global)
+            local target = global
+            if IsElidedEmptyTarget(raw, global, backup) then
+                -- AceDB removes the empty UserLayouts global default on logout.
+                -- Validate an ephemeral view; never repair SavedVariables here.
+                target = {UserLayouts = {}, TextTemplates = rawget(global, 'TextTemplates')}
+            end
+            local ok, code = ValidateTarget(target)
             if not ok then return Error('marker-data-inconsistent', {detailCode = code}) end
             return {ok = true, classification = 'complete', marker = marker}
         end

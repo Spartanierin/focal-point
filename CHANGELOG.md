@@ -10,6 +10,12 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.6a
+
+### Fixed
+
+* Fixed startup after a fresh start and /reload when AceDB removes the empty UserLayouts default. Existing layouts and text entity validation remain protected.
+
 ## 2.2.6
 
 ### Added

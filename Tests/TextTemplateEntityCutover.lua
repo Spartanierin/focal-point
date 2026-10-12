@@ -375,6 +375,99 @@ Test('valid marker is idempotent and does not create IDs or rewrite backup', fun
     assert(Equal(db.global.TextTemplates, beforeRecords))
 end)
 
+local function ElidedEmptyDB()
+    local db = {}
+    Ok(cutover.Prepare(db, {generator = Generator()}))
+    assert(next(db.global.UserLayouts) == nil)
+    db.global.UserLayouts = nil -- AceDB removes this empty global default on logout.
+    return db
+end
+
+Test('complete empty target accepts only the AceDB-elided default without mutation', function()
+    local db = ElidedEmptyDB()
+    db.char = {['Test - Realm'] = {activeLayoutId = 'builtin:default'}}
+    local before = Copy(db)
+    local result = Ok(cutover.Prepare(db))
+    assert(result.changed == false and result.classification == 'complete')
+    assert(Equal(db, before) and db.global.UserLayouts == nil)
+    Ok(cutover.Prepare(db))
+    assert(Equal(db, before))
+
+    db.global.UserLayouts = {}
+    local explicit = Copy(db)
+    assert(Ok(cutover.Prepare(db)).changed == false)
+    assert(Equal(db, explicit))
+end)
+
+Test('elided target remains fail-closed for data and layout references', function()
+    local db = ElidedEmptyDB()
+    db.global.TextTemplates = false
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-template-store')
+
+    db = ElidedEmptyDB()
+    db.global.TextTemplateIdState = {namespace = 'invalid'}
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-id-state')
+
+    db = ElidedEmptyDB()
+    db.global.TextTemplates[Id(9)] = {name = '', content = 'invalid'}
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-template-record')
+
+    db = ElidedEmptyDB()
+    db.global.TextTemplates['bad-id'] = {name = 'Invalid', content = 'invalid'}
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-user-template-id')
+
+    db = ElidedEmptyDB()
+    db.global.defaultLayoutId = 'layout:A:001'
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-store')
+
+    db = ElidedEmptyDB()
+    db.char = {['Test - Realm'] = {activeLayoutId = 'layout:A:001'}}
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-store')
+
+    db = ElidedEmptyDB()
+    db.char = {['Test - Realm'] = {LayoutAssignments = {
+        specialization = {[1] = 'layout:A:001'},
+    }}}
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-store')
+
+    db = LegacyDB()
+    Ok(cutover.Prepare(db, {generator = Generator()}))
+    db.global.UserLayouts = nil
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-store')
+end)
+
+Test('complete target retains marker, backup, layout and entity guards', function()
+    local db = LegacyDB()
+    Ok(cutover.Prepare(db, {generator = Generator()}))
+    Ok(cutover.Prepare(db)) -- A valid nonempty target remains accepted.
+
+    db.global.UserLayouts = false
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-store')
+
+    db = LegacyDB()
+    Ok(cutover.Prepare(db, {generator = Generator()}))
+    db.global.UserLayouts['layout:A:001'].name = nil
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-envelope')
+
+    db = LegacyDB()
+    Ok(cutover.Prepare(db, {generator = Generator()}))
+    db.global.UserLayouts['layout:A:001'].formatVersion = 1
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-layout-envelope')
+
+    db = LegacyDB()
+    Ok(cutover.Prepare(db, {generator = Generator()}))
+    db.global.UserLayouts['layout:A:001'].payload.Units.player.Texts.Health.templateId = Id(999)
+    assert(Fails(db, 'marker-data-inconsistent').detailCode == 'invalid-entity-graph')
+
+    db = ElidedEmptyDB()
+    db.global.TextTemplateEntityMigration.complete = false
+    Fails(db, 'invalid-marker')
+
+    db = ElidedEmptyDB()
+    db.global.TextTemplateEntityMigrationBackup.version = 99
+    Fails(db, 'invalid-backup')
+end)
+
 Test('legacy plus valid E1 store is accepted, entity without marker is rejected', function()
     local db = EntityDB()
     Fails(db, 'entity-without-marker')
