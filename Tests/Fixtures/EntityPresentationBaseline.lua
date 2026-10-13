@@ -17,6 +17,11 @@ return function(ns, layout, preset)
     copy.Units.player.classPowerRuneTimerFont = nil
     copy.Units.player.classPowerRuneTimerFontSize = nil
     copy.Units.player.classPowerRuneTimerFontStyle = nil
+    -- Low health color threshold also postdates this fingerprint.
+    for _, unit in pairs(copy.Units) do
+        assert(unit.lowHealthColorThreshold == nil or unit.lowHealthColorThreshold == 1.0, "built-in low health threshold changed")
+        unit.lowHealthColorThreshold = nil
+    end
     local function merge(a,b)
         for k,v in pairs(b or {}) do
             if type(v)=="table" then a[k]=a[k] or {};merge(a[k],v) else a[k]=v end
