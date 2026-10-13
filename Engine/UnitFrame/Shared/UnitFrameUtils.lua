@@ -6,6 +6,17 @@ local Utils = FocalPoint.UnitFrameUtils
 -- Utility helpers shared by the unit-frame runtime.
 -- Keep this file focused on pure value conversion and safe API handling.
 
+function Utils.NormalizeLowHealthColorThreshold(unitConfig)
+    if unitConfig and unitConfig.lowHealthColorThreshold then
+        local threshold = tonumber(unitConfig.lowHealthColorThreshold)
+        if threshold == nil or threshold ~= threshold or threshold > 1 or threshold < 0 then
+            return 1.0
+        end
+        return threshold
+    end
+    return 1.0
+end
+
 function Utils.NormalizeConfigUnitKey(unit)
     if type(unit) ~= "string" or unit == "" then
         return unit

@@ -498,15 +498,12 @@ function InspectorController.Build(container, state, options)
         ["0.3"] = L["OPTION_LOW_HEALTH_THRESHOLD_30"] or "30%",
     }
 
-    local function GetValidLowHealthThresholdValueString(value)
-        if value == 1 then
-            value = "1.0"
-        elseif type(value) ~= "string" then
-            value = tostring(value)
-        end
+    local function GetValidLowHealthThresholdValueString(config)
+        local normalized = ns.UnitFrameUtils.NormalizeLowHealthColorThreshold(config)
+        local stringified = tostring(normalized)
 
-        if lowHealthThresholdList[value] ~= nil then
-            return tostring(value)
+        if lowHealthThresholdList[stringified] ~= nil then
+            return stringified
         end
         return "1.0"
     end
@@ -2927,7 +2924,7 @@ function InspectorController.Build(container, state, options)
             })
 
             if isExpert and unitConfig.useLowHealthColor ~= false then
-                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig.lowHealthColorThreshold)
+                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
                 AddPropertyDropdownRow(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", {
                     list = lowHealthThresholdList,
                     value = thresholdValueString,
@@ -2946,7 +2943,7 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.useLowHealthColor == false)
 
             if isExpert and unitConfig.useLowHealthColor ~= false then
-                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig.lowHealthColorThreshold)
+                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
                 AddDropdown(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", lowHealthThresholdList, thresholdValueString, function(value)
                     SetUnitField("lowHealthColorThreshold", tonumber(value))
                 end, unitConfig.useLowHealthColor == false)
