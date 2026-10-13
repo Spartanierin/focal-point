@@ -145,6 +145,38 @@ Test("channels/empower never flash and new channel/empower cancels tail",functio
         e("UNIT_SPELLCAST_FAILED","target",77);assert(not b.endFlash)
     end
 end)
+Test("channel IDs use return 11: secret timing reuses only the matching channel, not equal empower stages",function()
+    local originalChannelInfo,originalChannelDuration=UnitChannelInfo,UnitChannelDuration
+    for _,sameID in ipairs({false,true})do
+        local f,b=Fixture();live=nil;channel=101
+        local opaqueTimes=false
+        UnitChannelInfo=function(unit)
+            assert(unit==f._fpUnit)
+            return "Channel",nil,123,opaqueTimes and secret or 1000,opaqueTimes and secret or 3000,
+                false,false,secret,false,0,channel
+        end
+        -- The native duration object is not a readable numeric duration.
+        UnitChannelDuration=function()return {}end
+        R.Refresh(owner,f)
+        assert(b.isChannel and b.startTime==1 and b.endTime==3)
+        now=10;opaqueTimes=true;channel=sameID and 101 or 202
+        local isChannel,startTime,endTime,_,_,castID=C.GetActiveTiming(f._fpUnit,b,false)
+        if sameID then
+            assert(startTime==1 and endTime==3,"same channel must retain its known timing")
+        else
+            assert(startTime==nil and endTime==nil,"different channel must not reuse the old timing")
+        end
+        assert(isChannel and castID==channel,"channel identity must be return 11, not numEmpowerStages")
+        R.Refresh(owner,f)
+        assert(b.castID==channel and b.isChannel and not b.EndFlash)
+        if sameID then
+            assert(b.startTime==1 and b.endTime==3)
+        else
+            assert(b.startTime~=1 and b.endTime~=3,"runtime must not inherit the previous channel clock")
+        end
+    end
+    UnitChannelInfo,UnitChannelDuration=originalChannelInfo,originalChannelDuration
+end)
 Test("Hide/UnitWatch, clear, layout, presence, config, unit, spec, preview and demo discard tail",function()
     local actions={
         function(f,b,e)f:Hide()end,

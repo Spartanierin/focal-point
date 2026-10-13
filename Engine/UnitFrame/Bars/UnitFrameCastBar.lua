@@ -419,7 +419,7 @@ function CastBar.GetActiveTiming(unit, castBar, allowEstimatedTiming)
     end
 
     if UnitChannelInfo then
-        local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible, _, _, castID = UnitChannelInfo(unit)
+        local channelName, _, channelIcon, startTimeMS, endTimeMS, _, notInterruptible, _, _, _, castID = UnitChannelInfo(unit)
         if type(channelName) == "string" then
             local interruptState = ResolveInterruptState(notInterruptible)
             if type(startTimeMS) == "number"

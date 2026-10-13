@@ -10,6 +10,16 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.6b
+
+### Changed
+
+* Updated the Retail interface metadata for WoW 12.1.5 (120105), retaining Forever (16001). Native Retail 12.1.5 validation is still pending.
+
+### Fixed
+
+* Corrected the channel ID read from UnitChannelInfo so consecutive channels with different IDs do not incorrectly reuse the previous channel's timing when new timing values are unavailable.
+
 ## 2.2.6a
 
 ### Fixed
