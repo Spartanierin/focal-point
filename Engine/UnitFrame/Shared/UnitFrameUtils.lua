@@ -9,12 +9,12 @@ local Utils = FocalPoint.UnitFrameUtils
 function Utils.NormalizeLowHealthColorThreshold(unitConfig)
     if unitConfig and unitConfig.lowHealthColorThreshold then
         local threshold = tonumber(unitConfig.lowHealthColorThreshold)
-        if threshold == nil or threshold ~= threshold or threshold > 1 or threshold < 0 then
-            return 1.0
+        if threshold == nil or threshold ~= threshold or threshold >= 1 or threshold <= 0 then
+            return 1
         end
         return threshold
     end
-    return 1.0
+    return 1
 end
 
 function Utils.NormalizeConfigUnitKey(unit)

@@ -492,7 +492,7 @@ function InspectorController.Build(container, state, options)
         RIGHT_TO_LEFT = L["OPTION_RIGHT_TO_LEFT"] or "Right to Left",
     }
     local lowHealthThresholdList = {
-        ["1.0"] = L["OPTION_LOW_HEALTH_THRESHOLD_100"] or "100%",
+        ["1"] = L["OPTION_LOW_HEALTH_THRESHOLD_100"] or "100%",
         ["0.75"] = L["OPTION_LOW_HEALTH_THRESHOLD_75"] or "75%",
         ["0.5"] = L["OPTION_LOW_HEALTH_THRESHOLD_50"] or "50%",
         ["0.3"] = L["OPTION_LOW_HEALTH_THRESHOLD_30"] or "30%",
@@ -505,7 +505,8 @@ function InspectorController.Build(container, state, options)
         if lowHealthThresholdList[stringified] ~= nil then
             return stringified
         end
-        return "1.0"
+        lowHealthThresholdList[stringified] = tostring(math.floor(normalized * 100)) .. "%"
+        return stringified
     end
 
     local function BuildDecorationTextureOptions(currentValue)
