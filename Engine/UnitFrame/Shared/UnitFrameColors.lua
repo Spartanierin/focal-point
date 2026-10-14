@@ -429,7 +429,7 @@ function Colors.GetResolvedHealthBarColor(frame, config, currentHealth, maxHealt
             local curvePointTwo = 0.3 * lowHealthColorThreshold
             local curvePointThree = 0.75 * lowHealthColorThreshold
             local curvePointFour = lowHealthColorThreshold
-            
+
             if curve.SetType and Enum and Enum.LuaCurveType and Enum.LuaCurveType.Linear then
                 curve:SetType(Enum.LuaCurveType.Linear)
             end
