@@ -8,6 +8,9 @@ fixture=fixture:gsub('"GUI/Editor/SidebarShared.lua",', '"GUI/Helpers/OptionPath
     '"GUI/Editor/Inspector/InspectorMutations.lua","GUI/Editor/Inspector/InspectorRefreshPolicy.lua","GUI/Editor/SidebarShared.lua",',1)
 local ns,Setup,Add,Context,M,Copy,Equal,ui,state,selection,tree,Select,Nodes,BuildInspector=assert(load(fixture..
     "\nreturn ns,Setup,Add,Context,M,Copy,Equal,ui,state,selection,tree,Select,Nodes,BuildInspector","@BarBorderInspector/Fixture"))()
+local getUnitsDB,getUnitDB=ns.UnitFrameUtils.GetUnitsDB,ns.UnitFrameUtils.GetUnitDB
+assert(loadfile("Engine/UnitFrame/Shared/UnitFrameUtils.lua"))("FocalPoint",ns)
+ns.UnitFrameUtils.GetUnitsDB,ns.UnitFrameUtils.GetUnitDB=getUnitsDB,getUnitDB
 local cases={
     {"healthBar","healthbar"},
     {"powerBar","powerbar","showPowerBar"},
