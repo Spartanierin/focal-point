@@ -335,6 +335,7 @@ local SEGMENT_GEOMETRY_FIELDS = {width=true,height=true,anchorTo=true,point=true
     relativePoint=true,offsetX=true,offsetY=true}
 
 local SEGMENT_STYLE_FIELDS = {texture=true,color=true,useBlizzardColor=true,background=true,backgroundColor=true,spacing=true,growth=true,
+    borderWidth=true,borderColor=true,
     runeTimerFont=true,runeTimerFontSize=true,runeTimerFontStyle=true}
 
 local function MutateSegments(context, operation, id, value)

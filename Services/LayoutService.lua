@@ -75,7 +75,8 @@ local SEGMENT_POINTS = {TOPLEFT=true,TOP=true,TOPRIGHT=true,LEFT=true,CENTER=tru
     BOTTOMLEFT=true,BOTTOM=true,BOTTOMRIGHT=true}
 local SEGMENT_FIELDS = {id=true,enabled=true,dataSource=true,anchorTo=true,point=true,relativePoint=true,
     offsetX=true,offsetY=true,width=true,height=true,spacing=true,growth=true,color=true,useBlizzardColor=true,
-    texture=true,background=true,backgroundColor=true,runeTimerFont=true,runeTimerFontSize=true,runeTimerFontStyle=true}
+    texture=true,background=true,backgroundColor=true,borderWidth=true,borderColor=true,
+    runeTimerFont=true,runeTimerFontSize=true,runeTimerFontStyle=true}
 local function SegmentError(path, reason)
     return false, "segmented-bars-invalid: " .. path .. ": " .. reason
 end
@@ -85,6 +86,85 @@ local function SegmentNumber(value, low, high)
 end
 local function SegmentId(value)
     return type(value) == "string" and #value <= 78 and value:match("^segmented%-bar%-%w[%w_%-]*$") ~= nil
+end
+
+-- Optional Border v1 data only. Missing width is off; shipped defaults and
+-- historical presence evidence stay unchanged. Segment borders mean the holder.
+local BAR_BORDER_PREFIXES = {"healthBar", "powerBar", "alternativePowerBar", "classPowerBar",
+    "castBar", "normalAbsorbBar", "healingAbsorbBar"}
+local BAR_BORDER_FIELDS = {}
+for _, prefix in ipairs(BAR_BORDER_PREFIXES) do
+    BAR_BORDER_FIELDS[prefix .. "BorderWidth"] = "width"
+    BAR_BORDER_FIELDS[prefix .. "BorderColor"] = "color"
+end
+local BORDER_CHANNELS = {"r", "g", "b", "a"}
+local function BorderChannel(color, index, allowNamedColor)
+    if allowNamedColor and color[BORDER_CHANNELS[index]] ~= nil then
+        return color[BORDER_CHANNELS[index]]
+    end
+    return color[index]
+end
+
+function LayoutService.ValidateBarBorder(width, color, allowNamedColor)
+    if width ~= nil and (not SegmentNumber(width, 0, 5) or width % 1 ~= 0) then
+        return false, "invalid-width"
+    end
+    if color ~= nil then
+        if not PlainTable(color) then return false, "expected-rgba" end
+        for key, value in pairs(color) do
+            local arrayKey = SegmentNumber(key, 1, 4) and key % 1 == 0
+            local namedKey = allowNamedColor and (key == "r" or key == "g" or key == "b" or key == "a")
+            if not (arrayKey or namedKey) then return false, "expected-rgba" end
+            if not SegmentNumber(value, 0, 1) then return false, "invalid-channel" end
+        end
+        for index = 1, 4 do
+            if not SegmentNumber(BorderChannel(color, index, allowNamedColor), 0, 1) then
+                return false, "invalid-channel"
+            end
+        end
+    end
+    return true
+end
+
+-- Pure resolution, never a write-back or repair of stored data. Classic colors
+-- accept named editor channels; instance colors use their existing RGBA arrays.
+function LayoutService.ResolveBarBorder(width, color, allowNamedColor)
+    local valid, reason = LayoutService.ValidateBarBorder(width, color, allowNamedColor)
+    if not valid then return nil, reason end
+    local rgba = {0, 0, 0, 1}
+    if color then
+        for index = 1, 4 do rgba[index] = BorderChannel(color, index, allowNamedColor) end
+    end
+    return width or 0, rgba
+end
+
+function LayoutService.ValidateUnitBarBorderField(field, value)
+    local kind = BAR_BORDER_FIELDS[field]
+    if not kind then return true end
+    local valid, reason
+    if kind == "width" then valid, reason = LayoutService.ValidateBarBorder(value, nil, true)
+    else valid, reason = LayoutService.ValidateBarBorder(nil, value, true) end
+    if not valid then return false, "bar-border-invalid: " .. field .. ": " .. reason end
+    return true, nil, true
+end
+
+function LayoutService.ValidateUnitBarBorders(config)
+    if type(config) ~= "table" then return true end -- Unit shape belongs to the existing validator.
+    for field in pairs(BAR_BORDER_FIELDS) do
+        local valid, reason = LayoutService.ValidateUnitBarBorderField(field, config[field])
+        if not valid then return false, reason end
+    end
+    return true
+end
+
+function LayoutService.ValidateBarBorderPayload(payload)
+    local units = type(payload) == "table" and payload.Units
+    if type(units) ~= "table" then return true end
+    for unitKey, config in pairs(units) do
+        local valid, reason = LayoutService.ValidateUnitBarBorders(config)
+        if not valid then return false, "Units." .. tostring(unitKey) .. ": " .. reason end
+    end
+    return true
 end
 
 function LayoutService.ValidateSegmentedBars(collection, unitKey, path)
@@ -109,6 +189,8 @@ function LayoutService.ValidateSegmentedBars(collection, unitKey, path)
         for key in pairs(record) do
             if not SEGMENT_FIELDS[key] then return SegmentError(at, "unknown-field") end
         end
+        local borderValid, borderReason = LayoutService.ValidateBarBorder(record.borderWidth, record.borderColor)
+        if not borderValid then return SegmentError(at .. ".border", borderReason) end
         if not SegmentId(record.id) then return SegmentError(at .. ".id", "invalid-id") end
         if ids[record.id] then return SegmentError(at .. ".id", "duplicate-id") end
         ids[record.id] = index
@@ -294,6 +376,8 @@ local function NormalizeUnitCompositionPresence(unitConfig)
 end
 
 local function NormalizeUnit(unitConfig)
+    local valid, reason = LayoutService.ValidateUnitBarBorders(unitConfig)
+    assert(valid, reason)
     NormalizeUnitTexts(unitConfig)
     return NormalizeUnitCompositionPresence(unitConfig)
 end
@@ -405,6 +489,8 @@ function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit, unitKey)
         return nil
     end
 
+    local valid, reason = LayoutService.ValidateUnitBarBorders(legacyUnit)
+    assert(valid, reason)
     local segmentedBars = SourceSegmentedBars(legacyUnit, unitKey)
     local sourceUnit = ApplyLegacyAliases(LayoutService.Clone(legacyUnit) or {})
     local storage = FocalPoint.CompositionPresenceStorage
@@ -438,6 +524,8 @@ function LayoutService.MaterializeLegacyUnit(defaultUnit, legacyUnit, unitKey)
 end
 
 function LayoutService.MaterializeUnit(defaultUnit, unitConfig, unitKey)
+    local valid, reason = LayoutService.ValidateUnitBarBorders(unitConfig)
+    assert(valid, reason)
     local segmentedBars = SourceSegmentedBars(unitConfig, unitKey)
     local materialized = LayoutService.Clone(defaultUnit) or {}
     materialized.segmentedBars = nil
@@ -469,6 +557,8 @@ local function ResolveLayoutDefaults(defaults)
 end
 
 function LayoutService.NormalizeLegacyPayload(payload, defaults)
+    local bordersValid, bordersReason = LayoutService.ValidateBarBorderPayload(payload)
+    assert(bordersValid, bordersReason)
     local valid, reason = LayoutService.ValidateSegmentedBarPayload(payload)
     assert(valid, reason)
     local layoutDefaults = ResolveLayoutDefaults(defaults)
@@ -503,6 +593,8 @@ function LayoutService.NormalizeLegacyPayload(payload, defaults)
 end
 
 function LayoutService.NormalizePayload(payload, defaults)
+    local bordersValid, bordersReason = LayoutService.ValidateBarBorderPayload(payload)
+    assert(bordersValid, bordersReason)
     local valid, reason = LayoutService.ValidateSegmentedBarPayload(payload)
     assert(valid, reason)
     local layoutDefaults = ResolveLayoutDefaults(defaults)

@@ -727,6 +727,7 @@ L["OPTION_SHADOW_OFFSET_Y_DESC"] = "Sets the vertical offset of the text shadow.
 L["OPTION_HEALTH_BACKGROUND_DESC"] = "Shows or hides the background of the health bar."
 L["OPTION_BACKGROUND_COLOR"] = "Background Color"
 L["OPTION_BACKGROUND_COLOR_DESC"] = "Sets the background color of the frame."
+L["OPTION_BORDER_WIDTH"] = "Border Width"
 L["OPTION_BORDER_COLOR"] = "Border Color"
 L["OPTION_BORDER_COLOR_DESC"] = "Sets the border color of the frame."
 L["OPTION_POWER_COLOR"] = "Power Color"

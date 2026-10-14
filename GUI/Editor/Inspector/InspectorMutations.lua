@@ -425,6 +425,12 @@ function InspectorMutations.SetUnitField(context, fieldName, value)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
     end
+    local service = FocalPoint.LayoutService
+    if service and service.ValidateUnitBarBorderField then
+        local valid, reason, borderField = service.ValidateUnitBarBorderField(fieldName, value)
+        if not valid then return Result(false, { errorCode = reason }) end
+        if borderField then value = service.Clone(value) end
+    end
     return SetField(GetUnitConfig(context), fieldName, value, "unit_config_not_found")
 end
 

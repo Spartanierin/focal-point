@@ -213,6 +213,9 @@ local function ApplyAbsorbBarGeometry(frame, config, spec)
         bar:SetAllPoints(target)
     end
 
+    if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ApplyBarBorder then
+        FocalPoint.UnitFrameFactory.ApplyBarBorder(bar, GetConfigValue(config, spec, "BorderWidth"), GetConfigValue(config, spec, "BorderColor"), true)
+    end
     return true
 end
 

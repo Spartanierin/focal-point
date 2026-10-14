@@ -682,6 +682,10 @@ function CastBar.ApplyLayout(frame, options)
     )
     castBar:SetWidth(castBarWidth)
     castBar:SetHeight(castBarHeight)
+    if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ApplyBarBorder then
+        local config = frame.config or {}
+        FocalPoint.UnitFrameFactory.ApplyBarBorder(castBar, config.castBarBorderWidth, config.castBarBorderColor, true)
+    end
 
     if castBar.icon then
         castBar.icon:ClearAllPoints()

@@ -19,7 +19,7 @@ local function Equal(a,b)
 end
 local source=Read('GUI/Editor/Inspector/InspectorController.lua')
 local a=assert(source:find('        local defaultCastBarInterruptibleColor =',1,true))
-local b=assert(source:find('        if actionsSection then',a,true))
+local b=assert(source:find('        AddUnitBarBorderRows(',a,true))
 local block=source:sub(a,b-1)
 local function Picker(unit,config,scoped)
     local row

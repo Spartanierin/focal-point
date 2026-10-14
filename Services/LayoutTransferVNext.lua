@@ -215,6 +215,8 @@ function Next.ConvertLegacyDocument(decoded, db, generator)
     if not OnlyKeys(legacy.payload, {Units=true, TextTemplates=true}) then
         Diagnose(result, "payload-invalid"); return result
     end
+    local bordersValid, bordersReason = ns.LayoutService.ValidateBarBorderPayload(legacy.payload)
+    if not bordersValid then Diagnose(result, bordersReason); return result end
     local barsValid, barsReason = ns.LayoutService.ValidateSegmentedBarPayload(legacy.payload)
     if not barsValid then Diagnose(result, barsReason); return result end
     -- E5b imports a layout's reachable resources, not every record in its old

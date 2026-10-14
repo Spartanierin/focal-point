@@ -982,6 +982,10 @@ function ClassPower.ApplyLayout(frame, options, handoff, deferReadyConsumer)
         timerFontSize = options.classPowerRuneTimerFontSize,
         timerFontStyle = options.classPowerRuneTimerFontStyle,
     })
+    if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ApplyBarBorder then
+        local config = frame.config or {}
+        FocalPoint.UnitFrameFactory.ApplyBarBorder(holder, config.classPowerBarBorderWidth, config.classPowerBarBorderColor, true)
+    end
     if runeLayout then
         holder._runeSlotBinding = {
             snapshot = snapshot, apiToSlot = apiToSlot, slotToApi = slotToApi,

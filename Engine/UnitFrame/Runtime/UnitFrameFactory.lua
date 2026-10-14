@@ -7,6 +7,84 @@ local AbsorbBars = FocalPoint.UnitFrameAbsorbBars or {}
 
 -- Factory helpers create the base frame and the core status bar elements.
 
+local function LayoutBarBorder(owner, border, width, height)
+    -- Full owner geometry only, never the secret-dependent status-bar fill.
+    if (issecretvalue and (issecretvalue(width) or issecretvalue(height)))
+        or type(width) ~= "number" or type(height) ~= "number"
+        or width ~= width or height ~= height or width <= 0 or height <= 0
+        or width == math.huge or height == math.huge or border.requestedWidth == 0 then
+        border:Hide()
+        return
+    end
+    local thickness = math.min(border.requestedWidth, width / 2, height / 2)
+    local top, bottom, left, right = border.edges[1], border.edges[2], border.edges[3], border.edges[4]
+    top:SetHeight(thickness)
+    bottom:SetHeight(thickness)
+    -- Top/bottom own the corners; the side strips never overlap them.
+    left:ClearAllPoints()
+    left:SetPoint("TOPLEFT", owner, "TOPLEFT", 0, -thickness)
+    left:SetPoint("BOTTOMLEFT", owner, "BOTTOMLEFT", 0, thickness)
+    left:SetWidth(thickness)
+    right:ClearAllPoints()
+    right:SetPoint("TOPRIGHT", owner, "TOPRIGHT", 0, -thickness)
+    right:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", 0, thickness)
+    right:SetWidth(thickness)
+    top:Show(); bottom:Show()
+    left:SetShown(height > 2 * thickness)
+    right:SetShown(height > 2 * thickness)
+    border:Show()
+end
+
+function Factory.ApplyBarBorder(owner, width, color, allowNamedColor)
+    if not owner then return end
+    local border = owner.BarBorder
+    -- Preserve the zero-cost legacy path, including fixtures without layout data.
+    if width == nil or width == 0 then
+        if border then
+            border.requestedWidth = 0
+            for _, edge in ipairs(border.edges) do edge:Hide() end
+            border:Hide()
+        end
+        return
+    end
+    local resolvedWidth, rgba = FocalPoint.LayoutService.ResolveBarBorder(width, color, allowNamedColor)
+    if not resolvedWidth then
+        Factory.ApplyBarBorder(owner, 0)
+        return
+    end
+    if not border then
+        border = CreateFrame("Frame", nil, owner)
+        border:SetAllPoints(owner)
+        border:EnableMouse(false)
+        border.edges = {}
+        for index = 1, 4 do
+            local edge = border:CreateTexture(nil, "OVERLAY")
+            edge:SetTexture("Interface\\Buttons\\WHITE8X8")
+            border.edges[index] = edge
+        end
+        local top, bottom = border.edges[1], border.edges[2]
+        top:SetPoint("TOPLEFT", owner, "TOPLEFT", 0, 0)
+        top:SetPoint("TOPRIGHT", owner, "TOPRIGHT", 0, 0)
+        bottom:SetPoint("BOTTOMLEFT", owner, "BOTTOMLEFT", 0, 0)
+        bottom:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", 0, 0)
+        owner.BarBorder = border
+        -- Anchor resolution and later owner resizing need no polling or new timer.
+        owner:HookScript("OnSizeChanged", function(self, w, h)
+            LayoutBarBorder(self, border, w, h)
+        end)
+    end
+    border.requestedWidth = resolvedWidth
+    border:SetFrameStrata(owner:GetFrameStrata())
+    local level = owner:GetFrameLevel()
+    for _, segment in ipairs(owner.Bars or {}) do
+        level = math.max(level, segment:GetFrameLevel())
+        if segment.border then level = math.max(level, segment.border:GetFrameLevel()) end
+    end
+    border:SetFrameLevel(level + 1)
+    for _, edge in ipairs(border.edges) do edge:SetVertexColor(rgba[1], rgba[2], rgba[3], rgba[4]) end
+    LayoutBarBorder(owner, border, owner:GetWidth(), owner:GetHeight())
+end
+
 local function ShouldUseUnitWatch(unit)
     return UnitWatchPolicy.ShouldUse and UnitWatchPolicy.ShouldUse(unit) or false
 end

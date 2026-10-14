@@ -185,6 +185,10 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
 
         health:Show()
         owner:UpdateHealthBarColor(frame)
+        if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ApplyBarBorder then
+            local config = frame.config or {}
+            FocalPoint.UnitFrameFactory.ApplyBarBorder(health, config.healthBarBorderWidth, config.healthBarBorderColor, true)
+        end
     end
 
     if frame.Elements.PowerBar then
@@ -237,6 +241,10 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         end
     end
 
+    if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ApplyBarBorder then
+        local config = frame.config or {}
+        FocalPoint.UnitFrameFactory.ApplyBarBorder(frame.Elements.PowerBar, config.powerBarBorderWidth, config.powerBarBorderColor, true)
+    end
     ApplyAbsorbBarLayout(frame)
 end
 
@@ -333,5 +341,9 @@ function BarLayout.ApplyAlternativePower(frame, options)
             altPower.bg:Hide()
         end
         altPower:Hide()
+    end
+    if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ApplyBarBorder then
+        local config = frame.config or {}
+        FocalPoint.UnitFrameFactory.ApplyBarBorder(altPower, config.alternativePowerBarBorderWidth, config.alternativePowerBarBorderColor, true)
     end
 end

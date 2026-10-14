@@ -260,6 +260,9 @@ function Bars.Apply(frame)
                     timerFont = record.runeTimerFont, timerFontSize = record.runeTimerFontSize,
                     timerFontStyle = record.runeTimerFontStyle,
                 })
+                if ns.UnitFrameFactory and ns.UnitFrameFactory.ApplyBarBorder then
+                    ns.UnitFrameFactory.ApplyBarBorder(holder, record.borderWidth, record.borderColor)
+                end
                 holder._segmentedBarRendered = true
             else
                 ClearHolder(holder)

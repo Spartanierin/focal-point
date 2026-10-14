@@ -234,7 +234,7 @@ local function CheckPropertyGroups(container, hasRuneTimer)
     FindBody(container);assert(body and body._focalPointRequestRebuild,"missing full-body rebuild target")
     local expected={
         {"General","enabled,dataSource"},
-        {"Appearance","texture,useBlizzardColor,color,background,backgroundColor"},
+        {"Appearance","texture,useBlizzardColor,color,background,backgroundColor,borderWidth,borderColor"},
         {"Geometry","width,height,spacing"},
         {"Position","anchorTo,point,relativePoint,offsetX,offsetY,growth"},
     }

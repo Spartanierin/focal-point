@@ -2233,6 +2233,38 @@ function InspectorController.Build(container, state, options)
         return colorPicker
     end
 
+    local function AddUnitBarBorderRows(parent, prefix, grouped, disabled)
+        local width, color = ns.LayoutService.ResolveBarBorder(
+            unitConfig[prefix .. "BorderWidth"], unitConfig[prefix .. "BorderColor"], true)
+        if width == nil then return end
+        local scope = ResolvePropertyScope()
+        local selected = ObjectSelection.GetSelectedObject()
+        local root = ns.ActiveLayoutResolver and ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
+        local binding, widthControl, syncing = {}, nil, false
+        local function Change(field, value)
+            local current = ObjectSelection.GetSelectedObject()
+            if syncing or disabled or ResolvePropertyScope() ~= scope
+                or state.selectedUnit ~= selectedUnit
+                or (current ~= selected and not IsSameInspectorObject(current, selected))
+                or widthControl:GetUserData("focalPointBorderBinding") ~= binding
+                or (ns.ActiveLayoutResolver and ns.ActiveLayoutResolver.GetActiveRuntimeRoot() ~= root) then return end
+            local result = SetUnitField(prefix .. field, value)
+            if field == "BorderWidth" and result and result.ok == false then
+                syncing = true
+                widthControl:SetValue(unitConfig[prefix .. field] or 0)
+                syncing = false
+            end
+            return result
+        end
+        local slider = grouped and AddPropertyCompactSliderRow or AddSlider
+        local picker = grouped and AddPropertyColorRow or AddColorPicker
+        widthControl = slider(parent, L["OPTION_BORDER_WIDTH"] or "Border Width", 0, 5, 1, width,
+            function(value) Change("BorderWidth", value) end, disabled, prefix .. "BorderWidth")
+        widthControl:SetUserData("focalPointBorderBinding", binding)
+        picker(parent, L["OPTION_BORDER_COLOR"] or "Border Color", color, true,
+            function(value) Change("BorderColor", value) end, disabled, prefix .. "BorderColor")
+    end
+
     local function AddPropertyToggleColorRow(parent, labelText, toggleOptions, colorOptions)
         local toggle
         local color
@@ -2365,6 +2397,10 @@ function InspectorController.Build(container, state, options)
                 runeTimerFont=DEFAULT_FONT_REFERENCE,runeTimerFontSize=10,runeTimerFontStyle="OUTLINE"}
             local geometry = {anchorTo=true,point=true,relativePoint=true,width=true,height=true,offsetX=true,offsetY=true}
             local function Value(current, field)
+                if field == "borderWidth" or field == "borderColor" then
+                    local width, color = ns.LayoutService.ResolveBarBorder(current.borderWidth, current.borderColor)
+                    return field == "borderWidth" and width or color
+                end
                 if field == "dataSource" then return current.dataSource.id end
                 if current[field] ~= nil then return current[field] end
                 return defaults[field]
@@ -2373,7 +2409,7 @@ function InspectorController.Build(container, state, options)
                 local control, value = controls[field], Value(current, field)
                 if not control then return end
                 syncing = true
-                if field == "color" or field == "backgroundColor" then
+                if field == "color" or field == "backgroundColor" or field == "borderColor" then
                     control:SetColor(unpack(value))
                 elseif control._fpSetPropertyValueText then
                     local options = field == "texture" and BuildStatusBarTextureOptions(value) or BuildFontOptions(value)
@@ -2505,6 +2541,10 @@ function InspectorController.Build(container, state, options)
             controls.backgroundColor = AddPropertyColorRow(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color",
                 Value(record, "backgroundColor"), true, function(value) Change("backgroundColor", {value.r,value.g,value.b,value.a}) end,
                 false, "segmentedBar_backgroundColor")
+            Slider(appearanceSection, "borderWidth", L["OPTION_BORDER_WIDTH"] or "Border Width", 0, 5)
+            controls.borderColor = AddPropertyColorRow(appearanceSection, L["OPTION_BORDER_COLOR"] or "Border Color",
+                Value(record, "borderColor"), true, function(value) Change("borderColor", {value.r,value.g,value.b,value.a}) end,
+                false, "segmentedBar_borderColor")
             local geometrySection = AddFramedObjectPropertyGroup(body, L["SECTION_GEOMETRY"] or "Geometry", true)
             Slider(geometrySection, "width", L["OPTION_WIDTH"] or "Width", 40, 512)
             Slider(geometrySection, "height", L["OPTION_HEIGHT"] or "Height", 4, 128)
@@ -2935,6 +2975,7 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.healthBackground == false)
             end
         end
+        AddUnitBarBorderRows(usePropertyGroups and backgroundSection or appearanceSection, "healthBar", usePropertyGroups, false)
     end
 
     if IsScopedHealthBarObjectMode() then
@@ -3060,6 +3101,8 @@ function InspectorController.Build(container, state, options)
                     SetUnitField(prefix .. "BackgroundColor", value, rootSection)
                 end)
             end
+
+            AddUnitBarBorderRows(isScopedObject and backgroundSection or appearanceSection, prefix, isScopedObject, not showValue)
 
             local sizeMode = unitConfig[prefix .. "SizeMode"] or "MATCH_TARGET"
             local isCustom = sizeMode == "CUSTOM"
@@ -3348,6 +3391,8 @@ function InspectorController.Build(container, state, options)
             end
         end
 
+        AddUnitBarBorderRows(usePropertyGroups and backgroundSection or appearanceSection, "powerBar", usePropertyGroups, unitConfig.showPowerBar == false)
+
         if actionsSection then
             AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", L["EDITOR_REMOVE_POWER_BAR_BUTTON"] or "Remove Power Bar", "DestructiveAction", 148, function()
                 ApplySingletonBarPresence("PowerBar", false, "power")
@@ -3489,6 +3534,8 @@ function InspectorController.Build(container, state, options)
             end
         end
 
+        AddUnitBarBorderRows(usePropertyGroups and backgroundSection or altPowerSection, "alternativePowerBar", usePropertyGroups, unitConfig.showAlternativePowerBar ~= true)
+
         if isExpert then
             local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
             if altPowerReverseFillEnabled == nil then
@@ -3617,6 +3664,8 @@ function InspectorController.Build(container, state, options)
                 SetUnitField("classPowerBackgroundColor", value)
             end, unitConfig.showClassPowerBar ~= true)
         end
+
+        AddUnitBarBorderRows(usePropertyGroups and backgroundSection or appearanceSection, "classPowerBar", usePropertyGroups, unitConfig.showClassPowerBar ~= true)
 
         local classPowerBarHeightControl
         if usePropertyGroups then
@@ -3987,6 +4036,8 @@ function InspectorController.Build(container, state, options)
                 SetUnitField("castBarInterruptibleColor", value)
             end, unitConfig.showCastBar == false)
         end
+
+        AddUnitBarBorderRows(appearanceSection, "castBar", usePropertyGroups, unitConfig.showCastBar == false)
 
         if actionsSection then
             AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "DestructiveAction", 148, function()
