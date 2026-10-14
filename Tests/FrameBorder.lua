@@ -77,9 +77,11 @@ Test("factory preallocates hidden root edges; nil stays legacy, 0 affects only r
     F.ApplyBarBorder(health,1,{1,0,0,1});Apply(0,color)
     eq(frame.backdropBorderColor,{0,0,0,0});eq(color,{.2,.3,.4,.5});assert(health.BarBorder.shown and not frame.FrameBorder.shown)
 end)
-Test("1..5 uses one inner frame, alpha zero, theme colors and all descendant levels",function()
+Test("1..5 uses one inner frame, alpha zero, theme colors and owned segment levels",function()
     local health=frame.Elements.HealthBar;health.level=6;health.BarBorder.level=7
     local holder=CreateFrame("Frame",nil,frame);local segment=CreateFrame("StatusBar",nil,holder)
+    frame._segmentedBars={byId={test=holder},pool={}}
+    holder.Bars={segment}
     segment.level=14;F.ApplyBarBorder(segment,1,{1,1,1,1})
     for width=1,5 do
         Apply(width,{.4,.5,.6,0});assert(frame.FrameBorder.shown and frame.FrameBorder.level==16)
@@ -94,6 +96,41 @@ Test("1..5 uses one inner frame, alpha zero, theme colors and all descendant lev
         end
     end
     Colors(ns.Themes);assert(tested>0)
+end)
+Test("foreign aura children and unknown Elements are opaque to root border layering",function()
+    local function Forbidden()error("foreign aura child accessed")end
+    local foreign=setmetatable({}, {__index=Forbidden})
+    local aura=CreateFrame("Frame",nil,frame);aura.level=30;aura.children={foreign}
+    frame.ManagedAuraBackend={Buffs={visualRoot=aura,container=foreign,buttons={[foreign]=true}}}
+    frame.Elements.ManagedBuffs=aura;frame.Elements.UnknownNativeChild=foreign
+    for width=1,5 do
+        Apply(width,{1,1,1,0});assert(frame.FrameBorder.level==31)
+    end
+    -- No hierarchy enumeration, even when an otherwise safe child is present.
+    frame.GetChildren=Forbidden;aura.GetChildren=Forbidden
+    local health=frame.Elements.HealthBar
+    health.BarBorder.level=40;Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==41)
+    health.BarBorder.level=7
+    F.CreateClassPowerBar(frame)
+    local legacy=frame.Elements.ClassPowerBar;legacy.Bars[1].border.level=42
+    Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==43)
+    legacy.Bars[1].border.level=2
+    local holder=frame._segmentedBars.byId.test
+    holder.level=44;Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==45);holder.level=1
+    F.ApplyBarBorder(holder,1,{1,1,1,1});holder.BarBorder.level=46
+    Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==47);holder.BarBorder.level=2
+    local portrait=CreateFrame("Frame",nil,frame);portrait.level=48;frame.Elements.Portrait=portrait
+    Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==49);portrait.level=1
+    local combat=CreateFrame("Frame",nil,frame);frame.Elements.CombatIndicator=combat
+    combat.StatusOverlay=CreateFrame("Frame",nil,combat)
+    combat.StatusOverlay.PulseLayer=CreateFrame("Frame",nil,combat.StatusOverlay)
+    combat.StatusOverlay.PulseLayer.level=50
+    Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==51);combat.StatusOverlay.PulseLayer.level=1
+    local decoration=CreateFrame("Frame",nil,frame);decoration.level=52
+    frame.DecorationIndicators={test={holder=decoration}}
+    Apply(1,{1,1,1,1});assert(frame.FrameBorder.level==53);decoration.level=1
+    Apply(0,{1,1,1,1});assert(not frame.FrameBorder.shown)
+    Apply(nil,{1,1,1,1});assert(not frame.FrameBorder.shown)
 end)
 Test("hard clear cannot resurrect on resize; 50 clear/reapply/resize/alpha cycles allocate nothing",function()
     local frames,textures=stats();local identity=frame.FrameBorder

@@ -101,16 +101,48 @@ function Factory.ClearFrameBorder(frame)
     border:Hide()
 end
 
-local function HighestChildLevel(parent, excluded)
-    local level = parent:GetFrameLevel()
-    if parent.GetChildren then
-        local function Visit(...)
-            for index = 1, select("#", ...) do
-                local child = select(index, ...)
-                if child ~= excluded then level = math.max(level, HighestChildLevel(child, excluded)) end
-            end
+local ROOT_BORDER_BARS = {
+    "HealthBar", "PowerBar", "AlternativePowerBar", "ClassPowerBar", "CastBar",
+    "NormalAbsorbBar", "HealingAbsorbBar",
+}
+local ROOT_BORDER_HOLDERS = {
+    "Portrait", "RaidTargetIcon", "LeaderIcon", "RoleIcon", "CombatIndicator",
+    "RestingIndicator", "ReadyCheckIndicator", "ClassificationPortraitOverlay", "ClassificationCrest",
+}
+
+local function HighestOwnedLevel(frame)
+    local level = frame:GetFrameLevel()
+    local function Include(owned)
+        if owned then level = math.max(level, owned:GetFrameLevel()) end
+    end
+    local function IncludeBar(bar)
+        if not bar then return end
+        Include(bar)
+        Include(bar.BarBorder)
+        for _, segment in ipairs(bar.Bars or {}) do
+            Include(segment)
+            Include(segment.border)
+            Include(segment.BarBorder)
         end
-        Visit(parent:GetChildren())
+    end
+    local elements = frame.Elements or {}
+    for _, key in ipairs(ROOT_BORDER_BARS) do IncludeBar(elements[key]) end
+    for _, key in ipairs(ROOT_BORDER_HOLDERS) do
+        local holder = elements[key]
+        Include(holder)
+        local overlay = holder and holder.StatusOverlay
+        Include(overlay)
+        Include(overlay and overlay.PulseLayer)
+    end
+    for _, entry in pairs(frame.DecorationIndicators or {}) do Include(entry.holder) end
+    local instances = frame._segmentedBars
+    for _, holder in pairs(instances and instances.byId or {}) do IncludeBar(holder) end
+    -- Aura roots are FP-owned endpoints, not permission to inspect their children.
+    -- Native AuraContainers may own forbidden buttons; never enumerate that tree.
+    Include(elements.Buffs)
+    Include(elements.Debuffs)
+    for _, state in pairs(frame.ManagedAuraBackend or {}) do
+        Include(state.visualRoot)
     end
     return level
 end
@@ -124,8 +156,8 @@ function Factory.ApplyFrameBorder(frame, width, color)
     end
     border.requestedWidth = width
     border:SetFrameStrata(frame:GetFrameStrata())
-    -- Run after child layouts: include Elements, nested segments and their borders.
-    border:SetFrameLevel(HighestChildLevel(frame, border) + 1)
+    -- Run after FP layouts, without inspecting Blizzard-owned descendants.
+    border:SetFrameLevel(HighestOwnedLevel(frame) + 1)
     for _, edge in ipairs(border.edges) do edge:SetVertexColor(color[1], color[2], color[3], color[4]) end
     LayoutBarBorder(frame, border, frame:GetWidth(), frame:GetHeight())
 end
