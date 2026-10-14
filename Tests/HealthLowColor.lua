@@ -255,7 +255,7 @@ Test("Threshold with class and reaction colors preserves endpoint precedence",fu
 end)
 Test("Threshold respects prediction and unit curve sources with scaled curve range",function()
     local f=Fixture();f.config.useClassColorHealth=true;f.config.lowHealthColorThreshold=0.5
-    f.current=60;f.percent=.6;f.Refresh();Equal(f.curves,0)
+    f.current=60;f.percent=.6;f.Refresh();Equal(f.curves,1)
     f.current=50;f.percent=.5;f.Refresh();f.Expect(.1,.2,.9,.6)
     f.current=0;f.percent=0;f.Refresh();f.Expect(1,.1,.1,.2)
     local curve=f.curve;Near(curve.points[4].x,0.5)
