@@ -418,9 +418,6 @@ function Colors.GetResolvedHealthBarColor(frame, config, currentHealth, maxHealt
 
     local lowHealthColorThreshold = Utils.NormalizeLowHealthColorThreshold(config)
     local currentHealthRatio = GetHealthPercent(currentHealth, maxHealth)
-    if currentHealthRatio and lowHealthColorThreshold < currentHealthRatio then
-        return healthR, healthG, healthB, healthA
-    end
 
     local lowR, lowG, lowB, lowA = UnpackColor(config and config.healthLowColor, { 1.0, 0.12, 0.12, healthA or 1 })
     lowR, lowG, lowB, lowA = SanitizeRGBA(lowR, lowG, lowB, lowA, 1.0, 0.12, 0.12, healthA or 1)
