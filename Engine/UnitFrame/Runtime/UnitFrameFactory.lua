@@ -35,6 +35,30 @@ local function LayoutBarBorder(owner, border, width, height)
     border:Show()
 end
 
+local function CreateBorder(owner)
+    local border = CreateFrame("Frame", nil, owner)
+    border.requestedWidth = 0
+    border:SetAllPoints(owner)
+    border:EnableMouse(false)
+    border.edges = {}
+    for index = 1, 4 do
+        local edge = border:CreateTexture(nil, "OVERLAY")
+        edge:SetTexture("Interface\\Buttons\\WHITE8X8")
+        border.edges[index] = edge
+    end
+    local top, bottom = border.edges[1], border.edges[2]
+    top:SetPoint("TOPLEFT", owner, "TOPLEFT", 0, 0)
+    top:SetPoint("TOPRIGHT", owner, "TOPRIGHT", 0, 0)
+    bottom:SetPoint("BOTTOMLEFT", owner, "BOTTOMLEFT", 0, 0)
+    bottom:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", 0, 0)
+    -- Anchor resolution and later owner resizing need no polling or new timer.
+    owner:HookScript("OnSizeChanged", function(self, w, h)
+        LayoutBarBorder(self, border, w, h)
+    end)
+    border:Hide()
+    return border
+end
+
 function Factory.ApplyBarBorder(owner, width, color, allowNamedColor)
     if not owner then return end
     local border = owner.BarBorder
@@ -53,25 +77,8 @@ function Factory.ApplyBarBorder(owner, width, color, allowNamedColor)
         return
     end
     if not border then
-        border = CreateFrame("Frame", nil, owner)
-        border:SetAllPoints(owner)
-        border:EnableMouse(false)
-        border.edges = {}
-        for index = 1, 4 do
-            local edge = border:CreateTexture(nil, "OVERLAY")
-            edge:SetTexture("Interface\\Buttons\\WHITE8X8")
-            border.edges[index] = edge
-        end
-        local top, bottom = border.edges[1], border.edges[2]
-        top:SetPoint("TOPLEFT", owner, "TOPLEFT", 0, 0)
-        top:SetPoint("TOPRIGHT", owner, "TOPRIGHT", 0, 0)
-        bottom:SetPoint("BOTTOMLEFT", owner, "BOTTOMLEFT", 0, 0)
-        bottom:SetPoint("BOTTOMRIGHT", owner, "BOTTOMRIGHT", 0, 0)
+        border = CreateBorder(owner)
         owner.BarBorder = border
-        -- Anchor resolution and later owner resizing need no polling or new timer.
-        owner:HookScript("OnSizeChanged", function(self, w, h)
-            LayoutBarBorder(self, border, w, h)
-        end)
     end
     border.requestedWidth = resolvedWidth
     border:SetFrameStrata(owner:GetFrameStrata())
@@ -83,6 +90,44 @@ function Factory.ApplyBarBorder(owner, width, color, allowNamedColor)
     border:SetFrameLevel(level + 1)
     for _, edge in ipairs(border.edges) do edge:SetVertexColor(rgba[1], rgba[2], rgba[3], rgba[4]) end
     LayoutBarBorder(owner, border, owner:GetWidth(), owner:GetHeight())
+end
+
+-- Root borders are allocated with the protected unit root, never lazily in combat.
+function Factory.ClearFrameBorder(frame)
+    local border = frame and frame.FrameBorder
+    if not border then return end
+    border.requestedWidth = 0
+    for _, edge in ipairs(border.edges) do edge:Hide() end
+    border:Hide()
+end
+
+local function HighestChildLevel(parent, excluded)
+    local level = parent:GetFrameLevel()
+    if parent.GetChildren then
+        local function Visit(...)
+            for index = 1, select("#", ...) do
+                local child = select(index, ...)
+                if child ~= excluded then level = math.max(level, HighestChildLevel(child, excluded)) end
+            end
+        end
+        Visit(parent:GetChildren())
+    end
+    return level
+end
+
+function Factory.ApplyFrameBorder(frame, width, color)
+    local border = frame and frame.FrameBorder
+    if not border then return end
+    if width == nil or width == 0 or not FocalPoint.LayoutService.ValidateBarBorder(width) then
+        Factory.ClearFrameBorder(frame)
+        return
+    end
+    border.requestedWidth = width
+    border:SetFrameStrata(frame:GetFrameStrata())
+    -- Run after child layouts: include Elements, nested segments and their borders.
+    border:SetFrameLevel(HighestChildLevel(frame, border) + 1)
+    for _, edge in ipairs(border.edges) do edge:SetVertexColor(color[1], color[2], color[3], color[4]) end
+    LayoutBarBorder(frame, border, frame:GetWidth(), frame:GetHeight())
 end
 
 local function ShouldUseUnitWatch(unit)
@@ -169,6 +214,8 @@ function Factory.CreateBaseFrame(unit, config)
         edgeSize = 1,
         insets = { left = 0, right = 0, top = 0, bottom = 0 },
     })
+
+    frame.FrameBorder = CreateBorder(frame)
 
     if FocalPoint.UpdateFrameDragState then
         FocalPoint:UpdateFrameDragState(frame)

@@ -92,7 +92,8 @@ end
 -- historical presence evidence stay unchanged. Segment borders mean the holder.
 local BAR_BORDER_PREFIXES = {"healthBar", "powerBar", "alternativePowerBar", "classPowerBar",
     "castBar", "normalAbsorbBar", "healingAbsorbBar"}
-local BAR_BORDER_FIELDS = {}
+-- Root width shares validation only; nil retains its legacy backdrop.
+local BAR_BORDER_FIELDS = {frameBorderWidth = "width"}
 for _, prefix in ipairs(BAR_BORDER_PREFIXES) do
     BAR_BORDER_FIELDS[prefix .. "BorderWidth"] = "width"
     BAR_BORDER_FIELDS[prefix .. "BorderColor"] = "color"

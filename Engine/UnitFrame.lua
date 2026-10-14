@@ -1634,6 +1634,10 @@ function UF:ApplyConfig(frame, classPowerHandoff)
         textEditorOverlay.UpdateFrame(frame)
     end
 
+    if Factory.ApplyFrameBorder then
+        Factory.ApplyFrameBorder(frame, config.frameBorderWidth, {UnpackColor(config.borderColor, {0.2, 0.2, 0.2, 1})})
+    end
+
     -- Consume the same source handoff after all ApplyConfig geometry has settled.
     if classPowerNeedsPresentation then
         ClassPower.PresentReady(frame, classPowerHandoff)

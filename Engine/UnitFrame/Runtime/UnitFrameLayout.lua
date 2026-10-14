@@ -250,7 +250,11 @@ function Layout.ApplyBaseFrame(owner, frame, config, metrics)
     )
 
     frame:SetBackdropColor(bgR, bgG, bgB, bgA)
-    frame:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
+    if config.frameBorderWidth == nil then
+        frame:SetBackdropBorderColor(borderR, borderG, borderB, borderA)
+    else
+        frame:SetBackdropBorderColor(0, 0, 0, 0)
+    end
 
     return shouldBeShown
 end

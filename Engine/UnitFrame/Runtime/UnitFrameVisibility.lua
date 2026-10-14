@@ -4111,6 +4111,9 @@ function Visibility.ClearFrameVisualState(frame, reason)
     if frame.SetBackdropBorderColor then
         frame:SetBackdropBorderColor(0, 0, 0, 0)
     end
+    if FocalPoint.UnitFrameFactory and FocalPoint.UnitFrameFactory.ClearFrameBorder then
+        FocalPoint.UnitFrameFactory.ClearFrameBorder(frame)
+    end
 
     frame._rangeCurrentAlpha = 0
     frame._rangeTargetAlpha = 0
