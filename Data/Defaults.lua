@@ -167,6 +167,7 @@ function FocalPoint:GetDefaultDB()
                         0.65,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -901,6 +902,7 @@ function FocalPoint:GetDefaultDB()
                         0.65,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -1589,6 +1591,7 @@ function FocalPoint:GetDefaultDB()
                         0.65,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -2211,6 +2214,7 @@ function FocalPoint:GetDefaultDB()
                         0.65,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -2833,6 +2837,7 @@ function FocalPoint:GetDefaultDB()
                         0.65,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -3446,6 +3451,7 @@ function FocalPoint:GetDefaultDB()
                         1.0,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                     healthBackground = true,
                     healthBackgroundColor = {
                         0.0,
@@ -4117,6 +4123,7 @@ function FocalPoint:GetDefaultDB()
                         r = 0.6705882549285889,
                     },
                     useLowHealthColor = true,
+                    lowHealthColorThreshold = 1.0,
                 },
             },
         },
