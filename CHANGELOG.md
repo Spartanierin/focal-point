@@ -10,6 +10,19 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.7 – Visual Customization Update
+
+### Added
+
+* Added configurable inner borders for Health, Power, Alternative Power, Class Power, Cast, Normal Absorb, Healing Absorb, and Segmented Bars. Choose a width from 0 to 5 and a color with opacity; 0 disables the border. Segmented Bars receive an outer border around the whole bar, preserving their existing individual segment frames.
+* Added a frame border width setting from 0 to 5, with 0 hiding only the outer unit-frame border. Existing layouts without an explicit width retain their original border appearance.
+* Added a Low Health Color Threshold with 30%, 50%, 75%, and 100% presets. Valid imported intermediate values remain selectable in the Inspector. Thanks to mipli / Athalus for [PR #9](https://github.com/Spartanierin/focal-point/pull/9).
+
+### Fixed
+
+* Fixed inverted color-picker opacity in WoW Forever using the targeted AceGUI upstream correction.
+* Fixed a forbidden-object error when applying a frame border with native Blizzard aura buttons present. Border layering now considers only known Focal Point frames.
+
 ## 2.2.6b
 
 ### Changed
