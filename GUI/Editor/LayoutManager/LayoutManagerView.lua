@@ -1065,7 +1065,10 @@ local function OpenTransferDialog(export)
                     return
                 end
                 context.selectedLayoutId = id
-                LayoutManager.Refresh() -- library selection only; never Activate
+                local previousState = context.state
+                RefreshCanvasPicker() -- refresh both lists; never Activate
+                -- The toolbar may be loaded without a canvas host/binding.
+                if context.state == previousState then LayoutManager.Refresh() end
                 edit:SetText("")
                 dialog.primaryButton:SetDisabled(true)
                 dialog:SetStatus(string.format(T("LAYOUT_TRANSFER_IMPORTED"), name), "success", statusTarget)

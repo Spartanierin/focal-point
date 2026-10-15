@@ -4,10 +4,11 @@ local _, ns = ...
 local dialogs, windowPool = {}, {}
 local statusTargets = {}
 local AceGUI = {}
+local layoutDropdown
 local function Noop() end
 local function Frame()
     return setmetatable({shown=true}, {__index=function(_, key)
-        if key == "CreateTexture" then return Frame end
+        if key == "CreateTexture" or key == "CreateFontString" then return Frame end
         if key == "IsShown" then return function(self) return self.shown end end
         if key == "Show" then return function(self) self.shown=true end end
         if key == "Hide" then return function(self) self.shown=false end end
@@ -19,7 +20,9 @@ for _, key in ipairs({"SetLayout", "SetFullWidth", "SetFullHeight", "SetWidth", 
     methods[key] = Noop
 end
 function methods:SetCallback(event, callback) self.callbacks[event]=callback end
-function methods:Fire(event) if self.callbacks[event] then return self.callbacks[event](self, event) end end
+function methods:Fire(event, ...) if self.callbacks[event] then return self.callbacks[event](self, event, ...) end end
+function methods:SetList(values, order) self.values=values; self.order=order end
+function methods:SetValue(value) self.value=value; self:Fire("OnValueChanged", value) end
 function methods:SetText(value) self.text=value; self:Fire("OnTextChanged") end
 function methods:GetText() return self.text end
 function methods:SetDisabled(value) self.disabled=value end
@@ -42,6 +45,7 @@ function AceGUI:Create(kind)
     widget = widget or setmetatable({frame=Frame()}, {__index=methods})
     widget.kind=kind; widget.children={}; widget.callbacks={}; widget.released=false
     widget.frame:Show()
+    if kind == "Dropdown" then layoutDropdown=widget end
     return widget
 end
 function AceGUI:Release(widget)
@@ -86,10 +90,16 @@ function forms.CreateCompactFormDialog(options)
     dialogs[#dialogs+1]=dialog
     return dialog
 end
+forms.ApplyCanvasToolbarPresentation=Noop
 ns.GUI = {Helpers={FormWidgets=forms}}
+CreateFrame=Frame
+unpack=table.unpack
 ns.L.LAYOUT_TRANSFER_IMPORTED="Imported: %s"
 local function Load(path) assert(loadfile(path))("FocalPoint", ns) end
 Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
+Load("GUI/Editor/Toolbar/ToolbarBinding.lua")
+Load("GUI/Editor/CanvasToolbar.lua")
+local toolbar=ns.GUI.Editor.CanvasToolbar
 local manager=ns.GUI.Editor.LayoutManager
 assert(manager.Open())
 local library=dialogs[1]
@@ -143,16 +153,26 @@ Click(export.cancelButton)
 assert(export.window.released and export.body.released)
 assert(AceGUI.FocusedWidget==nil and before==Snapshot())
 local active=assert(ns.LayoutTransferCodec.Encode(ns.db.char))
-for _=1,3 do
+for iteration=1,3 do
+    -- First exercise the loaded toolbar without a canvas host, then the real
+    -- toolbar controller and LayoutService list on an open editor workspace.
+    if iteration == 2 then
+        ns.guiEditorWorkspaceLayer=Frame()
+        toolbar.Show()
+        assert(layoutDropdown and layoutDropdown.callbacks.OnValueChanged)
+        assert(layoutDropdown.values["layout:original"])
+    end
     Click(importButton)
     local dialog=dialogs[#dialogs]
     local edit=FindChild(dialog.body, "MultiLineEditBox")
     assert(dialog.primaryButton.disabled)
     edit:SetText("broken")
     before=Snapshot()
+    local previousOptions=layoutDropdown and layoutDropdown.values
     Click(dialog.primaryButton)
     local statusTarget=assert(statusTargets[dialog], "import error did not address a status target")
     assert(before==Snapshot() and statusTarget:GetText()~="" and dialog.statusRole=="error")
+    assert(not layoutDropdown or layoutDropdown.values==previousOptions, "failed import refreshed the picker")
     edit:SetText(encoded)
     Click(dialog.primaryButton)
     assert(statusTargets[dialog]==statusTarget, "import error and success used different status widgets")
@@ -162,6 +182,21 @@ for _=1,3 do
     for _, row in ipairs(list.children) do if row.selected then selected=row.item end end
     assert(selected and selected.source=="userLayout" and selected.id~="layout:original" and not selected.active)
     assert(ns.UserLayoutStore.GetRawReadOnly(selected.id))
+    assert(dialog.window.frame:IsShown() and not dialog.window.released and not dialog.body.released,
+        "successful import must leave the transfer dialog open")
+    if layoutDropdown then
+        assert(not previousOptions[selected.id], "imported ID already existed in the picker")
+        assert(layoutDropdown.values[selected.id], "successful import missing from the open canvas picker")
+        assert(layoutDropdown.value==ns.db.char.activeLayoutId, "import changed the picker selection")
+        local found=false
+        for _, id in ipairs(layoutDropdown.order) do if id==selected.id then found=true end end
+        assert(found, "imported ID missing from dropdown order")
+        -- Closing just the transfer dialog must not be needed to refresh it.
+        local successText=statusTarget:GetText()
+        Click(dialog.cancelButton)
+        assert(library.window.frame:IsShown() and Row(selected.id))
+        assert(layoutDropdown.values[selected.id] and successText:match("Imported:"))
+    end
     manager.Close()
     assert(dialog.window.released and dialog.body.released)
     assert(AceGUI.FocusedWidget==nil)
@@ -185,4 +220,4 @@ assert(conflictDialog.statusRole=="success",statusTargets[conflictDialog]:GetTex
 assert(ns.TextTemplateLibrary.ResolveTemplateEntity(builtin,ns.db).content=="[cast:time]")
 assert(active==ns.LayoutTransferCodec.Encode(ns.db.char))
 manager.Close()
-print("PASS: manager export gating, import error/success, selection without activation, close/reopen and transfer widget release")
+print("PASS: manager export gating, import error/success, immediate canvas picker update, no-host fallback, selection without activation, open success dialog, close/reopen and transfer widget release")
