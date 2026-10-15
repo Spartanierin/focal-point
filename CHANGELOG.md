@@ -10,6 +10,16 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.8 – Quality of Life Update
+
+### Added
+
+* Added [power:smart] to show current Mana as a percentage with % and other active power resources as their current value. [power:smart:max] shows 100% for Mana with a valid maximum, or the actual maximum for other resources. Both tags support Demo mode and Canvas/Text Builder previews.
+
+### Improved
+
+* Imported layouts appear immediately in the open editor's layout dropdown without reopening the editor. Import does not activate the layout automatically.
+
 ## 2.2.7 – Visual Customization Update
 
 ### Added

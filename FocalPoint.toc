@@ -1,6 +1,6 @@
 ## Title: Focal Point
 ## Interface: 120105, 16001
-## Version: 2.2.7
+## Version: 2.2.8
 ## Author: Spartanierin
 ## Notes: A visual in-game editor for designing deeply customized unit frames.
 

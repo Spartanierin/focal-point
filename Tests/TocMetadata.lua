@@ -26,7 +26,7 @@ end
 
 Require("Title", "Focal Point")
 Require("Interface", "120105, 16001")
-Require("Version", "2.2.7")
+Require("Version", "2.2.8")
 Require("Author", "Spartanierin")
 Require("Notes")
 Require("SavedVariables", "FocalPointDB")
@@ -44,6 +44,6 @@ end
 assert(interfaceIndex and versionIndex and interfaceIndex < versionIndex,
     "TOC Interface must precede Version")
 assert(metadata.Interface == "120105, 16001",
-    "TOC Interface order must be Retail 120100 and 120105, Forever 16001")
+    "TOC Interface order must be Retail 120105, Forever 16001")
 
 print("PASS: canonical TOC Interface, Version and release metadata")
