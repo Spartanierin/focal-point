@@ -77,37 +77,39 @@ function Utils.BuildFontFlags(config)
     return table.concat(flags, ",")
 end
 
+-- The second result distinguishes successful formatting from the legacy "0"
+-- fallback. Existing single-value consumers retain their exact output.
 function Utils.FormatNumber(value)
     if value == nil then
-        return "0"
+        return "0", false
     end
 
     if BreakUpLargeNumbers then
         local ok, result = pcall(BreakUpLargeNumbers, value)
         if ok and type(result) == "string" then
-            return result
+            return result, true
         end
     end
 
     local ok, result = pcall(string.format, "%s", value)
     if ok and type(result) == "string" then
-        return result
+        return result, true
     end
 
-    return "0"
+    return "0", false
 end
 
 function Utils.FormatInteger(value)
     if value == nil then
-        return "0"
+        return "0", false
     end
 
     local ok, result = pcall(string.format, "%d", value)
     if ok and type(result) == "string" then
-        return result
+        return result, true
     end
 
-    return "0"
+    return "0", false
 end
 
 function Utils.FormatTextValue(value)

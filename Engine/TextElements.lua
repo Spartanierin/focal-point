@@ -214,6 +214,22 @@ local TOKEN_DEFS = {
         direct = true,
         dependency = "power",
     },
+    ["power:smart"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerSmartText", "--")
+        end,
+        format = FormatTextValue,
+        direct = true,
+        dependency = "power",
+    },
+    ["power:smart:max"] = {
+        value = function(unit, frame)
+            return GetLiveValue(frame, "powerSmartMaxText", "--")
+        end,
+        format = FormatTextValue,
+        direct = true,
+        dependency = "power",
+    },
     ["power:cur:abbr"] = {
         value = function(unit, frame)
             return GetLiveValue(frame, "powerCurrentAbbr", "")
@@ -424,6 +440,8 @@ local TAG_DATABASE = {
     { token = "[power:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "100" },
     { token = "[power:max:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX_ABBR", example = "100" },
     { token = "[power:perc]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_PERC", example = "100" },
+    { token = "[power:smart]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_SMART", example = "78%" },
+    { token = "[power:smart:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_SMART_MAX", example = "100%" },
     { token = "[altpower:cur]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR", example = "72" },
     { token = "[altpower:max]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_MAX", example = "100" },
     { token = "[altpower:cur:abbr]", category = "INFO_TAG_CATEGORY_POWER", description = "INFO_TAG_DESC_POWER_CUR_ABBR", example = "72" },
