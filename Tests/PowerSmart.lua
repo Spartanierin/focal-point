@@ -101,7 +101,7 @@ Test("prepared secret text stays opaque; percent uses only protected formatting"
         end
         return originalFormat(pattern,value,...)
     end
-    local prepare=f.Upvalue(ns.TextElementLiveValues.Refresh,"PrepareSmartPowerText")
+    local prepare=f.Upvalue(ns.TextElementLiveValues.RefreshPower,"PrepareSmartPowerText")
     assert(rawequal(prepare(0,secret,secret,true,true),suffixed));Equal(formats,1)
     assert(rawequal(prepare(3,secret,secret,true,true),secret));Equal(formats,1)
     assert(rawequal(prepare(3,secret,nil,true,true,true),secret))

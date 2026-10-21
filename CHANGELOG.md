@@ -10,6 +10,12 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 2.2.9
+
+### Fixed
+
+* Fixed Power bars to update and animate smoothly across Player, Target, Focus and their target frames, including Energy regeneration in WoW Midnight.
+
 ## 2.2.8 – Quality of Life Update
 
 ### Added

@@ -139,6 +139,112 @@ local function EnsureCanonicalHealthLiveValues(frame, unit)
     return currentHealth, maxHealth, currentSafe, maxSafe
 end
 
+-- Shared primary-power text preparation. Narrow refreshes pass the canonical
+-- raw values, never values read back from a rendered StatusBar. The optional
+-- bar fallbacks retain the existing broad-refresh contract.
+function LiveValues.RefreshPower(frame, powerCurrent, powerMax, powerType, powerBarCurrent, powerBarMax, preview)
+    if preview then
+        frame.LiveValues.powerCurrent = powerCurrent
+        frame.LiveValues.powerMax = powerMax
+        local currentValid, maxValid
+        frame.LiveValues.powerCurrentText, currentValid = FormatNumber(powerCurrent)
+        frame.LiveValues.powerMaxText, maxValid = FormatNumber(powerMax)
+        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
+        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
+        frame.LiveValues.powerCurrentRaw = powerCurrent
+        frame.LiveValues.powerMaxRaw = powerMax
+        local powerCurrentSafe = ToSafeNumber(powerCurrent)
+        local powerMaxSafe = ToSafeNumber(powerMax)
+        frame.LiveValues.powerPercentValue = powerMaxSafe > 0 and math.floor((powerCurrentSafe / powerMaxSafe) * 100) or 0
+        local percentValid
+        frame.LiveValues.powerPercentText, percentValid = FormatInteger(frame.LiveValues.powerPercentValue)
+        -- Synthetic types belong to the demo record, never to the live class.
+        frame.LiveValues.powerSmartText = PrepareSmartPowerText(preview.powerType,
+            frame.LiveValues.powerCurrentText, frame.LiveValues.powerPercentText,
+            IsRenderablePowerNumber(preview.powerCurrent) and currentValid == true,
+            IsRenderablePowerNumber(preview.powerCurrent) and IsRenderablePowerMaximum(preview.powerMax) and percentValid == true)
+        frame.LiveValues.powerSmartMaxText = PrepareSmartPowerText(preview.powerType,
+            frame.LiveValues.powerMaxText, nil,
+            IsRenderablePowerNumber(preview.powerMax) and maxValid == true
+                and (IsSecretValue(preview.powerMax) or preview.powerMax >= 0),
+            IsRenderablePowerMaximum(preview.powerMax), true)
+
+        return
+    end
+
+    local unit = frame._fpUnit
+    local powerCurrentAvailable = IsRenderablePowerNumber(powerCurrent)
+    local powerMaxAvailable = IsRenderablePowerNumber(powerMax)
+    if not IsSecretValue(powerCurrent) and not powerCurrent then powerCurrent = 0 end
+    if not IsSecretValue(powerMax) and not powerMax then powerMax = 0 end
+    frame.LiveValues.powerCurrent = powerCurrent
+    frame.LiveValues.powerMax = powerMax
+    local currentFormatValid
+    frame.LiveValues.powerCurrentText, currentFormatValid = FormatNumber(powerCurrent)
+    local maxFormatValid
+    frame.LiveValues.powerMaxText, maxFormatValid = FormatNumber(powerMax)
+    frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerBarCurrent)
+    if frame.LiveValues.powerCurrentSafe <= 0 then
+        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
+    end
+    frame.LiveValues.powerMaxSafe = ToSafeNumber(powerBarMax)
+    if frame.LiveValues.powerMaxSafe <= 0 then
+        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
+    end
+    -- Midnight can mark power values as secret. Treat untrusted values as
+    -- unknown instead of collapsing them to 0%, which would be misleading.
+    local powerPercentRaw, powerPercentText, percentFormatValid = GetRenderableUnitPowerPercent(unit)
+    -- Retain a renderable API result even if the legacy numeric fallback below
+    -- chooses displayed bar values. This does not change powerPercentText.
+    local smartPercentText, smartPercentValid = powerPercentText, percentFormatValid
+    local powerPercentValue = ToKnownNumber(powerPercentRaw) or GetSafeUnitPowerPercent(unit, powerType)
+    if powerPercentValue == nil then
+        local knownPowerCurrent = ToKnownNumber(powerBarCurrent) or ToKnownNumber(powerCurrent)
+        local knownPowerMax = ToKnownNumber(powerBarMax) or ToKnownNumber(powerMax)
+        if knownPowerCurrent and knownPowerMax and knownPowerMax > 0 then
+            powerPercentValue = math.floor((knownPowerCurrent / knownPowerMax) * 100)
+            powerPercentText, percentFormatValid = FormatInteger(powerPercentValue)
+            -- Legacy percent text may use displayed bar values. Smart power
+            -- accepts that text only when the actual API values corroborate it.
+            percentFormatValid = percentFormatValid == true and IsKnownFiniteNumber(powerPercentValue)
+                and powerCurrentAvailable and UnitPowerMax ~= nil
+                and IsKnownFiniteNumber(powerCurrent) and IsKnownFiniteNumber(powerMax)
+                and knownPowerCurrent == powerCurrent and knownPowerMax == powerMax
+            if not smartPercentValid then
+                smartPercentText, smartPercentValid = powerPercentText, percentFormatValid
+            end
+        end
+    end
+    frame.LiveValues.powerPercentValue = powerPercentValue
+    frame.LiveValues.powerPercentText = powerPercentText or (powerPercentValue ~= nil and FormatInteger(powerPercentValue) or "--")
+    frame.LiveValues.powerSmartText = PrepareSmartPowerText(powerType,
+        frame.LiveValues.powerCurrentText, smartPercentText,
+        powerCurrentAvailable and currentFormatValid == true,
+        smartPercentValid == true)
+    frame.LiveValues.powerSmartMaxText = PrepareSmartPowerText(powerType,
+        frame.LiveValues.powerMaxText, nil,
+        powerMaxAvailable and maxFormatValid == true
+            and (IsSecretValue(powerMax) or powerMax >= 0),
+        IsRenderablePowerMaximum(powerMax), true)
+end
+
+-- Called after the primary bar pass, including when that bar is disabled.
+function LiveValues.RefreshPrimaryPower(frame)
+    local live = frame.LiveValues
+    local preview = (Demo.GetUnitValues and Demo.GetUnitValues(frame))
+        or (IsPreviewModeEnabled() and frame.TestValues)
+    if preview then
+        LiveValues.RefreshPower(frame, preview.powerCurrent or 65, preview.powerMax or 100,
+            preview.powerType, nil, nil, preview)
+    else
+        local powerType = UnitPowerType and UnitPowerType(frame._fpUnit)
+        LiveValues.RefreshPower(frame, live.powerCurrentRaw, live.powerMaxRaw, powerType)
+    end
+    if TextState.MarkLiveValuesFresh then
+        TextState.MarkLiveValuesFresh(frame)
+    end
+end
+
 -- Builds the live text value cache that all token resolvers read from.
 function LiveValues.Refresh(frame)
     if not frame or not frame._fpUnit then
@@ -177,30 +283,7 @@ function LiveValues.Refresh(frame)
         frame.LiveValues.healthCurrentRaw = healthCurrent
         frame.LiveValues.healthMaxRaw = healthMax
 
-        frame.LiveValues.powerCurrent = powerCurrent
-        frame.LiveValues.powerMax = powerMax
-        local currentValid, maxValid
-        frame.LiveValues.powerCurrentText, currentValid = FormatNumber(powerCurrent)
-        frame.LiveValues.powerMaxText, maxValid = FormatNumber(powerMax)
-        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
-        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
-        frame.LiveValues.powerCurrentRaw = powerCurrent
-        frame.LiveValues.powerMaxRaw = powerMax
-        local powerCurrentSafe = ToSafeNumber(powerCurrent)
-        local powerMaxSafe = ToSafeNumber(powerMax)
-        frame.LiveValues.powerPercentValue = powerMaxSafe > 0 and math.floor((powerCurrentSafe / powerMaxSafe) * 100) or 0
-        local percentValid
-        frame.LiveValues.powerPercentText, percentValid = FormatInteger(frame.LiveValues.powerPercentValue)
-        -- Synthetic types belong to the demo record, never to the live class.
-        frame.LiveValues.powerSmartText = PrepareSmartPowerText(preview.powerType,
-            frame.LiveValues.powerCurrentText, frame.LiveValues.powerPercentText,
-            IsRenderablePowerNumber(preview.powerCurrent) and currentValid == true,
-            IsRenderablePowerNumber(preview.powerCurrent) and IsRenderablePowerMaximum(preview.powerMax) and percentValid == true)
-        frame.LiveValues.powerSmartMaxText = PrepareSmartPowerText(preview.powerType,
-            frame.LiveValues.powerMaxText, nil,
-            IsRenderablePowerNumber(preview.powerMax) and maxValid == true
-                and (IsSecretValue(preview.powerMax) or preview.powerMax >= 0),
-            IsRenderablePowerMaximum(preview.powerMax), true)
+        LiveValues.RefreshPower(frame, powerCurrent, powerMax, preview.powerType, nil, nil, preview)
 
         frame.LiveValues.altPowerCurrent = altPowerCurrent
         frame.LiveValues.altPowerMax = altPowerMax
@@ -224,12 +307,7 @@ function LiveValues.Refresh(frame)
     local healthCurrent, healthMax, healthCurrentSafe, healthMaxSafe = EnsureCanonicalHealthLiveValues(frame, unit)
     local healthPercent = UnitHealthPercent and UnitHealthPercent(unit, true, CurveConstants and CurveConstants.ScaleTo100) or 0
     local powerCurrent = UnitPower and UnitPower(unit)
-    local powerCurrentAvailable = IsRenderablePowerNumber(powerCurrent)
-    -- Retain legacy text fallbacks without treating a missing source as zero.
-    if not IsSecretValue(powerCurrent) and not powerCurrent then powerCurrent = 0 end
     local powerMax = UnitPowerMax and UnitPowerMax(unit)
-    local powerMaxAvailable = IsRenderablePowerNumber(powerMax)
-    if not IsSecretValue(powerMax) and not powerMax then powerMax = 0 end
     local powerType
     if UnitPowerType then powerType = UnitPowerType(unit) end
     local altPowerCurrent = 0
@@ -281,55 +359,7 @@ function LiveValues.Refresh(frame)
         frame.LiveValues.healthPercentValue = ToSafeNumber(healthPercent)
     end
 
-    frame.LiveValues.powerCurrent = powerCurrent
-    frame.LiveValues.powerMax = powerMax
-    local currentFormatValid
-    frame.LiveValues.powerCurrentText, currentFormatValid = FormatNumber(powerCurrent)
-    local maxFormatValid
-    frame.LiveValues.powerMaxText, maxFormatValid = FormatNumber(powerMax)
-    frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerBarCurrent)
-    if frame.LiveValues.powerCurrentSafe <= 0 then
-        frame.LiveValues.powerCurrentSafe = ToSafeNumber(powerCurrent)
-    end
-    frame.LiveValues.powerMaxSafe = ToSafeNumber(powerBarMax)
-    if frame.LiveValues.powerMaxSafe <= 0 then
-        frame.LiveValues.powerMaxSafe = ToSafeNumber(powerMax)
-    end
-    -- Midnight can mark power values as secret. Treat untrusted values as
-    -- unknown instead of collapsing them to 0%, which would be misleading.
-    local powerPercentRaw, powerPercentText, percentFormatValid = GetRenderableUnitPowerPercent(unit)
-    -- Retain a renderable API result even if the legacy numeric fallback below
-    -- chooses displayed bar values. This does not change powerPercentText.
-    local smartPercentText, smartPercentValid = powerPercentText, percentFormatValid
-    local powerPercentValue = ToKnownNumber(powerPercentRaw) or GetSafeUnitPowerPercent(unit, powerType)
-    if powerPercentValue == nil then
-        local knownPowerCurrent = ToKnownNumber(powerBarCurrent) or ToKnownNumber(powerCurrent)
-        local knownPowerMax = ToKnownNumber(powerBarMax) or ToKnownNumber(powerMax)
-        if knownPowerCurrent and knownPowerMax and knownPowerMax > 0 then
-            powerPercentValue = math.floor((knownPowerCurrent / knownPowerMax) * 100)
-            powerPercentText, percentFormatValid = FormatInteger(powerPercentValue)
-            -- Legacy percent text may use displayed bar values. Smart power
-            -- accepts that text only when the actual API values corroborate it.
-            percentFormatValid = percentFormatValid == true and IsKnownFiniteNumber(powerPercentValue)
-                and powerCurrentAvailable and UnitPowerMax ~= nil
-                and IsKnownFiniteNumber(powerCurrent) and IsKnownFiniteNumber(powerMax)
-                and knownPowerCurrent == powerCurrent and knownPowerMax == powerMax
-            if not smartPercentValid then
-                smartPercentText, smartPercentValid = powerPercentText, percentFormatValid
-            end
-        end
-    end
-    frame.LiveValues.powerPercentValue = powerPercentValue
-    frame.LiveValues.powerPercentText = powerPercentText or (powerPercentValue ~= nil and FormatInteger(powerPercentValue) or "--")
-    frame.LiveValues.powerSmartText = PrepareSmartPowerText(powerType,
-        frame.LiveValues.powerCurrentText, smartPercentText,
-        powerCurrentAvailable and currentFormatValid == true,
-        smartPercentValid == true)
-    frame.LiveValues.powerSmartMaxText = PrepareSmartPowerText(powerType,
-        frame.LiveValues.powerMaxText, nil,
-        powerMaxAvailable and maxFormatValid == true
-            and (IsSecretValue(powerMax) or powerMax >= 0),
-        IsRenderablePowerMaximum(powerMax), true)
+    LiveValues.RefreshPower(frame, powerCurrent, powerMax, powerType, powerBarCurrent, powerBarMax)
 
     local altPowerCurrentSafe = ToSafeNumber(altPowerCurrent)
     local altPowerMaxSafe = ToSafeNumber(altPowerMax)

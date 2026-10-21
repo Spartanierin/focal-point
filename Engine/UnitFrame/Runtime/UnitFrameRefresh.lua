@@ -6,6 +6,7 @@ local Presence = FocalPoint.UnitFramePresence or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local UnitWatchPolicy = FocalPoint.UnitFrameUnitWatchPolicy or {}
 local Visibility = FocalPoint.UnitFrameVisibility or {}
+local POWER_TEXT_DEPENDENCIES = { power = true }
 
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
@@ -476,6 +477,15 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     end
     ReconcilePendingVisibilityIntent(frame, mode)
 
+    -- Native power events must not advance synthetic demo/preview snapshots.
+    if mode ~= "live" and IsScopedRefresh(refreshRequest) and HasScope(refreshRequest, "power") then
+        local powerOnly = true
+        for scope, enabled in pairs(refreshRequest.scopes) do
+            if enabled and scope ~= "power" then powerOnly = false; break end
+        end
+        if powerOnly then return end
+    end
+
     local demoApplied = Demo.ApplyFrameSnapshot and Demo.ApplyFrameSnapshot(owner, frame, refreshRequest, mode, modeReason) or false
     if demoApplied then
         if mode == "disabled" then
@@ -756,6 +766,7 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     local needsFull = not scopedRefresh
     local needsLayout = needsFull or HasScope(refreshRequest, "layout")
     local needsBars = needsFull or HasScope(refreshRequest, "bars")
+    local needsPower = HasScope(refreshRequest, "power")
     local needsTexts = needsFull or HasScope(refreshRequest, "texts")
     local needsAuras = needsFull or HasScope(refreshRequest, "auras")
     local needsCastbar = needsFull or HasScope(refreshRequest, "castbar")
@@ -765,6 +776,9 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     if needsBars and owner.RefreshUnitBarValues then
         owner:RefreshUnitBarValues(frame)
         classPowerHandoff = frame.LiveValues and frame.LiveValues.classPowerSnapshot
+    elseif needsPower then
+        -- The broad bar pass wins when both scopes share a queue commit.
+        FocalPoint.UnitFramePower.RefreshUnitBarValues(owner, frame, true)
     end
     if needsLayout and owner.ApplyConfig then
         owner:ApplyConfig(frame, classPowerHandoff)
@@ -781,6 +795,8 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
     end
     if needsTexts and owner.RefreshLiveValues then
         owner:RefreshLiveValues(frame)
+    elseif needsPower then
+        FocalPoint.TextElementLiveValues.RefreshPrimaryPower(frame)
     end
     if needsAuras and owner.RefreshAuras then
         owner:RefreshAuras(frame, refreshRequest and refreshRequest.forceAuraFullScan == true)
@@ -790,7 +806,10 @@ function Refresh.Apply(owner, frame, config, refreshRequest)
             and refreshRequest
             and refreshRequest.textDependencies
             or nil
+        if needsPower and textDependencies then textDependencies.power = true end
         owner:UpdateTextElements(frame, textDependencies)
+    elseif needsPower and owner.UpdateTextElements then
+        owner:UpdateTextElements(frame, POWER_TEXT_DEPENDENCIES)
     end
 
     if needsVisibility and owner.ApplyRangeFade then

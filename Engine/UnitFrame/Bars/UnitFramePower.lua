@@ -10,6 +10,13 @@ local Utils = FocalPoint.UnitFrameUtils or {}
 local Demo = FocalPoint.UnitFrameDemoEnvironment or {}
 local VisualPolicy = FocalPoint.EditorVisualPolicy or {}
 local RuntimeActivity = FocalPoint.UnitFrameRuntimeActivity or {}
+local PRIMARY_POWER_EVENT_UNITS = {
+    player = true,
+    target = true,
+    targettarget = true,
+    focus = true,
+    focustarget = true,
+}
 
 local DoesUnitSeemPresent = Presence.DoesUnitSeemPresent
 local IsPreviewModeEnabled = Presence.IsPreviewModeEnabled
@@ -27,13 +34,15 @@ local function IsSecretValue(value)
     return issecretvalue and issecretvalue(value) or false
 end
 
-local function HasUsableLivePower(unit, unitExists)
+local function HasUsableLivePower(unit, unitExists, current, maximum, supplied)
     if not (unitExists == true and UnitPower and UnitPowerMax) then
         return false
     end
 
-    local current = UnitPower(unit)
-    local maximum = UnitPowerMax(unit)
+    if not supplied then
+        current = UnitPower(unit)
+        maximum = UnitPowerMax(unit)
+    end
     return type(current) == "number"
         and type(maximum) == "number"
         and not IsSecretValue(current)
@@ -67,15 +76,20 @@ local function ResolveBarNumber(rawValue)
     return ToSafeNumberValue(rawValue), false
 end
 
-function Power.RefreshUnitBarValues(owner, frame)
+function Power.RefreshUnitBarValues(owner, frame, primaryOnly)
     if not frame or not frame._fpUnit then
         return
     end
 
     local unit = frame._fpUnit
     local unitExists = DoesUnitSeemPresent(unit)
+    local primaryCurrent, primaryMax
+    if primaryOnly and unitExists then
+        primaryCurrent = UnitPower and UnitPower(unit)
+        primaryMax = UnitPowerMax and UnitPowerMax(unit)
+    end
     local powerEnabled = not (frame.config and frame.config.showPowerBar == false)
-    local hasLivePower = HasUsableLivePower(unit, unitExists)
+    local hasLivePower = HasUsableLivePower(unit, unitExists, primaryCurrent, primaryMax, primaryOnly)
     local visualState = ResolveBarVisualState(frame, "PowerBar", powerEnabled, hasLivePower)
     local previewValues = nil
     if VisualPolicy.IsSimulatedState and VisualPolicy.IsSimulatedState(visualState) then
@@ -87,7 +101,7 @@ function Power.RefreshUnitBarValues(owner, frame)
     -- Legacy compatibility write-through for older text/bar readers.
     frame.TestValues = previewValues
 
-    if frame.Elements.HealthBar and owner and owner.RefreshHealthBar then
+    if not primaryOnly and frame.Elements.HealthBar and owner and owner.RefreshHealthBar then
         owner:RefreshHealthBar(frame)
     end
 
@@ -97,6 +111,8 @@ function Power.RefreshUnitBarValues(owner, frame)
     if previewValues then
         currentPower = previewValues.powerCurrent or 65
         maxPower = previewValues.powerMax or 100
+    elseif primaryOnly then
+        currentPower, maxPower = primaryCurrent, primaryMax
     elseif unitExists and UnitPower and UnitPowerMax then
         currentPower = UnitPower(unit) or 0
         maxPower = UnitPowerMax(unit) or 1
@@ -145,11 +161,21 @@ function Power.RefreshUnitBarValues(owner, frame)
             end
         else
             frame.Elements.PowerBar:SetMinMaxValues(0, maxPowerBarValue)
-            frame.Elements.PowerBar:SetValue(currentPowerBarValue)
+            local interpolation = Enum and Enum.StatusBarInterpolation
+                and Enum.StatusBarInterpolation.ExponentialEaseOut
+            if interpolation ~= nil then
+                frame.Elements.PowerBar:SetValue(currentPowerBarValue, interpolation)
+            else
+                frame.Elements.PowerBar:SetValue(currentPowerBarValue)
+            end
             if Demo.IsFrameInDemoMode and Demo.IsFrameInDemoMode(frame) and not (Demo.IsBarSmoothingDisabled and Demo.IsBarSmoothingDisabled()) and Demo.TouchDebug then
                 Demo.TouchDebug(frame, "barSmoothingTicks")
             end
         end
+    end
+
+    if primaryOnly then
+        return
     end
 
     if frame.Elements.AlternativePowerBar then
@@ -239,18 +265,25 @@ function Power.RefreshUnitBarValues(owner, frame)
 end
 
 function Power.RegisterAlternativeEvents(owner, frame)
-    if not frame or frame.AlternativePowerEventFrame or frame._fpUnit ~= "player" then
+    if not frame or frame.AlternativePowerEventFrame or not PRIMARY_POWER_EVENT_UNITS[frame._fpUnit] then
         return
     end
 
+    local unitToken = frame._fpUnit
+    local isPlayer = unitToken == "player"
     local eventFrame = CreateFrame("Frame", nil, frame)
     eventFrame.owner = frame
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
-    eventFrame:RegisterEvent("UNIT_POWER_BAR_HIDE")
-    eventFrame:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
-    eventFrame:RegisterUnitEvent("UNIT_MAXPOWER", "player")
-    eventFrame:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+    eventFrame:RegisterUnitEvent("UNIT_POWER_UPDATE", unitToken)
+    eventFrame:RegisterUnitEvent("UNIT_POWER_FREQUENT", unitToken)
+    eventFrame:RegisterUnitEvent("UNIT_MAXPOWER", unitToken)
+    eventFrame:RegisterUnitEvent("UNIT_DISPLAYPOWER", unitToken)
+    if isPlayer then
+        -- These events belong to the player's Alternative Power bar, not to
+        -- primary Power event coverage for other unit frames.
+        eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+        eventFrame:RegisterEvent("UNIT_POWER_BAR_SHOW")
+        eventFrame:RegisterEvent("UNIT_POWER_BAR_HIDE")
+    end
 
     eventFrame:SetScript("OnEvent", function(_, event, unit)
         local currentOwner = eventFrame.owner
@@ -258,7 +291,26 @@ function Power.RegisterAlternativeEvents(owner, frame)
             return
         end
 
-        if unit and unit ~= currentOwner._fpUnit then
+        local isUnitPowerEvent = event == "UNIT_POWER_UPDATE"
+            or event == "UNIT_POWER_FREQUENT"
+            or event == "UNIT_MAXPOWER"
+            or event == "UNIT_DISPLAYPOWER"
+        if isUnitPowerEvent then
+            if (issecretvalue and issecretvalue(unit))
+                or type(unit) ~= "string"
+                or unit ~= currentOwner._fpUnit
+            then
+                return
+            end
+        elseif unit and ((issecretvalue and issecretvalue(unit)) or unit ~= currentOwner._fpUnit) then
+            return
+        end
+
+        if event == "UNIT_POWER_FREQUENT" then
+            -- Do not consume Class-Power transition evidence through "bars".
+            if State.QueueRefresh then
+                State.QueueRefresh(currentOwner, event, "power")
+            end
             return
         end
 
