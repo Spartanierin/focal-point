@@ -49,6 +49,16 @@ function FocalPoint:CreatePositionController()
     return frame
 end
 
+local function UpdateArrangeChromeAlpha(frame, overlay)
+    local visibility = FocalPoint.UnitFrameVisibility
+    local active = visibility and visibility.IsArrangePresentationActive
+        and visibility.IsArrangePresentationActive(frame) or false
+    if overlay and overlay.SetIgnoreParentAlpha then
+        overlay:SetIgnoreParentAlpha(active)
+    end
+    return active
+end
+
 local function EnsureMoveOverlay(frame)
     if not frame then
         return nil
@@ -282,6 +292,7 @@ local function UpdateSelectionOverlay(frame)
 
     if not IsEditorChromeActive() then
         local overlay = frame.SelectionOverlay
+        UpdateArrangeChromeAlpha(frame, overlay)
         if overlay then
             overlay:EnableMouse(false)
             overlay:RegisterForDrag()
@@ -296,6 +307,7 @@ local function UpdateSelectionOverlay(frame)
     if not overlay then
         return
     end
+    UpdateArrangeChromeAlpha(frame, overlay)
 
     if IsEditorTextMode() then
         if IsPrimaryEditorFrame(frame) then
@@ -330,18 +342,19 @@ local function UpdateMoveOverlayVisuals(frame)
     end
 
     local overlay = frame.MoveOverlay
+    local arrangePresentation = UpdateArrangeChromeAlpha(frame, overlay)
     local coords = overlay.Coords
     local accent = overlay.Accent
     local placeholderLabel = overlay.PlaceholderLabel
     local isSelected = IsPrimaryEditorFrame(frame)
     local isSecondary = IsSecondaryEditorFrame(frame)
     local isDragging = frame._focalPointDragState ~= nil
-    local isPlaceholder = FocalPoint.framesUnlocked
+    local isPlaceholder = arrangePresentation or (FocalPoint.framesUnlocked
         and not FocalPoint.guiTestModeEnabled
         and FocalPoint.IsEditorActive
         and FocalPoint:IsEditorActive()
         and not isSelected
-        and not isDragging
+        and not isDragging)
 
     local preview = FocalPoint.UnitFramePreview and FocalPoint.UnitFramePreview.GetTestValues and FocalPoint.UnitFramePreview.GetTestValues(frame) or nil
     local placeholderName = preview and preview.name or (frame._fpUnit or "")
@@ -358,7 +371,7 @@ local function UpdateMoveOverlayVisuals(frame)
         placeholderLabel:SetShadowColor(placeholderPresentation.shadow[1], placeholderPresentation.shadow[2], placeholderPresentation.shadow[3], placeholderPresentation.shadow[4])
     end
 
-    if IsEditorTextMode() then
+    if IsEditorTextMode() and not arrangePresentation then
         overlay:SetBackdropColor(0, 0, 0, 0)
         overlay:SetBackdropBorderColor(0, 0, 0, 0)
         if accent then

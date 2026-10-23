@@ -1837,6 +1837,9 @@ function UF:ApplyRangeFade(frame)
     }
     local alphaDecision = ResolveRootAlphaRangeFadeDecision(frame, legacy)
     RecordRootAlphaRangeFadeShadow(frame, legacy, alphaDecision)
+    if alphaDecision and alphaDecision.writesImmediately == true then
+        frame:SetAlpha(GetResolvedRangeFadeAlpha(alphaDecision, targetAlpha))
+    end
     driver:Show()
 end
 
@@ -2456,6 +2459,16 @@ function FocalPoint:RebuildFramesForActiveProfile()
             end
         elseif self.SpawnUnitFrame then
             self:SpawnUnitFrame(unit, { allowDisabledForUnlock = self.framesUnlocked == true })
+        end
+
+        -- Finalize editor presentation after registry publication and config binding.
+        local frame = self.frames[unit]
+        if frame and frame.config == GetUnitDB(unit)
+            and self.framesUnlocked == true and self.IsEditorActive and self:IsEditorActive()
+            and not (InCombatLockdown and InCombatLockdown())
+        then
+            UF:ApplyRangeFade(frame)
+            if self.UpdateFrameDragState then self:UpdateFrameDragState(frame) end
         end
     end
 

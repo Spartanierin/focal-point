@@ -188,6 +188,12 @@ function EditorController.SetPresentation(presentation)
     if stateApi.IsArrange() then
         EditorController.ReleaseInspector()
     end
+    -- Re-evaluate current regular alpha for active frames; never restore a cache.
+    if ns.UnitFrame and ns.UnitFrame.ApplyRangeFade then
+        for _, frame in pairs(ns.frames or {}) do
+            ns.UnitFrame:ApplyRangeFade(frame)
+        end
+    end
     if ns.GUI.RequestRefreshOptions then
         ns.GUI:RequestRefreshOptions("Editor.Presentation")
     end

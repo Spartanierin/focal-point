@@ -102,6 +102,14 @@ function Range.GetFadeMultiplier(frame)
     return inRange and 1 or TARGET_OUT_OF_RANGE_ALPHA
 end
 
+local function ApplyFadeAlpha(frame, alpha)
+    local visibility = FocalPoint.UnitFrameVisibility
+    if visibility and visibility.ResolvePresentationAlpha then
+        alpha = visibility.ResolvePresentationAlpha(frame, alpha)
+    end
+    frame:SetAlpha(alpha)
+end
+
 function Range.EnsureFadeDriver(frame)
     if not frame or frame.RangeFadeDriver then
         return frame and frame.RangeFadeDriver or nil
@@ -127,7 +135,7 @@ function Range.EnsureFadeDriver(frame)
         local delta = targetAlpha - currentAlpha
         if math.abs(delta) < 0.01 then
             owner._rangeCurrentAlpha = targetAlpha
-            owner:SetAlpha(targetAlpha)
+            ApplyFadeAlpha(owner, targetAlpha)
             self:Hide()
             return
         end
@@ -138,7 +146,7 @@ function Range.EnsureFadeDriver(frame)
             Demo.TouchDebug(owner, "rangeFadeTicks")
         end
         owner._rangeCurrentAlpha = currentAlpha
-        owner:SetAlpha(currentAlpha)
+        ApplyFadeAlpha(owner, currentAlpha)
     end)
 
     frame.RangeFadeDriver = driver

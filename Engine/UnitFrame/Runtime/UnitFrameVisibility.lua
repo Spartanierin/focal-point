@@ -836,8 +836,37 @@ local function IsMissingUnitAlphaGuardActive(frame)
     return false
 end
 
--- Passive read-only model for future root-alpha centralization. This function
--- intentionally does not call SetAlpha, Show, Hide, UnitWatch, refresh, or state mutation.
+function Visibility.IsArrangePresentationActive(frame)
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
+    if not (frame ~= nil and type(frame._fpUnit) == "string"
+        and type(frame.SetIgnoreParentAlpha) == "function"
+        and FocalPoint.frames ~= nil and FocalPoint.frames[frame._fpUnit] == frame
+        and FocalPoint.framesUnlocked == true
+        and editorState ~= nil and editorState.IsArrange ~= nil and editorState.IsArrange()
+        and FocalPoint.IsEditorActive ~= nil and FocalPoint:IsEditorActive() == true) then
+        return false
+    end
+    local utils = FocalPoint.UnitFrameUtils or {}
+    local unit = utils.NormalizeConfigUnitKey and utils.NormalizeConfigUnitKey(frame._fpUnit) or frame._fpUnit
+    if unit ~= frame._fpUnit and not (utils.GetBossFrameIndex and utils.GetBossFrameIndex(frame._fpUnit)) then
+        return false
+    end
+    local supported = false
+    for _, key in ipairs(FocalPoint.Constants and FocalPoint.Constants.UnitOrder or {}) do
+        if key == unit then supported = true; break end
+    end
+    local config = supported and utils.GetUnitDB and utils.GetUnitDB(unit) or nil
+    -- Disabled but present units retain the existing editor representation.
+    return type(config) == "table" and config.present ~= false and frame.config == config
+end
+
+-- One final visual priority, shared by regular alpha decisions and fade ticks.
+function Visibility.ResolvePresentationAlpha(frame, alpha)
+    if Visibility.IsArrangePresentationActive(frame) then return 0, true end
+    return alpha, false
+end
+
+-- Read-only alpha decision; no SetAlpha, Show, Hide, UnitWatch or state mutation.
 function Visibility.ResolveRootAlphaDecision(frame, options)
     options = type(options) == "table" and options or {}
 
@@ -962,6 +991,13 @@ function Visibility.ResolveRootAlphaDecision(frame, options)
     local finalAlpha = overrideAlpha
     if finalAlpha == nil and writesImmediately then
         finalAlpha = rangeAlpha
+    end
+    local arrangePresentation
+    finalAlpha, arrangePresentation = Visibility.ResolvePresentationAlpha(frame, finalAlpha)
+    if arrangePresentation then
+        overrideAlpha = finalAlpha
+        winningSource = "editor-arrange"
+        writesImmediately = true
     end
 
     return {
