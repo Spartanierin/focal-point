@@ -549,7 +549,13 @@ local function SubmitEntityTemplate(context, unitKey, entry)
     end
     NotifyEntityReturn(context, result)
     if ns.RefreshUnitFrame then ns:RefreshUnitFrame(result.unitKey or unitKey) end
-    SelectText(result.unitKey or unitKey, result.textKey or context.targetTextKey)
+    local selected = SelectText(result.unitKey or unitKey, result.textKey or context.targetTextKey)
+    local state = ns.GUI.Editor.State
+    local controller = ns.GUI.Editor.Controller
+    if selected and context.mode == "add" and state and state.IsArrange and state.IsArrange()
+        and controller and controller.SetPresentation then
+        controller.SetPresentation("customize")
+    end
     if ns.GUI and ns.GUI.RequestRefreshOptions then ns.GUI:RequestRefreshOptions("TextTemplateLibrary.ApplyEntityTemplate") end
     context.dialog:Close()
 end

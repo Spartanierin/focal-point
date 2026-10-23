@@ -396,10 +396,20 @@ local function ResolveUnitLabel(unitKey)
     return unitKey
 end
 
+local function CustomizeAddedChild(selected)
+    local state = ns.GUI.Editor.State
+    local controller = ns.GUI.Editor.Controller
+    if selected and state and state.IsArrange and state.IsArrange()
+        and controller and controller.SetPresentation then
+        controller.SetPresentation("customize")
+    end
+end
+
 local function RefreshDecorationInsertResult(unitKey, decorationId)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    local selected
     if objectSelection and type(objectSelection.SelectObject) == "function" then
-        objectSelection.SelectObject({
+        selected = objectSelection.SelectObject({
             kind = "decoration",
             unit = unitKey,
             decorationId = decorationId,
@@ -409,6 +419,7 @@ local function RefreshDecorationInsertResult(unitKey, decorationId)
     if type(ns.RefreshUnitFrame) == "function" and type(unitKey) == "string" and unitKey ~= "" then
         ns:RefreshUnitFrame(unitKey)
     end
+    CustomizeAddedChild(selected)
     RequestEditorRefresh()
 end
 
@@ -491,8 +502,9 @@ end
 
 local function SelectSingletonComponent(unitKey, kind, componentKey)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
+    local selected
     if objectSelection and type(objectSelection.SelectObject) == "function" then
-        objectSelection.SelectObject({
+        selected = objectSelection.SelectObject({
             kind = kind,
             unit = unitKey,
             objectKey = componentKey,
@@ -503,6 +515,7 @@ local function SelectSingletonComponent(unitKey, kind, componentKey)
     if type(ns.RefreshUnitFrame) == "function" then
         ns:RefreshUnitFrame(unitKey)
     end
+    CustomizeAddedChild(selected)
     RequestEditorRefresh("CanvasToolbar.AddObject")
 end
 
