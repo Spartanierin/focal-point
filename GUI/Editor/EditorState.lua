@@ -51,6 +51,7 @@ local state = {
         [DEFAULT_UNIT] = true,
     },
     mode = "quick",
+    presentation = "arrange",
     selectedThemeId = "classic",
     selectedTextId = nil,
     selectedTextKey = nil,
@@ -134,6 +135,22 @@ end
 
 function EditorState.Get()
     return state
+end
+
+-- Session-only navigation; selection and layout data keep their existing owners.
+function EditorState.IsArrange()
+    return state.presentation == "arrange"
+end
+
+function EditorState.SetPresentation(presentation)
+    if presentation ~= "arrange" and presentation ~= "customize" then
+        return false
+    end
+    if state.presentation == presentation then
+        return false
+    end
+    state.presentation = presentation
+    return true
 end
 
 function EditorState.GetPrimaryUnit()

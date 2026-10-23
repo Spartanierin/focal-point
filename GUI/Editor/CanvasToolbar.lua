@@ -11,7 +11,7 @@ local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
-local TOOLBAR_WIDTH = 662
+local TOOLBAR_WIDTH = 856
 local TOOLBAR_HEIGHT = 50
 local TOOLBAR_TOP_OFFSET = 12
 local BUTTON_Y = -6
@@ -25,6 +25,10 @@ local LAYOUT_ADD_X = 430
 local LAYOUT_ADD_WIDTH = 30
 local LAYOUT_ACTIVATE_X = 468
 local LAYOUT_MANAGE_WIDTH = 148
+local PRESENTATION_X = 654
+local PRESENTATION_WIDTH = 108
+local CLOSE_X = 770
+local CLOSE_WIDTH = 70
 
 local context
 local newLayoutDialog
@@ -1070,6 +1074,8 @@ local function EnsureHost()
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutManageButton = CreateButton("Manage Layouts", LAYOUT_MANAGE_WIDTH),
+        presentationButton = CreateButton(T("EDITOR_CUSTOMIZE", "Customize"), PRESENTATION_WIDTH),
+        closeButton = CreateButton(T("CLOSE", "Close"), CLOSE_WIDTH),
     }
 
     if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
@@ -1094,6 +1100,18 @@ local function EnsureHost()
         x = LAYOUT_ADD_X,
         width = LAYOUT_ADD_WIDTH,
     })
+    AnchorButton(widgets.presentationButton, host, { x = PRESENTATION_X, width = PRESENTATION_WIDTH })
+    AnchorButton(widgets.closeButton, host, { x = CLOSE_X, width = CLOSE_WIDTH })
+    widgets.presentationButton:SetCallback("OnClick", function()
+        local editorState = ns.GUI.Editor.State
+        local controller = ns.GUI.Editor.Controller
+        if editorState and editorState.IsArrange and controller and controller.SetPresentation then
+            controller.SetPresentation(editorState.IsArrange() and "customize" or "arrange")
+        end
+    end)
+    widgets.closeButton:SetCallback("OnClick", function()
+        if ns.CloseConfig then ns:CloseConfig() end
+    end)
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
         FormWidgets.SetInspectorButtonTooltip(widgets.addObjectButton, T("ADD_OBJECT_TOOLTIP", "Add Object"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
@@ -1190,6 +1208,10 @@ local function EnsureHost()
 end
 
 local function ResolveCanvasCenterOffset()
+    local editorState = ns.GUI.Editor.State
+    if editorState and editorState.IsArrange and editorState.IsArrange() then
+        return 0
+    end
     local leftWidth = (ns.guiEditorToolbarLayer and ns.guiEditorToolbarLayer.GetWidth and ns.guiEditorToolbarLayer:GetWidth())
         or SidebarGeometry.width
         or 285
@@ -1238,6 +1260,9 @@ function CanvasToolbar.Refresh()
         return
     end
 
+    local editorState = ns.GUI.Editor.State
+    local arrange = editorState and editorState.IsArrange and editorState.IsArrange()
+    current.widgets.presentationButton:SetText(arrange and T("EDITOR_CUSTOMIZE", "Customize") or T("EDITOR_ARRANGE", "Arrange"))
     RefreshLayoutControls(current)
     local layoutManager = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.LayoutManager
     if layoutManager and layoutManager.Refresh then

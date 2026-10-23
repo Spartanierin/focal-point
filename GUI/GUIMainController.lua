@@ -213,6 +213,12 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
         targetContainer._focalPointSidebarLayout = nil
         targetContainer:ReleaseChildren()
     end
+    if selectedPath == FocalPoint.Constants.Nav.EDITOR and EditorState.IsArrange and EditorState.IsArrange() then
+        if Toolbar and Toolbar.Hide then
+            Toolbar.Hide()
+        end
+        return
+    end
     if Toolbar and Toolbar.Open then
         Toolbar.Open(EditorState.Get(), {
             currentPath = selectedPath,
@@ -823,6 +829,11 @@ function FocalPoint:CloseConfig()
         controller.ReleaseInspector()
     end
 
+    local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
+    if editorState and editorState.SetPresentation then
+        editorState.SetPresentation("arrange")
+    end
+
     local shell = self.GUI and self.GUI.AppShell
     if shell and shell.ClearEditorRuntimeRoles then
         shell.ClearEditorRuntimeRoles(self)
@@ -1078,6 +1089,10 @@ function FocalPoint:OpenConfig()
         return
     end
 
+    local editorState = self.GUI and self.GUI.Editor and self.GUI.Editor.State
+    if editorState and editorState.SetPresentation then
+        editorState.SetPresentation("arrange")
+    end
     self:CreateGUI()
     if self.SetFrameLockEnabled then
         self:SetFrameLockEnabled(true, {

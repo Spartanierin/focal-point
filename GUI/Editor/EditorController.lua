@@ -165,6 +165,10 @@ function EditorController.ReleaseInspector()
 end
 
 function EditorController.RefreshActiveProperties()
+    local stateApi = ns.GUI.Editor.State
+    if stateApi and stateApi.IsArrange and stateApi.IsArrange() then
+        return false
+    end
     local refreshProperties = ns.GUI
         and ns.GUI.Editor
         and ns.GUI.Editor._activeInspectorRefreshProperties
@@ -173,6 +177,20 @@ function EditorController.RefreshActiveProperties()
         return false
     end
     refreshProperties()
+    return true
+end
+
+function EditorController.SetPresentation(presentation)
+    local stateApi = ns.GUI.Editor.State
+    if not (stateApi and stateApi.SetPresentation and stateApi.SetPresentation(presentation)) then
+        return false
+    end
+    if stateApi.IsArrange() then
+        EditorController.ReleaseInspector()
+    end
+    if ns.GUI.RequestRefreshOptions then
+        ns.GUI:RequestRefreshOptions("Editor.Presentation")
+    end
     return true
 end
 
@@ -203,6 +221,10 @@ function EditorController.ApplyObjectSelectionProjection(changeKind, previousUni
         RefreshUnitRuntime(previousUnit)
     end
     RefreshSelectedUnitRuntime()
+
+    if stateApi and stateApi.IsArrange and stateApi.IsArrange() then
+        return
+    end
 
     if changeKind == "sameUnitObject" then
         EditorController.RefreshActiveProperties()
@@ -295,6 +317,11 @@ local function EnsureInspector()
 end
 
 function EditorController.BuildInspector(container, deps)
+    local stateApi = ns.GUI.Editor.State
+    if stateApi and stateApi.IsArrange and stateApi.IsArrange() then
+        EditorController.ReleaseInspector()
+        return
+    end
     local state = deps.GetEditorState()
     local Inspector = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector
     local inspector = EnsureInspector()

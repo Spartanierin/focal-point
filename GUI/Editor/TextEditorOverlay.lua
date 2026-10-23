@@ -97,8 +97,10 @@ local function GetUnitConfigByKey(unitKey, editable)
 end
 
 local function IsEditorActive()
+    local editorState = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.State
     return FocalPoint
         and FocalPoint.framesUnlocked == true
+        and not (editorState and editorState.IsArrange and editorState.IsArrange())
         and FocalPoint.IsEditorActive
         and FocalPoint:IsEditorActive()
         and not (FocalPoint.GUI.Editor.InteractionMode

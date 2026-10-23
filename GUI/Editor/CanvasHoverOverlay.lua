@@ -61,7 +61,9 @@ local function NormalizeUnitKey(unitKey)
 end
 
 function CanvasHoverOverlay.IsEditorActive()
+    local editorState = FocalPoint.GUI.Editor.State
     return FocalPoint.framesUnlocked == true
+        and not (editorState and editorState.IsArrange and editorState.IsArrange())
         and FocalPoint.IsEditorActive
         and FocalPoint:IsEditorActive()
         and not (FocalPoint.GUI.Editor.InteractionMode

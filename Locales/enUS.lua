@@ -187,6 +187,8 @@ L["STATUS_LEADER"] = "Leader"
 
 -- Navigation
 L["NAV_EDITOR"] = "Editor"
+L["EDITOR_CUSTOMIZE"] = "Customize"
+L["EDITOR_ARRANGE"] = "Arrange"
 L["NAV_TEXT_BUILDER"] = "Texts Manager"
 L["NAV_PROFILES"] = "Layouts"
 L["NAV_LAYOUTS"] = "Layouts"

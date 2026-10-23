@@ -65,7 +65,7 @@ local sidebarVisible, inspectorVisible
 function toolbar.Open() sidebarVisible=true end
 function toolbar.Hide() sidebarVisible=false end
 ns.GUI.Editor.Controller={ReleaseInspector=function() inspectorVisible=false end}
-ns.GUIController={BuildEditorPage=function() inspectorVisible=true end}
+ns.GUIController={BuildEditorPage=function() inspectorVisible=not ns.GUI.Editor.State.IsArrange() end}
 function ns:IsEditorActive() return self.guiMainHost and self.guiMainHost.frame:IsShown() or false end
 local units={}
 ns.UnitFrameUtils.GetUnitDB=function(unit) return units[unit:match("^boss%d+$") and "boss" or unit] end
@@ -163,6 +163,12 @@ local function Open()
     Project("drag projection",function() ns:UpdateAllFrameDragStates() end)
     Project("synchronous selection",function() ns:RefreshEditorSelectionVisuals() end)
     Project("repeated selection",function() ns:RefreshEditorSelectionVisuals() end)
+    assert(not sidebarVisible and not inspectorVisible and ns.framesUnlocked)
+    Project("Customize navigation",function()
+        ns.GUI.Editor.State.SetPresentation("customize")
+        ns.GUI:RequestRefreshOptions("CastPreviewProjection.Customize")
+        Drain()
+    end)
     assert(sidebarVisible and inspectorVisible and ns.framesUnlocked)
     for _,unit in ipairs({"pet","boss1","boss2","boss3","boss4","boss5"}) do
         assert(not ns.frames[unit].Elements.CastBar.shown,unit..": phantom cast")

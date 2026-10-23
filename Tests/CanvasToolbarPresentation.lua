@@ -59,7 +59,7 @@ local function ControlState()
     return result
 end
 local baseline, hostGeometry = ControlState(), Geometry(host)
-Equal({ host:GetWidth(), host:GetHeight() }, { 662, 50 })
+Equal({ host:GetWidth(), host:GetHeight() }, { 856, 50 })
 Equal(host.points.TOP, { relative = ns.guiEditorWorkspaceLayer, relativePoint = "TOP", x = -15, y = -12 })
 Equal(host.lastSetFrameStrata, { "DIALOG" }); Equal(host:GetFrameLevel(), 140)
 Equal(host.lastEnableMouse, { true })
@@ -178,11 +178,11 @@ end
 local function Rail(_, y) return horizontal(0, y) end
 for _, rect in ipairs({
     {12,10,44,11}, {58,6,142,24}, {224,10,44,11}, {270,5,156,26},
-    {430,6,30,24}, {468,6,148,24}, {224,31,418,12},
+    {430,6,30,24}, {468,6,148,24}, {224,31,418,12}, {654,6,108,24}, {770,6,70,24},
 }) do
     for x = rect[1], rect[1]+rect[3]-1 do
         for y = rect[2], rect[2]+rect[4]-1 do
-            local xx, yy = math.min(x,661-x), math.min(y,49-y)
+            local xx, yy = math.min(x,855-x), math.min(y,49-y)
             local alpha = xx < 24 and yy < 24 and Sample(corner,xx,yy)
                 or yy < 24 and Sample(Rail,0,yy) or xx < 24 and Sample(Rail,0,xx) or 0
             Equal(alpha, 0)
