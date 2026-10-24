@@ -33,21 +33,21 @@ local function GetEditorPresentationAnchor()
 end
 
 local function ComputeInspectorGeometry()
-    local width = INSPECTOR_WIDTH
-    local height = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 760
+    local width = math.min(640, UIParent:GetWidth() - 32)
+    local height = math.min(620, UIParent:GetHeight() - 100)
     local insetLeft = 16
     local insetRight = 16
-    local insetTop = 10
-    local insetBottom = 10
+    local insetTop = 40
+    local insetBottom = 16
 
     return {
         width = width,
         height = height,
         anchorHost = GetEditorPresentationAnchor(),
-        point = "TOPRIGHT",
-        relativePoint = "TOPRIGHT",
-        offsetX = (SidebarGeometry and SidebarGeometry.right) or 0,
-        offsetY = (SidebarGeometry and SidebarGeometry.top) or 0,
+        point = "CENTER",
+        relativePoint = "CENTER",
+        offsetX = 0,
+        offsetY = 0,
         insetLeft = insetLeft,
         insetRight = insetRight,
         insetTop = insetTop,
@@ -79,14 +79,12 @@ local function ApplyInspectorGeometry(inspector, geometry)
     if inspector.frame.SetParent then
         inspector.frame:SetParent(anchorHost)
     end
-    inspector.frame:ClearAllPoints()
-    inspector.frame:SetPoint(
-        geometry.point,
-        anchorHost,
-        geometry.relativePoint,
-        geometry.offsetX,
-        geometry.offsetY
-    )
+    -- The native Window title owns dragging. Refreshes must not reset its position.
+    if not inspector._focalPointWorkspacePositioned then
+        inspector.frame:ClearAllPoints()
+        inspector.frame:SetPoint(geometry.point, anchorHost, geometry.relativePoint, geometry.offsetX, geometry.offsetY)
+        inspector._focalPointWorkspacePositioned = true
+    end
 
     local inspectorContent = inspector._focalPointInspectorContent
     if inspectorContent then
@@ -162,6 +160,12 @@ function EditorController.ReleaseInspector()
     ns.GUI.Editor._activeInspectorHost = nil
     ns.GUI.Editor._activeInspector = nil
     ns.GUI.Editor._activeInspectorRefreshProperties = nil
+    ns.GUI.Editor._activeInspectorRefreshTree = nil
+end
+
+function EditorController.RefreshCompositionTree()
+    local refresh = ns.GUI.Editor._activeInspectorRefreshTree
+    if refresh then refresh() end
 end
 
 function EditorController.RefreshActiveProperties()
@@ -289,9 +293,6 @@ local function EnsureInspector()
         if inspector.frame.SetClampedToScreen then
             inspector.frame:SetClampedToScreen(true)
         end
-        if inspector.titletext and inspector.titletext.Hide then
-            inspector.titletext:Hide()
-        end
         if inspector.closebutton and inspector.closebutton.Hide then
             inspector.closebutton:Hide()
         end
@@ -350,22 +351,16 @@ function EditorController.BuildInspector(container, deps)
         inspector.frame:Show()
         inspector.frame:Raise()
     end
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0, function()
-            if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
-                and EditorController.GetActiveInspectorHost() == inspector
-            then
-                EditorController.UpdateActiveInspectorGeometry()
-            end
-        end)
-        C_Timer.After(0.05, function()
-            if ns.GUI and ns.GUI.Editor and ns.GUI.Editor._inspectorBuildSerial == buildSerial
-                and EditorController.GetActiveInspectorHost() == inspector
-            then
-                EditorController.UpdateActiveInspectorGeometry()
-            end
-        end)
+    local function IsCurrentBuild()
+        return ns.GUI.Editor._inspectorBuildSerial == buildSerial
+            and EditorController.GetActiveInspectorHost() == inspector
+            and not (stateApi and stateApi.IsArrange and stateApi.IsArrange())
     end
+
+    local unitLabel = ns.GetLabel and ns.KeyMap and ns.KeyMap.Units
+        and ns.GetLabel(ns.KeyMap.Units, state.selectedUnit) or state.selectedUnit
+    inspector:SetTitle((ns.L and ns.L.EDITOR_CUSTOMIZE or "Customize") .. " - " .. (unitLabel or ""))
+    if inspector.titletext then inspector.titletext:Show() end
 
     state.editorSidebarScroll = state.editorSidebarScroll or { scrollvalue = 0 }
     local propertyScrollWidget
@@ -698,10 +693,7 @@ function EditorController.BuildInspector(container, deps)
                 RefreshLiveUnit(state.selectedUnit)
             end,
             onCompositionTreeChanged = function()
-                local toolbar = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Toolbar
-                if toolbar and type(toolbar.RefreshCompositionTree) == "function" then
-                    toolbar.RefreshCompositionTree()
-                end
+                EditorController.RefreshCompositionTree()
             end,
             onUnitEnabledChanged = function()
                 SyncUnitFrameLifecycle()
@@ -724,16 +716,61 @@ function EditorController.BuildInspector(container, deps)
 
     local function BuildPropertyInspectorContent(rebuildSidebar)
         inspectorContent:ReleaseChildren()
-        inspectorContent:SetLayout("Flow")
+        -- Only these local columns own their anchors; AceGUI still owns release.
+        inspectorContent:PauseLayout()
 
         local geometry = ComputeInspectorGeometry()
-        local propertyHeight = math.max(120, math.floor(geometry.contentHeight or 0))
+        local propertyHeight = math.max(120, math.floor(geometry.contentHeight or 0) - 36)
+
+        local header = AceGUI:Create("SimpleGroup")
+        header:SetWidth(geometry.contentWidth)
+        header:SetHeight(30)
+        header:SetLayout("Flow")
+        inspectorContent:AddChild(header)
+        header.frame:ClearAllPoints()
+        header.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, 0)
+        local function AddAction(label, callback)
+            local button = FormWidgets.CreateActionButton(label, "secondary", 110, false)
+            button:SetCallback("OnClick", function() if IsCurrentBuild() then callback() end end)
+            header:AddChild(button)
+            return button
+        end
+        inspector._focalPointArrangeButton = AddAction(ns.L and ns.L.EDITOR_ARRANGE or "Arrange", function()
+            EditorController.SetPresentation("arrange")
+        end)
+        inspector._focalPointCloseButton = AddAction(ns.L and ns.L.INFO_COMMON_CLOSE or "Close", function()
+            if ns.CloseConfig then ns:CloseConfig() end
+        end)
+
+        local treeHost = AceGUI:Create("SimpleGroup")
+        treeHost:SetWidth(220)
+        treeHost:SetHeight(propertyHeight)
+        treeHost:SetLayout("List")
+        treeHost:SetAutoAdjustHeight(false)
+        inspectorContent:AddChild(treeHost)
+        treeHost.frame:ClearAllPoints()
+        treeHost.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, -36)
+        local treeContext = {state = state, widgets = {compositionTree = treeHost},
+            treeHeight = propertyHeight, isCurrent = IsCurrentBuild}
+        local function RefreshTree()
+            if not IsCurrentBuild() then return end
+            local binding = ns.GUI.Editor.ToolbarBinding
+            if binding and binding.RefreshCompositionTree then
+                binding.RefreshCompositionTree(treeContext, {ns = ns})
+            end
+        end
+        ns.GUI.Editor._activeInspectorRefreshTree = RefreshTree
+        inspector._focalPointCompositionHost = treeHost
+        RefreshTree()
 
         local root = AceGUI:Create("SimpleGroup")
-        root:SetFullWidth(true)
-        root:SetFullHeight(true)
+        root:SetWidth(geometry.contentWidth - 232)
+        root:SetHeight(propertyHeight)
+        root:SetAutoAdjustHeight(false)
         root:SetLayout("Flow")
         inspectorContent:AddChild(root)
+        root.frame:ClearAllPoints()
+        root.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 232, -36)
 
         propertyScrollWidget = AceGUI:Create("ScrollFrame")
         propertyScrollWidget:SetLayout("Flow")
@@ -741,9 +778,10 @@ function EditorController.BuildInspector(container, deps)
         propertyScrollWidget:SetHeight(propertyHeight)
         propertyScrollWidget:SetStatusTable(state.editorSidebarScroll)
         root:AddChild(propertyScrollWidget)
+        inspector._focalPointPropertyScroll = propertyScrollWidget
 
         local function RebuildProperties()
-            if not propertyScrollWidget then
+            if not IsCurrentBuild() or not propertyScrollWidget then
                 return
             end
 
@@ -793,6 +831,7 @@ function EditorController.BuildInspector(container, deps)
 
     local RebuildSidebar
     RebuildSidebar = function()
+        if not IsCurrentBuild() then return end
         CaptureSidebarScroll()
         BuildPropertyInspectorContent(RebuildSidebar)
         RestoreSidebarScroll()

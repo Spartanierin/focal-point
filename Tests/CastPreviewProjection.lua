@@ -169,7 +169,8 @@ local function Open()
         ns.GUI:RequestRefreshOptions("CastPreviewProjection.Customize")
         Drain()
     end)
-    assert(sidebarVisible and inspectorVisible and ns.framesUnlocked)
+    -- Customize now owns structure and properties in the single Inspector host.
+    assert(not sidebarVisible and inspectorVisible and ns.framesUnlocked)
     for _,unit in ipairs({"pet","boss1","boss2","boss3","boss4","boss5"}) do
         assert(not ns.frames[unit].Elements.CastBar.shown,unit..": phantom cast")
     end

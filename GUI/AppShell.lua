@@ -450,11 +450,8 @@ local function ShowEditorPresentationHost(addon)
     end
 
     local toolbarLayer = EnsureEditorToolbarLayer(addon)
-    local editorState = addon.GUI and addon.GUI.Editor and addon.GUI.Editor.State
-    if toolbarLayer and editorState and editorState.IsArrange and editorState.IsArrange() then
+    if toolbarLayer then
         toolbarLayer:Hide()
-    elseif toolbarLayer and toolbarLayer.Show then
-        toolbarLayer:Show()
     end
 
     EnsureEditorToolbarContainer(addon)

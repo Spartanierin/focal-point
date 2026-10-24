@@ -213,7 +213,8 @@ local Toolbar = FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Edit
         targetContainer._focalPointSidebarLayout = nil
         targetContainer:ReleaseChildren()
     end
-    if selectedPath == FocalPoint.Constants.Nav.EDITOR and EditorState.IsArrange and EditorState.IsArrange() then
+    -- Customize owns its structure and properties in the existing Inspector window.
+    if selectedPath == FocalPoint.Constants.Nav.EDITOR then
         if Toolbar and Toolbar.Hide then
             Toolbar.Hide()
         end

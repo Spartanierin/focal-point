@@ -46,7 +46,7 @@ local saved = Copy(ns.db)
 local runtimeRefreshes = {}
 function ns:RefreshUnitFrame(unit) runtimeRefreshes[#runtimeRefreshes + 1] = unit end
 function ns:SetFrameLockEnabled(enabled) self.framesUnlocked = enabled end
--- Model the existing standalone detail window and section content, not new UI.
+-- Legacy toolbar must remain hidden; section rendering is the Inspector boundary.
 local detail = ace:Create("Window")
 detail.frame:Hide()
 local projectedState, propertyBuilds
@@ -85,8 +85,8 @@ local function CheckArrange()
     Equal(current.widgets.presentationButton.text:GetText(), "Customize")
 end
 local function CheckCustomize()
-    assert(not state.IsArrange() and detail.frame:IsShown())
-    assert(ns.guiEditorToolbarLayer:IsShown())
+    assert(not state.IsArrange() and not detail.frame:IsShown())
+    assert(not ns.guiEditorToolbarLayer:IsShown())
     assert(controller.GetActiveInspectorHost().frame:IsShown())
     assert(ns.GUI.Editor.CanvasHoverOverlay.IsEditorActive() and textInteractionActive())
     assert(projectedState == state.Get())

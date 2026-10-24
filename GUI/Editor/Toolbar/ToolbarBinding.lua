@@ -861,9 +861,13 @@ local function BuildCompositionTree(context, deps)
     local playerConfig = root and root.units and root.units.player or nil
 
     CompositionTreeView.Build(treeHost, context.state, {
-        minHeight = 112,
-        maxHeight = 416,
+        minHeight = context.treeHeight or 112,
+        maxHeight = context.treeHeight or 416,
+        isCurrent = context.isCurrent,
         onToggle = function(node, nextEnabled)
+            if context.isCurrent and not context.isCurrent() then
+                return { ok = false, errorCode = "stale-context" }
+            end
             if node.type == "segmentedBar" then
                 local current = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
                 if not root or current ~= root or not playerConfig
@@ -878,6 +882,10 @@ local function BuildCompositionTree(context, deps)
 
             local result = nil
             local ready, reason = workflow.RequestEditableLayoutForMutation(function()
+                if context.isCurrent and not context.isCurrent() then
+                    result = { ok = false, errorCode = "stale-context" }
+                    return
+                end
                 -- Build this only after confirmation, so it resolves the active User Layout.
                 local mutationContext = BuildInspectorContextForToolbar(context.state, deps)
                 if not mutationContext then

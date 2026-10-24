@@ -517,15 +517,18 @@ function View.Build(container, state, options)
 
     local callbacks = {
         onSelect = function(node)
+            if options.isCurrent and not options.isCurrent() then return end
             AceGUI:ClearFocus()
             SelectTreeNode(node, state, options)
         end,
         onExpand = function(node, expanded)
+            if options.isCurrent and not options.isCurrent() then return end
             AceGUI:ClearFocus()
             options.expanded[node.id] = expanded
             options.rebuild()
         end,
         onToggle = function(node, enabled)
+            if options.isCurrent and not options.isCurrent() then return end
             AceGUI:ClearFocus()
             local generation = control.generation
             local result = options.onToggle(node, enabled)
@@ -538,6 +541,7 @@ function View.Build(container, state, options)
             end
         end,
         onKey = function(key)
+            if options.isCurrent and not options.isCurrent() then return false end
             return HandleTreeKey(key, state, options)
         end,
     }
