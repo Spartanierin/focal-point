@@ -288,11 +288,16 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         w.controller.BuildInspector(nil,{GetEditorState=w.state.Get}); w.Drain(); w.Project("appearance")
     end)
     Test("Healing unit/layout/reopen and Normal alternation keep current scope and release old tab callbacks",function()
+        unit.powerBarPresent=true; unit.showPowerBar=true
         for _=1,15 do
             local old=w.Tabs().geometry.events.OnClick
             w.Select("NormalAbsorbBar"); old(); w.Project("appearance")
             old=w.Tabs().geometry.events.OnClick
             w.Select("HealingAbsorbBar"); old(); w.Project("appearance")
+            old=w.Tabs().geometry.events.OnClick
+            w.Select("PowerBar"); old()
+            assert(w.state.GetPropertyScope().sectionKey=="power" and w.state.Get().inspectorPropertyGroup=="appearance")
+            w.Select("HealingAbsorbBar"); w.Project("appearance")
         end
         local root=w.ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
         root.units.target=w.h.Copy(unit)

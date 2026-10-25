@@ -374,6 +374,9 @@ Test("Normal and Healing share the flat workspace while old tab bindings remain 
         assert(state.GetPropertyScope()~=scope and state.GetPropertyScope().objectKey=="HealingAbsorbBar")
         old(); CheckProjection("appearance")
         old=Tabs().geometry.events.OnClick
+        Select("PowerBar")
+        old(); assert(state.GetPropertyScope().sectionKey=="power" and state.Get().inspectorPropertyGroup=="appearance")
+        old=Tabs().geometry.events.OnClick
         Select("NormalAbsorbBar"); CheckProjection("appearance")
         old(); CheckProjection("appearance")
     end
