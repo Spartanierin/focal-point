@@ -145,4 +145,182 @@ Test("other bars retain their groups; selection and layout rebuild rebind Genera
 end)
 assert(#ui.env.errors==0,table.concat(ui.env.errors,"\n"))
 ui.ace:Release(container)
+-- Same real Workspace/Inspector fixture as the Normal pilot; native pixels stay an ingame gate.
+do
+    local file=assert(io.open("Tests/NormalAbsorbPropertyGroups.lua"))
+    local source=file:read("*a"); file:close()
+    local boundary=assert(source:find("\nlocal count=0",1,true))
+    local w=assert(load(source:sub(1,boundary)..[[
+return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Drain,Build=Build,
+    Select=Select,Click=Click,Control=Control,Body=Body,Tabs=Tabs,Walk=Walk,Project=CheckProjection,
+    Actions=ObjectActions,Media=function() return media end,
+    Stats=function() return acquired,released,timers end,
+    Start=function()
+        db,unit=Setup()
+        unit.normalAbsorbBarPresent=true; unit.showNormalAbsorbBar=true
+        unit.healingAbsorbBarPresent=true; unit.showHealingAbsorbBar=true
+        window=Build(); Select("HealingAbsorbBar")
+        return window,unit,db
+    end}
+]],"@HealingAbsorb/Workspace"))()
+    local window,unit,db=w.Start()
+    local function NormalFields(config)
+        local fields={}
+        for key,value in pairs(config) do
+            if key=="showNormalAbsorbBar" or key:match("^normalAbsorbBar") then fields[key]=w.h.Copy(value) end
+        end
+        return fields
+    end
+    Test("Healing workspace shares three flat tabs with no allocation or data mutation on tab changes",function()
+        unit.healingAbsorbBarColor=nil; unit.normalAbsorbBarColor=nil
+        w.controller.RefreshActiveProperties(); w.Drain()
+        w.Project("appearance")
+        local color=w.Control("Color","ColorPicker")
+        assert(color.r==.75 and color.g==.20 and color.b==1 and color.a==.62)
+        local body=w.Body(); local width=w.Control("Width","FPCompactSlider")
+        local before=w.h.Copy(db)
+        for i=1,30 do
+            local key=({"geometry","behavior","appearance"})[(i-1)%3+1]
+            local a,r,t=w.Stats()
+            w.Click(key); w.Project(key)
+            local aa,rr,tt=w.Stats()
+            assert(a==aa and r==rr and t==tt)
+            assert(w.Body()==body and w.Control("Width","FPCompactSlider")==width)
+        end
+        w.h.Equal(db,before)
+        w.Walk(body,function(widget) assert(widget.type~="InlineGroup") end)
+        w.Select("NormalAbsorbBar")
+        color=w.Control("Color","ColorPicker")
+        assert(color.r==.66 and color.g==.86 and color.b==1 and color.a==.62)
+        w.Select("HealingAbsorbBar"); w.Project("appearance"); w.h.Equal(db,before)
+    end)
+    Test("Healing appearance and Show mutate only Healing fields and retain bindings after rebuild",function()
+        local normal=NormalFields(unit)
+        w.Click("appearance")
+        w.Control("Texture","Button"):Fire("OnClick")
+        local media=assert(w.Media()); media.onApply("fp:statusbar:flat-white"); w.Drain()
+        w.Control("Color","ColorPicker"):Fire("OnValueConfirmed",.2,.3,.4,.5)
+        w.Control("Background Color","ColorPicker"):Fire("OnValueConfirmed",.1,.2,.3,.4)
+        w.Control("Border Width","FPCompactSlider"):Fire("OnValueChanged",3)
+        w.Control("Border Color","ColorPicker"):Fire("OnValueConfirmed",.4,.3,.2,0)
+        assert(unit.healingAbsorbBarTexture=="fp:statusbar:flat-white")
+        assert(unit.healingAbsorbBarColor[4]==.5 and unit.healingAbsorbBarBackgroundColor[4]==.4)
+        assert(unit.healingAbsorbBarBorderWidth==3 and unit.healingAbsorbBarBorderColor[4]==0)
+        w.Click("behavior")
+        local old=w.Tabs().appearance.events.OnClick
+        w.Control("Show","CheckBox"):Fire("OnValueChanged",false); w.Drain()
+        assert(not unit.showHealingAbsorbBar); old(); w.Project("behavior")
+        w.Click("appearance")
+        assert(w.Control("Border Width","FPCompactSlider").disabled and w.Control("Border Color","ColorPicker").disabled)
+        w.Click("behavior")
+        w.Control("Show","CheckBox"):Fire("OnValueChanged",true); w.Drain()
+        assert(unit.showHealingAbsorbBar)
+        w.h.Equal(NormalFields(unit),normal)
+    end)
+    Test("Healing geometry preserves Quick/Expert, disabled fields and opposite Growth fallback",function()
+        unit.healingAbsorbBarGrowth=nil; unit.normalAbsorbBarGrowth=nil
+        local normal=NormalFields(unit)
+        w.state.SetMode("quick"); w.controller.RefreshActiveProperties(); w.Drain(); w.Click("geometry")
+        assert(w.Control("Growth Direction","Dropdown").value=="RIGHT_TO_LEFT")
+        w.Select("NormalAbsorbBar"); w.Project("geometry")
+        assert(w.Control("Growth Direction","Dropdown").value=="LEFT_TO_RIGHT")
+        w.Select("HealingAbsorbBar")
+        local function Points()
+            local found={}
+            w.Walk(w.Body(),function(widget)
+                if widget.type=="Dropdown" then found[widget.label:GetText()]=widget end
+            end)
+            return found
+        end
+        assert(not Points()[w.ns.L.OPTION_FROM_POINT or "From Point"])
+        w.Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM"); w.Drain()
+        w.Control("Width","FPCompactSlider"):Fire("OnValueChanged",184)
+        w.Control("Height","FPCompactSlider"):Fire("OnValueChanged",12)
+        w.Control("Offset X","FPCompactSlider"):Fire("OnValueChanged",8)
+        w.Control("Offset Y","FPCompactSlider"):Fire("OnValueChanged",-6)
+        w.Control("Anchor Target","Dropdown"):Fire("OnValueChanged","Frame"); w.Drain()
+        w.state.SetMode("expert"); w.controller.RefreshActiveProperties(); w.Drain()
+        Points()[w.ns.L.OPTION_FROM_POINT or "From Point"]:Fire("OnValueChanged","TOPLEFT"); w.Drain()
+        Points()[w.ns.L.OPTION_TO_POINT or "To Point"]:Fire("OnValueChanged","BOTTOMLEFT"); w.Drain()
+        w.Control("Growth Direction","Dropdown"):Fire("OnValueChanged","LEFT_TO_RIGHT"); w.Drain()
+        assert(unit.healingAbsorbBarWidth==184 and unit.healingAbsorbBarHeight==12)
+        assert(unit.healingAbsorbBarOffsetX==8 and unit.healingAbsorbBarOffsetY==-6)
+        assert(unit.healingAbsorbBarAnchorTo=="Frame" and unit.healingAbsorbBarPoint=="TOPLEFT")
+        assert(unit.healingAbsorbBarRelativePoint=="BOTTOMLEFT" and unit.healingAbsorbBarGrowth=="LEFT_TO_RIGHT")
+        w.Control("Size Mode","Dropdown"):Fire("OnValueChanged","MATCH_TARGET"); w.Drain()
+        assert(w.Control("Width","FPCompactSlider").disabled and w.Control("Height","FPCompactSlider").disabled)
+        assert(w.Control("Offset X","FPCompactSlider").disabled and w.Control("Offset Y","FPCompactSlider").disabled)
+        assert(Points()[w.ns.L.OPTION_FROM_POINT or "From Point"].disabled)
+        w.h.Equal(NormalFields(unit),normal)
+    end)
+    Test("Healing empty groups disable and fall back without counting its object action",function()
+        w.Click("geometry")
+        for _,child in ipairs(w.Body().children) do
+            if child:GetUserData("normalAbsorbPropertyGroup")=="geometry"
+                and child:GetUserData("normalAbsorbPropertyContent") then child:ReleaseChildren() end
+        end
+        local available={}
+        for _,child in ipairs(w.Body().children) do
+            if child:GetUserData("normalAbsorbPropertyContent") and #child.children>0 then
+                available[child:GetUserData("normalAbsorbPropertyGroup")]=true
+            end
+        end
+        assert(w.state.ResolveInspectorPropertyGroup(available)=="appearance")
+        w.Click("behavior"); w.Click("geometry")
+        assert(w.state.Get().inspectorPropertyGroup=="behavior" and w.Tabs().geometry.disabled)
+        w.Actions()
+        w.Click("appearance")
+        w.controller.RefreshActiveProperties(); w.Drain(); w.Project("appearance")
+    end)
+    Test("Healing narrow German labels use the same fitted single-caption tab presentation",function()
+        local width=UIParent:GetWidth()
+        local labels={w.ns.L.EDITOR_PROPERTY_APPEARANCE,w.ns.L.SECTION_SIZE_POSITION,w.ns.L.SECTION_BEHAVIOR}
+        w.ns.L.EDITOR_PROPERTY_APPEARANCE="Aussehen"
+        w.ns.L.SECTION_SIZE_POSITION="Größe & Position"
+        w.ns.L.SECTION_BEHAVIOR="Verhalten"
+        UIParent:SetWidth(600); w.controller.BuildInspector(nil,{GetEditorState=w.state.Get}); w.Drain()
+        w.Project("appearance")
+        local total=0
+        for _,tab in pairs(w.Tabs()) do total=total+tab.frame:GetWidth() end
+        assert(total<=w.Tabs().appearance.parent.frame:GetWidth())
+        UIParent:SetWidth(width)
+        w.ns.L.EDITOR_PROPERTY_APPEARANCE,w.ns.L.SECTION_SIZE_POSITION,w.ns.L.SECTION_BEHAVIOR=table.unpack(labels)
+        w.controller.BuildInspector(nil,{GetEditorState=w.state.Get}); w.Drain(); w.Project("appearance")
+    end)
+    Test("Healing unit/layout/reopen and Normal alternation keep current scope and release old tab callbacks",function()
+        for _=1,15 do
+            local old=w.Tabs().geometry.events.OnClick
+            w.Select("NormalAbsorbBar"); old(); w.Project("appearance")
+            old=w.Tabs().geometry.events.OnClick
+            w.Select("HealingAbsorbBar"); old(); w.Project("appearance")
+        end
+        local root=w.ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
+        root.units.target=w.h.Copy(unit)
+        assert(w.selection.SelectObject({kind="bar",unit="target",objectKey="HealingAbsorbBar"})); w.Drain()
+        w.Click("behavior"); w.Control("Show","CheckBox"):Fire("OnValueChanged",false); w.Drain()
+        assert(not root.units.target.showHealingAbsorbBar and unit.showHealingAbsorbBar)
+        w.Select("HealingAbsorbBar"); w.Project("behavior")
+        local ok,id=w.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false}); assert(ok)
+        assert(w.ns:ActivateLayout(id)); w.controller.BuildInspector(nil,{GetEditorState=w.state.Get}); w.Drain()
+        local active=w.ns.UnitFrameUtils.GetUnitDB("player")
+        w.Control("Show","CheckBox"):Fire("OnValueChanged",false); w.Drain()
+        assert(active~=unit and not active.showHealingAbsorbBar and unit.showHealingAbsorbBar)
+        window._focalPointArrangeButton:Fire("OnClick"); w.Drain()
+        window=w.Build(); w.Project("behavior")
+        window._focalPointCloseButton:Fire("OnClick"); w.Drain()
+        window=w.Build(); w.Project("behavior")
+    end)
+    Test("Healing Remove is unique and tab independent while Normal remains present",function()
+        for _,key in ipairs({"appearance","geometry","behavior"}) do
+            window,unit,db=w.Start(); w.Click(key)
+            local normal=NormalFields(unit)
+            local _,remove=w.Actions()
+            remove:Fire("OnClick"); w.Drain()
+            assert(not w.ns.UnitFrameUtils.GetUnitDB("player").healingAbsorbBarPresent)
+            assert(w.selection.GetSelectedObject().kind=="unit")
+            w.h.Equal(NormalFields(unit),normal)
+        end
+        assert(#w.h.ui.env.errors==0,table.concat(w.h.ui.env.errors,"\n"))
+    end)
+end
 print("Healing Absorb Properties: " .. count .. " groups PASS")

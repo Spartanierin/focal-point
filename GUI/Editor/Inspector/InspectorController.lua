@@ -1699,7 +1699,8 @@ function InspectorController.Build(container, state, options)
 
         local scope = ResolvePropertyScope()
         local normalAbsorbWorkspace = type(workspaceIsCurrent) == "function" and scope
-            and scope.kind == "unit" and scope.sectionKey == "absorbs" and scope.objectKey == "NormalAbsorbBar"
+            and scope.kind == "unit" and scope.sectionKey == "absorbs"
+            and (scope.objectKey == "NormalAbsorbBar" or scope.objectKey == "HealingAbsorbBar")
         AddSpacer(container, normalAbsorbWorkspace and 4 or INSPECTOR_SECTION_SPACING)
 
         local root = AceGUI:Create("SimpleGroup")
@@ -3050,7 +3051,7 @@ function InspectorController.Build(container, state, options)
         local function BuildAbsorbBar(prefix, showField, title, fallbackColor, fallbackGrowth, options)
             options = type(options) == "table" and options or {}
             local isScopedObject = options.scopedObject == true
-            local normalPilot = isScopedObject and options.objectKey == "NormalAbsorbBar"
+            local normalPilot = isScopedObject and (options.objectKey == "NormalAbsorbBar" or options.objectKey == "HealingAbsorbBar")
                 and type(workspaceIsCurrent) == "function"
             local rootSection = options.rootSection or absorbsSection
             local generalSection = absorbsSection

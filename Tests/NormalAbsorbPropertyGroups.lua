@@ -43,6 +43,9 @@ local function Body()
 end
 local function ObjectActions()
     local area,button,areas,buttons=nil,nil,0,0
+    local healing=selection.GetSelectedObject().objectKey=="HealingAbsorbBar"
+    local label=healing and (ns.L.EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON or "Remove Healing Absorb")
+        or (ns.L.EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON or "Remove Normal Absorb")
     for _,child in ipairs(Body().children) do
         if child:GetUserData("normalAbsorbObjectActions") then area=child; areas=areas+1 end
     end
@@ -50,7 +53,7 @@ local function ObjectActions()
     assert(area==Body().children[#Body().children] and area.parent==Body())
     assert(not area:GetUserData("normalAbsorbPropertyContent") and not area:GetUserData("normalAbsorbPropertyGroup"))
     Walk(Body(),function(w)
-        if w.type=="Button" and w.text:GetText()==(ns.L.EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON or "Remove Normal Absorb") then
+        if w.type=="Button" and w.text:GetText()==label then
             button=w; buttons=buttons+1
         end
     end)
@@ -323,11 +326,11 @@ Test("narrow Workspace and German labels retain three reachable tabs and local T
     controller.BuildInspector(nil,{GetEditorState=state.Get}); Drain()
     CheckProjection("appearance")
 end)
-Test("pooling between flat Normal Absorb and framed Healing/Health/Cast/Text preserves both presentations",function()
+Test("pooling between flat Normal Absorb and framed Health/Cast/Text preserves both presentations",function()
     local active=ns.UnitFrameUtils.GetUnitDB("player")
     active.healingAbsorbBarPresent=true; active.castBarPresent=true; active.showCastBar=true
     for _=1,8 do
-        for _,object in ipairs({"HealingAbsorbBar","HealthBar","CastBar","text"}) do
+        for _,object in ipairs({"HealthBar","CastBar","text"}) do
             local oldTabs=Tabs()
             local oldActions=ObjectActions()
             local oldActionDivider=oldActions.frame._fpNormalAbsorbActionDivider
@@ -361,6 +364,20 @@ Test("pooling between flat Normal Absorb and framed Healing/Health/Cast/Text pre
             Walk(Body(),function(w) assert(w.type~="InlineGroup") end)
         end
     end
+end)
+Test("Normal and Healing share the flat workspace while old tab bindings remain invalid",function()
+    local before=h.Copy(db)
+    for _=1,10 do
+        local old=Tabs().geometry.events.OnClick
+        local scope=state.GetPropertyScope()
+        Select("HealingAbsorbBar"); CheckProjection("appearance")
+        assert(state.GetPropertyScope()~=scope and state.GetPropertyScope().objectKey=="HealingAbsorbBar")
+        old(); CheckProjection("appearance")
+        old=Tabs().geometry.events.OnClick
+        Select("NormalAbsorbBar"); CheckProjection("appearance")
+        old(); CheckProjection("appearance")
+    end
+    h.Equal(db,before)
 end)
 Test("object action stays outside tab availability and removes the selected bar from every tab",function()
     local area,button=ObjectActions()
