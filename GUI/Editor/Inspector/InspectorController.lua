@@ -1699,7 +1699,8 @@ function InspectorController.Build(container, state, options)
 
         local scope = ResolvePropertyScope()
         local normalAbsorbWorkspace = type(workspaceIsCurrent) == "function" and scope
-            and scope.kind == "unit" and (scope.sectionKey == "power" or (scope.sectionKey == "absorbs"
+            and scope.kind == "unit" and (scope.sectionKey == "health" or scope.sectionKey == "power"
+                or scope.sectionKey == "alt_power" or (scope.sectionKey == "absorbs"
                 and (scope.objectKey == "NormalAbsorbBar" or scope.objectKey == "HealingAbsorbBar")))
         AddSpacer(container, normalAbsorbWorkspace and 4 or INSPECTOR_SECTION_SPACING)
 
@@ -2865,175 +2866,6 @@ function InspectorController.Build(container, state, options)
         layoutRefresh = RefreshInspectorLayout,
     })
 
-    local function BuildHealthSectionContent(healthSection)
-        if not healthSection then
-            return
-        end
-
-        local usePropertyGroups = IsScopedHealthBarObjectMode()
-        local appearanceSection = healthSection
-        local backgroundSection = healthSection
-        local behaviorSection = healthSection
-        if usePropertyGroups then
-            appearanceSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
-            backgroundSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-            if isExpert then
-                behaviorSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            end
-        end
-
-        local healthTextureOptions = BuildStatusBarTextureOptions(unitConfig.healthBarTexture)
-        local healthTextureDropdown
-        local function SetHealthBarTexture(value)
-            local result = SetUnitField("healthBarTexture", value)
-            if not (result and result.ok == false) then
-                if healthTextureDropdown and type(healthTextureDropdown._fpSetPropertyValueText) == "function" then
-                    local storedValue = result and result.newValue or unitConfig.healthBarTexture or value
-                    healthTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
-                else
-                    SyncDropdownToStoredValue(healthTextureDropdown, unitConfig.healthBarTexture)
-                end
-            end
-            return result
-        end
-        if usePropertyGroups then
-            healthTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(healthTextureOptions, healthTextureOptions.value or unitConfig.healthBarTexture), function()
-                OpenMediaBrowserForField({
-                    mediaType = MEDIA_TYPE_STATUSBAR,
-                    currentValue = function()
-                        return unitConfig.healthBarTexture
-                    end,
-                    fallbackReference = DEFAULT_STATUSBAR_REFERENCE,
-                    title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
-                    onApply = SetHealthBarTexture,
-                })
-            end, not IsMediaBrowserAvailable(), {
-                tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
-            })
-        else
-            healthTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
-            AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
-                return unitConfig.healthBarTexture
-            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
-        end
-
-        if isQuick or unitConfig.useClassColorHealth ~= true then
-            if usePropertyGroups then
-                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
-                    SetUnitField("healthColor", value)
-                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
-            else
-                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
-                    SetUnitField("healthColor", value)
-                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
-            end
-        end
-
-        if usePropertyGroups then
-            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_CLASS_COLOR"] or L["OPTION_USE_CLASS_COLORS"] or "Class Color", unitConfig.useClassColorHealth == true, function(value)
-                SetUnitField("useClassColorHealth", value and true or false, healthSection)
-            end)
-        else
-            AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
-                SetUnitField("useClassColorHealth", value and true or false, healthSection)
-            end)
-        end
-
-        if isExpert then
-            if usePropertyGroups then
-                AddPropertyCheckBoxRow(appearanceSection, L["OPTION_REACTION_COLOR"] or L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Reaction Color", unitConfig.useReactionColorNpcHealth == true, function(value)
-                    SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
-                end)
-            else
-                AddCheckBox(appearanceSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
-                    SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
-                end)
-            end
-
-            if usePropertyGroups then
-                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
-                    SetUnitField("healthBarReverseFill", value and true or false)
-                end)
-            else
-                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
-                    SetUnitField("healthBarReverseFill", value and true or false)
-                end)
-            end
-        end
-
-        if usePropertyGroups then
-            AddPropertyToggleColorRow(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", {
-                value = unitConfig.useLowHealthColor ~= false,
-                onChanged = function(value)
-                    SetUnitField("useLowHealthColor", value and true or false, healthSection)
-                end,
-            }, {
-                color = unitConfig.healthLowColor,
-                hasAlpha = true,
-                onChanged = function(value)
-                    SetUnitField("healthLowColor", value)
-                end,
-                disabled = unitConfig.useLowHealthColor == false,
-            })
-
-            if isExpert and unitConfig.useLowHealthColor ~= false then
-                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
-                AddPropertyDropdownRow(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", {
-                    list = lowHealthThresholdList,
-                    value = thresholdValueString,
-                    onChanged = function(value)
-                        SetUnitField("lowHealthColorThreshold", tonumber(value))
-                    end,
-                }, unitConfig.useLowHealthColor == false)
-            end
-        else
-            AddCheckBox(appearanceSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
-                SetUnitField("useLowHealthColor", value and true or false, healthSection)
-            end)
-
-            AddColorPicker(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
-                SetUnitField("healthLowColor", value)
-            end, unitConfig.useLowHealthColor == false)
-
-            if isExpert and unitConfig.useLowHealthColor ~= false then
-                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
-                AddDropdown(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", lowHealthThresholdList, thresholdValueString, function(value)
-                    SetUnitField("lowHealthColorThreshold", tonumber(value))
-                end, unitConfig.useLowHealthColor == false)
-            end
-        end
-
-        if isQuick or isExpert then
-            if usePropertyGroups then
-                AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", unitConfig.healthBackground ~= false, function(value)
-                    SetUnitField("healthBackground", value and true or false, healthSection)
-                end)
-
-                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.healthBackgroundColor, true, function(value)
-                    SetUnitField("healthBackgroundColor", value)
-                end, unitConfig.healthBackground == false)
-            else
-                AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
-                    SetUnitField("healthBackground", value and true or false, healthSection)
-                end)
-
-                AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
-                    SetUnitField("healthBackgroundColor", value)
-                end, unitConfig.healthBackground == false)
-            end
-        end
-        AddUnitBarBorderRows(usePropertyGroups and backgroundSection or appearanceSection, "healthBar", usePropertyGroups, false)
-    end
-
-    if IsScopedHealthBarObjectMode() then
-        AddScopedObjectInspectorBody("health", L["VALUE_ANCHOR_TARGET_HEALTH_BAR"] or L["BAR_HEALTH"] or "Health Bar", BuildHealthSectionContent)
-    else
-        AddScopedInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
-            localContentBuilder = BuildHealthSectionContent,
-            layoutRefresh = RefreshInspectorLayout,
-        })
-    end
-
     -- Local presentation only; builders retain controls, callbacks and the existing Body owner.
     local function BeginFlatPropertyPresentation(body)
         local function CreateGroup(parent, title, addTopSpacing)
@@ -3178,21 +3010,23 @@ function InspectorController.Build(container, state, options)
             navigation:AddChild(button)
         end
         local function RegisterGroups(membership, actionsSection)
-            -- Same Body owner and Remove callback; actions are not tab properties.
-            actionsSection:SetUserData("normalAbsorbPropertyContent", nil)
-            actionsSection:SetUserData("normalAbsorbObjectActions", true)
-            local divider = actionsSection.frame._fpNormalAbsorbActionDivider
-            if not divider then
-                divider = actionsSection.frame:CreateTexture(nil, "ARTWORK")
-                actionsSection.frame._fpNormalAbsorbActionDivider = divider
+            if actionsSection then
+                -- Same Body owner and Remove callback; actions are not tab properties.
+                actionsSection:SetUserData("normalAbsorbPropertyContent", nil)
+                actionsSection:SetUserData("normalAbsorbObjectActions", true)
+                local divider = actionsSection.frame._fpNormalAbsorbActionDivider
+                if not divider then
+                    divider = actionsSection.frame:CreateTexture(nil, "ARTWORK")
+                    actionsSection.frame._fpNormalAbsorbActionDivider = divider
+                end
+                divider:SetPoint("TOPLEFT", actionsSection.frame, "TOPLEFT", 0, 0)
+                divider:SetPoint("TOPRIGHT", actionsSection.frame, "TOPRIGHT", 0, 0)
+                divider:SetHeight(1)
+                divider:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder))
+                divider:Show()
+                actionsSection:SetCallback("OnRelease", function() divider:Hide() end)
+                AddSpacer(actionsSection, 8)
             end
-            divider:SetPoint("TOPLEFT", actionsSection.frame, "TOPLEFT", 0, 0)
-            divider:SetPoint("TOPRIGHT", actionsSection.frame, "TOPRIGHT", 0, 0)
-            divider:SetHeight(1)
-            divider:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder))
-            divider:Show()
-            actionsSection:SetCallback("OnRelease", function() divider:Hide() end)
-            AddSpacer(actionsSection, 8)
             local pendingSpacer
             for _, child in ipairs(body.children) do
                 local key = membership[child]
@@ -3204,6 +3038,189 @@ function InspectorController.Build(container, state, options)
             end
         end
         return CreateGroup, projectGroups, RegisterGroups
+    end
+
+    local function BuildHealthSectionContent(healthSection)
+        if not healthSection then
+            return
+        end
+
+        local usePropertyGroups = IsScopedHealthBarObjectMode()
+        local flatHealth = usePropertyGroups and type(workspaceIsCurrent) == "function"
+        local CreateHealthPropertyGroup = AddFramedObjectPropertyGroup
+        local projectHealthGroups, registerHealthGroups
+        if flatHealth then
+            CreateHealthPropertyGroup, projectHealthGroups, registerHealthGroups = BeginFlatPropertyPresentation(healthSection)
+        end
+        local appearanceSection = healthSection
+        local backgroundSection = healthSection
+        local behaviorSection = healthSection
+        if usePropertyGroups then
+            appearanceSection = CreateHealthPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            backgroundSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            if isExpert then
+                behaviorSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            end
+        end
+        if flatHealth then
+            local membership = {[appearanceSection]="appearance", [backgroundSection]="appearance"}
+            if isExpert then membership[behaviorSection] = "geometry" end
+            registerHealthGroups(membership)
+        end
+
+        local healthTextureOptions = BuildStatusBarTextureOptions(unitConfig.healthBarTexture)
+        local healthTextureDropdown
+        local function SetHealthBarTexture(value)
+            local result = SetUnitField("healthBarTexture", value)
+            if not (result and result.ok == false) then
+                if healthTextureDropdown and type(healthTextureDropdown._fpSetPropertyValueText) == "function" then
+                    local storedValue = result and result.newValue or unitConfig.healthBarTexture or value
+                    healthTextureDropdown._fpSetPropertyValueText(ResolveOptionValueLabel(BuildStatusBarTextureOptions(storedValue), storedValue))
+                else
+                    SyncDropdownToStoredValue(healthTextureDropdown, unitConfig.healthBarTexture)
+                end
+            end
+            return result
+        end
+        if usePropertyGroups then
+            healthTextureDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_TEXTURE"] or L["OPTION_BAR_TEXTURE"] or "Texture", ResolveOptionValueLabel(healthTextureOptions, healthTextureOptions.value or unitConfig.healthBarTexture), function()
+                OpenMediaBrowserForField({
+                    mediaType = MEDIA_TYPE_STATUSBAR,
+                    currentValue = function()
+                        return unitConfig.healthBarTexture
+                    end,
+                    fallbackReference = DEFAULT_STATUSBAR_REFERENCE,
+                    title = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture",
+                    onApply = SetHealthBarTexture,
+                })
+            end, not IsMediaBrowserAvailable(), {
+                tooltip = L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or L["MEDIA_LIBRARY_BROWSE"] or "Browse textures",
+            })
+        else
+            healthTextureDropdown = AddDropdown(appearanceSection, L["OPTION_BAR_TEXTURE"] or "Bar Texture", healthTextureOptions, healthTextureOptions.value, SetHealthBarTexture)
+            AddMediaBrowserForField(appearanceSection, MEDIA_TYPE_STATUSBAR, function()
+                return unitConfig.healthBarTexture
+            end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
+        end
+
+        if isQuick or unitConfig.useClassColorHealth ~= true then
+            if usePropertyGroups then
+                AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+                    SetUnitField("healthColor", value)
+                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            else
+                AddColorPicker(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
+                    SetUnitField("healthColor", value)
+                end, unitConfig.useClassColorHealth == true or unitConfig.useReactionColorNpcHealth == true)
+            end
+        end
+
+        if usePropertyGroups then
+            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_CLASS_COLOR"] or L["OPTION_USE_CLASS_COLORS"] or "Class Color", unitConfig.useClassColorHealth == true, function(value)
+                SetUnitField("useClassColorHealth", value and true or false, healthSection)
+            end)
+        else
+            AddCheckBox(appearanceSection, L["OPTION_USE_CLASS_COLORS"] or "Use Class Colors", unitConfig.useClassColorHealth == true, function(value)
+                SetUnitField("useClassColorHealth", value and true or false, healthSection)
+            end)
+        end
+
+        if isExpert then
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(appearanceSection, L["OPTION_REACTION_COLOR"] or L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Reaction Color", unitConfig.useReactionColorNpcHealth == true, function(value)
+                    SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
+                end)
+            else
+                AddCheckBox(appearanceSection, L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Use NPC Reaction Colors", unitConfig.useReactionColorNpcHealth == true, function(value)
+                    SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
+                end)
+            end
+
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
+                    SetUnitField("healthBarReverseFill", value and true or false)
+                end)
+            else
+                AddCheckBox(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.healthBarReverseFill == true, function(value)
+                    SetUnitField("healthBarReverseFill", value and true or false)
+                end)
+            end
+        end
+
+        if usePropertyGroups then
+            AddPropertyToggleColorRow(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", {
+                value = unitConfig.useLowHealthColor ~= false,
+                onChanged = function(value)
+                    SetUnitField("useLowHealthColor", value and true or false, healthSection)
+                end,
+            }, {
+                color = unitConfig.healthLowColor,
+                hasAlpha = true,
+                onChanged = function(value)
+                    SetUnitField("healthLowColor", value)
+                end,
+                disabled = unitConfig.useLowHealthColor == false,
+            })
+
+            if isExpert and unitConfig.useLowHealthColor ~= false then
+                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
+                AddPropertyDropdownRow(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", {
+                    list = lowHealthThresholdList,
+                    value = thresholdValueString,
+                    onChanged = function(value)
+                        SetUnitField("lowHealthColorThreshold", tonumber(value))
+                    end,
+                }, unitConfig.useLowHealthColor == false)
+            end
+        else
+            AddCheckBox(appearanceSection, L["OPTION_USE_LOW_HEALTH_COLOR"] or "Use Low Health Color", unitConfig.useLowHealthColor ~= false, function(value)
+                SetUnitField("useLowHealthColor", value and true or false, healthSection)
+            end)
+
+            AddColorPicker(appearanceSection, L["OPTION_LOW_HEALTH_COLOR"] or "Low Health Color", unitConfig.healthLowColor, true, function(value)
+                SetUnitField("healthLowColor", value)
+            end, unitConfig.useLowHealthColor == false)
+
+            if isExpert and unitConfig.useLowHealthColor ~= false then
+                local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
+                AddDropdown(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", lowHealthThresholdList, thresholdValueString, function(value)
+                    SetUnitField("lowHealthColorThreshold", tonumber(value))
+                end, unitConfig.useLowHealthColor == false)
+            end
+        end
+
+        if isQuick or isExpert then
+            if usePropertyGroups then
+                AddPropertyCheckBoxRow(backgroundSection, flatHealth and (L["OPTION_SHOW_BACKGROUND"] or "Show Background")
+                    or (L["OPTION_ENABLED"] or "Enabled"), unitConfig.healthBackground ~= false, function(value)
+                    SetUnitField("healthBackground", value and true or false, healthSection)
+                end)
+
+                AddPropertyColorRow(backgroundSection, flatHealth and (L["OPTION_BACKGROUND_COLOR"] or "Background Color")
+                    or (L["OPTION_COLOR"] or "Color"), unitConfig.healthBackgroundColor, true, function(value)
+                    SetUnitField("healthBackgroundColor", value)
+                end, unitConfig.healthBackground == false)
+            else
+                AddCheckBox(appearanceSection, L["OPTION_SHOW_BACKGROUND"] or "Show Background", unitConfig.healthBackground ~= false, function(value)
+                    SetUnitField("healthBackground", value and true or false, healthSection)
+                end)
+
+                AddColorPicker(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.healthBackgroundColor, true, function(value)
+                    SetUnitField("healthBackgroundColor", value)
+                end, unitConfig.healthBackground == false)
+            end
+        end
+        AddUnitBarBorderRows(usePropertyGroups and backgroundSection or appearanceSection, "healthBar", usePropertyGroups, false)
+        if projectHealthGroups then projectHealthGroups() end
+    end
+
+    if IsScopedHealthBarObjectMode() then
+        AddScopedObjectInspectorBody("health", L["VALUE_ANCHOR_TARGET_HEALTH_BAR"] or L["BAR_HEALTH"] or "Health Bar", BuildHealthSectionContent)
+    else
+        AddScopedInspectorSection("health", L["BAR_HEALTH"] or "Health", false, {
+            localContentBuilder = BuildHealthSectionContent,
+            layoutRefresh = RefreshInspectorLayout,
+        })
     end
 
     local function BuildAbsorbsSectionContent(absorbsSection)
@@ -3665,6 +3682,12 @@ function InspectorController.Build(container, state, options)
         end
 
         local usePropertyGroups = IsScopedAlternativePowerBarObjectMode()
+        local flatAltPower = usePropertyGroups and type(workspaceIsCurrent) == "function"
+        local CreateAltPowerPropertyGroup = AddFramedObjectPropertyGroup
+        local projectAltPowerGroups, registerAltPowerGroups
+        if flatAltPower then
+            CreateAltPowerPropertyGroup, projectAltPowerGroups, registerAltPowerGroups = BeginFlatPropertyPresentation(altPowerSection)
+        end
         local rootSection = altPowerSection
         local generalSection = altPowerSection
         local appearanceSection = altPowerSection
@@ -3673,14 +3696,20 @@ function InspectorController.Build(container, state, options)
         local behaviorSection = altPowerSection
         local actionsSection
         if usePropertyGroups then
-            generalSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            backgroundSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-            geometrySection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            generalSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            backgroundSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            geometrySection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if isExpert then
-                behaviorSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                behaviorSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
-            actionsSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            actionsSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+        end
+        if flatAltPower then
+            local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
+                [backgroundSection]="appearance", [geometrySection]="geometry"}
+            if isExpert then membership[behaviorSection] = "geometry" end
+            registerAltPowerGroups(membership, actionsSection)
         end
 
         if usePropertyGroups then
@@ -3766,11 +3795,13 @@ function InspectorController.Build(container, state, options)
             end
 
             if usePropertyGroups then
-                AddPropertyCheckBoxRow(backgroundSection, L["OPTION_ENABLED"] or "Enabled", altPowerBackgroundEnabled, function(value)
+                AddPropertyCheckBoxRow(backgroundSection, flatAltPower and (L["OPTION_SHOW_BACKGROUND"] or "Show Background")
+                    or (L["OPTION_ENABLED"] or "Enabled"), altPowerBackgroundEnabled, function(value)
                     SetUnitField("alternativePowerBackground", value and true or false, rootSection)
                 end, unitConfig.showAlternativePowerBar ~= true)
 
-                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+                AddPropertyColorRow(backgroundSection, flatAltPower and (L["OPTION_BACKGROUND_COLOR"] or "Background Color")
+                    or (L["OPTION_COLOR"] or "Color"), unitConfig.alternativePowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
                     SetUnitField("alternativePowerBackgroundColor", value)
                 end, unitConfig.showAlternativePowerBar ~= true or altPowerBackgroundEnabled == false)
             else
@@ -3812,6 +3843,7 @@ function InspectorController.Build(container, state, options)
                 ApplySingletonBarPresence("AlternativePowerBar", false, "alt_power")
             end)
         end
+        if projectAltPowerGroups then projectAltPowerGroups() end
     end
     local function BuildClassPowerSectionContent(classPowerSection)
         if not classPowerSection or selectedUnit ~= "player" then

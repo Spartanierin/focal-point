@@ -250,7 +250,7 @@ Test("custom geometry, growth and canvas synchronization retain original control
 end)
 Test("selection, modes, layout and reopen preserve presentation only for the pilot",function()
     local callback=Tabs().appearance.events.OnClick
-    Select("HealthBar"); assert(next((Tabs()))==nil)
+    Select("HealthBar"); assert(Tabs().appearance and not Tabs().geometry.disabled and Tabs().behavior.disabled)
     callback(); assert(state.Get().inspectorPropertyGroup=="geometry")
     Tree().control.callbacks.onSelect(Node("unit")); Drain()
     assert(next((Tabs()))==nil)
@@ -326,11 +326,11 @@ Test("narrow Workspace and German labels retain three reachable tabs and local T
     controller.BuildInspector(nil,{GetEditorState=state.Get}); Drain()
     CheckProjection("appearance")
 end)
-Test("pooling between flat Normal Absorb and framed Health/Cast/Text preserves both presentations",function()
+Test("pooling between flat Normal Absorb and framed Cast/Text preserves both presentations",function()
     local active=ns.UnitFrameUtils.GetUnitDB("player")
     active.healingAbsorbBarPresent=true; active.castBarPresent=true; active.showCastBar=true
     for _=1,8 do
-        for _,object in ipairs({"HealthBar","CastBar","text"}) do
+        for _,object in ipairs({"CastBar","text"}) do
             local oldTabs=Tabs()
             local oldActions=ObjectActions()
             local oldActionDivider=oldActions.frame._fpNormalAbsorbActionDivider

@@ -186,12 +186,14 @@ Test("Power/Absorb pooling invalidates old callbacks and preserves one shared se
     end
     local old=s.Tabs().appearance.events.OnClick
     local _,button=Actions(); local divider=Body().children[#Body().children].frame._fpNormalAbsorbActionDivider
-    s.Select("HealthBar"); old(); assert(next((s.Tabs()))==nil and not divider:IsShown())
-    s.Select("PowerBar"); Check("geometry")
+    s.Select("HealthBar"); old()
+    assert(s.Tabs().geometry.disabled and s.Tabs().behavior.disabled and not divider:IsShown())
+    assert(s.state.Get().inspectorPropertyGroup=="appearance")
+    s.Select("PowerBar"); Check("appearance")
     window._focalPointArrangeButton:Fire("OnClick"); s.Drain()
-    window=s.Build(); Check("geometry")
+    window=s.Build(); Check("appearance")
     window._focalPointCloseButton:Fire("OnClick"); s.Drain()
-    window=s.Build(); Check("geometry")
+    window=s.Build(); Check("appearance")
 end)
 Test("unit/layout changes and narrow German tabs preserve current Power bindings",function()
     local root=s.ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
