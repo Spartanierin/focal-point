@@ -52,6 +52,7 @@ local state = {
     },
     mode = "quick",
     presentation = "arrange",
+    inspectorPropertyGroup = "appearance",
     selectedThemeId = "classic",
     selectedTextId = nil,
     selectedTextKey = nil,
@@ -135,6 +136,23 @@ end
 
 function EditorState.Get()
     return state
+end
+
+function EditorState.SetInspectorPropertyGroup(group)
+    if group ~= "appearance" and group ~= "geometry" and group ~= "behavior" then return false end
+    if state.inspectorPropertyGroup == group then return false end
+    state.inspectorPropertyGroup = group
+    return true
+end
+
+function EditorState.ResolveInspectorPropertyGroup(available)
+    local group = state.inspectorPropertyGroup
+    if not group or not available[group] then
+        group = available.appearance and "appearance" or available.geometry and "geometry"
+            or available.behavior and "behavior" or nil
+        state.inspectorPropertyGroup = group
+    end
+    return group
 end
 
 -- Session-only navigation; selection and layout data keep their existing owners.

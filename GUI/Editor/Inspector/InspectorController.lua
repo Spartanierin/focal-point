@@ -426,6 +426,8 @@ function InspectorController.Build(container, state, options)
     options = options or {}
     local buildContextOnly = options.buildContextOnly == true
     local buildPropertiesOnly = options.buildPropertiesOnly == true
+    local workspaceIsCurrent = options.isCurrentBuild
+    local resetWorkspacePropertyScroll = options.onPropertyGroupChanged
 
 
     activeTextFontSizeControl = nil
@@ -1695,7 +1697,10 @@ function InspectorController.Build(container, state, options)
             return nil
         end
 
-        AddSpacer(container, INSPECTOR_SECTION_SPACING)
+        local scope = ResolvePropertyScope()
+        local normalAbsorbWorkspace = type(workspaceIsCurrent) == "function" and scope
+            and scope.kind == "unit" and scope.sectionKey == "absorbs" and scope.objectKey == "NormalAbsorbBar"
+        AddSpacer(container, normalAbsorbWorkspace and 4 or INSPECTOR_SECTION_SPACING)
 
         local root = AceGUI:Create("SimpleGroup")
         root:SetFullWidth(true)
@@ -1703,7 +1708,7 @@ function InspectorController.Build(container, state, options)
         container:AddChild(root)
 
         AddObjectInspectorHeader(root, title, ResolveSelectedUnitLabel())
-        AddSpacer(root, 6)
+        AddSpacer(root, normalAbsorbWorkspace and 3 or 6)
 
         local body = AceGUI:Create("SimpleGroup")
         body:SetFullWidth(true)
@@ -3045,6 +3050,8 @@ function InspectorController.Build(container, state, options)
         local function BuildAbsorbBar(prefix, showField, title, fallbackColor, fallbackGrowth, options)
             options = type(options) == "table" and options or {}
             local isScopedObject = options.scopedObject == true
+            local normalPilot = isScopedObject and options.objectKey == "NormalAbsorbBar"
+                and type(workspaceIsCurrent) == "function"
             local rootSection = options.rootSection or absorbsSection
             local generalSection = absorbsSection
             local appearanceSection = absorbsSection
@@ -3053,17 +3060,198 @@ function InspectorController.Build(container, state, options)
             local positionSection = absorbsSection
             local behaviorSection = absorbsSection
             local actionsSection
+            local projectNormalGroups
+            local CreateAbsorbPropertyGroup = AddFramedObjectPropertyGroup
+
+            if normalPilot then
+                CreateAbsorbPropertyGroup = function(parent, title, addTopSpacing)
+                    if addTopSpacing then AddSpacer(parent, buildPropertiesOnly and 4 or 8) end
+                    -- Same immediate-build contract and owner, without InlineGroup's decoration/40px.
+                    local group = ns.GUI.Helpers.FormRenderer.CreateLayoutGroup(parent, {
+                        properties = {widget="SimpleGroup", layout="SimpleGroup", layoutMode="Flow",
+                            fullWidth=true, border=false, padding=0},
+                    })
+                    group:SetUserData("normalAbsorbPropertyContent", true)
+                    parent:AddChild(group)
+                    return group
+                end
+            end
+
+            if normalPilot then
+                -- Table alone owns layout; child ownership and control lifetimes stay unchanged.
+                absorbsSection:SetLayout("Table")
+                absorbsSection:SetUserData("table", {columns={{weight=1}}, spaceH=0, spaceV=0})
+                local scope = ResolvePropertyScope()
+                local bindingActive = true
+                local navigation = AceGUI:Create("SimpleGroup")
+                navigation:SetFullWidth(true)
+                navigation:SetLayout("Table")
+                local tabColumns = {}
+                navigation:SetUserData("table", {columns=tabColumns, spaceH=0, spaceV=0})
+                absorbsSection:AddChild(navigation)
+                local chrome = ns.GUI.Skins.GetFormPalette().Chrome
+                local baseline = navigation.frame._fpNormalAbsorbTabBaseline
+                if not baseline then
+                    baseline = navigation.frame:CreateTexture(nil, "ARTWORK")
+                    navigation.frame._fpNormalAbsorbTabBaseline = baseline
+                end
+                baseline:SetPoint("BOTTOMLEFT", navigation.frame, "BOTTOMLEFT", 0, 0)
+                baseline:SetPoint("BOTTOMRIGHT", navigation.frame, "BOTTOMRIGHT", 0, 0)
+                baseline:SetHeight(1)
+                baseline:SetColorTexture(unpack(chrome.sectionBorder))
+                baseline:Show()
+                navigation:SetCallback("OnRelease", function()
+                    bindingActive = false
+                    baseline:Hide()
+                end)
+                local groups = {
+                    {key="appearance", label=L["EDITOR_PROPERTY_APPEARANCE"] or "Appearance"},
+                    {key="geometry", label=L["SECTION_SIZE_POSITION"] or "Size & Position"},
+                    {key="behavior", label=L["SECTION_BEHAVIOR"] or "Behavior"},
+                }
+                local function IsCurrentProjection()
+                    return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
+                        and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
+                end
+                projectNormalGroups = function()
+                    if not IsCurrentProjection() then return end
+                    local available = {}
+                    for _, child in ipairs(absorbsSection.children) do
+                        local key = child:GetUserData("normalAbsorbPropertyGroup")
+                        if key and child:GetUserData("normalAbsorbPropertyContent") and #child.children > 0 then available[key] = true end
+                    end
+                    local active = EditorStateApi.ResolveInspectorPropertyGroup(available)
+                    for _, child in ipairs(absorbsSection.children) do
+                        local key = child:GetUserData("normalAbsorbPropertyGroup")
+                        if key then
+                            if key == active then child.frame:Show() else child.frame:Hide() end
+                        end
+                    end
+                    for _, group in ipairs(groups) do
+                        group.button:SetDisabled(not available[group.key])
+                        local surface = group.button.frame._fpNormalAbsorbTab
+                        local selected = group.key == active
+                        local top = selected and 0 or -4
+                        surface.fill:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
+                        surface.top:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
+                        surface.top:SetPoint("TOPRIGHT", group.button.frame, "TOPRIGHT", 0, top)
+                        surface.left:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
+                        surface.right:SetPoint("TOPRIGHT", group.button.frame, "TOPRIGHT", 0, top)
+                        surface.fill:SetColorTexture(unpack(selected and chrome.panelBackground or chrome.panelHeader))
+                        surface.label:SetTextColor(1, selected and .95 or .85, selected and .78 or .70,
+                            available[group.key] and 1 or .35)
+                        surface.bottom:SetShown(not selected)
+                    end
+                    absorbsSection:DoLayout()
+                    container:DoLayout()
+                    if container.FixScroll then container:FixScroll() end
+                end
+                for _, group in ipairs(groups) do
+                    local button = AceGUI:Create("Button")
+                    -- Only the fitted tab FontString owns the caption. A native alpha
+                    -- change must not reveal a second caption from UIPanelButtonTemplate.
+                    button:SetText("")
+                    button:SetHeight(28)
+                    -- Local drawing only. Native scripts/methods and AceGUI ownership stay intact.
+                    local frame = button.frame
+                    local surface = frame._fpNormalAbsorbTab
+                    if not surface then
+                        surface = {}
+                        for _,name in ipairs({"fill", "top", "left", "right", "bottom"}) do
+                            surface[name] = frame:CreateTexture(nil, "ARTWORK")
+                        end
+                        surface.label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                        frame._fpNormalAbsorbTab = surface
+                    end
+                    local native = {{button.text, button.text:GetAlpha()}}
+                    button.text:SetAlpha(0)
+                    for _,region in ipairs({frame:GetRegions()}) do
+                        local own = false
+                        for _,part in pairs(surface) do if region == part then own = true end end
+                        if not own and region ~= button.text then
+                            native[#native+1] = {region, region:GetAlpha()}
+                            region:SetAlpha(0)
+                        end
+                    end
+                    surface.label:SetText(group.label)
+                    surface.label:SetPoint("LEFT", frame, "LEFT", 8, 0)
+                    surface.label:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+                    surface.label:SetWordWrap(false)
+                    local width = surface.label:GetStringWidth() + 16
+                    button:SetWidth(width)
+                    tabColumns[#tabColumns+1] = width
+                    surface.fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+                    surface.top:SetHeight(1)
+                    surface.left:SetWidth(1)
+                    surface.left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+                    surface.right:SetWidth(1)
+                    surface.right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+                    surface.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+                    surface.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+                    surface.bottom:SetHeight(1)
+                    for name,part in pairs(surface) do
+                        if name ~= "fill" and name ~= "label" then part:SetColorTexture(unpack(chrome.sectionBorder)) end
+                        part:Show()
+                    end
+                    button:SetCallback("OnRelease", function()
+                        for _,part in pairs(surface) do part:Hide() end
+                        for _,entry in ipairs(native) do entry[1]:SetAlpha(entry[2]) end
+                    end)
+                    group.button = button
+                    button:SetUserData("normalAbsorbPropertyTab", group.key)
+                    button:SetCallback("OnClick", function()
+                        if not IsCurrentProjection() or button.disabled then return end
+                        if not EditorStateApi.SetInspectorPropertyGroup(group.key) then return end
+                        if resetWorkspacePropertyScroll then resetWorkspacePropertyScroll() end
+                        projectNormalGroups()
+                    end)
+                    navigation:AddChild(button)
+                end
+            end
 
             if isScopedObject then
-                generalSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
-                appearanceSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-                backgroundSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-                geometrySection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-                positionSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
-                behaviorSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-                actionsSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
+                generalSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
+                appearanceSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+                backgroundSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                geometrySection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+                positionSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
+                behaviorSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                actionsSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
+                if normalPilot then
+                    -- Same Body owner and Remove callback; actions are not tab properties.
+                    actionsSection:SetUserData("normalAbsorbPropertyContent", nil)
+                    actionsSection:SetUserData("normalAbsorbObjectActions", true)
+                    local divider = actionsSection.frame._fpNormalAbsorbActionDivider
+                    if not divider then
+                        divider = actionsSection.frame:CreateTexture(nil, "ARTWORK")
+                        actionsSection.frame._fpNormalAbsorbActionDivider = divider
+                    end
+                    divider:SetPoint("TOPLEFT", actionsSection.frame, "TOPLEFT", 0, 0)
+                    divider:SetPoint("TOPRIGHT", actionsSection.frame, "TOPRIGHT", 0, 0)
+                    divider:SetHeight(1)
+                    divider:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder))
+                    divider:Show()
+                    actionsSection:SetCallback("OnRelease", function() divider:Hide() end)
+                    AddSpacer(actionsSection, 8)
+                end
             else
                 AddAbsorbSubheading(title)
+            end
+
+            if normalPilot then
+                -- Annotate the actual groups and their existing spacers, never titles.
+                local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
+                    [backgroundSection]="appearance", [geometrySection]="geometry",
+                    [positionSection]="geometry", [behaviorSection]="geometry"}
+                local pendingSpacer
+                for _, child in ipairs(absorbsSection.children) do
+                    local key = membership[child]
+                    if key then
+                        child:SetUserData("normalAbsorbPropertyGroup", key)
+                        if pendingSpacer then pendingSpacer:SetUserData("normalAbsorbPropertyGroup", key) end
+                    end
+                    pendingSpacer = child.type == "SimpleGroup" and child ~= absorbsSection.children[1] and child or nil
+                end
             end
 
             local showValue = unitConfig[showField] ~= false
@@ -3134,7 +3322,8 @@ function InspectorController.Build(container, state, options)
             end
 
             if isScopedObject then
-                AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
+                AddPropertyColorRow(backgroundSection, normalPilot and (L["OPTION_BACKGROUND_COLOR"] or "Background Color")
+                    or (L["OPTION_COLOR"] or "Color"), unitConfig[prefix .. "BackgroundColor"] or { 0, 0, 0, 0 }, true, function(value)
                     SetUnitField(prefix .. "BackgroundColor", value, rootSection)
                 end)
             else
@@ -3263,6 +3452,7 @@ function InspectorController.Build(container, state, options)
                 end)
             end
 
+            if projectNormalGroups then projectNormalGroups() end
         end
 
         if scopedAbsorbObject then

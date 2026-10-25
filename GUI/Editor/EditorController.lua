@@ -365,6 +365,19 @@ function EditorController.BuildInspector(container, deps)
     state.editorSidebarScroll = state.editorSidebarScroll or { scrollvalue = 0 }
     local propertyScrollWidget
 
+    local function ResetPropertyScroll()
+        state.editorSidebarScroll.scrollvalue = 0
+        state.editorSidebarScroll.offset = nil
+        state.editorSidebarScroll.visibleAnchorSectionKey = nil
+        state.editorSidebarScroll.visibleAnchorRole = nil
+        state.editorSidebarScroll.visibleAnchorChildIndex = nil
+        state.editorSidebarScroll.visibleAnchorChildKey = nil
+        state.editorSidebarScroll.visibleAnchorOffset = nil
+        if propertyScrollWidget and propertyScrollWidget.SetScroll then
+            propertyScrollWidget:SetScroll(0)
+        end
+    end
+
     local function GetScrollWidget()
         if propertyScrollWidget then
             return propertyScrollWidget
@@ -689,6 +702,8 @@ function EditorController.BuildInspector(container, deps)
 
     local function BuildInspectorCallbacks(rebuildContext, rebuildSidebar, refreshProperties)
         return {
+            isCurrentBuild = IsCurrentBuild,
+            onPropertyGroupChanged = ResetPropertyScroll,
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
             end,
@@ -785,17 +800,7 @@ function EditorController.BuildInspector(container, deps)
                 return
             end
 
-            state.editorSidebarScroll.scrollvalue = 0
-            state.editorSidebarScroll.offset = nil
-            state.editorSidebarScroll.visibleAnchorSectionKey = nil
-            state.editorSidebarScroll.visibleAnchorRole = nil
-            state.editorSidebarScroll.visibleAnchorChildIndex = nil
-            state.editorSidebarScroll.visibleAnchorChildKey = nil
-            state.editorSidebarScroll.visibleAnchorOffset = nil
-
-            if propertyScrollWidget.SetScroll then
-                propertyScrollWidget:SetScroll(0)
-            end
+            ResetPropertyScroll()
 
             Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties))
             if propertyScrollWidget.DoLayout then
