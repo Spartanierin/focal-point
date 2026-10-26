@@ -8,6 +8,8 @@ local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local ApplySidebarChrome = FormWidgets and FormWidgets.ApplySidebarChrome
+local CUSTOMIZE_WORLD_DIM_ALPHA = .28
+local customizeBackdrop
 
 local function ApplyInspectorShellComposition(owner, canonicalOnly)
     local composition = ns.GUI.PresentationCompositionPreview
@@ -136,6 +138,37 @@ function EditorController.SetActiveInspectorHost(widget)
     ns.GUI.Editor._activeInspector = widget
 end
 
+local function UpdateCustomizeBackdrop(inspector)
+    local stateApi = ns.GUI.Editor.State
+    local visible = inspector and inspector == EditorController.GetActiveInspectorHost()
+        and inspector.frame:IsShown() and stateApi and stateApi.Get().presentation == "customize"
+    if visible then
+        -- No protected frame is moved or raised. Avoid ambiguous ordering with level-zero UnitFrames.
+        for _, frame in pairs(ns.frames or {}) do
+            if frame.GetFrameStrata and frame.GetFrameLevel and frame:GetFrameStrata() == "BACKGROUND"
+                and frame:GetFrameLevel() <= 0 then visible = false; break end
+        end
+    end
+    if not visible then
+        if customizeBackdrop then customizeBackdrop:Hide() end
+        return
+    end
+    if not customizeBackdrop then
+        customizeBackdrop = CreateFrame("Frame", nil, UIParent)
+        customizeBackdrop:Hide()
+        customizeBackdrop:SetAllPoints(UIParent)
+        customizeBackdrop:SetFrameStrata("BACKGROUND")
+        customizeBackdrop:SetFrameLevel(0)
+        customizeBackdrop:EnableMouse(false)
+        customizeBackdrop:EnableMouseWheel(false)
+        customizeBackdrop:EnableKeyboard(false)
+        local fill = customizeBackdrop:CreateTexture(nil, "BACKGROUND", nil, -8)
+        fill:SetAllPoints(customizeBackdrop)
+        fill:SetColorTexture(0, 0, 0, CUSTOMIZE_WORLD_DIM_ALPHA)
+    end
+    customizeBackdrop:Show()
+end
+
 function EditorController.UpdateActiveInspectorGeometry()
     local inspector = EditorController.GetActiveInspectorHost()
     if not inspector or not inspector.frame then
@@ -144,9 +177,11 @@ function EditorController.UpdateActiveInspectorGeometry()
 
     ApplyInspectorGeometry(inspector, ComputeInspectorGeometry())
     FormWidgets.ApplyNavigatorBrassBorder(inspector)
+    UpdateCustomizeBackdrop(inspector)
 end
 
 function EditorController.ReleaseInspector()
+    if customizeBackdrop then customizeBackdrop:Hide() end
     local inspector = EditorController.GetActiveInspectorHost()
     if not inspector then
         return
@@ -319,6 +354,8 @@ local function EnsureInspector()
     end
 
     ApplyInspectorGeometry(inspector, geometry)
+    inspector.frame:HookScript("OnShow", function() UpdateCustomizeBackdrop(inspector) end)
+    inspector.frame:HookScript("OnHide", function() if customizeBackdrop then customizeBackdrop:Hide() end end)
     SetPersistentInspector(inspector)
     return inspector
 end
@@ -351,6 +388,7 @@ function EditorController.BuildInspector(container, deps)
         inspector.frame:Show()
         inspector.frame:Raise()
     end
+    UpdateCustomizeBackdrop(inspector)
     local function IsCurrentBuild()
         return ns.GUI.Editor._inspectorBuildSerial == buildSerial
             and EditorController.GetActiveInspectorHost() == inspector

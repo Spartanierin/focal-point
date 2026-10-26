@@ -73,6 +73,14 @@ local applyNamed = NineSliceUtil.ApplyLayoutByName
 NineSliceUtil.ApplyLayoutByName = function(host, name) host.testLayoutName = name; return applyNamed(host, name) end
 
 local oldCreate = ace.Create
+-- Native Window lifecycle hooks, matching the existing Parchment boundary.
+function native:HookScript(event, callback)
+    local previous = self.scripts[event]
+    self:SetScript(event, function(owner, ...)
+        if previous then previous(owner, ...) end
+        callback(owner, ...)
+    end)
+end
 local windows = {}
 ace.Create = function(self, kind)
     if kind ~= "Window" and kind ~= "ScrollFrame" then return oldCreate(self, kind) end
