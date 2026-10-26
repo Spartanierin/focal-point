@@ -4215,15 +4215,25 @@ function InspectorController.Build(container, state, options)
         end
 
         local usePropertyGroups = IsScopedCastBarObjectMode()
+        local flatCast = usePropertyGroups and type(workspaceIsCurrent) == "function"
+        local CreateCastPropertyGroup = AddFramedObjectPropertyGroup
+        local projectCastGroups, registerCastGroups
+        if flatCast then
+            CreateCastPropertyGroup, projectCastGroups, registerCastGroups = BeginFlatPropertyPresentation(castSection)
+        end
         local generalSection = castSection
         local appearanceSection = castSection
         local geometrySection = castSection
         local actionsSection
         if usePropertyGroups then
-            generalSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            geometrySection = AddFramedObjectPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-            actionsSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
+            generalSection = CreateCastPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = CreateCastPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            geometrySection = CreateCastPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            actionsSection = CreateCastPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
+        end
+        if flatCast then
+            registerCastGroups({[generalSection]="behavior", [appearanceSection]="appearance",
+                [geometrySection]="geometry"}, actionsSection)
         end
 
         if usePropertyGroups then
@@ -4359,6 +4369,7 @@ function InspectorController.Build(container, state, options)
                 ApplyCastBarPresence(false)
             end)
         end
+        if projectCastGroups then projectCastGroups() end
     end
 
     if IsScopedCastBarObjectMode() then

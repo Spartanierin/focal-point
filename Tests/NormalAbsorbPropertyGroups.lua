@@ -326,11 +326,11 @@ Test("narrow Workspace and German labels retain three reachable tabs and local T
     controller.BuildInspector(nil,{GetEditorState=state.Get}); Drain()
     CheckProjection("appearance")
 end)
-Test("pooling between flat Normal Absorb and framed Cast/Text preserves both presentations",function()
+Test("pooling between flat Normal Absorb and framed Unit/Text preserves both presentations",function()
     local active=ns.UnitFrameUtils.GetUnitDB("player")
     active.healingAbsorbBarPresent=true; active.castBarPresent=true; active.showCastBar=true
     for _=1,8 do
-        for _,object in ipairs({"CastBar","text"}) do
+        for _,object in ipairs({"unit","text"}) do
             local oldTabs=Tabs()
             local oldActions=ObjectActions()
             local oldActionDivider=oldActions.frame._fpNormalAbsorbActionDivider
@@ -338,7 +338,9 @@ Test("pooling between flat Normal Absorb and framed Cast/Text preserves both pre
             local oldBaseline=oldTabs.appearance.parent.frame._fpNormalAbsorbTabBaseline
             if object=="text" then
                 assert(selection.SelectObject({kind="text",unit="player",textKey="localText"})); Drain()
-            else Select(object) end
+            else
+                assert(selection.SelectObject({kind="unit",unit="player"})); Drain()
+            end
             assert(next((Tabs()))==nil)
             assert(not oldActionDivider:IsShown(),"object-action divider leaked after release")
             assert(not oldBaseline:IsShown(),"released navigation left its baseline visible")
