@@ -1699,9 +1699,9 @@ function InspectorController.Build(container, state, options)
 
         local scope = ResolvePropertyScope()
         local normalAbsorbWorkspace = type(workspaceIsCurrent) == "function" and scope
-            and scope.kind == "unit" and (scope.sectionKey == "health" or scope.sectionKey == "power"
-                or scope.sectionKey == "alt_power" or (scope.sectionKey == "absorbs"
-                and (scope.objectKey == "NormalAbsorbBar" or scope.objectKey == "HealingAbsorbBar")))
+            and (scope.kind == "segmentedBar" or (scope.kind == "unit" and (scope.sectionKey == "health" or scope.sectionKey == "power"
+                or scope.sectionKey == "alt_power" or scope.sectionKey == "class_power" or (scope.sectionKey == "absorbs"
+                and (scope.objectKey == "NormalAbsorbBar" or scope.objectKey == "HealingAbsorbBar")))))
         AddSpacer(container, normalAbsorbWorkspace and 4 or INSPECTOR_SECTION_SPACING)
 
         local root = AceGUI:Create("SimpleGroup")
@@ -2378,6 +2378,180 @@ function InspectorController.Build(container, state, options)
     end
 
 
+    -- Local presentation only; builders retain controls, callbacks and the existing Body owner.
+    local function BeginFlatPropertyPresentation(body)
+        local function CreateGroup(parent, title, addTopSpacing)
+            if addTopSpacing then AddSpacer(parent, buildPropertiesOnly and 4 or 8) end
+            -- Same immediate-build contract and owner, without InlineGroup's decoration/40px.
+            local group = ns.GUI.Helpers.FormRenderer.CreateLayoutGroup(parent, {
+                properties = {widget="SimpleGroup", layout="SimpleGroup", layoutMode="Flow",
+                    fullWidth=true, border=false, padding=0},
+            })
+            group:SetUserData("normalAbsorbPropertyContent", true)
+            parent:AddChild(group)
+            return group
+        end
+        local projectGroups
+        -- Table alone owns layout; child ownership and control lifetimes stay unchanged.
+        body:SetLayout("Table")
+        body:SetUserData("table", {columns={{weight=1}}, spaceH=0, spaceV=0})
+        local scope = ResolvePropertyScope()
+        local bindingActive = true
+        local navigation = AceGUI:Create("SimpleGroup")
+        navigation:SetFullWidth(true)
+        navigation:SetLayout("Table")
+        local tabColumns = {}
+        navigation:SetUserData("table", {columns=tabColumns, spaceH=0, spaceV=0})
+        body:AddChild(navigation)
+        local chrome = ns.GUI.Skins.GetFormPalette().Chrome
+        local baseline = navigation.frame._fpNormalAbsorbTabBaseline
+        if not baseline then
+            baseline = navigation.frame:CreateTexture(nil, "ARTWORK")
+            navigation.frame._fpNormalAbsorbTabBaseline = baseline
+        end
+        baseline:SetPoint("BOTTOMLEFT", navigation.frame, "BOTTOMLEFT", 0, 0)
+        baseline:SetPoint("BOTTOMRIGHT", navigation.frame, "BOTTOMRIGHT", 0, 0)
+        baseline:SetHeight(1)
+        baseline:SetColorTexture(unpack(chrome.sectionBorder))
+        baseline:Show()
+        navigation:SetCallback("OnRelease", function()
+            bindingActive = false
+            baseline:Hide()
+        end)
+        local groups = {
+            {key="appearance", label=L["EDITOR_PROPERTY_APPEARANCE"] or "Appearance"},
+            {key="geometry", label=L["SECTION_SIZE_POSITION"] or "Size & Position"},
+            {key="behavior", label=L["SECTION_BEHAVIOR"] or "Behavior"},
+        }
+        local function IsCurrentProjection()
+            return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
+                and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
+        end
+        projectGroups = function()
+            if not IsCurrentProjection() then return end
+            local available = {}
+            for _, child in ipairs(body.children) do
+                local key = child:GetUserData("normalAbsorbPropertyGroup")
+                if key and child:GetUserData("normalAbsorbPropertyContent") and #child.children > 0 then available[key] = true end
+            end
+            local active = EditorStateApi.ResolveInspectorPropertyGroup(available)
+            for _, child in ipairs(body.children) do
+                local key = child:GetUserData("normalAbsorbPropertyGroup")
+                if key then
+                    if key == active then child.frame:Show() else child.frame:Hide() end
+                end
+            end
+            for _, group in ipairs(groups) do
+                group.button:SetDisabled(not available[group.key])
+                local surface = group.button.frame._fpNormalAbsorbTab
+                local selected = group.key == active
+                local top = selected and 0 or -4
+                surface.fill:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
+                surface.top:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
+                surface.top:SetPoint("TOPRIGHT", group.button.frame, "TOPRIGHT", 0, top)
+                surface.left:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
+                surface.right:SetPoint("TOPRIGHT", group.button.frame, "TOPRIGHT", 0, top)
+                surface.fill:SetColorTexture(unpack(selected and chrome.panelBackground or chrome.panelHeader))
+                surface.label:SetTextColor(1, selected and .95 or .85, selected and .78 or .70,
+                    available[group.key] and 1 or .35)
+                surface.bottom:SetShown(not selected)
+            end
+            body:DoLayout()
+            container:DoLayout()
+            if container.FixScroll then container:FixScroll() end
+        end
+        for _, group in ipairs(groups) do
+            local button = AceGUI:Create("Button")
+            -- Only the fitted tab FontString owns the caption. A native alpha
+            -- change must not reveal a second caption from UIPanelButtonTemplate.
+            button:SetText("")
+            button:SetHeight(28)
+            -- Local drawing only. Native scripts/methods and AceGUI ownership stay intact.
+            local frame = button.frame
+            local surface = frame._fpNormalAbsorbTab
+            if not surface then
+                surface = {}
+                for _,name in ipairs({"fill", "top", "left", "right", "bottom"}) do
+                    surface[name] = frame:CreateTexture(nil, "ARTWORK")
+                end
+                surface.label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                frame._fpNormalAbsorbTab = surface
+            end
+            local native = {{button.text, button.text:GetAlpha()}}
+            button.text:SetAlpha(0)
+            for _,region in ipairs({frame:GetRegions()}) do
+                local own = false
+                for _,part in pairs(surface) do if region == part then own = true end end
+                if not own and region ~= button.text then
+                    native[#native+1] = {region, region:GetAlpha()}
+                    region:SetAlpha(0)
+                end
+            end
+            surface.label:SetText(group.label)
+            surface.label:SetPoint("LEFT", frame, "LEFT", 8, 0)
+            surface.label:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+            surface.label:SetWordWrap(false)
+            local width = surface.label:GetStringWidth() + 16
+            button:SetWidth(width)
+            tabColumns[#tabColumns+1] = width
+            surface.fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+            surface.top:SetHeight(1)
+            surface.left:SetWidth(1)
+            surface.left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+            surface.right:SetWidth(1)
+            surface.right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+            surface.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+            surface.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+            surface.bottom:SetHeight(1)
+            for name,part in pairs(surface) do
+                if name ~= "fill" and name ~= "label" then part:SetColorTexture(unpack(chrome.sectionBorder)) end
+                part:Show()
+            end
+            button:SetCallback("OnRelease", function()
+                for _,part in pairs(surface) do part:Hide() end
+                for _,entry in ipairs(native) do entry[1]:SetAlpha(entry[2]) end
+            end)
+            group.button = button
+            button:SetUserData("normalAbsorbPropertyTab", group.key)
+            button:SetCallback("OnClick", function()
+                if not IsCurrentProjection() or button.disabled then return end
+                if not EditorStateApi.SetInspectorPropertyGroup(group.key) then return end
+                if resetWorkspacePropertyScroll then resetWorkspacePropertyScroll() end
+                projectGroups()
+            end)
+            navigation:AddChild(button)
+        end
+        local function RegisterGroups(membership, actionsSection)
+            if actionsSection then
+                -- Same Body owner and Remove callback; actions are not tab properties.
+                actionsSection:SetUserData("normalAbsorbPropertyContent", nil)
+                actionsSection:SetUserData("normalAbsorbObjectActions", true)
+                local divider = actionsSection.frame._fpNormalAbsorbActionDivider
+                if not divider then
+                    divider = actionsSection.frame:CreateTexture(nil, "ARTWORK")
+                    actionsSection.frame._fpNormalAbsorbActionDivider = divider
+                end
+                divider:SetPoint("TOPLEFT", actionsSection.frame, "TOPLEFT", 0, 0)
+                divider:SetPoint("TOPRIGHT", actionsSection.frame, "TOPRIGHT", 0, 0)
+                divider:SetHeight(1)
+                divider:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder))
+                divider:Show()
+                actionsSection:SetCallback("OnRelease", function() divider:Hide() end)
+                AddSpacer(actionsSection, 8)
+            end
+            local pendingSpacer
+            for _, child in ipairs(body.children) do
+                local key = membership[child]
+                if key then
+                    child:SetUserData("normalAbsorbPropertyGroup", key)
+                    if pendingSpacer then pendingSpacer:SetUserData("normalAbsorbPropertyGroup", key) end
+                end
+                pendingSpacer = child.type == "SimpleGroup" and child ~= body.children[1] and child or nil
+            end
+        end
+        return CreateGroup, projectGroups, RegisterGroups
+    end
+
     if buildContextOnly then
         return
     end
@@ -2393,7 +2567,13 @@ function InspectorController.Build(container, state, options)
                 AddPropertyLabel(body, L["EDITOR_SEGMENTED_BAR_UNAVAILABLE"] or "This instance is no longer selected or available.")
                 return
             end
-            local generalSection = AddFramedObjectPropertyGroup(body, L["SECTION_GENERAL"] or "General", false)
+            local flatSegmented = type(workspaceIsCurrent) == "function"
+            local CreateSegmentedPropertyGroup = AddFramedObjectPropertyGroup
+            local projectSegmentedGroups, registerSegmentedGroups
+            if flatSegmented then
+                CreateSegmentedPropertyGroup, projectSegmentedGroups, registerSegmentedGroups = BeginFlatPropertyPresentation(body)
+            end
+            local generalSection = CreateSegmentedPropertyGroup(body, L["SECTION_GENERAL"] or "General", false)
             if not ns.UnitFrameSegmentedBars then
                 AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_NO_VISUAL"] or "Class Resource Bar preview is unavailable.")
             end
@@ -2408,12 +2588,15 @@ function InspectorController.Build(container, state, options)
             local scope = ResolvePropertyScope()
             local xControl, yControl
             local controls, syncing, bindingActive = {}, false, true
+            local binding = {}
             local function IsCurrentBinding()
                 local selected = ObjectSelection.GetSelectedObject()
                 return bindingActive and ResolvePropertyScope() == scope and IsSameInspectorObject(selected, ref)
+                    and (type(workspaceIsCurrent) ~= "function" or workspaceIsCurrent())
                     and activeCanvasDirectMoveOffsetControls
                     and activeCanvasDirectMoveOffsetControls.offsetXControl == xControl
                     and xControl:GetUserData("focalPointAnchorKey") == "segmentedBar_offsetX"
+                    and xControl:GetUserData("focalPointSegmentedBinding") == binding
             end
             local defaults = {anchorTo="Frame",point="TOPLEFT",relativePoint="TOPLEFT",width=100,height=12,
                 offsetX=0,offsetY=0,texture="fp:statusbar:flat-white",color={1,1,1,1},background=true,
@@ -2553,7 +2736,7 @@ function InspectorController.Build(container, state, options)
                 AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_SOURCE_HINT"]
                     or "Available live class resource data is required.")
             end
-            local appearanceSection = AddFramedObjectPropertyGroup(body, L["SECTION_APPEARANCE"] or "Appearance", true)
+            local appearanceSection = CreateSegmentedPropertyGroup(body, L["SECTION_APPEARANCE"] or "Appearance", true)
             Media(appearanceSection, "texture", L["OPTION_TEXTURE"] or "Texture", MEDIA_TYPE_STATUSBAR, BuildStatusBarTextureOptions)
             controls.useBlizzardColor = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard",
                 Value(record, "useBlizzardColor"), function(value) Change("useBlizzardColor", value) end,
@@ -2569,11 +2752,11 @@ function InspectorController.Build(container, state, options)
             controls.borderColor = AddPropertyColorRow(appearanceSection, L["OPTION_BORDER_COLOR"] or "Border Color",
                 Value(record, "borderColor"), true, function(value) Change("borderColor", {value.r,value.g,value.b,value.a}) end,
                 false, "segmentedBar_borderColor")
-            local geometrySection = AddFramedObjectPropertyGroup(body, L["SECTION_GEOMETRY"] or "Geometry", true)
+            local geometrySection = CreateSegmentedPropertyGroup(body, L["SECTION_GEOMETRY"] or "Geometry", true)
             Slider(geometrySection, "width", L["OPTION_WIDTH"] or "Width", 40, 512)
             Slider(geometrySection, "height", L["OPTION_HEIGHT"] or "Height", 4, 128)
             Slider(geometrySection, "spacing", L["OPTION_CLASS_POWER_BAR_SPACING"] or "Segment Spacing", 0, 20)
-            local positionSection = AddFramedObjectPropertyGroup(body, L["SECTION_POSITION"] or "Position", true)
+            local positionSection = CreateSegmentedPropertyGroup(body, L["SECTION_POSITION"] or "Position", true)
             local targets = {Frame=L["SECTION_FRAME"] or "Frame"}
             for _, item in ipairs(unitConfig.segmentedBars or {}) do
                 if item.id ~= ref.objectKey then targets["SegmentedBar:" .. item.id] = item.id end
@@ -2584,14 +2767,23 @@ function InspectorController.Build(container, state, options)
             Slider(positionSection, "offsetX", L["OPTION_X_OFFSET"] or "X Offset", -500, 500)
             Slider(positionSection, "offsetY", L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500)
             xControl, yControl = controls.offsetX, controls.offsetY
+            -- AceGUI clears UserData on release; pooled controls receive a new binding identity.
+            xControl:SetUserData("focalPointSegmentedBinding", binding)
             Dropdown(positionSection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
+            local timerSection
             if resolvedSource == "runes" then
-                local timerSection = AddFramedObjectPropertyGroup(body, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+                timerSection = CreateSegmentedPropertyGroup(body, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
                 Media(timerSection, "runeTimerFont", L["OPTION_FONT"] or "Font", MEDIA_TYPE_FONT, BuildFontOptions)
                 Slider(timerSection, "runeTimerFontSize", L["OPTION_FONT_SIZE"] or "Font Size", 6, 32)
                 Dropdown(timerSection, "runeTimerFontStyle", L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList)
             end
-            local actionsSection = AddFramedObjectPropertyGroup(body, L["SECTION_ACTIONS"] or "Actions", true)
+            local actionsSection = CreateSegmentedPropertyGroup(body, L["SECTION_ACTIONS"] or "Actions", true)
+            if flatSegmented then
+                local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
+                    [geometrySection]="geometry", [positionSection]="geometry"}
+                if timerSection then membership[timerSection] = "appearance" end
+                registerSegmentedGroups(membership, actionsSection)
+            end
             local deleteLabel = L["EDITOR_DELETE_SEGMENTED_BAR_BUTTON"] or "Delete Class Resource Bar"
             AddPropertyActionButtonRow(actionsSection, deleteLabel, deleteLabel, "DestructiveAction", 172, function()
                 if not context or not mutations or type(mutations.Delete) ~= "function"
@@ -2658,6 +2850,7 @@ function InspectorController.Build(container, state, options)
             RegisterActiveCanvasDirectMoveOffsetControls(ref.unit, ref, xControl, yControl, nil, nil, function()
                 if IsCurrentBinding() then context = mutations.CaptureContext(ref.unit) end
             end)
+            if projectSegmentedGroups then projectSegmentedGroups() end
         end)
         return
     end
@@ -2865,180 +3058,6 @@ function InspectorController.Build(container, state, options)
         localContentBuilder = BuildFrameSectionContent,
         layoutRefresh = RefreshInspectorLayout,
     })
-
-    -- Local presentation only; builders retain controls, callbacks and the existing Body owner.
-    local function BeginFlatPropertyPresentation(body)
-        local function CreateGroup(parent, title, addTopSpacing)
-            if addTopSpacing then AddSpacer(parent, buildPropertiesOnly and 4 or 8) end
-            -- Same immediate-build contract and owner, without InlineGroup's decoration/40px.
-            local group = ns.GUI.Helpers.FormRenderer.CreateLayoutGroup(parent, {
-                properties = {widget="SimpleGroup", layout="SimpleGroup", layoutMode="Flow",
-                    fullWidth=true, border=false, padding=0},
-            })
-            group:SetUserData("normalAbsorbPropertyContent", true)
-            parent:AddChild(group)
-            return group
-        end
-        local projectGroups
-        -- Table alone owns layout; child ownership and control lifetimes stay unchanged.
-        body:SetLayout("Table")
-        body:SetUserData("table", {columns={{weight=1}}, spaceH=0, spaceV=0})
-        local scope = ResolvePropertyScope()
-        local bindingActive = true
-        local navigation = AceGUI:Create("SimpleGroup")
-        navigation:SetFullWidth(true)
-        navigation:SetLayout("Table")
-        local tabColumns = {}
-        navigation:SetUserData("table", {columns=tabColumns, spaceH=0, spaceV=0})
-        body:AddChild(navigation)
-        local chrome = ns.GUI.Skins.GetFormPalette().Chrome
-        local baseline = navigation.frame._fpNormalAbsorbTabBaseline
-        if not baseline then
-            baseline = navigation.frame:CreateTexture(nil, "ARTWORK")
-            navigation.frame._fpNormalAbsorbTabBaseline = baseline
-        end
-        baseline:SetPoint("BOTTOMLEFT", navigation.frame, "BOTTOMLEFT", 0, 0)
-        baseline:SetPoint("BOTTOMRIGHT", navigation.frame, "BOTTOMRIGHT", 0, 0)
-        baseline:SetHeight(1)
-        baseline:SetColorTexture(unpack(chrome.sectionBorder))
-        baseline:Show()
-        navigation:SetCallback("OnRelease", function()
-            bindingActive = false
-            baseline:Hide()
-        end)
-        local groups = {
-            {key="appearance", label=L["EDITOR_PROPERTY_APPEARANCE"] or "Appearance"},
-            {key="geometry", label=L["SECTION_SIZE_POSITION"] or "Size & Position"},
-            {key="behavior", label=L["SECTION_BEHAVIOR"] or "Behavior"},
-        }
-        local function IsCurrentProjection()
-            return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
-                and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
-        end
-        projectGroups = function()
-            if not IsCurrentProjection() then return end
-            local available = {}
-            for _, child in ipairs(body.children) do
-                local key = child:GetUserData("normalAbsorbPropertyGroup")
-                if key and child:GetUserData("normalAbsorbPropertyContent") and #child.children > 0 then available[key] = true end
-            end
-            local active = EditorStateApi.ResolveInspectorPropertyGroup(available)
-            for _, child in ipairs(body.children) do
-                local key = child:GetUserData("normalAbsorbPropertyGroup")
-                if key then
-                    if key == active then child.frame:Show() else child.frame:Hide() end
-                end
-            end
-            for _, group in ipairs(groups) do
-                group.button:SetDisabled(not available[group.key])
-                local surface = group.button.frame._fpNormalAbsorbTab
-                local selected = group.key == active
-                local top = selected and 0 or -4
-                surface.fill:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
-                surface.top:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
-                surface.top:SetPoint("TOPRIGHT", group.button.frame, "TOPRIGHT", 0, top)
-                surface.left:SetPoint("TOPLEFT", group.button.frame, "TOPLEFT", 0, top)
-                surface.right:SetPoint("TOPRIGHT", group.button.frame, "TOPRIGHT", 0, top)
-                surface.fill:SetColorTexture(unpack(selected and chrome.panelBackground or chrome.panelHeader))
-                surface.label:SetTextColor(1, selected and .95 or .85, selected and .78 or .70,
-                    available[group.key] and 1 or .35)
-                surface.bottom:SetShown(not selected)
-            end
-            body:DoLayout()
-            container:DoLayout()
-            if container.FixScroll then container:FixScroll() end
-        end
-        for _, group in ipairs(groups) do
-            local button = AceGUI:Create("Button")
-            -- Only the fitted tab FontString owns the caption. A native alpha
-            -- change must not reveal a second caption from UIPanelButtonTemplate.
-            button:SetText("")
-            button:SetHeight(28)
-            -- Local drawing only. Native scripts/methods and AceGUI ownership stay intact.
-            local frame = button.frame
-            local surface = frame._fpNormalAbsorbTab
-            if not surface then
-                surface = {}
-                for _,name in ipairs({"fill", "top", "left", "right", "bottom"}) do
-                    surface[name] = frame:CreateTexture(nil, "ARTWORK")
-                end
-                surface.label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                frame._fpNormalAbsorbTab = surface
-            end
-            local native = {{button.text, button.text:GetAlpha()}}
-            button.text:SetAlpha(0)
-            for _,region in ipairs({frame:GetRegions()}) do
-                local own = false
-                for _,part in pairs(surface) do if region == part then own = true end end
-                if not own and region ~= button.text then
-                    native[#native+1] = {region, region:GetAlpha()}
-                    region:SetAlpha(0)
-                end
-            end
-            surface.label:SetText(group.label)
-            surface.label:SetPoint("LEFT", frame, "LEFT", 8, 0)
-            surface.label:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
-            surface.label:SetWordWrap(false)
-            local width = surface.label:GetStringWidth() + 16
-            button:SetWidth(width)
-            tabColumns[#tabColumns+1] = width
-            surface.fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-            surface.top:SetHeight(1)
-            surface.left:SetWidth(1)
-            surface.left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-            surface.right:SetWidth(1)
-            surface.right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-            surface.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-            surface.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-            surface.bottom:SetHeight(1)
-            for name,part in pairs(surface) do
-                if name ~= "fill" and name ~= "label" then part:SetColorTexture(unpack(chrome.sectionBorder)) end
-                part:Show()
-            end
-            button:SetCallback("OnRelease", function()
-                for _,part in pairs(surface) do part:Hide() end
-                for _,entry in ipairs(native) do entry[1]:SetAlpha(entry[2]) end
-            end)
-            group.button = button
-            button:SetUserData("normalAbsorbPropertyTab", group.key)
-            button:SetCallback("OnClick", function()
-                if not IsCurrentProjection() or button.disabled then return end
-                if not EditorStateApi.SetInspectorPropertyGroup(group.key) then return end
-                if resetWorkspacePropertyScroll then resetWorkspacePropertyScroll() end
-                projectGroups()
-            end)
-            navigation:AddChild(button)
-        end
-        local function RegisterGroups(membership, actionsSection)
-            if actionsSection then
-                -- Same Body owner and Remove callback; actions are not tab properties.
-                actionsSection:SetUserData("normalAbsorbPropertyContent", nil)
-                actionsSection:SetUserData("normalAbsorbObjectActions", true)
-                local divider = actionsSection.frame._fpNormalAbsorbActionDivider
-                if not divider then
-                    divider = actionsSection.frame:CreateTexture(nil, "ARTWORK")
-                    actionsSection.frame._fpNormalAbsorbActionDivider = divider
-                end
-                divider:SetPoint("TOPLEFT", actionsSection.frame, "TOPLEFT", 0, 0)
-                divider:SetPoint("TOPRIGHT", actionsSection.frame, "TOPRIGHT", 0, 0)
-                divider:SetHeight(1)
-                divider:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder))
-                divider:Show()
-                actionsSection:SetCallback("OnRelease", function() divider:Hide() end)
-                AddSpacer(actionsSection, 8)
-            end
-            local pendingSpacer
-            for _, child in ipairs(body.children) do
-                local key = membership[child]
-                if key then
-                    child:SetUserData("normalAbsorbPropertyGroup", key)
-                    if pendingSpacer then pendingSpacer:SetUserData("normalAbsorbPropertyGroup", key) end
-                end
-                pendingSpacer = child.type == "SimpleGroup" and child ~= body.children[1] and child or nil
-            end
-        end
-        return CreateGroup, projectGroups, RegisterGroups
-    end
 
     local function BuildHealthSectionContent(healthSection)
         if not healthSection then
@@ -3851,6 +3870,12 @@ function InspectorController.Build(container, state, options)
         end
 
         local usePropertyGroups = IsScopedClassPowerBarObjectMode()
+        local flatClassPower = usePropertyGroups and type(workspaceIsCurrent) == "function"
+        local CreateClassPowerPropertyGroup = AddFramedObjectPropertyGroup
+        local projectClassPowerGroups, registerClassPowerGroups
+        if flatClassPower then
+            CreateClassPowerPropertyGroup, projectClassPowerGroups, registerClassPowerGroups = BeginFlatPropertyPresentation(classPowerSection)
+        end
         local rootSection = classPowerSection
         local generalSection = classPowerSection
         local appearanceSection = classPowerSection
@@ -3860,15 +3885,21 @@ function InspectorController.Build(container, state, options)
         local positionSection = classPowerSection
         local actionsSection
         if usePropertyGroups then
-            generalSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            runeTimerSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
-            backgroundSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-            geometrySection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            generalSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
+            appearanceSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            runeTimerSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+            backgroundSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            geometrySection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if isExpert then
-                positionSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
+                positionSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
             end
-            actionsSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            actionsSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+        end
+        if flatClassPower then
+            local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
+                [runeTimerSection]="appearance", [backgroundSection]="appearance", [geometrySection]="geometry"}
+            if isExpert then membership[positionSection] = "geometry" end
+            registerClassPowerGroups(membership, actionsSection)
         end
 
         if usePropertyGroups then
@@ -3938,7 +3969,8 @@ function InspectorController.Build(container, state, options)
         end
 
         if usePropertyGroups then
-            AddPropertyColorRow(backgroundSection, L["OPTION_COLOR"] or "Color", unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
+            AddPropertyColorRow(backgroundSection, flatClassPower and (L["OPTION_BACKGROUND_COLOR"] or "Background Color")
+                or (L["OPTION_COLOR"] or "Color"), unitConfig.classPowerBackgroundColor or unitConfig.powerBackgroundColor, true, function(value)
                 SetUnitField("classPowerBackgroundColor", value)
             end, unitConfig.showClassPowerBar ~= true)
         else
@@ -4154,6 +4186,7 @@ function InspectorController.Build(container, state, options)
                 ApplySingletonBarPresence("ClassPowerBar", false, "class_power")
             end)
         end
+        if projectClassPowerGroups then projectClassPowerGroups() end
     end
 
     if selectedUnit == "player" then
