@@ -4298,7 +4298,63 @@ function InspectorController.Build(container, state, options)
                 castBarWidthMin, castBarWidthMax, castBarWidthDefault = CastBar.GetWidthLimits()
             end
             local castBarWidthControl
-            if usePropertyGroups then
+            if flatCast then
+                AddPropertyRow(geometrySection, L["OPTION_WIDTH_MODE"] or "Width Mode", function(valueGroup)
+                    -- Cast-only pilot: the existing pooled row owns the native child.
+                    -- Older clients retain the unmodified compatible dropdown path.
+                    local dropdown = valueGroup.frame._fpCastWidthDropdown
+                    if not dropdown and type(DropdownButtonMixin) == "table"
+                        and type(DropdownButtonMixin.SetupMenu) == "function"
+                        and type(DropdownButtonMixin.ClearMenuState) == "function"
+                        and type(WowStyle1DropdownMixin) == "table" then
+                        local ok, frame = pcall(CreateFrame, "DropdownButton", nil, valueGroup.frame, "WowStyle1DropdownTemplate")
+                        if ok then
+                            dropdown = frame
+                            valueGroup.frame._fpCastWidthDropdown = dropdown
+                            dropdown:HookScript("OnHide", function(self) self:CloseMenu() end)
+                        end
+                    end
+                    if not dropdown then
+                        Shared.AddDropdown(valueGroup, "", castBarWidthModeList, castBarWidthMode, function(value)
+                            SetUnitField("castBarWidthMode", value)
+                        end)
+                        return
+                    end
+
+                    local scope = ResolvePropertyScope()
+                    local bindingActive = true
+                    local function IsCurrentBinding()
+                        return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
+                            and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
+                    end
+                    valueGroup:SetCallback("OnRelease", function()
+                        bindingActive = false
+                        dropdown:ClearMenuState()
+                        dropdown:Hide()
+                    end)
+                    dropdown:ClearAllPoints()
+                    dropdown:SetPoint("LEFT", valueGroup.frame, "LEFT", 8, 0)
+                    dropdown:SetPoint("RIGHT", valueGroup.frame, "RIGHT", -8, 0)
+                    dropdown:SetHeight(25)
+                    dropdown:SetEnabled(true) -- Width Mode remains editable when Show is off.
+                    dropdown:SetDefaultText(castBarWidthModeList[castBarWidthMode])
+                    dropdown:SetupMenu(function(_, rootDescription)
+                        -- Only this popup: the Inspector also uses FULLSCREEN_DIALOG.
+                        -- Blizzard's menu pool restores the acquired frame on release.
+                        rootDescription:AddMenuAcquiredCallback(function(menu)
+                            menu:SetFrameStrata("TOOLTIP")
+                        end)
+                        for _, mode in ipairs({ "MATCH_FRAME", "CUSTOM" }) do
+                            rootDescription:CreateRadio(castBarWidthModeList[mode], function()
+                                return IsCurrentBinding() and (unitConfig.castBarWidthMode or "MATCH_FRAME") == mode
+                            end, function()
+                                if IsCurrentBinding() then SetUnitField("castBarWidthMode", mode) end
+                            end)
+                        end
+                    end)
+                    dropdown:Show()
+                end, { rowType = "COMPACT" })
+            elseif usePropertyGroups then
                 AddPropertyDropdownRow(geometrySection, L["OPTION_WIDTH_MODE"] or "Width Mode", {
                     list = castBarWidthModeList,
                     value = castBarWidthMode,
