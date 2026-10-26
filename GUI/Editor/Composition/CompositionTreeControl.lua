@@ -3,7 +3,9 @@ local _, ns = ...
 local Control = {}
 ns.GUI.Editor.Composition.TreeControl = Control
 
-Control.ROW_HEIGHT = 16
+Control.ROW_HEIGHT = 22
+local ROW_INDENT = 14
+local ROW_FONT_SIZE = 12
 local freeControls = {}
 local methods = {}
 local ApplyTextStyle = ns.GUI.Helpers.FormWidgets.ApplyTextStyle
@@ -139,17 +141,14 @@ local function Paint(row)
     else
         SetIconColor(row.icon, row.iconTint or presentation.icon.fallback, presentation.icon.normalBrightness, presentation.icon.normalAlpha)
     end
-    row.disclosureGlyph:SetText(item.expanded and "-" or ">")
-    if item.node.enabled == false then
-        row.toggleGlyph:SetColorTexture(unpack(presentation.toggle.disabled))
+    -- Existing AceGUI submenu arrow, rotated through texture coordinates when expanded.
+    if item.expanded then
+        row.disclosureGlyph:SetTexCoord(0, 1, 1, 1, 0, 0, 1, 0)
     else
-        local activeColor = GetActiveUnitMarkerColor()
-        if activeColor then
-            row.toggleGlyph:SetColorTexture(unpack(activeColor))
-        else
-            row.toggleGlyph:SetColorTexture(unpack(presentation.toggle.fallback))
-        end
+        row.disclosureGlyph:SetTexCoord(0, 1, 0, 1)
     end
+    row.toggleCheck:SetShown(item.node.enabled ~= false)
+    row.toggleCheck:SetVertexColor(unpack(GetActiveUnitMarkerColor() or presentation.text.selected))
 end
 
 function methods:SetKeyboardActive(active)
@@ -167,13 +166,32 @@ local function IsMouseOverFrame(frame)
     return false
 end
 
+local function HideRowTooltip(row)
+    if not GameTooltip then return end
+    for _, frame in ipairs({row.frame, row.disclosure, row.toggle}) do
+        if GameTooltip:IsOwned(frame) then GameTooltip:Hide(); return end
+    end
+end
+
 local function BindRowScripts(control, row)
-    local function Enter()
+    local function Enter(frame)
+        if not row.item then return end
         row.hovered = true
         Paint(row)
         control:SetKeyboardActive(true)
+        if GameTooltip then
+            GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine(row.item.label, 1, 1, 1, true)
+            if frame == row.toggle then
+                local labels = ns.L or {}
+                GameTooltip:AddLine(row.item.node.enabled == false and (labels.OPTION_OFF or "Off") or (labels.OPTION_ON or "On"), 1, 1, 1)
+            end
+            GameTooltip:Show()
+        end
     end
     local function Leave()
+        HideRowTooltip(row)
         row.hovered = false
         Paint(row)
         if not IsMouseOverFrame(control.frame) then control:SetKeyboardActive(false) end
@@ -181,6 +199,7 @@ local function BindRowScripts(control, row)
     for _, frame in ipairs({ row.frame, row.disclosure, row.toggle }) do
         frame:SetScript("OnEnter", Enter)
         frame:SetScript("OnLeave", Leave)
+        frame:SetScript("OnHide", function() HideRowTooltip(row) end)
     end
     row.frame:SetScript("OnMouseDown", function(_, button)
         if button ~= "LeftButton" or not row.item or not row.item.clickable then return end
@@ -200,6 +219,7 @@ local function BindRowScripts(control, row)
 end
 
 local function UnbindRow(row)
+    HideRowTooltip(row)
     row.item = nil
     row.hovered = false
     for _, frame in ipairs({ row.frame, row.disclosure, row.toggle }) do
@@ -208,6 +228,7 @@ local function UnbindRow(row)
         frame:SetScript("OnEnter", nil)
         frame:SetScript("OnLeave", nil)
         frame:SetScript("OnMouseDown", nil)
+        frame:SetScript("OnHide", nil)
     end
     row.frame:ClearAllPoints()
     row.label:SetText("")
@@ -226,24 +247,30 @@ function methods:AcquireRow(index)
     local background = frame:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints(frame)
     local label = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    StyleLabel(label, 11)
+    StyleLabel(label, ROW_FONT_SIZE)
     local icon = frame:CreateTexture(nil, "ARTWORK", nil, 1)
     icon:SetSize(14, 14)
     local disclosure = CreateFrame("Button", nil, frame)
-    disclosure:SetSize(12, Control.ROW_HEIGHT)
-    local disclosureGlyph = disclosure:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    disclosure:SetSize(16, Control.ROW_HEIGHT)
+    local disclosureGlyph = disclosure:CreateTexture(nil, "ARTWORK")
+    disclosureGlyph:SetTexture(130940) -- Existing AceGUI ChatFrameExpandArrow.
+    disclosureGlyph:SetSize(10, 10)
     disclosureGlyph:SetPoint("CENTER")
-    disclosureGlyph:SetTextColor(unpack(GetCompositionTreePresentation().text.disclosure))
+    disclosureGlyph:SetVertexColor(unpack(GetCompositionTreePresentation().text.disclosure))
     local toggle = CreateFrame("Button", nil, frame)
     toggle:SetSize(20, Control.ROW_HEIGHT)
     toggle:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
     local toggleGlyph = toggle:CreateTexture(nil, "ARTWORK")
-    toggleGlyph:SetSize(8, 8)
+    toggleGlyph:SetTexture(130755) -- Existing AceGUI UI-CheckBox-Up.
+    toggleGlyph:SetSize(16, 16)
     toggleGlyph:SetPoint("CENTER")
+    local toggleCheck = toggle:CreateTexture(nil, "OVERLAY")
+    toggleCheck:SetTexture(130751) -- Existing AceGUI UI-CheckBox-Check.
+    toggleCheck:SetAllPoints(toggleGlyph)
     row = {
         frame = frame, background = background, label = label, icon = icon,
         disclosure = disclosure, disclosureGlyph = disclosureGlyph,
-        toggle = toggle, toggleGlyph = toggleGlyph,
+        toggle = toggle, toggleGlyph = toggleGlyph, toggleCheck = toggleCheck,
     }
     self.rows[index] = row
     return row
@@ -329,6 +356,7 @@ function methods:SetRows(items)
     self.count = #items
     for index, item in ipairs(items) do
         local row = self:AcquireRow(index)
+        HideRowTooltip(row)
         row.item = item
         row.textRole = item.node.type == "unit" and "identity" or "label"
         row.hovered = false
@@ -336,7 +364,7 @@ function methods:SetRows(items)
         row.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, -(index - 1) * Control.ROW_HEIGHT)
         row.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, -(index - 1) * Control.ROW_HEIGHT)
         row.disclosure:ClearAllPoints()
-        row.disclosure:SetPoint("LEFT", row.frame, "LEFT", 3 + item.depth * 10, 0)
+        row.disclosure:SetPoint("LEFT", row.frame, "LEFT", 3 + item.depth * ROW_INDENT, 0)
         row.icon:ClearAllPoints()
         row.icon:SetPoint("LEFT", row.disclosure, "RIGHT", 2, 0)
         local iconPath, iconTint = ResolveNodeIcon(item.node, GetCompositionTreePresentation())
@@ -348,7 +376,7 @@ function methods:SetRows(items)
         row.label:SetPoint("RIGHT", item.toggleable and row.toggle or row.frame,
             item.toggleable and "LEFT" or "RIGHT", -4, 0)
         row.label:SetText(item.label)
-        StyleLabel(row.label, item.node.type == "unit" and 12 or 11, row.textRole)
+        StyleLabel(row.label, ROW_FONT_SIZE, row.textRole)
         BindRowScripts(self, row)
         row.frame:EnableMouse(true)
         row.disclosure:EnableMouse(item.expandable)
@@ -407,6 +435,7 @@ local function CreateControl()
     self.background = self.frame:CreateTexture(nil, "BACKGROUND")
     self.background:SetAllPoints()
     self.background:SetColorTexture(unpack(GetCompositionTreePresentation().surface))
+    self.background:Hide() -- Inherit the Customize host surface instead of stacking an opaque panel.
     self.frame:EnableMouse(true)
     self.frame:EnableMouseWheel(true)
     self.scroll = CreateFrame("ScrollFrame", nil, self.frame)
