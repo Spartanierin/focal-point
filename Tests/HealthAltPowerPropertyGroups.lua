@@ -65,16 +65,19 @@ end
 local function Color(label,r,g,b,a) Row(label,"ColorPicker"):Fire("OnValueConfirmed",r,g,b,a) end
 local count=0
 local function Test(name,fn) fn();count=count+1;print("PASS: "..name) end
-Test("Health Quick has only Appearance, disabled empty tabs and no synthetic actions or geometry",function()
-    Start("HealthBar"); Check("health","appearance",{appearance=true})
-    for _,label in ipairs({"Show","Enabled","Width","Height","Anchor Target","Offset X","Offset Y","Reverse Fill"}) do
+Test("Health Workspace exposes existing properties in Quick without synthetic geometry or actions",function()
+    Start("HealthBar"); Check("health","appearance",{appearance=true,geometry=true})
+    for _,label in ipairs({"Show","Enabled","Width","Height","Anchor Target","Offset X","Offset Y"}) do
         assert(not Row(label,"CheckBox",false) and not Row(label,"FPCompactSlider",false)
             and not Row(label,"Dropdown",false),label)
     end
-    for _,key in ipairs({"geometry","behavior"}) do Click(key); Check("health","appearance",{appearance=true}) end
+    Click("geometry");Check("health","geometry",{appearance=true,geometry=true})
+    Click("behavior");Check("health","geometry",{appearance=true,geometry=true})
+    Click("appearance")
     local before=p.h.Copy(db);local a,r,t=p.Stats()
     for _=1,30 do Click("appearance"); Click("geometry"); Click("behavior") end
     local aa,rr,tt=p.Stats(); assert(a==aa and r==rr and t==tt);p.h.Equal(db,before)
+    Click("appearance")
 end)
 Test("Health color/media/background/border and Low Health use their original fields",function()
     local power=p.h.Copy(unit.powerColor)
@@ -91,7 +94,7 @@ Test("Health color/media/background/border and Low Health use their original fie
     assert(not unit.healthBackground and Row("Background Color","ColorPicker").disabled)
     Row("Show Background","CheckBox"):Fire("OnValueChanged",true);p.Drain()
     Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
-    assert(unit.useClassColorHealth and Row("Color","ColorPicker").disabled)
+    assert(unit.useClassColorHealth and not Row("Color","ColorPicker",false))
     Row("Class Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
     local low=Row("Low Health Color","CheckBox")
     low:Fire("OnValueChanged",false);p.Drain()
@@ -116,22 +119,22 @@ Test("Health Expert preserves conditional colors/threshold and maps Reverse Fill
     assert(unit.healthBarReverseFill)
     local old=p.Tabs().appearance.events.OnClick
     p.state.SetMode("quick");p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
-    old();Check("health","appearance",{appearance=true})
+    old();Check("health","geometry",{appearance=true,geometry=true})
 end)
 Test("Health/previous flat bars keep fallback, rebuilt scope and neutral action cleanup",function()
     for _=1,10 do
         p.Select("PowerBar");Click("behavior")
         local old=p.Tabs().geometry.events.OnClick
-        p.Select("HealthBar");old();Check("health","appearance",{appearance=true})
+        p.Select("HealthBar");old();Check("health","appearance",{appearance=true,geometry=true})
         p.Select("NormalAbsorbBar");assert(p.state.Get().inspectorPropertyGroup=="appearance")
         p.Select("HealingAbsorbBar");assert(p.state.Get().inspectorPropertyGroup=="appearance")
     end
-    p.Select("HealthBar");Check("health","appearance",{appearance=true})
+    p.Select("HealthBar");Check("health","appearance",{appearance=true,geometry=true})
     local old=p.Tabs().geometry.events.OnClick
     window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();old()
-    window=p.Build();Check("health","appearance",{appearance=true})
+    window=p.Build();Check("health","appearance",{appearance=true,geometry=true})
     window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
-    Check("health","appearance",{appearance=true})
+    Check("health","appearance",{appearance=true,geometry=true})
 end)
 Test("non-Workspace Health retains its original framed groups and spacing",function()
     for _,mode in ipairs({"quick","expert"}) do
@@ -220,7 +223,7 @@ Test("Alternative Power remains Player-only and scope/layout/reopen changes rebi
     p.h.Equal(db,before)
     p.Select("AlternativePowerBar");Click("behavior")
     local old=p.Tabs().geometry.events.OnClick
-    p.Select("HealthBar");old();Check("health","appearance",{appearance=true})
+    p.Select("HealthBar");old();Check("health","appearance",{appearance=true,geometry=true})
     p.Select("AlternativePowerBar");Check("alt_power","appearance",{appearance=true,geometry=true,behavior=true},altAction)
     local ok,id=p.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
     assert(p.ns:ActivateLayout(id));p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
@@ -256,6 +259,82 @@ Test("non-Workspace Alternative Power keeps its original Quick/Expert groups",fu
         assert(table.concat(groups,",")== (mode=="quick" and "General,Appearance,Background,Geometry,Actions"
             or "General,Appearance,Background,Geometry,Behavior,Actions"))
         p.h.ui.ace:Release(host)
+    end
+end)
+Test("stored profile modes expose identical Health/Power controls without changing General or mutation fields",function()
+    for _,expert in ipairs({false,true})do
+        Start("HealthBar")
+        db.profile={General={ExpertMode=expert}}
+        p.state.SetMode(expert and "quick" or "expert") -- Profile must win over the opposite fallback.
+        p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
+        local general=p.h.Copy(db.profile.General)
+        for _,item in ipairs({{"Reaction Color","CheckBox"},{"Low Health Threshold","Dropdown"},{"Reverse Fill","CheckBox"}})do
+            assert(Row(item[1],item[2]))
+        end
+        Check("health","appearance",{appearance=true,geometry=true})
+        Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        assert(not Row("Color","ColorPicker",false))
+        Row("Class Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        Row("Reaction Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        assert(Row("Color","ColorPicker").disabled)
+        Row("Reaction Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        Row("Low Health Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        assert(not Row("Low Health Threshold","Dropdown",false) and Row("Low Health Color","ColorPicker").disabled)
+        Row("Low Health Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        assert(Row("Low Health Threshold","Dropdown"))
+        local expected=p.h.Copy(unit);expected.healthBarReverseFill=true
+        Row("Reverse Fill","CheckBox"):Fire("OnValueChanged",true);p.Drain();p.h.Equal(unit,expected)
+        p.Select("PowerBar")
+        assert(Row("Show","CheckBox") and Row("Height","FPCompactSlider") and Row("Reverse Fill","CheckBox"))
+        assert(Row("Height","FPCompactSlider").min==4 and Row("Height","FPCompactSlider").max==30)
+        expected=p.h.Copy(unit);expected.powerBarReverseFill=true
+        Row("Reverse Fill","CheckBox"):Fire("OnValueChanged",true);p.Drain();p.h.Equal(unit,expected)
+        Row("Show","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        assert(Row("Reverse Fill","CheckBox").disabled and Row("Height","FPCompactSlider").disabled)
+        Row("Show","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        p.h.Equal(db.profile.General,general)
+        p.Select("HealthBar")
+        window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
+        assert(Row("Reaction Color","CheckBox") and Row("Low Health Threshold","Dropdown") and Row("Reverse Fill","CheckBox"))
+        local units=p.ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units;units.target=p.h.Copy(unit)
+        assert(p.selection.SelectUnitRoot("target"));p.Drain()
+        assert(p.selection.SelectObject({kind="bar",unit="target",objectKey="HealthBar"}));p.Drain()
+        assert(Row("Reaction Color","CheckBox") and Row("Low Health Threshold","Dropdown") and Row("Reverse Fill","CheckBox"))
+        local ok,id=p.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+        assert(p.ns:ActivateLayout(id));p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
+        assert(Row("Reaction Color","CheckBox") and Row("Low Health Threshold","Dropdown") and Row("Reverse Fill","CheckBox"))
+        p.h.Equal(db.profile.General,general)
+    end
+end)
+Test("Legacy Health and Power retain profile-driven Quick/Expert filtering and original color dependencies",function()
+    local function Find(host,label,kind)
+        local found;p.Walk(host,function(w)
+            local c=w.children or {}
+            if c[1] and c[1].type=="Label" and c[1].label:GetText()==label and c[2]then
+                p.Walk(c[2],function(control)if control.type==kind then found=control end end)
+            end
+        end);return found
+    end
+    for _,expert in ipairs({false,true})do
+        for _,key in ipairs({"HealthBar","PowerBar"})do
+            Start(key);db.profile={General={ExpertMode=expert}};p.state.SetMode(expert and "quick" or "expert")
+            unit.useClassColorHealth=true
+            local host=p.h.ui.ace:Create("SimpleGroup")
+            p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
+            assert((Find(host,"Reverse Fill","CheckBox")~=nil)==expert)
+            if key=="HealthBar"then
+                assert((Find(host,"Reaction Color","CheckBox")~=nil)==expert)
+                assert((Find(host,"Low Health Threshold","Dropdown")~=nil)==expert)
+                local appearance;p.Walk(host,function(w)
+                    if w.type=="InlineGroup" and w.titletext:GetText()=="Appearance" then appearance=w end
+                end)
+                assert(appearance and (Find(appearance,"Color","ColorPicker")~=nil)==not expert)
+            else
+                assert(Find(host,"Height","FPCompactSlider") and Find(host,"Show","CheckBox"))
+            end
+            assert(db.profile.General.ExpertMode==expert)
+            p.h.ui.ace:Release(host)
+        end
     end
 end)
 assert(#p.h.ui.env.errors==0,table.concat(p.h.ui.env.errors,"\n"))

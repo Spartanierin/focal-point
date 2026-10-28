@@ -3284,13 +3284,13 @@ function InspectorController.Build(container, state, options)
         if usePropertyGroups then
             appearanceSection = CreateHealthPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
             backgroundSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
-            if isExpert then
+            if flatHealth or isExpert then
                 behaviorSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
         end
         if flatHealth then
             local membership = {[appearanceSection]="appearance", [backgroundSection]="appearance"}
-            if isExpert then membership[behaviorSection] = "geometry" end
+            if flatHealth or isExpert then membership[behaviorSection] = "geometry" end
             registerHealthGroups(membership)
         end
 
@@ -3329,7 +3329,7 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", false, SetHealthBarTexture)
         end
 
-        if isQuick or unitConfig.useClassColorHealth ~= true then
+        if (isQuick and not flatHealth) or unitConfig.useClassColorHealth ~= true then
             if usePropertyGroups then
                 AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", unitConfig.healthColor, true, function(value)
                     SetUnitField("healthColor", value)
@@ -3351,7 +3351,7 @@ function InspectorController.Build(container, state, options)
             end)
         end
 
-        if isExpert then
+        if flatHealth or isExpert then
             if usePropertyGroups then
                 AddPropertyCheckBoxRow(appearanceSection, L["OPTION_REACTION_COLOR"] or L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Reaction Color", unitConfig.useReactionColorNpcHealth == true, function(value)
                     SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
@@ -3388,7 +3388,7 @@ function InspectorController.Build(container, state, options)
                 disabled = unitConfig.useLowHealthColor == false,
             })
 
-            if isExpert and unitConfig.useLowHealthColor ~= false then
+            if (flatHealth or isExpert) and unitConfig.useLowHealthColor ~= false then
                 local thresholdValueString = GetValidLowHealthThresholdValueString(unitConfig)
                 AddPropertyDropdownRow(appearanceSection, L["OPTION_LOW_HEALTH_THRESHOLD"] or "Low Health Threshold", {
                     list = lowHealthThresholdList,
@@ -3851,7 +3851,7 @@ function InspectorController.Build(container, state, options)
             end, unitConfig.showPowerBar == false)
         end
 
-        if isExpert then
+        if flatPower or isExpert then
             if usePropertyGroups then
                 AddPropertyCheckBoxRow(behaviorSection, L["OPTION_REVERSE_FILL"] or "Reverse Fill", unitConfig.powerBarReverseFill == true, function(value)
                     SetUnitField("powerBarReverseFill", value and true or false)

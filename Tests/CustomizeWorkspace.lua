@@ -13,6 +13,10 @@ assert(loadfile("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIWidget-Slider.lua"))()
 assert(loadfile("GUI/Editor/Inspector/InspectorTextSelection.lua"))("FocalPoint", ns)
 assert(loadfile("GUI/Editor/Inspector/InspectorBinding.lua"))("FocalPoint", ns)
 assert(loadfile("GUI/Editor/Inspector/InspectorController.lua"))("FocalPoint", ns)
+-- Health Threshold is now reachable in Quick too; load its real normalization dependency.
+local getUnits, getUnit = ns.UnitFrameUtils.GetUnitsDB, ns.UnitFrameUtils.GetUnitDB
+assert(loadfile("Engine/UnitFrame/Shared/UnitFrameUtils.lua"))("FocalPoint", ns)
+ns.UnitFrameUtils.GetUnitsDB, ns.UnitFrameUtils.GetUnitDB = getUnits, getUnit
 local pending = {}
 function h.ui.native:SetObeyStepOnDrag(value) self.obeyStepOnDrag = value end
 function h.ui.native:RegisterForDrag(...) self.dragButtons = {...} end

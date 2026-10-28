@@ -87,10 +87,10 @@ Test("Power uses its unit/power scope and three flat groups without inventing Ab
     window,unit,db=s.Start("quick"); Check("appearance")
     local scope=s.state.GetPropertyScope()
     assert(scope.kind=="unit" and scope.sectionKey=="power" and scope.objectKey==nil)
-    for _,label in ipairs({"Texture","Color","Class Color","Show Background","Background Color","Border Width","Border Color","Height","Show"}) do
+    for _,label in ipairs({"Texture","Color","Class Color","Show Background","Background Color","Border Width","Border Color","Height","Show","Reverse Fill"}) do
         assert(HasRow(label),label)
     end
-    for _,label in ipairs({"Width","Size Mode","Anchor Target","Offset X","Offset Y","Growth Direction","Reverse Fill"}) do
+    for _,label in ipairs({"Width","Size Mode","Anchor Target","Offset X","Offset Y","Growth Direction"}) do
         assert(not HasRow(label),"unexpected Power property: "..label)
     end
     local body=Body(); local height=s.Control("Height","FPCompactSlider"); local before=s.h.Copy(db)
@@ -161,7 +161,7 @@ Test("Height keeps bounds, rounding and existing wheel synchronization; Reverse 
     assert(s.Control("Reverse Fill","CheckBox").disabled)
     s.Control("Show","CheckBox"):Fire("OnValueChanged",true); s.Drain()
     s.state.SetMode("quick"); s.controller.BuildInspector(nil,{GetEditorState=s.state.Get}); s.Drain()
-    assert(not HasRow("Reverse Fill")); Check("behavior")
+    assert(HasRow("Reverse Fill")); Check("behavior")
 end)
 Test("empty property groups disable with canonical fallback while the action stays independent",function()
     for _,child in ipairs(Body().children) do
@@ -187,13 +187,13 @@ Test("Power/Absorb pooling invalidates old callbacks and preserves one shared se
     local old=s.Tabs().appearance.events.OnClick
     local _,button=Actions(); local divider=Body().children[#Body().children].frame._fpNormalAbsorbActionDivider
     s.Select("HealthBar"); old()
-    assert(s.Tabs().geometry.disabled and s.Tabs().behavior.disabled and not divider:IsShown())
-    assert(s.state.Get().inspectorPropertyGroup=="appearance")
-    s.Select("PowerBar"); Check("appearance")
+    assert(not s.Tabs().geometry.disabled and s.Tabs().behavior.disabled and not divider:IsShown())
+    assert(s.state.Get().inspectorPropertyGroup=="geometry")
+    s.Select("PowerBar"); Check("geometry")
     window.closebutton:GetScript("OnClick")(window.closebutton); s.Drain()
-    window=s.Build(); Check("appearance")
+    window=s.Build(); Check("geometry")
     window.closebutton:GetScript("OnClick")(window.closebutton); s.Drain()
-    window=s.Build(); Check("appearance")
+    window=s.Build(); Check("geometry")
 end)
 Test("unit/layout changes and narrow German tabs preserve current Power bindings",function()
     local root=s.ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
