@@ -11,6 +11,7 @@ function f.native:RegisterEvent(event)
     self.registeredEvents = self.registeredEvents or {}; self.registeredEvents[event] = true
 end
 Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIContainer-Frame.lua")
+Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIWidget-InteractiveLabel.lua")
 Load("Data/Constants.lua")
 Load("GUI/Editor/EditorState.lua")
 Load("GUI/Helpers/GUIState.lua")

@@ -281,6 +281,7 @@ local function CaptureEntityPickerTarget(options, mode)
 end
 
 local function ValidateEntityPickerTarget(context)
+    if type(context) == "table" and context.isCurrent and not context.isCurrent() then return false, "stale-context" end
     local target = type(context) == "table" and context.entityPickerTarget or nil
     local activeLayoutId = ResolveActiveEntityLayoutId()
     if type(target) ~= "table" or type(target.layoutId) ~= "string"
@@ -590,6 +591,8 @@ SelectText = function(unitKey, textKey)
 end
 
 local function SubmitSelectedTemplate(context)
+    -- Component actions retain their existing target guard; closed/replaced UI cannot submit.
+    if context.isCurrent and (windowContext ~= context or not context.dialog.window.frame:IsShown()) then return end
     local unitKey = GetTargetUnit(context)
     if type(unitKey) ~= "string" or unitKey == "" then
         SetStatus(context, T("INSERT_TEXT_STATUS_SELECT_UNIT", "Select a unit first."))
@@ -738,7 +741,10 @@ local function BuildBody(context)
     body:SetLayout("List")
 
     local description = CreateLabel(
-        context.mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.") or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
+        context.mode == "add" and context.targetLabel
+            and string.format(T("COMPONENT_ADD_TARGET", "Add to: %s"), context.targetLabel)
+            or context.mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.")
+            or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
         "help",
         11,
         nil,
@@ -1317,6 +1323,8 @@ function TextTemplateLibraryWindow.Open(options)
         mode = mode,
         targetUnit = options.unit,
         anchorSelection = options.anchorSelection,
+        targetLabel = options.targetLabel,
+        isCurrent = options.isCurrent,
         targetTextKey = options.textKey,
         entity = true,
         originToken = type(options.returnContext) == "table" and options.returnContext.originToken or (type(options.originToken) == "table" and options.originToken or {}),

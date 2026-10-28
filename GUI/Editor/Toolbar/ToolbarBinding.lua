@@ -864,6 +864,11 @@ local function BuildCompositionTree(context, deps)
         minHeight = context.treeHeight or 112,
         maxHeight = context.treeHeight or 416,
         isCurrent = context.isCurrent,
+        onSelect = context.onSelect,
+        canAdd = context.canAdd,
+        canRemove = context.canRemove,
+        onAdd = context.onAdd,
+        onRemove = context.onRemove,
         onToggle = function(node, nextEnabled)
             if context.isCurrent and not context.isCurrent() then
                 return { ok = false, errorCode = "stale-context" }

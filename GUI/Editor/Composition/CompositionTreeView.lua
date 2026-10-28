@@ -168,6 +168,7 @@ end
 
 local function ResolveTreeScrollHeight(rowCount, options)
     local height = math.max(0, tonumber(rowCount) or 0) * TREE_ROW_ESTIMATED_HEIGHT
+    if height > 0 then height = height + (Control.ROOT_ROW_HEIGHT or TREE_ROW_ESTIMATED_HEIGHT) - TREE_ROW_ESTIMATED_HEIGHT end
     local minHeight = tonumber(options and options.minHeight) or TREE_SCROLL_MIN_HEIGHT
     local maxHeight = tonumber(options and options.maxHeight) or TREE_SCROLL_MAX_HEIGHT
     if maxHeight < minHeight then
@@ -457,10 +458,13 @@ local function CollectVisibleRows(node, depth, state, options)
         depth = depth,
         label = FormatNodeLabel(node),
         clickable = IsClickableNode(node),
-        toggleable = IsToggleableNode(node) and type(options.onToggle) == "function",
+        toggleable = node.type ~= "unit" and node.type ~= "healthbar"
+            and IsToggleableNode(node) and type(options.onToggle) == "function",
         expandable = HasChildren(node),
         expanded = IsExpanded(node, options.expanded),
         selected = IsActiveNode(node, state),
+        addable = type(options.canAdd) == "function" and options.canAdd(BuildObjectRef(node)) == true,
+        removable = type(options.canRemove) == "function" and options.canRemove(BuildObjectRef(node)) == true,
     }
     if IsExpanded(node, options.expanded) then
         for _, child in ipairs(node.children) do
@@ -516,6 +520,14 @@ function View.Build(container, state, options)
     RequestTreeOwnerRelayout(container)
 
     local callbacks = {
+        onAdd = function(node, isCurrentRow)
+            if options.isCurrent and not options.isCurrent() then return end
+            if options.onAdd then options.onAdd(BuildObjectRef(node), isCurrentRow, node.label) end
+        end,
+        onRemove = function(node, isCurrentRow)
+            if options.isCurrent and not options.isCurrent() then return end
+            if options.onRemove then options.onRemove(BuildObjectRef(node), isCurrentRow, node.label) end
+        end,
         onSelect = function(node)
             if options.isCurrent and not options.isCurrent() then return end
             AceGUI:ClearFocus()
@@ -560,6 +572,19 @@ function View.Build(container, state, options)
     EnsureActiveSelectionVisible(control, state, options)
     if perf and perf.End then perf:End("CompositionTreeView.Build", perfStart) end
     return true
+end
+
+function View.GetSelectedNode()
+    local context = View._keyboardBindingContext
+    if not context then return end
+    local function Find(node)
+        if IsActiveNode(node, context.state) then return node end
+        for _, child in ipairs(node.children or {}) do
+            local selected = Find(child)
+            if selected then return selected end
+        end
+    end
+    return Find(context.tree)
 end
 
 function View.RefreshKeyboardBinding()

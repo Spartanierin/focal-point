@@ -3,9 +3,11 @@ local _, ns = ...
 local Control = {}
 ns.GUI.Editor.Composition.TreeControl = Control
 
-Control.ROW_HEIGHT = 22
-local ROW_INDENT = 14
-local ROW_FONT_SIZE = 12
+Control.ROW_HEIGHT = 34 -- Includes the 4px gap between cards; scrolling uses this stride.
+Control.ROOT_ROW_HEIGHT = 44 -- 36px Unit header plus 8px separation from its cards.
+local CARD_HEIGHT = 30
+local ROW_INDENT = 16
+local ROW_FONT_SIZE = 13
 local freeControls = {}
 local methods = {}
 local ApplyTextStyle = ns.GUI.Helpers.FormWidgets.ApplyTextStyle
@@ -97,6 +99,13 @@ local function ScrollOffsetToSliderValue(offset, maxScroll)
     return ClampScrollOffset(offset, maxScroll)
 end
 
+local function RowTop(control, index)
+    local first = control.rows[1]
+    local rootExtra = index > 1 and first and first.item and first.item.node.type == "unit"
+        and (Control.ROOT_ROW_HEIGHT - Control.ROW_HEIGHT) or 0
+    return (index - 1) * Control.ROW_HEIGHT + rootExtra
+end
+
 local function StyleLabel(label, size, role)
     if ApplyTextStyle then
         ApplyTextStyle(label, role or "label", size, 1)
@@ -112,6 +121,7 @@ local function Paint(row)
     local item = row.item
     if not item then return end
     local presentation = GetCompositionTreePresentation()
+    local unitHeader = item.node.type == "unit"
     if item.selected then
         row.background:SetColorTexture(unpack(presentation.rowSelected))
         row.background:Show()
@@ -119,18 +129,26 @@ local function Paint(row)
         row.background:SetColorTexture(unpack(presentation.rowHover))
         row.background:Show()
     else
-        row.background:Hide()
+        row.background:SetColorTexture(unpack(unitHeader and ns.GUI.Skins.GetFormPalette().Chrome.panelHeader or presentation.surface))
+        row.background:Show()
     end
-    if item.selected then
-        row.label:SetTextColor(unpack(presentation.text.selected))
-    elseif item.node.enabled == false then
+    local subtle = item.depth >= 2 and not item.selected and not row.hovered
+    row.background:SetAlpha(subtle and .65 or 1)
+    local border = (item.selected or row.hovered) and presentation.text.selected
+        or unitHeader and (GetActiveUnitMarkerColor() or presentation.text.selected)
+        or ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder
+    for _, edge in ipairs(row.edges) do
+        edge:SetColorTexture(unpack(border))
+        edge:SetAlpha(subtle and .65 or 1)
+        edge:Show()
+    end
+    if item.node.enabled == false then
         row.label:SetTextColor(unpack(presentation.text.disabled))
+    elseif item.depth == 1 then
+        local color = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
+        row.label:SetTextColor(color.r, color.g, color.b)
     else
-        if ApplyTextStyle then
-            ApplyTextStyle(row.label, row.textRole or "label", nil, 1)
-        else
-            row.label:SetTextColor(unpack(presentation.text.normal))
-        end
+        row.label:SetTextColor(1, 1, 1, 1)
     end
     if item.selected then
         SetIconColor(row.icon, row.iconTint or presentation.icon.fallback, presentation.icon.selectedBrightness, presentation.icon.selectedAlpha)
@@ -147,8 +165,8 @@ local function Paint(row)
     else
         row.disclosureGlyph:SetTexCoord(0, 1, 0, 1)
     end
-    row.toggleCheck:SetShown(item.node.enabled ~= false)
-    row.toggleCheck:SetVertexColor(unpack(GetActiveUnitMarkerColor() or presentation.text.selected))
+    row.toggle:SetChecked(item.node.enabled ~= false)
+    row.toggleCheck:SetVertexColor(1, 1, 1, 1) -- Preserve Blizzard's original yellow check texture.
 end
 
 function methods:SetKeyboardActive(active)
@@ -166,16 +184,32 @@ local function IsMouseOverFrame(frame)
     return false
 end
 
+-- Reuse MinimalScrollBar art on the existing Slider, without its ScrollBox controller.
+local function PaintThumb(control, suffix)
+    control.thumbTop:SetAtlas("minimal-scrollbar-small-thumb-top" .. suffix, true)
+    control.thumbTop:SetWidth(8)
+    control.thumbMiddle:SetAtlas("minimal-scrollbar-small-thumb-middle" .. suffix)
+    control.thumbBottom:SetAtlas("minimal-scrollbar-small-thumb-bottom" .. suffix, true)
+    control.thumbBottom:SetWidth(8)
+end
+
 local function HideRowTooltip(row)
     if not GameTooltip then return end
-    for _, frame in ipairs({row.frame, row.disclosure, row.toggle}) do
+    for _, frame in ipairs({row.frame, row.disclosure, row.toggle, row.add, row.remove}) do
         if GameTooltip:IsOwned(frame) then GameTooltip:Hide(); return end
     end
 end
 
 local function BindRowScripts(control, row)
+    local node, generation = row.item.node, control.generation
+    local function IsCurrentRow()
+        return control.callbacks ~= nil and control.generation == generation and row.item and row.item.node == node
+    end
     local function Enter(frame)
         if not row.item then return end
+        if frame == row.add or frame == row.remove then
+            frame:SetAlpha(InCombatLockdown and InCombatLockdown() and .4 or 1)
+        end
         row.hovered = true
         Paint(row)
         control:SetKeyboardActive(true)
@@ -186,6 +220,11 @@ local function BindRowScripts(control, row)
             if frame == row.toggle then
                 local labels = ns.L or {}
                 GameTooltip:AddLine(row.item.node.enabled == false and (labels.OPTION_OFF or "Off") or (labels.OPTION_ON or "On"), 1, 1, 1)
+            elseif frame == row.add or frame == row.remove then
+                local labels = ns.L or {}
+                local addLabel = row.item.node.type == "unit" and labels.COMPONENT_ADD or labels.COMPONENT_ADD_CONTEXT
+                GameTooltip:AddLine(frame == row.add and (addLabel or "Add Component…")
+                    or (labels.INFO_COMMON_REMOVE or "Remove"), 1, 1, 1)
             end
             GameTooltip:Show()
         end
@@ -196,9 +235,10 @@ local function BindRowScripts(control, row)
         Paint(row)
         if not IsMouseOverFrame(control.frame) then control:SetKeyboardActive(false) end
     end
-    for _, frame in ipairs({ row.frame, row.disclosure, row.toggle }) do
-        frame:SetScript("OnEnter", Enter)
-        frame:SetScript("OnLeave", Leave)
+    for _, frame in ipairs({ row.frame, row.disclosure, row.toggle, row.add, row.remove }) do
+        local disabled = frame == row.toggle and not row.item.toggleable or frame == row.remove and not row.item.removable
+        frame:SetScript("OnEnter", not disabled and Enter or nil)
+        frame:SetScript("OnLeave", not disabled and Leave or nil)
         frame:SetScript("OnHide", function() HideRowTooltip(row) end)
     end
     row.frame:SetScript("OnMouseDown", function(_, button)
@@ -207,27 +247,39 @@ local function BindRowScripts(control, row)
         if callback then callback(row.item.node) end
     end)
     row.disclosure:SetScript("OnMouseDown", function(_, button)
-        if button ~= "LeftButton" or not row.item or not row.item.expandable then return end
+        if button ~= "LeftButton" or not IsCurrentRow() or not row.item.expandable then return end
         local callback = control.callbacks and control.callbacks.onExpand
         if callback then callback(row.item.node, not row.item.expanded) end
     end)
-    row.toggle:SetScript("OnMouseDown", function(_, button)
-        if button ~= "LeftButton" or not row.item or not row.item.toggleable then return end
+    row.toggle:SetScript("OnClick", row.item.toggleable and function(_, button)
+        if button ~= "LeftButton" or not IsCurrentRow() or not row.item.toggleable then return end
         local callback = control.callbacks and control.callbacks.onToggle
         if callback then callback(row.item.node, row.item.node.enabled == false) end
+        Paint(row) -- Reassert the canonical value even when the guarded mutation was rejected.
+    end or nil)
+    row.add:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" or not IsCurrentRow() or not row.item.addable then return end
+        local callback = control.callbacks.onAdd
+        if callback then callback(node, IsCurrentRow) end
     end)
+    row.remove:SetScript("OnMouseDown", row.item.removable and function(_, button)
+        if button ~= "LeftButton" or not IsCurrentRow() or not row.item.removable then return end
+        local callback = control.callbacks.onRemove
+        if callback then callback(node, IsCurrentRow) end
+    end or nil)
 end
 
 local function UnbindRow(row)
     HideRowTooltip(row)
     row.item = nil
     row.hovered = false
-    for _, frame in ipairs({ row.frame, row.disclosure, row.toggle }) do
+    for _, frame in ipairs({ row.frame, row.disclosure, row.toggle, row.add, row.remove }) do
         frame:Hide()
         frame:EnableMouse(false)
         frame:SetScript("OnEnter", nil)
         frame:SetScript("OnLeave", nil)
         frame:SetScript("OnMouseDown", nil)
+        frame:SetScript("OnClick", nil)
         frame:SetScript("OnHide", nil)
     end
     row.frame:ClearAllPoints()
@@ -237,40 +289,79 @@ local function UnbindRow(row)
     row.iconTint = nil
     row.textRole = nil
     row.background:Hide()
+    for _, edge in ipairs(row.edges) do edge:Hide() end
 end
 
 function methods:AcquireRow(index)
     local row = self.rows[index]
     if row then return row end
     local frame = CreateFrame("Button", nil, self.content)
-    frame:SetHeight(Control.ROW_HEIGHT)
+    frame:SetHeight(CARD_HEIGHT)
     local background = frame:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints(frame)
+    local edges = {}
+    for _, side in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
+        local edge = frame:CreateTexture(nil, "BORDER")
+        if side == "TOP" or side == "BOTTOM" then
+            edge:SetHeight(1)
+            edge:SetPoint(side.."LEFT", frame, side.."LEFT")
+            edge:SetPoint(side.."RIGHT", frame, side.."RIGHT")
+        else
+            edge:SetWidth(1)
+            edge:SetPoint("TOP"..side, frame, "TOP"..side)
+            edge:SetPoint("BOTTOM"..side, frame, "BOTTOM"..side)
+        end
+        edges[#edges+1] = edge
+    end
     local label = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     StyleLabel(label, ROW_FONT_SIZE)
     local icon = frame:CreateTexture(nil, "ARTWORK", nil, 1)
-    icon:SetSize(14, 14)
+    icon:SetSize(16, 16)
     local disclosure = CreateFrame("Button", nil, frame)
-    disclosure:SetSize(16, Control.ROW_HEIGHT)
+    disclosure:SetSize(26, 26)
     local disclosureGlyph = disclosure:CreateTexture(nil, "ARTWORK")
     disclosureGlyph:SetTexture(130940) -- Existing AceGUI ChatFrameExpandArrow.
-    disclosureGlyph:SetSize(10, 10)
+    disclosureGlyph:SetSize(18, 18)
     disclosureGlyph:SetPoint("CENTER")
-    disclosureGlyph:SetVertexColor(unpack(GetCompositionTreePresentation().text.disclosure))
-    local toggle = CreateFrame("Button", nil, frame)
-    toggle:SetSize(20, Control.ROW_HEIGHT)
-    toggle:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
-    local toggleGlyph = toggle:CreateTexture(nil, "ARTWORK")
-    toggleGlyph:SetTexture(130755) -- Existing AceGUI UI-CheckBox-Up.
-    toggleGlyph:SetSize(16, 16)
-    toggleGlyph:SetPoint("CENTER")
-    local toggleCheck = toggle:CreateTexture(nil, "OVERLAY")
-    toggleCheck:SetTexture(130751) -- Existing AceGUI UI-CheckBox-Check.
-    toggleCheck:SetAllPoints(toggleGlyph)
+    disclosureGlyph:SetDesaturated(true)
+    disclosureGlyph:SetVertexColor(1, .82, 0, 1)
+    local toggle = CreateFrame("CheckButton", nil, frame, "UICheckButtonArtTemplate")
+    toggle:SetSize(26, 26)
+    toggle:SetPoint("RIGHT", frame, "RIGHT", -6, 0)
+    toggle:RegisterForClicks("LeftButtonDown") -- One native click, routed to the existing toggle dispatch.
+    local toggleGlyph, toggleCheck = toggle:GetNormalTexture(), toggle:GetCheckedTexture()
+    local function ActionButton()
+        local button = CreateFrame("Button", nil, frame)
+        button:SetSize(28, 26)
+        button:SetHighlightTexture(130753, "ADD")
+        button:SetPushedTexture(130753)
+        local border = button:CreateTexture(nil, "BACKGROUND")
+        border:SetAllPoints(button)
+        border:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.sectionBorder))
+        local fill = button:CreateTexture(nil, "BORDER")
+        fill:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+        fill:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+        fill:SetColorTexture(unpack(ns.GUI.Skins.GetFormPalette().Chrome.panelHeader))
+        return button
+    end
+    local add, remove = ActionButton(), ActionButton()
+    local addGlyph = add:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    StyleLabel(addGlyph, 26, "strongHeading")
+    addGlyph:SetJustifyH("CENTER")
+    addGlyph:SetText("+")
+    addGlyph:SetTextColor(1, .82, 0, 1)
+    addGlyph:SetPoint("CENTER", add, "CENTER", 0, 1)
+    local removeGlyph = remove:CreateTexture(nil, "OVERLAY")
+    removeGlyph:SetAtlas("common-icon-delete")
+    removeGlyph:SetDesaturated(true)
+    removeGlyph:SetVertexColor(1, .08, .08, 1)
+    removeGlyph:SetSize(20, 20)
+    removeGlyph:SetPoint("CENTER")
     row = {
-        frame = frame, background = background, label = label, icon = icon,
+        frame = frame, background = background, edges = edges, label = label, icon = icon,
         disclosure = disclosure, disclosureGlyph = disclosureGlyph,
         toggle = toggle, toggleGlyph = toggleGlyph, toggleCheck = toggleCheck,
+        add = add, remove = remove, addGlyph = addGlyph, removeGlyph = removeGlyph,
     }
     self.rows[index] = row
     return row
@@ -291,6 +382,7 @@ function methods:StopThumbDrag()
     self._thumbDrag = nil
     if self.thumbDragHandle then
         self.thumbDragHandle:SetScript("OnUpdate", nil)
+        PaintThumb(self, IsMouseOverFrame(self.thumbDragHandle) and "-over" or "")
     end
 end
 
@@ -332,7 +424,7 @@ function methods:Layout()
         return false
     end
 
-    local contentHeight = (self.count or 0) * Control.ROW_HEIGHT
+    local contentHeight = RowTop(self, (self.count or 0) + 1)
     self.maxScroll = math.max(0, contentHeight - height)
     local hasScroll = self.maxScroll > 0
     self.scroll:ClearAllPoints()
@@ -360,29 +452,47 @@ function methods:SetRows(items)
         row.item = item
         row.textRole = item.node.type == "unit" and "identity" or "label"
         row.hovered = false
+        row.frame:SetHeight(item.node.type == "unit" and 36 or CARD_HEIGHT)
         row.frame:ClearAllPoints()
-        row.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", 0, -(index - 1) * Control.ROW_HEIGHT)
-        row.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, -(index - 1) * Control.ROW_HEIGHT)
+        row.frame:SetPoint("TOPLEFT", self.content, "TOPLEFT", math.max(0, item.depth - 1) * ROW_INDENT, -RowTop(self, index))
+        row.frame:SetPoint("TOPRIGHT", self.content, "TOPRIGHT", 0, -RowTop(self, index))
         row.disclosure:ClearAllPoints()
-        row.disclosure:SetPoint("LEFT", row.frame, "LEFT", 3 + item.depth * ROW_INDENT, 0)
+        row.disclosure:SetPoint("LEFT", row.frame, "LEFT", 0, 0)
         row.icon:ClearAllPoints()
-        row.icon:SetPoint("LEFT", row.disclosure, "RIGHT", 2, 0)
+        row.icon:SetPoint("LEFT", row.disclosure, "RIGHT", 0, 0)
         local iconPath, iconTint = ResolveNodeIcon(item.node, GetCompositionTreePresentation())
         row.icon:SetTexture(iconPath)
         row.icon:SetShown(iconPath ~= nil)
         row.iconTint = iconTint
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
-        row.label:SetPoint("RIGHT", item.toggleable and row.toggle or row.frame,
-            item.toggleable and "LEFT" or "RIGHT", -4, 0)
+        local right, rightPoint = row.toggle, "LEFT"
+        row.remove:ClearAllPoints()
+        row.remove:SetPoint("RIGHT", right, rightPoint, -4, 0)
+        right, rightPoint = row.remove, "LEFT"
+        row.add:ClearAllPoints()
+        row.add:SetPoint("RIGHT", right, rightPoint, -4, 0)
+        if item.addable then right, rightPoint = row.add, "LEFT" end
+        row.label:SetPoint("RIGHT", right, rightPoint, -4, 0)
         row.label:SetText(item.label)
-        StyleLabel(row.label, ROW_FONT_SIZE, row.textRole)
+        StyleLabel(row.label, item.node.type == "unit" and 16 or ROW_FONT_SIZE, row.textRole)
         BindRowScripts(self, row)
         row.frame:EnableMouse(true)
         row.disclosure:EnableMouse(item.expandable)
         row.disclosure:SetShown(item.expandable)
-        row.toggle:EnableMouse(item.toggleable)
-        row.toggle:SetShown(item.toggleable)
+        row.toggle:EnableMouse(true) -- Disabled cells still consume their own hit zone.
+        if item.toggleable then row.toggle:Enable() else row.toggle:Disable() end
+        row.toggle:SetAlpha(item.toggleable and 1 or .4)
+        row.toggle:Show()
+        local unlocked = not (InCombatLockdown and InCombatLockdown())
+        row.add:EnableMouse(item.addable)
+        row.add:SetAlpha(unlocked and 1 or .4)
+        row.add:SetShown(item.addable)
+        row.remove:EnableMouse(true)
+        if item.removable then row.remove:Enable() else row.remove:Disable() end
+        row.remove:SetAlpha(item.removable and (unlocked and 1 or .4) or .35)
+        row.removeGlyph:SetVertexColor(item.removable and 1 or .5, item.removable and .08 or .5, item.removable and .08 or .5, 1)
+        row.remove:Show()
         Paint(row)
         row.frame:Show()
     end
@@ -400,8 +510,8 @@ end
 
 function methods:EnsureVisible(index)
     if not index then return end
-    local top = (index - 1) * Control.ROW_HEIGHT
-    local bottom = top + Control.ROW_HEIGHT
+    local top = RowTop(self, index)
+    local bottom = RowTop(self, index + 1)
     local offset = self.offset or 0
     if top < offset then
         self:SetScroll(top)
@@ -447,15 +557,35 @@ local function CreateControl()
     self.scrollbar = CreateFrame("Slider", nil, self.frame)
     self.scrollbar:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -1, 0)
     self.scrollbar:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -1, 0)
-    self.scrollbar:SetWidth(7)
+    self.scrollbar:SetWidth(8)
     self.scrollbar:SetOrientation("VERTICAL")
     self.scrollbar:SetMinMaxValues(0, 0)
     self.scrollbar:SetValueStep(1)
     self.scrollbar:SetObeyStepOnDrag(false)
+    local trackTop = self.scrollbar:CreateTexture(nil, "BACKGROUND")
+    trackTop:SetAtlas("minimal-scrollbar-track-top", true)
+    trackTop:SetWidth(8)
+    trackTop:SetPoint("TOP", self.scrollbar, "TOP")
+    local trackBottom = self.scrollbar:CreateTexture(nil, "BACKGROUND")
+    trackBottom:SetAtlas("minimal-scrollbar-track-bottom", true)
+    trackBottom:SetWidth(8)
+    trackBottom:SetPoint("BOTTOM", self.scrollbar, "BOTTOM")
+    local trackMiddle = self.scrollbar:CreateTexture(nil, "BACKGROUND")
+    trackMiddle:SetAtlas("!minimal-scrollbar-track-middle")
+    trackMiddle:SetPoint("TOPLEFT", trackTop, "BOTTOMLEFT")
+    trackMiddle:SetPoint("BOTTOMRIGHT", trackBottom, "TOPRIGHT")
     local thumb = self.scrollbar:CreateTexture(nil, "ARTWORK")
-    thumb:SetColorTexture(unpack(GetCompositionTreePresentation().scrollbar.thumb))
-    thumb:SetSize(5, 20)
+    thumb:SetColorTexture(0, 0, 0, 0) -- Keep the Slider's canonical drag bounds; art uses native caps/middle.
+    thumb:SetSize(8, 20)
     self.scrollbar:SetThumbTexture(thumb)
+    self.thumbTop = self.scrollbar:CreateTexture(nil, "OVERLAY")
+    self.thumbTop:SetPoint("TOP", thumb, "TOP")
+    self.thumbBottom = self.scrollbar:CreateTexture(nil, "OVERLAY")
+    self.thumbBottom:SetPoint("BOTTOM", thumb, "BOTTOM")
+    self.thumbMiddle = self.scrollbar:CreateTexture(nil, "ARTWORK")
+    self.thumbMiddle:SetPoint("TOPLEFT", self.thumbTop, "BOTTOMLEFT")
+    self.thumbMiddle:SetPoint("BOTTOMRIGHT", self.thumbBottom, "TOPRIGHT")
+    PaintThumb(self, "")
     self.thumbDragHandle = CreateFrame("Button", nil, self.scrollbar)
     self.thumbDragHandle:SetAllPoints(thumb)
     self.thumbDragHandle:SetFrameLevel(self.scrollbar:GetFrameLevel() + 1)
@@ -464,6 +594,7 @@ local function CreateControl()
     self.thumbDragHandle:SetScript("OnMouseDown", function(_, button)
         if button == "LeftButton" then
             self:BeginThumbDrag()
+            PaintThumb(self, "-down")
         end
     end)
     self.thumbDragHandle:SetScript("OnMouseUp", function(_, button)
@@ -476,6 +607,14 @@ local function CreateControl()
     end)
     self.thumbDragHandle:SetScript("OnHide", function()
         self:StopThumbDrag()
+    end)
+    self.thumbDragHandle:SetScript("OnEnter", function()
+        self:SetKeyboardActive(true)
+        PaintThumb(self, self._thumbDrag and "-down" or "-over")
+    end)
+    self.thumbDragHandle:SetScript("OnLeave", function()
+        PaintThumb(self, self._thumbDrag and "-down" or "")
+        if not IsMouseOverFrame(self.frame) then self:SetKeyboardActive(false) end
     end)
     self.scrollbar:SetScript("OnValueChanged", function(_, value)
         self:SetScroll(SliderValueToScrollOffset(value, self.maxScroll))

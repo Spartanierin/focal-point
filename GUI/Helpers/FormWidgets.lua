@@ -267,7 +267,7 @@ local function EnsureModernWindowPortrait(frame, texturePath)
     return container
 end
 
-local function EnsureModernWindowBackground(frame)
+local function EnsureModernWindowBackground(frame, translucent)
     local background = frame._fpModernPortraitBackground
     if not background then
         background = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
@@ -275,9 +275,10 @@ local function EnsureModernWindowBackground(frame)
     end
 
     background:ClearAllPoints()
-    background:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -21)
-    background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
-    background:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock")
+    background:SetPoint("TOPLEFT", frame, "TOPLEFT", translucent and 7 or 2, translucent and -7 or -21)
+    background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", translucent and -7 or -2, translucent and 7 or 2)
+    if translucent then background:SetColorTexture(0, 0, 0, .8)
+    else background:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock") end
     background:SetHorizTile(true)
     background:SetVertTile(true)
     background:SetVertexColor(1, 1, 1, 1)
@@ -497,6 +498,10 @@ function FormWidgets.RestoreDefaultWindowChrome(window)
         return
     end
 
+    if FormWidgets.NeutralizeCustomizeBlizzardShell then
+        FormWidgets.NeutralizeCustomizeBlizzardShell(window)
+    end
+
     if ResetDialogWindowChrome then ResetDialogWindowChrome(window) end
     ResetModernWindowTitleBar(frame)
     ResetModernPortraitBackground(frame)
@@ -710,11 +715,184 @@ function FormWidgets.BindNavigatorBrassWindow(window, target)
             owner._fpNavigatorBrassTarget, owner._fpNavigatorBrassEnabled = nil, nil
             owner._fpSidebarCompositionBound = nil
             if previousRelease then previousRelease(owner, event) end
+            -- The chained color-preview release restores its canonical fill first.
+            if owner._focalPointEditorRole == "editor_inspector" then
+                FormWidgets.NeutralizeCustomizeShell(owner)
+            end
         end)
         window._fpNavigatorBrassEnabled = true
     end
     window._fpNavigatorBrassTarget = target
     FormWidgets.ApplyNavigatorBrassBorder(window)
+end
+
+local CUSTOMIZE_EDIT_MODE_ATLASES = {
+    topLeft="UI-Frame-DiamondMetal-CornerTopLeft", topRight="UI-Frame-DiamondMetal-CornerTopRight",
+    bottomLeft="UI-Frame-DiamondMetal-CornerBottomLeft", bottomRight="UI-Frame-DiamondMetal-CornerBottomRight",
+    topCenter="_UI-Frame-DiamondMetal-EdgeTop", bottomCenter="_UI-Frame-DiamondMetal-EdgeBottom",
+    left="!UI-Frame-DiamondMetal-EdgeLeft", right="!UI-Frame-DiamondMetal-EdgeRight",
+}
+
+local function ApplyModernAtlasRegions(frame, customizePortraitGeometry, editMode)
+    local topLeft = FP_MODERN_WINDOW_SLOTS.topLeft
+    local left = EnsureModernWindowRegion(frame, topLeft.key)
+    left:ClearAllPoints()
+    left:SetPoint("TOPLEFT", frame, "TOPLEFT", customizePortraitGeometry and -13 or 7, customizePortraitGeometry and 16 or -5)
+    left:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.topLeft or topLeft.atlas, true)
+    left:SetHorizTile(false)
+    left:SetVertTile(false)
+    left:Show()
+
+    local topRight = FP_MODERN_WINDOW_SLOTS.topRight
+    local right = EnsureModernWindowRegion(frame, topRight.key)
+    right:ClearAllPoints()
+    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", customizePortraitGeometry and 4 or -3, customizePortraitGeometry and 16 or -5)
+    right:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.topRight or topRight.atlas, true)
+    right:SetHorizTile(false)
+    right:SetVertTile(false)
+    right:Show()
+
+    local topCenter = FP_MODERN_WINDOW_SLOTS.topCenter
+    local center = EnsureModernWindowRegion(frame, topCenter.key)
+    center:ClearAllPoints()
+    center:SetPoint("TOPLEFT", left, "TOPRIGHT")
+    center:SetPoint(customizePortraitGeometry and "TOPRIGHT" or "BOTTOMRIGHT", right, customizePortraitGeometry and "TOPLEFT" or "BOTTOMLEFT")
+    center:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.topCenter or topCenter.atlas, customizePortraitGeometry == true)
+    center:SetHorizTile(true)
+    center:SetVertTile(false)
+    center:Show()
+
+    local bottomLeft = FP_MODERN_WINDOW_SLOTS.bottomLeft
+    local bottomLeftRegion = EnsureModernWindowRegion(frame, bottomLeft.key)
+    bottomLeftRegion:ClearAllPoints()
+    bottomLeftRegion:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", customizePortraitGeometry and -13 or 7, customizePortraitGeometry and -3 or 5)
+    bottomLeftRegion:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.bottomLeft or bottomLeft.atlas, true)
+    bottomLeftRegion:SetHorizTile(false)
+    bottomLeftRegion:SetVertTile(false)
+    bottomLeftRegion:Show()
+
+    local bottomRight = FP_MODERN_WINDOW_SLOTS.bottomRight
+    local bottomRightRegion = EnsureModernWindowRegion(frame, bottomRight.key)
+    bottomRightRegion:ClearAllPoints()
+    bottomRightRegion:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", customizePortraitGeometry and 4 or -3, customizePortraitGeometry and -3 or 5)
+    bottomRightRegion:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.bottomRight or bottomRight.atlas, true)
+    bottomRightRegion:SetHorizTile(false)
+    bottomRightRegion:SetVertTile(false)
+    bottomRightRegion:Show()
+
+    local bottomCenter = FP_MODERN_WINDOW_SLOTS.bottomCenter
+    local bottomCenterRegion = EnsureModernWindowRegion(frame, bottomCenter.key)
+    bottomCenterRegion:ClearAllPoints()
+    bottomCenterRegion:SetPoint("BOTTOMLEFT", bottomLeftRegion, "BOTTOMRIGHT")
+    bottomCenterRegion:SetPoint(customizePortraitGeometry and "BOTTOMRIGHT" or "TOPRIGHT", bottomRightRegion, customizePortraitGeometry and "BOTTOMLEFT" or "TOPLEFT")
+    bottomCenterRegion:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.bottomCenter or bottomCenter.atlas, customizePortraitGeometry == true)
+    bottomCenterRegion:SetHorizTile(true)
+    bottomCenterRegion:SetVertTile(false)
+    bottomCenterRegion:Show()
+
+    local sideLeft = FP_MODERN_WINDOW_SLOTS.left
+    local sideLeftRegion = EnsureModernWindowRegion(frame, sideLeft.key)
+    sideLeftRegion:ClearAllPoints()
+    sideLeftRegion:SetPoint("TOPLEFT", left, "BOTTOMLEFT")
+    sideLeftRegion:SetPoint(customizePortraitGeometry and "BOTTOMLEFT" or "BOTTOMRIGHT", bottomLeftRegion, customizePortraitGeometry and "TOPLEFT" or "TOPRIGHT")
+    sideLeftRegion:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.left or sideLeft.atlas, customizePortraitGeometry == true)
+    sideLeftRegion:SetHorizTile(false)
+    sideLeftRegion:SetVertTile(true)
+    sideLeftRegion:Show()
+
+    local sideRight = FP_MODERN_WINDOW_SLOTS.right
+    local sideRightRegion = EnsureModernWindowRegion(frame, sideRight.key)
+    sideRightRegion:ClearAllPoints()
+    sideRightRegion:SetPoint("TOPRIGHT", right, "BOTTOMRIGHT")
+    sideRightRegion:SetPoint(customizePortraitGeometry and "BOTTOMRIGHT" or "BOTTOMLEFT", bottomRightRegion, customizePortraitGeometry and "TOPRIGHT" or "TOPLEFT")
+    sideRightRegion:SetAtlas(editMode and CUSTOMIZE_EDIT_MODE_ATLASES.right or sideRight.atlas, customizePortraitGeometry == true)
+    sideRightRegion:SetHorizTile(false)
+    sideRightRegion:SetVertTile(true)
+    sideRightRegion:Show()
+
+    -- PortraitFrameTemplate geometry is opt-in; pooled regions return to the legacy layer otherwise.
+    for _, key in ipairs(FP_MODERN_WINDOW_SLOT_KEYS) do
+        frame[key]:SetDrawLayer(editMode and "BORDER" or customizePortraitGeometry and "OVERLAY" or "ARTWORK", 0)
+    end
+end
+
+-- Customize-only visual reuse; no title/drag/close anchors, parents or scripts change.
+function FormWidgets.CanApplyCustomizeEditModeShell()
+    local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+    if type(atlasInfo) ~= "function" then return false end
+    for _, atlas in pairs(CUSTOMIZE_EDIT_MODE_ATLASES) do
+        local ok, info = pcall(atlasInfo, atlas)
+        if not ok or type(info) ~= "table" or type(info.width) ~= "number" or type(info.height) ~= "number"
+            or info.width <= 0 or info.height <= 0 then return false end
+    end
+    return true
+end
+
+function FormWidgets.CanApplyCustomizeBlizzardShell()
+    local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+    if type(atlasInfo) ~= "function" then return false end
+    for _, slot in pairs(FP_MODERN_WINDOW_SLOTS) do
+        local ok, info = pcall(atlasInfo, slot.atlas)
+        if not ok or not info then return false end
+    end
+    local ok, info = pcall(atlasInfo, "_UI-Frame-TopTileStreaks")
+    return ok and info ~= nil and info ~= false
+end
+
+function FormWidgets.NeutralizeCustomizeBlizzardShell(window)
+    local snapshot = window and window.GetUserData and window:GetUserData("fpCustomizeBlizzardShell")
+    if not snapshot then return end
+    local frame = window.frame
+    for _, key in ipairs(FP_MODERN_WINDOW_SLOT_KEYS) do
+        local region = frame[key]
+        if region then region:Hide() end
+    end
+    if frame._fpModernPortraitBackground then frame._fpModernPortraitBackground:Hide() end
+    if frame._fpModernPortraitTopTileStreaks then frame._fpModernPortraitTopTileStreaks:Hide() end
+    if snapshot.layer and window.titletext then window.titletext:SetDrawLayer(snapshot.layer, snapshot.sublevel) end
+    window:SetUserData("fpCustomizeBlizzardShell", nil)
+end
+
+function FormWidgets.NeutralizeCustomizeShell(window)
+    if not window or window._focalPointEditorRole ~= "editor_inspector" then return end
+    FormWidgets.NeutralizeCustomizeBlizzardShell(window)
+    local frame = window.frame
+    for key in pairs(navigatorBorderColors) do if frame[key] then frame[key]:Hide() end end
+    for _, key in ipairs({"_fpSidebarPanelFill", "_fpSidebarPanelHeaderFill", "_fpSidebarPanelTopShade",
+        "_fpSidebarPanelBottomShade", "_editorSidebar", "_editorSidebarBorder", "_fpNavigatorBrassNineSlice"}) do
+        if frame[key] then frame[key]:Hide() end
+    end
+    if window.content and window.content._fpSidebarAccent then window.content._fpSidebarAccent:Hide() end
+end
+
+function FormWidgets.ApplyCustomizeBlizzardShell(window, editMode)
+    if not window or window._focalPointEditorRole ~= "editor_inspector"
+        or (editMode and not FormWidgets.CanApplyCustomizeEditModeShell())
+        or (not editMode and not FormWidgets.CanApplyCustomizeBlizzardShell()) then return false end
+    FormWidgets.NeutralizeCustomizeShell(window)
+    local snapshot = {}
+    if window.titletext and window.titletext.GetDrawLayer then
+        snapshot.layer, snapshot.sublevel = window.titletext:GetDrawLayer()
+        window.titletext:SetDrawLayer("OVERLAY", 7)
+    end
+    window:SetUserData("fpCustomizeBlizzardShell", snapshot)
+    HideDefaultWindowChrome(window.frame)
+    EnsureModernWindowBackground(window.frame, editMode)
+    if not editMode then EnsureModernWindowTopTileStreaks(window.frame) end
+    ApplyModernAtlasRegions(window.frame, true, editMode)
+    if editMode then
+        -- DialogBorderNoCenterTemplate: Dialog layout, zero corner offsets, BORDER layer.
+        for _, corner in ipairs({{"topLeft","TOPLEFT"},{"topRight","TOPRIGHT"},
+            {"bottomLeft","BOTTOMLEFT"},{"bottomRight","BOTTOMRIGHT"}}) do
+            local region = window.frame[FP_MODERN_WINDOW_SLOTS[corner[1]].key]
+            region:ClearAllPoints()
+            region:SetPoint(corner[2], window.frame, corner[2], 0, 0)
+        end
+        window.frame._fpModernPortraitBackground:SetDrawLayer("BACKGROUND", -5)
+    else
+        window.frame._fpModernPortraitBackground:SetDrawLayer("BACKGROUND", -6)
+    end
+    return true
 end
 
 function FormWidgets.ApplyModernWindowChrome(window, options)
@@ -855,81 +1033,7 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
         return
     end
 
-    local topLeft = FP_MODERN_WINDOW_SLOTS.topLeft
-    local left = EnsureModernWindowRegion(frame, topLeft.key)
-    left:ClearAllPoints()
-    left:SetPoint("TOPLEFT", frame, "TOPLEFT", 7, -5)
-    left:SetAtlas(topLeft.atlas, true)
-    left:SetHorizTile(false)
-    left:SetVertTile(false)
-    left:Show()
-
-    local topRight = FP_MODERN_WINDOW_SLOTS.topRight
-    local right = EnsureModernWindowRegion(frame, topRight.key)
-    right:ClearAllPoints()
-    right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -3, -5)
-    right:SetAtlas(topRight.atlas, true)
-    right:SetHorizTile(false)
-    right:SetVertTile(false)
-    right:Show()
-
-    local topCenter = FP_MODERN_WINDOW_SLOTS.topCenter
-    local center = EnsureModernWindowRegion(frame, topCenter.key)
-    center:ClearAllPoints()
-    center:SetPoint("TOPLEFT", left, "TOPRIGHT")
-    center:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
-    center:SetAtlas(topCenter.atlas, false)
-    center:SetHorizTile(true)
-    center:SetVertTile(false)
-    center:Show()
-
-    local bottomLeft = FP_MODERN_WINDOW_SLOTS.bottomLeft
-    local bottomLeftRegion = EnsureModernWindowRegion(frame, bottomLeft.key)
-    bottomLeftRegion:ClearAllPoints()
-    bottomLeftRegion:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 7, 5)
-    bottomLeftRegion:SetAtlas(bottomLeft.atlas, true)
-    bottomLeftRegion:SetHorizTile(false)
-    bottomLeftRegion:SetVertTile(false)
-    bottomLeftRegion:Show()
-
-    local bottomRight = FP_MODERN_WINDOW_SLOTS.bottomRight
-    local bottomRightRegion = EnsureModernWindowRegion(frame, bottomRight.key)
-    bottomRightRegion:ClearAllPoints()
-    bottomRightRegion:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -3, 5)
-    bottomRightRegion:SetAtlas(bottomRight.atlas, true)
-    bottomRightRegion:SetHorizTile(false)
-    bottomRightRegion:SetVertTile(false)
-    bottomRightRegion:Show()
-
-    local bottomCenter = FP_MODERN_WINDOW_SLOTS.bottomCenter
-    local bottomCenterRegion = EnsureModernWindowRegion(frame, bottomCenter.key)
-    bottomCenterRegion:ClearAllPoints()
-    bottomCenterRegion:SetPoint("BOTTOMLEFT", bottomLeftRegion, "BOTTOMRIGHT")
-    bottomCenterRegion:SetPoint("TOPRIGHT", bottomRightRegion, "TOPLEFT")
-    bottomCenterRegion:SetAtlas(bottomCenter.atlas, false)
-    bottomCenterRegion:SetHorizTile(true)
-    bottomCenterRegion:SetVertTile(false)
-    bottomCenterRegion:Show()
-
-    local sideLeft = FP_MODERN_WINDOW_SLOTS.left
-    local sideLeftRegion = EnsureModernWindowRegion(frame, sideLeft.key)
-    sideLeftRegion:ClearAllPoints()
-    sideLeftRegion:SetPoint("TOPLEFT", left, "BOTTOMLEFT")
-    sideLeftRegion:SetPoint("BOTTOMRIGHT", bottomLeftRegion, "TOPRIGHT")
-    sideLeftRegion:SetAtlas(sideLeft.atlas, false)
-    sideLeftRegion:SetHorizTile(false)
-    sideLeftRegion:SetVertTile(true)
-    sideLeftRegion:Show()
-
-    local sideRight = FP_MODERN_WINDOW_SLOTS.right
-    local sideRightRegion = EnsureModernWindowRegion(frame, sideRight.key)
-    sideRightRegion:ClearAllPoints()
-    sideRightRegion:SetPoint("TOPRIGHT", right, "BOTTOMRIGHT")
-    sideRightRegion:SetPoint("BOTTOMLEFT", bottomRightRegion, "TOPLEFT")
-    sideRightRegion:SetAtlas(sideRight.atlas, false)
-    sideRightRegion:SetHorizTile(false)
-    sideRightRegion:SetVertTile(true)
-    sideRightRegion:Show()
+    ApplyModernAtlasRegions(frame)
 end
 
 
@@ -1479,6 +1583,101 @@ function FormWidgets.StyleDropdown(dropdown, variant, valueRole)
         SetTextureColor(buttonHighlight, style.buttonHighlight or style.buttonNormal or style.border or chromeColors.fieldBorder)
     end
     FormWidgets.ApplyLabelTypography(dropdown)
+end
+
+-- Inspector-only opt-in; native dropdown input, pullout and geometry stay untouched.
+function FormWidgets.StyleInspectorDropdown(widget)
+    if not widget or not widget.button_cover or not widget.dropdown then return end
+    local bindingKey = "fpInspectorDropdown"
+    local function Paint(owner)
+        local binding = owner:GetUserData(bindingKey)
+        if not binding then return end
+        local disabled = owner.disabled == true
+        local style = FormWidgets.ResolveFieldStyle("neutral")
+        local value = FormWidgets.ResolveFieldStyle("editor_inset").valueColor or GetItemColors().value
+        local border = binding.hovered and not disabled and style.borderFocus or style.border
+        binding.surface.fill:SetColorTexture(unpack(style.background))
+        for _, key in ipairs({"top", "bottom", "left", "right"}) do
+            binding.surface[key]:SetColorTexture(unpack(border))
+        end
+        for _, region in pairs(binding.surface) do region:SetAlpha(disabled and .5 or 1); region:Show() end
+        local textColor = disabled and {.5, .5, .5, 1} or value
+        owner.text:SetTextColor(unpack(textColor))
+        for _, entry in ipairs(binding.arrows) do
+            entry.region:SetVertexColor(textColor[1], textColor[2], textColor[3], 1)
+        end
+    end
+    local binding = widget:GetUserData(bindingKey)
+    if not binding then
+        local cover = widget.button_cover
+        local surface = cover._fpInspectorDropdownSurface
+        if not surface then
+            surface = {}
+            for _, key in ipairs({"fill", "top", "bottom", "left", "right"}) do
+                surface[key] = cover:CreateTexture(nil, key == "fill" and "BACKGROUND" or "BORDER")
+            end
+            surface.fill:SetAllPoints(cover)
+            for _, key in ipairs({"top", "bottom"}) do
+                local point = key == "top" and "TOP" or "BOTTOM"
+                surface[key]:SetPoint(point.."LEFT", cover, point.."LEFT", 0, 0)
+                surface[key]:SetPoint(point.."RIGHT", cover, point.."RIGHT", 0, 0)
+                surface[key]:SetHeight(1)
+            end
+            for _, key in ipairs({"left", "right"}) do
+                local point = key == "left" and "LEFT" or "RIGHT"
+                surface[key]:SetPoint("TOP"..point, cover, "TOP"..point, 0, 0)
+                surface[key]:SetPoint("BOTTOM"..point, cover, "BOTTOM"..point, 0, 0)
+                surface[key]:SetWidth(1)
+            end
+            cover._fpInspectorDropdownSurface = surface
+        end
+        binding = {surface=surface, native={}, arrows={}, setDisabled=widget.SetDisabled,
+            onRelease=widget.events and widget.events.OnRelease, textColor={widget.text:GetTextColor()}}
+        widget:SetUserData(bindingKey, binding)
+        local name = widget.dropdown:GetName()
+        for _, suffix in ipairs({"Left", "Middle", "Right"}) do
+            local region = name and _G[name..suffix]
+            if region then binding.native[#binding.native+1]={region=region, alpha=region:GetAlpha()}; region:SetAlpha(0) end
+        end
+        for _, method in ipairs({"GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture"}) do
+            local region = widget.button[method] and widget.button[method](widget.button)
+            if region then binding.arrows[#binding.arrows+1]={region=region, color={region:GetVertexColor()}} end
+        end
+        binding.disabledWrapper = function(owner, disabled)
+            local result = binding.setDisabled(owner, disabled)
+            binding.hovered = false
+            Paint(owner)
+            return result
+        end
+        widget.SetDisabled = binding.disabledWrapper
+        widget:SetCallback("OnRelease", function(owner, event)
+            for _, region in pairs(surface) do region:Hide() end
+            for _, entry in ipairs(binding.native) do entry.region:SetAlpha(entry.alpha) end
+            for _, entry in ipairs(binding.arrows) do entry.region:SetVertexColor(unpack(entry.color)) end
+            owner.text:SetTextColor(unpack(binding.textColor))
+            if owner.SetDisabled == binding.disabledWrapper then owner.SetDisabled = binding.setDisabled end
+            owner:SetUserData(bindingKey, nil)
+            if binding.onRelease then binding.onRelease(owner, event) end
+        end)
+        for _, frame in ipairs({widget.button, cover}) do
+            if not frame._fpInspectorDropdownHooked and frame.HookScript then
+                frame._fpInspectorDropdownHooked = true
+                frame:HookScript("OnEnter", function()
+                    local current = widget:GetUserData(bindingKey)
+                    if current then current.hovered = true; Paint(widget) end
+                end)
+                frame:HookScript("OnLeave", function()
+                    local current = widget:GetUserData(bindingKey)
+                    if current then current.hovered = false; Paint(widget) end
+                end)
+                frame:HookScript("OnHide", function()
+                    local current = widget:GetUserData(bindingKey)
+                    if current then current.hovered = false; Paint(widget) end
+                end)
+            end
+        end
+    end
+    Paint(widget)
 end
 
 local function ColorEditBoxRegions(target, color)

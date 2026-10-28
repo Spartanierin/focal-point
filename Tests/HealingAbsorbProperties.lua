@@ -228,11 +228,16 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         local function Points()
             local found={}
             w.Walk(w.Body(),function(widget)
-                if widget.type=="Dropdown" then found[widget.label:GetText()]=widget end
+                local children=widget.children or {}
+                if children[1] and children[1].type=="Label" and children[2] then
+                    w.Walk(children[2],function(control)
+                        if control.type=="Dropdown" then found[children[1].label:GetText()]=control end
+                    end)
+                end
             end)
             return found
         end
-        assert(not Points()[w.ns.L.OPTION_FROM_POINT or "From Point"])
+        assert(not Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"])
         w.Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM"); w.Drain()
         w.Control("Width","FPCompactSlider"):Fire("OnValueChanged",184)
         w.Control("Height","FPCompactSlider"):Fire("OnValueChanged",12)
@@ -240,8 +245,8 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         w.Control("Offset Y","FPCompactSlider"):Fire("OnValueChanged",-6)
         w.Control("Anchor Target","Dropdown"):Fire("OnValueChanged","Frame"); w.Drain()
         w.state.SetMode("expert"); w.controller.RefreshActiveProperties(); w.Drain()
-        Points()[w.ns.L.OPTION_FROM_POINT or "From Point"]:Fire("OnValueChanged","TOPLEFT"); w.Drain()
-        Points()[w.ns.L.OPTION_TO_POINT or "To Point"]:Fire("OnValueChanged","BOTTOMLEFT"); w.Drain()
+        Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"]:Fire("OnValueChanged","TOPLEFT"); w.Drain()
+        Points()[w.ns.L.OPTION_ANCHOR_TO or "Anchor To"]:Fire("OnValueChanged","BOTTOMLEFT"); w.Drain()
         w.Control("Growth Direction","Dropdown"):Fire("OnValueChanged","LEFT_TO_RIGHT"); w.Drain()
         assert(unit.healingAbsorbBarWidth==184 and unit.healingAbsorbBarHeight==12)
         assert(unit.healingAbsorbBarOffsetX==8 and unit.healingAbsorbBarOffsetY==-6)
@@ -250,7 +255,7 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         w.Control("Size Mode","Dropdown"):Fire("OnValueChanged","MATCH_TARGET"); w.Drain()
         assert(w.Control("Width","FPCompactSlider").disabled and w.Control("Height","FPCompactSlider").disabled)
         assert(w.Control("Offset X","FPCompactSlider").disabled and w.Control("Offset Y","FPCompactSlider").disabled)
-        assert(Points()[w.ns.L.OPTION_FROM_POINT or "From Point"].disabled)
+        assert(Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"].disabled)
         w.h.Equal(NormalFields(unit),normal)
     end)
     Test("Healing empty groups disable and fall back without counting its object action",function()
@@ -310,9 +315,9 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         local active=w.ns.UnitFrameUtils.GetUnitDB("player")
         w.Control("Show","CheckBox"):Fire("OnValueChanged",false); w.Drain()
         assert(active~=unit and not active.showHealingAbsorbBar and unit.showHealingAbsorbBar)
-        window._focalPointArrangeButton:Fire("OnClick"); w.Drain()
+        window.closebutton:GetScript("OnClick")(window.closebutton); w.Drain()
         window=w.Build(); w.Project("behavior")
-        window._focalPointCloseButton:Fire("OnClick"); w.Drain()
+        window.closebutton:GetScript("OnClick")(window.closebutton); w.Drain()
         window=w.Build(); w.Project("behavior")
     end)
     Test("Healing Remove is unique and tab independent while Normal remains present",function()

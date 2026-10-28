@@ -16,6 +16,7 @@ end
 local point = native.SetPoint
 function native:SetPoint(p, relative, rp, x, y)
     if type(relative) == "number" then x,y,relative,rp=relative,rp,self.parent,p
+    elseif type(rp) == "number" then x,y,rp=rp,x,p
     elseif not relative then relative,rp=self.parent,p end
     return point(self,p,relative,rp or p,x,y)
 end
@@ -32,6 +33,7 @@ end
 function native:GetRegions() return table.unpack(self.regions or {}) end
 function native:GetDrawLayer() return table.unpack(self.lastSetDrawLayer or {"ARTWORK",0}) end
 function native:GetVertexColor() return table.unpack(self.lastSetVertexColor or {1,1,1,1}) end
+function native:GetTextColor() return table.unpack(self.lastSetTextColor or {1,1,1,1}) end
 function native:SetColorTexture(...) self.lastSetColorTexture={...}; self.lastSetTexture=nil end
 function native:SetFontObject() self.font={STANDARD_TEXT_FONT,12,""} end
 function native:GetFont() return table.unpack(self.font or {STANDARD_TEXT_FONT,12,""}) end

@@ -38,22 +38,36 @@ Test("uniform readable rows retain original hierarchy, mapped icons and full-row
     unit.Texts.localText.anchorTo="HealthBar"
     unit.Texts.localText.enabled=false
     window=Build()
-    assert(height==22)
+    assert(height==34)
     local control=Tree().control
     assert(control.rows[1].item.node.type=="unit","selectable Frame root was lost")
     for i=1,control.count do
         local row=control.rows[i]
-        assert(row.frame:GetHeight()==22)
-        assert(row.frame.points.TOPLEFT.y==-(i-1)*22 and row.frame.points.TOPRIGHT.y==-(i-1)*22)
-        assert(row.disclosure.points.LEFT.x==3+row.item.depth*14)
-        assert(row.disclosure:GetWidth()==16 and row.disclosure:GetHeight()==22)
-        local _,size=row.label:GetFont();assert(size==12)
+        local root=row.item.node.type=="unit"
+        local top=(i-1)*34+(i>1 and 10 or 0)
+        assert(row.frame:GetHeight()==(root and 36 or 30))
+        assert(row.frame.points.TOPLEFT.y==-top and row.frame.points.TOPRIGHT.y==-top)
+        assert(row.frame.points.TOPLEFT.x==math.max(0,row.item.depth-1)*16)
+        assert(row.disclosure.points.LEFT.x==0)
+        assert(row.disclosure:GetWidth()==26 and row.disclosure:GetHeight()==26)
+        assert(#row.edges==4 and row.background:IsShown())
+        for _,edge in ipairs(row.edges)do assert(edge:IsShown())end
+        assert(row.toggle.points.RIGHT.relative==row.frame and row.toggle.points.RIGHT.x==-6)
+        local _,size=row.label:GetFont();assert(size==(root and 16 or 13))
+        if row.item.node.enabled==false then
+            h.Equal(row.label.lastSetTextColor,palette.text.disabled)
+        elseif row.item.depth==1 then
+            local color=NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
+            h.Equal(row.label.lastSetTextColor,{color.r,color.g,color.b})
+        else
+            h.Equal(row.label.lastSetTextColor,{1,1,1,1})
+        end
         assert(row.frame:GetScript("OnMouseDown"))
         if row.icon:IsShown()then
             local path=row.icon:GetTexture()
             local relative=assert(path:match("Interface\\AddOns\\FocalPoint\\(.+)")):gsub("\\","/")
             local f=assert(io.open(relative,"rb"),path);f:close()
-            assert(row.icon:GetWidth()==14 and row.icon:GetHeight()==14)
+            assert(row.icon:GetWidth()==16 and row.icon:GetHeight()==16)
         end
     end
     local child=Row("textElement","localText")
@@ -63,7 +77,7 @@ Test("hover and warm selection consume the existing palette without data mutatio
     local before=h.Copy(db)
     local row=Row("healthbar")
     row.frame:Run("OnEnter");assert(row.background:IsShown());h.Equal(row.background.lastSetColorTexture,palette.rowHover)
-    row.frame:Run("OnLeave");assert(not row.background:IsShown())
+    row.frame:Run("OnLeave");assert(row.background:IsShown());h.Equal(row.background.lastSetColorTexture,palette.surface)
     Click("healthbar");row=Row("healthbar")
     assert(selection.GetSelectedObject().objectKey=="HealthBar" and row.item.selected)
     h.Equal(row.background.lastSetColorTexture,palette.rowSelected)
@@ -95,15 +109,17 @@ Test("full-name tooltip and checkbox expose existing identity and toggle semanti
     row.frame:Run("OnEnter")
     assert(tooltip.shown and tooltip.owner==row.frame and tooltip.lines[1]==row.item.label)
     assert(row.toggleGlyph:GetTexture()==130755 and row.toggleCheck:GetTexture()==130751)
+    h.Equal(row.toggleCheck.lastSetVertexColor,{1,1,1,1})
+    assert(row.toggle.template=="UICheckButtonArtTemplate" and row.toggle:GetWidth()==26)
     assert(not row.toggleCheck:IsShown())
     row.frame:Run("OnLeave");assert(not tooltip.shown)
     h.Equal(db,before)
     row.toggle:Run("OnEnter");assert(tooltip.lines[2]==(ns.L.OPTION_OFF or "Off"))
-    row.toggle:Run("OnMouseDown","LeftButton");Drain()
+    row.toggle:Run("OnClick","LeftButton");Drain()
     assert(unit.Texts.localText.enabled==true)
     row=Row("textElement","localText");assert(row.toggleCheck:IsShown())
     assert(selection.GetSelectedObject().textKey==selected.textKey)
-    row.toggle:Run("OnMouseDown","LeftButton");Drain();assert(unit.Texts.localText.enabled==false)
+    row.toggle:Run("OnClick","LeftButton");Drain();assert(unit.Texts.localText.enabled==false)
     row=Row("textElement","localText");assert(not row.toggleCheck:IsShown())
     row.frame:Run("OnEnter");controller.RefreshCompositionTree();Drain();assert(not tooltip.shown)
 end)
@@ -112,11 +128,11 @@ Test("long lists use actual row height for scrolling and keep the selected row v
     controller.RefreshCompositionTree();Drain()
     local control=Tree().control
     control.frame:SetSize(200,66);assert(control:Layout())
-    assert(control.maxScroll==control.count*height-66)
+    assert(control.maxScroll==control.count*height+10-66)
     control:SetScroll(0);control.frame:Run("OnMouseWheel",-1);assert(control.offset==height*3)
     Click("textElement","extra9")
     control=Tree().control;local _,index=Row("textElement","extra9")
-    assert(control.offset<=(index-1)*height and control.offset+control.frame:GetHeight()>=index*height)
+    assert(control.offset<=(index-1)*height+10 and control.offset+control.frame:GetHeight()>=index*height+10)
     assert(selection.GetSelectedObject().textKey=="extra9")
     local row=Row("textElement","extra9");row.frame:Run("OnEnter")
     assert(tooltip.lines[1]==row.item.label)
@@ -139,8 +155,151 @@ Test("unit changes, close/reopen and repeated pooling bind only current rows",fu
         if tail~=Tree().control.rows[1]then assert(not tail.frame:IsShown() and not tail.frame:GetScript("OnMouseDown"))end
         Row("unit").disclosure:Run("OnMouseDown","LeftButton")
     end
-    window._focalPointCloseButton:Fire("OnClick");Drain();assert(Build()==window);Drain()
+    window.closebutton:GetScript("OnClick")(window.closebutton);Drain();assert(Build()==window);Drain()
     assert(Tree().tree.unit=="player" and Row("unit").frame:IsShown())
+end)
+Test("card, disclosure and checkbox clicks remain distinct through 20 navigation cycles",function()
+    db,unit=Setup();unit.healthBarPresent=true;unit.powerBarPresent=true;unit.showPowerBar=true
+    unit.Texts.localText.anchorTo="HealthBar";unit.Texts.localText.enabled=false
+    window=Build()
+    local function Back()
+        window._focalPointComponentsButton:Fire("OnClick");Drain()
+        assert(window._focalPointCustomizeView=="components")
+    end
+    local before=h.Copy(selection.GetSelectedObject())
+    Row("healthbar").disclosure:Run("OnMouseDown","LeftButton");Drain()
+    assert(window._focalPointCustomizeView=="components")
+    h.Equal(selection.GetSelectedObject(),before)
+    Row("healthbar").disclosure:Run("OnMouseDown","LeftButton");Drain()
+    Row("powerbar").toggle:Run("OnClick","LeftButton");Drain()
+    assert(unit.showPowerBar==false and window._focalPointCustomizeView=="components")
+    h.Equal(selection.GetSelectedObject(),before)
+    for _=1,20 do
+        Click("healthbar");assert(window._focalPointCustomizeView=="properties")
+        assert(selection.GetSelectedObject().objectKey=="HealthBar");Back()
+        local parent=Row("healthbar")
+        for _,edge in ipairs(parent.edges)do h.Equal(edge.lastSetColorTexture,palette.text.selected)end
+        Click("textElement","localText");assert(window._focalPointCustomizeView=="properties")
+        assert(selection.GetSelectedObject().textKey=="localText");Back()
+        local child=Row("textElement","localText")
+        assert(child.frame.points.TOPLEFT.x==parent.frame.points.TOPLEFT.x+16)
+        assert(child.item.node.enabled==false and child.background:IsShown())
+    end
+end)
+Test("Unit root is a distinct 36px header with 16px identity text and an 8px card gap",function()
+    db,unit=Setup();unit.healthBarPresent=true;unit.powerBarPresent=true
+    unit.Texts.localText.anchorTo="HealthBar";window=Build()
+    Click("healthbar")
+    local root=Row("unit");local first=Tree().control.rows[2]
+    assert(root.frame:GetHeight()==36 and first.frame.points.TOPLEFT.y==-44)
+    assert(-first.frame.points.TOPLEFT.y-root.frame:GetHeight()==8)
+    assert(root.textRole=="identity")
+    local _,size=root.label:GetFont();assert(size==16)
+    h.Equal(root.background.lastSetColorTexture,ns.GUI.Skins.GetFormPalette().Chrome.panelHeader)
+    assert(root.add:IsShown() and root.remove:IsShown() and not root.remove:IsEnabled())
+    assert(root.frame:GetScript("OnMouseDown"))
+    root.frame:Run("OnEnter");h.Equal(root.background.lastSetColorTexture,palette.rowHover)
+    root.frame:Run("OnLeave");h.Equal(root.background.lastSetColorTexture,ns.GUI.Skins.GetFormPalette().Chrome.panelHeader)
+    Click("unit");assert(selection.GetSelectedObject().kind=="unit")
+    h.Equal(Row("unit").background.lastSetColorTexture,palette.rowSelected)
+end)
+Test("gold expand controls preserve the original 45px label start and all action zones at 320/360px",function()
+    db,unit=Setup();unit.healthBarPresent=true;unit.powerBarPresent=true;unit.showPowerBar=true
+    unit.Texts.localText.anchorTo="HealthBar";window=Build()
+    local before=h.Copy(selection.GetSelectedObject())
+    for _,width in ipairs({320,360})do
+        local control=Tree().control;control.frame:SetSize(width,68);control:Layout()
+        for i=1,control.count do
+            local row=control.rows[i]
+            assert(row.disclosure:GetWidth()==26 and row.disclosure:GetHeight()==26)
+            assert(row.disclosureGlyph:GetWidth()==18 and row.disclosureGlyph:GetHeight()==18)
+            h.Equal(row.disclosureGlyph.lastSetVertexColor,{1,.82,0,1})
+            assert(not row.disclosure.lastSetHighlightTexture and not row.disclosure.lastSetPushedTexture)
+            assert(row.disclosure:IsShown()==row.item.expandable)
+            assert(row.disclosure.points.LEFT.x+row.disclosure:GetWidth()+row.icon.points.LEFT.x+row.icon:GetWidth()+row.label.points.LEFT.x==45)
+            assert(row.icon.points.LEFT.relative==row.disclosure and row.label.points.LEFT.relative==row.icon)
+            assert(row.add:GetWidth()==28 and row.add:GetHeight()==26)
+            assert(row.remove:GetWidth()==28 and row.remove:GetHeight()==26)
+        end
+        local parent=Row("healthbar");local child=Row("textElement","localText")
+        assert(child.frame.points.TOPLEFT.x==parent.frame.points.TOPLEFT.x+16)
+        assert(not child.disclosure:IsShown())
+        local name=parent.item.label
+        for _,long in ipairs({"Health Bar with a deliberately long component name",
+            "Gesundheitsleiste mit besonders langer Komponentenbezeichnung"})do
+            parent.item.label=long;parent.label:SetText(long)
+            parent.disclosure:Run("OnEnter");assert(tooltip.lines[1]==long)
+            parent.disclosure:Run("OnLeave")
+        end
+        parent.item.label=name;parent.label:SetText(name)
+        parent.disclosure:Run("OnMouseDown","LeftButton")
+        assert(not Row("healthbar").item.expanded and window._focalPointCustomizeView=="components")
+        h.Equal(selection.GetSelectedObject(),before)
+        Row("healthbar").disclosure:Run("OnMouseDown","LeftButton")
+        assert(Row("healthbar").item.expanded)
+    end
+end)
+Test("expanded header geometry scrolls and resizes consistently; old expand scripts cannot alter rebound rows",function()
+    local control=Tree().control;local row=Row("healthbar")
+    local old=row.disclosure:GetScript("OnMouseDown")
+    local countBefore=control.count
+    controller.RefreshCompositionTree();Drain()
+    old(row.disclosure,"LeftButton");assert(Tree().control.count==countBefore and Row("healthbar").item.expanded)
+    control=Tree().control;control.frame:SetSize(320,60);control:Layout()
+    control:SetScroll(20);local saved=control.offset
+    local items={};for i=1,control.count do items[i]=control.rows[i].item end
+    control:SetRows(items);assert(control.offset==saved)
+    controller.RefreshCompositionTree();Drain()
+    -- A full rebuild retains the existing auto-reveal of the selected Unit root.
+    assert(selection.GetSelectedObject().kind=="unit" and Tree().control.offset==0)
+    control=Tree().control;control.frame:SetSize(360,80);control:Layout()
+    assert(control.content:GetHeight()==control.count*34+10)
+    local _,last=Row("textElement","localText");control:EnsureVisible(last)
+    assert(control.offset<=(last-1)*34+10 and control.offset+80>=last*34+10)
+    local root=Row("unit");root.disclosure:Run("OnMouseDown","LeftButton")
+    control=Tree().control;assert(control.count==1 and control.content:GetHeight()==44)
+    assert(not Row("unit").item.expanded)
+    Row("unit").disclosure:Run("OnMouseDown","LeftButton")
+    assert(Row("unit").item.expanded and Row("healthbar").item.expanded)
+    window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build()
+    local fresh=Tree().control.count
+    old(row.disclosure,"LeftButton");assert(Tree().control.count==fresh)
+    assert(Row("healthbar").item.expanded)
+end)
+Test("native MinimalScrollBar art preserves the existing Slider, drag, wheel and short-list lifecycle",function()
+    db,unit=Setup();unit.healthBarPresent=true
+    for i=1,40 do unit.Texts["scroll"..i]={tag="[name]",enabled=true}end
+    window=Build();local control=Tree().control
+    control.frame:SetSize(320,100);control:Layout()
+    assert(control.scrollbar.kind=="Slider" and control.scrollbar:GetWidth()==8)
+    assert(control.content:GetWidth()==310 and control.scrollbar:IsShown())
+    assert(control.thumbTop.atlas=="minimal-scrollbar-small-thumb-top")
+    assert(control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle")
+    assert(control.thumbBottom.atlas=="minimal-scrollbar-small-thumb-bottom")
+    local found={};for _,region in ipairs(control.scrollbar.regions or {})do if region.atlas then found[region.atlas]=true end end
+    assert(found["minimal-scrollbar-track-top"] and found["!minimal-scrollbar-track-middle"] and found["minimal-scrollbar-track-bottom"])
+    control.thumbDragHandle:Run("OnEnter");assert(control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle-over")
+    control.thumbDragHandle:Run("OnLeave");assert(control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle")
+    local cursor,scale=GetCursorPosition,control.scrollbar.GetEffectiveScale
+    control.scrollbar:SetHeight(100) -- The native double does not resolve the Slider's TOP/BOTTOM anchors.
+    local y=100;GetCursorPosition=function()return 0,y end
+    control.scrollbar.GetEffectiveScale=function()return 1 end
+    control:SetScroll(0);control.thumbDragHandle:Run("OnMouseDown","LeftButton")
+    assert(control._thumbDrag and control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle-down")
+    y=80;control.thumbDragHandle:Run("OnUpdate");assert(control.offset>0)
+    control.thumbDragHandle:Run("OnMouseUp","LeftButton")
+    assert(not control._thumbDrag and not control.thumbDragHandle:GetScript("OnUpdate"))
+    assert(control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle")
+    GetCursorPosition=cursor;control.scrollbar.GetEffectiveScale=scale
+    control:SetScroll(0);control.frame:Run("OnMouseWheel",-1);assert(control.offset==102)
+    local saved=control.offset;local rows={};for i=1,control.count do rows[i]=control.rows[i].item end
+    control:SetRows(rows);assert(control.offset==saved)
+    control.frame:SetSize(360,120);control:Layout();assert(control.offset==saved)
+    Row("unit").disclosure:Run("OnMouseDown","LeftButton")
+    assert(Tree().control.count==1 and not Tree().control.scrollbar:IsShown() and Tree().control.offset==0)
+    Row("unit").disclosure:Run("OnMouseDown","LeftButton")
+    window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build()
+    assert(not Tree().control._thumbDrag and Tree().control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle")
 end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 GameTooltip=oldTooltip

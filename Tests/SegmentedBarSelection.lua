@@ -235,8 +235,8 @@ local function CheckPropertyGroups(container, hasRuneTimer)
     local expected={
         {"General","enabled,dataSource"},
         {"Appearance","texture,useBlizzardColor,color,background,backgroundColor,borderWidth,borderColor"},
-        {"Geometry","width,height,spacing"},
-        {"Position","anchorTo,point,relativePoint,offsetX,offsetY,growth"},
+        {"Geometry","height,width,growth,spacing"},
+        {"Position","anchorTo,point,relativePoint,offsetX,offsetY"},
     }
     if hasRuneTimer then expected[#expected+1]={"Rune Timer","runeTimerFont,runeTimerFontSize,runeTimerFontStyle"}end
     expected[#expected+1]={"Actions",""}

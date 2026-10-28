@@ -185,7 +185,8 @@ end)
 Test("Inspector scoped/fallback controls use unit mutations, media browser and live refresh",function()
     local source=Read("GUI/Editor/Inspector/InspectorController.lua")
     local a=assert(source:find('        runeTimerSection = runeTimerSection or',1,true))
-    local b=assert(source:find('        local classPowerGrowth =',a,true))
+    -- Stop before the next section, not inside its extracted growth builder.
+    local b=assert(source:find('\n        if isExpert then',a,true))
     for _,scoped in ipairs({false,true})do
         local config={showClassPowerBar=true,Texts={}};local group={};local controls,opened,browse,refreshes
         refreshes=0

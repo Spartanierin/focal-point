@@ -17,6 +17,22 @@ local pending = {}
 function h.ui.native:SetObeyStepOnDrag(value) self.obeyStepOnDrag = value end
 function h.ui.native:RegisterForDrag(...) self.dragButtons = {...} end
 function h.ui.native:GetValue() return self.value or 0 end
+function h.ui.native:SetHighlightTexture(...) self.lastSetHighlightTexture={...} end
+function h.ui.native:SetPushedTexture(...) self.lastSetPushedTexture={...} end
+function h.ui.native:RegisterForClicks(...) self.clickButtons={...} end
+function h.ui.native:GetNormalTexture()
+    if not self.normalTexture then self.normalTexture=self:CreateTexture();self.normalTexture:SetTexture(130755) end
+    return self.normalTexture
+end
+function h.ui.native:GetCheckedTexture()
+    if not self.checkedTexture then self.checkedTexture=self:CreateTexture();self.checkedTexture:SetTexture(130751) end
+    return self.checkedTexture
+end
+function h.ui.native:SetChecked(checked) self.checked=checked;self:GetCheckedTexture():SetShown(checked) end
+function h.ui.native:GetChecked() return self.checked end
+function h.ui.native:Enable() self.nativeEnabled=true end
+function h.ui.native:Disable() self.nativeEnabled=false end
+function h.ui.native:IsEnabled() return self.nativeEnabled~=false end
 C_Timer = {After = function(_, callback) pending[#pending + 1] = callback end}
 local function Drain()
     local passes = 0
@@ -69,12 +85,19 @@ Test("first open has one Window with current unit, tree and actual properties", 
     assert(window.type == "Window" and #body.children == 3)
     assert(window._focalPointCompositionHost.parent == body)
     assert(window._focalPointPropertyScroll.parent.parent == body)
-    assert(window.frame:GetWidth() == 640 and window.frame:GetHeight() == 620)
+    assert(window.frame:GetWidth() == 392 and window.frame:GetHeight() == 620)
     assert(window.titletext:GetText():find("player", 1, true))
+    local header=body.children[1]
+    assert(header:GetUserData("table").columns[3].weight==1)
+    assert(header.frame:IsShown() and #header.children==3)
+    assert(not window._focalPointArrangeButton and not window._focalPointCloseButton)
     assert(Tree().state == state.Get() and Tree().tree.unit == "player")
     assert(selection.GetSelectedObject().kind == "unit")
     assert(window._focalPointCompositionHost.frame.points.TOPLEFT.x == 0)
-    assert(window._focalPointPropertyScroll.parent.frame.points.TOPLEFT.x == 232)
+    assert(window._focalPointCompositionHost.frame:GetWidth() == math.min(360, window._focalPointInspectorContent.frame:GetWidth()))
+    assert(window._focalPointPropertyScroll.parent.frame.points.TOPLEFT.x == 0)
+    assert(window._focalPointCompositionHost.frame:IsShown())
+    assert(not window._focalPointPropertyScroll.parent.frame:IsShown())
 end)
 Test("real Add Object, tree and canvas selection share one Inspector", function()
     controller.SetPresentation("arrange"); Drain()
@@ -82,7 +105,8 @@ Test("real Add Object, tree and canvas selection share one Inspector", function(
     assert(controller.GetActiveInspectorHost() == window and not state.IsArrange())
     local id = unit.segmentedBars[1].id
     assert(selection.GetSelectedObject().objectKey == id)
-    assert(Labels(window._focalPointPropertyScroll):find("Class Resource Bar 1", 1, true))
+    assert(not Labels(window._focalPointPropertyScroll):find("player / Class Resource Bar 1", 1, true))
+    assert(state.GetPropertyScope().kind == "segmentedBar")
     local node = Node("segmentedBar", id)
     Tree().control.callbacks.onToggle(node, false); Drain()
     assert(unit.segmentedBars[1].enabled == false)
@@ -128,16 +152,16 @@ Test("Arrange and Close reject retained callbacks and deferred UI restores", fun
     local node = Node("segmentedBar", unit.segmentedBars[1].id)
     local properties = ns.GUI.Editor._activeInspectorRefreshProperties
     local before = selection.GetSelectedObject().textKey
-    window._focalPointArrangeButton:Fire("OnClick")
+    window.closebutton:GetScript("OnClick")(window.closebutton)
     treeCallback(node); properties(); Drain()
     assert(state.IsArrange() and not window.frame:IsShown() and not controller.GetActiveInspectorHost())
     assert(selection.GetSelectedObject().textKey == before)
     Build()
-    local oldClose = window._focalPointCloseButton.events.OnClick
+    local oldBack = window._focalPointComponentsButton.events.OnClick
     controller.BuildInspector(nil, {GetEditorState = state.Get}); Drain()
-    oldClose(); assert(open and controller.GetActiveInspectorHost() == window)
-    window._focalPointCloseButton:Fire("OnClick"); Drain()
-    assert(not open and state.IsArrange() and not window.frame:IsShown())
+    oldBack(); assert(open and controller.GetActiveInspectorHost() == window)
+    window.closebutton:GetScript("OnClick")(window.closebutton); Drain()
+    assert(open and state.IsArrange() and not window.frame:IsShown())
 end)
 Test("30 reopen/mode cycles reuse the Window and release old tree controls", function()
     for _ = 1, 30 do
@@ -145,7 +169,7 @@ Test("30 reopen/mode cycles reuse the Window and release old tree controls", fun
         local old = Tree().control.callbacks.onSelect
         local node = Node("unit")
         local scope = state.GetPropertyScope()
-        window._focalPointCloseButton:Fire("OnClick"); Drain()
+        window.closebutton:GetScript("OnClick")(window.closebutton); Drain()
         old(node); assert(state.GetPropertyScope() == scope)
         assert(not window.frame:IsShown())
     end

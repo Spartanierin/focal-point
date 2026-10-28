@@ -15,7 +15,7 @@ function CreateFrame(kind, name, parent, template)
 end
 for _, method in ipairs({ "SetAllPoints", "SetFrameStrata", "SetFrameLevel", "SetIgnoreParentAlpha",
     "SetTexture", "SetTexCoord", "SetBlendMode", "SetColorTexture", "SetDrawLayer", "SetClampedToScreen",
-    "SetToplevel", "Raise", "AddMaskTexture" }) do
+    "SetToplevel", "Raise", "AddMaskTexture", "SetMaxLines" }) do
     native[method] = function(self, ...) self["last" .. method] = { ... } end
 end
 function native:GetFrameLevel() return self.lastSetFrameLevel and self.lastSetFrameLevel[1] or 10 end
@@ -24,6 +24,9 @@ function native:GetRegions() end
 function native:GetNumPoints() return 0 end
 function native:GetDrawLayer() return "OVERLAY", 0 end
 function native:GetAlpha() return self.lastSetAlpha and self.lastSetAlpha[1] or 1 end
+function native:GetStringHeight() return 14 end
+function native:GetStringWidth() return #(self.text or "") * 7 end
+function native:SetShown(shown) if shown then self:Show() else self:Hide() end end
 function native:GetTexture() return self.lastSetTexture and self.lastSetTexture[1] end
 native.CreateMaskTexture = native.CreateTexture
 UIParent:SetSize(1920, 1080)
@@ -73,6 +76,13 @@ local applyNamed = NineSliceUtil.ApplyLayoutByName
 NineSliceUtil.ApplyLayoutByName = function(host, name) host.testLayoutName = name; return applyNamed(host, name) end
 
 local oldCreate = ace.Create
+-- Current Customize uses real AceGUI action Buttons; reuse Parchment's native boundary.
+function native:GetFontString()
+    if not self.fontString then self.fontString=self:CreateFontString() end
+    return self.fontString
+end
+function native:Enable() self.disabled=false end
+function native:Disable() self.disabled=true end
 -- Native Window lifecycle hooks, matching the existing Parchment boundary.
 function native:HookScript(event, callback)
     local previous = self.scripts[event]
@@ -81,6 +91,9 @@ function native:HookScript(event, callback)
         callback(owner, ...)
     end)
 end
+Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIWidget-Button.lua")
+Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIWidget-Label.lua")
+Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIWidget-InteractiveLabel.lua")
 local windows = {}
 ace.Create = function(self, kind)
     if kind ~= "Window" and kind ~= "ScrollFrame" then return oldCreate(self, kind) end
@@ -106,9 +119,10 @@ local inspector = ns.GUI.Editor.Controller.GetActiveInspectorHost()
 Equal(windows[2], inspector)
 Equal(sidebar._fpNavigatorBrassTarget, "sidebar_shell")
 Equal(inspector._fpNavigatorBrassTarget, "inspector_shell")
-Equal(sidebar.frame:GetWidth(), 285); Equal(inspector.frame:GetWidth(), 315)
+Equal(sidebar.frame:GetWidth(), 285); Equal(inspector.frame:GetWidth(), 392)
+Equal(inspector.frame:GetHeight(), 620)
 Equal(inspector._focalPointInspectorInset.points.TOPLEFT.x, 16)
-Equal(inspector._focalPointInspectorInset.points.TOPLEFT.y, -10)
+Equal(inspector._focalPointInspectorInset.points.TOPLEFT.y, -64)
 Equal(inspector._focalPointInspectorInset.points.BOTTOMRIGHT.x, -16)
 
 local function Geometry(owner)
@@ -170,10 +184,15 @@ for _, owner in ipairs({ sidebar, inspector }) do
     local ok, layer = api.AddLayer(target, "texture", { textureId = "fp:texture:fp-mahagony-128x128", alpha = .6 })
     assert(ok, layer)
     local descriptor = api.GetComposition(target)
-    assert(border:IsShown()); Borders(owner, false)
+    Equal(border:IsShown(), owner ~= inspector); Borders(owner, false)
     assert(widgets.SetNavigatorBrassEnabled(owner, false)); Borders(owner, false)
     Equal(api.GetComposition(target), descriptor)
     assert(widgets.SetNavigatorBrassEnabled(owner, true))
+    if owner == inspector then
+        -- Customize's canonical reapply gives Composition exclusive priority.
+        ns.GUI.Editor.Controller.UpdateActiveInspectorGeometry()
+        assert(not border:IsShown()); Borders(owner, false)
+    end
     Equal(api.GetComposition(target), descriptor)
     assert(api.ResetComposition(target)); assert(border:IsShown()); Borders(owner, false)
     assert(widgets.SetNavigatorBrassEnabled(owner, false)); Borders(owner, true)

@@ -423,12 +423,13 @@ local function RefreshDecorationInsertResult(unitKey, decorationId)
     RequestEditorRefresh()
 end
 
-local function InsertDecoration()
-    local unitKey = ResolveSelectedObjectUnit()
+local function InsertDecoration(request)
+    local unitKey = request and request.unitKey or ResolveSelectedObjectUnit()
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
     local workflow = ns.LayoutEditWorkflow
     if type(unitKey) ~= "string" or not (mutations and mutations.AddDecoration and workflow and workflow.RequestEditableLayoutForMutation) then return end
     workflow.RequestEditableLayoutForMutation(function()
+        if request and not request.isCurrent(true) then return end
         local result = mutations.AddDecoration(BuildDecorationMutationContext(unitKey))
         if result and result.ok and result.newDecorationId then
             RefreshDecorationInsertResult(unitKey, result.newDecorationId)
@@ -500,6 +501,24 @@ local function CanAddUnitFrame(unitKey)
     return type(unitConfig) == "table" and unitConfig.present == false
 end
 
+local function CanAddContextIndicator(unitKey, componentKey, indicatorList)
+    local shared = ns.GUI.Editor.SidebarShared
+    local meta = shared.INDICATOR_META[componentKey]
+    local unit = ns.UnitFrameUtils.GetUnitDB(unitKey)
+    indicatorList = indicatorList or shared.BuildIndicatorList(unitKey)
+    return meta and meta.contextAttached == true and indicatorList[componentKey] ~= nil
+        and type(unit) == "table" and type(unit[componentKey]) == "table"
+        and getmetatable(unit[componentKey]) == nil
+        and not IsSingletonComponentPresent(unitKey,"indicator",componentKey) or false
+end
+
+local function HasContextIndicator(unitKey)
+    for _,item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
+        if CanAddContextIndicator(unitKey,item.componentKey) then return true end
+    end
+    return false
+end
+
 local function SelectSingletonComponent(unitKey, kind, componentKey)
     local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
     local selected
@@ -519,12 +538,21 @@ local function SelectSingletonComponent(unitKey, kind, componentKey)
     RequestEditorRefresh("CanvasToolbar.AddObject")
 end
 
-local function AddSingletonComponent(unitKey, kind, componentKey)
+local function AddSingletonComponent(unitKey, kind, componentKey, request)
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
     local workflow = ns.LayoutEditWorkflow
     if not (mutations and mutations.AddComponent and workflow and workflow.RequestEditableLayoutForMutation) then return end
+    if request and request.indicatorPlacement
+        and (not request.isCurrent() or not CanAddContextIndicator(unitKey,componentKey)) then return end
     workflow.RequestEditableLayoutForMutation(function()
-        local result = mutations.AddComponent(BuildDecorationMutationContext(unitKey), componentKey)
+        if request and not request.isCurrent(true) then return end
+        local context = BuildDecorationMutationContext(unitKey)
+        local placement = request and request.indicatorPlacement
+        if placement then
+            context.isCurrent = function() return request.isCurrent(true) end
+            context.placementTarget = request.parentRef
+        end
+        local result = mutations.AddComponent(context, componentKey, placement)
         if result and result.ok ~= false then
             SelectSingletonComponent(unitKey, kind, componentKey)
         elseif ns.Info then
@@ -533,7 +561,7 @@ local function AddSingletonComponent(unitKey, kind, componentKey)
     end)
 end
 
-local function BuildSegmentedBarAddAction(unitKey)
+local function BuildSegmentedBarAddAction(unitKey, request)
     local mutations = ns.LayoutMutations and ns.LayoutMutations.SegmentedBars
     local workflow, resolver = ns.LayoutEditWorkflow, ns.ActiveLayoutResolver
     if unitKey ~= "player" or not (mutations and mutations.CaptureContext and mutations.Add
@@ -547,6 +575,7 @@ local function BuildSegmentedBarAddAction(unitKey)
         if ns.Info then ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added.")) end
     end
     local function Add()
+        if request and not request.isCurrent(true) then Failed(); return end
         if ns.db ~= db or entityAddOriginToken ~= originToken then Failed(); return end
         if builtin then
             -- The existing workflow has created AND activated the editable copy.
@@ -628,6 +657,7 @@ local function AddPickerButton(dialog, container, label, callback, closeBefore)
     button:SetFullWidth(true)
     button:SetHeight(PICKER_BUTTON_HEIGHT)
     button:SetCallback("OnClick", function()
+        if dialog.released or addObjectPickerDialog ~= dialog then return end
         if closeBefore ~= false then CloseAddObjectPickerDialog() end
         callback()
     end)
@@ -638,25 +668,27 @@ local function AddPickerButton(dialog, container, label, callback, closeBefore)
     container:AddChild(button)
 end
 
-local function OpenTextTemplateLibrary(entityMode)
+local function OpenTextTemplateLibrary(entityMode, request)
     entityMode = true
     local libraryWindow = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.TextTemplateLibraryWindow or nil
     if libraryWindow and libraryWindow.Open then
         local objectSelection = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.ObjectSelection or nil
-        local selectedObject = objectSelection and type(objectSelection.GetSelectedObject) == "function" and objectSelection.GetSelectedObject() or nil
+        local selectedObject = request and request.parentRef or objectSelection and type(objectSelection.GetSelectedObject) == "function" and objectSelection.GetSelectedObject() or nil
         local layoutId = ResolveActiveLayoutId()
         local returnContext
         if entityMode == true and entityAddOriginToken then
             returnContext = {pickerMode = "add", layoutId = layoutId,
-                unitKey = ResolveSelectedObjectUnit(), originToken = entityAddOriginToken,
+                unitKey = (request and request.unitKey or ResolveSelectedObjectUnit()), originToken = entityAddOriginToken,
                 anchorContext = type(selectedObject) == "table" and {kind = selectedObject.kind,
                     unitKey = selectedObject.unit, textKey = selectedObject.textKey,
                     objectKey = selectedObject.objectKey, sectionKey = selectedObject.sectionKey} or nil}
         end
         libraryWindow.Open({
             entity = entityMode == true,
-            unit = ResolveSelectedObjectUnit(),
+            unit = (request and request.unitKey or ResolveSelectedObjectUnit()),
             anchorSelection = selectedObject,
+            isCurrent = request and request.isCurrent,
+            targetLabel = request and request.displayName,
             returnContext = returnContext,
         })
     elseif ns.Info then
@@ -664,9 +696,10 @@ local function OpenTextTemplateLibrary(entityMode)
     end
 end
 
-local function OpenAddObjectPicker(entityMode)
+local function OpenAddObjectPicker(entityMode, request)
     local picker
-    local unitKey = ResolveSelectedObjectUnit()
+    local unitKey = request and request.unitKey or ResolveSelectedObjectUnit()
+    local unitLevel = not request or request.parentRef.kind == "unit"
     if type(unitKey) ~= "string" or unitKey == "" then
         if ns.Info then
             ns:Info(T("ADD_OBJECT_STATUS_SELECT_UNIT", "Select a unit first."))
@@ -684,7 +717,7 @@ local function OpenAddObjectPicker(entityMode)
     end
     local entries = {}
     for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
-        if CanAddUnitFrame(item.unitKey) then
+        if not request and CanAddUnitFrame(item.unitKey) then
             entries[#entries + 1] = {
                 label = item.labelKey and T(item.labelKey, item.fallback) or ResolveUnitLabel(item.unitKey),
                 action = AddUnitFrame, args = { item.unitKey },
@@ -695,14 +728,14 @@ local function OpenAddObjectPicker(entityMode)
 
     entries = {}
     for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
-        if (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
+        if unitLevel and (not item.playerOnly or unitKey == "player") and not IsSingletonComponentPresent(unitKey, "bar", item.componentKey) then
             entries[#entries + 1] = {
                 label = T(item.labelKey, item.fallback),
-                action = AddSingletonComponent, args = { unitKey, "bar", item.componentKey },
+                action = AddSingletonComponent, args = { unitKey, "bar", item.componentKey, request },
             }
         end
     end
-    local addSegmentedBar = BuildSegmentedBarAddAction(unitKey)
+    local addSegmentedBar = unitLevel and BuildSegmentedBarAddAction(unitKey, request)
     if addSegmentedBar then
         entries[#entries + 1] = {
             label = T("EDITOR_SEGMENTED_BAR", "Class Resource Bar"), args = {}, closeBefore = false,
@@ -719,10 +752,11 @@ local function OpenAddObjectPicker(entityMode)
     local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
     entries = {}
     for _, item in ipairs(ADD_OBJECT_VISUAL_CAPABILITIES) do
-        if indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then
+        if (unitLevel or request.indicatorPlacement and CanAddContextIndicator(unitKey,item.componentKey,indicatorList))
+            and indicatorList[item.componentKey] and not IsSingletonComponentPresent(unitKey, "indicator", item.componentKey) then
             entries[#entries + 1] = {
                 label = T(item.labelKey, item.fallback),
-                action = AddSingletonComponent, args = { unitKey, "indicator", item.componentKey },
+                action = AddSingletonComponent, args = { unitKey, "indicator", item.componentKey, request },
             }
         end
     end
@@ -730,18 +764,19 @@ local function OpenAddObjectPicker(entityMode)
 
     entries = {}
     for _, item in ipairs(ADD_OBJECT_AURA_CAPABILITIES) do
-        if not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then
+        if unitLevel and not IsSingletonComponentPresent(unitKey, "aura", item.componentKey) then
             entries[#entries + 1] = {
                 label = T(item.labelKey, item.fallback),
-                action = AddSingletonComponent, args = { unitKey, "aura", item.componentKey },
+                action = AddSingletonComponent, args = { unitKey, "aura", item.componentKey, request },
             }
         end
     end
     AddCategory(T("EDITOR_SECTION_AURAS", "Auras"), entries)
-    AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), {
-        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = function() OpenTextTemplateLibrary(entityMode) end, args = {}, closeBefore = entityMode ~= true },
-        { label = T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), action = InsertDecoration, args = {} },
-    })
+    local contentEntries = {
+        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = function() OpenTextTemplateLibrary(entityMode, request) end, args = {}, closeBefore = entityMode ~= true },
+    }
+    if unitLevel then contentEntries[#contentEntries+1] = { label = T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), action = InsertDecoration, args = {request} } end
+    AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), contentEntries)
 
     -- Window and UIParent share a scale. Reserve the fixed regions before
     -- assigning the remaining screen/comfort budget to the selection viewport.
@@ -766,7 +801,11 @@ local function OpenAddObjectPicker(entityMode)
     end
 
     local description = AceGUI:Create("Label")
-    description:SetText(T("ADD_OBJECT_DESCRIPTION", "Choose what to add to the selected unit frame."))
+    description:SetText(request and not unitLevel and request.displayName
+        and string.format(T("COMPONENT_ADD_TARGET", "Add to: %s"), request.displayName)
+        or request and unitLevel
+        and string.format(T("COMPONENT_ADD_UNIT_DESCRIPTION", "Choose what to add to %s."), ResolveUnitLabel(unitKey))
+        or T("ADD_OBJECT_DESCRIPTION", "Choose what to add to the selected unit frame."))
     description:SetFullWidth(true)
     description:SetHeight(ADD_OBJECT_DESCRIPTION_HEIGHT)
     if FormWidgets and FormWidgets.ApplyTextStyle and description.label then
@@ -794,6 +833,7 @@ local function OpenAddObjectPicker(entityMode)
         AddPickerHeader(selectionScroll, category.label)
         for _, entry in ipairs(category.entries) do
             AddPickerButton(dialog, selectionScroll, entry.label, function()
+                if request and not request.isCurrent() then return end
                 entry.action(unpack(entry.args))
             end, entry.closeBefore)
         end
@@ -1243,6 +1283,144 @@ function CanvasToolbar.UpdateGeometry()
     current.host:ClearAllPoints()
     current.host:SetPoint("TOP", parent, "TOP", ResolveCanvasCenterOffset(), -TOOLBAR_TOP_OFFSET)
     current.host:SetSize(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
+end
+
+local function CaptureComponentRequest(objectRef, isCurrent, displayName)
+    if type(objectRef) ~= "table" or type(isCurrent) ~= "function" or not isCurrent() then return end
+    local ref = {}; for key,value in pairs(objectRef) do ref[key] = value end
+    local resolver = ns.ActiveLayoutResolver
+    local db, root, layoutId = ns.db, resolver.GetActiveRuntimeRoot(), ResolveActiveLayoutId()
+    local config = ns.UnitFrameUtils.GetUnitDB(ref.unit)
+    local function Identity(unit)
+        if not unit then return end
+        if ref.kind == "text" then return unit.Texts and unit.Texts[ref.textKey or ref.objectKey] end
+        local list = ref.kind == "segmentedBar" and unit.segmentedBars or ref.kind == "decoration" and unit.decorations
+        if list then
+            for _,record in ipairs(list) do if record.id == (ref.decorationId or ref.objectKey) then return record end end
+            return nil
+        end
+        return unit
+    end
+    local identity = Identity(config)
+    local function Current(allowCopy)
+        if not isCurrent() or ns.db ~= db or (InCombatLockdown and InCombatLockdown()) then return false end
+        local state = ns.GUI.Editor.State
+        if state.IsArrange() or state.GetPrimaryUnit() ~= ref.unit then return false end
+        local current = resolver.GetActiveRuntimeRoot()
+        local unit = ns.UnitFrameUtils.GetUnitDB(ref.unit)
+        local copied = allowCopy and type(layoutId) == "string" and layoutId:match("^builtin:")
+            and current and current.record and current.record.createdFrom and current.record.createdFrom.id == layoutId
+        if not copied and (current ~= root or unit ~= config or Identity(unit) ~= identity) then return false end
+        local presence = ns.GUI.Editor.Composition.Presence
+        return unit ~= nil and (ref.kind == "unit" or presence and presence.IsPresent(unit, ref) == true)
+    end
+    if not Current() then return end
+    return {unitKey=ref.unit, parentRef=ref, isCurrent=Current,
+        displayName=type(displayName)=="string" and displayName~="" and displayName
+            or ref.kind=="unit" and ResolveUnitLabel(ref.unit) or nil}
+end
+
+function CanvasToolbar.CanAddComponentChild(ref)
+    local map = ns.LegacyAssociationMap
+    return map and map.CanOwnText and map.CanOwnText(ref) == true or false
+end
+
+function CanvasToolbar.CanAddComponentAt(ref)
+    local mutations = ns.InspectorMutations
+    return CanvasToolbar.CanAddComponentChild(ref)
+        or mutations and mutations.GetContextIndicatorAddPlacement(ref) ~= nil and HasContextIndicator(ref.unit) or false
+end
+
+function CanvasToolbar.OpenComponentAdd(ref, isCurrent, displayName)
+    if ref.kind ~= "unit" and not CanvasToolbar.CanAddComponentChild(ref) then return end
+    local request = CaptureComponentRequest(ref, isCurrent, displayName)
+    if not request then return end
+    entityAddOriginToken = {}
+    if ref.kind ~= "unit" then
+        CloseAddObjectPickerDialog()
+        return OpenTextTemplateLibrary(true, request)
+    end
+    return OpenAddObjectPicker(true, request)
+end
+
+local function OpenComponentRemove(request)
+    if not request.isCurrent() then return end
+    local ref = request.parentRef
+    local mutations = ns.InspectorMutations
+    if not (mutations and mutations.CanRemoveObject(ref)) then return end
+    local segmented = ref.kind == "segmentedBar" and ns.LayoutMutations.SegmentedBars
+    local deleteContext = segmented and segmented.CaptureContext(ref.unit)
+    local dialog
+    local active=true
+    dialog = FormWidgets.CreateCompactConfirmation({
+        title=T("COMPONENT_REMOVE_TITLE", "Remove Component?"),
+        message=request.displayName
+            and string.format(T("COMPONENT_REMOVE_NAMED_DESCRIPTION", "Remove \"%s\" from the unit frame?"), request.displayName)
+            or T("COMPONENT_REMOVE_DESCRIPTION", "Remove this object from the unit frame?"),
+        primary={text=T("INFO_COMMON_REMOVE", "Remove"),role="danger",width=104,
+            onClick=function(activeDialog)
+                if not active then return end
+                if not request.isCurrent() then activeDialog:Close();return end
+                local selection=ns.GUI.Editor.ObjectSelection
+                local selected=selection.GetSelectedObject()
+                local result
+                ns.LayoutEditWorkflow.RequestEditableLayoutForMutation(function()
+                    if not active or not request.isCurrent(true) then return end
+                    result=mutations.RemoveObject(BuildDecorationMutationContext(ref.unit),ref,
+                        deleteContext or segmented and segmented.CaptureContext(ref.unit))
+                    if result and result.ok and result.changed then
+                        local same=selected and selected.kind==ref.kind and selected.unit==ref.unit
+                            and (selected.objectKey or selected.textKey or selected.decorationId)==(ref.objectKey or ref.textKey or ref.decorationId)
+                        local presence=ns.GUI.Editor.Composition.Presence
+                        if same or selected and presence and not presence.IsPresent(ns.UnitFrameUtils.GetUnitDB(ref.unit),selected) then
+                            selection.SelectUnitRoot(ref.unit)
+                        end
+                        if ns.RefreshUnitFrame then ns:RefreshUnitFrame(ref.unit) end
+                        local controller=ns.GUI.Editor.Controller
+                        controller.RefreshCompositionTree()
+                        controller.RefreshActiveProperties()
+                        local inspector=controller.GetActiveInspectorHost()
+                        if inspector and inspector._focalPointSetCustomizeView then inspector._focalPointSetCustomizeView("components") end
+                        RequestEditorRefresh("Components.Remove")
+                        activeDialog:Close()
+                    end
+                end)
+                if result and not result.ok and activeDialog.SetStatus then
+                    activeDialog:SetStatus(result.errorCode=="anchor-in-use"
+                        and T("EDITOR_DELETE_SEGMENTED_BAR_ANCHOR_IN_USE", "Another segmented bar uses this one as its anchor.")
+                        or T("ADD_OBJECT_STATUS_FAILED", "Object could not be changed."),"error",activeDialog.confirmationStatus)
+                end
+            end},
+        cancel={text=T("INFO_COMMON_CANCEL", "Cancel"),role="utility",width=104,onClick=function(activeDialog)activeDialog:Close()end},
+    })
+    if dialog then
+        local previousClose = dialog.window.events and dialog.window.events.OnClose
+        local previousRelease = dialog.window.events and dialog.window.events.OnRelease
+        dialog.window:SetCallback("OnClose", function(owner, event, ...)
+            active = false
+            if previousClose then previousClose(owner, event, ...) end
+        end)
+        dialog.window:SetCallback("OnRelease", function(owner, event, ...)
+            active = false
+            if previousRelease then previousRelease(owner, event, ...) end
+        end)
+        dialog:Show()
+    end
+end
+
+function CanvasToolbar.OpenComponentCatalog(ref, isCurrent, displayName)
+    if not CanvasToolbar.CanAddComponentAt(ref) then return end
+    local request = CaptureComponentRequest(ref,isCurrent,displayName)
+    if not request then return end
+    request.indicatorPlacement = ns.InspectorMutations.GetContextIndicatorAddPlacement(ref)
+    entityAddOriginToken = {}
+    return OpenAddObjectPicker(true,request)
+end
+
+function CanvasToolbar.OpenComponentRemove(ref, isCurrent, displayName)
+    if not ns.InspectorMutations.CanRemoveObject(ref) then return end
+    local request = CaptureComponentRequest(ref,isCurrent,displayName)
+    if request then return OpenComponentRemove(request) end
 end
 
 function CanvasToolbar.OpenEntityAddObjectPicker()

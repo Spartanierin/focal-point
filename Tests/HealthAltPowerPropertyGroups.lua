@@ -26,6 +26,7 @@ local function Click(key) p.Tabs()[key]:Fire("OnClick"); p.Drain() end
 local function Row(label,kind,required)
     local found
     p.Walk(window._focalPointPropertyScroll,function(w)
+        if kind=="Button" and w.type=="Button" and w.text:GetText()==label then found=w end
         local children=w.children or {}
         if children[1] and children[1].type=="Label" and children[1].label:GetText()==label and children[2] then
             p.Walk(children[2],function(c) if c.type==kind then found=c end end)
@@ -127,9 +128,9 @@ Test("Health/previous flat bars keep fallback, rebuilt scope and neutral action 
     end
     p.Select("HealthBar");Check("health","appearance",{appearance=true})
     local old=p.Tabs().geometry.events.OnClick
-    window._focalPointArrangeButton:Fire("OnClick");p.Drain();old()
+    window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();old()
     window=p.Build();Check("health","appearance",{appearance=true})
-    window._focalPointCloseButton:Fire("OnClick");p.Drain();window=p.Build()
+    window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
     Check("health","appearance",{appearance=true})
 end)
 Test("non-Workspace Health retains its original framed groups and spacing",function()
@@ -226,9 +227,9 @@ Test("Alternative Power remains Player-only and scope/layout/reopen changes rebi
     local active=p.ns.UnitFrameUtils.GetUnitDB("player")
     Click("behavior");Row("Show","CheckBox"):Fire("OnValueChanged",false);p.Drain()
     assert(active~=unit and not active.showAlternativePowerBar and unit.showAlternativePowerBar)
-    window._focalPointArrangeButton:Fire("OnClick");p.Drain();window=p.Build()
+    window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
     Check("alt_power","behavior",{appearance=true,geometry=true,behavior=true},altAction)
-    window._focalPointCloseButton:Fire("OnClick");p.Drain();window=p.Build()
+    window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
     Check("alt_power","behavior",{appearance=true,geometry=true,behavior=true},altAction)
 end)
 Test("Alternative Remove remains unique and functional from every category",function()

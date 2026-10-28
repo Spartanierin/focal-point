@@ -18,6 +18,12 @@ local TEXT_ANCHOR_PARENT_BAR = {
     HealingAbsorbBar = "HealingAbsorbBar",
 }
 
+-- Add Child must use the same bar parents as the existing text ownership projection.
+function LegacyAssociationMap.CanOwnText(objectRef)
+    return type(objectRef) == "table" and objectRef.kind == "bar"
+        and TEXT_ANCHOR_PARENT_BAR[objectRef.objectKey] ~= nil
+end
+
 local BAR_SECTION_BY_KEY = {
     HealthBar = "health",
     PowerBar = "power",

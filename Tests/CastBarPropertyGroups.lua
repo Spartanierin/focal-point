@@ -103,7 +103,7 @@ Test("Cast/Absorb selection, Unit changes, rebuild and reopen share the canonica
     s.Control("Height","FPCompactSlider"):Fire("OnValueChanged",23);assert(units.target.castBarHeight==23 and unit.castBarHeight==18)
     assert(s.selection.SelectObject({kind="bar",unit="player",objectKey="CastBar"}));s.Drain();Check("geometry")
     s.controller.RefreshActiveProperties();s.Drain();Check("geometry")
-    host._focalPointCloseButton:Fire("OnClick");s.Drain();assert(s.Build()==host);s.Drain();Check("geometry")
+    host.closebutton:GetScript("OnClick")(host.closebutton);s.Drain();assert(s.Build()==host);s.Drain();Check("geometry")
 end)
 Test("Remove remains unique and functional from every tab without altering unrelated components",function()
     for _,key in ipairs({"appearance","geometry","behavior"})do

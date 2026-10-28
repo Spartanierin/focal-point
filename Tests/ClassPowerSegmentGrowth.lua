@@ -308,7 +308,8 @@ end)
 h.Load("GUI/Editor/Inspector/InspectorRefreshPolicy.lua")
 Test("Inspector scoped/fallback dropdown, real mutation and live refresh policy",function()
     local source=Read("GUI/Editor/Inspector/InspectorController.lua")
-    local a=assert(source:find('        local classPowerGrowth =',1,true))
+    -- Include the complete builder and its ordinary call site, not only its body.
+    local a=assert(source:find('        local function BuildClassPowerGrowth(parent)',1,true))
     local b=assert(source:find('        if isExpert then',a,true))
     local block=source:sub(a,b-1)
     for _,scoped in ipairs({false,true})do

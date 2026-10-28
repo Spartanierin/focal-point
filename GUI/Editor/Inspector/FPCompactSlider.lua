@@ -1,6 +1,6 @@
 local _, ns = ...
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
-local Type, Version = "FPCompactSlider", 2
+local Type, Version = "FPCompactSlider", 3
 if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 
 local TRACK_HEIGHT, INPUT_HEIGHT = 15, 14
@@ -136,6 +136,72 @@ function methods:SetInspectorPresentation()
     ApplyThumbPresentation(self)
 end
 
+function methods:OnWidthSet()
+    if self._fpNativeRequested then self:SetNativeInspectorPresentation() end
+end
+
+-- Presentation opt-in only: retain this widget's normalization, input and callbacks.
+function methods:SetNativeInspectorPresentation(enabled)
+    if self._fpNativeLayout then return end
+    self._fpNativeRequested = enabled ~= false
+    self._fpNativeLayout = true
+    local native = self._fpNativeSlider
+    if self._fpNativeRequested and not native and not self._fpNativeUnavailable and type(MinimalSliderMixin) == "table" then
+        local ok, frame = pcall(CreateFrame, "Slider", nil, self.frame, "MinimalSliderTemplate")
+        if ok then
+            native = frame
+            self._fpNativeSlider = native
+            native.obj = self
+            for _, event in ipairs({"OnMouseDown", "OnValueChanged", "OnMouseWheel", "OnMouseUp", "OnEnter", "OnLeave"}) do
+                local callback = self._fpCompactSlider:GetScript(event)
+                native:SetScript(event, function(frame, ...)
+                    if self.slider == native and callback then callback(frame, ...) end
+                end)
+            end
+        else self._fpNativeUnavailable = true end
+    end
+    local lowWidth = math.max(20, self.lowtext:GetStringWidth() + 4)
+    local highWidth = math.max(20, self.hightext:GetStringWidth() + 4)
+    local fits = (self.frame:GetWidth() or 0) >= 52 + 6 + lowWidth + 4 + 48 + 4 + highWidth
+    local useNative = self._fpNativeRequested and native and fits
+    self.slider = useNative and native or self._fpCompactSlider
+    self._fpCompactSlider:EnableMouseWheel(false)
+    self._fpCompactSlider:SetShown(not useNative)
+    if native then native:SetShown(useNative and true or false); native:EnableMouseWheel(false) end
+    self.editbox:ClearAllPoints()
+    self.lowtext:ClearAllPoints()
+    self.hightext:ClearAllPoints()
+    if useNative then
+        self.editbox:SetPoint("LEFT", self.frame, "LEFT", 0, 0)
+        self.editbox:SetSize(52, 20)
+        self.lowtext:SetPoint("LEFT", self.editbox, "RIGHT", 6, 0)
+        self.lowtext:SetSize(lowWidth, 20)
+        self.hightext:SetPoint("RIGHT", self.frame, "RIGHT", 0, 0)
+        self.hightext:SetSize(highWidth, 20)
+        self.lowtext:SetJustifyH("CENTER"); self.hightext:SetJustifyH("CENTER")
+        native:ClearAllPoints()
+        native:SetPoint("LEFT", self.lowtext, "RIGHT", 4, 0)
+        native:SetPoint("RIGHT", self.hightext, "LEFT", -4, 0)
+        native:SetHeight(19)
+    else
+        self.editbox:SetPoint("TOP", self.frame, "TOP", 0, -TRACK_HEIGHT)
+        self.editbox:SetSize(INPUT_WIDTH, INPUT_HEIGHT)
+        self.lowtext:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 0, -TRACK_HEIGHT)
+        self.lowtext:SetPoint("TOPRIGHT", self.editbox, "TOPLEFT", -1, 0)
+        self.hightext:SetPoint("TOPLEFT", self.editbox, "TOPRIGHT", 1, 0)
+        self.hightext:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", 0, -TRACK_HEIGHT)
+        self.lowtext:SetHeight(INPUT_HEIGHT); self.hightext:SetHeight(INPUT_HEIGHT)
+        self.lowtext:SetJustifyH("LEFT"); self.hightext:SetJustifyH("RIGHT")
+    end
+    self.settingValue = true
+    self.slider:SetMinMaxValues(self.min, self.max)
+    self.slider:SetValueStep(self.step)
+    self.settingValue = nil
+    self:SetValue(self.value)
+    self:SetDisabled(self.disabled)
+    self._fpNativeLayout = nil
+end
+
 function methods:SetSliderValues(minValue, maxValue, step)
     self.min, self.max = minValue or 0, maxValue or 100
     self.step = step and step > 0 and step or 1
@@ -147,6 +213,7 @@ function methods:SetSliderValues(minValue, maxValue, step)
     self.slider:SetValueStep(self.step)
     self.settingValue = nil
     self:SetValue(self.value or self.min)
+    if self._fpNativeRequested then self:SetNativeInspectorPresentation() end
 end
 
 function methods:ClearFocus()
@@ -196,10 +263,11 @@ function methods:OnRelease()
     self._fpInspectorPresentation = nil
     self._fpThumbColor = nil
     self:SetDisabled(true)
+    if self._fpNativeRequested then self:SetNativeInspectorPresentation(false) end
     self:SetSliderValues(0, 100, 1)
     self:SetValue(0)
     -- AceGUI clears callbacks, userdata and host anchors when pooling.
-    -- Child anchors and scripts are installed once, on construction only.
+    -- Scripts retain this owner; the optional native layout is restored above.
 end
 
 local function BeginInteraction(frame)
@@ -254,7 +322,7 @@ local function Constructor()
     hightext:SetJustifyV("MIDDLE")
     hightext:SetWordWrap(false)
 
-    local widget = { type = Type, frame = frame, slider = slider, editbox = editbox,
+    local widget = { type = Type, frame = frame, slider = slider, _fpCompactSlider = slider, editbox = editbox,
         lowtext = lowtext, hightext = hightext }
     for name, method in pairs(methods) do widget[name] = method end
     frame.obj, slider.obj, editbox.obj = widget, widget, widget
@@ -263,7 +331,7 @@ local function Constructor()
     frame:SetScript("OnMouseDown", BeginInteraction)
     frame:SetScript("OnHide", function()
         widget:ClearFocus()
-        slider:EnableMouseWheel(false)
+        widget.slider:EnableMouseWheel(false)
     end)
     slider:SetScript("OnMouseDown", BeginInteraction)
     slider:SetScript("OnValueChanged", function(_, value)

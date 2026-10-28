@@ -27,6 +27,9 @@ function native:GetStringHeight() return 14 end
 function native:GetHeight() return self.nativeHeight or 100 end
 function native:GetStringWidth() return #(self.text or "") * 7 end
 function native:GetTexture() return self.lastSetTexture and self.lastSetTexture[1] end
+function native:GetTextColor() return table.unpack(self.lastSetTextColor or {1,1,1,1}) end
+function native:GetVertexColor() return table.unpack(self.lastSetVertexColor or {1,1,1,1}) end
+function native:GetAlpha() return self.lastSetAlpha and self.lastSetAlpha[1] or 1 end
 function native:GetName() return self.name end
 function native:GetChildren() end
 function native:SetFormattedText(format, ...) self:SetText(string.format(format, ...)) end

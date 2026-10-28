@@ -8,18 +8,51 @@ local EditorController = {}
 ns.GUI.Editor.Controller = EditorController
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
 local ApplySidebarChrome = FormWidgets and FormWidgets.ApplySidebarChrome
+local CUSTOMIZE_SHELL = "editmode" -- A/B pilot: "blizzard" (Metal) or "editmode" (translucent).
 local CUSTOMIZE_WORLD_DIM_ALPHA = .28
+local COMPONENT_LIST_WIDTH = 360
 local customizeBackdrop
+local ComputeInspectorGeometry, ApplyInspectorGeometry
+
+local function ResolveCustomizeShell()
+    if CUSTOMIZE_SHELL == "editmode" and FormWidgets.CanApplyCustomizeEditModeShell() then return "editmode" end
+    return (CUSTOMIZE_SHELL == "blizzard" or CUSTOMIZE_SHELL == "editmode") and FormWidgets.CanApplyCustomizeBlizzardShell()
+        and "blizzard" or "navigator"
+end
+
+local function ApplyCustomizeTitle(owner)
+    local title = owner and owner.titletext
+    if not title then return end
+    if GameFontHighlightLarge and title.SetFontObject then title:SetFontObject(GameFontHighlightLarge) end
+    FormWidgets.ApplyTextStyle(title, "identity", 18, 1)
+    title:SetTextColor(1, 1, 1, 1)
+    title:SetJustifyH("CENTER")
+    title:ClearAllPoints()
+    title:SetPoint("TOPLEFT", owner.frame, "TOPLEFT", 36, -18)
+    title:SetPoint("TOPRIGHT", owner.frame, "TOPRIGHT", -36, -18)
+end
 
 local function ApplyInspectorShellComposition(owner, canonicalOnly)
     local composition = ns.GUI.PresentationCompositionPreview
-    if not composition or not owner then return end
-    local active = composition.Apply("inspector_shell", owner, nil, canonicalOnly)
-    if not active and ApplySidebarChrome then
-        ApplySidebarChrome(owner, "inspector_shell")
+    if not owner then return end
+    FormWidgets.NeutralizeCustomizeBlizzardShell(owner)
+    owner._fpNavigatorBrassEnabled = true
+    if ApplySidebarChrome then ApplySidebarChrome(owner, "inspector_shell") end
+    local active = composition and composition.Apply("inspector_shell", owner, nil, canonicalOnly)
+    if active then
+        owner._fpNavigatorBrassEnabled = false
+        ApplyCustomizeTitle(owner)
+        return ApplyInspectorGeometry(owner, ComputeInspectorGeometry(owner._focalPointCustomizeView))
     end
-    FormWidgets.ApplyNavigatorBrassBorder(owner)
+    local shell = ResolveCustomizeShell()
+    if shell == "blizzard" or shell == "editmode" then
+        owner._fpNavigatorBrassEnabled = false
+        FormWidgets.ApplyCustomizeBlizzardShell(owner, shell == "editmode")
+    end
+    ApplyCustomizeTitle(owner)
+    return ApplyInspectorGeometry(owner, ComputeInspectorGeometry(owner._focalPointCustomizeView))
 end
+
 local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry
 
 local INSPECTOR_WIDTH = (SidebarGeometry and (SidebarGeometry.inspectorWidth or SidebarGeometry.width)) or 285
@@ -34,13 +67,15 @@ local function GetEditorPresentationAnchor()
     return UIParent
 end
 
-local function ComputeInspectorGeometry()
-    local width = math.min(640, UIParent:GetWidth() - 32)
+ComputeInspectorGeometry = function(view)
+    local width = math.min(view == "properties" and 720 or COMPONENT_LIST_WIDTH + 32, UIParent:GetWidth() - 32)
     local height = math.min(620, UIParent:GetHeight() - 100)
     local insetLeft = 16
     local insetRight = 16
-    local insetTop = 40
+    local insetTop = 64 -- Shared title reserve, independent of the selected shell.
     local insetBottom = 16
+    local workspaceTop = 36 -- Existing 30px Properties back row plus 6px separation.
+    local contentHeight = height - insetTop - insetBottom
 
     return {
         width = width,
@@ -55,11 +90,15 @@ local function ComputeInspectorGeometry()
         insetTop = insetTop,
         insetBottom = insetBottom,
         contentWidth = width - insetLeft - insetRight,
-        contentHeight = height - insetTop - insetBottom,
+        contentHeight = contentHeight,
+        workspaceTop = workspaceTop,
+        workspaceHeight = math.max(1, math.floor(contentHeight) - workspaceTop),
+        componentTop = workspaceTop, -- The Unit row now owns the existing global Add entry.
+        componentHeight = math.max(1, math.floor(contentHeight) - workspaceTop),
     }
 end
 
-local function ApplyInspectorGeometry(inspector, geometry)
+ApplyInspectorGeometry = function(inspector, geometry)
     if not inspector or not inspector.frame or not geometry then
         return
     end
@@ -103,7 +142,33 @@ local function ApplyInspectorGeometry(inspector, geometry)
         inspectorInset:ClearAllPoints()
         inspectorInset:SetPoint("TOPLEFT", inspector.frame, "TOPLEFT", geometry.insetLeft, -geometry.insetTop)
         inspectorInset:SetPoint("BOTTOMRIGHT", inspector.frame, "BOTTOMRIGHT", -geometry.insetRight, geometry.insetBottom)
+        -- Fill always targets the Window's actual content host. Keep that host
+        -- inside the same inset instead of relying on the Body's parent alone.
+        local content = inspector.content
+        content:ClearAllPoints()
+        content:SetPoint("TOPLEFT", inspectorInset, "TOPLEFT", 0, 0)
+        content:SetPoint("BOTTOMRIGHT", inspectorInset, "BOTTOMRIGHT", 0, 0)
+        content:SetWidth(geometry.contentWidth)
+        content:SetHeight(geometry.contentHeight)
+        content.width, content.height = geometry.contentWidth, geometry.contentHeight
     end
+    -- Resize only the current workspace children; no retained geometry/state copy.
+    local children = inspectorContent and inspectorContent.children
+    if children and #children >= 3 then
+        local header, treeHost, propertyRoot = children[1], children[2], children[3]
+        local changed = treeHost.frame:GetHeight() ~= geometry.componentHeight
+        header:SetWidth(geometry.contentWidth)
+        treeHost:SetWidth(math.min(COMPONENT_LIST_WIDTH, geometry.contentWidth))
+        treeHost:SetHeight(geometry.componentHeight)
+        treeHost.frame:ClearAllPoints()
+        treeHost.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, -geometry.componentTop)
+        propertyRoot:SetWidth(geometry.contentWidth)
+        propertyRoot:SetHeight(geometry.workspaceHeight)
+        local scroll = inspector._focalPointPropertyScroll
+        if scroll and scroll.parent == propertyRoot then scroll:SetHeight(geometry.workspaceHeight) end
+        return changed
+    end
+    return false
 end
 
 local function ResolveInspectorContextHeight(geometry)
@@ -175,8 +240,9 @@ function EditorController.UpdateActiveInspectorGeometry()
         return
     end
 
-    ApplyInspectorGeometry(inspector, ComputeInspectorGeometry())
-    FormWidgets.ApplyNavigatorBrassBorder(inspector)
+    -- Shell/composition can rewrite Window.content; the shared geometry runs last.
+    local workspaceChanged = ApplyInspectorShellComposition(inspector)
+    if workspaceChanged then EditorController.RefreshCompositionTree() end
     UpdateCustomizeBackdrop(inspector)
 end
 
@@ -273,6 +339,11 @@ function EditorController.ApplyObjectSelectionProjection(changeKind, previousUni
 
     if changeKind == "sameUnitObject" then
         EditorController.RefreshActiveProperties()
+        local inspector = EditorController.GetActiveInspectorHost()
+        if inspector and inspector._focalPointSetCustomizeView then
+            inspector._focalPointSetCustomizeView(nextKind == "unit" and previousObject
+                and previousObject.kind ~= "unit" and "components" or "properties")
+        end
         local treeView = ns.CompositionTreeView or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or nil
         if treeView and type(treeView.RefreshKeyboardBinding) == "function" then
             treeView.RefreshKeyboardBinding()
@@ -299,6 +370,20 @@ local function EnsureInspector()
     end
 
     inspector = AceGUI:Create("Window")
+    local content = inspector.content
+    local contentPoints = {}
+    for i = 1, content:GetNumPoints() do contentPoints[i] = {content:GetPoint(i)} end
+    local contentSize = {content:GetWidth(), content:GetHeight(), content.width, content.height}
+    local title = inspector.titletext
+    local titleFont = title and {title:GetFont()}
+    local titleFontObject = title and title.GetFontObject and title:GetFontObject()
+    local titleColor = title and {title:GetTextColor()}
+    local titleJustify = title and title.GetJustifyH and title:GetJustifyH() or "LEFT"
+    local titlePoints = {}
+    if title then
+        for i = 1, title:GetNumPoints() do titlePoints[i] = {title:GetPoint(i)} end
+    end
+    local closeScript = inspector.closebutton and inspector.closebutton:GetScript("OnClick")
     local geometry = ComputeInspectorGeometry()
     inspector:SetTitle("Inspector")
     inspector:SetWidth(geometry.width)
@@ -328,8 +413,11 @@ local function EnsureInspector()
         if inspector.frame.SetClampedToScreen then
             inspector.frame:SetClampedToScreen(true)
         end
-        if inspector.closebutton and inspector.closebutton.Hide then
-            inspector.closebutton:Hide()
+        if inspector.closebutton and inspector.closebutton.Show then
+            inspector.closebutton:Show()
+            inspector.closebutton:SetScript("OnClick", function()
+                if EditorController.GetActiveInspectorHost() == inspector then EditorController.SetPresentation("arrange") end
+            end)
         end
 
         if ApplySidebarChrome then
@@ -338,8 +426,8 @@ local function EnsureInspector()
             local composition = ns.GUI.PresentationCompositionPreview
             if composition then
                 composition.Bind("inspector_shell", inspector, ApplyInspectorShellComposition)
-                ApplyInspectorShellComposition(inspector)
             end
+            ApplyInspectorShellComposition(inspector)
         end
     end
 
@@ -356,6 +444,25 @@ local function EnsureInspector()
     ApplyInspectorGeometry(inspector, geometry)
     inspector.frame:HookScript("OnShow", function() UpdateCustomizeBackdrop(inspector) end)
     inspector.frame:HookScript("OnHide", function() if customizeBackdrop then customizeBackdrop:Hide() end end)
+    local release = inspector.events and inspector.events.OnRelease
+    inspector:SetCallback("OnRelease", function(owner, event)
+        if release then release(owner, event) end
+        content:ClearAllPoints()
+        for _, point in ipairs(contentPoints) do content:SetPoint(unpack(point)) end
+        content:SetWidth(contentSize[1]); content:SetHeight(contentSize[2])
+        content.width, content.height = contentSize[3], contentSize[4]
+        if title then
+            if titleFontObject then title:SetFontObject(titleFontObject) end
+            title:SetFont(unpack(titleFont))
+            title:SetTextColor(unpack(titleColor))
+            title:SetJustifyH(titleJustify)
+            title:ClearAllPoints()
+            for _, point in ipairs(titlePoints) do title:SetPoint(unpack(point)) end
+        end
+        if owner.closebutton then owner.closebutton:SetScript("OnClick", closeScript) end
+        if EditorController.GetActiveInspectorHost() == owner then EditorController.ReleaseInspector() end
+        if GetPersistentInspector() == owner then SetPersistentInspector(nil) end
+    end)
     SetPersistentInspector(inspector)
     return inspector
 end
@@ -373,6 +480,14 @@ function EditorController.BuildInspector(container, deps)
     if not inspector or not inspectorContent then
         return
     end
+    local resolver = ns.ActiveLayoutResolver
+    local runtimeRoot = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
+    if EditorController.GetActiveInspectorHost() ~= inspector
+        or inspector._focalPointCustomizeUnit ~= state.selectedUnit
+        or inspector._focalPointCustomizeRoot ~= runtimeRoot then
+        inspector._focalPointCustomizeView = "components"
+    end
+    inspector._focalPointCustomizeUnit, inspector._focalPointCustomizeRoot = state.selectedUnit, runtimeRoot
 
     ns.GUI.Editor._inspectorBuildSerial = (ns.GUI.Editor._inspectorBuildSerial or 0) + 1
     local buildSerial = ns.GUI.Editor._inspectorBuildSerial
@@ -397,8 +512,10 @@ function EditorController.BuildInspector(container, deps)
 
     local unitLabel = ns.GetLabel and ns.KeyMap and ns.KeyMap.Units
         and ns.GetLabel(ns.KeyMap.Units, state.selectedUnit) or state.selectedUnit
-    inspector:SetTitle((ns.L and ns.L.EDITOR_CUSTOMIZE or "Customize") .. " - " .. (unitLabel or ""))
+    inspector:SetTitle(string.format(ns.L and ns.L.EDITOR_CUSTOMIZE_FRAME or "Customize %s Frame", unitLabel or ""))
+    ApplyCustomizeTitle(inspector)
     if inspector.titletext then inspector.titletext:Show() end
+    if inspector.closebutton then inspector.closebutton:Show() end
 
     state.editorSidebarScroll = state.editorSidebarScroll or { scrollvalue = 0 }
     local propertyScrollWidget
@@ -769,44 +886,85 @@ function EditorController.BuildInspector(container, deps)
 
     local function BuildPropertyInspectorContent(rebuildSidebar)
         inspectorContent:ReleaseChildren()
-        -- Only these local columns own their anchors; AceGUI still owns release.
+        local workspaceActive = true
+        local function IsCurrentWorkspace() return workspaceActive and IsCurrentBuild() end
+        -- Only these local views own their anchors; AceGUI still owns release.
         inspectorContent:PauseLayout()
 
-        local geometry = ComputeInspectorGeometry()
-        local propertyHeight = math.max(120, math.floor(geometry.contentHeight or 0) - 36)
+        local geometry = ComputeInspectorGeometry(inspector._focalPointCustomizeView)
+        local propertyHeight = geometry.workspaceHeight
 
         local header = AceGUI:Create("SimpleGroup")
         header:SetWidth(geometry.contentWidth)
         header:SetHeight(30)
-        header:SetLayout("Flow")
+        header:SetAutoAdjustHeight(false)
+        header:SetLayout("Table")
+        local unitBreadcrumb = AceGUI:Create("Label")
+        unitBreadcrumb:SetText(unitLabel or "")
+        FormWidgets.ApplyTextStyle(unitBreadcrumb.label, "identity", 14, 1)
+        unitBreadcrumb.label:SetWordWrap(false)
+        unitBreadcrumb.label:SetMaxLines(1)
+        local unitWidth = math.min(unitBreadcrumb.label:GetStringWidth()+4, geometry.contentWidth*.4)
+        unitBreadcrumb:SetWidth(unitWidth)
+        header:SetUserData("table", {columns={unitWidth,100,{weight=1}},spaceH=4,spaceV=0,alignV="center"})
+        header:SetCallback("OnRelease", function() workspaceActive = false end)
         inspectorContent:AddChild(header)
         header.frame:ClearAllPoints()
         header.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, 0)
-        local function AddAction(label, callback)
-            local button = FormWidgets.CreateActionButton(label, "secondary", 110, false)
-            button:SetCallback("OnClick", function() if IsCurrentBuild() then callback() end end)
-            header:AddChild(button)
-            return button
-        end
-        inspector._focalPointArrangeButton = AddAction(ns.L and ns.L.EDITOR_ARRANGE or "Arrange", function()
-            EditorController.SetPresentation("arrange")
-        end)
-        inspector._focalPointCloseButton = AddAction(ns.L and ns.L.INFO_COMMON_CLOSE or "Close", function()
-            if ns.CloseConfig then ns:CloseConfig() end
-        end)
+        header:AddChild(unitBreadcrumb)
+        local back = AceGUI:Create("InteractiveLabel")
+        back:SetText("› " .. (ns.L and ns.L.EDITOR_COMPONENTS or "Components"))
+        back:SetWidth(100)
+        FormWidgets.ApplyTextStyle(back.label, "strongHeading", 14, 1)
+        header:AddChild(back)
+        local contextLabel = AceGUI:Create("Label")
+        contextLabel:SetFullWidth(true)
+        FormWidgets.ApplyTextStyle(contextLabel.label, "identity", 13, 1)
+        contextLabel.label:SetWordWrap(false)
+        contextLabel.label:SetMaxLines(1)
+        header:AddChild(contextLabel)
+        inspector._focalPointObjectBreadcrumb = contextLabel
+        inspector._focalPointComponentsButton = back
+        inspector._focalPointArrangeButton, inspector._focalPointCloseButton = nil, nil
 
         local treeHost = AceGUI:Create("SimpleGroup")
-        treeHost:SetWidth(220)
-        treeHost:SetHeight(propertyHeight)
+        treeHost:SetWidth(math.min(COMPONENT_LIST_WIDTH, geometry.contentWidth))
+        treeHost:SetHeight(geometry.componentHeight)
         treeHost:SetLayout("List")
         treeHost:SetAutoAdjustHeight(false)
         inspectorContent:AddChild(treeHost)
         treeHost.frame:ClearAllPoints()
-        treeHost.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, -36)
+        treeHost.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, -geometry.componentTop)
         local treeContext = {state = state, widgets = {compositionTree = treeHost},
-            treeHeight = propertyHeight, isCurrent = IsCurrentBuild}
+            treeHeight = geometry.componentHeight, isCurrent = IsCurrentWorkspace}
+        local toolbar=ns.GUI.Editor.CanvasToolbar
+        treeContext.canAdd=function(ref)
+            if ref and ref.kind == "unit" then return toolbar and toolbar.OpenComponentAdd ~= nil or false end
+            return toolbar and toolbar.CanAddComponentAt and toolbar.CanAddComponentAt(ref) or false
+        end
+        treeContext.canRemove=function(ref)
+            local mutations = ns.InspectorMutations
+            return mutations and mutations.CanRemoveObject and mutations.CanRemoveObject(ref) or false
+        end
+        treeContext.onAdd=function(ref,isCurrentRow,displayName)
+            if ref.kind == "unit" then
+                if toolbar and toolbar.OpenComponentAdd then
+                    toolbar.OpenComponentAdd(ref,function()return IsCurrentWorkspace() and isCurrentRow()end,displayName)
+                end
+                return
+            end
+            if toolbar and toolbar.OpenComponentCatalog then
+                toolbar.OpenComponentCatalog(ref,function()return IsCurrentWorkspace() and isCurrentRow()end,displayName)
+            end
+        end
+        treeContext.onRemove=function(ref,isCurrentRow,displayName)
+            if toolbar and toolbar.OpenComponentRemove then
+                toolbar.OpenComponentRemove(ref,function()return IsCurrentWorkspace() and isCurrentRow()end,displayName)
+            end
+        end
         local function RefreshTree()
-            if not IsCurrentBuild() then return end
+            if not IsCurrentWorkspace() then return end
+            treeContext.treeHeight = treeHost.frame:GetHeight()
             local binding = ns.GUI.Editor.ToolbarBinding
             if binding and binding.RefreshCompositionTree then
                 binding.RefreshCompositionTree(treeContext, {ns = ns})
@@ -814,16 +972,15 @@ function EditorController.BuildInspector(container, deps)
         end
         ns.GUI.Editor._activeInspectorRefreshTree = RefreshTree
         inspector._focalPointCompositionHost = treeHost
-        RefreshTree()
 
         local root = AceGUI:Create("SimpleGroup")
-        root:SetWidth(geometry.contentWidth - 232)
+        root:SetWidth(geometry.contentWidth)
         root:SetHeight(propertyHeight)
         root:SetAutoAdjustHeight(false)
         root:SetLayout("Flow")
         inspectorContent:AddChild(root)
         root.frame:ClearAllPoints()
-        root.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 232, -36)
+        root.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, -geometry.workspaceTop)
 
         propertyScrollWidget = AceGUI:Create("ScrollFrame")
         propertyScrollWidget:SetLayout("Flow")
@@ -832,9 +989,32 @@ function EditorController.BuildInspector(container, deps)
         propertyScrollWidget:SetStatusTable(state.editorSidebarScroll)
         root:AddChild(propertyScrollWidget)
         inspector._focalPointPropertyScroll = propertyScrollWidget
+        inspector._focalPointComponentAddButton=nil
+        local function SetView(view)
+            if not IsCurrentWorkspace() then return end
+            local treeView = ns.CompositionTreeView
+            local node = treeView and treeView.GetSelectedNode and treeView.GetSelectedNode()
+            local selection = ns.GUI.Editor.ObjectSelection
+            local selected = selection and selection.GetSelectedObject and selection.GetSelectedObject()
+            if view ~= "properties" or not node or not selected or selected.unavailable then view = "components" end
+            inspector._focalPointCustomizeView = view
+            ApplyInspectorGeometry(inspector, ComputeInspectorGeometry(view))
+            header.frame:Show()
+            treeHost.frame:SetShown(view == "components")
+            root.frame:SetShown(view == "properties")
+            contextLabel:SetText(view == "properties" and ("› " .. (node.label or "")) or "")
+            if treeView and treeView._keyboardBindingContext and view == "properties" then
+                treeView._keyboardBindingContext.control:SetKeyboardActive(false)
+            end
+        end
+        inspector._focalPointSetCustomizeView = SetView
+        back:SetCallback("OnClick", function() SetView("components") end)
+        treeContext.onSelect = function() SetView("properties") end
+        -- Bind the callback through the existing TreeView option contract.
+        RefreshTree()
 
         local function RebuildProperties()
-            if not IsCurrentBuild() or not propertyScrollWidget then
+            if not IsCurrentWorkspace() or not propertyScrollWidget then
                 return
             end
 
@@ -853,6 +1033,7 @@ function EditorController.BuildInspector(container, deps)
             if inspectorContent.DoLayout then
                 inspectorContent:DoLayout()
             end
+            SetView(inspector._focalPointCustomizeView)
         end
 
         ns.GUI.Editor._activeInspectorRefreshProperties = RebuildProperties
@@ -870,6 +1051,7 @@ function EditorController.BuildInspector(container, deps)
         if inspectorContent.DoLayout then
             inspectorContent:DoLayout()
         end
+        SetView(inspector._focalPointCustomizeView)
     end
 
     local RebuildSidebar

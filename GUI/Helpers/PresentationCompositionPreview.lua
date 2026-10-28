@@ -378,6 +378,9 @@ local function ShellRegions(window)
 end
 
 local function NeutralizeShell(window)
+    if window and window._focalPointEditorRole == "editor_inspector" then
+        ns.GUI.Helpers.FormWidgets.NeutralizeCustomizeShell(window)
+    end
     for _, region in ipairs(ShellRegions(window)) do
         if region and region.Hide then region:Hide() end
     end

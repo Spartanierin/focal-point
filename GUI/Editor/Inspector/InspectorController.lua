@@ -41,7 +41,12 @@ local function LabelledControl(create, slot, disabledRole)
 end
 local AddCheckBox = LabelledControl(Shared.AddCheckBox, "text", true)
 local AddSlider = LabelledControl(Shared.AddSlider, "label", true)
-local AddDropdown = LabelledControl(Shared.AddDropdown, "label", false)
+local CreateLabelledDropdown = LabelledControl(Shared.AddDropdown, "label", false)
+local function AddDropdown(...)
+    local widget = CreateLabelledDropdown(...)
+    FormWidgets.StyleInspectorDropdown(widget)
+    return widget
+end
 
 local AddColorPicker = Shared.AddColorPicker
 local BuildTextList = Shared.BuildTextList
@@ -1709,8 +1714,10 @@ function InspectorController.Build(container, state, options)
         root:SetLayout("Flow")
         container:AddChild(root)
 
-        AddObjectInspectorHeader(root, title, ResolveSelectedUnitLabel())
-        AddSpacer(root, normalAbsorbWorkspace and 3 or 6)
+        if type(workspaceIsCurrent) ~= "function" then
+            AddObjectInspectorHeader(root, title, ResolveSelectedUnitLabel())
+            AddSpacer(root, 6)
+        end
 
         local body = AceGUI:Create("SimpleGroup")
         body:SetFullWidth(true)
@@ -1844,10 +1851,13 @@ function InspectorController.Build(container, state, options)
         end
 
         options = type(options) == "table" and options or {}
+        local workspace = type(workspaceIsCurrent) == "function"
+        local labelWidth = options.labelWidth or (workspace and 128 or PROPERTY_LABEL_WIDTH)
 
         -- Unclassified text/specialized rows retain their content-driven layout.
         local stride = options.rowType and assert(INSPECTOR_ROW_STRIDES[options.rowType], "Unknown Inspector row type")
         local rowHeight = stride and (stride - INSPECTOR_FLOW_GAP)
+        local controlHeight = rowHeight
 
         local row = AceGUI:Create("SimpleGroup")
         row:SetAutoAdjustHeight(rowHeight == nil)
@@ -1855,11 +1865,11 @@ function InspectorController.Build(container, state, options)
         row:SetFullWidth(true)
         row:SetLayout("Table")
         row:SetUserData("table", {
-            columns = {
-                { width = options.labelWidth or PROPERTY_LABEL_WIDTH },
+            columns = options.hideLabel and { { weight = 1 } } or {
+                { width = labelWidth },
                 { weight = 1 },
             },
-            spaceH = options.spaceH or 8,
+            spaceH = options.hideLabel and 0 or (options.spaceH or 8),
             spaceV = 0,
             align = "TOPLEFT",
             alignV = options.alignV or "center",
@@ -1868,22 +1878,34 @@ function InspectorController.Build(container, state, options)
         parent:AddChild(row)
 
         local label
-        if FormWidgets.CreateBodyText then
-            label = FormWidgets.CreateBodyText(labelText or "", "label", 12, nil, options.labelWidth or PROPERTY_LABEL_WIDTH, false)
-        else
-            label = AceGUI:Create("Label")
-            label:SetText(labelText or "")
-            label:SetFullWidth(false)
-            label:SetWidth(options.labelWidth or PROPERTY_LABEL_WIDTH)
+        if not options.hideLabel then
+            if FormWidgets.CreateBodyText then
+                label = FormWidgets.CreateBodyText(labelText or "", "label", 12, nil, labelWidth, false)
+            else
+                label = AceGUI:Create("Label")
+                label:SetText(labelText or "")
+                label:SetFullWidth(false)
+                label:SetWidth(labelWidth)
+            end
+            row:AddChild(label)
+            FormWidgets.BindLabelTypography(label, "label", "inspector_label")
+            if workspace then
+                FormWidgets.ApplyTextStyle(label.label, "identity", 13, 1)
+                label.label:SetTextColor(1, 1, 1, 1)
+                label.label:SetWordWrap(true)
+                label:SetText(labelText or "")
+                if rowHeight then
+                    rowHeight = math.max(rowHeight, label.frame:GetHeight() or 0)
+                    row:SetHeight(rowHeight)
+                end
+            end
         end
-        row:AddChild(label)
-        FormWidgets.BindLabelTypography(label, "label", "inspector_label")
 
         local value = AceGUI:Create("SimpleGroup")
         value:SetFullWidth(true)
         value:SetAutoAdjustHeight(rowHeight == nil)
         if rowHeight then
-            value:SetHeight(rowHeight)
+            value:SetHeight(controlHeight)
             -- A Flow value host adds a 3px top inset, overflowing a 44px slider
             -- in a 45px row. The existing Table layout has no such inset.
             value:SetLayout("Table")
@@ -2023,12 +2045,91 @@ function InspectorController.Build(container, state, options)
         return dropdown, browse
     end
 
+    -- Existing Row presentation, also used by the two-column anchor controls.
+    local function BindNativePropertyDropdown(dropdown, dropdownOptions, disabled)
+        -- Keep the existing Dropdown as API/lifecycle owner and source of values/order.
+        local native = dropdown.frame._fpNativePropertyDropdown
+        if not native and type(DropdownButtonMixin) == "table"
+            and type(DropdownButtonMixin.SetupMenu) == "function"
+            and type(DropdownButtonMixin.ClearMenuState) == "function"
+            and type(WowStyle1DropdownMixin) == "table" then
+            local ok, frame = pcall(CreateFrame, "DropdownButton", nil, dropdown.frame, "WowStyle1DropdownTemplate")
+            if ok then
+                native = frame
+                dropdown.frame._fpNativePropertyDropdown = native
+                native:HookScript("OnHide", function(self) self:CloseMenu() end)
+            end
+        end
+        if not native then return end
+        -- Preserve the pilot's native order without changing its legacy fallback.
+        if dropdownOptions.nativeOrder then dropdown:SetList(dropdown.list, dropdownOptions.nativeOrder) end
+
+        local scope = ResolvePropertyScope()
+        local bindingActive = true
+        local function IsCurrentBinding()
+            return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
+                and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
+        end
+        local setValue, setList, setDisabled, release = dropdown.SetValue, dropdown.SetList, dropdown.SetDisabled, dropdown.OnRelease
+        local oldShown, coverShown = dropdown.dropdown:IsShown(), dropdown.button_cover:IsShown()
+        local function Sync()
+            native:SetDefaultText(dropdown.list[dropdown.value] or "")
+            native:SetupMenu(function(_, rootDescription)
+                rootDescription:AddMenuAcquiredCallback(function(menu) menu:SetFrameStrata("TOOLTIP") end)
+                -- AceGUI already implements plain maps and explicit values/order sorting.
+                for _, item in dropdown.pullout:IterateItems() do
+                    local key = item.userdata.value
+                    rootDescription:CreateRadio(dropdown.list[key], function()
+                        return IsCurrentBinding() and dropdown.value == key
+                    end, function()
+                        if IsCurrentBinding() and not dropdown.disabled and dropdown.list[key] ~= nil then
+                            dropdown:SetValue(key)
+                            dropdown:Fire("OnValueChanged", key)
+                        end
+                    end)
+                end
+            end)
+        end
+        dropdown.SetValue = function(self, value)
+            if not IsCurrentBinding() then return end
+            setValue(self, value); Sync()
+        end
+        dropdown.SetList = function(self, list, order, ...)
+            if not IsCurrentBinding() then return end
+            if type(list) == "table" and type(list.values) == "table" then
+                order, list = list.order, list.values
+            end
+            setList(self, list, order, ...); Sync()
+        end
+        dropdown.SetDisabled = function(self, value)
+            if not IsCurrentBinding() then return end
+            setDisabled(self, value); native:SetEnabled(not value)
+            if value then native:CloseMenu() end
+        end
+        dropdown.OnRelease = function(self)
+            bindingActive = false
+            native:ClearMenuState(); native:Hide()
+            self.SetValue, self.SetList, self.SetDisabled, self.OnRelease = setValue, setList, setDisabled, release
+            self.dropdown:SetShown(oldShown); self.button_cover:SetShown(coverShown)
+            if release then release(self) end
+        end
+        dropdown:SetUserData("nativePropertyDropdown", native)
+        dropdown.dropdown:Hide(); dropdown.button_cover:Hide()
+        native:ClearAllPoints()
+        native:SetPoint("LEFT", dropdown.button_cover, "LEFT", 8, 0)
+        native:SetPoint("RIGHT", dropdown.button_cover, "RIGHT", -8, 0)
+        native:SetHeight(25)
+        native:SetEnabled(not disabled)
+        Sync(); native:Show()
+    end
+
     local function AddPropertyDropdownRow(parent, labelText, dropdownOptions, disabled)
         local dropdown
 
         AddPropertyRow(parent, labelText, function(valueGroup)
             dropdownOptions = type(dropdownOptions) == "table" and dropdownOptions or {}
-            dropdown = AddDropdown(
+            local nativeRequested = dropdownOptions.native ~= false and type(workspaceIsCurrent) == "function"
+            dropdown = (nativeRequested and Shared.AddDropdown or AddDropdown)(
                 valueGroup,
                 "",
                 dropdownOptions.list,
@@ -2037,6 +2138,9 @@ function InspectorController.Build(container, state, options)
                 disabled,
                 dropdownOptions.anchorKey
             )
+            if not nativeRequested then return end
+
+            BindNativePropertyDropdown(dropdown, dropdownOptions, disabled)
         end, {
             rowType = "COMPACT",
         })
@@ -2074,6 +2178,7 @@ function InspectorController.Build(container, state, options)
                 slider.frame._focalPointAnchorKey = anchorKey
             end
             valueGroup:AddChild(slider)
+            if type(workspaceIsCurrent) == "function" then slider:SetNativeInspectorPresentation() end
         end, { rowType = "COMPACT" })
         return slider
     end
@@ -2165,6 +2270,7 @@ function InspectorController.Build(container, state, options)
 
     local function AddPropertyActionButtonRow(parent, labelText, buttonText, component, width, onClick, disabled)
         local button
+        local workspace = type(workspaceIsCurrent) == "function"
 
         AddPropertyRow(parent, labelText, function(valueGroup)
             button = FormWidgets.CreateActionButton
@@ -2172,7 +2278,7 @@ function InspectorController.Build(container, state, options)
                 or AceGUI:Create("Button")
             button:SetText(buttonText or labelText or "")
             button:SetWidth(width or 128)
-            button:SetFullWidth(false)
+            button:SetFullWidth(workspace)
             button:SetDisabled(disabled and true or false)
             if FormWidgets.ApplyModalActionButtonVisual then
                 FormWidgets.ApplyModalActionButtonVisual(button, component or "InspectorAction")
@@ -2184,7 +2290,7 @@ function InspectorController.Build(container, state, options)
                 onClick()
             end)
             valueGroup:AddChild(button)
-        end, { rowType = "COMPACT" })
+        end, { rowType = "COMPACT", hideLabel = workspace })
 
         return button
     end
@@ -2364,6 +2470,11 @@ function InspectorController.Build(container, state, options)
 
 
     local function AddPointPairRow(parent, pointOptions, relativePointOptions)
+        if type(workspaceIsCurrent) == "function" then
+            local point = AddPropertyDropdownRow(parent, pointOptions.label or L["OPTION_ANCHOR_FROM"] or "Anchor From", pointOptions, pointOptions.disabled)
+            local relativePoint = AddPropertyDropdownRow(parent, relativePointOptions.label or L["OPTION_ANCHOR_TO"] or "Anchor To", relativePointOptions, relativePointOptions.disabled)
+            return point, relativePoint
+        end
         AddPropertyLabel(parent, L["OPTION_ANCHOR_POINTS"] or "Anchor Points")
         local row = CreateEvenTwoControlTableRow(parent)
         if not row then
@@ -2372,22 +2483,71 @@ function InspectorController.Build(container, state, options)
 
         pointOptions = type(pointOptions) == "table" and pointOptions or {}
         relativePointOptions = type(relativePointOptions) == "table" and relativePointOptions or {}
-        local point = AddDropdown(row, pointOptions.label or L["OPTION_FROM_POINT"] or "From Point", pointOptions.list, pointOptions.value, pointOptions.onChanged, pointOptions.disabled, pointOptions.anchorKey)
-        local relativePoint = AddDropdown(row, relativePointOptions.label or L["OPTION_TO_POINT"] or "To Point", relativePointOptions.list, relativePointOptions.value, relativePointOptions.onChanged, relativePointOptions.disabled, relativePointOptions.anchorKey)
+        local native = type(workspaceIsCurrent) == "function"
+        local create = native and Shared.AddDropdown or AddDropdown
+        local point = create(row, pointOptions.label or L["OPTION_FROM_POINT"] or "From Point", pointOptions.list, pointOptions.value, pointOptions.onChanged, pointOptions.disabled, pointOptions.anchorKey)
+        local relativePoint = create(row, relativePointOptions.label or L["OPTION_TO_POINT"] or "To Point", relativePointOptions.list, relativePointOptions.value, relativePointOptions.onChanged, relativePointOptions.disabled, relativePointOptions.anchorKey)
+        if native then
+            BindNativePropertyDropdown(point, pointOptions, pointOptions.disabled)
+            BindNativePropertyDropdown(relativePoint, relativePointOptions, relativePointOptions.disabled)
+        end
         return point, relativePoint
     end
 
 
+    local function AddFlatSectionHeading(parent, title, before)
+        if not parent:GetUserData("normalAbsorbPropertyContent") then return end
+        -- Separate a new subsection from prior controls, retaining Flow's small
+        -- ordinary gap between its title and the first associated property.
+        if not before and #parent.children > 0 then AddSpacer(parent, 8) end
+        local heading = FormWidgets.CreateSectionTitle(title, 14)
+        heading:SetFullWidth(true)
+        heading:SetUserData("flatPropertyHeading", title)
+        local color = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
+        heading.label:SetTextColor(color.r, color.g, color.b, 1)
+        parent:AddChild(heading, before)
+        return heading
+    end
+
     -- Local presentation only; builders retain controls, callbacks and the existing Body owner.
     local function BeginFlatPropertyPresentation(body)
+        -- TabSystemButtonArtTemplate's six textures, without its selection/Enabled mixin.
+        local tabArt = {
+            {key="artLeftActive", atlas="uiframe-activetab-left", active=true},
+            {key="artMiddleActive", atlas="_uiframe-activetab-center", active=true},
+            {key="artRightActive", atlas="uiframe-activetab-right", active=true},
+            {key="artLeft", atlas="uiframe-tab-left", active=false},
+            {key="artMiddle", atlas="_uiframe-tab-center", active=false},
+            {key="artRight", atlas="uiframe-tab-right", active=false},
+        }
+        local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+        local useTabArt = type(atlasInfo) == "function"
+        local minimumTabWidth = 0
+        local activeCaps, inactiveCaps = 0, 0
+        if useTabArt then
+            for _, art in ipairs(tabArt) do
+                local ok, info = pcall(atlasInfo, art.atlas)
+                if not ok or type(info) ~= "table" or type(info.width) ~= "number" or type(info.height) ~= "number"
+                    or info.width <= 0 or info.height <= 0 then useTabArt = false; break end
+                if not art.key:find("Middle") then
+                    if art.active then activeCaps = activeCaps + info.width else inactiveCaps = inactiveCaps + info.width end
+                end
+            end
+            minimumTabWidth = math.max(activeCaps, inactiveCaps) + 10
+        end
         local function CreateGroup(parent, title, addTopSpacing)
-            if addTopSpacing then AddSpacer(parent, buildPropertiesOnly and 4 or 8) end
+            if addTopSpacing then AddSpacer(parent, 8) end
             -- Same immediate-build contract and owner, without InlineGroup's decoration/40px.
             local group = ns.GUI.Helpers.FormRenderer.CreateLayoutGroup(parent, {
                 properties = {widget="SimpleGroup", layout="SimpleGroup", layoutMode="Flow",
                     fullWidth=true, border=false, padding=0},
             })
             group:SetUserData("normalAbsorbPropertyContent", true)
+            if title ~= (L["SECTION_GENERAL"] or "General") and title ~= (L["SECTION_BEHAVIOR"] or "Behavior") then
+                group:SetUserData("flatPropertySectionTitle", title == (L["SECTION_GEOMETRY"] or "Geometry")
+                    and (L["EDITOR_PROPERTY_SECTION_SIZE"] or "Size")
+                    or title == (L["SECTION_POSITION"] or "Position") and (L["EDITOR_PROPERTY_SECTION_ANCHOR"] or "Anchor") or title)
+            end
             parent:AddChild(group)
             return group
         end
@@ -2399,9 +2559,11 @@ function InspectorController.Build(container, state, options)
         local bindingActive = true
         local navigation = AceGUI:Create("SimpleGroup")
         navigation:SetFullWidth(true)
+        navigation:SetAutoAdjustHeight(false)
+        navigation:SetHeight(40) -- Existing 30px tabs plus 10px before property content.
         navigation:SetLayout("Table")
         local tabColumns = {}
-        navigation:SetUserData("table", {columns=tabColumns, spaceH=0, spaceV=0})
+        navigation:SetUserData("table", {columns=tabColumns, spaceH=useTabArt and 1 or 0, spaceV=0})
         body:AddChild(navigation)
         local chrome = ns.GUI.Skins.GetFormPalette().Chrome
         local baseline = navigation.frame._fpNormalAbsorbTabBaseline
@@ -2409,11 +2571,11 @@ function InspectorController.Build(container, state, options)
             baseline = navigation.frame:CreateTexture(nil, "ARTWORK")
             navigation.frame._fpNormalAbsorbTabBaseline = baseline
         end
-        baseline:SetPoint("BOTTOMLEFT", navigation.frame, "BOTTOMLEFT", 0, 0)
-        baseline:SetPoint("BOTTOMRIGHT", navigation.frame, "BOTTOMRIGHT", 0, 0)
+        baseline:SetPoint("BOTTOMLEFT", navigation.frame, "BOTTOMLEFT", 0, 10)
+        baseline:SetPoint("BOTTOMRIGHT", navigation.frame, "BOTTOMRIGHT", 0, 10)
         baseline:SetHeight(1)
         baseline:SetColorTexture(unpack(chrome.sectionBorder))
-        baseline:Show()
+        baseline:SetShown(not useTabArt)
         navigation:SetCallback("OnRelease", function()
             bindingActive = false
             baseline:Hide()
@@ -2432,6 +2594,10 @@ function InspectorController.Build(container, state, options)
             local available = {}
             for _, child in ipairs(body.children) do
                 local key = child:GetUserData("normalAbsorbPropertyGroup")
+                local title = child:GetUserData("flatPropertySectionTitle")
+                if key and title and #child.children > 1 and not child.children[1]:GetUserData("flatPropertyHeading") then
+                    AddFlatSectionHeading(child, title, child.children[1])
+                end
                 if key and child:GetUserData("normalAbsorbPropertyContent") and #child.children > 0 then available[key] = true end
             end
             local active = EditorStateApi.ResolveInspectorPropertyGroup(available)
@@ -2455,6 +2621,16 @@ function InspectorController.Build(container, state, options)
                 surface.label:SetTextColor(1, selected and .95 or .85, selected and .78 or .70,
                     available[group.key] and 1 or .35)
                 surface.bottom:SetShown(not selected)
+                if useTabArt then
+                    for _, name in ipairs({"fill", "top", "left", "right", "bottom"}) do surface[name]:Hide() end
+                    for _, art in ipairs(tabArt) do
+                        surface[art.key]:SetShown(art.active == selected)
+                        surface[art.key]:SetAlpha(available[group.key] and 1 or .35)
+                    end
+                    local y = selected and 0 or -3
+                    surface.label:SetPoint("LEFT", group.button.frame, "LEFT", 8, y)
+                    surface.label:SetPoint("RIGHT", group.button.frame, "RIGHT", -8, y)
+                end
             end
             body:DoLayout()
             container:DoLayout()
@@ -2465,7 +2641,7 @@ function InspectorController.Build(container, state, options)
             -- Only the fitted tab FontString owns the caption. A native alpha
             -- change must not reveal a second caption from UIPanelButtonTemplate.
             button:SetText("")
-            button:SetHeight(28)
+            button:SetHeight(30)
             -- Local drawing only. Native scripts/methods and AceGUI ownership stay intact.
             local frame = button.frame
             local surface = frame._fpNormalAbsorbTab
@@ -2477,6 +2653,27 @@ function InspectorController.Build(container, state, options)
                 surface.label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 frame._fpNormalAbsorbTab = surface
             end
+            if useTabArt then
+                for _, art in ipairs(tabArt) do
+                    local region = surface[art.key]
+                    if not region then region = frame:CreateTexture(nil, "BACKGROUND"); surface[art.key] = region end
+                    region:ClearAllPoints()
+                    region:SetAtlas(art.atlas, true)
+                    region:SetRotation(math.pi) -- isTabOnTop=true: Blizzard HandleRotation contract.
+                    region:SetHorizTile(art.key:find("Middle") ~= nil)
+                    region:SetVertTile(false)
+                    if region.SetTexelSnappingBias then region:SetTexelSnappingBias(0) end
+                    if region.SetSnapToPixelGrid then region:SetSnapToPixelGrid(false) end
+                end
+                for _, suffix in ipairs({"Active", ""}) do
+                    surface["artRight"..suffix]:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", suffix == "Active" and -7 or -6, 0)
+                    surface["artLeft"..suffix]:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+                    surface["artMiddle"..suffix]:SetPoint("LEFT", surface["artRight"..suffix], "RIGHT", 0, 0)
+                    surface["artMiddle"..suffix]:SetPoint("RIGHT", surface["artLeft"..suffix], "LEFT", 0, 0)
+                end
+            else
+                for _, art in ipairs(tabArt) do if surface[art.key] then surface[art.key]:Hide() end end
+            end
             local native = {{button.text, button.text:GetAlpha()}}
             button.text:SetAlpha(0)
             for _,region in ipairs({frame:GetRegions()}) do
@@ -2487,13 +2684,15 @@ function InspectorController.Build(container, state, options)
                     region:SetAlpha(0)
                 end
             end
+            FormWidgets.ApplyTextStyle(surface.label, "label", 13, 1)
             surface.label:SetText(group.label)
             surface.label:SetPoint("LEFT", frame, "LEFT", 8, 0)
             surface.label:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
             surface.label:SetWordWrap(false)
-            local width = surface.label:GetStringWidth() + 16
+            local width = math.max(surface.label:GetStringWidth() + 16, useTabArt and minimumTabWidth or 0)
             button:SetWidth(width)
-            tabColumns[#tabColumns+1] = width
+            button:SetFullWidth(true)
+            tabColumns[#tabColumns+1] = { weight = width }
             surface.fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
             surface.top:SetHeight(1)
             surface.left:SetWidth(1)
@@ -2503,7 +2702,8 @@ function InspectorController.Build(container, state, options)
             surface.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
             surface.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
             surface.bottom:SetHeight(1)
-            for name,part in pairs(surface) do
+            for _,name in ipairs({"fill", "top", "left", "right", "bottom", "label"}) do
+                local part = surface[name]
                 if name ~= "fill" and name ~= "label" then part:SetColorTexture(unpack(chrome.sectionBorder)) end
                 part:Show()
             end
@@ -2671,9 +2871,9 @@ function InspectorController.Build(container, state, options)
                 end
                 return result
             end
-            local function Dropdown(parent, field, label, list)
+            local function Dropdown(parent, field, label, list, native)
                 controls[field] = AddPropertyDropdownRow(parent, label, {
-                    list=list,value=Value(record, field),anchorKey="segmentedBar_" .. field,
+                    native=native,list=list,value=Value(record, field),anchorKey="segmentedBar_" .. field,
                     onChanged=function(value) Change(field, value) end,
                 }, false)
             end
@@ -2697,7 +2897,7 @@ function InspectorController.Build(container, state, options)
                     end, false)
                     controls[field]:SetUserData("focalPointAnchorKey", "segmentedBar_" .. field)
                 else
-                    Dropdown(parent, field, label, options)
+                    Dropdown(parent, field, label, options, false)
                 end
             end
             controls.enabled = AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", record.enabled,
@@ -2753,8 +2953,11 @@ function InspectorController.Build(container, state, options)
                 Value(record, "borderColor"), true, function(value) Change("borderColor", {value.r,value.g,value.b,value.a}) end,
                 false, "segmentedBar_borderColor")
             local geometrySection = CreateSegmentedPropertyGroup(body, L["SECTION_GEOMETRY"] or "Geometry", true)
-            Slider(geometrySection, "width", L["OPTION_WIDTH"] or "Width", 40, 512)
             Slider(geometrySection, "height", L["OPTION_HEIGHT"] or "Height", 4, 128)
+            Slider(geometrySection, "width", L["OPTION_WIDTH"] or "Width", 40, 512)
+            if not projectSegmentedGroups then
+                Dropdown(geometrySection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
+            end
             Slider(geometrySection, "spacing", L["OPTION_CLASS_POWER_BAR_SPACING"] or "Segment Spacing", 0, 20)
             local positionSection = CreateSegmentedPropertyGroup(body, L["SECTION_POSITION"] or "Position", true)
             local targets = {Frame=L["SECTION_FRAME"] or "Frame"}
@@ -2764,12 +2967,16 @@ function InspectorController.Build(container, state, options)
             Dropdown(positionSection, "anchorTo", L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", targets)
             Dropdown(positionSection, "point", L["OPTION_ANCHOR_FROM"] or "Anchor From", textAnchorPointList)
             Dropdown(positionSection, "relativePoint", L["OPTION_ANCHOR_TO"] or "Anchor To", textAnchorPointList)
+            if projectSegmentedGroups then AddFlatSectionHeading(positionSection, L["SECTION_POSITION"] or "Position") end
             Slider(positionSection, "offsetX", L["OPTION_X_OFFSET"] or "X Offset", -500, 500)
             Slider(positionSection, "offsetY", L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500)
+            if projectSegmentedGroups then
+                AddFlatSectionHeading(positionSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth")
+                Dropdown(positionSection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
+            end
             xControl, yControl = controls.offsetX, controls.offsetY
             -- AceGUI clears UserData on release; pooled controls receive a new binding identity.
             xControl:SetUserData("focalPointSegmentedBinding", binding)
-            Dropdown(positionSection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
             local timerSection
             if resolvedSource == "runes" then
                 timerSection = CreateSegmentedPropertyGroup(body, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
@@ -2894,11 +3101,11 @@ function InspectorController.Build(container, state, options)
             end)
         end
 
-        AddPropertyCompactSliderRow(geometrySection, L["EDITOR_OPTION_WIDTH"] or "Width", 120, 420, 1, tonumber(unitConfig.width) or 260, function(value)
-            SetUnitField("width", math.floor((value or 0) + 0.5))
-        end)
         AddPropertyCompactSliderRow(geometrySection, L["EDITOR_OPTION_HEIGHT"] or "Height", 24, 120, 1, tonumber(unitConfig.height) or 65, function(value)
             SetUnitField("height", math.floor((value or 0) + 0.5))
+        end)
+        AddPropertyCompactSliderRow(geometrySection, L["EDITOR_OPTION_WIDTH"] or "Width", 120, 420, 1, tonumber(unitConfig.width) or 260, function(value)
+            SetUnitField("width", math.floor((value or 0) + 0.5))
         end)
         if selectedUnit == "boss" then
             AddPropertyCompactSliderRow(geometrySection, L["OPTION_BOSS_FRAME_SPACING"] or "Boss Frame Spacing", 0, 40, 1, tonumber(unitConfig.bossSpacing) or 10, function(value)
@@ -3409,11 +3616,11 @@ function InspectorController.Build(container, state, options)
                 end)
             end
             if isScopedObject then
-                AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
-                    SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
-                end, not isCustom)
                 AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or "Height", 1, 128, 1, tonumber(unitConfig[prefix .. "Height"]) or 8, function(value)
                     SetUnitField(prefix .. "Height", math.floor((value or 0) + 0.5), rootSection)
+                end, not isCustom)
+                AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig[prefix .. "Width"]) or 120, function(value)
+                    SetUnitField(prefix .. "Width", math.floor((value or 0) + 0.5), rootSection)
                 end, not isCustom)
                 local pointControl
                 local relativePointControl
@@ -3440,6 +3647,7 @@ function InspectorController.Build(container, state, options)
                     disabled = not isCustom,
                     })
                 end
+                if normalPilot then AddFlatSectionHeading(positionSection, L["SECTION_POSITION"] or "Position") end
                 local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                         return
@@ -3481,6 +3689,7 @@ function InspectorController.Build(container, state, options)
                 end, not isCustom)
             end
             if isScopedObject then
+                if normalPilot then AddFlatSectionHeading(behaviorSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth") end
                 AddPropertyDropdownRow(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", {
                     list = absorbGrowthList,
                     value = unitConfig[prefix .. "Growth"] or fallbackGrowth,
@@ -4049,21 +4258,6 @@ function InspectorController.Build(container, state, options)
             AddDropdown(runeTimerSection, L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList, unitConfig.classPowerRuneTimerFontStyle or "OUTLINE", SetRuneTimerStyle, runeTimerDisabled)
         end
 
-        local classPowerGrowth = unitConfig.classPowerBarGrowth == "RIGHT_TO_LEFT" and "RIGHT_TO_LEFT" or "LEFT_TO_RIGHT"
-        if usePropertyGroups then
-            AddPropertyDropdownRow(geometrySection, L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", {
-                list = absorbGrowthList,
-                value = classPowerGrowth,
-                onChanged = function(value)
-                    SetUnitField("classPowerBarGrowth", value)
-                end,
-            }, unitConfig.showClassPowerBar ~= true)
-        else
-            AddDropdown(geometrySection, L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList, classPowerGrowth, function(value)
-                SetUnitField("classPowerBarGrowth", value)
-            end, unitConfig.showClassPowerBar ~= true)
-        end
-
         if isExpert then
             if usePropertyGroups then
                 AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
@@ -4075,6 +4269,30 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showClassPowerBar ~= true)
             end
 
+        end
+
+        local function BuildClassPowerGrowth(parent)
+            local classPowerGrowth = unitConfig.classPowerBarGrowth == "RIGHT_TO_LEFT" and "RIGHT_TO_LEFT" or "LEFT_TO_RIGHT"
+            if usePropertyGroups then
+                AddPropertyDropdownRow(parent, L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", {
+                    list = absorbGrowthList,
+                    value = classPowerGrowth,
+                    onChanged = function(value)
+                        SetUnitField("classPowerBarGrowth", value)
+                    end,
+                }, unitConfig.showClassPowerBar ~= true)
+            else
+                AddDropdown(parent, L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList, classPowerGrowth, function(value)
+                    SetUnitField("classPowerBarGrowth", value)
+                end, unitConfig.showClassPowerBar ~= true)
+            end
+        end
+        if not (flatClassPower and isExpert) then
+            if flatClassPower then AddFlatSectionHeading(geometrySection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth") end
+            BuildClassPowerGrowth(geometrySection)
+        end
+
+        if isExpert then
             if usePropertyGroups then
                 AddPropertyCompactSliderRow(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
                     SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
@@ -4138,6 +4356,7 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showClassPowerBar ~= true)
             end
 
+            if flatClassPower then AddFlatSectionHeading(positionSection, L["SECTION_POSITION"] or "Position") end
             local offsetXLabel = usePropertyGroups and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset")
             local offsetYLabel = usePropertyGroups and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset")
             local offsetXControl
@@ -4178,6 +4397,11 @@ function InspectorController.Build(container, state, options)
                 unit = state and state.selectedUnit,
                 objectKey = "ClassPowerBar",
             }, offsetXControl, offsetYControl, pointControl, relativePointControl)
+        end
+
+        if flatClassPower and isExpert then
+            AddFlatSectionHeading(positionSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth")
+            BuildClassPowerGrowth(positionSection)
         end
 
         if actionsSection then
@@ -4292,70 +4516,34 @@ function InspectorController.Build(container, state, options)
                 end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showCastBar == false, SetCastBarTexture)
             end
 
+            local castBarHeightControl
+            if usePropertyGroups then
+                castBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                    if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
+                        return
+                    end
+                    SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
+                end, unitConfig.showCastBar == false)
+            else
+                castBarHeightControl = AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
+                    if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
+                        return
+                    end
+                    SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
+                end, unitConfig.showCastBar == false)
+            end
+            RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "CastBar" }, "castBarHeight", castBarHeightControl)
+
             local castBarWidthMode = unitConfig.castBarWidthMode or "MATCH_FRAME"
             local castBarWidthMin, castBarWidthMax, castBarWidthDefault = 20, 600, 120
             if CastBar.GetWidthLimits then
                 castBarWidthMin, castBarWidthMax, castBarWidthDefault = CastBar.GetWidthLimits()
             end
             local castBarWidthControl
-            if flatCast then
-                AddPropertyRow(geometrySection, L["OPTION_WIDTH_MODE"] or "Width Mode", function(valueGroup)
-                    -- Cast-only pilot: the existing pooled row owns the native child.
-                    -- Older clients retain the unmodified compatible dropdown path.
-                    local dropdown = valueGroup.frame._fpCastWidthDropdown
-                    if not dropdown and type(DropdownButtonMixin) == "table"
-                        and type(DropdownButtonMixin.SetupMenu) == "function"
-                        and type(DropdownButtonMixin.ClearMenuState) == "function"
-                        and type(WowStyle1DropdownMixin) == "table" then
-                        local ok, frame = pcall(CreateFrame, "DropdownButton", nil, valueGroup.frame, "WowStyle1DropdownTemplate")
-                        if ok then
-                            dropdown = frame
-                            valueGroup.frame._fpCastWidthDropdown = dropdown
-                            dropdown:HookScript("OnHide", function(self) self:CloseMenu() end)
-                        end
-                    end
-                    if not dropdown then
-                        Shared.AddDropdown(valueGroup, "", castBarWidthModeList, castBarWidthMode, function(value)
-                            SetUnitField("castBarWidthMode", value)
-                        end)
-                        return
-                    end
-
-                    local scope = ResolvePropertyScope()
-                    local bindingActive = true
-                    local function IsCurrentBinding()
-                        return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
-                            and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
-                    end
-                    valueGroup:SetCallback("OnRelease", function()
-                        bindingActive = false
-                        dropdown:ClearMenuState()
-                        dropdown:Hide()
-                    end)
-                    dropdown:ClearAllPoints()
-                    dropdown:SetPoint("LEFT", valueGroup.frame, "LEFT", 8, 0)
-                    dropdown:SetPoint("RIGHT", valueGroup.frame, "RIGHT", -8, 0)
-                    dropdown:SetHeight(25)
-                    dropdown:SetEnabled(true) -- Width Mode remains editable when Show is off.
-                    dropdown:SetDefaultText(castBarWidthModeList[castBarWidthMode])
-                    dropdown:SetupMenu(function(_, rootDescription)
-                        -- Only this popup: the Inspector also uses FULLSCREEN_DIALOG.
-                        -- Blizzard's menu pool restores the acquired frame on release.
-                        rootDescription:AddMenuAcquiredCallback(function(menu)
-                            menu:SetFrameStrata("TOOLTIP")
-                        end)
-                        for _, mode in ipairs({ "MATCH_FRAME", "CUSTOM" }) do
-                            rootDescription:CreateRadio(castBarWidthModeList[mode], function()
-                                return IsCurrentBinding() and (unitConfig.castBarWidthMode or "MATCH_FRAME") == mode
-                            end, function()
-                                if IsCurrentBinding() then SetUnitField("castBarWidthMode", mode) end
-                            end)
-                        end
-                    end)
-                    dropdown:Show()
-                end, { rowType = "COMPACT" })
-            elseif usePropertyGroups then
+            if usePropertyGroups then
                 AddPropertyDropdownRow(geometrySection, L["OPTION_WIDTH_MODE"] or "Width Mode", {
+                    native = flatCast,
+                    nativeOrder = { "MATCH_FRAME", "CUSTOM" },
                     list = castBarWidthModeList,
                     value = castBarWidthMode,
                     onChanged = function(value)
@@ -4377,23 +4565,6 @@ function InspectorController.Build(container, state, options)
                 end, castBarWidthMode ~= "CUSTOM")
             end
 
-            local castBarHeightControl
-            if usePropertyGroups then
-                castBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_CAST_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
-                    if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
-                        return
-                    end
-                    SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
-                end, unitConfig.showCastBar == false)
-            else
-                castBarHeightControl = AddSlider(geometrySection, L["OPTION_CAST_BAR_HEIGHT"] or "Cast Bar Height", 4, 30, 1, tonumber(unitConfig.castBarHeight) or 20, function(value)
-                    if IsActiveCanvasWheelFieldControlSuppressed(castBarHeightControl) then
-                        return
-                    end
-                    SetUnitField("castBarHeight", math.floor((value or 0) + 0.5))
-                end, unitConfig.showCastBar == false)
-            end
-            RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "CastBar" }, "castBarHeight", castBarHeightControl)
         end
 
         if usePropertyGroups then
@@ -4960,6 +5131,7 @@ function InspectorController.Build(container, state, options)
                 local deadTemplateDropdown
                 if isScopedObject then
                     deadTemplateDropdown = AddPropertyDropdownRow(advancedSection, L["TEXT_DEAD_TEMPLATE"] or "Dead Template", {
+                        native = false, -- Dynamic template selector; retain its established path.
                         list = deadTemplateOptions,
                         value = deadTemplateOptions.value,
                         onChanged = function(value)
@@ -4977,6 +5149,7 @@ function InspectorController.Build(container, state, options)
                 local ghostTemplateDropdown
                 if isScopedObject then
                     ghostTemplateDropdown = AddPropertyDropdownRow(advancedSection, L["TEXT_GHOST_TEMPLATE"] or "Ghost Template", {
+                        native = false, -- Dynamic template selector; retain its established path.
                         list = ghostTemplateOptions,
                         value = ghostTemplateOptions.value,
                         onChanged = function(value)

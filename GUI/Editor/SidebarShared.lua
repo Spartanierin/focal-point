@@ -50,6 +50,7 @@ local INDICATOR_META = {
         end,
     },
     RaidTargetIcon = {
+        contextAttached = true,
         labelKey = "OPTION_RTM_ENABLED",
         dropdownLabelKey = "ELEMENT_RAID_TARGET_ICON",
         optionKey = "RaidTargetIcon",
@@ -60,6 +61,7 @@ local INDICATOR_META = {
         insideSideLabel = "OPTION_INSIDE_SIDE",
     },
     LeaderIcon = {
+        contextAttached = true,
         labelKey = "OPTION_LEADER_ICON_ENABLED",
         dropdownLabelKey = "ELEMENT_LEADER_ICON",
         optionKey = "LeaderIcon",
@@ -73,6 +75,7 @@ local INDICATOR_META = {
         end,
     },
     RoleIcon = {
+        contextAttached = true,
         labelKey = "OPTION_ROLE_ICON_ENABLED",
         dropdownLabelKey = "ELEMENT_ROLE_ICON",
         optionKey = "RoleIcon",

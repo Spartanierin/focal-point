@@ -441,6 +441,30 @@ function InspectorMutations.SetUnitPresence(context, present)
     return SetField(GetUnitConfig(context), "present", present == true, "unit_config_not_found")
 end
 
+function InspectorMutations.CanRemoveObject(ref)
+    if type(ref) ~= "table" then return false end
+    if ref.kind == "text" then return type(ref.textKey or ref.objectKey) == "string" end
+    if ref.kind == "decoration" then return type(ref.decorationId or ref.objectKey) == "string" end
+    if ref.kind == "segmentedBar" then
+        local mutations = FocalPoint.LayoutMutations and FocalPoint.LayoutMutations.SegmentedBars
+        return mutations and type(mutations.Delete) == "function" or false
+    end
+    if ref.kind == "bar" or ref.kind == "indicator" or ref.kind == "aura" then
+        local key = ref.indicatorKey or ref.auraKey or ref.objectKey
+        return COMPONENT_PRESENCE_FIELDS[key] ~= nil or TABLE_COMPONENT_PRESENCE_KEYS[key] == true
+    end
+    return false
+end
+
+-- Thin dispatch to the existing mutations, including segmented Delete's anchor/combat guards.
+function InspectorMutations.RemoveObject(context, ref, segmentedContext)
+    if not InspectorMutations.CanRemoveObject(ref) then return Result(false, {errorCode="unsupported_component"}) end
+    if ref.kind == "text" then return InspectorMutations.DeleteTextInstance(context, ref.textKey or ref.objectKey) end
+    if ref.kind == "decoration" then return InspectorMutations.DeleteDecoration(context, ref.decorationId or ref.objectKey) end
+    if ref.kind == "segmentedBar" then return FocalPoint.LayoutMutations.SegmentedBars.Delete(segmentedContext, ref.objectKey) end
+    return InspectorMutations.SetComponentPresence(context, ref.indicatorKey or ref.auraKey or ref.objectKey, false)
+end
+
 function InspectorMutations.SetComponentPresence(context, componentKey, present)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
@@ -466,10 +490,89 @@ function InspectorMutations.SetComponentPresence(context, componentKey, present)
     return result
 end
 
-function InspectorMutations.AddComponent(context, componentKey)
+-- Derive supported bar targets from the existing ATTACHED selector definition.
+function InspectorMutations.GetContextIndicatorAddPlacement(ref)
+    local layouts = FocalPoint.GUI.Layouts and FocalPoint.GUI.Layouts.UnitPortrait
+    local lists = layouts and layouts.Lists
+    if type(ref) ~= "table" or ref.kind ~= "bar" or not lists
+        or not lists.anchorTo[ref.objectKey] or ref.objectKey == "Frame" then return nil end
+    return {placement="ATTACHED", anchorTo=ref.objectKey, point="CENTER", relativePoint="TOP", offsetX=0, offsetY=0}
+end
+
+local function AddIndicatorWithPlacement(context, componentKey, placement)
+    local shared = FocalPoint.GUI.Editor.SidebarShared
+    local meta = shared and shared.INDICATOR_META and shared.INDICATOR_META[componentKey]
+    if not meta or meta.contextAttached ~= true or type(placement) ~= "table" or getmetatable(placement) ~= nil then
+        return Result(false, {errorCode="invalid_initial_placement"})
+    end
+    if InCombatLockdown and InCombatLockdown() then return Result(false, {errorCode="combat_blocked"}) end
+    if type(context.isCurrent) ~= "function" or not context.isCurrent() then
+        return Result(false, {errorCode="stale_context"})
+    end
+    local unitKey = NormalizeUnitKey(context.unitKey or context.unit)
+    -- The editable workflow has already completed. Do not call its materializing getters here.
+    local root = FocalPoint.ActiveLayoutResolver.GetActiveRuntimeRoot()
+    local unit = rawget(context,"unitConfig")
+    local indicator = type(unit) == "table" and rawget(unit, componentKey)
+    if type(unit) ~= "table" or getmetatable(unit) ~= nil or unit.present == false
+        or not root or type(root.units) ~= "table" or root.units[unitKey] ~= unit
+        or type(indicator) ~= "table" or getmetatable(indicator) ~= nil then
+        return Result(false, {errorCode="component_config_not_found"})
+    end
+    if type(root.layoutId) ~= "string" or not root.layoutId:match("^layout:") then
+        return Result(false, {errorCode="readonly_layout"})
+    end
+    if root.db ~= FocalPoint.db or FocalPoint.ActiveLayoutResolver.GetStoredActiveLayoutId(FocalPoint.db) ~= root.layoutId then
+        return Result(false, {errorCode="stale_context"})
+    end
+    if not (shared and shared.BuildIndicatorList and shared.BuildIndicatorList(unitKey)[componentKey]) then
+        return Result(false, {errorCode="component_unavailable"})
+    end
+    local lists = FocalPoint.GUI.Layouts and FocalPoint.GUI.Layouts.UnitPortrait
+    lists = lists and lists.Lists
+    local allowed = {placement=true,anchorTo=true,point=true,relativePoint=true,offsetX=true,offsetY=true}
+    for key in pairs(placement) do
+        if not allowed[key] then return Result(false, {errorCode="invalid_initial_placement"}) end
+    end
+    if not lists or placement.placement ~= "ATTACHED" or not lists.placement[placement.placement]
+        or not InspectorMutations.GetContextIndicatorAddPlacement({kind="bar",objectKey=placement.anchorTo})
+        or not lists.anchorPoints[placement.point] or not lists.anchorPoints[placement.relativePoint] then
+        return Result(false, {errorCode="invalid_initial_placement"})
+    end
+    for _,key in ipairs({"offsetX","offsetY"}) do
+        local value = placement[key]
+        if type(value) ~= "number" or value ~= value or value < -500 or value > 500 then
+            return Result(false, {errorCode="invalid_initial_placement"})
+        end
+    end
+    local reference = context.placementTarget
+    if type(reference) ~= "table" or reference.kind ~= "bar" or reference.unit ~= unitKey
+        or reference.objectKey ~= placement.anchorTo then return Result(false, {errorCode="reference_mismatch"}) end
+    local presence = FocalPoint.GUI.Editor.Composition.Presence
+    local target = {kind="bar",unit=unitKey,objectKey=placement.anchorTo}
+    if not presence or not presence.IsPresent(unit, target) then return Result(false, {errorCode="reference_missing"}) end
+    -- All callbacks/resolvers precede this section. Recheck identities and races before raw writes.
+    if not context.isCurrent() or FocalPoint.ActiveLayoutResolver.GetActiveRuntimeRoot() ~= root
+        or root.db ~= FocalPoint.db or FocalPoint.ActiveLayoutResolver.GetStoredActiveLayoutId(FocalPoint.db) ~= root.layoutId
+        or root.units[unitKey] ~= unit
+        or rawget(unit,componentKey) ~= indicator then
+        return Result(false, {errorCode="stale_context"})
+    end
+    if InCombatLockdown and InCombatLockdown() then return Result(false, {errorCode="combat_blocked"}) end
+    if rawget(indicator,"present") == true then return Result(false, {errorCode="already_present"}) end
+    if not presence.IsPresent(unit,target) then return Result(false, {errorCode="reference_missing"}) end
+    for key in pairs(allowed) do rawset(indicator,key,placement[key]) end
+    rawset(indicator,"present",true)
+    rawset(indicator,"enabled",true)
+    return Result(true, {changed=true,componentKey=componentKey,presentField="present",visibilityField="enabled"})
+end
+
+function InspectorMutations.AddComponent(context, componentKey, initialPlacement)
     if type(context) ~= "table" then
         return Result(false, { errorCode = "invalid_context" })
     end
+
+    if initialPlacement ~= nil then return AddIndicatorWithPlacement(context,componentKey,initialPlacement) end
 
     local unitConfig = GetUnitConfig(context)
     local presentField = COMPONENT_PRESENCE_FIELDS[componentKey]

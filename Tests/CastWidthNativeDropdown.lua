@@ -24,6 +24,7 @@ DropdownButtonMixin = {
         self.entries = entries
     end,
     ClearMenuState = function(self)
+        self.clearCount = (self.clearCount or 0) + 1
         self:CloseMenu()
         self.generator, self.entries, self.acquired = nil, nil, nil
     end,
@@ -59,7 +60,7 @@ local window, unit
 local function Native()
     local found, owner
     s.Walk(window._focalPointPropertyScroll, function(w)
-        local dropdown = w.frame._fpCastWidthDropdown
+        local dropdown = w:GetUserData("nativePropertyDropdown")
         if dropdown and dropdown.generator then
             assert(not found, "duplicate live native dropdown")
             found, owner = dropdown, w
@@ -75,6 +76,7 @@ Test("missing API or template falls back to original AceGUI path without rejecte
     window, unit = s.Start(); Geometry(); assert(not Native())
     local dropdown = s.Control("Width Mode", "Dropdown")
     assert(not dropdown.frame._fpInspectorDropdownSurface)
+    for _, item in dropdown.pullout:IterateItems() do assert(item.userdata.value == "CUSTOM"); break end
     dropdown:Fire("OnValueChanged", "CUSTOM"); s.Drain(); assert(unit.castBarWidthMode == "CUSTOM")
     s.controller.ReleaseInspector(); DropdownButtonMixin = mixin; failTemplate = true
     window, unit = s.Start(); Geometry(); assert(not Native())
@@ -83,9 +85,9 @@ Test("missing API or template falls back to original AceGUI path without rejecte
 end)
 Test("native template, initial canonical selection, fixed row and untouched parent ownership", function()
     window, unit = s.Start(); Geometry()
-    local dropdown, owner = Native(); assert(dropdown and owner.type == "SimpleGroup")
+    local dropdown, owner = Native(); assert(dropdown and owner.type == "Dropdown")
     assert(dropdown.parent == owner.frame and dropdown:GetHeight() == 25)
-    assert(dropdown.points.LEFT.relative == owner.frame and dropdown.points.RIGHT.relative == owner.frame)
+    assert(dropdown.points.LEFT.relative == owner.button_cover and dropdown.points.RIGHT.relative == owner.button_cover)
     assert(dropdown.points.LEFT.x == 8 and dropdown.points.RIGHT.x == -8)
     assert(not dropdown._fpInspectorDropdownSurface)
     assert(dropdown.defaultText == (s.ns.L.OPTION_MATCH_FRAME or "Match Frame"))
@@ -103,13 +105,13 @@ Test("native radio callbacks use original mutation and width dependencies", func
 end)
 Test("only acquired popup is above Inspector strata; button and controls keep their layering", function()
     local dropdown, owner = Native()
-    local before = s.h.Copy(owner.frame.lastSetFrameStrata)
+    local before = s.h.Copy(owner.frame.lastSetFrameStrata or {})
     owner.frame:SetFrameLevel(9000) -- A level collision must not require bigger magic levels.
     dropdown:OpenMenu()
     assert(popup.parent ~= dropdown and popup.lastSetFrameStrata[1] == "TOOLTIP")
     assert(popup:GetFrameLevel() == 501 and owner.frame:GetFrameLevel() == 9000)
     assert(not dropdown.lastSetFrameStrata)
-    s.h.Equal(owner.frame.lastSetFrameStrata, before)
+    s.h.Equal(owner.frame.lastSetFrameStrata or {}, before)
     for _, entry in ipairs(dropdown.entries) do assert(entry.text ~= "" and type(entry.callback) == "function") end
     dropdown:CloseMenu()
     assert(not popup:IsShown() and popup.lastSetFrameStrata[1] == "FULLSCREEN_DIALOG")
@@ -133,9 +135,11 @@ Test("enabled/disabled native control and hide close menu; Show-off retains exis
 end)
 Test("release clears native menu and stale callbacks; reacquired host binds current selection", function()
     local dropdown = Native(); local old = dropdown.entries[2].callback
+    local clears = dropdown.clearCount or 0
     dropdown:OpenMenu()
     s.Select("NormalAbsorbBar")
-    assert(not dropdown:IsShown() and not dropdown.generator and not dropdown.menuOpen)
+    -- The same Dropdown may already be reacquired by an Absorb row.
+    assert(dropdown.clearCount > clears and not dropdown.menuOpen)
     old(); s.Drain(); assert(unit.castBarWidthMode == "MATCH_FRAME")
     s.Select("CastBar"); Geometry()
     local current = Native(); assert(current and current.entries[1].selected())
@@ -150,7 +154,7 @@ Test("rebuild, close/reopen and repeated pool reuse reject old bindings", functi
         old(); s.Drain(); assert(unit.castBarWidthMode == "CUSTOM")
     end
     local dropdown = Native(); local old = dropdown.entries[1].callback
-    window._focalPointCloseButton:Fire("OnClick"); s.Drain()
+    window.closebutton:GetScript("OnClick")(window.closebutton); s.Drain()
     assert(not window.frame:IsShown())
     -- Workspace Close hides the retained host, rather than releasing its children.
     -- The native boundary does not propagate ancestor OnHide notifications itself.

@@ -59,6 +59,7 @@ local function ObjectActions()
     end)
     assert(buttons==1,"Remove action was missing or duplicated")
     assert(button.parent.parent.parent==area,"Remove action has a different owner")
+    assert(button:IsFullWidth() and #button.parent.parent.children==1,"object action must span the row without a duplicate label")
     assert(area.frame:IsShown() and button.frame:IsShown())
     assert(area.frame._fpNormalAbsorbActionDivider:IsShown() and area.frame._fpNormalAbsorbActionDivider:GetHeight()==1)
     return area,button
@@ -71,6 +72,7 @@ local function Control(label,kind)
     local found
     local root=window._focalPointPropertyScroll
     Walk(root,function(w)
+        if kind=="Button" and w.type=="Button" and w.text:GetText()==label then found=w end
         local c=w.children or {}
         if c[1] and c[1].type=="Label" and c[1].label:GetText()==label and c[2] then
             Walk(c[2],function(child) if child.type==kind then found=child end end)
@@ -98,7 +100,15 @@ local function CheckProjection(key)
     assert(state.Get().inspectorPropertyGroup==key)
     local body=Body(); local visible=0
     local root=body.parent
-    assert(root.children[2].frame:GetHeight()==3,"pilot header spacing changed")
+    assert(#root.children==1 and root.children[1]==body,"redundant Workspace object header returned")
+    assert(body.children[1].frame:GetHeight()==40,"tab navigation must retain 10px below its 30px buttons")
+    Walk(body,function(widget)
+        if widget.type=="Label" and widget:GetUserData("fpLabelTypography") then
+            local _,size=widget.label:GetFont()
+            assert(size==13,"Workspace property labels must match the 13px tabs")
+            h.Equal(widget.label.lastSetTextColor,{1,1,1,1})
+        end
+    end)
     for i,child in ipairs(root.parent.children) do
         if child==root then assert(root.parent.children[i-1].frame:GetHeight()==4,"pilot outer spacing changed") end
     end
@@ -181,9 +191,9 @@ Test("flat content has no section chrome/title or 40px surcharge and retains ful
     local labels={}
     Walk(Body(),function(w)
         local c=w.children or {}
-        if c[1] and c[1].type=="Label" and c[2] and c[2].type=="SimpleGroup" then
+        if w:GetUserData("table") and c[1] and c[1].type=="Label" and c[2] and c[2].type=="SimpleGroup" then
             local label=c[1].label:GetText(); labels[label]=(labels[label] or 0)+1
-            assert(c[1].frame:GetWidth()==108,"label column changed")
+            assert(c[1].frame:GetWidth()==128,"label column changed")
             -- The existing picker row is 25px in HEAD; ordinary compact rows are 29px.
             assert(w.frame:GetHeight()==(label=="Texture" and 25 or 29),"property row height changed")
         end
@@ -227,13 +237,8 @@ Test("custom geometry, growth and canvas synchronization retain original control
     Control("Offset X","FPCompactSlider"):Fire("OnValueChanged",7)
     Control("Offset Y","FPCompactSlider"):Fire("OnValueChanged",-4)
     Control("Anchor Target","Dropdown"):Fire("OnValueChanged","Frame"); Drain()
-    local function Point(label)
-        local found
-        Walk(Body(),function(w) if w.type=="Dropdown" and w.label:GetText()==label then found=w end end)
-        return assert(found,label)
-    end
-    Point(ns.L.OPTION_FROM_POINT or "From Point"):Fire("OnValueChanged","TOPLEFT"); Drain()
-    Point(ns.L.OPTION_TO_POINT or "To Point"):Fire("OnValueChanged","BOTTOMLEFT"); Drain()
+    Control(ns.L.OPTION_ANCHOR_FROM or "Anchor From","Dropdown"):Fire("OnValueChanged","TOPLEFT"); Drain()
+    Control(ns.L.OPTION_ANCHOR_TO or "Anchor To","Dropdown"):Fire("OnValueChanged","BOTTOMLEFT"); Drain()
     assert(unit.normalAbsorbBarAnchorTo=="Frame" and unit.normalAbsorbBarPoint=="TOPLEFT"
         and unit.normalAbsorbBarRelativePoint=="BOTTOMLEFT")
     Control("Growth Direction","Dropdown"):Fire("OnValueChanged","RIGHT_TO_LEFT"); Drain()
@@ -270,10 +275,10 @@ Test("selection, modes, layout and reopen preserve presentation only for the pil
     assert(ns:ActivateLayout(id)); controller.BuildInspector(nil,{GetEditorState=state.Get}); Drain()
     CheckProjection("geometry")
     callback=Tabs().appearance.events.OnClick
-    window._focalPointArrangeButton:Fire("OnClick"); Drain(); callback()
+    window.closebutton:GetScript("OnClick")(window.closebutton); Drain(); callback()
     assert(state.IsArrange() and state.Get().inspectorPropertyGroup=="geometry")
     window=Build(); CheckProjection("geometry")
-    window._focalPointCloseButton:Fire("OnClick"); Drain(); callback()
+    window.closebutton:GetScript("OnClick")(window.closebutton); Drain(); callback()
     window=Build(); CheckProjection("geometry")
 end)
 Test("fallback uses available groups and invalid group input cannot create an empty path",function()

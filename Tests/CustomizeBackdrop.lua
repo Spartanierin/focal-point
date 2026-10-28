@@ -39,7 +39,7 @@ Test("host hide/show, Arrange and Close all remove dimming without a parallel mo
     controller.SetPresentation("arrange");Drain();assert(not dim:IsShown())
     window.frame:Show();assert(not dim:IsShown(),"stale Window show must not enable the backdrop")
     assert(Build()==window);assert(dim:IsShown())
-    window._focalPointCloseButton:Fire("OnClick");Drain();assert(not dim:IsShown() and state.IsArrange())
+    window.closebutton:GetScript("OnClick")(window.closebutton);Drain();assert(not dim:IsShown() and state.IsArrange())
     assert(Build()==window);assert(dim:IsShown())
 end)
 Test("background level-zero UnitFrames suppress the decoration; no protected frame setters are used",function()
