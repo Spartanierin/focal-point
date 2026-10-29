@@ -4728,6 +4728,11 @@ function InspectorController.Build(container, state, options)
 
         local isScopedObject = IsSelectedTextObject(selectedUnit, selectedTextId)
         local workspaceText = isScopedObject and type(workspaceIsCurrent) == "function"
+        local projectTextGroups, registerTextGroups
+        if workspaceText then
+            local unusedFactory
+            unusedFactory, projectTextGroups, registerTextGroups = BeginFlatPropertyPresentation(textSection)
+        end
         local contentSection = textSection
         local appearanceSection = textSection
         local positionSection = textSection
@@ -4741,9 +4746,12 @@ function InspectorController.Build(container, state, options)
             if (workspaceText or not isQuick) and type(InspectorMutations.AssignTextStateTemplate) == "function"
                 and type(InspectorMutations.UnassignTextStateTemplate) == "function"
             then
-                advancedSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ADVANCED"] or "Advanced", true)
+                local title = workspaceText and (L["TEXT_STATE_TEMPLATES"] or "State Templates")
+                    or (L["SECTION_ADVANCED"] or "Advanced")
+                advancedSection = AddFramedObjectPropertyGroup(textSection, title, true)
             end
             actionsSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if workspaceText then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
         else
             AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", currentTextList, selectedTextId, function(value)
                 local ok = type(ObjectSelection.SelectObject) == "function"
@@ -5010,7 +5018,7 @@ function InspectorController.Build(container, state, options)
                 AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", textConfig.color, true, function(value)
                     SetTextField(selectedTextId, "color", value)
                 end, textConfig.enabled == false, "text_color")
-                AddPropertyDropdownRow(appearanceSection, L["OPTION_JUSTIFY_H"] or "Justify", {
+                AddPropertyDropdownRow(workspaceText and positionSection or appearanceSection, L["OPTION_JUSTIFY_H"] or "Justify", {
                     list = justifyList,
                     value = textConfig.justifyH or "CENTER",
                     onChanged = function(value)
@@ -5066,7 +5074,7 @@ function InspectorController.Build(container, state, options)
                 AddPropertyCompactSliderRow(positionSection, L["OPTION_Y_OFFSET"] or "Y Offset", -100, 100, 1, tonumber(textConfig.offsetY) or 0, function(value)
                     SetTextField(selectedTextId, "offsetY", math.floor((value or 0) + 0.5))
                 end, textConfig.enabled == false, "text_offset_y")
-                AddPropertyDropdownRow(positionSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", {
+                AddPropertyDropdownRow(workspaceText and contentSection or positionSection, L["OPTION_TEXT_OVERFLOW"] or "Text Overflow", {
                     list = overflowList,
                     value = textConfig.overflowMode or "NONE",
                     onChanged = function(value)
@@ -5189,6 +5197,14 @@ function InspectorController.Build(container, state, options)
                 end)
                 textSection:AddChild(deleteTextButton)
             end
+        end
+        if workspaceText then
+            local membership = {[contentSection]="behavior", [appearanceSection]="appearance", [positionSection]="geometry"}
+            if advancedSection ~= textSection then membership[advancedSection] = "behavior" end
+            for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
+            -- The framed Actions owner keeps its release bindings and remains outside tab filtering.
+            registerTextGroups(membership)
+            projectTextGroups()
         end
     end
 

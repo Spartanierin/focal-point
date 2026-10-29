@@ -346,14 +346,28 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
             else
                 assert(selection.SelectObject({kind="unit",unit="player"})); Drain()
             end
-            assert(next((Tabs()))==nil)
+            local currentTabs,currentOrder=Tabs()
+            if object=="text" then
+                assert(table.concat(currentOrder,",")=="appearance,geometry,behavior")
+            else
+                assert(next(currentTabs)==nil)
+            end
             assert(not oldActionDivider:IsShown(),"object-action divider leaked after release")
-            assert(not oldBaseline:IsShown(),"released navigation left its baseline visible")
+            assert(not oldBaseline:IsShown() or (object=="text"
+                and currentTabs.appearance.parent.frame._fpNormalAbsorbTabBaseline==oldBaseline),
+                "released navigation left its baseline visible outside the current tab owner")
             for _,tab in pairs(oldTabs) do
-                for _,part in pairs(tab.frame._fpNormalAbsorbTab) do
-                    assert(not part:IsShown(),"tab skin leaked into pooled widget")
+                local reused=false
+                for _,current in pairs(currentTabs) do if current==tab then reused=true end end
+                if reused then
+                    assert(tab:GetUserData("normalAbsorbPropertyTab") and tab.frame:IsShown())
+                    assert(tab.text:GetText()=="" and tab.frame._fpNormalAbsorbTab.label:IsShown())
+                else
+                    for _,part in pairs(tab.frame._fpNormalAbsorbTab) do
+                        assert(not part:IsShown(),"tab skin leaked into pooled widget")
+                    end
+                    assert(tab.text:GetAlpha()==1,"native pooled button presentation not restored")
                 end
-                assert(tab.text:GetAlpha()==1,"native pooled button presentation not restored")
             end
             local before=state.Get().inspectorPropertyGroup
             oldCallback()
@@ -362,7 +376,8 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
             Walk(window._focalPointPropertyScroll,function(w)
                 if w.type=="InlineGroup" then
                     framed=framed+1
-                    assert(not w:GetUserData("normalAbsorbPropertyContent"))
+                    assert((w:GetUserData("normalAbsorbPropertyContent")==true)
+                        ==(object=="text" and not w:GetUserData("normalAbsorbObjectActions")))
                     assert(w.titletext:GetText()~="")
                 end
             end)

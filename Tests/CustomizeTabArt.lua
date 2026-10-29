@@ -109,7 +109,7 @@ Test("German labels fit a narrow Workspace without fixed profession widths",func
 end)
 Test("release hides all art, stale clicks remain invalid, pooled ordinary Buttons retain native chrome",function()
     local old=Tabs();local click=old.geometry.events.OnClick
-    assert(selection.SelectObject({kind="text",unit="player",textKey="localText"}));Drain()
+    assert(selection.SelectObject({kind="unit",unit="player"}));Drain()
     for _,tab in pairs(old)do
         for _,r in pairs(tab.frame._fpNormalAbsorbTab)do assert(not r:IsShown())end
         assert(tab.text:GetAlpha()==1)
