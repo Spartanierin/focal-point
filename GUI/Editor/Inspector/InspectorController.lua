@@ -4727,6 +4727,7 @@ function InspectorController.Build(container, state, options)
         end
 
         local isScopedObject = IsSelectedTextObject(selectedUnit, selectedTextId)
+        local workspaceText = isScopedObject and type(workspaceIsCurrent) == "function"
         local contentSection = textSection
         local appearanceSection = textSection
         local positionSection = textSection
@@ -4737,7 +4738,7 @@ function InspectorController.Build(container, state, options)
             contentSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_CONTENT"] or "Content", false)
             appearanceSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             positionSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_POSITION"] or "Position", true)
-            if not isQuick and type(InspectorMutations.AssignTextStateTemplate) == "function"
+            if (workspaceText or not isQuick) and type(InspectorMutations.AssignTextStateTemplate) == "function"
                 and type(InspectorMutations.UnassignTextStateTemplate) == "function"
             then
                 advancedSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ADVANCED"] or "Advanced", true)
@@ -4914,7 +4915,7 @@ function InspectorController.Build(container, state, options)
             return result
         end
 
-        if isQuick then
+        if isQuick and not workspaceText then
             if isScopedObject then
                 fontDropdown = AddPropertyPickerValueRow(appearanceSection, L["OPTION_FONT"] or "Font", ResolveOptionValueLabel(fontOptions, fontOptions.value or textConfig.font), function()
                     OpenMediaBrowserForField({
