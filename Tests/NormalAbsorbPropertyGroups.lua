@@ -436,5 +436,44 @@ Test("object action stays outside tab availability and removes the selected bar 
         assert(next((Tabs()))==nil,"Remove did not leave the selected object's properties")
     end
 end)
+Test("both Workspace Absorbs expose stored anchor points in both profile modes and retain CUSTOM/MATCH guards",function()
+    for _,expert in ipairs({false,true})do
+        for _,case in ipairs({{"NormalAbsorbBar","normalAbsorbBar"},{"HealingAbsorbBar","healingAbsorbBar"}})do
+            db,unit=Setup()
+            unit.powerBarPresent=true;unit.showPowerBar=true
+            unit.normalAbsorbBarPresent=true;unit.showNormalAbsorbBar=true
+            unit.healingAbsorbBarPresent=true;unit.showHealingAbsorbBar=true
+            db.profile={General={ExpertMode=expert}};state.SetMode(expert and "quick" or "expert")
+            local prefix=case[2];unit[prefix.."SizeMode"]="CUSTOM"
+            unit[prefix.."Point"]="TOPLEFT";unit[prefix.."RelativePoint"]="BOTTOMRIGHT"
+            local expected=h.Copy(unit);local profile=h.Copy(db.profile)
+            window=Build();Select(case[1]);Click("geometry")
+            h.Equal(unit,expected)
+            local point=Control("Anchor From","Dropdown");local relative=Control("Anchor To","Dropdown")
+            assert(point:GetValue()=="TOPLEFT" and relative:GetValue()=="BOTTOMRIGHT")
+            assert(not point.disabled and not relative.disabled)
+            local old=point.events.OnValueChanged
+            point:Fire("OnValueChanged","BOTTOMLEFT");Drain();expected[prefix.."Point"]="BOTTOMLEFT"
+            assert(Control("Anchor From","Dropdown").events.OnValueChanged~=old,"point mutation did not renew section binding")
+            Control("Anchor To","Dropdown"):Fire("OnValueChanged","TOPRIGHT");Drain()
+            expected[prefix.."RelativePoint"]="TOPRIGHT";h.Equal(unit,expected)
+            Control("Size Mode","Dropdown"):Fire("OnValueChanged","MATCH_TARGET");Drain()
+            expected[prefix.."SizeMode"]="MATCH_TARGET"
+            for _,label in ipairs({"Anchor From","Anchor To"})do assert(Control(label,"Dropdown").disabled,label)end
+            assert(Control("Width","FPCompactSlider").disabled and Control("Height","FPCompactSlider").disabled)
+            h.Equal(unit,expected)
+            Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM");Drain()
+            expected[prefix.."SizeMode"]="CUSTOM"
+            for _=1,4 do
+                Select("PowerBar");Select(case[1]);Click("geometry")
+                assert(Control("Anchor From","Dropdown"):GetValue()=="BOTTOMLEFT")
+                assert(Control("Anchor To","Dropdown"):GetValue()=="TOPRIGHT")
+                assert(not Control("Anchor From","Dropdown").disabled and not Control("Anchor To","Dropdown").disabled)
+            end
+            h.Equal(unit,expected);h.Equal(db.profile,profile)
+            assert(state.Get().mode==(expert and "quick" or "expert"))
+        end
+    end
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Normal Absorb Property Groups: "..count.." groups PASS")

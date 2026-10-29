@@ -3626,7 +3626,7 @@ function InspectorController.Build(container, state, options)
                 end, not isCustom)
                 local pointControl
                 local relativePointControl
-                if isExpert then
+                if normalPilot or isExpert then
                     pointControl, relativePointControl = AddPointPairRow(positionSection, {
                     list = barAnchorList,
                     value = unitConfig[prefix .. "Point"] or "LEFT",

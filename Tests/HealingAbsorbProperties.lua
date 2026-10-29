@@ -143,6 +143,39 @@ Test("other bars retain their groups; selection and layout rebuild rebind Genera
     local active=ns.UnitFrameUtils.GetUnitDB("player")
     assert(active~=unit and active.showHealingAbsorbBar==false and unit.showHealingAbsorbBar==true)
 end)
+Test("Legacy Absorb anchor points retain profile filtering, stored values and CUSTOM/MATCH disabled rules",function()
+    local function Points()
+        local point,relative
+        local function Walk(w)
+            if w.type=="Dropdown" and w.label then
+                local label=w.label:GetText()
+                if label=="From Point"then assert(not point);point=w end
+                if label=="To Point"then assert(not relative);relative=w end
+            end
+            for _,child in ipairs(w.children or {})do Walk(child)end
+        end
+        Walk(container);return point,relative
+    end
+    for _,expert in ipairs({false,true})do
+        for _,case in ipairs({{"NormalAbsorbBar","normalAbsorbBar"},{"HealingAbsorbBar","healingAbsorbBar"}})do
+            db,unit=Setup();unit.normalAbsorbBarPresent=true;unit.showNormalAbsorbBar=true
+            unit.healingAbsorbBarPresent=true;unit.showHealingAbsorbBar=true
+            db.profile={General={ExpertMode=expert}};state.SetMode(expert and "quick" or "expert")
+            local prefix=case[2];unit[prefix.."Point"]="TOPLEFT";unit[prefix.."RelativePoint"]="BOTTOMRIGHT"
+            for _,mode in ipairs({"CUSTOM","MATCH_TARGET"})do
+                unit[prefix.."SizeMode"]=mode;Select(case[1])
+                local before=Copy(db);Build();Equal(db,before)
+                local point,relative=Points()
+                assert((point~=nil)==expert and (relative~=nil)==expert,"Legacy profile filter changed")
+                if expert then
+                    assert(point:GetValue()=="TOPLEFT" and relative:GetValue()=="BOTTOMRIGHT")
+                    assert(point.disabled==(mode~="CUSTOM") and relative.disabled==(mode~="CUSTOM"))
+                end
+            end
+            assert(db.profile.General.ExpertMode==expert and state.Get().mode==(expert and "quick" or "expert"))
+        end
+    end
+end)
 assert(#ui.env.errors==0,table.concat(ui.env.errors,"\n"))
 ui.ace:Release(container)
 -- Same real Workspace/Inspector fixture as the Normal pilot; native pixels stay an ingame gate.
@@ -217,7 +250,7 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         assert(unit.showHealingAbsorbBar)
         w.h.Equal(NormalFields(unit),normal)
     end)
-    Test("Healing geometry preserves Quick/Expert, disabled fields and opposite Growth fallback",function()
+    Test("Healing geometry exposes points in Quick/Expert while preserving disabled fields and opposite Growth fallback",function()
         unit.healingAbsorbBarGrowth=nil; unit.normalAbsorbBarGrowth=nil
         local normal=NormalFields(unit)
         w.state.SetMode("quick"); w.controller.RefreshActiveProperties(); w.Drain(); w.Click("geometry")
@@ -237,8 +270,11 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
             end)
             return found
         end
-        assert(not Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"])
+        assert(Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"].disabled)
+        assert(Points()[w.ns.L.OPTION_ANCHOR_TO or "Anchor To"].disabled)
         w.Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM"); w.Drain()
+        assert(not Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"].disabled)
+        assert(not Points()[w.ns.L.OPTION_ANCHOR_TO or "Anchor To"].disabled)
         w.Control("Width","FPCompactSlider"):Fire("OnValueChanged",184)
         w.Control("Height","FPCompactSlider"):Fire("OnValueChanged",12)
         w.Control("Offset X","FPCompactSlider"):Fire("OnValueChanged",8)
@@ -254,6 +290,7 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         assert(unit.healingAbsorbBarRelativePoint=="BOTTOMLEFT" and unit.healingAbsorbBarGrowth=="LEFT_TO_RIGHT")
         w.Control("Size Mode","Dropdown"):Fire("OnValueChanged","MATCH_TARGET"); w.Drain()
         assert(w.Control("Width","FPCompactSlider").disabled and w.Control("Height","FPCompactSlider").disabled)
+        assert(Points()[w.ns.L.OPTION_ANCHOR_TO or "Anchor To"].disabled)
         assert(w.Control("Offset X","FPCompactSlider").disabled and w.Control("Offset Y","FPCompactSlider").disabled)
         assert(Points()[w.ns.L.OPTION_ANCHOR_FROM or "Anchor From"].disabled)
         w.h.Equal(NormalFields(unit),normal)

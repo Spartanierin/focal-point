@@ -37,11 +37,15 @@ Test("all compatible Normal Absorb rows use the shared native presentation",func
     window,unit=s.Start();s.Select("NormalAbsorbBar")
     local n=0;s.Walk(window._focalPointPropertyScroll,function(w)
         if w:GetUserData("nativePropertyDropdown")then n=n+1 end
-    end);assert(n==3)
+    end);assert(n==5)
     assert(Control("Size Mode"):GetValue()==(unit.normalAbsorbBarSizeMode or "MATCH_TARGET"))
     assert(Control("Growth Direction"):GetValue()==(unit.normalAbsorbBarGrowth or "LEFT_TO_RIGHT"))
     assert(#Native("Size Mode").entries==2 and #Native("Growth Direction").entries==2)
     assert(Control("Anchor Target"):GetUserData("nativePropertyDropdown"))
+    for _,case in ipairs({{"Anchor From","normalAbsorbBarPoint"},{"Anchor To","normalAbsorbBarRelativePoint"}})do
+        assert(Control(case[1]):GetValue()==(unit[case[2]] or "LEFT"))
+        assert(Control(case[1]).disabled and not Native(case[1]).enabled)
+    end
 end)
 Test("both controls use their existing mutation fields and width dependency",function()
     s.Tabs().geometry:Fire("OnClick");s.Drain();Pick("Size Mode","CUSTOM")
