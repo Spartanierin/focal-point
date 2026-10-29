@@ -193,7 +193,7 @@ Test("flat content has no section chrome/title or 40px surcharge and retains ful
         local c=w.children or {}
         if w:GetUserData("table") and c[1] and c[1].type=="Label" and c[2] and c[2].type=="SimpleGroup" then
             local label=c[1].label:GetText(); labels[label]=(labels[label] or 0)+1
-            assert(c[1].frame:GetWidth()==128,"label column changed")
+            assert(c[1].frame:GetWidth()==160,"Workspace label column changed")
             -- The existing picker row is 25px in HEAD; ordinary compact rows are 29px.
             assert(w.frame:GetHeight()==(label=="Texture" and 25 or 29),"property row height changed")
         end
@@ -255,11 +255,11 @@ Test("custom geometry, growth and canvas synchronization retain original control
 end)
 Test("selection, modes, layout and reopen preserve presentation only for the pilot",function()
     local callback=Tabs().appearance.events.OnClick
-    Select("HealthBar"); assert(Tabs().appearance and not Tabs().geometry.disabled and Tabs().behavior.disabled)
-    callback(); assert(state.Get().inspectorPropertyGroup=="geometry")
+    Select("HealthBar"); assert(Tabs().appearance and Tabs().geometry.disabled and not Tabs().behavior.disabled)
+    callback(); assert(state.Get().inspectorPropertyGroup=="appearance")
     Tree().control.callbacks.onSelect(Node("unit")); Drain()
     assert(next((Tabs()))==nil)
-    Select("NormalAbsorbBar"); CheckProjection("geometry")
+    Select("NormalAbsorbBar"); CheckProjection("appearance");Click("geometry")
     local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
     units.target=h.Copy(unit)
     callback=Tabs().appearance.events.OnClick

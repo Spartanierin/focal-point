@@ -56,28 +56,74 @@ local function Check(section,key,available,actionLabel)
         assert(not child.frame._fpNormalAbsorbActionDivider or not child.frame._fpNormalAbsorbActionDivider:IsShown()
             or actionLabel,"Health has a decorative action area")
     end
+    local framed={}
     p.Walk(body,function(w)
-        assert(w.type~="InlineGroup")
+        if w.type=="InlineGroup" then
+            assert(section=="health" and w.parent==body)
+            local title=w.titletext:GetText();framed[#framed+1]=title
+            assert(w:GetUserData("normalAbsorbPropertyGroup")=="appearance")
+            assert(w:GetUserData("normalAbsorbPropertyContent") and #w.children>0)
+            assert(not w:GetUserData("flatPropertySectionTitle"))
+            p.Walk(w,function(child)assert(not child:GetUserData("flatPropertyHeading"),"duplicate section title")end)
+        end
         if w.type=="Button" and w.text:GetText()==actionLabel then buttons=buttons+1 end
     end)
+    assert(table.concat(framed,",")==(section=="health" and "Appearance,Background" or ""))
     assert(actions==(actionLabel and 1 or 0) and buttons==(actionLabel and 1 or 0))
 end
 local function Color(label,r,g,b,a) Row(label,"ColorPicker"):Fire("OnValueConfirmed",r,g,b,a) end
 local count=0
 local function Test(name,fn) fn();count=count+1;print("PASS: "..name) end
 Test("Health Workspace exposes existing properties in Quick without synthetic geometry or actions",function()
-    Start("HealthBar"); Check("health","appearance",{appearance=true,geometry=true})
+    Start("HealthBar"); Check("health","appearance",{appearance=true,behavior=true})
     for _,label in ipairs({"Show","Enabled","Width","Height","Anchor Target","Offset X","Offset Y"}) do
         assert(not Row(label,"CheckBox",false) and not Row(label,"FPCompactSlider",false)
             and not Row(label,"Dropdown",false),label)
     end
-    Click("geometry");Check("health","geometry",{appearance=true,geometry=true})
-    Click("behavior");Check("health","geometry",{appearance=true,geometry=true})
+    Click("geometry");Check("health","appearance",{appearance=true,behavior=true})
+    Click("behavior");Check("health","behavior",{appearance=true,behavior=true})
     Click("appearance")
     local before=p.h.Copy(db);local a,r,t=p.Stats()
     for _=1,30 do Click("appearance"); Click("geometry"); Click("behavior") end
     local aa,rr,tt=p.Stats(); assert(a==aa and r==rr and t==tt);p.h.Equal(db,before)
     Click("appearance")
+end)
+Test("Health frames keep control order, one owner and titles across tabs, rebuild and reuse",function()
+    local function Groups()
+        local groups={}
+        for _,child in ipairs(Body("health").children)do
+            if child.type=="InlineGroup"then groups[#groups+1]=child end
+        end
+        assert(#groups==2)
+        for i,expected in ipairs({"Texture,Color,Class Color,Reaction Color,Low Health Color,Low Health Threshold",
+            "Show Background,Background Color,Border Width,Border Color"})do
+            local labels={}
+            for _,row in ipairs(groups[i].children)do
+                local first=(row.children or {})[1]
+                if first and first.type=="Label"then labels[#labels+1]=first.label:GetText()end
+            end
+            assert(table.concat(labels,",")==expected,"Health control order changed")
+            local padding=assert(groups[i]._fpSectionPadding)
+            assert(padding.left==16 and padding.right==16 and padding.top==27 and padding.bottom==13)
+        end
+        return groups
+    end
+    local groups=Groups();local texture=Row("Texture","Button")
+    local a,r,t=p.Stats()
+    for _=1,20 do Click("behavior");Click("appearance")end
+    local aa,rr,tt=p.Stats();assert(a==aa and r==rr and t==tt)
+    assert(Groups()[1]==groups[1] and Row("Texture","Button")==texture)
+    for _=1,10 do
+        groups=Groups()
+        p.Select("PowerBar")
+        for _,group in ipairs(groups)do assert(not group.frame:IsShown(),"released Health frame remained visible")end
+        p.Walk(window._focalPointPropertyScroll,function(w)assert(w.type~="InlineGroup","Health frame leaked into Power")end)
+        p.Select("HealthBar");Click("appearance")
+        p.controller.RefreshActiveProperties();p.Drain()
+        Check("health","appearance",{appearance=true,behavior=true});Groups()
+    end
+    window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
+    Check("health","appearance",{appearance=true,behavior=true});Groups()
 end)
 Test("Health color/media/background/border and Low Health use their original fields",function()
     local power=p.h.Copy(unit.powerColor)
@@ -103,9 +149,9 @@ Test("Health color/media/background/border and Low Health use their original fie
     Color("Low Health Color",.9,.2,.1,.8);assert(unit.healthLowColor[4]==.8)
     p.h.Equal(unit.powerColor,power)
 end)
-Test("Health Expert preserves conditional colors/threshold and maps Reverse Fill to geometry",function()
+Test("Health Expert preserves conditional colors/threshold and maps Reverse Fill to Behavior",function()
     p.state.SetMode("expert");p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
-    Check("health","appearance",{appearance=true,geometry=true})
+    Check("health","appearance",{appearance=true,behavior=true})
     Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
     assert(not Row("Color","ColorPicker",false))
     Row("Class Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
@@ -115,26 +161,27 @@ Test("Health Expert preserves conditional colors/threshold and maps Reverse Fill
     Row("Low Health Threshold","Dropdown"):Fire("OnValueChanged","25");assert(unit.lowHealthColorThreshold==25)
     Row("Low Health Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
     assert(not Row("Low Health Threshold","Dropdown",false))
-    Click("geometry"); Row("Reverse Fill","CheckBox"):Fire("OnValueChanged",true)
+    Click("behavior"); Row("Reverse Fill","CheckBox"):Fire("OnValueChanged",true)
     assert(unit.healthBarReverseFill)
     local old=p.Tabs().appearance.events.OnClick
     p.state.SetMode("quick");p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
-    old();Check("health","geometry",{appearance=true,geometry=true})
+    old();Check("health","behavior",{appearance=true,behavior=true})
 end)
 Test("Health/previous flat bars keep fallback, rebuilt scope and neutral action cleanup",function()
     for _=1,10 do
         p.Select("PowerBar");Click("behavior")
         local old=p.Tabs().geometry.events.OnClick
-        p.Select("HealthBar");old();Check("health","appearance",{appearance=true,geometry=true})
+        p.Select("HealthBar");old();Check("health","behavior",{appearance=true,behavior=true})
+        Click("appearance")
         p.Select("NormalAbsorbBar");assert(p.state.Get().inspectorPropertyGroup=="appearance")
         p.Select("HealingAbsorbBar");assert(p.state.Get().inspectorPropertyGroup=="appearance")
     end
-    p.Select("HealthBar");Check("health","appearance",{appearance=true,geometry=true})
+    p.Select("HealthBar");Check("health","appearance",{appearance=true,behavior=true})
     local old=p.Tabs().geometry.events.OnClick
     window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();old()
-    window=p.Build();Check("health","appearance",{appearance=true,geometry=true})
+    window=p.Build();Check("health","appearance",{appearance=true,behavior=true})
     window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
-    Check("health","appearance",{appearance=true,geometry=true})
+    Check("health","appearance",{appearance=true,behavior=true})
 end)
 Test("non-Workspace Health retains its original framed groups and spacing",function()
     for _,mode in ipairs({"quick","expert"}) do
@@ -223,7 +270,7 @@ Test("Alternative Power remains Player-only and scope/layout/reopen changes rebi
     p.h.Equal(db,before)
     p.Select("AlternativePowerBar");Click("behavior")
     local old=p.Tabs().geometry.events.OnClick
-    p.Select("HealthBar");old();Check("health","appearance",{appearance=true,geometry=true})
+    p.Select("HealthBar");old();Check("health","behavior",{appearance=true,behavior=true});Click("appearance")
     p.Select("AlternativePowerBar");Check("alt_power","appearance",{appearance=true,geometry=true,behavior=true},altAction)
     local ok,id=p.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
     assert(p.ns:ActivateLayout(id));p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
@@ -267,11 +314,12 @@ Test("stored profile modes expose identical Health/Power controls without changi
         db.profile={General={ExpertMode=expert}}
         p.state.SetMode(expert and "quick" or "expert") -- Profile must win over the opposite fallback.
         p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
+        Click("appearance")
         local general=p.h.Copy(db.profile.General)
         for _,item in ipairs({{"Reaction Color","CheckBox"},{"Low Health Threshold","Dropdown"},{"Reverse Fill","CheckBox"}})do
             assert(Row(item[1],item[2]))
         end
-        Check("health","appearance",{appearance=true,geometry=true})
+        Check("health","appearance",{appearance=true,behavior=true})
         Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
         assert(not Row("Color","ColorPicker",false))
         Row("Class Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
@@ -283,9 +331,16 @@ Test("stored profile modes expose identical Health/Power controls without changi
         Row("Low Health Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
         assert(Row("Low Health Threshold","Dropdown"))
         local expected=p.h.Copy(unit);expected.healthBarReverseFill=true
+        Click("behavior");Check("health","behavior",{appearance=true,behavior=true})
+        assert(Row("Reverse Fill","CheckBox").parent.parent.parent:GetUserData("normalAbsorbPropertyGroup")=="behavior")
+        Click("geometry");Check("health","behavior",{appearance=true,behavior=true})
         Row("Reverse Fill","CheckBox"):Fire("OnValueChanged",true);p.Drain();p.h.Equal(unit,expected)
         p.Select("PowerBar")
         assert(Row("Show","CheckBox") and Row("Height","FPCompactSlider") and Row("Reverse Fill","CheckBox"))
+        for _,item in ipairs({{"Show","CheckBox","behavior"},{"Reverse Fill","CheckBox","behavior"},
+            {"Height","FPCompactSlider","geometry"}})do
+            assert(Row(item[1],item[2]).parent.parent.parent:GetUserData("normalAbsorbPropertyGroup")==item[3])
+        end
         assert(Row("Height","FPCompactSlider").min==4 and Row("Height","FPCompactSlider").max==30)
         expected=p.h.Copy(unit);expected.powerBarReverseFill=true
         Row("Reverse Fill","CheckBox"):Fire("OnValueChanged",true);p.Drain();p.h.Equal(unit,expected)
@@ -322,6 +377,11 @@ Test("Legacy Health and Power retain profile-driven Quick/Expert filtering and o
             local host=p.h.ui.ace:Create("SimpleGroup")
             p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
             assert((Find(host,"Reverse Fill","CheckBox")~=nil)==expert)
+            if expert then
+                local group=Find(host,"Reverse Fill","CheckBox").parent
+                while group and group.type~="InlineGroup"do group=group.parent end
+                assert(group and group.titletext:GetText()=="Behavior","Legacy Reverse Fill group changed")
+            end
             if key=="HealthBar"then
                 assert((Find(host,"Reaction Color","CheckBox")~=nil)==expert)
                 assert((Find(host,"Low Health Threshold","Dropdown")~=nil)==expert)

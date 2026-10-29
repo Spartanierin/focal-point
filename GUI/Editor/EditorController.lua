@@ -68,8 +68,8 @@ local function GetEditorPresentationAnchor()
 end
 
 ComputeInspectorGeometry = function(view)
-    local width = math.min(view == "properties" and 720 or COMPONENT_LIST_WIDTH + 32, UIParent:GetWidth() - 32)
-    local height = math.min(620, UIParent:GetHeight() - 100)
+    local width = math.min(view == "properties" and 600 or COMPONENT_LIST_WIDTH + 32, UIParent:GetWidth() - 32)
+    local height = math.min(view == "properties" and 520 or 620, UIParent:GetHeight() - 100)
     local insetLeft = 16
     local insetRight = 16
     local insetTop = 64 -- Shared title reserve, independent of the selected shell.

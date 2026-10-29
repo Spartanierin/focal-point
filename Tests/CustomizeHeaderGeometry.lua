@@ -6,6 +6,10 @@ local h,ns,state,controller,selection,Setup,Build,Drain,Tree,Node=assert(load(so
     "\nreturn h,ns,state,controller,selection,Setup,Build,Drain,Tree,Node","@HeaderGeometry/Workspace"))()
 local window
 local function Check()
+    local targetWidth=window._focalPointCustomizeView=="properties" and 600 or 392
+    assert(window.frame:GetWidth()==math.min(targetWidth,UIParent:GetWidth()-32))
+    local targetHeight=window._focalPointCustomizeView=="properties" and 520 or 620
+    assert(window.frame:GetHeight()==math.min(targetHeight,UIParent:GetHeight()-100))
     -- Reproduce the real owner layout that used to overwrite the Body anchors.
     window:DoLayout();window:DoLayout()
     local inset=window._focalPointInspectorInset
@@ -41,14 +45,17 @@ end
 local count=0
 local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
 Test("actual Window Fill keeps Components and Properties below the same header",function()
-    Setup();window=Build();Check();Pick();Back()
+    Setup();window=Build()
+    window.frame:ClearAllPoints();window.frame:SetPoint("TOPLEFT",UIParent,"TOPLEFT",75,-80)
+    Check();Pick();Back()
+    assert(window.frame.points.TOPLEFT.x==75 and window.frame.points.TOPLEFT.y==-80)
     local before=h.Copy(ns.db)
     controller.RefreshActiveProperties();Check()
     h.Equal(ns.db,before)
 end)
 Test("viewport changes and 20 reopen cycles preserve owner anchors and bottom bounds",function()
     local width,height=UIParent:GetWidth(),UIParent:GetHeight()
-    for _,viewport in ipairs({{1280,720},{800,420},{640,300}})do
+    for _,viewport in ipairs({{1280,720},{800,420},{520,420},{640,300}})do
         UIParent:SetSize(table.unpack(viewport));controller.UpdateActiveInspectorGeometry()
         Check();Pick();Back()
     end

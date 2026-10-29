@@ -216,8 +216,8 @@ Test("small viewport and geometry reapply keep Actions reachable and both scroll
     for _,viewport in ipairs({{1280,720},{800,420},{640,300}})do
         local available=viewport[2]
         UIParent:SetSize(viewport[1],available);controller.UpdateActiveInspectorGeometry()
-        assert(window.frame:GetWidth()==math.min(window._focalPointCustomizeView=="properties" and 720 or 392,viewport[1]-32))
-        assert(window.frame:GetHeight()==math.min(620,available-100))
+        assert(window.frame:GetWidth()==math.min(window._focalPointCustomizeView=="properties" and 600 or 392,viewport[1]-32))
+        assert(window.frame:GetHeight()==math.min(window._focalPointCustomizeView=="properties" and 520 or 620,available-100))
         local workspace=Zones(64);assert(workspace>0)
         assert(window.frame:GetHeight()<=available)
         window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Zones(64)

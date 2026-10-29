@@ -90,8 +90,8 @@ Test("Class Power Expert keeps geometry, wheel and direct-move bindings with sta
         {kind="bar",unit="player",objectKey="ClassPowerBar"},"classPowerBarHeight",22))
     assert(p.Control("Height","FPCompactSlider"):GetValue()==22);p.h.Equal(db,before)
     local old=p.Tabs().behavior.events.OnClick
-    p.Select("HealthBar");old();assert(p.state.Get().inspectorPropertyGroup=="geometry")
-    p.Select("ClassPowerBar");Check("class_power","geometry")
+    p.Select("HealthBar");old();assert(p.state.Get().inspectorPropertyGroup=="appearance")
+    p.Select("ClassPowerBar");Check("class_power","appearance")
 end)
 Test("Class Power Remove is independent from every tab and non-Workspace keeps framed groups",function()
     for _,key in ipairs({"appearance","geometry","behavior"})do

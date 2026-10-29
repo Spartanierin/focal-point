@@ -153,8 +153,26 @@ Test("Workspace rows reserve measured multiline-label height and retain native c
     forms.CreateBodyText=create
     assert(row.frame:GetHeight()>=54 and value.frame:GetHeight()==29)
     assert(row:GetUserData("table").alignV=="center")
-    assert(row:GetUserData("table").columns[1].width==128)
+    assert(row:GetUserData("table").columns[1].width==160)
     label.label.GetStringHeight=measure
+    for _,workspace in ipairs({true,false})do
+        context.workspaceIsCurrent=workspace and function()return true end or nil
+        for _,override in ipairs({false,96})do
+            local expected=override or (workspace and 160 or 108)
+            local current,control=build(host,"Row width contract",function()end,
+                {rowType="COMPACT",labelWidth=override or nil})
+            assert(current:GetUserData("table").columns[1].width==expected)
+            assert(current:GetUserData("table").spaceH==8)
+            for _,width in ipairs({548,568})do -- 600-wide Workspace, with/without scrollbar.
+                current:SetWidth(width);current:DoLayout()
+                -- The native double records anchors, but does not resolve opposing points into GetWidth().
+                local left,right=control.frame.points.LEFT,control.frame.points.RIGHT
+                assert(left.relative==current.content and right.relative==current.content)
+                assert(left.x==expected+8 and right.x-left.x==width-expected-8,
+                    "control column lost the available remainder")
+            end
+        end
+    end
     s.h.ui.ace:Release(host)
 end)
 Test("anchor dropdowns use independent full rows and the standard control column",function()
@@ -164,7 +182,7 @@ Test("anchor dropdowns use independent full rows and the standard control column
     local b=Control(s.ns.L.OPTION_ANCHOR_TO or "Anchor To")
     assert(a.parent.parent~=b.parent.parent)
     for _,widget in ipairs({a,b})do
-        assert(widget.parent.parent:GetUserData("table").columns[1].width==128)
+        assert(widget.parent.parent:GetUserData("table").columns[1].width==160)
         assert(widget.disabled and widget:GetUserData("nativePropertyDropdown") and not widget.label:IsShown())
     end
     Pick("Size Mode","CUSTOM")

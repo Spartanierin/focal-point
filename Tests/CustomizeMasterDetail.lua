@@ -57,7 +57,7 @@ Test("tree selection opens existing Properties and Back preserves canonical sele
     Pick("healthbar") -- same selected object must still enter Properties.
     local label=window._focalPointObjectBreadcrumb.label:GetText()
     assert(label:find(ns.CompositionTreeView.GetSelectedNode().label,1,true))
-    assert(window.frame:GetWidth()==720 and window.frame:GetHeight()==height)
+    assert(window.frame:GetWidth()==600 and window.frame:GetHeight()==math.min(520,UIParent:GetHeight()-100))
 end)
 Test("collapse, disabled objects and checkbox toggles retain their existing semantics",function()
     Back();local node=Tree().options.visibleRows[2].node;assert(node.type=="healthbar")

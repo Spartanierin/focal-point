@@ -1852,7 +1852,7 @@ function InspectorController.Build(container, state, options)
 
         options = type(options) == "table" and options or {}
         local workspace = type(workspaceIsCurrent) == "function"
-        local labelWidth = options.labelWidth or (workspace and 128 or PROPERTY_LABEL_WIDTH)
+        local labelWidth = options.labelWidth or (workspace and 160 or PROPERTY_LABEL_WIDTH)
 
         -- Unclassified text/specialized rows retain their content-driven layout.
         local stride = options.rowType and assert(INSPECTOR_ROW_STRIDES[options.rowType], "Unknown Inspector row type")
@@ -3282,15 +3282,17 @@ function InspectorController.Build(container, state, options)
         local backgroundSection = healthSection
         local behaviorSection = healthSection
         if usePropertyGroups then
-            appearanceSection = CreateHealthPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
-            backgroundSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            appearanceSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            backgroundSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             if flatHealth or isExpert then
                 behaviorSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
         end
         if flatHealth then
+            appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
+            backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
             local membership = {[appearanceSection]="appearance", [backgroundSection]="appearance"}
-            if flatHealth or isExpert then membership[behaviorSection] = "geometry" end
+            if flatHealth or isExpert then membership[behaviorSection] = "behavior" end
             registerHealthGroups(membership)
         end
 
@@ -3763,7 +3765,7 @@ function InspectorController.Build(container, state, options)
         end
         if flatPower then
             registerPowerGroups({[generalSection]="behavior", [appearanceSection]="appearance",
-                [backgroundSection]="appearance", [geometrySection]="geometry", [behaviorSection]="geometry"}, actionsSection)
+                [backgroundSection]="appearance", [geometrySection]="geometry", [behaviorSection]="behavior"}, actionsSection)
         end
 
         if usePropertyGroups then
@@ -5900,6 +5902,13 @@ function InspectorController.Build(container, state, options)
         end
 
         local isScopedObject = IsSelectedAuraObject(selectedUnit, selectedAuraKey)
+        local auraTabs = isScopedObject and type(workspaceIsCurrent) == "function"
+        local projectAuraGroups, registerAuraGroups
+        if auraTabs then
+            local unusedFactory
+            unusedFactory, projectAuraGroups, registerAuraGroups = BeginFlatPropertyPresentation(auraSection)
+        end
+        local sizeSection, fontSection
         local displaySection = auraSection
         local layoutSection = auraSection
         local behaviorSection = auraSection
@@ -5908,7 +5917,22 @@ function InspectorController.Build(container, state, options)
         local actionsSection = auraSection
         local disabled = auraConfig.enabled == false
 
-        if isScopedObject then
+        if auraTabs then
+            if not isQuick then
+                fontSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            end
+            sizeSection = AddFramedObjectPropertyGroup(auraSection, L["EDITOR_PROPERTY_SECTION_SIZE"] or "Size", not isQuick)
+            layoutSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_LAYOUT"] or "Layout", true)
+            positionSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_POSITION"] or "Position", true)
+            displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", true)
+            behaviorSection = nil
+            if not isQuick then
+                behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            end
+            advancedSection = behaviorSection
+            actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
+            actionsSection:SetUserData("normalAbsorbObjectActions", true)
+        elseif isScopedObject then
             displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", false)
             actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
             layoutSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_LAYOUT"] or "Layout", true)
@@ -5938,11 +5962,14 @@ function InspectorController.Build(container, state, options)
             end, nil, "aura_block")
         end
 
+        if not auraTabs then sizeSection, fontSection = displaySection, displaySection end
+        local growthSection = auraTabs and layoutSection or behaviorSection
+
         if isScopedObject then
             AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_ENABLED"] or "Enable Aura Block", auraConfig.enabled ~= false, function(value)
                 SetAuraField(selectedAuraKey, "enabled", value and true or false, auraSection)
             end, nil, "aura_enabled")
-            AddPropertyCompactSliderRow(displaySection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
+            AddPropertyCompactSliderRow(sizeSection, L["OPTION_AURA_ICON_SIZE"] or "Icon Size", 12, 64, 1, tonumber(auraConfig.iconSize) or 30, function(value)
                 SetAuraField(selectedAuraKey, "iconSize", math.floor((value or 0) + 0.5))
             end, disabled, "aura_icon_size")
             AddPropertyCheckBoxRow(displaySection, L["OPTION_AURA_SHOW_STACKS"] or "Show Stacks", auraConfig.showStackText ~= false, function(value)
@@ -6005,7 +6032,7 @@ function InspectorController.Build(container, state, options)
                 AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, tonumber(auraConfig.spacingY) or 3, function(value)
                     SetAuraField(selectedAuraKey, "spacingY", math.floor((value or 0) + 0.5))
                 end, disabled, "aura_spacing_y")
-                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", {
+                AddPropertyDropdownRow(growthSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", {
                     list = auraGrowthXList,
                     value = auraConfig.growthX or "RIGHT",
                     onChanged = function(value)
@@ -6013,7 +6040,7 @@ function InspectorController.Build(container, state, options)
                     end,
                     anchorKey = "aura_growth_x",
                 }, disabled)
-                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", {
+                AddPropertyDropdownRow(growthSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", {
                     list = auraGrowthYList,
                     value = auraConfig.growthY or "DOWN",
                     onChanged = function(value)
@@ -6038,7 +6065,7 @@ function InspectorController.Build(container, state, options)
                 AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_Y"] or "Spacing Y", 0, 20, tonumber(auraConfig.spacingY) or 3, function(value)
                     SetAuraField(selectedAuraKey, "spacingY", math.floor((value or 0) + 0.5))
                 end, disabled, "aura_spacing_y")
-                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", {
+                AddPropertyDropdownRow(growthSection, L["OPTION_AURA_GROWTH_X"] or "Growth X", {
                     list = auraGrowthXList,
                     value = auraConfig.growthX or "RIGHT",
                     onChanged = function(value)
@@ -6046,7 +6073,7 @@ function InspectorController.Build(container, state, options)
                     end,
                     anchorKey = "aura_growth_x",
                 }, disabled)
-                AddPropertyDropdownRow(behaviorSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", {
+                AddPropertyDropdownRow(growthSection, L["OPTION_AURA_GROWTH_Y"] or "Growth Y", {
                     list = auraGrowthYList,
                     value = auraConfig.growthY or "DOWN",
                     onChanged = function(value)
@@ -6062,10 +6089,10 @@ function InspectorController.Build(container, state, options)
                     end,
                     anchorKey = "aura_sort_mode",
                 }, disabled)
-                AddPropertyCompactSliderRow(displaySection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
+                AddPropertyCompactSliderRow(fontSection, L["OPTION_AURA_STACK_FONT_SCALE"] or "Stack Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.stackFontScale) or 1, function(value)
                     SetAuraField(selectedAuraKey, "stackFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
                 end, disabled, "aura_stack_font_scale")
-                AddPropertyCompactSliderRow(displaySection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
+                AddPropertyCompactSliderRow(fontSection, L["OPTION_AURA_TIMER_FONT_SCALE"] or "Timer Font Scale", 0.5, 2.0, 0.05, tonumber(auraConfig.timerFontScale) or 1, function(value)
                     SetAuraField(selectedAuraKey, "timerFontScale", tonumber(string.format("%.2f", value or 1)) or 1)
                 end, disabled, "aura_timer_font_scale")
                 AddPropertyCheckBoxRow(advancedSection, L["OPTION_AURA_SHOW_ONLY_MINE"] or "Only My Auras", auraConfig.showOnlyMine == true, function(value)
@@ -6256,6 +6283,16 @@ function InspectorController.Build(container, state, options)
                     SetAuraField(selectedAuraKey, "offsetY", math.floor((value or 0) + 0.5))
                 end, disabled, "aura_offset_y")
             end
+        end
+        if auraTabs then
+            local membership = {[sizeSection]="geometry", [layoutSection]="geometry",
+                [positionSection]="geometry", [displaySection]="behavior"}
+            if fontSection then membership[fontSection] = "appearance" end
+            if behaviorSection then membership[behaviorSection] = "behavior" end
+            for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
+            -- Keep the framed Actions owner's existing release bindings; it is never tab-filtered.
+            registerAuraGroups(membership)
+            projectAuraGroups()
         end
     end
 
