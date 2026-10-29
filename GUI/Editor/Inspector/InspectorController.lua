@@ -5918,17 +5918,12 @@ function InspectorController.Build(container, state, options)
         local disabled = auraConfig.enabled == false
 
         if auraTabs then
-            if not isQuick then
-                fontSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_APPEARANCE"] or "Appearance", false)
-            end
-            sizeSection = AddFramedObjectPropertyGroup(auraSection, L["EDITOR_PROPERTY_SECTION_SIZE"] or "Size", not isQuick)
+            fontSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_APPEARANCE"] or "Appearance", false)
+            sizeSection = AddFramedObjectPropertyGroup(auraSection, L["EDITOR_PROPERTY_SECTION_SIZE"] or "Size", true)
             layoutSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_LAYOUT"] or "Layout", true)
             positionSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_POSITION"] or "Position", true)
             displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", true)
-            behaviorSection = nil
-            if not isQuick then
-                behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            end
+            behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             advancedSection = behaviorSection
             actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
             actionsSection:SetUserData("normalAbsorbObjectActions", true)
@@ -6024,7 +6019,7 @@ function InspectorController.Build(container, state, options)
         end
         RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "aura", unit = state and state.selectedUnit, auraKey = selectedAuraKey, objectKey = selectedAuraKey }, "iconsPerRow", auraIconsPerRowControl)
 
-        if isQuick then
+        if isQuick and not auraTabs then
             if isScopedObject then
                 AddPropertyNumericInputRow(layoutSection, L["OPTION_AURA_SPACING_X"] or "Spacing X", 0, 20, tonumber(auraConfig.spacingX) or 3, function(value)
                     SetAuraField(selectedAuraKey, "spacingX", math.floor((value or 0) + 0.5))
@@ -6212,7 +6207,7 @@ function InspectorController.Build(container, state, options)
             end, false)
         end
 
-        if not isQuick then
+        if auraTabs or not isQuick then
             local inside = (auraConfig.placement or "ATTACHED") == "INSIDE"
             if inside then
                 if isScopedObject then

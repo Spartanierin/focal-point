@@ -52,7 +52,7 @@ local function Check(active)
     local tabs,order=p.Tabs();assert(table.concat(order,",")=="appearance,geometry,behavior")
     assert(p.state.Get().inspectorPropertyGroup==active)
     for name,tab in pairs(tabs)do
-        assert(tab.frame:IsShown() and tab.disabled==(name=="appearance" and not expert))
+        assert(tab.frame:IsShown() and not tab.disabled)
     end
     local titles={}
     for _,group in ipairs(Body().children)do
@@ -65,8 +65,7 @@ local function Check(active)
         end
         p.Walk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate section heading")end)
     end
-    assert(table.concat(titles,",")== (expert and "Appearance,Size,Layout,Position,Display,Behavior,Actions"
-        or "Size,Layout,Position,Display,Actions"))
+    assert(table.concat(titles,",")=="Appearance,Size,Layout,Position,Display,Behavior,Actions")
     for _=1,2 do Body():DoLayout();window._focalPointPropertyScroll:DoLayout()end
     local height=0;for _,child in ipairs(Body().children)do if child.frame:IsShown()then height=height+child.frame:GetHeight()end end
     assert(math.abs(Body().frame:GetHeight()-height)<.01,"hidden groups still consume scroll content height")
@@ -74,19 +73,17 @@ local function Check(active)
 end
 local count=0
 local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
-Test("Buffs/Debuffs retain stored Quick/Expert filters and exact framed tab membership",function()
+Test("Buffs/Debuffs expose identical Workspace controls and tab membership in both stored profile modes",function()
     for _,mode in ipairs({false,true})do for _,aura in ipairs({"Buffs","Debuffs"})do
-        Start(aura,mode);Check(mode and "appearance" or "geometry")
+        Start(aura,mode);Check("appearance")
         local expected={enabled="behavior",icon_size="geometry",show_stacks="behavior",show_timer="behavior",
             icons_per_row="geometry",max_rows="geometry",spacing_x="geometry",spacing_y="geometry",
             growth_x="geometry",growth_y="geometry",placement="geometry"}
         if aura=="Buffs"then expected.weapon_enhancements="behavior"end
-        if mode then
-            for _,field in ipairs({"sort_mode","show_only_mine","show_boss","hide_permanent","hide_long","long_threshold"})do expected[field]="behavior"end
-            expected[aura=="Buffs" and "show_stealable_only" or "show_dispellable_only"]="behavior"
-            expected.stack_font_scale="appearance";expected.timer_font_scale="appearance"
-            for _,field in ipairs({"point","relative_point","offset_x","offset_y"})do expected[field]="geometry"end
-        end
+        for _,field in ipairs({"sort_mode","show_only_mine","show_boss","hide_permanent","hide_long","long_threshold"})do expected[field]="behavior"end
+        expected[aura=="Buffs" and "show_stealable_only" or "show_dispellable_only"]="behavior"
+        expected.stack_font_scale="appearance";expected.timer_font_scale="appearance"
+        for _,field in ipairs({"point","relative_point","offset_x","offset_y"})do expected[field]="geometry"end
         local actual={};p.Walk(Body(),function(w)
             local anchor=w:GetUserData("focalPointAnchorKey")
             if type(anchor)=="string" and anchor:sub(1,5)=="aura_"then
@@ -98,7 +95,7 @@ Test("Buffs/Debuffs retain stored Quick/Expert filters and exact framed tab memb
         for field in pairs(expected)do assert(actual[field],"missing control: "..field)end
         local orders={Appearance="stack_font_scale,timer_font_scale",Size="icon_size",
             Layout="icons_per_row,max_rows,spacing_x,spacing_y,growth_x,growth_y",
-            Position="placement"..(mode and ",point,relative_point,offset_x,offset_y" or ""),
+            Position="placement,point,relative_point,offset_x,offset_y",
             Display="enabled,show_stacks,show_timer"..(aura=="Buffs" and ",weapon_enhancements" or ""),
             Behavior="sort_mode,show_only_mine,show_boss,hide_permanent,hide_long,long_threshold,"..
                 (aura=="Buffs" and "show_stealable_only" or "show_dispellable_only")}
@@ -112,7 +109,7 @@ Test("Buffs/Debuffs retain stored Quick/Expert filters and exact framed tab memb
             end
         end
         assert(not Field("inside_side",true))
-        local before=p.h.Copy(db);Click("appearance");Check(mode and "appearance" or "geometry");p.h.Equal(db,before)
+        local before=p.h.Copy(db);Click("appearance");Check("appearance");p.h.Equal(db,before)
     end end
 end)
 Test("tab switches retain controls, owners, release callbacks and canonical data without allocations",function()
@@ -192,12 +189,65 @@ Test("non-Workspace Aura keeps its framed section order and original profile fil
         Start(aura,mode)
         local host=p.h.ui.ace:Create("SimpleGroup")
         p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
-        local titles={};p.Walk(host,function(w)
+        local titles,fields={},{};p.Walk(host,function(w)
             assert(not w:GetUserData("normalAbsorbPropertyTab"))
             if w.type=="InlineGroup"then titles[#titles+1]=w.titletext:GetText()end
+            local anchor=w:GetUserData("focalPointAnchorKey")
+            if type(anchor)=="string" and anchor:sub(1,5)=="aura_"then fields[anchor:sub(6)]=w end
         end)
         assert(table.concat(titles,",")=="Display,Actions,Layout,Behavior,Position"..(mode and ",Advanced" or ""))
+        for _,field in ipairs({"enabled","icon_size","show_stacks","show_timer","icons_per_row","max_rows",
+            "spacing_x","spacing_y","growth_x","growth_y","placement"})do assert(fields[field],field)end
+        for _,field in ipairs({"sort_mode","stack_font_scale","timer_font_scale","show_only_mine","show_boss",
+            "hide_permanent","hide_long","long_threshold","point","relative_point","offset_x","offset_y",
+            aura=="Buffs" and "show_stealable_only" or "show_dispellable_only"})do
+            assert((fields[field]~=nil)==mode,"Legacy mode filter changed: "..field)
+        end
+        assert((fields.weapon_enhancements~=nil)==(aura=="Buffs"))
+        assert(not fields.inside_side)
+        assert(db.profile.General.ExpertMode==mode)
         p.h.ui.ace:Release(host)
+    end end
+end)
+Test("previously Expert-only fields mutate and rebuild identically in both profiles without changing mode or dependencies",function()
+    for _,mode in ipairs({false,true})do for _,aura in ipairs({"Buffs","Debuffs"})do
+        Start(aura,mode)
+        local record=unit[aura];local expected=p.h.Copy(record)
+        local other=aura=="Buffs" and "Debuffs" or "Buffs";local untouched=p.h.Copy(unit[other])
+        local general=p.h.Copy(db.profile.General);local fallback=p.state.Get().mode
+        Click("appearance")
+        Field("stack_font_scale"):Fire("OnValueChanged",1.25);p.Drain();expected.stackFontScale=1.25
+        Field("timer_font_scale"):Fire("OnValueChanged",1.5);p.Drain();expected.timerFontScale=1.5
+        Click("behavior");assert(Field("long_threshold").disabled)
+        Field("sort_mode"):Fire("OnValueChanged","OLDEST_FIRST");p.Drain();expected.sortMode="OLDEST_FIRST"
+        Field("show_only_mine"):Fire("OnValueChanged",true);p.Drain();expected.showOnlyMine=true
+        Field("show_boss"):Fire("OnValueChanged",false);p.Drain();expected.showBossAuras=false
+        Field("hide_permanent"):Fire("OnValueChanged",true);p.Drain();expected.hidePermanentAuras=true
+        Field("hide_long"):Fire("OnValueChanged",true);p.Drain();expected.hideLongAuras=true
+        Check("behavior");assert(not Field("long_threshold").disabled)
+        Field("long_threshold"):Fire("OnValueChanged",90);p.Drain();expected.longAuraThreshold=90
+        Field(aura=="Buffs" and "show_stealable_only" or "show_dispellable_only"):Fire("OnValueChanged",true);p.Drain()
+        expected[aura=="Buffs" and "showStealableOnly" or "showDispellableOnly"]=true
+        Click("geometry");assert(not Field("inside_side",true))
+        Field("placement"):Fire("OnValueChanged","INSIDE");p.Drain();expected.placement="INSIDE"
+        Check("geometry");Field("inside_side"):Fire("OnValueChanged","TOP");p.Drain();expected.insideSide="TOP"
+        Field("point"):Fire("OnValueChanged","LEFT");p.Drain();expected.point="LEFT"
+        Field("relative_point"):Fire("OnValueChanged","RIGHT");p.Drain();expected.relativePoint="RIGHT"
+        Field("offset_x"):Fire("OnValueChanged",11);p.Drain();expected.offsetX=11
+        Field("offset_y"):Fire("OnValueChanged",-7);p.Drain();expected.offsetY=-7
+        p.h.Equal(record,expected);p.h.Equal(unit[other],untouched)
+        Click("behavior");Field("enabled"):Fire("OnValueChanged",false);p.Drain();Check("behavior")
+        for _,field in ipairs({"sort_mode","stack_font_scale","point","inside_side","long_threshold"})do assert(Field(field).disabled,field)end
+        Field("enabled"):Fire("OnValueChanged",true);p.Drain();Check("behavior")
+        assert(not Field("sort_mode").disabled and not Field("inside_side").disabled)
+        p.h.Equal(record,expected);p.h.Equal(db.profile.General,general);assert(p.state.Get().mode==fallback)
+        local ok,id=p.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+        assert(p.ns:ActivateLayout(id));p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
+        Select(aura);Click("geometry");Check("geometry")
+        local active=p.ns.UnitFrameUtils.GetUnitDB("player")[aura];p.h.Equal(active,expected)
+        window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build();p.Drain();Check("geometry")
+        assert(Field("sort_mode") and Field("stack_font_scale") and Field("inside_side"))
+        p.h.Equal(db.profile.General,general);assert(p.state.Get().mode==fallback)
     end end
 end)
 assert(#p.h.ui.env.errors==0,table.concat(p.h.ui.env.errors,"\n"))

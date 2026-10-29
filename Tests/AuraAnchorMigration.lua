@@ -181,7 +181,7 @@ local function Read(path)
     local f=assert(io.open(path));local s=f:read("*a");f:close();return s
 end
 local inspector=Read("GUI/Editor/Inspector/InspectorController.lua")
-local first=assert(inspector:find('        if not isQuick then\n            local inside = (auraConfig.placement',1,true))
+local first=assert(inspector:find('        if auraTabs or not isQuick then\n            local inside = (auraConfig.placement',1,true))
 local last=assert(inspector:find('    local function ResolveSelectedAuraInspectorTitle()',first,true))
 for _,scoped in ipairs({true,false}) do for _,placement in ipairs({"INSIDE","ATTACHED"}) do
     local controls={}
