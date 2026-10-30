@@ -247,7 +247,7 @@ Test("Alternative Power inherits Power defaults without writing them and mutatio
     Check("alt_power","behavior",{appearance=true,geometry=true,behavior=true},altAction)
     Row("Show","CheckBox"):Fire("OnValueChanged",true);p.Drain()
 end)
-Test("Alternative Height retains boundaries, rounding and Wheel; Expert Reverse Fill is geometry",function()
+Test("Alternative Height retains boundaries, rounding and Wheel; Reverse Fill stays in Behavior",function()
     Click("geometry");local height=Row("Height","FPCompactSlider")
     assert(height.min==4 and height.max==30 and height.step==1)
     local primary=unit.powerBarHeight
@@ -256,9 +256,9 @@ Test("Alternative Height retains boundaries, rounding and Wheel; Expert Reverse 
     assert(p.ns.GUI.Editor.Inspector.SetActiveCanvasWheelFieldValue("player",
         {kind="bar",unit="player",objectKey="AlternativePowerBar"},"alternativePowerBarHeight",23))
     assert(height:GetValue()==23);p.h.Equal(db,before)
-    assert(Row("Reverse Fill","CheckBox").parent.parent.parent:GetUserData("normalAbsorbPropertyGroup")=="geometry")
+    assert(Row("Reverse Fill","CheckBox").parent.parent.parent:GetUserData("normalAbsorbPropertyGroup")=="behavior")
     p.state.SetMode("quick");p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
-    assert(not Row("Reverse Fill","CheckBox",false))
+    assert(Row("Reverse Fill","CheckBox"))
     Check("alt_power","geometry",{appearance=true,geometry=true,behavior=true},altAction)
 end)
 Test("Alternative Power remains Player-only and scope/layout/reopen changes rebind safely",function()
@@ -294,9 +294,12 @@ Test("Alternative Remove remains unique and functional from every category",func
         p.h.Equal(unit.powerColor,beforePower)
     end
 end)
-Test("non-Workspace Alternative Power keeps its original Quick/Expert groups",function()
-    for _,mode in ipairs({"quick","expert"}) do
-        Start("AlternativePowerBar",mode)
+Test("non-Workspace Alternative Power keeps profile-driven Quick/Expert groups and Reverse Fill filtering",function()
+    for _,expert in ipairs({false,true}) do
+        local mode=expert and "expert" or "quick"
+        Start("AlternativePowerBar",expert and "quick" or "expert")
+        db.profile={General={ExpertMode=expert}}
+        local before=p.h.Copy(db)
         local host=p.h.ui.ace:Create("SimpleGroup")
         p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
         local groups={};p.Walk(host,function(w)
@@ -305,7 +308,65 @@ Test("non-Workspace Alternative Power keeps its original Quick/Expert groups",fu
         end)
         assert(table.concat(groups,",")== (mode=="quick" and "General,Appearance,Background,Geometry,Actions"
             or "General,Appearance,Background,Geometry,Behavior,Actions"))
+        local reverse,count=nil,0
+        p.Walk(host,function(w)
+            local children=w.children or {}
+            if children[1] and children[1].type=="Label" and children[1].label:GetText()=="Reverse Fill" then
+                count=count+1
+                p.Walk(children[2],function(control)if control.type=="CheckBox"then reverse=control end end)
+            end
+        end)
+        assert(count==(expert and 1 or 0) and (reverse~=nil)==expert)
+        if reverse then
+            local group=reverse.parent
+            while group and group.type~="InlineGroup"do group=group.parent end
+            assert(group and group.titletext:GetText()=="Behavior")
+        end
+        p.h.Equal(db,before)
         p.h.ui.ace:Release(host)
+    end
+end)
+Test("Alternative Workspace Reverse Fill is unique in Behavior in both saved modes, with unchanged fallback and rebuilds",function()
+    for _,expert in ipairs({false,true})do
+        Start("AlternativePowerBar",expert and "quick" or "expert")
+        db.profile={General={ExpertMode=expert}}
+        local profile=p.h.Copy(db.profile)
+        local function CheckReverse(expected,disabled)
+            local reverse=Row("Reverse Fill","CheckBox");local n=0
+            p.Walk(Body("alt_power"),function(w)
+                local children=w.children or {}
+                if children[1] and children[1].type=="Label" and children[1].label:GetText()=="Reverse Fill" then n=n+1 end
+            end)
+            assert(n==1 and reverse:GetValue()==expected and reverse.disabled==disabled)
+            local group=reverse.parent.parent.parent
+            assert(group:GetUserData("normalAbsorbPropertyGroup")=="behavior")
+            assert(group.frame:IsShown()==(p.state.Get().inspectorPropertyGroup=="behavior"))
+            return reverse
+        end
+        for _,case in ipairs({{nil,true,true},{nil,false,false},{false,true,false},{true,false,true}})do
+            unit.alternativePowerBarReverseFill=case[1];unit.powerBarReverseFill=case[2]
+            local before=p.h.Copy(db)
+            p.controller.RefreshActiveProperties();p.Drain()
+            Click("appearance");CheckReverse(case[3],false)
+            Click("geometry");CheckReverse(case[3],false)
+            Click("behavior");CheckReverse(case[3],false)
+            p.h.Equal(db,before) -- Rendering must not materialize an inherited default.
+            local expected=p.h.Copy(unit);expected.alternativePowerBarReverseFill=not case[3]
+            CheckReverse(case[3],false):Fire("OnValueChanged",not case[3]);p.Drain()
+            p.h.Equal(unit,expected)
+            local body=Body("alt_power")
+            Row("Show","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+            CheckReverse(not case[3],true)
+            assert(Body("alt_power")==body)
+            Row("Show","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+            CheckReverse(not case[3],false)
+            p.Select("PowerBar");p.Select("AlternativePowerBar");Click("behavior")
+            CheckReverse(not case[3],false)
+            window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
+            Click("behavior");CheckReverse(not case[3],false)
+            p.h.Equal(db.profile,profile)
+            assert(p.state.Get().mode==(expert and "quick" or "expert"))
+        end
     end
 end)
 Test("stored profile modes expose identical Health/Power controls without changing General or mutation fields",function()

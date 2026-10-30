@@ -3930,7 +3930,7 @@ function InspectorController.Build(container, state, options)
             appearanceSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             backgroundSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-            if isExpert then
+            if flatAltPower or isExpert then
                 behaviorSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
             actionsSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
@@ -3938,7 +3938,7 @@ function InspectorController.Build(container, state, options)
         if flatAltPower then
             local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
                 [backgroundSection]="appearance", [geometrySection]="geometry"}
-            if isExpert then membership[behaviorSection] = "geometry" end
+            membership[behaviorSection] = "behavior"
             registerAltPowerGroups(membership, actionsSection)
         end
 
@@ -4047,7 +4047,7 @@ function InspectorController.Build(container, state, options)
 
         AddUnitBarBorderRows(usePropertyGroups and backgroundSection or altPowerSection, "alternativePowerBar", usePropertyGroups, unitConfig.showAlternativePowerBar ~= true)
 
-        if isExpert then
+        if flatAltPower or isExpert then
             local altPowerReverseFillEnabled = unitConfig.alternativePowerBarReverseFill
             if altPowerReverseFillEnabled == nil then
                 altPowerReverseFillEnabled = unitConfig.powerBarReverseFill == true
