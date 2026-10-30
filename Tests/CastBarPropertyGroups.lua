@@ -6,11 +6,12 @@ local s=assert(load(source:sub(1,stop)..[[
 return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Drain,Build=Build,
 Select=Select,Control=Control,Walk=Walk,Tabs=Tabs,Media=function()return media end,
 Stats=function()return acquired,released,timers end,
-Start=function(mode)
+Start=function(mode,expert)
     db,unit=Setup();unit.castBarPresent=true;unit.showCastBar=true;unit.showCastBarIcon=true
     unit.castBarWidthMode="MATCH_FRAME";unit.castBarWidth=120;unit.castBarHeight=20
     unit.castBarColor={.2,.3,.4,.8};unit.castBarInterruptibleColor={.5,.4,.3,.7}
     unit.normalAbsorbBarPresent=true;unit.showNormalAbsorbBar=true
+    if expert~=nil then db.profile={General={ExpertMode=expert}} end
     state.SetMode(mode or "quick");window=Build();Select("CastBar");return window,unit,db
 end}
 ]],"@CastBar/Workspace"))()
@@ -123,6 +124,66 @@ Test("non-Workspace scoped Cast keeps General/Appearance/Geometry/Actions and or
     end)
     assert(table.concat(groups,",")=="General,Appearance,Geometry,Actions")
     s.h.ui.ace:Release(host)
+end)
+Test("Workspace cast scope exposes each position field once in geometry across profile modes and rebuilds",function()
+    local fields={
+        {"Anchor From","Dropdown","castBarPoint","BOTTOMLEFT"},
+        {"Anchor To","Dropdown","castBarRelativePoint","TOPLEFT"},
+        {s.ns.L.OPTION_X_OFFSET or "X Offset","FPCompactSlider","castBarOffsetX",0},
+        {s.ns.L.OPTION_Y_OFFSET or "Y Offset","FPCompactSlider","castBarOffsetY",4},
+    }
+    for _,expert in ipairs({false,true})do
+        window,unit,db=s.Start(expert and "quick" or "expert",expert)
+        local profile=s.h.Copy(db.profile)
+        assert(s.state.Get().propertyScope.sectionKey=="cast")
+        for cycle=1,3 do
+            Click("geometry");Check("geometry")
+            for _,field in ipairs(fields)do
+                local control=s.Control(field[1],field[2]);local n=0
+                assert(Group(field[1],field[2])=="geometry")
+                s.Walk(Body(),function(w)
+                    local children=w.children or {}
+                    if children[1] and children[1].type=="Label" and children[1].label:GetText()==field[1] then n=n+1 end
+                    assert(w:GetUserData("focalPointSectionKey")~="cast_position")
+                end)
+                assert(n==1,"missing or duplicate position row: "..field[1])
+                assert(control:GetValue()==(unit[field[3]] or field[4]))
+            end
+            s.Control("Anchor From","Dropdown"):Fire("OnValueChanged","RIGHT");s.Drain()
+            s.Control("Anchor To","Dropdown"):Fire("OnValueChanged","CENTER");s.Drain()
+            s.Control(fields[3][1],"FPCompactSlider"):Fire("OnValueChanged",-31.6)
+            s.Control(fields[4][1],"FPCompactSlider"):Fire("OnValueChanged",48.6)
+            assert(unit.castBarPoint=="RIGHT" and unit.castBarRelativePoint=="CENTER")
+            assert(unit.castBarOffsetX==-32 and unit.castBarOffsetY==49)
+            s.controller.RefreshActiveProperties();s.Drain()
+            s.Select("NormalAbsorbBar");s.Select("CastBar")
+        end
+        s.h.Equal(db.profile,profile)
+    end
+end)
+Test("unscoped Legacy retains Expert-only separate cast_position section and controls",function()
+    for _,expert in ipairs({false,true})do
+        window,unit,db=s.Start(expert and "quick" or "expert",expert)
+        local before=s.h.Copy(db)
+        s.state.SetSectionCollapsed("cast_position",false)
+        local host=s.h.ui.ace:Create("SimpleGroup")
+        s.ns.GUI.Editor.Inspector.Build(host,s.state.Get(),{getUnitConfig=s.ns.UnitFrameUtils.GetUnitDB})
+        local section
+        s.Walk(host,function(w)
+            if w:GetUserData("focalPointSectionKey")=="cast_position" and w._focalPointRequestRebuild then assert(not section);section=w end
+        end)
+        assert((section~=nil)==expert,"Legacy position availability changed")
+        if expert then
+            local labels={}
+            s.Walk(section,function(w)
+                if w.type=="Dropdown" and w.label then labels[w.label:GetText()]=true end
+                if w.type=="Slider" and w.label then labels[w.label:GetText()]=true end
+            end)
+            assert(labels["Anchor From"] and labels["Anchor To"])
+            assert(labels[s.ns.L.OPTION_X_OFFSET or "X Offset"] and labels[s.ns.L.OPTION_Y_OFFSET or "Y Offset"])
+        end
+        s.h.Equal(db,before);s.h.ui.ace:Release(host)
+    end
 end)
 assert(#s.h.ui.env.errors==0,table.concat(s.h.ui.env.errors,"\n"))
 print("Cast Bar Property Groups: "..count.." groups PASS")

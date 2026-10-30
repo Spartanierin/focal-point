@@ -61,8 +61,11 @@ local function Native()
     local found, owner
     s.Walk(window._focalPointPropertyScroll, function(w)
         local dropdown = w:GetUserData("nativePropertyDropdown")
-        if dropdown and dropdown.generator then
-            assert(not found, "duplicate live native dropdown")
+        local row = w.parent and w.parent.parent
+        local label = row and row.children and row.children[1]
+        if dropdown and dropdown.generator and label and label.type == "Label"
+            and label.label:GetText() == (s.ns.L.OPTION_WIDTH_MODE or "Width Mode") then
+            assert(not found, "duplicate live Width Mode native dropdown")
             found, owner = dropdown, w
         end
     end)

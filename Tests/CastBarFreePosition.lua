@@ -19,11 +19,14 @@ local register=assert(f.Find(inspector.Build,'RegisterActiveCanvasDirectMoveOffs
 local suppressed=assert(f.Find(inspector.Build,'IsActiveCanvasDirectMoveOffsetControlSuppressed'))
 local source=Read('GUI/Editor/Inspector/InspectorController.lua')
 local first=assert(source:find('    local function BuildCastPositionSectionContent(',1,true))
-local last=assert(source:find('\n    if isExpert then',first,true))
+local last=assert(source:find('\n    local function BuildCastSectionContent(',first,true))
 local function Build(config)
     local controls={}
+    local anchors={}
     local context={ns=ns,unitConfig=config,state={selectedUnit='player'},isExpert=true,L={},barAnchorList={},
-        AddDropdown=function()end,RegisterActiveCanvasDirectMoveOffsetControls=register,
+        IsScopedCastBarObjectMode=function()return false end,
+        AddDropdown=function(_,label,list,value,callback)anchors[#anchors+1]={value=value,callback=callback}end,
+        RegisterActiveCanvasDirectMoveOffsetControls=register,
         IsActiveCanvasDirectMoveOffsetControlSuppressed=suppressed,
         SetUnitField=function(key,value)
             local result=ns.InspectorMutations.SetUnitField({unitConfig=config},key,value)
@@ -41,8 +44,8 @@ local function Build(config)
         end}
     local build=assert(load(source:sub(first,last-1)..'\nreturn BuildCastPositionSectionContent',
         '@Inspector.CastPosition','t',setmetatable(context,{__index=_G})))()
-    build({});assert(#controls==2,'Cast position controls missing')
-    return controls
+    build({});assert(#anchors==2);assert(#controls==2,'Cast position controls missing')
+    return controls,anchors
 end
 local cases=0
 local anchors={'LEFT','CENTER','RIGHT','TOP','BOTTOM'}
@@ -71,7 +74,10 @@ for _,scale in ipairs({0.5,0.75,1,1.25,1.5})do
                 end
                 runtime.ApplyLayout(owner,options)
             end
-            local controls=Build(config)
+            local controls,pointControls=Build(config)
+            assert(pointControls[1].value==config.castBarPoint and pointControls[2].value==config.castBarRelativePoint)
+            pointControls[1].callback(anchors[index%#anchors+1]);pointControls[2].callback(point)
+            assert(config.castBarPoint==anchors[index%#anchors+1] and config.castBarRelativePoint==point)
             Near(controls[1].value,config.castBarOffsetX);Near(controls[2].value,config.castBarOffsetY)
             assert(controls[1].max>=9000 and controls[2].max>=8000,'Existing offsets were excluded')
             controls[1].callback(sign*8500);controls[2].callback(-sign*7500)

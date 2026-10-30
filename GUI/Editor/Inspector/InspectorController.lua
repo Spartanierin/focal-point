@@ -4435,6 +4435,52 @@ function InspectorController.Build(container, state, options)
         end
     end
 
+    local function BuildCastPositionSectionContent(castPosition)
+        local workspaceCast = IsScopedCastBarObjectMode() and type(workspaceIsCurrent) == "function"
+        if not castPosition or not (workspaceCast or isExpert) then
+            return
+        end
+
+        local function AddCastAnchor(label, value, onChanged)
+            if workspaceCast then
+                return AddPropertyDropdownRow(castPosition, label, {
+                    list = barAnchorList, value = value, onChanged = onChanged,
+                })
+            end
+            return AddDropdown(castPosition, label, barAnchorList, value, onChanged)
+        end
+        local AddPositionSlider = workspaceCast and AddPropertyCompactSliderRow or AddSlider
+
+        AddCastAnchor(L["OPTION_ANCHOR_FROM"] or "Anchor From", unitConfig.castBarPoint or "BOTTOMLEFT", function(value)
+            SetUnitField("castBarPoint", value)
+        end)
+
+        AddCastAnchor(L["OPTION_ANCHOR_TO"] or "Anchor To", unitConfig.castBarRelativePoint or "TOPLEFT", function(value)
+            SetUnitField("castBarRelativePoint", value)
+        end)
+
+        local frame = ns.frames and ns.frames[state.selectedUnit == "boss" and "boss1" or state.selectedUnit]
+        local minX, maxX, minY, maxY = ns.GUI.Editor.AnchorGeometry.ResolveCastBarOffsetRange(frame, unitConfig)
+        local offsetXControl = AddPositionSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", minX, maxX, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
+            if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
+                return
+            end
+            SetUnitField("castBarOffsetX", math.floor((value or 0) + 0.5))
+        end)
+
+        local offsetYControl = AddPositionSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", minY, maxY, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
+            if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
+                return
+            end
+            SetUnitField("castBarOffsetY", math.floor((value or 0) + 0.5))
+        end)
+        RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
+            kind = "bar",
+            unit = state and state.selectedUnit,
+            objectKey = "CastBar",
+        }, offsetXControl, offsetYControl)
+    end
+
     local function BuildCastSectionContent(castSection)
         if not castSection then
             return
@@ -4593,6 +4639,8 @@ function InspectorController.Build(container, state, options)
 
         AddUnitBarBorderRows(appearanceSection, "castBar", usePropertyGroups, unitConfig.showCastBar == false)
 
+        if flatCast then BuildCastPositionSectionContent(geometrySection) end
+
         if actionsSection then
             AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "DestructiveAction", 148, function()
                 ApplyCastBarPresence(false)
@@ -4673,40 +4721,6 @@ function InspectorController.Build(container, state, options)
         end)
     end
 
-    local function BuildCastPositionSectionContent(castPosition)
-        if not castPosition or not isExpert then
-            return
-        end
-
-        AddDropdown(castPosition, L["OPTION_ANCHOR_FROM"] or "Anchor From", barAnchorList, unitConfig.castBarPoint or "BOTTOMLEFT", function(value)
-            SetUnitField("castBarPoint", value)
-        end)
-
-        AddDropdown(castPosition, L["OPTION_ANCHOR_TO"] or "Anchor To", barAnchorList, unitConfig.castBarRelativePoint or "TOPLEFT", function(value)
-            SetUnitField("castBarRelativePoint", value)
-        end)
-
-        local frame = ns.frames and ns.frames[state.selectedUnit == "boss" and "boss1" or state.selectedUnit]
-        local minX, maxX, minY, maxY = ns.GUI.Editor.AnchorGeometry.ResolveCastBarOffsetRange(frame, unitConfig)
-        local offsetXControl = AddSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", minX, maxX, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
-            if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
-                return
-            end
-            SetUnitField("castBarOffsetX", math.floor((value or 0) + 0.5))
-        end)
-
-        local offsetYControl = AddSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", minY, maxY, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
-            if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
-                return
-            end
-            SetUnitField("castBarOffsetY", math.floor((value or 0) + 0.5))
-        end)
-        RegisterActiveCanvasDirectMoveOffsetControls(state and state.selectedUnit, {
-            kind = "bar",
-            unit = state and state.selectedUnit,
-            objectKey = "CastBar",
-        }, offsetXControl, offsetYControl)
-    end
 
     if isExpert then
         AddScopedInspectorSection("positioning", L["EDITOR_POSITIONING"] or "Positioning", true, {

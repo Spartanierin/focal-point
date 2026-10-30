@@ -7,9 +7,13 @@ local source=Read("Tests/CustomizeWorkspace.lua")
 local stop=assert(source:find("\nlocal count = 0",1,true))
 local h,ns,state,controller,selection,Setup,Build,Drain,Tree,Node=assert(load(source:sub(1,stop)..
     "\nreturn h,ns,state,controller,selection,Setup,Build,Drain,Tree,Node", "@NormalAbsorb/Workspace"))()
+-- The existing Workspace frame double has no scale API; model its unscaled UIParent.
+UIParent.GetEffectiveScale = UIParent.GetEffectiveScale or function() return 1 end
 local getUnits,getUnit=ns.UnitFrameUtils.GetUnitsDB,ns.UnitFrameUtils.GetUnitDB
 for _,path in ipairs({"GUI/Helpers/OptionPaths.lua","GUI/Helpers/OptionValues.lua",
     "Engine/UnitFrame/Shared/UnitFrameUtils.lua",
+    "Engine/UnitFrame/Runtime/UnitFrameLayout.lua","Engine/UnitFrame/Bars/UnitFrameCastBar.lua",
+    "GUI/Editor/EditorAnchorGeometry.lua",
     "GUI/Editor/Inspector/InspectorRefreshPolicy.lua","GUI/Editor/Inspector/InspectorController.lua"}) do
     assert(loadfile(path))("FocalPoint",ns)
 end
