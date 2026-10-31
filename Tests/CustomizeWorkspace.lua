@@ -364,6 +364,52 @@ local function DecorationStart(expert)
 end
 local function DecorationBody()return assert(RootSection(window._focalPointPropertyScroll,"decoration"))end
 local function DecorationControl(label,kind)return RootControl(label,kind,DecorationBody())end
+local function DecorationTabs()
+    local tabs,order={},{}
+    RootWalk(DecorationBody(),function(w)
+        local key=w:GetUserData("normalAbsorbPropertyTab")
+        if key then assert(not tabs[key]);tabs[key]=w;order[#order+1]=key end
+    end)
+    assert(table.concat(order,",")=="appearance,geometry,behavior")
+    return tabs
+end
+local function DecorationClickTab(key)DecorationTabs()[key]:Fire("OnClick");Drain()end
+local function DecorationCheckTabs()
+    local active=state.Get().inspectorPropertyGroup
+    for _,tab in pairs(DecorationTabs())do assert(tab.frame:IsShown() and not tab.disabled)end
+    local membership={Appearance="appearance",Geometry="geometry",Position="geometry",Behavior="behavior"}
+    local groups={}
+    for _,group in ipairs(DecorationBody().children)do
+        if group.type=="InlineGroup"then
+            local title=group.titletext:GetText();assert(not groups[title]);groups[title]=group
+            assert(group.parent==DecorationBody() and group.events.OnRelease)
+            if membership[title]then
+                assert(group:GetUserData("normalAbsorbPropertyGroup")==membership[title])
+                assert(group:GetUserData("normalAbsorbPropertyContent") and #group.children>0)
+                assert(group.frame:IsShown()==(active==membership[title]))
+            else
+                assert(title=="Actions" and group:GetUserData("normalAbsorbObjectActions"))
+                assert(group.frame:IsShown() and not group:GetUserData("normalAbsorbPropertyGroup"))
+                assert(not group:GetUserData("normalAbsorbPropertyContent"))
+            end
+            RootWalk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate section heading")end)
+        end
+    end
+    for _,title in ipairs({"Appearance","Geometry","Position","Behavior","Actions"})do assert(groups[title])end
+    for label,tab in pairs({Texture="appearance",Alpha="appearance",Width="geometry",Height="geometry",
+        ["Anchor To Element"]="geometry",["Anchor From"]="geometry",["Anchor To"]="geometry",
+        ["X Offset"]="geometry",["Y Offset"]="geometry",Enabled="behavior",Condition="behavior"})do
+        local kind=(label=="Enabled" and "CheckBox")or(label=="Texture" and "Button")or
+            ((label:find("Anchor")or label=="Condition")and "Dropdown")or "FPCompactSlider"
+        assert(membership[RootGroup(DecorationControl(label,kind))]==tab,label)
+    end
+    assert(DecorationControl("Delete Decoration","Button").frame:IsShown())
+    DecorationBody():DoLayout();window._focalPointPropertyScroll:DoLayout()
+    local height=0
+    for _,child in ipairs(DecorationBody().children)do if child.frame:IsShown()then height=height+child.frame:GetHeight()end end
+    assert(math.abs(DecorationBody().frame:GetHeight()-height)<.01,"hidden groups consume scroll height")
+    return groups
+end
 local function DecorationPoints(disabled)
     for _,field in ipairs({{"Anchor From","point","CENTER","Position"},
         {"Anchor To","relativePoint","CENTER","Position"},{"Condition","condition","ALWAYS","Behavior"}})do
@@ -395,8 +441,12 @@ Test("Decoration Workspace exposes unique Position points and Behavior condition
             {"Width","FPCompactSlider"},{"Height","FPCompactSlider"},{"X Offset","FPCompactSlider"},{"Y Offset","FPCompactSlider"},
             {"Delete Decoration","Button"}})do DecorationControl(f[1],f[2])end
         local controls={CheckBox=0,Button=0,FPCompactSlider=0,Dropdown=0}
-        RootWalk(DecorationBody(),function(w)if controls[w.type]then controls[w.type]=controls[w.type]+1 end end)
+        -- Count existing property/action controls separately from the three navigation buttons.
+        RootWalk(DecorationBody(),function(w)
+            if controls[w.type] and not w:GetUserData("normalAbsorbPropertyTab")then controls[w.type]=controls[w.type]+1 end
+        end)
         h.Equal(controls,{CheckBox=1,Button=2,FPCompactSlider=5,Dropdown=4})
+        DecorationCheckTabs()
         h.Equal(db,before)
         assert(db.profile.General.ExpertMode==expert and state.Get().mode==(expert and "quick" or "expert"))
     end
@@ -463,7 +513,9 @@ Test("Decoration Legacy scoped and unscoped builds keep Quick/Expert filters",fu
             local builder=propertiesOnly and ns.GUI.Editor.Inspector.BuildProperties or ns.GUI.Editor.Inspector.Build
             builder(host,state.Get(),{getUnitConfig=ns.UnitFrameUtils.GetUnitDB})
             local body=assert(RootSection(host,"decoration"))
+            RootWalk(body,function(w)assert(not w:GetUserData("normalAbsorbPropertyTab"),"Legacy gained Workspace tabs")end)
             RootControl("Enabled","CheckBox",body);RootControl("Anchor To Element","Dropdown",body)
+            assert(RootGroup(RootControl("Enabled","CheckBox",body))=="Appearance")
             for _,label in ipairs({"Anchor From","Anchor To","Condition"})do
                 assert(#RootFind(body,label,"Dropdown")==(expert and 1 or 0),label)
             end
@@ -477,20 +529,74 @@ Test("Decoration texture Apply/no-Apply and Delete/Cancel retain their existing 
     forms.CreateCompactConfirmation=function(o)options=o;dialog=previous(o);return dialog end
     local previousMedia=ns.GUI.Editor.MediaLibrary;local media
     ns.GUI.Editor.MediaLibrary={Open=function(o)media=o end}
-    for _,expert in ipairs({false,true})do
+    for _,expert in ipairs({false,true})do for _,tab in ipairs({"appearance","geometry","behavior"})do
         local db,unit,decoration,other=DecorationStart(expert)
         decoration.texture=nil;controller.RefreshActiveProperties();Drain()
+        DecorationClickTab("appearance")
         local before=h.Copy(db)
         DecorationControl("Texture","Button"):Fire("OnClick");assert(media);h.Equal(db,before)
         media.onApply("fp:decoration:shadow1");Drain()
         assert(decoration.texture=="fp:decoration:shadow1")
+        DecorationClickTab(tab);DecorationCheckTabs()
         DecorationControl("Delete Decoration","Button"):Fire("OnClick");assert(dialog and options)
         before=h.Copy(db);options.cancel.onClick(dialog);Drain();h.Equal(db,before)
         DecorationControl("Delete Decoration","Button"):Fire("OnClick");options.primary.onClick(dialog);Drain()
         local found=false;for _,d in ipairs(unit.decorations)do assert(d.id~=decoration.id);if d.id==other.id then found=true end end
         assert(found and selection.GetSelectedObject().kind=="unit")
-    end
+    end end
     forms.CreateCompactConfirmation=previous;ns.GUI.Editor.MediaLibrary=previousMedia
+end)
+Test("Decoration tab cycles retain framed owners, controls, release bindings and data without rebuilding",function()
+    for _,expert in ipairs({false,true})do
+        local db=DecorationStart(expert)
+        local body=DecorationBody();local groups=DecorationCheckTabs();local release=groups.Actions.events.OnRelease
+        local width=DecorationControl("Width","FPCompactSlider");local before=h.Copy(db);local children=#body.children
+        for _=1,20 do for _,tab in ipairs({"geometry","behavior","appearance"})do
+            window._focalPointPropertyScroll:SetScroll(400);DecorationClickTab(tab)
+            local current=DecorationCheckTabs()
+            assert(DecorationBody()==body and #body.children==children and DecorationControl("Width","FPCompactSlider")==width)
+            for title,group in pairs(groups)do assert(current[title]==group)end
+            assert(current.Actions.events.OnRelease==release)
+            assert(window._focalPointPropertyScroll.status.scrollvalue==0)
+        end end
+        h.Equal(db,before)
+    end
+end)
+Test("Decoration tabs survive mutations, rebuild, Back/Reopen and reject stale object, Unit and Layout callbacks",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit,decoration,other,Select=DecorationStart(expert)
+        DecorationClickTab("geometry")
+        DecorationControl("Anchor From","Dropdown"):Fire("OnValueChanged","LEFT")
+        DecorationControl("Anchor To","Dropdown"):Fire("OnValueChanged","RIGHT")
+        DecorationClickTab("behavior")
+        DecorationControl("Condition","Dropdown"):Fire("OnValueChanged","BOSS")
+        DecorationControl("Enabled","CheckBox"):Fire("OnValueChanged",false);Drain()
+        DecorationCheckTabs();DecorationPoints(true)
+        DecorationControl("Enabled","CheckBox"):Fire("OnValueChanged",true);Drain()
+        controller.RefreshActiveProperties();Drain();DecorationCheckTabs();DecorationPoints(false)
+        assert(decoration.point=="LEFT" and decoration.relativePoint=="RIGHT" and decoration.condition=="BOSS")
+        local oldTab=DecorationTabs().geometry;local callback=oldTab.events.OnClick
+        Select(other.id);DecorationCheckTabs()
+        local before=h.Copy(db);local active=state.Get().inspectorPropertyGroup
+        callback(oldTab);Drain();assert(state.Get().inspectorPropertyGroup==active);h.Equal(db,before)
+        Select(decoration.id);DecorationCheckTabs()
+        window._focalPointSetCustomizeView("components");window._focalPointSetCustomizeView("properties")
+        DecorationCheckTabs();assert(selection.GetSelectedObject().decorationId==decoration.id)
+        oldTab=DecorationTabs().geometry;callback=oldTab.events.OnClick
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();DecorationCheckTabs()
+        active=state.Get().inspectorPropertyGroup;callback(oldTab);Drain();assert(state.Get().inspectorPropertyGroup==active)
+        local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units;units.target=h.Copy(unit)
+        oldTab=DecorationTabs().geometry;callback=oldTab.events.OnClick
+        assert(selection.SelectObject({kind="decoration",unit="target",decorationId=decoration.id}));Drain();DecorationCheckTabs()
+        active=state.Get().inspectorPropertyGroup;before=h.Copy(db);callback(oldTab);Drain()
+        assert(state.Get().inspectorPropertyGroup==active);h.Equal(db,before)
+        oldTab=DecorationTabs().geometry;callback=oldTab.events.OnClick
+        local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+        assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain();DecorationCheckTabs()
+        active=state.Get().inspectorPropertyGroup;before=h.Copy(db);callback(oldTab);Drain()
+        assert(state.Get().inspectorPropertyGroup==active);h.Equal(db,before)
+        assert(db.profile.General.ExpertMode==expert)
+    end
 end)
 assert(#h.ui.env.errors == 0, table.concat(h.ui.env.errors, "\n"))
 print("Customize Workspace: " .. count .. " groups PASS")

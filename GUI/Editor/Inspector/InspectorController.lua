@@ -5574,6 +5574,11 @@ function InspectorController.Build(container, state, options)
         local decorationSelectorOptions = BuildDecorationSelectorOptions(decorations)
         local isScopedObject = IsSelectedDecorationObject(selectedUnit, selectedDecorationId)
         local workspaceDecoration = isScopedObject and buildPropertiesOnly and type(workspaceIsCurrent) == "function"
+        local projectDecorationGroups, registerDecorationGroups
+        if workspaceDecoration then
+            local unusedFactory
+            unusedFactory, projectDecorationGroups, registerDecorationGroups = BeginFlatPropertyPresentation(decorationSection)
+        end
         local appearanceSection = decorationSection
         local geometrySection = decorationSection
         local positionSection = decorationSection
@@ -5658,6 +5663,7 @@ function InspectorController.Build(container, state, options)
             positionSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_POSITION"] or "Position", true)
             behaviorSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             actionsSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if workspaceDecoration then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
         elseif #decorations > 0 then
             local selectorRow = AceGUI:Create("SimpleGroup")
             selectorRow:SetFullWidth(true)
@@ -5707,7 +5713,7 @@ function InspectorController.Build(container, state, options)
         local decorationTexturePicker
 
         if isScopedObject then
-            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_ENABLED"] or "Enabled", decorationConfig.enabled == true, function(value)
+            AddPropertyCheckBoxRow(workspaceDecoration and behaviorSection or appearanceSection, L["OPTION_ENABLED"] or "Enabled", decorationConfig.enabled == true, function(value)
                 SetDecorationField("enabled", value and true or false, decorationSection)
             end, nil, "decoration_enabled")
         else
@@ -5904,6 +5910,14 @@ function InspectorController.Build(container, state, options)
                 FormWidgets.StyleActionButton(deleteButton, "DestructiveAction")
             end
             decorationSection:AddChild(deleteButton)
+        end
+        if workspaceDecoration then
+            local membership = {[appearanceSection]="appearance", [geometrySection]="geometry",
+                [positionSection]="geometry", [behaviorSection]="behavior"}
+            for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
+            -- Preserve the framed Actions owner's release binding outside tab filtering.
+            registerDecorationGroups(membership)
+            projectDecorationGroups()
         end
     end
 
