@@ -67,7 +67,7 @@ Test("tab switches allocate no headings and actions remain outside every propert
 end)
 Test("conditional and single-control groups produce no empty or redundant headings",function()
     Start("quick")
-    assert(Headings("class_power","geometry")=="Size,Growth")
+    assert(Headings("class_power","geometry")=="Size,Anchor,Position,Growth")
     assert(Headings("class_power","behavior")=="")
     local window,unit=Current()
     unit.alternativePowerBarPresent=true;unit.showAlternativePowerBar=true
@@ -82,7 +82,7 @@ Test("conditional and single-control groups produce no empty or redundant headin
     assert(Headings("absorbs","geometry")=="Size,Anchor,Position,Growth")
     window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain()
     p.Build();p.Select("ClassPowerBar")
-    assert(Headings("class_power","geometry")=="Size,Growth")
+    assert(Headings("class_power","geometry")=="Size,Anchor,Position,Growth")
 end)
 Test("instances use the same sections and reuse ordinary Labels without divider regions",function()
     Start("expert")

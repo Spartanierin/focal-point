@@ -108,6 +108,100 @@ Test("Class Power Remove is independent from every tab and non-Workspace keeps f
         assert(n==(mode=="quick" and 6 or 7));p.h.ui.ace:Release(host)
     end
 end)
+Test("Workspace Class Power geometry ignores saved mode with unique controls, mutations, disabled and rebuild bindings",function()
+    local fields={
+        {"Width","FPCompactSlider","classPowerBarWidth",100,40,260},
+        {Label("OPTION_CLASS_POWER_BAR_SPACING","Class Power Spacing"),"FPCompactSlider","classPowerBarSpacing",2,0,20},
+        {"Anchor Target","Dropdown","classPowerBarAnchorTo","HealthBar"},
+        {"Anchor From","Dropdown","classPowerBarPoint","BOTTOMRIGHT"},
+        {"Anchor To","Dropdown","classPowerBarRelativePoint","BOTTOMRIGHT"},
+        {"Offset X","FPCompactSlider","classPowerBarOffsetX",-5,-200,200},
+        {"Offset Y","FPCompactSlider","classPowerBarOffsetY",5,-200,200},
+        {Label("OPTION_CLASS_POWER_SEGMENT_GROWTH","Segment Growth"),"Dropdown","classPowerBarGrowth","LEFT_TO_RIGHT"},
+    }
+    local ref={kind="bar",unit="player",objectKey="ClassPowerBar"}
+    for _,expert in ipairs({false,true})do
+        Start(expert and "quick" or "expert")
+        db.profile={General={ExpertMode=expert}}
+        for _,field in ipairs(fields)do unit[field[3]]=nil end
+        p.controller.RefreshActiveProperties();p.Drain()
+        local profile=p.h.Copy(db.profile);local initial=p.h.Copy(unit)
+        local function Controls(disabled)
+            assert(p.state.Get().propertyScope.sectionKey=="class_power")
+            for _,field in ipairs(fields)do
+                local c=p.Control(field[1],field[2]);local n=0
+                p.Walk(Body("class_power"),function(w)
+                    local children=w.children or {}
+                    if children[1] and children[1].type=="Label" and children[1].label:GetText()==field[1]then n=n+1 end
+                end)
+                assert(n==1,"missing or duplicate Class Power row: "..field[1])
+                assert(c.parent.parent.parent:GetUserData("normalAbsorbPropertyGroup")=="geometry")
+                assert(c:GetValue()==(unit[field[3]] or field[4]) and c.disabled==disabled,field[1])
+                if field[5]then assert(c.min==field[5] and c.max==field[6] and c.step==1)end
+            end
+        end
+        Click("geometry");Check("class_power","geometry");Controls(false);p.h.Equal(unit,initial)
+        assert(p.Control("Anchor Target","Dropdown"):GetUserData("focalPointAnchorKey")=="class_power_anchor_to")
+        p.Control("Width","FPCompactSlider"):Fire("OnValueChanged",151.6)
+        p.Control(fields[2][1],"FPCompactSlider"):Fire("OnValueChanged",6.6)
+        p.Control("Anchor Target","Dropdown"):Fire("OnValueChanged","PowerBar");p.Drain()
+        p.Control("Anchor From","Dropdown"):Fire("OnValueChanged","TOPLEFT");p.Drain()
+        p.Control("Anchor To","Dropdown"):Fire("OnValueChanged","BOTTOMLEFT");p.Drain()
+        p.Control("Offset X","FPCompactSlider"):Fire("OnValueChanged",-23.6)
+        p.Control("Offset Y","FPCompactSlider"):Fire("OnValueChanged",31.6)
+        assert(unit.classPowerBarWidth==152 and unit.classPowerBarSpacing==7)
+        assert(unit.classPowerBarAnchorTo=="PowerBar" and unit.classPowerBarPoint=="TOPLEFT" and unit.classPowerBarRelativePoint=="BOTTOMLEFT")
+        assert(unit.classPowerBarOffsetX==-24 and unit.classPowerBarOffsetY==32)
+        for _,growth in ipairs({"RIGHT_TO_LEFT","LEFT_TO_RIGHT"})do
+            p.Control(fields[8][1],"Dropdown"):Fire("OnValueChanged",growth)
+            assert(unit.classPowerBarGrowth==growth)
+            p.controller.RefreshActiveProperties();p.Drain();Controls(false)
+        end
+        local before=p.h.Copy(unit)
+        assert(p.ns.GUI.Editor.Inspector.SetActiveCanvasDirectMoveAnchorValues("player",ref,{offsetX=12,offsetY=13,point="RIGHT",relativePoint="LEFT"}))
+        assert(p.Control("Offset X","FPCompactSlider"):GetValue()==12 and p.Control("Offset Y","FPCompactSlider"):GetValue()==13)
+        assert(p.Control("Anchor From","Dropdown"):GetValue()=="RIGHT" and p.Control("Anchor To","Dropdown"):GetValue()=="LEFT")
+        p.h.Equal(unit,before) -- Synchronization must not invoke mutation callbacks.
+        p.controller.RefreshActiveProperties();p.Drain();Controls(false)
+        Click("behavior");p.Control("Show","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        Controls(true)
+        p.Control("Show","CheckBox"):Fire("OnValueChanged",true);p.Drain();Controls(false)
+        for _=1,3 do
+            p.Select("PowerBar");p.Select("ClassPowerBar");Click("geometry");Controls(false)
+            p.controller.RefreshActiveProperties();p.Drain();Controls(false)
+        end
+        window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build();Click("geometry");Controls(false)
+        p.h.Equal(db.profile,profile)
+        assert(p.state.Get().mode==(expert and "quick" or "expert"))
+    end
+end)
+Test("unscoped Legacy Class Power retains saved-mode filtering and one Growth control",function()
+    for _,expert in ipairs({false,true})do
+        Start(expert and "quick" or "expert");db.profile={General={ExpertMode=expert}}
+        p.state.SetSectionCollapsed("class_power",false)
+        local before=p.h.Copy(db);local host=p.h.ui.ace:Create("SimpleGroup")
+        p.ns.GUI.Editor.Inspector.Build(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
+        local section
+        p.Walk(host,function(w)
+            if w:GetUserData("focalPointSectionKey")=="class_power" and w._focalPointRequestRebuild then assert(not section);section=w end
+        end)
+        assert(section)
+        local counts={}
+        p.Walk(section,function(w)
+            if (w.type=="Dropdown" or w.type=="Slider") and w.label then
+                local label=w.label:GetText();counts[label]=(counts[label] or 0)+1
+            end
+        end)
+        assert(counts[Label("OPTION_CLASS_POWER_SEGMENT_GROWTH","Segment Growth")]==1)
+        assert(counts[Label("OPTION_CLASS_POWER_BAR_HEIGHT","Class Power Height")]==1)
+        for _,label in ipairs({Label("OPTION_CLASS_POWER_BAR_WIDTH","Class Power Width"),
+            Label("OPTION_CLASS_POWER_BAR_SPACING","Class Power Spacing"),Label("OPTION_ANCHOR_TO_TARGET","Anchor To Element"),
+            "Anchor From","Anchor To",Label("OPTION_X_OFFSET","X Offset"),Label("OPTION_Y_OFFSET","Y Offset")})do
+            assert((counts[label] or 0)==(expert and 1 or 0),label)
+        end
+        p.h.Equal(db,before);p.h.ui.ace:Release(host)
+    end
+end)
 local M=p.ns.LayoutMutations.SegmentedBars
 local function Context()return assert(M.CaptureContext("player"))end
 local function SelectInstance(id)

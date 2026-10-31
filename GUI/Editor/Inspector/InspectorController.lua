@@ -4101,7 +4101,7 @@ function InspectorController.Build(container, state, options)
             runeTimerSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
             backgroundSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-            if isExpert then
+            if flatClassPower or isExpert then
                 positionSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
             end
             actionsSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
@@ -4109,7 +4109,7 @@ function InspectorController.Build(container, state, options)
         if flatClassPower then
             local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
                 [runeTimerSection]="appearance", [backgroundSection]="appearance", [geometrySection]="geometry"}
-            if isExpert then membership[positionSection] = "geometry" end
+            membership[positionSection] = "geometry"
             registerClassPowerGroups(membership, actionsSection)
         end
 
@@ -4260,7 +4260,7 @@ function InspectorController.Build(container, state, options)
             AddDropdown(runeTimerSection, L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList, unitConfig.classPowerRuneTimerFontStyle or "OUTLINE", SetRuneTimerStyle, runeTimerDisabled)
         end
 
-        if isExpert then
+        if flatClassPower or isExpert then
             if usePropertyGroups then
                 AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or L["OPTION_CLASS_POWER_BAR_WIDTH"] or "Width", 40, 260, 1, tonumber(unitConfig.classPowerBarWidth) or 100, function(value)
                     SetUnitField("classPowerBarWidth", math.floor((value or 0) + 0.5))
@@ -4289,12 +4289,11 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showClassPowerBar ~= true)
             end
         end
-        if not (flatClassPower and isExpert) then
-            if flatClassPower then AddFlatSectionHeading(geometrySection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth") end
+        if not flatClassPower then
             BuildClassPowerGrowth(geometrySection)
         end
 
-        if isExpert then
+        if flatClassPower or isExpert then
             if usePropertyGroups then
                 AddPropertyCompactSliderRow(geometrySection, L["OPTION_CLASS_POWER_BAR_SPACING"] or "Class Power Spacing", 0, 20, 1, tonumber(unitConfig.classPowerBarSpacing) or 2, function(value)
                     SetUnitField("classPowerBarSpacing", math.floor((value or 0) + 0.5))
@@ -4401,7 +4400,7 @@ function InspectorController.Build(container, state, options)
             }, offsetXControl, offsetYControl, pointControl, relativePointControl)
         end
 
-        if flatClassPower and isExpert then
+        if flatClassPower then
             AddFlatSectionHeading(positionSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth")
             BuildClassPowerGrowth(positionSection)
         end
