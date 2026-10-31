@@ -5251,6 +5251,7 @@ function InspectorController.Build(container, state, options)
         end
 
         local isScopedObject = IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey)
+        local workspaceIndicator = isScopedObject and buildPropertiesOnly and type(workspaceIsCurrent) == "function"
         local appearanceSection = indicatorSection
         local geometrySection = indicatorSection
         local positionSection = indicatorSection
@@ -5262,7 +5263,7 @@ function InspectorController.Build(container, state, options)
             appearanceSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_APPEARANCE"] or "Appearance", false)
             geometrySection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             behaviorSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            if isExpert then
+            if workspaceIndicator or isExpert then
                 positionSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_POSITION"] or "Position", true)
             end
             actionsSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_ACTIONS"] or "Actions", true)
@@ -5402,7 +5403,7 @@ function InspectorController.Build(container, state, options)
             end, disabled)
         end
 
-        if not isExpert then
+        if not (workspaceIndicator or isExpert) then
             AddRemoveIndicatorAction()
             return
         end
