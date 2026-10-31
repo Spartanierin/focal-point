@@ -3067,13 +3067,15 @@ function InspectorController.Build(container, state, options)
             return
         end
 
+        local workspaceRoot = buildPropertiesOnly and IsSelectedUnitRootObject(selectedUnit)
+            and type(workspaceIsCurrent) == "function"
         local generalSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_GENERAL"] or "General", false)
         local appearanceSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_APPEARANCE"] or "Appearance", true)
         local geometrySection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_GEOMETRY"] or "Geometry", true)
         local positionSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_POSITION"] or "Position", true)
         local visibilitySection = AddFramedObjectPropertyGroup(rootSection, L["EDITOR_SECTION_VISIBILITY"] or "Visibility", true)
-        local behaviorSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_BEHAVIOR"] or "Behavior", true) or nil
-        local advancedSection = isExpert and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ADVANCED"] or "Advanced", true) or nil
+        local behaviorSection = (workspaceRoot or isExpert) and AddFramedObjectPropertyGroup(rootSection, L["SECTION_BEHAVIOR"] or "Behavior", true) or nil
+        local advancedSection = (workspaceRoot or isExpert) and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ADVANCED"] or "Advanced", true) or nil
         local hasAbsentSingleton =
             unitConfig.powerBarPresent == false
             or unitConfig.castBarPresent == false
@@ -3092,7 +3094,7 @@ function InspectorController.Build(container, state, options)
         AddPropertyColorRow(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color", unitConfig.backgroundColor, true, function(value)
             SetUnitField("backgroundColor", value)
         end)
-        if isExpert then
+        if workspaceRoot or isExpert then
             AddPropertyCompactSliderRow(appearanceSection, L["OPTION_BORDER_WIDTH"] or "Border Width", 0, 5, 1, unitConfig.frameBorderWidth or 1, function(value)
                 SetUnitField("frameBorderWidth", value)
             end, false, "frameBorderWidth")

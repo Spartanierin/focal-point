@@ -204,5 +204,150 @@ Test("unit selection updates title, tree and properties in the same Window", fun
     assert(#window._focalPointPropertyScroll.children > 0)
     ns:CloseConfig(); Drain()
 end)
+-- Extend the real Workspace fixture for Root options and the production Boss unit catalog.
+controller.ReleaseInspector()
+for _,path in ipairs({"Data/Constants.lua","GUI/Layouts/UnitFrameDefinition.lua",
+    "GUI/Editor/ObjectSelection.lua","GUI/Editor/Composition/CompositionTreeView.lua",
+    "GUI/Editor/Toolbar/ToolbarBinding.lua","GUI/Editor/Inspector/InspectorRefreshPolicy.lua",
+    "GUI/Editor/Inspector/InspectorController.lua"})do
+    assert(loadfile(path))("FocalPoint",ns)
+end
+selection=ns.GUI.Editor.ObjectSelection
+local function RootWalk(w,fn)fn(w);for _,child in ipairs(w.children or {})do RootWalk(child,fn)end end
+local function RootSection(host,key)
+    local found;RootWalk(host,function(w)
+        if w:GetUserData("focalPointSectionKey")==key and w._focalPointRequestRebuild then assert(not found);found=w end
+    end);return found
+end
+local function RootFind(host,label,kind)
+    local found,seen={},{}
+    local function Add(w)if w.type==kind and not seen[w]then seen[w]=true;found[#found+1]=w end end
+    RootWalk(host,function(w)
+        if w.label and w.label.GetText and w.label:GetText()==label then Add(w)end
+        if w.text and w.text.GetText and w.text:GetText()==label then Add(w)end
+        local c=w.children or {}
+        if c[1] and c[1].type=="Label" and c[1].label:GetText()==label and c[2]then RootWalk(c[2],Add)end
+    end);return found
+end
+local function RootControl(label,kind,host)
+    local list=RootFind(host or assert(RootSection(window._focalPointPropertyScroll,"frame")),label,kind)
+    assert(#list==1,label..": expected one control, got "..#list);return list[1]
+end
+local function RootStart(expert,unitKey)
+    local db,unit=Setup();db.profile={General={ExpertMode=expert}}
+    state.SetMode(expert and "quick" or "expert")
+    unitKey=unitKey or "player"
+    if unitKey~="player"then
+        local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
+        units[unitKey]=h.Copy(unit);unit=units[unitKey]
+    end
+    assert(selection.SelectObject({kind="unit",unit=unitKey}));window=Build();Drain()
+    Tree().control.callbacks.onSelect(Node("unit"));Drain()
+    assert(selection.GetSelectedObject().kind=="unit" and selection.GetSelectedObject().unit==unitKey)
+    assert(window._focalPointCustomizeView=="properties")
+    return db,unit
+end
+local function RootGroup(control)
+    local group=control.parent;while group and group.type~="InlineGroup"do group=group.parent end
+    return assert(group).titletext:GetText()
+end
+Test("Root Workspace exposes six former Expert fields once in both saved modes without writing defaults",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit=RootStart(expert);local before=h.Copy(db)
+        local sections={};local body=assert(RootSection(window._focalPointPropertyScroll,"frame"))
+        for _,child in ipairs(body.children)do if child.type=="InlineGroup"then
+            local title=child.titletext:GetText();assert(not sections[title]);sections[title]=true
+        end end
+        for _,title in ipairs({"General","Appearance","Geometry","Position","Visibility","Behavior","Advanced"})do assert(sections[title])end
+        for _,f in ipairs({{"Border Width","FPCompactSlider","Appearance"},{"Border Color","ColorPicker","Appearance"},
+            {"Mouse Enabled","CheckBox","Behavior"},{"Click Through","CheckBox","Behavior"},
+            {"Frame Strata","Dropdown","Advanced"},{"Frame Level","EditBox","Advanced"}})do
+            assert(RootGroup(RootControl(f[1],f[2]))==f[3])
+        end
+        assert(RootControl("Border Width","FPCompactSlider"):GetValue()==(unit.frameBorderWidth or 1))
+        assert(RootControl("Frame Strata","Dropdown"):GetValue()==(unit.frameStrata or "MEDIUM"))
+        assert(RootControl("Frame Level","EditBox"):GetText()==tostring(unit.frameLevel or 1))
+        for _,f in ipairs({{"Enabled","CheckBox"},{"Transparency","FPCompactSlider"},{"Background Color","ColorPicker"},
+            {"Height","FPCompactSlider"},{"Width","FPCompactSlider"},{"Scale","FPCompactSlider"},
+            {"Anchor From","Dropdown"},{"Anchor To","Dropdown"},{"X Offset","FPCompactSlider"},{"Y Offset","FPCompactSlider"},
+            {"Show in Solo","CheckBox"},{"Show in Party","CheckBox"},{"Show in Raid","CheckBox"},
+            {"Show in Arena","CheckBox"},{"Show in PvP","CheckBox"}})do RootControl(f[1],f[2])end
+        h.Equal(db,before)
+        assert(state.Get().mode==(expert and "quick" or "expert"))
+    end
+end)
+Test("Root mutations, Click Through disabled dependency, rebuild and reopen preserve canonical values",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit=RootStart(expert);local expected=h.Copy(unit);local profile=h.Copy(db.profile)
+        RootControl("Border Width","FPCompactSlider"):Fire("OnValueChanged",0);expected.frameBorderWidth=0
+        RootControl("Border Color","ColorPicker"):Fire("OnValueConfirmed",.2,.3,.4,0);expected.borderColor={.2,.3,.4,0,r=.2,g=.3,b=.4,a=0}
+        RootControl("Frame Strata","Dropdown"):Fire("OnValueChanged","HIGH");expected.frameStrata="HIGH"
+        RootControl("Frame Level","EditBox"):Fire("OnEnterPressed","17.6");expected.frameLevel=18
+        h.Equal(unit,expected)
+        RootControl("Mouse Enabled","CheckBox"):Fire("OnValueChanged",false);Drain();expected.mouseEnabled=false
+        assert(RootControl("Click Through","CheckBox").disabled);h.Equal(unit,expected)
+        RootControl("Mouse Enabled","CheckBox"):Fire("OnValueChanged",true);Drain();expected.mouseEnabled=true
+        assert(not RootControl("Click Through","CheckBox").disabled)
+        RootControl("Click Through","CheckBox"):Fire("OnValueChanged",true);expected.clickThrough=true;h.Equal(unit,expected)
+        for _=1,3 do
+            controller.RefreshActiveProperties();Drain()
+            assert(RootControl("Border Width","FPCompactSlider"):GetValue()==0)
+            assert(RootControl("Frame Strata","Dropdown"):GetValue()=="HIGH")
+            assert(RootControl("Frame Level","EditBox"):GetText()=="18")
+            assert(RootControl("Click Through","CheckBox"):GetValue())
+            assert(selection.SelectObject({kind="text",unit="player",textKey="localText"}));Drain()
+            assert(selection.SelectObject({kind="unit",unit="player"}));Drain()
+        end
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain()
+        assert(selection.GetSelectedObject().kind=="unit")
+        assert(RootControl("Border Width","FPCompactSlider"):GetValue()==0)
+        assert(RootControl("Frame Level","EditBox"):GetText()=="18")
+        h.Equal(unit,expected);h.Equal(db.profile,profile)
+    end
+end)
+Test("Root Legacy Properties and unscoped Frame/Visibility/Position retain their saved-mode gates",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit=RootStart(expert)
+        for _,propertiesOnly in ipairs({false,true})do
+            for _,key in ipairs({"frame","visibility","positioning"})do state.SetSectionCollapsed(key,false)end
+            local before=h.Copy(db);local host=h.ui.ace:Create("SimpleGroup")
+            local builder=propertiesOnly and ns.GUI.Editor.Inspector.BuildProperties or ns.GUI.Editor.Inspector.Build
+            builder(host,state.Get(),{getUnitConfig=ns.UnitFrameUtils.GetUnitDB})
+            local frame=assert(RootSection(host,"frame"))
+            local visibility=propertiesOnly and frame or assert(RootSection(host,"visibility"))
+            for _,f in ipairs({{"Border Width","FPCompactSlider"},{"Border Color","ColorPicker"},
+                {"Frame Strata","Dropdown"},{"Frame Level",propertiesOnly and "EditBox" or "Slider"}})do
+                local controls=RootFind(frame,f[1],f[2])
+                if not propertiesOnly and f[2]=="FPCompactSlider"then controls=RootFind(frame,f[1],"Slider")end
+                assert(#controls==(expert and 1 or 0),f[1])
+            end
+            for _,label in ipairs({"Mouse Enabled","Click Through"})do
+                assert(#RootFind(visibility,label,"CheckBox")== (expert and 1 or 0),label)
+            end
+            if not propertiesOnly then assert((RootSection(host,"positioning")~=nil)==expert)end
+            assert(#RootFind(frame,"Width",propertiesOnly and "FPCompactSlider" or "Slider")==1)
+            h.Equal(db,before);h.ui.ace:Release(host)
+        end
+    end
+end)
+Test("Root Boss spacing stays Boss-only and Unit/Layout changes bind the active root",function()
+    for _,expert in ipairs({false,true})do
+        for _,key in ipairs({"player","target","boss"})do
+            local db,unit=RootStart(expert,key)
+            local root=assert(RootSection(window._focalPointPropertyScroll,"frame"))
+            local spacing=RootFind(root,"Boss Frame Spacing","FPCompactSlider")
+            assert(#spacing==(key=="boss" and 1 or 0))
+            if key=="boss"then
+                spacing[1]:Fire("OnValueChanged",14);assert(unit.bossSpacing==14)
+            end
+            RootControl("Frame Level","EditBox"):Fire("OnEnterPressed","9");assert(unit.frameLevel==9)
+            local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+            assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain()
+            local active=ns.UnitFrameUtils.GetUnitDB(key);assert(active~=unit)
+            RootControl("Frame Level","EditBox"):Fire("OnEnterPressed","12")
+            assert(active.frameLevel==12 and unit.frameLevel==9)
+        end
+    end
+end)
 assert(#h.ui.env.errors == 0, table.concat(h.ui.env.errors, "\n"))
 print("Customize Workspace: " .. count .. " groups PASS")
