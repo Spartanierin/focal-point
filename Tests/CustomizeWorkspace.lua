@@ -349,5 +349,148 @@ Test("Root Boss spacing stays Boss-only and Unit/Layout changes bind the active 
         end
     end
 end)
+-- Decoration controls reuse the same real Workspace and row assertions as Root.
+assert(loadfile("GUI/Layouts/UnitPortraitDefinition.lua"))("FocalPoint",ns)
+local function DecorationStart(expert)
+    local db,unit=RootStart(expert)
+    local first=ns.InspectorMutations.AddDecoration({unitConfig=unit})
+    local second=ns.InspectorMutations.AddDecoration({unitConfig=unit})
+    assert(first.ok and second.ok)
+    local function Select(id)
+        assert(selection.SelectObject({kind="decoration",unit="player",decorationId=id}));Drain()
+    end
+    Select(first.newDecorationId)
+    return db,unit,first.newValue,second.newValue,Select
+end
+local function DecorationBody()return assert(RootSection(window._focalPointPropertyScroll,"decoration"))end
+local function DecorationControl(label,kind)return RootControl(label,kind,DecorationBody())end
+local function DecorationPoints(disabled)
+    for _,field in ipairs({{"Anchor From","point","CENTER","Position"},
+        {"Anchor To","relativePoint","CENTER","Position"},{"Condition","condition","ALWAYS","Behavior"}})do
+        local control=DecorationControl(field[1],"Dropdown")
+        assert(control.disabled==disabled and RootGroup(control)==field[4])
+    end
+end
+Test("Decoration Workspace exposes unique Position points and Behavior condition in both saved modes, preserving defaults and lists",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit,decoration=DecorationStart(expert)
+        decoration.point=nil;decoration.relativePoint=nil;decoration.condition=nil;decoration.target=nil
+        controller.RefreshActiveProperties();Drain();local before=h.Copy(db)
+        DecorationPoints(false)
+        assert(DecorationControl("Anchor From","Dropdown"):GetValue()=="CENTER")
+        assert(DecorationControl("Anchor To","Dropdown"):GetValue()=="CENTER")
+        assert(DecorationControl("Condition","Dropdown"):GetValue()=="ALWAYS")
+        assert(DecorationControl("Anchor To Element","Dropdown"):GetValue()=="FRAME")
+        local targets=DecorationControl("Anchor To Element","Dropdown").list
+        assert(targets.FRAME and targets.PORTRAIT)
+        local n=0;for _ in pairs(targets)do n=n+1 end;assert(n==2)
+        local conditions=DecorationControl("Condition","Dropdown").list;n=0
+        for _ in pairs(conditions)do n=n+1 end;assert(n==5)
+        for _,value in ipairs({"ALWAYS","ELITE","RARE","RAREELITE","BOSS"})do assert(conditions[value])end
+        for _,label in ipairs({"Anchor From","Anchor To"})do
+            local points=DecorationControl(label,"Dropdown").list;n=0
+            for _ in pairs(points)do n=n+1 end;assert(n==9 and points.CENTER and points.TOPLEFT and points.BOTTOMRIGHT)
+        end
+        for _,f in ipairs({{"Enabled","CheckBox"},{"Texture","Button"},{"Alpha","FPCompactSlider"},
+            {"Width","FPCompactSlider"},{"Height","FPCompactSlider"},{"X Offset","FPCompactSlider"},{"Y Offset","FPCompactSlider"},
+            {"Delete Decoration","Button"}})do DecorationControl(f[1],f[2])end
+        local controls={CheckBox=0,Button=0,FPCompactSlider=0,Dropdown=0}
+        RootWalk(DecorationBody(),function(w)if controls[w.type]then controls[w.type]=controls[w.type]+1 end end)
+        h.Equal(controls,{CheckBox=1,Button=2,FPCompactSlider=5,Dropdown=4})
+        h.Equal(db,before)
+        assert(db.profile.General.ExpertMode==expert and state.Get().mode==(expert and "quick" or "expert"))
+    end
+end)
+Test("Decoration mutations and synchronized anchors keep data local through disabled, rebuild, object and layout changes",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit,decoration,other,Select=DecorationStart(expert)
+        local expected=h.Copy(unit);local expectedDecoration
+        for _,d in ipairs(expected.decorations)do if d.id==decoration.id then expectedDecoration=d end end
+        local profile=h.Copy(db.profile)
+        DecorationControl("Anchor From","Dropdown"):Fire("OnValueChanged","TOPLEFT");expectedDecoration.point="TOPLEFT"
+        DecorationControl("Anchor To","Dropdown"):Fire("OnValueChanged","BOTTOMRIGHT");expectedDecoration.relativePoint="BOTTOMRIGHT"
+        for _,target in ipairs({"PORTRAIT","FRAME"})do
+            DecorationControl("Anchor To Element","Dropdown"):Fire("OnValueChanged",target);expectedDecoration.target=target
+            assert(decoration.target==target)
+        end
+        for _,condition in ipairs({"ELITE","RARE","RAREELITE","BOSS","ALWAYS"})do
+            DecorationControl("Condition","Dropdown"):Fire("OnValueChanged",condition);expectedDecoration.condition=condition
+            assert(decoration.condition==condition)
+        end
+        DecorationControl("X Offset","FPCompactSlider"):Fire("OnValueChanged",-18.6);expectedDecoration.offsetX=-19
+        DecorationControl("Y Offset","FPCompactSlider"):Fire("OnValueChanged",27.6);expectedDecoration.offsetY=28
+        DecorationControl("Width","FPCompactSlider"):Fire("OnValueChanged",83.6);expectedDecoration.width=84
+        DecorationControl("Height","FPCompactSlider"):Fire("OnValueChanged",51.6);expectedDecoration.height=52
+        DecorationControl("Alpha","FPCompactSlider"):Fire("OnValueChanged",.28);expectedDecoration.alpha=.28
+        h.Equal(unit,expected)
+        local before=h.Copy(unit);local ref={kind="decoration",unit="player",decorationId=decoration.id,objectKey=decoration.id}
+        assert(ns.GUI.Editor.Inspector.SetActiveCanvasDirectMoveAnchorValues("player",ref,
+            {point="LEFT",relativePoint="RIGHT",offsetX=11,offsetY=-12}))
+        assert(DecorationControl("Anchor From","Dropdown"):GetValue()=="LEFT")
+        assert(DecorationControl("Anchor To","Dropdown"):GetValue()=="RIGHT")
+        assert(DecorationControl("X Offset","FPCompactSlider"):GetValue()==11)
+        h.Equal(unit,before)
+        controller.RefreshActiveProperties();Drain()
+        DecorationControl("Enabled","CheckBox"):Fire("OnValueChanged",false);Drain();expectedDecoration.enabled=false
+        DecorationPoints(true)
+        for _,f in ipairs({{"Width","FPCompactSlider"},{"Height","FPCompactSlider"},{"X Offset","FPCompactSlider"},
+            {"Y Offset","FPCompactSlider"},{"Alpha","FPCompactSlider"},{"Anchor To Element","Dropdown"},{"Texture","Button"}})do
+            assert(DecorationControl(f[1],f[2]).disabled)
+        end
+        DecorationControl("Enabled","CheckBox"):Fire("OnValueChanged",true);Drain();expectedDecoration.enabled=true
+        for _=1,3 do
+            Select(other.id);DecorationPoints(false)
+            Select(decoration.id);controller.RefreshActiveProperties();Drain();DecorationPoints(false)
+            assert(DecorationControl("Anchor From","Dropdown"):GetValue()=="TOPLEFT")
+            assert(DecorationControl("Anchor To","Dropdown"):GetValue()=="BOTTOMRIGHT")
+        end
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();DecorationPoints(false)
+        h.Equal(unit,expected);h.Equal(db.profile,profile)
+        local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+        assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain();DecorationPoints(false)
+        local active=ns.UnitFrameUtils.GetUnitDB("player");assert(active~=unit)
+        DecorationControl("Condition","Dropdown"):Fire("OnValueChanged","BOSS")
+        local updated;for _,d in ipairs(active.decorations)do if d.id==decoration.id then updated=d end end
+        assert(updated and updated.condition=="BOSS" and decoration.condition=="ALWAYS")
+    end
+end)
+Test("Decoration Legacy scoped and unscoped builds keep Quick/Expert filters",function()
+    for _,expert in ipairs({false,true})do
+        local db=DecorationStart(expert)
+        for _,propertiesOnly in ipairs({false,true})do
+            state.SetSectionCollapsed("decoration",false)
+            local before=h.Copy(db);local host=h.ui.ace:Create("SimpleGroup")
+            local builder=propertiesOnly and ns.GUI.Editor.Inspector.BuildProperties or ns.GUI.Editor.Inspector.Build
+            builder(host,state.Get(),{getUnitConfig=ns.UnitFrameUtils.GetUnitDB})
+            local body=assert(RootSection(host,"decoration"))
+            RootControl("Enabled","CheckBox",body);RootControl("Anchor To Element","Dropdown",body)
+            for _,label in ipairs({"Anchor From","Anchor To","Condition"})do
+                assert(#RootFind(body,label,"Dropdown")==(expert and 1 or 0),label)
+            end
+            h.Equal(db,before);h.ui.ace:Release(host)
+        end
+    end
+end)
+Test("Decoration texture Apply/no-Apply and Delete/Cancel retain their existing flows",function()
+    local forms=ns.GUI.Helpers.FormWidgets;local previous=forms.CreateCompactConfirmation
+    local dialog,options
+    forms.CreateCompactConfirmation=function(o)options=o;dialog=previous(o);return dialog end
+    local previousMedia=ns.GUI.Editor.MediaLibrary;local media
+    ns.GUI.Editor.MediaLibrary={Open=function(o)media=o end}
+    for _,expert in ipairs({false,true})do
+        local db,unit,decoration,other=DecorationStart(expert)
+        decoration.texture=nil;controller.RefreshActiveProperties();Drain()
+        local before=h.Copy(db)
+        DecorationControl("Texture","Button"):Fire("OnClick");assert(media);h.Equal(db,before)
+        media.onApply("fp:decoration:shadow1");Drain()
+        assert(decoration.texture=="fp:decoration:shadow1")
+        DecorationControl("Delete Decoration","Button"):Fire("OnClick");assert(dialog and options)
+        before=h.Copy(db);options.cancel.onClick(dialog);Drain();h.Equal(db,before)
+        DecorationControl("Delete Decoration","Button"):Fire("OnClick");options.primary.onClick(dialog);Drain()
+        local found=false;for _,d in ipairs(unit.decorations)do assert(d.id~=decoration.id);if d.id==other.id then found=true end end
+        assert(found and selection.GetSelectedObject().kind=="unit")
+    end
+    forms.CreateCompactConfirmation=previous;ns.GUI.Editor.MediaLibrary=previousMedia
+end)
 assert(#h.ui.env.errors == 0, table.concat(h.ui.env.errors, "\n"))
 print("Customize Workspace: " .. count .. " groups PASS")

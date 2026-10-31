@@ -5573,6 +5573,7 @@ function InspectorController.Build(container, state, options)
         local selectedDecorationId, decorationConfig, decorations = ResolveSelectedDecoration(inspectorContext, unitConfig)
         local decorationSelectorOptions = BuildDecorationSelectorOptions(decorations)
         local isScopedObject = IsSelectedDecorationObject(selectedUnit, selectedDecorationId)
+        local workspaceDecoration = isScopedObject and buildPropertiesOnly and type(workspaceIsCurrent) == "function"
         local appearanceSection = decorationSection
         local geometrySection = decorationSection
         local positionSection = decorationSection
@@ -5775,7 +5776,7 @@ function InspectorController.Build(container, state, options)
             }, disabled)
             local pointControl
             local relativePointControl
-            if isExpert then
+            if workspaceDecoration or isExpert then
                 pointControl = AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_FROM"] or "Anchor From", {
                 list = portraitAnchorPointList,
                 value = decorationConfig.point or "CENTER",
@@ -5817,7 +5818,7 @@ function InspectorController.Build(container, state, options)
                 decorationId = selectedDecorationId,
                 objectKey = selectedDecorationId,
             }, offsetXControl, offsetYControl, pointControl, relativePointControl)
-            if isExpert then
+            if workspaceDecoration or isExpert then
                 AddPropertyDropdownRow(behaviorSection, L["OPTION_CONDITION"] or "Condition", {
                     list = decorationConditionList,
                     value = decorationConfig.condition or "ALWAYS",
