@@ -10,6 +10,27 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.0-beta.1
+
+### Changed
+
+* Redesigned the editor around Canvas/Arrange for direct editing, Components for adding and removing objects, and Customize/Properties for configuration through Appearance, Size & Position, and Behavior tabs.
+* Improved the direct move/resize workflow and restored global navigation through the Canvas Toolbar and Layout Manager: Add Unit restores missing unit frames, Options opens the existing options dialog, and Text Template management is available from Options.
+
+### Fixed
+
+* Restored access to layout specialization assignments from the Layout Manager.
+* Made existing Customize properties and global Mouse Enabled / Click Through options accessible independently of the saved Quick/Expert mode; legacy filtering remains unchanged.
+
+### Removed
+
+* Removed redundant singleton Remove and Decoration, Text, and instantiated Resource Bar Delete actions from Customize Properties. Components Tree trash, confirmation/cancel, and legacy delete paths remain available.
+
+### Improved
+
+* Native Midnight testing, including an upgrade using a real 2.x SavedVariables backup, retained existing layouts and settings in the tested configuration. This does not guarantee every migration or a downgrade to 2.x.
+* Please focus beta feedback on the new navigation and editing workflow, with concrete reproduction steps, expected/actual results, client version, and combat state. See the [README beta notes](README.md#midnight-beta-300-beta1) for client scope, backup guidance, and known limitations.
+
 ## 2.2.9
 
 ### Fixed

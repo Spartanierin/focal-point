@@ -15,6 +15,35 @@ Specialization automation and the optional Account Default select which layout
 becomes active; they do not create a second layout type or mass-mutate
 characters.
 
+## Midnight beta (3.0.0-beta.1)
+
+This beta focuses on the redesigned editor. Native testing covers Midnight/Retail
+only. Forever has not been natively validated for this beta, even though its
+interface ID remains declared in the TOC; it requires separate validation.
+
+Before updating, close the game and make an external backup of your Focal Point
+SavedVariables. A native upgrade test using a real 2.x backup retained existing
+layouts and settings in that configuration. This is not a universal migration
+guarantee, and a downgrade to 2.x is not guaranteed. Keep the original backup.
+
+- **Canvas/Arrange:** select units and edit directly with move/resize tools.
+- **Components:** add and remove components; **Add Unit** restores missing units.
+- **Customize/Properties:** configure the selected object in Appearance,
+  Size & Position, and Behavior.
+- **Manage Layouts:** manage layouts and open specialization assignments.
+- **Options:** global settings and **Manage Text Templates...**.
+
+Known limitations:
+
+- There is no regular global Demo-mode entry point in the new editor.
+- Native dropdown widths can vary after Inspector reopen; localization and
+  property-group presentation are not yet fully uniform.
+- Shadow-color disabled feedback may require an Inspector rebuild. Demo/live
+  text-format consistency still needs broader native validation.
+
+Please focus feedback on navigation and the editing workflow. Include concrete
+steps and the details listed under [Reporting issues](#reporting-issues).
+
 ## Quick start
 
 Open Focal Point with `/fp`.
@@ -40,10 +69,10 @@ show selection outline when the editor exposes them for configuration.
   Absorb, Aura, Portrait, Indicator, Decoration, and Text components;
 - entity-based text templates, object-local text, Texts Manager, and Tag Library;
 - Media Library for fonts and status-bar textures;
-- Demo and Unlock preview/editing modes;
+- Unlock editing and component previews (see the beta notes for Demo access);
 - scale-aware movement, resizing, and snap behavior;
 - layout import/export with reachable text resources;
-- Retail and Forever support as declared by `FocalPoint.toc`.
+- client interface declarations in `FocalPoint.toc` (see the beta validation scope above).
 
 ## Documentation and contribution
 
