@@ -109,7 +109,8 @@ Test("German labels fit a narrow Workspace without fixed profession widths",func
 end)
 Test("release hides all art, stale clicks remain invalid, pooled ordinary Buttons retain native chrome",function()
     local old=Tabs();local click=old.geometry.events.OnClick
-    assert(selection.SelectObject({kind="unit",unit="player"}));Drain()
+    -- Root now has tabs too; release the existing property owner before testing reuse.
+    Body():ReleaseChildren()
     for _,tab in pairs(old)do
         for _,r in pairs(tab.frame._fpNormalAbsorbTab)do assert(not r:IsShown())end
         assert(tab.text:GetAlpha()==1)
@@ -120,7 +121,7 @@ Test("release hides all art, stale clicks remain invalid, pooled ordinary Button
     if ordinary.frame._fpNormalAbsorbTab then
         for _,r in pairs(ordinary.frame._fpNormalAbsorbTab)do assert(not r:IsShown())end
     end
-    h.ui.ace:Release(ordinary);Select("NormalAbsorbBar");Check("appearance",true)
+    h.ui.ace:Release(ordinary);Refresh();Check("appearance",true)
 end)
 Test("Close/Reopen, Arrange and regular rebuild preserve one owner and current tab projection",function()
     local host=Host();Click("geometry");Refresh();Check("geometry",true)

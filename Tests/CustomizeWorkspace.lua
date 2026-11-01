@@ -206,7 +206,12 @@ Test("unit selection updates title, tree and properties in the same Window", fun
 end)
 -- Extend the real Workspace fixture for Root options and the production Boss unit catalog.
 controller.ReleaseInspector()
+-- Root restore actions can select Cast; use the same real dependencies as NormalAbsorbPropertyGroups.
+UIParent.GetEffectiveScale = UIParent.GetEffectiveScale or function() return 1 end
 for _,path in ipairs({"Data/Constants.lua","GUI/Layouts/UnitFrameDefinition.lua",
+    "GUI/Helpers/OptionPaths.lua","GUI/Helpers/OptionValues.lua",
+    "Engine/UnitFrame/Runtime/UnitFrameLayout.lua","Engine/UnitFrame/Bars/UnitFrameCastBar.lua",
+    "GUI/Editor/EditorAnchorGeometry.lua",
     "GUI/Editor/ObjectSelection.lua","GUI/Editor/Composition/CompositionTreeView.lua",
     "GUI/Editor/Toolbar/ToolbarBinding.lua","GUI/Editor/Inspector/InspectorRefreshPolicy.lua",
     "GUI/Editor/Inspector/InspectorController.lua"})do
@@ -251,6 +256,44 @@ local function RootGroup(control)
     local group=control.parent;while group and group.type~="InlineGroup"do group=group.parent end
     return assert(group).titletext:GetText()
 end
+local function RootTabs()
+    local tabs,order={},{}
+    RootWalk(assert(RootSection(window._focalPointPropertyScroll,"frame")),function(w)
+        local key=w:GetUserData("normalAbsorbPropertyTab")
+        if key then assert(not tabs[key]);tabs[key]=w;order[#order+1]=key end
+    end)
+    assert(table.concat(order,",")=="appearance,geometry,behavior","Root tabs: "..table.concat(order,",")..
+        "; selection="..tostring(selection.GetSelectedObject().kind).."; mode="..tostring(state.Get().presentation))
+    return tabs
+end
+local function RootClickTab(key)RootTabs()[key]:Fire("OnClick");Drain()end
+local function RootCheckTabs()
+    local body=assert(RootSection(window._focalPointPropertyScroll,"frame"))
+    local active=state.Get().inspectorPropertyGroup
+    for _,tab in pairs(RootTabs())do assert(tab.frame:IsShown() and not tab.disabled)end
+    local membership={General="behavior",Appearance="appearance",Geometry="geometry",Position="geometry",
+        Visibility="behavior",Behavior="behavior",Advanced="geometry"}
+    local groups={}
+    for _,group in ipairs(body.children)do if group.type=="InlineGroup"then
+        local title=group.titletext:GetText();assert(not groups[title]);groups[title]=group
+        assert(group.parent==body and group.events.OnRelease)
+        if membership[title]then
+            assert(group:GetUserData("normalAbsorbPropertyGroup")==membership[title])
+            assert(group:GetUserData("normalAbsorbPropertyContent") and #group.children>0)
+            assert(group.frame:IsShown()==(active==membership[title]))
+        else
+            assert(title=="Actions" and group:GetUserData("normalAbsorbObjectActions"))
+            assert(group.frame:IsShown() and not group:GetUserData("normalAbsorbPropertyGroup"))
+            assert(not group:GetUserData("normalAbsorbPropertyContent"))
+        end
+        RootWalk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate section heading")end)
+    end end
+    for title in pairs(membership)do assert(groups[title],title)end
+    body:DoLayout();window._focalPointPropertyScroll:DoLayout()
+    local height=0;for _,child in ipairs(body.children)do if child.frame:IsShown()then height=height+child.frame:GetHeight()end end
+    assert(math.abs(body.frame:GetHeight()-height)<.01,"hidden Root groups consume scroll height")
+    return body,groups
+end
 Test("Root Workspace exposes six former Expert fields once in both saved modes without writing defaults",function()
     for _,expert in ipairs({false,true})do
         local db,unit=RootStart(expert);local before=h.Copy(db)
@@ -272,6 +315,7 @@ Test("Root Workspace exposes six former Expert fields once in both saved modes w
             {"Anchor From","Dropdown"},{"Anchor To","Dropdown"},{"X Offset","FPCompactSlider"},{"Y Offset","FPCompactSlider"},
             {"Show in Solo","CheckBox"},{"Show in Party","CheckBox"},{"Show in Raid","CheckBox"},
             {"Show in Arena","CheckBox"},{"Show in PvP","CheckBox"}})do RootControl(f[1],f[2])end
+        RootCheckTabs()
         h.Equal(db,before)
         assert(state.Get().mode==(expert and "quick" or "expert"))
     end
@@ -313,6 +357,7 @@ Test("Root Legacy Properties and unscoped Frame/Visibility/Position retain their
             local before=h.Copy(db);local host=h.ui.ace:Create("SimpleGroup")
             local builder=propertiesOnly and ns.GUI.Editor.Inspector.BuildProperties or ns.GUI.Editor.Inspector.Build
             builder(host,state.Get(),{getUnitConfig=ns.UnitFrameUtils.GetUnitDB})
+            RootWalk(host,function(w)assert(not w:GetUserData("normalAbsorbPropertyTab"),"Legacy gained Root tabs")end)
             local frame=assert(RootSection(host,"frame"))
             local visibility=propertiesOnly and frame or assert(RootSection(host,"visibility"))
             for _,f in ipairs({{"Border Width","FPCompactSlider"},{"Border Color","ColorPicker"},
@@ -337,6 +382,7 @@ Test("Root Boss spacing stays Boss-only and Unit/Layout changes bind the active 
             local root=assert(RootSection(window._focalPointPropertyScroll,"frame"))
             local spacing=RootFind(root,"Boss Frame Spacing","FPCompactSlider")
             assert(#spacing==(key=="boss" and 1 or 0))
+            RootCheckTabs()
             if key=="boss"then
                 spacing[1]:Fire("OnValueChanged",14);assert(unit.bossSpacing==14)
             end
@@ -348,6 +394,59 @@ Test("Root Boss spacing stays Boss-only and Unit/Layout changes bind the active 
             assert(active.frameLevel==12 and unit.frameLevel==9)
         end
     end
+end)
+Test("Root tabs preserve controls, framed release owners and data across repeated tab, rebuild and navigation cycles",function()
+    for _,expert in ipairs({false,true})do
+        local db,unit=RootStart(expert);local body,groups=RootCheckTabs()
+        local width=RootControl("Width","FPCompactSlider");local before=h.Copy(db);local releases={}
+        for title,group in pairs(groups)do releases[title]=group.events.OnRelease end
+        for _=1,20 do for _,tab in ipairs({"geometry","behavior","appearance"})do
+            window._focalPointPropertyScroll:SetScroll(400);RootClickTab(tab)
+            local currentBody,current=RootCheckTabs();assert(currentBody==body and RootControl("Width","FPCompactSlider")==width)
+            for title,group in pairs(groups)do assert(current[title]==group and group.events.OnRelease==releases[title])end
+            assert(window._focalPointPropertyScroll.status.scrollvalue==0)
+        end end
+        h.Equal(db,before)
+        RootClickTab("behavior");RootControl("Mouse Enabled","CheckBox"):Fire("OnValueChanged",false);Drain()
+        -- Disabled is derived at build time; keep the existing live-only mouse mutation policy.
+        controller.RefreshActiveProperties();Drain()
+        RootCheckTabs();assert(RootControl("Click Through","CheckBox").disabled and unit.mouseEnabled==false,
+            "Mouse mutation/disabled: "..tostring(unit.mouseEnabled).."/"..tostring(RootControl("Click Through","CheckBox").disabled))
+        RootControl("Mouse Enabled","CheckBox"):Fire("OnValueChanged",true);Drain()
+        controller.RefreshActiveProperties();Drain();RootCheckTabs()
+        assert(not RootControl("Click Through","CheckBox").disabled)
+        local tab=RootTabs().geometry;local callback=tab.events.OnClick
+        assert(selection.SelectObject({kind="text",unit="player",textKey="localText"}));Drain()
+        local active=state.Get().inspectorPropertyGroup;before=h.Copy(db)
+        callback(tab);Drain();assert(state.Get().inspectorPropertyGroup==active);h.Equal(db,before)
+        assert(selection.SelectObject({kind="unit",unit="player"}));Drain();RootCheckTabs()
+        window._focalPointSetCustomizeView("components");window._focalPointSetCustomizeView("properties");RootCheckTabs()
+        tab=RootTabs().geometry;callback=tab.events.OnClick
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();RootCheckTabs()
+        active=state.Get().inspectorPropertyGroup;before=h.Copy(db);callback(tab);Drain()
+        assert(state.Get().inspectorPropertyGroup==active);h.Equal(db,before)
+        tab=RootTabs().geometry;callback=tab.events.OnClick
+        local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+        assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain();RootCheckTabs()
+        active=state.Get().inspectorPropertyGroup;before=h.Copy(db);callback(tab);Drain()
+        assert(state.Get().inspectorPropertyGroup==active);h.Equal(db,before)
+    end
+end)
+Test("Root conditional restore and Remove actions remain available outside every tab",function()
+    local cases={{"Add Power Bar","powerBarPresent"},{"Add Cast Bar","castBarPresent"},
+        {"Add Normal Absorb","normalAbsorbBarPresent"},{"Add Healing Absorb","healingAbsorbBarPresent"}}
+    for _,expert in ipairs({false,true})do for _,tab in ipairs({"appearance","geometry","behavior"})do
+        for _,case in ipairs(cases)do
+            local db,unit=RootStart(expert);unit[case[2]]=false;controller.RefreshActiveProperties();Drain()
+            RootClickTab(tab);local _,groups=RootCheckTabs();assert(groups.Actions)
+            local button=RootControl(case[1],"Button");assert(RootGroup(button)=="Actions" and button.frame:IsShown())
+            button:Fire("OnClick");Drain();assert(unit[case[2]]==true)
+        end
+        local db,unit=RootStart(expert,"boss");RootClickTab(tab);local _,groups=RootCheckTabs();assert(groups.Actions)
+        local remove=RootControl("Remove Boss Frames","Button")
+        assert(RootGroup(remove)=="Actions" and remove.frame:IsShown())
+        remove:Fire("OnClick");Drain();assert(unit.present==false)
+    end end
 end)
 -- Decoration controls reuse the same real Workspace and row assertions as Root.
 assert(loadfile("GUI/Layouts/UnitPortraitDefinition.lua"))("FocalPoint",ns)

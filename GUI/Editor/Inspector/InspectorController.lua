@@ -3069,6 +3069,11 @@ function InspectorController.Build(container, state, options)
 
         local workspaceRoot = buildPropertiesOnly and IsSelectedUnitRootObject(selectedUnit)
             and type(workspaceIsCurrent) == "function"
+        local projectRootGroups, registerRootGroups
+        if workspaceRoot then
+            local unusedFactory
+            unusedFactory, projectRootGroups, registerRootGroups = BeginFlatPropertyPresentation(rootSection)
+        end
         local generalSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_GENERAL"] or "General", false)
         local appearanceSection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_APPEARANCE"] or "Appearance", true)
         local geometrySection = AddFramedObjectPropertyGroup(rootSection, L["SECTION_GEOMETRY"] or "Geometry", true)
@@ -3083,6 +3088,7 @@ function InspectorController.Build(container, state, options)
             or unitConfig.healingAbsorbBarPresent == false
         local hasUnitRemoveAction = IsRemovableUnitRoot(selectedUnit)
         local actionsSection = (hasAbsentSingleton or hasUnitRemoveAction) and AddFramedObjectPropertyGroup(rootSection, L["SECTION_ACTIONS"] or "Actions", true) or nil
+        if workspaceRoot and actionsSection then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
 
         AddPropertyCheckBoxRow(generalSection, L["EDITOR_OPTION_ENABLED"] or "Enabled", unitConfig.enabled ~= false, function(value)
             SetUnitField("enabled", value and true or false, rootSection)
@@ -3202,6 +3208,15 @@ function InspectorController.Build(container, state, options)
                 local removeLabel = ResolveRemoveUnitLabel(selectedUnit)
                 AddPropertyActionButtonRow(actionsSection, removeLabel, removeLabel, "DestructiveAction", 172, RemoveSelectedUnitFrame)
             end
+        end
+        if workspaceRoot then
+            local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
+                [geometrySection]="geometry", [positionSection]="geometry", [advancedSection]="geometry",
+                [visibilitySection]="behavior", [behaviorSection]="behavior"}
+            for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
+            -- Keep conditional Actions and their framed release binding outside tab filtering.
+            registerRootGroups(membership)
+            projectRootGroups()
         end
     end
 

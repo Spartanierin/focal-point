@@ -6,6 +6,8 @@ local h,ns,state,controller,selection,Setup,Build,Drain=assert(load(source:sub(1
     "\nreturn h,ns,state,controller,selection,Setup,Build,Drain","@CustomizeShell/Workspace"))()
 local forms,api=ns.GUI.Helpers.FormWidgets,ns.Ace.PresentationCompositionPreview
 local native=h.ui.native
+-- Root Properties now exercise the existing rotated Blizzard tab artwork too.
+function native:SetRotation(angle)self.rotation=angle end
 local function Find(fn,name,seen)
     seen=seen or {};if seen[fn]then return end;seen[fn]=true
     for i=1,100 do local key,value=debug.getupvalue(fn,i);if not key then break end

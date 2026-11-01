@@ -257,12 +257,13 @@ Test("custom geometry, growth and canvas synchronization retain original control
     Control("Size Mode","Dropdown"):Fire("OnValueChanged","MATCH_TARGET"); Drain()
     assert(Control("Width","FPCompactSlider").disabled); CheckProjection("geometry")
 end)
-Test("selection, modes, layout and reopen preserve presentation only for the pilot",function()
+Test("selection, modes, layout and reopen preserve component-specific presentation",function()
     local callback=Tabs().appearance.events.OnClick
     Select("HealthBar"); assert(Tabs().appearance and Tabs().geometry.disabled and not Tabs().behavior.disabled)
     callback(); assert(state.Get().inspectorPropertyGroup=="appearance")
     Tree().control.callbacks.onSelect(Node("unit")); Drain()
-    assert(next((Tabs()))==nil)
+    for _,key in ipairs({"appearance","geometry","behavior"})do assert(Tabs()[key] and not Tabs()[key].disabled)end
+    assert(selection.GetSelectedObject().kind=="unit")
     Select("NormalAbsorbBar"); CheckProjection("appearance");Click("geometry")
     local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
     units.target=h.Copy(unit)
@@ -351,14 +352,9 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
                 assert(selection.SelectObject({kind="unit",unit="player"})); Drain()
             end
             local currentTabs,currentOrder=Tabs()
-            if object=="text" then
-                assert(table.concat(currentOrder,",")=="appearance,geometry,behavior")
-            else
-                assert(next(currentTabs)==nil)
-            end
+            assert(table.concat(currentOrder,",")=="appearance,geometry,behavior")
             assert(not oldActionDivider:IsShown(),"object-action divider leaked after release")
-            assert(not oldBaseline:IsShown() or (object=="text"
-                and currentTabs.appearance.parent.frame._fpNormalAbsorbTabBaseline==oldBaseline),
+            assert(not oldBaseline:IsShown() or currentTabs.appearance.parent.frame._fpNormalAbsorbTabBaseline==oldBaseline,
                 "released navigation left its baseline visible outside the current tab owner")
             for _,tab in pairs(oldTabs) do
                 local reused=false
@@ -381,7 +377,7 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
                 if w.type=="InlineGroup" then
                     framed=framed+1
                     assert((w:GetUserData("normalAbsorbPropertyContent")==true)
-                        ==(object=="text" and not w:GetUserData("normalAbsorbObjectActions")))
+                        ==(not w:GetUserData("normalAbsorbObjectActions")))
                     assert(w.titletext:GetText()~="")
                 end
             end)
@@ -437,7 +433,9 @@ Test("object action stays outside tab availability and removes the selected bar 
         currentRemove:Fire("OnClick"); Drain()
         assert(ns.UnitFrameUtils.GetUnitDB("player").normalAbsorbBarPresent==false)
         assert(selection.GetSelectedObject().kind=="unit" and selection.GetSelectedObject().unit=="player")
-        assert(next((Tabs()))==nil,"Remove did not leave the selected object's properties")
+        for _,tab in ipairs({"appearance","geometry","behavior"})do
+            assert(Tabs()[tab] and not Tabs()[tab].disabled,"Remove did not reach Root tabs")
+        end
     end
 end)
 Test("both Workspace Absorbs expose stored anchor points in both profile modes and retain CUSTOM/MATCH guards",function()
