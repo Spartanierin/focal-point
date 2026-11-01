@@ -36,8 +36,11 @@ local function Check(section,key)
             actions=actions+1;assert(child.frame:IsShown() and child==body.children[#body.children] and not group)
         end
     end
-    assert(actions==(section=="class_power" and 0 or 1),"unexpected object-action count")
+    assert(actions==0,"unexpected object-action count")
     p.Walk(body,function(w)assert(w.type~="InlineGroup")end)
+    if section=="segmented_bars"then p.Walk(body,function(w)
+        assert(w.type~="Button" or w.text:GetText()~=(p.ns.L.EDITOR_DELETE_SEGMENTED_BAR_BUTTON or "Delete Class Resource Bar"))
+    end)end
 end
 local function Label(key,fallback) return p.ns.L[key] or fallback end
 local function FindUpvalue(fn,name,seen)
@@ -234,7 +237,7 @@ end
 local function Set(field,value)
     local control=assert(Controls()[field],field);control:Fire("OnValueChanged",value);p.Drain()
 end
-Test("instances keep stable IDs, three flat categories and one action without tab allocations",function()
+Test("instances keep stable IDs and three flat categories without Delete or tab allocations",function()
     local a,b=Instances();local c=Controls()
     assert(a~=b and #unit.segmentedBars==2 and p.selection.GetSelectedObject().objectKey==a)
     for _,field in ipairs({"texture","useBlizzardColor","color","background","backgroundColor","borderWidth","borderColor",
@@ -288,23 +291,36 @@ Test("instance texture/font picker opening is read-only and stale apply cannot m
     assert(not Controls().runeTimerFont and p.selection.GetSelectedObject().objectKey==b)
     SelectInstance(a);assert(Controls().runeTimerFont)
 end)
-Test("instance Confirm Delete and Cancel remain independent of tabs, anchors and stale selection guarded",function()
+local function LegacyDelete()
+    local host=p.h.ui.ace:Create("SimpleGroup")
+    p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
+    local button,count=nil,0
+    p.Walk(host,function(w)
+        if w.type=="Button" and w.text:GetText()==Label("EDITOR_DELETE_SEGMENTED_BAR_BUTTON","Delete Class Resource Bar")then
+            button=w;count=count+1
+        end
+    end)
+    assert(count==1 and not button.disabled)
+    return host,button
+end
+Test("Workspace omits instance Delete while Legacy Confirm/Cancel retains anchor and stale selection guards",function()
     local forms=p.ns.GUI.Helpers.FormWidgets;local original=forms.CreateCompactConfirmation
     local options,dialog
     forms.CreateCompactConfirmation=function(input)options=input;dialog=original(input);return dialog end
-    local deleteLabel=Label("EDITOR_DELETE_SEGMENTED_BAR_BUTTON","Delete Class Resource Bar")
     for _,key in ipairs({"appearance","geometry","behavior"})do
         local a,b=Instances();Click(key);Check("segmented_bars",key)
-        local button=p.Control(deleteLabel,"Button");local before=p.h.Copy(db)
+        local host,button=LegacyDelete();local before=p.h.Copy(db)
         button:Fire("OnClick");assert(dialog);options.cancel.onClick();p.h.Equal(db,before)
         button:Fire("OnClick");options.primary.onClick(dialog);p.Drain()
         assert(#unit.segmentedBars==1 and unit.segmentedBars[1].id==b and p.selection.GetSelectedObject().kind=="unit")
+        p.h.ui.ace:Release(host)
     end
     local a,b=Instances();assert(M.SetGeometry(Context(),b,{anchorTo="SegmentedBar:"..a}).ok)
     p.controller.RefreshActiveProperties();p.Drain()
-    p.Control(deleteLabel,"Button"):Fire("OnClick");local before=p.h.Copy(db)
+    local host,button=LegacyDelete();button:Fire("OnClick");local before=p.h.Copy(db)
     options.primary.onClick(dialog);p.Drain();p.h.Equal(db,before);assert(dialog.statusRole=="error")
     SelectInstance(b);options.primary.onClick(dialog);p.Drain();p.h.Equal(db,before)
+    p.h.ui.ace:Release(host)
     forms.CreateCompactConfirmation=original
 end)
 Test("instance rebuild/reopen and layout switch rebind; non-Workspace stays framed",function()
@@ -391,14 +407,15 @@ Test("stale offsets reject Source/object changes and release; current bindings s
     Set("offsetX",77);assert(unit.segmentedBars[1].offsetX==77)
     Set("width",177);assert(unit.segmentedBars[1].width==177)
 end)
-Test("pending Confirm Delete retains its existing contract across a data-unchanged rebuild",function()
+Test("Legacy pending Confirm Delete retains its existing contract across a data-unchanged Workspace rebuild",function()
     local a,b=Instances();local forms=p.ns.GUI.Helpers.FormWidgets
     local original=forms.CreateCompactConfirmation;local options,dialog
     forms.CreateCompactConfirmation=function(input)options=input;dialog=original(input);return dialog end
-    p.Control(Label("EDITOR_DELETE_SEGMENTED_BAR_BUTTON","Delete Class Resource Bar"),"Button"):Fire("OnClick")
+    local host,button=LegacyDelete();button:Fire("OnClick")
     local before=p.h.Copy(db);p.controller.RefreshActiveProperties();p.Drain();p.h.Equal(db,before)
     options.primary.onClick(dialog);p.Drain()
     assert(#unit.segmentedBars==1 and unit.segmentedBars[1].id==b and p.selection.GetSelectedObject().kind=="unit")
+    p.h.ui.ace:Release(host)
     forms.CreateCompactConfirmation=original
 end)
 assert(#p.h.ui.env.errors==0,table.concat(p.h.ui.env.errors,"\n"))

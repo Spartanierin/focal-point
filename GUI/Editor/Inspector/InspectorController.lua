@@ -2984,7 +2984,10 @@ function InspectorController.Build(container, state, options)
                 Slider(timerSection, "runeTimerFontSize", L["OPTION_FONT_SIZE"] or "Font Size", 6, 32)
                 Dropdown(timerSection, "runeTimerFontStyle", L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList)
             end
-            local actionsSection = CreateSegmentedPropertyGroup(body, L["SECTION_ACTIONS"] or "Actions", true)
+            local actionsSection
+            if not (flatSegmented and buildPropertiesOnly) then
+                actionsSection = CreateSegmentedPropertyGroup(body, L["SECTION_ACTIONS"] or "Actions", true)
+            end
             if flatSegmented then
                 local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
                     [geometrySection]="geometry", [positionSection]="geometry"}
@@ -2992,6 +2995,7 @@ function InspectorController.Build(container, state, options)
                 registerSegmentedGroups(membership, actionsSection)
             end
             local deleteLabel = L["EDITOR_DELETE_SEGMENTED_BAR_BUTTON"] or "Delete Class Resource Bar"
+            if actionsSection then
             AddPropertyActionButtonRow(actionsSection, deleteLabel, deleteLabel, "DestructiveAction", 172, function()
                 if not context or not mutations or type(mutations.Delete) ~= "function"
                     or not (FormWidgets and type(FormWidgets.CreateCompactConfirmation) == "function")
@@ -3053,6 +3057,7 @@ function InspectorController.Build(container, state, options)
                 deleteSegmentedBarDialog = dialog
                 dialog:Show()
             end, not context)
+            end
             UpdateDisabled(record)
             RegisterActiveCanvasDirectMoveOffsetControls(ref.unit, ref, xControl, yControl, nil, nil, function()
                 if IsCurrentBinding() then context = mutations.CaptureContext(ref.unit) end

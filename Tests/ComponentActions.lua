@@ -1147,5 +1147,85 @@ Test("Text Tree confirmation rejects Combat, stale requests, layout/unit switche
         end
     end
 end)
+local function ResourceDeleteFixture(expert,disabled)
+    Start();db.profile={General={ExpertMode=expert}};state.SetMode(expert and "quick" or "expert")
+    local m=ns.LayoutMutations.SegmentedBars
+    local a=m.Add(assert(m.CaptureContext("player")),{enabled=not disabled,dataSource={id="runes",scope="player"},anchorTo="Frame"})
+    local b=m.Add(assert(m.CaptureContext("player")),{enabled=true,dataSource={id="holyPower",scope="player"},anchorTo="Frame"})
+    assert(a.ok and b.ok and a.id~=b.id);controller.RefreshCompositionTree()
+    assert(selection.SelectObject({kind="segmentedBar",unit="player",objectKey=a.id}));Drain()
+    return a.id,b.id
+end
+Test("Resource Workspace omits Delete/Actions while named Tree Cancel/Confirm preserves stable IDs, other records and selection",function()
+    for _,expert in ipairs({false,true})do for _,disabled in ipairs({false,true})do for _,selectOther in ipairs({false,true})do
+        local a,b=ResourceDeleteFixture(expert,disabled)
+        local function Check()
+            local bodies=0
+            local function Visit(w)
+                if w:GetUserData("focalPointSectionKey")=="segmented_bars" and w._focalPointRequestRebuild then bodies=bodies+1 end
+                assert(not w:GetUserData("normalAbsorbObjectActions"))
+                assert(w.type~="InlineGroup" or w.titletext:GetText()~="Actions")
+                assert(w.type~="Button" or w.text:GetText()~="Delete Class Resource Bar")
+                for _,child in ipairs(w.children or {})do Visit(child)end
+            end
+            Visit(window._focalPointPropertyScroll);assert(bodies==1)
+            assert(selection.GetSelectedObject().objectKey==a)
+        end
+        for _,key in ipairs({"appearance","geometry","behavior"})do
+            local function Click(w)
+                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(not w.disabled);w:Fire("OnClick");return true end
+                for _,child in ipairs(w.children or {})do if Click(child)then return true end end
+            end
+            assert(Click(window._focalPointPropertyScroll));Drain();Check()
+        end
+        controller.RefreshActiveProperties();Drain();Check()
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();Check()
+        local other;for _,record in ipairs(unit.segmentedBars)do if record.id==b then other=h.Copy(record)end end
+        assert(other)
+        Back();local label=Row("segmentedBar",a).item.label
+        CardActions("segmentedBar",a).Remove();local pending=confirms[#confirms]
+        assert(pending.options.message=='Remove "'..label..'" from the unit frame?')
+        local before=h.Copy(db);pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+        CardActions("segmentedBar",a).Remove();pending=confirms[#confirms]
+        if selectOther then assert(selection.SelectObject({kind="segmentedBar",unit="player",objectKey=b}));Drain() end
+        pending.options.primary.onClick(pending.dialog);Drain()
+        assert(#unit.segmentedBars==1 and unit.segmentedBars[1].id==b);h.Equal(unit.segmentedBars[1],other)
+        assert(window._focalPointCustomizeView=="components")
+        local selected=selection.GetSelectedObject()
+        assert(selectOther and selected.objectKey==b or not selectOther and selected.kind=="unit")
+        local found=0;for i=1,Tree().control.count do
+            local node=Tree().control.rows[i].item.node
+            if node.type=="segmentedBar"then assert(node.inspectorTarget.objectKey==b);found=found+1 end
+        end;assert(found==1)
+    end end end
+end)
+Test("Resource Tree Delete retains anchor-in-use and Combat/stale/layout/Presence/Release guards",function()
+    for _,reason in ipairs({"anchor","combat_before","combat_confirm","request","layout","unit","removed","changed","reopen","release"})do
+        local a,b=ResourceDeleteFixture(false,true);local m=ns.LayoutMutations.SegmentedBars
+        if reason=="anchor"then assert(m.SetGeometry(assert(m.CaptureContext("player")),b,{anchorTo="SegmentedBar:"..a}).ok);controller.RefreshCompositionTree()end
+        Back();local remove=CardActions("segmentedBar",a).Remove;local combat=InCombatLockdown
+        if reason=="combat_before"then
+            local before=h.Copy(db);local n=#confirms;InCombatLockdown=function()return true end
+            remove();InCombatLockdown=combat;assert(#confirms==n);h.Equal(db,before)
+        else
+            remove();local pending=confirms[#confirms]
+            if reason=="combat_confirm"then InCombatLockdown=function()return true end
+            elseif reason=="request"then controller.RefreshCompositionTree()
+            elseif reason=="layout"then
+                local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+                assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain()
+            elseif reason=="unit"then
+                ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units.target=h.Copy(unit)
+                assert(selection.SelectUnitRoot("target"));Drain()
+            elseif reason=="removed"then assert(m.Delete(assert(m.CaptureContext("player")),a).ok)
+            elseif reason=="changed"then assert(m.SetEnabled(assert(m.CaptureContext("player")),b,false).ok)
+            elseif reason=="reopen"then
+                window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain()
+            elseif reason=="release"then h.ui.ace:Release(pending.dialog.window) end
+            local before=h.Copy(db);pending.options.primary.onClick(pending.dialog);InCombatLockdown=combat;Drain();h.Equal(db,before)
+            if reason=="anchor"then assert(pending.dialog.statusRole=="error");pending.options.cancel.onClick(pending.dialog)end
+        end
+    end
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Component Actions: "..count.." groups PASS")
