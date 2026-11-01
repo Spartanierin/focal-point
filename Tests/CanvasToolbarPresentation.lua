@@ -63,6 +63,12 @@ Equal({ host:GetWidth(), host:GetHeight() }, { 856, 50 })
 Equal(host.points.TOP, { relative = ns.guiEditorWorkspaceLayer, relativePoint = "TOP", x = -15, y = -12 })
 Equal(host.lastSetFrameStrata, { "DIALOG" }); Equal(host:GetFrameLevel(), 140)
 Equal(host.lastEnableMouse, { true })
+Equal(controls.optionsButton.frame.points.TOPLEFT, { relative = host, relativePoint = "TOPLEFT", x = 620, y = -6 })
+Equal({ controls.optionsButton.frame:GetWidth(), controls.optionsButton.frame:GetHeight() }, { 28, 24 })
+assert(468 + controls.layoutManageButton.frame:GetWidth() < 620)
+assert(620 + controls.optionsButton.frame:GetWidth() < 654)
+Equal(controls.optionsButton.frame.__fpInspectorTooltip, "Options")
+Equal(controls.optionsButton.frame.__fpInspectorGlyph, "|TInterface\\Buttons\\UI-OptionsButton:18:18|t")
 local old = {}
 for _, key in ipairs({ "bg", "border", "inset" }) do
     local region = host[key]
@@ -201,6 +207,26 @@ opened[1].cancelButton:Fire("OnClick")
 controls.layoutAddButton:Fire("OnClick"); assert(#opened == 2)
 opened[2].cancelButton:Fire("OnClick")
 local managed = 0
+local optionsWindow = f.options.window
+local optionsOpen = ns.GUI.Editor.OptionsDialog.Open
+local optionsCalls = 0
+ns.GUI.Editor.OptionsDialog.Open = function()
+    optionsCalls = optionsCalls + 1
+    return optionsOpen()
+end
+ns.GUI.Editor.OptionsDialog.Close()
+for cycle = 1, 3 do
+    controls.optionsButton:Fire("OnClick")
+    Equal(optionsCalls, cycle)
+    assert(optionsWindow.frame:IsShown())
+    Equal(f.options.window, optionsWindow)
+    Equal(#opened, 2) -- Reuse the canonical dialog; do not create another window.
+    ns.GUI.Editor.OptionsDialog.Close()
+    assert(not optionsWindow.frame:IsShown())
+    toolbar.Hide(); toolbar.Show()
+    Equal(ensure().widgets.optionsButton, controls.optionsButton)
+end
+ns.GUI.Editor.OptionsDialog.Open = optionsOpen
 ns.GUI.Editor.LayoutManager.Open = function() managed = managed + 1 end
 controls.layoutManageButton:Fire("OnClick"); Equal(managed, 1)
 local dropdown = controls.layoutDropdown

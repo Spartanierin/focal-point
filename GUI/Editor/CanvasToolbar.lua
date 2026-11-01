@@ -25,6 +25,8 @@ local LAYOUT_ADD_X = 430
 local LAYOUT_ADD_WIDTH = 30
 local LAYOUT_ACTIVATE_X = 468
 local LAYOUT_MANAGE_WIDTH = 148
+local OPTIONS_X = 620
+local OPTIONS_WIDTH = 28
 local PRESENTATION_X = 654
 local PRESENTATION_WIDTH = 108
 local CLOSE_X = 770
@@ -1127,6 +1129,7 @@ local function EnsureHost()
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutManageButton = CreateButton("Manage Layouts", LAYOUT_MANAGE_WIDTH),
+        optionsButton = CreateButton(T("OPTION_OPTIONS", "Options"), OPTIONS_WIDTH),
         presentationButton = CreateButton(T("EDITOR_CUSTOMIZE", "Customize"), PRESENTATION_WIDTH),
         closeButton = CreateButton(T("CLOSE", "Close"), CLOSE_WIDTH),
     }
@@ -1154,6 +1157,16 @@ local function EnsureHost()
         width = LAYOUT_ADD_WIDTH,
     })
     AnchorButton(widgets.presentationButton, host, { x = PRESENTATION_X, width = PRESENTATION_WIDTH })
+    AnchorButton(widgets.optionsButton, host, { x = OPTIONS_X, width = OPTIONS_WIDTH })
+    if FormWidgets and FormWidgets.ApplyInspectorGlyphButton then
+        FormWidgets.ApplyInspectorGlyphButton(widgets.optionsButton, "|TInterface\\Buttons\\UI-OptionsButton:18:18|t", false)
+    end
+    widgets.optionsButton:SetCallback("OnClick", function()
+        local optionsDialog = ns.GUI.Editor.OptionsDialog
+        if optionsDialog and optionsDialog.Open then
+            optionsDialog.Open()
+        end
+    end)
     AnchorButton(widgets.closeButton, host, { x = CLOSE_X, width = CLOSE_WIDTH })
     widgets.presentationButton:SetCallback("OnClick", function()
         local editorState = ns.GUI.Editor.State
@@ -1168,6 +1181,7 @@ local function EnsureHost()
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
         FormWidgets.SetInspectorButtonTooltip(widgets.addObjectButton, T("ADD_OBJECT_TOOLTIP", "Add Object"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
+        FormWidgets.SetInspectorButtonTooltip(widgets.optionsButton, T("OPTION_OPTIONS", "Options"))
     end
 
     local insertLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
