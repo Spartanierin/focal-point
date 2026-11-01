@@ -57,21 +57,6 @@ local function GetToolbarBinding()
         and FocalPoint.GUI.Editor.ToolbarBinding
 end
 
-local function IsExpertMode()
-    local toolbarBinding = GetToolbarBinding()
-    if toolbarBinding and toolbarBinding.IsExpertMode then
-        return toolbarBinding.IsExpertMode(GetDeps())
-    end
-
-    local editorMode = FocalPoint.EditorMode or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Mode)
-    if editorMode and editorMode.Resolve then
-        return editorMode.Resolve(nil, FocalPoint.db and FocalPoint.db.profile) == "expert"
-    end
-
-    local general = GetGeneralConfig()
-    return type(general) == "table" and general.ExpertMode == true
-end
-
 local function GetGlobalOptionValue(optionId)
     local toolbarBinding = GetToolbarBinding()
     if toolbarBinding and toolbarBinding.GetGlobalOptionValue then
@@ -248,18 +233,17 @@ function Refresh()
         return
     end
 
-    local isExpert = IsExpertMode()
     context.suspendCallbacks = true
     SetBooleanControlValue(context.widgets.snappingEnabled, IsSnappingEnabled())
     SetBooleanControlValue(context.widgets.showGrid, IsGridEnabled())
     if context.widgets.mouseEnabled then
-        SetBooleanControlValue(context.widgets.mouseEnabled, GetGlobalOptionValue("mouseEnabled") == true, not isExpert)
+        SetBooleanControlValue(context.widgets.mouseEnabled, GetGlobalOptionValue("mouseEnabled") == true)
     end
     if context.widgets.showUnitTooltips then
         SetBooleanControlValue(context.widgets.showUnitTooltips, GetGlobalOptionValue("showUnitTooltips") == true)
     end
     if context.widgets.clickthrough then
-        SetBooleanControlValue(context.widgets.clickthrough, GetGlobalOptionValue("clickthrough") == true, not isExpert)
+        SetBooleanControlValue(context.widgets.clickthrough, GetGlobalOptionValue("clickthrough") == true)
     end
     if context.widgets.showMinimapButton then
         SetBooleanControlValue(context.widgets.showMinimapButton, GetGlobalOptionValue("showMinimapButton") == true)

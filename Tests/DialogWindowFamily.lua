@@ -54,6 +54,63 @@ local optionGeometry=f.Geometry(f.options.window)
 ns.GUI.Editor.OptionsDialog.Close(); ns.GUI.Editor.OptionsDialog.Open()
 Equal(f.Geometry(f.options.window),optionGeometry)
 
+-- Global mouse controls use the real shared setters in both stored modes.
+-- Frame refresh is the native boundary; unit overrides and other settings stay intact.
+do
+    local options=ns.GUI.Editor.OptionsDialog
+    local optionsContext=Upvalue(options.Open,"context")
+    local savedProfile,savedBinding,savedRefresh=ns.db.profile,ns.GUI.Editor.ToolbarBinding,ns.RefreshAllUnitFrames
+    Load("GUI/Editor/Toolbar/ToolbarBinding.lua")
+    local binding=ns.GUI.Editor.ToolbarBinding
+    local apply=binding.ApplyGlobalOptionValue
+    local writes,refreshes=0,0
+    binding.ApplyGlobalOptionValue=function(...)
+        writes=writes+1
+        return apply(...)
+    end
+    ns.RefreshAllUnitFrames=function(self)
+        assert(self==ns)
+        refreshes=refreshes+1
+    end
+    for _,expert in ipairs({false,true})do
+        for _,mouse in ipairs({false,true})do
+            for _,clickthrough in ipairs({false,true})do
+                local profile={General={ExpertMode=expert,MouseEnabled=mouse,GlobalClickThrough=clickthrough,
+                    ShowGrid=true,SnappingEnabled=false,ShowUnitTooltips=false,HideBlizzardFrames=false},
+                    Units={player={mouseEnabled=false,clickThrough=true},target={mouseEnabled=true,clickThrough=false}}}
+                ns.db.profile=profile
+                local beforeWrites,beforeRefreshes=writes,refreshes
+                options.Close();options.Open()
+                local mouseControl=assert(optionsContext.widgets.mouseEnabled)
+                local clickControl=assert(optionsContext.widgets.clickthrough)
+                assert(not mouseControl.disabled and not clickControl.disabled)
+                Equal(mouseControl:GetValue(),mouse);Equal(clickControl:GetValue(),clickthrough)
+                Equal(writes,beforeWrites);Equal(refreshes,beforeRefreshes)
+                mouseControl:Fire("OnValueChanged",not mouse)
+                Equal(profile.General.MouseEnabled,not mouse);Equal(mouseControl:GetValue(),not mouse)
+                Equal(writes,beforeWrites+1);Equal(refreshes,beforeRefreshes+1)
+                clickControl:Fire("OnValueChanged",not clickthrough)
+                Equal(profile.General.GlobalClickThrough,not clickthrough);Equal(clickControl:GetValue(),not clickthrough)
+                Equal(writes,beforeWrites+2);Equal(refreshes,beforeRefreshes+2)
+                options.Close();options.Open()
+                assert(Upvalue(options.Open,"context")==optionsContext)
+                assert(not mouseControl.disabled and not clickControl.disabled)
+                Equal(mouseControl:GetValue(),not mouse);Equal(clickControl:GetValue(),not clickthrough)
+                Equal(profile,{General={ExpertMode=expert,MouseEnabled=not mouse,GlobalClickThrough=not clickthrough,
+                    ShowGrid=true,SnappingEnabled=false,ShowUnitTooltips=false,HideBlizzardFrames=false},
+                    Units={player={mouseEnabled=false,clickThrough=true},target={mouseEnabled=true,clickThrough=false}}})
+                Equal(writes,beforeWrites+2);Equal(refreshes,beforeRefreshes+2)
+                Equal(f.Geometry(f.options.window),optionGeometry)
+            end
+        end
+    end
+    binding.ApplyGlobalOptionValue=apply
+    ns.db.profile,ns.GUI.Editor.ToolbarBinding,ns.RefreshAllUnitFrames=savedProfile,savedBinding,savedRefresh
+    options.Open()
+    assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
+    print("PASS: global mouse/click-through controls in 8 stored-mode/value combinations, real setters, refresh and reopen")
+end
+
 -- Real manager name/confirmation consumers and their existing mutation callbacks.
 local manager=ns.GUI.Editor.LayoutManager
 local context=Upvalue(manager.Open,"context")
