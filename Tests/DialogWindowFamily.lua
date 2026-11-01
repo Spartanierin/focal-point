@@ -46,7 +46,7 @@ local function CheckText(root,text,role,size)
     Equal(label.lastSetTextColor,{color.r,color.g,color.b,1})
     Equal(label.font,{STANDARD_TEXT_FONT,size,""}); Equal(label.lastSetShadowOffset,{1,-1})
 end
-Check(f.options,360,349)
+Check(f.options,360,373)
 CheckText(f.options.body,"Displays a visual alignment grid while editing frames.","help",11)
 CheckText(f.options.body,"Snap frames to the screen center and other editable frames while moving them.","help",11)
 CheckText(f.options.body,"Show Grid","label",12)

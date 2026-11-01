@@ -215,7 +215,7 @@ CheckContent(recreated,{Bars=true,Content=true})
 Load("GUI/Editor/EditorOptionsDialog.lua")
 ns.GUI.Editor.OptionsDialog.Open()
 local options=createdDialogs[#createdDialogs].dialog
-Equal({options.window.frame:GetWidth(),options.window.frame:GetHeight()},{360,349})
+Equal({options.window.frame:GetWidth(),options.window.frame:GetHeight()},{360,373})
 local confirm=widgets.CreateCompactConfirmation({title="Confirm",message="Unchanged",primary={text="OK"},cancel={text="Cancel"}})
 for _,other in ipairs({options,confirm}) do
     Check(other)

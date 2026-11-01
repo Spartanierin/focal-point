@@ -46,6 +46,34 @@ local function Input(widget, text) widget:SetText(text); widget:Fire("OnTextChan
 function f.native:SetClipsChildren(value) self.clipsChildren = value end
 assert(ns.GUIController.OpenTextBuilderWindow()); NoErrors()
 local manager = assert(Upvalue(window.OpenManager, "managerContext"))
+-- The global Options action routes without an object/template context and reuses
+-- the existing manager; closing it leaves the editor/options owner available.
+local options = ns.GUI.Editor.OptionsDialog
+local optionsContext = assert(Upvalue(options.Open, "context"))
+local manageButton = assert(optionsContext.widgets.manageTextTemplates)
+assert(manageButton.text:GetText() == "Manage Text Templates…")
+assert(manageButton.parent == optionsContext.dialog.body and manageButton:IsFullWidth())
+local openBuilder, managerOpens = ns.GUIController.OpenTextBuilderWindow, 0
+ns.GUIController.OpenTextBuilderWindow = function(...)
+    assert(select("#", ...) == 0, "Options must not supply an editing context")
+    managerOpens = managerOpens + 1
+    return openBuilder(...)
+end
+local editorState, activeLayout = ns.GUI.Editor.State, ns.db.char.activeLayoutId
+for cycle = 1, 3 do
+    manager.dialog:Close(); options.Open()
+    Click(manageButton)
+    assert(managerOpens == cycle and manager.window.frame:IsShown())
+    assert(Upvalue(window.OpenManager, "managerContext") == manager)
+    assert(Upvalue(builder.RefreshWindowState, "consumerContext") == nil)
+    manager.dialog:Close()
+    assert(optionsContext.window.frame:IsShown())
+    options.Close(); options.Open()
+    assert(Upvalue(options.Open, "context") == optionsContext)
+    assert(ns.GUI.Editor.State == editorState and ns.db.char.activeLayoutId == activeLayout)
+end
+options.Open(); Click(manageButton); options.Close()
+ns.GUIController.OpenTextBuilderWindow = openBuilder
 local function Select(id)
     local row = assert(manager.rows[id]); row.onSelect(row.key); NoErrors()
     assert(manager.selectedTemplateId == id)
@@ -132,6 +160,11 @@ assert(consumer.released and manager.selectedTemplateId==userA)
 -- Discarding a dirty New/Edit also returns to the previous ID.
 Click(manager.newButton); consumer=Consumer()
 Input(consumer.nameEdit,"Discarded New"); Input(consumer.contentEdit,"discarded")
+options.Open(); Click(manageButton)
+assert(Consumer() == consumer and not consumer.released)
+assert(consumer.contentEdit:GetText() == "discarded" and builder.HasUnsavedChanges())
+assert(ns.db.global.TextTemplates[userA].content == "[name]")
+options.Close(); window.HideManager()
 Click(consumer.dialog.cancelButton)
 local closeDialog=assert(Upvalue(builder.InvalidateLayoutContext,"r2CloseDialog"))
 Click(closeDialog.discardCloseButton)

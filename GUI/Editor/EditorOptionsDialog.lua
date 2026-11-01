@@ -336,7 +336,7 @@ local function CreateWindow()
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T("EDITOR_OPTIONS_TITLE", "Focal Point Options"),
         width = 360,
-        formContentHeight = 286,
+        formContentHeight = 310,
         contentInset = 14,
         addBodySpacer = false,
         bodyLayout = "List",
@@ -371,6 +371,15 @@ local function CreateWindow()
     body:AddChild(CreateVerticalGap(ROW_GAP))
     CreateOptionRow(body, T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames"), "hideBlizzard")
     body:AddChild(CreateVerticalGap(ROW_GAP))
+    widgets.manageTextTemplates = FormWidgets.CreateActionButton(
+        T("EDITOR_OPTIONS_MANAGE_TEXT_TEMPLATES", "Manage Text Templates…"), "secondary")
+    widgets.manageTextTemplates:SetCallback("OnClick", function()
+        local controller = FocalPoint.GUIController
+        if controller and controller.OpenTextBuilderWindow then
+            controller.OpenTextBuilderWindow()
+        end
+    end)
+    body:AddChild(widgets.manageTextTemplates)
 
     window:SetCallback("OnClose", function()
         HideSnapLines()
