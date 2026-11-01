@@ -4790,8 +4790,9 @@ function InspectorController.Build(container, state, options)
                     or (L["SECTION_ADVANCED"] or "Advanced")
                 advancedSection = AddFramedObjectPropertyGroup(textSection, title, true)
             end
-            actionsSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ACTIONS"] or "Actions", true)
-            if workspaceText then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
+            if not (workspaceText and buildPropertiesOnly) then
+                actionsSection = AddFramedObjectPropertyGroup(textSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         else
             AddDropdown(textSection, L["EDITOR_OPTION_TEXT_ELEMENT"] or "Text Element", currentTextList, selectedTextId, function(value)
                 local ok = type(ObjectSelection.SelectObject) == "function"
@@ -5216,7 +5217,7 @@ function InspectorController.Build(container, state, options)
             end
         end
 
-        if IsSelectedTextObject(selectedUnit, selectedTextId) then
+        if IsSelectedTextObject(selectedUnit, selectedTextId) and not (workspaceText and buildPropertiesOnly) then
             if isScopedObject then
                 AddPropertyActionButtonRow(actionsSection, L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", L["EDITOR_DELETE_TEXT_BUTTON"] or "Delete Text", "DestructiveAction", 128, function()
                     OpenDeleteTextInstanceConfirmDialog(selectedUnit, selectedTextId)
@@ -5242,7 +5243,7 @@ function InspectorController.Build(container, state, options)
             local membership = {[contentSection]="behavior", [appearanceSection]="appearance", [positionSection]="geometry"}
             if advancedSection ~= textSection then membership[advancedSection] = "behavior" end
             for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
-            -- The framed Actions owner keeps its release bindings and remains outside tab filtering.
+            -- Only property groups remain in the Workspace; deletion belongs to the Tree.
             registerTextGroups(membership)
             projectTextGroups()
         end

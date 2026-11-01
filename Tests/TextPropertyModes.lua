@@ -36,23 +36,19 @@ local function Fields(host)
     end);return result
 end
 local function Field(key)return assert(Fields()[key],key)end
-local function Button(label)
-    local found;p.Walk(Body(),function(w)if w.type=="Button" and w.text:GetText()==label then
+local function Button(label,host)
+    local found;p.Walk(host or Body(),function(w)if w.type=="Button" and w.text:GetText()==label then
         assert(not found);found=w
     end end);return found
 end
 local basic={"enabled","font_style","font_size","color","justify","anchor_to","offset_x","offset_y"}
 local extended={"point","relative_point","overflow","shadow","shadow_color","dead_template","ghost_template"}
 local function Actions()
-    local area,n=nil,0
     for _,group in ipairs(Body().children)do
-        if group:GetUserData("normalAbsorbObjectActions")then area=group;n=n+1 end
+        assert(not group:GetUserData("normalAbsorbObjectActions"))
+        assert(group.type~="InlineGroup" or group.titletext:GetText()~="Actions")
     end
-    assert(n==1 and area.type=="InlineGroup" and area.parent==Body() and area==Body().children[#Body().children])
-    assert(area.frame:IsShown() and area.events.OnRelease)
-    assert(not area:GetUserData("normalAbsorbPropertyGroup") and not area:GetUserData("normalAbsorbPropertyContent"))
-    local button=assert(Button("Delete Text"));assert(button.frame:IsShown() and not button.disabled)
-    return area,button
+    assert(not Button("Delete Text"))
 end
 local function Click(key)p.Tabs()[key]:Fire("OnClick");p.Drain()end
 local function Check(full,host)
@@ -84,8 +80,8 @@ local function Check(full,host)
                 end)
             end
         end
-        assert(table.concat(titles,",")=="Content,Appearance,Position,State Templates,Actions")
-        assert(Button("Choose Template...") and Button("Delete Text"))
+        assert(table.concat(titles,",")=="Content,Appearance,Position,State Templates")
+        assert(Button("Choose Template...") and not Button("Delete Text"))
         for _,label in ipairs({"Choose Template...","Edit Text..."})do
             local button=Button(label)
             if button then
@@ -220,13 +216,15 @@ Test("refresh, pooling, unit/layout changes and reopen preserve full Text contro
     end
 end)
 Test("tab switches retain framed owners, controls and release bindings without allocating widgets",function()
-    Start(false);Click("behavior");local body=Body();local control=Field("point");local area=Actions()
+    Start(false);Click("behavior");local body=Body();local control=Field("point");Actions()
+    local area=control.parent;while area and area.type~="InlineGroup"do area=area.parent end
+    assert(area and area.events.OnRelease)
     local release=area.events.OnRelease;local before=p.h.Copy(db);local a,r,t=p.Stats()
     for _=1,30 do for _,tab in ipairs({"appearance","geometry","behavior"})do
         window._focalPointPropertyScroll:SetScroll(400);Click(tab);Check(true)
         assert(p.state.Get().inspectorPropertyGroup==tab)
         assert(window._focalPointPropertyScroll.status.scrollvalue==0)
-        assert(Body()==body and Field("point")==control and Actions()==area and area.events.OnRelease==release)
+        Actions();assert(Body()==body and Field("point")==control and area.events.OnRelease==release)
     end end
     local aa,rr,tt=p.Stats();assert(a==aa and r==rr and t==tt);p.h.Equal(db,before)
 end)
@@ -242,24 +240,29 @@ Test("released Text tab callbacks are inert after rebuild, object switch and clo
     window=p.Build();p.Drain();old();Check(true)
     assert(p.state.Get().inspectorPropertyGroup=="behavior")
 end)
-Test("Delete is unique and tab-independent and preserves the existing Cancel/Confirm workflow",function()
+Test("Workspace omits Delete in every tab while Legacy retains its unique Cancel/Confirm workflow",function()
     local forms=p.ns.GUI.Helpers.FormWidgets;local original=forms.CreateCompactConfirmation
     local options,dialog
     forms.CreateCompactConfirmation=function(input)options=input;dialog=original(input);return dialog end
     for _,mode in ipairs({false,true})do for _,tab in ipairs({"appearance","geometry","behavior"})do
         Start(mode,"linkedText");Click(tab);Check(true)
+        Actions()
+        local host=p.h.ui.ace:Create("SimpleGroup")
+        p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
         local record=unit.Texts.linkedText;local before=p.h.Copy(db)
-        local _,button=Actions();button:Fire("OnClick");assert(options and dialog)
+        local button=assert(Button("Delete Text",host));assert(not button.disabled)
+        button:Fire("OnClick");assert(options and dialog)
         p.h.Equal(db,before);options.cancel.onClick(dialog);p.Drain();p.h.Equal(db,before)
         assert(unit.Texts.linkedText==record);Check(true)
         local untouched=p.h.Copy(unit.Texts.localText);local templates=p.h.Copy(db.global.TextTemplates)
-        _,button=Actions();button:Fire("OnClick");options.primary.onClick(dialog);p.Drain()
+        button:Fire("OnClick");options.primary.onClick(dialog);p.Drain()
         assert(not unit.Texts.linkedText and p.selection.GetSelectedObject().kind=="unit")
         p.h.Equal(unit.Texts.localText,untouched);p.h.Equal(db.global.TextTemplates,templates)
         assert(p.ns.TextTemplateLibrary.ResolveTemplateEntity(record.templateId,db))
         p.Walk(window._focalPointPropertyScroll,function(w)
             assert(w:GetUserData("focalPointSectionKey")~="texts","deleted Text body retained")
         end)
+        p.h.ui.ace:Release(host)
     end end
     forms.CreateCompactConfirmation=original
 end)

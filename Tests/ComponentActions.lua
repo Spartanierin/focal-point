@@ -22,7 +22,7 @@ for _,path in ipairs({"Engine/UnitFrame/Shared/UnitFrameUtils.lua","Engine/UnitF
     "GUI/Editor/Inspector/InspectorContext.lua"})do assert(loadfile(path))("FocalPoint",ns)end
 ns.UnitFrameUtils.GetUnitsDB,ns.UnitFrameUtils.GetUnitDB=getUnits,getUnit
 assert(loadfile("GUI/Editor/Inspector/InspectorController.lua"))("FocalPoint",ns)
-for _,path in ipairs({"GUI/Layouts/UnitPortraitDefinition.lua","GUI/Editor/Composition/LegacyAssociationMap.lua","GUI/Editor/Composition/CompositionOwnership.lua",
+for _,path in ipairs({"GUI/Layouts/UnitPortraitDefinition.lua","GUI/Layouts/UnitTextDefinition.lua","GUI/Editor/Composition/LegacyAssociationMap.lua","GUI/Editor/Composition/CompositionOwnership.lua",
     "GUI/Editor/Composition/CompositionTreeAdapter.lua","GUI/Editor/Composition/CompositionTreeView.lua","GUI/Editor/Toolbar/ToolbarBinding.lua",
     "Engine/Text/Shared/TextElementUtils.lua","Engine/Text/Shared/TextElementRoles.lua","Engine/Text/Shared/TextTemplateResolver.lua",
     "Engine/Text/Shared/TextTemplateMutations.lua","GUI/Widgets/SelectionRow.lua","GUI/Editor/TextTemplateLibraryWindow.lua"})do
@@ -1068,6 +1068,82 @@ Test("Decoration Tree trash retains its target across object selection and rejec
                 h.Equal(db,before);assert(Record(decoration.id)==decoration)
             end
             assert(Record(other.id)==other);h.Equal(other,otherBefore)
+        end
+    end
+end)
+local function TextDeleteFixture(expert,disabled)
+    Start();db.profile={General={ExpertMode=expert}};state.SetMode(expert and "quick" or "expert")
+    unit.Texts={deleteText={templateId="tpl:b:default-001",enabled=not disabled,anchorTo="Frame",fontSize=12},
+        keepText={tag="[name]",enabled=true,anchorTo="Frame",fontSize=12}}
+    assert(ns.TextTemplateLibrary.ResolveTemplateEntity(unit.Texts.deleteText.templateId,db))
+    controller.RefreshCompositionTree()
+    assert(selection.SelectObject({kind="text",unit="player",textKey="deleteText"}));Drain()
+end
+Test("Text Workspace omits Delete/Actions while named Tree Cancel/Confirm preserves other texts, templates and key-bound selection",function()
+    for _,expert in ipairs({false,true})do for _,disabled in ipairs({false,true})do for _,selectOther in ipairs({false,true})do
+        TextDeleteFixture(expert,disabled)
+        local function Check()
+            local bodies=0
+            local function Visit(w)
+                if w:GetUserData("focalPointSectionKey")=="texts" and w._focalPointRequestRebuild then bodies=bodies+1 end
+                assert(not w:GetUserData("normalAbsorbObjectActions"))
+                assert(w.type~="InlineGroup" or w.titletext:GetText()~="Actions")
+                assert(w.type~="Button" or w.text:GetText()~="Delete Text")
+                for _,child in ipairs(w.children or {})do Visit(child)end
+            end
+            Visit(window._focalPointPropertyScroll);assert(bodies==1)
+            assert(selection.GetSelectedObject().textKey=="deleteText")
+        end
+        for _,key in ipairs({"appearance","geometry","behavior"})do
+            local function Click(w)
+                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(not w.disabled);w:Fire("OnClick");return true end
+                for _,child in ipairs(w.children or {})do if Click(child)then return true end end
+            end
+            assert(Click(window._focalPointPropertyScroll));Drain();Check()
+        end
+        controller.RefreshActiveProperties();Drain();Check()
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();Check()
+        local record=unit.Texts.deleteText;local other=unit.Texts.keepText;local expected=h.Copy(unit.Texts)
+        expected.deleteText=nil
+        local templates=h.Copy(db.global.TextTemplates);local templateId=record.templateId
+        Back();local label=Row("textElement","deleteText").item.label
+        CardActions("textElement","deleteText").Remove();local pending=confirms[#confirms]
+        assert(pending.options.message=='Remove "'..label..'" from the unit frame?')
+        local before=h.Copy(db);pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+        assert(unit.Texts.deleteText==record)
+        CardActions("textElement","deleteText").Remove();pending=confirms[#confirms]
+        if selectOther then assert(selection.SelectObject({kind="text",unit="player",textKey="keepText"}));Drain() end
+        pending.options.primary.onClick(pending.dialog);Drain()
+        h.Equal(unit.Texts,expected);assert(unit.Texts.keepText==other)
+        h.Equal(db.global.TextTemplates,templates);assert(ns.TextTemplateLibrary.ResolveTemplateEntity(templateId,db))
+        assert(window._focalPointCustomizeView=="components")
+        local selected=selection.GetSelectedObject()
+        assert(selectOther and selected.textKey=="keepText" or not selectOther and selected.kind=="unit")
+    end end end
+end)
+Test("Text Tree confirmation rejects Combat, stale requests, layout/unit switches, missing records, Reopen and Release",function()
+    for _,reason in ipairs({"combat_before","combat_confirm","request","layout","unit","removed","reopen","release"})do
+        TextDeleteFixture(false,true);Back()
+        local remove=CardActions("textElement","deleteText").Remove;local combat=InCombatLockdown
+        if reason=="combat_before"then
+            local before=h.Copy(db);local n=#confirms;InCombatLockdown=function()return true end
+            remove();InCombatLockdown=combat;assert(#confirms==n);h.Equal(db,before)
+        else
+            remove();local pending=confirms[#confirms]
+            if reason=="combat_confirm"then InCombatLockdown=function()return true end
+            elseif reason=="request"then controller.RefreshCompositionTree()
+            elseif reason=="layout"then
+                local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+                assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain()
+            elseif reason=="unit"then
+                ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units.target=h.Copy(unit)
+                assert(selection.SelectUnitRoot("target"));Drain()
+            elseif reason=="removed"then unit.Texts.deleteText=nil
+            elseif reason=="reopen"then
+                window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain()
+            elseif reason=="release"then h.ui.ace:Release(pending.dialog.window) end
+            local before=h.Copy(db);pending.options.primary.onClick(pending.dialog);InCombatLockdown=combat;Drain()
+            h.Equal(db,before)
         end
     end
 end)
