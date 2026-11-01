@@ -63,6 +63,11 @@ Equal({ host:GetWidth(), host:GetHeight() }, { 856, 50 })
 Equal(host.points.TOP, { relative = ns.guiEditorWorkspaceLayer, relativePoint = "TOP", x = -15, y = -12 })
 Equal(host.lastSetFrameStrata, { "DIALOG" }); Equal(host:GetFrameLevel(), 140)
 Equal(host.lastEnableMouse, { true })
+Equal(controls.addObjectButton.text:GetText(), "+ Add Unit")
+Equal(controls.addObjectButton.frame.__fpInspectorTooltip, "Restore a missing unit frame")
+local unitConfigs = f.Upvalue(ns.UnitFrameUtils.GetUnitDB, "unitConfigs")
+unitConfigs.pet.present = true; toolbar.Refresh(); assert(controls.addObjectButton.disabled)
+unitConfigs.pet.present = false; toolbar.Refresh(); assert(not controls.addObjectButton.disabled)
 Equal(controls.optionsButton.frame.points.TOPLEFT, { relative = host, relativePoint = "TOPLEFT", x = 620, y = -6 })
 Equal({ controls.optionsButton.frame:GetWidth(), controls.optionsButton.frame:GetHeight() }, { 28, 24 })
 assert(468 + controls.layoutManageButton.frame:GetWidth() < 620)
@@ -203,6 +208,12 @@ forms.CreateCompactFormDialog = function(options)
     local dialog = createDialog(options); opened[#opened + 1] = dialog; return dialog
 end
 controls.addObjectButton:Fire("OnClick"); assert(#opened == 1)
+Equal(opened[1].window.titletext:GetText(), "Add Unit")
+local unitEntries = {}
+for _, child in ipairs(opened[1].body.children[3].children) do
+    if child.type == "Button" then unitEntries[#unitEntries + 1] = child.text:GetText() end
+end
+Equal(unitEntries, {"pet"})
 opened[1].cancelButton:Fire("OnClick")
 controls.layoutAddButton:Fire("OnClick"); assert(#opened == 2)
 opened[2].cancelButton:Fire("OnClick")
@@ -236,11 +247,13 @@ dropdown:Fire("OnValueChanged", "builtin:default")
 Equal(activation, "builtin:default"); Equal(ns.db.char.activeLayoutId, "builtin:default")
 assert(controls.layoutAutomationLabel:IsShown())
 combat = true
+toolbar.Refresh(); assert(controls.addObjectButton.disabled)
 assert(apply(host)) -- Presentation has no combat guard and does not activate layouts.
 dropdown:Fire("OnValueChanged", "layout:one")
 Equal(pending, "layout:one"); Equal(ns.db.char.activeLayoutId, "builtin:default")
 assert(notices[#notices]:find("pending", 1, true))
 combat = false
+toolbar.Refresh(); assert(not controls.addObjectButton.disabled)
 ns:ActivateLayout(pending); pending = nil; toolbar.Refresh()
 Equal(ns.db.char.activeLayoutId, "layout:one")
 -- Global-default marker decorates labels only; it never changes IDs or activation.

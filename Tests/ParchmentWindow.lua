@@ -195,7 +195,11 @@ Equal(Geometry(manager.window),managerGeometry); Check(manager)
 CheckContent(manager,{["My Layouts"]=true,["Built-in Layouts"]=true})
 -- The real Add Object entry point is a closure of the actual toolbar builder.
 ns.GUI.Editor.State={GetPrimaryUnit=function() return "player" end}
-ns.UnitFrameUtils={GetUnitDB=function() return {present=true} end}
+local unitConfigs={player={present=true},pet={present=false}}
+ns.UnitFrameUtils={GetUnitDB=function(key) return unitConfigs[key] end}
+local unitRoot={units=unitConfigs}
+ns.ActiveLayoutResolver={GetActiveRuntimeRoot=function() return unitRoot end}
+ns.GUI.Editor.Composition=ns.GUI.Editor.Composition or {}
 Load("GUI/Editor/CanvasToolbar.lua")
 local ensureHost=Upvalue(ns.GUI.Editor.CanvasToolbar.UpdateGeometry,"EnsureHost")
 local openAddObject=ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker
@@ -203,14 +207,14 @@ openAddObject()
 local add=createdDialogs[#createdDialogs].dialog
 Check(add); Equal(add.window.frame:GetWidth(),420)
 local addHeight=add.window.frame:GetHeight(); assert(addHeight>=193 and addHeight<=560)
-CheckContent(add,{Bars=true,Content=true})
+CheckContent(add,{["Unit Frames"]=true})
 assert(add.body.children[3].type=="ScrollFrame")
 assert(add.cancelButton.parent==add.body.children[4])
 add.cancelButton:Fire("OnClick"); assert(not add.window.frame:IsShown())
 assert(add.released and #add.body.children==0)
 openAddObject(); local recreated=createdDialogs[#createdDialogs].dialog
 assert(recreated~=add); Check(recreated); Equal(recreated.window.frame:GetHeight(),addHeight)
-CheckContent(recreated,{Bars=true,Content=true})
+CheckContent(recreated,{["Unit Frames"]=true})
 -- Options and Confirmations now consume the same dialog presentation as W1.
 Load("GUI/Editor/EditorOptionsDialog.lua")
 ns.GUI.Editor.OptionsDialog.Open()

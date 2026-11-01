@@ -788,5 +788,84 @@ Test("Unit and Health keep passive grey Trash/Show cells while ordinary native c
     power.toggle:Run("OnClick","LeftButton");Drain();assert(unit.showPowerBar==true)
     assert(window._focalPointCustomizeView=="components");h.Equal(selection.GetSelectedObject(),selected)
 end)
+local restoreUnits={"pet","targettarget","focus","focustarget","boss"}
+local function MissingUnits()
+    Start()
+    local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
+    for _,key in ipairs(restoreUnits)do units[key]=h.Copy(unit);units[key].present=false end
+    units.target=h.Copy(unit);units.target.present=true
+    window=Build()
+    assert(window._focalPointUnitRestoreButton==nil)
+    return units
+end
+local function OpenUnits()
+    local opened=#dialogs;ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker()
+    assert(#dialogs==opened+1)
+    return dialogs[#dialogs]
+end
+Test("global Add Unit offers only five supported missing Units and reselects each root in Arrange or Customize",function()
+    for index,key in ipairs(restoreUnits)do
+        local units=MissingUnits();local arrange=index%2==1
+        controller.SetPresentation(arrange and "arrange" or "customize")
+        local picker=OpenUnits();assert(picker.window.titletext:GetText()=="Add Unit")
+        local entries=0
+        for _,child in ipairs(picker.body.children[3].children)do if child.type=="Button"then entries=entries+1 end end
+        assert(entries==5 and not FindButton(picker.body,"Text") and not FindButton(picker.body,"Decoration")
+            and not FindButton(picker.body,"Power Bar") and not FindButton(picker.body,"Class Resource Bar"))
+        local record=units[key]
+        assert(FindButton(picker.body,key=="boss" and "Boss Frames" or key)):Fire("OnClick");Drain()
+        assert(record.present and ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units[key]==record)
+        local selected=selection.GetSelectedObject();assert(selected.kind=="unit" and selected.unit==key)
+        assert(state.IsArrange()==arrange)
+    end
+end)
+Test("global Unit catalog filters records and existing Units, and opens nothing when empty",function()
+    local units=MissingUnits();units.pet.present=true;units.focus=nil;units.target.present=false
+    local picker=OpenUnits()
+    assert(not FindButton(picker.body,"pet") and not FindButton(picker.body,"focus")
+        and not FindButton(picker.body,"target") and not FindButton(picker.body,"player"))
+    picker:Close()
+    for _,key in ipairs(restoreUnits)do if units[key]then units[key].present=true end end
+    local opened=#dialogs;ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker();assert(#dialogs==opened)
+    assert(Row("unit").add:IsShown())
+end)
+Test("global Unit Cancel, Combat, Presence race and stale Unit/object/layout/reopen callbacks never write",function()
+    MissingUnits();local before=h.Copy(db);local picker=OpenUnits()
+    picker.cancelButton:Fire("OnClick");Drain();h.Equal(db,before)
+    local combat=InCombatLockdown;InCombatLockdown=function()return true end
+    local opened=#dialogs;ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker();assert(#dialogs==opened)
+    InCombatLockdown=combat
+    for _,case in ipairs({"combat","presence","unit","object","layout","reopen"})do
+        local units=MissingUnits();picker=OpenUnits();local button=assert(FindButton(picker.body,"pet"))
+        if case=="combat"then InCombatLockdown=function()return true end
+        elseif case=="presence"then units.pet.present=true
+        elseif case=="unit"then assert(selection.SelectUnitRoot("target"));Drain()
+        elseif case=="object"then Row("powerbar").frame:Run("OnMouseDown","LeftButton");Drain()
+        elseif case=="layout"then assert(ns:ActivateLayout("builtin:default"));Drain()
+        else ns.CloseConfig();Drain();window=Build() end
+        before=h.Copy(db);local selected=h.Copy(selection.GetSelectedObject())
+        button:Fire("OnClick");Drain();h.Equal(db,before);h.Equal(selection.GetSelectedObject(),selected)
+        InCombatLockdown=combat
+    end
+end)
+Test("global Unit Add uses real editable-copy Cancel/Confirm and preserves the builtin",function()
+    Start()
+    local getDefaults=ns.GetDefaultDB
+    ns.GetDefaultDB=function(self)
+        local defaults=h.Copy(getDefaults(self));defaults.profile.Units.pet.present=false;return defaults
+    end
+    assert(ns:ActivateLayout("builtin:default"));Drain();window=Build();controller.SetPresentation("arrange")
+    local source=h.Copy(ns.ActiveLayoutResolver.GetActiveRuntimeRoot().payload)
+    local picker=OpenUnits();local before=h.Copy(db)
+    assert(FindButton(picker.body,"pet")):Fire("OnClick")
+    local pending=confirms[#confirms];pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+    picker=OpenUnits();assert(FindButton(picker.body,"pet")):Fire("OnClick")
+    pending=confirms[#confirms];pending.options.primary.onClick(pending.dialog);Drain()
+    local root=ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
+    assert(root.record.createdFrom.id=="builtin:default" and root.units.pet.present)
+    assert(selection.GetSelectedObject().unit=="pet" and state.IsArrange())
+    assert(ns:ActivateLayout("builtin:default"));h.Equal(ns.ActiveLayoutResolver.GetActiveRuntimeRoot().payload,source)
+    ns.GetDefaultDB=getDefaults
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Component Actions: "..count.." groups PASS")

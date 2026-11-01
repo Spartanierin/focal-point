@@ -32,7 +32,8 @@ local function FindButton(widget,label)
     for _,child in ipairs(widget.children or {})do local found=FindButton(child,label);if found then return found end end
 end
 local function Open()
-    toolbar.OpenEntityAddObjectPicker()
+    state.SetPresentation("customize")
+    toolbar.OpenComponentAdd({kind="unit",unit=state.GetPrimaryUnit()},function()return true end)
     local dialog=assert(dialogs[#dialogs]);local button=FindButton(dialog.body,"Class Resource Bar")
     return dialog,button
 end
@@ -83,16 +84,16 @@ Test("layout A-B-A/root replacement and stale collection reject old picker conte
     local db,unit=Setup();local dialog,button=Open();local callback=button.events.OnClick
     local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok,id)
     Activate(id);Activate("layout:existing");local before=h.Copy(db)
-    callback();h.Equal(db,before);assert(refreshes==0 and #errors==1)
+    callback();h.Equal(db,before);assert(refreshes==0 and #errors==0) -- Tree request rejects before dispatch.
     dialog,button=Open();assert(M.Add(assert(M.CaptureContext("player"))).ok)
-    before=h.Copy(db);button:Fire("OnClick");h.Equal(db,before);assert(refreshes==0 and #errors==2)
+    before=h.Copy(db);button:Fire("OnClick");h.Equal(db,before);assert(refreshes==0 and #errors==1)
     assert(h.selection.GetSelectedObject().kind=="unit")
 end)
 Test("combat failure creates neither record nor selection/refresh",function()
     local db,unit=Setup();local before=h.Copy(db);local dialog,button=Open()
     local combat=InCombatLockdown;InCombatLockdown=function()return true end
     button:Fire("OnClick");InCombatLockdown=combat
-    h.Equal(db,before);assert(unit.segmentedBars==nil and refreshes==0 and #errors==1)
+    h.Equal(db,before);assert(unit.segmentedBars==nil and refreshes==0 and #errors==0)
     assert(h.selection.GetSelectedObject().kind=="unit")
 end)
 Test("built-in copy workflow cancels cleanly then creates an editable copy before Add",function()

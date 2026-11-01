@@ -34,6 +34,7 @@ f.Load("GUI/Editor/Composition/CompositionPresence.lua")
 local selected,configs="player",{}
 ns.UnitFrameUtils={GetUnitDB=function(k) return configs[k] end}
 ns.GUI.Editor.ObjectSelection={GetSelectedObject=function() return {unit=selected} end}
+ns.GUI.Editor.State={GetPrimaryUnit=function()return selected end,IsArrange=function()return false end}
 local presence=ns.GUI.Editor.Composition.Presence
 local isPresent=presence.IsPresent
 local presenceCalls,indicatorCalls={},0
@@ -67,9 +68,10 @@ local function Setup(mode)
     end
 end
 local function NoErrors() assert(#f.env.errors==0,table.concat(f.env.errors,"\n")) end
-local function Open(height,buttons,headers)
+local function Open(height,buttons,headers,globalUnit)
     UIParent:SetHeight(height); presenceCalls={}; indicatorCalls=0
-    open()
+    if globalUnit then open()
+    else ns.GUI.Editor.CanvasToolbar.OpenComponentAdd({kind="unit",unit=selected},function()return true end) end
     local dialog=last
     local scroll=assert(dialog.body.children[3])
     assert(scroll.type=="ScrollFrame" and scroll.LayoutFunc==ace:GetLayout("List"))
@@ -124,8 +126,9 @@ for _,height in ipairs({1440,1080,768,640,480}) do
     local smallHeight=d.window.frame:GetHeight(); Close(d,s)
     Setup("normal"); d,s=Open(height,6,4)
     assert(d.window.frame:GetHeight()>smallHeight); Close(d,s)
-    Setup("max"); d,s=Open(height,22,5)
-    Bottom(s,true); s.scrollbar:SetValue(0); Bottom(s,false)
+    Setup("max"); d,s=Open(height,17,4)
+    if s.scrollBarShown then Bottom(s,true); s.scrollbar:SetValue(0); Bottom(s,false)
+    else assert(s.content:GetHeight()<=s.scrollframe:GetHeight()+1) end
     print("PASS Add Object height "..height..": minimal="..smallHeight..", maximal="..d.window.frame:GetHeight()..", selection="..s.scrollframe:GetHeight())
     Close(d,s)
 end
@@ -141,12 +144,12 @@ for _,delta in ipairs({-3,3}) do
 end
 
 -- Long translated heading exercises actual wrapping, not count * fixed height.
-Setup("max"); d,s=Open(640,22,5); local shortNeed=s.content:GetHeight(); Close(d,s)
+Setup("max"); d,s=Open(640,17,4); local shortNeed=s.content:GetHeight(); Close(d,s)
 local oldHeading,oldButton,oldDescription=ns.L.ADD_OBJECT_CATEGORY_BARS,ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON,ns.L.ADD_OBJECT_DESCRIPTION
 ns.L.ADD_OBJECT_CATEGORY_BARS=string.rep("Verfuegbare zusaetzliche Ressourcenleisten ",4)
 ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON="Sekundaere Ressourcenleiste hinzufuegen"
 ns.L.ADD_OBJECT_DESCRIPTION=string.rep("Waehle ein Objekt fuer den ausgewaehlten Einheitenrahmen. ",3)
-d,s=Open(640,22,5)
+d,s=Open(640,17,4)
 assert(s.content:GetHeight()>shortNeed)
 local found=false
 for _,child in ipairs(s.children) do
@@ -159,10 +162,11 @@ ns.L.ADD_OBJECT_CATEGORY_BARS=oldHeading; ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_
 
 -- Capability variants use the actual Presence and indicator rules.
 Setup("max"); configs.player.Buffs.present=true; configs.player.Debuffs.present=true
-d,s=Open(640,20,4); Close(d,s)
+d,s=Open(640,15,3); Close(d,s)
 Setup("max"); for _,key in ipairs(bars) do configs.player[key]=true end
-d,s=Open(640,16,4); Close(d,s)
-Setup("max"); selected="target"; d,s=Open(640,20,5); Close(d,s)
+d,s=Open(640,11,3); Close(d,s)
+Setup("max"); selected="target"; d,s=Open(640,15,4); Close(d,s)
+Setup("max"); d,s=Open(640,5,1,true); Close(d,s)
 
 -- Exercise every option's retained callback/arguments, after its close/release.
 local calls={}
@@ -182,9 +186,9 @@ for _,key in ipairs({"pet","targettarget","focus","focustarget","boss"}) do expe
 for _,key in ipairs({"PowerBar","CastBar","ClassPowerBar","AlternativePowerBar","NormalAbsorbBar","HealingAbsorbBar","Portrait","RaidTargetIcon","LeaderIcon","RoleIcon","CombatIndicator","RestingIndicator","ReadyCheckIndicator","Buffs","Debuffs"}) do expected[#expected+1]={"component","player",key} end
 expected[#expected+1]={"text","player"}; expected[#expected+1]={"decoration","player"}
 for index,expect in ipairs(expected) do
-    Setup("max"); d,s=Open(640,22,5)
+    Setup("max"); d,s=Open(640,index<=5 and 5 or 17,index<=5 and 1 or 4,index<=5)
     local options={}; for _,child in ipairs(s.children) do if child.type=="Button" then options[#options+1]=child end end
-    options[index]:Fire("OnClick")
+    options[index<=5 and index or index-5]:Fire("OnClick")
     Equal(#calls,index); Equal(calls[index],expect)
     if expect[1]=="text" then Close(d,s) end
     assert(d.released); Equal(#s.children,0)
@@ -193,11 +197,11 @@ end
 
 -- Warm all sizes, then verify allocation stability and reset across all exits.
 Setup("min"); d,s=Open(640,2,1); Close(d,s)
-Setup("max"); d,s=Open(640,22,5); Close(d,s)
+Setup("max"); d,s=Open(640,17,4); Close(d,s)
 local count=f.Count()
 for cycle=1,30 do
     Setup("min"); d,s=Open(640,2,1); Close(d,s)
-    Setup("max"); d,s=Open(640,22,5); Bottom(s,true)
+    Setup("max"); d,s=Open(480,17,4); Bottom(s,true)
     Close(d,s,({"cancel","x","escape"})[(cycle-1)%3+1])
     Setup("min"); d,s=Open(640,2,1); Close(d,s)
     Equal(f.Count(),count)

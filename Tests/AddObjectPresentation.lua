@@ -18,17 +18,21 @@ local controller, selection = ns.GUI.Editor.Controller, ns.GUI.Editor.ObjectSele
 ns.RefreshUnitFrame = function(_, unit)
     assert(ns.UnitFrameUtils.GetUnitDB(unit), unit)
 end
-local function Open(label)
-    toolbar.OpenEntityAddObjectPicker()
+local function Open(label, globalUnit)
+    if globalUnit then toolbar.OpenEntityAddObjectPicker()
+    else
+        controller.SetPresentation("customize")
+        toolbar.OpenComponentAdd({kind="unit",unit="player"},function()return true end)
+    end
     local dialog = dialogs[#dialogs]
     return dialog, assert(FindButton(dialog.body, label), label)
 end
-local function Add(label)
-    local dialog, button = Open(label); button:Fire("OnClick"); assert(dialog.released)
+local function Add(label, globalUnit)
+    local dialog, button = Open(label, globalUnit); button:Fire("OnClick"); assert(dialog.released)
 end
 local count = 0
 local function Test(name, fn) fn(); count = count + 1; print("PASS: " .. name) end
-Test("Arrange child categories select the actual new object before Customize", function()
+Test("Tree child categories select the actual new object in Customize", function()
     local _, unit = Setup()
     unit.powerBarPresent = false
     unit.Portrait = {present = false}
@@ -40,7 +44,7 @@ Test("Arrange child categories select the actual new object before Customize", f
         {"Decoration", "decoration"},
         {"Class Resource Bar", "segmentedBar"},
     }) do
-        controller.SetPresentation("arrange")
+        controller.SetPresentation("customize")
         Add(item[1])
         local selected = selection.GetSelectedObject()
         assert(not state.IsArrange() and selected.kind == item[2] and selected.unit == "player")
@@ -67,31 +71,31 @@ Test("Unit/root Add does not navigate", function()
     local units = ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
     units.pet = {present = false, Texts = {}}
     controller.SetPresentation("arrange")
-    Add("pet")
+    Add("pet", true)
     assert(units.pet.present and state.IsArrange())
     local selected = selection.GetSelectedObject()
     assert(selected.kind == "unit" and selected.unit == "pet", selected.kind .. ":" .. selected.unit)
 end)
-Test("cancel, combat failure and stale layout callback do not navigate", function()
-    Setup(); controller.SetPresentation("arrange")
+Test("Tree cancel, combat failure and stale layout callback retain Customize", function()
+    Setup(); controller.SetPresentation("customize")
     local dialog = Open("Class Resource Bar"); dialog.cancelButton:Fire("OnClick")
-    assert(state.IsArrange())
+    assert(not state.IsArrange())
     local button; dialog, button = Open("Class Resource Bar")
     local combat = InCombatLockdown; InCombatLockdown = function() return true end
     button:Fire("OnClick"); InCombatLockdown = combat
-    assert(state.IsArrange() and selection.GetSelectedObject().kind == "unit")
+    assert(not state.IsArrange() and selection.GetSelectedObject().kind == "unit")
     dialog, button = Open("Class Resource Bar")
     local ok, id = ns.LayoutMutations.CopyLayout("layout:existing", nil, {activate = false}); assert(ok)
     assert(ns:ActivateLayout(id)); button:Fire("OnClick")
-    assert(state.IsArrange() and selection.GetSelectedObject().kind == "unit")
+    assert(not state.IsArrange() and selection.GetSelectedObject().kind == "unit")
 end)
 Test("successful mutation without successful canonical selection does not navigate", function()
-    Setup(); controller.SetPresentation("arrange")
+    Setup(); controller.SetPresentation("customize")
     local select = selection.SelectObject
     selection.SelectObject = function() return false end
     Add("Class Resource Bar")
     selection.SelectObject = select
-    assert(state.IsArrange() and selection.GetSelectedObject().kind == "unit")
+    assert(not state.IsArrange() and selection.GetSelectedObject().kind == "unit")
 end)
 for _, path in ipairs({
     "Engine/Text/Shared/TextElementUtils.lua", "Engine/Text/Shared/TextElementRoles.lua",

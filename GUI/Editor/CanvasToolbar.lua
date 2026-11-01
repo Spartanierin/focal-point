@@ -503,6 +503,13 @@ local function CanAddUnitFrame(unitKey)
     return type(unitConfig) == "table" and unitConfig.present == false
 end
 
+local function HasMissingUnitFrames()
+    for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
+        if CanAddUnitFrame(item.unitKey) then return true end
+    end
+    return false
+end
+
 local function CanAddContextIndicator(unitKey, componentKey, indicatorList)
     local shared = ns.GUI.Editor.SidebarShared
     local meta = shared.INDICATOR_META[componentKey]
@@ -606,11 +613,13 @@ local function BuildSegmentedBarAddAction(unitKey, request)
     end
 end
 
-local function AddUnitFrame(unitKey)
+local function AddUnitFrame(unitKey, request)
+    if not request or not request.isCurrent() or not CanAddUnitFrame(unitKey) then return end
     local mutations = ns.InspectorMutations or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Inspector and ns.GUI.Editor.Inspector.Mutations) or nil
     local workflow = ns.LayoutEditWorkflow
     if not (mutations and mutations.SetUnitPresence and workflow and workflow.RequestEditableLayoutForMutation) then return end
     workflow.RequestEditableLayoutForMutation(function()
+        if not request.isCurrent(true) or not CanAddUnitFrame(unitKey) then return end
         local result = mutations.SetUnitPresence(BuildDecorationMutationContext(unitKey), true)
         if not (result and result.ok ~= false) then
             if ns.Info then ns:Info(T("ADD_OBJECT_STATUS_FAILED", "Object could not be added.")) end
@@ -701,7 +710,8 @@ end
 local function OpenAddObjectPicker(entityMode, request)
     local picker
     local unitKey = request and request.unitKey or ResolveSelectedObjectUnit()
-    local unitLevel = not request or request.parentRef.kind == "unit"
+    local unitFramesOnly = request and request.unitFramesOnly == true
+    local unitLevel = not unitFramesOnly and (not request or request.parentRef.kind == "unit")
     if type(unitKey) ~= "string" or unitKey == "" then
         if ns.Info then
             ns:Info(T("ADD_OBJECT_STATUS_SELECT_UNIT", "Select a unit first."))
@@ -719,14 +729,15 @@ local function OpenAddObjectPicker(entityMode, request)
     end
     local entries = {}
     for _, item in ipairs(ADD_OBJECT_UNIT_CAPABILITIES) do
-        if not request and CanAddUnitFrame(item.unitKey) then
+        if unitFramesOnly and CanAddUnitFrame(item.unitKey) then
             entries[#entries + 1] = {
                 label = item.labelKey and T(item.labelKey, item.fallback) or ResolveUnitLabel(item.unitKey),
-                action = AddUnitFrame, args = { item.unitKey },
+                action = AddUnitFrame, args = { item.unitKey, request },
             }
         end
     end
     AddCategory(T("ADD_OBJECT_CATEGORY_UNIT_FRAMES", "Unit Frames"), entries)
+    if unitFramesOnly and #entries == 0 then return end
 
     entries = {}
     for _, item in ipairs(ADD_OBJECT_BAR_CAPABILITIES) do
@@ -778,7 +789,7 @@ local function OpenAddObjectPicker(entityMode, request)
         { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = function() OpenTextTemplateLibrary(entityMode, request) end, args = {}, closeBefore = entityMode ~= true },
     }
     if unitLevel then contentEntries[#contentEntries+1] = { label = T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), action = InsertDecoration, args = {request} } end
-    AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), contentEntries)
+    if not unitFramesOnly then AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), contentEntries) end
 
     -- Window and UIParent share a scale. Reserve the fixed regions before
     -- assigning the remaining screen/comfort budget to the selection viewport.
@@ -790,7 +801,7 @@ local function OpenAddObjectPicker(entityMode, request)
 
     CloseAddObjectPickerDialog()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
-        title = T("ADD_OBJECT_TITLE", "Add Object"),
+        title = unitFramesOnly and T("ADD_UNIT_TITLE", "Add Unit") or T("ADD_OBJECT_TITLE", "Add Object"),
         width = 420,
         height = maxWindowHeight,
         bodyLayout = "List",
@@ -803,7 +814,8 @@ local function OpenAddObjectPicker(entityMode, request)
     end
 
     local description = AceGUI:Create("Label")
-    description:SetText(request and not unitLevel and request.displayName
+    description:SetText(unitFramesOnly and T("ADD_UNIT_DESCRIPTION", "Choose a missing unit frame to restore.")
+        or request and not unitLevel and request.displayName
         and string.format(T("COMPONENT_ADD_TARGET", "Add to: %s"), request.displayName)
         or request and unitLevel
         and string.format(T("COMPONENT_ADD_UNIT_DESCRIPTION", "Choose what to add to %s."), ResolveUnitLabel(unitKey))
@@ -1125,7 +1137,7 @@ local function EnsureHost()
     FormWidgets.ApplyCanvasToolbarPresentation(host)
 
     local widgets = {
-        addObjectButton = CreateButton(T("ADD_OBJECT_BUTTON", "+ Add Object"), INSERT_ADD_OBJECT_WIDTH),
+        addObjectButton = CreateButton(T("ADD_UNIT_BUTTON", "+ Add Unit"), INSERT_ADD_OBJECT_WIDTH),
         layoutDropdown = AceGUI:Create("Dropdown"),
         layoutAddButton = CreateButton("+", LAYOUT_ADD_WIDTH),
         layoutManageButton = CreateButton("Manage Layouts", LAYOUT_MANAGE_WIDTH),
@@ -1179,7 +1191,7 @@ local function EnsureHost()
         if ns.CloseConfig then ns:CloseConfig() end
     end)
     if FormWidgets and FormWidgets.SetInspectorButtonTooltip then
-        FormWidgets.SetInspectorButtonTooltip(widgets.addObjectButton, T("ADD_OBJECT_TOOLTIP", "Add Object"))
+        FormWidgets.SetInspectorButtonTooltip(widgets.addObjectButton, T("ADD_UNIT_TOOLTIP", "Restore a missing unit frame"))
         FormWidgets.SetInspectorButtonTooltip(widgets.layoutAddButton, T("LAYOUT_ADD_TOOLTIP", "Add Layout"))
         FormWidgets.SetInspectorButtonTooltip(widgets.optionsButton, T("OPTION_OPTIONS", "Options"))
     end
@@ -1299,7 +1311,7 @@ function CanvasToolbar.UpdateGeometry()
     current.host:SetSize(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
 end
 
-local function CaptureComponentRequest(objectRef, isCurrent, displayName)
+local function CaptureComponentRequest(objectRef, isCurrent, displayName, allowArrange)
     if type(objectRef) ~= "table" or type(isCurrent) ~= "function" or not isCurrent() then return end
     local ref = {}; for key,value in pairs(objectRef) do ref[key] = value end
     local resolver = ns.ActiveLayoutResolver
@@ -1319,7 +1331,7 @@ local function CaptureComponentRequest(objectRef, isCurrent, displayName)
     local function Current(allowCopy)
         if not isCurrent() or ns.db ~= db or (InCombatLockdown and InCombatLockdown()) then return false end
         local state = ns.GUI.Editor.State
-        if state.IsArrange() or state.GetPrimaryUnit() ~= ref.unit then return false end
+        if (not allowArrange and state.IsArrange()) or state.GetPrimaryUnit() ~= ref.unit then return false end
         local current = resolver.GetActiveRuntimeRoot()
         local unit = ns.UnitFrameUtils.GetUnitDB(ref.unit)
         local copied = allowCopy and type(layoutId) == "string" and layoutId:match("^builtin:")
@@ -1438,8 +1450,30 @@ function CanvasToolbar.OpenComponentRemove(ref, isCurrent, displayName)
 end
 
 function CanvasToolbar.OpenEntityAddObjectPicker()
-    entityAddOriginToken = {}
-    return OpenAddObjectPicker(true)
+    if not HasMissingUnitFrames() then return end
+    local owner, refreshSerial = context, ns._guiRefreshSerial
+    local editor = ns.GUI.Editor
+    local buildSerial, state = editor._inspectorBuildSerial, editor.State
+    local arrange = state.IsArrange and state.IsArrange()
+    local selection = editor.ObjectSelection
+    local selected = selection and selection.GetSelectedObject and selection.GetSelectedObject()
+    local token = {}
+    entityAddOriginToken = token
+    local request = CaptureComponentRequest({kind="unit", unit=ResolveSelectedObjectUnit()}, function()
+        if context ~= owner or (owner and not owner.host:IsShown())
+            or ns._guiRefreshSerial ~= refreshSerial or editor._inspectorBuildSerial ~= buildSerial
+            or (state.IsArrange and state.IsArrange()) ~= arrange or entityAddOriginToken ~= token then return false end
+        if selected then
+            local current = selection.GetSelectedObject()
+            if not current then return false end
+            for key,value in pairs(selected) do if current[key] ~= value then return false end end
+            for key,value in pairs(current) do if selected[key] ~= value then return false end end
+        end
+        return true
+    end, nil, true)
+    if not request then return end
+    request.unitFramesOnly = true
+    return OpenAddObjectPicker(true, request)
 end
 
 function CanvasToolbar.OpenEntityTextTemplateLibrary()
@@ -1469,6 +1503,8 @@ function CanvasToolbar.Refresh()
     local arrange = editorState and editorState.IsArrange and editorState.IsArrange()
     current.widgets.presentationButton:SetText(arrange and T("EDITOR_CUSTOMIZE", "Customize") or T("EDITOR_ARRANGE", "Arrange"))
     RefreshLayoutControls(current)
+    current.widgets.addObjectButton:SetDisabled(not HasMissingUnitFrames()
+        or (InCombatLockdown and InCombatLockdown() == true))
     local layoutManager = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.LayoutManager
     if layoutManager and layoutManager.Refresh then
         layoutManager.Refresh()
