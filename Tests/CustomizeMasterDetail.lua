@@ -76,7 +76,16 @@ Test("existing property callbacks mutate real data; removing an object leaves no
     Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM");Drain()
     Control("Height","FPCompactSlider"):Fire("OnValueChanged",26);Drain()
     assert(unit.normalAbsorbBarHeight==26)
-    Control("Remove Normal Absorb","Button"):Fire("OnClick");Drain()
+    Back()
+    local forms=ns.GUI.Helpers.FormWidgets
+    local create,confirmation=forms.CreateCompactConfirmation
+    forms.CreateCompactConfirmation=function(options)confirmation=create(options);return confirmation end
+    for i=1,Tree().control.count do
+        local row=Tree().control.rows[i]
+        if row.item.node.type=="normalAbsorbBar"then row.remove:Run("OnMouseDown","LeftButton");break end
+    end
+    forms.CreateCompactConfirmation=create
+    assert(confirmation);confirmation.primaryButton:Fire("OnClick");Drain()
     assert(not unit.normalAbsorbBarPresent)
     assert(selection.GetSelectedObject().objectKey~="NormalAbsorbBar")
     assert(not (window._focalPointObjectBreadcrumb.label:GetText() or ""):find("Normal Absorb",1,true))

@@ -65,13 +65,12 @@ local function Projection()
             assert(group:GetUserData("normalAbsorbPropertyContent"))
             assert(group.frame:IsShown()==(active==membership[title]))
         else
-            assert(title=="Actions" and group:GetUserData("normalAbsorbObjectActions"))
-            assert(group.frame:IsShown() and not group:GetUserData("normalAbsorbPropertyGroup"))
-            assert(not group:GetUserData("normalAbsorbPropertyContent"))
+            error("unexpected Workspace group: "..title)
         end
         p.Walk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate heading")end)
     end end
-    for _,title in ipairs({"Appearance","Geometry","Position","Behavior","Actions"})do assert(groups[title])end
+    for _,title in ipairs({"Appearance","Geometry","Position","Behavior"})do assert(groups[title])end
+    assert(not groups.Actions)
     assert(#groups.Appearance.children==(appearance and 1 or 0))
     assert(#groups.Behavior.children==1)
     local enabled=One("Enabled","CheckBox");local owner=enabled.parent
@@ -85,12 +84,11 @@ local function Projection()
     else
         assert(#groups.Geometry.children==0 and #groups.Position.children==0)
     end
-    local remove=One(Label("EDITOR_REMOVE_INDICATOR_BUTTON","Remove Indicator"),"Button")
-    assert(remove.frame:IsShown() and not remove.disabled)
+    assert(#Find(Body(),Label("EDITOR_REMOVE_INDICATOR_BUTTON","Remove Indicator"),"Button")==0)
     Body():DoLayout();window._focalPointPropertyScroll:DoLayout()
     local height=0;for _,child in ipairs(Body().children)do if child.frame:IsShown()then height=height+child.frame:GetHeight()end end
     assert(math.abs(Body().frame:GetHeight()-height)<.01,"hidden groups consume scroll height")
-    return groups,remove
+    return groups
 end
 local function Fields(placement)
     local m=meta[key]
@@ -190,7 +188,7 @@ Test("Classification and status FRAME_OVERLAY retain their early exits in both s
             end
             local removes=0;p.Walk(Body(),function(w)
                 if w.type=="Button" and w.text:GetText()==Label("EDITOR_REMOVE_INDICATOR_BUTTON","Remove Indicator")then removes=removes+1 end
-            end);assert(removes==1);p.h.Equal(db,before)
+            end);assert(removes==0);p.h.Equal(db,before)
             if meta[key].classification then
                 for effect in pairs(One(Label(meta[key].effectLabel,"Effect"),"Dropdown").list)do
                     One(Label(meta[key].effectLabel,"Effect"),"Dropdown"):Fire("OnValueChanged",effect)
@@ -307,16 +305,16 @@ Test("tab cycles retain owners, release bindings and controls without allocation
         local aa,rr,tt=p.Stats();assert(a==aa and r==rr and t==tt);p.h.Equal(db,before)
     end
 end)
-Test("Remove remains outside all available tabs for every type and both status effect branches",function()
+Test("Remove and Actions remain absent from all Workspace tabs for every type and status effect branch",function()
     for _,expert in ipairs({false,true})do for _,case in ipairs(cases)do
         for _,effect in ipairs(meta[case[1]].effectListKey=="status" and {"ICON","FRAME_OVERLAY"} or {"ICON"})do
             for _,tab in ipairs({"appearance","geometry","behavior"})do
                 Start(case[1],expert,"ATTACHED",case[2])
                 if meta[key].effectListKey=="status"then unit[key].effect=effect;p.controller.RefreshActiveProperties();p.Drain()end
-                local groups,remove=Projection()
+                Projection()
                 if not p.Tabs()[tab].disabled then
-                    Click(tab);Projection();remove:Fire("OnClick");p.Drain()
-                    assert(unit[key].present==false and p.selection.GetSelectedObject().kind=="unit")
+                    Click(tab);Projection()
+                    assert(unit[key].present and p.selection.GetSelectedObject().indicatorKey==key)
                 end
             end
         end

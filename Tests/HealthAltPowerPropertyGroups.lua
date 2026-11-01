@@ -54,7 +54,7 @@ local function Check(section,key,available,actionLabel)
             assert(not child:GetUserData("normalAbsorbPropertyContent") and not group)
         end
         assert(not child.frame._fpNormalAbsorbActionDivider or not child.frame._fpNormalAbsorbActionDivider:IsShown()
-            or actionLabel,"Health has a decorative action area")
+            ,"Workspace has a decorative action area")
     end
     local framed={}
     p.Walk(body,function(w)
@@ -69,7 +69,7 @@ local function Check(section,key,available,actionLabel)
         if w.type=="Button" and w.text:GetText()==actionLabel then buttons=buttons+1 end
     end)
     assert(table.concat(framed,",")==(section=="health" and "Appearance,Background" or ""))
-    assert(actions==(actionLabel and 1 or 0) and buttons==(actionLabel and 1 or 0))
+    assert(actions==0 and buttons==0,"Workspace still has Remove or an Actions area")
 end
 local function Color(label,r,g,b,a) Row(label,"ColorPicker"):Fire("OnValueConfirmed",r,g,b,a) end
 local count=0
@@ -197,20 +197,20 @@ Test("non-Workspace Health retains its original framed groups and spacing",funct
     end
 end)
 local altAction=p.ns.L.EDITOR_REMOVE_ALTERNATIVE_POWER_BAR_BUTTON or "Remove Secondary Resource Bar"
-Test("Alternative Power has three categories and a stable independent action without tab allocations",function()
+Test("Alternative Power has three categories without Remove or tab allocations",function()
     Start("AlternativePowerBar");Check("alt_power","appearance",{appearance=true,geometry=true,behavior=true},altAction)
     assert(p.state.GetPropertyScope().kind=="unit" and p.state.GetPropertyScope().objectKey==nil)
     for _,label in ipairs({"Width","Anchor Target","Offset X","Offset Y","Growth Direction","Size Mode"}) do
         assert(not Row(label,"FPCompactSlider",false) and not Row(label,"Dropdown",false),label)
     end
-    local body=Body("alt_power");local height=Row("Height","FPCompactSlider");local remove=Row(altAction,"Button")
+    local body=Body("alt_power");local height=Row("Height","FPCompactSlider");assert(not Row(altAction,"Button",false))
     local before=p.h.Copy(db)
     for i=1,30 do
         local key=({"geometry","behavior","appearance"})[(i-1)%3+1]
         local a,r,t=p.Stats();window._focalPointPropertyScroll:SetScroll(400)
         Click(key);Check("alt_power",key,{appearance=true,geometry=true,behavior=true},altAction)
         local aa,rr,tt=p.Stats();assert(a==aa and r==rr and t==tt)
-        assert(Body("alt_power")==body and Row("Height","FPCompactSlider")==height and Row(altAction,"Button")==remove)
+        assert(Body("alt_power")==body and Row("Height","FPCompactSlider")==height and not Row(altAction,"Button",false))
         assert(window._focalPointPropertyScroll.status.scrollvalue==0)
     end
     p.h.Equal(db,before)
@@ -282,15 +282,14 @@ Test("Alternative Power remains Player-only and scope/layout/reopen changes rebi
     window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
     Check("alt_power","behavior",{appearance=true,geometry=true,behavior=true},altAction)
 end)
-Test("Alternative Remove remains unique and functional from every category",function()
+Test("Alternative Remove remains absent from every category and after rebuild",function()
     for _,key in ipairs({"appearance","geometry","behavior"}) do
         Start("AlternativePowerBar");Click(key)
         local beforePower=p.h.Copy(unit.powerColor)
-        local previous=Row(altAction,"Button").events.OnClick
+        assert(not Row(altAction,"Button",false))
         p.controller.RefreshActiveProperties();p.Drain()
-        local remove=Row(altAction,"Button");assert(remove.events.OnClick~=previous)
-        remove:Fire("OnClick");p.Drain()
-        assert(not unit.alternativePowerBarPresent and unit.powerBarPresent and p.selection.GetSelectedObject().kind=="unit")
+        assert(not Row(altAction,"Button",false))
+        assert(unit.alternativePowerBarPresent and unit.powerBarPresent and p.selection.GetSelectedObject().objectKey=="AlternativePowerBar")
         p.h.Equal(unit.powerColor,beforePower)
     end
 end)

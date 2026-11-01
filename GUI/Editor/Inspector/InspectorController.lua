@@ -3511,7 +3511,9 @@ function InspectorController.Build(container, state, options)
                 geometrySection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
                 positionSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
                 behaviorSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-                actionsSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
+                if not (normalPilot and buildPropertiesOnly) then
+                    actionsSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
+                end
             else
                 AddAbsorbSubheading(title)
             end
@@ -3778,7 +3780,9 @@ function InspectorController.Build(container, state, options)
             backgroundSection = CreatePowerPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = CreatePowerPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             behaviorSection = CreatePowerPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            actionsSection = CreatePowerPropertyGroup(powerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if not (flatPower and buildPropertiesOnly) then
+                actionsSection = CreatePowerPropertyGroup(powerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         end
         if flatPower then
             registerPowerGroups({[generalSection]="behavior", [appearanceSection]="appearance",
@@ -3950,7 +3954,9 @@ function InspectorController.Build(container, state, options)
             if flatAltPower or isExpert then
                 behaviorSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
-            actionsSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if not (flatAltPower and buildPropertiesOnly) then
+                actionsSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         end
         if flatAltPower then
             local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
@@ -4121,7 +4127,9 @@ function InspectorController.Build(container, state, options)
             if flatClassPower or isExpert then
                 positionSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
             end
-            actionsSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if not (flatClassPower and buildPropertiesOnly) then
+                actionsSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         end
         if flatClassPower then
             local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
@@ -4517,7 +4525,9 @@ function InspectorController.Build(container, state, options)
             generalSection = CreateCastPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
             appearanceSection = CreateCastPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             geometrySection = CreateCastPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-            actionsSection = CreateCastPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if not (flatCast and buildPropertiesOnly) then
+                actionsSection = CreateCastPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         end
         if flatCast then
             registerCastGroups({[generalSection]="behavior", [appearanceSection]="appearance",
@@ -5288,8 +5298,9 @@ function InspectorController.Build(container, state, options)
             if workspaceIndicator or isExpert then
                 positionSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_POSITION"] or "Position", true)
             end
-            actionsSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_ACTIONS"] or "Actions", true)
-            if workspaceIndicator then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
+            if not workspaceIndicator then
+                actionsSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         end
 
         local removeActionAdded = false
@@ -5306,7 +5317,9 @@ function InspectorController.Build(container, state, options)
                 return
             end
             removeActionAdded = true
-            if isScopedObject then
+            if workspaceIndicator then
+                -- The branch still finishes tab projection below, including early returns.
+            elseif isScopedObject then
                 AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", L["EDITOR_REMOVE_INDICATOR_BUTTON"] or "Remove Indicator", "DestructiveAction", 148, RemoveSelectedIndicator)
             else
                 AddSpacer(indicatorSection, 8)
@@ -5329,7 +5342,7 @@ function InspectorController.Build(container, state, options)
                     [positionSection]="geometry", [behaviorSection]="behavior"}
                 for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
                 -- Every supported branch finishes here, including Classification and FRAME_OVERLAY.
-                -- Preserve the framed Actions release binding outside tab filtering.
+                -- No object-action group is created in the Workspace.
                 registerIndicatorGroups(membership)
                 projectIndicatorGroups()
             end
@@ -6003,8 +6016,11 @@ function InspectorController.Build(container, state, options)
             displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", true)
             behaviorSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             advancedSection = behaviorSection
-            actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
-            actionsSection:SetUserData("normalAbsorbObjectActions", true)
+            actionsSection = nil
+            if not buildPropertiesOnly then
+                actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
+                actionsSection:SetUserData("normalAbsorbObjectActions", true)
+            end
         elseif isScopedObject then
             displaySection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_DISPLAY"] or "Display", false)
             actionsSection = AddFramedObjectPropertyGroup(auraSection, L["SECTION_ACTIONS"] or "Actions", true)
@@ -6276,7 +6292,7 @@ function InspectorController.Build(container, state, options)
             end, disabled, "aura_placement")
         end
 
-        if isScopedObject then
+        if isScopedObject and not (auraTabs and buildPropertiesOnly) then
             local removeLabel = selectedAuraKey == "Debuffs"
                 and (L["EDITOR_REMOVE_DEBUFFS_BUTTON"] or "Remove Debuffs")
                 or (L["EDITOR_REMOVE_BUFFS_BUTTON"] or "Remove Buffs")
@@ -6363,7 +6379,7 @@ function InspectorController.Build(container, state, options)
             if fontSection then membership[fontSection] = "appearance" end
             if behaviorSection then membership[behaviorSection] = "behavior" end
             for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
-            -- Keep the framed Actions owner's existing release bindings; it is never tab-filtered.
+            -- Only property groups participate; the Workspace has no object-action group.
             registerAuraGroups(membership)
             projectAuraGroups()
         end

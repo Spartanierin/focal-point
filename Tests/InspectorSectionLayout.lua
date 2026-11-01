@@ -43,7 +43,7 @@ Test("Class Power sections follow Size, Anchor, Position, Growth without changin
     p.Control("Offset X","FPCompactSlider"):Fire("OnValueChanged",16);p.Drain()
     assert(unit.classPowerBarOffsetX==16)
 end)
-Test("tab switches allocate no headings and actions remain outside every property tab",function()
+Test("tab switches allocate no headings and create no singleton Actions area",function()
     local window,_,db=Current();local before=p.h.Copy(db)
     local a,r,t=p.Stats()
     for _=1,20 do
@@ -58,7 +58,7 @@ Test("tab switches allocate no headings and actions remain outside every propert
                     p.Walk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"))end)
                 end
             end
-            assert(actions==1)
+            assert(actions==0)
         end
     end
     local aa,rr,tt=p.Stats();assert(a==aa and r==rr and t==tt)

@@ -35,17 +35,16 @@ local function Field(name,optional)
     if not optional then assert(found,name)end;return found
 end
 local function Actions()
-    local area,button,n=nil,nil,0
     for _,group in ipairs(Body().children)do
-        if group:GetUserData("normalAbsorbObjectActions")then area=group;n=n+1 end
+        assert(not group:GetUserData("normalAbsorbObjectActions"))
+        assert(group.type~="InlineGroup" or group.titletext:GetText()~=(p.ns.L.SECTION_ACTIONS or "Actions"))
     end
-    assert(n==1 and area.type=="InlineGroup" and area.parent==Body() and area==Body().children[#Body().children])
-    assert(area.frame:IsShown() and not area:GetUserData("normalAbsorbPropertyGroup")
-        and not area:GetUserData("normalAbsorbPropertyContent"))
-    p.Walk(area,function(w)if w.type=="Button"then assert(not button);button=w end end)
-    assert(button and button.frame:IsShown() and not button.disabled)
-    assert(area.events.OnRelease,"framed section release binding was lost")
-    return area,button
+    p.Walk(Body(),function(w)
+        if w.type=="Button"then
+            assert(w.text:GetText()~=(p.ns.L.EDITOR_REMOVE_BUFFS_BUTTON or "Remove Buffs"))
+            assert(w.text:GetText()~=(p.ns.L.EDITOR_REMOVE_DEBUFFS_BUTTON or "Remove Debuffs"))
+        end
+    end)
 end
 local function Click(tab)p.Tabs()[tab]:Fire("OnClick");p.Drain()end
 local function Check(active)
@@ -65,7 +64,7 @@ local function Check(active)
         end
         p.Walk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate section heading")end)
     end
-    assert(table.concat(titles,",")=="Appearance,Size,Layout,Position,Display,Behavior,Actions")
+    assert(table.concat(titles,",")=="Appearance,Size,Layout,Position,Display,Behavior")
     for _=1,2 do Body():DoLayout();window._focalPointPropertyScroll:DoLayout()end
     local height=0;for _,child in ipairs(Body().children)do if child.frame:IsShown()then height=height+child.frame:GetHeight()end end
     assert(math.abs(Body().frame:GetHeight()-height)<.01,"hidden groups still consume scroll content height")
@@ -113,13 +112,15 @@ Test("Buffs/Debuffs expose identical Workspace controls and tab membership in bo
     end end
 end)
 Test("tab switches retain controls, owners, release callbacks and canonical data without allocations",function()
-    Start("Buffs",true);local body=Body();local field=Field("icon_size");local area=Actions()
+    Start("Buffs",true);local body=Body();local field=Field("icon_size");Actions()
+    local area=field.parent;while area and area.type~="InlineGroup"do area=area.parent end
+    assert(area and area.events.OnRelease,"property group release binding was lost")
     local onRelease=area.events.OnRelease;local before=p.h.Copy(db);local a,r,t=p.Stats()
     for _=1,30 do
         for _,tab in ipairs({"geometry","behavior","appearance"})do
             window._focalPointPropertyScroll:SetScroll(400);Click(tab);Check(tab)
             assert(window._focalPointPropertyScroll.status.scrollvalue==0)
-            assert(Body()==body and Field("icon_size")==field and Actions()==area and area.events.OnRelease==onRelease)
+            Actions();assert(Body()==body and Field("icon_size")==field and area.events.OnRelease==onRelease)
         end
     end
     local aa,rr,tt=p.Stats();assert(a==aa and r==rr and t==tt);p.h.Equal(db,before)
@@ -169,17 +170,12 @@ Test("rebuild, object/unit/layout changes and reopen reject old tab callbacks an
         Select("Buffs");Select("Debuffs");Check("geometry")
     end
 end)
-Test("Remove stays unique, immediate and independent of the selected tab in both profile modes",function()
+Test("Remove and empty Actions stay absent in every Workspace tab and both profile modes",function()
     for _,mode in ipairs({false,true})do for _,aura in ipairs({"Buffs","Debuffs"})do
         for _,tab in ipairs({"appearance","geometry","behavior"})do
             Start(aura,mode);Click(tab);local record=unit[aura];local other=aura=="Buffs" and "Debuffs" or "Buffs"
-            local before=p.h.Copy(unit[other]);local area,button=Actions();button:Fire("OnClick");p.Drain()
-            assert(record.present==false and unit[aura]==record and p.selection.GetSelectedObject().kind=="unit")
-            -- Unit-root rebuilding may already reuse the released InlineGroup.
-            assert(not area:GetUserData("normalAbsorbObjectActions"),"Aura action metadata leaked through pooling")
-            p.Walk(window._focalPointPropertyScroll,function(w)
-                assert(w:GetUserData("focalPointSectionKey")~="auras","removed Aura retained an Inspector body")
-            end)
+            local before=p.h.Copy(unit[other]);Actions()
+            assert(record.present and unit[aura]==record and p.selection.GetSelectedObject().auraKey==aura)
             p.h.Equal(unit[other],before)
         end
     end end

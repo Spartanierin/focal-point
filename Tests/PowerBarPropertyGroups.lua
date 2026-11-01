@@ -44,11 +44,7 @@ local function Actions()
             button=w; m=m+1
         end
     end)
-    assert(n==1 and m==1 and area==Body().children[#Body().children])
-    assert(not area:GetUserData("normalAbsorbPropertyContent") and not area:GetUserData("normalAbsorbPropertyGroup"))
-    assert(button.parent.parent.parent==area and area.frame:IsShown() and button.frame:IsShown())
-    assert(area.frame._fpNormalAbsorbActionDivider:IsShown())
-    return area,button
+    assert(n==0 and m==0,"Workspace must have neither Remove nor an empty Actions owner")
 end
 local function Check(key)
     local tabs,order=s.Tabs()
@@ -94,14 +90,14 @@ Test("Power uses its unit/power scope and three flat groups without inventing Ab
         assert(not HasRow(label),"unexpected Power property: "..label)
     end
     local body=Body(); local height=s.Control("Height","FPCompactSlider"); local before=s.h.Copy(db)
-    local _,action=Actions()
+    Actions()
     for i=1,30 do
         local key=({"geometry","behavior","appearance"})[(i-1)%3+1]
         local a,r,t=s.Stats(); window._focalPointPropertyScroll:SetScroll(400)
         Click(key); Check(key)
         local aa,rr,tt=s.Stats(); assert(a==aa and r==rr and t==tt)
         assert(Body()==body and s.Control("Height","FPCompactSlider")==height)
-        local _,current=Actions(); assert(current==action)
+        Actions()
         assert(window._focalPointPropertyScroll.status.scrollvalue==0)
     end
     s.h.Equal(db,before)
@@ -186,9 +182,9 @@ Test("Power/Absorb pooling invalidates old callbacks and preserves one shared se
         s.Select("PowerBar"); old(); Check("geometry")
     end
     local old=s.Tabs().appearance.events.OnClick
-    local _,button=Actions(); local divider=Body().children[#Body().children].frame._fpNormalAbsorbActionDivider
+    Actions()
     s.Select("HealthBar"); old()
-    assert(s.Tabs().geometry.disabled and not s.Tabs().behavior.disabled and not divider:IsShown())
+    assert(s.Tabs().geometry.disabled and not s.Tabs().behavior.disabled)
     assert(s.state.Get().inspectorPropertyGroup=="appearance")
     s.Select("PowerBar"); Check("appearance")
     window.closebutton:GetScript("OnClick")(window.closebutton); s.Drain()
@@ -217,15 +213,13 @@ Test("unit/layout changes and narrow German tabs preserve current Power bindings
     UIParent:SetWidth(width)
     s.ns.L.EDITOR_PROPERTY_APPEARANCE,s.ns.L.SECTION_SIZE_POSITION,s.ns.L.SECTION_BEHAVIOR=table.unpack(labels)
 end)
-Test("Remove is unique in every tab and leaves Absorb/other Power components untouched",function()
+Test("Remove remains absent in every tab and after rebuild without changing component presence",function()
     for _,key in ipairs({"appearance","geometry","behavior"}) do
         window,unit,db=s.Start(); Click(key)
-        local other=OtherFields(unit); local _,remove=Actions()
-        local old=remove.events.OnClick
+        local other=OtherFields(unit); Actions()
         s.controller.RefreshActiveProperties(); s.Drain()
-        local _,current=Actions(); assert(current.events.OnClick~=old)
-        current:Fire("OnClick"); s.Drain()
-        assert(not unit.powerBarPresent and s.selection.GetSelectedObject().kind=="unit")
+        Actions()
+        assert(unit.powerBarPresent and s.selection.GetSelectedObject().objectKey=="PowerBar")
         s.h.Equal(OtherFields(unit),other)
     end
 end)

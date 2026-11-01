@@ -357,14 +357,13 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         window.closebutton:GetScript("OnClick")(window.closebutton); w.Drain()
         window=w.Build(); w.Project("behavior")
     end)
-    Test("Healing Remove is unique and tab independent while Normal remains present",function()
+    Test("Healing Remove and Actions remain absent in all tabs while both Absorbs stay present",function()
         for _,key in ipairs({"appearance","geometry","behavior"}) do
             window,unit,db=w.Start(); w.Click(key)
             local normal=NormalFields(unit)
-            local _,remove=w.Actions()
-            remove:Fire("OnClick"); w.Drain()
-            assert(not w.ns.UnitFrameUtils.GetUnitDB("player").healingAbsorbBarPresent)
-            assert(w.selection.GetSelectedObject().kind=="unit")
+            w.Actions()
+            assert(w.ns.UnitFrameUtils.GetUnitDB("player").healingAbsorbBarPresent)
+            assert(w.selection.GetSelectedObject().objectKey=="HealingAbsorbBar")
             w.h.Equal(NormalFields(unit),normal)
         end
         assert(#w.h.ui.env.errors==0,table.concat(w.h.ui.env.errors,"\n"))

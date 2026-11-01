@@ -46,27 +46,17 @@ local function Body()
     return assert(body)
 end
 local function ObjectActions()
-    local area,button,areas,buttons=nil,nil,0,0
     local healing=selection.GetSelectedObject().objectKey=="HealingAbsorbBar"
     local label=healing and (ns.L.EDITOR_REMOVE_HEALING_ABSORB_BAR_BUTTON or "Remove Healing Absorb")
         or (ns.L.EDITOR_REMOVE_NORMAL_ABSORB_BAR_BUTTON or "Remove Normal Absorb")
     for _,child in ipairs(Body().children) do
-        if child:GetUserData("normalAbsorbObjectActions") then area=child; areas=areas+1 end
+        assert(not child:GetUserData("normalAbsorbObjectActions"),"Workspace has an object-action area")
+        assert(not child.frame._fpNormalAbsorbActionDivider or not child.frame._fpNormalAbsorbActionDivider:IsShown())
     end
-    assert(areas==1,"expected exactly one separate object-action area")
-    assert(area==Body().children[#Body().children] and area.parent==Body())
-    assert(not area:GetUserData("normalAbsorbPropertyContent") and not area:GetUserData("normalAbsorbPropertyGroup"))
     Walk(Body(),function(w)
-        if w.type=="Button" and w.text:GetText()==label then
-            button=w; buttons=buttons+1
-        end
+        assert(w.type~="Button" or w.text:GetText()~=label,"Workspace still offers Remove")
+        assert(w.type~="InlineGroup" or w.titletext:GetText()~=(ns.L.SECTION_ACTIONS or "Actions"))
     end)
-    assert(buttons==1,"Remove action was missing or duplicated")
-    assert(button.parent.parent.parent==area,"Remove action has a different owner")
-    assert(button:IsFullWidth() and #button.parent.parent.children==1,"object action must span the row without a duplicate label")
-    assert(area.frame:IsShown() and button.frame:IsShown())
-    assert(area.frame._fpNormalAbsorbActionDivider:IsShown() and area.frame._fpNormalAbsorbActionDivider:GetHeight()==1)
-    return area,button
 end
 local function Click(key) assert(Tabs()[key],key):Fire("OnClick"); Drain() end
 local function Select(key)
@@ -342,8 +332,7 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
     for _=1,8 do
         for _,object in ipairs({"unit","text"}) do
             local oldTabs=Tabs()
-            local oldActions=ObjectActions()
-            local oldActionDivider=oldActions.frame._fpNormalAbsorbActionDivider
+            ObjectActions()
             local oldCallback=oldTabs.geometry.events.OnClick
             local oldBaseline=oldTabs.appearance.parent.frame._fpNormalAbsorbTabBaseline
             if object=="text" then
@@ -353,7 +342,6 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
             end
             local currentTabs,currentOrder=Tabs()
             assert(table.concat(currentOrder,",")=="appearance,geometry,behavior")
-            assert(not oldActionDivider:IsShown(),"object-action divider leaked after release")
             assert(not oldBaseline:IsShown() or currentTabs.appearance.parent.frame._fpNormalAbsorbTabBaseline==oldBaseline,
                 "released navigation left its baseline visible outside the current tab owner")
             for _,tab in pairs(oldTabs) do
@@ -404,14 +392,13 @@ Test("Normal and Healing share the flat workspace while old tab bindings remain 
     end
     h.Equal(db,before)
 end)
-Test("object action stays outside tab availability and removes the selected bar from every tab",function()
-    local area,button=ObjectActions()
+Test("Workspace has no Remove or empty action area across tabs, unavailable content and Show rebuilds",function()
+    local body=Body();ObjectActions()
     for _,key in ipairs({"appearance","geometry","behavior"}) do
         Click(key)
-        local currentArea,currentButton=ObjectActions()
-        assert(currentArea==area and currentButton==button,"tab switch recreated the action")
+        ObjectActions();assert(Body()==body,"tab switch rebuilt properties")
     end
-    -- Only properties decide availability, even when the action is the only remaining control.
+    -- Only properties decide availability; no orphan Actions area remains.
     for _,child in ipairs(Body().children) do
         if child:GetUserData("normalAbsorbPropertyContent") then child:ReleaseChildren() end
     end
@@ -423,19 +410,12 @@ Test("object action stays outside tab availability and removes the selected bar 
     for _,key in ipairs({"appearance","geometry","behavior"}) do
         db,unit=Setup(); unit.normalAbsorbBarPresent=true; unit.showNormalAbsorbBar=true
         window=Build(); Select("NormalAbsorbBar"); Click(key)
-        local releasedArea,remove=ObjectActions()
-        local previousCallback=remove.events.OnClick
-        -- A regular Show rebuild must bind the action under the newly built Body.
+        ObjectActions()
         Control("Show","CheckBox"):Fire("OnValueChanged",false); Drain()
-        assert(not releasedArea.frame._fpNormalAbsorbActionDivider:IsShown() or releasedArea==ObjectActions())
-        local _,currentRemove=ObjectActions()
-        assert(currentRemove.events.OnClick~=previousCallback,"rebuild retained the released action binding")
-        currentRemove:Fire("OnClick"); Drain()
-        assert(ns.UnitFrameUtils.GetUnitDB("player").normalAbsorbBarPresent==false)
-        assert(selection.GetSelectedObject().kind=="unit" and selection.GetSelectedObject().unit=="player")
-        for _,tab in ipairs({"appearance","geometry","behavior"})do
-            assert(Tabs()[tab] and not Tabs()[tab].disabled,"Remove did not reach Root tabs")
-        end
+        ObjectActions()
+        assert(ns.UnitFrameUtils.GetUnitDB("player").normalAbsorbBarPresent==true and not unit.showNormalAbsorbBar)
+        assert(selection.GetSelectedObject().objectKey=="NormalAbsorbBar")
+        CheckProjection(key)
     end
 end)
 Test("both Workspace Absorbs expose stored anchor points in both profile modes and retain CUSTOM/MATCH guards",function()

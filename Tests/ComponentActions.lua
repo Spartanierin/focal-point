@@ -9,6 +9,18 @@ local h,ns,state,controller,selection,Setup,Build,Drain,Tree=assert(load(source:
 assert(loadfile("Data/Constants.lua"))("FocalPoint",ns)
 assert(loadfile("GUI/Editor/ObjectSelection.lua"))("FocalPoint",ns)
 selection=ns.GUI.Editor.ObjectSelection
+-- The added Cast/Indicator/Aura Properties coverage uses the same canonical
+-- option defaults dependencies as the dedicated Inspector fixtures.
+assert(loadfile("GUI/Helpers/OptionPaths.lua"))("FocalPoint",ns)
+assert(loadfile("GUI/Helpers/OptionValues.lua"))("FocalPoint",ns)
+local getUnits,getUnit=ns.UnitFrameUtils.GetUnitsDB,ns.UnitFrameUtils.GetUnitDB
+UIParent.GetEffectiveScale=UIParent.GetEffectiveScale or function()return 1 end
+for _,path in ipairs({"Engine/UnitFrame/Shared/UnitFrameUtils.lua","Engine/UnitFrame/Runtime/UnitFrameLayout.lua",
+    "Engine/UnitFrame/Bars/UnitFrameCastBar.lua","GUI/Editor/EditorAnchorGeometry.lua",
+    "GUI/Layouts/UnitAuraDefinition.lua","GUI/Editor/Inspector/InspectorIndicatorSelection.lua",
+    "GUI/Editor/Inspector/InspectorAuraSelection.lua",
+    "GUI/Editor/Inspector/InspectorContext.lua"})do assert(loadfile(path))("FocalPoint",ns)end
+ns.UnitFrameUtils.GetUnitsDB,ns.UnitFrameUtils.GetUnitDB=getUnits,getUnit
 assert(loadfile("GUI/Editor/Inspector/InspectorController.lua"))("FocalPoint",ns)
 for _,path in ipairs({"GUI/Layouts/UnitPortraitDefinition.lua","GUI/Editor/Composition/LegacyAssociationMap.lua","GUI/Editor/Composition/CompositionOwnership.lua",
     "GUI/Editor/Composition/CompositionTreeAdapter.lua","GUI/Editor/Composition/CompositionTreeView.lua","GUI/Editor/Toolbar/ToolbarBinding.lua",
@@ -866,6 +878,92 @@ Test("global Unit Add uses real editable-copy Cancel/Confirm and preserves the b
     assert(selection.GetSelectedObject().unit=="pet" and state.IsArrange())
     assert(ns:ActivateLayout("builtin:default"));h.Equal(ns.ActiveLayoutResolver.GetActiveRuntimeRoot().payload,source)
     ns.GetDefaultDB=getDefaults
+end)
+Test("all singleton Properties omit Remove/Actions only in Workspace while Legacy and guarded Tree trash remain intact",function()
+    local bars={
+        {"PowerBar","powerBarPresent","showPowerBar","Remove Power Bar"},
+        {"CastBar","castBarPresent","showCastBar","Remove Cast Bar"},
+        {"NormalAbsorbBar","normalAbsorbBarPresent","showNormalAbsorbBar","Remove Normal Absorb"},
+        {"HealingAbsorbBar","healingAbsorbBarPresent","showHealingAbsorbBar","Remove Healing Absorb"},
+        {"AlternativePowerBar","alternativePowerBarPresent","showAlternativePowerBar","Remove Secondary Resource Bar"},
+        {"ClassPowerBar","classPowerBarPresent","showClassPowerBar","Remove Class Power Bar"},
+    }
+    local cases={}
+    for _,bar in ipairs(bars)do cases[#cases+1]={kind="bar",key=bar[1],present=bar[2],show=bar[3],label=bar[4]} end
+    for _,key in ipairs({"Buffs","Debuffs"})do cases[#cases+1]={kind="aura",key=key,label="Remove "..key} end
+    for _,key in ipairs({"Portrait","RaidTargetIcon","LeaderIcon","RoleIcon","CombatIndicator","RestingIndicator","ReadyCheckIndicator","ClassificationIndicator"})do
+        cases[#cases+1]={kind="indicator",key=key,label="Remove Indicator",unit=key=="ClassificationIndicator" and "target" or "player"}
+    end
+    local defaultUnits=defaults:GetDefaultDB().profile.Units
+    local barNodes={PowerBar="powerbar",CastBar="castbar",NormalAbsorbBar="normalAbsorbBar",
+        HealingAbsorbBar="healingAbsorbBar",AlternativePowerBar="alternativePowerBar",ClassPowerBar="classPowerBar"}
+    local function Visit(root,fn)fn(root);for _,child in ipairs(root.children or {})do Visit(child,fn)end end
+    for _,expert in ipairs({false,true})do for _,disabled in ipairs({false,true})do for _,case in ipairs(cases)do
+        for _,effect in ipairs((case.key=="CombatIndicator" or case.key=="RestingIndicator")and {"ICON","FRAME_OVERLAY"}or {"ICON"})do
+            Start();db.profile={General={ExpertMode=expert}};state.SetMode(expert and "quick" or "expert")
+            local unitKey=case.unit or "player"
+            local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
+            if unitKey~="player"then units[unitKey]=h.Copy(unit) end
+            local config=units[unitKey]
+            if case.kind=="bar"then config[case.present]=true;config[case.show]=not disabled
+            else
+                config[case.key]=h.Copy(defaultUnits[unitKey][case.key]);config[case.key].present=true;config[case.key].enabled=not disabled
+                if case.key=="CombatIndicator" or case.key=="RestingIndicator"then config[case.key].effect=effect end
+            end
+            local ref={kind=case.kind,unit=unitKey,objectKey=case.key}
+            if case.kind=="aura"then ref.auraKey=case.key elseif case.kind=="indicator"then ref.indicatorKey=case.key end
+            controller.RefreshCompositionTree()
+            assert(selection.SelectObject(ref));Drain()
+            local function AssertIndicatorBody(host)
+                if case.kind~="indicator"then return end
+                local selected=selection.GetSelectedObject();local scope=state.Get().propertyScope
+                assert(selected.kind=="indicator" and selected.unit==unitKey and selected.indicatorKey==case.key)
+                assert(scope.kind=="indicator" and scope.sectionKey=="indicators")
+                local bodies=0
+                Visit(host,function(w)
+                    if w:GetUserData("focalPointSectionKey")=="indicators"
+                        and w:GetUserData("focalPointSectionRole")=="content"
+                        and type(w._focalPointRequestRebuild)=="function"then bodies=bodies+1 end
+                end)
+                assert(bodies==1,case.key..": expected one selected Indicator body, got "..bodies)
+            end
+            local function NoActions()
+                AssertIndicatorBody(window._focalPointPropertyScroll)
+                Visit(window._focalPointPropertyScroll,function(w)
+                    assert(not w:GetUserData("normalAbsorbObjectActions"),case.key..": Actions owner")
+                    assert(w.type~="InlineGroup" or w.titletext:GetText()~=(ns.L.SECTION_ACTIONS or "Actions"))
+                    assert(w.type~="Button" or w.text:GetText()~=case.label,case.key..": Remove row")
+                end)
+            end
+            NoActions()
+            local tabs={}
+            Visit(window._focalPointPropertyScroll,function(w)if w:GetUserData("normalAbsorbPropertyTab")and not w.disabled then tabs[#tabs+1]=w end end)
+            for _,tab in ipairs(tabs)do tab:Fire("OnClick");Drain();NoActions() end
+            controller.RefreshActiveProperties();Drain();NoActions()
+            state.SetSectionCollapsed("indicators",false);state.SetSectionCollapsed("auras",false)
+            local legacy=h.ui.ace:Create("SimpleGroup")
+            ns.GUI.Editor.Inspector.BuildProperties(legacy,state.Get(),{getUnitConfig=ns.UnitFrameUtils.GetUnitDB})
+            AssertIndicatorBody(legacy)
+            local count=0;Visit(legacy,function(w)if w.type=="Button"and w.text:GetText()==case.label then count=count+1;assert(not w.disabled)end end)
+            assert(count==1,case.key..": Legacy Remove count "..count);h.ui.ace:Release(legacy)
+            Back()
+            local row
+            for i=1,Tree().control.count do
+                local candidate=Tree().control.rows[i];local target=candidate.item.node.inspectorTarget
+                if (case.kind=="bar" and candidate.item.node.type==barNodes[case.key])
+                    or (target.objectKey or target.indicatorKey or target.auraKey)==case.key then row=candidate;break end
+            end
+            assert(row and row.item.removable,case.key..": missing Tree trash")
+            local before=h.Copy(db)
+            row.remove:Run("OnMouseDown","LeftButton")
+            local pending=confirms[#confirms];pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+            row.remove:Run("OnMouseDown","LeftButton");pending=confirms[#confirms]
+            pending.options.primary.onClick(pending.dialog);Drain()
+            if case.kind=="bar"then assert(config[case.present]==false and config[case.show]==not disabled)
+            else assert(config[case.key].present==false and config[case.key].enabled==not disabled) end
+            assert(selection.GetSelectedObject().kind=="unit" and window._focalPointCustomizeView=="components")
+        end
+    end end end
 end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Component Actions: "..count.." groups PASS")

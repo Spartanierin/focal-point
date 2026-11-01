@@ -30,10 +30,7 @@ local function Actions()
     s.Walk(Body(),function(w)
         if w.type=="Button" and w.text:GetText()==(s.ns.L.EDITOR_REMOVE_CAST_BAR_BUTTON or "Remove Cast Bar")then button=w;m=m+1 end
     end)
-    assert(n==1 and m==1 and area==Body().children[#Body().children])
-    assert(not area:GetUserData("normalAbsorbPropertyGroup") and not area:GetUserData("normalAbsorbPropertyContent"))
-    assert(area.frame:IsShown() and button.frame:IsShown() and button.parent.parent.parent==area)
-    return button
+    assert(n==0 and m==0,"Workspace still has Remove or an Actions area")
 end
 local function Click(key)s.Tabs()[key]:Fire("OnClick");s.Drain()end
 local function Check(key)
@@ -61,11 +58,11 @@ Test("Cast opts into the shared three-tab presentation in Quick and Expert with 
     end
 end)
 Test("tab switching and repeated selection retain controls, independent action and canonical data",function()
-    local data=s.h.Copy(db);local body=Body();local remove=Actions();local width=s.Control("Width","FPCompactSlider")
+    local data=s.h.Copy(db);local body=Body();Actions();local width=s.Control("Width","FPCompactSlider")
     local a,r,t=s.Stats()
     for _=1,20 do for _,key in ipairs({"geometry","behavior","appearance","appearance"})do Click(key);Check(key)end end
     local aa,rr,tt=s.Stats();assert(a==aa and r==rr and t==tt)
-    assert(body==Body() and remove==Actions() and width==s.Control("Width","FPCompactSlider"));s.h.Equal(db,data)
+        Actions();assert(body==Body() and width==s.Control("Width","FPCompactSlider"));s.h.Equal(db,data)
 end)
 Test("existing texture Apply and no-Apply path retain values and color/border callbacks",function()
     local before=s.h.Copy(db);s.Control("Texture","Button"):Fire("OnClick")
@@ -106,12 +103,12 @@ Test("Cast/Absorb selection, Unit changes, rebuild and reopen share the canonica
     s.controller.RefreshActiveProperties();s.Drain();Check("geometry")
     host.closebutton:GetScript("OnClick")(host.closebutton);s.Drain();assert(s.Build()==host);s.Drain();Check("geometry")
 end)
-Test("Remove remains unique and functional from every tab without altering unrelated components",function()
+Test("Remove remains absent from every tab without altering component presence",function()
     for _,key in ipairs({"appearance","geometry","behavior"})do
         window,unit,db=s.Start();Click(key)
-        local absorb=unit.normalAbsorbBarPresent;Actions():Fire("OnClick");s.Drain()
-        assert(unit.castBarPresent==false and unit.normalAbsorbBarPresent==absorb)
-        assert(s.selection.GetSelectedObject().kind=="unit")
+        local absorb=unit.normalAbsorbBarPresent;Actions()
+        assert(unit.castBarPresent==true and unit.normalAbsorbBarPresent==absorb)
+        assert(s.selection.GetSelectedObject().objectKey=="CastBar")
     end
 end)
 Test("non-Workspace scoped Cast keeps General/Appearance/Geometry/Actions and original controls",function()

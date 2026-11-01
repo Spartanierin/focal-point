@@ -36,7 +36,7 @@ local function Check(section,key)
             actions=actions+1;assert(child.frame:IsShown() and child==body.children[#body.children] and not group)
         end
     end
-    assert(actions==1)
+    assert(actions==(section=="class_power" and 0 or 1),"unexpected object-action count")
     p.Walk(body,function(w)assert(w.type~="InlineGroup")end)
 end
 local function Label(key,fallback) return p.ns.L[key] or fallback end
@@ -93,11 +93,13 @@ Test("Class Power Expert keeps geometry, wheel and direct-move bindings with sta
     p.Select("HealthBar");old();assert(p.state.Get().inspectorPropertyGroup=="appearance")
     p.Select("ClassPowerBar");Check("class_power","appearance")
 end)
-Test("Class Power Remove is independent from every tab and non-Workspace keeps framed groups",function()
+Test("Class Power Remove is absent from every Workspace tab while non-Workspace keeps framed groups",function()
     for _,key in ipairs({"appearance","geometry","behavior"})do
         Start();Click(key);Check("class_power",key)
-        p.Control(Label("EDITOR_REMOVE_CLASS_POWER_BAR_BUTTON","Remove Class Power Bar"),"Button"):Fire("OnClick");p.Drain()
-        assert(not unit.classPowerBarPresent and p.selection.GetSelectedObject().kind=="unit")
+        p.Walk(Body("class_power"),function(w)
+            assert(w.type~="Button" or w.text:GetText()~=Label("EDITOR_REMOVE_CLASS_POWER_BAR_BUTTON","Remove Class Power Bar"))
+        end)
+        assert(unit.classPowerBarPresent and p.selection.GetSelectedObject().objectKey=="ClassPowerBar")
     end
     for _,mode in ipairs({"quick","expert"})do
         Start(mode);local host=p.h.ui.ace:Create("SimpleGroup")
