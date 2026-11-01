@@ -311,10 +311,32 @@ Test("instance rebuild/reopen and layout switch rebind; non-Workspace stays fram
     local a,b=Instances();Click("geometry")
     local old=Controls().width;local callback=old.events.OnValueChanged
     local oldX=Controls().offsetX;local offsetCallback=oldX.events.OnValueChanged
+    local oldBinding=assert(oldX:GetUserData("focalPointSegmentedBinding"))
     local scope=p.state.GetPropertyScope();local serial=p.ns.GUI.Editor._inspectorBuildSerial
     Controls().texture:Fire("OnClick");local media=assert(p.Media())
     p.controller.RefreshActiveProperties();p.Drain();local before=p.h.Copy(db)
-    assert(old==Controls().width and oldX==Controls().offsetX,"pool reuse was not exercised")
+    local body,current=Body("segmented_bars"),Controls()
+    for _,field in ipairs({"width","offsetX"})do
+        local control=assert(current[field]);local key="segmentedBar_"..field
+        assert(control.type=="FPCompactSlider" and control.frame.obj==control)
+        assert(control:GetUserData("focalPointAnchorKey")==key and not control.disabled)
+        local matches=0
+        p.Walk(body,function(w)if w:GetUserData("focalPointAnchorKey")==key then
+            assert(w==control);matches=matches+1
+        end end)
+        assert(matches==1)
+        local owner=control
+        while owner and owner~=body do
+            local parent=assert(owner.parent);local owned=0
+            for _,child in ipairs(parent.children or {})do if child==owner then owned=owned+1 end end
+            assert(owned==1);owner=parent
+        end
+        assert(owner==body)
+        assert(type(control.events.OnValueChanged)=="function"
+            and control.events.OnValueChanged~=(field=="width" and callback or offsetCallback))
+    end
+    local binding=current.offsetX:GetUserData("focalPointSegmentedBinding")
+    assert(type(binding)=="table" and binding~=oldBinding)
     assert(scope==p.state.GetPropertyScope() and serial==p.ns.GUI.Editor._inspectorBuildSerial)
     local selected=p.selection.GetSelectedObject();assert(selected.kind=="segmentedBar" and selected.objectKey==a)
     callback(old,"OnValueChanged",211);p.Drain();p.h.Equal(db,before)

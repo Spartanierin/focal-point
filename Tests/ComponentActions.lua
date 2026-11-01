@@ -965,5 +965,111 @@ Test("all singleton Properties omit Remove/Actions only in Workspace while Legac
         end
     end end end
 end)
+local function DecorationFixture(expert,disabled)
+    Start();db.profile={General={ExpertMode=expert}};state.SetMode(expert and "quick" or "expert")
+    local first=ns.InspectorMutations.AddDecoration({unitConfig=unit})
+    local second=ns.InspectorMutations.AddDecoration({unitConfig=unit})
+    assert(first.ok and second.ok and first.newDecorationId~=second.newDecorationId)
+    first.newValue.enabled=not disabled
+    controller.RefreshCompositionTree()
+    assert(selection.SelectObject({kind="decoration",unit="player",decorationId=first.newDecorationId}));Drain()
+    return first.newValue,second.newValue
+end
+Test("Decoration Properties omit Delete/Actions in both modes while Legacy and named Tree Cancel/Delete preserve instance identity",function()
+    for _,expert in ipairs({false,true})do for _,disabled in ipairs({false,true})do
+        local decoration,other=DecorationFixture(expert,disabled)
+        local otherBefore=h.Copy(other)
+        local function Check()
+            local bodies=0
+            local function Visit(w)
+                if w:GetUserData("focalPointSectionKey")=="decoration" and w._focalPointRequestRebuild then bodies=bodies+1 end
+                assert(not w:GetUserData("normalAbsorbObjectActions"))
+                assert(w.type~="InlineGroup" or w.titletext:GetText()~="Actions")
+                assert(w.type~="Button" or w.text:GetText()~="Delete Decoration")
+                for _,child in ipairs(w.children or {})do Visit(child)end
+            end
+            Visit(window._focalPointPropertyScroll);assert(bodies==1)
+            assert(selection.GetSelectedObject().decorationId==decoration.id)
+        end
+        Check()
+        for _,key in ipairs({"appearance","geometry","behavior"})do
+            local function Click(w)
+                if w:GetUserData("normalAbsorbPropertyTab")==key then assert(not w.disabled);w:Fire("OnClick");return true end
+                for _,child in ipairs(w.children or {})do if Click(child)then return true end end
+            end
+            assert(Click(window._focalPointPropertyScroll));Drain();Check()
+        end
+        controller.RefreshActiveProperties();Drain();Check()
+        assert(selection.SelectObject({kind="decoration",unit="player",decorationId=other.id}));Drain()
+        assert(selection.SelectObject({kind="decoration",unit="player",decorationId=decoration.id}));Drain();Check()
+        window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain();Check()
+        local legacy=h.ui.ace:Create("SimpleGroup")
+        ns.GUI.Editor.Inspector.BuildProperties(legacy,state.Get(),{getUnitConfig=ns.UnitFrameUtils.GetUnitDB})
+        local count,button=0
+        local function Find(w)
+            if w.type=="Button" and w.text:GetText()=="Delete Decoration"then count=count+1;button=w end
+            for _,child in ipairs(w.children or {})do Find(child)end
+        end
+        Find(legacy);assert(count==1 and not button.disabled)
+        local before=h.Copy(db);button:Fire("OnClick")
+        local pending=confirms[#confirms];assert(pending);pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+        h.ui.ace:Release(legacy)
+        Back();local label=Row("decorationElement",decoration.id).item.label
+        CardActions("decorationElement",decoration.id).Remove();pending=confirms[#confirms]
+        assert(pending.options.message=='Remove "'..label..'" from the unit frame?')
+        before=h.Copy(db);pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+        CardActions("decorationElement",decoration.id).Remove();pending=confirms[#confirms]
+        pending.options.primary.onClick(pending.dialog);Drain()
+        local found=false;for _,record in ipairs(unit.decorations)do
+            assert(record.id~=decoration.id);if record==other then found=true end
+        end
+        assert(found);h.Equal(other,otherBefore)
+        assert(selection.GetSelectedObject().kind=="unit" and window._focalPointCustomizeView=="components")
+    end end
+end)
+Test("Decoration Tree trash retains its target across object selection and rejects Combat, invalid requests, stale Unit/layout, Reopen and Release",function()
+    for _,reason in ipairs({"combat_before","combat_confirm","object","unit","layout","request","reopen","release"})do
+        local decoration,other=DecorationFixture(false,true);Back()
+        local function Record(id)
+            local found
+            for _,record in ipairs(unit.decorations)do
+                if record.id==id then assert(not found,"duplicate Decoration ID");found=record end
+            end
+            return found
+        end
+        local remove=CardActions("decorationElement",decoration.id).Remove
+        local combat=InCombatLockdown
+        if reason=="combat_before"then
+            local before=h.Copy(db);local n=#confirms;InCombatLockdown=function()return true end
+            remove();InCombatLockdown=combat;assert(#confirms==n);h.Equal(db,before)
+        else
+            remove();local pending=confirms[#confirms]
+            if reason=="combat_confirm"then InCombatLockdown=function()return true end
+            elseif reason=="object"then assert(selection.SelectObject({kind="decoration",unit="player",decorationId=other.id}));Drain()
+            elseif reason=="unit"then
+                ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units.target=h.Copy(unit)
+                assert(selection.SelectUnitRoot("target"));Drain()
+            elseif reason=="layout"then
+                ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(db))
+            elseif reason=="request"then controller.RefreshCompositionTree()
+            elseif reason=="reopen"then
+                window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build();Drain()
+            elseif reason=="release"then h.ui.ace:Release(pending.dialog.window) end
+            local before=h.Copy(db);local otherBefore=h.Copy(other);local expected=h.Copy(unit)
+            if reason=="object"then
+                for i,record in ipairs(expected.decorations)do
+                    if record.id==decoration.id then table.remove(expected.decorations,i);break end
+                end
+            end
+            pending.options.primary.onClick(pending.dialog);InCombatLockdown=combat;Drain()
+            if reason=="object"then
+                assert(not Record(decoration.id));h.Equal(unit,expected)
+            else
+                h.Equal(db,before);assert(Record(decoration.id)==decoration)
+            end
+            assert(Record(other.id)==other);h.Equal(other,otherBefore)
+        end
+    end
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Component Actions: "..count.." groups PASS")

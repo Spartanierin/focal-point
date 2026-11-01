@@ -455,6 +455,13 @@ local function DecorationStart(expert)
     local first=ns.InspectorMutations.AddDecoration({unitConfig=unit})
     local second=ns.InspectorMutations.AddDecoration({unitConfig=unit})
     assert(first.ok and second.ok)
+    controller.RefreshCompositionTree()
+    local counts={[first.newDecorationId]=0,[second.newDecorationId]=0}
+    RootWalk(Tree().tree,function(node)
+        local id=node.inspectorTarget and node.inspectorTarget.decorationId
+        if counts[id]~=nil then counts[id]=counts[id]+1 end
+    end)
+    assert(counts[first.newDecorationId]==1 and counts[second.newDecorationId]==1)
     local function Select(id)
         assert(selection.SelectObject({kind="decoration",unit="player",decorationId=id}));Drain()
     end
@@ -487,14 +494,14 @@ local function DecorationCheckTabs()
                 assert(group:GetUserData("normalAbsorbPropertyContent") and #group.children>0)
                 assert(group.frame:IsShown()==(active==membership[title]))
             else
-                assert(title=="Actions" and group:GetUserData("normalAbsorbObjectActions"))
-                assert(group.frame:IsShown() and not group:GetUserData("normalAbsorbPropertyGroup"))
-                assert(not group:GetUserData("normalAbsorbPropertyContent"))
+                error("unexpected Decoration Workspace group: "..title)
             end
             RootWalk(group,function(w)assert(not w:GetUserData("flatPropertyHeading"),"duplicate section heading")end)
         end
     end
-    for _,title in ipairs({"Appearance","Geometry","Position","Behavior","Actions"})do assert(groups[title])end
+    for _,title in ipairs({"Appearance","Geometry","Position","Behavior"})do assert(groups[title])end
+    assert(not groups.Actions)
+    RootWalk(DecorationBody(),function(w)assert(not w:GetUserData("normalAbsorbObjectActions"))end)
     for label,tab in pairs({Texture="appearance",Alpha="appearance",Width="geometry",Height="geometry",
         ["Anchor To Element"]="geometry",["Anchor From"]="geometry",["Anchor To"]="geometry",
         ["X Offset"]="geometry",["Y Offset"]="geometry",Enabled="behavior",Condition="behavior"})do
@@ -502,7 +509,7 @@ local function DecorationCheckTabs()
             ((label:find("Anchor")or label=="Condition")and "Dropdown")or "FPCompactSlider"
         assert(membership[RootGroup(DecorationControl(label,kind))]==tab,label)
     end
-    assert(DecorationControl("Delete Decoration","Button").frame:IsShown())
+    assert(#RootFind(DecorationBody(),"Delete Decoration","Button")==0)
     DecorationBody():DoLayout();window._focalPointPropertyScroll:DoLayout()
     local height=0
     for _,child in ipairs(DecorationBody().children)do if child.frame:IsShown()then height=height+child.frame:GetHeight()end end
@@ -537,14 +544,13 @@ Test("Decoration Workspace exposes unique Position points and Behavior condition
             for _ in pairs(points)do n=n+1 end;assert(n==9 and points.CENTER and points.TOPLEFT and points.BOTTOMRIGHT)
         end
         for _,f in ipairs({{"Enabled","CheckBox"},{"Texture","Button"},{"Alpha","FPCompactSlider"},
-            {"Width","FPCompactSlider"},{"Height","FPCompactSlider"},{"X Offset","FPCompactSlider"},{"Y Offset","FPCompactSlider"},
-            {"Delete Decoration","Button"}})do DecorationControl(f[1],f[2])end
+            {"Width","FPCompactSlider"},{"Height","FPCompactSlider"},{"X Offset","FPCompactSlider"},{"Y Offset","FPCompactSlider"}})do DecorationControl(f[1],f[2])end
         local controls={CheckBox=0,Button=0,FPCompactSlider=0,Dropdown=0}
         -- Count existing property/action controls separately from the three navigation buttons.
         RootWalk(DecorationBody(),function(w)
             if controls[w.type] and not w:GetUserData("normalAbsorbPropertyTab")then controls[w.type]=controls[w.type]+1 end
         end)
-        h.Equal(controls,{CheckBox=1,Button=2,FPCompactSlider=5,Dropdown=4})
+        h.Equal(controls,{CheckBox=1,Button=1,FPCompactSlider=5,Dropdown=4})
         DecorationCheckTabs()
         h.Equal(db,before)
         assert(db.profile.General.ExpertMode==expert and state.Get().mode==(expert and "quick" or "expert"))
@@ -615,6 +621,7 @@ Test("Decoration Legacy scoped and unscoped builds keep Quick/Expert filters",fu
             RootWalk(body,function(w)assert(not w:GetUserData("normalAbsorbPropertyTab"),"Legacy gained Workspace tabs")end)
             RootControl("Enabled","CheckBox",body);RootControl("Anchor To Element","Dropdown",body)
             assert(RootGroup(RootControl("Enabled","CheckBox",body))=="Appearance")
+            RootControl("Delete Decoration","Button",body)
             for _,label in ipairs({"Anchor From","Anchor To","Condition"})do
                 assert(#RootFind(body,label,"Dropdown")==(expert and 1 or 0),label)
             end
@@ -622,7 +629,7 @@ Test("Decoration Legacy scoped and unscoped builds keep Quick/Expert filters",fu
         end
     end
 end)
-Test("Decoration texture Apply/no-Apply and Delete/Cancel retain their existing flows",function()
+Test("Decoration texture Apply/no-Apply and Tree Delete/Cancel retain their existing flows",function()
     local forms=ns.GUI.Helpers.FormWidgets;local previous=forms.CreateCompactConfirmation
     local dialog,options
     forms.CreateCompactConfirmation=function(o)options=o;dialog=previous(o);return dialog end
@@ -637,9 +644,19 @@ Test("Decoration texture Apply/no-Apply and Delete/Cancel retain their existing 
         media.onApply("fp:decoration:shadow1");Drain()
         assert(decoration.texture=="fp:decoration:shadow1")
         DecorationClickTab(tab);DecorationCheckTabs()
-        DecorationControl("Delete Decoration","Button"):Fire("OnClick");assert(dialog and options)
+        window._focalPointComponentsButton:Fire("OnClick");Drain()
+        local function Trash()
+            for i=1,Tree().control.count do
+                local row=Tree().control.rows[i]
+                if row.item.node.inspectorTarget.decorationId==decoration.id then
+                    row.remove:Run("OnMouseDown","LeftButton");return
+                end
+            end
+            error("missing Decoration Tree row: "..decoration.id)
+        end
+        Trash();assert(dialog and options)
         before=h.Copy(db);options.cancel.onClick(dialog);Drain();h.Equal(db,before)
-        DecorationControl("Delete Decoration","Button"):Fire("OnClick");options.primary.onClick(dialog);Drain()
+        Trash();options.primary.onClick(dialog);Drain()
         local found=false;for _,d in ipairs(unit.decorations)do assert(d.id~=decoration.id);if d.id==other.id then found=true end end
         assert(found and selection.GetSelectedObject().kind=="unit")
     end end
@@ -648,14 +665,14 @@ end)
 Test("Decoration tab cycles retain framed owners, controls, release bindings and data without rebuilding",function()
     for _,expert in ipairs({false,true})do
         local db=DecorationStart(expert)
-        local body=DecorationBody();local groups=DecorationCheckTabs();local release=groups.Actions.events.OnRelease
+        local body=DecorationBody();local groups=DecorationCheckTabs();local release=groups.Position.events.OnRelease
         local width=DecorationControl("Width","FPCompactSlider");local before=h.Copy(db);local children=#body.children
         for _=1,20 do for _,tab in ipairs({"geometry","behavior","appearance"})do
             window._focalPointPropertyScroll:SetScroll(400);DecorationClickTab(tab)
             local current=DecorationCheckTabs()
             assert(DecorationBody()==body and #body.children==children and DecorationControl("Width","FPCompactSlider")==width)
             for title,group in pairs(groups)do assert(current[title]==group)end
-            assert(current.Actions.events.OnRelease==release)
+            assert(current.Position.events.OnRelease==release)
             assert(window._focalPointPropertyScroll.status.scrollvalue==0)
         end end
         h.Equal(db,before)

@@ -5705,8 +5705,9 @@ function InspectorController.Build(container, state, options)
             geometrySection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             positionSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_POSITION"] or "Position", true)
             behaviorSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
-            actionsSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_ACTIONS"] or "Actions", true)
-            if workspaceDecoration then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
+            if not workspaceDecoration then
+                actionsSection = AddFramedObjectPropertyGroup(decorationSection, L["SECTION_ACTIONS"] or "Actions", true)
+            end
         elseif #decorations > 0 then
             local selectorRow = AceGUI:Create("SimpleGroup")
             selectorRow:SetFullWidth(true)
@@ -5877,7 +5878,9 @@ function InspectorController.Build(container, state, options)
                     anchorKey = "decoration_condition",
                 }, disabled)
             end
-            AddPropertyActionButtonRow(actionsSection, L["OPTION_DECORATION_DELETE"] or "Delete Decoration", L["OPTION_DECORATION_DELETE"] or "Delete Decoration", "DestructiveAction", 148, OpenDeleteDecorationConfirmDialog, not decorationConfig)
+            if not workspaceDecoration then
+                AddPropertyActionButtonRow(actionsSection, L["OPTION_DECORATION_DELETE"] or "Delete Decoration", L["OPTION_DECORATION_DELETE"] or "Delete Decoration", "DestructiveAction", 148, OpenDeleteDecorationConfirmDialog, not decorationConfig)
+            end
         else
             decorationTextureDropdown = AddDropdown(decorationSection, L["OPTION_TEXTURE"] or "Texture", textureOptions, textureOptions.value, SetDecorationTexture, disabled, "decoration_texture")
             AddMediaBrowserForField(decorationSection, MEDIA_TYPE_DECORATION, function()
@@ -5958,7 +5961,7 @@ function InspectorController.Build(container, state, options)
             local membership = {[appearanceSection]="appearance", [geometrySection]="geometry",
                 [positionSection]="geometry", [behaviorSection]="behavior"}
             for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
-            -- Preserve the framed Actions owner's release binding outside tab filtering.
+            -- Only property groups remain in the Workspace; deletion belongs to the Tree.
             registerDecorationGroups(membership)
             projectDecorationGroups()
         end
