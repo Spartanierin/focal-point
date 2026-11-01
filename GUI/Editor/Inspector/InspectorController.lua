@@ -5269,6 +5269,11 @@ function InspectorController.Build(container, state, options)
 
         local isScopedObject = IsSelectedIndicatorObject(selectedUnit, selectedIndicatorKey)
         local workspaceIndicator = isScopedObject and buildPropertiesOnly and type(workspaceIsCurrent) == "function"
+        local projectIndicatorGroups, registerIndicatorGroups
+        if workspaceIndicator then
+            local unusedFactory
+            unusedFactory, projectIndicatorGroups, registerIndicatorGroups = BeginFlatPropertyPresentation(indicatorSection)
+        end
         local appearanceSection = indicatorSection
         local geometrySection = indicatorSection
         local positionSection = indicatorSection
@@ -5284,6 +5289,7 @@ function InspectorController.Build(container, state, options)
                 positionSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_POSITION"] or "Position", true)
             end
             actionsSection = AddFramedObjectPropertyGroup(indicatorSection, L["SECTION_ACTIONS"] or "Actions", true)
+            if workspaceIndicator then actionsSection:SetUserData("normalAbsorbObjectActions", true) end
         end
 
         local removeActionAdded = false
@@ -5318,6 +5324,15 @@ function InspectorController.Build(container, state, options)
                 end
                 indicatorSection:AddChild(removeButton)
             end
+            if workspaceIndicator then
+                local membership = {[appearanceSection]="appearance", [geometrySection]="geometry",
+                    [positionSection]="geometry", [behaviorSection]="behavior"}
+                for group in pairs(membership) do group:SetUserData("normalAbsorbPropertyContent", true) end
+                -- Every supported branch finishes here, including Classification and FRAME_OVERLAY.
+                -- Preserve the framed Actions release binding outside tab filtering.
+                registerIndicatorGroups(membership)
+                projectIndicatorGroups()
+            end
         end
 
         if not isScopedObject then
@@ -5342,7 +5357,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if isScopedObject then
-            AddPropertyCheckBoxRow(appearanceSection, L["OPTION_ENABLED"] or "Enabled", indicatorConfig.enabled ~= false, function(value)
+            AddPropertyCheckBoxRow(workspaceIndicator and behaviorSection or appearanceSection, L["OPTION_ENABLED"] or "Enabled", indicatorConfig.enabled ~= false, function(value)
                 SetIndicatorField(selectedIndicatorKey, "enabled", value and true or false, indicatorSection)
             end)
         else
@@ -5397,7 +5412,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if isScopedObject then
-            AddPropertyDropdownRow(behaviorSection, L[indicatorMeta.placementLabel] or "Placement", {
+            AddPropertyDropdownRow(workspaceIndicator and positionSection or behaviorSection, L[indicatorMeta.placementLabel] or "Placement", {
                 list = portraitPlacementList,
                 value = indicatorConfig.placement or "ATTACHED",
                 onChanged = function(value)
