@@ -300,6 +300,7 @@ L["LAYOUT_CREATE_ACTIVATION_FAILED"] = "Das Layout wurde erstellt, konnte aber n
 L["NAV_MANAGE_LAYOUTS"] = "Layouts verwalten..."
 L["NAV_LAYOUT_ASSIGNMENTS"] = "Zuweisungen..."
 L["LAYOUT_MANAGER_TITLE"] = "Layouts verwalten"
+L["LAYOUT_MANAGER_ASSIGNMENTS"] = "Spezialisierungszuordnung..."
 L["LAYOUT_MANAGER_DESCRIPTION"] = "Verfuegbare Layouts anzeigen. Aktivieren erfolgt ueber die Canvas-Toolbar."
 L["LAYOUT_MANAGER_MY_LAYOUTS"] = "Meine Layouts"
 L["LAYOUT_MANAGER_BUILT_IN_LAYOUTS"] = "Mitgelieferte Layouts"

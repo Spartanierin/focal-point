@@ -1245,9 +1245,20 @@ local function CreateWindow()
     exportButton:SetWidth(120)
     exportButton:SetCallback("OnClick", function() OpenTransferDialog(true) end)
     transferActions:AddChild(exportButton)
+    local assignmentsButton = AceGUI:Create("Button")
+    assignmentsButton:SetText(T("LAYOUT_MANAGER_ASSIGNMENTS", "Specialization assignments..."))
+    assignmentsButton:SetWidth(240)
+    assignmentsButton:SetCallback("OnClick", function()
+        local assignments = ns.GUI.Editor.LayoutAssignments
+        if assignments and assignments.Open then
+            assignments.Open()
+        end
+    end)
+    transferActions:AddChild(assignmentsButton)
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(importButton, "utility")
         FormWidgets.ApplyModalActionButtonVisual(exportButton, "utility")
+        FormWidgets.ApplyModalActionButtonVisual(assignmentsButton, "utility")
     end
 
     local scroll = AceGUI:Create("ScrollFrame")
@@ -1313,6 +1324,7 @@ local function CreateWindow()
         status = status,
         importButton = importButton,
         exportButton = exportButton,
+        assignmentsButton = assignmentsButton,
         defaultButton = defaultButton,
         renameButton = renameButton,
         copyButton = copyButton,

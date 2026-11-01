@@ -165,20 +165,49 @@ latest.primaryButton:Fire("OnClick"); assert(calls.new); Equal(latest.statusRole
 latest.cancelButton:Fire("OnClick")
 
 -- Actual specialization table and empty state retain their calculated bounds.
-local specCount=3
+local specCount,currentSpec=3,1
 function GetNumSpecializations() return specCount end
 C_SpecializationInfo={GetSpecializationInfo=function(i) return i,"Spec "..i end}
-ns.LayoutAssignmentService={GetCurrentSpecialization=function() return 1 end,
+ns.LayoutAssignmentService={GetCurrentSpecialization=function() return currentSpec end,
     GetSpecializationAssignment=function() return nil,"missing" end,
-    SetSpecializationAssignment=function(spec,value) calls.assignment={spec,value}; return true end}
+    SetSpecializationAssignment=function(spec,value) calls.assignment={spec,value}; return true end,
+    EvaluateCurrentSpecializationAssignment=function(reason) calls.evaluate=reason end}
 Load("GUI/Editor/LayoutAssignments/LayoutAssignmentView.lua")
-ns.GUI.Editor.LayoutAssignments.Open(); local assignments=latest
+local assignmentsAPI=ns.GUI.Editor.LayoutAssignments
+local openAssignments=assignmentsAPI.Open
+local openCalls=0
+assignmentsAPI.Open=function(...)
+    Equal(select("#",...),0)
+    openCalls=openCalls+1
+    return openAssignments(...)
+end
+local assignmentButton=assert(context.widgets.assignmentsButton)
+Equal(assignmentButton.text:GetText(),"Specialization assignments...")
+local selectedBeforeAssignments=context.selectedLayoutId
+local dialogsBeforeAssignments=#created
+assignmentButton:Fire("OnClick"); local assignments=latest
+Equal(openCalls,1); Equal(#created,dialogsBeforeAssignments+1)
+assignmentButton:Fire("OnClick")
+Equal(openCalls,2); Equal(#created,dialogsBeforeAssignments+1)
+Equal(context.selectedLayoutId,selectedBeforeAssignments)
+assert(context.window.frame:IsShown()) -- Manager remains the return destination.
 Check(assignments,520,264)
 local dropdown=assert(Find(assignments.body,"Dropdown")); dropdown:Fire("OnValueChanged","layout:one")
 Equal(calls.assignment,{1,"layout:one"})
+Equal(calls.evaluate,"assignment:ui")
+calls.evaluate=nil; currentSpec=2
+assignmentsAPI.Refresh()
+dropdown=assert(Find(assignments.body,"Dropdown")); dropdown:Fire("OnValueChanged","layout:one")
+Equal(calls.assignment,{1,"layout:one"}); Equal(calls.evaluate,nil)
 specCount=0; ns.GUI.Editor.LayoutAssignments.Refresh()
 CheckText(assignments.body,"No specializations available.","help",11)
-ns.GUI.Editor.LayoutAssignments.Close(); ns.GUI.Editor.LayoutAssignments.Open(); Check(assignments,520,264)
+assignmentsAPI.Close(); assert(not assignments.window.frame:IsShown())
+assignmentButton:Fire("OnClick"); Check(assignments,520,264)
+Equal(#created,dialogsBeforeAssignments+1)
+manager.Close(); manager.Open()
+context.widgets.assignmentsButton:Fire("OnClick")
+Equal(#created,dialogsBeforeAssignments+1)
+assignmentsAPI.Open=openAssignments
 
 -- Actual editable-template confirmation preserves pending/ready semantics.
 ns.ActiveLayoutResolver={GetStoredActiveLayoutId=function() return "builtin:default" end,
