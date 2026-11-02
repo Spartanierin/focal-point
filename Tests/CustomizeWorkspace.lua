@@ -92,8 +92,47 @@ Test("first open has one Window with current unit, tree and actual properties", 
     assert(window.frame:GetWidth() == 392 and window.frame:GetHeight() == 620)
     assert(window.titletext:GetText():find("player", 1, true))
     local header=body.children[1]
-    assert(header:GetUserData("table").columns[3].weight==1)
+    assert(header:GetUserData("table").columns[2].weight==1)
     assert(header.frame:IsShown() and #header.children==3)
+    local back,componentsLabel,objectLabel=table.unpack(header.children)
+    assert(back.type=="Button" and componentsLabel.type=="Label" and objectLabel.type=="Label")
+    assert(back==window._focalPointComponentsButton and objectLabel==window._focalPointObjectBreadcrumb)
+    local function CheckHeader(view)
+        assert(window._focalPointCustomizeView==view)
+        local properties=view=="properties"
+        assert(objectLabel.frame:IsShown()==properties)
+        assert(back.frame:IsShown()==properties and back.disabled==not properties)
+        assert(componentsLabel.frame:IsShown()==not properties)
+        local visible={}
+        for _,child in ipairs(header.children)do if child.frame:IsShown()then visible[#visible+1]=child end end
+        local navigation=properties and back or componentsLabel
+        assert(componentsLabel.label:GetText()==(ns.L.EDITOR_COMPONENTS or "Components"))
+        if properties then
+            assert(#visible==2 and visible[1]==back and visible[2]==objectLabel)
+            local node=assert(ns.CompositionTreeView.GetSelectedNode())
+            assert(objectLabel.label:GetText()==node.label and objectLabel.label.lastSetJustifyH[1]=="RIGHT")
+        else
+            assert(#visible==1 and visible[1]==componentsLabel and objectLabel.label:GetText()=="")
+        end
+        header:DoLayout()
+        local columns=header:GetUserData("table").columns
+        assert(columns[1].width==back.frame:GetWidth() and columns[2].weight==1)
+        assert(navigation.frame.points.LEFT.relative==header.content and navigation.frame.points.LEFT.x==0)
+        if properties then
+            assert(objectLabel.frame.points.LEFT.relative==header.content and objectLabel.frame.points.LEFT.x==columns[1].width+4)
+        else
+            assert(componentsLabel:GetUserData("cell").colspan==2)
+            assert(componentsLabel.frame.points.RIGHT.relative==header.content)
+        end
+    end
+    CheckHeader("components")
+    local selected=h.Copy(selection.GetSelectedObject())
+    for _=1,2 do
+        Tree().control.callbacks.onSelect(Node("unit"));Drain();CheckHeader("properties")
+        h.Equal(selection.GetSelectedObject(),selected)
+        back:Fire("OnClick");Drain();CheckHeader("components")
+        h.Equal(selection.GetSelectedObject(),selected)
+    end
     assert(not window._focalPointArrangeButton and not window._focalPointCloseButton)
     assert(Tree().state == state.Get() and Tree().tree.unit == "player")
     assert(selection.GetSelectedObject().kind == "unit")
@@ -623,7 +662,9 @@ Test("Decoration Legacy scoped and unscoped builds keep Quick/Expert filters",fu
             assert(RootGroup(RootControl("Enabled","CheckBox",body))=="Appearance")
             RootControl("Delete Decoration","Button",body)
             for _,label in ipairs({"Anchor From","Anchor To","Condition"})do
-                assert(#RootFind(body,label,"Dropdown")==(expert and 1 or 0),label)
+                local actual=#RootFind(body,label,"Dropdown")
+                local expected=expert and 1 or 0
+                assert(actual==expected,string.format("%s: expected %d Dropdowns, got %d; mode=%s",label,expected,actual,expert and "Expert" or "Quick"))
             end
             h.Equal(db,before);h.ui.ace:Release(host)
         end

@@ -58,6 +58,30 @@ local function Check()
     assert(64+36+properties.frame:GetHeight()==window.frame:GetHeight()-16)
     assert(window._focalPointPropertyScroll.frame:GetHeight()==height-36)
     assert(header.frame:IsShown())
+    local back=window._focalPointComponentsButton
+    assert(back.frame:GetHeight()==30 and header.frame:GetHeight()==30)
+    assert(back.frame:IsShown()==(window._focalPointCustomizeView=="properties"))
+    if window._focalPointCustomizeView=="properties"then
+        local object=window._focalPointObjectBreadcrumb
+        assert(object.parent==header and object.frame:GetParent()==header.content)
+        local left=object.frame.points.LEFT
+        assert(left.relative==header.content and not object.frame.points.RIGHT)
+        local widgetRight=left.x+object.frame:GetWidth()
+        assert(math.abs(widgetRight-(header.content:GetWidth()-32))<.01)
+        -- Measure the FontString's own extent, not just its owner's Table anchors.
+        local textLeft=object.label.points.TOPLEFT
+        assert(textLeft.relative==object.frame and textLeft.relativePoint=="TOPLEFT")
+        local actualTextRight=left.x+textLeft.x+object.label:GetWidth()
+        assert(header.content:GetWidth()==window.frame:GetWidth()-32)
+        assert(math.abs(16+actualTextRight-(window.frame:GetWidth()-48))<.01,
+            "component text must retain the Window's 48px right content inset")
+        assert(math.abs(widgetRight-actualTextRight)<.01,"text does not reach its widget's right edge")
+        assert(object.label.lastSetJustifyH[1]=="RIGHT")
+    end
+    -- A centered 30px navigation button fits inside the reserved y=64..94 row;
+    -- the unchanged native title drag owner ends at y=56.
+    assert(64+(30-back.frame:GetHeight())/2>56)
+    assert(64+(30-back.frame:GetHeight())/2+back.frame:GetHeight()<=64+30)
 end
 local function Pick()
     Tree().control.callbacks.onSelect(Node("unit"));Drain();Check()
