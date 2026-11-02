@@ -59,16 +59,21 @@ local function Check(section,key,available,actionLabel)
     local framed={}
     p.Walk(body,function(w)
         if w.type=="InlineGroup" then
-            assert(section=="health" and w.parent==body)
-            local title=w.titletext:GetText();framed[#framed+1]=title
-            assert(w:GetUserData("normalAbsorbPropertyGroup")=="appearance")
+            assert(w.parent==body)
+            local title=w.titletext:GetText();if w:GetUserData("normalAbsorbPropertyGroup")=="appearance"then framed[#framed+1]=title end
+            local category=w:GetUserData("normalAbsorbPropertyGroup")
+            assert(category=="appearance" or category=="geometry" or category=="behavior")
             assert(w:GetUserData("normalAbsorbPropertyContent") and #w.children>0)
             assert(not w:GetUserData("flatPropertySectionTitle"))
             p.Walk(w,function(child)assert(not child:GetUserData("flatPropertyHeading"),"duplicate section title")end)
         end
         if w.type=="Button" and w.text:GetText()==actionLabel then buttons=buttons+1 end
     end)
-    assert(table.concat(framed,",")==(section=="health" and "Appearance,Background" or ""))
+    assert(table.concat(framed,",")=="Appearance,Background")
+    if section=="alt_power"then
+        p.CheckAppearanceFrames(body,"Appearance,Background",{Appearance="Texture,Color",
+            Background="Show Background,Background Color,Border Width,Border Color"})
+    end
     assert(actions==0 and buttons==0,"Workspace still has Remove or an Actions area")
 end
 local function Color(label,r,g,b,a) Row(label,"ColorPicker"):Fire("OnValueConfirmed",r,g,b,a) end
@@ -92,7 +97,7 @@ Test("Health frames keep control order, one owner and titles across tabs, rebuil
     local function Groups()
         local groups={}
         for _,child in ipairs(Body("health").children)do
-            if child.type=="InlineGroup"then groups[#groups+1]=child end
+            if child.type=="InlineGroup" and child:GetUserData("normalAbsorbPropertyGroup")=="appearance"then groups[#groups+1]=child end
         end
         assert(#groups==2)
         for i,expected in ipairs({"Texture,Color,Class Color,Reaction Color,Low Health Color,Low Health Threshold",
@@ -116,8 +121,13 @@ Test("Health frames keep control order, one owner and titles across tabs, rebuil
     for _=1,10 do
         groups=Groups()
         p.Select("PowerBar")
-        for _,group in ipairs(groups)do assert(not group.frame:IsShown(),"released Health frame remained visible")end
-        p.Walk(window._focalPointPropertyScroll,function(w)assert(w.type~="InlineGroup","Health frame leaked into Power")end)
+        -- InlineGroups may now be acquired by Power; a shown object must belong to its current body.
+        for _,group in ipairs(groups)do
+            if group.frame:IsShown()then
+                assert(group.parent==Body("power") and group:GetUserData("normalAbsorbPropertyContent"))
+            end
+        end
+        p.CheckAppearanceFrames(Body("power"),"Appearance,Background")
         p.Select("HealthBar");Click("appearance")
         p.controller.RefreshActiveProperties();p.Drain()
         Check("health","appearance",{appearance=true,behavior=true});Groups()

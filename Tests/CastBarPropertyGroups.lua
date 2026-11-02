@@ -4,7 +4,7 @@ local source=Read("Tests/NormalAbsorbPropertyGroups.lua")
 local stop=assert(source:find("\nlocal count=0",1,true))
 local s=assert(load(source:sub(1,stop)..[[
 return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Drain,Build=Build,
-Select=Select,Control=Control,Walk=Walk,Tabs=Tabs,Media=function()return media end,
+Select=Select,Control=Control,Walk=Walk,Tabs=Tabs,CheckAppearanceFrames=CheckAppearanceFrames,Media=function()return media end,
 Stats=function()return acquired,released,timers end,
 Start=function(mode,expert)
     db,unit=Setup();unit.castBarPresent=true;unit.showCastBar=true;unit.showCastBarIcon=true
@@ -41,7 +41,7 @@ local function Check(key)
         local group=child:GetUserData("normalAbsorbPropertyGroup")
         if group then assert(child.frame:IsShown()==(group==key))end
     end
-    s.Walk(Body(),function(w)assert(w.type~="InlineGroup")end);Actions()
+    s.CheckAppearanceFrames(Body(),"Appearance",{Appearance="Texture,Color,Interruptible Color,Border Width,Border Color"});Actions()
 end
 local function Group(label,kind)
     return s.Control(label,kind).parent.parent.parent:GetUserData("normalAbsorbPropertyGroup")
@@ -126,8 +126,8 @@ Test("Workspace cast scope exposes each position field once in geometry across p
     local fields={
         {"Anchor From","Dropdown","castBarPoint","BOTTOMLEFT"},
         {"Anchor To","Dropdown","castBarRelativePoint","TOPLEFT"},
-        {s.ns.L.OPTION_X_OFFSET or "X Offset","FPCompactSlider","castBarOffsetX",0},
-        {s.ns.L.OPTION_Y_OFFSET or "Y Offset","FPCompactSlider","castBarOffsetY",4},
+        {s.ns.L.OPTION_OFFSET_X or "Offset X","FPCompactSlider","castBarOffsetX",0},
+        {s.ns.L.OPTION_OFFSET_Y or "Offset Y","FPCompactSlider","castBarOffsetY",4},
     }
     for _,expert in ipairs({false,true})do
         window,unit,db=s.Start(expert and "quick" or "expert",expert)

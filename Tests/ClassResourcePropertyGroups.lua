@@ -37,7 +37,18 @@ local function Check(section,key)
         end
     end
     assert(actions==0,"unexpected object-action count")
-    p.Walk(body,function(w)assert(w.type~="InlineGroup")end)
+    local sourceId
+    if section=="segmented_bars"then
+        local selected=p.selection.GetSelectedObject()
+        for _,record in ipairs(unit.segmentedBars)do
+            if record.id==selected.objectKey then sourceId=record.dataSource.id end
+        end
+        assert(sourceId,"selected instance is missing")
+    end
+    p.CheckAppearanceFrames(body,section=="class_power" and "Appearance,Background,Rune Timer"
+        or (sourceId=="runes" and "Appearance,Background,Rune Timer" or "Appearance,Background"),
+        {Appearance="Texture,Color,Blizzard Standard",Background=section=="class_power"
+            and "Background Color,Border Width,Border Color" or "Background,Background Color,Border Width,Border Color"})
     if section=="segmented_bars"then p.Walk(body,function(w)
         assert(w.type~="Button" or w.text:GetText()~=(p.ns.L.EDITOR_DELETE_SEGMENTED_BAR_BUTTON or "Delete Class Resource Bar"))
     end)end
@@ -53,7 +64,7 @@ local function FindUpvalue(fn,name,seen)
 end
 local count=0
 local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
-Test("Class Power Quick has three flat tabs, one action and stable controls without tab mutations",function()
+Test("Class Power Quick has Health appearance frames and three tabs without actions and stable controls without tab mutations",function()
     Start();Check("class_power","appearance")
     local body=Body("class_power");local height=p.Control("Height","FPCompactSlider")
     local before=p.h.Copy(db);local a,r,t=p.Stats()
@@ -237,7 +248,7 @@ end
 local function Set(field,value)
     local control=assert(Controls()[field],field);control:Fire("OnValueChanged",value);p.Drain()
 end
-Test("instances keep stable IDs and three flat categories without Delete or tab allocations",function()
+Test("instances keep stable IDs and three categories and framed appearance without Delete or tab allocations",function()
     local a,b=Instances();local c=Controls()
     assert(a~=b and #unit.segmentedBars==2 and p.selection.GetSelectedObject().objectKey==a)
     for _,field in ipairs({"texture","useBlizzardColor","color","background","backgroundColor","borderWidth","borderColor",
@@ -250,6 +261,23 @@ Test("instances keep stable IDs and three flat categories without Delete or tab 
     for _=1,20 do for _,key in ipairs({"appearance","geometry","behavior"})do Click(key);Check("segmented_bars",key)end end
     local nn,rr,tt=p.Stats();assert(n==nn and r==rr and t==tt)
     assert(Controls().width==c.width and Body("segmented_bars")==body);p.h.Equal(db,before)
+end)
+Test("instance appearance frames follow the selected ID and source in both saved modes",function()
+    for _,expert in ipairs({false,true})do
+        local a,b=Instances()
+        db.profile={General={ExpertMode=expert}}
+        p.state.SetMode(expert and "quick" or "expert")
+        p.controller.RefreshActiveProperties();p.Drain();Click("appearance")
+        Check("segmented_bars","appearance")
+        assert(Controls().runeTimerFont)
+        SelectInstance(b);Check("segmented_bars","appearance")
+        assert(not Controls().runeTimerFont)
+        local before=p.h.Copy(db)
+        for _,tab in ipairs({"geometry","behavior","appearance"})do Click(tab);Check("segmented_bars",tab)end
+        p.h.Equal(db,before)
+        SelectInstance(a);Check("segmented_bars","appearance")
+        assert(Controls().runeTimerFont and db.profile.General.ExpertMode==expert)
+    end
 end)
 Test("instance Source rebuild keeps ID and rejects stale bindings, Rune controls follow resolved source",function()
     local a=Instances();local old=Controls().dataSource;local callback=old.events.OnValueChanged

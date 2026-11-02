@@ -125,6 +125,37 @@ local function CheckProjection(key)
     assert(math.abs(body.frame:GetHeight()-height)<.01,"inactive content contributes layout height")
     ObjectActions()
 end
+-- Match the existing Health frames, including ownership, content and tab projection.
+local function CheckAppearanceFrames(body, titles, orders)
+    local frames={}
+    Walk(body,function(w)
+        if w.type=="InlineGroup"then
+            assert(w.parent==body,"nested or foreign framed group")
+            assert(w:GetUserData("normalAbsorbPropertyContent"))
+            local category=w:GetUserData("normalAbsorbPropertyGroup")
+            assert(category=="appearance" or category=="geometry" or category=="behavior")
+            assert(#w.children>0 and not w:GetUserData("flatPropertySectionTitle"))
+            assert(w.frame:IsShown()==(state.Get().inspectorPropertyGroup==category))
+            local padding=assert(w._fpSectionPadding)
+            assert(padding.left==16 and padding.right==16 and padding.top==27 and padding.bottom==13)
+            Walk(w,function(child)assert(not child:GetUserData("flatPropertyHeading"),"duplicate frame title")end)
+            local title=w.titletext:GetText()
+            if orders and orders[title]then
+                local labels={}
+                for _,row in ipairs(w.children)do
+                    local label=(row.children or {})[1]
+                    assert(label and label.type=="Label","unexpected non-property row in frame")
+                    labels[#labels+1]=label.label:GetText()
+                    assert(row:IsFullWidth(),"framed row lost its available content width")
+                end
+                assert(table.concat(labels,",")==orders[title],title.." control order: "..table.concat(labels,","))
+            end
+            if category=="appearance"then frames[#frames+1]=title end
+        end
+    end)
+    assert(table.concat(frames,",")==titles,"unexpected appearance frames: "..table.concat(frames,","))
+end
+
 local count=0
 local function Test(name,fn) fn(); count=count+1; print("PASS: "..name) end
 Test("three tabs project groups and spacers without rebuild, allocation, timers or mutations",function()
@@ -163,24 +194,18 @@ Test("one caption survives both Disabled states even if native text alpha return
     h.Equal(db,before)
     CheckProjection("appearance")
 end)
-Test("flat content has no section chrome/title or 40px surcharge and retains full-size rows",function()
+Test("all tab groups use Health frames with full-size rows and original projection",function()
     local contents=0
-    Walk(Body(),function(w) assert(w.type~="InlineGroup","legacy section survived in Normal Absorb") end)
-    for _,group in ipairs(Body().children) do
-        if group:GetUserData("normalAbsorbPropertyContent") then
+    CheckAppearanceFrames(Body(),"Appearance,Background",{Appearance="Texture,Color",Background="Background Color,Border Width,Border Color"})
+    local titles={}
+    for _,group in ipairs(Body().children)do
+        if group:GetUserData("normalAbsorbPropertyContent")then
             contents=contents+1
-            assert(group.type=="SimpleGroup" and not group.titletext)
-            local padding=assert(group._fpSectionPadding)
-            assert(padding.left==0 and padding.right==0 and padding.top==0 and padding.bottom==0)
-            for _,name in ipairs({"_fpSectionFill","_fpSectionAccent","_fpSectionTopShade","_fpSectionBottomShade",
-                "_fpSectionBorderTop","_fpSectionBorderBottom","_fpSectionBorderLeft","_fpSectionBorderRight"}) do
-                assert(not group.frame[name] or not group.frame[name]:IsShown(),name.." leaked into flat content")
-            end
-            group:LayoutFinished(group.frame:GetWidth(),100)
-            assert(group.frame:GetHeight()==100,"old InlineGroup height surcharge survived")
-            group:DoLayout()
+            assert(group.type=="InlineGroup")
+            titles[#titles+1]=group.titletext:GetText()
         end
     end
+    assert(table.concat(titles,",")=="Behavior,Appearance,Background,Size,Anchor,Growth")
     assert(contents==6,"expected six property groups, excluding object actions")
     local labels={}
     Walk(Body(),function(w)
@@ -326,7 +351,7 @@ Test("narrow Workspace and German labels retain three reachable tabs and local T
     controller.BuildInspector(nil,{GetEditorState=state.Get}); Drain()
     CheckProjection("appearance")
 end)
-Test("pooling between flat Normal Absorb and framed Unit/Text preserves both presentations",function()
+Test("pooling between Normal Absorb appearance frames and Unit/Text preserves both presentations",function()
     local active=ns.UnitFrameUtils.GetUnitDB("player")
     active.healingAbsorbBarPresent=true; active.castBarPresent=true; active.showCastBar=true
     for _=1,8 do
@@ -371,11 +396,11 @@ Test("pooling between flat Normal Absorb and framed Unit/Text preserves both pre
             end)
             assert(framed>0,"another component lost its framed Inspector")
             Select("NormalAbsorbBar"); CheckProjection("appearance")
-            Walk(Body(),function(w) assert(w.type~="InlineGroup") end)
+            CheckAppearanceFrames(Body(),"Appearance,Background",{Appearance="Texture,Color",Background="Background Color,Border Width,Border Color"})
         end
     end
 end)
-Test("Normal and Healing share the flat workspace while old tab bindings remain invalid",function()
+Test("Normal and Healing share framed appearance in the workspace while old tab bindings remain invalid",function()
     local before=h.Copy(db)
     for _=1,10 do
         local old=Tabs().geometry.events.OnClick

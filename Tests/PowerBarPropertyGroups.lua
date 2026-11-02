@@ -6,7 +6,7 @@ local source=Read("Tests/NormalAbsorbPropertyGroups.lua")
 local boundary=assert(source:find("\nlocal count=0",1,true))
 local s=assert(load(source:sub(1,boundary)..[[
 return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Drain,Build=Build,
-    Select=Select,Control=Control,Walk=Walk,Tabs=Tabs,Media=function() return media end,
+    Select=Select,Control=Control,Walk=Walk,Tabs=Tabs,CheckAppearanceFrames=CheckAppearanceFrames,Media=function() return media end,
     Stats=function() return acquired,released,timers end,
     Start=function(mode)
         db,unit=Setup()
@@ -64,7 +64,7 @@ local function Check(key)
         local group=child:GetUserData("normalAbsorbPropertyGroup")
         if group then assert(child.frame:IsShown()==(group==key)) end
     end
-    s.Walk(Body(),function(w) assert(w.type~="InlineGroup") end)
+    s.CheckAppearanceFrames(Body(),"Appearance,Background",{Appearance="Texture,Color,Class Color",Background="Show Background,Background Color,Border Width,Border Color"})
     Actions()
 end
 local function OtherFields(config)
@@ -79,7 +79,7 @@ local function OtherFields(config)
 end
 local count=0
 local function Test(name,fn) fn(); count=count+1; print("PASS: "..name) end
-Test("Power uses its unit/power scope and three flat groups without inventing Absorb geometry",function()
+Test("Power uses its unit/power scope and framed appearance and three tabs without inventing Absorb geometry",function()
     window,unit,db=s.Start("quick"); Check("appearance")
     local scope=s.state.GetPropertyScope()
     assert(scope.kind=="unit" and scope.sectionKey=="power" and scope.objectKey==nil)

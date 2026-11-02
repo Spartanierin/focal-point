@@ -186,7 +186,7 @@ do
     local w=assert(load(source:sub(1,boundary)..[[
 return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Drain,Build=Build,
     Select=Select,Click=Click,Control=Control,Body=Body,Tabs=Tabs,Walk=Walk,Project=CheckProjection,
-    Actions=ObjectActions,Media=function() return media end,
+    Actions=ObjectActions,CheckAppearanceFrames=CheckAppearanceFrames,Media=function() return media end,
     Stats=function() return acquired,released,timers end,
     Start=function()
         db,unit=Setup()
@@ -204,7 +204,7 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
         end
         return fields
     end
-    Test("Healing workspace shares three flat tabs with no allocation or data mutation on tab changes",function()
+    Test("Healing workspace shares Health appearance frames and three tabs with no allocation or data mutation on tab changes",function()
         unit.healingAbsorbBarColor=nil; unit.normalAbsorbBarColor=nil
         w.controller.RefreshActiveProperties(); w.Drain()
         w.Project("appearance")
@@ -221,7 +221,7 @@ return {h=h,ns=ns,state=state,controller=controller,selection=selection,Drain=Dr
             assert(w.Body()==body and w.Control("Width","FPCompactSlider")==width)
         end
         w.h.Equal(db,before)
-        w.Walk(body,function(widget) assert(widget.type~="InlineGroup") end)
+        w.CheckAppearanceFrames(body,"Appearance,Background",{Appearance="Texture,Color",Background="Background Color,Border Width,Border Color"})
         w.Select("NormalAbsorbBar")
         color=w.Control("Color","ColorPicker")
         assert(color.r==.66 and color.g==.86 and color.b==1 and color.a==.62)

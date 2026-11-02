@@ -1826,6 +1826,20 @@ function InspectorController.Build(container, state, options)
         return group
     end
 
+    -- Bar Workspace groups use the existing Health section chrome; Legacy keeps its factory.
+    local function AddBarWorkspacePropertyGroup(parent, title, addTopSpacing)
+        if title == (L["SECTION_GENERAL"] or "General") then
+            title = L["SECTION_BEHAVIOR"] or "Behavior"
+        elseif title == (L["SECTION_GEOMETRY"] or "Geometry") then
+            title = L["EDITOR_PROPERTY_SECTION_SIZE"] or "Size"
+        elseif title == (L["SECTION_POSITION"] or "Position") then
+            title = L["EDITOR_PROPERTY_SECTION_ANCHOR"] or "Anchor"
+        end
+        local group = AddFramedObjectPropertyGroup(parent, title, addTopSpacing)
+        group:SetUserData("normalAbsorbPropertyContent", true)
+        return group
+    end
+
     local function AddPropertyLabel(parent, text)
         if not parent then
             return nil
@@ -2772,6 +2786,7 @@ function InspectorController.Build(container, state, options)
             local projectSegmentedGroups, registerSegmentedGroups
             if flatSegmented then
                 CreateSegmentedPropertyGroup, projectSegmentedGroups, registerSegmentedGroups = BeginFlatPropertyPresentation(body)
+                CreateSegmentedPropertyGroup = AddBarWorkspacePropertyGroup
             end
             local generalSection = CreateSegmentedPropertyGroup(body, L["SECTION_GENERAL"] or "General", false)
             if not ns.UnitFrameSegmentedBars then
@@ -2936,20 +2951,30 @@ function InspectorController.Build(container, state, options)
                 AddPropertyLabel(generalSection, L["EDITOR_SEGMENTED_BAR_SOURCE_HINT"]
                     or "Available live class resource data is required.")
             end
-            local appearanceSection = CreateSegmentedPropertyGroup(body, L["SECTION_APPEARANCE"] or "Appearance", true)
+            local appearanceSection = AddFramedObjectPropertyGroup(body, L["SECTION_APPEARANCE"] or "Appearance", true)
             Media(appearanceSection, "texture", L["OPTION_TEXTURE"] or "Texture", MEDIA_TYPE_STATUSBAR, BuildStatusBarTextureOptions)
-            controls.useBlizzardColor = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard",
-                Value(record, "useBlizzardColor"), function(value) Change("useBlizzardColor", value) end,
-                false, "segmentedBar_useBlizzardColor")
+            local function BuildBlizzardColorRow()
+                controls.useBlizzardColor = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BLIZZARD_STANDARD"] or "Blizzard Standard",
+                    Value(record, "useBlizzardColor"), function(value) Change("useBlizzardColor", value) end,
+                    false, "segmentedBar_useBlizzardColor")
+            end
+            if not flatSegmented then BuildBlizzardColorRow() end
             controls.color = AddPropertyColorRow(appearanceSection, L["OPTION_COLOR"] or "Color", Value(record, "color"), true,
                 function(value) Change("color", {value.r,value.g,value.b,value.a}) end, false, "segmentedBar_color")
-            controls.background = AddPropertyCheckBoxRow(appearanceSection, L["OPTION_BACKGROUND"] or "Background", Value(record, "background"),
+            if flatSegmented then BuildBlizzardColorRow() end
+            local backgroundSection = appearanceSection
+            if flatSegmented then
+                backgroundSection = AddFramedObjectPropertyGroup(body, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
+                backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
+            end
+            controls.background = AddPropertyCheckBoxRow(backgroundSection, L["OPTION_BACKGROUND"] or "Background", Value(record, "background"),
                 function(value) Change("background", value) end, false, "segmentedBar_background")
-            controls.backgroundColor = AddPropertyColorRow(appearanceSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color",
+            controls.backgroundColor = AddPropertyColorRow(backgroundSection, L["OPTION_BACKGROUND_COLOR"] or "Background Color",
                 Value(record, "backgroundColor"), true, function(value) Change("backgroundColor", {value.r,value.g,value.b,value.a}) end,
                 false, "segmentedBar_backgroundColor")
-            Slider(appearanceSection, "borderWidth", L["OPTION_BORDER_WIDTH"] or "Border Width", 0, 5)
-            controls.borderColor = AddPropertyColorRow(appearanceSection, L["OPTION_BORDER_COLOR"] or "Border Color",
+            Slider(backgroundSection, "borderWidth", L["OPTION_BORDER_WIDTH"] or "Border Width", 0, 5)
+            controls.borderColor = AddPropertyColorRow(backgroundSection, L["OPTION_BORDER_COLOR"] or "Border Color",
                 Value(record, "borderColor"), true, function(value) Change("borderColor", {value.r,value.g,value.b,value.a}) end,
                 false, "segmentedBar_borderColor")
             local geometrySection = CreateSegmentedPropertyGroup(body, L["SECTION_GEOMETRY"] or "Geometry", true)
@@ -2964,22 +2989,23 @@ function InspectorController.Build(container, state, options)
             for _, item in ipairs(unitConfig.segmentedBars or {}) do
                 if item.id ~= ref.objectKey then targets["SegmentedBar:" .. item.id] = item.id end
             end
-            Dropdown(positionSection, "anchorTo", L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element", targets)
+            Dropdown(positionSection, "anchorTo", flatSegmented and (L["OPTION_ANCHOR_TARGET"] or "Anchor Target") or (L["OPTION_ANCHOR_TO_TARGET"] or "Anchor To Element"), targets)
             Dropdown(positionSection, "point", L["OPTION_ANCHOR_FROM"] or "Anchor From", textAnchorPointList)
             Dropdown(positionSection, "relativePoint", L["OPTION_ANCHOR_TO"] or "Anchor To", textAnchorPointList)
-            if projectSegmentedGroups then AddFlatSectionHeading(positionSection, L["SECTION_POSITION"] or "Position") end
-            Slider(positionSection, "offsetX", L["OPTION_X_OFFSET"] or "X Offset", -500, 500)
-            Slider(positionSection, "offsetY", L["OPTION_Y_OFFSET"] or "Y Offset", -500, 500)
+            Slider(positionSection, "offsetX", flatSegmented and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset"), -500, 500)
+            Slider(positionSection, "offsetY", flatSegmented and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset"), -500, 500)
+            local growthSection
             if projectSegmentedGroups then
-                AddFlatSectionHeading(positionSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth")
-                Dropdown(positionSection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
+                growthSection = CreateSegmentedPropertyGroup(body, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth", true)
+                Dropdown(growthSection, "growth", L["OPTION_CLASS_POWER_SEGMENT_GROWTH"] or "Segment Growth", absorbGrowthList)
             end
             xControl, yControl = controls.offsetX, controls.offsetY
             -- AceGUI clears UserData on release; pooled controls receive a new binding identity.
             xControl:SetUserData("focalPointSegmentedBinding", binding)
             local timerSection
             if resolvedSource == "runes" then
-                timerSection = CreateSegmentedPropertyGroup(body, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+                timerSection = AddFramedObjectPropertyGroup(body, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+                if flatSegmented then timerSection:SetUserData("normalAbsorbPropertyContent", true) end
                 Media(timerSection, "runeTimerFont", L["OPTION_FONT"] or "Font", MEDIA_TYPE_FONT, BuildFontOptions)
                 Slider(timerSection, "runeTimerFontSize", L["OPTION_FONT_SIZE"] or "Font Size", 6, 32)
                 Dropdown(timerSection, "runeTimerFontStyle", L["OPTION_FONT_OUTLINE"] or "Font Outline", fontStyleList)
@@ -2991,6 +3017,8 @@ function InspectorController.Build(container, state, options)
             if flatSegmented then
                 local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
                     [geometrySection]="geometry", [positionSection]="geometry"}
+                membership[growthSection] = "geometry"
+                membership[backgroundSection] = "appearance"
                 if timerSection then membership[timerSection] = "appearance" end
                 registerSegmentedGroups(membership, actionsSection)
             end
@@ -3299,6 +3327,7 @@ function InspectorController.Build(container, state, options)
         local projectHealthGroups, registerHealthGroups
         if flatHealth then
             CreateHealthPropertyGroup, projectHealthGroups, registerHealthGroups = BeginFlatPropertyPresentation(healthSection)
+            CreateHealthPropertyGroup = AddBarWorkspacePropertyGroup
         end
         local appearanceSection = healthSection
         local backgroundSection = healthSection
@@ -3506,16 +3535,17 @@ function InspectorController.Build(container, state, options)
 
             if normalPilot then
                 CreateAbsorbPropertyGroup, projectNormalGroups, registerGroups = BeginFlatPropertyPresentation(absorbsSection)
+                CreateAbsorbPropertyGroup = AddBarWorkspacePropertyGroup
             end
 
 
             if isScopedObject then
                 generalSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_GENERAL"] or "General", false)
-                appearanceSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-                backgroundSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+                appearanceSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+                backgroundSection = AddFramedObjectPropertyGroup(absorbsSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
                 geometrySection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_GEOMETRY"] or "Geometry", true)
                 positionSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_POSITION"] or "Position", true)
-                behaviorSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                behaviorSection = CreateAbsorbPropertyGroup(absorbsSection, normalPilot and (L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth") or (L["SECTION_BEHAVIOR"] or "Behavior"), true)
                 if not (normalPilot and buildPropertiesOnly) then
                     actionsSection = CreateAbsorbPropertyGroup(absorbsSection, L["SECTION_ACTIONS"] or "Actions", true)
                 end
@@ -3524,6 +3554,8 @@ function InspectorController.Build(container, state, options)
             end
 
             if normalPilot then
+                appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
+                backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
                 registerGroups({[generalSection]="behavior", [appearanceSection]="appearance",
                     [backgroundSection]="appearance", [geometrySection]="geometry",
                     [positionSection]="geometry", [behaviorSection]="geometry"}, actionsSection)
@@ -3673,7 +3705,6 @@ function InspectorController.Build(container, state, options)
                     disabled = not isCustom,
                     })
                 end
-                if normalPilot then AddFlatSectionHeading(positionSection, L["SECTION_POSITION"] or "Position") end
                 local offsetXControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig[prefix .. "OffsetX"]) or 0, function(value)
                     if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                         return
@@ -3715,7 +3746,6 @@ function InspectorController.Build(container, state, options)
                 end, not isCustom)
             end
             if isScopedObject then
-                if normalPilot then AddFlatSectionHeading(behaviorSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth") end
                 AddPropertyDropdownRow(behaviorSection, L["OPTION_GROWTH_DIRECTION"] or "Growth Direction", {
                     list = absorbGrowthList,
                     value = unitConfig[prefix .. "Growth"] or fallbackGrowth,
@@ -3772,6 +3802,7 @@ function InspectorController.Build(container, state, options)
         local projectPowerGroups, registerPowerGroups
         if flatPower then
             CreatePowerPropertyGroup, projectPowerGroups, registerPowerGroups = BeginFlatPropertyPresentation(powerSection)
+            CreatePowerPropertyGroup = AddBarWorkspacePropertyGroup
         end
         local generalSection = powerSection
         local appearanceSection = powerSection
@@ -3781,15 +3812,17 @@ function InspectorController.Build(container, state, options)
         local actionsSection
         if usePropertyGroups then
             generalSection = CreatePowerPropertyGroup(powerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = CreatePowerPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            backgroundSection = CreatePowerPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            appearanceSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            backgroundSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = CreatePowerPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
-            behaviorSection = CreatePowerPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+            behaviorSection = flatPower and generalSection or CreatePowerPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             if not (flatPower and buildPropertiesOnly) then
                 actionsSection = CreatePowerPropertyGroup(powerSection, L["SECTION_ACTIONS"] or "Actions", true)
             end
         end
         if flatPower then
+            appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
+            backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
             registerPowerGroups({[generalSection]="behavior", [appearanceSection]="appearance",
                 [backgroundSection]="appearance", [geometrySection]="geometry", [behaviorSection]="behavior"}, actionsSection)
         end
@@ -3943,6 +3976,7 @@ function InspectorController.Build(container, state, options)
         local projectAltPowerGroups, registerAltPowerGroups
         if flatAltPower then
             CreateAltPowerPropertyGroup, projectAltPowerGroups, registerAltPowerGroups = BeginFlatPropertyPresentation(altPowerSection)
+            CreateAltPowerPropertyGroup = AddBarWorkspacePropertyGroup
         end
         local rootSection = altPowerSection
         local generalSection = altPowerSection
@@ -3953,17 +3987,19 @@ function InspectorController.Build(container, state, options)
         local actionsSection
         if usePropertyGroups then
             generalSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            backgroundSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            appearanceSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            backgroundSection = AddFramedObjectPropertyGroup(altPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if flatAltPower or isExpert then
-                behaviorSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
+                behaviorSection = flatAltPower and generalSection or CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
             if not (flatAltPower and buildPropertiesOnly) then
                 actionsSection = CreateAltPowerPropertyGroup(altPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
             end
         end
         if flatAltPower then
+            appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
+            backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
             local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
                 [backgroundSection]="appearance", [geometrySection]="geometry"}
             membership[behaviorSection] = "behavior"
@@ -4114,6 +4150,7 @@ function InspectorController.Build(container, state, options)
         local projectClassPowerGroups, registerClassPowerGroups
         if flatClassPower then
             CreateClassPowerPropertyGroup, projectClassPowerGroups, registerClassPowerGroups = BeginFlatPropertyPresentation(classPowerSection)
+            CreateClassPowerPropertyGroup = AddBarWorkspacePropertyGroup
         end
         local rootSection = classPowerSection
         local generalSection = classPowerSection
@@ -4122,24 +4159,37 @@ function InspectorController.Build(container, state, options)
         local runeTimerSection
         local geometrySection = classPowerSection
         local positionSection = classPowerSection
+        local growthSection
         local actionsSection
         if usePropertyGroups then
             generalSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
-            runeTimerSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
-            backgroundSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            appearanceSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            if not flatClassPower then
+                runeTimerSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+            end
+            backgroundSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            if flatClassPower then
+                runeTimerSection = AddFramedObjectPropertyGroup(classPowerSection, L["SECTION_RUNE_TIMER"] or "Rune Timer", true)
+                runeTimerSection:SetUserData("normalAbsorbPropertyContent", true)
+            end
             geometrySection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
             if flatClassPower or isExpert then
                 positionSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_POSITION"] or "Position", true)
+            end
+            if flatClassPower then
+                growthSection = CreateClassPowerPropertyGroup(classPowerSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth", true)
             end
             if not (flatClassPower and buildPropertiesOnly) then
                 actionsSection = CreateClassPowerPropertyGroup(classPowerSection, L["SECTION_ACTIONS"] or "Actions", true)
             end
         end
         if flatClassPower then
+            appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
+            backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
             local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
                 [runeTimerSection]="appearance", [backgroundSection]="appearance", [geometrySection]="geometry"}
             membership[positionSection] = "geometry"
+            membership[growthSection] = "geometry"
             registerClassPowerGroups(membership, actionsSection)
         end
 
@@ -4387,7 +4437,6 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showClassPowerBar ~= true)
             end
 
-            if flatClassPower then AddFlatSectionHeading(positionSection, L["SECTION_POSITION"] or "Position") end
             local offsetXLabel = usePropertyGroups and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset")
             local offsetYLabel = usePropertyGroups and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset")
             local offsetXControl
@@ -4431,8 +4480,7 @@ function InspectorController.Build(container, state, options)
         end
 
         if flatClassPower then
-            AddFlatSectionHeading(positionSection, L["EDITOR_PROPERTY_SECTION_GROWTH"] or "Growth")
-            BuildClassPowerGrowth(positionSection)
+            BuildClassPowerGrowth(growthSection)
         end
 
         if actionsSection then
@@ -4490,14 +4538,14 @@ function InspectorController.Build(container, state, options)
 
         local frame = ns.frames and ns.frames[state.selectedUnit == "boss" and "boss1" or state.selectedUnit]
         local minX, maxX, minY, maxY = ns.GUI.Editor.AnchorGeometry.ResolveCastBarOffsetRange(frame, unitConfig)
-        local offsetXControl = AddPositionSlider(castPosition, L["OPTION_X_OFFSET"] or "X Offset", minX, maxX, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
+        local offsetXControl = AddPositionSlider(castPosition, workspaceCast and (L["OPTION_OFFSET_X"] or "Offset X") or (L["OPTION_X_OFFSET"] or "X Offset"), minX, maxX, 1, tonumber(unitConfig.castBarOffsetX) or 0, function(value)
             if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetXControl) then
                 return
             end
             SetUnitField("castBarOffsetX", math.floor((value or 0) + 0.5))
         end)
 
-        local offsetYControl = AddPositionSlider(castPosition, L["OPTION_Y_OFFSET"] or "Y Offset", minY, maxY, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
+        local offsetYControl = AddPositionSlider(castPosition, workspaceCast and (L["OPTION_OFFSET_Y"] or "Offset Y") or (L["OPTION_Y_OFFSET"] or "Y Offset"), minY, maxY, 1, tonumber(unitConfig.castBarOffsetY) or 4, function(value)
             if IsActiveCanvasDirectMoveOffsetControlSuppressed(offsetYControl) then
                 return
             end
@@ -4521,22 +4569,28 @@ function InspectorController.Build(container, state, options)
         local projectCastGroups, registerCastGroups
         if flatCast then
             CreateCastPropertyGroup, projectCastGroups, registerCastGroups = BeginFlatPropertyPresentation(castSection)
+            CreateCastPropertyGroup = AddBarWorkspacePropertyGroup
         end
         local generalSection = castSection
         local appearanceSection = castSection
         local geometrySection = castSection
+        local positionSection
         local actionsSection
         if usePropertyGroups then
             generalSection = CreateCastPropertyGroup(castSection, L["SECTION_GENERAL"] or "General", false)
-            appearanceSection = CreateCastPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
+            appearanceSection = AddFramedObjectPropertyGroup(castSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             geometrySection = CreateCastPropertyGroup(castSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            if flatCast then
+                positionSection = CreateCastPropertyGroup(castSection, L["SECTION_POSITION"] or "Position", true)
+            end
             if not (flatCast and buildPropertiesOnly) then
                 actionsSection = CreateCastPropertyGroup(castSection, L["SECTION_ACTIONS"] or "Actions", true)
             end
         end
         if flatCast then
+            appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
             registerCastGroups({[generalSection]="behavior", [appearanceSection]="appearance",
-                [geometrySection]="geometry"}, actionsSection)
+                [geometrySection]="geometry", [positionSection]="geometry"}, actionsSection)
         end
 
         if usePropertyGroups then
@@ -4670,7 +4724,7 @@ function InspectorController.Build(container, state, options)
 
         AddUnitBarBorderRows(appearanceSection, "castBar", usePropertyGroups, unitConfig.showCastBar == false)
 
-        if flatCast then BuildCastPositionSectionContent(geometrySection) end
+        if flatCast then BuildCastPositionSectionContent(positionSection) end
 
         if actionsSection then
             AddPropertyActionButtonRow(actionsSection, L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", L["EDITOR_REMOVE_CAST_BAR_BUTTON"] or "Remove Cast Bar", "DestructiveAction", 148, function()
