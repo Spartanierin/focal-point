@@ -9,7 +9,6 @@ ns.GUI.Editor.CanvasToolbar = CanvasToolbar
 
 local ToolbarBinding = ns.GUI.Editor and ns.GUI.Editor.ToolbarBinding
 local FormWidgets = ns.GUI.Helpers and ns.GUI.Helpers.FormWidgets
-local SidebarGeometry = ns.GUI.Editor and ns.GUI.Editor.SidebarGeometry or {}
 
 local TOOLBAR_WIDTH = 856
 local TOOLBAR_HEIGHT = 50
@@ -1286,18 +1285,6 @@ local function EnsureHost()
     return context
 end
 
-local function ResolveCanvasCenterOffset()
-    local editorState = ns.GUI.Editor.State
-    if editorState and editorState.IsArrange and editorState.IsArrange() then
-        return 0
-    end
-    local leftWidth = (ns.guiEditorToolbarLayer and ns.guiEditorToolbarLayer.GetWidth and ns.guiEditorToolbarLayer:GetWidth())
-        or SidebarGeometry.width
-        or 285
-    local rightWidth = SidebarGeometry.inspectorWidth or SidebarGeometry.width or 315
-    return math.floor(((leftWidth or 0) - (rightWidth or 0)) * 0.5)
-end
-
 function CanvasToolbar.UpdateGeometry()
     local current = EnsureHost()
     if not current or not current.host then
@@ -1307,7 +1294,7 @@ function CanvasToolbar.UpdateGeometry()
     local parent = ns.guiEditorWorkspaceLayer or UIParent
     current.host:SetParent(parent)
     current.host:ClearAllPoints()
-    current.host:SetPoint("TOP", parent, "TOP", ResolveCanvasCenterOffset(), -TOOLBAR_TOP_OFFSET)
+    current.host:SetPoint("TOP", parent, "TOP", 0, -TOOLBAR_TOP_OFFSET)
     current.host:SetSize(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
 end
 

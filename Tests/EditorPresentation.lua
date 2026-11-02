@@ -72,6 +72,18 @@ local textInteractionActive = f.Upvalue(ns.GUI.Editor.TextEditorOverlay.UpdateFr
 Load("GUI/GUIMainController.lua")
 local toolbar = ns.GUI.Editor.CanvasToolbar
 local ensure = f.Upvalue(toolbar.UpdateGeometry, "EnsureHost")
+local toolbarHost,toolbarParent
+local function CheckToolbar()
+    local current=ensure()
+    toolbarHost=toolbarHost or current.host
+    toolbarParent=toolbarParent or ns.guiEditorWorkspaceLayer
+    assert(current.host==toolbarHost and ns.guiEditorWorkspaceLayer==toolbarParent)
+    assert(current.host:IsShown())
+    Equal(current.host:GetParent(),toolbarParent)
+    Equal(current.host.points.TOP,{relative=toolbarParent,relativePoint="TOP",x=0,y=-12})
+    Equal({current.host:GetWidth(),current.host:GetHeight()},{856,50})
+    return current
+end
 local function CheckArrange()
     assert(state.IsArrange())
     assert(not detail.frame:IsShown())
@@ -80,9 +92,7 @@ local function CheckArrange()
     assert(not ns.GUI.Editor.CanvasHoverOverlay.IsEditorActive() and not textInteractionActive())
     local inspector = ns.GUI.Editor._persistentInspector
     assert(not inspector or not inspector.frame:IsShown())
-    local current = ensure()
-    assert(current.host:IsShown())
-    Equal(current.host.points.TOP.x, 0)
+    local current = CheckToolbar()
     Equal(current.widgets.presentationButton.text:GetText(), "Customize")
 end
 local function CheckCustomize()
@@ -91,7 +101,7 @@ local function CheckCustomize()
     assert(controller.GetActiveInspectorHost().frame:IsShown())
     assert(ns.GUI.Editor.CanvasHoverOverlay.IsEditorActive() and textInteractionActive())
     assert(projectedState == state.Get())
-    Equal(ensure().widgets.presentationButton.text:GetText(), "Arrange")
+    Equal(CheckToolbar().widgets.presentationButton.text:GetText(), "Arrange")
 end
 ns:OpenConfig(); Drain(); CheckArrange()
 assert(state.GetPrimaryUnit() == "player" and not propertyBuilds)
@@ -105,6 +115,27 @@ Select({ kind = "bar", unit = "target", objectKey = "HealthBar" })
 local selectedScope = state.GetPropertyScope()
 assert(selectedScope and selectedScope.sectionKey == "health")
 local selectedUnits = state.Get().selectedUnits
+-- Tree rendering is a fixture boundary; exercise the real SetView and Back button
+-- with a selected-node result, without changing selection or layout data.
+do
+    local previousTree=ns.CompositionTreeView
+    ns.CompositionTreeView={GetSelectedNode=function()return {label="Health Bar"}end}
+    for _=1,20 do
+        inspector._focalPointSetCustomizeView("properties")
+        assert(inspector._focalPointCustomizeView=="properties")
+        assert(not inspector._focalPointCompositionHost.frame:IsShown())
+        assert(inspector._focalPointPropertyScroll.parent.frame:IsShown())
+        CheckCustomize()
+        toolbar.UpdateGeometry();CheckCustomize()
+        inspector._focalPointComponentsButton:Fire("OnClick")
+        assert(inspector._focalPointCustomizeView=="components")
+        assert(inspector._focalPointCompositionHost.frame:IsShown())
+        assert(not inspector._focalPointPropertyScroll.parent.frame:IsShown())
+        CheckCustomize()
+        toolbar.UpdateGeometry();CheckCustomize()
+    end
+    ns.CompositionTreeView=previousTree
+end
 for _ = 1, 20 do
     controls.presentationButton:Fire("OnClick"); Drain(); CheckArrange()
     assert(state.GetPropertyScope() == selectedScope and state.Get().selectedUnits == selectedUnits)
