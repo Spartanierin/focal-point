@@ -15,7 +15,7 @@ Specialization automation and the optional Account Default select which layout
 becomes active; they do not create a second layout type or mass-mutate
 characters.
 
-## Midnight beta (3.0.0-beta.1)
+## Midnight beta (3.0.0-beta.2)
 
 This beta focuses on the redesigned editor. Native testing covers Midnight/Retail
 only. Forever has not been natively validated for this beta, even though its
@@ -36,8 +36,8 @@ guarantee, and a downgrade to 2.x is not guaranteed. Keep the original backup.
 Known limitations:
 
 - There is no regular global Demo-mode entry point in the new editor.
-- Native dropdown widths can vary after Inspector reopen; localization and
-  property-group presentation are not yet fully uniform.
+- Native dropdown widths can vary after Inspector reopen; some localization and
+  non-bar property-group differences remain.
 - Shadow-color disabled feedback may require an Inspector rebuild. Demo/live
   text-format consistency still needs broader native validation.
 

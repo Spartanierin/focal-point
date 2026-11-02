@@ -10,6 +10,19 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.0-beta.2
+
+### Fixed
+
+* Kept the Canvas Toolbar in the same position when switching between Arrange and Customize.
+
+### Improved
+
+* Enlarged the Inspector window's title drag area while preserving the Close button and header navigation.
+* Clarified component-row tooltips: the full object name remains visible, with a localized hint that clicking opens its properties.
+* Made returning from Properties to Components clearer with a readable Back button and the selected component name aligned on the right.
+* Unified the existing Bar Inspector groups across Appearance, Size & Position, and Behavior using the Health Bar's framed presentation. Existing component-specific options, disabled states, mutations, and legacy Inspector paths remain unchanged; no new background, anchor, or growth features were added.
+
 ## 3.0.0-beta.1
 
 ### Changed
@@ -29,7 +42,7 @@ This changelog uses the following categories:
 ### Improved
 
 * Native Midnight testing, including an upgrade using a real 2.x SavedVariables backup, retained existing layouts and settings in the tested configuration. This does not guarantee every migration or a downgrade to 2.x.
-* Please focus beta feedback on the new navigation and editing workflow, with concrete reproduction steps, expected/actual results, client version, and combat state. See the [README beta notes](README.md#midnight-beta-300-beta1) for client scope, backup guidance, and known limitations.
+* Please focus beta feedback on the new navigation and editing workflow, with concrete reproduction steps, expected/actual results, client version, and combat state. See the [README beta notes](README.md#midnight-beta-300-beta2) for client scope, backup guidance, and known limitations.
 
 ## 2.2.9
 

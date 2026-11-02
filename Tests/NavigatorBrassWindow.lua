@@ -75,6 +75,9 @@ if arg[1] then dofile(arg[1]) end
 local applyNamed = NineSliceUtil.ApplyLayoutByName
 NineSliceUtil.ApplyLayoutByName = function(host, name) host.testLayoutName = name; return applyNamed(host, name) end
 
+-- FontString font access, matching the existing Parchment native boundary.
+function native:GetFont() return table.unpack(self.font or {STANDARD_TEXT_FONT,12,""}) end
+function native:SetFont(...) self.font={...}; return true end
 local oldCreate = ace.Create
 -- Current Customize uses real AceGUI action Buttons; reuse Parchment's native boundary.
 function native:GetFontString()

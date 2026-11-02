@@ -158,7 +158,36 @@ Test("rebuild, object/unit/layout changes and reopen reject old tab callbacks an
     local old=p.Tabs().geometry.events.OnClick
     p.controller.RefreshActiveProperties();p.Drain();old();Check("behavior")
     local groups={};for _,w in ipairs(Body().children)do if w.type=="InlineGroup"then groups[#groups+1]=w end end
-    p.Select("PowerBar");for _,w in ipairs(groups)do assert(not w.frame:IsShown())end
+    p.Select("PowerBar")
+    local power
+    p.Walk(window._focalPointPropertyScroll,function(w)
+        if w:GetUserData("focalPointSectionKey")=="power" and w._focalPointRequestRebuild then
+            assert(not power,"duplicate Power body");power=w
+        end
+    end)
+    assert(power,"Power body was not built")
+    local current,titles={},{}
+    p.Walk(power,function(w)
+        current[w]=true
+        local field=w:GetUserData("focalPointAnchorKey")
+        assert(not (field and field:match("^aura_")),"Aura binding survived in Power")
+    end)
+    for _,w in ipairs(power.children)do
+        if w.type=="InlineGroup"then titles[#titles+1]=w.titletext:GetText()end
+    end
+    assert(table.concat(titles,",")=="Behavior,Appearance,Background,Size")
+    p.CheckAppearanceFrames(power,"Appearance,Background",{Appearance="Texture,Color,Class Color",
+        Background="Show Background,Background Color,Border Width,Border Color"})
+    -- Release hides widgets, but the pool may immediately acquire them for Power.
+    for _,w in ipairs(groups)do
+        if current[w]then
+            assert(w.parent==power and w:GetUserData("normalAbsorbPropertyContent"))
+            assert(w.frame:IsShown()==(w:GetUserData("normalAbsorbPropertyGroup")==p.state.Get().inspectorPropertyGroup))
+        else
+            assert(not w.frame:IsShown(),"released Aura frame remained visible outside the current body")
+            assert(not w:GetUserData("normalAbsorbPropertyGroup"),"released frame retained its tab binding")
+        end
+    end
     Select("Buffs");Check("behavior")
     local ok,id=p.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
     assert(p.ns:ActivateLayout(id));p.controller.BuildInspector(nil,{GetEditorState=p.state.Get});p.Drain()
