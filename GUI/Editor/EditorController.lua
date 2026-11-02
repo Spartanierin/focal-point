@@ -21,6 +21,13 @@ local function ResolveCustomizeShell()
 end
 
 local function ApplyCustomizeTitle(owner)
+    -- Reuse the native drag owner, entirely above the content/breadcrumb reserve.
+    local drag = owner and owner.title
+    if drag then
+        drag:ClearAllPoints()
+        drag:SetPoint("TOPLEFT", owner.frame, "TOPLEFT", 12, -8)
+        drag:SetPoint("BOTTOMRIGHT", owner.frame, "TOPRIGHT", -48, -56)
+    end
     local title = owner and owner.titletext
     if not title then return end
     if GameFontHighlightLarge and title.SetFontObject then title:SetFontObject(GameFontHighlightLarge) end
@@ -374,6 +381,12 @@ local function EnsureInspector()
     local contentPoints = {}
     for i = 1, content:GetNumPoints() do contentPoints[i] = {content:GetPoint(i)} end
     local contentSize = {content:GetWidth(), content:GetHeight(), content.width, content.height}
+    local drag = inspector.title
+    local dragPoints = {}
+    local dragSize = drag and {drag:GetWidth(), drag:GetHeight()}
+    if drag then
+        for i = 1, drag:GetNumPoints() do dragPoints[i] = {drag:GetPoint(i)} end
+    end
     local title = inspector.titletext
     local titleFont = title and {title:GetFont()}
     local titleFontObject = title and title.GetFontObject and title:GetFontObject()
@@ -451,6 +464,11 @@ local function EnsureInspector()
         for _, point in ipairs(contentPoints) do content:SetPoint(unpack(point)) end
         content:SetWidth(contentSize[1]); content:SetHeight(contentSize[2])
         content.width, content.height = contentSize[3], contentSize[4]
+        if drag then
+            drag:ClearAllPoints()
+            drag:SetSize(unpack(dragSize))
+            for _, point in ipairs(dragPoints) do drag:SetPoint(unpack(point)) end
+        end
         if title then
             if titleFontObject then title:SetFontObject(titleFontObject) end
             title:SetFont(unpack(titleFont))

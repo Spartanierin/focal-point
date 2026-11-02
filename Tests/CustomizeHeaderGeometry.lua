@@ -5,6 +5,22 @@ local stop=assert(source:find("\nlocal count = 0",1,true))
 local h,ns,state,controller,selection,Setup,Build,Drain,Tree,Node=assert(load(source:sub(1,stop)..
     "\nreturn h,ns,state,controller,selection,Setup,Build,Drain,Tree,Node","@HeaderGeometry/Workspace"))()
 local window
+local dragDown,dragUp
+local function CheckAnchor(region,point,relativeFrame,relativePoint,x,y)
+    local matches=0
+    for i=1,region:GetNumPoints()do
+        local actualPoint,actualFrame,actualRelativePoint,actualX,actualY=region:GetPoint(i)
+        if actualPoint==point then
+            matches=matches+1
+            assert(type(actualPoint)=="string" and actualPoint==point)
+            assert(actualFrame==relativeFrame,"anchor relative frame changed")
+            assert(type(actualRelativePoint)=="string" and actualRelativePoint==relativePoint)
+            assert(type(actualX)=="number" and actualX==x,"anchor X changed")
+            assert(type(actualY)=="number" and actualY==y,"anchor Y changed")
+        end
+    end
+    assert(matches==1,"expected exactly one "..point.." anchor")
+end
 local function Check()
     local targetWidth=window._focalPointCustomizeView=="properties" and 600 or 392
     assert(window.frame:GetWidth()==math.min(targetWidth,UIParent:GetWidth()-32))
@@ -22,6 +38,15 @@ local function Check()
     assert(body.frame.lastSetAllPoints[1]==owner,"Fill must remain within the canonical content host")
     local _,size=window.titletext:GetFont()
     assert(64 > -window.titletext.points.TOPLEFT.y+size,"title overlaps the reserved content edge")
+    CheckAnchor(window.title,"TOPLEFT",window.frame,"TOPLEFT",12,-8)
+    CheckAnchor(window.title,"BOTTOMRIGHT",window.frame,"TOPRIGHT",-48,-56)
+    assert(window.title:GetNumPoints()==2)
+    CheckAnchor(window.titletext,"TOPLEFT",window.frame,"TOPLEFT",36,-18)
+    CheckAnchor(window.titletext,"TOPRIGHT",window.frame,"TOPRIGHT",-36,-18)
+    -- Right 48px are excluded; the native Close button/its anchors stay untouched.
+    assert(window.closebutton.points.TOPRIGHT.x==2 and window.closebutton.points.TOPRIGHT.y==1)
+    assert(window.title:GetScript("OnMouseDown")==dragDown and window.title:GetScript("OnMouseUp")==dragUp)
+    assert(-window.title.points.BOTTOMRIGHT.y < -inset.points.TOPLEFT.y,"drag overlaps breadcrumb/content")
     local height=window.frame:GetHeight()-64-16
     local header,tree,properties=table.unpack(body.children)
     assert(owner.height==height and owner:GetHeight()==height)
@@ -46,6 +71,8 @@ local count=0
 local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
 Test("actual Window Fill keeps Components and Properties below the same header",function()
     Setup();window=Build()
+    dragDown=window.title:GetScript("OnMouseDown");dragUp=window.title:GetScript("OnMouseUp")
+    assert(type(dragDown)=="function" and type(dragUp)=="function")
     window.frame:ClearAllPoints();window.frame:SetPoint("TOPLEFT",UIParent,"TOPLEFT",75,-80)
     Check();Pick();Back()
     assert(window.frame.points.TOPLEFT.x==75 and window.frame.points.TOPLEFT.y==-80)
@@ -73,12 +100,16 @@ Test("actual release restores Window content anchors and dimensions before reuse
     ace.Create=function(self,kind,...)
         local owner=create(self,kind,...)
         if kind=="Window"then
-            captured={points={},width=owner.content:GetWidth(),height=owner.content:GetHeight()}
+            captured={points={},width=owner.content:GetWidth(),height=owner.content:GetHeight(),
+                dragPoints={},dragWidth=owner.title:GetWidth(),dragHeight=owner.title:GetHeight(),
+                dragDown=owner.title:GetScript("OnMouseDown"),dragUp=owner.title:GetScript("OnMouseUp")}
             for i=1,owner.content:GetNumPoints()do captured.points[i]={owner.content:GetPoint(i)}end
+            for i=1,owner.title:GetNumPoints()do captured.dragPoints[i]={owner.title:GetPoint(i)}end
         end
         return owner
     end
-    window=Build();ace.Create=create;assert(captured);Check()
+    window=Build();ace.Create=create;assert(captured)
+    dragDown,dragUp=captured.dragDown,captured.dragUp;Check()
     ace:Release(window)
     assert(window.content:GetNumPoints()==#captured.points)
     local points={}
@@ -91,6 +122,15 @@ Test("actual release restores Window content anchors and dimensions before reuse
     end
     assert(window.content:GetWidth()==captured.width and window.content:GetHeight()==captured.height)
     assert(window.content.width==nil and window.content.height==nil,"AceGUI must clear released layout caches")
+    assert(window.title:GetNumPoints()==#captured.dragPoints)
+    local restored={}
+    for i=1,window.title:GetNumPoints()do local p={window.title:GetPoint(i)};restored[p[1]]=p end
+    for _,p in ipairs(captured.dragPoints)do
+        local actual=assert(restored[p[1]])
+        for j=1,5 do assert(actual[j]==p[j],"native drag anchor leaked past Release")end
+    end
+    assert(window.title:GetWidth()==captured.dragWidth and window.title:GetHeight()==captured.dragHeight)
+    assert(window.title:GetScript("OnMouseDown")==captured.dragDown and window.title:GetScript("OnMouseUp")==captured.dragUp)
 end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Customize Header Geometry: "..count.." groups PASS")
