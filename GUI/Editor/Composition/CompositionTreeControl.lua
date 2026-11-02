@@ -217,7 +217,9 @@ local function BindRowScripts(control, row)
             GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
             GameTooltip:ClearLines()
             GameTooltip:AddLine(row.item.label, 1, 1, 1, true)
-            if frame == row.toggle then
+            if frame == row.frame and row.item.clickable then
+                GameTooltip:AddLine((ns.L or {}).COMPONENT_EDIT_TOOLTIP or "", 1, 1, 1, true)
+            elseif frame == row.toggle then
                 local labels = ns.L or {}
                 GameTooltip:AddLine(row.item.node.enabled == false and (labels.OPTION_OFF or "Off") or (labels.OPTION_ON or "On"), 1, 1, 1)
             elseif frame == row.add or frame == row.remove then

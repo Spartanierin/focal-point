@@ -301,6 +301,86 @@ Test("native MinimalScrollBar art preserves the existing Slider, drag, wheel and
     window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build()
     assert(not Tree().control._thumbDrag and Tree().control.thumbMiddle.atlas=="minimal-scrollbar-small-thumb-middle")
 end)
+Test("localized edit tooltips preserve single-line names, IDs and independent action zones through release/reuse",function()
+    local savedTooltip=ns.L.COMPONENT_EDIT_TOOLTIP
+    local originalLocale=GetLocale
+    for _,locale in ipairs({"enUS","deDE"})do
+        GetLocale=function()return locale end
+        local localized={L={}};assert(loadfile("Locales/"..locale..".lua"))("FocalPoint",localized)
+        ns.L.COMPONENT_EDIT_TOOLTIP=assert(localized.L.COMPONENT_EDIT_TOOLTIP)
+        db,unit=Setup();unit.healthBarPresent=true;window=Build()
+        local control=Tree().control
+        local before=h.Copy(db)
+        for i=1,control.count do
+            local row=control.rows[i];local item=row.item
+            assert(row.editHint==nil and row.label:GetText()==item.label and not row.hovered)
+            assert(row.label.points.LEFT.x==3 and row.label.points.LEFT.y==0 and row.label.points.RIGHT.y==0)
+            row.frame:Run("OnEnter")
+            assert(tooltip.lines[1]==item.label and tooltip.lines[2]==ns.L.COMPONENT_EDIT_TOOLTIP and #tooltip.lines==2)
+            row.frame:Run("OnLeave");assert(not tooltip.shown)
+            for _,action in ipairs({row.add,row.remove,row.toggle,row.disclosure})do
+                if action:GetScript("OnEnter")then
+                    action:Run("OnEnter");assert(tooltip.lines[1]==item.label and tooltip.lines[2]~=ns.L.COMPONENT_EDIT_TOOLTIP)
+                    action:Run("OnLeave");assert(not tooltip.shown)
+                end
+            end
+        end
+        h.Equal(db,before)
+        -- Renderer-only family coverage; real selection/mutations are exercised above.
+        local types={"unit","healthbar","powerbar","textElement","decorationElement","segmentedBar","buffs","debuffs","indicatorElement"}
+        local items={}
+        for i,kind in ipairs(types)do
+            items[i]={node={id="tooltip:"..i,type=kind,enabled=false},depth=i==1 and 0 or 2,
+                label="Very long component name / Sehr langer Komponentenname "..i,
+                clickable=true,toggleable=i>2,removable=i>2,expandable=true,addable=true}
+        end
+        local renderer=ns.GUI.Editor.Composition.TreeControl
+        local selected,added,removed,toggled,expanded
+        local callbacks={onSelect=function(node)selected=node end,onAdd=function(node)added=node end,
+            onRemove=function(node)removed=node end,onToggle=function(node)toggled=node end,
+            onExpand=function(node)expanded=node end}
+        local function Verify(c)
+            for _,width in ipairs({320,360})do
+                c.frame:SetSize(width,100);c:SetRows(items)
+                for i,item in ipairs(items)do
+                    local row=c.rows[i]
+                    assert(row.item.node==item.node and row.item.node.id=="tooltip:"..i)
+                    assert(row.editHint==nil and row.label:GetText()==item.label and not row.hovered)
+                    local _,nameSize=row.label:GetFont()
+                    assert(nameSize==(i==1 and 16 or 13) and row.frame:GetHeight()==(i==1 and 36 or 30))
+                    assert(row.label.points.LEFT.y==0 and row.label.points.RIGHT.y==0)
+                    assert(row.label.points.LEFT.relative==row.icon and row.label.points.LEFT.x==3)
+                    assert(row.label.points.RIGHT.relative==row.add and row.label.points.RIGHT.x==-4)
+                    assert(row.add.points.RIGHT.relative==row.remove and row.remove.points.RIGHT.relative==row.toggle)
+                    row.frame:Run("OnEnter");assert(tooltip.lines[1]==item.label and tooltip.lines[2]==ns.L.COMPONENT_EDIT_TOOLTIP)
+                    row.frame:Run("OnLeave")
+                    row.frame:Run("OnMouseDown","LeftButton");assert(selected==item.node)
+                    selected=nil
+                    row.add:Run("OnMouseDown","LeftButton");assert(added==item.node and selected==nil)
+                    row.disclosure:Run("OnMouseDown","LeftButton");assert(expanded==item.node and selected==nil)
+                    if item.removable then row.remove:Run("OnMouseDown","LeftButton");assert(removed==item.node and selected==nil)end
+                    if item.toggleable then row.toggle:Run("OnClick","LeftButton");assert(toggled==item.node and selected==nil)end
+                end
+            end
+        end
+        local c=renderer.Acquire(window.frame,{scrollvalue=0},callbacks)
+        -- A freshly constructed row has exactly its original name and Plus glyph;
+        -- no additional FontString for a second visible line may be created.
+        local createFontString=h.ui.native.CreateFontString
+        local strings={}
+        h.ui.native.CreateFontString=function(self,...)
+            local text=createFontString(self,...);strings[#strings+1]=text;return text
+        end
+        local fresh=c:AcquireRow(#c.rows+1)
+        h.ui.native.CreateFontString=createFontString
+        assert(#strings==2 and strings[1]==fresh.label and strings[2]==fresh.addGlyph)
+        Verify(c);c:Release()
+        for _,row in ipairs(c.rows)do assert(row.editHint==nil and row.label:GetText()=="" and not row.frame:GetScript("OnMouseDown"))end
+        c=renderer.Acquire(window.frame,{scrollvalue=0},callbacks);Verify(c);c:Release()
+    end
+    GetLocale=originalLocale
+    ns.L.COMPONENT_EDIT_TOOLTIP=savedTooltip
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 GameTooltip=oldTooltip
 print("Composition Tree Presentation: "..count.." groups PASS")
