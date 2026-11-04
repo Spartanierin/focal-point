@@ -10,6 +10,14 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.0
+
+### Changed
+
+* Released the 3.0 editor as stable, retaining the Canvas/Arrange, Components, and Customize/Properties workflows and all beta.1 and beta.2 improvements. No new features or UI changes were added after beta.2.
+* Retail/Midnight has been natively tested. Forever support is intended, but native compatibility testing is still pending; the existing TOC interface declarations are unchanged.
+* Existing known limitations and SavedVariables backup guidance still apply. See the [README release notes](README.md#release-300) before updating.
+
 ## 3.0.0-beta.2
 
 ### Fixed
@@ -42,7 +50,7 @@ This changelog uses the following categories:
 ### Improved
 
 * Native Midnight testing, including an upgrade using a real 2.x SavedVariables backup, retained existing layouts and settings in the tested configuration. This does not guarantee every migration or a downgrade to 2.x.
-* Please focus beta feedback on the new navigation and editing workflow, with concrete reproduction steps, expected/actual results, client version, and combat state. See the [README beta notes](README.md#midnight-beta-300-beta2) for client scope, backup guidance, and known limitations.
+* Please focus beta feedback on the new navigation and editing workflow, with concrete reproduction steps, expected/actual results, client version, and combat state. See the [README release notes](README.md#release-300) for client scope, backup guidance, and known limitations.
 
 ## 2.2.9
 

@@ -15,11 +15,12 @@ Specialization automation and the optional Account Default select which layout
 becomes active; they do not create a second layout type or mass-mutate
 characters.
 
-## Midnight beta (3.0.0-beta.2)
+## Release 3.0.0
 
-This beta focuses on the redesigned editor. Native testing covers Midnight/Retail
-only. Forever has not been natively validated for this beta, even though its
-interface ID remains declared in the TOC; it requires separate validation.
+Version 3.0.0 ships the redesigned editor and the improvements from beta.1 and
+beta.2. Retail/Midnight has been natively tested. Forever support is intended,
+but native compatibility testing is still pending. Its interface ID remains
+declared in the TOC; this declaration does not establish native compatibility.
 
 Before updating, close the game and make an external backup of your Focal Point
 SavedVariables. A native upgrade test using a real 2.x backup retained existing
@@ -69,10 +70,10 @@ show selection outline when the editor exposes them for configuration.
   Absorb, Aura, Portrait, Indicator, Decoration, and Text components;
 - entity-based text templates, object-local text, Texts Manager, and Tag Library;
 - Media Library for fonts and status-bar textures;
-- Unlock editing and component previews (see the beta notes for Demo access);
+- Unlock editing and component previews (see the release notes for Demo access);
 - scale-aware movement, resizing, and snap behavior;
 - layout import/export with reachable text resources;
-- client interface declarations in `FocalPoint.toc` (see the beta validation scope above).
+- client interface declarations in `FocalPoint.toc` (see the client validation scope above).
 
 ## Documentation and contribution
 
