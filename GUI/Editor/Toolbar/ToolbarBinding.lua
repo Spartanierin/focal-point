@@ -761,7 +761,9 @@ local function ApplyTreeToggleMutation(context, node, nextEnabled)
     end
 
     local enabled = nextEnabled and true or false
-    if node.type == "powerbar" then
+    if node.type == "unit" then
+        return InspectorMutations.SetUnitField(context, "enabled", enabled)
+    elseif node.type == "powerbar" then
         if type(InspectorMutations.SetUnitField) ~= "function" then
             return { ok = false, errorCode = "invalid_context" }
         end
@@ -826,12 +828,14 @@ local function ApplyTreeToggleMutation(context, node, nextEnabled)
     return { ok = false, errorCode = "unsupported_target" }
 end
 
-local function RefreshTreeRuntimeAndProperties(context, deps)
+local function RefreshTreeRuntimeAndProperties(context, deps, node)
     local nsRef = ResolveAddon(deps)
     local state = context and context.state or nil
     local unitKey = state and state.selectedUnit or nil
 
-    if nsRef.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "" then
+    if node.type == "unit" and nsRef.RebuildFramesForActiveProfile then
+        nsRef:RebuildFramesForActiveProfile()
+    elseif nsRef.RefreshUnitFrame and type(unitKey) == "string" and unitKey ~= "" then
         nsRef:RefreshUnitFrame(unitKey == "boss" and "boss" or unitKey)
     end
 
@@ -859,6 +863,9 @@ local function BuildCompositionTree(context, deps)
     local resolver = nsRef.ActiveLayoutResolver
     local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot() or nil
     local playerConfig = root and root.units and root.units.player or nil
+    local layoutId = root and root.layoutId
+    local treeUnit = context.state and context.state.selectedUnit
+    local unitConfig = root and root.units and root.units[treeUnit]
 
     CompositionTreeView.Build(treeHost, context.state, {
         minHeight = context.treeHeight or 112,
@@ -871,6 +878,20 @@ local function BuildCompositionTree(context, deps)
         onAdd = context.onAdd,
         onRemove = context.onRemove,
         onToggle = function(node, nextEnabled)
+            local function IsCurrentUnitToggle(allowCopy)
+                if IsCombatLocked() or context.isCurrent and not context.isCurrent() then return false end
+                if context.state.selectedUnit ~= node.unit or node.unit ~= treeUnit then return false end
+                local current = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
+                local config = current and current.units and current.units[node.unit]
+                if not config or config.present == false then return false end
+                if current == root and config == unitConfig then return true end
+                local from = current and current.record and current.record.createdFrom
+                return allowCopy and type(layoutId) == "string" and layoutId:match("^builtin:")
+                    and from and from.id == layoutId or false
+            end
+            if node.type == "unit" and not IsCurrentUnitToggle(false) then
+                return { ok = false, errorCode = "stale-context" }
+            end
             if context.isCurrent and not context.isCurrent() then
                 return { ok = false, errorCode = "stale-context" }
             end
@@ -888,6 +909,10 @@ local function BuildCompositionTree(context, deps)
 
             local result = nil
             local ready, reason = workflow.RequestEditableLayoutForMutation(function()
+                if node.type == "unit" and not IsCurrentUnitToggle(true) then
+                    result = { ok = false, errorCode = "stale-context" }
+                    return
+                end
                 if context.isCurrent and not context.isCurrent() then
                     result = { ok = false, errorCode = "stale-context" }
                     return
@@ -901,7 +926,7 @@ local function BuildCompositionTree(context, deps)
 
                 result = ApplyTreeToggleMutation(mutationContext, node, nextEnabled)
                 if result and result.ok and result.changed then
-                    RefreshTreeRuntimeAndProperties(context, deps)
+                    RefreshTreeRuntimeAndProperties(context, deps, node)
                     BuildCompositionTree(context, deps)
                 end
             end)

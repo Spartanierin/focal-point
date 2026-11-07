@@ -553,7 +553,8 @@ function Adapter.BuildUnitTree(unit)
         GetUnitLabel(normalizedUnit),
         0,
         true,
-        { kind = "unit", sectionKey = SECTION.frame }
+        { kind = "unit", sectionKey = SECTION.frame },
+        IsEnabled(unitConfig)
     )
 
     local anchorNodes = {

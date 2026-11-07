@@ -1405,11 +1405,7 @@ function InspectorController.Build(container, state, options)
     end
 
     local function IsRemovableUnitRoot(unitKey)
-        return unitKey == "pet"
-            or unitKey == "targettarget"
-            or unitKey == "focus"
-            or unitKey == "focustarget"
-            or unitKey == "boss"
+        return InspectorMutations.IsRemovableUnitRoot(unitKey)
     end
 
     local function ResolveRemoveUnitLabel(unitKey)

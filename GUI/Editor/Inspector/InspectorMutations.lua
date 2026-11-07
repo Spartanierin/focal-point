@@ -441,8 +441,14 @@ function InspectorMutations.SetUnitPresence(context, present)
     return SetField(GetUnitConfig(context), "present", present == true, "unit_config_not_found")
 end
 
+function InspectorMutations.IsRemovableUnitRoot(unitKey)
+    return unitKey == "pet" or unitKey == "targettarget" or unitKey == "focus"
+        or unitKey == "focustarget" or unitKey == "boss"
+end
+
 function InspectorMutations.CanRemoveObject(ref)
     if type(ref) ~= "table" then return false end
+    if ref.kind == "unit" then return InspectorMutations.IsRemovableUnitRoot(ref.unit) end
     if ref.kind == "text" then return type(ref.textKey or ref.objectKey) == "string" end
     if ref.kind == "decoration" then return type(ref.decorationId or ref.objectKey) == "string" end
     if ref.kind == "segmentedBar" then
@@ -459,6 +465,7 @@ end
 -- Thin dispatch to the existing mutations, including segmented Delete's anchor/combat guards.
 function InspectorMutations.RemoveObject(context, ref, segmentedContext)
     if not InspectorMutations.CanRemoveObject(ref) then return Result(false, {errorCode="unsupported_component"}) end
+    if ref.kind == "unit" then return InspectorMutations.SetUnitPresence(context, false) end
     if ref.kind == "text" then return InspectorMutations.DeleteTextInstance(context, ref.textKey or ref.objectKey) end
     if ref.kind == "decoration" then return InspectorMutations.DeleteDecoration(context, ref.decorationId or ref.objectKey) end
     if ref.kind == "segmentedBar" then return FocalPoint.LayoutMutations.SegmentedBars.Delete(segmentedContext, ref.objectKey) end

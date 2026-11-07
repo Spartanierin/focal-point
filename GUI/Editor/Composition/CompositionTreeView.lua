@@ -78,6 +78,7 @@ local function IsClickableNode(node)
 end
 
 local TOGGLE_FIELD_BY_NODE_TYPE = {
+    unit = { target = "unit", field = "enabled" },
     powerbar = { target = "unit", field = "showPowerBar" },
     classPowerBar = { target = "unit", field = "showClassPowerBar" },
     alternativePowerBar = { target = "unit", field = "showAlternativePowerBar" },
@@ -460,7 +461,7 @@ local function CollectVisibleRows(node, depth, state, options)
         depth = depth,
         label = FormatNodeLabel(node),
         clickable = IsClickableNode(node),
-        toggleable = node.type ~= "unit" and node.type ~= "healthbar"
+        toggleable = node.type ~= "healthbar"
             and IsToggleableNode(node) and type(options.onToggle) == "function",
         expandable = HasChildren(node),
         expanded = IsExpanded(node, options.expanded),

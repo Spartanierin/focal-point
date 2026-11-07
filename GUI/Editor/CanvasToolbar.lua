@@ -1325,7 +1325,8 @@ local function CaptureComponentRequest(objectRef, isCurrent, displayName, allowA
             and current and current.record and current.record.createdFrom and current.record.createdFrom.id == layoutId
         if not copied and (current ~= root or unit ~= config or Identity(unit) ~= identity) then return false end
         local presence = ns.GUI.Editor.Composition.Presence
-        return unit ~= nil and (ref.kind == "unit" or presence and presence.IsPresent(unit, ref) == true)
+        return unit ~= nil and (ref.kind == "unit" and unit.present ~= false
+            or ref.kind ~= "unit" and presence and presence.IsPresent(unit, ref) == true)
     end
     if not Current() then return end
     return {unitKey=ref.unit, parentRef=ref, isCurrent=Current,
@@ -1385,10 +1386,23 @@ local function OpenComponentRemove(request)
                         local same=selected and selected.kind==ref.kind and selected.unit==ref.unit
                             and (selected.objectKey or selected.textKey or selected.decorationId)==(ref.objectKey or ref.textKey or ref.decorationId)
                         local presence=ns.GUI.Editor.Composition.Presence
-                        if same or selected and presence and not presence.IsPresent(ns.UnitFrameUtils.GetUnitDB(ref.unit),selected) then
+                        if ref.kind == "unit" then
+                            if ns.ResyncActiveLayout then ns:ResyncActiveLayout("Components.RemoveUnit")
+                            elseif ns.RebuildFramesForActiveProfile then ns:RebuildFramesForActiveProfile() end
+                            local current = selection.GetSelectedObject()
+                            local currentConfig = current and ns.UnitFrameUtils.GetUnitDB(current.unit)
+                            local fallback = currentConfig and currentConfig.present ~= false and current.unit or nil
+                            if not fallback then
+                                for _, key in ipairs(ns.Constants.UnitOrder) do
+                                    local config = ns.UnitFrameUtils.GetUnitDB(key)
+                                    if config and config.present ~= false then fallback = key; break end
+                                end
+                            end
+                            if fallback then selection.SelectUnitRoot(fallback) end
+                        elseif same or selected and presence and not presence.IsPresent(ns.UnitFrameUtils.GetUnitDB(ref.unit),selected) then
                             selection.SelectUnitRoot(ref.unit)
                         end
-                        if ns.RefreshUnitFrame then ns:RefreshUnitFrame(ref.unit) end
+                        if ref.kind ~= "unit" and ns.RefreshUnitFrame then ns:RefreshUnitFrame(ref.unit) end
                         local controller=ns.GUI.Editor.Controller
                         controller.RefreshCompositionTree()
                         controller.RefreshActiveProperties()

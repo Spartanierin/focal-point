@@ -776,10 +776,16 @@ Test("Unit plus retains the global Unit catalog under a selected Bar and rejects
     CardActions("unit").Add();picker=dialogs[#dialogs]
     assert(picker.body.children[1].label:GetText()=="Choose what to add to target.");picker:Close()
 end)
-Test("Unit and Health keep passive grey Trash/Show cells while ordinary native checkboxes toggle once",function()
+Test("Player and Health keep protected Trash cells; Health Show remains passive and ordinary checkboxes toggle once",function()
     Start()
     local before=h.Copy(db);local selected=h.Copy(selection.GetSelectedObject());local pending=#confirms
-    for _,kind in ipairs({"unit","healthbar"})do
+    local root=Row("unit")
+    assert(root.item.addable and not root.item.removable and root.item.toggleable)
+    assert(root.add:IsShown() and root.remove:IsShown() and root.toggle:IsShown())
+    assert(not root.remove:IsEnabled() and root.toggle:IsEnabled())
+    assert(not root.remove:GetScript("OnMouseDown") and not root.remove:GetScript("OnEnter"))
+    assert(root.remove.points.RIGHT.relative==root.toggle and root.add.points.RIGHT.relative==root.remove)
+    for _,kind in ipairs({"healthbar"})do
         local row=Row(kind)
         assert(row.add:IsShown() and row.remove:IsShown() and row.toggle:IsShown())
         assert(row.item.addable and not row.item.removable and not row.item.toggleable)
@@ -1226,6 +1232,158 @@ Test("Resource Tree Delete retains anchor-in-use and Combat/stale/layout/Presenc
             if reason=="anchor"then assert(pending.dialog.statusRole=="error");pending.options.cancel.onClick(pending.dialog)end
         end
     end
+end)
+local function UnitStart(key, enabled)
+    Start()
+    local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units
+    if key~="player" then units[key]=h.Copy(unit) end
+    local record=units[key];record.present=true;record.enabled=enabled
+    record.decorations={{id="retained-decoration",enabled=false,texture="Interface\\Buttons\\WHITE8X8"}}
+    assert(selection.SelectUnitRoot(key));controller.RefreshCompositionTree();Drain()
+    return units,record
+end
+Test("Unit checkboxes project canonical enabled independently of presence and retain protected Player/Target",function()
+    local rebuild=ns.RebuildFramesForActiveProfile
+    local calls=0;ns.RebuildFramesForActiveProfile=function()calls=calls+1 end
+    for _,key in ipairs({"player","target","pet","targettarget","focus","focustarget","boss"})do
+        for _,enabled in ipairs({false,true})do
+            local units,record=UnitStart(key,enabled)
+            local before=h.Copy(record);local row=Row("unit")
+            assert(row.item.toggleable and row.toggle:IsEnabled() and row.toggle:GetChecked()==enabled)
+            assert(row.item.node.enabled==enabled and row.item.removable==(key~="player" and key~="target"))
+            if key=="player" or key=="target" then
+                assert(not row.remove:IsEnabled() and not row.remove:GetScript("OnMouseDown"))
+            end
+            local n=calls;row.toggle:Run("OnClick","LeftButton");Drain()
+            before.enabled=not enabled;h.Equal(record,before)
+            assert(calls==n+1 and units[key]==record and record.present)
+            assert(selection.GetSelectedObject().unit==key and Row("unit").toggle:GetChecked()==not enabled)
+            Row("unit").toggle:Run("OnClick","LeftButton");Drain()
+            before.enabled=enabled;h.Equal(record,before)
+        end
+    end
+    ns.RebuildFramesForActiveProfile=rebuild
+end)
+Test("five Unit Remove/Cancel/Restore paths retain complete records and IDs, resync and choose a present root",function()
+    local resync=ns.ResyncActiveLayout
+    local calls=0;ns.ResyncActiveLayout=function(_,reason)assert(reason=="Components.RemoveUnit" or reason=="CanvasToolbar.AddUnitFrame");calls=calls+1 end
+    for index,key in ipairs(restoreUnits)do
+        local units,record=UnitStart(key,index%2==0)
+        local before=h.Copy(record);local others=h.Copy(units.player)
+        local entries=CardActions("unit");assert(entries.Remove)
+        entries.Remove();local pending=confirms[#confirms]
+        assert(pending.options.message:find(Row("unit").item.label,1,true))
+        pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(record,before)
+        pending.options.primary.onClick(pending.dialog);h.Equal(record,before)
+        CardActions("unit").Remove();pending=confirms[#confirms];local n=calls
+        pending.options.primary.onClick(pending.dialog);Drain()
+        local absent=h.Copy(before);absent.present=false;h.Equal(record,absent)
+        assert(calls==n+1 and units[key]==record and ns.CompositionTreeAdapter.BuildUnitTree(key)==nil)
+        local selected=selection.GetSelectedObject()
+        assert(selected.kind=="unit" and selected.unit~=key and units[selected.unit].present~=false)
+        assert(window._focalPointCustomizeView=="components" and Row("unit").item.node.unit==selected.unit)
+        h.Equal(units.player,others)
+        -- Existing codec/root boundary covers persisted absence and retained children.
+        local codec=ns.LayoutTransferCodec
+        local saved=assert(codec.Decode(assert(codec.Encode({global=db.global,char=db.char}))))
+        h.Equal(saved.global.UserLayouts["layout:existing"].payload.Units[key],absent)
+        local picker=OpenUnits();assert(FindButton(picker.body,key=="boss" and "Boss Frames" or key)):Fire("OnClick");Drain()
+        assert(units[key]==record and selection.GetSelectedObject().unit==key)
+        h.Equal(record,before);h.Equal(units.player,others)
+        local roots=0
+        for _,row in ipairs(Tree().options.visibleRows)do if row.node.type=="unit" then roots=roots+1 end end
+        assert(roots==1)
+        local opened=#dialogs;ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker()
+        if #dialogs>opened then assert(not FindButton(dialogs[#dialogs].body,key=="boss" and "Boss Frames" or key));dialogs[#dialogs]:Close() end
+    end
+    ns.ResyncActiveLayout=resync
+end)
+Test("Unit Remove rejects Combat, layout/unit replacement, absent records, stale rows, Reopen and Release",function()
+    local original=ns.InspectorMutations.SetUnitPresence
+    local calls=0;ns.InspectorMutations.SetUnitPresence=function(...)calls=calls+1;return original(...)end
+    local combat=InCombatLockdown
+    for _,reason in ipairs({"combat","layout","unit","record","absent","row","reopen","release"})do
+        local units,record=UnitStart("pet",false)
+        CardActions("unit").Remove();local pending=confirms[#confirms]
+        if reason=="combat"then InCombatLockdown=function()return true end
+        elseif reason=="layout"then assert(ns:ActivateLayout("builtin:default"));Drain()
+        elseif reason=="unit"then assert(selection.SelectUnitRoot("player"));Drain()
+        elseif reason=="record"then units.pet=h.Copy(record)
+        elseif reason=="absent"then record.present=false
+        elseif reason=="row"then controller.RefreshCompositionTree();Drain()
+        elseif reason=="reopen"then ns.CloseConfig();Drain();window=Build()
+        else h.ui.ace:Release(pending.dialog.window) end
+        local before=h.Copy(db);local n=calls
+        pending.options.primary.onClick(pending.dialog);Drain()
+        assert(calls==n);h.Equal(db,before);InCombatLockdown=combat
+    end
+    ns.InspectorMutations.SetUnitPresence=original
+end)
+Test("removed and disabled Units survive serialized SavedVariables/root reload and restore without child changes",function()
+    local _,record=UnitStart("pet",false)
+    local expected=h.Copy(record)
+    CardActions("unit").Remove();local pending=confirms[#confirms]
+    pending.options.primary.onClick(pending.dialog);Drain()
+    expected.present=false
+    local codec=ns.LayoutTransferCodec
+    local saved=assert(codec.Decode(assert(codec.Encode({global=db.global,char=db.char,profile=db.profile}))))
+    local reloaded={global=saved.global,char=saved.char,profile=saved.profile,sv={global=saved.global}}
+    local resolver=ns.ActiveLayoutResolver;local previous=resolver.GetActiveRuntimeRoot()
+    ns.db=reloaded;resolver.InvalidateActiveRuntimeRoot()
+    local current=assert(resolver.EnsureActiveRuntimeRoot(reloaded))
+    assert(current~=previous);h.Equal(current.units.pet,expected)
+    assert(ns.CompositionTreeAdapter.BuildUnitTree("pet")==nil)
+    window=Build();local picker=OpenUnits();assert(FindButton(picker.body,"pet")):Fire("OnClick");Drain()
+    expected.present=true;h.Equal(current.units.pet,expected)
+    assert(selection.GetSelectedObject().unit=="pet" and not Row("unit").toggle:GetChecked())
+    Row("unit").toggle:Run("OnClick","LeftButton");Drain()
+    expected.enabled=true;h.Equal(current.units.pet,expected)
+end)
+Test("Unit toggle rejects Combat, replaced records/layouts and retained callbacks after Reopen",function()
+    local combat=InCombatLockdown
+    for _,reason in ipairs({"combat","layout","record","absent","reopen"})do
+        local units,record=UnitStart("pet",true)
+        local context=Tree();local node=Row("unit").item.node
+        if reason=="combat"then InCombatLockdown=function()return true end
+        elseif reason=="layout"then assert(ns:ActivateLayout("builtin:default"));Drain()
+        elseif reason=="record"then units.pet=h.Copy(record)
+        elseif reason=="absent"then record.present=false
+        else ns.CloseConfig();Drain();window=Build() end
+        local before=h.Copy(db);local result=context.options.onToggle(node,false)
+        assert(result and not result.ok);h.Equal(db,before);InCombatLockdown=combat
+    end
+end)
+Test("Unit actions retain real editable-copy Cancel/Confirm and guard Combat during deferred confirmation",function()
+    local getDefaults=ns.GetDefaultDB
+    ns.GetDefaultDB=function(self)
+        local d=h.Copy(getDefaults(self));d.profile.Units.pet.present=true;d.profile.Units.pet.enabled=true;return d
+    end
+    local combat=InCombatLockdown
+    for _,action in ipairs({"remove","toggle"})do for _,outcome in ipairs({"cancel","combat","confirm"})do
+        Start();assert(ns:ActivateLayout("builtin:default"));assert(selection.SelectUnitRoot("pet"));Drain();window=Build()
+        local source=h.Copy(ns.ActiveLayoutResolver.GetActiveRuntimeRoot().payload)
+        local outer
+        if action=="remove"then
+            CardActions("unit").Remove();outer=confirms[#confirms];outer.options.primary.onClick(outer.dialog)
+        else Row("unit").toggle:Run("OnClick","LeftButton") end
+        local copy=confirms[#confirms];assert(copy.options.title=="Create Editable Layout?")
+        if outcome=="cancel"then
+            local before=h.Copy(db);copy.options.cancel.onClick(copy.dialog);Drain();h.Equal(db,before)
+        else
+            if outcome=="combat"then InCombatLockdown=function()return true end end
+            copy.options.primary.onClick(copy.dialog);Drain();InCombatLockdown=combat
+            local root=ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
+            if outcome=="confirm"then
+                assert(root.layoutId~="builtin:default" and root.record.createdFrom.id=="builtin:default")
+                if action=="remove"then assert(root.units.pet.present==false and selection.GetSelectedObject().unit~="pet")
+                else assert(root.units.pet.enabled==false and root.units.pet.present) end
+            else assert(root.units.pet.present and root.units.pet.enabled) end
+        end
+        if outer then outer.options.cancel.onClick(outer.dialog) end
+        if ns.LayoutEditWorkflow.IsConfirmationOpen() then copy.options.cancel.onClick(copy.dialog) end
+        assert(ns:ActivateLayout("builtin:default"));h.Equal(ns.ActiveLayoutResolver.GetActiveRuntimeRoot().payload,source)
+    end end
+    ns.GetDefaultDB=getDefaults
 end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Component Actions: "..count.." groups PASS")
