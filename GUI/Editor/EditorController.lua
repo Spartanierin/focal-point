@@ -260,6 +260,8 @@ function EditorController.UpdateActiveInspectorGeometry()
 end
 
 function EditorController.ReleaseInspector()
+    local hover = ns.GUI.Editor.CanvasHoverOverlay
+    if hover then hover.Clear() end
     if customizeBackdrop then customizeBackdrop:Hide() end
     local inspector = EditorController.GetActiveInspectorHost()
     if not inspector then
@@ -354,8 +356,10 @@ function EditorController.ApplyObjectSelectionProjection(changeKind, previousUni
         EditorController.RefreshActiveProperties()
         local inspector = EditorController.GetActiveInspectorHost()
         if inspector and inspector._focalPointSetCustomizeView then
-            inspector._focalPointSetCustomizeView(nextKind == "unit" and previousObject
-                and previousObject.kind ~= "unit" and "components" or "properties")
+            local requestedView = selectionContext and selectionContext.view
+            inspector._focalPointSetCustomizeView((requestedView == "components" or requestedView == "properties")
+                and requestedView or (nextKind == "unit" and previousObject
+                and previousObject.kind ~= "unit" and "components" or "properties"))
         end
         local treeView = ns.CompositionTreeView or (ns.GUI and ns.GUI.Editor and ns.GUI.Editor.Composition and ns.GUI.Editor.Composition.TreeView) or nil
         if treeView and type(treeView.RefreshKeyboardBinding) == "function" then
@@ -971,6 +975,12 @@ function EditorController.BuildInspector(container, deps)
         local treeContext = {state = state, widgets = {compositionTree = treeHost},
             treeHeight = geometry.componentHeight, isCurrent = IsCurrentWorkspace}
         local toolbar=ns.GUI.Editor.CanvasToolbar
+        treeContext.onHover=function(ref, owner)
+            local hover = ns.GUI.Editor.CanvasHoverOverlay
+            if not hover then return end
+            if not ref then hover.Clear(nil, owner)
+            elseif IsCurrentWorkspace() then hover.SetTreeHover(ref, owner) end
+        end
         treeContext.canAdd=function(ref)
             if ref and ref.kind == "unit" then return toolbar and toolbar.OpenComponentAdd ~= nil or false end
             return toolbar and toolbar.CanAddComponentAt and toolbar.CanAddComponentAt(ref) or false
@@ -1042,7 +1052,9 @@ function EditorController.BuildInspector(container, deps)
             treeHost.frame:SetShown(view == "components")
             root.frame:SetShown(view == "properties")
             if treeView and treeView._keyboardBindingContext and view == "properties" then
-                treeView._keyboardBindingContext.control:SetKeyboardActive(false)
+                local control = treeView._keyboardBindingContext.control
+                control:ClearHover()
+                control:SetKeyboardActive(false)
             end
         end
         inspector._focalPointSetCustomizeView = SetView

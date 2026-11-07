@@ -117,7 +117,7 @@ local function GetEditorStateApi()
 end
 
 local function SelectTextObject(frame, textKey)
-    return TextEditorOverlay.Select(frame, textKey)
+    return TextEditorOverlay.Select(frame, textKey, {view="components"})
 end
 
 local function IsSelectedText(frame, textKey)
@@ -730,6 +730,9 @@ local function EnsureOverlay(frame, textKey)
         TextEditorOverlay.AdjustFontSize(self._focalPointOwnerFrame, self._focalPointTextKey, delta)
     end)
     overlay:SetScript("OnHide", function(self)
+        local hover = FocalPoint.GUI.Editor.CanvasHoverOverlay
+        if hover then hover.Clear(self) end
+        self._focalPointTreeHovered = false
         EndTextDrag(self, false)
         HideGrowthIndicator(self)
     end)
@@ -740,6 +743,7 @@ local function EnsureOverlay(frame, textKey)
 end
 
 StyleOverlay = function(overlay, selected, hovered)
+    hovered = hovered or (overlay and overlay._focalPointTreeHovered == true)
     if not overlay then
         return
     end
@@ -1108,6 +1112,23 @@ EndTextDrag = function(overlay, commit)
     TextEditorOverlay.Select(state.frame, state.textKey)
 end
 
+-- Reuse text VisualBounds and its existing hover palette, never the generic Canvas frame.
+function TextEditorOverlay.SetTreeHover(overlay, active)
+    if not overlay then return false end
+    if active then
+        local frame, key = overlay._focalPointOwnerFrame, overlay._focalPointTextKey
+        local config = frame and GetTextConfig(frame, key)
+        if not (IsEditorActive() and frame and frame._focalPointTextEditorOverlays
+            and frame._focalPointTextEditorOverlays[key] == overlay and overlay:IsShown()
+            and config and IsEditorRenderableText(frame, key, config)) then return false end
+    end
+    overlay._focalPointTreeHovered = active == true
+    if overlay:IsShown() then
+        StyleOverlay(overlay, overlay._focalPointSelected == true, overlay._focalPointHovered == true)
+    elseif overlay.VisualBounds then overlay.VisualBounds:Hide() end
+    return true
+end
+
 function TextEditorOverlay.HideFrame(frame)
     local overlays = frame and frame._focalPointTextEditorOverlays
     if type(overlays) ~= "table" then
@@ -1466,7 +1487,7 @@ function TextEditorOverlay.RefreshAll()
     end
 end
 
-function TextEditorOverlay.Select(frame, textKey)
+function TextEditorOverlay.Select(frame, textKey, selectionContext)
     if not frame or type(textKey) ~= "string" or textKey == "" then
         return false
     end
@@ -1505,7 +1526,7 @@ function TextEditorOverlay.Select(frame, textKey)
             textKey = textKey,
             objectKey = textKey,
             sectionKey = "texts",
-        }) ~= true then
+        }, selectionContext) ~= true then
             return false
         end
         return true

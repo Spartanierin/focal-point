@@ -174,6 +174,7 @@ function CanvasHoverOverlay.SetHover(target, objectRef)
         return
     end
 
+    CanvasHoverOverlay.Clear()
     objectRef.unit = NormalizeUnitKey(objectRef.unit)
     if IsSelectedObject(objectRef) then
         CanvasHoverOverlay.Clear()
@@ -191,12 +192,20 @@ function CanvasHoverOverlay.SetHover(target, objectRef)
     end
 end
 
-function CanvasHoverOverlay.Clear(target)
+function CanvasHoverOverlay.Clear(target, owner)
+    if owner and (not currentHover or currentHover.owner ~= owner) then return end
+    -- A Canvas leave must not clear a newer Tree-owned hover on the same visible target.
+    if target and currentHover and currentHover.owner and not owner and IsFrameShown(target) then return end
     if target and currentHover and currentHover.target ~= target then
         return
     end
 
+    local previous = currentHover
     currentHover = nil
+    if previous and previous.owner and previous.objectRef.kind == "text" then
+        local text = FocalPoint.GUI.Editor.TextEditorOverlay
+        if text and text.SetTreeHover then text.SetTreeHover(previous.target, false) end
+    end
     if CanvasHoverOverlay.Frame then
         CanvasHoverOverlay.Frame:Hide()
     end
@@ -576,7 +585,7 @@ local function SelectObjectRef(source, objectRef)
         and FocalPoint.GUI.Editor
         and FocalPoint.GUI.Editor.ObjectSelection
     if objectSelection and objectSelection.SelectObject then
-        return objectSelection.SelectObject(objectRef)
+        return objectSelection.SelectObject(objectRef, {view="components"})
     end
 
     return false
@@ -1161,11 +1170,57 @@ local function UpdateDecorations(frame, seen)
     end
 end
 
+-- Tree hover consumes existing visible Canvas targets; it never changes selection or geometry.
+function CanvasHoverOverlay.SetTreeHover(objectRef, owner)
+    CanvasHoverOverlay.Clear()
+    if not owner or type(objectRef) ~= "table" or not CanvasHoverOverlay.IsEditorActive() then return false end
+    local unit = NormalizeUnitKey(objectRef.unit)
+    local frames = FocalPoint.frames or {}
+    local frame = frames[unit]
+    if unit == "boss" then
+        for i=1,5 do
+            if IsFrameShown(frames["boss"..i]) then frame=frames["boss"..i];break end
+        end
+    end
+    if not IsFrameShown(frame) then return false end
+    local resolver = FocalPoint.ActiveLayoutResolver
+    local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
+    if not (root and root.units and root.units[unit] == frame.config) then return false end
+    if IsSelectedObject(objectRef) then return false end
+    local target
+    if objectRef.kind == "unit" then
+        target = frame.MoveOverlay
+    elseif objectRef.kind == "text" then
+        local overlays = frame._focalPointTextEditorOverlays
+        target = overlays and overlays[GetRefObjectKey(objectRef)]
+        local text = FocalPoint.GUI.Editor.TextEditorOverlay
+        if not (target and text and text.SetTreeHover and text.SetTreeHover(target, true)) then return false end
+    else
+        for _,zone in pairs(frame._focalPointCanvasHoverZones or {}) do
+            if RefsEqual(zone._focalPointObjectRef, objectRef) and IsFrameShown(zone)
+                and IsFrameShown(zone._focalPointVisualTarget) then target=zone;break end
+        end
+    end
+    if not IsFrameShown(target) then return false end
+    if objectRef.kind ~= "text" then
+        local bounds = target._focalPointVisualTarget or target
+        if not (bounds.GetWidth and bounds.GetHeight and (bounds:GetWidth() or 0) > 0
+            and (bounds:GetHeight() or 0) > 0) then return false end
+    end
+    currentHover = {target=target, objectRef=objectRef, owner=owner, frame=frame, config=frame.config}
+    if ShouldUseGenericChrome(objectRef) then ApplyHoverChrome(target)
+    elseif CanvasHoverOverlay.Frame then CanvasHoverOverlay.Frame:Hide() end
+    return true
+end
+
 function CanvasHoverOverlay.UpdateFrame(frame)
     if not frame then
         return
     end
 
+    if currentHover and currentHover.owner and currentHover.frame == frame and currentHover.config ~= frame.config then
+        CanvasHoverOverlay.Clear()
+    end
     if currentHover and IsSelectedObject(currentHover.objectRef) then
         CanvasHoverOverlay.Clear()
     end
@@ -1220,6 +1275,12 @@ function CanvasHoverOverlay.UpdateFrame(frame)
             end
         end
     end
+    if currentHover and currentHover.owner and currentHover.frame == frame then
+        local target = currentHover.target
+        if not IsFrameShown(target) or (target._focalPointVisualTarget and not IsFrameShown(target._focalPointVisualTarget)) then
+            CanvasHoverOverlay.Clear()
+        end
+    end
 end
 
 function CanvasHoverOverlay.HideFrame(frame)
@@ -1230,7 +1291,7 @@ function CanvasHoverOverlay.HideFrame(frame)
         end
     end
 
-    if currentHover and (not frame or currentHover.target == frame or currentHover.target == frame.MoveOverlay) then
+    if currentHover and (not frame or currentHover.frame == frame or currentHover.target == frame or currentHover.target == frame.MoveOverlay) then
         CanvasHoverOverlay.Clear()
     end
 end

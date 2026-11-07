@@ -865,6 +865,7 @@ local function BuildCompositionTree(context, deps)
         maxHeight = context.treeHeight or 416,
         isCurrent = context.isCurrent,
         onSelect = context.onSelect,
+        onHover = context.onHover,
         canAdd = context.canAdd,
         canRemove = context.canRemove,
         onAdd = context.onAdd,

@@ -301,4 +301,135 @@ Test("actual Window release restores title presentation and native X before pool
     end
     assert(not controller.GetActiveInspectorHost() and not ns.GUI.Editor._persistentInspector)
 end)
+-- Real Canvas handlers share this existing Workspace/selection boundary.
+for _,path in ipairs({"GUI/Editor/CanvasHoverOverlay.lua","GUI/Editor/TextEditorOverlay.lua"})do
+    assert(loadfile(path))("FocalPoint",ns)
+end
+local hover,text=ns.GUI.Editor.CanvasHoverOverlay,ns.GUI.Editor.TextEditorOverlay
+function h.ui.native:SetRotation(radians) self.rotation=radians end
+function h.ui.native:GetFrameStrata()
+    return self.lastSetFrameStrata and self.lastSetFrameStrata[1] or "MEDIUM"
+end
+local function CanvasFixture()
+    db,unit=Setup();unit.powerBarPresent=true;unit.showPowerBar=true
+    unit.Texts.localText.enabled=true
+    window=Build();state.SetPresentation("customize")
+    ns.framesUnlocked=true;ns.IsEditorActive=function()return true end
+    local frame=CreateFrame("Frame",nil,UIParent);frame:SetSize(240,60);frame:Show()
+    frame._fpUnit,frame.unit,frame.config="player","player",unit
+    frame.MoveOverlay=CreateFrame("Frame",nil,frame);frame.MoveOverlay:Show()
+    frame.Elements={}
+    for _,key in ipairs({"HealthBar","PowerBar"})do
+        local bar=CreateFrame("Frame",nil,frame);bar:SetSize(240,20);bar:Show();frame.Elements[key]=bar
+    end
+    frame.Texts={localText=frame:CreateFontString()};frame.Texts.localText:SetText("Visible local text")
+    ns.frames={player=frame}
+    text.UpdateFrame(frame);hover.UpdateFrame(frame)
+    return frame
+end
+local function CanvasRow(kind,key)
+    for _,row in ipairs(Tree().control.rows)do
+        if row.item and row.item.node.type==kind and (not key or row.item.node.inspectorTarget.textKey==key)then return row end
+    end
+    error("missing row "..kind)
+end
+Test("Canvas component and text clicks show Components; explicit Tree activation opens Properties",function()
+    local frame=CanvasFixture();Pick("healthbar")
+    local zone=assert(frame._focalPointCanvasHoverZones["bar:PowerBar"])
+    zone:Run("OnMouseDown","LeftButton");zone:Run("OnMouseUp","LeftButton");Drain();Check("components")
+    assert(selection.GetSelectedObject().objectKey=="PowerBar" and CanvasRow("powerbar").item.selected)
+    CanvasRow("powerbar").frame:Run("OnMouseDown","LeftButton");Drain();Check("properties")
+    Back();CanvasRow("powerbar").frame:Run("OnMouseDown","LeftButton");Drain();Check("properties")
+    local hit=assert(frame._focalPointTextEditorOverlays.localText)
+    hit:Run("OnClick","LeftButton");Drain();Check("components")
+    assert(selection.GetSelectedObject().textKey=="localText" and CanvasRow("textElement","localText").item.selected)
+    CanvasRow("textElement","localText").frame:Run("OnMouseDown","LeftButton");Drain();Check("properties")
+    Back();text.UpdateFrame(frame)
+    CanvasRow("textElement","localText").frame:Run("OnEnter")
+    assert(not hover.GetHoveredObject() and hit._focalPointSelected and hit.VisualBounds:IsShown())
+    selection.SelectObject({kind="bar",unit="player",objectKey="HealthBar"});Drain();Check("properties")
+end)
+Test("Canvas component and text selection across Units keeps the new Unit tree visible",function()
+    local frame=CanvasFixture();Pick("healthbar")
+    local root=ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
+    root.units.target=h.Copy(unit)
+    frame._fpUnit,frame.unit,frame.config="target","target",root.units.target
+    ns.frames={target=frame};hover.UpdateFrame(frame);text.UpdateFrame(frame)
+    local zone=frame._focalPointCanvasHoverZones["bar:PowerBar"]
+    zone:Run("OnMouseDown","LeftButton");zone:Run("OnMouseUp","LeftButton");Drain();Check("components")
+    assert(selection.GetSelectedObject().unit=="target" and CanvasRow("powerbar").item.selected)
+    CanvasRow("powerbar").frame:Run("OnMouseDown","LeftButton");Drain();Check("properties")
+    frame._focalPointTextEditorOverlays.localText:Run("OnClick","LeftButton");Drain();Check("components")
+    assert(selection.GetSelectedObject().unit=="target" and selection.GetSelectedObject().textKey=="localText")
+end)
+Test("Tree arrows select without detail navigation, Enter and same-object clicks activate",function()
+    CanvasFixture();Back()
+    local control=Tree().control
+    assert(control.callbacks.onKey("DOWN"));Drain();Check("components")
+    assert(selection.GetSelectedObject().objectKey=="HealthBar")
+    assert(Tree().control.callbacks.onKey("ENTER"));Drain();Check("properties")
+    Back();assert(Tree().control.callbacks.onKey("LEFT"));Drain();Check("components")
+    assert(selection.GetSelectedObject().kind=="unit")
+    assert(Tree().control.callbacks.onKey("RIGHT"));Drain();Check("components")
+    assert(selection.GetSelectedObject().objectKey=="HealthBar")
+end)
+Test("Tree hover uses visible reference targets, preserves selection/data and rejects late leave",function()
+    local frame=CanvasFixture();Back()
+    local before=h.Copy(db);local selected=h.Copy(selection.GetSelectedObject())
+    local health,power=CanvasRow("healthbar"),CanvasRow("powerbar")
+    health.frame:Run("OnEnter")
+    assert(hover.GetHoveredObject().objectKey=="HealthBar" and hover.Frame:IsShown())
+    assert(hover.Frame.points.TOPLEFT.relative==frame._focalPointCanvasHoverZones["bar:HealthBar"])
+    frame._focalPointCanvasHoverZones["bar:HealthBar"]:Run("OnLeave")
+    assert(hover.GetHoveredObject().objectKey=="HealthBar","Canvas leave cleared Tree-owned hover")
+    local oldLeave=health.frame:GetScript("OnLeave")
+    power.frame:Run("OnEnter");oldLeave();assert(hover.GetHoveredObject().objectKey=="PowerBar")
+    h.Equal(selection.GetSelectedObject(),selected);h.Equal(db,before)
+    power.frame:Run("OnLeave");assert(not hover.GetHoveredObject() and not hover.Frame:IsShown())
+    frame.Elements.PowerBar:Hide();power.frame:Run("OnEnter");assert(not hover.GetHoveredObject())
+    frame.Elements.PowerBar:Show();frame.Elements.PowerBar:SetSize(0,0)
+    power.frame:Run("OnEnter");assert(not hover.GetHoveredObject(),"zero-size target produced a hover frame")
+    frame.Elements.PowerBar:SetSize(240,20)
+    local hit=assert(frame._focalPointTextEditorOverlays.localText)
+    CanvasRow("textElement","localText").frame:Run("OnEnter")
+    assert(hover.GetHoveredObject().kind=="text" and hit._focalPointTreeHovered and hit.VisualBounds:IsShown())
+    assert(not hover.Frame:IsShown(),"text must not use generic hover chrome")
+    CanvasRow("textElement","localText").frame:Run("OnLeave")
+    assert(not hit._focalPointTreeHovered and not hit.VisualBounds:IsShown())
+    h.Equal(selection.GetSelectedObject(),selected);h.Equal(db,before)
+    health.frame:Run("OnEnter");local staleLeave=health.frame:GetScript("OnLeave")
+    Tree().options.rebuild();assert(not hover.GetHoveredObject())
+    CanvasRow("powerbar").frame:Run("OnEnter");staleLeave();assert(hover.GetHoveredObject().objectKey=="PowerBar")
+    Pick("powerbar");assert(not hover.GetHoveredObject());Back()
+    CanvasRow("healthbar").frame:Run("OnEnter");Tree().control.frame:Hide();assert(not hover.GetHoveredObject())
+    Tree().control.frame:Show();CanvasRow("healthbar").frame:Run("OnEnter")
+    window.closebutton:GetScript("OnClick")(window.closebutton);Drain();assert(not hover.GetHoveredObject())
+    window=Build();assert(not hover.GetHoveredObject())
+end)
+Test("selection context stays explicit and layout replacement releases only the old hover owner",function()
+    local frame=CanvasFixture();Back()
+    local nodes={};for _,row in ipairs(Tree().options.visibleRows)do
+        if row.clickable then nodes[#nodes+1]=row.node end
+    end
+    assert(#nodes>=3)
+    for _,node in ipairs(nodes)do
+        Tree().control.callbacks.onSelect(node);Drain();Check("properties")
+        local ref=selection.GetSelectedObject()
+        assert(selection.SelectObject(ref,{view="components"}));Drain();Check("components")
+        h.Equal(selection.GetSelectedObject(),ref)
+    end
+    Back();CanvasRow("healthbar").frame:Run("OnEnter")
+    local oldLeave=CanvasRow("healthbar").frame:GetScript("OnLeave")
+    local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+    assert(ns:ActivateLayout(id));controller.BuildInspector(nil,{GetEditorState=state.Get});Drain()
+    assert(not hover.GetHoveredObject())
+    frame.config=ns.UnitFrameUtils.GetUnitDB("player");hover.UpdateFrame(frame)
+    selection.SelectUnitRoot("player",{view="components"});Drain()
+    CanvasRow("powerbar").frame:Run("OnEnter");oldLeave()
+    assert(hover.GetHoveredObject().objectKey=="PowerBar")
+    frame.Elements.PowerBar:Hide();hover.UpdateFrame(frame)
+    assert(not hover.GetHoveredObject(),"hidden target retained Tree hover")
+    state.SetPresentation("arrange");assert(not hover.SetTreeHover({kind="bar",unit="player",objectKey="HealthBar"},{}))
+end)
+assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Customize Master Detail: "..count.." groups PASS")

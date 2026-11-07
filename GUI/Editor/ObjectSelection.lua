@@ -436,7 +436,7 @@ function ObjectSelection.SelectObject(objectRef, selectionContext)
             local scopeObjectKey = sectionKey == "absorbs" and objectRef.objectKey or nil
             local scope = EditorState.SetPropertyScope("unit", sectionKey, scopeObjectKey)
             if scope ~= nil then
-                return CompleteSelection(previousUnit, previousObject, kind)
+                return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
             end
         end
     end
@@ -458,7 +458,7 @@ function ObjectSelection.SelectObject(objectRef, selectionContext)
                 if EditorState and type(EditorState.SetPropertyScope) == "function" then
                     EditorState.SetPropertyScope("text", "texts", selectedTextKey)
                 end
-                return CompleteSelection(previousUnit, previousObject, kind)
+                return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
             end
         end
     end
@@ -481,7 +481,7 @@ function ObjectSelection.SelectObject(objectRef, selectionContext)
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scope = EditorState.SetPropertyScope("aura", "auras", auraKey)
             if scope ~= nil then
-                return CompleteSelection(previousUnit, previousObject, kind)
+                return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
             end
         end
     end
@@ -504,7 +504,7 @@ function ObjectSelection.SelectObject(objectRef, selectionContext)
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scope = EditorState.SetPropertyScope("indicator", "indicators", indicatorKey)
             if scope ~= nil then
-                return CompleteSelection(previousUnit, previousObject, kind)
+                return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
             end
         end
     end
@@ -528,7 +528,7 @@ function ObjectSelection.SelectObject(objectRef, selectionContext)
         if EditorState and type(EditorState.SetPropertyScope) == "function" then
             local scope = EditorState.SetPropertyScope("decoration", "decoration", decorationId)
             if scope ~= nil then
-                return CompleteSelection(previousUnit, previousObject, kind)
+                return CompleteSelection(previousUnit, previousObject, kind, selectionContext)
             end
         end
     end

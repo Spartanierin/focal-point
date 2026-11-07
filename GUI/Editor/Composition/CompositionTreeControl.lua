@@ -205,8 +205,15 @@ local function BindRowScripts(control, row)
     local function IsCurrentRow()
         return control.callbacks ~= nil and control.generation == generation and row.item and row.item.node == node
     end
+    local hoverOwner = {}
+    local onHover = control.callbacks and control.callbacks.onHover
+    local function ClearHover()
+        if onHover then onHover(nil, hoverOwner) end
+    end
+    row.clearCanvasHover = ClearHover
     local function Enter(frame)
-        if not row.item then return end
+        if not IsCurrentRow() then return end
+        if onHover and row.item.clickable then onHover(node, hoverOwner) end
         if frame == row.add or frame == row.remove then
             frame:SetAlpha(InCombatLockdown and InCombatLockdown() and .4 or 1)
         end
@@ -232,6 +239,8 @@ local function BindRowScripts(control, row)
         end
     end
     local function Leave()
+        ClearHover()
+        if not IsCurrentRow() then return end
         HideRowTooltip(row)
         row.hovered = false
         Paint(row)
@@ -241,7 +250,10 @@ local function BindRowScripts(control, row)
         local disabled = frame == row.toggle and not row.item.toggleable or frame == row.remove and not row.item.removable
         frame:SetScript("OnEnter", not disabled and Enter or nil)
         frame:SetScript("OnLeave", not disabled and Leave or nil)
-        frame:SetScript("OnHide", function() HideRowTooltip(row) end)
+        frame:SetScript("OnHide", function(owner)
+            if owner == row.frame then ClearHover() end
+            HideRowTooltip(row)
+        end)
     end
     row.frame:SetScript("OnMouseDown", function(_, button)
         if button ~= "LeftButton" or not row.item or not row.item.clickable then return end
@@ -272,6 +284,7 @@ local function BindRowScripts(control, row)
 end
 
 local function UnbindRow(row)
+    if row.clearCanvasHover then row.clearCanvasHover();row.clearCanvasHover=nil end
     HideRowTooltip(row)
     row.item = nil
     row.hovered = false
@@ -445,7 +458,14 @@ function methods:Layout()
     return true
 end
 
+function methods:ClearHover()
+    for _,row in ipairs(self.rows) do
+        if row.clearCanvasHover then row.clearCanvasHover() end
+    end
+end
+
 function methods:SetRows(items)
+    self:ClearHover()
     self.generation = (self.generation or 0) + 1
     self.count = #items
     for index, item in ipairs(items) do
@@ -524,6 +544,7 @@ end
 
 function methods:Release()
     if not self.callbacks then return end
+    self:ClearHover()
     self:StopThumbDrag()
     self.callbacks = nil
     self.scrollStatus = nil
@@ -637,6 +658,7 @@ local function CreateControl()
         if not IsMouseOverFrame(self.frame) then self:SetKeyboardActive(false) end
     end)
     self.frame:SetScript("OnHide", function()
+        self:ClearHover()
         self:StopThumbDrag()
         self:SetKeyboardActive(false)
     end)

@@ -349,17 +349,17 @@ function IsActiveNode(node, state)
         and state.selectedUnit == node.unit
 end
 
-local function SelectTreeNode(node, state, options)
+local function SelectTreeNode(node, state, options, activate)
     local objectRef = BuildObjectRef(node)
     if not objectRef or type(ObjectSelection.SelectObject) ~= "function" then
         return false
     end
 
-    local ok, changeKind = ObjectSelection.SelectObject(objectRef)
+    local ok, changeKind = ObjectSelection.SelectObject(objectRef, {view=activate == false and "components" or "properties"})
     if ok ~= true then
         return false
     end
-    if options and type(options.onSelect) == "function" then
+    if activate ~= false and options and type(options.onSelect) == "function" then
         options.onSelect(objectRef, node, changeKind)
     end
     return true
@@ -382,7 +382,7 @@ local function SelectVisibleRow(visibleRows, index, state, options)
     if not (row and row.node) then
         return false
     end
-    local selected = SelectTreeNode(row.node, state, options)
+    local selected = SelectTreeNode(row.node, state, options, false)
     if selected then
         EnsureActiveSelectionVisible(options and options._focalPointScroll, state, options)
     end
@@ -415,7 +415,9 @@ local function HandleTreeKey(key, state, options)
         return false
     end
 
-    if key == "UP" then
+    if key == "ENTER" then
+        return SelectTreeNode(currentNode, state, options)
+    elseif key == "UP" then
         if currentIndex and currentIndex > 1 then
             return SelectNextVisibleObject(visibleRows, currentIndex, "up", state, options)
         end
@@ -432,7 +434,7 @@ local function HandleTreeKey(key, state, options)
         end
         local parentRow = FindVisibleRowByNodeId(visibleRows, currentNode.parentId)
         if parentRow then
-            return SelectTreeNode(parentRow.node, state, options)
+            return SelectTreeNode(parentRow.node, state, options, false)
         end
         return false
     elseif key == "RIGHT" then
@@ -444,7 +446,7 @@ local function HandleTreeKey(key, state, options)
             local firstChild = currentNode.children and currentNode.children[1] or nil
             local childRow = firstChild and FindVisibleRowByNodeId(visibleRows, firstChild.id) or nil
             if childRow then
-                return SelectTreeNode(childRow.node, state, options)
+                return SelectTreeNode(childRow.node, state, options, false)
             end
         end
     end
@@ -520,6 +522,13 @@ function View.Build(container, state, options)
     RequestTreeOwnerRelayout(container)
 
     local callbacks = {
+        onHover = function(node, owner)
+            if not options.onHover then return end
+            if not node then options.onHover(nil, owner);return end
+            if options.isCurrent and not options.isCurrent() then return end
+            local ref = BuildObjectRef(node)
+            if ref then options.onHover(ref, owner) end
+        end,
         onAdd = function(node, isCurrentRow)
             if options.isCurrent and not options.isCurrent() then return end
             if options.onAdd then options.onAdd(BuildObjectRef(node), isCurrentRow, node.label) end
