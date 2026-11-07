@@ -7,6 +7,11 @@ local Templates = FocalPoint.TextElementTemplates or {}
 local TemplateResolver = FocalPoint.TextTemplateResolver or {}
 local Roles = FocalPoint.TextElementRoles or {}
 local UnitUtils = FocalPoint.UnitFrameUtils or {}
+local TextUtils = FocalPoint.TextElementUtils or {}
+local HEALTH_PREVIEW_RAW_TOKEN = {
+    ["hp:cur:abbr"] = "[hp:cur]", ["hp:cur:short"] = "[hp:cur]", ["curhp:abbr"] = "[hp:cur]",
+    ["hp:max:abbr"] = "[hp:max]", ["hp:max:short"] = "[hp:max]", ["maxhp:abbr"] = "[hp:max]",
+}
 
 local FALLBACK_BY_ROLE = {
     name = "[Name]",
@@ -70,11 +75,18 @@ local function GetTagPreviewFallback(token)
     local tagDatabase = GetTagDatabase()
     if type(tagDatabase) == "table" then
         local tokenText = "[" .. tostring(token or "") .. "]"
+        local rawToken = HEALTH_PREVIEW_RAW_TOKEN[token]
+        local rawExample, fallback
         for _, def in ipairs(tagDatabase) do
-            if type(def) == "table" and def.token == tokenText then
-                return def.example or tokenText
+            if type(def) == "table" then
+                if def.token == tokenText then fallback = def.example or tokenText end
+                if rawToken and def.token == rawToken then rawExample = tonumber(def.example) end
             end
         end
+        if rawExample and TextUtils.FormatPreviewHealthAbbreviation then
+            return TextUtils.FormatPreviewHealthAbbreviation(rawExample, fallback or tokenText)
+        end
+        if fallback then return fallback end
     end
 
     return "[" .. tostring(token or "") .. "]"

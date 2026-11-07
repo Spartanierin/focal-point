@@ -99,6 +99,17 @@ function Utils.FormatNumber(value)
     return "0", false
 end
 
+-- Design-time Health abbreviations only; live prepared strings keep their own path.
+function Utils.FormatPreviewHealthAbbreviation(value, fallback)
+    if type(value) ~= "number" or (issecretvalue and issecretvalue(value))
+        or value ~= value or value == math.huge or value == -math.huge then return fallback end
+    if type(AbbreviateNumbers) == "function" then
+        local ok, text = pcall(AbbreviateNumbers, value)
+        if ok and type(text) == "string" and text ~= "" then return text end
+    end
+    return fallback
+end
+
 function Utils.FormatInteger(value)
     if value == nil then
         return "0", false

@@ -274,6 +274,8 @@ function LiveValues.Refresh(frame)
         frame.LiveValues.healthMax = healthMax
         frame.LiveValues.healthCurrentText = FormatNumber(healthCurrent)
         frame.LiveValues.healthMaxText = FormatNumber(healthMax)
+        frame.LiveValues.healthCurrentAbbr = TextUtils.FormatPreviewHealthAbbreviation(healthCurrent, frame.LiveValues.healthCurrentText)
+        frame.LiveValues.healthMaxAbbr = TextUtils.FormatPreviewHealthAbbreviation(healthMax, frame.LiveValues.healthMaxText)
         frame.LiveValues.healthCurrentSafe = ToSafeNumber(healthCurrent)
         frame.LiveValues.healthMaxSafe = ToSafeNumber(healthMax)
         local healthCurrentSafe = ToSafeNumber(healthCurrent)
