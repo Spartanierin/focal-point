@@ -15,12 +15,18 @@ Specialization automation and the optional Account Default select which layout
 becomes active; they do not create a second layout type or mass-mutate
 characters.
 
-## Release 3.0.0
+<a id="release-300"></a>
 
-Version 3.0.0 ships the redesigned editor and the improvements from beta.1 and
-beta.2. Retail/Midnight has been natively tested. Forever support is intended,
-but native compatibility testing is still pending. Its interface ID remains
-declared in the TOC; this declaration does not establish native compatibility.
+## Release 3.0.1
+
+Version 3.0.1 retains the redesigned editor and the improvements from beta.1 and
+beta.2, with synchronized Canvas/Tree interaction, native formatting for
+abbreviated simulated Health tags, and restored Unit actions in Components.
+Retail/Midnight has been natively tested. Focal Point 3.0.0 has also been
+extensively natively tested on WoW Forever. In 3.0.1, the Components Tree removal
+icon improves cross-client presentation and has been natively checked on
+Forever and Midnight. These checks do not guarantee every function or client
+configuration.
 
 Before updating, close the game and make an external backup of your Focal Point
 SavedVariables. A native upgrade test using a real 2.x backup retained existing
@@ -29,6 +35,10 @@ guarantee, and a downgrade to 2.x is not guaranteed. Keep the original backup.
 
 - **Canvas/Arrange:** select units and edit directly with move/resize tools.
 - **Components:** add and remove components; **Add Unit** restores missing units.
+  Unit Root checkboxes control Enabled; optional Unit frames can be removed
+  without deleting their saved components. In Customize, Canvas component and
+  text clicks select in the Tree; Tree hover highlights the Canvas object, and
+  a Tree row click opens Properties.
 - **Customize/Properties:** configure the selected object in Appearance,
   Size & Position, and Behavior.
 - **Manage Layouts:** manage layouts and open specialization assignments.
@@ -39,8 +49,9 @@ Known limitations:
 - There is no regular global Demo-mode entry point in the new editor.
 - Native dropdown widths can vary after Inspector reopen; some localization and
   non-bar property-group differences remain.
-- Shadow-color disabled feedback may require an Inspector rebuild. Demo/live
-  text-format consistency still needs broader native validation.
+- Shadow-color disabled feedback may require an Inspector rebuild. Apart from
+  the corrected abbreviated simulated Health tags, Demo/live text-format
+  consistency still needs broader native validation.
 
 Please focus feedback on navigation and the editing workflow. Include concrete
 steps and the details listed under [Reporting issues](#reporting-issues).

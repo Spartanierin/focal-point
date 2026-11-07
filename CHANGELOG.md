@@ -10,6 +10,21 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.1
+
+### Improved
+
+* Connected Components Tree hover to the corresponding Canvas component, including text. In Customize, Canvas component and text clicks select and reveal the object in Components without automatically opening Properties; clicking the Tree row opens Properties.
+* Retail/Midnight has been natively tested, and Focal Point 3.0.0 has since been extensively natively tested on WoW Forever. The removal-icon correction below was verified on both clients; this is not a guarantee for every function or client configuration.
+
+### Fixed
+
+* Abbreviated simulated Health tags now use Blizzard's native `AbbreviateNumbers()` formatting. Numeric raw values, explicit raw-value tags, and live runtime formatting remain unchanged.
+* Replaced the Components Tree's client-dependent delete atlas with the existing Blizzard minus/removal texture, natively checked on Forever and Midnight. Disabled and non-removable action states remain unchanged.
+* Restored Unit actions in the Components Tree: enable or disable Unit Roots, and remove optional Pet, TargetTarget, Focus, FocusTarget, and Boss frames. Player and Target remain non-removable. Existing Add Unit restores removed frames with their saved components, settings, and IDs; Presence and Enabled remain separate.
+
+See the [README release notes](README.md#release-301) for client validation scope, backup guidance, and remaining limitations.
+
 ## 3.0.0
 
 ### Changed

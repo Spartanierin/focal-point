@@ -51,6 +51,7 @@ for _, file in ipairs({"Label", "CheckBox", "Slider", "DropDown", "ColorPicker"}
     Load("Libraries/Ace3/AceGUI-3.0/widgets/AceGUIWidget-" .. file .. ".lua")
 end
 Load("GUI/Editor/SidebarShared.lua")
+Load("GUI/Editor/Inspector/InspectorMutations.lua")
 Load("GUI/Editor/Inspector/InspectorController.lua")
 Load("GUI/Editor/Toolbar/ToolbarBinding.lua")
 local shared = ns.GUI.Editor.SidebarShared
