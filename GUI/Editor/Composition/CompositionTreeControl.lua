@@ -367,7 +367,7 @@ function methods:AcquireRow(index)
     addGlyph:SetTextColor(1, .82, 0, 1)
     addGlyph:SetPoint("CENTER", add, "CENTER", 0, 1)
     local removeGlyph = remove:CreateTexture(nil, "OVERLAY")
-    removeGlyph:SetAtlas("common-icon-delete")
+    removeGlyph:SetTexture(130821) -- AceGUI's UI-MinusButton-UP; no client-specific atlas required.
     removeGlyph:SetDesaturated(true)
     removeGlyph:SetVertexColor(1, .08, .08, 1)
     removeGlyph:SetSize(20, 20)

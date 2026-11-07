@@ -381,6 +381,44 @@ Test("localized edit tooltips preserve single-line names, IDs and independent ac
     GetLocale=originalLocale
     ns.L.COMPONENT_EDIT_TOOLTIP=savedTooltip
 end)
+Test("remove icons use the shared Blizzard texture and preserve removable, disabled and reused action zones",function()
+    db,unit=Setup();window=Build()
+    local renderer=ns.GUI.Editor.Composition.TreeControl
+    local originalCombat=InCombatLockdown
+    local combat=false
+    InCombatLockdown=function()return combat end
+    local removed,selected
+    local c=renderer.Acquire(window.frame,{scrollvalue=0},{
+        onRemove=function(node)removed=node end,onSelect=function(node)selected=node end})
+    for _,locked in ipairs({false,true})do
+        combat=locked
+        for _,removable in ipairs({true,false})do
+            for _,enabled in ipairs({true,false})do
+                local node={id="delete-icon",type="decorationElement",enabled=enabled}
+                c:SetRows({{node=node,depth=1,label="Decoration",clickable=true,removable=removable}})
+                local row=c.rows[1]
+                assert(row.removeGlyph:GetTexture()==130821 and row.removeGlyph.atlas==nil)
+                assert(row.removeGlyph:GetWidth()==20 and row.removeGlyph:GetHeight()==20)
+                assert(row.removeGlyph.points.CENTER.relative==row.remove)
+                assert(row.remove:IsShown() and row.remove:IsEnabled()==removable)
+                assert(row.remove:GetAlpha()==(removable and (locked and .4 or 1) or .35))
+                h.Equal(row.removeGlyph.lastSetVertexColor,removable and {1,.08,.08,1} or {.5,.5,.5,1})
+                removed=nil;selected=nil
+                row.remove:Run("OnMouseDown","LeftButton")
+                assert(removed==(removable and node or nil) and selected==nil)
+                assert((row.remove:GetScript("OnEnter")~=nil)==removable)
+                if removable then
+                    row.remove:Run("OnEnter");assert(tooltip.owner==row.remove and tooltip.shown)
+                    row.remove:Run("OnLeave");assert(not tooltip.shown)
+                end
+            end
+        end
+    end
+    c:SetRows({})
+    assert(not c.rows[1].remove:IsShown() and not c.rows[1].remove:GetScript("OnMouseDown"))
+    c:Release()
+    InCombatLockdown=originalCombat
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 GameTooltip=oldTooltip
 print("Composition Tree Presentation: "..count.." groups PASS")

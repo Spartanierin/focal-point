@@ -668,7 +668,7 @@ Test("direct action visuals, tooltips and narrow card anchors preserve all five 
         local _,size=row.addGlyph:GetFont();assert(size==26 and row.addGlyph:GetText()=="+")
         h.Equal(row.addGlyph.lastSetTextColor,{1,.82,0,1})
         h.Equal(row.removeGlyph.lastSetVertexColor,row.item.removable and {1,.08,.08,1} or {.5,.5,.5,1})
-        assert(row.removeGlyph.atlas=="common-icon-delete")
+        assert(row.removeGlyph:GetTexture()==130821 and row.removeGlyph.atlas==nil)
         h.Equal(row.add.lastSetHighlightTexture,{130753,"ADD"})
         h.Equal(row.remove.lastSetPushedTexture,{130753})
         row.add:Run("OnEnter");assert(tooltip.shown and tooltip.owner==row.add and #tooltip.lines==2)
