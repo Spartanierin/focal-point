@@ -234,5 +234,25 @@ Test("segmented source rebuild and in-place synchronization retain native bindin
     assert(Field("dataSource"):GetUserData("nativePropertyDropdown"))
     s.ns.GUI.Editor.MediaLibrary=media;s.controller.RefreshActiveProperties();s.Drain()
 end)
+Test("Power mode/anchor menus preserve Disabled and reject retained native actions after layout change",function()
+    window,unit=s.Start();unit.powerBarPresent=true;unit.showPowerBar=true
+    s.controller.RefreshCompositionTree();s.Select("PowerBar")
+    assert(Native("Size Mode").enabled)
+    for _,label in ipairs({"Anchor Target","Anchor From","Anchor To"})do assert(not Native(label).enabled,label)end
+    Pick("Size Mode","CUSTOM")
+    for _,label in ipairs({"Anchor Target","Anchor From","Anchor To"})do assert(Native(label).enabled,label)end
+    Pick("Anchor Target","HealthBar");Pick("Anchor From","TOPLEFT");Pick("Anchor To","BOTTOMRIGHT")
+    assert(unit.powerBarAnchorTo=="HealthBar" and unit.powerBarPoint=="TOPLEFT" and unit.powerBarRelativePoint=="BOTTOMRIGHT")
+    local old=Native("Size Mode").entries[1].callback
+    s.Control("Show","CheckBox"):Fire("OnValueChanged",false);s.Drain()
+    for _,label in ipairs({"Size Mode","Anchor Target","Anchor From","Anchor To"})do assert(not Native(label).enabled,label)end
+    local before=s.h.Copy(unit);old();s.h.Equal(unit,before)
+    s.Control("Show","CheckBox"):Fire("OnValueChanged",true);s.Drain()
+    old=Native("Size Mode").entries[1].callback
+    local ok,id=s.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+    assert(s.ns:ActivateLayout(id));s.controller.BuildInspector(nil,{GetEditorState=s.state.Get});s.Drain()
+    local db=s.ns.db;before=s.h.Copy(db);old();s.h.Equal(db,before)
+    assert(Native("Size Mode").enabled)
+end)
 assert(#s.h.ui.env.errors==0,table.concat(s.h.ui.env.errors,"\n"))
 print("Inspector Native Dropdown Rows: "..count.." groups PASS")

@@ -31,9 +31,10 @@ end
 -- with live APIs and frame construction forbidden.
 local function Frame(name, parent)
     local f = {name=name, parent=parent, points={}, shown=false, width=0, height=0, scale=1}
-    function f:ClearAllPoints() self.points={} end
+    function f:ClearAllPoints() self.points={};self.anchorTargets={} end
     function f:SetPoint(point, target, relativePoint, x, y)
         self.points[point]={target=target.name, relativePoint=relativePoint, x=x, y=y}
+        self.anchorTargets=self.anchorTargets or {};self.anchorTargets[point]=target
     end
     function f:SetSize(w,h) self.width=w; self.height=h end
     function f:SetHeight(h) self.height=h end
@@ -52,6 +53,15 @@ local function Frame(name, parent)
             return Rect(p.TOPLEFT.x, self.parent.width+p.TOPRIGHT.x,
                 p.BOTTOMLEFT.y, self.parent.height+p.TOPLEFT.y)
         elseif self.name=="PowerBar" then
+            if not (p.BOTTOMLEFT and p.BOTTOMRIGHT) then
+                local anchors={TOPLEFT={0,1},TOP={.5,1},TOPRIGHT={1,1},LEFT={0,.5},CENTER={.5,.5},
+                    RIGHT={1,.5},BOTTOMLEFT={0,0},BOTTOM={.5,0},BOTTOMRIGHT={1,0}}
+                local key,v=next(p);local target=self.anchorTargets[key]:Rect()
+                local a,b=anchors[key],anchors[v.relativePoint]
+                local left=target.left+(target.right-target.left)*b[1]+v.x-self.width*a[1]
+                local bottom=target.bottom+(target.top-target.bottom)*b[2]+v.y-self.height*a[2]
+                return Rect(left,left+self.width,bottom,bottom+self.height)
+            end
             return Rect(p.BOTTOMLEFT.x, self.parent.width+p.BOTTOMRIGHT.x,
                 p.BOTTOMLEFT.y, p.BOTTOMLEFT.y+self.height)
         end
@@ -212,7 +222,7 @@ local function Applied(runtime,config,unit,altVisible,hiddenKeys)
     for key,element in pairs(frame.Elements) do
         snapshot[key]={width=element.width,height=element.height,points=Copy(element.points),shown=element.shown,scale=element.scale}
     end
-    return frame,snapshot
+    return frame,snapshot,owner
 end
 local fixtures={base,disabled,absent,alternative,latentAlt,lanes,hidden,symmetric,fractional,defaults,forty}
 local previous=arg and arg[1]=="--compare-head" and Namespace(true) or nil
@@ -279,5 +289,70 @@ for _,config in ipairs({base,disabled}) do
         end
     end
 end
+local customCount=0
+local orderedPoints={"TOPLEFT","TOP","TOPRIGHT","LEFT","CENTER","RIGHT","BOTTOMLEFT","BOTTOM","BOTTOMRIGHT"}
+for _,anchorTo in ipairs({"Frame","HealthBar"})do
+    for index,point in ipairs(orderedPoints)do
+        for _,unit in ipairs({"player","target"})do
+            for _,alt in ipairs({false,true})do
+                local config=Copy(lanes)
+                config.powerBarSizeMode="CUSTOM";config.powerBarWidth=137.5;config.powerBarHeight=73.25
+                config.powerBarAnchorTo=anchorTo;config.powerBarPoint=point
+                config.powerBarRelativePoint=orderedPoints[10-index]
+                config.powerBarOffsetX=17;config.powerBarOffsetY=-63
+                config.alternativePowerBarPresent=alt;config.showAlternativePowerBar=alt;config.alternativePowerBarHeight=5
+                local pure=Canonical(config,unit)
+                local frame,_,owner=Applied(ns,config,unit,pure.options.alternativePowerBarVisible)
+                Equal(frame.Elements.HealthBar:Rect(),pure.HealthBar,"custom health")
+                Equal(frame.Elements.PowerBar:Rect(),pure.PowerBar,"custom power")
+                Equal(frame:Rect(),pure.Frame,"custom root")
+                Equal(pure.PowerBar.right-pure.PowerBar.left,137.5,"independent width")
+                Equal(pure.PowerBar.top-pure.PowerBar.bottom,73.25,"independent height")
+                local noPower=Copy(config);noPower.showPowerBar=false
+                Equal(Canonical(noPower,unit).HealthBar,pure.HealthBar,"custom reserves no health height")
+                Equal(Canonical(noPower,unit).PowerBar,pure.PowerBar,"latent custom rect")
+                local legacy=Copy(config);legacy.powerBarSizeMode="MATCH_TARGET"
+                local legacyRect=Canonical(legacy,unit)
+                Equal(legacyRect.HealthBar.bottom,pure.HealthBar.bottom+73.25,"legacy reservation restored")
+                -- Switching modes never rewrites the stored custom values.
+                local original=Copy(config);config.powerBarSizeMode="MATCH_TARGET";Canonical(config,unit)
+                ns.UnitFrame.ApplyConfig(owner,frame)
+                Equal(frame.Elements.PowerBar:Rect(),legacyRect.PowerBar,"same-frame legacy rebuild")
+                Equal(frame.Elements.HealthBar:Rect(),legacyRect.HealthBar,"same-frame legacy health")
+                config.powerBarSizeMode="CUSTOM";Equal(Canonical(config,unit).PowerBar,pure.PowerBar)
+                ns.UnitFrame.ApplyConfig(owner,frame)
+                Equal(frame.Elements.PowerBar:Rect(),pure.PowerBar,"same-frame custom rebuild")
+                Equal(frame.Elements.HealthBar:Rect(),pure.HealthBar,"same-frame custom health")
+                Equal(config,original)
+                customCount=customCount+1
+            end
+        end
+    end
+end
+local minimal=Copy(base);minimal.powerBarSizeMode="CUSTOM"
+g=Canonical(minimal);Equal(g.HealthBar,Rect(1,219,1,39));Equal(g.PowerBar,Rect(50,170,16,24))
+local invalid=Copy(minimal);invalid.powerBarWidth=-1;invalid.powerBarHeight=0
+invalid.powerBarAnchorTo="PowerBar";invalid.powerBarPoint="invalid";invalid.powerBarRelativePoint="invalid"
+invalid.powerBarOffsetX=math.huge;invalid.powerBarOffsetY="invalid"
+Equal(Canonical(invalid).PowerBar,g.PowerBar,"invalid custom geometry falls back without writes")
+local nan={powerBarSizeMode="CUSTOM",powerBarOffsetY=0/0}
+assert(Bar.ResolveGeometryConfig(nan).powerBarOffsetY==0 and nan.powerBarOffsetY~=nan.powerBarOffsetY)
+local ignored=Copy(base);ignored.powerBarSizeMode="unknown";ignored.powerBarWidth=999;ignored.powerBarOffsetX=999
+Equal(Canonical(ignored).PowerBar,Canonical(base).PowerBar,"unknown mode remains legacy")
+Load(ns,"Data/Defaults.lua")
+if previous then Load(previous,"Data/Defaults.lua",true) end
+local oldUnits=previous and previous:GetDefaultDB().profile.Units
+local defaultCount=0
+for key,config in pairs(ns:GetDefaultDB().profile.Units)do
+    local current=Canonical(config,key)
+    assert(config.powerBarSizeMode=="MATCH_TARGET")
+    if oldUnits then
+        local old=previous.UnitFrameBarLayout.ComputeCanonicalRects(oldUnits[key],key)
+        for _,target in ipairs({"Frame","HealthBar","PowerBar"})do Equal(current[target],old[target],"shipped default "..key.." "..target) end
+    end
+    defaultCount=defaultCount+1
+end
+print("PASS Power defaults: "..defaultCount.." shipped Unit configurations"..(previous and "; HEAD geometry parity" or ""))
+print("PASS Custom Power: "..customCount.." applied anchor/alternative-power/INSIDE fixtures; mode round trips and safe defaults")
 print("PASS UnitFrameGeometry: pure rects, nine anchors, latent/alternative power, lanes, immutable config; "..
     count.." applied fixtures; preview and Aura anchor regressions"..(previous and "; HEAD before/after parity" or ""))

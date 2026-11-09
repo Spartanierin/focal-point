@@ -193,4 +193,55 @@ Test('large CastBar offsets survive transfer, projection, copy and active-root s
     ns.db=Copy(ns.db);resolver.InvalidateActiveRuntimeRoot()
     Check(assert(resolver.GetActiveUnits(ns.db)).player)
 end)
+Test('Power CUSTOM geometry survives transfer, materialization, mode changes, copy and root reload',function()
+    local source,layout=Fixture()
+    local fields={powerBarSizeMode='CUSTOM',powerBarWidth=153.5,powerBarHeight=23.25,
+        powerBarAnchorTo='HealthBar',powerBarPoint='TOPRIGHT',powerBarRelativePoint='BOTTOMLEFT',
+        powerBarOffsetX=73,powerBarOffsetY=-89,powerBarPresent=true,showPowerBar=true}
+    for key,value in pairs(fields)do layout.payload.Units.player[key]=value end
+    local before=Copy(layout)
+    local result=Prepare(Export(source,layout),{global={}});assert(result.ready)
+    Equal(layout,before)
+    local function Check(unit)
+        for key,value in pairs(fields)do assert(unit[key]==value,key) end
+    end
+    Check(result.preparedLayout.payload.Units.player)
+    Check(ns.LayoutService.ProjectUserLayout('layout:power',result.preparedLayout).payload.Units.player)
+    ns.db={global={UserLayouts={['layout:power']=result.preparedLayout}},char={activeLayoutId='layout:power'}}
+    local ok,id=ns.LayoutMutations.CopyLayout('layout:power','Power Copy');assert(ok,id)
+    Check(ns.db.global.UserLayouts[id].payload.Units.player)
+    local resolver=ns.ActiveLayoutResolver
+    for _,key in ipairs({'layout:power',id,'layout:power'})do
+        ns.db.char.activeLayoutId=key
+        local unit=assert(resolver.GetActiveUnits(ns.db)).player;Check(unit)
+        unit.powerBarSizeMode='MATCH_TARGET'
+        for field,value in pairs(fields)do if field~='powerBarSizeMode' then assert(unit[field]==value,field) end end
+        unit.powerBarSizeMode='CUSTOM';Check(unit)
+    end
+    ns.db=Copy(ns.db);resolver.InvalidateActiveRuntimeRoot()
+    Check(assert(resolver.GetActiveUnits(ns.db)).player)
+end)
+Test('old Power layouts retain MATCH_TARGET defaults and legacy theme mapping preserves explicit CUSTOM data',function()
+    local defaults=ns:GetDefaultDB()
+    local fields={'powerBarSizeMode','powerBarWidth','powerBarAnchorTo','powerBarPoint',
+        'powerBarRelativePoint','powerBarOffsetX','powerBarOffsetY'}
+    for _,unit in pairs(defaults.profile.Units)do
+        assert(unit.powerBarSizeMode=='MATCH_TARGET')
+        for _,key in ipairs(fields)do assert(unit[key]~=nil,key) end
+    end
+    local old={width=217,height=43,powerBarPresent=true,showPowerBar=true,powerBarHeight=17,Texts={}}
+    local before=Copy(old)
+    for _,materialize in ipairs({ns.LayoutService.MaterializeUnit,ns.LayoutService.MaterializeLegacyUnit})do
+        local unit=materialize(defaults.profile.Units.player,old,'player')
+        assert(unit.powerBarSizeMode=='MATCH_TARGET' and unit.powerBarHeight==17 and unit.width==217 and unit.height==43)
+        Equal(old,before)
+    end
+    Load('Services/LegacyThemeAdapter.lua')
+    local custom={powerBarSizeMode='CUSTOM',powerBarWidth=91,powerBarHeight=12,powerBarAnchorTo='Frame',
+        powerBarPoint='BOTTOM',powerBarRelativePoint='TOP',powerBarOffsetX=-17,powerBarOffsetY=25}
+    local unit=ns.LegacyThemeAdapter.MaterializeApplyUnit(defaults.profile.Units.player,{bars=custom})
+    for key,value in pairs(custom)do assert(unit[key]==value,key) end
+    local legacy=ns.LegacyThemeAdapter.MaterializeApplyUnit(defaults.profile.Units.player,{bars={powerBarHeight=17}})
+    assert(legacy.powerBarSizeMode=='MATCH_TARGET' and legacy.powerBarHeight==17)
+end)
 print('LayoutTransferVNext: '..passed..' groups passed')

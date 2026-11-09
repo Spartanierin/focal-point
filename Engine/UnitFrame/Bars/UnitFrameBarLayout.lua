@@ -60,6 +60,15 @@ end
 -- main runtime can focus on orchestration.
 
 -- Shared input defaults; powerBarHeight remains available even when hidden.
+local POWER_POINTS = {TOPLEFT=true, TOP=true, TOPRIGHT=true, LEFT=true, CENTER=true,
+    RIGHT=true, BOTTOMLEFT=true, BOTTOM=true, BOTTOMRIGHT=true}
+
+local function GeometryNumber(value, fallback, positive)
+    value = tonumber(value)
+    if not value or value ~= value or math.abs(value) == math.huge or positive and value <= 0 then return fallback end
+    return value
+end
+
 function BarLayout.ResolveGeometryConfig(config)
     config = config or {}
     local showPowerBar = config.powerBarPresent == true and config.showPowerBar and true or false
@@ -69,7 +78,15 @@ function BarLayout.ResolveGeometryConfig(config)
         height = config.height or 40,
         borderInset = 1,
         showPowerBar = showPowerBar,
-        powerBarHeight = config.powerBarHeight or 8,
+        powerBarSizeMode = config.powerBarSizeMode == "CUSTOM" and "CUSTOM" or "MATCH_TARGET",
+        powerBarHeight = config.powerBarSizeMode == "CUSTOM"
+            and GeometryNumber(config.powerBarHeight, 8, true) or config.powerBarHeight or 8,
+        powerBarWidth = GeometryNumber(config.powerBarWidth, 120, true),
+        powerBarAnchorTo = config.powerBarAnchorTo == "HealthBar" and "HealthBar" or "Frame",
+        powerBarPoint = POWER_POINTS[config.powerBarPoint] and config.powerBarPoint or "CENTER",
+        powerBarRelativePoint = POWER_POINTS[config.powerBarRelativePoint] and config.powerBarRelativePoint or "CENTER",
+        powerBarOffsetX = GeometryNumber(config.powerBarOffsetX, 0),
+        powerBarOffsetY = GeometryNumber(config.powerBarOffsetY, 0),
         alternativePowerBarEnabled = showAlternative,
         alternativePowerBarHeight = showAlternative and (config.alternativePowerBarHeight or 5) or 0,
     }
@@ -92,7 +109,7 @@ function BarLayout.ComputeOffsets(options)
     local healthLeftOffset = borderInset + frameLeftReserve + healthLeftReserve
     local healthRightOffset = -(borderInset + frameRightReserve + healthRightReserve)
     local healthBottomY = borderInset
-    if showPowerBar then
+    if showPowerBar and options.powerBarSizeMode ~= "CUSTOM" then
         healthBottomY = healthBottomY + powerBarHeight
     end
     if alternativePowerBarVisible then
@@ -106,19 +123,33 @@ function BarLayout.ComputeOffsets(options)
         powerBottomOffset = powerBottomOffset + alternativePowerBarHeight
     end
 
+    local power = options.powerBarSizeMode == "CUSTOM" and {
+        custom = true, width = options.powerBarWidth, height = powerBarHeight,
+        anchorTo = options.powerBarAnchorTo, point = options.powerBarPoint,
+        relativePoint = options.powerBarRelativePoint, x = options.powerBarOffsetX, y = options.powerBarOffsetY,
+    } or { left = powerLeftOffset, right = powerRightOffset, bottom = powerBottomOffset, height = powerBarHeight }
     return {
         health = { left = healthLeftOffset, right = healthRightOffset, top = -borderInset, bottom = healthBottomY },
-        power = { left = powerLeftOffset, right = powerRightOffset, bottom = powerBottomOffset, height = powerBarHeight },
+        power = power,
     }
 end
 
 function BarLayout.ComputeRects(frameRect, options)
     local offsets = BarLayout.ComputeOffsets(options)
     local health, power = offsets.health, offsets.power
-    return {
+    local healthRect = {
         left = frameRect.left + health.left, right = frameRect.right + health.right,
         bottom = frameRect.bottom + health.bottom, top = frameRect.top + health.top,
-    }, {
+    }
+    if power.custom then
+        local layout = FocalPoint.UnitFrameLayout
+        local target = power.anchorTo == "HealthBar" and healthRect or frameRect
+        local x, y = layout.GetRectAnchor(target, power.relativePoint)
+        local px, py = layout.GetRectAnchor({left=0, bottom=0, right=power.width, top=power.height}, power.point)
+        local left, bottom = x + power.x - px, y + power.y - py
+        return healthRect, {left=left, right=left+power.width, bottom=bottom, top=bottom+power.height}
+    end
+    return healthRect, {
         left = frameRect.left + power.left, right = frameRect.right + power.right,
         bottom = frameRect.bottom + power.bottom,
         top = frameRect.bottom + power.bottom + power.height,
@@ -226,12 +257,16 @@ function BarLayout.ApplyHealthAndPower(owner, frame, options)
         end
 
         if showPowerBar then
-            local powerLeftOffset = geometry.power.left
-            local powerRightOffset = geometry.power.right
-            local powerBottomOffset = geometry.power.bottom
-            power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", powerLeftOffset, powerBottomOffset)
-            power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", powerRightOffset, powerBottomOffset)
-            power:SetHeight(geometry.power.height)
+            local g = geometry.power
+            if g.custom then
+                local target = g.anchorTo == "HealthBar" and frame.Elements.HealthBar or frame
+                power:SetSize(g.width, g.height)
+                power:SetPoint(g.point, target or frame, g.relativePoint, g.x, g.y)
+            else
+                power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", g.left, g.bottom)
+                power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", g.right, g.bottom)
+                power:SetHeight(g.height)
+            end
             power:Show()
         else
             if power.bg then

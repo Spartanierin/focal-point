@@ -192,6 +192,13 @@ local function AllPointsGeometry(relativeTo, source)
 end
 
 local function ResolvePower(frame, config)
+    if config and config.powerBarSizeMode == "CUSTOM" then
+        local bars = FocalPoint.UnitFrameBarLayout
+        if not (bars and bars.ComputeCanonicalRects) then return nil end
+        local rect = bars.ComputeCanonicalRects(config, frame._fpUnit).PowerBar
+        return PointGeometry(frame, "BOTTOMLEFT", "BOTTOMLEFT", rect.right-rect.left, rect.top-rect.bottom,
+            rect.left, rect.bottom, "power-custom-config")
+    end
     local borderInset = Number(config and config.borderInset, 1)
     local height = Number(config and config.powerBarHeight, 8)
     local bottomOffset = borderInset
@@ -284,7 +291,8 @@ local function ResolveBar(frame, objectRef, config)
 
     local target = frame.Elements and frame.Elements[spec.elementKey] or nil
     local targetGeometry = FrameGeometry(target, "target-frame")
-    if targetGeometry then
+    if targetGeometry and not (objectKey == "PowerBar" and config.powerBarSizeMode == "CUSTOM"
+        and target.IsShown and not target:IsShown()) then
         return targetGeometry
     end
 

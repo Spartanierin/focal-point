@@ -43,9 +43,11 @@ end
 local function Ref(key)return {kind='bar',unit='player',objectKey=key}end
 local function Fixture(scale,key)
     local owner=f.Frame(scale);owner._fpUnit='player';owner.MoveOverlay=Surface()
-    owner.config={castBarOffsetX=17,castBarOffsetY=-23,classPowerBarOffsetX=17,classPowerBarOffsetY=-23}
+    owner.config={powerBarSizeMode='CUSTOM',powerBarAnchorTo='Frame',powerBarOffsetX=17,powerBarOffsetY=-23,
+        castBarOffsetX=17,castBarOffsetY=-23,classPowerBarOffsetX=17,classPowerBarOffsetY=-23}
     f.units.player=owner.config;ns.frames={player=owner}
     local target=f.Frame(scale,40,20);target:SetPoint('CENTER',owner,'CENTER',17,-23)
+    owner.Elements={PowerBar=target}
     local zone=ensureZone(owner,'selected')
     zone._focalPointObjectRef=Ref(key);zone._focalPointOwnerFrame=owner
     zone._focalPointVisualTarget=target;zone._focalPointMovesUnit=true
@@ -63,7 +65,7 @@ local function Fixture(scale,key)
 end
 local cases=0
 for _,scale in ipairs({0.5,0.75,1,1.25,1.5})do
-    for _,key in ipairs({'CastBar','ClassPowerBar'})do
+    for _,key in ipairs({'PowerBar','CastBar','ClassPowerBar'})do
         for hitIndex=1,4 do
             local owner,target,zone,other,texts=Fixture(scale,key)
             local hit=hitIndex==4 and zone or hitIndex==3 and other or texts[hitIndex]
@@ -88,7 +90,7 @@ for _,scale in ipairs({0.5,0.75,1,1.25,1.5})do
             if hitIndex<=2 then Event(hit,'OnClick','LeftButton')end
             assert(selected==zone._focalPointObjectRef and selectionCalls==0)
             assert(not hit._focalPointGesture and not hit._focalPointDirectDragState)
-            local prefix=key=='CastBar' and 'castBar' or 'classPowerBar'
+            local prefix=key=='PowerBar' and 'powerBar' or key=='CastBar' and 'castBar' or 'classPowerBar'
             local cfg=owner.config
             target:SetPoint(cfg[prefix..'Point'] or 'CENTER',owner,cfg[prefix..'RelativePoint'] or 'CENTER',
                 cfg[prefix..'OffsetX'],cfg[prefix..'OffsetY'])

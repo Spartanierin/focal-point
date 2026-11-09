@@ -34,6 +34,7 @@ local canvas=ns.GUI.Editor.CanvasHoverOverlay
 local begin=assert(Find(canvas.UpdateFrame,"BeginDirectMoveDrag"))
 local finish=assert(Find(begin,"EndDirectMoveDrag"))
 local describe=assert(Find(canvas.UpdateFrame,"ResolveDirectMoveDescriptor"))
+local wheel=assert(Find(canvas.UpdateFrame,"ResolveWheelCapability"))
 canvas.UpdateFrame=function()end -- UI chrome is outside this native geometry test.
 local function Frame(scale,w,h)
     local f={scale=scale*UIParent.scale,width=w or 240,height=h or 60,cx=800/scale,cy=450/scale,scripts={}}
@@ -60,7 +61,7 @@ local function Frame(scale,w,h)
     return f
 end
 ns.UnitFrameFactory={GetAnchorTarget=function(frame,anchor)return anchor=='HealthBar' and frame.HealthBar or frame end}
-local refs={{kind="bar",objectKey="CastBar"},{kind="bar",objectKey="NormalAbsorbBar"},
+local refs={{kind="bar",objectKey="PowerBar"},{kind="bar",objectKey="CastBar"},{kind="bar",objectKey="NormalAbsorbBar"},
     {kind="bar",objectKey="HealingAbsorbBar"},{kind="bar",objectKey="ClassPowerBar"},
     {kind="indicator",indicatorKey="Portrait"},{kind="indicator",indicatorKey="CombatIndicator"},
     {kind="decoration",decorationId="test"},{kind="aura",auraKey="Buffs"}}
@@ -71,7 +72,7 @@ for _,scale in ipairs({0.5,0.75,1,1.25,1.5})do
         for _,sign in ipairs({-1,1})do
             local owner=Frame(scale);owner._fpUnit="player"
             owner.HealthBar=Frame(scale,120,30);owner.HealthBar:SetPoint('CENTER',owner,'CENTER',13,-7)
-            local config={normalAbsorbBarSizeMode="CUSTOM",healingAbsorbBarSizeMode="CUSTOM",
+            local config={powerBarSizeMode="CUSTOM",powerBarAnchorTo='HealthBar',normalAbsorbBarSizeMode="CUSTOM",healingAbsorbBarSizeMode="CUSTOM",
                 normalAbsorbBarAnchorTo='HealthBar',healingAbsorbBarAnchorTo='HealthBar',classPowerBarAnchorTo='HealthBar',
                 Portrait={placement="ATTACHED",anchorTo='HealthBar',offsetX=17,offsetY=-23},
                 CombatIndicator={placement="ATTACHED",anchorTo='HealthBar',offsetX=17,offsetY=-23},
@@ -84,6 +85,7 @@ for _,scale in ipairs({0.5,0.75,1,1.25,1.5})do
             stored[descriptor.offsetXField],stored[descriptor.offsetYField]=17,-23
             local anchorOwner=(ref.objectKey=='CastBar' or ref.kind=='aura') and owner or owner.HealthBar
             local target=Frame(scale,40,20);target:SetPoint("CENTER",anchorOwner,"CENTER",17,-23)
+            owner.Elements={PowerBar=target}
             local zone=Frame(scale);zone._focalPointVisualTarget=target;zone._focalPointOwnerFrame=owner;zone._focalPointObjectRef=ref
             local startX,startY=target.cx,target.cy
             assert(begin(zone,{directMove=descriptor}))
@@ -106,6 +108,80 @@ for _,scale in ipairs({0.5,0.75,1,1.25,1.5})do
         end
     end
 end
+local powerRef={kind="bar",unit="player",objectKey="PowerBar"}
+local function PowerFixture()
+    local owner=Frame(1);owner._fpUnit="player"
+    local config={width=240,height=60,powerBarPresent=true,showPowerBar=true,powerBarSizeMode="CUSTOM",
+        powerBarWidth=40,powerBarHeight=20,powerBarAnchorTo="Frame",powerBarPoint="CENTER",powerBarRelativePoint="CENTER",
+        powerBarOffsetX=17,powerBarOffsetY=-23}
+    units.player=config;owner.config=config
+    local target=Frame(1,40,20);target:SetPoint("CENTER",owner,"CENTER",17,-23)
+    owner.Elements={PowerBar=target}
+    local zone=Frame(1);zone._focalPointOwnerFrame=owner;zone._focalPointVisualTarget=target;zone._focalPointObjectRef=powerRef
+    local root={layoutId="layout:power"}
+    ns.ActiveLayoutResolver.GetActiveRuntimeRoot=function()return root end
+    return owner,target,config,zone,root
+end
+do
+    local owner,_,config=PowerFixture()
+    local capability=assert(wheel(owner,powerRef));assert(capability.min==1 and capability.max==128 and capability.default==8)
+    config.powerBarSizeMode="MATCH_TARGET";assert(describe(owner,powerRef)==nil)
+    capability=assert(wheel(owner,powerRef));assert(capability.min==4 and capability.max==30 and capability.default==20)
+    config.powerBarSizeMode=nil;assert(describe(owner,powerRef)==nil)
+end
+for _,reason in ipairs({"combat","layout","record","mode","reopen"})do
+    local owner,target,config,zone,root=PowerFixture()
+    local d=assert(describe(owner,powerRef));assert(begin(zone,{directMove=d}))
+    cursorX=cursorX+60*UIParent.scale;zone.scripts.OnUpdate(zone)
+    if reason=="combat"then InCombatLockdown=function()return true end
+    elseif reason=="layout"then ns.ActiveLayoutResolver.GetActiveRuntimeRoot=function()return {layoutId="layout:other"}end
+    elseif reason=="record"then units.player={powerBarSizeMode="CUSTOM",powerBarOffsetX=81,powerBarOffsetY=92}
+    elseif reason=="mode"then config.powerBarSizeMode="MATCH_TARGET"
+    else ns.framesUnlocked=false end
+    finish(zone,true)
+    assert(config.powerBarOffsetX==17 and config.powerBarOffsetY==-23 and not zone._focalPointDirectDragState)
+    if reason=="record"then assert(units.player.powerBarOffsetX==81 and units.player.powerBarOffsetY==92)end
+    InCombatLockdown=function()return false end;ns.framesUnlocked=true
+end
+-- A deferred editable-copy callback must revalidate immediately before writing.
+do
+    local owner,target,config,zone=PowerFixture();local pending
+    local workflow=ns.LayoutEditWorkflow.RequestEditableLayoutForMutation
+    ns.LayoutEditWorkflow.RequestEditableLayoutForMutation=function(action)pending=action;return false,"confirmation-open"end
+    assert(begin(zone,{directMove=assert(describe(owner,powerRef))}))
+    cursorX=cursorX+60*UIParent.scale;zone.scripts.OnUpdate(zone);finish(zone,true)
+    assert(pending);InCombatLockdown=function()return true end;pending()
+    assert(config.powerBarOffsetX==17 and config.powerBarOffsetY==-23)
+    InCombatLockdown=function()return false end;ns.LayoutEditWorkflow.RequestEditableLayoutForMutation=workflow
+end
+-- Selection fallback consumes P14.1's canonical rectangles, including a hidden bar.
+Load("Engine/UnitFrame/Shared/UnitFramePreview.lua")
+Load("Engine/UnitFrame/Runtime/UnitFrameInsideLayout.lua")
+Load("Engine/UnitFrame/Bars/UnitFrameBarLayout.lua")
+Load("GUI/Editor/SelectionGeometryResolver.lua")
+do
+    local owner,target,config=PowerFixture()
+    config.powerBarWidth=100;config.powerBarHeight=18;config.powerBarPoint="TOPLEFT"
+    config.powerBarRelativePoint="BOTTOMRIGHT";config.powerBarOffsetX=13;config.powerBarOffsetY=-12
+    owner.Elements.PowerBar=nil
+    local resolve=ns.GUI.Editor.SelectionGeometryResolver.Resolve
+    local geometry=assert(resolve(owner,powerRef))
+    assert(geometry.source=="power-custom-config" and geometry.width==100 and geometry.height==18)
+    Near(geometry.points[1].offsetX,253);Near(geometry.points[1].offsetY,-30)
+    owner.Elements.PowerBar=target;target.IsShown=function()return false end
+    assert(resolve(owner,powerRef).source=="power-custom-config")
+    target.IsShown=function()return true end;assert(resolve(owner,powerRef).target==target)
+    -- The real text apply path retains the Power frame as anchor, with unchanged text offsets.
+    Load("Engine/Text/Runtime/TextElementApply.lua")
+    local text=Frame(1,10,10)
+    for _,method in ipairs({"SetWidth","SetTextColor","SetJustifyH","SetShadowOffset","SetShadowColor","Show"})do text[method]=function()end end
+    text.SetFont=function()return true end
+    ns.TextElementApply.ApplyElementConfig(owner,"PowerText",text,
+        {anchorTo="PowerBar",point="CENTER",relativePoint="CENTER",offsetX=7,offsetY=-3},
+        {GetAnchorTarget=function(f,key)return f.Elements[key]or f end})
+    assert(text.point[2]==target and text.point[4]==7 and text.point[5]==-3)
+end
+print("PASS Power Direct Move: MATCH_TARGET exclusion, stale/Combat/deferred guards, canonical selection fallback and real text anchor")
 print("PASS ComponentDirectMove: "..cases.." scale/sign/component preview-commit-reapply cases (existing integer grid)")
 return {ns=ns,Load=Load,Frame=Frame,Find=Find,Near=Near,begin=begin,finish=finish,describe=describe,units=units,
     move=function(x,y)cursorX,cursorY=cursorX+x*UIParent.scale,cursorY+y*UIParent.scale end}

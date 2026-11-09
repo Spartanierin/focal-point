@@ -3794,6 +3794,7 @@ function InspectorController.Build(container, state, options)
 
         local usePropertyGroups = IsScopedPowerBarObjectMode()
         local flatPower = usePropertyGroups and type(workspaceIsCurrent) == "function"
+        local workspacePower = flatPower and buildPropertiesOnly
         local CreatePowerPropertyGroup = AddFramedObjectPropertyGroup
         local projectPowerGroups, registerPowerGroups
         if flatPower then
@@ -3804,6 +3805,7 @@ function InspectorController.Build(container, state, options)
         local appearanceSection = powerSection
         local backgroundSection = powerSection
         local geometrySection = powerSection
+        local positionSection
         local behaviorSection = powerSection
         local actionsSection
         if usePropertyGroups then
@@ -3811,6 +3813,7 @@ function InspectorController.Build(container, state, options)
             appearanceSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_APPEARANCE"] or "Appearance", true)
             backgroundSection = AddFramedObjectPropertyGroup(powerSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
             geometrySection = CreatePowerPropertyGroup(powerSection, L["SECTION_GEOMETRY"] or "Geometry", true)
+            if workspacePower then positionSection = CreatePowerPropertyGroup(powerSection, L["SECTION_POSITION"] or "Position", true) end
             behaviorSection = flatPower and generalSection or CreatePowerPropertyGroup(powerSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             if not (flatPower and buildPropertiesOnly) then
                 actionsSection = CreatePowerPropertyGroup(powerSection, L["SECTION_ACTIONS"] or "Actions", true)
@@ -3819,8 +3822,10 @@ function InspectorController.Build(container, state, options)
         if flatPower then
             appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
             backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
-            registerPowerGroups({[generalSection]="behavior", [appearanceSection]="appearance",
-                [backgroundSection]="appearance", [geometrySection]="geometry", [behaviorSection]="behavior"}, actionsSection)
+            local membership = {[generalSection]="behavior", [appearanceSection]="appearance",
+                [backgroundSection]="appearance", [geometrySection]="geometry", [behaviorSection]="behavior"}
+            if positionSection then membership[positionSection] = "geometry" end
+            registerPowerGroups(membership, actionsSection)
         end
 
         if usePropertyGroups then
@@ -3868,10 +3873,17 @@ function InspectorController.Build(container, state, options)
             end, DEFAULT_STATUSBAR_REFERENCE, L["MEDIA_LIBRARY_BROWSE_STATUSBAR_TITLE"] or "Choose Bar Texture", unitConfig.showPowerBar == false, SetPowerBarTexture)
         end
 
+        local customPower = workspacePower and unitConfig.powerBarSizeMode == "CUSTOM"
+        if workspacePower then
+            AddPropertyDropdownRow(geometrySection, L["OPTION_SIZE_MODE"] or "Size Mode", {
+                list = absorbSizeModeList, value = customPower and "CUSTOM" or "MATCH_TARGET",
+                onChanged = function(value) SetUnitField("powerBarSizeMode", value, powerSection) end,
+            }, unitConfig.showPowerBar == false)
+        end
         if isQuick or isExpert then
             local powerBarHeightControl
             if usePropertyGroups then
-                powerBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", 4, 30, 1, tonumber(unitConfig.powerBarHeight) or 20, function(value)
+                powerBarHeightControl = AddPropertyCompactSliderRow(geometrySection, L["OPTION_HEIGHT"] or L["OPTION_POWER_BAR_HEIGHT"] or "Height", customPower and 1 or 4, customPower and 128 or 30, 1, tonumber(unitConfig.powerBarHeight) or (customPower and 8 or 20), function(value)
                     if IsActiveCanvasWheelFieldControlSuppressed(powerBarHeightControl) then
                         return
                     end
@@ -3886,6 +3898,40 @@ function InspectorController.Build(container, state, options)
                 end, unitConfig.showPowerBar == false)
             end
             RegisterActiveCanvasWheelFieldControl(state and state.selectedUnit, { kind = "bar", unit = state and state.selectedUnit, objectKey = "PowerBar" }, "powerBarHeight", powerBarHeightControl)
+        end
+
+        if workspacePower then
+            local disabled = not customPower or unitConfig.showPowerBar == false
+            AddPropertyCompactSliderRow(geometrySection, L["OPTION_WIDTH"] or "Width", 1, 512, 1, tonumber(unitConfig.powerBarWidth) or 120,
+                function(value) SetUnitField("powerBarWidth", math.floor((value or 0) + .5)) end, disabled)
+            AddPropertyDropdownRow(positionSection, L["OPTION_ANCHOR_TARGET"] or "Anchor Target", {
+                list = {Frame=absorbAnchorTargetList.Frame, HealthBar=absorbAnchorTargetList.HealthBar},
+                value = unitConfig.powerBarAnchorTo or "Frame",
+                onChanged = function(value) SetUnitField("powerBarAnchorTo", value) end,
+            }, disabled)
+            local pointControl, relativePointControl
+            pointControl, relativePointControl = AddPointPairRow(positionSection, {
+                list=barAnchorList, value=unitConfig.powerBarPoint or "CENTER", disabled=disabled,
+                onChanged=function(value)
+                    if not IsActiveCanvasDirectMoveOffsetControlSuppressed(pointControl) then SetUnitField("powerBarPoint", value) end
+                end,
+            }, {
+                list=barAnchorList, value=unitConfig.powerBarRelativePoint or "CENTER", disabled=disabled,
+                onChanged=function(value)
+                    if not IsActiveCanvasDirectMoveOffsetControlSuppressed(relativePointControl) then SetUnitField("powerBarRelativePoint", value) end
+                end,
+            })
+            local xControl, yControl
+            xControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_X"] or "Offset X", -500, 500, 1, tonumber(unitConfig.powerBarOffsetX) or 0,
+                function(value)
+                    if not IsActiveCanvasDirectMoveOffsetControlSuppressed(xControl) then SetUnitField("powerBarOffsetX", math.floor((value or 0) + .5)) end
+                end, disabled)
+            yControl = AddPropertyCompactSliderRow(positionSection, L["OPTION_OFFSET_Y"] or "Offset Y", -500, 500, 1, tonumber(unitConfig.powerBarOffsetY) or 0,
+                function(value)
+                    if not IsActiveCanvasDirectMoveOffsetControlSuppressed(yControl) then SetUnitField("powerBarOffsetY", math.floor((value or 0) + .5)) end
+                end, disabled)
+            RegisterActiveCanvasDirectMoveOffsetControls(selectedUnit, {kind="bar",unit=selectedUnit,objectKey="PowerBar"},
+                xControl, yControl, pointControl, relativePointControl)
         end
 
         if usePropertyGroups then

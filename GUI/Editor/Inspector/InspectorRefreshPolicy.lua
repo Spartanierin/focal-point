@@ -10,6 +10,7 @@ FocalPoint.GUI.Editor.Inspector.RefreshPolicy = InspectorRefreshPolicy
 
 local FIELD_POLICIES = {
     unit = {
+        powerBarSizeMode = { scope = "section", sectionKey = "power" },
         enabled = { scope = "unitEnabled" },
         useClassColorHealth = { scope = "section", sectionKey = "health" },
         useLowHealthColor = { scope = "section", sectionKey = "health" },

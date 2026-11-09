@@ -277,14 +277,15 @@ local function ResolveWheelCapability(frame, objectRef)
             ClassPowerBar = { fieldName = "classPowerBarHeight", default = 12 },
         })[objectRef.objectKey]
         if barCapability then
+            local customPower = objectRef.objectKey == "PowerBar" and unitConfig.powerBarSizeMode == "CUSTOM"
             return {
                 kind = "barThickness",
                 unitConfig = unitConfig,
                 unitKey = unitKey,
                 fieldName = barCapability.fieldName,
-                default = barCapability.default,
-                min = 4,
-                max = 30,
+                default = customPower and 8 or barCapability.default,
+                min = customPower and 1 or 4,
+                max = customPower and 128 or 30,
             }
         end
     elseif objectRef.kind == "aura" and (objectRef.auraKey == "Buffs" or objectRef.auraKey == "Debuffs") then
@@ -428,7 +429,7 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
                 autoAnchor = true,
             }
         end
-        local prefix = objectKey == "NormalAbsorbBar" and "normalAbsorbBar" or objectKey == "HealingAbsorbBar" and "healingAbsorbBar" or nil
+        local prefix = objectKey == "PowerBar" and "powerBar" or objectKey == "NormalAbsorbBar" and "normalAbsorbBar" or objectKey == "HealingAbsorbBar" and "healingAbsorbBar" or nil
         if prefix and unitConfig[prefix .. "SizeMode"] == "CUSTOM" then
             return {
                 kind = "unit",
@@ -440,6 +441,9 @@ local function ResolveDirectMoveDescriptor(frame, objectRef)
                 offsetXField = prefix .. "OffsetX",
                 offsetYField = prefix .. "OffsetY",
                 autoAnchor = true,
+                powerRoot = objectKey == "PowerBar" and FocalPoint.ActiveLayoutResolver.GetActiveRuntimeRoot
+                    and FocalPoint.ActiveLayoutResolver.GetActiveRuntimeRoot() or nil,
+                powerMove = objectKey == "PowerBar",
             }
         end
         return nil
@@ -663,6 +667,22 @@ local function ClearAuraDirectMovePreview(state)
     return true
 end
 
+local function IsPowerMoveCurrent(state, allowCopy)
+    local d = state and state.descriptor
+    if not d or not d.powerMove then return true end
+    if (InCombatLockdown and InCombatLockdown()) or not CanvasHoverOverlay.IsEditorActive() then return false end
+    local resolver = FocalPoint.ActiveLayoutResolver
+    local root = resolver and resolver.GetActiveRuntimeRoot and resolver.GetActiveRuntimeRoot()
+    local config = FocalPoint.UnitFrameUtils.GetUnitDB(d.unitKey)
+    if not config or config.powerBarSizeMode ~= "CUSTOM" or config.powerBarPresent == false or config.showPowerBar == false then return false end
+    local copied = allowCopy and d.powerRoot and root and root.record and root.record.createdFrom
+        and root.record.createdFrom.id == d.powerRoot.layoutId
+        and type(d.powerRoot.layoutId) == "string" and d.powerRoot.layoutId:match("^builtin:")
+    if copied then return true end
+    return root == d.powerRoot and config == d.unitConfig and state.frame.config == config
+        and state.frame.Elements and state.frame.Elements.PowerBar == state.target
+end
+
 local function CommitDirectMove(state, anchorPosition)
     if state and state.descriptor and state.descriptor.kind == "segmentedBar" then
         local d = state.descriptor
@@ -676,6 +696,7 @@ local function CommitDirectMove(state, anchorPosition)
     if not (state and state.descriptor and mutations and workflow and workflow.RequestEditableLayoutForMutation) then return nil end
     local descriptor, result = state.descriptor, nil
     workflow.RequestEditableLayoutForMutation(function()
+        if not IsPowerMoveCurrent(state, true) then return end
         local resolver = FocalPoint.ActiveLayoutResolver
         local units = resolver and resolver.GetEditableActiveUnits and resolver.GetEditableActiveUnits(FocalPoint.db) or nil
         local config = type(units) == "table" and units[descriptor.unitKey] or nil
@@ -698,6 +719,7 @@ local function CommitDirectMove(state, anchorPosition)
 end
 local function IsSegmentMoveCurrent(state)
     local d = state and state.descriptor
+    if d and d.powerMove then return IsPowerMoveCurrent(state) end
     if not d or d.kind ~= "segmentedBar" then return true end
     return FocalPoint.LayoutMutations.SegmentedBars.IsContextCurrent(d.context)
         and state.frame.config == d.unitConfig
@@ -725,7 +747,10 @@ local function EndDirectMoveDrag(zone, commit)
         if not current then
             local config = GetActiveUnitConfig(state.frame)
             local runtime = FocalPoint.UnitFrameSegmentedBars
-            if config == state.frame.config and runtime.GetVisibleHolder(state.frame, state.descriptor.id) == state.target then
+            if state.descriptor.powerMove then
+                if config == state.frame.config and state.frame.Elements and state.frame.Elements.PowerBar == state.target
+                    and FocalPoint.RefreshUnitFrame then FocalPoint:RefreshUnitFrame(state.descriptor.unitKey) end
+            elseif config == state.frame.config and runtime.GetVisibleHolder(state.frame, state.descriptor.id) == state.target then
                 runtime.Apply(state.frame)
             end
             return

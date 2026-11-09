@@ -79,15 +79,18 @@ local function OtherFields(config)
 end
 local count=0
 local function Test(name,fn) fn(); count=count+1; print("PASS: "..name) end
-Test("Power uses its unit/power scope and framed appearance and three tabs without inventing Absorb geometry",function()
+Test("Power retains its scope and appearance while exposing existing CUSTOM geometry only in Workspace",function()
     window,unit,db=s.Start("quick"); Check("appearance")
     local scope=s.state.GetPropertyScope()
     assert(scope.kind=="unit" and scope.sectionKey=="power" and scope.objectKey==nil)
     for _,label in ipairs({"Texture","Color","Class Color","Show Background","Background Color","Border Width","Border Color","Height","Show","Reverse Fill"}) do
         assert(HasRow(label),label)
     end
-    for _,label in ipairs({"Width","Size Mode","Anchor Target","Offset X","Offset Y","Growth Direction"}) do
-        assert(not HasRow(label),"unexpected Power property: "..label)
+    for _,label in ipairs({"Width","Size Mode","Anchor Target","Offset X","Offset Y"}) do assert(HasRow(label),label) end
+    assert(not HasRow("Growth Direction"))
+    assert(not s.Control("Height","FPCompactSlider").disabled)
+    for _,item in ipairs({{"Width","FPCompactSlider"},{"Anchor Target","Dropdown"},{"Offset X","FPCompactSlider"},{"Offset Y","FPCompactSlider"}})do
+        assert(s.Control(item[1],item[2]).disabled,item[1])
     end
     local body=Body(); local height=s.Control("Height","FPCompactSlider"); local before=s.h.Copy(db)
     Actions()
@@ -233,6 +236,72 @@ Test("non-Workspace scoped Power retains its committed framed Inspector",functio
     end)
     assert(table.concat(groups,",")=="General,Appearance,Background,Geometry,Behavior,Actions")
     s.h.ui.ace:Release(host)
+end)
+Test("Power CUSTOM fields, framed Size/Anchor groups and mode round trips preserve canonical settings",function()
+    for _,mode in ipairs({"quick","expert"})do
+        window,unit,db=s.Start(mode);Click("geometry")
+        local unaffected=OtherFields(unit)
+        s.Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM");s.Drain();Check("geometry")
+        local height=s.Control("Height","FPCompactSlider");assert(height.min==1 and height.max==128)
+        for _,item in ipairs({{"Width","FPCompactSlider"},{"Anchor Target","Dropdown"},{"Anchor From","Dropdown"},
+            {"Anchor To","Dropdown"},{"Offset X","FPCompactSlider"},{"Offset Y","FPCompactSlider"}})do
+            assert(not s.Control(item[1],item[2]).disabled,item[1])
+        end
+        local groups={}
+        for _,child in ipairs(Body().children)do
+            if child.type=="InlineGroup" and child:GetUserData("normalAbsorbPropertyGroup")=="geometry"then
+                groups[#groups+1]=child.titletext:GetText()
+            end
+        end
+        assert(table.concat(groups,",")=="Size,Anchor")
+        height:Fire("OnValueChanged",41);s.Control("Width","FPCompactSlider"):Fire("OnValueChanged",173)
+        s.Control("Anchor Target","Dropdown"):Fire("OnValueChanged","HealthBar")
+        s.Control("Anchor From","Dropdown"):Fire("OnValueChanged","TOPLEFT")
+        s.Control("Anchor To","Dropdown"):Fire("OnValueChanged","BOTTOMRIGHT")
+        s.Control("Offset X","FPCompactSlider"):Fire("OnValueChanged",27)
+        s.Control("Offset Y","FPCompactSlider"):Fire("OnValueChanged",-39)
+        local values={powerBarWidth=173,powerBarHeight=41,powerBarAnchorTo="HealthBar",powerBarPoint="TOPLEFT",
+            powerBarRelativePoint="BOTTOMRIGHT",powerBarOffsetX=27,powerBarOffsetY=-39}
+        local function Retained()for key,value in pairs(values)do assert(unit[key]==value,key)end end
+        Retained();s.h.Equal(OtherFields(unit),unaffected)
+        local before=s.h.Copy(db)
+        assert(s.ns.GUI.Editor.Inspector.SetActiveCanvasDirectMoveAnchorValues("player",
+            {kind="bar",unit="player",objectKey="PowerBar"},{point="RIGHT",relativePoint="LEFT",offsetX=31,offsetY=-42}))
+        s.h.Equal(db,before)
+        assert(s.Control("Offset X","FPCompactSlider"):GetValue()==31)
+        s.controller.RefreshActiveProperties();s.Drain();Retained()
+        s.Control("Size Mode","Dropdown"):Fire("OnValueChanged","MATCH_TARGET");s.Drain();Retained()
+        assert(s.Control("Width","FPCompactSlider").disabled and s.Control("Anchor From","Dropdown").disabled)
+        assert(not s.Control("Height","FPCompactSlider").disabled and s.Control("Height","FPCompactSlider").max==30)
+        s.Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM");s.Drain();Retained()
+        s.Control("Show","CheckBox"):Fire("OnValueChanged",false);s.Drain()
+        for _,item in ipairs({{"Size Mode","Dropdown"},{"Height","FPCompactSlider"},{"Width","FPCompactSlider"},
+            {"Anchor Target","Dropdown"},{"Anchor From","Dropdown"},{"Anchor To","Dropdown"},
+            {"Offset X","FPCompactSlider"},{"Offset Y","FPCompactSlider"}})do assert(s.Control(item[1],item[2]).disabled,item[1]) end
+        s.Control("Show","CheckBox"):Fire("OnValueChanged",true);s.Drain();Retained()
+        local stale=s.Control("Offset X","FPCompactSlider");local callback=stale.events.OnValueChanged
+        s.Select("NormalAbsorbBar")
+        assert(stale.events.OnValueChanged~=callback,"released Power binding still owns the widget callback")
+        before=s.h.Copy(db)
+        assert(not s.ns.GUI.Editor.Inspector.SetActiveCanvasDirectMoveOffsetValues("player",
+            {kind="bar",unit="player",objectKey="PowerBar"},99,99))
+        s.h.Equal(db,before)
+        s.Select("PowerBar");s.controller.RefreshActiveProperties();s.Drain();Retained()
+        window.closebutton:GetScript("OnClick")(window.closebutton);s.Drain();window=s.Build();s.Select("PowerBar");Retained()
+    end
+end)
+Test("Power CUSTOM layout replacement binds the new record and preserves the old configuration",function()
+    window,unit,db=s.Start("quick");Click("geometry")
+    s.Control("Size Mode","Dropdown"):Fire("OnValueChanged","CUSTOM");s.Drain()
+    s.Control("Width","FPCompactSlider"):Fire("OnValueChanged",173)
+    local oldMode=s.Control("Size Mode","Dropdown");local callback=oldMode.events.OnValueChanged
+    local ok,id=s.ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok)
+    assert(s.ns:ActivateLayout(id));s.controller.BuildInspector(nil,{GetEditorState=s.state.Get});s.Drain()
+    local active=s.ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units.player
+    assert(active~=unit and active.powerBarSizeMode=="CUSTOM" and s.Control("Width","FPCompactSlider"):GetValue()==173)
+    assert(oldMode.events.OnValueChanged~=callback,"old layout still owns the widget callback")
+    s.Control("Width","FPCompactSlider"):Fire("OnValueChanged",99)
+    assert(active.powerBarWidth==99 and unit.powerBarWidth==173)
 end)
 assert(#s.h.ui.env.errors==0,table.concat(s.h.ui.env.errors,"\n"))
 print("Power Bar Property Groups: "..count.." groups PASS")
