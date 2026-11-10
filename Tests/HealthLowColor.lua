@@ -260,4 +260,61 @@ Test("Threshold respects prediction and unit curve sources with scaled curve ran
     f.current=0;f.percent=0;f.Refresh();f.Expect(1,.1,.1,.2)
     local curve=f.curve;Near(curve.points[4].x,0.5)
 end)
+Test("all eight NPC reactions preserve Blizzard shades unless their category is configured",function()
+    local f=Fixture();f.npc=true;f.config.useClassColorHealth=true;f.config.useReactionColorNpcHealth=true
+    f.config.useLowHealthColor=false;f.frame._fpUnit="target"
+    local reaction
+    f.env.UnitReaction=function()return reaction end
+    for i=1,8 do f.env.FACTION_BAR_COLORS[i]={r=i/10,g=i/20,b=i/30}end
+    local fields={[1]="healthReactionHostileColor",[2]="healthReactionHostileColor",[3]="healthReactionHostileColor",
+        [4]="healthReactionNeutralColor",[5]="healthReactionFriendlyColor",[6]="healthReactionFriendlyColor",
+        [7]="healthReactionFriendlyColor",[8]="healthReactionFriendlyColor"}
+    for i=1,8 do reaction=i;f.Refresh();f.Expect(i/10,i/20,i/30,.6)end
+    for _,field in ipairs({"healthReactionFriendlyColor","healthReactionHostileColor","healthReactionNeutralColor"})do
+        f.config[field]={r=.83,g=.17,b=.36,a=0,[1]=0,[2]=0,[3]=0}
+        for i=1,8 do
+            reaction=i;f.Refresh()
+            if fields[i]==field then f.Expect(.83,.17,.36,.6)else f.Expect(i/10,i/20,i/30,.6)end
+        end
+        f.config[field]=nil
+    end
+end)
+Test("NPC RGB overrides retain class/reaction priority, alpha and Low Health curve",function()
+    local f=Fixture();f.npc=true;f.frame._fpUnit="target"
+    f.config.healthReactionFriendlyColor={.8,.3,.2,0};f.config.useReactionColorNpcHealth=true
+    f.config.useLowHealthColor=false;f.Refresh();f.Expect(.2,.7,.4,.6)
+    f.config.useClassColorHealth=true;f.Refresh();f.Expect(.8,.3,.2,.6)
+    f.config.useReactionColorNpcHealth=false;f.Refresh();f.Expect(.2,.7,.4,.6)
+    assert(f.config.healthReactionFriendlyColor[1]==.8)
+    f.config.useReactionColorNpcHealth=true;f.config.useLowHealthColor=true
+    f.current=0;f.percent=0;f.Refresh();f.Expect(1,.1,.1,.2)
+    f.current=75;f.percent=.75;f.Refresh();f.Expect(1,.84,.18,.6)
+    f.current=100;f.percent=1;f.Refresh();f.Expect(.8,.3,.2,.6)
+    f.mode="demo";f.sim={healthCurrent=100,healthMax=100};f.Refresh();f.Expect(.8,.3,.2,.6)
+    f.env.C_CurveUtil=nil;f.Refresh();f.Expect(.8,.3,.2,.6)
+end)
+Test("NPC overrides do not change player, pet fallback or boss fallback contracts",function()
+    local f=Fixture();f.config.useClassColorHealth=true;f.config.useLowHealthColor=false
+    f.config.useReactionColorNpcHealth=true
+    f.config.healthReactionFriendlyColor={.8,.3,.2};f.config.healthReactionHostileColor={.7,.4,.1}
+    f.env.FACTION_BAR_COLORS[2]={r=.9,g=.1,b=.05}
+    f.Refresh();f.Expect(.1,.2,.9,.6) -- friendly player retains class color
+    f.env.UnitIsEnemy=function()return true end;f.Refresh();f.Expect(.9,.1,.05,.6)
+    f.env.UnitIsEnemy=function()return false end;f.env.UnitCanAttack=function()return true end
+    f.Refresh();f.Expect(.1,.9,.2,.6) -- attackable player retains native reaction
+    f.npc=true;f.frame._fpUnit="pet";f.Refresh();f.Expect(.8,.3,.2,.6)
+    f.config.useReactionColorNpcHealth=false;f.Refresh();f.Expect(.1,.2,.9,.6)
+    f.frame._fpUnit="boss1";f.Refresh();f.Expect(.9,.1,.05,.6)
+    f.config.useReactionColorNpcHealth=true;f.Refresh();f.Expect(.8,.3,.2,.6)
+    f.env.UnitReaction=function()return nil end;f.Refresh();f.Expect(.9,.1,.05,.6)
+    f.exists=false;f.Refresh();f.Expect(.2,.7,.4,.6)
+end)
+Test("malformed or secret custom channels cannot replace native NPC RGB",function()
+    local f=Fixture();f.npc=true;f.config.useClassColorHealth=true;f.config.useLowHealthColor=false
+    f.config.useReactionColorNpcHealth=true
+    f.config.healthReactionFriendlyColor={r=f.Secret(.81),g=.2,b=.3}
+    f.Refresh();f.Expect(.1,.9,.2,.6)
+    f.config.healthReactionFriendlyColor={r="bad",g=.2,b=.3};f.Refresh();f.Expect(.1,.9,.2,.6)
+    assert(f.ns.UnitFrameColors.GetHealthReactionColor(f.config,f.Secret(7))==nil)
+end)
 print("Health Low Color: "..count.." groups PASS")

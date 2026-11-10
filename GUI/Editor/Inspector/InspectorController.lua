@@ -3401,7 +3401,85 @@ function InspectorController.Build(container, state, options)
         end
 
         if flatHealth or isExpert then
-            if usePropertyGroups then
+            if flatHealth then
+                local scope = ResolvePropertyScope()
+                local active = true
+                local function IsCurrentReactionRow()
+                    return active and workspaceIsCurrent() and ResolvePropertyScope() == scope
+                        and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
+                end
+                local disabled = unitConfig.useClassColorHealth ~= true or unitConfig.useReactionColorNpcHealth ~= true
+                local fields = {
+                    { "healthReactionFriendlyColor", "OPTION_REACTION_FRIENDLY", "Friendly", 5, { 0, 1, 0 } },
+                    { "healthReactionHostileColor", "OPTION_REACTION_HOSTILE", "Hostile", 2, { 1, 0, 0 } },
+                    { "healthReactionNeutralColor", "OPTION_REACTION_NEUTRAL", "Neutral", 4, { 1, 1, 0 } },
+                }
+                local row = AddPropertyRow(appearanceSection, L["OPTION_REACTION_COLOR"] or "Reaction Color", function(valueGroup)
+                    valueGroup:SetLayout("Table")
+                    valueGroup:SetUserData("table", {
+                        columns = { { width = 72 }, { width = 24 }, { width = 24 }, { width = 24 }, { width = 24 } },
+                        spaceH = 8, spaceV = 0, alignV = "center",
+                    })
+                    Shared.AddCheckBox(valueGroup, unitConfig.useReactionColorNpcHealth == true and (L["OPTION_ON"] or "On")
+                        or (L["OPTION_OFF"] or "Off"), unitConfig.useReactionColorNpcHealth == true, function(value)
+                        if IsCurrentReactionRow() then SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection) end
+                    end)
+                    for _, entry in ipairs(fields) do
+                        local field, caption = entry[1], L[entry[2]] or entry[3]
+                        local initial = unitConfig[field]
+                        local palette = FACTION_BAR_COLORS and FACTION_BAR_COLORS[entry[4]]
+                        local display = initial or palette or entry[5]
+                        local picker = AddColorPicker(valueGroup, "", display, false, function(value)
+                            if not IsCurrentReactionRow() or disabled then return end
+                            -- Native Cancel returns the opening RGB. Preserve absence, rather than
+                            -- accidentally enabling an override when cancelling an untouched default.
+                            local fallback = palette or entry[5]
+                            if initial == nil and value.r == (fallback.r or fallback[1])
+                                and value.g == (fallback.g or fallback[2]) and value.b == (fallback.b or fallback[3]) then
+                                SetUnitField(field, nil)
+                            else
+                                SetUnitField(field, { r = value.r, g = value.g, b = value.b })
+                            end
+                        end, disabled, field)
+                        picker:SetFullWidth(false)
+                        picker:SetWidth(24)
+                        -- Reaction overrides are RGB-only, even if an imported table carries alpha.
+                        picker:SetColor(picker.r, picker.g, picker.b, 1)
+                        picker:SetCallback("OnEnter", function(widget)
+                            if IsCurrentReactionRow() and GameTooltip then
+                                GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+                                GameTooltip:SetText(caption)
+                                GameTooltip:Show()
+                            end
+                        end)
+                        picker:SetCallback("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+                    end
+                    local reset = AceGUI:Create("Button")
+                    FormWidgets.ResetInspectorButtonState(reset)
+                    reset:SetText("")
+                    reset:SetFullWidth(false)
+                    reset:SetWidth(24)
+                    reset:SetHeight(24)
+                    reset:SetDisabled(disabled)
+                    FormWidgets.ApplyInspectorGlyphButton(reset, "|TInterface\\Buttons\\UI-RotationLeft-Button-Up:18:18|t", disabled)
+                    FormWidgets.SetInspectorButtonTooltip(reset, L["OPTION_REACTION_RESET_TOOLTIP"] or "Reset reaction colors to Blizzard defaults")
+                    reset:SetCallback("OnRelease", function(widget) FormWidgets.ResetInspectorButtonState(widget) end)
+                    reset:SetCallback("OnClick", function()
+                        if not IsCurrentReactionRow() or disabled then return end
+                        RequestEditableMutation(function()
+                            for _, entry in ipairs(fields) do
+                                ApplyMutation("unit", entry[1], InspectorMutations.SetUnitField(inspectorContext, entry[1], nil))
+                            end
+                            if IsCurrentReactionRow() then RebuildLocalSection(healthSection) end
+                        end)
+                    end)
+                    valueGroup:AddChild(reset)
+                end, { rowType = "COMPACT" })
+                row:SetCallback("OnRelease", function()
+                    active = false
+                    if GameTooltip then GameTooltip:Hide() end
+                end)
+            elseif usePropertyGroups then
                 AddPropertyCheckBoxRow(appearanceSection, L["OPTION_REACTION_COLOR"] or L["OPTION_USE_REACTION_COLORS_NPC_HEALTH"] or "Reaction Color", unitConfig.useReactionColorNpcHealth == true, function(value)
                     SetUnitField("useReactionColorNpcHealth", value and true or false, healthSection)
                 end)

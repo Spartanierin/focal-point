@@ -467,5 +467,184 @@ Test("Legacy Health and Power retain profile-driven Quick/Expert filtering and o
         end
     end
 end)
+local reactionFields={"healthReactionFriendlyColor","healthReactionHostileColor","healthReactionNeutralColor"}
+local function ReactionControls()
+    local toggle=Row("Reaction Color","CheckBox")
+    local host=toggle.parent
+    assert(#host.children==5 and host.children[1]==toggle)
+    host.parent:DoLayout();host:DoLayout()
+    -- This native double only resolves TOP anchors in GetLeft/GetWidth.
+    -- Inspect the actual Table LEFT/RIGHT anchors after the host normalizes SetPoint arguments.
+    local function Left(widget)
+        local anchor=assert(widget.frame.points.LEFT)
+        assert(anchor.relative==host.content and anchor.relativePoint=="LEFT")
+        return anchor.x
+    end
+    local function Right(widget)
+        local anchor=widget.frame.points.RIGHT
+        if anchor then
+            assert(anchor.relative==host.content and anchor.relativePoint=="LEFT")
+            return anchor.x
+        end
+        return Left(widget)+widget.frame:GetWidth()
+    end
+    local pickers={}
+    for i,key in ipairs(reactionFields)do
+        local picker=host.children[i+1];assert(picker.type=="ColorPicker" and picker.parent==host)
+        assert(picker:GetUserData("focalPointAnchorKey")==key)
+        assert(picker.frame:IsShown() and picker.frame:GetWidth()==24 and not picker.HasAlpha)
+        assert(picker.text:GetText()=="")
+        assert(Left(picker)>=Right(host.children[i]))
+        pickers[i]=picker
+    end
+    local reset=host.children[5]
+    assert(reset.type=="Button" and reset.text:GetText()=="")
+    assert(reset.frame:GetWidth()==24 and reset.frame:GetHeight()==24 and not reset:IsFullWidth())
+    assert(reset.frame.__fpInspectorGlyphActive and reset.frame.__fpInspectorGlyphDisabled==reset.disabled)
+    assert(reset.frame.__fpInspectorGlyph=="|TInterface\\Buttons\\UI-RotationLeft-Button-Up:18:18|t")
+    assert(reset.frame.__fpInspectorGlyphText:IsShown())
+    assert(reset.frame.__fpInspectorTooltip==(p.ns.L.OPTION_REACTION_RESET_TOOLTIP or "Reset reaction colors to Blizzard defaults"))
+    assert(Left(reset)>=Right(pickers[3]))
+    assert(Right(reset)<=host.content:GetWidth()+.01)
+    return pickers,reset,host
+end
+Test("Reaction row keeps three native swatches, localized tooltips and both dependency gates",function()
+    for _,expert in ipairs({false,true})do
+        Start("HealthBar",expert and "expert" or "quick")
+        Click("appearance")
+        local before=p.h.Copy(unit)
+        local pickers,reset,host=ReactionControls()
+        for i,picker in ipairs(pickers)do assert(picker.disabled and unit[reactionFields[i]]==nil)end
+        assert(reset.disabled);p.h.Equal(unit,before)
+        unit[reactionFields[1]]={r=.16,g=.27,b=.38,a=0}
+        p.controller.RefreshActiveProperties();p.Drain()
+        pickers=ReactionControls()
+        assert(pickers[1].disabled and pickers[1].r==.16 and pickers[1].a==1)
+        unit[reactionFields[1]]=nil
+        Row("Reaction Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        pickers=ReactionControls();for _,picker in ipairs(pickers)do assert(picker.disabled)end
+        Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        pickers,reset,host=ReactionControls()
+        local oldTooltip=GameTooltip;local tooltip={}
+        GameTooltip={SetOwner=function(_,owner)tooltip.owner=owner end,SetText=function(_,text)tooltip.text=text end,
+            Show=function()tooltip.shown=true end,Hide=function()tooltip.shown=false end}
+        for i,picker in ipairs(pickers)do
+            assert(not picker.disabled)
+            picker:Fire("OnEnter");assert(tooltip.owner==picker.frame and tooltip.text==({"Friendly","Hostile","Neutral"})[i] and tooltip.shown)
+            picker:Fire("OnLeave");assert(not tooltip.shown)
+            picker:Fire("OnValueChanged",i/10,.2,.3,0)
+            p.h.Equal(unit[reactionFields[i]],{r=i/10,g=.2,b=.3})
+        end
+        GameTooltip=oldTooltip
+        local saved=p.h.Copy(unit)
+        Row("Class Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        pickers,reset=ReactionControls();assert(reset.disabled)
+        for i,picker in ipairs(pickers)do
+            assert(picker.disabled);picker:Fire("OnValueConfirmed",.9,.9,.9,1)
+            p.h.Equal(unit[reactionFields[i]],saved[reactionFields[i]])
+            assert(picker.r==i/10)
+        end
+        Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        Row("Reaction Color","CheckBox"):Fire("OnValueChanged",false);p.Drain()
+        pickers=ReactionControls();for _,picker in ipairs(pickers)do assert(picker.disabled)end
+        for _,key in ipairs(reactionFields)do p.h.Equal(unit[key],saved[key])end
+    end
+end)
+Test("Reaction picker names use the shipped English and German tooltip translations",function()
+    local keys={"OPTION_REACTION_FRIENDLY","OPTION_REACTION_HOSTILE","OPTION_REACTION_NEUTRAL","OPTION_REACTION_RESET_TOOLTIP"}
+    local oldTooltip=GameTooltip
+    local tooltip={Show=function()end,Hide=function()end}
+    function tooltip:SetOwner(owner)self.owner=owner end
+    function tooltip:IsOwned(owner)return self.owner==owner end
+    function tooltip:SetText(text)self.text=text end
+    function tooltip:ClearLines()self.text=nil end
+    function tooltip:AddLine(text)self.text=text end
+    GameTooltip=tooltip
+    for _,locale in ipairs({"enUS","deDE"})do
+        local localized={}
+        local env=setmetatable({GetLocale=function()return locale end},{__index=_G})
+        assert(loadfile("Locales/"..locale..".lua","t",env))("FocalPoint",localized)
+        for _,key in ipairs(keys)do p.ns.L[key]=assert(localized.L[key])end
+        Start("HealthBar");Click("appearance")
+        local pickers,reset=ReactionControls()
+        for i,picker in ipairs(pickers)do picker:Fire("OnEnter");assert(tooltip.text==localized.L[keys[i]])end
+        reset.frame:Run("OnEnter")
+        assert(tooltip.owner==reset.frame and tooltip.text==localized.L.OPTION_REACTION_RESET_TOOLTIP)
+        reset.frame:Run("OnLeave")
+    end
+    for _,key in ipairs(keys)do p.ns.L[key]=nil end
+    GameTooltip=oldTooltip
+end)
+Test("native RGB preview/confirm/cancel preserves optional override absence and Health alpha",function()
+    local source=Read("Tests/AceGUIColorPickerAlpha.lua")
+    local stop=assert(source:find("\nlocal count = 0",1,true))
+    local NativeFixture=assert(load(source:sub(1,stop).."\nreturn Fixture","@Reaction/NativePicker"))()
+    for _,case in ipairs({{1,true},{3,true},{2,true},{2,false}})do
+        Start("HealthBar")
+        Click("appearance")
+        Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        Row("Reaction Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+        local pickers=ReactionControls();local actual=pickers[1]
+        local widget,_,open,_,confirm,cancel,native=NativeFixture(case[1],case[2])
+        widget:SetHasAlpha(false);widget:SetColor(actual.r,actual.g,actual.b,1)
+        function widget:Fire(event,r,g,b,a)actual:Fire(event,r,g,b,a)end
+        local before=p.h.Copy(unit)
+        open();native.rgb={.19,.37,.63}
+        if case[2]then native.info.swatchFunc()else native.func()end
+        p.h.Equal(unit[reactionFields[1]],{r=.19,g=.37,b=.63})
+        cancel();p.h.Equal(unit,before) -- No newly enabled default override after Cancel.
+        open();native.rgb={.19,.37,.63}
+        if case[2]then native.info.swatchFunc()else native.func()end
+        confirm(1);p.h.Equal(unit[reactionFields[1]],{r=.19,g=.37,b=.63})
+        local saved=p.h.Copy(unit)
+        open();native.rgb={.11,.22,.33}
+        if case[2]then native.info.swatchFunc()else native.func()end
+        cancel();p.h.Equal(unit,saved)
+        assert(unit.healthColor[4]==.8 and unit.healthLowColor[4]==1)
+    end
+end)
+Test("Reaction reset, refresh, Reopen and stale row callbacks preserve layout and object ownership",function()
+    -- Frame fields survive AceGUI release, unlike UserData/callbacks. Contaminate
+    -- acquisitions as a former font picker would, without requiring a pool order.
+    local ace=p.h.ui.ace;local create=ace.Create
+    ace.Create=function(self,kind,...)
+        local widget=create(self,kind,...)
+        if kind=="Button"then p.ns.GUI.Helpers.FormWidgets.SetInspectorButtonTooltip(widget,"Choose Font")end
+        return widget
+    end
+    Start("HealthBar");ace.Create=create
+    Click("appearance");Row("Class Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+    Row("Reaction Color","CheckBox"):Fire("OnValueChanged",true);p.Drain()
+    local pickers,reset=ReactionControls()
+    for i,picker in ipairs(pickers)do picker:Fire("OnValueConfirmed",i/10,.3,.4,1)end
+    local old=pickers[1].events.OnValueChanged;local oldReset=reset.events.OnClick
+    local oldResetFrame=reset.frame
+    local before=p.h.Copy(db)
+    p.controller.RefreshActiveProperties();p.Drain()
+    old(nil,nil,.9,.8,.7,1);oldReset();p.h.Equal(db,before)
+    -- Released frames may already be reused; any active tooltip must belong to a current binding.
+    if not oldResetFrame.__fpInspectorGlyphActive then assert(oldResetFrame.__fpInspectorTooltip==nil)end
+    pickers=ReactionControls();for i,picker in ipairs(pickers)do assert(picker.r==i/10)end
+    window.closebutton:GetScript("OnClick")(window.closebutton);p.Drain();window=p.Build()
+    pickers,reset=ReactionControls();for i,picker in ipairs(pickers)do assert(picker.r==i/10)end
+    reset:Fire("OnClick");p.Drain()
+    for _,field in ipairs(reactionFields)do assert(unit[field]==nil)end
+    assert(unit.useClassColorHealth and unit.useReactionColorNpcHealth)
+    Check("health","appearance",{appearance=true,behavior=true})
+    pickers,reset=ReactionControls();old=pickers[1].events.OnValueConfirmed;oldReset=reset.events.OnClick
+    before=p.h.Copy(db);p.Select("PowerBar");old(nil,nil,.9,.8,.7,1);oldReset();p.h.Equal(db,before)
+    p.Select("HealthBar");pickers,reset=ReactionControls()
+    old=pickers[1].events.OnValueConfirmed;oldReset=reset.events.OnClick
+    local previous=unit
+    Start("HealthBar");local nextBefore=p.h.Copy(db);local prevBefore=p.h.Copy(previous)
+    old(nil,nil,.9,.8,.7,1);oldReset();p.h.Equal(db,nextBefore);p.h.Equal(previous,prevBefore)
+    for _,mode in ipairs({"quick","expert"})do
+        Start("HealthBar",mode)
+        local host=p.h.ui.ace:Create("SimpleGroup")
+        p.ns.GUI.Editor.Inspector.BuildProperties(host,p.state.Get(),{getUnitConfig=p.ns.UnitFrameUtils.GetUnitDB})
+        p.Walk(host,function(w)assert(not w:GetUserData("focalPointAnchorKey") or not w:GetUserData("focalPointAnchorKey"):match("^healthReaction"))end)
+        p.h.ui.ace:Release(host)
+    end
+end)
 assert(#p.h.ui.env.errors==0,table.concat(p.h.ui.env.errors,"\n"))
 print("Health/Alternative Power Property Groups: "..count.." groups PASS")

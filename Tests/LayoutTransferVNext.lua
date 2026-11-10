@@ -244,4 +244,37 @@ Test('old Power layouts retain MATCH_TARGET defaults and legacy theme mapping pr
     local legacy=ns.LegacyThemeAdapter.MaterializeApplyUnit(defaults.profile.Units.player,{bars={powerBarHeight=17}})
     assert(legacy.powerBarSizeMode=='MATCH_TARGET' and legacy.powerBarHeight==17)
 end)
+Test('optional reaction RGB overrides preserve absence, categories and reset across copy, transfer and reload',function()
+    local fields={'healthReactionFriendlyColor','healthReactionHostileColor','healthReactionNeutralColor'}
+    local defaults=ns:GetDefaultDB()
+    for _,unit in pairs(defaults.profile.Units)do for _,key in ipairs(fields)do assert(unit[key]==nil,key)end end
+    Load('GUI/Editor/Inspector/InspectorMutations.lua')
+    local source,layout=Fixture();local original=layout.payload.Units.player
+    local function Absent(unit)for _,key in ipairs(fields)do assert(unit[key]==nil,key)end end
+    local old=Prepare(Export(source,layout),{global={}});assert(old.ready);Absent(old.preparedLayout.payload.Units.player)
+    for _,materialize in ipairs({ns.LayoutService.MaterializeUnit,ns.LayoutService.MaterializeLegacyUnit})do
+        Absent(materialize(defaults.profile.Units.player,original,'player'))
+    end
+    assert(ns.InspectorMutations.SetUnitField({unitConfig=original},fields[1],{r=.3,g=.7,b=.9}).ok)
+    original.useClassColorHealth=false;original.useReactionColorNpcHealth=false
+    local result=Prepare(Export(source,layout),{global={}});assert(result.ready)
+    local function Check(unit)
+        Equal(unit[fields[1]],{r=.3,g=.7,b=.9});assert(unit[fields[2]]==nil and unit[fields[3]]==nil)
+    end
+    Check(result.preparedLayout.payload.Units.player)
+    Check(ns.LayoutService.ProjectUserLayout('layout:reaction',result.preparedLayout).payload.Units.player)
+    ns.db={global={UserLayouts={['layout:reaction']=result.preparedLayout}},char={activeLayoutId='layout:reaction'}}
+    local ok,id=ns.LayoutMutations.CopyLayout('layout:reaction','Reaction Copy');assert(ok,id)
+    Check(ns.db.global.UserLayouts[id].payload.Units.player)
+    for _,key in ipairs({'layout:reaction',id,'layout:reaction'})do
+        ns.db.char.activeLayoutId=key;Check(assert(ns.ActiveLayoutResolver.GetActiveUnits(ns.db)).player)
+    end
+    ns.db=Copy(ns.db);ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot()
+    local unit=assert(ns.ActiveLayoutResolver.GetActiveUnits(ns.db)).player;Check(unit)
+    assert(ns.InspectorMutations.SetUnitField({unitConfig=unit},fields[1],nil).ok);Absent(unit)
+    Absent(ns.LayoutService.MaterializeUnit(defaults.profile.Units.player,unit,'player'))
+    Load('Services/LegacyThemeAdapter.lua')
+    local mapped=ns.LegacyThemeAdapter.MaterializeApplyUnit(defaults.profile.Units.player,{frame={healthReactionFriendlyColor={r=.3,g=.7,b=.9}}})
+    Check(mapped)
+end)
 print('LayoutTransferVNext: '..passed..' groups passed')

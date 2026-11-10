@@ -90,7 +90,7 @@ local function Fixture(project, modern)
         picker:Hide()
         if modern then picker.info.cancelFunc() else picker.cancelFunc() end
     end
-    return widget, events, Open, Preview, Confirm, Cancel
+    return widget, events, Open, Preview, Confirm, Cancel, picker
 end
 
 local count = 0

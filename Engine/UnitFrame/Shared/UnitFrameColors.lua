@@ -149,7 +149,29 @@ local function ResolveClassColorByToken(classToken)
     )
 end
 
-function Colors.GetClassColorForUnit(unit, useReactionForNpc)
+-- Optional per-unit RGB overrides. Absence deliberately preserves every Blizzard shade.
+local HEALTH_REACTION_FIELDS = {
+    [1] = "healthReactionHostileColor", [2] = "healthReactionHostileColor", [3] = "healthReactionHostileColor",
+    [4] = "healthReactionNeutralColor",
+    [5] = "healthReactionFriendlyColor", [6] = "healthReactionFriendlyColor",
+    [7] = "healthReactionFriendlyColor", [8] = "healthReactionFriendlyColor",
+}
+
+function Colors.GetHealthReactionColor(config, reaction)
+    if issecretvalue and issecretvalue(reaction) then return nil end
+    local field = HEALTH_REACTION_FIELDS[reaction]
+    local custom = field and config and config[field]
+    if HasConfiguredColor(custom) then
+        local r, g, b = UnpackConfiguredColor(custom)
+        return r, g, b
+    end
+    local color = FACTION_BAR_COLORS and FACTION_BAR_COLORS[reaction]
+    if color then
+        return SanitizeRGBA(color.r or color[1], color.g or color[2], color.b or color[3], 1, 1, 1, 1, 1)
+    end
+end
+
+function Colors.GetClassColorForUnit(unit, useReactionForNpc, healthConfig)
     if not unit or not UnitExists or not UnitExists(unit) or not UnitClass then
         return nil
     end
@@ -194,10 +216,11 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
         end
 
         if UnitIsPlayer and not UnitIsPlayer(unit) and useReactionForNpc and color then
+            local r, g, b = Colors.GetHealthReactionColor(healthConfig, reaction)
             return SanitizeRGBA(
-                color.r or color[1],
-                color.g or color[2],
-                color.b or color[3],
+                r,
+                g,
+                b,
                 1,
                 1,
                 1,
@@ -224,10 +247,11 @@ function Colors.GetClassColorForUnit(unit, useReactionForNpc)
             local reaction = UnitReaction("player", unit)
             local color = reaction and FACTION_BAR_COLORS[reaction] or nil
             if color then
+                local r, g, b = Colors.GetHealthReactionColor(healthConfig, reaction)
                 return SanitizeRGBA(
-                    color.r or color[1],
-                    color.g or color[2],
-                    color.b or color[3],
+                    r,
+                    g,
+                    b,
                     1,
                     1,
                     1,
@@ -406,7 +430,7 @@ function Colors.GetResolvedHealthBarColor(frame, config, currentHealth, maxHealt
     healthR, healthG, healthB, healthA = SanitizeRGBA(healthR, healthG, healthB, healthA, 0.1, 0.8, 0.1, 1)
 
     if config and config.useClassColorHealth then
-        local classR, classG, classB = Colors.GetClassColorForUnit(frame and frame._fpUnit, config.useReactionColorNpcHealth)
+        local classR, classG, classB = Colors.GetClassColorForUnit(frame and frame._fpUnit, config.useReactionColorNpcHealth, config)
         if classR and classG and classB then
             healthR, healthG, healthB = classR, classG, classB
         end
