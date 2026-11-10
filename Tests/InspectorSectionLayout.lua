@@ -68,7 +68,7 @@ Test("conditional and single-control groups retain one nonempty Behavior frame",
         p.Select(item[1])
         for _,key in ipairs({"appearance","geometry","behavior"})do Headings(item[2],key)end
         assert(Headings(item[2],"behavior")=="Behavior")
-        local expected={health="",power="Size",alt_power="Size",absorbs="Size,Anchor,Growth",cast="Size,Anchor"}
+        local expected={health="",power="Size,Anchor",alt_power="Size",absorbs="Size,Anchor,Growth",cast="Size,Anchor"}
         assert(Headings(item[2],"geometry")==expected[item[2]],item[1].." geometry frames")
     end
     p.Select("NormalAbsorbBar")
@@ -87,7 +87,7 @@ Test("all singleton tabs keep framed order and original Behavior rows in both st
         p.controller.RefreshActiveProperties();p.Drain()
         for _,item in ipairs({
             {"HealthBar","health","","Reverse Fill"},
-            {"PowerBar","power","Size","Show,Reverse Fill"},
+            {"PowerBar","power","Size,Anchor","Show,Reverse Fill"},
             {"AlternativePowerBar","alt_power","Size","Show,Reverse Fill"},
             {"NormalAbsorbBar","absorbs","Size,Anchor,Growth","Show"},
             {"HealingAbsorbBar","absorbs","Size,Anchor,Growth","Show"},

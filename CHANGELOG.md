@@ -10,6 +10,15 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.2
+
+### Added
+
+* Power Bars can use CUSTOM size mode for independent width, height, anchors, points, and offsets, with direct Canvas movement. CUSTOM Power Bars no longer reserve space inside Health; existing layouts retain their previous geometry unless CUSTOM is selected.
+* Added individual Friendly, Hostile, and Neutral colors beside the Health Bar's NPC Reaction Color switch, with a compact reset to Blizzard defaults. Existing Class Color requirements, Low Health Color behavior, and Health alpha remain unchanged; categories without a custom color keep their original Blizzard reaction shades.
+
+See the [README release notes](README.md#release-302) for client validation scope, backup guidance, and remaining limitations.
+
 ## 3.0.1
 
 ### Improved
