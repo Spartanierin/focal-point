@@ -145,20 +145,20 @@ end
 
 -- Long translated heading exercises actual wrapping, not count * fixed height.
 Setup("max"); d,s=Open(640,17,4); local shortNeed=s.content:GetHeight(); Close(d,s)
-local oldHeading,oldButton,oldDescription=ns.L.ADD_OBJECT_CATEGORY_BARS,ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON,ns.L.ADD_OBJECT_DESCRIPTION
+local oldHeading,oldButton,oldDescription=ns.L.ADD_OBJECT_CATEGORY_BARS,ns.L.ADD_OBJECT_ALTERNATIVE_POWER_BAR_BUTTON,ns.L.ADD_OBJECT_DESCRIPTION
 ns.L.ADD_OBJECT_CATEGORY_BARS=string.rep("Verfuegbare zusaetzliche Ressourcenleisten ",4)
-ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON="Sekundaere Ressourcenleiste hinzufuegen"
+ns.L.ADD_OBJECT_ALTERNATIVE_POWER_BAR_BUTTON="Sekundaere Ressourcenleiste hinzufuegen"
 ns.L.ADD_OBJECT_DESCRIPTION=string.rep("Waehle ein Objekt fuer den ausgewaehlten Einheitenrahmen. ",3)
 d,s=Open(640,17,4)
 assert(s.content:GetHeight()>shortNeed)
 local found=false
 for _,child in ipairs(s.children) do
-    if child.type=="Button" and child.text:GetText()==ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON then
+    if child.type=="Button" and child.text:GetText()==ns.L.ADD_OBJECT_ALTERNATIVE_POWER_BAR_BUTTON then
         found=true; assert(child.text:GetStringHeight()<=child.frame:GetHeight())
     end
 end
 assert(found); Bottom(s,true); Close(d,s)
-ns.L.ADD_OBJECT_CATEGORY_BARS=oldHeading; ns.L.EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON=oldButton; ns.L.ADD_OBJECT_DESCRIPTION=oldDescription
+ns.L.ADD_OBJECT_CATEGORY_BARS=oldHeading; ns.L.ADD_OBJECT_ALTERNATIVE_POWER_BAR_BUTTON=oldButton; ns.L.ADD_OBJECT_DESCRIPTION=oldDescription
 
 -- Capability variants use the actual Presence and indicator rules.
 Setup("max"); configs.player.Buffs.present=true; configs.player.Debuffs.present=true
@@ -194,6 +194,48 @@ for index,expect in ipairs(expected) do
     assert(d.released); Equal(#s.children,0)
     NoErrors()
 end
+
+-- Shipped translations and missing-locale fallbacks change names only: the same
+-- ordered options must still dispatch the same 22 actions/arguments.
+local originalLocale=ns.L
+local labels={
+    enUS={"Power Bar","Cast Bar","Class Power Bar","Secondary Resource Bar","Normal Absorb Bar","Healing Absorb Bar",
+        "Portrait","Raid Target","Leader","Role","Combat","Resting","Ready Check","Buffs","Debuffs","Text","Decoration"},
+    deDE={"Ressourcenleiste","Zauberbalken","Klassenressourcenleiste","Sekundärressourcenleiste","Normaler Absorptionsbalken","Heilungsabsorptionsbalken",
+        "Porträt","Schlachtzugsziel","Gruppenleiter","Rolle","Kampf","Ruhe","Bereitschaft","Buffs","Debuffs","Text","Dekoration"},
+}
+for _,locale in ipairs({"enUS","deDE","fallback"})do
+    local localized={}
+    if locale~="fallback"then
+        local env=setmetatable({GetLocale=function()return locale end},{__index=_G})
+        assert(loadfile("Locales/"..locale..".lua","t",env))("FocalPoint",localized)
+        for _,key in ipairs({"POWER","CAST","CLASS_POWER","ALTERNATIVE_POWER","NORMAL_ABSORB","HEALING_ABSORB"})do
+            assert(type(localized.L["ADD_OBJECT_"..key.."_BAR_BUTTON"])=="string",locale..":"..key)
+        end
+    end
+    ns.L=localized.L or {}
+    Setup("max");d,s=Open(640,17,4)
+    local names={}
+    for _,child in ipairs(s.children)do
+        if child.type=="Button"then
+            local name=child.text:GetText()
+            assert(not name:match("^Add%s") and not name:find("hinzufügen",1,true))
+            names[#names+1]=name
+        end
+    end
+    Equal(names,labels[locale] or labels.enUS)
+    Close(d,s)
+    for index,expect in ipairs(expected)do
+        Setup("max");d,s=Open(640,index<=5 and 5 or 17,index<=5 and 1 or 4,index<=5)
+        local options={};for _,child in ipairs(s.children)do if child.type=="Button"then options[#options+1]=child end end
+        local before=#calls
+        options[index<=5 and index or index-5]:Fire("OnClick")
+        Equal(#calls,before+1);Equal(calls[#calls],expect)
+        if expect[1]=="text"then Close(d,s)end
+        assert(d.released);NoErrors()
+    end
+end
+ns.L=originalLocale
 
 -- Warm all sizes, then verify allocation stability and reset across all exits.
 Setup("min"); d,s=Open(640,2,1); Close(d,s)

@@ -441,12 +441,12 @@ local function InsertDecoration(request)
 end
 
 local ADD_OBJECT_BAR_CAPABILITIES = {
-    { componentKey = "PowerBar", labelKey = "EDITOR_ADD_POWER_BAR_BUTTON", fallback = "Power Bar" },
-    { componentKey = "CastBar", labelKey = "EDITOR_ADD_CAST_BAR_BUTTON", fallback = "Cast Bar" },
-    { componentKey = "ClassPowerBar", labelKey = "EDITOR_ADD_CLASS_POWER_BAR_BUTTON", fallback = "Add Class Power Bar", playerOnly = true },
-    { componentKey = "AlternativePowerBar", labelKey = "EDITOR_ADD_ALTERNATIVE_POWER_BAR_BUTTON", fallback = "Add Secondary Resource Bar", playerOnly = true },
-    { componentKey = "NormalAbsorbBar", labelKey = "EDITOR_ADD_NORMAL_ABSORB_BAR_BUTTON", fallback = "Normal Absorb" },
-    { componentKey = "HealingAbsorbBar", labelKey = "EDITOR_ADD_HEALING_ABSORB_BAR_BUTTON", fallback = "Healing Absorb" },
+    { componentKey = "PowerBar", labelKey = "ADD_OBJECT_POWER_BAR_BUTTON", fallback = "Power Bar" },
+    { componentKey = "CastBar", labelKey = "ADD_OBJECT_CAST_BAR_BUTTON", fallback = "Cast Bar" },
+    { componentKey = "ClassPowerBar", labelKey = "ADD_OBJECT_CLASS_POWER_BAR_BUTTON", fallback = "Class Power Bar", playerOnly = true },
+    { componentKey = "AlternativePowerBar", labelKey = "ADD_OBJECT_ALTERNATIVE_POWER_BAR_BUTTON", fallback = "Secondary Resource Bar", playerOnly = true },
+    { componentKey = "NormalAbsorbBar", labelKey = "ADD_OBJECT_NORMAL_ABSORB_BAR_BUTTON", fallback = "Normal Absorb Bar" },
+    { componentKey = "HealingAbsorbBar", labelKey = "ADD_OBJECT_HEALING_ABSORB_BAR_BUTTON", fallback = "Healing Absorb Bar" },
 }
 
 local ADD_OBJECT_VISUAL_CAPABILITIES = {
