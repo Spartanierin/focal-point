@@ -816,7 +816,7 @@ local function ApplyModernAtlasRegions(frame, customizePortraitGeometry, editMod
     end
 end
 
--- Customize-only visual reuse; no title/drag/close anchors, parents or scripts change.
+-- Shared native artwork; the Inspector and explicit compact-dialog opt-in own their lifecycles.
 function FormWidgets.CanApplyCustomizeEditModeShell()
     local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
     if type(atlasInfo) ~= "function" then return false end
@@ -865,11 +865,15 @@ function FormWidgets.NeutralizeCustomizeShell(window)
     if window.content and window.content._fpSidebarAccent then window.content._fpSidebarAccent:Hide() end
 end
 
-function FormWidgets.ApplyCustomizeBlizzardShell(window, editMode)
-    if not window or window._focalPointEditorRole ~= "editor_inspector"
+local function ApplyBlizzardWindowShell(window, editMode)
+    if not window
         or (editMode and not FormWidgets.CanApplyCustomizeEditModeShell())
         or (not editMode and not FormWidgets.CanApplyCustomizeBlizzardShell()) then return false end
-    FormWidgets.NeutralizeCustomizeShell(window)
+    if window._focalPointEditorRole == "editor_inspector" then
+        FormWidgets.NeutralizeCustomizeShell(window)
+    else
+        FormWidgets.NeutralizeCustomizeBlizzardShell(window)
+    end
     local snapshot = {}
     if window.titletext and window.titletext.GetDrawLayer then
         snapshot.layer, snapshot.sublevel = window.titletext:GetDrawLayer()
@@ -893,6 +897,46 @@ function FormWidgets.ApplyCustomizeBlizzardShell(window, editMode)
         window.frame._fpModernPortraitBackground:SetDrawLayer("BACKGROUND", -6)
     end
     return true
+end
+
+function FormWidgets.ApplyCustomizeBlizzardShell(window, editMode)
+    if not window or window._focalPointEditorRole ~= "editor_inspector" then return false end
+    return ApplyBlizzardWindowShell(window, editMode)
+end
+
+local function ApplyCompactEditModeChrome(window, options, titlePoints)
+    FormWidgets.RestoreDefaultWindowChrome(window)
+    FormWidgets.ApplyWindowChrome(window, { nativeFrameShell = true })
+    local applied = ApplyBlizzardWindowShell(window, true) or ApplyBlizzardWindowShell(window, false)
+    for _, key in ipairs(FP_WINDOW_PANEL_REGION_KEYS) do
+        local region = window.frame[key]
+        -- Keep the existing flat border only if neither native atlas set is available.
+        if region and (applied or not key:find("Border", 1, true) and not key:find("Inner", 1, true)) then
+            region:Hide()
+        end
+    end
+    -- The existing metal-border fallback must not reintroduce its rock background.
+    EnsureModernWindowBackground(window.frame, true):SetDrawLayer("BACKGROUND", -5)
+    if window.frame._fpModernPortraitTopTileStreaks then window.frame._fpModernPortraitTopTileStreaks:Hide() end
+    if window.titletext then
+        FormWidgets.ApplyTextStyle(window.titletext, "identity", options.titleFontSize or 18, 1)
+        window.titletext:SetTextColor(1, 1, 1, 1)
+        window.titletext:SetJustifyH("CENTER")
+        window.titletext:SetDrawLayer("OVERLAY", 7)
+        if options.titleOffsetY then
+            window.titletext:ClearAllPoints()
+            for _, point in ipairs(titlePoints) do
+                window.titletext:SetPoint(point[1], point[2], point[3], point[4], point[5] + options.titleOffsetY)
+            end
+        end
+    end
+    local drag, hitbox = window.title, options.headerDrag
+    if drag and hitbox then
+        local right = math.max(hitbox.right or 0, window.closebutton and window.closebutton:GetWidth() + 4 or 0)
+        drag:ClearAllPoints()
+        drag:SetPoint("TOPLEFT", window.frame, "TOPLEFT", hitbox.left or 0, -(hitbox.top or 0))
+        drag:SetPoint("BOTTOMRIGHT", window.frame, "TOPRIGHT", -right, -(hitbox.top or 0) - hitbox.height)
+    end
 end
 
 function FormWidgets.ApplyModernWindowChrome(window, options)
@@ -2472,15 +2516,17 @@ local function CreateCompactFormShell(window, options, dialogMaterial)
     local contentFrame = AcquireShellFrame("content", shellFrame)
     contentFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
     contentFrame:SetPoint("BOTTOMRIGHT", shellFrame, "BOTTOMRIGHT", -contentInset, 0)
-    local contentMaterial = dialogMaterial or GetCompactDialogContentSurface(options.contentSurface)
+    local editModeShell = options.windowChrome == "editmode"
+    local contentMaterial = not editModeShell and (dialogMaterial or GetCompactDialogContentSurface(options.contentSurface)) or nil
+    local transparentBody = editModeShell or contentMaterial ~= nil
     local transparent = { 0, 0, 0, 0 }
     ApplyCompactDialogWindowContentSurface(shellFrame, contentMaterial)
     FormWidgets.ApplySurfacePresentation({ frame = contentFrame }, "Body", {
         prefix = "_fpCompactDialog",
-        fill = contentMaterial and transparent or options.bodyFill,
-        topShade = contentMaterial and transparent or nil,
-        bottomShade = contentMaterial and transparent or nil,
-        border = contentMaterial and transparent or options.bodyBorder,
+        fill = transparentBody and transparent or options.bodyFill,
+        topShade = transparentBody and transparent or nil,
+        bottomShade = transparentBody and transparent or nil,
+        border = transparentBody and transparent or options.bodyBorder,
     })
     local body = CreateSmallWindowRegion(contentFrame, options.bodyLayout or "List", {
         { "TOPLEFT", contentFrame, "TOPLEFT", 9, -6 },
@@ -2523,6 +2569,23 @@ function FormWidgets.CreateCompactFormDialog(options)
     options = options or {}
 
     local window = AceGUI:Create("Window")
+    local useEditModeShell = options.windowChrome == "editmode"
+    local title = useEditModeShell and window.titletext
+    local titleFont = title and { title:GetFont() }
+    local titleColor = title and title.GetTextColor and { title:GetTextColor() }
+    local titleJustify = title and title.GetJustifyH and title:GetJustifyH()
+    local titleLayer, titleSublevel
+    if title then titleLayer, titleSublevel = title:GetDrawLayer() end
+    local titlePoints = {}
+    if title then
+        for index = 1, title:GetNumPoints() do titlePoints[index] = { title:GetPoint(index) } end
+    end
+    local drag = useEditModeShell and options.headerDrag and window.title
+    local dragPoints, dragWidth, dragHeight = {}, nil, nil
+    if drag then
+        dragWidth, dragHeight = drag:GetWidth(), drag:GetHeight()
+        for index = 1, drag:GetNumPoints() do dragPoints[index] = { drag:GetPoint(index) } end
+    end
     local width = options.width or 420
     local isPickerDialog = options.mode == "picker"
     local height = CalculateCompactDialogHeight(options, isPickerDialog)
@@ -2548,7 +2611,7 @@ function FormWidgets.CreateCompactFormDialog(options)
     FormWidgets.EnsureStandardWindowCloseButton(window)
     EnableCompactDialogEscapeClose(window)
 
-    local useDialogPresentation = options.dialogPresentation ~= false or options.contentSurface == "parchment"
+    local useDialogPresentation = not useEditModeShell and (options.dialogPresentation ~= false or options.contentSurface == "parchment")
     local shell = CreateCompactFormShell(window, options, useDialogPresentation and GetDialogWindowMaterial() or nil)
     -- Shell ownership stays here; direct utility Windows only bind chrome.
     local previousRelease = window.events and window.events.OnRelease
@@ -2558,8 +2621,25 @@ function FormWidgets.CreateCompactFormDialog(options)
             owner.frame._fpCompactFormShell = nil
         end
         if previousRelease then previousRelease(owner, event) end
+        if useEditModeShell then
+            FormWidgets.RestoreDefaultWindowChrome(owner)
+            if title then
+                title:SetFont(unpack(titleFont))
+                if titleColor then title:SetTextColor(unpack(titleColor)) end
+                if titleJustify then title:SetJustifyH(titleJustify) end
+                title:SetDrawLayer(titleLayer, titleSublevel)
+                title:ClearAllPoints()
+                for _, point in ipairs(titlePoints) do title:SetPoint(unpack(point)) end
+            end
+            if drag then
+                drag:ClearAllPoints()
+                drag:SetSize(dragWidth, dragHeight)
+                for _, point in ipairs(dragPoints) do drag:SetPoint(unpack(point)) end
+            end
+        end
     end)
     if useDialogPresentation then ApplyDialogWindowChrome(window) end
+    if useEditModeShell then ApplyCompactEditModeChrome(window, options, titlePoints) end
     local statusTextRoles = {
         neutral = "help",
         error = "statusError",
@@ -2685,7 +2765,9 @@ function FormWidgets.CreateCompactFormDialog(options)
     end
 
     function dialog:Show()
-        if useDialogPresentation then
+        if useEditModeShell then
+            ApplyCompactEditModeChrome(self.window, options, titlePoints)
+        elseif useDialogPresentation then
             ApplyDialogWindowChrome(self.window)
             ApplyCompactDialogWindowContentSurface(self.shell.frame, GetDialogWindowMaterial())
         end

@@ -28,8 +28,13 @@ local function Setup()
     errors={};refreshes=0;return db,unit
 end
 local function FindButton(widget,label)
+    if widget.type=="FocalPointSelectionRow" and widget.label:GetText()==label then return widget end
     if widget.type=="Button" and widget.text and widget.text:GetText()==label then return widget end
     for _,child in ipairs(widget.children or {})do local found=FindButton(child,label);if found then return found end end
+end
+local function ClickEntry(widget)
+    if widget.type=="FocalPointSelectionRow" then widget.frame:Run("OnMouseDown","LeftButton")
+    else widget:Fire("OnClick") end
 end
 local function Open()
     state.SetPresentation("customize")
@@ -39,7 +44,7 @@ local function Open()
 end
 local function ClickAdd()
     local dialog,button=Open();assert(button,"missing Class Resource Bar entry")
-    button:Fire("OnClick");assert(dialog.released)
+    ClickEntry(button);assert(dialog.released)
 end
 local count=0
 local function Test(name,fn)fn();count=count+1;print("PASS: "..name)end
@@ -69,30 +74,30 @@ Test("no Segmented Bar entry on any non-player unit",function()
     Setup()
     for _,unit in ipairs({"target","targettarget","focus","focustarget","boss","pet"})do
         state.SetSingleSelection(unit);state.ClearPropertyScope()
-        local dialog,button=Open();assert(not button,unit);dialog.cancelButton:Fire("OnClick")
+        local dialog,button=Open();assert(not button,unit);dialog.window.closebutton:Run("OnClick")
     end
 end)
 Test("cancel and released/replaced picker callbacks do not mutate",function()
     local db=Setup();local before=h.Copy(db)
-    local dialog,button=Open();local callback=button.events.OnClick
-    dialog.cancelButton:Fire("OnClick");callback();h.Equal(db,before);assert(refreshes==0)
-    dialog,button=Open();callback=button.events.OnClick
+    local dialog,button=Open();local callback=button.onSelect
+    dialog.window.frame:Run("OnKeyDown","ESCAPE");callback();h.Equal(db,before);assert(refreshes==0)
+    dialog,button=Open();callback=button.onSelect
     local fresh=Open();callback();h.Equal(db,before);assert(not fresh.released)
-    fresh.cancelButton:Fire("OnClick");assert(refreshes==0)
+    fresh.window.closebutton:Run("OnClick");assert(refreshes==0)
 end)
 Test("layout A-B-A/root replacement and stale collection reject old picker context",function()
-    local db,unit=Setup();local dialog,button=Open();local callback=button.events.OnClick
+    local db,unit=Setup();local dialog,button=Open();local callback=button.onSelect
     local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok,id)
     Activate(id);Activate("layout:existing");local before=h.Copy(db)
     callback();h.Equal(db,before);assert(refreshes==0 and #errors==0) -- Tree request rejects before dispatch.
     dialog,button=Open();assert(M.Add(assert(M.CaptureContext("player"))).ok)
-    before=h.Copy(db);button:Fire("OnClick");h.Equal(db,before);assert(refreshes==0 and #errors==1)
+    before=h.Copy(db);ClickEntry(button);h.Equal(db,before);assert(refreshes==0 and #errors==1)
     assert(h.selection.GetSelectedObject().kind=="unit")
 end)
 Test("combat failure creates neither record nor selection/refresh",function()
     local db,unit=Setup();local before=h.Copy(db);local dialog,button=Open()
     local combat=InCombatLockdown;InCombatLockdown=function()return true end
-    button:Fire("OnClick");InCombatLockdown=combat
+    ClickEntry(button);InCombatLockdown=combat
     h.Equal(db,before);assert(unit.segmentedBars==nil and refreshes==0 and #errors==0)
     assert(h.selection.GetSelectedObject().kind=="unit")
 end)

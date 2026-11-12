@@ -8,14 +8,16 @@ local SelectionRow = {}
 ns.GUI.Widgets.SelectionRow = SelectionRow
 
 local TYPE = "FocalPointSelectionRow"
-local VERSION = 1
+local VERSION = 3
 local COMPACT_HEIGHT = 22
 local DETAIL_HEIGHT = 38
 local LABEL_FONT_SIZE = 11
 local DESCRIPTION_FONT_SIZE = 9
 local DESCRIPTION_GAP = 2
 
-local function GetColors()
+local function GetColors(widget)
+    local presentation = widget.binding and widget.binding.presentation
+    if presentation and presentation.colors then return presentation.colors end
     local skins = ns.GUI and ns.GUI.Skins or nil
     local palette = skins and skins.GetFormPalette and skins.GetFormPalette() or {}
     return palette.ListSelectionRow or {}
@@ -80,7 +82,8 @@ end
 
 local function UpdateVisual(widget)
     local binding = widget.binding or {}
-    local colors = GetColors()
+    local colors = GetColors(widget)
+    local presentation = binding.presentation or {}
     local selected = binding.selected == true
     local hovered = widget.hovered == true
     local disabled = binding.disabled == true
@@ -89,19 +92,21 @@ local function UpdateVisual(widget)
     local hasDescription = HasText(binding.description)
     local hasDetail = HasText(binding.detail)
     local hasStatus = HasText(binding.status)
-    local height = (hasDescription or hasStatus) and DETAIL_HEIGHT or COMPACT_HEIGHT
+    local height = presentation.height or ((hasDescription or hasStatus) and DETAIL_HEIGHT or COMPACT_HEIGHT)
 
     local fill = selected and colors.fillSelected or (hovered and colors.fillHover or colors.fill)
     local border = selected and colors.borderSelected or (hovered and colors.borderHover or colors.border)
     if missing and not selected and not hovered then
         fill = { 0.105, 0.074, 0.070, 0.84 }
     end
-    widget.frame:SetBackdropColor(fill[1] or 0, fill[2] or 0, fill[3] or 0, fill[4] or 1)
-    widget.frame:SetBackdropBorderColor(border[1] or 0, border[2] or 0, border[3] or 0, border[4] or 1)
+    local idleAlpha = not selected and not hovered and (presentation.idleAlpha or 1) or 1
+    widget.frame:SetBackdropColor(fill[1] or 0, fill[2] or 0, fill[3] or 0, (fill[4] or 1) * idleAlpha)
+    widget.frame:SetBackdropBorderColor(border[1] or 0, border[2] or 0, border[3] or 0, (border[4] or 1) * idleAlpha)
 
     widget.marker:SetWidth(selected and 6 or 2)
     widget.marker:SetColorTexture(unpack(selected and colors.marker or colors.markerMuted))
     widget.marker:SetAlpha((selected or hovered) and 1 or 0.55)
+    widget.marker:SetShown(widget.binding ~= nil and presentation.hideMarker ~= true)
 
     widget.label:SetText(binding.label or "")
     widget.description:SetText(binding.description or "")
@@ -119,6 +124,18 @@ local function UpdateVisual(widget)
         widget.icon:SetTexture(nil)
         widget.icon:Hide()
     end
+    local iconColor, iconStates = presentation.iconColor, presentation.iconStates
+    if iconColor and iconStates then
+        if disabled and not selected and not hovered then
+            widget.icon:SetVertexColor(unpack(iconStates.disabled))
+        else
+            local brightness = selected and iconStates.selectedBrightness or hovered and iconStates.hoverBrightness or iconStates.normalBrightness
+            local alpha = selected and iconStates.selectedAlpha or hovered and iconStates.hoverAlpha or iconStates.normalAlpha
+            widget.icon:SetVertexColor(math.min(1, iconColor[1] * brightness), math.min(1, iconColor[2] * brightness), math.min(1, iconColor[3] * brightness), alpha)
+        end
+    else
+        widget.icon:SetVertexColor(1, 1, 1, 1)
+    end
     widget.description:SetShown(hasDescription)
     widget.detail:SetShown(hasDetail)
     widget.status:SetShown(hasStatus)
@@ -127,7 +144,15 @@ local function UpdateVisual(widget)
     widget.frame:SetHeight(height)
 end
 
+local function RestorePresentationFont(widget)
+    if widget.presentationFont then
+        widget.label:SetFont(unpack(widget.presentationFont))
+        widget.presentationFont = nil
+    end
+end
+
 local function ResetBinding(widget)
+    RestorePresentationFont(widget)
     widget.binding = nil
     widget.key = nil
     widget.onSelect = nil
@@ -138,6 +163,7 @@ local function ResetBinding(widget)
     widget.detail:SetText("")
     widget.status:SetText("")
     widget.icon:SetTexture(nil)
+    widget.icon:SetVertexColor(1, 1, 1, 1)
     widget.icon:Hide()
     widget.description:Hide()
     widget.detail:Hide()
@@ -164,11 +190,16 @@ local function RegisterWidget()
     end
 
     function methods:Bind(binding)
+        RestorePresentationFont(self)
         binding = type(binding) == "table" and binding or {}
         self.binding = binding
         self.key = binding.key
         self.onSelect = type(binding.onSelect) == "function" and binding.onSelect or nil
         self.hovered = false
+        if binding.presentation and binding.presentation.labelSize then
+            self.presentationFont = { self.label:GetFont() }
+            ApplyTextStyle(self.label, "label", binding.presentation.labelSize)
+        end
         self.frame:EnableMouse(binding.disabled ~= true)
         self.marker:Show()
         UpdateVisual(self)

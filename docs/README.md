@@ -2,7 +2,7 @@
 
 STATUS: CURRENT - documentation entry point for the committed repository state.
 
-Current documentation is written in English and is the source of truth for
+Current documentation is written in English and German and is the source of truth for
 implemented behavior. Historical and future/design documents are explicitly
 labelled and are not normative for current code.
 
@@ -32,6 +32,7 @@ not replace the architecture documents above:
 
 - `Architecture/Aura-System-Concept.md`
 - `Design/Editor-UX-Principles.md`
+- [Edit-Mode-Dialog-Pattern](Design/EditMode-Dialog-Pattern.md)
 - `Design/FOCAL_POINT_VISUAL_LANGUAGE.md`
 - `Design/GUI-Aura-Layout.md`
 - `Design/GUI-Header-Layout.md`

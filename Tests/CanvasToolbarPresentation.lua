@@ -212,10 +212,10 @@ controls.addObjectButton:Fire("OnClick"); assert(#opened == 1)
 Equal(opened[1].window.titletext:GetText(), "Add Unit")
 local unitEntries = {}
 for _, child in ipairs(opened[1].body.children[3].children) do
-    if child.type == "Button" then unitEntries[#unitEntries + 1] = child.text:GetText() end
+    if child.type == "FocalPointSelectionRow" then unitEntries[#unitEntries + 1] = child.label:GetText() end
 end
 Equal(unitEntries, {"pet"})
-opened[1].cancelButton:Fire("OnClick")
+opened[1].window.closebutton:Run("OnClick")
 controls.layoutAddButton:Fire("OnClick"); assert(#opened == 2)
 opened[2].cancelButton:Fire("OnClick")
 local managed = 0

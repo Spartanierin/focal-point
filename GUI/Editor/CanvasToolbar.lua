@@ -634,12 +634,11 @@ local function AddUnitFrame(unitKey, request)
     end)
 end
 
-local PICKER_SECTION_HEIGHT = 18
-local PICKER_BUTTON_HEIGHT = 22
+local PICKER_SECTION_HEIGHT = 22
+local PICKER_BUTTON_HEIGHT = 30 -- Match CompositionTreeControl's card height and 34px stride.
+local PICKER_ROW_GAP = 4
 local ADD_OBJECT_DESCRIPTION_HEIGHT = 24
 local ADD_OBJECT_DESCRIPTION_GAP = 8
-local ADD_OBJECT_ACTION_HEIGHT = 30
-local ADD_OBJECT_BOTTOM_PADDING = 6
 local COMPACT_WINDOW_CHROME_HEIGHT = 57
 
 local COMPACT_BODY_TOP_PADDING = 6
@@ -647,35 +646,156 @@ local ADD_OBJECT_MIN_SELECTION_HEIGHT = 68 - COMPACT_BODY_TOP_PADDING
 local ADD_OBJECT_MAX_WINDOW_HEIGHT = 560
 local ADD_OBJECT_SCREEN_MARGIN = 16
 
-local function AddPickerHeader(container, label)
-    local header = FormWidgets and FormWidgets.CreateSectionTitle and FormWidgets.CreateSectionTitle(label, 12) or AceGUI:Create("Label")
+local function StyleAddObjectScrollbar(scroll)
+    local bar = scroll.scrollbar
+    local thumb = bar and bar:GetThumbTexture()
+    local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+    if not thumb or type(atlasInfo) ~= "function" then return end
+    local tracks = { "minimal-scrollbar-track-top", "!minimal-scrollbar-track-middle", "minimal-scrollbar-track-bottom" }
+    local thumbs = { "minimal-scrollbar-small-thumb-top", "minimal-scrollbar-small-thumb-middle", "minimal-scrollbar-small-thumb-bottom" }
+    for _, group in ipairs({ tracks, thumbs }) do
+        for _, atlas in ipairs(group) do
+            for _, suffix in ipairs(group == thumbs and { "", "-over", "-down" } or { "" }) do
+                local ok, info = pcall(atlasInfo, atlas .. suffix)
+                if not ok or type(info) ~= "table" or type(info.width) ~= "number" or type(info.height) ~= "number"
+                    or info.width <= 0 or info.height <= 0 then return end
+            end
+        end
+    end
+    -- Cache artwork only. All native slider geometry, textures and input scripts
+    -- remain owned by AceGUI; temporary alpha/script overrides are restored below.
+    local art = bar._fpAddObjectScrollArt
+    local owned = {}
+    for _, region in ipairs(art or {}) do owned[region] = true end
+    local original, seen = {}, {}
+    local function HideTexture(region)
+        if region and not owned[region] and not seen[region] and region:GetObjectType() == "Texture" then
+            seen[region] = true
+            original[#original + 1] = { region, region:GetAlpha() }
+            region:SetAlpha(0)
+        end
+    end
+    local function HideRegions(frame)
+        if frame and frame.GetRegions then
+            for _, region in ipairs({ frame:GetRegions() }) do HideTexture(region) end
+        end
+    end
+    HideRegions(bar)
+    HideTexture(thumb)
+    local name = bar:GetName()
+    HideRegions(bar.ScrollUpButton or name and _G[name .. "ScrollUpButton"])
+    HideRegions(bar.ScrollDownButton or name and _G[name .. "ScrollDownButton"])
+    if not art then
+        art = {}
+        for index = 1, 6 do art[index] = bar:CreateTexture(nil, index <= 3 and "BACKGROUND" or "OVERLAY") end
+        bar._fpAddObjectScrollArt = art
+    end
+    for index, atlas in ipairs(tracks) do
+        art[index]:SetAtlas(atlas, index ~= 2)
+        art[index]:SetWidth(8)
+    end
+    for index, parent in ipairs({ bar, thumb }) do
+        local first = (index - 1) * 3 + 1
+        art[first]:SetPoint("TOP", parent, "TOP", 0, 0)
+        art[first + 2]:SetPoint("BOTTOM", parent, "BOTTOM", 0, 0)
+        art[first + 1]:SetPoint("TOPLEFT", art[first], "BOTTOMLEFT", 0, 0)
+        art[first + 1]:SetPoint("BOTTOMRIGHT", art[first + 2], "TOPRIGHT", 0, 0)
+    end
+    local active, hovered, pressed = true, false, false
+    local function Paint()
+        if not active then return end
+        local suffix = pressed and "-down" or hovered and "-over" or ""
+        for index, atlas in ipairs(thumbs) do
+            art[index + 3]:SetAtlas(atlas .. suffix, index ~= 2)
+            art[index + 3]:SetWidth(8)
+        end
+    end
+    Paint()
+    for _, region in ipairs(art) do region:Show() end
+    local scripts = {}
+    for _, event in ipairs({ "OnEnter", "OnLeave", "OnMouseDown", "OnMouseUp", "OnHide" }) do
+        local previous = bar:GetScript(event)
+        scripts[event] = previous or false
+        bar:SetScript(event, function(owner, ...)
+            if not active then return end
+            if previous then previous(owner, ...) end
+            if not active then return end
+            if event == "OnEnter" then hovered = true
+            elseif event == "OnLeave" then hovered = false
+            elseif event == "OnMouseDown" and ... == "LeftButton" then pressed = true
+            elseif event == "OnMouseUp" then pressed = false
+            elseif event == "OnHide" then hovered, pressed = false, false end
+            Paint()
+        end)
+    end
+    local previousRelease = scroll.events and scroll.events.OnRelease
+    scroll:SetCallback("OnRelease", function(owner, event)
+        active = false
+        for script, previous in pairs(scripts) do bar:SetScript(script, previous or nil) end
+        for _, snapshot in ipairs(original) do snapshot[1]:SetAlpha(snapshot[2]) end
+        for _, region in ipairs(art) do region:Hide() end
+        if previousRelease then previousRelease(owner, event) end
+    end)
+end
+
+local function AddPickerHeader(container, label, subsequent)
+    if subsequent then
+        local gap = AceGUI:Create("SimpleGroup")
+        gap:SetFullWidth(true)
+        gap:SetAutoAdjustHeight(false)
+        gap:SetHeight(10)
+        container:AddChild(gap)
+    end
+    local header = FormWidgets and FormWidgets.CreateSectionTitle and FormWidgets.CreateSectionTitle(label, 16) or AceGUI:Create("Label")
     header:SetText(label)
     if FormWidgets and FormWidgets.ApplyTextStyle and header.label then
-        FormWidgets.ApplyTextStyle(header.label, "parchmentSectionHeader", 12, 1)
+        FormWidgets.ApplyTextStyle(header.label, "strongHeading", 16, 1)
+        local color = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
+        header.label:SetTextColor(color.r, color.g, color.b)
     end
     header:SetFullWidth(true)
     header:SetHeight(PICKER_SECTION_HEIGHT)
     container:AddChild(header)
+    local gap = AceGUI:Create("SimpleGroup")
+    gap:SetFullWidth(true)
+    gap:SetAutoAdjustHeight(false)
+    gap:SetHeight(5)
+    container:AddChild(gap)
 end
 
-local function AddPickerButton(dialog, container, label, callback, closeBefore)
-    local buttonWidth = (tonumber(dialog and dialog.contentWidth) or 340) - 18
-    local button = FormWidgets and FormWidgets.CreateActionButton
-        and FormWidgets.CreateActionButton(label, "secondary", buttonWidth, false)
-        or AceGUI:Create("Button")
-    button:SetText(label)
-    button:SetFullWidth(true)
-    button:SetHeight(PICKER_BUTTON_HEIGHT)
-    button:SetCallback("OnClick", function()
-        if dialog.released or addObjectPickerDialog ~= dialog then return end
-        if closeBefore ~= false then CloseAddObjectPickerDialog() end
-        callback()
-    end)
-    if FormWidgets and FormWidgets.ApplyModalActionButtonVisual then
-        FormWidgets.ApplyModalActionButtonVisual(button, "secondary")
-    end
-    button.text:SetJustifyH("CENTER")
-    container:AddChild(button)
+local function AddPickerButton(dialog, container, label, callback, closeBefore, icon)
+    local palette = ns.GUI.Skins.GetFormPalette()
+    local tree, list = palette.CompositionTree, palette.ListSelectionRow
+    local row = ns.GUI.Widgets.SelectionRow.Create({
+        key = label,
+        label = label,
+        icon = icon,
+        selected = false,
+        presentation = {
+            height = PICKER_BUTTON_HEIGHT, labelSize = 13, hideMarker = true, idleAlpha = .65,
+            iconColor = tree.icon[icon and icon:match("fp_icon_(%a+)%.png$")] or tree.icon.fallback,
+            iconStates = tree.icon,
+            colors = {
+                fill = tree.surface, fillHover = tree.rowHover, fillSelected = tree.rowSelected,
+                border = palette.Chrome.sectionBorder, borderHover = tree.text.selected, borderSelected = tree.text.selected,
+                name = { 1, 1, 1, 1 }, nameSelected = tree.text.selected,
+                marker = list.marker, markerMuted = list.markerMuted,
+            },
+        },
+        onSelect = function()
+            if dialog.released or addObjectPickerDialog ~= dialog then return end
+            if closeBefore ~= false then CloseAddObjectPickerDialog() end
+            callback()
+        end,
+    })
+    row:SetFullWidth(true)
+    row:SetHeight(PICKER_BUTTON_HEIGHT)
+    container:AddChild(row)
+    local gap = AceGUI:Create("SimpleGroup")
+    gap:SetFullWidth(true)
+    gap:SetAutoAdjustHeight(false)
+    gap:SetHeight(PICKER_ROW_GAP)
+    container:AddChild(gap)
 end
 
 local function OpenTextTemplateLibrary(entityMode, request)
@@ -721,8 +841,12 @@ local function OpenAddObjectPicker(entityMode, request)
     -- Materialize availability once. Rendering and its measured layout consume
     -- this same ordered snapshot, including only nonempty categories.
     local categories = {}
-    local function AddCategory(label, entries)
+    local iconRoot = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_"
+    local function AddCategory(label, entries, icon)
         if #entries > 0 then
+            for _, entry in ipairs(entries) do
+                entry.icon = entry.icon or iconRoot .. icon .. ".png"
+            end
             categories[#categories + 1] = { label = label, entries = entries }
         end
     end
@@ -735,7 +859,7 @@ local function OpenAddObjectPicker(entityMode, request)
             }
         end
     end
-    AddCategory(T("ADD_OBJECT_CATEGORY_UNIT_FRAMES", "Unit Frames"), entries)
+    AddCategory(T("ADD_OBJECT_CATEGORY_UNIT_FRAMES", "Unit Frames"), entries, "unit")
     if unitFramesOnly and #entries == 0 then return end
 
     entries = {}
@@ -758,7 +882,7 @@ local function OpenAddObjectPicker(entityMode, request)
             end,
         }
     end
-    AddCategory(T("ADD_OBJECT_CATEGORY_BARS", "Bars"), entries)
+    AddCategory(T("ADD_OBJECT_CATEGORY_BARS", "Bars"), entries, "bar")
 
     local shared = ns.GUI and ns.GUI.Editor and ns.GUI.Editor.SidebarShared or {}
     local indicatorList = type(shared.BuildIndicatorList) == "function" and shared.BuildIndicatorList(unitKey) or {}
@@ -769,10 +893,11 @@ local function OpenAddObjectPicker(entityMode, request)
             entries[#entries + 1] = {
                 label = T(item.labelKey, item.fallback),
                 action = AddSingletonComponent, args = { unitKey, "indicator", item.componentKey, request },
+                icon = iconRoot .. (item.componentKey == "Portrait" and "portrait" or "indicator") .. ".png",
             }
         end
     end
-    AddCategory(T("ADD_OBJECT_CATEGORY_VISUALS", "Visuals"), entries)
+    AddCategory(T("ADD_OBJECT_CATEGORY_VISUALS", "Visuals"), entries, "indicator")
 
     entries = {}
     for _, item in ipairs(ADD_OBJECT_AURA_CAPABILITIES) do
@@ -783,12 +908,12 @@ local function OpenAddObjectPicker(entityMode, request)
             }
         end
     end
-    AddCategory(T("EDITOR_SECTION_AURAS", "Auras"), entries)
+    AddCategory(T("EDITOR_SECTION_AURAS", "Auras"), entries, "aura")
     local contentEntries = {
-        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), action = function() OpenTextTemplateLibrary(entityMode, request) end, args = {}, closeBefore = entityMode ~= true },
+        { label = T("ADD_OBJECT_TEXT_BUTTON", "Text"), icon = iconRoot .. "text.png", action = function() OpenTextTemplateLibrary(entityMode, request) end, args = {}, closeBefore = entityMode ~= true },
     }
     if unitLevel then contentEntries[#contentEntries+1] = { label = T("ADD_OBJECT_DECORATION_BUTTON", "Decoration"), action = InsertDecoration, args = {request} } end
-    if not unitFramesOnly then AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), contentEntries) end
+    if not unitFramesOnly then AddCategory(T("ADD_OBJECT_CATEGORY_CONTENT", "Content"), contentEntries, "decoration") end
 
     -- Window and UIParent share a scale. Reserve the fixed regions before
     -- assigning the remaining screen/comfort budget to the selection viewport.
@@ -796,7 +921,6 @@ local function OpenAddObjectPicker(entityMode, request)
         UIParent:GetHeight() - 2 * ADD_OBJECT_SCREEN_MARGIN)
     local fixedHeight = COMPACT_WINDOW_CHROME_HEIGHT + COMPACT_BODY_TOP_PADDING
         + ADD_OBJECT_DESCRIPTION_HEIGHT + ADD_OBJECT_DESCRIPTION_GAP
-        + ADD_OBJECT_ACTION_HEIGHT + ADD_OBJECT_BOTTOM_PADDING
 
     CloseAddObjectPickerDialog()
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
@@ -806,7 +930,10 @@ local function OpenAddObjectPicker(entityMode, request)
         bodyLayout = "List",
         addBodySpacer = false,
         contentRoot = true,
-        contentSurface = "parchment",
+        windowChrome = "editmode",
+        titleFontSize = 17,
+        titleOffsetY = -3,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
     }) or nil
     if not dialog then
         return
@@ -822,13 +949,13 @@ local function OpenAddObjectPicker(entityMode, request)
     description:SetFullWidth(true)
     description:SetHeight(ADD_OBJECT_DESCRIPTION_HEIGHT)
     if FormWidgets and FormWidgets.ApplyTextStyle and description.label then
-        FormWidgets.ApplyTextStyle(description.label, "parchmentSecondary", 11, 1)
+        FormWidgets.ApplyTextStyle(description.label, "help", 13, 1)
     end
     dialog.body:AddChild(description)
 
-    local descriptionGap = AceGUI:Create("Label")
-    descriptionGap:SetText("")
+    local descriptionGap = AceGUI:Create("SimpleGroup")
     descriptionGap:SetFullWidth(true)
+    descriptionGap:SetAutoAdjustHeight(false)
     descriptionGap:SetHeight(ADD_OBJECT_DESCRIPTION_GAP)
     dialog.body:AddChild(descriptionGap)
 
@@ -841,14 +968,15 @@ local function OpenAddObjectPicker(entityMode, request)
     selectionScroll:SetFullWidth(true)
     selectionScroll:SetHeight(maxSelectionHeight)
     dialog.body:AddChild(selectionScroll)
+    StyleAddObjectScrollbar(selectionScroll)
     selectionScroll:PauseLayout()
-    for _, category in ipairs(categories) do
-        AddPickerHeader(selectionScroll, category.label)
+    for index, category in ipairs(categories) do
+        AddPickerHeader(selectionScroll, category.label, index > 1)
         for _, entry in ipairs(category.entries) do
             AddPickerButton(dialog, selectionScroll, entry.label, function()
                 if request and not request.isCurrent() then return end
                 entry.action(unpack(entry.args))
-            end, entry.closeBefore)
+            end, entry.closeBefore, entry.icon)
         end
     end
     selectionScroll:ResumeLayout()
@@ -861,30 +989,6 @@ local function OpenAddObjectPicker(entityMode, request)
     selectionScroll:SetHeight(selectionHeight)
     dialog.window:SetHeight(fixedHeight + selectionHeight)
 
-    local actionContainer = AceGUI:Create("SimpleGroup")
-    actionContainer:SetLayout("Flow")
-    actionContainer:SetFullWidth(true)
-    if actionContainer.SetAutoAdjustHeight then
-        actionContainer:SetAutoAdjustHeight(false)
-    end
-    actionContainer:SetHeight(ADD_OBJECT_ACTION_HEIGHT)
-    dialog.body:AddChild(actionContainer)
-
-    dialog:SetActions({
-        cancel = {
-            text = T("INFO_COMMON_CANCEL", "Cancel"),
-            role = "utility",
-            width = 105,
-            icon = "cancel",
-            onClick = CloseAddObjectPickerDialog,
-        },
-    }, actionContainer)
-
-    local bottomPadding = AceGUI:Create("Label")
-    bottomPadding:SetText("")
-    bottomPadding:SetFullWidth(true)
-    bottomPadding:SetHeight(ADD_OBJECT_BOTTOM_PADDING)
-    dialog.body:AddChild(bottomPadding)
     dialog.window:SetCallback("OnClose", function()
         if dialog.released then return end
         dialog.released = true

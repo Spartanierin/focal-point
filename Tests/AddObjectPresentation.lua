@@ -8,6 +8,10 @@ local stop = assert(source:find("local count=0", 1, true))
 local h, ns, state, toolbar, Setup, FindButton, dialogs = assert(load(source:sub(1, stop - 1) ..
     "\nreturn h,ns,state,toolbar,Setup,FindButton,dialogs", "@AddObjectPresentation/Fixture"))()
 local function Load(path) assert(loadfile(path))("FocalPoint", ns) end
+local function ClickEntry(widget)
+    assert(widget.type=="FocalPointSelectionRow")
+    widget.frame:Run("OnMouseDown","LeftButton")
+end
 Load("GUI/Editor/EditorController.lua")
 Load("GUI/Editor/Inspector/InspectorMutations.lua")
 -- The reused segmented-bar fixture limits valid selection units to player/target.
@@ -28,7 +32,7 @@ local function Open(label, globalUnit)
     return dialog, assert(FindButton(dialog.body, label), label)
 end
 local function Add(label, globalUnit)
-    local dialog, button = Open(label, globalUnit); button:Fire("OnClick"); assert(dialog.released)
+    local dialog, button = Open(label, globalUnit); ClickEntry(button); assert(dialog.released)
 end
 local count = 0
 local function Test(name, fn) fn(); count = count + 1; print("PASS: " .. name) end
@@ -78,15 +82,15 @@ Test("Unit/root Add does not navigate", function()
 end)
 Test("Tree cancel, combat failure and stale layout callback retain Customize", function()
     Setup(); controller.SetPresentation("customize")
-    local dialog = Open("Class Resource Bar"); dialog.cancelButton:Fire("OnClick")
+    local dialog = Open("Class Resource Bar"); dialog.window.closebutton:Run("OnClick")
     assert(not state.IsArrange())
     local button; dialog, button = Open("Class Resource Bar")
     local combat = InCombatLockdown; InCombatLockdown = function() return true end
-    button:Fire("OnClick"); InCombatLockdown = combat
+    ClickEntry(button); InCombatLockdown = combat
     assert(not state.IsArrange() and selection.GetSelectedObject().kind == "unit")
     dialog, button = Open("Class Resource Bar")
     local ok, id = ns.LayoutMutations.CopyLayout("layout:existing", nil, {activate = false}); assert(ok)
-    assert(ns:ActivateLayout(id)); button:Fire("OnClick")
+    assert(ns:ActivateLayout(id)); ClickEntry(button)
     assert(not state.IsArrange() and selection.GetSelectedObject().kind == "unit")
 end)
 Test("successful mutation without successful canonical selection does not navigate", function()

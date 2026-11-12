@@ -68,10 +68,10 @@ local function CardActions(kind,key)
             if #dialogs==before then return end
             local picker=dialogs[#dialogs]
             local function Find(widget)
-                if widget.type=="Button" and widget.text:GetText()=="Text" then return widget end
+                if widget.type=="FocalPointSelectionRow" and widget.label:GetText()=="Text" then return widget end
                 for _,child in ipairs(widget.children or {})do local found=Find(child);if found then return found end end
             end
-            assert(Find(picker.body)):Fire("OnClick")
+            local entry=assert(Find(picker.body));entry.frame:Run("OnMouseDown","LeftButton")
         end
     end
     if row.item.removable then
@@ -83,8 +83,16 @@ local function CardActions(kind,key)
     return entries
 end
 local function FindButton(widget,label)
+    if widget.type=="FocalPointSelectionRow" and widget.label:GetText()==label then return widget end
     if widget.type=="Button" and widget.text:GetText()==label then return widget end
     for _,child in ipairs(widget.children or {})do local found=FindButton(child,label);if found then return found end end
+end
+local function ClickEntry(widget)
+    if widget.type=="FocalPointSelectionRow" then widget.frame:Run("OnMouseDown","LeftButton")
+    else widget:Fire("OnClick") end
+end
+local function EntryCallback(widget)
+    return assert(widget.type=="FocalPointSelectionRow" and widget.onSelect or widget.events.OnClick)
 end
 local function AssertTextOnly(entries)
     assert(entries.Add);entries.Add()
@@ -104,7 +112,7 @@ Test("fixed Unit Add reuses the real catalog, excludes existing singletons and a
     local picker=dialogs[#dialogs]
     assert(picker.body.children[1].label:GetText()=="Choose what to add to player.")
     assert(not FindButton(picker.body,"Health Bar") and not FindButton(picker.body,"pet"))
-    local button=assert(FindButton(picker.body,"Power Bar"));button:Fire("OnClick");Drain()
+    local button=assert(FindButton(picker.body,"Power Bar"));ClickEntry(button);Drain()
     assert(unit.powerBarPresent and selection.GetSelectedObject().objectKey=="PowerBar")
     Back();Row("unit").add:Run("OnMouseDown","LeftButton")
     picker=dialogs[#dialogs];assert(not FindButton(picker.body,"Power Bar"));picker:Close()
@@ -151,7 +159,7 @@ Test("stale direct actions and picker callbacks reject rebuild, Unit change and 
     controller.RefreshCompositionTree()
     local before=#dialogs;callback();assert(#dialogs==before)
     Row("unit").add:Run("OnMouseDown","LeftButton")
-    local picker=dialogs[#dialogs];local button=assert(FindButton(picker.body,"Text"));local old=button.events.OnClick
+    local picker=dialogs[#dialogs];local button=assert(FindButton(picker.body,"Text"));local old=EntryCallback(button)
     picker:Close();before=h.Copy(db);old();h.Equal(db,before)
     entries=CardActions("powerbar");callback=entries.Remove
     local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units;units.target=h.Copy(unit)
@@ -181,7 +189,7 @@ end)
 Test("Unit Add Text ignores selected bar; stale child library cannot mutate after Unit switch",function()
     Start();Row("powerbar").frame:Run("OnMouseDown","LeftButton");Drain();Back()
     Row("unit").add:Run("OnMouseDown","LeftButton")
-    assert(FindButton(dialogs[#dialogs].body,"Text")):Fire("OnClick")
+    ClickEntry(assert(FindButton(dialogs[#dialogs].body,"Text")))
     local library=ns.GUI.Editor.TextTemplateLibraryWindow
     local context=assert(h.ui.Upvalue(library.Open,"windowContext"))
     assert(context.anchorSelection.kind=="unit")
@@ -214,7 +222,7 @@ Test("built-in Unit Add uses the existing editable-copy confirmation without cha
     local resolver=ns.ActiveLayoutResolver
     local source=h.Copy(resolver.GetActiveRuntimeRoot().payload)
     Row("unit").add:Run("OnMouseDown","LeftButton")
-    assert(FindButton(dialogs[#dialogs].body,"Class Resource Bar")):Fire("OnClick")
+    ClickEntry(assert(FindButton(dialogs[#dialogs].body,"Class Resource Bar")))
     local pending=confirms[#confirms];pending.options.primary.onClick(pending.dialog);Drain()
     local root=resolver.GetActiveRuntimeRoot()
     assert(root.layoutId:match("^layout:") and root.record.createdFrom.id=="builtin:default")
@@ -312,7 +320,7 @@ Test("Raid Target pilot uses the existing catalog and atomically activates ATTAC
     for _,case in ipairs({{"healthbar","HealthBar"},{"powerbar","PowerBar"}})do
         Start();PrepareRaid();unit.RaidTargetIcon.enabled=false
         local icon=unit.RaidTargetIcon;local before=h.Copy(unit)
-        local picker,button=OpenRaidPicker(case[1]);button:Fire("OnClick");Drain()
+        local picker,button=OpenRaidPicker(case[1]);ClickEntry(button);Drain()
         assert(unit.RaidTargetIcon==icon and icon.present and icon.enabled)
         assert(icon.placement=="ATTACHED" and icon.anchorTo==case[2] and icon.point=="CENTER" and icon.relativePoint=="TOP")
         assert(icon.offsetX==0 and icon.offsetY==0 and icon.size==before.RaidTargetIcon.size)
@@ -326,7 +334,7 @@ Test("Raid Target pilot uses the existing catalog and atomically activates ATTAC
         -- Global reactivation still preserves existing geometry and placement.
         icon.present=false;controller.RefreshCompositionTree();Row("unit").add:Run("OnMouseDown","LeftButton")
         button=assert(FindButton(dialogs[#dialogs].body,"Raid Target"));local geometry=h.Copy(icon)
-        button:Fire("OnClick");Drain();geometry.present=true;geometry.enabled=true;h.Equal(icon,geometry)
+        ClickEntry(button);Drain();geometry.present=true;geometry.enabled=true;h.Equal(icon,geometry)
     end
 end)
 Test("Raid Target mutation rejects invalid placement, missing references, stale identities and Combat before writes",function()
@@ -367,26 +375,26 @@ end)
 Test("Raid Target Cancel, singleton race and stale Unit/Workspace reject picker actions without partial activation",function()
     Start();PrepareRaid()
     local picker,button=OpenRaidPicker("healthbar");local before=h.Copy(db)
-    picker:Close();button:Fire("OnClick");h.Equal(db,before)
+    picker:Close();ClickEntry(button);h.Equal(db,before)
     picker,button=OpenRaidPicker("healthbar")
     unit.RaidTargetIcon.present=true;unit.RaidTargetIcon.enabled=false
-    before=h.Copy(db);button:Fire("OnClick");Drain();h.Equal(db,before)
+    before=h.Copy(db);ClickEntry(button);Drain();h.Equal(db,before)
     local entries=CardActions("healthbar");AssertTextOnly(entries)
     unit.RaidTargetIcon.present=false;picker,button=OpenRaidPicker("powerbar")
     ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units.target=h.Copy(unit)
     assert(selection.SelectObject({kind="unit",unit="target"}));Drain();before=h.Copy(db)
-    button:Fire("OnClick");Drain();h.Equal(db,before)
+    ClickEntry(button);Drain();h.Equal(db,before)
     assert(selection.SelectObject({kind="unit",unit="player"}));Drain()
     picker,button=OpenRaidPicker("healthbar")
     local root=ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
     ns.ActiveLayoutResolver.InvalidateActiveRuntimeRoot();assert(ns.ActiveLayoutResolver.EnsureActiveRuntimeRoot(db)~=root)
-    before=h.Copy(db);button:Fire("OnClick");Drain();h.Equal(db,before)
+    before=h.Copy(db);ClickEntry(button);Drain();h.Equal(db,before)
     controller.RefreshCompositionTree();picker,button=OpenRaidPicker("healthbar")
     local combat=InCombatLockdown;InCombatLockdown=function()return true end
-    before=h.Copy(db);button:Fire("OnClick");Drain();h.Equal(db,before);InCombatLockdown=combat
+    before=h.Copy(db);ClickEntry(button);Drain();h.Equal(db,before);InCombatLockdown=combat
     picker,button=OpenRaidPicker("healthbar")
     window.closebutton:GetScript("OnClick")(window.closebutton);Drain();before=h.Copy(db)
-    button:Fire("OnClick");Drain();h.Equal(db,before);window=Build()
+    ClickEntry(button);Drain();h.Equal(db,before);window=Build()
 end)
 Test("Raid Target editable-copy Cancel changes nothing; approved copy receives placement without changing the template",function()
     Start()
@@ -399,9 +407,9 @@ Test("Raid Target editable-copy Cancel changes nothing; approved copy receives p
     local resolver=ns.ActiveLayoutResolver
     local source=h.Copy(resolver.GetActiveRuntimeRoot().payload)
     local picker,button=OpenRaidPicker("healthbar");local before=h.Copy(db)
-    button:Fire("OnClick");local pending=confirms[#confirms]
+    ClickEntry(button);local pending=confirms[#confirms]
     pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
-    picker,button=OpenRaidPicker("healthbar");button:Fire("OnClick");pending=confirms[#confirms]
+    picker,button=OpenRaidPicker("healthbar");ClickEntry(button);pending=confirms[#confirms]
     pending.options.primary.onClick(pending.dialog);Drain()
     local root=resolver.GetActiveRuntimeRoot();assert(root.record.createdFrom.id=="builtin:default")
     local icon=root.units.player.RaidTargetIcon
@@ -434,11 +442,11 @@ Test("missing Raid Target record leaves only executable Text in the direct catal
         assert(not result.ok and result.errorCode=="component_config_not_found");h.Equal(db,before)
         -- Missing after catalog construction: the retained button must not activate or recreate it.
         PrepareRaid();local button;picker,button=OpenRaidPicker(case[1]);unit.RaidTargetIcon=nil;before=h.Copy(db)
-        button:Fire("OnClick");Drain();h.Equal(db,before);assert(unit.RaidTargetIcon==nil)
+        ClickEntry(button);Drain();h.Equal(db,before);assert(unit.RaidTargetIcon==nil)
         -- The previous global catalog and missing-record behavior remain unchanged.
         Row("unit").add:Run("OnMouseDown","LeftButton")
         local global=dialogs[#dialogs];local add=assert(FindButton(global.body,"Raid Target"))
-        before=h.Copy(db);add:Fire("OnClick");Drain();h.Equal(db,before)
+        before=h.Copy(db);ClickEntry(add);Drain();h.Equal(db,before)
         PrepareRaid();unit.RaidTargetIcon.present=true;unit.RaidTargetIcon.enabled=false
         entries=CardActions(case[1]);AssertTextOnly(entries)
     end
@@ -446,7 +454,7 @@ end)
 Test("pilot-created Raid Target survives actual Export/Import and serialized SavedVariables/root reload",function()
     for _,case in ipairs({{"healthbar","HealthBar"},{"powerbar","PowerBar"}})do
         Start();PrepareRaid()
-        local picker,button=OpenRaidPicker(case[1]);button:Fire("OnClick");Drain()
+        local picker,button=OpenRaidPicker(case[1]);ClickEntry(button);Drain()
         local expected=h.Copy(unit.RaidTargetIcon)
         local encoded=assert(ns.LayoutTransfer.Export("layout:existing"))
         local codec=ns.LayoutTransferCodec
@@ -508,13 +516,13 @@ Test("18 unit/type/target combinations retain ATTACHED geometry, record identity
                 local identity=unit[item.key];local before=h.Copy(unit);local expected=h.Copy(identity)
                 expected.placement="ATTACHED";expected.anchorTo=target[2];expected.point="CENTER";expected.relativePoint="TOP"
                 expected.offsetX=0;expected.offsetY=0;expected.present=true;expected.enabled=true
-                local picker,button=OpenIndicatorPicker(target[1],item.label);button:Fire("OnClick");Drain()
+                local picker,button=OpenIndicatorPicker(target[1],item.label);ClickEntry(button);Drain()
                 assert(unit[item.key]==identity);h.Equal(identity,expected);before[item.key]=expected;h.Equal(unit,before)
                 assert(selection.GetSelectedObject().indicatorKey==item.key and selection.GetSelectedObject().unit==unitKey)
                 Back();Row("indicatorElement",item.key).frame:Run("OnMouseDown","LeftButton");Drain()
                 assert(window._focalPointCustomizeView=="properties" and state.GetPropertyScope().objectKey==item.key);Back()
                 identity.present=false;controller.RefreshCompositionTree();Row("unit").add:Run("OnMouseDown","LeftButton")
-                button=assert(FindButton(dialogs[#dialogs].body,item.label));button:Fire("OnClick");Drain()
+                button=assert(FindButton(dialogs[#dialogs].body,item.label));ClickEntry(button);Drain()
                 assert(unit[item.key]==identity);h.Equal(identity,expected)
             end
         end
@@ -524,7 +532,7 @@ Test("missing records, disabled singletons, Presence races and Boss availability
     for _,item in ipairs(contextIndicators)do
         for _,target in ipairs({{"healthbar","HealthBar"},{"powerbar","PowerBar"}})do
             StartIndicator(item.key);local picker,button=OpenIndicatorPicker(target[1],item.label)
-            unit[item.key]=nil;local before=h.Copy(db);local callback=button.events.OnClick;callback();Drain();h.Equal(db,before)
+            unit[item.key]=nil;local before=h.Copy(db);local callback=EntryCallback(button);callback();Drain();h.Equal(db,before)
             local entries=CardActions(target[1]);AssertTextOnly(entries)
             local ref={kind="bar",unit="player",objectKey=target[2]}
             local result=ns.InspectorMutations.AddComponent({unitKey="player",unitConfig=unit,placementTarget=ref,
@@ -532,7 +540,7 @@ Test("missing records, disabled singletons, Presence races and Boss availability
             assert(not result.ok and result.errorCode=="component_config_not_found");h.Equal(db,before)
             StartIndicator(item.key);picker,button=OpenIndicatorPicker(target[1],item.label)
             unit[item.key].present=true;unit[item.key].enabled=false;before=h.Copy(db)
-            button:Fire("OnClick");Drain();h.Equal(db,before)
+            ClickEntry(button);Drain();h.Equal(db,before)
             entries=CardActions(target[1]);AssertTextOnly(entries)
         end
     end
@@ -569,19 +577,19 @@ end)
 Test("all three types reject Cancel, replaced picker, Combat and stale Unit/Layout/Workspace callbacks without writes",function()
     for _,item in ipairs(contextIndicators)do
         StartIndicator(item.key);local picker,button=OpenIndicatorPicker("healthbar",item.label)
-        local callback=button.events.OnClick;local before=h.Copy(db);picker:Close();callback();h.Equal(db,before)
-        picker,button=OpenIndicatorPicker("healthbar",item.label);callback=button.events.OnClick
+        local callback=EntryCallback(button);local before=h.Copy(db);picker:Close();callback();h.Equal(db,before)
+        picker,button=OpenIndicatorPicker("healthbar",item.label);callback=EntryCallback(button)
         local fresh=OpenIndicatorPicker("healthbar",item.label);callback();h.Equal(db,before);assert(fresh.window.frame:IsShown());fresh:Close()
         picker,button=OpenIndicatorPicker("powerbar",item.label)
         local combat=InCombatLockdown;InCombatLockdown=function()return true end
-        button:Fire("OnClick");Drain();h.Equal(db,before);InCombatLockdown=combat
-        picker,button=OpenIndicatorPicker("healthbar",item.label);callback=button.events.OnClick
+        ClickEntry(button);Drain();h.Equal(db,before);InCombatLockdown=combat
+        picker,button=OpenIndicatorPicker("healthbar",item.label);callback=EntryCallback(button)
         local units=ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units;units.target=h.Copy(unit)
         assert(selection.SelectUnitRoot("target"));Drain();before=h.Copy(db);callback();Drain();h.Equal(db,before)
-        StartIndicator(item.key);picker,button=OpenIndicatorPicker("healthbar",item.label);callback=button.events.OnClick
+        StartIndicator(item.key);picker,button=OpenIndicatorPicker("healthbar",item.label);callback=EntryCallback(button)
         local ok,id=ns.LayoutMutations.CopyLayout("layout:existing",nil,{activate=false});assert(ok,id)
         assert(ns:ActivateLayout(id));Drain();before=h.Copy(db);callback();Drain();h.Equal(db,before)
-        StartIndicator(item.key);picker,button=OpenIndicatorPicker("healthbar",item.label);callback=button.events.OnClick
+        StartIndicator(item.key);picker,button=OpenIndicatorPicker("healthbar",item.label);callback=EntryCallback(button)
         window.closebutton:GetScript("OnClick")(window.closebutton);Drain();window=Build()
         before=h.Copy(db);callback();Drain();h.Equal(db,before)
     end
@@ -593,8 +601,8 @@ Test("Leader and Role use the real editable-copy Cancel/Confirm contract without
         assert(ns:ActivateLayout("builtin:default"));Drain();window=Build()
         local resolver=ns.ActiveLayoutResolver;local source=h.Copy(resolver.GetActiveRuntimeRoot().payload)
         local picker,button=OpenIndicatorPicker("healthbar",item.label);local before=h.Copy(db)
-        button:Fire("OnClick");local pending=confirms[#confirms];pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
-        picker,button=OpenIndicatorPicker("healthbar",item.label);button:Fire("OnClick");pending=confirms[#confirms]
+        ClickEntry(button);local pending=confirms[#confirms];pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
+        picker,button=OpenIndicatorPicker("healthbar",item.label);ClickEntry(button);pending=confirms[#confirms]
         pending.options.primary.onClick(pending.dialog);Drain()
         local root=resolver.GetActiveRuntimeRoot();local icon=root.units.player[item.key]
         assert(root.record.createdFrom.id=="builtin:default" and icon.present and icon.enabled
@@ -606,7 +614,7 @@ end)
 Test("Leader and Role retain full records through actual Export/Import and serialized SavedVariables reload at both targets",function()
     for _,item in ipairs({contextIndicators[2],contextIndicators[3]})do
         for _,target in ipairs({"healthbar","powerbar"})do
-            StartIndicator(item.key);local picker,button=OpenIndicatorPicker(target,item.label);button:Fire("OnClick");Drain()
+            StartIndicator(item.key);local picker,button=OpenIndicatorPicker(target,item.label);ClickEntry(button);Drain()
             local expected=h.Copy(unit[item.key]);local encoded=assert(ns.LayoutTransfer.Export("layout:existing"))
             local codec=ns.LayoutTransferCodec;local document=assert(codec.Decode(encoded));h.Equal(document.payload.Units.player[item.key],expected)
             local ok,id=ns.LayoutTransfer.Import(encoded);assert(ok,id);h.Equal(db.global.UserLayouts[id].payload.Units.player[item.key],expected)
@@ -734,7 +742,7 @@ Test("the existing direct Text API remains available independently of tree plus 
 end)
 Test("child Indicators and Decorations expose only the existing guarded trash action",function()
     StartIndicator("LeaderIcon")
-    local picker,button=OpenIndicatorPicker("healthbar","Leader");button:Fire("OnClick");Drain();Back()
+    local picker,button=OpenIndicatorPicker("healthbar","Leader");ClickEntry(button);Drain();Back()
     local record=unit.LeaderIcon;local row=Row("indicatorElement","LeaderIcon")
     assert(row.item.depth==2 and row.remove:IsShown() and not row.add:IsShown())
     CardActions("indicatorElement","LeaderIcon").Remove()
@@ -744,7 +752,7 @@ Test("child Indicators and Decorations expose only the existing guarded trash ac
     pending.options.primary.onClick(pending.dialog);Drain()
     assert(unit.LeaderIcon==record and record.present==false)
     Row("unit").add:Run("OnMouseDown","LeftButton")
-    assert(FindButton(dialogs[#dialogs].body,"Decoration")):Fire("OnClick");Drain();Back()
+    ClickEntry(assert(FindButton(dialogs[#dialogs].body,"Decoration")));Drain();Back()
     local id=unit.decorations[#unit.decorations].id
     row=Row("decorationElement",id);assert(row.remove:IsShown() and not row.add:IsShown())
     CardActions("decorationElement",id).Remove();pending=confirms[#confirms]
@@ -759,7 +767,7 @@ Test("Unit plus retains the global Unit catalog under a selected Bar and rejects
     local picker=dialogs[#dialogs]
     assert(picker.body.children[1].label:GetText()=="Choose what to add to player.")
     assert(FindButton(picker.body,"Decoration") and FindButton(picker.body,"Class Resource Bar"))
-    assert(FindButton(picker.body,"Text")):Fire("OnClick")
+    ClickEntry(assert(FindButton(picker.body,"Text")))
     local context=h.ui.Upvalue(ns.GUI.Editor.TextTemplateLibraryWindow.Open,"windowContext")
     assert(context.anchorSelection.kind=="unit" and context.targetUnit=="player")
     context.dialog:Close()
@@ -827,11 +835,11 @@ Test("global Add Unit offers only five supported missing Units and reselects eac
         controller.SetPresentation(arrange and "arrange" or "customize")
         local picker=OpenUnits();assert(picker.window.titletext:GetText()=="Add Unit")
         local entries=0
-        for _,child in ipairs(picker.body.children[3].children)do if child.type=="Button"then entries=entries+1 end end
+        for _,child in ipairs(picker.body.children[3].children)do if child.type=="FocalPointSelectionRow"then entries=entries+1 end end
         assert(entries==5 and not FindButton(picker.body,"Text") and not FindButton(picker.body,"Decoration")
             and not FindButton(picker.body,"Power Bar") and not FindButton(picker.body,"Class Resource Bar"))
         local record=units[key]
-        assert(FindButton(picker.body,key=="boss" and "Boss Frames" or key)):Fire("OnClick");Drain()
+        ClickEntry(assert(FindButton(picker.body,key=="boss" and "Boss Frames" or key)));Drain()
         assert(record.present and ns.ActiveLayoutResolver.GetActiveRuntimeRoot().units[key]==record)
         local selected=selection.GetSelectedObject();assert(selected.kind=="unit" and selected.unit==key)
         assert(state.IsArrange()==arrange)
@@ -849,7 +857,7 @@ Test("global Unit catalog filters records and existing Units, and opens nothing 
 end)
 Test("global Unit Cancel, Combat, Presence race and stale Unit/object/layout/reopen callbacks never write",function()
     MissingUnits();local before=h.Copy(db);local picker=OpenUnits()
-    picker.cancelButton:Fire("OnClick");Drain();h.Equal(db,before)
+    picker.window.frame:Run("OnKeyDown","ESCAPE");Drain();h.Equal(db,before)
     local combat=InCombatLockdown;InCombatLockdown=function()return true end
     local opened=#dialogs;ns.GUI.Editor.CanvasToolbar.OpenEntityAddObjectPicker();assert(#dialogs==opened)
     InCombatLockdown=combat
@@ -862,7 +870,7 @@ Test("global Unit Cancel, Combat, Presence race and stale Unit/object/layout/reo
         elseif case=="layout"then assert(ns:ActivateLayout("builtin:default"));Drain()
         else ns.CloseConfig();Drain();window=Build() end
         before=h.Copy(db);local selected=h.Copy(selection.GetSelectedObject())
-        button:Fire("OnClick");Drain();h.Equal(db,before);h.Equal(selection.GetSelectedObject(),selected)
+        ClickEntry(button);Drain();h.Equal(db,before);h.Equal(selection.GetSelectedObject(),selected)
         InCombatLockdown=combat
     end
 end)
@@ -875,9 +883,9 @@ Test("global Unit Add uses real editable-copy Cancel/Confirm and preserves the b
     assert(ns:ActivateLayout("builtin:default"));Drain();window=Build();controller.SetPresentation("arrange")
     local source=h.Copy(ns.ActiveLayoutResolver.GetActiveRuntimeRoot().payload)
     local picker=OpenUnits();local before=h.Copy(db)
-    assert(FindButton(picker.body,"pet")):Fire("OnClick")
+    ClickEntry(assert(FindButton(picker.body,"pet")))
     local pending=confirms[#confirms];pending.options.cancel.onClick(pending.dialog);Drain();h.Equal(db,before)
-    picker=OpenUnits();assert(FindButton(picker.body,"pet")):Fire("OnClick")
+    picker=OpenUnits();ClickEntry(assert(FindButton(picker.body,"pet")))
     pending=confirms[#confirms];pending.options.primary.onClick(pending.dialog);Drain()
     local root=ns.ActiveLayoutResolver.GetActiveRuntimeRoot()
     assert(root.record.createdFrom.id=="builtin:default" and root.units.pet.present)
@@ -1287,7 +1295,7 @@ Test("five Unit Remove/Cancel/Restore paths retain complete records and IDs, res
         local codec=ns.LayoutTransferCodec
         local saved=assert(codec.Decode(assert(codec.Encode({global=db.global,char=db.char}))))
         h.Equal(saved.global.UserLayouts["layout:existing"].payload.Units[key],absent)
-        local picker=OpenUnits();assert(FindButton(picker.body,key=="boss" and "Boss Frames" or key)):Fire("OnClick");Drain()
+        local picker=OpenUnits();ClickEntry(assert(FindButton(picker.body,key=="boss" and "Boss Frames" or key)));Drain()
         assert(units[key]==record and selection.GetSelectedObject().unit==key)
         h.Equal(record,before);h.Equal(units.player,others)
         local roots=0
@@ -1333,7 +1341,7 @@ Test("removed and disabled Units survive serialized SavedVariables/root reload a
     local current=assert(resolver.EnsureActiveRuntimeRoot(reloaded))
     assert(current~=previous);h.Equal(current.units.pet,expected)
     assert(ns.CompositionTreeAdapter.BuildUnitTree("pet")==nil)
-    window=Build();local picker=OpenUnits();assert(FindButton(picker.body,"pet")):Fire("OnClick");Drain()
+    window=Build();local picker=OpenUnits();ClickEntry(assert(FindButton(picker.body,"pet")));Drain()
     expected.present=true;h.Equal(current.units.pet,expected)
     assert(selection.GetSelectedObject().unit=="pet" and not Row("unit").toggle:GetChecked())
     Row("unit").toggle:Run("OnClick","LeftButton");Drain()
