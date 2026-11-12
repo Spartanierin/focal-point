@@ -17,14 +17,15 @@ characters.
 
 <a id="release-300"></a>
 <a id="release-301"></a>
+<a id="release-302"></a>
 
-## Release 3.0.2
+## Release 3.0.3
 
-Version 3.0.2 adds independently sized and anchored Power Bars in CUSTOM mode,
-including direct Canvas movement, and configurable Friendly, Hostile, and
-Neutral NPC Health reaction colors with a reset to Blizzard defaults. Existing
-layouts retain their previous Power geometry unless CUSTOM is selected. The
-redesigned editor and the improvements from 3.0.1 remain available.
+Version 3.0.3 improves Add Object and Add Unit with matching Edit Mode windows,
+component icons and colors, clearer category headings, modern scrollbar
+graphics, and a larger header drag area. Close either picker with X or Escape.
+The independently positioned CUSTOM Power Bars and configurable NPC Health
+reaction colors introduced in 3.0.2 remain available.
 Retail/Midnight has been natively tested. Focal Point 3.0.0 has also been
 extensively natively tested on WoW Forever. In 3.0.1, the Components Tree removal
 icon improves cross-client presentation and has been natively checked on

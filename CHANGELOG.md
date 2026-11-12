@@ -10,6 +10,17 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.3
+
+### Improved
+
+**Editor UX Improvements**
+
+* Updated Add Object and Add Unit with a consistent Edit Mode window style that matches the visual editor.
+* Reworked object lists with component icons and matching colors, clearer labels, and more readable category headings.
+* Added modern scrollbar graphics while retaining the existing scrolling behavior.
+* Improved window handling with a clearer title and context line, a larger header drag area, and closing through X or Escape without a redundant Cancel footer.
+
 ## 3.0.2
 
 ### Added
