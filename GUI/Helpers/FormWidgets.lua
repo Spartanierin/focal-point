@@ -274,6 +274,7 @@ local function EnsureModernWindowBackground(frame, translucent)
         frame._fpModernPortraitBackground = background
     end
 
+    background:SetDrawLayer("BACKGROUND", -6)
     background:ClearAllPoints()
     background:SetPoint("TOPLEFT", frame, "TOPLEFT", translucent and 7 or 2, translucent and -7 or -21)
     background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", translucent and -7 or -2, translucent and 7 or 2)

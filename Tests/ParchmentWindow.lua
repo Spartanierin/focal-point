@@ -572,6 +572,44 @@ ace:Release(defaultEdit.window)
 local noBackground=widgets.CreateCompactFormDialog({title="Modern without background opt-in",width=420,height=300,windowChrome="modern",portrait=false})
 assert(not noBackground.window.frame._fpModernPortraitBackground or not noBackground.window.frame._fpModernPortraitBackground:IsShown())
 ace:Release(noBackground.window)
+-- The same retained texture must not inherit a previous chrome's sublevel.
+C_Texture={GetAtlasInfo=function()return {width=32,height=32}end}
+local applyEditChrome=Upvalue(createDialog,"ApplyCompactEditModeChrome")
+for _,sequence in ipairs({{"modern","editmode","modern"},{"editmode","modern","editmode"}}) do
+    local d=widgets.CreateCompactFormDialog({title="Chrome layer reuse",width=420,height=300,
+        windowChrome=sequence[1],portrait=false,background="blizzard"})
+    local window=d.window
+    local background=assert(window.frame._fpModernPortraitBackground)
+    local function Apply(mode)
+        if mode=="modern" then
+            widgets.RestoreDefaultWindowChrome(window)
+            widgets.ApplyModernWindowChrome(window,{nineSlice=true,portrait=false,background="blizzard"})
+        else
+            applyEditChrome(window,{}, {})
+        end
+        assert(window.frame._fpModernPortraitBackground==background)
+        assert(background:IsShown())
+        Equal({background:GetDrawLayer()},{"BACKGROUND",mode=="modern" and -6 or -5})
+        if mode=="modern" then
+            Equal(background:GetTexture(),"Interface\\FrameGeneral\\UI-Background-Rock")
+        else
+            Equal(background.lastSetColorTexture,{0,0,0,.8})
+        end
+    end
+    for _,mode in ipairs(sequence) do
+        Apply(mode)
+        widgets.RestoreDefaultWindowChrome(window);assert(not background:IsShown())
+        Apply(mode)
+        d:Close();assert(not window.frame:IsShown())
+        d:Show();Apply(mode);assert(window.frame:IsShown())
+    end
+    ace:Release(window);assert(not background:IsShown())
+    local nextDialog=widgets.CreateCompactFormDialog({title="Pool after chrome transition",width=420,height=300})
+    Check(nextDialog)
+    assert(not nextDialog.window.frame._fpModernPortraitBackground or not nextDialog.window.frame._fpModernPortraitBackground:IsShown())
+    ace:Release(nextDialog.window)
+end
+print("PASS: same-texture Modern/Edit Mode transitions in both directions, restore/reopen/release and default pool isolation")
 C_Texture=previousAtlas
 -- Options and Confirmations now consume the same dialog presentation as W1.
 Load("GUI/Editor/EditorOptionsDialog.lua")
