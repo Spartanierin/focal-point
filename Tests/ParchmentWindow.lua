@@ -45,7 +45,7 @@ function native:GetWidth() return width(self) or 0 end
 function native:GetHeight() return self.nativeHeight or 0 end
 function native:GetFontString() if not self.fontString then self.fontString=self:CreateFontString() end; return self.fontString end
 function native:GetScript(event) return self.scripts[event] end
--- Native UIPanelScrollBarTemplate supplies these regions/buttons in the client;
+-- Native templates supply these regions/buttons in the client;
 -- Lua-only CreateFrame cannot materialize XML, so model only that existing boundary.
 local createFrame=CreateFrame
 function CreateFrame(kind,name,parent,template)
@@ -67,6 +67,10 @@ function CreateFrame(kind,name,parent,template)
             frame:SetScript(event,fn);scripts[event]=fn
         end
         frame._testNativeScrollbar={original=original,scripts=scripts}
+    elseif template=="InsetFrameTemplate" then
+        frame.Bg=frame:CreateTexture(nil,"BACKGROUND",nil,-5)
+        frame.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble")
+        frame.Bg:SetAllPoints(frame)
     end
     return frame
 end
@@ -84,7 +88,7 @@ GameFontNormal={}; GameFontHighlight={}
 function PlaySound() end
 Load("GUI/Helpers/TextStyles.lua")
 Load("GUI/Layouts/FormElementDefinition.lua")
-for _,file in ipairs({"AceGUIContainer-Window","AceGUIContainer-ScrollFrame","AceGUIWidget-Label",
+for _,file in ipairs({"AceGUIContainer-Window","AceGUIContainer-ScrollFrame","AceGUIWidget-Label","AceGUIWidget-InteractiveLabel",
     "AceGUIWidget-Button","AceGUIWidget-CheckBox"}) do Load("Libraries/Ace3/AceGUI-3.0/widgets/"..file..".lua") end
 local widgets=ns.GUI.Helpers.FormWidgets
 local function CheckContent(dialog, headings)
@@ -210,14 +214,159 @@ ns.LayoutService={ListLayoutSummaries=function() return {
     {id="builtin:default",name="Default",source="builtin"},
 } end}
 Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
+local savedModernAtlasAPI,savedModernLegacyAtlasAPI=C_Texture,GetAtlasInfo
+local function ModernAtlasInfo(name)
+    assert(name=="_UI-Frame-TopTileStreaks")
+    return {width=256,height=43}
+end
+C_Texture={GetAtlasInfo=ModernAtlasInfo}
 ns.GUI.Editor.LayoutManager.Open()
 local manager=createdDialogs[#createdDialogs].dialog
-Check(manager); Equal({manager.window.frame:GetWidth(),manager.window.frame:GetHeight()},{560,521})
+local function CheckModern(dialog,topTileStreaks)
+    local w=dialog.window
+    assert(w.frame._fpModernNineSlice:IsShown())
+    Equal(w.frame._fpModernNineSlice.testLayoutName,"ButtonFrameTemplateNoPortrait")
+    assert(not w.frame._fpParchmentNineSlice or not w.frame._fpParchmentNineSlice:IsShown())
+    assert(not w.frame._fpToolChromeActive)
+    assert(not w.frame._fpModernPortraitContainer or not w.frame._fpModernPortraitContainer:IsShown())
+    assert(not w.frame._fpPanelFill:IsShown())
+    local background=assert(w.frame._fpModernPortraitBackground)
+    assert(background:IsShown())
+    Equal(background:GetTexture(),"Interface\\FrameGeneral\\UI-Background-Rock")
+    Equal(background.lastSetVertexColor,{1,1,1,1});Equal(background:GetAlpha(),1)
+    Equal({background:GetDrawLayer()},{"BACKGROUND",-6})
+    Equal({background.points.TOPLEFT.x,background.points.TOPLEFT.y,background.points.BOTTOMRIGHT.x,background.points.BOTTOMRIGHT.y},{2,-21,-2,2})
+    Equal(background.lastSetHorizTile,{true});Equal(background.lastSetVertTile,{true})
+    local streaks=w.frame._fpModernPortraitTopTileStreaks
+    Equal(streaks and streaks:IsShown() or false,topTileStreaks==true)
+    assert(not dialog.shell.frame._fpCompactDialogWindowContentSurface:IsShown())
+    Equal(dialog.body.frame:GetParent()._fpCompactDialogBodyFill.lastSetColorTexture,{0,0,0,0})
+    Equal({w.titletext.points.TOPLEFT.x,w.titletext.points.TOPLEFT.y,w.titletext.points.TOPRIGHT.x,w.titletext.points.TOPRIGHT.y},{0,-6,0,-6})
+    Equal({w.closebutton.points.TOPRIGHT.x,w.closebutton.points.TOPRIGHT.y},{2,1})
+end
+CheckModern(manager,true); Equal({manager.window.frame:GetWidth(),manager.window.frame:GetHeight()},{640,521})
+local managerStreaks=assert(manager.window.frame._fpModernPortraitTopTileStreaks)
+Equal(managerStreaks.atlas,"_UI-Frame-TopTileStreaks")
+Equal({managerStreaks:GetDrawLayer()},{"BORDER",0})
+assert(managerStreaks.points.TOPLEFT.relative==manager.window.frame)
+assert(managerStreaks.points.TOPRIGHT.relative==manager.window.frame)
+Equal({managerStreaks.points.TOPLEFT.x,managerStreaks.points.TOPLEFT.y,
+    managerStreaks.points.TOPRIGHT.x,managerStreaks.points.TOPRIGHT.y},{6,-21,-2,-21})
+Equal(managerStreaks.lastSetHorizTile,{true});Equal(managerStreaks.lastSetVertTile,{false})
+local function CheckManagerInset(dialog)
+    assert(dialog.body.frame._fpLayoutManagerContentBackground==nil,"Removed Marble background was recreated")
+    local points=dialog.body.frame.points
+    assert(points.TOPLEFT.relative==dialog.body.frame:GetParent())
+    assert(points.BOTTOMRIGHT.relative==dialog.body.frame:GetParent())
+    Equal({points.TOPLEFT.x,points.TOPLEFT.y,points.BOTTOMRIGHT.x,points.BOTTOMRIGHT.y},{9,-6,-9,0})
+    local inset=assert(dialog.body.frame._fpLayoutManagerListInset)
+    assert(inset:IsShown() and not inset.Bg:IsShown())
+    Equal(inset.template,"InsetFrameTemplate")
+    assert(inset:GetParent()==dialog.body.frame)
+    Equal(inset:GetFrameLevel(),dialog.body.frame:GetFrameLevel())
+    Equal(inset.lastEnableMouse,{false})
+    local list,status=dialog.body.children[3],dialog.body.children[4]
+    assert(list.type=="ScrollFrame" and status.type=="Label")
+    assert(list.frame:GetParent()==dialog.body.content and status.frame:GetParent()==dialog.body.content)
+    assert(list.scrollbar:GetParent()==list.scrollframe)
+    assert(inset.points.TOPLEFT.relative==dialog.body.children[3].frame)
+    assert(inset.points.BOTTOMRIGHT.relative==dialog.body.children[4].frame)
+    Equal({inset.points.TOPLEFT.relativePoint,inset.points.TOPLEFT.x,inset.points.TOPLEFT.y,
+        inset.points.BOTTOMRIGHT.relativePoint,inset.points.BOTTOMRIGHT.x,inset.points.BOTTOMRIGHT.y},
+        {"TOPLEFT",-4,4,"BOTTOMRIGHT",4,-4})
+    return inset
+end
+local managerInset=CheckManagerInset(manager)
 CheckContent(manager,{["My Layouts"]=true,["Built-in Layouts"]=true})
 local managerGeometry=Geometry(manager.window)
 ns.GUI.Editor.LayoutManager.Close(); ns.GUI.Editor.LayoutManager.Open()
-Equal(Geometry(manager.window),managerGeometry); Check(manager)
+Equal(Geometry(manager.window),managerGeometry); CheckModern(manager,true)
 CheckContent(manager,{["My Layouts"]=true,["Built-in Layouts"]=true})
+manager.window.closebutton:Run("OnClick");ns.GUI.Editor.LayoutManager.Open();CheckModern(manager,true)
+manager.window.frame:Run("OnKeyDown","ESCAPE");ns.GUI.Editor.LayoutManager.Open();CheckModern(manager,true)
+for _=1,12 do
+    ns.GUI.Editor.LayoutManager.Close();ns.GUI.Editor.LayoutManager.Open()
+    assert(CheckManagerInset(manager)==managerInset)
+    CheckModern(manager,true)
+    assert(manager.window.frame._fpModernPortraitTopTileStreaks==managerStreaks)
+    Equal(Geometry(manager.window),managerGeometry)
+end
+for _,scenario in ipairs({"missing","false","error","absent"}) do
+    GetAtlasInfo=nil
+    if scenario=="absent" then C_Texture=nil
+    else C_Texture={GetAtlasInfo=function()
+        if scenario=="error" then error("unavailable atlas API") end
+        if scenario=="false" then return false end
+    end} end
+    manager:Show();CheckModern(manager);CheckManagerInset(manager)
+    assert(not managerStreaks:IsShown())
+    Equal(managerStreaks.lastSetHorizTile,{false})
+    Equal(Geometry(manager.window),managerGeometry)
+end
+C_Texture=nil;GetAtlasInfo=ModernAtlasInfo
+manager:Show();CheckModern(manager,true);CheckManagerInset(manager)
+assert(manager.window.frame._fpModernPortraitTopTileStreaks==managerStreaks)
+C_Texture={GetAtlasInfo=ModernAtlasInfo};GetAtlasInfo=savedModernLegacyAtlasAPI
+-- Exercise real shell release and reuse without releasing the retained manager.
+local retainedManager=ns.GUI.Editor.LayoutManager
+Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
+ns.GUI.Editor.LayoutManager.Open()
+local releasedManager=createdDialogs[#createdDialogs].dialog
+local releasedInset=CheckManagerInset(releasedManager)
+local releasedStreaks=assert(releasedManager.window.frame._fpModernPortraitTopTileStreaks)
+local releasedBody=releasedManager.body.frame
+local savedNineSlice=NineSliceUtil
+NineSliceUtil=nil;releasedManager:Show();CheckManagerInset(releasedManager)
+assert(releasedManager.window.frame._fpPanelFill:IsShown())
+NineSliceUtil=savedNineSlice
+ace:Release(releasedManager.window)
+assert(not releasedInset:IsShown())
+assert(not releasedStreaks:IsShown())
+Equal(releasedStreaks.lastSetHorizTile,{false})
+local reusedBodyDialog=widgets.CreateCompactFormDialog({title="Content pool isolation",width=420,height=300})
+assert(reusedBodyDialog.body.frame==releasedBody)
+assert(reusedBodyDialog.body.frame._fpLayoutManagerContentBackground==nil)
+assert(not releasedInset:IsShown(),"Layout list inset leaked into another dialog")
+ace:Release(reusedBodyDialog.window)
+Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
+ns.GUI.Editor.LayoutManager.Open()
+local reacquiredManager=createdDialogs[#createdDialogs].dialog
+assert(CheckManagerInset(reacquiredManager)==releasedInset)
+ace:Release(reacquiredManager.window)
+assert(not releasedInset:IsShown())
+ns.GUI.Editor.LayoutManager=retainedManager
+local probe=widgets.CreateCompactFormDialog({title="Modern lifecycle",width=560,height=521,windowChrome="modern",portrait=false,background="blizzard"})
+local probeGeometry=Geometry(probe.window)
+local down,up=probe.window.title:GetScript("OnMouseDown"),probe.window.title:GetScript("OnMouseUp")
+for _=1,12 do probe:Close();probe:Show();CheckModern(probe);Equal(Geometry(probe.window),probeGeometry) end
+probe.window.title:Run("OnMouseDown","LeftButton");probe.window.title:Run("OnMouseUp","LeftButton")
+assert(probe.window.frame.lastStartMoving and probe.window.frame.lastStopMovingOrSizing)
+assert(probe.window.title:GetScript("OnMouseDown")==down and probe.window.title:GetScript("OnMouseUp")==up)
+local nineSlice=NineSliceUtil
+NineSliceUtil=nil;probe:Show()
+assert(not probe.window.frame._fpModernNineSlice:IsShown() and probe.window.frame._fpPanelFill:IsShown())
+NineSliceUtil=nineSlice
+local getLayout=NineSliceUtil.GetLayout
+NineSliceUtil.GetLayout=function()return nil end;probe:Show()
+assert(not probe.window.frame._fpModernNineSlice:IsShown() and probe.window.frame._fpPanelFill:IsShown())
+NineSliceUtil.GetLayout=getLayout;probe:Show();CheckModern(probe)
+ace:Release(probe.window)
+assert(not probe.window.frame._fpModernNineSlice:IsShown())
+assert(not probe.window.frame._fpModernPortraitBackground:IsShown())
+for _,key in ipairs({"titletext","closebutton"}) do
+    for point,value in pairs(plain.window[key].points) do
+        local actual=probe.window[key].points[point]
+        Equal({actual.relativePoint,actual.x,actual.y},{value.relativePoint,value.x,value.y})
+    end
+end
+assert(probe.window.titletext:GetParent()==probe.window.frame)
+Equal(probe.window.title:GetFrameLevel(),plain.window.title:GetFrameLevel())
+Equal(probe.window.closebutton:GetFrameLevel(),plain.window.closebutton:GetFrameLevel())
+local afterModern=widgets.CreateCompactFormDialog({title="Default after Modern",width=420,height=300})
+Check(afterModern);assert(not afterModern.window.frame._fpModernNineSlice:IsShown())
+assert(not afterModern.window.frame._fpModernPortraitTopTileStreaks:IsShown())
+ace:Release(afterModern.window)
+C_Texture=savedModernAtlasAPI;GetAtlasInfo=savedModernLegacyAtlasAPI
 -- The real Add Object entry point is a closure of the actual toolbar builder.
 ns.GUI.Editor.State={GetPrimaryUnit=function() return "player" end}
 local unitConfigs={player={present=true},pet={present=false}}
@@ -420,6 +569,9 @@ for point,value in pairs(plain.window.titletext.points) do
     Equal({actual.relativePoint,actual.x,actual.y},{value.relativePoint,value.x,value.y})
 end
 ace:Release(defaultEdit.window)
+local noBackground=widgets.CreateCompactFormDialog({title="Modern without background opt-in",width=420,height=300,windowChrome="modern",portrait=false})
+assert(not noBackground.window.frame._fpModernPortraitBackground or not noBackground.window.frame._fpModernPortraitBackground:IsShown())
+ace:Release(noBackground.window)
 C_Texture=previousAtlas
 -- Options and Confirmations now consume the same dialog presentation as W1.
 Load("GUI/Editor/EditorOptionsDialog.lua")
@@ -432,7 +584,10 @@ for _,other in ipairs({options,confirm}) do
 end
 widgets.CreateCompactFormDialog=createDialog
 assert(#env.errors==0,table.concat(env.errors,"\n"))
-print("PASS: unchanged W1/W2 consumers, shared Options/Confirmation chrome, Window geometry/title/X, idempotence, recreate/reopen/pooling and Modern/Navigator isolation")
+print("PASS: portraitless Modern Layout Manager, fallback/reopen/release, original title/close restore; default Options/Confirmation chrome and pool isolation")
+print("PASS: removed local Marble background stays absent; existing body/inset bounds, 12 reopen cycles, fallback and release/reuse isolation")
+print("PASS: Layout Manager TopTileStreaks opt-in, native/legacy atlas lookup, missing/error fallback, unchanged geometry and pooled decoration isolation")
+print("PASS: one Layout Manager inset encloses the original scroll/sections/rows and counter, with passive template chrome, stable reopen and release/reuse isolation")
 print("PASS: opt-in Edit Mode atlas shell, transparent body, native geometry/drag/X, metal/flat fallback, 12 X/Escape release cycles and exact title restore")
 return {ns=ns,ace=ace,native=native,Equal=Equal,Count=Count,Load=Load,Upvalue=Upvalue,
     Check=Check,Geometry=Geometry,widgets=widgets,options=options,manager=manager,env=env}

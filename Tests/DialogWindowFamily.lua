@@ -159,7 +159,8 @@ local activeBefore=ns.db.char.activeLayoutId
 context.widgets.defaultButton:Fire("OnClick")
 assert(accountDefaultId=="layout:one" and setterCalls==1 and ns.db.char.activeLayoutId==activeBefore)
 assert(context.widgets.defaultButton.text:GetText()=="Unset default")
-assert(LayoutRow("layout:one").nameText:GetText()=="One [Default]")
+assert(LayoutRow("layout:one").nameText:GetText()=="One")
+assert(LayoutRow("layout:one").statusText:GetText():find("Account default",1,true))
 LayoutRow("builtin:default"):Fire("OnClick")
 assert(context.widgets.defaultButton.frame:IsShown())
 assert(setterCalls==1 and accountDefaultId=="layout:one")
@@ -177,9 +178,11 @@ assert(context.widgets.defaultButton.text:GetText()=="Set default")
 context.widgets.defaultButton:Fire("OnClick")
 assert(accountDefaultId=="builtin:default" and ns.db.char.activeLayoutId==activeBefore)
 assert(LayoutRow("layout:one").nameText:GetText()=="One")
-assert(LayoutRow("builtin:default").nameText:GetText()=="Default [Default]")
+assert(LayoutRow("builtin:default").nameText:GetText()=="Default")
+assert(LayoutRow("builtin:default").statusText:GetText():find("Account default",1,true))
 context.widgets.defaultButton:Fire("OnClick")
 assert(accountDefaultId==nil and context.widgets.defaultButton.text:GetText()=="Set default")
+assert(not LayoutRow("builtin:default").statusText:GetText():find("Account default",1,true))
 assert(context.widgets.defaultButton.frame:IsShown())
 assert(LayoutRow("builtin:default").nameText:GetText()=="Default")
 failDefault=true; context.widgets.defaultButton:Fire("OnClick")
@@ -188,6 +191,155 @@ failDefault=false
 -- Existing footer geometry remains compact; the fourth action follows Delete for user layouts.
 context.selectedLayoutId="layout:one"; manager.Refresh()
 assert(context.widgets.defaultButton.frame.points.LEFT.relative==context.widgets.deleteButton.frame)
+
+-- Manager orientation projects selection, active/default IDs and source independently.
+do
+    local summaries=ns.LayoutService.ListLayoutSummaries
+    local activeId,defaultId,selectedId=ns.db.char.activeLayoutId,accountDefaultId,context.selectedLayoutId
+    local previousTooltip,previousLocale,previousGetLocale=GameTooltip,ns.L,GetLocale
+    local longName=string.rep("W",64)
+    ns.LayoutService.ListLayoutSummaries=function() return {
+        {id="layout:one",name=longName,source="userLayout"},
+        {id="builtin:default",name="Default",source="builtin"},
+    } end
+    ns.db.char.activeLayoutId="builtin:default"
+    accountDefaultId="builtin:default"
+    context.selectedLayoutId="builtin:default"
+    manager.Refresh()
+    Equal(LayoutRow("builtin:default").statusText:GetText(),"Selected | Active | Account default | Read-only")
+    assert(context.widgets.description.label:GetText():find("Active: Default",1,true))
+    assert(not context.widgets.renameButton.frame:IsShown() and context.widgets.exportButton.disabled)
+    context.widgets.copyButton:Fire("OnClick");latest.primaryButton:Fire("OnClick")
+    assert(calls.copy[1]=="builtin:default" and calls.copy[3]==true)
+    latest.cancelButton:Fire("OnClick")
+    LayoutRow("layout:one"):Fire("OnClick")
+    Equal(LayoutRow("layout:one").statusText:GetText(),"Selected")
+    Equal(LayoutRow("builtin:default").statusText:GetText(),"Active | Account default | Read-only")
+    assert(ns.db.char.activeLayoutId=="builtin:default" and accountDefaultId=="builtin:default")
+    assert(context.widgets.selectedDescription.label:GetText():find("Selected layout: ",1,true))
+    assert(not context.widgets.description.label:GetText():find("Selected",1,true))
+    assert(context.widgets.description.label:GetText():find("activate via Canvas Toolbar",1,true))
+    assert(not context.widgets.exportButton.disabled and not context.widgets.deleteButton.disabled)
+    local tooltip={}
+    function tooltip:SetOwner(owner) self.owner=owner end
+    function tooltip:GetOwner() return self.owner end
+    function tooltip:SetText(text) self.text=text end
+    function tooltip:Show() self.shown=true end
+    function tooltip:Hide() self.shown=false end
+    GameTooltip=tooltip
+    context.widgets.selectedDescription:Fire("OnEnter")
+    assert(tooltip.shown and tooltip.text:find(longName,1,true))
+    context.widgets.description:Fire("OnEnter")
+    assert(tooltip.text:find("Active: Default",1,true))
+    context.widgets.description:Fire("OnLeave");assert(not tooltip.shown)
+    for _,locale in ipairs({"enUS","deDE"}) do
+        local localized={L={}}
+        GetLocale=function() return locale end
+        assert(loadfile("Locales/"..locale..".lua"))("FocalPoint",localized)
+        ns.L=localized.L;context.selectedLayoutId="builtin:default";manager.Refresh()
+        local status=LayoutRow("builtin:default").statusText:GetText()
+        for _,key in ipairs({"LAYOUT_MANAGER_SELECTED","LAYOUT_MANAGER_ACTIVE","LAYOUT_MANAGER_ACCOUNT_DEFAULT","LAYOUT_MANAGER_READ_ONLY"}) do
+            assert(status:find(ns.L[key],1,true),locale.." missing state "..key)
+        end
+        assert(context.widgets.description.label:GetText()==string.format(ns.L.LAYOUT_MANAGER_CONTEXT,"Default"))
+        assert(context.widgets.selectedDescription.label:GetText()==string.format(ns.L.LAYOUT_MANAGER_SELECTED_CONTEXT,"Default"))
+        Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
+        local localizedManager=ns.GUI.Editor.LayoutManager
+        localizedManager.Open()
+        local localizedContext=Upvalue(localizedManager.Open,"context")
+        local w=localizedContext.widgets
+        local originalActiveId=ns.db.char.activeLayoutId
+        assert(w.importButton.frame:GetParent()==w.assignmentsButton.frame:GetParent())
+        assert(w.exportButton.frame:GetParent()==w.actionContainer.content)
+        assert(w.exportButton.frame:GetParent()~=w.importButton.frame:GetParent())
+        assert(#w.selectionActions.children==1 and w.selectionActions.children[1]==w.selectedDescription)
+        Equal(w.importButton.text:GetText(),ns.L.LAYOUT_MANAGER_IMPORT)
+        Equal(w.exportButton.text:GetText(),ns.L.LAYOUT_MANAGER_EXPORT)
+        assert(w.importButton.text:GetText()~=ns.L.LAYOUT_TRANSFER_IMPORT)
+        assert(#localizedContext.dialog.body.children[2].children==2)
+        localizedContext.selectedLayoutId="layout:one";accountDefaultId="layout:one"
+        localizedManager.Refresh()
+        local bodyWidth=570 -- width 640 minus unchanged 24 + 28 + 18 anchor insets
+        local function CheckFooter()
+            w.actionContainer:SetWidth(bodyWidth);w.actionContainer:DoLayout()
+            local footerEnd,previous=8,nil
+            for _,key in ipairs({"renameButton","copyButton","deleteButton","defaultButton"}) do
+                local button=w[key]
+                if button.frame:IsShown() then
+                    assert(button.frame:GetWidth()>=button.text:GetStringWidth()+30,locale.." clipped "..key)
+                    local point=button.frame.points.LEFT
+                    assert(point.relative==(previous or w.actionContainer.frame))
+                    assert(point.relativePoint==(previous and "RIGHT" or "LEFT"))
+                    assert(point.x==(previous and 6 or 8) and point.y==0)
+                    footerEnd=footerEnd+button.frame:GetWidth()+(previous and 6 or 0)
+                    previous=button.frame
+                end
+            end
+            local export=w.exportButton
+            local point=export.frame.points.LEFT
+            assert(point.relative==w.actionContainer.content and point.relativePoint=="LEFT")
+            assert(point.x+export.frame:GetWidth()==bodyWidth)
+            assert(-export.frame.points.TOP.y+export.frame:GetHeight()/2==w.actionContainer.frame:GetHeight()/2)
+            assert(export.frame:GetWidth()>=export.text:GetStringWidth()+30)
+            assert(footerEnd+8<=point.x,locale.." footer overlaps Export")
+        end
+        CheckFooter()
+        assert(w.importButton.frame:GetWidth()+w.assignmentsButton.frame:GetWidth()+3<=bodyWidth)
+        w.selectionActions:SetWidth(bodyWidth);w.selectionActions:DoLayout()
+        local nameRight=w.selectedDescription.frame.points.RIGHT.x
+        assert(nameRight==bodyWidth)
+        assert(w.selectedDescription.label:GetStringWidth()<=nameRight)
+        Equal({localizedContext.window.frame:GetWidth(),localizedContext.window.frame:GetHeight()},{640,521})
+        Equal(w.scroll.frame:GetHeight(),330)
+        assert(not w.exportButton.disabled)
+        localizedContext.selectedLayoutId="builtin:default";localizedManager.Refresh()
+        assert(w.exportButton.disabled and not w.renameButton.frame:IsShown() and not w.deleteButton.frame:IsShown())
+        assert(w.copyButton.frame:GetWidth()>=w.copyButton.text:GetStringWidth()+30)
+        for _,id in ipairs({"layout:one","builtin:default"}) do
+            for _,isDefault in ipairs({false,true}) do
+                for _,isActive in ipairs({false,true}) do
+                    localizedContext.selectedLayoutId=id
+                    accountDefaultId=isDefault and id or nil
+                    ns.db.char.activeLayoutId=isActive and id or (id=="layout:one" and "builtin:default" or "layout:one")
+                    localizedManager.Refresh()
+                    CheckFooter()
+                    Equal(w.exportButton.disabled,id=="builtin:default")
+                    Equal(w.deleteButton.disabled,id=="builtin:default" or isActive)
+                    Equal(w.copyButton.text:GetText(),ns.L[id=="builtin:default" and "LAYOUT_MANAGER_CREATE_FROM_TEMPLATE" or "LAYOUT_MANAGER_DUPLICATE"])
+                    Equal(w.defaultButton.text:GetText(),ns.L[isDefault and "LAYOUT_MANAGER_UNSET_ACCOUNT_DEFAULT" or "LAYOUT_MANAGER_SET_ACCOUNT_DEFAULT"])
+                    Equal(ns.db.char.activeLayoutId,isActive and id or (id=="layout:one" and "builtin:default" or "layout:one"))
+                end
+            end
+        end
+        ns.db.char.activeLayoutId=originalActiveId
+        ace:Release(localizedContext.window)
+        assert(w.selectedDescription.events.OnEnter==nil)
+        assert(w.exportButton.events.OnClick==nil)
+        ns.GUI.Editor.LayoutManager=manager
+        accountDefaultId="builtin:default"
+    end
+    ns.L=previousLocale;GetLocale=previousGetLocale
+    ns.db.char.activeLayoutId="layout:one";manager.Refresh()
+    Equal(LayoutRow("layout:one").statusText:GetText(),"Active")
+    Equal(LayoutRow("builtin:default").statusText:GetText(),"Selected | Account default | Read-only")
+    context.widgets.description:Fire("OnEnter")
+    assert(tooltip.text:find("Active: "..longName,1,true))
+    -- Release the actual context label through the existing factory owner.
+    Load("GUI/Editor/LayoutManager/LayoutManagerView.lua")
+    local temporaryManager=ns.GUI.Editor.LayoutManager
+    temporaryManager.Open()
+    local temporaryContext=Upvalue(temporaryManager.Open,"context")
+    local description=temporaryContext.widgets.description
+    description:Fire("OnEnter");assert(tooltip.shown)
+    ace:Release(temporaryContext.window)
+    assert(not tooltip.shown and description.events.OnEnter==nil and description.events.OnLeave==nil)
+    ns.GUI.Editor.LayoutManager=manager
+    GameTooltip=previousTooltip
+    ns.LayoutService.ListLayoutSummaries=summaries
+    ns.db.char.activeLayoutId=activeId;accountDefaultId=defaultId;context.selectedLayoutId=selectedId
+    manager.Refresh()
+    print("PASS: independent selected/active/default/read-only states, live context, full-name tooltip, DE/EN, copy intent and context release")
+end
 
 -- Transfer uses the actual multiline control and release/focus callbacks.
 ns.L.LAYOUT_TRANSFER_IMPORTED="Imported: %s"

@@ -311,6 +311,11 @@ L["LAYOUT_MANAGER_DESCRIPTION"] = "Verfuegbare Layouts anzeigen. Aktivieren erfo
 L["LAYOUT_MANAGER_MY_LAYOUTS"] = "Meine Layouts"
 L["LAYOUT_MANAGER_BUILT_IN_LAYOUTS"] = "Mitgelieferte Layouts"
 L["LAYOUT_MANAGER_ACTIVE"] = "Aktiv"
+L["LAYOUT_MANAGER_SELECTED"] = "Ausgewählt"
+L["LAYOUT_MANAGER_ACCOUNT_DEFAULT"] = "Account-Standard"
+L["LAYOUT_MANAGER_NO_LAYOUT"] = "Keines"
+L["LAYOUT_MANAGER_CONTEXT"] = "Aktiv: %s (Aktivierung über Canvas-Toolbar)."
+L["LAYOUT_MANAGER_SELECTED_CONTEXT"] = "Ausgewähltes Layout: %s"
 L["LAYOUT_MANAGER_READ_ONLY"] = "Nur Lesen"
 L["LAYOUT_MANAGER_EMPTY_MY_LAYOUTS"] = "Noch keine eigenen Layouts."
 L["LAYOUT_MANAGER_STATUS_COUNTS"] = "%d eigene Layouts, %d mitgelieferte Layouts"
@@ -1207,6 +1212,8 @@ L["LAYOUT_COPY_DESCRIPTION_BUILTIN"] = "Erstellt ein persönliches Layout aus di
 
 -- Layout portability
 L["LAYOUT_TRANSFER_IMPORT"] = "Layout importieren"
+L["LAYOUT_MANAGER_IMPORT"] = "Import"
+L["LAYOUT_MANAGER_EXPORT"] = "Export"
 L["LAYOUT_TRANSFER_EXPORT"] = "Layout exportieren"
 L["LAYOUT_TRANSFER_IMPORT_TITLE"] = "Layout importieren"
 L["LAYOUT_TRANSFER_EXPORT_TITLE"] = "Layout exportieren"

@@ -964,6 +964,19 @@ function FormWidgets.ApplyModernWindowChrome(window, options)
 
     if usePortrait and not useToolPresentation then
         ApplyModernPortraitBackground(frame)
+    elseif not useToolPresentation and options and options.background == "blizzard" then
+        EnsureModernWindowBackground(frame)
+        HideModernDialogBackground(frame)
+    end
+
+    if useNineSlice and not usePortrait and not useToolPresentation and options.topTileStreaks == true then
+        local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+        if type(atlasInfo) == "function" then
+            local ok, info = pcall(atlasInfo, "_UI-Frame-TopTileStreaks")
+            if ok and type(info) == "table" then
+                EnsureModernWindowTopTileStreaks(frame)
+            end
+        end
     end
 
     local nativeTitleBackground = FindNativeTitleBackground(frame)
@@ -2517,8 +2530,9 @@ local function CreateCompactFormShell(window, options, dialogMaterial)
     contentFrame:SetPoint("TOPLEFT", shellFrame, "TOPLEFT", contentInset, 0)
     contentFrame:SetPoint("BOTTOMRIGHT", shellFrame, "BOTTOMRIGHT", -contentInset, 0)
     local editModeShell = options.windowChrome == "editmode"
-    local contentMaterial = not editModeShell and (dialogMaterial or GetCompactDialogContentSurface(options.contentSurface)) or nil
-    local transparentBody = editModeShell or contentMaterial ~= nil
+    local modernShell = options.windowChrome == "modern"
+    local contentMaterial = not (editModeShell or modernShell) and (dialogMaterial or GetCompactDialogContentSurface(options.contentSurface)) or nil
+    local transparentBody = editModeShell or modernShell or contentMaterial ~= nil
     local transparent = { 0, 0, 0, 0 }
     ApplyCompactDialogWindowContentSurface(shellFrame, contentMaterial)
     FormWidgets.ApplySurfacePresentation({ frame = contentFrame }, "Body", {
@@ -2570,7 +2584,8 @@ function FormWidgets.CreateCompactFormDialog(options)
 
     local window = AceGUI:Create("Window")
     local useEditModeShell = options.windowChrome == "editmode"
-    local title = useEditModeShell and window.titletext
+    local useModernShell = options.windowChrome == "modern"
+    local title = (useEditModeShell or useModernShell) and window.titletext
     local titleFont = title and { title:GetFont() }
     local titleColor = title and title.GetTextColor and { title:GetTextColor() }
     local titleJustify = title and title.GetJustifyH and title:GetJustifyH()
@@ -2611,7 +2626,18 @@ function FormWidgets.CreateCompactFormDialog(options)
     FormWidgets.EnsureStandardWindowCloseButton(window)
     EnableCompactDialogEscapeClose(window)
 
-    local useDialogPresentation = not useEditModeShell and (options.dialogPresentation ~= false or options.contentSurface == "parchment")
+    local function ApplyModernChrome()
+        FormWidgets.RestoreDefaultWindowChrome(window)
+        FormWidgets.ApplyWindowChrome(window, { nativeFrameShell = true })
+        -- The existing API retains this complete flat fallback when NineSlice is unavailable.
+        FormWidgets.ApplyModernWindowChrome(window, {
+            nineSlice = true,
+            portrait = options.portrait == true,
+            background = options.background,
+            topTileStreaks = options.topTileStreaks,
+        })
+    end
+    local useDialogPresentation = not (useEditModeShell or useModernShell) and (options.dialogPresentation ~= false or options.contentSurface == "parchment")
     local shell = CreateCompactFormShell(window, options, useDialogPresentation and GetDialogWindowMaterial() or nil)
     -- Shell ownership stays here; direct utility Windows only bind chrome.
     local previousRelease = window.events and window.events.OnRelease
@@ -2621,7 +2647,7 @@ function FormWidgets.CreateCompactFormDialog(options)
             owner.frame._fpCompactFormShell = nil
         end
         if previousRelease then previousRelease(owner, event) end
-        if useEditModeShell then
+        if useEditModeShell or useModernShell then
             FormWidgets.RestoreDefaultWindowChrome(owner)
             if title then
                 title:SetFont(unpack(titleFont))
@@ -2640,6 +2666,7 @@ function FormWidgets.CreateCompactFormDialog(options)
     end)
     if useDialogPresentation then ApplyDialogWindowChrome(window) end
     if useEditModeShell then ApplyCompactEditModeChrome(window, options, titlePoints) end
+    if useModernShell then ApplyModernChrome() end
     local statusTextRoles = {
         neutral = "help",
         error = "statusError",
@@ -2767,6 +2794,8 @@ function FormWidgets.CreateCompactFormDialog(options)
     function dialog:Show()
         if useEditModeShell then
             ApplyCompactEditModeChrome(self.window, options, titlePoints)
+        elseif useModernShell then
+            ApplyModernChrome()
         elseif useDialogPresentation then
             ApplyDialogWindowChrome(self.window)
             ApplyCompactDialogWindowContentSurface(self.shell.frame, GetDialogWindowMaterial())

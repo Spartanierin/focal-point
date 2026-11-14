@@ -284,6 +284,11 @@ L["LAYOUT_MANAGER_DESCRIPTION"] = "View available layouts. Activate them from th
 L["LAYOUT_MANAGER_MY_LAYOUTS"] = "My Layouts"
 L["LAYOUT_MANAGER_BUILT_IN_LAYOUTS"] = "Built-in Layouts"
 L["LAYOUT_MANAGER_ACTIVE"] = "Active"
+L["LAYOUT_MANAGER_SELECTED"] = "Selected"
+L["LAYOUT_MANAGER_ACCOUNT_DEFAULT"] = "Account default"
+L["LAYOUT_MANAGER_NO_LAYOUT"] = "None"
+L["LAYOUT_MANAGER_CONTEXT"] = "Active: %s (activate via Canvas Toolbar)."
+L["LAYOUT_MANAGER_SELECTED_CONTEXT"] = "Selected layout: %s"
 L["LAYOUT_MANAGER_READ_ONLY"] = "Read-only"
 L["LAYOUT_MANAGER_EMPTY_MY_LAYOUTS"] = "No custom layouts yet."
 L["LAYOUT_MANAGER_STATUS_COUNTS"] = "%d custom layouts, %d built-in layouts"
@@ -1201,6 +1206,8 @@ L["LAYOUT_COPY_DESCRIPTION_BUILTIN"] = "Create a personal layout from this built
 
 -- Layout portability
 L["LAYOUT_TRANSFER_IMPORT"] = "Import Layout"
+L["LAYOUT_MANAGER_IMPORT"] = "Import"
+L["LAYOUT_MANAGER_EXPORT"] = "Export"
 L["LAYOUT_TRANSFER_EXPORT"] = "Export Layout"
 L["LAYOUT_TRANSFER_IMPORT_TITLE"] = "Import Layout"
 L["LAYOUT_TRANSFER_EXPORT_TITLE"] = "Export Layout"

@@ -33,6 +33,7 @@ not replace the architecture documents above:
 - `Architecture/Aura-System-Concept.md`
 - `Design/Editor-UX-Principles.md`
 - [Edit-Mode-Dialog-Pattern](Design/EditMode-Dialog-Pattern.md)
+- [WoW Modern UI Design Guide](Design/WoW-Modern-UI-Design-Guide.md)
 - `Design/FOCAL_POINT_VISUAL_LANGUAGE.md`
 - `Design/GUI-Aura-Layout.md`
 - `Design/GUI-Header-Layout.md`

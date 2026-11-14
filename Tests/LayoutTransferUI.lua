@@ -8,6 +8,7 @@ local layoutDropdown
 local function Noop() end
 local function Frame()
     return setmetatable({shown=true}, {__index=function(_, key)
+        if key == "_fpLayoutManagerListInset" then return nil end
         if key == "CreateTexture" or key == "CreateFontString" then return Frame end
         if key == "IsShown" then return function(self) return self.shown end end
         if key == "Show" then return function(self) self.shown=true end end
@@ -16,10 +17,13 @@ local function Frame()
     end})
 end
 local methods = {}
-for _, key in ipairs({"SetLayout", "SetFullWidth", "SetFullHeight", "SetWidth", "SetHeight", "SetAutoAdjustHeight", "SetNumLines", "SetLabel", "DisableButton", "DoLayout", "FixScroll"}) do
+for _, key in ipairs({"SetLayout", "SetFullWidth", "SetFullHeight", "SetWidth", "SetHeight", "SetAutoWidth", "SetAutoAdjustHeight", "SetNumLines", "SetLabel", "DisableButton", "DoLayout", "FixScroll"}) do
     methods[key] = Noop
 end
 function methods:SetCallback(event, callback) self.callbacks[event]=callback end
+function methods:SetUserData(key,value)
+    self.userdata=self.userdata or {};self.userdata[key]=value
+end
 function methods:Fire(event, ...) if self.callbacks[event] then return self.callbacks[event](self, event, ...) end end
 function methods:SetList(values, order) self.values=values; self.order=order end
 function methods:SetValue(value) self.value=value; self:Fire("OnValueChanged", value) end
@@ -53,7 +57,7 @@ function AceGUI:Release(widget)
     widget:ReleaseChildren(); widget:Hide(); widget.released=true
     if widget.kind == "Window" then windowPool[#windowPool+1]=widget end
 end
-function AceGUI:GetWidgetVersion() return 1 end -- row painting is outside this test
+function AceGUI:GetWidgetVersion() return 2 end -- row painting is outside this test
 function AceGUI:ClearFocus() self.FocusedWidget:ClearFocus(); self.FocusedWidget=nil end
 LibStub = function(name) assert(name=="AceGUI-3.0"); return AceGUI end
 local forms = {}
@@ -92,7 +96,11 @@ function forms.CreateCompactFormDialog(options)
 end
 forms.ApplyCanvasToolbarPresentation=Noop
 ns.GUI = {Helpers={FormWidgets=forms}}
-CreateFrame=Frame
+CreateFrame=function(kind,name,parent,template)
+    local frame=Frame()
+    if template=="InsetFrameTemplate" then frame.Bg=Frame() end
+    return frame
+end
 unpack=table.unpack
 ns.L.LAYOUT_TRANSFER_IMPORTED="Imported: %s"
 local function Load(path) assert(loadfile(path))("FocalPoint", ns) end
@@ -108,15 +116,21 @@ local function FindLibraryAreas(widget)
     local importAction, exportAction, hasLayoutRows
     for _, child in ipairs(widget.children or {}) do
         if child.kind == "Button" then
-            if child:GetText() == (ns.L.LAYOUT_TRANSFER_IMPORT or "LAYOUT_TRANSFER_IMPORT") then importAction=child end
-            if child:GetText() == (ns.L.LAYOUT_TRANSFER_EXPORT or "LAYOUT_TRANSFER_EXPORT") then exportAction=child end
+            if child:GetText() == (ns.L.LAYOUT_MANAGER_IMPORT or "Import") then importAction=child end
+            if child:GetText() == (ns.L.LAYOUT_MANAGER_EXPORT or "Export") then exportAction=child end
         elseif child.kind == "FocalPointLayoutManagerRow" and child.item and child.item.id then
             hasLayoutRows=true
         end
     end
-    if widget.kind == "SimpleGroup" and importAction and exportAction then
-        assert(not actions, "multiple Layout Manager import/export action areas found")
-        actions, importButton, exportButton=widget, importAction, exportAction
+    if widget.kind == "SimpleGroup" and importAction then
+        assert(not actions, "multiple Layout Manager import action areas found")
+        assert(not exportAction,"Export must remain separate from global import actions")
+        actions, importButton=widget, importAction
+    end
+    if widget.kind == "SimpleGroup" and exportAction then
+        assert(not exportButton,"multiple Layout Manager export buttons found")
+        assert(widget.userdata and widget.userdata.table,"Export requires the footer table alignment")
+        exportButton=exportAction
     end
     if widget.kind == "ScrollFrame" and hasLayoutRows then
         assert(not list, "multiple Layout Manager layout lists found")
@@ -125,7 +139,7 @@ local function FindLibraryAreas(widget)
     for _, child in ipairs(widget.children or {}) do FindLibraryAreas(child) end
 end
 FindLibraryAreas(library.body)
-assert(actions, "Layout Manager import/export action area not found")
+assert(actions and exportButton, "Layout Manager import/export action areas not found")
 assert(list, "Layout Manager ScrollFrame with layout rows not found")
 local function Row(id)
     for _, row in ipairs(list.children) do if row.item and row.item.id==id then return row end end

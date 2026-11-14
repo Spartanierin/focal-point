@@ -11,16 +11,18 @@ local LayoutManager = {}
 ns.GUI.Editor.LayoutManager = LayoutManager
 
 local ROW_WIDGET_TYPE = "FocalPointLayoutManagerRow"
-local ROW_WIDGET_VERSION = 1
+local ROW_WIDGET_VERSION = 2
 local ROW_HEIGHT = 30
-local WINDOW_WIDTH = 560
+local WINDOW_WIDTH = 640
 local WINDOW_CHROME_HEIGHT = 57
-local WINDOW_DESCRIPTION_HEIGHT = 32
+local WINDOW_DESCRIPTION_HEIGHT = 16
 local WINDOW_LIST_HEIGHT = 330
 local WINDOW_STATUS_HEIGHT = 22
-local WINDOW_FOOTER_HEIGHT = 42
+local WINDOW_SELECTION_GAP = 4
+local WINDOW_SELECTION_HEIGHT = 26
+local WINDOW_FOOTER_HEIGHT = 28
 local WINDOW_TRANSFER_ACTIONS_HEIGHT = 32
-local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_FOOTER_HEIGHT + WINDOW_TRANSFER_ACTIONS_HEIGHT + 6 -- compact body top inset
+local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_SELECTION_GAP + WINDOW_SELECTION_HEIGHT + WINDOW_FOOTER_HEIGHT + WINDOW_TRANSFER_ACTIONS_HEIGHT + 6 -- compact body top inset
 
 local context
 local renameDialog
@@ -127,6 +129,23 @@ local function Trim(value)
     return value:gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+local function SetContextText(label, text, tooltipText)
+    label:SetText(text)
+    label:SetCallback("OnEnter", function(widget)
+        if GameTooltip then
+            GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltipText, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    label:SetCallback("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    label:SetCallback("OnRelease", function()
+        if GameTooltip and GameTooltip:GetOwner() == label.frame then GameTooltip:Hide() end
+    end)
+end
+
 local function ApplyRowBackdrop(frame, selected, hovered)
     if not (frame and frame.SetBackdropColor and frame.SetBackdropBorderColor) then
         return
@@ -147,16 +166,22 @@ local function UpdateRowVisual(widget)
 
     ApplyRowBackdrop(widget.frame, selected, hovered)
 
-    local status = ""
+    local statuses = {}
+    if selected then
+        statuses[#statuses + 1] = T("LAYOUT_MANAGER_SELECTED", "Selected")
+    end
     if active then
-        status = T("LAYOUT_MANAGER_ACTIVE", "Active")
-    elseif item and item.readOnly then
-        status = T("LAYOUT_MANAGER_READ_ONLY", "Read-only")
+        statuses[#statuses + 1] = T("LAYOUT_MANAGER_ACTIVE", "Active")
+    end
+    if item and item.accountDefault then
+        statuses[#statuses + 1] = T("LAYOUT_MANAGER_ACCOUNT_DEFAULT", "Account default")
+    end
+    if item and item.readOnly then
+        statuses[#statuses + 1] = T("LAYOUT_MANAGER_READ_ONLY", "Read-only")
     end
 
-    local marker = item and item.accountDefault and T("LAYOUT_ACCOUNT_DEFAULT_MARKER", " [Default]") or ""
-    widget.nameText:SetText(Shorten(item and item.name or "", marker ~= "" and 34 or 48) .. marker)
-    widget.statusText:SetText(status)
+    widget.nameText:SetText(Shorten(item and item.name or "", 48))
+    widget.statusText:SetText(table.concat(statuses, " | "))
 
     SetTextureColor(widget.marker, (selected or active) and colors.marker or colors.markerMuted)
     widget.marker:SetWidth(selected and 6 or (active and 4 or 2))
@@ -224,11 +249,13 @@ local function RegisterLayoutRowWidget()
 
         local statusText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         statusText:SetPoint("RIGHT", frame, "RIGHT", -12, 0)
-        statusText:SetWidth(120)
+        statusText:SetWidth(200)
+        statusText:SetHeight(26)
         statusText:SetJustifyH("RIGHT")
-        statusText:SetWordWrap(false)
+        statusText:SetJustifyV("MIDDLE")
+        statusText:SetWordWrap(true)
         if statusText.SetMaxLines then
-            statusText:SetMaxLines(1)
+            statusText:SetMaxLines(2)
         end
         ApplyFontStringStyle(statusText, "help", 10, ROW_COLORS.status)
 
@@ -505,7 +532,7 @@ local function ToggleAccountDefault()
     end
 end
 
-local function SetButtonVisible(button, visible, width)
+local function SetButtonVisible(button, visible)
     if not button then
         return
     end
@@ -516,9 +543,8 @@ local function SetButtonVisible(button, visible, width)
             button.frame:Hide()
         end
     end
-    if button.SetWidth then
-        button:SetWidth(visible and width or 1)
-    end
+    button:SetAutoWidth(visible)
+    if not visible then button:SetWidth(1) end
     if button.SetDisabled then
         button:SetDisabled(not visible)
     end
@@ -542,18 +568,18 @@ local function LayoutFooterActions()
     local renameButton = context.widgets.renameButton
     local copyButton = context.widgets.copyButton
     local deleteButton = context.widgets.deleteButton
-    local gap = 8
+    local gap = 6
 
     local previous
     if renameButton and renameButton.frame and renameButton.frame:IsShown() then
-        AnchorFooterButton(renameButton, "LEFT", actionFrame, "LEFT", 12, 0)
+        AnchorFooterButton(renameButton, "LEFT", actionFrame, "LEFT", 8, 0)
         previous = renameButton.frame
     end
     if copyButton and copyButton.frame and copyButton.frame:IsShown() then
         if previous then
             AnchorFooterButton(copyButton, "LEFT", previous, "RIGHT", gap, 0)
         else
-            AnchorFooterButton(copyButton, "LEFT", actionFrame, "LEFT", 12, 0)
+            AnchorFooterButton(copyButton, "LEFT", actionFrame, "LEFT", 8, 0)
         end
         previous = copyButton.frame
     end
@@ -561,13 +587,13 @@ local function LayoutFooterActions()
         if previous then
             AnchorFooterButton(deleteButton, "LEFT", previous, "RIGHT", gap, 0)
         else
-            AnchorFooterButton(deleteButton, "LEFT", actionFrame, "LEFT", 12, 0)
+            AnchorFooterButton(deleteButton, "LEFT", actionFrame, "LEFT", 8, 0)
         end
         previous = deleteButton.frame
     end
     local defaultButton = context.widgets.defaultButton
     if defaultButton and defaultButton.frame then
-        AnchorFooterButton(defaultButton, "LEFT", previous or actionFrame, previous and "RIGHT" or "LEFT", previous and gap or 12, 0)
+        AnchorFooterButton(defaultButton, "LEFT", previous or actionFrame, previous and "RIGHT" or "LEFT", previous and gap or 8, 0)
     end
 end
 
@@ -1116,21 +1142,21 @@ local function RefreshActions()
     end
     if context.widgets.renameButton then
         context.widgets.renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
-        SetButtonVisible(context.widgets.renameButton, isUserLayout, 105)
+        SetButtonVisible(context.widgets.renameButton, isUserLayout)
         if FormWidgets.ApplyModalActionButtonVisual then
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.renameButton, "utility")
         end
     end
     if context.widgets.copyButton then
         context.widgets.copyButton:SetText(isBuiltin and T("LAYOUT_MANAGER_CREATE_FROM_TEMPLATE", "Create Layout from This") or T("LAYOUT_MANAGER_DUPLICATE", "Duplicate"))
-        SetButtonVisible(context.widgets.copyButton, isUserLayout or isBuiltin, isBuiltin and 120 or 105)
+        SetButtonVisible(context.widgets.copyButton, isUserLayout or isBuiltin)
         if FormWidgets.ApplyModalActionButtonVisual then
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.copyButton, "utility")
         end
     end
     if context.widgets.deleteButton then
         context.widgets.deleteButton:SetText(T("LAYOUT_MANAGER_DELETE", "Delete"))
-        SetButtonVisible(context.widgets.deleteButton, isUserLayout, 105)
+        SetButtonVisible(context.widgets.deleteButton, isUserLayout)
         context.widgets.deleteButton:SetDisabled(not canDelete)
         if FormWidgets.ApplyModalActionButtonVisual then
             FormWidgets.ApplyModalActionButtonVisual(context.widgets.deleteButton, "danger")
@@ -1138,7 +1164,7 @@ local function RefreshActions()
     end
     local defaultButton = context.widgets.defaultButton
     if defaultButton then
-        SetButtonVisible(defaultButton, true, 125)
+        SetButtonVisible(defaultButton, true)
         local isDefault = selected and selected.id == context.state.accountDefaultId
         defaultButton:SetText(isDefault and T("LAYOUT_MANAGER_UNSET_ACCOUNT_DEFAULT", "Unset default")
             or T("LAYOUT_MANAGER_SET_ACCOUNT_DEFAULT", "Set default"))
@@ -1159,6 +1185,21 @@ local function RefreshList()
     context.state = state
     context.selectedLayoutId = state.selectedLayoutId
     context.activeLayoutId = state.activeLayoutId
+
+    local activeName = state.activeLayoutId or T("LAYOUT_MANAGER_NO_LAYOUT", "None")
+    for _, items in ipairs({ state.userLayouts, state.builtinLayouts }) do
+        for _, item in ipairs(items) do
+            if item.active then activeName = item.name end
+        end
+    end
+    local selected = FindSelectedItem(state)
+    local selectedName = selected and selected.name or T("LAYOUT_MANAGER_NO_LAYOUT", "None")
+    local description = context.widgets.description
+    local contextFormat = T("LAYOUT_MANAGER_CONTEXT", "Active: %s (activate via Canvas Toolbar).")
+    SetContextText(description, string.format(contextFormat, Shorten(activeName, 18)), string.format(contextFormat, activeName))
+    description:SetHeight(WINDOW_DESCRIPTION_HEIGHT)
+    local selectedFormat = T("LAYOUT_MANAGER_SELECTED_CONTEXT", "Selected layout: %s")
+    SetContextText(context.widgets.selectedDescription, string.format(selectedFormat, Shorten(selectedName, 20)), string.format(selectedFormat, selectedName))
 
     local scroll = context.widgets.scroll
     scroll:ReleaseChildren()
@@ -1212,7 +1253,10 @@ local function CreateWindow()
         height = WINDOW_HEIGHT,
         bodyLayout = "List",
         useCanonicalWindowShell = true,
-        contentSurface = "parchment",
+        windowChrome = "modern",
+        portrait = false,
+        background = "blizzard",
+        topTileStreaks = true,
         addBodySpacer = false,
         contentRoot = true,
     })
@@ -1221,7 +1265,13 @@ local function CreateWindow()
     body:ReleaseChildren()
     body:SetLayout("List")
 
-    local description = AceGUI:Create("Label")
+    body:SetCallback("OnRelease", function()
+        if body.frame._fpLayoutManagerListInset then
+            body.frame._fpLayoutManagerListInset:Hide()
+        end
+    end)
+
+    local description = AceGUI:Create("InteractiveLabel")
     description:SetText(T("LAYOUT_MANAGER_DESCRIPTION", "View available layouts. Activate them from the Canvas Toolbar."))
     description:SetFullWidth(true)
     description:SetHeight(WINDOW_DESCRIPTION_HEIGHT)
@@ -1236,18 +1286,13 @@ local function CreateWindow()
     LockContainerHeight(transferActions, WINDOW_TRANSFER_ACTIONS_HEIGHT)
     body:AddChild(transferActions)
     local importButton = AceGUI:Create("Button")
-    importButton:SetText(T("LAYOUT_TRANSFER_IMPORT"))
-    importButton:SetWidth(120)
+    importButton:SetText(T("LAYOUT_MANAGER_IMPORT", "Import"))
+    importButton:SetAutoWidth(true)
     importButton:SetCallback("OnClick", function() OpenTransferDialog(false) end)
     transferActions:AddChild(importButton)
-    local exportButton = AceGUI:Create("Button")
-    exportButton:SetText(T("LAYOUT_TRANSFER_EXPORT"))
-    exportButton:SetWidth(120)
-    exportButton:SetCallback("OnClick", function() OpenTransferDialog(true) end)
-    transferActions:AddChild(exportButton)
     local assignmentsButton = AceGUI:Create("Button")
     assignmentsButton:SetText(T("LAYOUT_MANAGER_ASSIGNMENTS", "Specialization assignments..."))
-    assignmentsButton:SetWidth(240)
+    assignmentsButton:SetAutoWidth(true)
     assignmentsButton:SetCallback("OnClick", function()
         local assignments = ns.GUI.Editor.LayoutAssignments
         if assignments and assignments.Open then
@@ -1257,7 +1302,6 @@ local function CreateWindow()
     transferActions:AddChild(assignmentsButton)
     if FormWidgets.ApplyModalActionButtonVisual then
         FormWidgets.ApplyModalActionButtonVisual(importButton, "utility")
-        FormWidgets.ApplyModalActionButtonVisual(exportButton, "utility")
         FormWidgets.ApplyModalActionButtonVisual(assignmentsButton, "utility")
     end
 
@@ -1277,11 +1321,59 @@ local function CreateWindow()
     end
     body:AddChild(status)
 
+    local listInset = body.frame._fpLayoutManagerListInset
+    if not listInset then
+        listInset = CreateFrame("Frame", nil, body.frame, "InsetFrameTemplate")
+        body.frame._fpLayoutManagerListInset = listInset
+    end
+    listInset:ClearAllPoints()
+    listInset:SetPoint("TOPLEFT", scroll.frame, "TOPLEFT", -4, 4)
+    listInset:SetPoint("BOTTOMRIGHT", status.frame, "BOTTOMRIGHT", 4, -4)
+    listInset:SetFrameLevel(body.frame:GetFrameLevel())
+    listInset:EnableMouse(false)
+    listInset.Bg:Hide()
+    listInset:Show()
+
+    local selectionGap = AceGUI:Create("SimpleGroup")
+    selectionGap:SetFullWidth(true)
+    LockContainerHeight(selectionGap, WINDOW_SELECTION_GAP)
+    body:AddChild(selectionGap)
+
+    local selectionActions = AceGUI:Create("SimpleGroup")
+    selectionActions:SetUserData("table", {
+        columns = { { weight = 1, alignH = "fill" } },
+        spaceH = 8,
+        alignV = "middle",
+    })
+    selectionActions:SetLayout("Table")
+    selectionActions:SetFullWidth(true)
+    LockContainerHeight(selectionActions, WINDOW_SELECTION_HEIGHT)
+    body:AddChild(selectionActions)
+    local selectedDescription = AceGUI:Create("InteractiveLabel")
+    selectedDescription:SetFullWidth(true)
+    if FormWidgets.ApplyTextStyle and selectedDescription.label then
+        FormWidgets.ApplyTextStyle(selectedDescription.label, "parchmentSecondary", 11, 1)
+    end
+    selectionActions:AddChild(selectedDescription)
+    local exportButton = AceGUI:Create("Button")
+    exportButton:SetText(T("LAYOUT_MANAGER_EXPORT", "Export"))
+    exportButton:SetAutoWidth(true)
+    exportButton:SetCallback("OnClick", function() OpenTransferDialog(true) end)
+    if FormWidgets.ApplyModalActionButtonVisual then
+        FormWidgets.ApplyModalActionButtonVisual(exportButton, "utility")
+    end
     local actionContainer = AceGUI:Create("SimpleGroup")
-    actionContainer:SetLayout("Flow")
+    actionContainer:SetUserData("table", {
+        columns = { { weight = 1, alignH = "fill" }, { width = 0, alignH = "end" } },
+        spaceH = 8,
+        alignV = "middle",
+    })
+    actionContainer:SetLayout("Table")
     actionContainer:SetFullWidth(true)
     LockContainerHeight(actionContainer, WINDOW_FOOTER_HEIGHT)
     body:AddChild(actionContainer)
+    actionContainer:AddChild(CreateSpacer(nil, WINDOW_FOOTER_HEIGHT))
+    actionContainer:AddChild(exportButton)
 
     local renameButton = AceGUI:Create("Button")
     renameButton:SetText(T("LAYOUT_MANAGER_RENAME", "Rename"))
@@ -1319,6 +1411,9 @@ local function CreateWindow()
     context.dialog = dialog
     context.window = dialog.window
     context.widgets = {
+        description = description,
+        selectedDescription = selectedDescription,
+        selectionActions = selectionActions,
         scroll = scroll,
         actionContainer = actionContainer,
         status = status,
