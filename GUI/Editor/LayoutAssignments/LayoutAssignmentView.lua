@@ -12,13 +12,11 @@ ns.GUI.Editor.LayoutAssignments = LayoutAssignments
 
 local WINDOW_WIDTH = 520
 local WINDOW_CHROME_HEIGHT = 57
-local WINDOW_DESCRIPTION_HEIGHT = 32
 local WINDOW_DESCRIPTION_TEXT_HEIGHT = 24
 local WINDOW_DESCRIPTION_GAP = 8
 local WINDOW_CONTENT_PADDING = 12
 local WINDOW_TABLE_HEADER_HEIGHT = 24
 local WINDOW_SPEC_ROW_HEIGHT = 42
-local WINDOW_MIN_HEIGHT = 264
 local NONE_VALUE = "__fp_assignment_none__"
 
 local context
@@ -119,9 +117,12 @@ local function BuildSpecs()
     return specs
 end
 
-local function CalculateWindowHeight()
-    local contentHeight = WINDOW_CONTENT_PADDING + WINDOW_TABLE_HEADER_HEIGHT + (#BuildSpecs() * WINDOW_SPEC_ROW_HEIGHT)
-    return math.max(WINDOW_MIN_HEIGHT, WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + contentHeight)
+local function CalculateWindowHeight(body)
+    local height = WINDOW_CHROME_HEIGHT + 6 + 8 -- body top inset and bottom margin
+    for _, child in ipairs(body.children) do
+        height = height + child.frame:GetHeight() + 3 -- existing full-width Flow spacing
+    end
+    return height
 end
 
 local function ResolveLayoutName(summary)
@@ -140,7 +141,7 @@ end
 
 local function BuildLayoutDropdownData()
     local values = {
-        [NONE_VALUE] = T("LAYOUT_ASSIGNMENT_NONE", "None"),
+        [NONE_VALUE] = T("LAYOUT_ASSIGNMENT_NONE", "No assignment"),
     }
     local order = { NONE_VALUE }
     local layoutService = ns.LayoutService or {}
@@ -176,6 +177,46 @@ local function ResolveAssignedDropdownValue(specID)
     return NONE_VALUE, status or "missing"
 end
 
+local function AddDefaultContext(body, layoutValues)
+    local service = ns.LayoutAssignmentService or {}
+    local layoutId, status
+    if service.GetAccountDefaultLayoutId then
+        layoutId, status = service.GetAccountDefaultLayoutId(ns.db)
+    end
+    local name = layoutId and (layoutValues[layoutId] or layoutId)
+        or T(status == "stale" and "LAYOUT_ASSIGNMENT_DEFAULT_INVALID" or "LAYOUT_ASSIGNMENT_DEFAULT_NONE",
+            status == "stale" and "Unavailable (invalid reference)" or "Not set")
+    local text = string.format(T("LAYOUT_ASSIGNMENT_DEFAULT_CONTEXT", "Account default: %s"), name)
+    local tooltip = text .. "\n" .. T("LAYOUT_ASSIGNMENT_SPEC_PRIORITY", "A valid specialization assignment takes priority.")
+    body:AddChild(CreateSpacer(nil, 8))
+    local label = AceGUI:Create("InteractiveLabel")
+    label:SetText(text)
+    label:SetFullWidth(true)
+    label:SetHeight(24)
+    local wordWrap = label.label.CanWordWrap and label.label:CanWordWrap()
+    local maxLines = label.label.GetMaxLines and label.label:GetMaxLines()
+    if wordWrap ~= nil then label.label:SetWordWrap(false) end
+    if maxLines ~= nil then label.label:SetMaxLines(1) end
+    if FormWidgets.ApplyTextStyle then FormWidgets.ApplyTextStyle(label.label, "label", 11, 1) end
+    label:SetCallback("OnEnter", function(widget)
+        if GameTooltip then
+            GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tooltip, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    label:SetCallback("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    label:SetCallback("OnRelease", function()
+        if GameTooltip and GameTooltip:GetOwner() == label.frame then GameTooltip:Hide() end
+        if wordWrap ~= nil then label.label:SetWordWrap(wordWrap) end
+        if maxLines ~= nil then label.label:SetMaxLines(maxLines) end
+    end)
+    body:AddChild(label)
+    local hint = CreateLabel(T("LAYOUT_ASSIGNMENT_FALLBACK_HINT",
+        "Without an assignment, specialization changes keep the current layout. At login, the account default is used if no valid assignment exists."), "help", 11)
+    body:AddChild(hint)
+end
+
 local function RefreshRows()
     if not (context and context.widgets and context.widgets.body) then
         return
@@ -195,21 +236,25 @@ local function RefreshRows()
     body:AddChild(CreateSpacer(nil, WINDOW_DESCRIPTION_GAP))
 
     local header = AceGUI:Create("SimpleGroup")
-    header:SetLayout("Flow")
+    header:SetUserData("table", {
+        columns = { { width = 180, alignH = "fill" }, { weight = 1, alignH = "fill" } },
+        spaceH = 12, alignV = "middle",
+    })
+    header:SetLayout("Table")
     header:SetFullWidth(true)
     LockContainerHeight(header, 24)
     body:AddChild(header)
-    header:AddChild(CreateSpacer(8, 1))
-    header:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_SPEC", "Specialization"), "sectionHeader", 11, 160))
-    header:AddChild(CreateSpacer(10, 1))
-    header:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_LAYOUT", "Layout"), "sectionHeader", 11, 255))
+    header:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_SPEC", "Specialization"), "sectionHeader", 12))
+    header:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_LAYOUT", "Assigned layout"), "sectionHeader", 12))
 
     if #specs == 0 then
         local empty = CreateLabel(T("LAYOUT_ASSIGNMENT_NO_SPECS", "No specializations available."), "help", 11, 455)
         body:AddChild(empty)
+        AddDefaultContext(body, layoutValues)
         body:AddChild(CreateSpacer(nil, WINDOW_CONTENT_PADDING))
         if context.window and context.window.DoLayout then
             context.window:DoLayout()
+            context.window:SetHeight(CalculateWindowHeight(body))
         end
         context._suspendCallbacks = false
         return
@@ -217,21 +262,25 @@ local function RefreshRows()
 
     for _, spec in ipairs(specs) do
         local row = AceGUI:Create("SimpleGroup")
-        row:SetLayout("Flow")
+        row:SetUserData("table", {
+            columns = { { width = 180, alignH = "fill" }, { weight = 1, alignH = "fill" } },
+            spaceH = 12, alignV = "middle",
+        })
+        row:SetLayout("Table")
         row:SetFullWidth(true)
         LockContainerHeight(row, 42)
         body:AddChild(row)
 
-        row:AddChild(CreateSpacer(8, 1))
         local specLabel = spec.name
         if spec.id == currentSpecID then
             specLabel = specLabel .. "  " .. T("LAYOUT_ASSIGNMENT_CURRENT", "Current")
         end
-        row:AddChild(CreateLabel(specLabel, spec.id == currentSpecID and "sectionHeader" or "label", 11, 160))
-        row:AddChild(CreateSpacer(10, 1))
+        local label = CreateLabel(specLabel, spec.id == currentSpecID and "sectionHeader" or "label", 11)
+        label:SetHeight(32)
+        row:AddChild(label)
 
         local dropdown = AceGUI:Create("Dropdown")
-        dropdown:SetWidth(255)
+        dropdown:SetFullWidth(true)
         dropdown:SetList(layoutValues, layoutOrder)
         local assignedValue = ResolveAssignedDropdownValue(spec.id)
         dropdown:SetValue(assignedValue)
@@ -260,21 +309,27 @@ local function RefreshRows()
         row:AddChild(dropdown)
     end
 
+    AddDefaultContext(body, layoutValues)
     body:AddChild(CreateSpacer(nil, WINDOW_CONTENT_PADDING))
 
     if context.window and context.window.DoLayout then
         context.window:DoLayout()
+        context.window:SetHeight(CalculateWindowHeight(body))
     end
     context._suspendCallbacks = false
 end
 
 local function CreateWindow()
     local dialog = FormWidgets.CreateCompactFormDialog({
-        title = T("LAYOUT_ASSIGNMENT_TITLE", "Assignments"),
+        title = T("LAYOUT_ASSIGNMENT_TITLE", "Specialization Assignments"),
         width = WINDOW_WIDTH,
-        height = CalculateWindowHeight(),
+        height = WINDOW_CHROME_HEIGHT + WINDOW_TABLE_HEADER_HEIGHT + WINDOW_SPEC_ROW_HEIGHT,
         bodyLayout = "Flow",
         contentRoot = true,
+        windowChrome = "modern",
+        portrait = false,
+        background = "blizzard",
+        topTileStreaks = true,
     })
     context = {
         window = dialog.window,

@@ -394,13 +394,35 @@ local assignmentButton=assert(context.widgets.assignmentsButton)
 Equal(assignmentButton.text:GetText(),"Specialization assignments...")
 local selectedBeforeAssignments=context.selectedLayoutId
 local dialogsBeforeAssignments=#created
+local function CheckAssignments(dialog)
+    Equal(dialog.window.frame:GetWidth(),520)
+    local last=dialog.body.children[#dialog.body.children]
+    local bottom=-last.frame.points.TOPLEFT.y+last.frame:GetHeight()
+    Equal(dialog.window.frame:GetHeight(),57+6+bottom+8)
+    assert(dialog.window.frame._fpModernNineSlice:IsShown())
+    Equal(dialog.window.frame._fpModernNineSlice.testLayoutName,"ButtonFrameTemplateNoPortrait")
+    assert(dialog.window.frame._fpModernPortraitBackground:IsShown())
+    assert(not dialog.window.frame._fpParchmentNineSlice or not dialog.window.frame._fpParchmentNineSlice:IsShown())
+    local header=dialog.body.children[3]
+    Equal(header:GetUserData("table").columns[1].width,180)
+    for index=3,3+specCount do
+        local row=dialog.body.children[index]
+        row:SetWidth(450);row:DoLayout()
+        assert(#row.children==2)
+        local left,right=row.children[1],row.children[2]
+        Equal(left.frame.points.RIGHT.x-left.frame.points.LEFT.x,180)
+        Equal(right.frame.points.RIGHT.x-right.frame.points.LEFT.x,258)
+        Equal(right.frame.points.LEFT.x,192)
+        assert(right.frame.points.RIGHT.x==450)
+    end
+end
 assignmentButton:Fire("OnClick"); local assignments=latest
 Equal(openCalls,1); Equal(#created,dialogsBeforeAssignments+1)
 assignmentButton:Fire("OnClick")
 Equal(openCalls,2); Equal(#created,dialogsBeforeAssignments+1)
 Equal(context.selectedLayoutId,selectedBeforeAssignments)
 assert(context.window.frame:IsShown()) -- Manager remains the return destination.
-Check(assignments,520,264)
+CheckAssignments(assignments)
 local dropdown=assert(Find(assignments.body,"Dropdown")); dropdown:Fire("OnValueChanged","layout:one")
 Equal(calls.assignment,{1,"layout:one"})
 Equal(calls.evaluate,"assignment:ui")
@@ -411,12 +433,89 @@ Equal(calls.assignment,{1,"layout:one"}); Equal(calls.evaluate,nil)
 specCount=0; ns.GUI.Editor.LayoutAssignments.Refresh()
 CheckText(assignments.body,"No specializations available.","help",11)
 assignmentsAPI.Close(); assert(not assignments.window.frame:IsShown())
-assignmentButton:Fire("OnClick"); Check(assignments,520,264)
+assignmentButton:Fire("OnClick"); Equal(assignments.window.frame:GetWidth(),520)
 Equal(#created,dialogsBeforeAssignments+1)
 manager.Close(); manager.Open()
 context.widgets.assignmentsButton:Fire("OnClick")
 Equal(#created,dialogsBeforeAssignments+1)
 assignmentsAPI.Open=openAssignments
+do
+    local oldLocale,oldGetLocale=ns.L,GetLocale
+    local oldGetter=ns.LayoutAssignmentService.GetAccountDefaultLayoutId
+    local oldSummaries=ns.LayoutService.ListLayoutSummaries
+    local oldTooltip=GameTooltip
+    local defaultId,defaultStatus=nil,"missing"
+    local longDefaultName=string.rep("Long Layout ",12)
+    ns.LayoutAssignmentService.GetAccountDefaultLayoutId=function(db)
+        assert(db==ns.db);return defaultId,defaultStatus
+    end
+    ns.LayoutService.ListLayoutSummaries=function()return {
+        {id="layout:one",name=longDefaultName,source="userLayout"},
+        {id="builtin:default",name="Default",source="builtin"},
+    }end
+    GameTooltip={SetOwner=function(self,owner)self.owner=owner end,
+        GetOwner=function(self)return self.owner end,
+        SetText=function(self,text)self.text=text end,
+        Show=function(self)self.shown=true end,Hide=function(self)self.shown=false end}
+    for _,locale in ipairs({"enUS","deDE"}) do
+        local localized={L={}};GetLocale=function()return locale end
+        assert(loadfile("Locales/"..locale..".lua"))("FocalPoint",localized)
+        ns.L=localized.L
+        if locale=="deDE" then
+            assert(ns.L.LAYOUT_ASSIGNMENT_FALLBACK_HINT:find("gültige Zuordnung",1,true),"damaged German assignment hint")
+        end
+        for _,count in ipairs({2,3,4}) do
+            specCount=count
+            Load("GUI/Editor/LayoutAssignments/LayoutAssignmentView.lua")
+            local api=ns.GUI.Editor.LayoutAssignments
+            api.Open();local dialog=latest
+            CheckAssignments(dialog)
+            Equal(dialog.window.titletext:GetText(),ns.L.LAYOUT_ASSIGNMENT_TITLE)
+            local dropdown=assert(Find(dialog.body,"Dropdown"))
+            Equal(dropdown.list["__fp_assignment_none__"],ns.L.LAYOUT_ASSIGNMENT_NONE)
+            for _,case in ipairs({{status="missing",key="LAYOUT_ASSIGNMENT_DEFAULT_NONE"},
+                {status="stale",key="LAYOUT_ASSIGNMENT_DEFAULT_INVALID"},
+                {id="layout:one",status="ok",name=longDefaultName},
+                {id="builtin:default",status="ok",name="Default"}}) do
+                defaultId,defaultStatus=case.id,case.status
+                api.Close();api.Open()
+                local summary
+                for _,child in ipairs(dialog.body.children) do
+                    if child.type=="InteractiveLabel" then summary=child end
+                end
+                assert(summary)
+                Equal(summary.label:GetText(),string.format(ns.L.LAYOUT_ASSIGNMENT_DEFAULT_CONTEXT,case.name or ns.L[case.key]))
+                assert(summary.frame:GetHeight()>0 and summary.frame:GetHeight()<=24)
+                summary:Fire("OnEnter")
+                assert(GameTooltip.shown and GameTooltip.text==summary.label:GetText().."\n"..ns.L.LAYOUT_ASSIGNMENT_SPEC_PRIORITY)
+                summary:Fire("OnLeave");assert(not GameTooltip.shown)
+                for _,key in ipairs({"LAYOUT_ASSIGNMENT_FALLBACK_HINT"}) do
+                    CheckText(dialog.body,ns.L[key],"help",11)
+                    assert(#ns.L[key]*7<=450*3,"hint exceeds fixture three-line capacity")
+                end
+            end
+            for _=1,20 do api.Close();api.Open();CheckAssignments(dialog) end
+            currentSpec=1;calls.evaluate=nil
+            dropdown=assert(Find(dialog.body,"Dropdown"))
+            dropdown:Fire("OnValueChanged","__fp_assignment_none__")
+            Equal(calls.assignment,{1,nil});Equal(calls.evaluate,"assignment:ui")
+            Equal(dialog.body.children[3].children[2].label:GetText(),ns.L.LAYOUT_ASSIGNMENT_LAYOUT)
+            local before=#created
+            api.Close();api.Open();assert(#created==before)
+            CheckAssignments(dialog)
+            dialog.window.frame:Run("OnKeyDown","ESCAPE");assert(not dialog.window.frame:IsShown())
+            api.Open();dialog.window.closebutton:Run("OnClick");assert(not dialog.window.frame:IsShown())
+            ace:Release(dialog.window)
+            assert(not dialog.window.frame._fpModernNineSlice:IsShown())
+            assert(not dialog.window.frame._fpModernPortraitBackground:IsShown())
+        end
+    end
+    ns.L=oldLocale;GetLocale=oldGetLocale
+    ns.LayoutAssignmentService.GetAccountDefaultLayoutId=oldGetter
+    ns.LayoutService.ListLayoutSummaries=oldSummaries
+    GameTooltip=oldTooltip
+    ns.GUI.Editor.LayoutAssignments=assignmentsAPI
+end
 
 -- Actual editable-template confirmation preserves pending/ready semantics.
 ns.ActiveLayoutResolver={GetStoredActiveLayoutId=function() return "builtin:default" end,
