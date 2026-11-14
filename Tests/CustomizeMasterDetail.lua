@@ -431,5 +431,118 @@ Test("selection context stays explicit and layout replacement releases only the 
     assert(not hover.GetHoveredObject(),"hidden target retained Tree hover")
     state.SetPresentation("arrange");assert(not hover.SetTreeHover({kind="bar",unit="player",objectKey="HealthBar"},{}))
 end)
+-- Real Text gesture + selection/controller + Inspector refresh. Geometry is
+-- modeled, but neither Select nor ObjectSelection is replaced by a no-op.
+Test("Text Shift-drag preserves Components/Properties through completion and queued work",function()
+    local oldCursor,oldMouse=GetCursorPosition,IsMouseButtonDown
+    local interaction=ns.GUI.Editor.InteractionMode
+    local oldShift=interaction and interaction.IsShiftDown
+    ns.GUI.Editor.InteractionMode=interaction or {}
+    ns.GUI.Editor.InteractionMode.IsShiftDown=function()return true end
+    local oldUF=ns.UnitFrame
+    assert(loadfile("Engine/Text/Runtime/TextElementApply.lua"))("FocalPoint",ns)
+    ns.UnitFrame={UpdateTextElements=function()end,ApplyTextElementConfig=function(_,frame,key,font,config)
+        ns.TextElementApply.ApplyElementConfig(frame,key,font,config,{
+            GetAnchorTarget=function(owner,target)return owner.Elements[target] or owner end,
+            offsetOverride=frame._focalPointTextDragPreviewOffsets and frame._focalPointTextDragPreviewOffsets[key]})
+    end}
+    local x,y=100,100
+    GetCursorPosition=function()return x,y end
+    IsMouseButtonDown=function()return true end
+    for _,key in ipairs({"localText","secondText"})do
+        for _,view in ipairs({"components","properties"})do
+            local frame=CanvasFixture()
+            frame.GetEffectiveScale=function()return UIParent:GetEffectiveScale()end
+            if key=="secondText"then
+                unit.Texts.secondText=h.Copy(unit.Texts.localText)
+                frame.Texts.secondText=frame:CreateFontString();frame.Texts.secondText:SetText("Second text")
+                controller.RefreshCompositionTree();text.UpdateFrame(frame)
+            end
+            CanvasRow("textElement",key).frame:Run("OnMouseDown","LeftButton");Drain();Check("properties")
+            -- Show the real geometry tab so the rebuilt offset controls can be checked.
+            local function Walk(w,fn)fn(w);for _,child in ipairs(w.children or {})do Walk(child,fn)end end
+            local tab
+            Walk(window._focalPointPropertyScroll,function(w)
+                if w:GetUserData("normalAbsorbPropertyTab")=="geometry"then tab=w end
+            end)
+            assert(tab);tab:Fire("OnClick");Drain()
+            if view=="components"then Back()end
+            local hit=frame._focalPointTextEditorOverlays[key]
+            local cfg=unit.Texts[key]
+            local before=h.Copy(selection.GetSelectedObject())
+            local startX,startY=cfg.offsetX or 0,cfg.offsetY or 0
+            local requests,reselects,releases,builds=0,0,0,0
+            local request,selectObject,release,build=ns.GUI.RequestRefreshOptions,selection.SelectObject,controller.ReleaseInspector,controller.BuildInspector
+            ns.GUI.RequestRefreshOptions=function(...)requests=requests+1;return request(...)end
+            selection.SelectObject=function(...)reselects=reselects+1;return selectObject(...)end
+            controller.ReleaseInspector=function(...)releases=releases+1;return release(...)end
+            controller.BuildInspector=function(...)builds=builds+1;return build(...)end
+            local treeFrame=window._focalPointCompositionHost.frame
+            local setShown=treeFrame.SetShown
+            treeFrame.SetShown=function(self,shown)
+                assert(shown==(view=="components"),"transient view switch during text drag")
+                return setShown(self,shown)
+            end
+            hit:Run("OnMouseDown","LeftButton");hit:Run("OnDragStart")
+            x,y=x+5,y-2;hit:Run("OnUpdate")
+            hit:Run("OnMouseUp","LeftButton");Check(view)
+            hit:Run("OnDragStop");hit:Run("OnClick","LeftButton");Drain();Check(view)
+            assert(requests==0 and reselects==0 and releases==0 and builds==0,
+                "drag invoked navigation or full editor refresh")
+            h.Equal(selection.GetSelectedObject(),before)
+            assert(cfg.offsetX==startX+5 and cfg.offsetY==startY-2)
+            assert(not frame._focalPointTextDragPreviewOffsets and not hit._focalPointTextDragState)
+            local offsets={}
+            Walk(window._focalPointPropertyScroll,function(w)
+                local anchor=w:GetUserData("focalPointAnchorKey")
+                if anchor=="text_offset_x" or anchor=="text_offset_y"then offsets[anchor]=w end
+            end)
+            assert(offsets.text_offset_x and offsets.text_offset_y)
+            assert(offsets.text_offset_x.value==cfg.offsetX and offsets.text_offset_y.value==cfg.offsetY,
+                "local Properties refresh left stale position values")
+            treeFrame.SetShown=setShown
+            ns.GUI.RequestRefreshOptions,selection.SelectObject,controller.ReleaseInspector,controller.BuildInspector=request,selectObject,release,build
+            -- Real click semantics remain intact immediately after the drag.
+            hit:Run("OnMouseDown","LeftButton");hit:Run("OnMouseUp","LeftButton");hit:Run("OnClick","LeftButton");Drain();Check("components")
+            CanvasRow("textElement",key).frame:Run("OnMouseDown","LeftButton");Drain();Check("properties")
+        end
+    end
+    GetCursorPosition,IsMouseButtonDown=oldCursor,oldMouse
+    ns.UnitFrame=oldUF
+    if interaction then interaction.IsShiftDown=oldShift else ns.GUI.Editor.InteractionMode=nil end
+end)
+Test("Text drag needing selection respects the existing view; Unit-owner navigation stays unchanged",function()
+    local oldCursor,oldMouse=GetCursorPosition,IsMouseButtonDown
+    local interaction=ns.GUI.Editor.InteractionMode
+    local oldShift=interaction and interaction.IsShiftDown
+    ns.GUI.Editor.InteractionMode=interaction or {}
+    local shift=true
+    ns.GUI.Editor.InteractionMode.IsShiftDown=function()return shift end
+    local oldUF,beginUnit,endUnit=ns.UnitFrame,ns.BeginEditorUnitFrameDrag,ns.EndEditorUnitFrameDrag
+    ns.UnitFrame={UpdateTextElements=function()end,ApplyTextElementConfig=function()end}
+    local x,y=0,0
+    GetCursorPosition=function()return x,y end
+    IsMouseButtonDown=function()return true end
+    for _,view in ipairs({"components","properties"})do
+        local frame=CanvasFixture();frame.GetEffectiveScale=function()return UIParent:GetEffectiveScale()end
+        Pick("healthbar");if view=="components"then Back()end
+        local hit=frame._focalPointTextEditorOverlays.localText
+        shift=true
+        hit:Run("OnMouseDown","LeftButton");hit:Run("OnDragStart")
+        x,y=x+2,y+2;hit:Run("OnUpdate");hit:Run("OnMouseUp","LeftButton");Drain();Check(view)
+        assert(selection.GetSelectedObject().textKey=="localText")
+        -- This block deliberately does not change Unit-owner drag navigation.
+        if view=="components"then Back()end
+        shift=false
+        local began,ended=false,false
+        ns.BeginEditorUnitFrameDrag=function(_,owner)assert(owner==frame);began=true;return true end
+        ns.EndEditorUnitFrameDrag=function(_,owner,commit)assert(owner==frame and commit);ended=true end
+        hit:Run("OnMouseDown","LeftButton");hit:Run("OnDragStart");hit:Run("OnMouseUp","LeftButton");Drain()
+        assert(began and ended);Check("properties")
+    end
+    GetCursorPosition,IsMouseButtonDown=oldCursor,oldMouse
+    ns.UnitFrame,ns.BeginEditorUnitFrameDrag,ns.EndEditorUnitFrameDrag=oldUF,beginUnit,endUnit
+    if interaction then interaction.IsShiftDown=oldShift else ns.GUI.Editor.InteractionMode=nil end
+end)
 assert(#h.ui.env.errors==0,table.concat(h.ui.env.errors,"\n"))
 print("Customize Master Detail: "..count.." groups PASS")

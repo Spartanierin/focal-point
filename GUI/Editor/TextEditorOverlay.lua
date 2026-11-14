@@ -267,13 +267,15 @@ local function PositionSafeTextHitbox(overlay, frame, textConfig)
     end
 
     local width, height = ResolveTextHitboxSize(textConfig)
+    local preview = frame._focalPointTextDragPreviewOffsets
+        and frame._focalPointTextDragPreviewOffsets[overlay._focalPointTextKey]
     overlay:SetSize(width, height)
     overlay:SetPoint(
         textConfig.point or "CENTER",
         anchor,
         textConfig.relativePoint or "CENTER",
-        textConfig.offsetX or 0,
-        textConfig.offsetY or 0
+        preview and preview.offsetX or textConfig.offsetX or 0,
+        preview and preview.offsetY or textConfig.offsetY or 0
     )
     return true
 end
@@ -847,8 +849,15 @@ local function RestoreTextPositionPreview(frame, textKey)
     TextEditorOverlay.UpdateFrame(frame)
 end
 
-local function RefreshAfterTextPositionCommit(frame)
+local function RefreshAfterTextPositionCommit(frame, textKey, gesture)
     local unitFrame = FocalPoint.UnitFrame
+    if gesture and unitFrame and unitFrame.ApplyTextElementConfig then
+        local config = GetTextConfig(frame, textKey)
+        local textObject = frame.Texts and frame.Texts[textKey]
+        if config and textObject then
+            unitFrame:ApplyTextElementConfig(frame, textKey, textObject, config)
+        end
+    end
     if unitFrame and unitFrame.UpdateTextElements then
         unitFrame:UpdateTextElements(frame)
     elseif FocalPoint.RefreshUnitFrame and frame and frame._fpUnit then
@@ -857,7 +866,12 @@ local function RefreshAfterTextPositionCommit(frame)
 
     TextEditorOverlay.UpdateFrame(frame)
 
-    if FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
+    if gesture then
+        local controller = FocalPoint.GUI.Editor.Controller
+        if controller and controller.RefreshActiveProperties then
+            controller.RefreshActiveProperties()
+        end
+    elseif FocalPoint.GUI and FocalPoint.GUI.RequestRefreshOptions then
         FocalPoint.GUI:RequestRefreshOptions("TextEditorOverlay.TextMutation")
     end
     if FocalPoint.RefreshEditorSelectionVisuals then
@@ -889,17 +903,17 @@ local function SyncInspectorTextFontSize(unitKey, textKey, fontSize)
     end
 end
 
-local function CommitTextAnchorPositionNow(frame, textKey, position)
+local function CommitTextAnchorPositionNow(frame, textKey, position, gesture)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit or type(position) ~= "table" then return false end
     local mutations = FocalPoint.InspectorMutations or (FocalPoint.GUI and FocalPoint.GUI.Editor and FocalPoint.GUI.Editor.Inspector and FocalPoint.GUI.Editor.Inspector.Mutations)
     if not (mutations and mutations.SetTextAnchorPosition) then return false end
     local result = mutations.SetTextAnchorPosition({ unitConfig = unitConfig }, textKey, position.point, position.relativePoint, position.offsetX, position.offsetY, position.justifyH)
     if result and result.ok == false then return false end
-    if result and result.changed then RefreshAfterTextPositionCommit(frame) else TextEditorOverlay.UpdateFrame(frame) end
+    if result and result.changed then RefreshAfterTextPositionCommit(frame, textKey, gesture) else TextEditorOverlay.UpdateFrame(frame) end
     return true
 end
-local function CommitTextPositionNow(frame, textKey, offsetX, offsetY)
+local function CommitTextPositionNow(frame, textKey, offsetX, offsetY, gesture)
     local unitConfig, normalizedUnit = GetUnitConfigByKey(frame and frame._fpUnit, true)
     if type(unitConfig) ~= "table" or not normalizedUnit then
         return false
@@ -914,12 +928,12 @@ local function CommitTextPositionNow(frame, textKey, offsetX, offsetY)
     local result = mutations.SetTextPositionOffsets({
         unitConfig = unitConfig,
     }, textKey, offsetX, offsetY)
-    if result and result.ok == false then
+    if not result or result.ok ~= true then
         return false
     end
 
-    if result and result.changed then
-        RefreshAfterTextPositionCommit(frame)
+    if result.changed or gesture then
+        RefreshAfterTextPositionCommit(frame, textKey, gesture)
     else
         TextEditorOverlay.UpdateFrame(frame)
     end
@@ -972,11 +986,11 @@ local function RequestEditableTextCommit(commit)
     return completed
 end
 
-local function CommitTextAnchorPosition(frame, textKey, position)
-    return RequestEditableTextCommit(function() return CommitTextAnchorPositionNow(frame, textKey, position) end)
+local function CommitTextAnchorPosition(frame, textKey, position, gesture)
+    return RequestEditableTextCommit(function() return CommitTextAnchorPositionNow(frame, textKey, position, gesture) end)
 end
-local function CommitTextPosition(frame, textKey, offsetX, offsetY)
-    return RequestEditableTextCommit(function() return CommitTextPositionNow(frame, textKey, offsetX, offsetY) end)
+local function CommitTextPosition(frame, textKey, offsetX, offsetY, gesture)
+    return RequestEditableTextCommit(function() return CommitTextPositionNow(frame, textKey, offsetX, offsetY, gesture) end)
 end
 local function CommitTextPositionReset(frame, textKey)
     return RequestEditableTextCommit(function() return CommitTextPositionResetNow(frame, textKey) end)
@@ -1058,6 +1072,19 @@ local function IsDragContextStillValid(state)
         and IsEditorRenderableText(state.frame, state.textKey, textConfig)
 end
 
+local function SelectAfterTextDrag(frame, textKey)
+    local selection = FocalPoint.GUI.Editor.ObjectSelection
+    local selected = selection and selection.GetSelectedObject and selection.GetSelectedObject()
+    local unit = NormalizeUnitKey(frame._fpUnit)
+    if selected and selected.kind == "text" and selected.unit == unit
+        and (selected.textKey or selected.objectKey) == textKey then return true end
+    local controller = FocalPoint.GUI.Editor.Controller
+    local inspector = controller and controller.GetActiveInspectorHost and controller.GetActiveInspectorHost()
+    local view = inspector and inspector._focalPointCustomizeView
+    return TextEditorOverlay.Select(frame, textKey,
+        (view == "components" or view == "properties") and {view=view} or nil)
+end
+
 EndTextDrag = function(overlay, commit)
     local canvas = FocalPoint.GUI.Editor.CanvasHoverOverlay
     if overlay and canvas and canvas.RouteSelectedComponentPointer
@@ -1087,29 +1114,38 @@ EndTextDrag = function(overlay, commit)
         return
     end
 
-    if not state.dragging then
+    local existingPreview = state.frame._focalPointTextDragPreviewOffsets
+        and state.frame._focalPointTextDragPreviewOffsets[state.textKey]
+    if not state.dragging and not existingPreview then
         return
     end
 
-    if commit == false or IsCombatLocked() or not IsEditorActive() or not IsDragContextStillValid(state) then
-        RestoreTextPositionPreview(state.frame, state.textKey)
-        return
-    end
+    local function CompleteTextDrag()
+        if commit == false or IsCombatLocked() or not IsEditorActive() or not IsDragContextStillValid(state) then
+            RestoreTextPositionPreview(state.frame, state.textKey)
+            return
+        end
 
-    local textObject = state.frame and state.frame.Texts and state.frame.Texts[state.textKey]
-    local owner = ResolveTextAnchor(state.frame, state.textConfig)
-    local position = TextEditorOverlay.ResolveAutoAnchorGeometry(GetFrameRect(textObject), GetFrameRect(owner), state.textConfig)
-    if not position then
-        RestoreTextPositionPreview(state.frame, state.textKey)
-        return
+        -- A translation preserves the canonical anchor tuple. FontString
+        -- rectangles can be secret; the preview already has legal offsets.
+        overlay._focalPointSuppressClick = true
+        ClearPreviewOffset(state.frame, state.textKey)
+        local committed = CommitTextPosition(state.frame, state.textKey,
+            state.currentOffsetX, state.currentOffsetY, state)
+        if not committed then
+            RestoreTextPositionPreview(state.frame, state.textKey)
+        end
+        SelectAfterTextDrag(state.frame, state.textKey)
     end
-
-    overlay._focalPointSuppressClick = true
-    ClearPreviewOffset(state.frame, state.textKey)
-    if not CommitTextAnchorPosition(state.frame, state.textKey, position) then
-        RestoreTextPositionPreview(state.frame, state.textKey)
+    local ok, failure = pcall(CompleteTextDrag)
+    if not ok then
+        -- Always discard the transient override, even if Apply/refresh fails.
+        -- Restore from the canonical tuple (which may already be committed),
+        -- then report the original failure rather than claiming success.
+        ClearPreviewOffset(state.frame, state.textKey)
+        pcall(RestoreTextPositionPreview, state.frame, state.textKey)
+        error(failure, 0)
     end
-    TextEditorOverlay.Select(state.frame, state.textKey)
 end
 
 -- Reuse text VisualBounds and its existing hover palette, never the generic Canvas frame.
@@ -1250,7 +1286,8 @@ function TextEditorOverlay.BeginDrag(overlay)
         return false
     end
 
-    if activeDragOverlay and activeDragOverlay ~= overlay then
+    if activeDragOverlay and (activeDragOverlay ~= overlay
+        or (overlay._focalPointTextDragState and overlay._focalPointTextDragState.mode == "text")) then
         EndTextDrag(activeDragOverlay, false)
     end
 
@@ -1266,6 +1303,15 @@ function TextEditorOverlay.BeginDrag(overlay)
         return false
     end
 
+    local cursorToOffsetScale = 1
+    local preview = frame._focalPointTextDragPreviewOffsets and frame._focalPointTextDragPreviewOffsets[textKey]
+    if moveText then
+        local uiScale = UIParent:GetEffectiveScale()
+        local textScale = frame:GetEffectiveScale() -- FontString and hitbox inherit this owner scale.
+        if (issecretvalue and (issecretvalue(uiScale) or issecretvalue(textScale)))
+            or type(uiScale) ~= "number" or type(textScale) ~= "number" or uiScale <= 0 or textScale <= 0 then return false end
+        cursorToOffsetScale = uiScale / textScale
+    end
     overlay._focalPointSuppressClick = nil
     local dragState = {
         hitTarget = overlay,
@@ -1283,10 +1329,11 @@ function TextEditorOverlay.BeginDrag(overlay)
         textConfig = textConfig,
         startCursorX = cursorX,
         startCursorY = cursorY,
-        startOffsetX = NormalizeTextOffset(textConfig.offsetX),
-        startOffsetY = NormalizeTextOffset(textConfig.offsetY),
-        currentOffsetX = NormalizeTextOffset(textConfig.offsetX),
-        currentOffsetY = NormalizeTextOffset(textConfig.offsetY),
+        cursorToOffsetScale = cursorToOffsetScale,
+        startOffsetX = NormalizeTextOffset(moveText and preview and preview.offsetX or textConfig.offsetX),
+        startOffsetY = NormalizeTextOffset(moveText and preview and preview.offsetY or textConfig.offsetY),
+        currentOffsetX = NormalizeTextOffset(moveText and preview and preview.offsetX or textConfig.offsetX),
+        currentOffsetY = NormalizeTextOffset(moveText and preview and preview.offsetY or textConfig.offsetY),
         dragging = false,
     }
     overlay._focalPointTextDragState = dragState
@@ -1341,8 +1388,8 @@ function TextEditorOverlay.StartDrag(overlay)
             return
         end
 
-        local deltaX = currentX - dragState.startCursorX
-        local deltaY = currentY - dragState.startCursorY
+        local deltaX = (currentX - dragState.startCursorX) * dragState.cursorToOffsetScale
+        local deltaY = (currentY - dragState.startCursorY) * dragState.cursorToOffsetScale
         local nextOffsetX = NormalizeTextOffset(dragState.startOffsetX + deltaX)
         local nextOffsetY = NormalizeTextOffset(dragState.startOffsetY + deltaY)
         if nextOffsetX == dragState.currentOffsetX and nextOffsetY == dragState.currentOffsetY then
