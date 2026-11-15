@@ -54,13 +54,42 @@ local function CheckText(root,text,role,size)
     Equal(label.lastSetTextColor,{color.r,color.g,color.b,1})
     Equal(label.font,{STANDARD_TEXT_FONT,size,""}); Equal(label.lastSetShadowOffset,{1,-1})
 end
-Check(f.options,360,373)
-CheckText(f.options.body,"Displays a visual alignment grid while editing frames.","help",11)
-CheckText(f.options.body,"Snap frames to the screen center and other editable frames while moving them.","help",11)
-CheckText(f.options.body,"Show Grid","label",12)
+f.CheckOptions(f.options)
+CheckText(f.options.body,"Displays a visual alignment grid while editing frames.","parchmentSecondary",12)
+CheckText(f.options.body,"Snap frames to the screen center and other editable frames while moving them.","parchmentSecondary",12)
+CheckText(f.options.body,"Show Grid","identity",14)
+for _,text in ipairs({"Editor","Addon"}) do
+    local label=assert(Find(f.options.body,"Label",text)).label
+    Equal({label:GetFont()},{STANDARD_TEXT_FONT,14,""})
+    local color=NORMAL_FONT_COLOR or {r=1,g=.82,b=0}
+    Equal(label.lastSetTextColor,{color.r,color.g,color.b,1})
+end
 local optionGeometry=f.Geometry(f.options.window)
 ns.GUI.Editor.OptionsDialog.Close(); ns.GUI.Editor.OptionsDialog.Open()
 Equal(f.Geometry(f.options.window),optionGeometry)
+f.CheckOptions(f.options)
+
+-- Model wrapped native text metrics; the local height must follow the measured children.
+do
+    local hint=assert(Find(f.options.body,"Label","Displays a visual alignment grid while editing frames."))
+    local name=assert(Find(f.options.body,"Label","Show Grid"))
+    local hintHeight,nameHeight=hint.label.GetStringHeight,name.label.GetStringHeight
+    local originalHeight=f.options.window.frame:GetHeight()
+    hint.label.GetStringHeight=function() return 56 end
+    name.label.GetStringHeight=function() return 48 end
+    hint:SetText(hint.label:GetText());name:SetText(name.label:GetText())
+    ns.GUI.Editor.OptionsDialog.Open()
+    assert(name.parent.frame:GetHeight()>=48)
+    assert(f.options.window.frame:GetHeight()>originalHeight)
+    f.CheckOptions(f.options)
+    local children=f.options.body.children
+    Equal(children[#children-1].frame:GetHeight(),8)
+    Equal(children[#children].frame:GetHeight(),22)
+    hint.label.GetStringHeight,name.label.GetStringHeight=hintHeight,nameHeight
+    hint:SetText(hint.label:GetText());name:SetText(name.label:GetText())
+    ns.GUI.Editor.OptionsDialog.Close();ns.GUI.Editor.OptionsDialog.Open()
+    Equal(f.options.window.frame:GetHeight(),originalHeight)
+end
 
 -- Global mouse controls use the real shared setters in both stored modes.
 -- Frame refresh is the native boundary; unit overrides and other settings stay intact.
@@ -112,11 +141,70 @@ do
             end
         end
     end
+    ns.db.profile={General={ShowGrid=false,SnappingEnabled=true,MouseEnabled=true,
+        GlobalClickThrough=false,ShowUnitTooltips=true,HideBlizzardFrames=false},Minimap={hide=false}}
+    local fields={showGrid="ShowGrid",snappingEnabled="SnappingEnabled",mouseEnabled="MouseEnabled",
+        clickthrough="GlobalClickThrough",showUnitTooltips="ShowUnitTooltips",hideBlizzard="HideBlizzardFrames"}
+    for _,checkbox in pairs(optionsContext.widgets) do
+        if checkbox.type=="CheckBox" then
+            local label=checkbox.parent.children[1].label
+            Equal({label:GetFont()},{STANDARD_TEXT_FONT,14,""})
+            local color=ns.GUI.Helpers.TextStyles.Get("identity")
+            Equal(label.lastSetTextColor,{color.r,color.g,color.b,1})
+        end
+    end
+    for _,id in ipairs({"showGrid","snappingEnabled","mouseEnabled","clickthrough","showMinimapButton","showUnitTooltips","hideBlizzard"}) do
+        for _=1,2 do
+            options.Open()
+            local checkbox=assert(optionsContext.widgets[id])
+            local function CheckAlignment()
+                local left,right=checkbox.text.points.LEFT,checkbox.text.points.RIGHT
+                assert(left.relative==checkbox.checkbg and right.relative==checkbox.frame)
+                Equal({left.relativePoint,left.x,left.y,right.relativePoint,right.x,right.y},{"RIGHT",0,0,"RIGHT",0,0})
+            end
+            CheckAlignment()
+            local expected=not checkbox:GetValue()
+            checkbox.frame:Run("OnMouseDown","LeftButton")
+            checkbox.frame:Run("OnMouseUp","LeftButton")
+            Equal(checkbox:GetValue(),expected)
+            Equal({checkbox.checkbg:GetWidth(),checkbox.checkbg:GetHeight(),checkbox.frame:GetHeight()},{32,32,32})
+            local color=expected and (NORMAL_FONT_COLOR or {r=1,g=.82,b=0}) or ns.GUI.Helpers.TextStyles.Get("parchmentSecondary")
+            Equal(checkbox.text.lastSetTextColor,{color.r,color.g,color.b,1})
+            CheckAlignment()
+            options.Open();CheckAlignment() -- Refresh the retained window without closing it.
+            local stored
+            if id=="showMinimapButton" then stored=not ns.db.profile.Minimap.hide
+            else stored=ns.db.profile.General[fields[id]] end
+            Equal(stored,expected)
+            Equal(checkbox.text:GetText(),expected and (ns.L.OPTION_ON or "On") or (ns.L.OPTION_OFF or "Off"))
+            options.Close();options.Open();Equal(checkbox:GetValue(),expected)
+            CheckAlignment();f.CheckOptions(optionsContext.dialog)
+            Equal(checkbox.checkbg:GetTexture(),130755)
+            Equal(checkbox.check:GetTexture(),130751)
+        end
+    end
+    local refreshOptions=Upvalue(options.Open,"Refresh")
+    local setBoolean=Upvalue(refreshOptions,"SetBooleanControlValue")
+    local styleCheckbox=Upvalue(setBoolean,"StyleCheckBox")
+    local disabledCheckbox=ace:Create("CheckBox")
+    disabledCheckbox:SetValue(true);disabledCheckbox:SetDisabled(true)
+    styleCheckbox(disabledCheckbox,true)
+    local disabledColor=ns.GUI.Helpers.TextStyles.Get("disabled")
+    Equal(disabledCheckbox.text.lastSetTextColor,{disabledColor.r,disabledColor.g,disabledColor.b,1})
+    Equal(disabledCheckbox.frame:GetHeight(),32)
+    local disabledChanges=0
+    disabledCheckbox:SetCallback("OnValueChanged",function() disabledChanges=disabledChanges+1 end)
+    disabledCheckbox.frame:Run("OnMouseUp","LeftButton")
+    Equal(disabledChanges,0);assert(disabledCheckbox:GetValue()==true)
+    ace:Release(disabledCheckbox)
+    local ordinaryCheckbox=ace:Create("CheckBox")
+    Equal({ordinaryCheckbox.checkbg:GetWidth(),ordinaryCheckbox.checkbg:GetHeight(),ordinaryCheckbox.frame:GetHeight()},{24,24,24})
+    ace:Release(ordinaryCheckbox)
     binding.ApplyGlobalOptionValue=apply
     ns.db.profile,ns.GUI.Editor.ToolbarBinding,ns.RefreshAllUnitFrames=savedProfile,savedBinding,savedRefresh
     options.Open()
     assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
-    print("PASS: global mouse/click-through controls in 8 stored-mode/value combinations, real setters, refresh and reopen")
+    print("PASS: global mouse/click-through in 8 stored-mode/value combinations; all 7 Options controls toggle through real mouse handlers, persist and reopen")
 end
 
 -- Real manager name/confirmation consumers and their existing mutation callbacks.

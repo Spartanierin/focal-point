@@ -683,21 +683,67 @@ for _,sequence in ipairs({{"modern","editmode","modern"},{"editmode","modern","e
 end
 print("PASS: same-texture Modern/Edit Mode transitions in both directions, restore/reopen/release and default pool isolation")
 C_Texture=previousAtlas
--- Options and Confirmations now consume the same dialog presentation as W1.
+-- Options explicitly uses Edit Mode; confirmations retain the default presentation.
+local optionsAtlasAPI=C_Texture
+C_Texture={GetAtlasInfo=function() return {width=32,height=32} end}
 Load("GUI/Editor/EditorOptionsDialog.lua")
 ns.GUI.Editor.OptionsDialog.Open()
 local options=createdDialogs[#createdDialogs].dialog
-Equal({options.window.frame:GetWidth(),options.window.frame:GetHeight()},{360,373})
-local confirm=widgets.CreateCompactConfirmation({title="Confirm",message="Unchanged",primary={text="OK"},cancel={text="Cancel"}})
-for _,other in ipairs({options,confirm}) do
-    Check(other)
+Equal(createdDialogs[#createdDialogs].options.windowChrome,"editmode")
+Equal({createdDialogs[#createdDialogs].options.titleFontSize,createdDialogs[#createdDialogs].options.titleOffsetY},{16,-7})
+Equal(createdDialogs[#createdDialogs].options.headerDrag,{left=8,right=36,top=0,height=32})
+local function CheckOptions(dialog)
+    local w=dialog.window
+    local contentHeight=4
+    for _,child in ipairs(dialog.body.children) do contentHeight=contentHeight+child.frame:GetHeight() end
+    Equal({w.frame:GetWidth(),w.frame:GetHeight()},{360,63+math.max(310,contentHeight)})
+    assert(not w.frame._fpParchmentNineSlice or not w.frame._fpParchmentNineSlice:IsShown())
+    assert(not w.frame._fpModernNineSlice or not w.frame._fpModernNineSlice:IsShown())
+    assert(not w.frame._fpPanelFill:IsShown())
+    local background=assert(w.frame._fpModernPortraitBackground)
+    assert(background:IsShown());Equal(background:GetTexture(),nil)
+    Equal(background.lastSetColorTexture,{0,0,0,.8})
+    Equal({background:GetDrawLayer()},{"BACKGROUND",-5})
+    assert(not w.frame._fpModernPortraitTopTileStreaks or not w.frame._fpModernPortraitTopTileStreaks:IsShown())
+    Equal(dialog.body.frame:GetParent()._fpCompactDialogBodyFill.lastSetColorTexture,{0,0,0,0})
+    Equal({w.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    Equal({w.titletext.points.TOPLEFT.x,w.titletext.points.TOPLEFT.y,w.titletext.points.TOPRIGHT.x,w.titletext.points.TOPRIGHT.y},{12,-15,-32,-15})
+    Equal({w.closebutton.points.TOPRIGHT.x,w.closebutton.points.TOPRIGHT.y},{2,1})
+    local drag=w.title.points
+    assert(drag.TOPLEFT.relative==w.frame and drag.BOTTOMRIGHT.relative==w.frame)
+    Equal({drag.TOPLEFT.x,drag.TOPLEFT.y,drag.BOTTOMRIGHT.x,drag.BOTTOMRIGHT.y},
+        {8,0,-math.max(36,w.closebutton:GetWidth()+4),-32})
 end
+CheckOptions(options)
+local optionCheckboxes=0
+local function CheckOptionCheckboxes(widget)
+    if widget.type=="CheckBox" then
+        optionCheckboxes=optionCheckboxes+1
+        Equal(widget.checkbg:GetTexture(),130755)
+        Equal(widget.check:GetTexture(),130751)
+        Equal(widget.highlight:GetTexture(),130753)
+        Equal(widget.highlight.lastSetBlendMode,{"ADD"})
+        Equal({widget.checkbg:GetWidth(),widget.checkbg:GetHeight()},{32,32})
+        Equal({widget.frame:GetWidth(),widget.frame:GetHeight()},{72,32})
+        assert(widget.check.lastSetAllPoints[1]==widget.checkbg and widget.highlight.lastSetAllPoints[1]==widget.checkbg)
+        Equal(widget.check:IsShown(),widget:GetValue()==true)
+        assert(widget.text.points.LEFT.relative==widget.checkbg)
+        Equal({widget.text.points.LEFT.relativePoint,widget.text.points.LEFT.x,widget.text.points.LEFT.y},{"RIGHT",0,0})
+    end
+    for _,child in ipairs(widget.children or {}) do CheckOptionCheckboxes(child) end
+end
+CheckOptionCheckboxes(options.body);Equal(optionCheckboxes,7)
+assert(options.window.frame._fpModernTitleLeft:IsShown())
+Equal(options.window.frame._fpModernTitleLeft.atlas,"UI-Frame-DiamondMetal-CornerTopLeft")
+C_Texture=optionsAtlasAPI
+local confirm=widgets.CreateCompactConfirmation({title="Confirm",message="Unchanged",primary={text="OK"},cancel={text="Cancel"}})
+Check(confirm)
 widgets.CreateCompactFormDialog=createDialog
 assert(#env.errors==0,table.concat(env.errors,"\n"))
-print("PASS: Edit Mode Layout Manager, reopen/release; independent portraitless Modern fallback/title/close restore and default pool isolation")
+print("PASS: Edit Mode Layout Manager/Options; independent portraitless Modern fallback/title/close restore and default confirmation/pool isolation")
 print("PASS: removed local Marble background stays absent; existing body/inset bounds, 12 reopen cycles, fallback and release/reuse isolation")
 print("PASS: separate Modern TopTileStreaks opt-in, native/legacy lookup, missing/error fallback; Edit Mode manager excludes streaks")
 print("PASS: one Layout Manager inset encloses the original scroll/sections/rows and counter, with passive template chrome, stable reopen and release/reuse isolation")
 print("PASS: opt-in Edit Mode atlas shell, transparent body, native geometry/drag/X, metal/flat fallback, 12 X/Escape release cycles and exact title restore")
 return {ns=ns,ace=ace,native=native,Equal=Equal,Count=Count,Load=Load,Upvalue=Upvalue,
-    Check=Check,Geometry=Geometry,widgets=widgets,options=options,manager=manager,env=env}
+    Check=Check,CheckOptions=CheckOptions,Geometry=Geometry,widgets=widgets,options=options,manager=manager,env=env}

@@ -16,9 +16,11 @@ local context
 local Refresh
 
 local OPTION_LABEL_WIDTH = 166
-local OPTION_ROW_HEIGHT = 24
+local OPTION_ROW_HEIGHT = 32
 local SECTION_GAP = 16
 local ROW_GAP = 4
+local FORM_CONTENT_HEIGHT = 310
+local NORMAL_TEXT_COLOR = NORMAL_FONT_COLOR or { r = 1, g = 0.82, b = 0 }
 
 local function T(key, fallback)
     return L[key] or fallback or key
@@ -127,7 +129,9 @@ local function CreateVerticalGap(height)
 end
 
 local function CreateSectionHeader(text)
-    return CreateLabel(text, "sectionHeader", 13, nil, true)
+    local label = CreateLabel(text, "sectionHeader", 14, nil, true)
+    label.label:SetTextColor(NORMAL_TEXT_COLOR.r, NORMAL_TEXT_COLOR.g, NORMAL_TEXT_COLOR.b, 1)
+    return label
 end
 
 local function StyleCheckBox(widget, disabled)
@@ -135,13 +139,10 @@ local function StyleCheckBox(widget, disabled)
         FormWidgets.StyleCheckBox(widget, disabled == true)
     end
 
-    local palette = Skins.GetFormPalette and Skins.GetFormPalette() or {}
-    local retail = palette.Checkbox and palette.Checkbox.retail
-    if not retail or not widget or not widget.frame then
+    if not widget or not widget.frame then
         return
     end
 
-    local frame = widget.frame
     local checkbg = widget.checkbg
     local check = widget.check
     local highlight = widget.highlight
@@ -149,25 +150,22 @@ local function StyleCheckBox(widget, disabled)
         return
     end
 
-    checkbg:SetAtlas(retail.normal)
-    checkbg:SetSize(24, 24)
-    check:SetAtlas(retail.checked)
-    highlight:SetAtlas(retail.highlight)
-    highlight:SetBlendMode("BLEND")
+    -- AceGUI already uses the UI-CheckBox artwork used by Blizzard Edit Mode.
+    widget:SetType("checkbox")
+    checkbg:SetSize(OPTION_ROW_HEIGHT, OPTION_ROW_HEIGHT)
+    widget:SetHeight(OPTION_ROW_HEIGHT)
+    highlight:SetBlendMode("ADD")
 
     if widget.text then
         local statusColor
         if disabled then
             statusColor = Skins.GetTextColor and Skins.GetTextColor("disabled")
         elseif widget:GetValue() then
-            statusColor = Skins.GetBrandColor and Skins.GetBrandColor("orangeStrong")
+            statusColor = NORMAL_TEXT_COLOR
         else
-            statusColor = Skins.GetTextColor and Skins.GetTextColor("help")
+            statusColor = Skins.GetTextColor and Skins.GetTextColor("parchmentSecondary")
         end
         statusColor = statusColor or { 1, 1, 1, 1 }
-        widget.text:ClearAllPoints()
-        widget.text:SetPoint("LEFT", checkbg, "RIGHT", 8, 0)
-        widget.text:SetPoint("RIGHT")
         widget.text:SetJustifyH("LEFT")
         widget.text:SetTextColor(
             statusColor[1] or statusColor.r or 1,
@@ -211,7 +209,7 @@ local function CreateOptionRow(parent, labelText, widgetId)
     })
     parent:AddChild(row)
 
-    row:AddChild(CreateLabel(labelText, "label", 12, OPTION_LABEL_WIDTH, false))
+    row:AddChild(CreateLabel(labelText, "identity", 14, OPTION_LABEL_WIDTH, false))
 
     local checkbox = AceGUI:Create("CheckBox")
     checkbox:SetFullWidth(false)
@@ -225,7 +223,17 @@ local function CreateOptionRow(parent, labelText, widgetId)
 end
 
 local function CreateOptionHint(text)
-    return CreateLabel(text, "help", 11, nil, true)
+    return CreateLabel(text, "parchmentSecondary", 12, nil, true)
+end
+
+local function FitContentHeight()
+    local body = context.dialog.body
+    body:DoLayout()
+    local contentHeight = ROW_GAP
+    for _, child in ipairs(body.children) do
+        contentHeight = contentHeight + child.frame:GetHeight()
+    end
+    context.window:SetHeight(57 + 6 + math.max(FORM_CONTENT_HEIGHT, contentHeight))
 end
 
 function Refresh()
@@ -320,11 +328,15 @@ local function CreateWindow()
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T("EDITOR_OPTIONS_TITLE", "Focal Point Options"),
         width = 360,
-        formContentHeight = 310,
+        formContentHeight = FORM_CONTENT_HEIGHT,
         contentInset = 14,
         addBodySpacer = false,
         bodyLayout = "List",
         contentRoot = true,
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
     })
     local window = dialog.window
     local body = dialog.body
@@ -354,7 +366,7 @@ local function CreateWindow()
     CreateOptionRow(body, T("OPTION_SHOW_UNIT_TOOLTIPS", "Show Unit Tooltips"), "showUnitTooltips")
     body:AddChild(CreateVerticalGap(ROW_GAP))
     CreateOptionRow(body, T("OPTION_HIDE_BLIZZARD_FRAMES", "Hide Blizzard Frames"), "hideBlizzard")
-    body:AddChild(CreateVerticalGap(ROW_GAP))
+    body:AddChild(CreateVerticalGap(ROW_GAP * 2))
     widgets.manageTextTemplates = FormWidgets.CreateActionButton(
         T("EDITOR_OPTIONS_MANAGE_TEXT_TEMPLATES", "Manage Text Templates…"), "secondary")
     widgets.manageTextTemplates:SetCallback("OnClick", function()
@@ -377,12 +389,14 @@ function OptionsDialog.Open()
     if context and context.dialog then
         Refresh()
         context.dialog:Show()
+        FitContentHeight()
         return true
     end
 
     local dialog = CreateWindow()
     Refresh()
     dialog:Show()
+    FitContentHeight()
     return true
 end
 
