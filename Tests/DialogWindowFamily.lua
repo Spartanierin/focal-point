@@ -470,11 +470,80 @@ latest.cancelButton:Fire("OnClick"); assert(latest.released)
 local ensureHost=Upvalue(ns.GUI.Editor.CanvasToolbar.UpdateGeometry,"EnsureHost")
 local openNew=Upvalue(ensureHost,"OpenNewLayoutDialog")
 ns.LayoutMutations.CreateUserLayoutFromSource=function(source,name) calls.new={source,name}; return false,"invalid-name" end
-openNew(); Check(latest,420,229)
+local function CheckNewLayoutGeometry(dialog)
+    local children=dialog.body.children
+    -- The fixture does not resolve widths from native stretch anchors.
+    dialog.body.content:SetWidth(340);dialog.body:DoLayout()
+    local actionRow=children[#children-1]
+    actionRow.content:SetWidth(actionRow.frame:GetWidth());actionRow:DoLayout()
+    local name,source=assert(Find(dialog.body,"EditBox")),assert(Find(dialog.body,"Dropdown"))
+    for _,label in ipairs({name.label,source.label}) do
+        Equal({label:GetFont()},{STANDARD_TEXT_FONT,13,""})
+        local color=NORMAL_FONT_COLOR or {r=1,g=.82,b=0}
+        Equal(label.lastSetTextColor,{color.r,color.g,color.b,1})
+    end
+    Equal(dialog.window.frame:GetWidth(),420)
+    Equal(name.frame:GetHeight(),52);Equal(source.frame:GetHeight(),49)
+    local fill=assert(name.frame._fpNewLayoutInputFill)
+    assert(fill:IsShown() and fill.lastSetAllPoints[1]==name.editbox)
+    Equal(fill.lastSetColorTexture,forms.ResolveFieldStyle("editor_inset").background)
+    local valueColor=forms.ResolveFieldStyle("editor_inset").valueColor
+    Equal(name.editbox.lastSetTextColor,valueColor)
+    Equal(name.editbox.points.TOPLEFT.y,-26)
+    assert(-name.editbox.points.TOPLEFT.y>=-name.label.points.TOPLEFT.y+name.label:GetHeight()+6)
+    assert(source.frame:GetHeight()-25>=source.label:GetHeight()+6)
+    local previous,contentHeight=nil,0
+    for _,child in ipairs(children) do
+        local point=child.frame.points.TOPLEFT
+        assert(point.relative==(previous and previous.frame or dialog.body.content))
+        if previous then Equal(point.relativePoint,"BOTTOMLEFT") end
+        contentHeight=contentHeight+child.frame:GetHeight()
+        previous=child
+    end
+    Equal(dialog.window.frame:GetHeight(),57+6+contentHeight)
+    Equal(children[#children].frame:GetHeight(),2)
+    local actions=children[#children-1]
+    Equal(actions.frame:GetHeight(),30)
+    local primary,cancel=dialog.primaryButton,dialog.cancelButton
+    Equal({primary.frame:GetWidth(),cancel.frame:GetWidth()},{120,110})
+    assert(primary.frame.points.LEFT.relative==actions.content)
+    Equal(primary.frame.points.LEFT.x,0)
+    assert(cancel.frame.points.LEFT.relative==actions.content)
+    Equal(cancel.frame.points.LEFT.x+cancel.frame:GetWidth(),actions.content:GetWidth())
+    assert(primary.frame.points.LEFT.x+primary.frame:GetWidth()<cancel.frame.points.LEFT.x)
+    local control=source:GetUserData("nativePropertyDropdown")
+    if control then
+        Equal(control:GetHeight(),25)
+        assert(control.points.LEFT.relative==source.button_cover and control.points.RIGHT.relative==source.button_cover)
+    end
+end
+openNew()
+CheckNewLayoutGeometry(latest)
+Equal({latest.window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+Equal(latest.window.titletext.lastSetTextColor,{1,1,1,1})
+local newTitlePoints=latest.window.titletext.points
+Equal({newTitlePoints.TOPLEFT.x,newTitlePoints.TOPLEFT.y,newTitlePoints.TOPRIGHT.x,newTitlePoints.TOPRIGHT.y},{12,-15,-32,-15})
+CheckHeaderDrag(latest.window)
+local newBackground=assert(latest.window.frame._fpModernPortraitBackground)
+assert(newBackground:IsShown());Equal(newBackground.lastSetColorTexture,{0,0,0,.8})
+Equal({newBackground:GetDrawLayer()},{"BACKGROUND",-5})
+assert(not latest.window.frame._fpParchmentNineSlice or not latest.window.frame._fpParchmentNineSlice:IsShown())
 local name=assert(Find(latest.body,"EditBox")); local source=assert(Find(latest.body,"Dropdown"))
 source:SetValue("layout:one")
 name:SetText("New"); name:Fire("OnTextChanged","New")
 latest.primaryButton:Fire("OnClick"); assert(calls.new); Equal(latest.statusRole,"error")
+CheckNewLayoutGeometry(latest)
+do
+    local description=latest.body.children[1]
+    local originalMetric=description.label.GetStringHeight
+    local before=latest.window.frame:GetHeight()
+    description.label.GetStringHeight=function() return 64 end
+    description:SetText(description.label:GetText())
+    name:Fire("OnTextChanged","New")
+    CheckNewLayoutGeometry(latest)
+    assert(latest.window.frame:GetHeight()>before)
+    description.label.GetStringHeight=originalMetric
+end
 latest.cancelButton:Fire("OnClick")
 
 -- Actual specialization table and empty state retain their calculated bounds.
@@ -527,6 +596,70 @@ local function PickAssignment(dropdown,value)
         end
     end
     error("Missing assignment option: "..tostring(value))
+end
+-- The same native API boundary drives New Layout; AceGUI remains its value owner.
+do
+    local savedBlank,savedCreate=ns.CreateBlankLayout,ns.LayoutMutations.CreateUserLayoutFromSource
+    local function SourceCallback(owner,key)
+        local control=assert(owner:GetUserData("nativePropertyDropdown"))
+        Equal(control.defaultText,owner.list[owner:GetValue()])
+        control:OpenMenu();Equal(assignmentPopup.lastSetFrameStrata,{"TOOLTIP"})
+        local index,found=0,nil
+        for _,item in owner.pullout:IterateItems() do
+            index=index+1
+            Equal(control.entries[index].text,owner.list[item.userdata.value])
+            if item.userdata.value==key then found=control.entries[index].callback end
+        end
+        Equal(#control.entries,index)
+        return assert(found),control
+    end
+    for _,key in ipairs({"blank","builtin:default","layout:one"}) do
+        local submitted,changes=nil,0
+        ns.CreateBlankLayout=function(self,text,options)
+            assert(self==ns);submitted={"blank",text,options.reason};return true,"layout:new"
+        end
+        ns.LayoutMutations.CreateUserLayoutFromSource=function(id,text,options)
+            submitted={id,text,options.activate,options.reason};return true,"layout:new"
+        end
+        openNew();local dialog=latest
+        CheckNewLayoutGeometry(dialog)
+        local owner=assert(Find(dialog.body,"Dropdown"))
+        owner:SetCallback("OnValueChanged",function(_,_,value)
+            changes=changes+1;Equal(owner:GetValue(),value)
+        end)
+        local callback,control=SourceCallback(owner,key)
+        callback();control:CloseMenu() -- Blizzard closes a radio menu after activation.
+        Equal(owner:GetValue(),key);Equal(changes,1);Equal(submitted,nil)
+        Equal(control.defaultText,owner.list[key])
+        local edit=assert(Find(dialog.body,"EditBox"));edit:SetText("Native source")
+        dialog.primaryButton:Fire("OnClick")
+        if key=="blank" then Equal(submitted,{key,"Native source","create-layout"})
+        else Equal(submitted,{key,"Native source",true,"create-layout-from-source"}) end
+        assert(not dialog.window.frame:IsShown())
+        callback();Equal(changes,1) -- Closed dialog cannot process native selection.
+        openNew();local replacement=latest
+        dialog.window:Show() -- Identity must also reject a replaced but shown window.
+        callback();Equal(changes,1)
+        dialog.window:Hide()
+        local replacementOwner=assert(Find(replacement.body,"Dropdown"))
+        Equal(replacementOwner:GetValue(),"blank")
+        replacement.cancelButton:Fire("OnClick")
+        ace:Release(dialog.window);ace:Release(replacement.window)
+        assert(not control:IsShown() and control.entries==nil)
+        assert(not edit.frame._fpNewLayoutInputFill:IsShown())
+    end
+    local nativeMixin=DropdownButtonMixin
+    DropdownButtonMixin=nil
+    openNew();local fallbackDialog=latest
+    local fallbackOwner=assert(Find(fallbackDialog.body,"Dropdown"))
+    CheckNewLayoutGeometry(fallbackDialog)
+    assert(not fallbackOwner:GetUserData("nativePropertyDropdown"))
+    assert(fallbackOwner.dropdown:IsShown() and fallbackOwner.button_cover:IsShown())
+    fallbackOwner:SetValue("layout:one");Equal(fallbackOwner:GetValue(),"layout:one")
+    fallbackDialog.cancelButton:Fire("OnClick");ace:Release(fallbackDialog.window)
+    DropdownButtonMixin=nativeMixin
+    ns.CreateBlankLayout,ns.LayoutMutations.CreateUserLayoutFromSource=savedBlank,savedCreate
+    print("PASS: New Layout native Blank/builtin/user selection, canonical Create source, stale/closed guards, reopen/release and AceGUI fallback")
 end
 local specCount,currentSpec=3,1
 function GetNumSpecializations() return specCount end

@@ -1065,16 +1065,20 @@ local function OpenNewLayoutDialog(initialSourceId)
     CloseNewLayoutDialog()
     local descriptionHeight = 32
     local descriptionNameGap = 6
-    local nameHeight = 32
+    local nameHeight = 2 + 18 + 6 + 26 -- label inset/height, gap, unlabelled EditBox height
     local nameSourceGap = 6
-    local sourceHeight = 32
+    local sourceHeight = 18 + 6 + 25 -- label, gap, native dropdown/hitbox
     local sourceStatusGap = 6
     local statusHeight = 16
     local statusActionGap = 6
     local actionHeight = 30
-    local bottomPadding = 6
+    local bottomPadding = 2
     local dialog = FormWidgets and FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = T("LAYOUT_CREATE_TITLE", "New Layout"),
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         width = 420,
         height = 57 + descriptionHeight + descriptionNameGap + nameHeight + nameSourceGap + sourceHeight + sourceStatusGap + statusHeight + statusActionGap + actionHeight + bottomPadding,
         bodyLayout = "List",
@@ -1089,8 +1093,8 @@ local function OpenNewLayoutDialog(initialSourceId)
     dialog.body:AddChild(description)
 
     local function AddSpacer(height)
-        local spacer = AceGUI:Create("Label")
-        spacer:SetText("")
+        local spacer = AceGUI:Create("SimpleGroup")
+        spacer:SetAutoAdjustHeight(false)
         spacer:SetFullWidth(true)
         spacer:SetHeight(height)
         dialog.body:AddChild(spacer)
@@ -1102,8 +1106,18 @@ local function OpenNewLayoutDialog(initialSourceId)
     nameEdit:SetLabel(T("LAYOUT_CREATE_NAME", "Name"))
     nameEdit:SetFullWidth(true)
     nameEdit:SetHeight(nameHeight)
+    nameEdit.editbox:SetPoint("TOPLEFT", nameEdit.frame, "TOPLEFT", 7, -(2 + 18 + 6))
     nameEdit:SetText(ResolveDefaultNewLayoutName())
     if FormWidgets and FormWidgets.StyleEditBox then FormWidgets.StyleEditBox(nameEdit, "editor_inset") end
+    local inputFill = nameEdit.frame._fpNewLayoutInputFill
+    if not inputFill then
+        inputFill = nameEdit.frame:CreateTexture(nil, "BACKGROUND")
+        nameEdit.frame._fpNewLayoutInputFill = inputFill
+    end
+    inputFill:SetAllPoints(nameEdit.editbox)
+    inputFill:SetColorTexture(unpack(FormWidgets.ResolveFieldStyle("editor_inset").background))
+    inputFill:Show()
+    nameEdit:SetCallback("OnRelease", function() inputFill:Hide() end)
     dialog.body:AddChild(nameEdit)
 
     AddSpacer(nameSourceGap)
@@ -1115,6 +1129,16 @@ local function OpenNewLayoutDialog(initialSourceId)
     sourceSelect:SetList(BuildNewLayoutSourceList())
     sourceSelect:SetValue(initialSourceId or "blank")
     dialog.body:AddChild(sourceSelect)
+    FormWidgets.BindNativeDropdown(sourceSelect, {
+        isCurrent = function()
+            return newLayoutDialog == dialog and dialog.window.frame:IsShown()
+        end,
+    })
+    local labelColor = NORMAL_FONT_COLOR or { r = 1, g = 0.82, b = 0 }
+    for _, label in ipairs({ nameEdit.label, sourceSelect.label }) do
+        FormWidgets.ApplyTextStyle(label, "label", 13, 1)
+        label:SetTextColor(labelColor.r, labelColor.g, labelColor.b, 1)
+    end
 
     AddSpacer(sourceStatusGap)
 
@@ -1132,10 +1156,23 @@ local function OpenNewLayoutDialog(initialSourceId)
     local actionContainer = AceGUI:Create("SimpleGroup")
     actionContainer:SetFullWidth(true)
     actionContainer:SetHeight(actionHeight)
-    actionContainer:SetLayout("Flow")
+    actionContainer:SetUserData("table", {
+        columns = { { weight = 1, alignH = "left" }, { weight = 1, alignH = "right" } },
+        alignV = "middle",
+    })
+    actionContainer:SetLayout("Table")
     if actionContainer.SetAutoAdjustHeight then actionContainer:SetAutoAdjustHeight(false) end
     dialog.body:AddChild(actionContainer)
     AddSpacer(bottomPadding)
+
+    local function FitDialogHeight()
+        dialog.body:DoLayout()
+        local contentHeight = 0
+        for _, child in ipairs(dialog.body.children) do
+            contentHeight = contentHeight + child.frame:GetHeight()
+        end
+        dialog.window:SetHeight(57 + 6 + contentHeight)
+    end
 
     local function updateCreateButton()
         if dialog.primaryButton then
@@ -1146,11 +1183,13 @@ local function OpenNewLayoutDialog(initialSourceId)
     local function clearStatus()
         dialog:SetStatus("", nil, status)
         updateCreateButton()
+        FitDialogHeight()
     end
 
     local function confirm()
         if HasDirtyTextBuilderDraft() then
             dialog:SetStatus(ResolveCreateLayoutStatus("dirty-text-builder"), "error", status)
+            FitDialogHeight()
             return
         end
         local sourceId = sourceSelect:GetValue() or "blank"
@@ -1171,6 +1210,7 @@ local function OpenNewLayoutDialog(initialSourceId)
         end
         dialog:SetStatus(ResolveCreateLayoutStatus(resultOrReason), "error", status)
         updateCreateButton()
+        FitDialogHeight()
         CanvasToolbar.Refresh()
     end
 
@@ -1199,6 +1239,7 @@ local function OpenNewLayoutDialog(initialSourceId)
     newLayoutDialog = dialog
     updateCreateButton()
     dialog:Show()
+    FitDialogHeight()
     FocusDialogEditBox(nameEdit)
 end
 local function EnsureHost()
