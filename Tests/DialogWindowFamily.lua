@@ -35,6 +35,14 @@ local function Check(dialog,width,height)
     f.Check(dialog)
     Equal({dialog.window.frame:GetWidth(),dialog.window.frame:GetHeight()},{width,height})
 end
+local function CheckHeaderDrag(window)
+    local points=window.title.points
+    assert(points.TOPLEFT.relative==window.frame and points.BOTTOMRIGHT.relative==window.frame)
+    Equal({points.TOPLEFT.relativePoint,points.BOTTOMRIGHT.relativePoint},{"TOPLEFT","TOPRIGHT"})
+    Equal({points.TOPLEFT.x,points.TOPLEFT.y,points.BOTTOMRIGHT.x,points.BOTTOMRIGHT.y},
+        {8,0,-math.max(36,window.closebutton:GetWidth()+4),-32})
+    Equal({window.closebutton.points.TOPRIGHT.x,window.closebutton.points.TOPRIGHT.y},{2,1})
+end
 local function CheckText(root,text,role,size)
     local function Visit(widget)
         local label=widget.label
@@ -114,6 +122,7 @@ end
 -- Real manager name/confirmation consumers and their existing mutation callbacks.
 local manager=ns.GUI.Editor.LayoutManager
 local context=Upvalue(manager.Open,"context")
+CheckHeaderDrag(context.window)
 local calls={}
 ns.LayoutMutations={
     RenameUserLayout=function(id,name) calls.rename={id,name}; return false,"invalid-name" end,
@@ -456,6 +465,7 @@ local function CheckAssignments(dialog)
     Equal({dialog.window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
     local titlePoints=dialog.window.titletext.points
     Equal({titlePoints.TOPLEFT.x,titlePoints.TOPLEFT.y,titlePoints.TOPRIGHT.x,titlePoints.TOPRIGHT.y},{12,-15,-32,-15})
+    CheckHeaderDrag(dialog.window)
     local last=dialog.body.children[#dialog.body.children]
     local bottom=-last.frame.points.TOPLEFT.y+last.frame:GetHeight()
     Equal(dialog.window.frame:GetHeight(),57+6+bottom+8)
@@ -612,6 +622,12 @@ do
             dialog.window.frame:Run("OnKeyDown","ESCAPE");assert(not dialog.window.frame:IsShown())
             api.Open();dialog.window.closebutton:Run("OnClick");assert(not dialog.window.frame:IsShown())
             ace:Release(dialog.window)
+            local restoredDrag=dialog.window.title.points
+            local titleBackground=restoredDrag.TOPLEFT.relative
+            assert(titleBackground~=dialog.window.frame and titleBackground==restoredDrag.BOTTOMRIGHT.relative)
+            Equal({restoredDrag.TOPLEFT.x,restoredDrag.TOPLEFT.y,restoredDrag.BOTTOMRIGHT.x,restoredDrag.BOTTOMRIGHT.y},{0,0,0,0})
+            Equal({titleBackground.points.TOPLEFT.x,titleBackground.points.TOPLEFT.y,
+                titleBackground.points.BOTTOMRIGHT.x,titleBackground.points.BOTTOMRIGHT.y},{9,-6,-28,-24})
             assert(not dialog.window.frame._fpModernNineSlice or not dialog.window.frame._fpModernNineSlice:IsShown())
             assert(not dialog.window.frame._fpModernPortraitBackground:IsShown())
             for _,slot in ipairs({"Left","Right","BottomLeft","BottomRight","Center","BottomCenter","SideLeft","SideRight"}) do

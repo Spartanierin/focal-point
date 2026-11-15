@@ -336,6 +336,7 @@ local function CreateWindow()
         windowChrome = "editmode",
         titleFontSize = 16,
         titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
         portrait = false,
         background = "blizzard",
         topTileStreaks = true,
