@@ -1,16 +1,16 @@
 # WoW Modern UI Design Guide
 
 Status — Gestalterische Grundlage für eigenständige Focal-Point-Funktionsfenster.
-Die technischen Angaben beschreiben den aktuellen Arbeitsbaum einschließlich des
-Manage-Layouts-WIP auf Basis von `7bda6355f09af7c9a2fbafc811ec9a9105534983`.
+Die technischen Angaben beschreiben den Stand nach dem UI-Abschluss auf Basis
+von `ef83876e441a3a4cd62d34a68302ce515ab41b61`.
 Native Grafikabnahmen bleiben Bestandteil jedes einzelnen Umstellungsblocks.
 
 ## Zwei Designwelten
 
 | Designwelt | Einsatz und Aufgabe |
 | --- | --- |
-| Edit Mode Look | Canvas / Customize, Add Object, Add Unit und Werkzeuge zur direkten visuellen Komposition. Die Oberfläche unterstützt die Arbeit am sichtbaren Layout. |
-| WoW Modern Look | Manage Layouts, Media Libraries, Text Builder, Tag Library und weitere eigenständige Funktionsfenster. Die Oberfläche unterstützt Auswahl, Verwaltung und fachliche Bearbeitung. |
+| Edit Mode Look | Canvas / Customize, Add Object, Add Unit sowie Manage Layouts, Specialization Assignments, Options und New Layout. Gemeinsame Fensteroptik bei jeweils eigener Informationsarchitektur. |
+| WoW Modern Look | Media Libraries und Tag Library verwenden weiterhin ihre bestehende Modern-/Materialdarstellung. Weitere Funktionsfenster werden je aktivem Consumer gesondert bewertet. |
 
 Die Zuordnung ist eine Produktentscheidung. Der technische Umstellungsstand wird
 je Consumer geprüft. Die vorhandene
@@ -67,9 +67,9 @@ Communities-spezifischen Listenflächen besitzen getrennte Zuständigkeiten.
 
 | Baustein | Bestehender Einstieg und tatsächliche Grenze |
 | --- | --- |
-| Compact-Dialog | `FormWidgets.CreateCompactFormDialog(options)` besitzt im aktuellen WIP `windowChrome = "modern"`. `portrait = false` wählt den portraitlosen Modern-Pfad. Der Consumer behält Fensterbesitz, Inhalt und fachliche Aktionen. |
+| Compact-Dialog | `FormWidgets.CreateCompactFormDialog(options)` unterstützt die expliziten Opt-ins `windowChrome = "editmode"` und `windowChrome = "modern"`. `portrait = false` wählt im Modern-Pfad den portraitlosen Rahmen. Ohne Opt-in bleiben die bestehenden Dialog-Defaults erhalten. Der Consumer behält Fensterbesitz, Inhalt und fachliche Aktionen. |
 | Modern-Chrome direkt | `FormWidgets.ApplyModernWindowChrome(window, options)` verwendet mit `nineSlice = true` die vorhandenen Blizzard-NineSlice-Layouts. `portrait` wählt den Rahmen. `focalPointTool = true` aktiviert die bisherige Focal-Point-Materialdarstellung. |
-| Hintergrund und oberer Übergang | Die WIP-Fabrik reicht `background = "blizzard"` und `topTileStreaks = true` weiter. Rock wird über den bestehenden Hintergrundpfad erzeugt. Streaks sind ein explizites Opt-in im portraitlosen NineSlice-Pfad und werden erst nach erfolgreicher Atlas-Abfrage angezeigt. |
+| Hintergrund und oberer Übergang | Im Modern-Pfad reicht die Fabrik `background = "blizzard"` und `topTileStreaks = true` weiter. Rock wird über den bestehenden Hintergrundpfad erzeugt. Streaks sind ein explizites Opt-in im portraitlosen NineSlice-Pfad und werden erst nach erfolgreicher Atlas-Abfrage angezeigt. Der Edit-Mode-Pfad verwendet stattdessen den dunklen, transparenten Hintergrund ohne Rock oder Streaks. |
 | Restore, Close und Fokus | `RestoreDefaultWindowChrome()`, `EnsureStandardWindowCloseButton()`, `CenterWindow()` und `FocusWindow()` sind vorhandene Funktionen. Die Compact-Fabrik besitzt Shell-Release und Escape-Anbindung. `dialog:Close()` versteckt das Fenster, tatsächliches Release wird vom bestehenden Consumer-Vertrag bestimmt. |
 | Text und Sections | `ApplyTextStyle(target, role, size, alpha)`, `CreateBodyText()` und `CreateSectionTitle()` verwenden vorhandene Textrollen. Die konkrete Typografie und Abstände werden am jeweiligen Content geprüft. |
 | Flächen | `ApplySurfacePresentation(widget, key, options)` gestaltet bestehende Frames unter anderem über `fill`, `border` und `material`. Diese Präsentation legt weder Navigation noch Panel-Größe fest. |
@@ -84,7 +84,10 @@ Technische Quellen sind
 
 ## Lokale Lösungen und Wiederverwendungsgrenzen
 
-- Manage Layouts setzt die Modern-Optionen im aktuellen WIP ausdrücklich.
+- Manage Layouts setzt ausdrücklich `windowChrome = "editmode"`, Titelgröße 16,
+  `titleOffsetY = -7` (nominal Y=-15) und die lokale 32er-`headerDrag`-Option.
+  Die noch vorhandenen Modern-Parameter `portrait`, `background` und
+  `topTileStreaks` aktivieren in diesem Pfad weder Rock noch Streaks.
   Ein lokales `InsetFrameTemplate` umfasst den vorhandenen ScrollFrame und den
   Zähler. Seine `Bg`-Region ist verborgen; die zusätzlich eingeführte lokale
   Marble-Content-Texture wurde entfernt. Das Inset ist nicht interaktiv und wird
@@ -99,12 +102,18 @@ Technische Quellen sind
 - Der Composition Tree besitzt eigene Rows, Icon-Zuordnung und Scrollbar-Grafik.
   Seine Gestaltung liefert Referenzwerte. Selection- und Tree-Controller bleiben
   fachlich gebunden. [CompositionTreeControl.lua](../../GUI/Editor/Composition/CompositionTreeControl.lua)
-- Media Library, Tag Library und Text Builder verwenden derzeit direkte Windows
-  mit `ApplyModernWindowChrome()` und `focalPointTool = true`. Die Produktzuordnung
-  zum WoW Modern Look beschreibt ihre weitere gestalterische Richtung.
+- Media Library und Tag Library verwenden weiterhin direkte Windows mit
+  `ApplyModernWindowChrome()` und `focalPointTool = true`.
   [MediaLibraryView.lua](../../GUI/Editor/MediaLibrary/MediaLibraryView.lua),
-  [TagLibraryView.lua](../../GUI/Pages/TagLibrary/TagLibraryView.lua),
-  [TextBuilderController.lua](../../GUI/Pages/TextBuilder/TextBuilderController.lua)
+  [TagLibraryView.lua](../../GUI/Pages/TagLibrary/TagLibraryView.lua)
+- Options → Manage Text Templates öffnet über `GUIController.OpenTextBuilderWindow()`
+  und das in `TextBuilderEntity.lua` überschriebene `TextBuilder.OpenWindow` den Texts Manager.
+  Dieser und die aktiven New-Template-/Edit-Text-Dialoge verwenden Compact-Dialoge
+  ohne Edit-Mode-/Modern-Opt-in. Die direkte Modern-Großfensterimplementierung in
+  `TextBuilderController.lua` ist nicht der normale Options-Einstieg. Diese Fenster
+  sind nicht Bestandteil der abgeschlossenen Vier-Fenster-Umstellung.
+  [TextBuilderEntity.lua](../../GUI/Pages/TextBuilder/TextBuilderEntity.lua),
+  [TextTemplateLibraryWindow.lua](../../GUI/Editor/TextTemplateLibraryWindow.lua)
 - `titleFontSize`, `titleOffsetY` und `headerDrag` sind derzeit Optionen des
   kompakten Edit-Mode-Pfads. Ihre Übertragbarkeit auf Modern-Fenster erfordert eine
   eigene Prüfung des bestehenden Titel- und Drag-Vertrags.
@@ -139,8 +148,9 @@ Listenframeworks oder Fensterframeworks benötigen keine Einführung für diesen
 gestalterischen Ablauf.
 
 Native Sichtprüfungen entscheiden über Kontrast, Schriftmetriken und Hitboxes.
-Die aktuelle Manage-Layouts-Komposition mit Rock-Hintergrund, TopTileStreaks und
-lokalem Listen-Inset wurde vom Entwickler nativ visuell und funktional abgenommen.
+Die aktuelle Manage-Layouts-Komposition mit Edit-Mode-Chrome, dunklem transparentem
+Hintergrund und lokalem Listen-Inset wurde vom Entwickler nativ visuell und
+funktional abgenommen. Rock und TopTileStreaks sind in diesem Consumer nicht aktiv.
 Eine zusätzliche lokale Marble-Content-Fläche gehört nicht zum aktuellen Stand.
 
 Für weitere Fenster bleiben Panel-Zuschnitt, Informationsgewichtung und lokale

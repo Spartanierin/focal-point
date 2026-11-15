@@ -17,7 +17,7 @@ Use this checklist before every release cut.
 
 ## 3) Defaults + Data Consistency
 - Confirm intended defaults in `Data/Defaults.lua`.
-- If adopting live profile values as defaults:
+- If adopting live layout or option values as defaults:
   - compare explicitly,
   - apply only confirmed deltas,
   - avoid broad overwrite from SavedVariables.
@@ -31,13 +31,13 @@ Use this checklist before every release cut.
 - Verify text rendering (especially `[name]`) on target/focus/boss.
 - Verify combat-sensitive bars:
   - power, alt power, class power.
-- Verify presets + apply path still work.
+- Verify layout selection and activation paths for built-in and user layouts.
 
 ## 5) Visual Sanity Checks
 - Sidebar button states readable:
   - normal, hover, pressed, active, disabled, danger, close utility.
 - Welcome modal primary action styling still correct.
-- Tool pages (Profiles/Text Builder/Tag DB) button roles render consistently.
+- Functional windows (Manage Layouts, Texts Manager, Tag Library) button roles render consistently.
 
 ## 6) Localization Checks
 - German client: German strings present.

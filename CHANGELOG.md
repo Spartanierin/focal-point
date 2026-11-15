@@ -10,6 +10,22 @@ This changelog uses the following categories:
 * `Fixed` for bug fixes
 * `Removed` for removed functionality
 
+## 3.0.4
+
+### Improved
+
+* Updated Manage Layouts, Specialization Assignments, Options, and New Layout with consistent Edit Mode window styling, clearer typography, and larger header drag areas.
+* Improved layout status visibility and action grouping in Manage Layouts.
+* Clarified specialization assignment and Account Default information.
+* Reused native Blizzard dropdown presentation in Specialization Assignments and New Layout, retaining the existing fallback.
+* Improved New Layout field spacing, input contrast, and action placement.
+
+### Fixed
+
+* Stabilized visual text dragging: hitboxes follow the preview, committed positions are reapplied consistently, and dragging preserves the current Inspector view.
+* Restored the correct background draw layer when pooled windows reuse Modern chrome after Edit Mode.
+* Fixed an Inspector layout initialization issue by configuring tab columns before attaching the navigation container, preventing division-by-zero errors on affected clients.
+
 ## 3.0.3
 
 ### Improved

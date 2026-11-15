@@ -18,19 +18,20 @@ characters.
 <a id="release-300"></a>
 <a id="release-301"></a>
 <a id="release-302"></a>
+<a id="release-303"></a>
+<a id="release-304"></a>
 
-## Release 3.0.3
+## Release 3.0.4
 
-Version 3.0.3 improves Add Object and Add Unit with matching Edit Mode windows,
-component icons and colors, clearer category headings, modern scrollbar
-graphics, and a larger header drag area. Close either picker with X or Escape.
-The independently positioned CUSTOM Power Bars and configurable NPC Health
-reaction colors introduced in 3.0.2 remain available.
-Retail/Midnight has been natively tested. Focal Point 3.0.0 has also been
-extensively natively tested on WoW Forever. In 3.0.1, the Components Tree removal
-icon improves cross-client presentation and has been natively checked on
-Forever and Midnight. These checks do not guarantee every function or client
-configuration.
+Version 3.0.4 gives Manage Layouts, Specialization Assignments, Options, and New
+Layout consistent Edit Mode styling, clearer controls, and larger header drag
+areas. It also stabilizes visual text dragging and Inspector navigation, and
+corrects background layering when pooled windows switch chrome styles.
+The Add Object and Add Unit improvements from 3.0.3, independently positioned
+CUSTOM Power Bars, and configurable NPC Health reaction colors remain available.
+The 3.0.4 release smoke checks passed on Retail/Midnight and WoW Forever,
+including Inspector dropdowns. These checks do not guarantee every function or
+client configuration.
 
 Before updating, close the game and make an external backup of your Focal Point
 SavedVariables. A native upgrade test using a real 2.x backup retained existing

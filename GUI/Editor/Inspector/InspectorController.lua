@@ -2509,7 +2509,6 @@ function InspectorController.Build(container, state, options)
         navigation:SetLayout("Table")
         local tabColumns = {}
         navigation:SetUserData("table", {columns=tabColumns, spaceH=useTabArt and 1 or 0, spaceV=0})
-        body:AddChild(navigation)
         local chrome = ns.GUI.Skins.GetFormPalette().Chrome
         local baseline = navigation.frame._fpNormalAbsorbTabBaseline
         if not baseline then
@@ -2666,6 +2665,8 @@ function InspectorController.Build(container, state, options)
             end)
             navigation:AddChild(button)
         end
+        -- AddChild can synchronously layout descendants; attach only after columns and tabs exist.
+        body:AddChild(navigation)
         local function RegisterGroups(membership, actionsSection)
             if actionsSection then
                 -- Same Body owner and Remove callback; actions are not tab properties.

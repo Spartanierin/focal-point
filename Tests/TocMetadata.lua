@@ -25,8 +25,8 @@ local function RequirePresent(key)
 end
 
 Require("Title", "Focal Point")
-Require("Interface", "120105, 16001")
-Require("Version", "3.0.3")
+Require("Interface", "120105, 120107, 16001")
+Require("Version", "3.0.4")
 Require("Author", "Spartanierin")
 Require("Notes")
 Require("SavedVariables", "FocalPointDB")
@@ -43,7 +43,7 @@ for index, key in ipairs(order) do
 end
 assert(interfaceIndex and versionIndex and interfaceIndex < versionIndex,
     "TOC Interface must precede Version")
-assert(metadata.Interface == "120105, 16001",
-    "TOC Interface order must be Retail 120105, Forever 16001")
+assert(metadata.Interface == "120105, 120107, 16001",
+    "TOC Interface order must be Retail 120105, PTR 120107, Forever 16001")
 
 print("PASS: canonical TOC Interface, Version and release metadata")
