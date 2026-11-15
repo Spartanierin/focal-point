@@ -16,13 +16,14 @@ local ROW_HEIGHT = 30
 local WINDOW_WIDTH = 640
 local WINDOW_CHROME_HEIGHT = 57
 local WINDOW_DESCRIPTION_HEIGHT = 16
-local WINDOW_LIST_HEIGHT = 330
+local WINDOW_CONTEXT_GAP = 4
+local WINDOW_LIST_HEIGHT = 322
 local WINDOW_STATUS_HEIGHT = 22
-local WINDOW_SELECTION_GAP = 4
+local WINDOW_SELECTION_GAP = 8
 local WINDOW_SELECTION_HEIGHT = 26
 local WINDOW_FOOTER_HEIGHT = 28
 local WINDOW_TRANSFER_ACTIONS_HEIGHT = 32
-local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_SELECTION_GAP + WINDOW_SELECTION_HEIGHT + WINDOW_FOOTER_HEIGHT + WINDOW_TRANSFER_ACTIONS_HEIGHT + 6 -- compact body top inset
+local WINDOW_HEIGHT = WINDOW_CHROME_HEIGHT + WINDOW_DESCRIPTION_HEIGHT + WINDOW_CONTEXT_GAP + WINDOW_LIST_HEIGHT + WINDOW_STATUS_HEIGHT + WINDOW_SELECTION_GAP + WINDOW_SELECTION_HEIGHT + WINDOW_FOOTER_HEIGHT + WINDOW_TRANSFER_ACTIONS_HEIGHT + 6 -- compact body top inset
 
 local context
 local renameDialog
@@ -267,7 +268,7 @@ local function RegisterLayoutRowWidget()
         if nameText.SetMaxLines then
             nameText:SetMaxLines(1)
         end
-        ApplyFontStringStyle(nameText, "label", 11, colors.name)
+        ApplyFontStringStyle(nameText, "label", 12, colors.name)
 
         local widget = {
             frame = frame,
@@ -416,7 +417,7 @@ local function AddGroupHeader(parent, text)
     parent:AddChild(row)
 
     row:AddChild(CreateSpacer(10, 1))
-    row:AddChild(CreateLabel(text, "parchmentSectionHeader", 12, 180))
+    row:AddChild(CreateLabel(text, "parchmentSectionHeader", 14, 180))
     row:AddChild(CreateSpacer(8, 1))
     local divider = AceGUI:Create("SimpleGroup")
     divider:SetAutoAdjustHeight(false)
@@ -1253,7 +1254,9 @@ local function CreateWindow()
         height = WINDOW_HEIGHT,
         bodyLayout = "List",
         useCanonicalWindowShell = true,
-        windowChrome = "modern",
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
         portrait = false,
         background = "blizzard",
         topTileStreaks = true,
@@ -1279,6 +1282,11 @@ local function CreateWindow()
         FormWidgets.ApplyTextStyle(description.label, "parchmentSecondary", 11, 1)
     end
     body:AddChild(description)
+
+    local contextGap = AceGUI:Create("SimpleGroup")
+    contextGap:SetFullWidth(true)
+    LockContainerHeight(contextGap, WINDOW_CONTEXT_GAP)
+    body:AddChild(contextGap)
 
     local transferActions = AceGUI:Create("SimpleGroup")
     transferActions:SetLayout("Flow")

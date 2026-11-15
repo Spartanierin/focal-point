@@ -256,7 +256,14 @@ do
         Equal(w.importButton.text:GetText(),ns.L.LAYOUT_MANAGER_IMPORT)
         Equal(w.exportButton.text:GetText(),ns.L.LAYOUT_MANAGER_EXPORT)
         assert(w.importButton.text:GetText()~=ns.L.LAYOUT_TRANSFER_IMPORT)
-        assert(#localizedContext.dialog.body.children[2].children==2)
+        local transferActions
+        for _,child in ipairs(localizedContext.dialog.body.children) do
+            if child.children and child.children[1]==w.importButton then
+                assert(not transferActions,"Duplicate transfer action group")
+                transferActions=child
+            end
+        end
+        assert(transferActions and #transferActions.children==2 and transferActions.children[2]==w.assignmentsButton)
         localizedContext.selectedLayoutId="layout:one";accountDefaultId="layout:one"
         localizedManager.Refresh()
         local bodyWidth=570 -- width 640 minus unchanged 24 + 28 + 18 anchor insets
@@ -290,7 +297,7 @@ do
         assert(nameRight==bodyWidth)
         assert(w.selectedDescription.label:GetStringWidth()<=nameRight)
         Equal({localizedContext.window.frame:GetWidth(),localizedContext.window.frame:GetHeight()},{640,521})
-        Equal(w.scroll.frame:GetHeight(),330)
+        Equal(w.scroll.frame:GetHeight(),322)
         assert(not w.exportButton.disabled)
         localizedContext.selectedLayoutId="builtin:default";localizedManager.Refresh()
         assert(w.exportButton.disabled and not w.renameButton.frame:IsShown() and not w.deleteButton.frame:IsShown())
