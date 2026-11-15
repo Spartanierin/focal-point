@@ -197,7 +197,7 @@ local function AddDefaultContext(body, layoutValues)
     local maxLines = label.label.GetMaxLines and label.label:GetMaxLines()
     if wordWrap ~= nil then label.label:SetWordWrap(false) end
     if maxLines ~= nil then label.label:SetMaxLines(1) end
-    if FormWidgets.ApplyTextStyle then FormWidgets.ApplyTextStyle(label.label, "label", 11, 1) end
+    if FormWidgets.ApplyTextStyle then FormWidgets.ApplyTextStyle(label.label, "parchmentSecondary", 11, 1) end
     label:SetCallback("OnEnter", function(widget)
         if GameTooltip then
             GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
@@ -213,7 +213,7 @@ local function AddDefaultContext(body, layoutValues)
     end)
     body:AddChild(label)
     local hint = CreateLabel(T("LAYOUT_ASSIGNMENT_FALLBACK_HINT",
-        "Without an assignment, specialization changes keep the current layout. At login, the account default is used if no valid assignment exists."), "help", 11)
+        "Without an assignment, specialization changes keep the current layout. At login, the account default is used if no valid assignment exists."), "parchmentSecondary", 11)
     body:AddChild(hint)
 end
 
@@ -230,7 +230,7 @@ local function RefreshRows()
     local layoutValues, layoutOrder = BuildLayoutDropdownData()
     local currentSpecID = GetCurrentSpecID()
 
-    local description = CreateLabel(T("LAYOUT_ASSIGNMENT_DESCRIPTION", "Assign layouts to your current class specializations."), "help", 11)
+    local description = CreateLabel(T("LAYOUT_ASSIGNMENT_DESCRIPTION", "Assign layouts to your current class specializations."), "parchmentSecondary", 11)
     description:SetHeight(WINDOW_DESCRIPTION_TEXT_HEIGHT)
     body:AddChild(description)
     body:AddChild(CreateSpacer(nil, WINDOW_DESCRIPTION_GAP))
@@ -246,9 +246,13 @@ local function RefreshRows()
     body:AddChild(header)
     header:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_SPEC", "Specialization"), "sectionHeader", 12))
     header:AddChild(CreateLabel(T("LAYOUT_ASSIGNMENT_LAYOUT", "Assigned layout"), "sectionHeader", 12))
+    local headerColor = NORMAL_FONT_COLOR or { r = 1, g = 0.82, b = 0 }
+    for _, label in ipairs(header.children) do
+        label.label:SetTextColor(headerColor.r, headerColor.g, headerColor.b, 1)
+    end
 
     if #specs == 0 then
-        local empty = CreateLabel(T("LAYOUT_ASSIGNMENT_NO_SPECS", "No specializations available."), "help", 11, 455)
+        local empty = CreateLabel(T("LAYOUT_ASSIGNMENT_NO_SPECS", "No specializations available."), "parchmentSecondary", 11, 455)
         body:AddChild(empty)
         AddDefaultContext(body, layoutValues)
         body:AddChild(CreateSpacer(nil, WINDOW_CONTENT_PADDING))
@@ -275,7 +279,7 @@ local function RefreshRows()
         if spec.id == currentSpecID then
             specLabel = specLabel .. "  " .. T("LAYOUT_ASSIGNMENT_CURRENT", "Current")
         end
-        local label = CreateLabel(specLabel, spec.id == currentSpecID and "sectionHeader" or "label", 11)
+        local label = CreateLabel(specLabel, "identity", 14)
         label:SetHeight(32)
         row:AddChild(label)
 

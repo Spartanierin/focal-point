@@ -577,11 +577,22 @@ local function CheckAssignments(dialog)
     assert(not dialog.window.frame._fpParchmentNineSlice or not dialog.window.frame._fpParchmentNineSlice:IsShown())
     local header=dialog.body.children[3]
     Equal(header:GetUserData("table").columns[1].width,180)
+    for _,label in ipairs(header.children) do
+        Equal({label.label:GetFont()},{STANDARD_TEXT_FONT,12,""})
+        local color=NORMAL_FONT_COLOR or {r=1,g=.82,b=0}
+        Equal(label.label.lastSetTextColor,{color.r,color.g,color.b,1})
+    end
+    CheckText(dialog.body,ns.L.LAYOUT_ASSIGNMENT_DESCRIPTION or "Assign layouts to your current class specializations.","parchmentSecondary",11)
     for index=3,3+specCount do
         local row=dialog.body.children[index]
         row:SetWidth(450);row:DoLayout()
         assert(#row.children==2)
         local left,right=row.children[1],row.children[2]
+        if index>3 then
+            Equal(row.frame:GetHeight(),42)
+            Equal(left.frame:GetHeight(),32)
+            CheckText(row,left.label:GetText(),"identity",14)
+        end
         Equal(left.frame.points.RIGHT.x-left.frame.points.LEFT.x,180)
         Equal(right.frame.points.RIGHT.x-right.frame.points.LEFT.x,258)
         Equal(right.frame.points.LEFT.x,192)
@@ -635,7 +646,7 @@ assignmentNative:OpenMenu();assignmentsAPI.Close()
 blockedAssignment();Equal(calls.assignment,nil)
 assignmentsAPI.Open();assert(not assignmentPopup:IsShown())
 specCount=0; ns.GUI.Editor.LayoutAssignments.Refresh()
-CheckText(assignments.body,"No specializations available.","help",11)
+CheckText(assignments.body,"No specializations available.","parchmentSecondary",11)
 assignmentsAPI.Close(); assert(not assignments.window.frame:IsShown())
 assignmentButton:Fire("OnClick"); Equal(assignments.window.frame:GetWidth(),520)
 Equal(#created,dialogsBeforeAssignments+1)
@@ -688,13 +699,14 @@ do
                     if child.type=="InteractiveLabel" then summary=child end
                 end
                 assert(summary)
+                CheckText(dialog.body,summary.label:GetText(),"parchmentSecondary",11)
                 Equal(summary.label:GetText(),string.format(ns.L.LAYOUT_ASSIGNMENT_DEFAULT_CONTEXT,case.name or ns.L[case.key]))
                 assert(summary.frame:GetHeight()>0 and summary.frame:GetHeight()<=24)
                 summary:Fire("OnEnter")
                 assert(GameTooltip.shown and GameTooltip.text==summary.label:GetText().."\n"..ns.L.LAYOUT_ASSIGNMENT_SPEC_PRIORITY)
                 summary:Fire("OnLeave");assert(not GameTooltip.shown)
                 for _,key in ipairs({"LAYOUT_ASSIGNMENT_FALLBACK_HINT"}) do
-                    CheckText(dialog.body,ns.L[key],"help",11)
+                    CheckText(dialog.body,ns.L[key],"parchmentSecondary",11)
                     assert(#ns.L[key]*7<=450*3,"hint exceeds fixture three-line capacity")
                 end
             end
