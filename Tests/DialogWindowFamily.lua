@@ -453,12 +453,29 @@ local selectedBeforeAssignments=context.selectedLayoutId
 local dialogsBeforeAssignments=#created
 local function CheckAssignments(dialog)
     Equal(dialog.window.frame:GetWidth(),520)
+    Equal({dialog.window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    local titlePoints=dialog.window.titletext.points
+    Equal({titlePoints.TOPLEFT.x,titlePoints.TOPLEFT.y,titlePoints.TOPRIGHT.x,titlePoints.TOPRIGHT.y},{12,-15,-32,-15})
     local last=dialog.body.children[#dialog.body.children]
     local bottom=-last.frame.points.TOPLEFT.y+last.frame:GetHeight()
     Equal(dialog.window.frame:GetHeight(),57+6+bottom+8)
-    assert(dialog.window.frame._fpModernNineSlice:IsShown())
-    Equal(dialog.window.frame._fpModernNineSlice.testLayoutName,"ButtonFrameTemplateNoPortrait")
-    assert(dialog.window.frame._fpModernPortraitBackground:IsShown())
+    local frame=dialog.window.frame
+    assert(not frame._fpModernNineSlice or not frame._fpModernNineSlice:IsShown())
+    assert(not frame._fpPanelFill:IsShown())
+    local editAtlases={Left="UI-Frame-DiamondMetal-CornerTopLeft",Right="UI-Frame-DiamondMetal-CornerTopRight",
+        BottomLeft="UI-Frame-DiamondMetal-CornerBottomLeft",BottomRight="UI-Frame-DiamondMetal-CornerBottomRight",
+        Center="_UI-Frame-DiamondMetal-EdgeTop",BottomCenter="_UI-Frame-DiamondMetal-EdgeBottom",
+        SideLeft="!UI-Frame-DiamondMetal-EdgeLeft",SideRight="!UI-Frame-DiamondMetal-EdgeRight"}
+    for slot,atlas in pairs(editAtlases) do
+        local region=assert(frame["_fpModernTitle"..slot])
+        assert(region:IsShown());Equal(region.atlas,atlas)
+        Equal({region:GetDrawLayer()},{"BORDER",0})
+    end
+    local background=assert(frame._fpModernPortraitBackground)
+    assert(background:IsShown());Equal(background:GetTexture(),nil)
+    Equal(background.lastSetColorTexture,{0,0,0,.8})
+    Equal({background:GetDrawLayer()},{"BACKGROUND",-5})
+    assert(not frame._fpModernPortraitTopTileStreaks or not frame._fpModernPortraitTopTileStreaks:IsShown())
     assert(not dialog.window.frame._fpParchmentNineSlice or not dialog.window.frame._fpParchmentNineSlice:IsShown())
     local header=dialog.body.children[3]
     Equal(header:GetUserData("table").columns[1].width,180)
@@ -597,6 +614,9 @@ do
             ace:Release(dialog.window)
             assert(not dialog.window.frame._fpModernNineSlice or not dialog.window.frame._fpModernNineSlice:IsShown())
             assert(not dialog.window.frame._fpModernPortraitBackground:IsShown())
+            for _,slot in ipairs({"Left","Right","BottomLeft","BottomRight","Center","BottomCenter","SideLeft","SideRight"}) do
+                assert(not dialog.window.frame["_fpModernTitle"..slot]:IsShown())
+            end
         end
     end
     ns.L=oldLocale;GetLocale=oldGetLocale
