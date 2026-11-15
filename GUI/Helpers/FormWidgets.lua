@@ -1643,6 +1643,96 @@ function FormWidgets.StyleDropdown(dropdown, variant, valueRole)
     FormWidgets.ApplyLabelTypography(dropdown)
 end
 
+-- AceGUI owns values, order and callbacks; consumers own binding validity.
+function FormWidgets.BindNativeDropdown(dropdown, options)
+    options = options or {}
+    -- Keep the existing Dropdown as API/lifecycle owner and source of values/order.
+    local native = dropdown.frame._fpNativePropertyDropdown
+    if type(DropdownButtonMixin) == "table"
+        and type(DropdownButtonMixin.SetupMenu) == "function"
+        and type(DropdownButtonMixin.ClearMenuState) == "function"
+        and type(WowStyle1DropdownMixin) == "table" then
+        if not native then
+            local ok, frame = pcall(_G.CreateFrame, "DropdownButton", nil, dropdown.frame, "WowStyle1DropdownTemplate")
+            if ok then
+                native = frame
+                dropdown.frame._fpNativePropertyDropdown = native
+                native:HookScript("OnHide", function(self) self:CloseMenu() end)
+            end
+        end
+    else
+        return false
+    end
+    if not native then return false end
+    -- Preserve explicit native order without changing the AceGUI fallback.
+    if options.order then dropdown:SetList(dropdown.list, options.order) end
+
+    local bindingActive = true
+    local function IsCurrentBinding()
+        return bindingActive and (not options.isCurrent or options.isCurrent())
+    end
+    local setValue, setList, setDisabled, release = dropdown.SetValue, dropdown.SetList, dropdown.SetDisabled, dropdown.OnRelease
+    local oldShown, coverShown = dropdown.dropdown:IsShown(), dropdown.button_cover:IsShown()
+    local function Sync()
+        native:SetDefaultText(dropdown.list[dropdown.value] or "")
+        native:SetupMenu(function(_, rootDescription)
+            rootDescription:AddMenuAcquiredCallback(function(menu) menu:SetFrameStrata("TOOLTIP") end)
+            -- AceGUI already implements plain maps and explicit values/order sorting.
+            for _, item in dropdown.pullout:IterateItems() do
+                local key = item.userdata.value
+                rootDescription:CreateRadio(dropdown.list[key], function()
+                    return IsCurrentBinding() and dropdown.value == key
+                end, function()
+                    if IsCurrentBinding() and not dropdown.disabled and dropdown.list[key] ~= nil then
+                        dropdown:SetValue(key)
+                        dropdown:Fire("OnValueChanged", key)
+                    end
+                end)
+            end
+        end)
+    end
+    dropdown.SetValue = function(self, value)
+        if not IsCurrentBinding() then return end
+        setValue(self, value); Sync()
+    end
+    dropdown.SetList = function(self, list, order, ...)
+        if not IsCurrentBinding() then return end
+        if type(list) == "table" and type(list.values) == "table" then
+            order, list = list.order, list.values
+        end
+        setList(self, list, order, ...); Sync()
+    end
+    dropdown.SetDisabled = function(self, value)
+        if not IsCurrentBinding() then return end
+        setDisabled(self, value); native:SetEnabled(not value)
+        if value then native:CloseMenu() end
+    end
+    dropdown.OnRelease = function(self)
+        bindingActive = false
+        native:ClearMenuState(); native:Hide()
+        self.SetValue, self.SetList, self.SetDisabled, self.OnRelease = setValue, setList, setDisabled, release
+        self.dropdown:SetShown(oldShown); self.button_cover:SetShown(coverShown)
+        if release then release(self) end
+    end
+    dropdown:SetUserData("nativePropertyDropdown", native)
+    dropdown.dropdown:Hide(); dropdown.button_cover:Hide()
+    native:ClearAllPoints()
+    native:SetPoint("LEFT", dropdown.button_cover, "LEFT", 8, 0)
+    native:SetPoint("RIGHT", dropdown.button_cover, "RIGHT", -8, 0)
+    native:SetHeight(25)
+    native:SetEnabled(not options.disabled)
+    Sync(); native:Show()
+    if not dropdown.frame._fpNativeDropdownHideHooked then
+        dropdown.frame._fpNativeDropdownHideHooked = true
+        dropdown.frame:HookScript("OnHide", function(frame)
+            local widget = frame.obj
+            local control = widget and widget:GetUserData("nativePropertyDropdown")
+            if control then control:CloseMenu() end
+        end)
+    end
+    return true
+end
+
 -- Inspector-only opt-in; native dropdown input, pullout and geometry stay untouched.
 function FormWidgets.StyleInspectorDropdown(widget)
     if not widget or not widget.button_cover or not widget.dropdown then return end

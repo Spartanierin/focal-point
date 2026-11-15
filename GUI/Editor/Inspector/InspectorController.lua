@@ -2057,80 +2057,15 @@ function InspectorController.Build(container, state, options)
 
     -- Existing Row presentation, also used by the two-column anchor controls.
     local function BindNativePropertyDropdown(dropdown, dropdownOptions, disabled)
-        -- Keep the existing Dropdown as API/lifecycle owner and source of values/order.
-        local native = dropdown.frame._fpNativePropertyDropdown
-        if not native and type(DropdownButtonMixin) == "table"
-            and type(DropdownButtonMixin.SetupMenu) == "function"
-            and type(DropdownButtonMixin.ClearMenuState) == "function"
-            and type(WowStyle1DropdownMixin) == "table" then
-            local ok, frame = pcall(CreateFrame, "DropdownButton", nil, dropdown.frame, "WowStyle1DropdownTemplate")
-            if ok then
-                native = frame
-                dropdown.frame._fpNativePropertyDropdown = native
-                native:HookScript("OnHide", function(self) self:CloseMenu() end)
-            end
-        end
-        if not native then return end
-        -- Preserve the pilot's native order without changing its legacy fallback.
-        if dropdownOptions.nativeOrder then dropdown:SetList(dropdown.list, dropdownOptions.nativeOrder) end
-
         local scope = ResolvePropertyScope()
-        local bindingActive = true
-        local function IsCurrentBinding()
-            return bindingActive and workspaceIsCurrent() and ResolvePropertyScope() == scope
-                and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
-        end
-        local setValue, setList, setDisabled, release = dropdown.SetValue, dropdown.SetList, dropdown.SetDisabled, dropdown.OnRelease
-        local oldShown, coverShown = dropdown.dropdown:IsShown(), dropdown.button_cover:IsShown()
-        local function Sync()
-            native:SetDefaultText(dropdown.list[dropdown.value] or "")
-            native:SetupMenu(function(_, rootDescription)
-                rootDescription:AddMenuAcquiredCallback(function(menu) menu:SetFrameStrata("TOOLTIP") end)
-                -- AceGUI already implements plain maps and explicit values/order sorting.
-                for _, item in dropdown.pullout:IterateItems() do
-                    local key = item.userdata.value
-                    rootDescription:CreateRadio(dropdown.list[key], function()
-                        return IsCurrentBinding() and dropdown.value == key
-                    end, function()
-                        if IsCurrentBinding() and not dropdown.disabled and dropdown.list[key] ~= nil then
-                            dropdown:SetValue(key)
-                            dropdown:Fire("OnValueChanged", key)
-                        end
-                    end)
-                end
-            end)
-        end
-        dropdown.SetValue = function(self, value)
-            if not IsCurrentBinding() then return end
-            setValue(self, value); Sync()
-        end
-        dropdown.SetList = function(self, list, order, ...)
-            if not IsCurrentBinding() then return end
-            if type(list) == "table" and type(list.values) == "table" then
-                order, list = list.order, list.values
-            end
-            setList(self, list, order, ...); Sync()
-        end
-        dropdown.SetDisabled = function(self, value)
-            if not IsCurrentBinding() then return end
-            setDisabled(self, value); native:SetEnabled(not value)
-            if value then native:CloseMenu() end
-        end
-        dropdown.OnRelease = function(self)
-            bindingActive = false
-            native:ClearMenuState(); native:Hide()
-            self.SetValue, self.SetList, self.SetDisabled, self.OnRelease = setValue, setList, setDisabled, release
-            self.dropdown:SetShown(oldShown); self.button_cover:SetShown(coverShown)
-            if release then release(self) end
-        end
-        dropdown:SetUserData("nativePropertyDropdown", native)
-        dropdown.dropdown:Hide(); dropdown.button_cover:Hide()
-        native:ClearAllPoints()
-        native:SetPoint("LEFT", dropdown.button_cover, "LEFT", 8, 0)
-        native:SetPoint("RIGHT", dropdown.button_cover, "RIGHT", -8, 0)
-        native:SetHeight(25)
-        native:SetEnabled(not disabled)
-        Sync(); native:Show()
+        return FormWidgets.BindNativeDropdown(dropdown, {
+            order = dropdownOptions.nativeOrder,
+            disabled = disabled,
+            isCurrent = function()
+                return workspaceIsCurrent() and ResolvePropertyScope() == scope
+                    and ns.UnitFrameUtils.GetUnitDB(selectedUnit) == unitConfig
+            end,
+        })
     end
 
     local function AddPropertyDropdownRow(parent, labelText, dropdownOptions, disabled)

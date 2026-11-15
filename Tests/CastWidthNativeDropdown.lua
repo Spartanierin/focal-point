@@ -5,6 +5,22 @@ local source = f:read("*a"); f:close()
 local stop = assert(source:find("\nlocal window,unit,db", 1, true))
 local s = assert(load(source:sub(1, stop) .. "\nreturn s", "@CastWidth/Workspace"))()
 local create = CreateFrame
+local previousButtonMixin, previousStyleMixin = DropdownButtonMixin, WowStyle1DropdownMixin
+local function ClearPooledNativeMocks()
+    -- The inherited fixture has already exercised Assignments with another menu mock.
+    -- Keep AceGUI owners/registry intact; only discard their cached test-native children.
+    for owner in pairs(s.h.ui.ace.objPools.Dropdown or {}) do
+        assert(not owner:GetUserData("nativePropertyDropdown"), "Pooled owner retains a live binding")
+        local native = owner.frame._fpNativePropertyDropdown
+        if native then
+            native:ClearMenuState()
+            native:Hide()
+            owner.frame._fpNativePropertyDropdown = nil
+        end
+    end
+end
+s.controller.ReleaseInspector()
+ClearPooledNativeMocks()
 local created, failTemplate = 0, false
 -- Menu-manager boundary: a separate pooled menu frame, not the button's child.
 -- Blizzard restores acquired menu-frame changes when returning it to the pool.
@@ -78,12 +94,17 @@ Test("missing API or template falls back to original AceGUI path without rejecte
     local mixin = DropdownButtonMixin; DropdownButtonMixin = nil
     window, unit = s.Start(); Geometry(); assert(not Native())
     local dropdown = s.Control("Width Mode", "Dropdown")
+    assert(not dropdown:GetUserData("nativePropertyDropdown") and not dropdown.frame._fpNativePropertyDropdown)
+    assert(dropdown.dropdown:IsShown() and dropdown.button_cover:IsShown())
     assert(not dropdown.frame._fpInspectorDropdownSurface)
     for _, item in dropdown.pullout:IterateItems() do assert(item.userdata.value == "CUSTOM"); break end
     dropdown:Fire("OnValueChanged", "CUSTOM"); s.Drain(); assert(unit.castBarWidthMode == "CUSTOM")
     s.controller.ReleaseInspector(); DropdownButtonMixin = mixin; failTemplate = true
     window, unit = s.Start(); Geometry(); assert(not Native())
-    assert(s.Control("Width Mode", "Dropdown"))
+    dropdown = assert(s.Control("Width Mode", "Dropdown"))
+    assert(not dropdown:GetUserData("nativePropertyDropdown") and not dropdown.frame._fpNativePropertyDropdown)
+    assert(dropdown.dropdown:IsShown() and dropdown.button_cover:IsShown())
+    assert(created == 0, "Fallback unexpectedly reused or created a native child")
     s.controller.ReleaseInspector(); failTemplate = false
 end)
 Test("native template, initial canonical selection, fixed row and untouched parent ownership", function()
@@ -168,4 +189,8 @@ Test("rebuild, close/reopen and repeated pool reuse reject old bindings", functi
     assert(created < 20, "native child recreated on every rebuild")
 end)
 assert(#s.h.ui.env.errors == 0, table.concat(s.h.ui.env.errors, "\n"))
+s.controller.ReleaseInspector()
+ClearPooledNativeMocks()
+assert(not popup:IsShown())
+CreateFrame, DropdownButtonMixin, WowStyle1DropdownMixin = create, previousButtonMixin, previousStyleMixin
 print("Cast Width Native Dropdown: " .. count .. " groups PASS")

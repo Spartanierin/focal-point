@@ -306,6 +306,13 @@ local function RefreshRows()
             end
             RefreshRows()
         end)
+        local bindingContext = context
+        FormWidgets.BindNativeDropdown(dropdown, {
+            isCurrent = function()
+                return context == bindingContext and context.widgets.body == body
+                    and not context._suspendCallbacks and context.window.frame:IsShown()
+            end,
+        })
         row:AddChild(dropdown)
     end
 

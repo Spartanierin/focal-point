@@ -381,6 +381,56 @@ latest.primaryButton:Fire("OnClick"); assert(calls.new); Equal(latest.statusRole
 latest.cancelButton:Fire("OnClick")
 
 -- Actual specialization table and empty state retain their calculated bounds.
+local assignmentAtlasAPI,assignmentLegacyAtlasAPI=C_Texture,GetAtlasInfo
+C_Texture={GetAtlasInfo=function() return {width=32,height=32} end}
+-- Model only the Blizzard template/menu boundary; keep the real Assignment builder.
+local assignmentCreateFrame,assignmentButtonMixin,assignmentStyleMixin=CreateFrame,DropdownButtonMixin,WowStyle1DropdownMixin
+local assignmentTemplateFails=false
+local assignmentPopup=CreateFrame("Frame",nil,UIParent);assignmentPopup:Hide()
+DropdownButtonMixin={
+    SetupMenu=function(self,generator)
+        self.entries={}
+        generator(self,{
+            AddMenuAcquiredCallback=function(_,callback) self.acquired=callback end,
+            CreateRadio=function(_,text,selected,callback)
+                self.entries[#self.entries+1]={text=text,selected=selected,callback=callback}
+            end,
+        })
+    end,
+    ClearMenuState=function(self) self:CloseMenu();self.entries=nil;self.acquired=nil end,
+}
+WowStyle1DropdownMixin={}
+function CreateFrame(kind,name,parent,template)
+    if kind~="DropdownButton" then return assignmentCreateFrame(kind,name,parent,template) end
+    assert(template=="WowStyle1DropdownTemplate")
+    if assignmentTemplateFails then error("Unavailable dropdown template") end
+    local frame=assignmentCreateFrame(kind,name,parent)
+    frame.SetupMenu=DropdownButtonMixin.SetupMenu;frame.ClearMenuState=DropdownButtonMixin.ClearMenuState
+    function frame:SetDefaultText(text) self.defaultText=text end
+    function frame:SetEnabled(enabled) self.enabled=enabled end
+    function frame:CloseMenu() self.menuOpen=false;assignmentPopup:Hide() end
+    function frame:OpenMenu()
+        if not self.enabled then return end
+        self.menuOpen=true;self.acquired(assignmentPopup);assignmentPopup:Show()
+    end
+    return frame
+end
+local function PickAssignment(dropdown,value)
+    local native=assert(dropdown:GetUserData("nativePropertyDropdown"))
+    Equal(native.defaultText,dropdown.list[dropdown.value])
+    native:OpenMenu();Equal(assignmentPopup.lastSetFrameStrata,{"TOOLTIP"})
+    local index=0
+    for _,item in dropdown.pullout:IterateItems() do
+        index=index+1
+        if item.userdata.value==value then
+            local callback=native.entries[index].callback
+            callback()
+            assert(not native.menuOpen and not assignmentPopup:IsShown())
+            return callback
+        end
+    end
+    error("Missing assignment option: "..tostring(value))
+end
 local specCount,currentSpec=3,1
 function GetNumSpecializations() return specCount end
 C_SpecializationInfo={GetSpecializationInfo=function(i) return i,"Spec "..i end}
@@ -430,13 +480,45 @@ Equal(openCalls,2); Equal(#created,dialogsBeforeAssignments+1)
 Equal(context.selectedLayoutId,selectedBeforeAssignments)
 assert(context.window.frame:IsShown()) -- Manager remains the return destination.
 CheckAssignments(assignments)
-local dropdown=assert(Find(assignments.body,"Dropdown")); dropdown:Fire("OnValueChanged","layout:one")
+assignments.window.title:Run("OnMouseDown","LeftButton")
+assignments.window.title:Run("OnMouseUp","LeftButton")
+assert(assignments.window.frame.lastStartMoving and assignments.window.frame.lastStopMovingOrSizing)
+local dropdown=assert(Find(assignments.body,"Dropdown"))
+local staleAssignment=PickAssignment(dropdown,"layout:one")
 Equal(calls.assignment,{1,"layout:one"})
 Equal(calls.evaluate,"assignment:ui")
+calls.assignment=nil;staleAssignment();Equal(calls.assignment,nil)
 calls.evaluate=nil; currentSpec=2
 assignmentsAPI.Refresh()
-dropdown=assert(Find(assignments.body,"Dropdown")); dropdown:Fire("OnValueChanged","layout:one")
+dropdown=assert(Find(assignments.body,"Dropdown"));PickAssignment(dropdown,"layout:one")
 Equal(calls.assignment,{1,"layout:one"}); Equal(calls.evaluate,nil)
+local nativeAssignmentMixin=DropdownButtonMixin
+DropdownButtonMixin=nil;assignmentsAPI.Refresh()
+dropdown=assert(Find(assignments.body,"Dropdown"))
+assert(not dropdown:GetUserData("nativePropertyDropdown") and dropdown.dropdown:IsShown() and dropdown.button_cover:IsShown())
+dropdown:Fire("OnValueChanged","__fp_assignment_none__");Equal(calls.assignment,{1,nil});Equal(calls.evaluate,nil)
+DropdownButtonMixin=nativeAssignmentMixin
+-- Exercise unavailable XML separately from the missing API case.
+assignmentTemplateFails=true
+local fallback=ace:Create("Dropdown");fallback:SetList({x="X"});fallback:SetValue("x")
+assert(not forms.BindNativeDropdown(fallback,{}))
+assert(fallback.dropdown:IsShown() and fallback.button_cover:IsShown())
+ace:Release(fallback);assignmentTemplateFails=false
+assignmentsAPI.Refresh()
+dropdown=assert(Find(assignments.body,"Dropdown"))
+local assignmentNative=assert(dropdown:GetUserData("nativePropertyDropdown"))
+local blockedAssignment=assignmentNative.entries[1].callback
+calls.assignment=nil
+assignmentNative:OpenMenu();dropdown:SetDisabled(true)
+assert(not assignmentNative.enabled and not assignmentNative.menuOpen)
+blockedAssignment();Equal(calls.assignment,nil)
+dropdown:SetDisabled(false);assert(assignmentNative.enabled)
+assignmentNative:OpenMenu();dropdown.frame:Hide()
+assert(not assignmentNative.menuOpen and not assignmentPopup:IsShown())
+dropdown.frame:Show()
+assignmentNative:OpenMenu();assignmentsAPI.Close()
+blockedAssignment();Equal(calls.assignment,nil)
+assignmentsAPI.Open();assert(not assignmentPopup:IsShown())
 specCount=0; ns.GUI.Editor.LayoutAssignments.Refresh()
 CheckText(assignments.body,"No specializations available.","help",11)
 assignmentsAPI.Close(); assert(not assignments.window.frame:IsShown())
@@ -504,7 +586,7 @@ do
             for _=1,20 do api.Close();api.Open();CheckAssignments(dialog) end
             currentSpec=1;calls.evaluate=nil
             dropdown=assert(Find(dialog.body,"Dropdown"))
-            dropdown:Fire("OnValueChanged","__fp_assignment_none__")
+            PickAssignment(dropdown,"__fp_assignment_none__")
             Equal(calls.assignment,{1,nil});Equal(calls.evaluate,"assignment:ui")
             Equal(dialog.body.children[3].children[2].label:GetText(),ns.L.LAYOUT_ASSIGNMENT_LAYOUT)
             local before=#created
@@ -513,7 +595,7 @@ do
             dialog.window.frame:Run("OnKeyDown","ESCAPE");assert(not dialog.window.frame:IsShown())
             api.Open();dialog.window.closebutton:Run("OnClick");assert(not dialog.window.frame:IsShown())
             ace:Release(dialog.window)
-            assert(not dialog.window.frame._fpModernNineSlice:IsShown())
+            assert(not dialog.window.frame._fpModernNineSlice or not dialog.window.frame._fpModernNineSlice:IsShown())
             assert(not dialog.window.frame._fpModernPortraitBackground:IsShown())
         end
     end
@@ -523,6 +605,8 @@ do
     GameTooltip=oldTooltip
     ns.GUI.Editor.LayoutAssignments=assignmentsAPI
 end
+C_Texture,GetAtlasInfo=assignmentAtlasAPI,assignmentLegacyAtlasAPI
+CreateFrame,DropdownButtonMixin,WowStyle1DropdownMixin=assignmentCreateFrame,assignmentButtonMixin,assignmentStyleMixin
 
 -- Actual editable-template confirmation preserves pending/ready semantics.
 ns.ActiveLayoutResolver={GetStoredActiveLayoutId=function() return "builtin:default" end,
