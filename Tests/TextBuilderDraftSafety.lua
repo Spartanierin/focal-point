@@ -71,17 +71,51 @@ local function Open(kind,key)
     local request=kind and {entity=true,kind=kind,layoutId=ns.db.char.activeLayoutId,
         unitKey=kind=="object" and "player" or nil,textKey=kind=="object" and key or nil,
         templateId=kind=="shared-template" and key or nil}
-    local ok,reason=ns.GUIController.OpenTextBuilderWindow(request);assert(ok,reason);NoErrors()
-    SyncConsumer()
+    local createDialog, options = f.widgets.CreateCompactFormDialog
+    f.widgets.CreateCompactFormDialog = function(value)
+        options = value
+        return createDialog(value)
+    end
+    local ok,reason=ns.GUIController.OpenTextBuilderWindow(request)
+    f.widgets.CreateCompactFormDialog = createDialog
+    assert(ok,reason);NoErrors()
+    if SyncConsumer() then
+        assert(options.windowChrome == "editmode" and options.titleFontSize == 16 and options.titleOffsetY == -7)
+        Equal(options.headerDrag, {left = 8, right = 36, top = 0, height = 32})
+        assert(options.width == 420 and options.height == 340 and options.formContentHeight == nil)
+        assert(options.addBodySpacer == false)
+        local height = 0
+        for _, child in ipairs(c.consumer.dialog.body.children) do height = height + child.frame:GetHeight() end
+        assert(c.window.frame:GetHeight() == 63 + height)
+        assert(c.consumer.actionContainer.LayoutFunc == f.ace:GetLayout("Table"))
+        local columns = c.consumer.actionContainer:GetUserData("table").columns
+        assert(columns[1].alignH == "left" and columns[2].alignH == "right")
+        for _, field in ipairs({c.templateEdit, c.templateNameEdit}) do
+            assert(field.frame:GetHeight() == 52 and field.frame._fpTextConsumerInputFill:IsShown())
+            local _, size = field.label:GetFont()
+            assert(size == 13)
+            local color = NORMAL_FONT_COLOR or {r = 1, g = 0.82, b = 0}
+            Equal(field.label.lastSetTextColor, {color.r, color.g, color.b, 1})
+        end
+    end
     return c.r2Session
 end
 local function Click(w)assert(w);w:Fire("OnClick");NoErrors()end
-local function Edit(w,text)w:SetText(text);w:Fire("OnTextChanged",text);NoErrors()end
+local function Edit(w,text)
+    w:SetText(text);w:Fire("OnTextChanged",text);NoErrors()
+    if c.consumer and not c.consumer.released then
+        local height = 0
+        for _, child in ipairs(c.consumer.dialog.body.children) do height = height + child.frame:GetHeight() end
+        assert(c.window.frame:GetHeight() == 63 + height)
+    end
+end
 local function Close()
     builder.HideWindow();if builder.HasUnsavedChanges()then Click(dialog.discardCloseButton)end
     assert(not builder.HasUnsavedChanges() and not c.window.frame:IsShown())
     if c.consumer then
         assert(c.consumer.released and f.Upvalue(builder.RefreshWindowState,"consumerContext")==nil)
+        assert(not c.templateEdit.frame._fpTextConsumerInputFill:IsShown())
+        if c.templateNameEdit then assert(not c.templateNameEdit.frame._fpTextConsumerInputFill:IsShown()) end
     end
     builder.HideWindow();assert(#f.env.errors==0,table.concat(f.env.errors,"\n"))
 end
@@ -193,7 +227,8 @@ Close()
 
 -- Block 1 consumer UX: local text uses a compact edit form, never a manager.
 s=Open("new-template")
-assert(c.window.frame:GetWidth()==520 and c.window.frame:GetHeight()==340)
+assert(c.window.frame:GetWidth()==420)
+local newFormHeight=c.window.frame:GetHeight()
 assert(c.previewSurface and c.previewSurface.Variant=="result_stack")
 assert(c.previewSurface.frame._fpSectionFill and c.previewSurface._fpSectionPadding)
 assert(c.previewSurface._fpPaddingAwareWidthWrapped)
@@ -209,7 +244,7 @@ Edit(c.templateNameEdit,"Preview Template");Edit(c.templateEdit,"preview express
 assert(c.preview.label:GetText()~=initialPreview)
 Close()
 s=Open("object","localText")
-assert(c.window.frame:GetWidth()==520 and c.window.frame:GetHeight()==430)
+assert(c.window.frame:GetWidth()==420 and c.window.frame:GetHeight() < newFormHeight)
 assert(c.previewSurface and c.previewSurface.Variant=="result_stack")
 assert(c.previewSurface.frame._fpSectionFill and c.previewSurface._fpSectionPadding)
 assert(c.previewSurface._fpPaddingAwareWidthWrapped)

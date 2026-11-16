@@ -443,12 +443,22 @@ local function ConsumerText(text, role, size, height)
     return label
 end
 
+local function FitConsumerForm(context)
+    context.dialog.body:DoLayout()
+    local height = 0
+    for _, child in ipairs(context.dialog.body.children) do
+        height = height + child.frame:GetHeight()
+    end
+    context.window:SetHeight(57 + 6 + height)
+end
+
 local function ConsumerStatus(context, message, role)
     if context and context.status then
         context.status:SetText(message or " ")
         if FormWidgets.ApplyTextStyle and context.status.label then
             FormWidgets.ApplyTextStyle(context.status.label, role == "error" and "statusError" or "help", 10, 1)
         end
+        FitConsumerForm(context)
     end
 end
 
@@ -466,6 +476,7 @@ local function ConsumerRefresh(context)
         or session.kind == "shared-template" and not session.readOnly
         or session.kind == "object" and session.templateId == nil
     context.dialog.primaryButton:SetDisabled(not valid)
+    FitConsumerForm(context)
 end
 
 local function ConsumerInsert(context, token)
@@ -518,18 +529,22 @@ OpenConsumerDialog = function(session, mode, returnManager)
     end
     local isNew = mode == "new-template"
     local isTemplateEdit = mode == "edit-template"
+    local description = isNew and T("INFO_TEXT_NEW_TEMPLATE_DESCRIPTION", "Create a text template.")
+        or isTemplateEdit and T("INFO_TEXT_MANAGER_EDIT_DESCRIPTION", "Edit this template.")
+        or T("INFO_TEXT_EDIT_TEXT_DESCRIPTION", "Edit this local text.")
     local dialog = FormWidgets.CreateCompactFormDialog and FormWidgets.CreateCompactFormDialog({
         title = isNew and T("INFO_TEXT_NEW_TEMPLATE_TITLE", "New Template")
             or isTemplateEdit and T("INFO_TEXT_MANAGER_EDIT", "Edit")
             or T("INFO_TEXT_EDIT_TEXT_TITLE", "Edit Text"),
-        description = isNew and T("INFO_TEXT_NEW_TEMPLATE_DESCRIPTION", "Create a text template.")
-            or isTemplateEdit and T("INFO_TEXT_MANAGER_EDIT_DESCRIPTION", "Edit this template.")
-            or T("INFO_TEXT_EDIT_TEXT_DESCRIPTION", "Edit this local text."),
-        width = 520,
-        height = isNew and 340 or 430,
-        formContentHeight = isNew and 276 or 366,
+        width = 420,
+        height = 340,
         bodyLayout = "List",
+        addBodySpacer = false,
         contentRoot = true,
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
     }) or nil
     if not dialog then return false, "consumer_dialog_unavailable" end
 
@@ -538,19 +553,55 @@ OpenConsumerDialog = function(session, mode, returnManager)
     body:ReleaseChildren()
     body:SetLayout("List")
 
+    local function AddSpacer(height)
+        local spacer = AceGUI:Create("SimpleGroup")
+        spacer:SetAutoAdjustHeight(false)
+        spacer:SetFullWidth(true)
+        spacer:SetHeight(height)
+        body:AddChild(spacer)
+    end
+    local labelColor = NORMAL_FONT_COLOR or {r = 1, g = 0.82, b = 0}
+    local function StyleInput(widget)
+        local font, color = {widget.label:GetFont()}, {widget.label:GetTextColor()}
+        widget:SetHeight(2 + 18 + 6 + 26)
+        widget.editbox:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", 7, -26)
+        FormWidgets.StyleEditBox(widget, "editor_inset")
+        FormWidgets.ApplyTextStyle(widget.label, "label", 13, 1)
+        widget.label:SetTextColor(labelColor.r, labelColor.g, labelColor.b, 1)
+        local fill = widget.frame._fpTextConsumerInputFill
+        if not fill then
+            fill = widget.frame:CreateTexture(nil, "BACKGROUND")
+            widget.frame._fpTextConsumerInputFill = fill
+        end
+        fill:SetAllPoints(widget.editbox)
+        fill:SetColorTexture(unpack(FormWidgets.ResolveFieldStyle("editor_inset").background))
+        fill:Show()
+        widget:SetCallback("OnRelease", function()
+            fill:Hide()
+            widget.label:SetFont(unpack(font))
+            widget.label:SetTextColor(unpack(color))
+        end)
+    end
+    body:AddChild(ConsumerText(description, "label", 12, 32))
+    AddSpacer(6)
+
     if isNew then
         local nameEdit = AceGUI:Create("EditBox")
         nameEdit:SetLabel(T("INFO_TEXT_TEMPLATE_NAME", "Template Name"))
         nameEdit:SetFullWidth(true)
+        StyleInput(nameEdit)
         context.nameEdit = nameEdit
         body:AddChild(nameEdit)
+        AddSpacer(6)
     end
 
     local contentEdit = AceGUI:Create("EditBox")
     contentEdit:SetLabel(T("INFO_TEXT_EXPRESSION", "Expression"))
     contentEdit:SetFullWidth(true)
+    StyleInput(contentEdit)
     context.contentEdit = contentEdit
     body:AddChild(contentEdit)
+    AddSpacer(6)
 
     local tagButton = FormWidgets.CreateActionButton and FormWidgets.CreateActionButton(
         T("INFO_TEXT_BUILDER_ADD_TAG", "+ Add Tag"), "secondary", 180, false) or AceGUI:Create("Button")
@@ -559,6 +610,7 @@ OpenConsumerDialog = function(session, mode, returnManager)
     tagButton:SetWidth(180)
     context.tagButton = tagButton
     body:AddChild(tagButton)
+    AddSpacer(8)
 
     local previewSurface = CreateResultPanel(body)
     if not previewSurface then
@@ -572,17 +624,25 @@ OpenConsumerDialog = function(session, mode, returnManager)
     previewSurface:AddChild(ConsumerText(T("INFO_TEXT_BUILDER_PREVIEW", "Preview"), "sectionHeader", 11, 18))
     previewSurface:AddChild(preview)
     body:AddChild(previewSurface)
+    AddSpacer(6)
 
     local status = ConsumerText(" ", "help", 10, 18)
     context.status = status
     body:AddChild(status)
+    AddSpacer(6)
 
     local actions = AceGUI:Create("SimpleGroup")
-    actions:SetLayout("Flow")
+    actions:SetUserData("table", {
+        columns = {{weight = 1, alignH = "left"}, {weight = 1, alignH = "right"}},
+        alignV = "middle",
+    })
+    actions:SetLayout("Table")
+    actions:SetAutoAdjustHeight(false)
     actions:SetFullWidth(true)
     actions:SetHeight(30)
     context.actionContainer = actions
     body:AddChild(actions)
+    AddSpacer(2)
     dialog:SetActions({
         primary = {text = isNew and T("INFO_TEXT_CREATE", "Create") or T("INFO_TEXT_SAVE", "Save"), role = "primary_action", width = 110,
             onClick = function()
@@ -596,6 +656,7 @@ OpenConsumerDialog = function(session, mode, returnManager)
         cancel = {text = T("INFO_COMMON_CANCEL", "Cancel"), role = "utility", width = 100,
             onClick = function() CancelConsumer(context) end},
     }, actions)
+    actions:DoLayout()
 
     if context.nameEdit then
         context.nameEdit:SetCallback("OnTextChanged", function(_, _, value)
@@ -630,6 +691,7 @@ OpenConsumerDialog = function(session, mode, returnManager)
     consumerContext = context
     ConsumerRefresh(context)
     dialog:Show()
+    FitConsumerForm(context)
     return true
 end
 
