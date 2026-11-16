@@ -64,8 +64,8 @@ local function ApplyLabelText(widget, role, size)
     end
 end
 
-local function CreateLabel(text, role, size, width, height)
-    local label = AceGUI:Create("Label")
+local function CreateLabel(text, role, size, width, height, interactive)
+    local label = AceGUI:Create(interactive and "InteractiveLabel" or "Label")
     label:SetText(text or "")
     label:SetFullWidth(width == nil)
     if width then
@@ -867,19 +867,148 @@ local function ManagerGroup(parent, height, layout)
     return group
 end
 
-local function ManagerText(parent, text, role, size, height)
+local function ManagerLeftPadding(group)
+    local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+    renderer.ApplySectionPadding(group, {left = 10})
+    group:SetCallback("OnRelease", function(released)
+        renderer.ApplySectionPadding(released, nil)
+    end)
+end
+
+local function ManagerText(parent, text, role, size, height, padded, interactive)
     local slot = ManagerGroup(parent, height)
-    local label = CreateLabel(text, role, size)
+    if padded then ManagerLeftPadding(slot) end
+    local label = CreateLabel(text, role, size, nil, nil, interactive)
     slot:AddChild(label)
     return label, slot
 end
 
+local function ManagerHeading(label)
+    ApplyLabelText(label, "sectionHeader", 14)
+    local color = NORMAL_FONT_COLOR or {r = 1, g = 0.82, b = 0}
+    label.label:SetTextColor(color.r, color.g, color.b, 1)
+end
+
+-- Same owner/leave/release tooltip contract as Manage Layouts' context labels.
+local function ManagerTooltip(widget, text)
+    local function Hide()
+        if GameTooltip and GameTooltip:GetOwner() == widget.frame then GameTooltip:Hide() end
+    end
+    Hide()
+    widget:SetCallback("OnEnter", function(owner)
+        if text and text ~= "" and GameTooltip then
+            GameTooltip:SetOwner(owner.frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText(text, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end
+    end)
+    widget:SetCallback("OnLeave", Hide)
+    widget:SetCallback("OnRelease", Hide)
+end
+
+local function HideManagerTooltip(context)
+    if not GameTooltip or not context then return end
+    local owner = GameTooltip:GetOwner()
+    for _, widget in ipairs({context.previewTitle, context.usageLabel, context.actionButtons and context.actionButtons.edit}) do
+        if widget and owner == widget.frame then GameTooltip:Hide(); return end
+    end
+end
+
+local function ManagerShortText(text, limit)
+    local length, characters = 0, {}
+    for character in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        length = length + 1
+        if length <= limit then characters[#characters + 1] = character else break end
+    end
+    return table.concat(characters) .. (length > limit and "..." or "")
+end
+
+local function ManagerExpressionSummary(content)
+    local text = Trim(tostring(content or ""):gsub("[%c%s]+", " "))
+    if text == "" then return T("INFO_TEXT_MANAGER_EMPTY_EXPRESSION", "Empty expression") end
+    -- Keep UTF-8 characters intact and reserve the row's primary-name column.
+    local summary = ManagerShortText(text, 24)
+    if summary == "" then return T("INFO_TEXT_MANAGER_EMPTY_EXPRESSION", "Empty expression") end
+    return (summary:gsub("|", "||")) -- Show literal content, never embedded texture/link markup.
+end
+
+local function ManagerDescription(content)
+    local database = ns.UnitFrame and ns.UnitFrame.GetTagDatabase and ns.UnitFrame:GetTagDatabase()
+    for _, tag in ipairs(type(database) == "table" and database or {}) do
+        if type(tag) == "table" and tag.token == content and type(tag.description) == "string" then
+            local description = (ns.L or {})[tag.description]
+            if type(description) == "string" and description ~= "" then return description end
+        end
+    end
+    return T("INFO_TEXT_MANAGER_CUSTOM_TEXT", "Custom text")
+end
+
+-- Local presentation only; release removes the surfaces before widget reuse.
+local function ManagerSurface(widget, section)
+    local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+    local palette = ns.GUI.Skins.GetFormPalette()
+    renderer.ApplySectionSurface(widget, nil)
+    renderer.ApplySectionBorder(widget, false)
+    local box = widget.frame._fpTextManagerGroupBox
+    if box then box:Hide() end
+    if section then
+        -- Blizzard_EditMode/Shared/EditModeManager.xml: BorderArt, OptionsFrame kit.
+        local layout = NineSliceUtil and NineSliceUtil.GetLayout and NineSliceUtil.GetLayout("UniqueCornersLayout")
+        local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+        local available = layout and NineSliceUtil.ApplyLayoutByName and type(atlasInfo) == "function"
+        -- Center is optional: Blizzard SetupPieceVisuals skips SetAtlas when it is absent.
+        for _, key in ipairs({"TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+            "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"}) do
+            local piece = layout and layout[key]
+            if available and piece and type(piece.atlas) == "string" then
+                local ok, info = pcall(atlasInfo, string.format(piece.atlas, "OptionsFrame"))
+                available = ok and info ~= nil and info ~= false
+            else
+                available = false
+            end
+        end
+        -- Missing border art means no decoration, never a substitute rectangle.
+        if available then
+            if not box then
+                -- A sibling keeps native corner art outside the clipped scroll/preview.
+                box = CreateFrame("Frame", nil, widget.frame:GetParent())
+                widget.frame._fpTextManagerGroupBox = box
+                box:EnableMouse(false)
+            end
+            box:SetParent(widget.frame:GetParent())
+            box:ClearAllPoints()
+            -- Native BorderArt margins surround the full section, including its last row.
+            box:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", -16, 15)
+            box:SetPoint("BOTTOMRIGHT", widget.frame, "BOTTOMRIGHT", 16, -15)
+            box:SetFrameLevel(widget.frame:GetFrameLevel())
+            box:SetAlpha(1)
+            NineSliceUtil.ApplyLayoutByName(box, "UniqueCornersLayout", "OptionsFrame")
+            box:Show()
+        end
+    else
+        -- Footer remains an action zone with only a quiet top separator.
+        renderer.ApplySectionBorder(widget, {color = palette.Chrome.sectionBorder})
+        for _, edge in ipairs({"Bottom", "Left", "Right"}) do
+            widget.frame["_fpSectionBorder" .. edge]:Hide()
+        end
+    end
+    widget:SetCallback("OnRelease", function(released)
+        renderer.ApplySectionSurface(released, nil)
+        renderer.ApplySectionBorder(released, false)
+        if released._fpSectionPadding then renderer.ApplySectionPadding(released, nil) end
+        if released.frame._fpTextManagerGroupBox then released.frame._fpTextManagerGroupBox:Hide() end
+    end)
+end
+
 local function AddManagerHeader(parent, text)
     local row = ManagerGroup(parent, 24, "Flow")
-    row:AddChild(CreateLabel(text, "sectionHeader", 12, 210))
+    ManagerLeftPadding(row)
+    local title = CreateLabel(text, "sectionHeader", 14, 260)
+    ManagerHeading(title)
+    row:AddChild(title)
     local divider = AceGUI:Create("SimpleGroup")
     divider:SetFullWidth(false)
-    divider:SetWidth(220)
+    divider:SetWidth(160)
     LockContainerHeight(divider, 1)
     row:AddChild(divider)
     local line = divider._fpDivider
@@ -902,7 +1031,7 @@ local function ManagerUsage(templateId)
     local library = ns.TextTemplateLibrary
     local references = library.Entity.Usage(ns.db.global.UserLayouts or {}, ns.db, templateId) or {}
     local summary = {texts = 0, layouts = 0, main = 0, state = 0, disabled = 0}
-    local layouts = {}
+    local layouts, places = {}, {}
     for _, reference in ipairs(references) do
         local layout = layouts[reference.layoutId]
         if not layout then
@@ -910,7 +1039,10 @@ local function ManagerUsage(templateId)
             summary.layouts = summary.layouts + 1
         end
         local unit = layout[reference.unitKey]
-        if not unit then unit = {}; layout[reference.unitKey] = unit end
+        if not unit then
+            unit = {}; layout[reference.unitKey] = unit
+            places[#places + 1] = {layoutId = reference.layoutId, unitKey = reference.unitKey}
+        end
         if not unit[reference.textKey] then
             unit[reference.textKey] = true
             summary.texts = summary.texts + 1
@@ -919,7 +1051,27 @@ local function ManagerUsage(templateId)
         local kind = reference.referenceKind == "state" and "state" or "main"
         summary[kind] = summary[kind] + 1
     end
-    return summary
+    return summary, places
+end
+
+local function ManagerUsagePlace(places)
+    if not places or #places == 0 then return T("INFO_TEXT_MANAGER_NOT_USED", "Not used in saved user layouts") end
+    local place = places[1]
+    local store, service = ns.UserLayoutStore or {}, ns.LayoutService or {}
+    local record = store.GetRawReadOnly and store.GetRawReadOnly(place.layoutId, ns.db)
+    local layoutName = T("INFO_TEXT_MANAGER_UNKNOWN_LAYOUT", "Unknown layout")
+    if type(record) == "table" and type(record.name) == "string" and record.name:find("%S") then
+        local summary = service.ProjectUserLayoutSummary and service.ProjectUserLayoutSummary(place.layoutId, record)
+        if summary and type(summary.name) == "string" then layoutName = summary.name end
+    end
+    local map = ns.KeyMap and ns.KeyMap.Units or {}
+    local key = map[place.unitKey]
+    local unitName = T("INFO_TEXT_MANAGER_UNKNOWN_UNIT", "Unknown unit")
+    if key and type((ns.L or {})[key]) == "string" and ns.GetLabel then unitName = ns.GetLabel(map, place.unitKey) end
+    local location = ManagerShortText(layoutName:gsub("[%c%s]+", " "), 14) .. " – " .. ManagerShortText(unitName, 14)
+    location = location:gsub("|", "||")
+    return string.format(T("INFO_TEXT_MANAGER_USED_IN", "Used in: %s"), location)
+        .. (#places > 1 and string.format(T("INFO_TEXT_MANAGER_MORE_PLACES", " · +%d more"), #places - 1) or "")
 end
 
 -- These transient manager dialogs own and release their complete widget tree.
@@ -1085,6 +1237,8 @@ local function RefreshManagerActions(context, entry)
         end)
         Add("rename", T("INFO_TEXT_MANAGER_RENAME", "Rename"), "utility", 108,
             function() OpenManagerRename(context, entry) end)
+        ManagerTooltip(context.actionButtons.edit, context.usage and context.usage.texts > 0
+            and T("INFO_TEXT_MANAGER_SHARED_HELP") or nil)
     end
     Add("duplicate", T("INFO_TEXT_MANAGER_DUPLICATE", "Duplicate"), "utility", 112, function()
         local session = ManagerSession(entry)
@@ -1111,22 +1265,33 @@ local function RefreshManagerDetails()
         or T("INFO_TEXT_MANAGER_SELECTED", "Select a template to view its details."))
     context.typeLabel:SetText(entry and (entry.readOnly and T("INFO_TEXT_MANAGER_BUILTIN_TYPE", "Built-in · Read-only")
         or T("INFO_TEXT_MANAGER_USER_TYPE", "My Template")) or "")
-    context.expressionTitle:SetText(entry and T("INFO_TEXT_MANAGER_EXPRESSION", "Expression") or "")
-    context.expression:SetText(entry and tostring(entry.templateText or "") or "")
+    context.expressionTitle:SetText(entry and T("INFO_TEXT_MANAGER_WHAT_SHOWS", "What it shows") or "")
+    context.expression:SetText(entry and (ManagerDescription(entry.templateText) .. "\n" .. tostring(entry.templateText or "")) or "")
     context.expressionScroll:DoLayout()
     context.expressionScroll:SetScroll(0)
-    context.previewTitle:SetText(entry and T("INFO_TEXT_BUILDER_PREVIEW", "Preview") or "")
+    context.previewTitle:SetText(entry and T("INFO_TEXT_MANAGER_EXAMPLE_PREVIEW", "Example Preview") or "")
+    ManagerTooltip(context.previewTitle, entry and T("INFO_TEXT_MANAGER_PREVIEW_HELP") or nil)
     context.previewValue:SetText(entry and BuildRenderedPreview(entry.templateText) or "")
-    context.previewValue.label:SetHeight(70)
+    context.previewValue.label:SetHeight(46)
     context.previewPanel.frame:SetAlpha(entry and 1 or 0)
-    context.usage = entry and not entry.readOnly and ManagerUsage(entry.templateId) or nil
-    local usage = context.usage
-    context.usageLabel:SetText(usage and string.format(
-        T("INFO_TEXT_MANAGER_USAGE_SUMMARY", "Used by %d texts in %d layouts"), usage.texts, usage.layouts)
-        .. "\n" .. string.format(T("INFO_TEXT_MANAGER_USAGE_DETAIL", "Main: %d · State: %d · Disabled texts: %d"),
-            usage.main, usage.state, usage.disabled) or "")
+    local usage, places
+    if entry and not entry.readOnly then usage, places = ManagerUsage(entry.templateId) end
+    context.usage = usage
+    local usageText = usage and ManagerUsagePlace(places) or ""
+    if usage and (usage.texts ~= 0 or usage.layouts ~= 0) then
+        usageText = usageText .. "\n" .. string.format(
+            T("INFO_TEXT_MANAGER_USAGE_SUMMARY", "Texts: %d · Saved user layouts: %d"), usage.texts, usage.layouts)
+    end
+    context.usageLabel:SetText(usageText)
+    ManagerTooltip(context.usageLabel, usage and (T("INFO_TEXT_MANAGER_USAGE_HELP")
+        .. (usage.texts > 0 and "\n\n" .. T("INFO_TEXT_MANAGER_SHARED_HELP") or "")) or nil)
     context.detailGroup:DoLayout()
     RefreshManagerActions(context, entry)
+end
+
+local function CenterManagerRowDetail(row)
+    row.detail:ClearAllPoints()
+    row.detail:SetPoint("RIGHT", row.frame, "RIGHT", -8, 0)
 end
 
 local function ManagerSelect(templateId)
@@ -1136,6 +1301,7 @@ local function ManagerSelect(templateId)
     for id, row in pairs(context.rows) do
         row.binding.selected = id == templateId
         row:Bind(row.binding)
+        CenterManagerRowDetail(row)
     end
     ManagerStatus("")
     RefreshManagerDetails()
@@ -1177,10 +1343,30 @@ local function RefreshManagerList()
         end
         for _, entry in ipairs(entries) do
             local row = SelectionRow.Create({key = entry.key, label = entry.templateName,
-                detail = builtin and T("INFO_TEXT_MANAGER_READ_ONLY", "Read-only") or T("INFO_TEXT_MANAGER_USER_TYPE", "My Template"),
+                detail = builtin and T("INFO_TEXT_MANAGER_READ_ONLY", "Read-only") or ManagerExpressionSummary(entry.templateText),
+                presentation = {labelSize = 12, height = 30},
                 selected = entry.templateId == context.selectedTemplateId,
                 onSelect = function() ManagerSelect(entry.templateId) end})
             row:SetFullWidth(true)
+            local detailFont = {row.detail:GetFont()}
+            FormWidgets.ApplyTextStyle(row.detail, "parchmentSecondary", 11, 1)
+            CenterManagerRowDetail(row)
+            -- Hover reapplies the shared row layout too; keep only this consumer centered.
+            local hoverScripts = {}
+            for _, event in ipairs({"OnEnter", "OnLeave"}) do
+                local original = row.frame:GetScript(event)
+                hoverScripts[event] = original
+                row.frame:SetScript(event, function(frame, ...)
+                    original(frame, ...)
+                    CenterManagerRowDetail(frame.obj)
+                end)
+            end
+            row:SetCallback("OnRelease", function(released)
+                released.detail:SetFont(unpack(detailFont))
+                released.detail:ClearAllPoints()
+                released.detail:SetPoint("TOPRIGHT", released.frame, "TOPRIGHT", -8, -4)
+                for event, original in pairs(hoverScripts) do released.frame:SetScript(event, original) end
+            end)
             context.rows[entry.templateId] = row
             scroll:AddChild(row)
         end
@@ -1196,7 +1382,7 @@ local function BuildManagerBody(context)
     local body = context.dialog.body
     body:ReleaseChildren()
     body:SetLayout("List")
-    ManagerText(body, T("INFO_TEXT_MANAGER_DESCRIPTION", "Manage reusable text templates."), "help", 11, 24)
+    ManagerText(body, T("INFO_TEXT_MANAGER_DESCRIPTION", "Manage reusable text templates."), "parchmentSecondary", 12, 28)
     local newRow = ManagerGroup(body, 32, "Flow")
     local newButton = CreateButton(T("INFO_TEXT_MANAGER_NEW_TEMPLATE", "New Template"), "primary_action", 160)
     context.newButton = newButton
@@ -1212,46 +1398,67 @@ local function BuildManagerBody(context)
     newRow:AddChild(newButton)
     ManagerGroup(body, 8)
     local list = AceGUI:Create("ScrollFrame")
-    list:SetLayout("List")
+    -- Match Manage Layouts: AceGUI Flow adds 3 units between full-width rows.
+    list:SetLayout("Flow")
     list:SetFullWidth(true)
-    LockContainerHeight(list, 242)
+    LockContainerHeight(list, 262)
     context.listGroup = list
     body:AddChild(list)
-    ManagerGroup(body, 10)
-    local detail = ManagerGroup(body, 256)
+    ManagerSurface(list, true)
+    ManagerGroup(body, 14)
+    local detail = ManagerGroup(body, 234)
     context.detailGroup = detail
-    context.nameLabel = ManagerText(detail, " ", "sectionHeader", 15, 24)
-    context.typeLabel = ManagerText(detail, " ", "help", 10, 16)
-    context.expressionTitle = ManagerText(detail, " ", "sectionHeader", 11, 18)
+    local information = ManagerGroup(detail, 110)
+    context.informationGroup = information
+    ManagerLeftPadding(information)
+    ManagerSurface(information, true)
+    context.nameLabel = ManagerText(information, " ", "identity", 14, 24)
+    context.nameLabel.label:SetWordWrap(false)
+    context.nameLabel.label:SetMaxLines(1)
+    context.nameLabel:SetCallback("OnRelease", function(label)
+        label.label:SetWordWrap(true)
+        label.label:SetMaxLines(0)
+    end)
+    context.typeLabel = ManagerText(information, " ", "parchmentSecondary", 12, 18)
+    context.expressionTitle = ManagerText(information, " ", "sectionHeader", 14, 20)
+    ManagerHeading(context.expressionTitle)
     local expression = AceGUI:Create("ScrollFrame")
     expression:SetLayout("List")
     expression:SetFullWidth(true)
     LockContainerHeight(expression, 48)
     context.expressionScroll = expression
-    detail:AddChild(expression)
-    context.expression = CreateLabel(" ", "label", 11)
+    information:AddChild(expression)
+    context.expression = CreateLabel(" ", "identity", 12)
     context.expression.label:SetWordWrap(true)
     expression:AddChild(context.expression)
-    ManagerGroup(detail, 8)
-    context.previewTitle = ManagerText(detail, " ", "sectionHeader", 11, 18)
-    local preview = CreateResultPanel(detail)
+    ManagerGroup(detail, 10)
+    local previewGroup = ManagerGroup(detail, 114)
+    context.previewGroup = previewGroup
+    ManagerSurface(previewGroup, true)
+    context.previewTitle = ManagerText(previewGroup, " ", "sectionHeader", 14, 20, true, true)
+    ManagerHeading(context.previewTitle)
+    local preview = CreateResultPanel(previewGroup)
     preview:SetFullWidth(true)
-    LockContainerHeight(preview, 80)
+    LockContainerHeight(preview, 56)
+    -- The shared preview definition supplies material art; this group owns its only frame.
+    ns.GUI.Helpers.FormSectionSurfaceRenderer.ApplySectionSurface(preview, nil)
+    ns.GUI.Helpers.FormSectionSurfaceRenderer.ApplySectionBorder(preview, false)
     if preview.frame.SetClipsChildren then preview.frame:SetClipsChildren(true) end
     context.previewPanel = preview
-    context.previewValue = CreateLabel(" ", "highlight", 17)
+    context.previewValue = CreateLabel(" ", "identity", 14)
     context.previewValue:SetJustifyH("CENTER")
     context.previewValue:SetJustifyV("MIDDLE")
     context.previewValue.label:SetWordWrap(true)
     preview:AddChild(context.previewValue)
-    detail:AddChild(preview)
-    ManagerGroup(detail, 8)
-    context.usageLabel = ManagerText(detail, " ", "help", 10, 36)
-    context.statusTarget = ManagerText(body, " ", "help", 10, 20)
-    ManagerGroup(body, 8)
+    previewGroup:AddChild(preview)
+    ManagerGroup(previewGroup, 4)
+    context.usageLabel = ManagerText(previewGroup, " ", "parchmentSecondary", 11, 34, true, true)
+    context.statusTarget = ManagerText(body, " ", "parchmentSecondary", 11, 24, true)
+    ManagerGroup(body, 6)
     -- No layout owns these button anchors; visibility follows the selected type.
     context.actionContainer = ManagerGroup(body, 34)
     context.actionContainer:PauseLayout()
+    ManagerSurface(context.actionContainer)
     ManagerGroup(body, 8)
 end
 
@@ -1262,6 +1469,10 @@ function TextTemplateLibraryWindow.OpenManager()
     local dialog = FormWidgets.CreateCompactFormDialog({
         title = T("INFO_TEXT_MANAGER_TITLE", "Texts Manager"),
         width = 560, height = 720, bodyLayout = "List", contentRoot = true,
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
     })
     if not dialog then return false, "manager-unavailable" end
     managerContext = {dialog = dialog, window = dialog.window}
@@ -1271,6 +1482,7 @@ function TextTemplateLibraryWindow.OpenManager()
         if managerDeleteDialog then managerDeleteDialog:Close() end
         -- Temporary hide for New/Edit preserves the selected ID and scroll.
         if not managerContext.returnPending then managerContext.selectedTemplateId = nil end
+        HideManagerTooltip(managerContext)
     end)
     FormWidgets.CenterWindow(dialog.window)
     RefreshManagerList()
@@ -1282,6 +1494,7 @@ end
 function TextTemplateLibraryWindow.HideManager()
     if managerContext and managerContext.window then
         managerContext.returnPending = true
+        HideManagerTooltip(managerContext)
         managerContext.window:Hide()
     end
 end
@@ -1291,6 +1504,9 @@ function TextTemplateLibraryWindow.ShowManager(templateId)
     if not context or not context.dialog then return false end
     context.returnPending = nil
     if templateId then context.selectedTemplateId = templateId end
+    ManagerSurface(context.listGroup, true)
+    ManagerSurface(context.informationGroup, true)
+    ManagerSurface(context.previewGroup, true)
     RefreshManagerList()
     RefreshManagerDetails()
     context.dialog:Show()

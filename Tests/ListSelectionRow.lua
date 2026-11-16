@@ -38,8 +38,9 @@ Equal(colors, {
     nameSelected = { 1.00, 0.98, 0.88, 1.00 },
 })
 local paletteBefore = Copy(palette)
-function CreateFrame()
+function CreateFrame(kind, name, parent, template)
     local frame = Frame()
+    if template == "InsetFrameTemplate" then frame.Bg = Frame() end
     frame.scripts = {}
     function frame:CreateFontString() return CreateFrame() end
     function frame:CreateTexture() return CreateFrame() end
