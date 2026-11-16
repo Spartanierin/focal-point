@@ -18,6 +18,7 @@ local managerRenameDialog
 local managerDeleteDialog
 local pendingEntityReturns = setmetatable({}, {__mode = "k"})
 local lastEntityReturn
+local ManagerDescription, ManagerHeading
 
 local function T(key, fallback)
     local L = ns.L or {}
@@ -34,15 +35,6 @@ end
 
 local function SortKeys(left, right)
     return tostring(left or "") < tostring(right or "")
-end
-
-local function Shorten(value, limit)
-    value = tostring(value or "")
-    limit = tonumber(limit) or 86
-    if #value <= limit then
-        return value
-    end
-    return value:sub(1, math.max(1, limit - 3)) .. "..."
 end
 
 local function BuildRenderedPreview(templateText)
@@ -416,49 +408,70 @@ local function ResolvePrimaryLabel(context)
     return T("INSERT_TEXT_ADD", "Add")
 end
 
+local function FitPickerLayout(context)
+    context.previewGroup:DoLayout()
+    local height = math.max(328, context.previewGroup.frame:GetHeight())
+    context.contentGroup:SetHeight(height)
+    context.previewColumn:SetHeight(height)
+    context.dialog.body:DoLayout()
+    local bodyHeight = 0
+    for _, child in ipairs(context.dialog.body.children) do
+        bodyHeight = bodyHeight + child.frame:GetHeight()
+    end
+    context.dialog.window:SetHeight(63 + bodyHeight)
+end
+
 local function RefreshPreview(context)
     if type(context) ~= "table" or not context.previewGroup then
         return
     end
 
     context.previewGroup:ReleaseChildren()
+    context.expressionScroll = nil
     local entry = FindEntry(context, context.selectedTemplateKey)
     if not entry then
         context.previewPanel = nil
-        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "sectionHeader", 11, 388, 18))
-        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12, 388, 72))
+        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12))
+        FitPickerLayout(context)
         return
     end
 
-    context.previewGroup:AddChild(CreateLabel(entry.templateName, "sectionHeader", 14, 388, 22))
-    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW", "Preview"), "sectionHeader", 11, 388, 18))
+    context.previewGroup:AddChild(CreateLabel(entry.templateName, "identity", 14))
+    context.previewGroup:AddChild(CreateLabel(GetEntryTypeLabel(entry), "parchmentSecondary", 12))
+    local descriptionTitle = CreateLabel(T("INFO_TEXT_MANAGER_WHAT_SHOWS", "What it shows"), "sectionHeader", 14)
+    ManagerHeading(descriptionTitle)
+    context.previewGroup:AddChild(descriptionTitle)
+    context.previewGroup:AddChild(CreateLabel(ManagerDescription(entry.templateText), "label", 12))
+    local expression = AceGUI:Create("ScrollFrame")
+    expression:SetFullWidth(true)
+    expression:SetLayout("List")
+    LockContainerHeight(expression, 72)
+    expression:AddChild(CreateLabel(tostring(entry.templateText or ""), "identity", 12))
+    context.expressionScroll = expression
+    context.previewGroup:AddChild(expression)
+    local previewTitle = CreateLabel(T("INFO_TEXT_MANAGER_EXAMPLE_PREVIEW", "Example Preview"), "sectionHeader", 14)
+    ManagerHeading(previewTitle)
+    context.previewGroup:AddChild(previewTitle)
 
     local previewPanel = CreateResultPanel(context.previewGroup)
     if not previewPanel then
         context.previewPanel = nil
-        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12, 388, 72))
+        context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_PREVIEW_EMPTY", "Select a template to preview it."), "help", 12))
+        FitPickerLayout(context)
         return
     end
     context.previewPanel = previewPanel
-    previewPanel:SetFullWidth(false)
-    previewPanel:SetWidth(388)
-    previewPanel:AddChild(CreateLabel(BuildRenderedPreview(entry.templateText), "highlight", 17, 368, 48))
+    previewPanel:SetFullWidth(true)
+    previewPanel:AddChild(CreateLabel(BuildRenderedPreview(entry.templateText), "highlight", 17, nil, 48))
     context.previewGroup:AddChild(previewPanel)
 
-    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_DETAILS", "Details"), "sectionHeader", 11, 388, 18))
-    context.previewGroup:AddChild(CreateLabel(
-        T("INSERT_TEXT_NAME", "Name") .. ": " .. tostring(entry.templateName or ""),
-        "label", 10, 388, 14))
-    context.previewGroup:AddChild(CreateLabel(
-        GetEntryTypeLabel(entry),
-        "help", 10, 388, 14))
-    context.previewGroup:AddChild(CreateLabel(T("INSERT_TEXT_EXPRESSION", "Expression"), "label", 10, 388, 14))
-    context.previewGroup:AddChild(CreateLabel(Shorten(entry.templateText, 360), "help", 11, 388, 28))
+    FitPickerLayout(context)
 end
 
 local function SetStatus(context, message, role)
     if context and context.dialog then
         context.dialog:SetStatus(message, role, context.statusTarget)
+        FitPickerLayout(context)
     end
 end
 
@@ -479,14 +492,16 @@ local function RefreshRows(context)
     context.rowWidgets = {}
     context.rowBindings = {}
     if #context.entries == 0 then
-        context.listGroup:AddChild(CreateLabel(T("INSERT_TEXT_EMPTY", "No text templates available."), "help", 11, 214, 44))
+        context.listGroup:AddChild(CreateLabel(T("INSERT_TEXT_EMPTY", "No text templates available."), "help", 12))
         return
     end
 
     for _, entry in ipairs(context.entries) do
         local binding = {
             key = entry.key,
-            label = GetEntryLabel(entry) .. " | " .. tostring(entry.sourceLabel or ""),
+            label = GetEntryLabel(entry),
+            detail = entry.sourceLabel,
+            presentation = {labelSize = 12, height = 30},
             selected = entry.key == context.selectedTemplateKey,
             onSelect = function(entryKey)
                 local previousTemplateKey = context.selectedTemplateKey
@@ -501,8 +516,7 @@ local function RefreshRows(context)
         }
         local row = SelectionRow.Create and SelectionRow.Create(binding) or nil
         if row then
-            row:SetFullWidth(false)
-            row:SetWidth(214)
+            row:SetFullWidth(true)
             context.listGroup:AddChild(row)
             context.rowWidgets[entry.key] = row
             context.rowBindings[entry.key] = binding
@@ -732,6 +746,7 @@ local function BuildFooter(context)
         },
     }
     context.dialog:SetActions(actions, context.actionContainer)
+    context.actionContainer:DoLayout()
     context.primaryButton = context.dialog.primaryButton
 end
 
@@ -745,8 +760,8 @@ local function BuildBody(context)
             and string.format(T("COMPONENT_ADD_TARGET", "Add to: %s"), context.targetLabel)
             or context.mode == "change" and T("INSERT_TEXT_CHANGE_DESCRIPTION", "Choose a text template for this text object.")
             or T("INSERT_TEXT_DESCRIPTION", "Choose a text template."),
-        "help",
-        11,
+        "identity",
+        13,
         nil,
         24
     )
@@ -760,20 +775,23 @@ local function BuildBody(context)
     content:SetLayout("Flow")
     content:SetFullWidth(true)
     content:SetFullHeight(false)
-    LockContainerHeight(content, 228)
+    LockContainerHeight(content, 328)
+    context.contentGroup = content
     body:AddChild(content)
 
     local listColumn = AceGUI:Create("SimpleGroup")
     listColumn:SetLayout("List")
     listColumn:SetFullWidth(false)
-    listColumn:SetWidth(220)
-    LockContainerHeight(listColumn, 228)
-    listColumn:AddChild(CreateLabel(T("INSERT_TEXT_TEMPLATES", "Templates"), "sectionHeader", 11, 202, 18))
+    listColumn:SetWidth(280)
+    LockContainerHeight(listColumn, 328)
+    local listTitle = CreateLabel(T("INSERT_TEXT_TEMPLATES", "Templates"), "sectionHeader", 14, 268, 22)
+    ManagerHeading(listTitle)
+    listColumn:AddChild(listTitle)
     local listGroup = AceGUI:Create("ScrollFrame")
-    listGroup:SetLayout("List")
+    listGroup:SetLayout("Flow")
     listGroup:SetFullWidth(false)
-    listGroup:SetWidth(202)
-    LockContainerHeight(listGroup, 200)
+    listGroup:SetWidth(268)
+    LockContainerHeight(listGroup, 300)
     context.listGroup = listGroup
     listColumn:AddChild(listGroup)
     content:AddChild(listColumn)
@@ -781,13 +799,14 @@ local function BuildBody(context)
     local previewColumn = AceGUI:Create("SimpleGroup")
     previewColumn:SetLayout("List")
     previewColumn:SetFullWidth(false)
-    previewColumn:SetWidth(400)
-    LockContainerHeight(previewColumn, 228)
+    previewColumn:SetWidth(340)
+    LockContainerHeight(previewColumn, 328)
+    context.previewColumn = previewColumn
     local previewGroup = AceGUI:Create("SimpleGroup")
     previewGroup:SetLayout("List")
     previewGroup:SetFullWidth(false)
-    previewGroup:SetWidth(388)
-    LockContainerHeight(previewGroup, 218)
+    previewGroup:SetWidth(328)
+    previewGroup:SetAutoAdjustHeight(true)
     context.previewGroup = previewGroup
     previewColumn:AddChild(previewGroup)
     content:AddChild(previewColumn)
@@ -797,7 +816,11 @@ local function BuildBody(context)
     body:AddChild(status)
 
     local actionContainer = AceGUI:Create("SimpleGroup")
-    actionContainer:SetLayout("Flow")
+    actionContainer:SetUserData("table", {
+        columns = {{width = 90, alignH = "left"}, {weight = 1, alignH = "left"}, {width = 82, alignH = "right"}},
+        alignV = "middle",
+    })
+    actionContainer:SetLayout("Table")
     actionContainer:SetFullWidth(true)
     if actionContainer.SetAutoAdjustHeight then
         actionContainer:SetAutoAdjustHeight(false)
@@ -883,7 +906,7 @@ local function ManagerText(parent, text, role, size, height, padded, interactive
     return label, slot
 end
 
-local function ManagerHeading(label)
+ManagerHeading = function(label)
     ApplyLabelText(label, "sectionHeader", 14)
     local color = NORMAL_FONT_COLOR or {r = 1, g = 0.82, b = 0}
     label.label:SetTextColor(color.r, color.g, color.b, 1)
@@ -932,7 +955,7 @@ local function ManagerExpressionSummary(content)
     return (summary:gsub("|", "||")) -- Show literal content, never embedded texture/link markup.
 end
 
-local function ManagerDescription(content)
+ManagerDescription = function(content)
     local database = ns.UnitFrame and ns.UnitFrame.GetTagDatabase and ns.UnitFrame:GetTagDatabase()
     for _, tag in ipairs(type(database) == "table" and database or {}) do
         if type(tag) == "table" and tag.token == content and type(tag.description) == "string" then
@@ -1528,6 +1551,10 @@ function TextTemplateLibraryWindow.Open(options)
         pickerContentHeight = 304,
         bodyLayout = "List",
         contentRoot = true,
+        windowChrome = "editmode",
+        titleFontSize = 16,
+        titleOffsetY = -7,
+        headerDrag = { left = 8, right = 36, top = 0, height = 32 },
     }) or nil
     if not dialog then
         return

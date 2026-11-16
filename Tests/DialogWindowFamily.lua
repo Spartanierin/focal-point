@@ -927,27 +927,61 @@ Load("GUI/Pages/TextBuilder/TextBuilderDefinition.lua")
 Load("GUI/Editor/TextTemplateLibraryWindow.lua")
 local templates={}
 ns.TextTemplateLibrary={Entity={List=function() return templates end}}
+local pickerAtlasAPI=C_Texture
+C_Texture={GetAtlasInfo=function() return {width=32,height=32} end}
 for _,mode in ipairs({"add","change"}) do
     for _,populated in ipairs({false,true}) do
         templates=populated and {{value="tpl:b:default-001",label="Sample",content="Sample preview",readOnly=true}} or {}
-        ns.GUI.Editor.TextTemplateLibraryWindow.Open({mode=mode,unit="player",textKey="test"})
-        Check(latest,700,367)
+        ns.GUI.Editor.TextTemplateLibraryWindow.Open({mode=mode,unit="player",textKey="test",targetLabel="Health Bar"})
+        Equal(latest.window.frame:GetWidth(),700)
+        local height=0
+        for _,child in ipairs(latest.body.children) do height=height+child.frame:GetHeight() end
+        Equal(latest.window.frame:GetHeight(),63+height)
+        Equal({latest.window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+        Equal(latest.window.titletext.lastSetTextColor,{1,1,1,1})
+        local titlePoints=latest.window.titletext.points
+        Equal({titlePoints.TOPLEFT.x,titlePoints.TOPLEFT.y,titlePoints.TOPRIGHT.x,titlePoints.TOPRIGHT.y},{12,-15,-32,-15})
+        CheckHeaderDrag(latest.window)
+        local frame=latest.window.frame
+        assert(not frame._fpParchmentNineSlice or not frame._fpParchmentNineSlice:IsShown())
+        assert(not frame._fpPanelFill:IsShown())
+        assert(frame._fpModernTitleLeft:IsShown())
+        Equal(frame._fpModernTitleLeft.atlas,"UI-Frame-DiamondMetal-CornerTopLeft")
+        local material=latest.shell.frame._fpCompactDialogWindowContentSurface
+        assert(not material or not material:IsShown())
         if mode=="change" then
             assert(latest.window.titletext:GetText()=="Choose Template")
         end
         assert(Find(latest.body,"ScrollFrame"))
-        CheckText(latest.body,"Templates","sectionHeader",11)
-        CheckText(latest.body,"Preview","sectionHeader",11)
+        local pickerContext=Upvalue(ns.GUI.Editor.TextTemplateLibraryWindow.Open,"windowContext")
+        Equal(pickerContext.listGroup.parent.frame:GetWidth(),280)
+        Equal(pickerContext.previewColumn.frame:GetWidth(),340)
+        Equal(pickerContext.listGroup.frame:GetHeight(),300)
+        Equal(pickerContext.previewGroup.frame:GetWidth(),328)
+        assert(pickerContext.contentGroup.frame:GetHeight()>=pickerContext.previewGroup.frame:GetHeight())
+        CheckText(latest.body,mode=="add" and "Add to: Health Bar" or "Choose a text template for this text object.","identity",13)
+        local heading=assert(Find(latest.body,"Label","Templates"))
+        Equal(select(2,heading.label:GetFont()),14)
+        local color=NORMAL_FONT_COLOR or {r=1,g=.82,b=0}
+        Equal(heading.label.lastSetTextColor,{color.r,color.g,color.b,1})
+        Equal(pickerContext.actionContainer.LayoutFunc,ace:GetLayout("Table"))
+        local columns=pickerContext.actionContainer:GetUserData("table").columns
+        assert(columns[1].alignH=="left" and columns[2].alignH=="left" and columns[3].alignH=="right")
+        assert(latest.primaryButton.disabled==not populated)
+        assert(latest.primaryButton.text:GetText()==(mode=="add" and "Add" or "Change"))
         if populated then
-            CheckText(latest.body,"Sample","sectionHeader",14)
-            CheckText(latest.body,"Details","sectionHeader",11)
-            CheckText(latest.body,"Name: Sample","label",10)
-            CheckText(latest.body,"Expression","label",10)
+            CheckText(latest.body,"Sample","identity",14)
+            CheckText(latest.body,"Built-in · Read-only","parchmentSecondary",12)
+            CheckText(latest.body,"Custom text","label",12)
+            CheckText(latest.body,"Sample preview","identity",12)
+            assert(Find(latest.body,"Label","Example Preview"))
+            assert(not Find(latest.body,"Label","Name: Sample"))
             CheckText(latest.body,"Sample preview","highlight",17)
-            local pickerContext=Upvalue(ns.GUI.Editor.TextTemplateLibraryWindow.Open,"windowContext")
             local sampleBinding=pickerContext.rowBindings["entity:tpl:b:default-001"]
-            assert(sampleBinding.label=="Sample | Built-in")
-            assert(not sampleBinding.description and not sampleBinding.detail)
+            assert(sampleBinding.label=="Sample" and sampleBinding.detail=="Built-in")
+            assert(not sampleBinding.description and sampleBinding.presentation.height==30)
+            local row=pickerContext.rowWidgets[sampleBinding.key]
+            assert(row.frame:GetWidth()<=pickerContext.listGroup.frame:GetWidth())
             assert(not Find(latest.body,"Label","Source"))
             assert(pickerContext.previewPanel.Variant=="result_stack")
             assert(pickerContext.previewPanel.frame._fpSectionFill)
@@ -959,6 +993,48 @@ for _,mode in ipairs({"add","change"}) do
         latest.cancelButton:Fire("OnClick")
     end
 end
+-- Same names remain separate IDs; long expressions are retained inside a scroll viewport.
+local picker=ns.GUI.Editor.TextTemplateLibraryWindow
+local savedUnitFrame=ns.UnitFrame
+ns.UnitFrame=ns.UnitFrame or {}
+local savedTagDatabase=ns.UnitFrame.GetTagDatabase
+local savedDescription=ns.L.PICKER_TEST_DESCRIPTION
+ns.L.PICKER_TEST_DESCRIPTION="Canonical picker description"
+ns.UnitFrame.GetTagDatabase=function() return {{token="[picker:test]",description="PICKER_TEST_DESCRIPTION"}} end
+templates={}
+for i=1,123 do
+    templates[i]={value="tpl:u:picker-"..i,label="Same name",content=i==2 and "[picker:test]" or string.rep("long expression ",60),readOnly=i%2==0}
+end
+picker.Open({unit="player",targetLabel="Health Bar"})
+local manyPicker=Upvalue(picker.Open,"windowContext")
+assert(#manyPicker.entries==123 and #manyPicker.listGroup.children==123)
+local first,middle=templates[1],templates[2]
+manyPicker.rowBindings["entity:"..middle.value].onSelect("entity:"..middle.value)
+assert(manyPicker.selectedTemplateKey=="entity:"..middle.value)
+CheckText(latest.body,"Canonical picker description","label",12)
+manyPicker.rowBindings["entity:"..first.value].onSelect("entity:"..first.value)
+assert(manyPicker.selectedTemplateKey=="entity:"..first.value)
+assert(manyPicker.expressionScroll.children[1].label:GetText()==first.content)
+CheckText(latest.body,"User Template","parchmentSecondary",12)
+for _,row in pairs(manyPicker.rowWidgets) do
+    assert(row.frame:GetHeight()==30 and row.frame:GetWidth()<=manyPicker.listGroup.frame:GetWidth())
+end
+local last=templates[#templates]
+manyPicker.listGroup:SetScroll(1000)
+manyPicker.rowBindings["entity:"..last.value].onSelect("entity:"..last.value)
+assert(manyPicker.selectedTemplateKey=="entity:"..last.value)
+for _=1,20 do
+    latest.cancelButton:Fire("OnClick")
+    picker.Open({mode="change",unit="player",textKey="test",initialTemplateId=middle.value})
+    local current=Upvalue(picker.Open,"windowContext")
+    assert(current.selectedTemplateKey=="entity:"..middle.value and #current.listGroup.children==123)
+    assert(current.previewPanel and current.expressionScroll)
+end
+latest.cancelButton:Fire("OnClick")
+ns.UnitFrame.GetTagDatabase=savedTagDatabase
+ns.UnitFrame=savedUnitFrame
+ns.L.PICKER_TEST_DESCRIPTION=savedDescription
+C_Texture=pickerAtlasAPI
 
 -- A Change Text picker keeps the object context captured at open time. A
 -- layout switch while it is open must neither retarget nor mutate either
