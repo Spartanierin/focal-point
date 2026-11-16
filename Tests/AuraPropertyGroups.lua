@@ -175,7 +175,7 @@ Test("rebuild, object/unit/layout changes and reopen reject old tab callbacks an
     for _,w in ipairs(power.children)do
         if w.type=="InlineGroup"then titles[#titles+1]=w.titletext:GetText()end
     end
-    assert(table.concat(titles,",")=="Behavior,Appearance,Background,Size")
+    assert(table.concat(titles,",")=="Behavior,Appearance,Background,Size,Anchor")
     p.CheckAppearanceFrames(power,"Appearance,Background",{Appearance="Texture,Color,Class Color",
         Background="Show Background,Background Color,Border Width,Border Color"})
     -- Release hides widgets, but the pool may immediately acquire them for Power.
