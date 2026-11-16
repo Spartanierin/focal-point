@@ -5,6 +5,7 @@ local stop=assert(source:find("-- Direct utility chrome",1,true))
 local f,Find=assert(load(source:sub(1,stop-1).."\nforms.CreateCompactFormDialog=create; return f,Find","@Tool/NativeFixture"))()
 local ns,ace,native,Equal,Load,Upvalue=f.ns,f.ace,f.native,f.Equal,f.Load,f.Upvalue
 local forms=f.widgets
+local tagPieces
 function native:SetStatusBarColor(...) self.lastSetStatusBarColor={...} end
 function native:SetStatusBarTexture(...) self.lastSetStatusBarTexture={...} end
 local tool={nineSlice=true,portrait=true,focalPointTool=true}
@@ -43,6 +44,81 @@ local function Check(window,w,h)
     Equal(window.closebutton:GetFrameLevel(),frame:GetFrameLevel()+5)
     Equal(window.title:GetFrameLevel(),frame:GetFrameLevel()+4)
     assert(not window.sizer_se:IsShown() and not window.sizer_s:IsShown() and not window.sizer_e:IsShown())
+end
+
+local function CheckTags(context)
+    local window,frame=context.window,context.window.frame
+    Equal(frame:GetWidth(),540)
+    local height=0
+    for _,child in ipairs(context.widgets.root.children) do height=height+child.frame:GetHeight() end
+    Equal(frame:GetHeight(),57+height+8)
+    assert(frame:GetHeight()<760)
+    Equal({window.titletext:GetFont()},{STANDARD_TEXT_FONT,16,""})
+    local points=window.titletext.points
+    Equal({points.TOPLEFT.x,points.TOPLEFT.y,points.TOPRIGHT.x,points.TOPRIGHT.y},{12,-15,-32,-15})
+    Equal(window.titletext.lastSetTextColor,{1,1,1,1})
+    assert(frame._fpModernTitleLeft:IsShown())
+    Equal(frame._fpModernTitleLeft.atlas,"UI-Frame-DiamondMetal-CornerTopLeft")
+    assert(not frame._fpModernNineSlice or not frame._fpModernNineSlice:IsShown())
+    assert(not frame._fpToolBody or not frame._fpToolBody:IsShown())
+    assert(not frame._fpModernPortraitContainer or not frame._fpModernPortraitContainer:IsShown())
+    Equal({window.title.points.TOPLEFT.x,window.title.points.TOPLEFT.y,
+        window.title.points.BOTTOMRIGHT.x,window.title.points.BOTTOMRIGHT.y},{8,0,-math.max(36,window.closebutton:GetWidth()+4),-32})
+    Equal(context.dialog.body.frame.lastSetAllPoints,{window.content})
+    -- The native double does not resolve stretched child anchors automatically.
+    -- Mirror the zero-inset body content before asserting the unchanged root bounds.
+    Equal(context.dialog.body.frame:GetWidth(),506)
+    context.dialog.body.content:SetSize(context.dialog.body.frame:GetWidth(),context.dialog.body.frame:GetHeight())
+    context.dialog.body:DoLayout()
+    Equal(context.widgets.root.frame:GetWidth(),506)
+    Equal(context.widgets.listScroll.frame:GetHeight(),242)
+    Equal(context.widgets.details.frame:GetHeight(),112)
+    local browser,detail=context.widgets.browser,context.widgets.detailGroup
+    assert(browser.parent==detail.parent and browser.parent.LayoutFunc==ace:GetLayout("List"))
+    -- As with the body above, resolve the stack's stretched native content in this double.
+    local root=context.widgets.root
+    local padding=root._fpSectionPadding
+    Equal(padding.top,8)
+    Equal(root.content.points.TOPLEFT.y,-8)
+    root.content:SetSize(root.frame:GetWidth()-padding.left-padding.right,root.frame:GetHeight()-padding.top-padding.bottom)
+    root:DoLayout()
+    local content=browser.parent
+    content.content:SetSize(content.frame:GetWidth(),content.frame:GetHeight())
+    content:DoLayout()
+    Equal(browser.frame:GetWidth(),detail.frame:GetWidth())
+    Equal(browser.frame:GetWidth(),474)
+    local gap=content.children[2]
+    assert(gap.frame.points.TOPLEFT.relative==browser.frame and gap.frame.points.TOPLEFT.relativePoint=="BOTTOMLEFT")
+    assert(detail.frame.points.TOPLEFT.relative==gap.frame and detail.frame.points.TOPLEFT.relativePoint=="BOTTOMLEFT")
+    Equal(gap.frame:GetHeight(),32)
+    assert(gap.frame:GetHeight()>=15+15)
+    Equal(content.frame:GetHeight(),browser.frame:GetHeight()+32+detail.frame:GetHeight())
+    Equal(detail.frame:GetHeight(),160)
+    local footerGap=context.widgets.root.children[4]
+    assert(footerGap.frame.points.TOPLEFT.relative==content.frame and footerGap.frame.points.TOPLEFT.relativePoint=="BOTTOMLEFT")
+    assert(context.widgets.actions.frame.points.TOPLEFT.relative==footerGap.frame)
+    Equal(footerGap.frame:GetHeight(),20)
+    assert(context.widgets.details.type=="ScrollFrame")
+    Equal(context.widgets.actions.LayoutFunc,ace:GetLayout("Table"))
+    for _,host in ipairs({context.widgets.browser,context.widgets.detailGroup}) do
+        Equal(select(2,host.children[1].label:GetFont()),14)
+        local color=NORMAL_FONT_COLOR or {r=1,g=.82,b=0}
+        Equal(host.children[1].label.lastSetTextColor,{color.r,color.g,color.b,1})
+        local box=assert(host.frame._fpTagLibraryGroupBox)
+        assert(box:IsShown() and box:GetParent()==host.frame:GetParent())
+        assert(box.testLayout=="UniqueCornersLayout" and box.testKit=="OptionsFrame")
+        assert(#box.regions==9 and not box.Center.testAtlas)
+        for key,piece in pairs(tagPieces) do
+            if key~="Center" then Equal(box[key].testAtlas,string.format(piece.atlas,"OptionsFrame")) end
+        end
+        assert(box.lastEnableMouse==false or box.lastEnableMouse[1]==false)
+        assert(not host.frame.__fpTagLibraryBrowserFill and not host.frame.__fpTagLibraryDetailsFill)
+    end
+    for _,row in ipairs(context.widgets.rows) do
+        Equal(row.frame:GetHeight(),42)
+        Equal(select(2,row.label:GetFont()),12)
+        Equal(select(2,row.description:GetFont()),10)
+    end
 end
 
 -- Compare the same actual Window before/after presentation, including scripts.
@@ -128,15 +204,88 @@ ns.UnitFrame=ns.UnitFrame or {}
 function ns.UnitFrame:GetTagDatabase() return {{token="[name]",category="Unit",description="Unit name",example="Player"},
     {token="[hp:cur]",category="Health",description="Current health",example="100"}} end
 Load("GUI/Pages/TagLibrary/TagLibraryView.lua"); Load("GUI/Pages/TagLibrary/TagLibraryController.lua")
+local nativeLayout,nativeApply=NineSliceUtil.GetLayout,NineSliceUtil.ApplyLayoutByName
+tagPieces={TopLeftCorner={atlas="%s-NineSlice-CornerTopLeft"},TopRightCorner={atlas="%s-NineSlice-CornerTopRight"},
+    BottomLeftCorner={atlas="%s-NineSlice-CornerBottomLeft"},BottomRightCorner={atlas="%s-NineSlice-CornerBottomRight"},
+    TopEdge={atlas="_%s-NineSlice-EdgeTop"},BottomEdge={atlas="_%s-NineSlice-EdgeBottom"},
+    LeftEdge={atlas="!%s-NineSlice-EdgeLeft"},RightEdge={atlas="!%s-NineSlice-EdgeRight"},Center={atlas="%s-NineSlice-Center"}}
+NineSliceUtil.GetLayout=function(name) if name=="UniqueCornersLayout" then return tagPieces end;return nativeLayout(name) end
+NineSliceUtil.ApplyLayoutByName=function(host,name,kit)
+    if name~="UniqueCornersLayout" then return nativeApply(host,name,kit) end
+    host.testLayout,host.testKit=name,kit
+    for key,piece in pairs(tagPieces) do
+        host[key]=host[key] or host:CreateTexture(nil,"BORDER")
+        local atlas=string.format(piece.atlas,kit)
+        if C_Texture.GetAtlasInfo(atlas) then host[key]:SetAtlas(atlas,true);host[key].testAtlas=atlas end
+    end
+end
 local tags=ns.GUI.Pages.TagLibrary; local tagApplied
-local function OpenTags() assert(tags.Open({owner="fixture",onApply=function(token) tagApplied=token end})) end
+local missingTagAtlas
+local function OpenTags(options)
+    local atlasAPI=C_Texture
+    C_Texture={GetAtlasInfo=function(name)
+        if name=="OptionsFrame-NineSlice-Center" or name==missingTagAtlas then return nil end
+        return {width=32,height=32}
+    end}
+    assert(tags.Open(options or {owner="fixture",onApply=function(token) tagApplied=token end}))
+    C_Texture=atlasAPI
+end
 OpenTags(); NoErrors()
-local tagContext=Upvalue(tags.Open,"context"); Check(tagContext.window,760,560)
+local tagContext=Upvalue(tags.Open,"context"); CheckTags(tagContext)
 tagContext.widgets.searchBox:Fire("OnTextChanged","name"); NoErrors()
 Equal(#tagContext.state.visibleEntries,1); Equal(tagContext.state.selectedEntry.token,"[name]")
 assert(#tagContext.widgets.details.children>0 and tagContext.widgets.listScroll)
 tagContext.widgets.applyButton:Fire("OnClick"); Equal(tagApplied,"[name]")
 OpenTags(); tagContext.widgets.cancelButton:Fire("OnClick")
+local tagWindow=tagContext.window
+local keyboard=tagWindow.frame:GetScript("OnKeyDown")
+Equal(tagWindow.frame.lastSetPropagateKeyboardInput,{false})
+local applyCalls,cancelCalls=0,0
+OpenTags({onApply=function(token,entry)
+    applyCalls=applyCalls+1;assert(token==entry.token);return false
+end,onCancel=function()cancelCalls=cancelCalls+1 end})
+tagContext.widgets.applyButton:Fire("OnClick")
+assert(applyCalls==1 and tagWindow.frame:IsShown() and cancelCalls==0)
+tagContext.widgets.searchBox:Fire("OnTextChanged","no matching token")
+assert(tagContext.widgets.applyButton.disabled and #tagContext.state.visibleEntries==0)
+tagWindow.frame:Run("OnKeyDown","ESCAPE")
+assert(cancelCalls==1 and not tagWindow.frame:IsShown())
+OpenTags({onCancel=function()cancelCalls=cancelCalls+1 end})
+assert(tagContext.window==tagWindow and tagContext.state.searchText=="")
+assert(tagWindow.frame:GetScript("OnKeyDown")==keyboard)
+tagWindow.closebutton:Run("OnClick");assert(cancelCalls==2)
+OpenTags({onApply=function()applyCalls=applyCalls+1 end,onCancel=function()cancelCalls=cancelCalls+1 end})
+tagContext.widgets.applyButton:Fire("OnClick")
+assert(applyCalls==2 and cancelCalls==2 and not tagWindow.frame:IsShown())
+local boxes={tagContext.widgets.browser.frame._fpTagLibraryGroupBox,tagContext.widgets.detailGroup.frame._fpTagLibraryGroupBox}
+for key,piece in pairs(tagPieces) do
+    if key~="Center" then
+        missingTagAtlas=string.format(piece.atlas,"OptionsFrame")
+        OpenTags()
+        assert(not boxes[1]:IsShown() and not boxes[2]:IsShown())
+    end
+end
+missingTagAtlas=nil
+OpenTags();CheckTags(tagContext)
+assert(tagContext.widgets.browser.frame._fpTagLibraryGroupBox==boxes[1])
+assert(tagContext.widgets.detailGroup.frame._fpTagLibraryGroupBox==boxes[2])
+local database=ns.UnitFrame.GetTagDatabase
+local longExample=string.rep("[color:class][name][rc]",30)
+for _,longDescription in ipairs({string.rep("Long description ",100),string.rep("Lange Beschreibung mit Textumbruch ",100)}) do
+ns.UnitFrame.GetTagDatabase=function()return {{token="[color:blizz_highlight]",category="Format",description=longDescription,example=longExample}}end
+OpenTags();CheckTags(tagContext)
+local description=assert(Find(tagContext.widgets.details,"Label",longDescription))
+local measure=description.label.GetStringHeight
+description.label.GetStringHeight=function()return 500 end
+description:SetText(longDescription)
+tagContext.widgets.details:DoLayout()
+assert(tagContext.widgets.details.content:GetHeight()>tagContext.widgets.details.frame:GetHeight())
+assert(Find(tagContext.widgets.details,"Label",longExample))
+Equal(tagContext.widgets.details.frame:GetHeight(),112)
+description.label.GetStringHeight=measure
+end
+ns.UnitFrame.GetTagDatabase=database
+OpenTags();CheckTags(tagContext)
 NoErrors()
 
 Load("Data/Constants.lua"); ns.KeyMap=ns.KeyMap or {}
@@ -159,7 +308,7 @@ ns.TextTemplateMutations={
 Load("GUI/Pages/TextBuilder/TextBuilderController.lua")
 local builder=ns.GUI.Pages.TextBuilder
 builder.OpenWindow(); NoErrors()
-Equal(consumerCount,3); forms.ApplyModernWindowChrome=applyModern
+Equal(consumerCount,2); forms.ApplyModernWindowChrome=applyModern -- Media and large Builder; Tags use Compact Edit Mode.
 local builderContext=Upvalue(builder.OpenWindow,"windowContext")
 Check(builderContext.window,1040,700)
 local key=table.concat({"profile","Test","Test","","Sample"},"\031")
@@ -200,7 +349,7 @@ local callbacks={mediaContext.window.events.OnRelease,tagContext.window.events.O
 for cycle=1,30 do
     OpenMedia(); Check(mediaContext.window,720,660)
     mediaContext.window.frame:Run("OnKeyDown","ESCAPE"); assert(not mediaContext.window.frame:IsShown())
-    OpenTags(); Check(tagContext.window,760,560)
+    OpenTags(); CheckTags(tagContext)
     tagContext.window.closebutton:Run("OnClick"); assert(not tagContext.window.frame:IsShown())
     builder.OpenWindow(); Check(builderContext.window,1040,700)
     builderContext.window.closebutton:Run("OnClick"); assert(not builderContext.window.frame:IsShown())
@@ -208,4 +357,7 @@ for cycle=1,30 do
     if cycle==1 then warmCount=f.Count() else Equal(f.Count(),warmCount) end
 end
 NoErrors()
+ace:Release(tagWindow)
+for _,box in ipairs(boxes) do assert(not box:IsShown()) end
+NineSliceUtil.GetLayout,NineSliceUtil.ApplyLayoutByName=nativeLayout,nativeApply
 print("PASS: FP Tool structure/material/neutralization, 50 reset/size/reapply cycles, 30 pooling/tool-reopen cycles; real Media/Tag search/selection/preview/actions and TextBuilder template/edit/save/apply/dirty-close with U1 utility")

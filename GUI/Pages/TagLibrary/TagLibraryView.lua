@@ -13,43 +13,6 @@ local TagLibraryView = {}
 
 ns.GUI.Pages.TagLibraryView = TagLibraryView
 
-local CHROME_PREFIX = "__fpTagLibrary"
-
-local SECTION_CHROME = {
-    fill = { 0.050, 0.057, 0.072, 0.70 },
-    border = { 0.28, 0.31, 0.37, 0.62 },
-    topShade = { 1.00, 1.00, 1.00, 0.04 },
-    bottomShade = { 0.00, 0.00, 0.00, 0.28 },
-}
-
-local function SetTextureColor(texture, color)
-    if texture and texture.SetColorTexture and color then
-        texture:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
-    end
-end
-
-local function EnsureColorTexture(frame, key, layer)
-    if not frame then
-        return nil
-    end
-
-    if not frame[key] then
-        frame[key] = frame:CreateTexture(nil, layer or "BACKGROUND")
-    end
-    frame[key]:Show()
-    return frame[key]
-end
-
-local function SetPointPair(texture, startPoint, startRelative, startX, startY, endPoint, endRelative, endX, endY)
-    if not texture then
-        return
-    end
-
-    texture:ClearAllPoints()
-    texture:SetPoint(startPoint, startRelative, startPoint, startX or 0, startY or 0)
-    texture:SetPoint(endPoint, endRelative, endPoint, endX or 0, endY or 0)
-end
-
 local function T(key, fallback)
     return (key and L[key]) or fallback or key or ""
 end
@@ -131,76 +94,73 @@ local function LockHeight(widget, height)
     end
 end
 
-local function ApplySectionChrome(widget, key, options)
-    local frame = widget and widget.frame
-    if not frame then
-        return
+local function ApplyGroupBox(widget)
+    local box = widget.frame._fpTagLibraryGroupBox
+    if box then box:Hide() end
+    local layout = NineSliceUtil and NineSliceUtil.GetLayout and NineSliceUtil.GetLayout("UniqueCornersLayout")
+    local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+    local available = layout and NineSliceUtil.ApplyLayoutByName and type(atlasInfo) == "function"
+    for _, key in ipairs({"TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+        "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"}) do
+        local piece = layout and layout[key]
+        if available and piece and type(piece.atlas) == "string" then
+            local ok, info = pcall(atlasInfo, string.format(piece.atlas, "OptionsFrame"))
+            available = ok and info ~= nil and info ~= false
+        else
+            available = false
+        end
     end
+    -- Same native OptionsFrame pattern as Texts Manager; Center is optional.
+    if available then
+        if not box then
+            box = CreateFrame("Frame", nil, widget.frame:GetParent())
+            widget.frame._fpTagLibraryGroupBox = box
+            box:EnableMouse(false)
+        end
+        box:SetParent(widget.frame:GetParent())
+        box:ClearAllPoints()
+        box:SetPoint("TOPLEFT", widget.frame, "TOPLEFT", -16, 15)
+        box:SetPoint("BOTTOMRIGHT", widget.frame, "BOTTOMRIGHT", 16, -15)
+        box:SetFrameLevel(widget.frame:GetFrameLevel())
+        box:SetAlpha(1)
+        NineSliceUtil.ApplyLayoutByName(box, "UniqueCornersLayout", "OptionsFrame")
+        box:Show()
+    end
+    widget:SetCallback("OnRelease", function(owner)
+        if owner.frame._fpTagLibraryGroupBox then owner.frame._fpTagLibraryGroupBox:Hide() end
+        ns.GUI.Helpers.FormSectionSurfaceRenderer.ApplySectionPadding(owner, nil)
+    end)
+end
 
-    options = options or {}
-    local prefix = CHROME_PREFIX .. key
-    local fillColor = options.fill or SECTION_CHROME.fill
-    local borderColor = options.border or SECTION_CHROME.border
+local function Heading(text)
+    local label = CreateLabel(text, "sectionHeader", 14)
+    local color = NORMAL_FONT_COLOR or {r = 1, g = 0.82, b = 0}
+    label.label:SetTextColor(color.r, color.g, color.b, 1)
+    return label
+end
 
-    local fill = EnsureColorTexture(frame, prefix .. "Fill", "BACKGROUND")
-    SetPointPair(fill, "TOPLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    SetTextureColor(fill, fillColor)
+local function Gap(parent, height)
+    local gap = AceGUI:Create("SimpleGroup")
+    gap:SetFullWidth(true)
+    gap:SetAutoAdjustHeight(false)
+    gap:SetHeight(height)
+    parent:AddChild(gap)
+end
 
-    local topShade = EnsureColorTexture(frame, prefix .. "TopShade", "BORDER")
-    SetPointPair(topShade, "TOPLEFT", frame, 1, -1, "TOPRIGHT", frame, -1, -1)
-    topShade:SetHeight(1)
-    SetTextureColor(topShade, options.topShade or SECTION_CHROME.topShade)
-
-    local bottomShade = EnsureColorTexture(frame, prefix .. "BottomShade", "BORDER")
-    SetPointPair(bottomShade, "BOTTOMLEFT", frame, 1, 1, "BOTTOMRIGHT", frame, -1, 1)
-    bottomShade:SetHeight(1)
-    SetTextureColor(bottomShade, options.bottomShade or SECTION_CHROME.bottomShade)
-
-    local borderTop = EnsureColorTexture(frame, prefix .. "BorderTop", "BORDER")
-    SetPointPair(borderTop, "TOPLEFT", frame, 0, 0, "TOPRIGHT", frame, 0, 0)
-    borderTop:SetHeight(1)
-    SetTextureColor(borderTop, borderColor)
-
-    local borderBottom = EnsureColorTexture(frame, prefix .. "BorderBottom", "BORDER")
-    SetPointPair(borderBottom, "BOTTOMLEFT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    borderBottom:SetHeight(1)
-    SetTextureColor(borderBottom, borderColor)
-
-    local borderLeft = EnsureColorTexture(frame, prefix .. "BorderLeft", "BORDER")
-    SetPointPair(borderLeft, "TOPLEFT", frame, 0, 0, "BOTTOMLEFT", frame, 0, 0)
-    borderLeft:SetWidth(1)
-    SetTextureColor(borderLeft, borderColor)
-
-    local borderRight = EnsureColorTexture(frame, prefix .. "BorderRight", "BORDER")
-    SetPointPair(borderRight, "TOPRIGHT", frame, 0, 0, "BOTTOMRIGHT", frame, 0, 0)
-    borderRight:SetWidth(1)
-    SetTextureColor(borderRight, borderColor)
+local function FitWindow(context)
+    local widgets = context.widgets
+    widgets.root:DoLayout()
+    local height = 0
+    for _, child in ipairs(widgets.root.children) do height = height + child.frame:GetHeight() end
+    height = height + widgets.root._fpSectionPadding.top + widgets.root._fpSectionPadding.bottom
+    context.window:SetHeight(57 + height)
+    context.dialog.body:SetHeight(context.window.content:GetHeight())
+    context.dialog.body:DoLayout()
 end
 
 local function CenterWindow(window)
     if FormWidgets.CenterWindow then
         FormWidgets.CenterWindow(window)
-    end
-end
-
-local function FocusWindow(window)
-    if FormWidgets.FocusWindow then
-        FormWidgets.FocusWindow(window, { centerIfHidden = true })
-        return
-    end
-
-    local frame = window and window.frame
-    if window and window.Show then
-        window:Show()
-    elseif frame and frame.Show then
-        frame:Show()
-    end
-    if frame then
-        frame:SetFrameStrata("FULLSCREEN_DIALOG")
-        frame:SetToplevel(true)
-        if frame.Raise then
-            frame:Raise()
-        end
     end
 end
 
@@ -212,6 +172,9 @@ local function EnableEscapeClose(window)
     if frame.EnableKeyboard then
         frame:EnableKeyboard(true)
     end
+    if frame.SetPropagateKeyboardInput then
+        frame:SetPropagateKeyboardInput(false)
+    end
     if frame.SetScript then
         frame:SetScript("OnKeyDown", function(_, key)
             if key == "ESCAPE" and window.Hide then
@@ -221,49 +184,32 @@ local function EnableEscapeClose(window)
     end
 end
 
-local function AddField(container, labelText, valueText)
-    local field = AceGUI:Create("SimpleGroup")
-    field:SetLayout("List")
-    field:SetWidth(container.frame:GetWidth())
-    field:SetFullWidth(true)
-    field:AddChild(CreateLabel(labelText, "help", 10))
-    field:AddChild(CreateLabel(valueText ~= "" and valueText or "-", "label", 11))
-    container:AddChild(field)
-end
-
 local function RefreshDetails(context)
     local widgets = context and context.widgets or {}
     local details = widgets.details
-    if not details then
-        return
-    end
-
+    if not details then return end
     details:ReleaseChildren()
-    details:AddChild(CreateSpacer(nil, 10))
-    details:AddChild(CreateSpacer(14, 1))
-    local fields = AceGUI:Create("SimpleGroup")
-    fields:SetLayout("Table")
-    fields:SetUserData("table", { columns = { 1 }, spaceV = 8, align = "TOPLEFT" })
-    fields:SetWidth(352) -- 380-wide detail surface, with 14 on either side.
-    fields:SetFullWidth(false)
-    details:AddChild(fields)
-
     local item = context.state and context.state.selectedEntry or nil
     if not item then
-        fields:AddChild(CreateLabel(T("INFO_TAG_LIBRARY_NO_SELECTION", "No tag selected."), "help", 11))
+        details:AddChild(CreateLabel(T("INFO_TAG_LIBRARY_NO_SELECTION", "No tag selected."), "parchmentSecondary", 12))
     else
-        AddField(fields, T("INFO_TAG_LIBRARY_COL_TAG", "Tag"), item.token)
-        AddField(fields, T("INFO_TAG_LIBRARY_CATEGORY", "Category"), item.category)
-        AddField(fields, T("INFO_TAG_LIBRARY_COL_DESC", "Description"), item.description)
-        AddField(fields, T("INFO_TAG_LIBRARY_COL_EXAMPLE", "Example"), item.example)
+        details:AddChild(CreateLabel(item.token, "identity", 14))
+        details:AddChild(CreateLabel(item.category, "parchmentSecondary", 12))
+        Gap(details, 8)
+        details:AddChild(Heading(T("INFO_TAG_LIBRARY_COL_DESC", "Description")))
+        details:AddChild(CreateLabel(item.description ~= "" and item.description or "-", "label", 12))
+        Gap(details, 8)
+        details:AddChild(Heading(T("INFO_TAG_LIBRARY_COL_EXAMPLE", "Example")))
+        details:AddChild(CreateLabel(item.example ~= "" and item.example or "-", "identity", 12))
     end
     details:DoLayout()
-    widgets.root:DoLayout()
+    FitWindow(context)
 end
 
 local function BindSelectionRow(row, context, item)
     row:Bind({
         key = item,
+        presentation = {labelSize = 12, height = 42},
         label = item.token,
         description = item.description ~= "" and item.description or nil,
         selected = context.state.selectedEntry == item,
@@ -302,6 +248,9 @@ local function RefreshRows(context)
         local row = SelectionRow.Create and SelectionRow.Create({}) or nil
         if row then
             row.item = item
+            local font = {row.description:GetFont()}
+            FormWidgets.ApplyTextStyle(row.description, "parchmentSecondary", 10, 1)
+            row:SetCallback("OnRelease", function(owner) owner.description:SetFont(unpack(font)) end)
             BindSelectionRow(row, context, item)
             scroll:AddChild(row)
             widgets.rows[#widgets.rows + 1] = row
@@ -332,6 +281,8 @@ function TagLibraryView.Refresh(context)
         widgets.subtitle:SetText(context.state.subtitle or "")
     end
 
+    ApplyGroupBox(widgets.browser)
+    ApplyGroupBox(widgets.detailGroup)
     RefreshRows(context)
     RefreshDetails(context)
     if widgets.applyButton and widgets.applyButton.SetDisabled then
@@ -340,110 +291,101 @@ function TagLibraryView.Refresh(context)
 end
 
 function TagLibraryView.Create(context)
-    local window = AceGUI:Create("Window")
-    window:SetTitle(context.state.title or T("INFO_TAG_LIBRARY_TITLE", "Tag Library"))
-    window:SetLayout("Fill")
-    window:SetWidth(760)
-    window:SetHeight(560)
-    window:EnableResize(false)
-
-    if window.frame then
-        window.frame:SetClampedToScreen(true)
-    end
-    if FormWidgets.ApplyModernWindowChrome then
-        FormWidgets.ApplyModernWindowChrome(window, {
-            focalPointTool = true,
-            nineSlice = true,
-            portrait = true,
-            portraitTexture = "Interface\\AddOns\\FocalPoint\\Media\\Icons\\Runtime\\fp_icon_portrait.png",
-        })
-    end
-    if FormWidgets.EnsureStandardWindowCloseButton then
-        FormWidgets.EnsureStandardWindowCloseButton(window)
-    end
+    local dialog = FormWidgets.CreateCompactFormDialog({
+        title = context.state.title or T("INFO_TAG_LIBRARY_TITLE", "Tag Library"),
+        width = 540, height = 670,
+        windowChrome = "editmode",
+        titleFontSize = 16, titleOffsetY = -7,
+        headerDrag = {left = 8, right = 36, top = 0, height = 32},
+        bodyLayout = "Fill", contentRoot = true,
+    })
+    local window = dialog.window
+    -- Keep the existing tool content bounds instead of adding compact-form insets.
+    dialog.body.frame:ClearAllPoints()
+    dialog.body.frame:SetAllPoints(window.content)
+    dialog.body:SetWidth(window.content:GetWidth())
+    dialog.body:SetHeight(window.content:GetHeight())
     EnableEscapeClose(window)
 
+    local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
     local root = AceGUI:Create("SimpleGroup")
-    root:SetLayout("Flow")
+    root:SetLayout("List")
     root:SetFullWidth(true)
     root:SetFullHeight(true)
-    window:AddChild(root)
+    root:SetAutoAdjustHeight(false)
+    renderer.ApplySectionPadding(root, {left = 16, right = 16, top = 8})
+    root:SetCallback("OnRelease", function(owner) renderer.ApplySectionPadding(owner, nil) end)
+    dialog.body:AddChild(root)
 
-    local subtitle = CreateLabel(context.state.subtitle or "", "help", 11)
+    local subtitle = CreateLabel(context.state.subtitle or "", "parchmentSecondary", 12)
     root:AddChild(subtitle)
+    Gap(root, 18)
 
     local content = AceGUI:Create("SimpleGroup")
-    content:SetLayout("Flow")
+    content:SetLayout("List")
     content:SetFullWidth(true)
-    LockHeight(content, 408)
+    content:SetAutoAdjustHeight(false)
+    LockHeight(content, 324 + 32 + 160)
     root:AddChild(content)
 
     local browser = AceGUI:Create("SimpleGroup")
-    browser:SetLayout("Flow")
-    browser:SetFullWidth(false)
-    browser:SetWidth(330)
-    LockHeight(browser, 402)
+    browser:SetLayout("List")
+    browser:SetFullWidth(true)
+    browser:SetAutoAdjustHeight(false)
+    LockHeight(browser, 324)
+    renderer.ApplySectionPadding(browser, {left = 10, right = 10, top = 10, bottom = 10})
     content:AddChild(browser)
-    ApplySectionChrome(browser, "Browser", {
-        fill = { 0.044, 0.050, 0.064, 0.74 },
-        border = { 0.30, 0.33, 0.39, 0.66 },
-    })
-
-    browser:AddChild(CreateSpacer(nil, 8))
-    browser:AddChild(CreateSpacer(12, 1))
-
+    browser:AddChild(Heading(T("INFO_TAG_LIBRARY_SEARCH", "Search tags")))
+    Gap(browser, 6)
     local searchBox = AceGUI:Create("EditBox")
-    searchBox:SetLabel(T("INFO_TAG_LIBRARY_SEARCH", "Search tags"))
     searchBox:DisableButton(true)
-    searchBox:SetWidth(304)
-    if FormWidgets.StyleEditBox then
-        FormWidgets.StyleEditBox(searchBox, "editor_inset")
-    end
+    searchBox:SetFullWidth(true)
+    FormWidgets.StyleEditBox(searchBox, "editor_inset")
     browser:AddChild(searchBox)
-
-    browser:AddChild(CreateSpacer(nil, 6))
-    browser:AddChild(CreateSpacer(12, 1))
-
+    Gap(browser, 8)
     local listScroll = AceGUI:Create("ScrollFrame")
     listScroll:SetLayout("Flow")
-    listScroll:SetFullWidth(false)
-    listScroll:SetWidth(304)
-    listScroll:SetHeight(322)
+    listScroll:SetFullWidth(true)
+    LockHeight(listScroll, 242)
     browser:AddChild(listScroll)
 
-    content:AddChild(CreateSpacer(12, 1))
+    Gap(content, 32)
+    local detailGroup = AceGUI:Create("SimpleGroup")
+    detailGroup:SetLayout("List")
+    detailGroup:SetFullWidth(true)
+    detailGroup:SetAutoAdjustHeight(false)
+    LockHeight(detailGroup, 160)
+    renderer.ApplySectionPadding(detailGroup, {left = 10, right = 10, top = 10, bottom = 10})
+    content:AddChild(detailGroup)
+    detailGroup:AddChild(Heading(T("INSERT_TEXT_DETAILS", "Details")))
+    Gap(detailGroup, 6)
+    local details = AceGUI:Create("ScrollFrame")
+    details:SetLayout("List")
+    details:SetFullWidth(true)
+    LockHeight(details, 112)
+    detailGroup:AddChild(details)
 
-    local details = AceGUI:Create("SimpleGroup")
-    details:SetLayout("Flow")
-    details:SetFullWidth(false)
-    details:SetWidth(380)
-    details:SetAutoAdjustHeight(true) -- Four fields grow with their actual text.
-    content:AddChild(details)
-    ApplySectionChrome(details, "Details", {
-        fill = { 0.052, 0.059, 0.074, 0.70 },
-        border = { 0.27, 0.30, 0.36, 0.58 },
-    })
-
+    Gap(root, 20)
     local actions = AceGUI:Create("SimpleGroup")
-    actions:SetLayout("Flow")
+    actions:SetLayout("Table")
+    actions:SetUserData("table", {columns = {{weight = 1, alignH = "left"}, {weight = 1, alignH = "right"}}, alignV = "middle"})
     actions:SetFullWidth(true)
-    LockHeight(actions, 42)
+    actions:SetAutoAdjustHeight(false)
+    LockHeight(actions, 30)
     root:AddChild(actions)
-    FormWidgets.ApplySurfacePresentation(actions, "Footer", {
-        prefix = CHROME_PREFIX,
-        actionBar = true,
-    })
-
-    actions:AddChild(CreateSpacer(nil, 5))
     local applyButton = CreateButton(T("INFO_TAG_LIBRARY_INSERT", "Insert Tag"), "primary_action", 115)
     actions:AddChild(applyButton)
-    actions:AddChild(CreateSpacer(494, 1))
     local cancelButton = CreateButton(T("INFO_COMMON_CANCEL", "Cancel"), "utility", 105)
     actions:AddChild(cancelButton)
+    Gap(root, 4)
 
     context.window = window
+    context.dialog = dialog
     context.widgets = {
         root = root,
+        browser = browser,
+        detailGroup = detailGroup,
+        actions = actions,
         subtitle = subtitle,
         searchBox = searchBox,
         listScroll = listScroll,
@@ -473,7 +415,7 @@ function TagLibraryView.Create(context)
     end)
 
     CenterWindow(window)
-    FocusWindow(window)
+    dialog:Show()
     TagLibraryView.Refresh(context)
     return window
 end
@@ -485,7 +427,7 @@ function TagLibraryView.Show(context)
 
     if context.window then
         context.window:SetTitle(context.state.title or T("INFO_TAG_LIBRARY_TITLE", "Tag Library"))
-        FocusWindow(context.window)
+        context.dialog:Show()
         TagLibraryView.Refresh(context)
         return context.window
     end
