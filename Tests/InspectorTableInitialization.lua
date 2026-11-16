@@ -34,11 +34,11 @@ local function Check(window)
     local found=0
     local function Visit(widget)
         if widget:GetUserData("focalPointSectionRole")=="content" then
-            local navigation=widget.children and widget.children[1]
+            local navigation=window._focalPointPropertyNavigation.children[1]
             if navigation and navigation:GetUserData("table") then
                 local columns=navigation:GetUserData("table").columns
                 assert(#columns==3 and #navigation.children==3)
-                assert(navigation.parent==widget and navigation.frame:GetHeight()==40)
+                assert(navigation.parent==window._focalPointPropertyNavigation and navigation.frame:GetHeight()==40)
                 for index,key in ipairs({"appearance","geometry","behavior"}) do
                     assert(navigation.children[index]:GetUserData("normalAbsorbPropertyTab")==key)
                     assert(columns[index].weight>0)

@@ -32,7 +32,7 @@ local function Walk(w,fn)
 end
 local function Tabs()
     local tabs,order={},{}
-    Walk(window._focalPointPropertyScroll,function(w)
+    Walk(window._focalPointPropertyNavigation,function(w)
         local key=w:GetUserData("normalAbsorbPropertyTab")
         if key then tabs[key]=w; order[#order+1]=key end
     end)
@@ -84,18 +84,16 @@ local function CheckProjection(key)
             geometry=ns.L.SECTION_SIZE_POSITION or "Size & Position",behavior=ns.L.SECTION_BEHAVIOR or "Behavior"}
         assert(surface.label:GetText()==labels[name] and surface.label:IsShown())
         assert((tab.text:GetText() or "")=="","native template retains a second caption")
-        assert(tab.frame:GetWidth()>=surface.label:GetStringWidth()+16,"tab label truncated")
-        assert(surface.bottom:IsShown()==(name~=key),"active tab has a lower edge")
-        for i=1,surface.top:GetNumPoints() do
-            local _,_,_,_,top=surface.top:GetPoint(i)
-            assert(top==(name==key and 0 or -4),"inactive tab is not recessed")
-        end
+        assert(tab.frame:GetWidth()>=surface.label:GetStringWidth()+8,"tab label truncated")
+        assert(surface.bottom:IsShown()==(name==key),"only the active category has an underline")
+        for _,part in ipairs({"fill","top","left","right"})do assert(not surface[part]:IsShown())end
     end
     assert(state.Get().inspectorPropertyGroup==key)
     local body=Body(); local visible=0
     local root=body.parent
     assert(#root.children==1 and root.children[1]==body,"redundant Workspace object header returned")
-    assert(body.children[1].frame:GetHeight()==40,"tab navigation must retain 10px below its 30px buttons")
+    assert(tabs.appearance.parent.parent==window._focalPointPropertyNavigation)
+    assert(tabs.appearance.parent.frame:GetHeight()==40,"fixed navigation retains its 40px slot")
     Walk(body,function(widget)
         if widget.type=="Label" and widget:GetUserData("fpLabelTypography") then
             local _,size=widget.label:GetFont()

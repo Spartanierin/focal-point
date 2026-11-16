@@ -52,6 +52,32 @@ local function SetSurfaceBounds(region, frame, left, right, top, bottom)
     region:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -right, bottom)
 end
 
+local function ApplyNativeGroupBox(frame, left, right, top, bottom)
+    local layout = NineSliceUtil and NineSliceUtil.GetLayout and NineSliceUtil.GetLayout("UniqueCornersLayout")
+    local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
+    if not layout or not NineSliceUtil.ApplyLayoutByName or type(atlasInfo) ~= "function" then return false end
+    for _, key in ipairs({"TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+        "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"}) do
+        local piece = layout[key]
+        if not piece or type(piece.atlas) ~= "string" then return false end
+        local ok, info = pcall(atlasInfo, string.format(piece.atlas, "OptionsFrame"))
+        if not ok or not info then return false end
+    end
+    local box = frame._fpSectionGroupBox
+    if not box then
+        box = CreateFrame("Frame", nil, frame)
+        box:EnableMouse(false)
+        frame._fpSectionGroupBox = box
+    end
+    SetSurfaceBounds(box, frame, left, right, top, bottom)
+    box:SetFrameLevel(frame:GetFrameLevel())
+    NineSliceUtil.ApplyLayoutByName(box, "UniqueCornersLayout", "OptionsFrame")
+    -- This mode decorates the boundary only; Center is optional and never fills the controls.
+    if box.Center then box.Center:Hide() end
+    box:Show()
+    return true
+end
+
 function FormSectionSurfaceRenderer.ApplySectionBorder(group, border, surfaceInsets)
     if not group or not group.frame then
         return
@@ -62,7 +88,7 @@ function FormSectionSurfaceRenderer.ApplySectionBorder(group, border, surfaceIns
     local color = type(border) == "table" and (border.color or ResolveItemColor(border.colorKey)) or chromeColors.sectionBorder
     local left, right, top, bottom = ResolveSurfaceInsets(surfaceInsets)
 
-    if border == false or not color then
+    if border == false or not color or (frame._fpSectionGroupBox and frame._fpSectionGroupBox:IsShown()) then
         for _, name in ipairs({
             "_fpSectionBorderTop",
             "_fpSectionBorderBottom",
@@ -125,6 +151,7 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
     local surface = style and style.surface or nil
     local frame = group.frame
     local left, right, top, bottom = ResolveSurfaceInsets(style and style.surfaceInsets)
+    if frame._fpSectionGroupBox then frame._fpSectionGroupBox:Hide() end
 
     local function HideTexture(name)
         if frame[name] and frame[name].Hide then
@@ -132,12 +159,16 @@ function FormSectionSurfaceRenderer.ApplySectionSurface(group, sectionStyle)
         end
     end
 
-    if not surface then
+    local reserve = style and style.decorationReserve
+    local native = style and style.presentationMode == "blizzardGroupBox"
+        and ApplyNativeGroupBox(frame, 0, 0, -(reserve and reserve.top or 0), -(reserve and reserve.bottom or 0))
+    if not surface or native then
         HideTexture("_fpSectionFill")
         HideTexture("_fpSectionTopShade")
         HideTexture("_fpSectionBottomShade")
         HideTexture("_fpSectionAccent")
         HideTexture("_fpSectionDivider")
+        if native then FormSectionSurfaceRenderer.ApplySectionBorder(group, false) end
         return
     end
 

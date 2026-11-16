@@ -24,7 +24,7 @@ end
 local function Check()
     local targetWidth=window._focalPointCustomizeView=="properties" and 600 or 392
     assert(window.frame:GetWidth()==math.min(targetWidth,UIParent:GetWidth()-32))
-    local targetHeight=window._focalPointCustomizeView=="properties" and 520 or 620
+    local targetHeight=window._focalPointCustomizeView=="properties" and 576 or 620
     assert(window.frame:GetHeight()==math.min(targetHeight,UIParent:GetHeight()-100))
     -- Reproduce the real owner layout that used to overwrite the Body anchors.
     window:DoLayout();window:DoLayout()
@@ -56,7 +56,10 @@ local function Check()
     assert(window._focalPointComponentAddButton==nil and #body.children==3)
     assert(36+tree.frame:GetHeight()==height)
     assert(64+36+properties.frame:GetHeight()==window.frame:GetHeight()-16)
-    assert(window._focalPointPropertyScroll.frame:GetHeight()==height-36)
+    local navigation=window._focalPointPropertyNavigation
+    assert(navigation.parent==properties and navigation.frame:GetHeight()==40)
+    assert(window._focalPointPropertyScroll.frame:GetHeight()==height-36-40)
+    assert(window._focalPointPropertyScroll.frame.points.TOPLEFT.relative==navigation.frame)
     assert(header.frame:IsShown())
     local back=window._focalPointComponentsButton
     assert(back.frame:GetHeight()==30 and header.frame:GetHeight()==30)
@@ -76,7 +79,9 @@ local function Check()
         assert(math.abs(16+actualTextRight-(window.frame:GetWidth()-48))<.01,
             "component text must retain the Window's 48px right content inset")
         assert(math.abs(widgetRight-actualTextRight)<.01,"text does not reach its widget's right edge")
-        assert(object.label.lastSetJustifyH[1]=="RIGHT")
+        assert(object.label.lastSetJustifyH[1]=="LEFT")
+        assert(left.x+textLeft.x==window._focalPointComponentsButton.frame:GetWidth()+4,
+            "component text must start directly after the existing Back slot and gap")
     end
     -- A centered 30px navigation button fits inside the reserved y=64..94 row;
     -- the unchanged native title drag owner ends at y=56.

@@ -433,6 +433,7 @@ function InspectorController.Build(container, state, options)
     local buildPropertiesOnly = options.buildPropertiesOnly == true
     local workspaceIsCurrent = options.isCurrentBuild
     local resetWorkspacePropertyScroll = options.onPropertyGroupChanged
+    local propertyNavigationHost = buildPropertiesOnly and workspaceIsCurrent and options.propertyNavigationHost
 
 
     activeTextFontSizeControl = nil
@@ -440,6 +441,7 @@ function InspectorController.Build(container, state, options)
     activeCanvasDirectMoveOffsetControls = nil
     activeCanvasDecorationSizeControls = nil
     activeInspectorDiagnosticHosts = {}
+    if propertyNavigationHost then propertyNavigationHost:ReleaseChildren() end
     container:ReleaseChildren()
     container:SetLayout("Flow")
 
@@ -1806,20 +1808,24 @@ function InspectorController.Build(container, state, options)
         return content
     end
 
-    local function AddFramedObjectPropertyGroup(parent, title, addTopSpacing)
+    local function AddFramedObjectPropertyGroup(parent, title, addTopSpacing, presentationMode, textPresentation)
         if addTopSpacing then
             AddSpacer(parent, 8)
         end
 
+        local descriptor = presentationMode and InspectorBinding.ResolveSectionPresentation("muted", presentationMode)
+        local reserve = descriptor and descriptor.decorationReserve
+        local before = reserve and AddSpacer(parent, reserve.top)
         local group = CreateSection(parent, title, {
             collapsible = false,
             style = "default",
             titleTextRole = "strongHeading",
         })
         if group and InspectorBinding.ApplyInspectorSectionStructure then
-            InspectorBinding.ApplyInspectorSectionStructure(group, "muted")
+            InspectorBinding.ApplyInspectorSectionStructure(group, "muted", textPresentation, descriptor or presentationMode)
         end
-        return group
+        local after = reserve and AddSpacer(parent, reserve.bottom)
+        return group, before, after
     end
 
     -- Bar Workspace groups use the existing Health section chrome; Legacy keeps its factory.
@@ -2456,6 +2462,8 @@ function InspectorController.Build(container, state, options)
 
     -- Local presentation only; builders retain controls, callbacks and the existing Body owner.
     local function BeginFlatPropertyPresentation(body)
+        -- A local Body rebuild also replaces its navigation in the fixed host.
+        if propertyNavigationHost then propertyNavigationHost:ReleaseChildren() end
         -- TabSystemButtonArtTemplate's six textures, without its selection/Enabled mixin.
         local tabArt = {
             {key="artLeftActive", atlas="uiframe-activetab-left", active=true},
@@ -2466,7 +2474,7 @@ function InspectorController.Build(container, state, options)
             {key="artRight", atlas="uiframe-tab-right", active=false},
         }
         local atlasInfo = C_Texture and C_Texture.GetAtlasInfo or GetAtlasInfo
-        local useTabArt = type(atlasInfo) == "function"
+        local useTabArt = not propertyNavigationHost and type(atlasInfo) == "function"
         local minimumTabWidth = 0
         local activeCaps, inactiveCaps = 0, 0
         if useTabArt then
@@ -2519,7 +2527,7 @@ function InspectorController.Build(container, state, options)
         baseline:SetPoint("BOTTOMRIGHT", navigation.frame, "BOTTOMRIGHT", 0, 10)
         baseline:SetHeight(1)
         baseline:SetColorTexture(unpack(chrome.sectionBorder))
-        baseline:SetShown(not useTabArt)
+        baseline:SetShown(not propertyNavigationHost and not useTabArt)
         navigation:SetCallback("OnRelease", function()
             bindingActive = false
             baseline:Hide()
@@ -2575,7 +2583,19 @@ function InspectorController.Build(container, state, options)
                     surface.label:SetPoint("LEFT", group.button.frame, "LEFT", 8, y)
                     surface.label:SetPoint("RIGHT", group.button.frame, "RIGHT", -8, y)
                 end
+                if propertyNavigationHost then
+                    local yellow = NORMAL_FONT_COLOR or {r=1,g=.82,b=0}
+                    for _,name in ipairs({"fill","top","left","right"}) do surface[name]:Hide() end
+                    surface.label:SetTextColor(selected and yellow.r or 1, selected and yellow.g or 1,
+                        selected and yellow.b or 1, available[group.key] and 1 or .35)
+                    -- Same face/size and stable columns; same-color shadow adds local weight.
+                    surface.label:SetShadowColor(yellow.r, yellow.g, yellow.b, selected and 1 or 0)
+                    surface.label:SetShadowOffset(selected and .5 or 0, 0)
+                    surface.bottom:SetColorTexture(yellow.r, yellow.g, yellow.b, 1)
+                    surface.bottom:SetShown(selected)
+                end
             end
+            if propertyNavigationHost then propertyNavigationHost:DoLayout() end
             body:DoLayout()
             container:DoLayout()
             if container.FixScroll then container:FixScroll() end
@@ -2630,13 +2650,14 @@ function InspectorController.Build(container, state, options)
             end
             FormWidgets.ApplyTextStyle(surface.label, "label", 13, 1)
             surface.label:SetText(group.label)
-            surface.label:SetPoint("LEFT", frame, "LEFT", 8, 0)
-            surface.label:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+            local labelInset = propertyNavigationHost and 4 or 8
+            surface.label:SetPoint("LEFT", frame, "LEFT", labelInset, 0)
+            surface.label:SetPoint("RIGHT", frame, "RIGHT", -labelInset, 0)
             surface.label:SetWordWrap(false)
             local width = math.max(surface.label:GetStringWidth() + 16, useTabArt and minimumTabWidth or 0)
             button:SetWidth(width)
             button:SetFullWidth(true)
-            tabColumns[#tabColumns+1] = { weight = width }
+            tabColumns[#tabColumns+1] = { weight = propertyNavigationHost and 1 or width }
             surface.fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
             surface.top:SetHeight(1)
             surface.left:SetWidth(1)
@@ -2666,7 +2687,7 @@ function InspectorController.Build(container, state, options)
             navigation:AddChild(button)
         end
         -- AddChild can synchronously layout descendants; attach only after columns and tabs exist.
-        body:AddChild(navigation)
+        (propertyNavigationHost or body):AddChild(navigation)
         local function RegisterGroups(membership, actionsSection)
             if actionsSection then
                 -- Same Body owner and Remove callback; actions are not tab properties.
@@ -3264,9 +3285,28 @@ function InspectorController.Build(container, state, options)
         local appearanceSection = healthSection
         local backgroundSection = healthSection
         local behaviorSection = healthSection
+        local appearanceBefore, appearanceAfter, backgroundBefore, backgroundAfter
+        local healthGroupLayout
         if usePropertyGroups then
-            appearanceSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false)
-            backgroundSection = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", true)
+            local presentationMode = flatHealth and buildPropertiesOnly and "blizzardGroupBox" or nil
+            if presentationMode then
+                local titleColor = NORMAL_FONT_COLOR or ns.GUI.Helpers.TextStyles.Get("strongHeading")
+                healthGroupLayout = {
+                    contentPadding = { left = 24, right = 24, top = 31, bottom = 13 },
+                    title = { headerInsetX = 24, headerTopGap = 12, color = { titleColor.r, titleColor.g, titleColor.b }, alpha = 1 },
+                    groupGap = 2,
+                    bottomSpacer = 5,
+                }
+            end
+            local titlePresentation = healthGroupLayout and healthGroupLayout.title
+            appearanceSection, appearanceBefore, appearanceAfter = AddFramedObjectPropertyGroup(healthSection, L["SECTION_APPEARANCE"] or "Appearance", false, presentationMode, titlePresentation)
+            if healthGroupLayout then AddSpacer(healthSection, healthGroupLayout.groupGap) end
+            backgroundSection, backgroundBefore, backgroundAfter = AddFramedObjectPropertyGroup(healthSection, L["SECTION_BACKGROUND"] or L["OPTION_BACKGROUND"] or "Background", not healthGroupLayout, presentationMode, titlePresentation)
+            if presentationMode then
+                local renderer = ns.GUI.Helpers.FormSectionSurfaceRenderer
+                renderer.ApplySectionPadding(appearanceSection, healthGroupLayout.contentPadding)
+                renderer.ApplySectionPadding(backgroundSection, healthGroupLayout.contentPadding)
+            end
             if flatHealth or isExpert then
                 behaviorSection = CreateHealthPropertyGroup(healthSection, L["SECTION_BEHAVIOR"] or "Behavior", true)
             end
@@ -3275,6 +3315,10 @@ function InspectorController.Build(container, state, options)
             appearanceSection:SetUserData("normalAbsorbPropertyContent", true)
             backgroundSection:SetUserData("normalAbsorbPropertyContent", true)
             local membership = {[appearanceSection]="appearance", [backgroundSection]="appearance"}
+            if appearanceBefore then
+                membership[appearanceBefore], membership[appearanceAfter] = "appearance", "appearance"
+                membership[backgroundBefore], membership[backgroundAfter] = "appearance", "appearance"
+            end
             if flatHealth or isExpert then membership[behaviorSection] = "behavior" end
             registerHealthGroups(membership)
         end
@@ -3500,6 +3544,11 @@ function InspectorController.Build(container, state, options)
             end
         end
         AddUnitBarBorderRows(usePropertyGroups and backgroundSection or appearanceSection, "healthBar", usePropertyGroups, false)
+        if healthGroupLayout then
+            -- Local closing room; the existing Flow layout supplies its own three-unit gap.
+            AddSpacer(appearanceSection, healthGroupLayout.bottomSpacer)
+            AddSpacer(backgroundSection, healthGroupLayout.bottomSpacer)
+        end
         if projectHealthGroups then projectHealthGroups() end
     end
 

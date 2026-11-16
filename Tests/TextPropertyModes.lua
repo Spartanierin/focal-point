@@ -274,7 +274,13 @@ Test("user templates, long names and missing main/state references stay in the B
         unit.Texts.linkedText.templateId=id
         Select("linkedText");Click("behavior");Check(true)
         assert(not Button("Edit Text..."))
-        local content=Body().children[2];assert(content.titletext:GetText()=="Content")
+        local content
+        for _,group in ipairs(Body().children)do
+            if group.type=="InlineGroup" and group.titletext:GetText()=="Content"then
+                assert(not content,"duplicate Content group");content=group
+            end
+        end
+        assert(content,"missing Content group")
         local labelFound=false;p.Walk(content,function(w)
             if w.type=="Label" and (w.label:GetText() or ""):find(name,1,true)then labelFound=true end
         end);assert(labelFound)

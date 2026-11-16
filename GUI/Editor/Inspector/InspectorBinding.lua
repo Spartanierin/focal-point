@@ -122,8 +122,17 @@ local function ApplyInspectorSectionTypography(section, textPresentation, canoni
     presentation.fontFlags = descriptor.flags
     presentation.alpha = descriptor.alpha
     presentation.shadowEnabled = descriptor.shadowEnabled
+    local color = descriptor.color
+    if textPresentation and (textPresentation.color or textPresentation.alpha ~= nil) then
+        local api = ns.Ace and ns.Ace.PresentationPreview
+        local overrides = not canonicalOnly and api and api.GetTypographyOverrides("inspector_section_heading")
+        if textPresentation.color and not (overrides and overrides.color) then color = textPresentation.color end
+        if textPresentation.alpha ~= nil and not (overrides and overrides.alpha ~= nil) then
+            presentation.alpha = textPresentation.alpha
+        end
+    end
     presentation.color = {
-        descriptor.color[1], descriptor.color[2], descriptor.color[3], descriptor.alpha,
+        color[1], color[2], color[3], presentation.alpha,
     }
 
     if preview.ResolveTypographyFont then
@@ -133,11 +142,24 @@ local function ApplyInspectorSectionTypography(section, textPresentation, canoni
 end
 
 -- Shared canonical source for the public baseline and normal section builds.
-InspectorBinding.ResolveSectionPresentation = ResolveInspectorSectionPresentation
+local function ResolveSectionDescriptor(style, presentation)
+    local resolved = ResolveInspectorSectionPresentation(style)
+    local mode = type(presentation) == "table" and presentation.presentationMode or presentation
+    if mode == "blizzardGroupBox" and resolved then
+        resolved = ns.GUI.Helpers.FormRenderer.CloneLayoutValue(resolved)
+        resolved.presentationMode = mode
+        -- PROTOTYPE: one reserve definition shared by layout slots and native bounds.
+        resolved.decorationReserve = type(presentation) == "table" and presentation.decorationReserve
+            or { top = 6, bottom = 6 }
+    end
+    return resolved
+end
+InspectorBinding.ResolveSectionPresentation = ResolveSectionDescriptor
 
 local sectionTargets = { "inspector_section_surface", "inspector_section_border", "inspector_section_accent" }
-local function ApplySectionPresentation(section, style, canonicalOnly, colorsOnly)
-    local resolved = ResolveInspectorSectionPresentation(style)
+local function ApplySectionPresentation(section, style, canonicalOnly, colorsOnly, presentation)
+    local resolved = ResolveSectionDescriptor(style, presentation)
+    local presentationMode = resolved and resolved.presentationMode
     local composition = ns.GUI.PresentationCompositionPreview
     if composition and composition.Apply("inspector_section", section, resolved, canonicalOnly) then return resolved end
     local preview = ns.GUI.PresentationPreview
@@ -168,7 +190,14 @@ local function ApplySectionPresentation(section, style, canonicalOnly, colorsOnl
                 resolved.surface.accent.color = preview.ResolveColor(sectionTargets[3]) or resolved.surface.accent.color
             end
         end
+        if HasOverride(sectionTargets[1]) or HasOverride(sectionTargets[2]) or HasOverride(sectionTargets[3]) then
+            presentationMode = nil
+        end
     end
+    -- Keep the opt-in in the canonical descriptor, including rebind/reset. AceGUI's
+    -- existing release callback restores ordinary material before the owner is pooled.
+    if resolved and (not presentationMode or section.isQueuedForRelease) then resolved.presentationMode = nil end
+    if presentationMode or section.frame._fpSectionGroupBox then colorsOnly = false end
     if colorsOnly then
         FormSectionSurfaceRenderer.ApplySectionColors(section, resolved)
         -- An optional border preview may have created regions while the default
@@ -210,7 +239,7 @@ local function NeutralizeInspectorLegacyBoundary(section)
     end
 end
 
-function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPresentation)
+function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPresentation, presentationMode)
     if not section then
         return nil
     end
@@ -218,18 +247,21 @@ function InspectorBinding.ApplyInspectorSectionStructure(section, style, textPre
     local composition = ns.GUI.PresentationCompositionPreview
     if composition then
         composition.Bind("inspector_section", section, function(owner, canonicalOnly)
-            ApplySectionPresentation(owner, style, canonicalOnly)
+            ApplySectionPresentation(owner, style, canonicalOnly, nil, presentationMode)
         end)
     end
-    local resolved = ApplySectionPresentation(section, style)
+    local resolved = ApplySectionPresentation(section, style, nil, nil, presentationMode)
     if ns.GUI.PresentationPreview then
         ns.GUI.PresentationPreview.BindWidget(section, sectionTargets, function(owner, canonicalOnly)
             if canonicalOnly and composition then composition.Release("inspector_section", owner) end
-            ApplySectionPresentation(owner, style, canonicalOnly, not (canonicalOnly and composition))
+            ApplySectionPresentation(owner, style, canonicalOnly, not (canonicalOnly and composition), presentationMode)
         end)
         if ns.GUI.PresentationPreview.BindTypographyWidget then
             ns.GUI.PresentationPreview.BindTypographyWidget(section, { "inspector_section_heading" }, function(owner, canonicalOnly)
-                ApplyInspectorSectionTypography(owner, textPresentation, canonicalOnly)
+                -- Local title anchors belong to this section, not to a later pooled owner.
+                local activePresentation = textPresentation
+                if owner.isQueuedForRelease and presentationMode then activePresentation = nil end
+                ApplyInspectorSectionTypography(owner, activePresentation, canonicalOnly)
             end)
         end
     end

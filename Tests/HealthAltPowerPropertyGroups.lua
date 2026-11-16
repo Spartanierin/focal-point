@@ -109,7 +109,10 @@ Test("Health frames keep control order, one owner and titles across tabs, rebuil
             end
             assert(table.concat(labels,",")==expected,"Health control order changed")
             local padding=assert(groups[i]._fpSectionPadding)
-            assert(padding.left==16 and padding.right==16 and padding.top==27 and padding.bottom==13)
+            assert(padding.left==24 and padding.right==24 and padding.top==31 and padding.bottom==13)
+            assert(groups[i].titletext.points.TOPLEFT.x==24 and groups[i].titletext.points.TOPLEFT.y==-12)
+            local tail=groups[i].children[#groups[i].children]
+            assert(tail.type=="SimpleGroup" and #tail.children==0 and tail.frame:GetHeight()==5)
         end
         return groups
     end

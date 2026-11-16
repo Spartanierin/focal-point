@@ -33,7 +33,9 @@ local function Check(view)
     assert(backSize==13 and back.text.lastSetJustifyH[1]=="CENTER" and back.text.lastSetJustifyV[1]=="MIDDLE")
     local object=window._focalPointObjectBreadcrumb
     local _,objectSize=object.label:GetFont()
-    assert(objectSize==13 and object.label.lastSetJustifyH[1]=="RIGHT" and object.label.lastSetJustifyV[1]=="MIDDLE")
+    assert(objectSize==14 and object.label.lastSetJustifyH[1]=="LEFT" and object.label.lastSetJustifyV[1]=="MIDDLE")
+    local identity=ns.GUI.Helpers.TextStyles.TextColors.identity
+    h.Equal(object.label.lastSetTextColor,{identity.r,identity.g,identity.b,1})
     assert(object:GetUserData("cell").alignH=="start")
     if view=="properties"then
         assert(back.frame.points.LEFT.relative==header.content and back.frame.points.LEFT.x==0)
@@ -90,7 +92,7 @@ Test("tree selection opens existing Properties and Back preserves canonical sele
     Pick("healthbar") -- same selected object must still enter Properties.
     local label=window._focalPointObjectBreadcrumb.label:GetText()
     assert(label:find(ns.CompositionTreeView.GetSelectedNode().label,1,true))
-    assert(window.frame:GetWidth()==600 and window.frame:GetHeight()==math.min(520,UIParent:GetHeight()-100))
+    assert(window.frame:GetWidth()==600 and window.frame:GetHeight()==math.min(576,UIParent:GetHeight()-100))
 end)
 Test("collapse, disabled objects and checkbox toggles retain their existing semantics",function()
     Back();local node=Tree().options.visibleRows[2].node;assert(node.type=="healthbar")
@@ -238,7 +240,7 @@ Test("localized Back breadcrumb retains Unit/object context and table slots thro
             local node=assert(ns.CompositionTreeView.GetSelectedNode())
             assert(window._focalPointObjectBreadcrumb.label:GetText()==node.label)
             assert(window.titletext:GetText()==titleText)
-            assert(window._focalPointObjectBreadcrumb.label.lastSetJustifyH[1]=="RIGHT")
+            assert(window._focalPointObjectBreadcrumb.label.lastSetJustifyH[1]=="LEFT")
             local selected=h.Copy(selection.GetSelectedObject())
             window._focalPointComponentsButton.frame:Run("OnClick","LeftButton");Drain();Check("components")
             h.Equal(selection.GetSelectedObject(),selected)
@@ -462,7 +464,7 @@ Test("Text Shift-drag preserves Components/Properties through completion and que
             -- Show the real geometry tab so the rebuilt offset controls can be checked.
             local function Walk(w,fn)fn(w);for _,child in ipairs(w.children or {})do Walk(child,fn)end end
             local tab
-            Walk(window._focalPointPropertyScroll,function(w)
+            Walk(window._focalPointPropertyNavigation,function(w)
                 if w:GetUserData("normalAbsorbPropertyTab")=="geometry"then tab=w end
             end)
             assert(tab);tab:Fire("OnClick");Drain()

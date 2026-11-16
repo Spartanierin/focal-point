@@ -76,7 +76,7 @@ end
 
 ComputeInspectorGeometry = function(view)
     local width = math.min(view == "properties" and 600 or COMPONENT_LIST_WIDTH + 32, UIParent:GetWidth() - 32)
-    local height = math.min(view == "properties" and 520 or 620, UIParent:GetHeight() - 100)
+    local height = math.min(view == "properties" and 576 or 620, UIParent:GetHeight() - 100)
     local insetLeft = 16
     local insetRight = 16
     local insetTop = 64 -- Shared title reserve, independent of the selected shell.
@@ -178,7 +178,11 @@ ApplyInspectorGeometry = function(inspector, geometry)
         propertyRoot:SetWidth(geometry.contentWidth)
         propertyRoot:SetHeight(geometry.workspaceHeight)
         local scroll = inspector._focalPointPropertyScroll
-        if scroll and scroll.parent == propertyRoot then scroll:SetHeight(geometry.workspaceHeight) end
+        local navigation = inspector._focalPointPropertyNavigation
+        if scroll and scroll.parent == propertyRoot then
+            scroll:SetHeight(math.max(1, geometry.workspaceHeight - (navigation and navigation.frame:GetHeight() or 0)))
+        end
+        propertyRoot:DoLayout()
         return changed
     end
     return false
@@ -883,9 +887,10 @@ function EditorController.BuildInspector(container, deps)
         end
     end
 
-    local function BuildInspectorCallbacks(rebuildContext, rebuildSidebar, refreshProperties)
+    local function BuildInspectorCallbacks(rebuildContext, rebuildSidebar, refreshProperties, propertyNavigationHost)
         return {
             isCurrentBuild = IsCurrentBuild,
+            propertyNavigationHost = propertyNavigationHost,
             onPropertyGroupChanged = ResetPropertyScroll,
             onConfigChanged = function()
                 RefreshLiveUnit(state.selectedUnit)
@@ -954,10 +959,10 @@ function EditorController.BuildInspector(container, deps)
         local contextLabel = AceGUI:Create("Label")
         contextLabel:SetWidth(math.max(1, geometry.contentWidth - backWidth - 4 - 32))
         contextLabel:SetUserData("cell", {alignH="start",alignV="center"})
-        FormWidgets.ApplyTextStyle(contextLabel.label, "identity", 13, 1)
+        FormWidgets.ApplyTextStyle(contextLabel.label, "identity", 14, 1)
         contextLabel.label:SetWordWrap(false)
         contextLabel.label:SetMaxLines(1)
-        contextLabel.label:SetJustifyH("RIGHT")
+        contextLabel.label:SetJustifyH("LEFT")
         contextLabel.label:SetJustifyV("MIDDLE")
         header:AddChild(contextLabel)
         inspector._focalPointObjectBreadcrumb = contextLabel
@@ -1020,15 +1025,23 @@ function EditorController.BuildInspector(container, deps)
         root:SetWidth(geometry.contentWidth)
         root:SetHeight(propertyHeight)
         root:SetAutoAdjustHeight(false)
-        root:SetLayout("Flow")
+        root:SetLayout("List")
         inspectorContent:AddChild(root)
         root.frame:ClearAllPoints()
         root.frame:SetPoint("TOPLEFT", inspectorContent.frame, "TOPLEFT", 0, -geometry.workspaceTop)
 
+        local navigationHost = AceGUI:Create("SimpleGroup")
+        navigationHost:SetFullWidth(true)
+        navigationHost:SetHeight(40)
+        navigationHost:SetAutoAdjustHeight(false)
+        navigationHost:SetLayout("List")
+        root:AddChild(navigationHost)
+        inspector._focalPointPropertyNavigation = navigationHost
+
         propertyScrollWidget = AceGUI:Create("ScrollFrame")
         propertyScrollWidget:SetLayout("Flow")
         propertyScrollWidget:SetFullWidth(true)
-        propertyScrollWidget:SetHeight(propertyHeight)
+        propertyScrollWidget:SetHeight(math.max(1, propertyHeight - navigationHost.frame:GetHeight()))
         propertyScrollWidget:SetStatusTable(state.editorSidebarScroll)
         root:AddChild(propertyScrollWidget)
         inspector._focalPointPropertyScroll = propertyScrollWidget
@@ -1070,7 +1083,7 @@ function EditorController.BuildInspector(container, deps)
 
             ResetPropertyScroll()
 
-            Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties))
+            Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties, navigationHost))
             if propertyScrollWidget.DoLayout then
                 propertyScrollWidget:DoLayout()
             end
@@ -1087,7 +1100,7 @@ function EditorController.BuildInspector(container, deps)
         end
 
         ns.GUI.Editor._activeInspectorRefreshProperties = RebuildProperties
-        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties))
+        Inspector.BuildProperties(propertyScrollWidget, state, BuildInspectorCallbacks(nil, rebuildSidebar, RebuildProperties, navigationHost))
 
         if propertyScrollWidget.DoLayout then
             propertyScrollWidget:DoLayout()

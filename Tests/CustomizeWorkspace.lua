@@ -110,7 +110,7 @@ Test("first open has one Window with current unit, tree and actual properties", 
         if properties then
             assert(#visible==2 and visible[1]==back and visible[2]==objectLabel)
             local node=assert(ns.CompositionTreeView.GetSelectedNode())
-            assert(objectLabel.label:GetText()==node.label and objectLabel.label.lastSetJustifyH[1]=="RIGHT")
+            assert(objectLabel.label:GetText()==node.label and objectLabel.label.lastSetJustifyH[1]=="LEFT")
         else
             assert(#visible==1 and visible[1]==componentsLabel and objectLabel.label:GetText()=="")
         end
@@ -297,7 +297,7 @@ local function RootGroup(control)
 end
 local function RootTabs()
     local tabs,order={},{}
-    RootWalk(assert(RootSection(window._focalPointPropertyScroll,"frame")),function(w)
+    RootWalk(window._focalPointPropertyNavigation,function(w)
         local key=w:GetUserData("normalAbsorbPropertyTab")
         if key then assert(not tabs[key]);tabs[key]=w;order[#order+1]=key end
     end)
@@ -511,7 +511,7 @@ local function DecorationBody()return assert(RootSection(window._focalPointPrope
 local function DecorationControl(label,kind)return RootControl(label,kind,DecorationBody())end
 local function DecorationTabs()
     local tabs,order={},{}
-    RootWalk(DecorationBody(),function(w)
+    RootWalk(window._focalPointPropertyNavigation,function(w)
         local key=w:GetUserData("normalAbsorbPropertyTab")
         if key then assert(not tabs[key]);tabs[key]=w;order[#order+1]=key end
     end)

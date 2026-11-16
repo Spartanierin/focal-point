@@ -56,8 +56,9 @@ local function Check(key)
         assert(not tab.disabled and (tab.text:GetText() or "")=="")
         local surface=assert(tab.frame._fpNormalAbsorbTab)
         assert(surface.label:GetText()==labels[name] and surface.label:IsShown())
-        assert(tab.frame:GetWidth()>=surface.label:GetStringWidth()+16)
-        assert(surface.bottom:IsShown()==(name~=key))
+        assert(surface.label.points.LEFT.x==4 and surface.label.points.RIGHT.x==-4)
+        assert(tab.frame:GetWidth()>=surface.label:GetStringWidth()+8)
+        assert(surface.bottom:IsShown()==(name==key))
     end
     for _=1,2 do Body():DoLayout(); window._focalPointPropertyScroll:DoLayout() end
     for _,child in ipairs(Body().children) do
